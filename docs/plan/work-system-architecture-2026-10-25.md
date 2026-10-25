@@ -1,6 +1,6 @@
 # WeMeet 工作系统架构设计
 
-> 版本：v2.7（clean-slate 目标架构；新增 §22.2-1 领域模型 DDL 草案）
+> 版本：v2.9（clean-slate 目标架构；落地任务静止、预算账目、active_run 与审批模式修订，新增 §22.2-2 API/内部契约草案与 §22.2-3 云端任务→采纳参考纵切）
 >
 > 日期：2026-10-25
 >
@@ -467,8 +467,8 @@ Operation key由Work生成，例如`(run_id, turn_seq, model_request_seq)`和`(r
 
 | 实体 | 核心字段 / 约束 |
 |---|---|
-| Task | owner、goal_ref、output_contract、active_run_id、completion_state、parent_task/version_ref、revision |
-| Run | task_id、attempt_no、snapshot_id、target、lifecycle、wait_reason、fence、control_revision、workflow_id |
+| Task | owner、goal_ref、output_contract、active_run_id、latest_run_id、permission_mode、completion_state、parent_task/version_ref、revision |
+| Run | task_id、attempt_no、snapshot_id、target、lifecycle、wait_reason、terminal_reason、fence、control_revision、workflow_id |
 | CapabilitySnapshot | 解析版本、固定技能/套件版本、模型路由、工具上限、来源引用、scope上限、摘要哈希；不可变 |
 | Operation | run_id、logical_key、kind、request_hash、budget_reservation_id、dispatch_state、dispatch_attempt_id、consumer_id、provider_request_id、receipt_ref |
 | SubmissionDeduplication | org_id、subject_id、operation_type、client_request_id、request_hash、task_id/删除标记；跨Task唯一 |
@@ -487,16 +487,18 @@ Operation key由Work生成，例如`(run_id, turn_seq, model_request_seq)`和`(r
 
 Task 的初始快照固定；用户重试默认沿用同一快照，新版本重试明确创建新快照并保留关联，不能覆盖历史 Run 的快照。
 
+`active_run_id` 只指向非终态 Run；Run 进入终态时在同一事务清空并更新 `latest_run_id`。`create_run` 与 `accept_task` 都锁定 Task 行；采纳检查 `latest_run_id` 的 Run 已终态，且 Task 下没有 `prepared/waiting_approval/authorized/dispatching/unknown/unresolved` 的 Operation。审批模式固定记录在 Task，不因重试被静默放宽。
+
 ### 5.2 必须由数据库保证的约束
 
 1. 所有跨实体引用使用包含 `org_id` 的复合 FK，禁止同一 UUID 意外关联其他租户。
-2. 同一 Task 的 `attempt_no` 唯一；通过锁定 Task 行分配并更新 `active_run_id`。
-3. 同一 Task 不得出现两个可发起新动作的 Run；旧 Run 有未核对动作时，禁止创建可执行的后继 Run。
-4. `Operation(org_id, run_id, logical_key)` 唯一；同 key 不同参数哈希返回冲突。
+2. 同一 Task 的 `attempt_no` 唯一；`create_run` 在 Task 行锁内分配并更新 `active_run_id/latest_run_id`。
+3. 同一 Task 不得出现两个可发起新动作的 Run；旧 Run 的 Operation 处于 `prepared/waiting_approval/authorized/dispatching/unknown/unresolved` 时，禁止创建可执行的后继 Run。该约束由 Task 行锁、`create_run` 的阻塞检查与部分唯一索引共同保证，不能只靠部分唯一索引。
+4. `Operation(org_id, run_id, logical_key)` 唯一；同 key 不同参数哈希返回冲突；新建 Operation 必须绑定 active Run。
 5. `ApprovalDecision(request_id)` 使用 CAS 决定一次；重复同决定返回原结果，相反决定冲突。
 6. `ArtifactVersion(artifact_id, version_no)` 唯一；正文哈希、字节数和媒体类型不可事后修改。
 7. 采纳必须引用同租户、同任务、已发布且可访问的版本；同时检查Task revision、相关Run终态及无未核对动作门槛（§13.2）。
-8. 预算结算按 `operation_id + settlement_revision` 唯一；修正通过追加冲销记录，不能重复扣费。
+8. 预算结算按 `operation_id + settlement_revision` 唯一；同一 Operation 同时最多一个 `held/unknown` 预留；等待审批释放后重新预留使用新的 `reservation_seq`；修正通过追加 `adjust` 记录和新的 settlement revision，不能覆写历史或重复扣费。
 9. 业务状态变更、审计/outbox写入在同一事务内完成，不能先成功返回再补审计。
 10. 提交去重记录按`(org_id, subject_id, operation_type, client_request_id)`跨Task唯一，关联原Task/请求哈希；不能以Task ID本身作为去重作用域。
 
@@ -546,9 +548,10 @@ stateDiagram-v2
   cancel_requested --> canceled: 停止确认或安全隔离完成
 ```
 
-- 当前Run `succeeded` 后，只有`active_run_id`仍匹配且Task处于允许迁移的`open`时，才CAS进入`awaiting_acceptance`；不能覆盖已完成、取消或归档状态，也不能直接标记用户任务完成。
+- 当前Run `succeeded` 后，只有`active_run_id`仍匹配且Task处于允许迁移的`open`时，才CAS进入`awaiting_acceptance`；**同一事务清空`active_run_id`并更新`latest_run_id`**。不能覆盖已完成、取消或归档状态，也不能直接标记用户任务完成。
 - `queued` 到 `failed` 的条件（排队上限、目标设备不可用时限、快照被安全撤回）由控制面配置并在失败原因中说明；排队中的Run没有已派发Operation，可直接终态。
-- Run `failed` 后 Task 仍可 `open`，UI 显示“失败”；重新执行产生新 Run。`awaiting_acceptance` 的Task发起新Run时同一事务CAS回到 `open` 并更新 `active_run_id`，与采纳互斥（§13.2）。Run终态回写均检查active_run_id和Task revision，旧Run迟到结果不改变新Run的产品状态。
+- Run `failed` 后 Task 仍可 `open`，UI 显示“失败”；重新执行产生新 Run。`awaiting_acceptance` 的Task发起新Run时同一事务CAS回到 `open` 并更新 `active_run_id/latest_run_id`，与采纳互斥（§13.2）。Run终态回写均检查active_run_id、latest_run_id和Task revision，旧Run迟到结果不改变新Run的产品状态。
+- Task 的静止判定覆盖全部非终态/未核对 Operation：`prepared/waiting_approval/authorized/dispatching/unknown/unresolved` 均阻止新 Run 与采纳；只有 `succeeded/failed/canceled/reconciled` 不阻塞。不能只检查 `dispatching/unknown`。
 - 权限撤销先禁止新动作并将 Run 置停止处理中；用户可见“访问已撤销”，执行事实收敛后再标记终态。
 - `cancel_requested` 期间不能给出“已停止”的假确认；设备无法核对时显示停止待确认。
 - 取消后已发布成果保留只读；迟到候选输出不进入正式成果，仍保留必要执行回执以核账。
@@ -814,11 +817,31 @@ Web UI（不可信渲染）
 - 计划批准后仅计划覆盖的只读步骤自动；任何写入仍逐次审批。
 - 成果写入与用户主动下载区别处理：用户的“保存/导出”点击可构成该次明确意图，但 Agent 自动写盘不继承这项批准。
 
+#### 11.2.1 审批模式与动作分级
+
+产品定义的三种模式必须在服务端生效，不能只作为前端 chip（动作矩阵见[产品设计 §10.5](work-product-design-2026-10-25.md#105-审批)）：
+
+| 动作类别 | `ask_each`（默认） | `auto_readonly` | `plan_then_run` |
+|---|---|---|---|
+| 读取已授权本地文件/目录 | 询问 | 自动 | 计划批准后的只读步骤自动 |
+| 只读命令（列目录、读取、检索） | 询问 | 自动 | 计划批准后的只读步骤自动 |
+| 在授权目录写/改文件 | 询问 | 询问 | 询问 |
+| 读取连接器数据 | 按任务级 grant 授权 | 按任务级 grant 授权 | 计划批准后的只读步骤自动 |
+| 外部写入/删除/发消息 | 询问 | 询问 | 询问 |
+| 分享/导出敏感成果 | 询问 | 询问 | 询问 |
+
+- `permission_mode` 在 Task 提交时固定并写入快照/审计；变更模式需要新 Task 或显式重新预览，不能在同一 Task 内静默放宽。重试沿用 Task 的模式，不继承被撤销的临时批准。
+- 组织策略只能收紧：`force_ask_each` 可覆盖用户选择；`allow_auto_readonly`/`allow_plan_approval` 关闭时提交返回 `permission_mode_unavailable`。用户不能把组织限制改为更宽。
+- 自动批准不是“无记录放行”：仍必须创建 Operation、记录动作哈希/资源范围/策略版本，并写审计（`decision_source=policy_auto`）；只是不需要人工 ApprovalRequest。计划批准本身是 `target_type=plan` 的审批，只覆盖该 PlanVersion 的只读步骤；任何写入、外部副作用或计划变更重新逐次审批。
+- `auto_readonly` 的自动范围限当前 Task 的非终态运行，Task 终态即失效，不形成永久 allowlist；`plan_then_run` 只在该执行器和已开通阶段具备计划能力时出现，R0a 不展示。
+- 审批模式与 §11.1 的有效执行许可取交集，不新增资源、scope、连接器或目录权限；预算耗尽、撤权、服务方停用仍独立生效。
+- `bootstrap` 返回组织允许的模式；`task-previews` 返回生效模式与边界摘要；策略/模式在预览后变化返回 `preview_stale`，不能静默替换。
+
 ### 11.3 消费许可的线性化点
 
 本节是派发许可消费规则的唯一权威定义；§6.2、§7.4、§18.3 与 F21 的相关描述均以本节为准。
 
-服务端派发前，在事务中检验最新 policy/grant/seat epoch、Run fence、未消费审批和预算，再以CAS将 Operation 从 authorized 改为 dispatching，写入本次`dispatch_attempt_id`与唯一消费者身份。
+服务端派发前，在事务中按 Task → Run → Operation 顺序加锁，检验最新 policy/grant/seat epoch、`task.active_run_id`、Run 为 `active`、Run fence、未消费审批和预算，再以CAS将 Operation 从 authorized 改为 dispatching，写入本次`dispatch_attempt_id`与唯一消费者身份。只有 Run/Task 引用匹配、fence 匹配且 CAS 胜出者可以发送；采纳、取消、Run 终态与新 Run 使用同一 Task 锁串行化。
 
 - 此事务须满足该部署形态声明的**提交持久性边界**（§18.2：有灾备副本时含灾备故障域WAL落盘，无灾备时为同区多AZ同步副本）确认后才可发包；它是“已获准派发”的边界，与撤销事务有确定顺序。只有取得本次CAS胜出确认的消费者可以发送一次；读取到dispatching状态不等于获得发送许可。
 - 提交响应丢失、消费者崩溃或接管都不能重新消费该许可。持久提交与发包无法原子化：发包前/后退出可能留下同样的dispatching，统一视为“可能已发送”。
@@ -910,7 +933,7 @@ OAuth流程采用 PKCE、state绑定用户/组织/回调会话、严格redirect 
 - 编辑草稿与不可变成果版本分开；自动保存编辑草稿，不为每次击键产生正式版本。
 - 保存用 `If-Match/base_version`，冲突返回409，不做最后写入覆盖；复制为新版本可由用户显式选择。
 - 恢复旧内容是创建新版本或重新采纳旧版本，不篡改旧对象。
-- 采纳事务锁定Task及当前Run，验证Task revision、候选版本访问权/published状态；当前Run必须已终态且该Task无dispatching/unknown未核对动作，才允许追加Acceptance并完成Task。R3中间成果可预览，不在Run执行中将Task采纳完成。
+- 采纳事务锁定Task及latest Run，验证Task revision、候选版本访问权/published状态；`active_run_id`必须为空、`latest_run_id`的Run必须终态，且Task下无`prepared/waiting_approval/authorized/dispatching/unknown/unresolved` Operation，才允许追加Acceptance并完成Task。失败但已安全静止的Run也可采纳，未核对动作不能因“Run已失败”而被忽略。R3中间成果可预览，不在Run执行中将Task采纳完成。
 - 用户想在执行/重试期间采纳已有版本，先请求停止当前Run，待停止与动作核对完成，再显式采纳；服务端返回`run_not_quiescent`说明，不能边继续收费边完成任务。“停止本次运行并保留验收”保持Task为open，区别于“取消任务”将Task置canceled；不能取消Task后又通过采纳复活。采纳与新建Run共用Task锁/CAS，相互排斥。
 - 已取消/归档Task只读，不能通过采纳恢复执行；失败但未取消且已安全静止的Task可采纳其已发布成果。重新采纳已完成Task时也不得存在新的活动Run。
 - 编辑已采纳版本产生新版本但不自动改采纳；重新采纳需要显式动作。
@@ -958,7 +981,8 @@ R3 Project承载brief、source refs、context versions、计划与任务引用�
 - 每个模型/工具调用在派发前预留最坏成本；组织日/月、用户上限与Run上限在同一事务按固定顺序锁定。
 - 模型输入tokens+max_output、工具时间/次数限制定义上界。无可验证上界的供应商不能宣传硬预算，必须排除或显式接受有界超支策略。
 - 回执按Operation结算，释放未使用余量。账单后续调整追加修正，不覆写历史。
-- 等待审批可释放尚未派发预留，恢复时重新预留；unknown操作的预留不可按超时自动释放。
+- 等待审批可释放尚未派发预留，恢复时用新的 `reservation_seq` 重新预留；同一 Operation 同时最多一个 `held/unknown` 预留。unknown操作的预留不可按超时自动释放。
+- 结算按 `(operation_id, settlement_revision)` 唯一；同 revision 同金额视为幂等重试，不同金额冲突。修正通过追加 `adjust` 分录和新的 revision，不覆写历史结算；未用余量在 settle 时释放。
 - 持久化 `period_id`；跨日完成归入原预留账期，避免双扣/跨期规避。运行总额仍跨账期累计。
 - 预算降低后，已有授权调用允许结算；后续动作等待新额度。组织安全停用则停止许可，不因有预留继续执行。
 
@@ -972,7 +996,7 @@ R3 Project承载brief、source refs、context versions、计划与任务引用�
 
 ## 15. API与事件契约
 
-以下路径为新设计草案，不声明仓库已有实现；采用 OpenAPI 3.1、JSON Schema 与版本化内部 Protobuf 落实。
+以下路径为新设计草案，不声明仓库已有实现；采用 OpenAPI 3.1、JSON Schema 与版本化内部 Protobuf 落实。当前契约草案见[work-api-contracts-2026-10-25.md](work-api-contracts-2026-10-25.md)，资产目录见[assets/work-contracts-2026-10-25](assets/work-contracts-2026-10-25/README.md)。
 
 ### 15.1 用户与管理API
 
@@ -1009,7 +1033,7 @@ R3 Project承载brief、source refs、context versions、计划与任务引用�
   "suite": {"id": "suite-example", "version": 2},
   "supplemental_skills": [],
   "connectors": [],
-  "permission_mode": "ask",
+  "permission_mode": "ask_each",
   "output": {"format": "markdown"}
 }
 ```
@@ -1025,7 +1049,7 @@ R3 Project承载brief、source refs、context versions、计划与任务引用�
 
 错误结构：`code`、安全可展示message、`retryable`、`correlation_id`、`current_revision`、`recovery_action`。区分可安全重新请求与可重复执行外部动作，不以一个通用“重试”按钮混淆。
 
-代表错误：`scope_unavailable`、`preview_stale`、`policy_changed`、`approval_expired`、`budget_exhausted`、`device_offline`、`execution_unknown`、`version_conflict`、`content_local_only`、`protocol_unsupported`。
+代表错误：`scope_unavailable`、`preview_stale`、`policy_changed`、`permission_mode_unavailable`、`approval_expired`、`budget_exhausted`、`device_offline`、`execution_unknown`、`run_not_quiescent`、`version_conflict`、`content_local_only`、`protocol_unsupported`、`resync_required`。
 
 ### 15.3 用户事件
 
@@ -1343,17 +1367,18 @@ R0a也需要最小策略和计量，不把安全控制放到R0b补；R0b补的�
 | R5a/b/c 来源回链/委托调度/能力生态 | §16.4/§20.1 | 各自风险与业务验证；未实现 |
 | 私有化/BYO模型/数据驻留 | §10.5/§17.3/§18.1 | 驻留审查、本地模型验证 |
 | 数据导出/观测性 | §16.3/§19 | 审计导出、指标与SLO测量 |
+| API/事件/设备契约 | §15/§22.2-2 | OpenAPI/Protobuf 语法校验、幂等与 revision 负例、纵切联调 |
 
 ### 22.2 架构评审后下一批交付
 
-1. 领域模型DDL与状态迁移约束，包括复合FK、RLS、预算锁与唯一Operation键（[草案](work-data-model-ddl-draft-2026-10-25.md)，未评审/未应用）。
-2. OpenAPI/内部Protobuf/设备协议/事件schema，以及权限、错误码、幂等与版本规则。
-3. 三条可执行纵切：云端任务→采纳、本机授权→断线恢复、连接器scope→撤销。
+1. 领域模型DDL与状态迁移约束，包括复合FK、RLS、预算锁与唯一Operation键（[草案](work-data-model-ddl-draft-2026-10-25.md)，已按 P0-1/P0-2/P1-1/P1-2 修订并冒烟；未评审/未应用生产）。
+2. OpenAPI/内部Protobuf/设备协议/事件schema，以及权限、错误码、幂等与版本规则（[契约说明](work-api-contracts-2026-10-25.md)，[OpenAPI 3.1](assets/work-contracts-2026-10-25/openapi/work-openapi-v1.yaml)，[Protobuf/事件 schema](assets/work-contracts-2026-10-25/README.md)；已起草并通过语法校验，待协议评审）。
+3. 三条可执行纵切：云端任务→采纳（[参考切片](assets/work-cloud-slice-2026-10-25/README.md)，已实现并 10/10 测试通过）；本机授权→断线恢复、连接器scope→撤销（未开始）。
 4. 威胁模型与沙箱证明、供应商条款/资源授权能力核对、计量价表上界。
 5. 工作流升级与区域恢复runbook、SLO测量方案、故障注入自动化。
 6. 当前产品与本架构§1.3差异回写；真实用户测试与技术验证签收仍单列，不由本文件代替。
 
-以上2–6均未开始；第1项已起草草案（未评审、未应用）；A01–A13的独立ADR拆分与统一风险登记见§22.4。
+第1项已按 P0-1/P0-2/P1-1/P1-2 修订并冒烟（未评审、未应用生产）；第2项已起草契约草案并通过语法校验（未做真实鉴权/协议回归）；第3项的云端任务→采纳参考切片已实现并测试通过，本机/连接器纵切未开始；4–6未开始。A01–A13的独立ADR拆分与统一风险登记见§22.4。
 
 ### 22.3 评审结论边界
 

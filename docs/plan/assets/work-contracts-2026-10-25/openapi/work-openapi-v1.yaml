@@ -1,0 +1,1494 @@
+openapi: 3.1.0
+info:
+  title: WeMeet Work API
+  version: 1.0.0
+  description: |
+    Work 用户与管理 API 草案（§22.2-2）。这是目标契约，不是现有实现说明。
+    所有租户由服务端会话绑定；请求体/URL 不接受可信 org_id。用户与管理接口使用
+    `client_request_id` 做幂等，不另设 Idempotency-Key。错误、revision、SSE 恢复和
+    permission_mode 语义以所属架构文档为准。
+  contact:
+    name: WeMeet Work architecture
+servers:
+  - url: https://work.example.com
+    description: SaaS shared deployment
+  - url: https://work.example.internal
+    description: Private deployment example
+tags:
+  - name: Session
+  - name: Tasks
+  - name: Runs
+  - name: Approvals
+  - name: Artifacts
+  - name: Events
+  - name: Connectors
+  - name: Devices
+  - name: Capabilities
+  - name: Admin
+  - name: Operator
+security:
+  - sessionAuth: []
+  - bearerAuth: []
+paths:
+  /work/v1/bootstrap:
+    get:
+      tags: [Session]
+      operationId: getBootstrap
+      summary: 当前会话、组织、能力阶段与执行目标
+      responses:
+        "200":
+          description: 已认证会话的组织与 Work 能力
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Bootstrap" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /work/v1/task-previews:
+    post:
+      tags: [Tasks]
+      operationId: createTaskPreview
+      summary: 解析选择并返回执行边界预览
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaskPreviewRequest" }
+      responses:
+        "200":
+          description: 预览与费用上界；提交时必须重新解析
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskPreview" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /work/v1/tasks:
+    post:
+      tags: [Tasks]
+      operationId: submitTask
+      summary: 幂等提交 Task 与首个 Run
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaskSubmitRequest" }
+      responses:
+        "202":
+          description: 已持久受理，不代表模型已开始或已计费
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskRun" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+    get:
+      tags: [Tasks]
+      operationId: listTasks
+      summary: 本人可见的 Task 列表
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: state
+          in: query
+          schema: { $ref: "#/components/schemas/TaskState" }
+      responses:
+        "200":
+          description: Task 列表
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /work/v1/tasks/{taskId}:
+    get:
+      tags: [Tasks]
+      operationId: getTask
+      summary: Task 详情与最近 Run
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: Task 详情
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /work/v1/tasks/{taskId}/runs:
+    post:
+      tags: [Runs]
+      operationId: createRun
+      summary: 显式重试或基于当前快照创建新 Run
+      description: 服务端先检查旧 Run 的阻塞 Operation；permission_mode 固定，不允许在此放宽。
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaskRunRequest" }
+      responses:
+        "202":
+          description: Run 已受理
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskRun" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/runs/{runId}:
+    get:
+      tags: [Runs]
+      operationId: getRun
+      summary: Run 状态、等待原因与 fence
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "200":
+          description: Run 详情
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Run" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /work/v1/runs/{runId}/cancel:
+    post:
+      tags: [Runs]
+      operationId: cancelRun
+      summary: 幂等请求取消；不谎报进程已停止
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CancelRequest" }
+      responses:
+        "202":
+          description: 取消请求已受理；停止状态以 Run 对账结果为准
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Run" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/runs/{runId}/operations:
+    get:
+      tags: [Runs]
+      operationId: listRunOperations
+      summary: 运行中的模型/工具/外部动作账目
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Operation 列表
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OperationPage" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /work/v1/approvals:
+    get:
+      tags: [Approvals]
+      operationId: listApprovals
+      summary: 待处理审批
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/ApprovalStatus" }
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: 审批列表
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApprovalPage" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /work/v1/approvals/{approvalId}/decisions:
+    post:
+      tags: [Approvals]
+      operationId: decideApproval
+      summary: 对 Operation 或 Plan 提交批准/拒绝
+      parameters:
+        - $ref: "#/components/parameters/ApprovalId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApprovalDecisionRequest" }
+      responses:
+        "200":
+          description: 决定已记录；迟到决定返回冲突
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Approval" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/tasks/{taskId}/artifact-upload-sessions:
+    post:
+      tags: [Artifacts]
+      operationId: createArtifactUploadSession
+      summary: 创建绑定 Task/Run 的上传会话
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UploadSessionRequest" }
+      responses:
+        "201":
+          description: 上传会话与受控上传地址
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadSession" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/artifacts/{artifactId}/versions:
+    post:
+      tags: [Artifacts]
+      operationId: finalizeArtifactVersion
+      summary: 校验上传并提交不可变成果版本
+      parameters:
+        - $ref: "#/components/parameters/ArtifactId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ArtifactVersionRequest" }
+      responses:
+        "201":
+          description: 版本已发布
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ArtifactVersion" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/artifacts/{artifactId}/versions/{versionNo}:
+    get:
+      tags: [Artifacts]
+      operationId: getArtifactVersion
+      summary: 读取版本元数据与受控正文入口
+      parameters:
+        - $ref: "#/components/parameters/ArtifactId"
+        - name: versionNo
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: 版本详情
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ArtifactVersion" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /work/v1/tasks/{taskId}/acceptances:
+    post:
+      tags: [Artifacts]
+      operationId: acceptTask
+      summary: 采纳固定版本或记录无成果完成理由
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AcceptanceRequest" }
+      responses:
+        "200":
+          description: 采纳成功；Task 已完成
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AcceptanceResult" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/tasks/{taskId}/events:
+    get:
+      tags: [Events]
+      operationId: streamTaskEvents
+      summary: Task 持久事件 SSE；Last-Event-ID 恢复
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+        - $ref: "#/components/parameters/LastEventId"
+      responses:
+        "200":
+          description: |
+            text/event-stream。每个事件 id 为 event_id，data 为 TaskEvent JSON；
+            仅包含已过滤的公开回答与摘要，不传原始 reasoning。
+          headers:
+            Cache-Control:
+              schema: { type: string, example: "no-store" }
+          content:
+            text/event-stream:
+              schema: { type: string }
+              example: |
+                id: 7f7e0d7e-1f26-4d4c-b9bd-8d0a45f1e5c1
+                event: task.run.state_changed
+                data: {"event_id":"7f7e0d7e-1f26-4d4c-b9bd-8d0a45f1e5c1","task_id":"...","run_id":"...","aggregate_seq":12,"schema_version":1,"occurred_at":"2026-10-25T10:00:00Z","type":"task.run.state_changed","payload":{"state":"waiting","wait_reason":"approval"}}
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /work/v1/inbox:
+    get:
+      tags: [Events]
+      operationId: listInbox
+      summary: 跨 Task 的“需要你”投影
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: 待审批、待验收、失败等需要用户的条目
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InboxPage" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /work/v1/inbox/events:
+    get:
+      tags: [Events]
+      operationId: streamInboxEvents
+      summary: Inbox SSE；独立 cursor，不复用 Task seq
+      parameters:
+        - $ref: "#/components/parameters/LastEventId"
+      responses:
+        "200":
+          description: text/event-stream，data 为 InboxEvent JSON
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /work/v1/connector-connections:
+    get:
+      tags: [Connectors]
+      operationId: listConnectorConnections
+      summary: 当前用户的连接与 grant
+      responses:
+        "200":
+          description: 连接列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ConnectorConnection" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [Connectors]
+      operationId: createConnectorConnection
+      summary: 创建 OAuth/PKCE 授权流程；不返回长效 token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConnectorConnectionRequest" }
+      responses:
+        "201":
+          description: 授权入口与连接记录
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConnectorAuthorization" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/connector-grants/{grantId}/revoke:
+    post:
+      tags: [Connectors]
+      operationId: revokeConnectorGrant
+      summary: 撤销 grant，停止新调用与 refresh
+      parameters:
+        - name: grantId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RevokeRequest" }
+      responses:
+        "200":
+          description: 撤销结果
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConnectorGrant" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /work/v1/devices:
+    get:
+      tags: [Devices]
+      operationId: listDevices
+      summary: 当前用户已配对设备
+      responses:
+        "200":
+          description: 设备列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Device" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /work/v1/devices/pairings:
+    post:
+      tags: [Devices]
+      operationId: createDevicePairing
+      summary: 创建短时单次设备配对挑战
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PairingRequest" }
+      responses:
+        "201":
+          description: 配对挑战
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PairingChallenge" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/capabilities:
+    get:
+      tags: [Capabilities]
+      operationId: listCapabilities
+      summary: 当前组织可见的套件/技能/连接器/工具
+      parameters:
+        - name: kind
+          in: query
+          schema: { type: string, enum: [suite, skill, connector, tool] }
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: 能力定义与发布状态
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Capability" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /work/v1/admin/overview:
+    get:
+      tags: [Admin]
+      operationId: getAdminOverview
+      summary: 当前主组织的治理元数据，不返回成员正文
+      responses:
+        "200":
+          description: 管理概览
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminOverview" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /work/v1/admin/seats:
+    get:
+      tags: [Admin]
+      operationId: listSeats
+      summary: 席位与成员角色
+      responses:
+        "200":
+          description: 席位列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Seat" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    put:
+      tags: [Admin]
+      operationId: updateSeats
+      summary: 席位/角色批量更新，服务端检查上限与成员有效性
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SeatUpdateRequest" }
+      responses:
+        "200":
+          description: 更新后席位
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Seat" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/admin/budgets:
+    get:
+      tags: [Admin]
+      operationId: listBudgets
+      summary: 预算账户与已预留/已结算余额
+      responses:
+        "200":
+          description: 预算列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BudgetAccount" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    put:
+      tags: [Admin]
+      operationId: updateBudgets
+      summary: 预算参数调整；说明对在途预留的影响
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BudgetUpdateRequest" }
+      responses:
+        "200":
+          description: 更新后预算
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BudgetAccount" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/admin/policies:
+    get:
+      tags: [Admin]
+      operationId: getPolicy
+      summary: 当前组织策略与审批模式天花板
+      responses:
+        "200":
+          description: 策略
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrgPolicy" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    put:
+      tags: [Admin]
+      operationId: updatePolicy
+      summary: 保存显式 schema 策略；不允许自由脚本
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OrgPolicyUpdate" }
+      responses:
+        "200":
+          description: 更新后策略
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrgPolicy" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/admin/audit-exports:
+    post:
+      tags: [Admin]
+      operationId: createAuditExport
+      summary: 创建审计导出作业；每次下载重新鉴权
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuditExportRequest" }
+      responses:
+        "202":
+          description: 导出作业已受理
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuditExport" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/admin/audit-exports/{exportId}:
+    get:
+      tags: [Admin]
+      operationId: getAuditExport
+      summary: 查询导出状态与一次性受控下载
+      parameters:
+        - name: exportId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: 导出作业状态
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuditExport" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /work/v1/operator/organizations/{orgId}/suspend:
+    post:
+      tags: [Operator]
+      operationId: suspendOrganization
+      summary: 服务方停用组织执行上界
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OperatorActionRequest" }
+      responses:
+        "202":
+          description: 停用已受理；提升 epoch 并停止新许可
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OperatorResult" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /work/v1/operator/organizations/{orgId}/resume:
+    post:
+      tags: [Operator]
+      operationId: resumeOrganization
+      summary: 服务方恢复组织执行上界；不恢复已撤销 grant/席位
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OperatorActionRequest" }
+      responses:
+        "202":
+          description: 恢复已受理
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OperatorResult" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: we_meet_session
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+
+  parameters:
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ApprovalId:
+      name: approvalId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ArtifactId:
+      name: artifactId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    OrgId:
+      name: orgId
+      in: path
+      required: true
+      schema: { type: string }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+    LastEventId:
+      name: Last-Event-ID
+      in: header
+      schema: { type: string }
+      description: 上一个已确认的 event_id；超出保留窗口返回 resync_required
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema: { type: string }
+      description: 期望的 revision/ETag；不匹配返回 409
+
+  responses:
+    BadRequest:
+      description: 请求格式错误；不重试
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Unauthorized:
+      description: 未认证或会话已撤销
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Forbidden:
+      description: 权限不足或租户/资源不可见
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    NotFound:
+      description: 资源不存在或不可见
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Conflict:
+      description: revision/幂等/状态冲突
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    UnprocessableEntity:
+      description: 语义校验失败，如 scope、preview、permission_mode 不可用
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    ServiceUnavailable:
+      description: outbox/编排/依赖不可用；已持久受理的请求可安全重试
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  schemas:
+    PermissionMode:
+      type: string
+      enum: [ask_each, auto_readonly, plan_then_run]
+      description: ask_each 默认；auto_readonly 只对当前 Task 的只读动作自动；plan_then_run 仅在计划能力可用时出现
+    TaskState:
+      type: string
+      enum: [open, awaiting_acceptance, completed, canceled, archived]
+    RunState:
+      type: string
+      enum: [queued, active, waiting, cancel_requested, succeeded, failed, canceled]
+    WaitReason:
+      type: string
+      enum: [approval, input, budget, device, provider, reconcile]
+    OperationState:
+      type: string
+      enum: [prepared, waiting_approval, authorized, dispatching, unknown, succeeded, failed, canceled, reconciled, unresolved]
+    ApprovalStatus:
+      type: string
+      enum: [pending, approved, rejected, expired, revoked]
+    ArtifactState:
+      type: string
+      enum: [staged, published, quarantined]
+    TargetKind:
+      type: string
+      enum: [cloud, local, remote]
+    Decision:
+      type: string
+      enum: [approved, rejected]
+
+    Target:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind: { $ref: "#/components/schemas/TargetKind" }
+        profile: { type: string, description: 执行器/隔离 profile 标识 }
+        device_id: { type: [string, "null"], format: uuid, description: kind=remote 时必填 }
+
+    OutputSpec:
+      type: object
+      additionalProperties: false
+      properties:
+        format: { type: string, enum: [markdown, txt, csv, json] }
+        logical_name: { type: string }
+        max_bytes: { type: integer, minimum: 1 }
+
+    Intent:
+      type: object
+      additionalProperties: false
+      required: [input_ref, target, permission_mode, output]
+      properties:
+        input_ref: { type: string, description: 受控输入引用；不传正文 }
+        target: { $ref: "#/components/schemas/Target" }
+        suite: { $ref: "#/components/schemas/SuiteSelection" }
+        supplemental_skills:
+          type: array
+          maxItems: 3
+          items: { $ref: "#/components/schemas/SkillSelection" }
+        connectors:
+          type: array
+          items: { $ref: "#/components/schemas/ConnectorSelection" }
+        permission_mode: { $ref: "#/components/schemas/PermissionMode" }
+        output: { $ref: "#/components/schemas/OutputSpec" }
+
+    SuiteSelection:
+      type: object
+      additionalProperties: false
+      required: [id, version]
+      properties:
+        id: { type: string }
+        version: { type: integer, minimum: 1 }
+
+    SkillSelection:
+      type: object
+      additionalProperties: false
+      required: [id, version]
+      properties:
+        id: { type: string }
+        version: { type: integer, minimum: 1 }
+
+    ConnectorSelection:
+      type: object
+      additionalProperties: false
+      required: [connection_id, grant_id]
+      properties:
+        connection_id: { type: string, format: uuid }
+        grant_id: { type: string, format: uuid }
+        resource_selector: { type: object, additionalProperties: true }
+
+    TaskPreviewRequest:
+      type: object
+      additionalProperties: false
+      required: [intent]
+      properties:
+        intent: { $ref: "#/components/schemas/Intent" }
+
+    CostUpperBound:
+      type: object
+      additionalProperties: false
+      required: [amount_cents, currency, price_version]
+      properties:
+        amount_cents: { type: integer, minimum: 0 }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        price_version: { type: string }
+
+    TaskPreview:
+      type: object
+      additionalProperties: false
+      required: [preview_hash, effective_permission_mode, boundary_summary, cost_upper_bound, unavailable_reasons, expires_at]
+      properties:
+        preview_hash: { type: string }
+        effective_permission_mode: { $ref: "#/components/schemas/PermissionMode" }
+        allowed_permission_modes:
+          type: array
+          items: { $ref: "#/components/schemas/PermissionMode" }
+        boundary_summary:
+          type: array
+          items: { type: string }
+          description: 用户可读的权限、数据去向、工具和成果边界
+        cost_upper_bound: { $ref: "#/components/schemas/CostUpperBound" }
+        unavailable_reasons:
+          type: array
+          items: { type: string }
+        expires_at: { type: string, format: date-time }
+
+    TaskSubmitRequest:
+      type: object
+      additionalProperties: false
+      required: [client_request_id, preview_hash, intent]
+      properties:
+        client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        preview_hash: { type: string }
+        intent: { $ref: "#/components/schemas/Intent" }
+
+    TaskRunRequest:
+      type: object
+      additionalProperties: false
+      required: [client_request_id, target]
+      properties:
+        client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        snapshot_id: { type: [string, "null"], format: uuid, description: 省略时沿用 Task 初始快照 }
+        target: { $ref: "#/components/schemas/Target" }
+        reason: { type: string, maxLength: 500 }
+
+    CancelRequest:
+      type: object
+      additionalProperties: false
+      required: [client_request_id]
+      properties:
+        client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        reason: { type: string, maxLength: 500 }
+
+    ApprovalDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [client_request_id, expected_revision, params_hash, decision]
+      properties:
+        client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        expected_revision: { type: integer, minimum: 0 }
+        params_hash: { type: string }
+        decision: { $ref: "#/components/schemas/Decision" }
+        comment: { type: string, maxLength: 2000 }
+
+    UploadSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [logical_name, media_type, bytes, content_hash]
+      properties:
+        logical_name: { type: string }
+        media_type: { type: string }
+        bytes: { type: integer, minimum: 0 }
+        content_hash: { type: string }
+
+    UploadSession:
+      type: object
+      additionalProperties: false
+      required: [upload_session_id, upload_url, method, expires_at]
+      properties:
+        upload_session_id: { type: string, format: uuid }
+        upload_url: { type: string, format: uri }
+        method: { type: string, enum: [PUT, POST] }
+        expires_at: { type: string, format: date-time }
+        headers:
+          type: object
+          additionalProperties: { type: string }
+
+    ArtifactVersionRequest:
+      type: object
+      additionalProperties: false
+      required: [client_request_id, upload_session_id]
+      properties:
+        client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        upload_session_id: { type: string, format: uuid }
+        base_version: { type: [integer, "null"], minimum: 0 }
+
+    AcceptanceRequest:
+      type: object
+      additionalProperties: false
+      required: [client_request_id, expected_revision]
+      properties:
+        client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        expected_revision: { type: integer, minimum: 0 }
+        artifact_id: { type: [string, "null"], format: uuid }
+        version_no: { type: [integer, "null"], minimum: 1 }
+        completion_reason: { type: [string, "null"], maxLength: 2000 }
+      description: artifact/version 与 completion_reason 二选一；同时为空或同时填写均拒绝。
+
+    RevokeRequest:
+      type: object
+      additionalProperties: false
+      required: [client_request_id]
+      properties:
+        client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        reason: { type: string, maxLength: 500 }
+
+    ConnectorConnectionRequest:
+      type: object
+      additionalProperties: false
+      required: [provider]
+      properties:
+        provider: { type: string }
+        callback_state: { type: string, maxLength: 256 }
+
+    ConnectorAuthorization:
+      type: object
+      additionalProperties: false
+      required: [connection_id, authorization_url, expires_at]
+      properties:
+        connection_id: { type: string, format: uuid }
+        authorization_url: { type: string, format: uri }
+        expires_at: { type: string, format: date-time }
+
+    PairingRequest:
+      type: object
+      additionalProperties: false
+      required: [name, platform]
+      properties:
+        name: { type: string, maxLength: 120 }
+        platform: { type: string, enum: [windows, macos, linux, ios, android] }
+
+    PairingChallenge:
+      type: object
+      additionalProperties: false
+      required: [pairing_id, challenge, expires_at]
+      properties:
+        pairing_id: { type: string, format: uuid }
+        challenge: { type: string }
+        expires_at: { type: string, format: date-time }
+        qr_payload: { type: string }
+
+    Task:
+      type: object
+      additionalProperties: false
+      required: [id, owner_subject_id, state, permission_mode, active_run_id, latest_run_id, revision, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        owner_subject_id: { type: string }
+        goal: { type: string }
+        state: { $ref: "#/components/schemas/TaskState" }
+        permission_mode: { $ref: "#/components/schemas/PermissionMode" }
+        active_run_id: { type: [string, "null"], format: uuid }
+        latest_run_id: { type: [string, "null"], format: uuid }
+        revision: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Run:
+      type: object
+      additionalProperties: false
+      required: [id, task_id, attempt_no, state, snapshot_id, fence, control_revision, runtime_version, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        task_id: { type: string, format: uuid }
+        attempt_no: { type: integer, minimum: 1 }
+        state: { $ref: "#/components/schemas/RunState" }
+        wait_reason: { oneOf: [{ $ref: "#/components/schemas/WaitReason" }, { type: "null" }] }
+        terminal_reason: { type: [string, "null"] }
+        snapshot_id: { type: string, format: uuid }
+        target: { $ref: "#/components/schemas/Target" }
+        fence: { type: integer, minimum: 1 }
+        control_revision: { type: integer, minimum: 0 }
+        runtime_version: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Operation:
+      type: object
+      additionalProperties: false
+      required: [id, run_id, logical_key, kind, state, request_hash, revision, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        run_id: { type: string, format: uuid }
+        logical_key: { type: string }
+        kind: { type: string, enum: [model, tool, connector, artifact, journal] }
+        state: { $ref: "#/components/schemas/OperationState" }
+        request_hash: { type: string }
+        provider_request_id: { type: [string, "null"] }
+        receipt_ref: { type: [string, "null"] }
+        revision: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+
+    Approval:
+      type: object
+      additionalProperties: false
+      required: [id, task_id, target_type, params_hash, scope, risk, expires_at, status, revision]
+      properties:
+        id: { type: string, format: uuid }
+        task_id: { type: string, format: uuid }
+        run_id: { type: [string, "null"], format: uuid }
+        target_type: { type: string, enum: [operation, plan] }
+        operation_id: { type: [string, "null"], format: uuid }
+        plan_version_id: { type: [string, "null"], format: uuid }
+        params_hash: { type: string }
+        scope: { type: object, additionalProperties: true }
+        risk: { type: string, enum: [low, medium, high] }
+        expires_at: { type: string, format: date-time }
+        status: { $ref: "#/components/schemas/ApprovalStatus" }
+        revision: { type: integer, minimum: 0 }
+
+    ArtifactVersion:
+      type: object
+      additionalProperties: false
+      required: [artifact_id, version_no, logical_name, media_type, bytes, content_hash, state, location, created_at]
+      properties:
+        artifact_id: { type: string, format: uuid }
+        version_no: { type: integer, minimum: 1 }
+        logical_name: { type: string }
+        media_type: { type: string }
+        bytes: { type: integer, minimum: 0 }
+        content_hash: { type: string }
+        state: { $ref: "#/components/schemas/ArtifactState" }
+        location: { type: string, enum: [cloud, local_only] }
+        content_url: { type: [string, "null"], format: uri, description: 受控短期入口；local_only 为空 }
+        created_at: { type: string, format: date-time }
+        published_at: { type: [string, "null"], format: date-time }
+
+    Acceptance:
+      type: object
+      additionalProperties: false
+      required: [id, task_id, actor_subject_id, task_revision, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        task_id: { type: string, format: uuid }
+        artifact_id: { type: [string, "null"], format: uuid }
+        version_no: { type: [integer, "null"], minimum: 1 }
+        completion_reason: { type: [string, "null"] }
+        actor_subject_id: { type: string }
+        task_revision: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+
+    AcceptanceResult:
+      type: object
+      additionalProperties: false
+      required: [acceptance, task]
+      properties:
+        acceptance: { $ref: "#/components/schemas/Acceptance" }
+        task: { $ref: "#/components/schemas/Task" }
+
+    TaskRun:
+      type: object
+      additionalProperties: false
+      required: [task, run]
+      properties:
+        task: { $ref: "#/components/schemas/Task" }
+        run: { $ref: "#/components/schemas/Run" }
+
+    TaskPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Task" }
+        next_cursor: { type: [string, "null"] }
+
+    OperationPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Operation" }
+        next_cursor: { type: [string, "null"] }
+
+    ApprovalPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Approval" }
+        next_cursor: { type: [string, "null"] }
+
+    InboxItem:
+      type: object
+      additionalProperties: false
+      required: [type, task_id, cursor, created_at]
+      properties:
+        type: { type: string, enum: [approval, acceptance, failed_run, device_offline] }
+        task_id: { type: string, format: uuid }
+        run_id: { type: [string, "null"], format: uuid }
+        approval_id: { type: [string, "null"], format: uuid }
+        title: { type: string }
+        cursor: { type: string }
+        created_at: { type: string, format: date-time }
+
+    InboxPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/InboxItem" }
+        next_cursor: { type: [string, "null"] }
+
+    TaskEvent:
+      type: object
+      additionalProperties: false
+      required: [event_id, task_id, aggregate_seq, schema_version, occurred_at, type, payload]
+      properties:
+        event_id: { type: string, format: uuid }
+        task_id: { type: string, format: uuid }
+        run_id: { type: [string, "null"], format: uuid }
+        aggregate_seq: { type: integer, minimum: 1 }
+        schema_version: { type: integer, minimum: 1 }
+        occurred_at: { type: string, format: date-time }
+        type: { type: string }
+        payload: { type: object, additionalProperties: true }
+        content_ref: { type: [string, "null"] }
+
+    InboxEvent:
+      type: object
+      additionalProperties: false
+      required: [event_id, item, schema_version, occurred_at]
+      properties:
+        event_id: { type: string, format: uuid }
+        item: { $ref: "#/components/schemas/InboxItem" }
+        schema_version: { type: integer, minimum: 1 }
+        occurred_at: { type: string, format: date-time }
+
+    Bootstrap:
+      type: object
+      additionalProperties: false
+      required: [subject_id, org, permissions, phases, execution_targets, allowed_permission_modes, limits]
+      properties:
+        subject_id: { type: string }
+        org:
+          type: object
+          additionalProperties: false
+          required: [id, name, role, work_seat]
+          properties:
+            id: { type: string }
+            name: { type: string }
+            role: { type: string, enum: [owner, admin, member, viewer] }
+            work_seat: { type: boolean }
+        permissions:
+          type: array
+          items: { type: string }
+        phases:
+          type: array
+          items: { type: string, enum: [R0a, R0b, R1, R2a, R2b, R3, R4a, R4b, R5a, R5b, R5c] }
+        execution_targets:
+          type: array
+          items: { $ref: "#/components/schemas/Target" }
+        allowed_permission_modes:
+          type: array
+          items: { $ref: "#/components/schemas/PermissionMode" }
+        limits:
+          type: object
+          additionalProperties: true
+          properties:
+            max_supplemental_skills: { type: integer, minimum: 0 }
+            max_active_runs: { type: integer, minimum: 0 }
+            max_input_bytes: { type: integer, minimum: 0 }
+
+    ConnectorConnection:
+      type: object
+      additionalProperties: false
+      required: [id, provider, status, revision, grants]
+      properties:
+        id: { type: string, format: uuid }
+        provider: { type: string }
+        status: { type: string, enum: [active, revoked, expired] }
+        revision: { type: integer, minimum: 0 }
+        grants:
+          type: array
+          items: { $ref: "#/components/schemas/ConnectorGrant" }
+
+    ConnectorGrant:
+      type: object
+      additionalProperties: false
+      required: [id, resource_selector, allowed_actions, status, revision]
+      properties:
+        id: { type: string, format: uuid }
+        resource_selector: { type: object, additionalProperties: true }
+        allowed_actions:
+          type: array
+          items: { type: string }
+        expires_at: { type: [string, "null"], format: date-time }
+        status: { type: string, enum: [active, revoked, expired] }
+        revision: { type: integer, minimum: 0 }
+
+    Device:
+      type: object
+      additionalProperties: false
+      required: [id, name, platform, status, protocol_version]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        platform: { type: string, enum: [windows, macos, linux, ios, android] }
+        status: { type: string, enum: [pending, active, revoked] }
+        protocol_version: { type: string }
+        last_seen_at: { type: [string, "null"], format: date-time }
+        capabilities:
+          type: array
+          items: { type: string }
+
+    Capability:
+      type: object
+      additionalProperties: false
+      required: [id, kind, slug, name, status, versions]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [suite, skill, connector, tool] }
+        slug: { type: string }
+        name: { type: string }
+        status: { type: string, enum: [draft, reviewed, published, withdrawn] }
+        versions:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [version, content_hash, status]
+            properties:
+              version: { type: integer, minimum: 1 }
+              content_hash: { type: string }
+              status: { type: string, enum: [draft, reviewed, published, revoked] }
+
+    Seat:
+      type: object
+      additionalProperties: false
+      required: [subject_id, role, work_seat, status, revision]
+      properties:
+        subject_id: { type: string }
+        role: { type: string, enum: [owner, admin, member, viewer] }
+        work_seat: { type: boolean }
+        status: { type: string, enum: [invited, active, suspended, left] }
+        revision: { type: integer, minimum: 0 }
+
+    SeatUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [seats]
+      properties:
+        seats:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [subject_id, role, work_seat]
+            properties:
+              subject_id: { type: string }
+              role: { type: string, enum: [owner, admin, member, viewer] }
+              work_seat: { type: boolean }
+
+    BudgetAccount:
+      type: object
+      additionalProperties: false
+      required: [id, account_key, period_id, currency, limit_cents, reserved_cents, settled_cents, revision]
+      properties:
+        id: { type: string, format: uuid }
+        account_key: { type: string }
+        period_id: { type: string }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        limit_cents: { type: integer, minimum: 0 }
+        reserved_cents: { type: integer, minimum: 0 }
+        settled_cents: { type: integer, minimum: 0 }
+        revision: { type: integer, minimum: 0 }
+
+    BudgetUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [accounts]
+      properties:
+        accounts:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [account_key, period_id, currency, limit_cents]
+            properties:
+              account_key: { type: string }
+              period_id: { type: string }
+              currency: { type: string, minLength: 3, maxLength: 3 }
+              limit_cents: { type: integer, minimum: 0 }
+
+    OrgPolicy:
+      type: object
+      additionalProperties: false
+      required: [org_id, revision, force_ask_each, allow_auto_readonly, allow_plan_approval, policy]
+      properties:
+        org_id: { type: string }
+        revision: { type: integer, minimum: 1 }
+        force_ask_each: { type: boolean }
+        allow_auto_readonly: { type: boolean }
+        allow_plan_approval: { type: boolean }
+        policy: { type: object, additionalProperties: true }
+
+    OrgPolicyUpdate:
+      type: object
+      additionalProperties: false
+      required: [force_ask_each, allow_auto_readonly, allow_plan_approval, policy]
+      properties:
+        force_ask_each: { type: boolean }
+        allow_auto_readonly: { type: boolean }
+        allow_plan_approval: { type: boolean }
+        policy: { type: object, additionalProperties: true }
+
+    AdminOverview:
+      type: object
+      additionalProperties: false
+      required: [org_id, seats, active_runs, budget, policy_revision]
+      properties:
+        org_id: { type: string }
+        seats:
+          type: object
+          additionalProperties: false
+          required: [used, limit]
+          properties:
+            used: { type: integer, minimum: 0 }
+            limit: { type: integer, minimum: 0 }
+        active_runs: { type: integer, minimum: 0 }
+        budget: { $ref: "#/components/schemas/BudgetAccount" }
+        policy_revision: { type: integer, minimum: 1 }
+
+    AuditExportRequest:
+      type: object
+      additionalProperties: false
+      required: [from, to]
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        event_types:
+          type: array
+          items: { type: string }
+
+    AuditExport:
+      type: object
+      additionalProperties: false
+      required: [id, state, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        state: { type: string, enum: [submitted, processing, ready, failed, expired] }
+        download_url: { type: [string, "null"], format: uri }
+        expires_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+
+    OperatorActionRequest:
+      type: object
+      additionalProperties: false
+      required: [client_request_id, reason]
+      properties:
+        client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        reason: { type: string, maxLength: 2000 }
+
+    OperatorResult:
+      type: object
+      additionalProperties: false
+      required: [org_id, execution_enabled, policy_epoch]
+      properties:
+        org_id: { type: string }
+        execution_enabled: { type: boolean }
+        policy_epoch: { type: integer, minimum: 0 }
+
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [code, message, retryable, correlation_id]
+      properties:
+        code: { $ref: "#/components/schemas/ErrorCode" }
+        message: { type: string }
+        retryable: { type: boolean }
+        correlation_id: { type: string }
+        current_revision: { type: [integer, "null"], minimum: 0 }
+        recovery_action: { type: [string, "null"] }
+
+    ErrorCode:
+      type: string
+      enum:
+        - invalid_request
+        - idempotency_key_mismatch
+        - idempotency_conflict
+        - scope_unavailable
+        - preview_stale
+        - policy_changed
+        - permission_mode_unavailable
+        - approval_expired
+        - budget_exhausted
+        - device_offline
+        - execution_unknown
+        - run_not_quiescent
+        - version_conflict
+        - content_local_only
+        - protocol_unsupported
+        - resync_required
+        - service_degraded

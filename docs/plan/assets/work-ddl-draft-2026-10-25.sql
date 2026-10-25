@@ -40,6 +40,17 @@ CREATE TABLE work.member (
   UNIQUE (org_id, subject_id)
 );
 
+-- R0 审批模式的最小组织策略；完整 Policy Evaluator 仍在控制面模块。
+CREATE TABLE work.org_policy (
+  org_id text PRIMARY KEY REFERENCES work.org(id),
+  revision bigint NOT NULL DEFAULT 1,
+  force_ask_each boolean NOT NULL DEFAULT false,
+  allow_auto_readonly boolean NOT NULL DEFAULT false,
+  allow_plan_approval boolean NOT NULL DEFAULT false,
+  policy jsonb NOT NULL DEFAULT '{}'::jsonb,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- ---------------------------------------------------------------------------
 -- 能力注册表与执行快照
 -- ---------------------------------------------------------------------------
@@ -97,7 +108,7 @@ CREATE TABLE work.capability_snapshot (
   manifest jsonb NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (id, org_id),
-  UNIQUE (id, org_id, task_id)
+  UNIQUE (id, task_id, org_id)
 );
 
 -- ---------------------------------------------------------------------------
@@ -140,7 +151,10 @@ CREATE TABLE work.task (
   owner_subject_id text NOT NULL,
   state text NOT NULL CHECK (state IN ('open', 'awaiting_acceptance', 'completed', 'canceled', 'archived')),
   active_run_id uuid,
+  latest_run_id uuid,
   snapshot_id uuid,
+  permission_mode text NOT NULL DEFAULT 'ask_each'
+    CHECK (permission_mode IN ('ask_each', 'auto_readonly', 'plan_then_run')),
   completion_reason text,
   parent_task_id uuid,
   revision bigint NOT NULL DEFAULT 0,
@@ -159,6 +173,7 @@ CREATE TABLE work.run (
   attempt_no int NOT NULL CHECK (attempt_no > 0),
   state text NOT NULL CHECK (state IN ('queued', 'active', 'waiting', 'cancel_requested', 'succeeded', 'failed', 'canceled')),
   wait_reason text CHECK (wait_reason IN ('approval', 'input', 'budget', 'device', 'provider', 'reconcile')),
+  terminal_reason text,
   fence bigint NOT NULL DEFAULT 1,
   control_revision bigint NOT NULL DEFAULT 0,
   snapshot_id uuid NOT NULL,
@@ -171,12 +186,19 @@ CREATE TABLE work.run (
   UNIQUE (id, task_id, org_id),
   UNIQUE (workflow_id),
   FOREIGN KEY (task_id, org_id) REFERENCES work.task(id, org_id),
-  FOREIGN KEY (snapshot_id, org_id) REFERENCES work.capability_snapshot(id, org_id)
+  FOREIGN KEY (snapshot_id, task_id, org_id)
+    REFERENCES work.capability_snapshot(id, task_id, org_id)
 );
 
 ALTER TABLE work.task
   ADD CONSTRAINT fk_task_active_run
   FOREIGN KEY (active_run_id, id, org_id)
+  REFERENCES work.run(id, task_id, org_id)
+  DEFERRABLE INITIALLY DEFERRED;
+
+ALTER TABLE work.task
+  ADD CONSTRAINT fk_task_latest_run
+  FOREIGN KEY (latest_run_id, id, org_id)
   REFERENCES work.run(id, task_id, org_id)
   DEFERRABLE INITIALLY DEFERRED;
 
@@ -305,30 +327,47 @@ CREATE TABLE work.budget_reservation (
   org_id text NOT NULL,
   account_id uuid NOT NULL,
   operation_id uuid NOT NULL,
+  reservation_seq int NOT NULL DEFAULT 1 CHECK (reservation_seq > 0),
   amount_cents bigint NOT NULL CHECK (amount_cents > 0),
+  settled_cents bigint NOT NULL DEFAULT 0 CHECK (settled_cents >= 0),
   state text NOT NULL CHECK (state IN ('held', 'settled', 'released', 'unknown')),
+  settlement_revision int NOT NULL DEFAULT 0 CHECK (settlement_revision >= 0),
   created_at timestamptz NOT NULL DEFAULT now(),
   settled_at timestamptz,
   UNIQUE (id, org_id),
-  UNIQUE (operation_id),
+  UNIQUE (operation_id, reservation_seq),
+  CHECK (settled_cents <= amount_cents),
   FOREIGN KEY (account_id, org_id) REFERENCES work.budget_account(id, org_id),
   FOREIGN KEY (operation_id, org_id) REFERENCES work.operation(id, org_id)
 );
+
+-- 同一 Operation 最多一个 held/unknown 预留；释放后可用新的 reservation_seq 重预留。
+CREATE UNIQUE INDEX work_budget_one_active_reservation
+  ON work.budget_reservation(operation_id)
+  WHERE state IN ('held', 'unknown');
 
 CREATE TABLE work.budget_entry (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id text NOT NULL,
   account_id uuid NOT NULL,
+  reservation_id uuid,
   operation_id uuid,
   kind text NOT NULL CHECK (kind IN ('reserve', 'settle', 'release', 'adjust')),
   amount_cents bigint NOT NULL,
+  settlement_revision int NOT NULL DEFAULT 0 CHECK (settlement_revision >= 0),
   price_version text,
   usage jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (id, org_id),
   FOREIGN KEY (account_id, org_id) REFERENCES work.budget_account(id, org_id),
+  FOREIGN KEY (reservation_id, org_id) REFERENCES work.budget_reservation(id, org_id),
   FOREIGN KEY (operation_id, org_id) REFERENCES work.operation(id, org_id)
 );
+
+-- settle/adjust 按 operation_id + settlement_revision 唯一；reserve/release 不参与。
+CREATE UNIQUE INDEX work_budget_settlement_unique
+  ON work.budget_entry(operation_id, settlement_revision)
+  WHERE kind IN ('settle', 'adjust') AND settlement_revision > 0;
 
 -- ---------------------------------------------------------------------------
 -- 成果
@@ -724,6 +763,245 @@ CREATE TRIGGER approval_transition BEFORE UPDATE OF status ON work.approval
 CREATE TRIGGER artifact_version_transition BEFORE UPDATE OF state ON work.artifact_version
   FOR EACH ROW EXECUTE FUNCTION work.enforce_state_transition('artifact_version');
 
+-- ---------------------------------------------------------------------------
+-- 领域命令：Task / Run / Operation
+--   * 所有命令按 Task -> Run -> Operation 顺序加锁，避免采纳/派发/新 Run 互相穿透。
+--   * active_run_id 只指向非终态 Run；latest_run_id 保留最近一次 Run。
+--   * 旧 Run 存在未终态或 unresolved Operation 时，新 Run 与采纳均被拒绝。
+-- ---------------------------------------------------------------------------
+CREATE FUNCTION work.task_has_blocking_operation(p_task_id uuid, p_org_id text)
+RETURNS boolean
+LANGUAGE sql STABLE AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM work.operation o
+    JOIN work.run r ON r.id = o.run_id AND r.org_id = o.org_id
+    WHERE r.task_id = p_task_id
+      AND o.org_id = p_org_id
+      AND o.state IN (
+        'prepared', 'waiting_approval', 'authorized',
+        'dispatching', 'unknown', 'unresolved'
+      )
+  );
+$$;
+
+CREATE FUNCTION work.enforce_operation_creation() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM 1
+  FROM work.run r
+  JOIN work.task t ON t.id = r.task_id AND t.org_id = r.org_id
+  WHERE r.id = NEW.run_id
+    AND r.org_id = NEW.org_id
+    AND t.state = 'open'
+    AND t.active_run_id = r.id
+    AND r.state IN ('active', 'waiting')
+  FOR SHARE OF r, t;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'operation_run_not_active' USING ERRCODE = 'P0001';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER operation_creation BEFORE INSERT ON work.operation
+  FOR EACH ROW EXECUTE FUNCTION work.enforce_operation_creation();
+
+CREATE FUNCTION work.create_operation(
+  p_run_id uuid,
+  p_org_id text,
+  p_logical_key text,
+  p_kind text,
+  p_request_hash text
+) RETURNS uuid
+LANGUAGE plpgsql AS $$
+DECLARE
+  run_row work.run%ROWTYPE;
+  existing work.operation%ROWTYPE;
+  operation_id uuid := gen_random_uuid();
+BEGIN
+  SELECT * INTO run_row FROM work.run WHERE id = p_run_id AND org_id = p_org_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'run_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  PERFORM 1 FROM work.task WHERE id = run_row.task_id AND org_id = p_org_id FOR UPDATE;
+  SELECT * INTO run_row FROM work.run WHERE id = p_run_id AND org_id = p_org_id FOR UPDATE;
+  IF run_row.state NOT IN ('active', 'waiting') THEN
+    RAISE EXCEPTION 'run_not_accepting_operations' USING ERRCODE = 'P0001';
+  END IF;
+  SELECT * INTO existing
+  FROM work.operation
+  WHERE org_id = p_org_id AND run_id = p_run_id AND logical_key = p_logical_key;
+  IF FOUND THEN
+    IF existing.request_hash <> p_request_hash THEN
+      RAISE EXCEPTION 'operation_key_conflict' USING ERRCODE = 'P0001';
+    END IF;
+    RETURN existing.id;
+  END IF;
+  INSERT INTO work.operation
+    (id, org_id, run_id, logical_key, kind, request_hash, state)
+  VALUES
+    (operation_id, p_org_id, p_run_id, p_logical_key, p_kind, p_request_hash, 'prepared');
+  RETURN operation_id;
+END;
+$$;
+
+CREATE FUNCTION work.create_run(
+  p_task_id uuid,
+  p_org_id text,
+  p_snapshot_id uuid,
+  p_workflow_id text,
+  p_runtime_version text
+) RETURNS uuid
+LANGUAGE plpgsql AS $$
+DECLARE
+  task_row work.task%ROWTYPE;
+  next_attempt int;
+  run_id uuid := gen_random_uuid();
+BEGIN
+  SELECT * INTO task_row
+  FROM work.task
+  WHERE id = p_task_id AND org_id = p_org_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'task_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF task_row.state NOT IN ('open', 'awaiting_acceptance') THEN
+    RAISE EXCEPTION 'task_not_runnable' USING ERRCODE = 'P0001';
+  END IF;
+  IF task_row.active_run_id IS NOT NULL THEN
+    RAISE EXCEPTION 'task_has_active_run' USING ERRCODE = 'P0001';
+  END IF;
+  IF work.task_has_blocking_operation(p_task_id, p_org_id) THEN
+    RAISE EXCEPTION 'task_has_unresolved_operation' USING ERRCODE = 'P0001';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM work.capability_snapshot
+    WHERE id = p_snapshot_id AND org_id = p_org_id AND task_id = p_task_id
+  ) THEN
+    RAISE EXCEPTION 'snapshot_not_in_task' USING ERRCODE = 'P0001';
+  END IF;
+  SELECT COALESCE(MAX(attempt_no), 0) + 1 INTO next_attempt
+  FROM work.run
+  WHERE task_id = p_task_id AND org_id = p_org_id;
+  INSERT INTO work.run
+    (id, org_id, task_id, attempt_no, state, snapshot_id, workflow_id, runtime_version)
+  VALUES
+    (run_id, p_org_id, p_task_id, next_attempt, 'queued', p_snapshot_id, p_workflow_id, p_runtime_version);
+  UPDATE work.task
+  SET state = 'open',
+      active_run_id = run_id,
+      latest_run_id = run_id,
+      revision = revision + 1,
+      updated_at = now()
+  WHERE id = p_task_id AND org_id = p_org_id;
+  RETURN run_id;
+END;
+$$;
+
+CREATE FUNCTION work.finish_run(
+  p_run_id uuid,
+  p_org_id text,
+  p_outcome text,
+  p_reason text DEFAULT NULL
+) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  run_row work.run%ROWTYPE;
+  task_row work.task%ROWTYPE;
+  task_id uuid;
+BEGIN
+  IF p_outcome NOT IN ('succeeded', 'failed', 'canceled') THEN
+    RAISE EXCEPTION 'invalid_run_outcome' USING ERRCODE = '22023';
+  END IF;
+  SELECT r.task_id INTO task_id FROM work.run r
+  WHERE r.id = p_run_id AND r.org_id = p_org_id;
+  IF task_id IS NULL THEN
+    RAISE EXCEPTION 'run_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  SELECT * INTO task_row FROM work.task
+  WHERE id = task_id AND org_id = p_org_id FOR UPDATE;
+  SELECT * INTO run_row FROM work.run
+  WHERE id = p_run_id AND org_id = p_org_id FOR UPDATE;
+  IF task_row.state NOT IN ('open', 'canceled')
+     OR task_row.active_run_id IS DISTINCT FROM p_run_id THEN
+    RAISE EXCEPTION 'run_not_current' USING ERRCODE = 'P0001';
+  END IF;
+  IF p_outcome = 'succeeded' AND task_row.state <> 'open' THEN
+    RAISE EXCEPTION 'canceled_task_cannot_succeed' USING ERRCODE = 'P0001';
+  END IF;
+  IF p_outcome = 'succeeded' AND work.task_has_blocking_operation(task_id, p_org_id) THEN
+    RAISE EXCEPTION 'run_has_unresolved_operation' USING ERRCODE = 'P0001';
+  END IF;
+  UPDATE work.run
+  SET state = p_outcome,
+      wait_reason = NULL,
+      terminal_reason = p_reason,
+      control_revision = control_revision + 1,
+      updated_at = now()
+  WHERE id = p_run_id AND org_id = p_org_id;
+  IF p_outcome = 'succeeded' THEN
+    UPDATE work.task
+    SET state = 'awaiting_acceptance',
+        active_run_id = NULL,
+        latest_run_id = p_run_id,
+        revision = revision + 1,
+        updated_at = now()
+    WHERE id = task_id AND org_id = p_org_id;
+  ELSE
+    UPDATE work.task
+    SET active_run_id = NULL,
+        latest_run_id = p_run_id,
+        revision = revision + 1,
+        updated_at = now()
+    WHERE id = task_id AND org_id = p_org_id;
+  END IF;
+END;
+$$;
+
+CREATE FUNCTION work.acquire_run(
+  p_run_id uuid,
+  p_org_id text
+) RETURNS work.run
+LANGUAGE plpgsql AS $$
+DECLARE
+  run_row work.run%ROWTYPE;
+  task_row work.task%ROWTYPE;
+  task_id uuid;
+BEGIN
+  SELECT r.task_id INTO task_id
+  FROM work.run r
+  WHERE r.id = p_run_id AND r.org_id = p_org_id;
+  IF task_id IS NULL THEN
+    RAISE EXCEPTION 'run_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  SELECT * INTO task_row
+  FROM work.task
+  WHERE id = task_id AND org_id = p_org_id
+  FOR UPDATE;
+  SELECT * INTO run_row
+  FROM work.run
+  WHERE id = p_run_id AND org_id = p_org_id
+  FOR UPDATE;
+  IF task_row.state <> 'open'
+     OR task_row.active_run_id IS DISTINCT FROM p_run_id THEN
+    RAISE EXCEPTION 'run_not_current' USING ERRCODE = 'P0001';
+  END IF;
+  IF run_row.state <> 'queued' THEN
+    RAISE EXCEPTION 'run_not_queued' USING ERRCODE = 'P0001';
+  END IF;
+  UPDATE work.run
+  SET state = 'active',
+      fence = fence + 1,
+      control_revision = control_revision + 1,
+      updated_at = now()
+  WHERE id = p_run_id AND org_id = p_org_id;
+  SELECT * INTO run_row
+  FROM work.run
+  WHERE id = p_run_id AND org_id = p_org_id;
+  RETURN run_row;
+END;
+$$;
+
 -- 不可变/仅追加记录
 CREATE FUNCTION work.prevent_mutation() RETURNS trigger
 LANGUAGE plpgsql AS $$
@@ -777,11 +1055,33 @@ CREATE FUNCTION work.reserve_budget(
 LANGUAGE plpgsql AS $$
 DECLARE
   account work.budget_account%ROWTYPE;
+  operation_row work.operation%ROWTYPE;
   reservation_id uuid := gen_random_uuid();
+  next_seq int;
 BEGIN
   IF p_amount_cents <= 0 THEN
     RAISE EXCEPTION 'invalid_reservation_amount' USING ERRCODE = '22023';
   END IF;
+  -- Operation 行锁同时串行化 reserve/release/re-reserve 与派发。
+  SELECT * INTO operation_row
+  FROM work.operation
+  WHERE id = p_operation_id AND org_id = p_org_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'operation_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF operation_row.state NOT IN ('prepared', 'waiting_approval', 'authorized') THEN
+    RAISE EXCEPTION 'operation_not_reservable' USING ERRCODE = 'P0001';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM work.budget_reservation
+    WHERE operation_id = p_operation_id AND state IN ('held', 'unknown')
+  ) THEN
+    RAISE EXCEPTION 'operation_has_active_reservation' USING ERRCODE = 'P0001';
+  END IF;
+  SELECT COALESCE(MAX(reservation_seq), 0) + 1 INTO next_seq
+  FROM work.budget_reservation
+  WHERE operation_id = p_operation_id;
   SELECT * INTO account
   FROM work.budget_account
   WHERE org_id = p_org_id AND account_key = p_account_key AND period_id = p_period_id
@@ -798,11 +1098,13 @@ BEGIN
         updated_at = now()
     WHERE id = account.id;
   INSERT INTO work.budget_reservation
-    (id, org_id, account_id, operation_id, amount_cents, state)
-  VALUES (reservation_id, p_org_id, account.id, p_operation_id, p_amount_cents, 'held');
+    (id, org_id, account_id, operation_id, reservation_seq, amount_cents, state)
+  VALUES
+    (reservation_id, p_org_id, account.id, p_operation_id, next_seq, p_amount_cents, 'held');
   INSERT INTO work.budget_entry
-    (org_id, account_id, operation_id, kind, amount_cents)
-  VALUES (p_org_id, account.id, p_operation_id, 'reserve', p_amount_cents);
+    (org_id, account_id, reservation_id, operation_id, kind, amount_cents)
+  VALUES
+    (p_org_id, account.id, reservation_id, p_operation_id, 'reserve', p_amount_cents);
   RETURN reservation_id;
 END;
 $$;
@@ -811,17 +1113,32 @@ CREATE FUNCTION work.settle_budget(
   p_reservation_id uuid,
   p_amount_cents bigint,
   p_price_version text,
-  p_usage jsonb
+  p_usage jsonb,
+  p_settlement_revision int
 ) RETURNS void
 LANGUAGE plpgsql AS $$
 DECLARE
   reservation work.budget_reservation%ROWTYPE;
   account work.budget_account%ROWTYPE;
+  existing_amount bigint;
 BEGIN
   SELECT * INTO reservation FROM work.budget_reservation
     WHERE id = p_reservation_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'reservation_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF p_settlement_revision <= reservation.settlement_revision THEN
+    -- 同 revision 同金额视为幂等重试；不同金额或倒退 revision 冲突。
+    SELECT amount_cents INTO existing_amount
+    FROM work.budget_entry
+    WHERE operation_id = reservation.operation_id
+      AND kind IN ('settle', 'adjust')
+      AND settlement_revision = p_settlement_revision
+    LIMIT 1;
+    IF existing_amount IS NOT NULL AND existing_amount = p_amount_cents THEN
+      RETURN;
+    END IF;
+    RAISE EXCEPTION 'settlement_revision_not_monotonic' USING ERRCODE = 'P0001';
   END IF;
   IF reservation.state NOT IN ('held', 'unknown') THEN
     RAISE EXCEPTION 'reservation_not_settleable' USING ERRCODE = 'P0001';
@@ -838,11 +1155,70 @@ BEGIN
         updated_at = now()
     WHERE id = account.id;
   UPDATE work.budget_reservation
-    SET state = 'settled', settled_at = now()
+    SET state = 'settled',
+        settled_cents = p_amount_cents,
+        settlement_revision = p_settlement_revision,
+        settled_at = now()
     WHERE id = reservation.id;
   INSERT INTO work.budget_entry
-    (org_id, account_id, operation_id, kind, amount_cents, price_version, usage)
-  VALUES (reservation.org_id, account.id, reservation.operation_id, 'settle', p_amount_cents, p_price_version, p_usage);
+    (org_id, account_id, reservation_id, operation_id, kind, amount_cents,
+     settlement_revision, price_version, usage)
+  VALUES
+    (reservation.org_id, account.id, reservation.id, reservation.operation_id,
+     'settle', p_amount_cents, p_settlement_revision, p_price_version, p_usage);
+END;
+$$;
+
+-- 账单修正只追加 adjust 分录，不改写已结算金额。
+CREATE FUNCTION work.adjust_budget(
+  p_reservation_id uuid,
+  p_delta_cents bigint,
+  p_reason text,
+  p_settlement_revision int
+) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  reservation work.budget_reservation%ROWTYPE;
+  existing_amount bigint;
+BEGIN
+  SELECT * INTO reservation FROM work.budget_reservation
+    WHERE id = p_reservation_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'reservation_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF reservation.state <> 'settled' THEN
+    RAISE EXCEPTION 'reservation_not_settled' USING ERRCODE = 'P0001';
+  END IF;
+  IF p_settlement_revision <= reservation.settlement_revision THEN
+    SELECT amount_cents INTO existing_amount
+    FROM work.budget_entry
+    WHERE operation_id = reservation.operation_id
+      AND kind = 'adjust'
+      AND settlement_revision = p_settlement_revision
+    LIMIT 1;
+    IF existing_amount IS NOT NULL AND existing_amount = p_delta_cents THEN
+      RETURN;
+    END IF;
+    RAISE EXCEPTION 'settlement_revision_not_monotonic' USING ERRCODE = 'P0001';
+  END IF;
+  IF p_delta_cents = 0 THEN
+    RAISE EXCEPTION 'adjustment_amount_zero' USING ERRCODE = '22023';
+  END IF;
+  UPDATE work.budget_account
+    SET settled_cents = settled_cents + p_delta_cents,
+        version = version + 1,
+        updated_at = now()
+    WHERE id = reservation.account_id;
+  UPDATE work.budget_reservation
+    SET settlement_revision = p_settlement_revision
+    WHERE id = reservation.id;
+  INSERT INTO work.budget_entry
+    (org_id, account_id, reservation_id, operation_id, kind, amount_cents,
+     settlement_revision, usage)
+  VALUES
+    (reservation.org_id, reservation.account_id, reservation.id, reservation.operation_id,
+     'adjust', p_delta_cents, p_settlement_revision,
+     jsonb_build_object('reason', p_reason));
 END;
 $$;
 
@@ -866,33 +1242,67 @@ BEGIN
     WHERE id = reservation.account_id;
   UPDATE work.budget_reservation SET state = 'released' WHERE id = reservation.id;
   INSERT INTO work.budget_entry
-    (org_id, account_id, operation_id, kind, amount_cents)
-  VALUES (reservation.org_id, reservation.account_id, reservation.operation_id, 'release', reservation.amount_cents);
+    (org_id, account_id, reservation_id, operation_id, kind, amount_cents)
+  VALUES
+    (reservation.org_id, reservation.account_id, reservation.id,
+     reservation.operation_id, 'release', reservation.amount_cents);
 END;
 $$;
 
 CREATE FUNCTION work.claim_dispatch(
   p_operation_id uuid,
   p_org_id text,
-  p_consumer_id text
+  p_consumer_id text,
+  p_fence bigint
 ) RETURNS uuid
 LANGUAGE plpgsql AS $$
 DECLARE
+  operation_row work.operation%ROWTYPE;
+  run_row work.run%ROWTYPE;
+  task_row work.task%ROWTYPE;
+  task_id uuid;
   attempt uuid := gen_random_uuid();
 BEGIN
+  SELECT * INTO operation_row
+  FROM work.operation
+  WHERE id = p_operation_id AND org_id = p_org_id;
+  IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+  SELECT r.task_id INTO task_id
+  FROM work.run r
+  WHERE r.id = operation_row.run_id AND r.org_id = p_org_id;
+  IF task_id IS NULL THEN
+    RETURN NULL;
+  END IF;
+  -- 固定锁顺序 Task -> Run -> Operation；与采纳、Run 终态、新 Run 串行化。
+  SELECT * INTO task_row
+  FROM work.task
+  WHERE id = task_id AND org_id = p_org_id
+  FOR UPDATE;
+  SELECT * INTO run_row
+  FROM work.run
+  WHERE id = operation_row.run_id AND org_id = p_org_id
+  FOR UPDATE;
+  SELECT * INTO operation_row
+  FROM work.operation
+  WHERE id = p_operation_id AND org_id = p_org_id
+  FOR UPDATE;
+  IF task_row.state <> 'open'
+     OR task_row.active_run_id IS DISTINCT FROM run_row.id
+     OR run_row.state <> 'active'
+     OR run_row.fence <> p_fence
+     OR operation_row.state <> 'authorized'
+     OR operation_row.dispatch_attempt_id IS NOT NULL THEN
+    RETURN NULL;
+  END IF;
   UPDATE work.operation
     SET state = 'dispatching',
         dispatch_attempt_id = attempt,
         consumer_id = p_consumer_id,
         revision = revision + 1,
         updated_at = now()
-    WHERE id = p_operation_id
-      AND org_id = p_org_id
-      AND state = 'authorized'
-      AND dispatch_attempt_id IS NULL;
-  IF NOT FOUND THEN
-    RETURN NULL;
-  END IF;
+    WHERE id = p_operation_id AND org_id = p_org_id;
   RETURN attempt;
 END;
 $$;
@@ -908,10 +1318,43 @@ CREATE FUNCTION work.accept_task(
 ) RETURNS uuid
 LANGUAGE plpgsql AS $$
 DECLARE
+  task_row work.task%ROWTYPE;
   acceptance_id uuid := gen_random_uuid();
 BEGIN
   IF p_artifact_id IS NULL AND p_completion_reason IS NULL THEN
     RAISE EXCEPTION 'acceptance_requires_artifact_or_reason' USING ERRCODE = '22023';
+  END IF;
+  SELECT * INTO task_row
+  FROM work.task
+  WHERE id = p_task_id AND org_id = p_org_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'task_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF task_row.revision <> p_expected_revision
+     OR task_row.state NOT IN ('open', 'awaiting_acceptance') THEN
+    RAISE EXCEPTION 'run_not_quiescent_or_revision_conflict' USING ERRCODE = 'P0001';
+  END IF;
+  IF task_row.active_run_id IS NOT NULL THEN
+    RAISE EXCEPTION 'task_has_active_run' USING ERRCODE = 'P0001';
+  END IF;
+  IF task_row.latest_run_id IS NOT NULL THEN
+    PERFORM 1 FROM work.run
+    WHERE id = task_row.latest_run_id AND org_id = p_org_id
+    FOR UPDATE;
+  END IF;
+  IF task_row.latest_run_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM work.run r
+    WHERE r.id = task_row.latest_run_id
+      AND r.org_id = p_org_id
+      AND r.task_id = p_task_id
+      AND r.state IN ('succeeded', 'failed', 'canceled')
+  ) THEN
+    RAISE EXCEPTION 'latest_run_not_terminal' USING ERRCODE = 'P0001';
+  END IF;
+  -- 静止判定覆盖全部非终态/未核对 Operation，不只 dispatching/unknown。
+  IF work.task_has_blocking_operation(p_task_id, p_org_id) THEN
+    RAISE EXCEPTION 'run_not_quiescent_or_revision_conflict' USING ERRCODE = 'P0001';
   END IF;
   IF p_artifact_id IS NOT NULL THEN
     IF NOT EXISTS (
@@ -936,16 +1379,7 @@ BEGIN
         updated_at = now()
     WHERE id = p_task_id
       AND org_id = p_org_id
-      AND revision = p_expected_revision
-      AND state IN ('open', 'awaiting_acceptance')
-      AND active_run_id IS NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM work.operation o
-        JOIN work.run r ON r.id = o.run_id
-        WHERE r.task_id = p_task_id
-          AND o.org_id = p_org_id
-          AND o.state IN ('dispatching', 'unknown')
-      );
+      AND revision = p_expected_revision;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'run_not_quiescent_or_revision_conflict' USING ERRCODE = 'P0001';
   END IF;
@@ -970,9 +1404,9 @@ DECLARE
   table_name text;
 BEGIN
   FOREACH table_name IN ARRAY ARRAY[
-    'member', 'capability_definition', 'capability_version', 'capability_installation',
-    'capability_snapshot', 'connector_connection', 'connector_grant',
-    'task', 'run', 'operation', 'approval', 'approval_operation',
+    'member', 'org_policy', 'capability_definition', 'capability_version',
+    'capability_installation', 'capability_snapshot', 'connector_connection',
+    'connector_grant', 'task', 'run', 'operation', 'approval', 'approval_operation',
     'submission_dedup', 'budget_account', 'budget_reservation',
     'artifact', 'artifact_version', 'upload_session', 'acceptance',
     'device', 'device_session', 'workspace_grant', 'execution_lease',

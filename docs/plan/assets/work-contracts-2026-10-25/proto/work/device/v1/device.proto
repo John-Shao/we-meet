@@ -1,0 +1,181 @@
+syntax = "proto3";
+
+package work.device.v1;
+
+import "google/protobuf/timestamp.proto";
+import "work/common/v1/common.proto";
+
+option go_package = "we-meet/gen/work/device/v1;devicev1";
+
+// 单个外向 mTLS/WebSocket 连接承载全部设备消息。
+// 服务端命令写入成功不等于执行成功；设备回执按 seq 重传，journal_release 必须
+// 在回执、计量、去重事实达到部署持久性边界后才发出。
+service DeviceGateway {
+  rpc Connect(stream DeviceMessage) returns (stream ServerMessage);
+}
+
+message DeviceMessage {
+  oneof payload {
+    Hello hello = 1;
+    Heartbeat heartbeat = 2;
+    Receipt receipt = 3;
+    CancelAck cancel_ack = 4;
+    ReconcileSnapshot reconcile = 5;
+    JournalAck journal_ack = 6;
+    DeviceError error = 7;
+  }
+}
+
+message ServerMessage {
+  oneof payload {
+    HelloAck hello_ack = 1;
+    Lease lease = 2;
+    Command command = 3;
+    CancelCommand cancel = 4;
+    ReconcileRequest reconcile_request = 5;
+    JournalRelease journal_release = 6;
+    Ping ping = 7;
+    DeviceError error = 8;
+  }
+}
+
+message ProtocolVersion {
+  string major = 1;
+  string minor = 2;
+  repeated string required_features = 3;
+  string tool_manifest_hash = 4;
+}
+
+message Hello {
+  string device_id = 1;
+  string session_key = 2;
+  string boot_id = 3;
+  ProtocolVersion protocol_version = 4;
+  int64 last_receipt_seq = 5;
+  bytes challenge_response = 6;
+  int64 monotonic_ms = 7;
+}
+
+message HelloAck {
+  string device_id = 1;
+  string session_id = 2;
+  string generation = 3;
+  int32 lease_ttl_seconds = 4;
+  repeated string required_features = 5;
+  google.protobuf.Timestamp server_time = 6;
+}
+
+message Lease {
+  string run_id = 1;
+  string device_id = 2;
+  string session_id = 3;
+  int64 fence = 4;
+  int64 last_receipt_seq = 5;
+  google.protobuf.Timestamp expires_at = 6;
+  string generation = 7;
+}
+
+message Command {
+  string command_id = 1;
+  string operation_id = 2;
+  string run_id = 3;
+  int64 fence = 4;
+  int64 seq = 5;
+  work.common.v1.OperationKind kind = 6;
+  string request_hash = 7;
+  string payload_ref = 8;
+  google.protobuf.Timestamp expires_at = 9;
+  bytes signed_permit = 10;
+}
+
+enum ReceiptState {
+  RECEIPT_STATE_UNSPECIFIED = 0;
+  RECEIPT_STATE_STARTED = 1;
+  RECEIPT_STATE_COMPLETED = 2;
+  RECEIPT_STATE_UNKNOWN = 3;
+}
+
+message Receipt {
+  string operation_id = 1;
+  int64 seq = 2;
+  int64 fence = 3;
+  string request_hash = 4;
+  ReceiptState state = 5;
+  string payload_ref = 6;
+  work.common.v1.Error error = 7;
+}
+
+message CancelCommand {
+  string command_id = 1;
+  string run_id = 2;
+  string operation_id = 3;
+  string reason = 4;
+}
+
+enum CancelState {
+  CANCEL_STATE_UNSPECIFIED = 0;
+  CANCEL_STATE_STOPPED = 1;
+  CANCEL_STATE_UNKNOWN = 2;
+}
+
+message CancelAck {
+  string operation_id = 1;
+  string run_id = 2;
+  CancelState state = 3;
+  google.protobuf.Timestamp observed_at = 4;
+}
+
+message ReconcileRequest {
+  string run_id = 1;
+  int64 from_seq = 2;
+}
+
+message ReconcileEntry {
+  string operation_id = 1;
+  int64 receipt_seq = 2;
+  int64 fence = 3;
+  string request_hash = 4;
+  ReceiptState state = 5;
+  string payload_ref = 6;
+}
+
+message ReconcileSnapshot {
+  string run_id = 1;
+  int64 last_receipt_seq = 2;
+  repeated ReconcileEntry entries = 3;
+}
+
+message Heartbeat {
+  string device_id = 1;
+  string session_key = 2;
+  string boot_id = 3;
+  int64 last_receipt_seq = 4;
+  int64 monotonic_ms = 5;
+}
+
+message JournalAck {
+  string device_id = 1;
+  string session_key = 2;
+  int64 through_seq = 3;
+  string durable_watermark = 4;
+  string generation = 5;
+}
+
+message JournalRelease {
+  string device_id = 1;
+  string session_key = 2;
+  int64 through_seq = 3;
+  string durable_watermark = 4;
+  string generation = 5;
+}
+
+message Ping {
+  int64 nonce = 1;
+}
+
+message DeviceError {
+  work.common.v1.ErrorCode code = 1;
+  string message = 2;
+  bool retryable = 3;
+  string correlation_id = 4;
+}

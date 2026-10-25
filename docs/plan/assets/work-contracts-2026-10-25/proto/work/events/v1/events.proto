@@ -1,0 +1,171 @@
+syntax = "proto3";
+
+package work.events.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "work/common/v1/common.proto";
+
+option go_package = "we-meet/gen/work/events/v1;eventsv1";
+
+// 事件只带公开事实、ID 和正文引用；原始 reasoning、目录绝对路径、凭据和完整提示词
+// 不得进入任何 event/outbox payload。用户 SSE 使用 TaskEvent；inbox 使用独立 cursor。
+enum TaskEventType {
+  TASK_EVENT_TYPE_UNSPECIFIED = 0;
+  TASK_EVENT_TYPE_TASK_STATE_CHANGED = 1;
+  TASK_EVENT_TYPE_RUN_STATE_CHANGED = 2;
+  TASK_EVENT_TYPE_OPERATION_STATE_CHANGED = 3;
+  TASK_EVENT_TYPE_APPROVAL_REQUESTED = 4;
+  TASK_EVENT_TYPE_APPROVAL_DECIDED = 5;
+  TASK_EVENT_TYPE_ARTIFACT_PUBLISHED = 6;
+  TASK_EVENT_TYPE_ACCEPTANCE_RECORDED = 7;
+  TASK_EVENT_TYPE_BUDGET_PAUSED = 8;
+  TASK_EVENT_TYPE_RUN_FAILED = 9;
+  TASK_EVENT_TYPE_DEVICE_OFFLINE = 10;
+  TASK_EVENT_TYPE_RECONCILE_REQUIRED = 11;
+}
+
+message TaskStateChanged {
+  work.common.v1.TaskState from_state = 1;
+  work.common.v1.TaskState to_state = 2;
+  int64 revision = 3;
+  string reason = 4;
+}
+
+message RunStateChanged {
+  work.common.v1.RunState from_state = 1;
+  work.common.v1.RunState to_state = 2;
+  work.common.v1.WaitReason wait_reason = 3;
+  int64 control_revision = 4;
+  int64 fence = 5;
+}
+
+message OperationStateChanged {
+  string operation_id = 1;
+  work.common.v1.OperationKind kind = 2;
+  work.common.v1.OperationState from_state = 3;
+  work.common.v1.OperationState to_state = 4;
+  bool billable = 5;
+  int64 revision = 6;
+}
+
+message ApprovalRequested {
+  string approval_id = 1;
+  string operation_id = 2;
+  string plan_version_id = 3;
+  string params_hash = 4;
+  work.common.v1.RiskLevel risk = 5;
+  google.protobuf.Timestamp expires_at = 6;
+}
+
+message ApprovalDecided {
+  string approval_id = 1;
+  work.common.v1.Decision decision = 2;
+  string actor_subject_id = 3;
+  int64 revision = 4;
+}
+
+message ArtifactPublished {
+  string artifact_id = 1;
+  int32 version_no = 2;
+  string logical_name = 3;
+  string media_type = 4;
+  int64 size_bytes = 5;
+  string content_hash = 6;
+  string location = 7;
+}
+
+message AcceptanceRecorded {
+  string acceptance_id = 1;
+  string artifact_id = 2;
+  int32 version_no = 3;
+  string completion_reason = 4;
+  int64 task_revision = 5;
+}
+
+message BudgetPaused {
+  string account_key = 1;
+  string period_id = 2;
+  string reason = 3;
+}
+
+message RunFailed {
+  string run_id = 1;
+  string reason = 2;
+  bool retryable = 3;
+}
+
+message DeviceOffline {
+  string device_id = 1;
+  google.protobuf.Timestamp last_seen_at = 2;
+}
+
+message ReconcileRequired {
+  string run_id = 1;
+  string operation_id = 2;
+  string reason = 3;
+}
+
+message TaskEvent {
+  string event_id = 1;
+  string org_id = 2;
+  string task_id = 3;
+  string run_id = 4;
+  int64 aggregate_seq = 5;
+  int32 schema_version = 6;
+  google.protobuf.Timestamp occurred_at = 7;
+  TaskEventType type = 8;
+  oneof payload {
+    TaskStateChanged task_state_changed = 10;
+    RunStateChanged run_state_changed = 11;
+    OperationStateChanged operation_state_changed = 12;
+    ApprovalRequested approval_requested = 13;
+    ApprovalDecided approval_decided = 14;
+    ArtifactPublished artifact_published = 15;
+    AcceptanceRecorded acceptance_recorded = 16;
+    BudgetPaused budget_paused = 17;
+    RunFailed run_failed = 18;
+    DeviceOffline device_offline = 19;
+    ReconcileRequired reconcile_required = 20;
+  }
+  // 公开摘要或正文引用；不得放原始 reasoning/凭据。
+  string content_ref = 21;
+}
+
+enum InboxItemType {
+  INBOX_ITEM_TYPE_UNSPECIFIED = 0;
+  INBOX_ITEM_TYPE_APPROVAL = 1;
+  INBOX_ITEM_TYPE_ACCEPTANCE = 2;
+  INBOX_ITEM_TYPE_FAILED_RUN = 3;
+  INBOX_ITEM_TYPE_DEVICE_OFFLINE = 4;
+}
+
+message InboxItem {
+  InboxItemType type = 1;
+  string task_id = 2;
+  string run_id = 3;
+  string approval_id = 4;
+  string title = 5;
+  string cursor = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message InboxEvent {
+  string event_id = 1;
+  InboxItem item = 2;
+  int32 schema_version = 3;
+  google.protobuf.Timestamp occurred_at = 4;
+}
+
+message OutboxEnvelope {
+  string event_id = 1;
+  string org_id = 2;
+  string aggregate_type = 3;
+  string aggregate_id = 4;
+  TaskEventType event_type = 5;
+  int32 schema_version = 6;
+  google.protobuf.Struct payload = 7;
+  string content_ref = 8;
+  google.protobuf.Timestamp available_at = 9;
+  int32 attempts = 10;
+}

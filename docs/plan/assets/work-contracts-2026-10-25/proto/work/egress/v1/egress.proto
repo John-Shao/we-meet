@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+package work.egress.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/struct.proto";
+import "work/common/v1/common.proto";
+
+option go_package = "we-meet/gen/work/egress/v1;egressv1";
+
+// 模型与工具出口。Runtime/Broker 不持有供应商 Key；Gateway 在受控安全域注入凭据。
+// body 可能含用户内容，禁止进入普通日志/trace；只记录 Operation、哈希、usage 和状态。
+service WorkEgressService {
+  rpc CompleteModel(ModelRequest) returns (ModelResponse);
+  rpc StreamModel(ModelRequest) returns (stream ModelChunk);
+  rpc ExecuteTool(ToolRequest) returns (ToolResponse);
+  rpc QueryProvider(ProviderQueryRequest) returns (ProviderQueryResponse);
+}
+
+message ModelRequest {
+  work.common.v1.OrgContext context = 1;
+  string run_id = 2;
+  string operation_id = 3;
+  int64 fence = 4;
+  string provider = 5;
+  string model = 6;
+  string request_hash = 7;
+  bytes body = 8;
+  string content_type = 9;
+  int32 max_output_tokens = 10;
+  string price_version = 11;
+  bool stream = 12;
+  google.protobuf.Duration timeout = 13;
+  string content_ref = 14;
+}
+
+message ModelResponse {
+  string provider_request_id = 1;
+  bytes body = 2;
+  string content_type = 3;
+  work.common.v1.Usage usage = 4;
+  work.common.v1.Error error = 5;
+  bool billable = 6;
+  bool unknown = 7;
+}
+
+message ModelChunk {
+  int32 index = 1;
+  string public_text_delta = 2;
+  // 供应商工具调用增量，已由 Gateway 规范化为 JSON 片段；Runtime 不得原样执行。
+  bytes normalized_tool_call_delta = 3;
+  // 仅不透明引用；原始 reasoning 不转发、不落公共事件。
+  string reasoning_ref = 4;
+  work.common.v1.Usage usage = 5;
+  bool final = 6;
+  work.common.v1.Error error = 7;
+}
+
+message ToolRequest {
+  work.common.v1.OrgContext context = 1;
+  string run_id = 2;
+  string operation_id = 3;
+  int64 fence = 4;
+  string tool_name = 5;
+  string request_hash = 6;
+  google.protobuf.Struct arguments = 7;
+  string connection_id = 8;
+  string grant_id = 9;
+  string workspace_grant_id = 10;
+  string payload_ref = 11;
+}
+
+message ToolResponse {
+  google.protobuf.Struct result = 1;
+  string content_ref = 2;
+  work.common.v1.Error error = 3;
+  bool billable = 4;
+  string provider_request_id = 5;
+}
+
+enum ProviderRequestStatus {
+  PROVIDER_REQUEST_STATUS_UNSPECIFIED = 0;
+  PROVIDER_REQUEST_STATUS_SUCCEEDED = 1;
+  PROVIDER_REQUEST_STATUS_FAILED = 2;
+  PROVIDER_REQUEST_STATUS_UNKNOWN = 3;
+}
+
+message ProviderQueryRequest {
+  work.common.v1.OrgContext context = 1;
+  string operation_id = 2;
+  string provider = 3;
+  string provider_request_id = 4;
+}
+
+message ProviderQueryResponse {
+  ProviderRequestStatus status = 1;
+  work.common.v1.Usage usage = 2;
+  string receipt_ref = 3;
+  work.common.v1.Error error = 4;
+}
