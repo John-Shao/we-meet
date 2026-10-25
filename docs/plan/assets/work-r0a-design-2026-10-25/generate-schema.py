@@ -181,10 +181,16 @@ parts.append(tables["audit_event"] + "\n\n")
 parts.append(tables["outbox"] + "\n\n")
 parts.append(indexes_outbox + "\n")
 parts.append(state + "\n")
+parts.append("""
+-- D3 reconciliation: an unresolved Operation can be resolved later.
+INSERT INTO work.state_transition (entity, from_state, to_state) VALUES
+  ('operation', 'unresolved', 'reconciled')
+ON CONFLICT DO NOTHING;
+""")
 parts.append(functions + "\n")
 parts.append(new_functions + "\n")
 parts.append(rls + "\n")
 parts.append("RESET ROLE;\nCOMMIT;\n")
 
-OUT.write_text("".join(parts), encoding="utf-8")
+OUT.write_text("".join(parts), encoding="utf-8", newline="\n")
 print(f"wrote {OUT} ({OUT.stat().st_size} bytes)")

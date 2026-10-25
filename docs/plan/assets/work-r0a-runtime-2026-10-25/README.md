@@ -28,13 +28,16 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 - 策略测试 **10/10** 通过：工具白名单、来源标签、秘密阻断、请求绑定、回退、响应过滤、沙箱不变量、无内容日志、usage、faux model。
 - `WorkAdapter.contract.ts` 通过 `tsc --noEmit`。
 - 策略 JSON 可解析；faux model 无网络依赖。
+- [降级沙箱 smoke](../work-r0a-hardening-2026-10-25/sandbox-smoke.log)：runc、非 root、只读根、无宿主挂载、无网络、cap-drop；gVisor 不可用，`sandboxProof=false`。
+- [本地 KMS envelope](../work-r0a-hardening-2026-10-25/kms-envelope.mjs)：租户隔离/轮换/主密钥轮换/shredding **6/6**；不是生产 KMS。
+- 真实 Qwen smoke：[provider-smoke.log](../work-r0a-hardening-2026-10-25/provider-smoke.log)；200、首 token 2567ms、usage 80/110、provider request id 可记录，未输出 Key/正文。
 
 ## 未验证
 
 - 真实 gVisor/等效沙箱、逃逸测试、资源/时间压力；`sandbox-profile.json` 的 digest 是占位，生产必须替换。
-- 真实 Content Store/KMS/scoped token。
-- 真实供应商网关、鉴权、配额、回退、价表、usage 对账。
-- 真实流式、取消/超时、检查点恢复、无正文日志。
+- 真实 Content Store/云 KMS/HSM/scoped token；本地 envelope 不是生产 KMS。
+- 真实网关鉴权、配额、回退、价表、usage 对账；provider smoke 不经过 D4 gateway/Temporal。
+- 取消/超时、检查点恢复、无正文日志运行时验证；仅完成一次真实流式 smoke。
 - 供应商书面条款/价表；H02 只是真实请求，不是生产承诺。provider id/model/dataResidency/quota 是占位，需商务/安全确认。
 
 ## 与其他文档

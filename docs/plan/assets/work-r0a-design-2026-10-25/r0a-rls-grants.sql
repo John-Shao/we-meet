@@ -100,3 +100,7 @@ GRANT EXECUTE ON FUNCTION work.release_budget(uuid) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.finish_run(uuid, text, text, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.claim_outbox(int) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.mark_outbox_delivered(uuid) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.wait_run(text, uuid, text) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.resume_run(text, uuid) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.mark_operation_unknown(text, uuid, text) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.reconcile_operation(text, uuid, text, text, bigint, text, text) TO work_worker;

@@ -8,10 +8,10 @@
 |---|---|
 | `generate-schema.py` | 从 [完整 DDL 草案](../work-ddl-draft-2026-10-25.sql) 裁剪 R0a 表/函数，并拼装本目录的新增对象 |
 | `r0a-extra.sql` | `input_object`、Task `title/input_id` 与 FK |
-| `r0a-new-functions.sql` | 输入、提交、Operation 授权/完成/取消、审批、成果、Outbox、`task_summary` |
+| `r0a-new-functions.sql` | 输入、提交、Operation 授权/完成/取消、等待/恢复、unknown/reconcile、审批、成果、Outbox、`task_summary` |
 | `r0a-rls-grants.sql` | FORCE RLS、函数所有权、`SECURITY DEFINER`、最小权限授权 |
 | `r0a-schema-draft.sql` | 生成的完整 R0a schema（唯一执行入口） |
-| `r0a-schema-smoke.sql` | 20 项断言 + 负例；事务结束回滚 |
+| `r0a-schema-smoke.sql` | 34 项断言 + 负例；事务结束回滚 |
 
 ### D2 契约资产
 
@@ -55,11 +55,11 @@ docker exec -i work-r0a-pg psql -U postgres -d work_r0a \
   -v ON_ERROR_STOP=1 -f - < r0a-schema-smoke.sql
 ```
 
-预期最后输出 20 行 `ok = t`，然后 `ROLLBACK`。
+预期最后输出 34 行 `ok = t`，然后 `ROLLBACK`。
 
 ## 已验证
 
-- D1：空库应用 schema 成功；20/20 断言通过（输入/提交幂等、scope 拒绝、直接 DML 拒绝、跨租户 RLS、派发、预算结算/修正、成果发布、采纳、审批、取消/重试、outbox、task summary）。
+- D1：空库应用 schema 成功；34/34 断言通过（输入/提交幂等、scope 拒绝、直接 DML 拒绝、跨租户 RLS、派发、预算结算/修正、成果发布、采纳、审批、取消/重试、等待/恢复、unknown/reconcile、workflow-start/cancel outbox、task summary）。
 - D1：所有 `work` schema 函数为 `SECURITY DEFINER`，`work_api`/`work_worker` 无事实表直接 DML；所有租户表 `ENABLE` + `FORCE ROW LEVEL SECURITY`。
 - D2：OpenAPI 3.1 校验通过（20 path/48 schema/62 本地 `$ref`）；生成类型 `tsc --noEmit` 通过；合同测试 6/6 通过。
 

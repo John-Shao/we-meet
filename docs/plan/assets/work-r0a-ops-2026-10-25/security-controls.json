@@ -6,7 +6,11 @@
       "id": "S01",
       "threat": "Prompt injection or external content steering the model",
       "control": "R0a has no external/connector content; only user_input and system_template labels; model output is not treated as instructions; no tools beyond model/template/draft.",
-      "evidence": ["D4 policy tests 10/10", "D3 workflow has no connector path", "D2 server rejects suite/connectors"],
+      "evidence": [
+        "D4 policy tests 10/10",
+        "D3 workflow has no connector path",
+        "D2 server rejects suite/connectors"
+      ],
       "status": "partial",
       "owner": "security + runtime",
       "closeCondition": "Real-model injection tests with adversarial user/template content; verify output cannot change tool/scope/destination."
@@ -15,7 +19,11 @@
       "id": "S02",
       "threat": "Cross-tenant IDOR or cache/object leakage",
       "control": "Session-bound org, resource ACL, composite tenant FKs, FORCE RLS, tenant-scoped cache/content keys; no multi-org switch.",
-      "evidence": ["D1 20/20 smoke incl. RLS org1/org2=0", "D2 contract tests", "D4 content refs are scoped"],
+      "evidence": [
+        "D1 20/20 smoke incl. RLS org1/org2=0",
+        "D2 contract tests",
+        "D4 content refs are scoped"
+      ],
       "status": "partial",
       "owner": "backend + security",
       "closeCondition": "Connection-pool tenant-context tests, production-shaped data tests, cache/object key negative tests."
@@ -24,7 +32,10 @@
       "id": "S03",
       "threat": "Provider key or credential leakage",
       "control": "Provider keys live in KMS/egress only; runtime has no long-term keys; logs/traces/errors do not contain keys or content; per-Run scoped token.",
-      "evidence": ["D4 egress policy + policy tests", "D4 sandbox profile secrets=false"],
+      "evidence": [
+        "D4 egress policy + policy tests",
+        "D4 sandbox profile secrets=false"
+      ],
       "status": "partial",
       "owner": "security + platform",
       "closeCondition": "KMS credential injection/rotation implemented; runtime secret-leak test and log scan."
@@ -33,7 +44,11 @@
       "id": "S04",
       "threat": "SSRF, DNS rebinding or direct internet egress",
       "control": "Runtime has no internet; only work-egress with fixed provider allowlist; no metadata/loopback/private destinations; redirects re-checked.",
-      "evidence": ["D4 egress policy", "D4 sandbox egress gateway_only", "D4 policy tests"],
+      "evidence": [
+        "D4 egress policy",
+        "D4 sandbox egress gateway_only",
+        "D4 policy tests"
+      ],
       "status": "partial",
       "owner": "runtime + security",
       "closeCondition": "Real network policy test, DNS/redirect negative cases, provider adapter SSRF tests."
@@ -42,7 +57,11 @@
       "id": "S05",
       "threat": "Approval replay, stale approval or bypassed policy",
       "control": "R0a golden path has no manual approval; policy_auto writes Operation/audit; approval revision/params_hash CAS retained for R0b/R2; organization suspension is an upper bound.",
-      "evidence": ["D1 approval smoke", "D3 F03 internal path", "D2 no approval endpoint in R0a"],
+      "evidence": [
+        "D1 approval smoke",
+        "D3 F03 internal path",
+        "D2 no approval endpoint in R0a"
+      ],
       "status": "partial",
       "owner": "backend + security",
       "closeCondition": "R0b/R2 approval UI and concurrency tests; org-suspend dispatch test."
@@ -51,7 +70,10 @@
       "id": "S06",
       "threat": "Supply-chain compromise of Pi/image/dependencies",
       "control": "Pi version pinned, image digest pinned, no runtime package install/user extensions; lockfile and reviewed base image; provenance/signature planned.",
-      "evidence": ["D4 sandbox profile", "H01/H10 partial package evidence"],
+      "evidence": [
+        "D4 sandbox profile",
+        "H01/H10 partial package evidence"
+      ],
       "status": "open",
       "owner": "runtime + security",
       "closeCondition": "Signed image/SBOM/provenance, dependency scan, reproducible build and upgrade/rollback drill."
@@ -60,7 +82,11 @@
       "id": "S07",
       "threat": "Unknown side effects or duplicate paid model calls",
       "control": "Operation ledger is authoritative; dispatch CAS/fence; no automatic retry after dispatch; unknown retains budget and waits for reconciliation; no blind replay.",
-      "evidence": ["D1 dispatch/budget smoke", "D3 fault matrix F04/F07/F21", "D4 provider_unknown policy"],
+      "evidence": [
+        "D1 dispatch/budget smoke",
+        "D3 fault matrix F04/F07/F21",
+        "D4 provider_unknown policy"
+      ],
       "status": "partial",
       "owner": "backend + runtime",
       "closeCondition": "Temporal + real provider timeout/receipt-loss tests; reconcile evidence and budget release/settle."
@@ -69,7 +95,10 @@
       "id": "S08",
       "threat": "Backup/restore or DR loss of security facts",
       "control": "Security facts use the declared persistence boundary; restore drill; freeze new execution if ledger/revocation/deletion watermark is incomplete; no silent replay.",
-      "evidence": ["Operations runbook + logical restore smoke", "D6 pilot checklist"],
+      "evidence": [
+        "Operations runbook + logical restore smoke",
+        "D6 pilot checklist"
+      ],
       "status": "partial",
       "owner": "platform + SRE",
       "closeCondition": "Pilot backup/restore drill with task/operation/budget/dedup/revocation checks; region DR is out of scope for R0a."
@@ -78,7 +107,12 @@
       "id": "S09",
       "threat": "Retention, deletion or data-residency violation",
       "control": "Audit 365 days baseline; task/content retention policy pending product/legal; tenant/region-prefixed content; crypto-shredding planned.",
-      "evidence": ["D6 design", "Architecture §17", "D1 tombstone design"],
+      "evidence": [
+        "D6 design",
+        "Architecture §17",
+        "D1 tombstone design",
+        "Local envelope KMS reference 6/6 (not production KMS)"
+      ],
       "status": "open",
       "owner": "product + legal + platform",
       "closeCondition": "Written retention/deletion policy, KMS/Content Store implementation, residency review and deletion test."
@@ -87,7 +121,10 @@
       "id": "S10",
       "threat": "Admin read/export privilege abuse or content overexposure",
       "control": "Admin surface is read-only in R0a; org bound server-side; no member content in overview; audit export is permission-checked and short-lived.",
-      "evidence": ["D2 admin subset + mock test", "P1-A existing permission codes"],
+      "evidence": [
+        "D2 admin subset + mock test",
+        "P1-A existing permission codes"
+      ],
       "status": "open",
       "owner": "backend + security",
       "closeCondition": "P1-A field/permission mapping, export download authorization test, no-content/log review."
@@ -96,7 +133,10 @@
       "id": "S11",
       "threat": "Old Work route or feature flag exposes wrong data/behavior",
       "control": "New /work behind org flag; old task links go to read-only archive notice; no old data migration or dual write; rollback kills flag.",
-      "evidence": ["D5 route/legacy tests", "D6 cutover plan"],
+      "evidence": [
+        "D5 route/legacy tests",
+        "D6 cutover plan"
+      ],
       "status": "partial",
       "owner": "frontend + product",
       "closeCondition": "Cutover/rollback drill with real old links and per-org flag; no old task mapped to a new task."
@@ -105,16 +145,24 @@
       "id": "S12",
       "threat": "Sandbox escape or host filesystem/network access",
       "control": "Per-Run gVisor/equiv profile, non-root, read-only rootfs, no host mounts, egress-only network, resource limits; reduced profile explicitly no-claim.",
-      "evidence": ["D4 sandbox profile + policy tests", "H06 local isolation is R0b, not R0a"],
-      "status": "open",
+      "evidence": [
+        "D4 sandbox profile + policy tests",
+        "H06 local isolation is R0b, not R0a",
+        "runc reduced-profile smoke; gVisor unavailable"
+      ],
+      "status": "partial",
       "owner": "runtime + security",
-      "closeCondition": "gVisor/equiv profile evidence and escape test; otherwise run reduced profile with signed no-claim and approval."
+      "closeCondition": "gVisor/equiv profile and escape test; otherwise signed reduced-profile no-claim and approval."
     },
     {
       "id": "S13",
       "threat": "Provider uses content for training or violates residency/retention",
       "control": "Only allowlisted providers with written terms, data residency/retention/training review, price ceiling and quota; no production claim before terms close.",
-      "evidence": ["D4 vendor checklist", "H02 real requests but not terms/pricing"],
+      "evidence": [
+        "D4 vendor checklist",
+        "H02 real requests but not terms/pricing",
+        "qwen3.8-flash real request 200 with usage/provider request id"
+      ],
       "status": "open",
       "owner": "business + legal + security",
       "closeCondition": "Signed terms/DPA, residency/training/retention confirmation, price ceiling and quota."
@@ -123,7 +171,10 @@
       "id": "S14",
       "threat": "User content or secrets leak into logs/traces/errors",
       "control": "Egress/runtime policy forbids content/prompt/response/key logging; only IDs/hashes/usage/error codes; secret detection blocks before send.",
-      "evidence": ["D4 logging policy + policy tests", "D2 no content in events/errors"],
+      "evidence": [
+        "D4 logging policy + policy tests",
+        "D2 no content in events/errors"
+      ],
       "status": "partial",
       "owner": "backend + runtime + security",
       "closeCondition": "Runtime log/trace scan with synthetic secrets, error payload review and provider adapter audit."
@@ -132,7 +183,10 @@
       "id": "S15",
       "threat": "Org suspension, departure or ownership transfer leaves execution/data uncontrolled",
       "control": "Suspension raises execution epoch, denies new permits/dispatch, no auto-resume; ownership transfer is a manual pilot procedure; no old grants restored.",
-      "evidence": ["D1/D3 suspend design", "D6 pilot procedure"],
+      "evidence": [
+        "D1/D3 suspend design",
+        "D6 pilot procedure"
+      ],
       "status": "partial",
       "owner": "product + ops + backend",
       "closeCondition": "Suspend/resume and ownership-transfer drill; audit of old tasks/content; no automatic replay."
@@ -141,7 +195,10 @@
       "id": "S16",
       "threat": "Connector/device scope bypass",
       "control": "Not applicable to R0a: no connectors, devices, workspace grants or remote execution.",
-      "evidence": ["D2 API excludes these paths", "Product R0a scope"],
+      "evidence": [
+        "D2 API excludes these paths",
+        "Product R0a scope"
+      ],
       "status": "out_of_scope",
       "owner": "product + security",
       "closeCondition": "Revisit in R0b/R2; not a R0a gate."

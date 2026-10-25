@@ -83,6 +83,14 @@ SELECT 'one_task_after_retry', count(*) = 1 FROM work.task;
 INSERT INTO smoke_assert
 SELECT 'dedup_row', count(*) = 1 FROM work.submission_dedup;
 
+INSERT INTO smoke_assert
+SELECT 'workflow_start_outbox', count(*) = 1
+FROM work.outbox
+WHERE org_id = 'org1'
+  AND aggregate_type = 'run'
+  AND aggregate_id = :'run_id'::uuid
+  AND payload->>'kind' = 'start_workflow';
+
 -- Same key, different hash -> conflict.
 DO $$ BEGIN
   BEGIN
@@ -415,6 +423,14 @@ SET LOCAL ROLE work_api;
 SET LOCAL app.org_id = 'org1';
 SELECT work.request_cancel('org1', :'run3_id'::uuid, 'user1', 'user canceled');
 
+INSERT INTO smoke_assert
+SELECT 'cancel_signal_outbox', count(*) = 1
+FROM work.outbox
+WHERE org_id = 'org1'
+  AND aggregate_type = 'run'
+  AND aggregate_id = :'run3_id'::uuid
+  AND payload->>'kind' = 'cancel_signal';
+
 RESET ROLE;
 SET LOCAL ROLE work_worker;
 SET LOCAL app.org_id = 'org1';
@@ -437,6 +453,139 @@ SELECT work.create_run(
 ) AS retry_run_id \gset
 INSERT INTO smoke_assert
 SELECT 'retry_run_created', :'retry_run_id'::uuid IS NOT NULL;
+
+-- ---------------------------------------------------------------------------
+-- Wait/resume + unknown/reconcile path
+-- ---------------------------------------------------------------------------
+RESET ROLE;
+SET LOCAL ROLE work_api;
+SET LOCAL app.org_id = 'org1';
+
+SELECT work.create_input(
+  'org1', 'user1', 'content://org1/input-4', 'sha256:input-4', 128, 'application/json'
+) AS input4_id \gset
+
+CREATE TEMP TABLE ctx4 AS
+SELECT *
+FROM work.submit_task(
+  'org1', 'user1', 'req-unknown-0001', 'sha256:req-unknown',
+  :'input4_id'::uuid, '未知对账路径', 'ask_each',
+  'sha256:snap-unknown', '{}'::jsonb,
+  ARRAY['model_call']::text[],
+  '{"provider":"qwen"}'::jsonb,
+  'price-v1', 'wf-unknown', 'pi-1.4.0'
+);
+SELECT task_id AS task4_id, run_id AS run4_id FROM ctx4 \gset
+
+RESET ROLE;
+SET LOCAL ROLE work_worker;
+SET LOCAL app.org_id = 'org1';
+SELECT state AS run4_state, fence AS fence4
+FROM work.acquire_run(:'run4_id'::uuid, 'org1') \gset
+INSERT INTO smoke_assert SELECT 'run4_active', :'run4_state' = 'active';
+
+SELECT work.wait_run('org1', :'run4_id'::uuid, 'budget');
+INSERT INTO smoke_assert
+SELECT 'run_waiting_budget', state = 'waiting' AND wait_reason = 'budget'
+FROM work.run WHERE id = :'run4_id'::uuid;
+
+SELECT work.resume_run('org1', :'run4_id'::uuid);
+INSERT INTO smoke_assert
+SELECT 'run_resumed', state = 'active' AND wait_reason IS NULL
+FROM work.run WHERE id = :'run4_id'::uuid;
+
+SELECT work.create_operation(
+  :'run4_id'::uuid, 'org1', 'model:unknown', 'model', 'sha256:unknown-1'
+) AS op4_id \gset
+SELECT work.authorize_operation('org1', :'op4_id'::uuid, 1, 'policy_auto');
+SELECT work.reserve_budget(
+  'org1', 'default', '2026-10', :'op4_id'::uuid, 30
+) AS res4_id \gset
+SELECT work.claim_dispatch(
+  :'op4_id'::uuid, 'org1', 'worker-1', :'fence4'::bigint
+) AS dispatch4_id \gset
+
+SELECT work.mark_operation_unknown('org1', :'op4_id'::uuid, 'provider timeout');
+INSERT INTO smoke_assert
+SELECT 'unknown_retained_budget', state = 'unknown'
+FROM work.operation WHERE id = :'op4_id'::uuid;
+INSERT INTO smoke_assert
+SELECT 'unknown_reserved', reserved_cents = 30
+FROM work.budget_account
+WHERE org_id = 'org1' AND account_key = 'default' AND period_id = '2026-10';
+
+SELECT work.reconcile_operation(
+  'org1', :'op4_id'::uuid, 'not_sent',
+  NULL, 0, 'price-v1', 'evidence://not-sent'
+);
+INSERT INTO smoke_assert
+SELECT 'reconcile_not_sent_operation', state = 'reconciled'
+FROM work.operation WHERE id = :'op4_id'::uuid;
+INSERT INTO smoke_assert
+SELECT 'reconcile_not_sent_released', reserved_cents = 0
+FROM work.budget_account
+WHERE org_id = 'org1' AND account_key = 'default' AND period_id = '2026-10';
+
+SELECT work.finish_run(:'run4_id'::uuid, 'org1', 'failed', 'reconciled_not_sent');
+INSERT INTO smoke_assert
+SELECT 'run4_task_open', state = 'open'
+FROM work.task WHERE id = :'task4_id'::uuid;
+
+-- Confirmed-sent path: settle the reserved amount and finish successfully.
+RESET ROLE;
+SET LOCAL ROLE work_api;
+SET LOCAL app.org_id = 'org1';
+SELECT work.create_input(
+  'org1', 'user1', 'content://org1/input-5', 'sha256:input-5', 128, 'application/json'
+) AS input5_id \gset
+CREATE TEMP TABLE ctx5 AS
+SELECT *
+FROM work.submit_task(
+  'org1', 'user1', 'req-reconcile-0001', 'sha256:req-reconcile',
+  :'input5_id'::uuid, '确认已发送路径', 'ask_each',
+  'sha256:snap-reconcile', '{}'::jsonb,
+  ARRAY['model_call']::text[],
+  '{"provider":"qwen"}'::jsonb,
+  'price-v1', 'wf-reconcile', 'pi-1.4.0'
+);
+SELECT task_id AS task5_id, run_id AS run5_id FROM ctx5 \gset
+
+RESET ROLE;
+SET LOCAL ROLE work_worker;
+SET LOCAL app.org_id = 'org1';
+SELECT state AS run5_state, fence AS fence5
+FROM work.acquire_run(:'run5_id'::uuid, 'org1') \gset
+SELECT work.create_operation(
+  :'run5_id'::uuid, 'org1', 'model:sent', 'model', 'sha256:sent-1'
+) AS op5_id \gset
+SELECT work.authorize_operation('org1', :'op5_id'::uuid, 1, 'policy_auto');
+SELECT work.reserve_budget(
+  'org1', 'default', '2026-10', :'op5_id'::uuid, 40
+) AS res5_id \gset
+SELECT work.claim_dispatch(
+  :'op5_id'::uuid, 'org1', 'worker-1', :'fence5'::bigint
+) AS dispatch5_id \gset
+SELECT work.mark_operation_unknown('org1', :'op5_id'::uuid, 'receipt lost');
+SELECT work.reconcile_operation(
+  'org1', :'op5_id'::uuid, 'sent_succeeded',
+  'provider-req-5', 25, 'price-v1', 'evidence://provider-5'
+);
+INSERT INTO smoke_assert
+SELECT 'reconcile_sent_operation', state = 'reconciled'
+FROM work.operation WHERE id = :'op5_id'::uuid;
+INSERT INTO smoke_assert
+SELECT 'reconcile_sent_amount', COALESCE(SUM(amount_cents), 0) = 25
+FROM work.budget_entry
+WHERE operation_id = :'op5_id'::uuid AND kind IN ('settle', 'adjust');
+INSERT INTO smoke_assert
+SELECT 'reconcile_sent_reserved_zero', reserved_cents = 0
+FROM work.budget_account
+WHERE org_id = 'org1' AND account_key = 'default' AND period_id = '2026-10';
+
+SELECT work.finish_run(:'run5_id'::uuid, 'org1', 'succeeded', NULL);
+INSERT INTO smoke_assert
+SELECT 'run5_awaiting', state = 'awaiting_acceptance'
+FROM work.task WHERE id = :'task5_id'::uuid;
 
 -- ---------------------------------------------------------------------------
 -- Assertions

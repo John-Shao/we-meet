@@ -1,6 +1,6 @@
 # Work R0a Runtime、Harness 与受控出口详细设计（D4）
 
-> 状态：D4 设计草案；Adapter/工具/沙箱/出口策略已起草并通过类型与策略单测，未接真实沙箱、Content Store、KMS 或供应商条款。
+> 状态：D4 设计草案；策略/Adapter 已通过测试，并完成 runc 降级沙箱、本地 KMS envelope 与真实 Qwen smoke；未接真实 gVisor、Content Store、云 KMS，供应商条款未关闭。
 >
 > 日期：2026-10-25
 >
@@ -208,13 +208,16 @@ H02 已用 qwen3.8-flash、deepseek-chat、doubao-seed-2-1-lite 经本地网关�
   - usage/价表版本校验；
   - faux model 确定性、无网络。
 - [WorkAdapter 契约](assets/work-r0a-runtime-2026-10-25/WorkAdapter.contract.ts) 通过 `tsc --noEmit`。
+- [降级沙箱 smoke](assets/work-r0a-hardening-2026-10-25/sandbox-smoke.log)：runc、非 root(65532)、只读根、无宿主挂载、`--network none`、cap-drop、资源限制；gVisor 不可用，`sandboxProof=false`。
+- [本地 KMS envelope](assets/work-r0a-hardening-2026-10-25/kms-envelope.mjs)：租户隔离/轮换/主密钥轮换/shredding **6/6**；仅为参考实现。
+- 真实 Qwen smoke：[provider-smoke.log](assets/work-r0a-hardening-2026-10-25/provider-smoke.log)；qwen3.8-flash 200、首 token 2567ms、total 3115ms、usage 80/110、provider request id 可记录，未输出 Key/正文。
 
 ### 11.2 未执行/待执行
 
 - 真实 gVisor/等效沙箱、逃逸测试、资源限制与 PID/时间压力；
-- 真实 Content Store/KMS/scoped token 轮换；
-- 真实供应商网关鉴权、配额、限流、回退、价表、usage 对账；
-- 真实流式响应、取消/超时、检查点恢复；
+- 真实 Content Store/云 KMS/HSM/scoped token 轮换；本地 envelope 不是生产 KMS；
+- 真实网关鉴权、配额、限流、回退、价表、usage 对账；provider smoke 是独立脚本，不经过 D4 gateway/Temporal；
+- 取消/超时、检查点恢复（已有单次真实流式 smoke，不足以证明恢复）；
 - 无正文日志的运行时验证；
 - 供应商书面条款/价表；
 - H02–H05/H12 到生产网关的转化（H03–H05/H12 仍为 mock）。

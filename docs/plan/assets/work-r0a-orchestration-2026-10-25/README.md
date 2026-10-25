@@ -24,11 +24,12 @@ python -c "import yaml; d=yaml.safe_load(open('fault-matrix.yaml', encoding='utf
 
 - TypeScript 契约通过 `tsc --noEmit`。
 - 故障矩阵 YAML 可解析，包含 12 个案例（7 个架构 F 用例 + 5 个 D3 专项）。
+- **Temporal dev 参考纵切**：[work-temporal-slice-2026-10-25](../work-temporal-slice-2026-10-25/README.md)；F01/F02/F04/F07/F21/F23 **6/6** + normal smoke 1/1。
 
 ## 未验证
 
-- 未接 Temporal Server/SDK、未执行任何故障注入。
-- D1 增量命令（wait/resume/mark unknown/reconcile、workflow-start outbox）尚未实现。
+- 未做 S1 拓扑/升级/DB-Temporal 偏移、outbox backlog/kill switch/org suspend 演练。
+- 参考纵切使用 faux model + in-memory Temporal；未接真实 provider、sandbox、KMS 或生产 Temporal。
 - 真实供应商回执查询、history 驻留、worker 升级/回滚、SSE 多实例均未验证。
 
 ## 与其他文档

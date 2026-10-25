@@ -1,6 +1,6 @@
 # Work R0a 安全、运维、迁移与试点详细设计（D6）
 
-> 状态：D6 设计草案；安全控制/SLO/容量/试点清单已建模并通过 8/8 校验，当前 **go/no-go = no-go（30 个 blocking 项）**；未执行真实演练、Temporal/沙箱/供应商/KMS 测试。
+> 状态：D6 设计草案；安全控制/SLO/容量/试点清单已建模并通过 8/8 校验，当前 **go/no-go = no-go（28 个 blocking 项）**；已完成 Temporal dev 6/6、runc 降级沙箱、本地 KMS envelope 与真实 Qwen smoke；未做生产演练/真实 gVisor/云 KMS/供应商条款。
 >
 > 日期：2026-10-25
 >
@@ -46,7 +46,7 @@ D6 回答 R0a 试点能否开始、如何安全运行、如何切换/回滚、�
 | S09 | 留存/删除/驻留 | 审计 365 天；任务/正文待产品/法务；crypto-shredding 计划 | open |
 | S10 | 管理读取/导出越权 | 只读管理面；服务端绑组织；导出短时受控 | open |
 | S11 | 旧路由/开关暴露错误数据 | 组织开关；旧链接只读通知；不迁移/不双写 | partial |
-| S12 | 沙箱逃逸/宿主访问 | gVisor/等效；非 root/只读/无宿主挂载/egress-only | open |
+| S12 | 沙箱逃逸/宿主访问 | gVisor/等效；非 root/只读/无宿主挂载/egress-only；runc 降级已测 | partial |
 | S13 | 供应商训练/驻留/留存 | 书面条款/DPA；驻留/训练/留存/价表上界 | open |
 | S14 | 正文/密钥进日志 | 只记录 ID/哈希/usage/错误码；秘密阻断 | partial |
 | S15 | 停用/离职/所有权 | 停用 epoch；不自动恢复；所有权转移人工流程 | partial |
@@ -129,7 +129,7 @@ node pilot-capacity-model.mjs
 
 ### 7.1 阶段
 
-1. **预切换**：D1–D5 评审；D1 增量实现；flag 关闭；旧页面保持现状；准备回滚。
+1. **预切换**：D1–D5 评审；D1 增量实现并冒烟；flag 关闭；旧页面保持现状；准备回滚。
 2. **试点组织开启**：逐组织开 flag；新 `/work` 生效；旧 `/work?task=` 链接进入只读归档通知；不迁移/不双写。
 3. **观察**：SLO/outbox/unknown/预算/支持；不达标暂停扩量。
 4. **收口**：3 家组织完成云端任务并采纳；决定继续 R0b 或回退。
@@ -179,10 +179,18 @@ node pilot-capacity-model.mjs
 
 完整清单见 [pilot-checklist.json](assets/work-r0a-ops-2026-10-25/pilot-checklist.json)；`ops-model.mjs` 校验状态/证据，`goNoGo` 只把 `done/waived` 视为关闭。
 
-**当前：no-go，30 个 blocking 项未关闭。** 主要阻塞：
+### 10.1 执行进展（2026-10-25）
 
-- D1–D5 设计尚未正式评审；D1 增量命令未实现。
-- D2 运行时 SDK/CI；D3 Temporal 测试；D4 真实沙箱/Content Store/KMS/供应商；D5 React/E2E。
+- **Temporal 参考纵切**：F01/F02/F04/F07/F21/F23 **6/6** + normal 1/1（dev server、faux model、D1 schema）；见 [slice](assets/work-temporal-slice-2026-10-25/README.md)。
+- **沙箱降级 profile**：runc、非 root(65532)、只读根、无宿主挂载、`--network none`、cap-drop；gVisor 不可用，`sandboxProof=false`；见 [sandbox-smoke.log](assets/work-r0a-hardening-2026-10-25/sandbox-smoke.log)。
+- **本地 KMS envelope**：租户隔离/轮换/主密钥轮换/shredding **6/6**；不是云 KMS/HSM；见 [kms-envelope](assets/work-r0a-hardening-2026-10-25/kms-envelope.mjs)。
+- **真实 Qwen smoke**：qwen3.8-flash 200、首 token 2567ms、usage 80/110、provider request id 可记录，未输出 Key/正文；见 [provider-smoke.log](assets/work-r0a-hardening-2026-10-25/provider-smoke.log)。
+- 关闭/推进：C08 `done`；C09/C13/C14 转 `partial`；C15 仍缺书面条款。当前 no-go 从 29 降为 **28**。
+
+**当前：no-go，28 个 blocking 项未关闭。** 主要阻塞：
+
+- D1–D5 设计尚未正式评审；D1 增量 34/34、Temporal 参考纵切 6/6 已完成，但 S1 拓扑/升级与正式评审仍未完成。
+- D2 运行时 SDK/CI；D4 真实 gVisor/Content Store/云 KMS/供应商条款；D5 React/E2E；S1 Temporal 拓扑/升级。
 - 威胁模型/控制签收；RLS 池化；sandbox proof；供应商条款/价表；无正文日志运行时验证。
 - SLO 仪表盘/告警；试点容量压测；备份恢复/停用/kill switch 演练；S1 Temporal 拓扑。
 - 3 家组织/5–8 名研究/golden tasks/支持流程；切换/旧链接/删除/所有权转移。
@@ -191,10 +199,10 @@ node pilot-capacity-model.mjs
 
 ## 11. D6 对 D1–D5 的待办
 
-1. D1：wait/resume/mark unknown/reconcile、workflow-start/cancel outbox、启动失败收尾、F 用例库断言。
+1. D1：wait/resume/mark unknown/reconcile、workflow-start/cancel outbox 已实现并冒烟；剩余启动失败收尾、正式评审。
 2. D2：生成客户端/CI 合同测试；预算剩余、标题编辑、导出、admin P1-A 映射、CSRF 生命周期。
-3. D3：Temporal 测试环境、worker 版本/升级、DB/Temporal 偏移、F01–F23 执行。
-4. D4：gVisor/等效证据、Content Store/KMS、真实 provider/配额/回退/usage、无正文日志。
+3. D3：Temporal dev 参考纵切 F01/F02/F04/F07/F21/F23 6/6；剩余 S1 拓扑/升级/DB-Temporal 偏移与生产 Temporal。
+4. D4：已完成 runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke；剩余 gVisor/Content Store/云 KMS/条款/网关配额/无正文日志。
 5. D5：React 页面/React Query/SSE/Playwright/可用性；旧路由/flag 切换。
 6. 平台：S1 Temporal 拓扑、备份恢复、SLO 遥测、容量压测；R0a 不承诺区域 DR。
 
@@ -211,7 +219,7 @@ node pilot-capacity-model.mjs
 9. **试点组织/研究**：3 家未签、5–8 名研究未做；不能以内部走查代替。
 10. **事故沟通/支持**：R0a 专用 on-call/工单模板未定。
 11. **合规**：数据驻留/删除/审计保留需法务/安全确认。
-12. **No-go 清单**：30 个 blocking 项是当前事实，不是“待补文档”就能关闭。
+12. **No-go 清单**：28 个 blocking 项是当前事实，不是“待补文档”就能关闭。
 
 ## 13. 验收标准
 
@@ -233,4 +241,4 @@ D6 完成（可进入 R0a 试点）需要：
 - [pilot-checklist.json](assets/work-r0a-ops-2026-10-25/pilot-checklist.json)
 - [pilot-capacity-model.mjs](assets/work-r0a-ops-2026-10-25/pilot-capacity-model.mjs)
 - [ops-model.mjs](assets/work-r0a-ops-2026-10-25/ops-model.mjs) + [8 组测试](assets/work-r0a-ops-2026-10-25/ops-model.test.mjs)
-- 下一步：D6 评审后按 no-go 清单逐项关闭；优先 D1 增量、Temporal 测试、沙箱/供应商/KMS、SLO/恢复演练、试点组织与研究。
+- 下一步：D6 评审后按 no-go 清单逐项关闭；优先 Temporal 测试、沙箱/供应商/KMS、SLO/恢复演练、试点组织与研究。

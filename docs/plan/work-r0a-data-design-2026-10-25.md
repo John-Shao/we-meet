@@ -1,6 +1,6 @@
 # Work R0a 数据、权限与迁移详细设计（D1）
 
-> 状态：D1 详细设计草案；可执行 SQL 已在独立 PostgreSQL 16 通过 20/20 冒烟，未评审、未应用生产。
+> 状态：D1 详细设计草案；可执行 SQL 已在独立 PostgreSQL 16 通过 34/34 冒烟，未评审、未应用生产。
 >
 > 日期：2026-10-25
 >
@@ -27,7 +27,7 @@ D1 的目标是回答四个问题：
 - `work_api`/`work_worker` 只有 `SELECT` 和指定函数 `EXECUTE`，没有事实/账本表的直接 `INSERT/UPDATE/DELETE`。
 - 所有 `work` schema 函数改为 `SECURITY DEFINER`，固定 `search_path = work, pg_catalog`，由 `work_owner` 拥有。
 - 冒烟覆盖输入/提交幂等、scope 拒绝、直接 DML 拒绝、跨租户 RLS、派发、预算结算/修正、成果发布、采纳、审批、取消/重试、outbox 与 task summary。
-- 冒烟结果：**20/20 断言通过**；负例块在失败时会中止脚本。
+- 冒烟结果：**34/34 断言通过**；负例块在失败时会中止脚本。
 
 复现命令：
 
@@ -85,6 +85,8 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 
 **`task_summary` 视图**：为“我的工作”和 TaskDetail 提供稳定投影，包含 `display_state`、latest Run、最新成果、`reserved_cents`、`settled_cents`、`blocking_operations`、`pending_acceptance`。视图使用 `security_invoker = true`，继承底层 RLS。
 
+**Outbox 约定**：`submit_task` 同事务写 `aggregate_type=run`、`payload.kind=start_workflow` 的行；`request_cancel` 写 `payload.kind=cancel_signal`。任务事件仍为 `aggregate_type=task`。Relay 用 `payload.kind` 区分启动/取消信号/事件，不把 run 行投递到 Task SSE。
+
 ## 4. 角色、权限与 RLS
 
 ### 4.1 角色矩阵
@@ -122,7 +124,7 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 | 命令 | 调用方 | 状态/副作用 | 幂等/冲突 |
 |---|---|---|---|
 | `create_input` | api | 创建/复用 active 输入；写审计 | 同 content_hash 返回同一 id |
-| `submit_task` | api | Task + snapshot + queued Run + dedup + event/audit | 同 key/hash 返回原 Task/Run；不同 hash 冲突 |
+| `submit_task` | api | Task + snapshot + queued Run + dedup + event/audit + workflow-start outbox | 同 key/hash 返回原 Task/Run；不同 hash 冲突 |
 | `create_run` | api | 新 Run，沿用/指定快照；检查 active 与 blocking Operation | 有 active Run/阻塞 Operation 拒绝 |
 | `acquire_run` | worker | queued → active；fence +1 | 非 current/queued 拒绝 |
 | `authorize_operation` | worker | prepared → authorized；`policy_auto` 审计 | waiting_approval 返回 `approval_required` |
@@ -136,7 +138,11 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 | `adjust_budget` | worker | 追加 adjust 分录与 settlement revision | revision 单调；不能覆写历史 |
 | `release_budget` | worker | held → released；释放预留 | 非 held 拒绝 |
 | `cancel_operation` | api/worker | prepared/waiting/authorized → canceled + 释放 held；dispatching → unknown | 终态/unknown 幂等返回 |
-| `request_cancel` | api | Run → cancel_requested；不清空工程状态 | 终态/已请求幂等 |
+| `wait_run` | worker | active → waiting；写 wait_reason（budget/provider/reconcile） | 已 waiting 同 reason 幂等；不同 reason 更新 |
+| `resume_run` | worker | waiting → active；清 wait_reason | active 幂等；非 waiting 拒绝 |
+| `mark_operation_unknown` | worker | dispatching → unknown；保留预算 | unknown 幂等；非 dispatching 拒绝 |
+| `reconcile_operation` | worker | unknown/unresolved → reconciled/unresolved；按 resolution 结算/释放/保留预算 | 需 evidence；同状态幂等；billable ≤ 预留 |
+| `request_cancel` | api | Run → cancel_requested；写 cancel-signal outbox；不清空工程状态 | 终态/已请求幂等 |
 | `finish_run` | worker | Run 终态；清 active、保留 latest；成功 → awaiting_acceptance | 非 current Run 拒绝 |
 | `publish_artifact` | api/worker | 新建/更新 artifact，版本 staged → published；写事件/审计 | 版本号单调；内容不可变 |
 | `accept_task` | api | Task → completed；写不可变 Acceptance | revision/active/blocking/latest 终态/成果发布均检查 |
@@ -153,20 +159,25 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 - **取消不谎报**：取消只把 Run 置为 cancel_requested；已派发 Operation 转 unknown，等待对账；不声称外部动作已停止。
 - **事件不带正文**：task_event/outbox payload 只带 ID、状态、哈希等；goal/background/成果正文不进入数据库事件。
 - **审计同事务**：关键命令写 audit_event；outbox 与 task_event 在同一事务。
+- **等待/恢复**：`wait_run`/`resume_run` 只改 Run 的 `state/wait_reason`，不消费 Operation 或预算。
+- **未知对账**：`mark_operation_unknown` 只把 dispatching 转 unknown，保留预算；`reconcile_operation` 的 sent_succeeded 结算、not_sent 释放/结算 0、unresolved 保留预算，且不重发外部请求。
+- **Outbox 分流**：workflow-start/cancel-signal 与 TaskEvent 分开处理；启动/信号重复由固定 workflow ID/DB 状态幂等。
+- **对账状态**：`unresolved` 可在后续证据下转 `reconciled`；不允许跳过 `unknown/unresolved` 直接伪造成功。
 
 ## 6. 冒烟结果
 
-脚本 [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql) 在 PostgreSQL 16.15 独立容器执行，事务结束回滚。20/20 断言通过：
+脚本 [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql) 在 PostgreSQL 16.15 独立容器执行，事务结束回滚。34/34 断言通过：
 
 | 组 | 断言 |
 |---|---|
-| 输入/提交 | `input_idempotent`、`submit_idempotent`、`one_task_after_retry`、`dedup_row` |
+| 输入/提交 | `input_idempotent`、`submit_idempotent`、`one_task_after_retry`、`dedup_row`、`workflow_start_outbox` |
 | 权限 | `api_no_direct_dml`、`worker_no_direct_dml`、`ledger_append_only`、`functions_security_definer` |
 | RLS | `rls_org2_zero`、`rls_force_task` |
 | 执行/预算 | `run_active`、`dispatch_once`、`summary_budget_settled` |
 | 成果/采纳 | `summary_awaiting_acceptance`、`task_completed` |
 | 审批 | `approval_dispatch`、`approval_task_completed` |
-| 取消/重试 | `cancel_summary`、`retry_run_created` |
+| 取消/重试 | `cancel_summary`、`retry_run_created`、`cancel_signal_outbox` |
+| 等待/对账 | `run4_active`、`run_waiting_budget`、`run_resumed`、`unknown_retained_budget`、`unknown_reserved`、`reconcile_not_sent_operation`、`reconcile_not_sent_released`、`run4_task_open`、`reconcile_sent_operation`、`reconcile_sent_amount`、`reconcile_sent_reserved_zero`、`run5_awaiting` |
 | Outbox | `outbox_claimed` |
 
 负例（脚本失败即中止）：同 key 不同 hash、非白名单工具、`plan_then_run`、connector Operation、直接 DML、重复采纳。
@@ -191,6 +202,6 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 ## 8. 交付物与下一步
 
 - [r0a-schema-draft.sql](assets/work-r0a-design-2026-10-25/r0a-schema-draft.sql)：可执行 schema、角色、RLS、领域命令、task summary。
-- [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql)：20/20 冒烟与负例。
+- [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql)：34/34 冒烟与负例。
 - [generate-schema.py](assets/work-r0a-design-2026-10-25/generate-schema.py)：从完整 DDL 裁剪 R0a 子集；后续契约/DDL 变更需同步。
 - 下一步 D2：R0a OpenAPI 子集、输入/模板/TaskSummary/SSE 契约、mock server 与合同测试。

@@ -1,6 +1,6 @@
 # Work R0a 控制面与持久编排详细设计（D3）
 
-> 状态：D3 设计草案；RunWorkflow/Activity 契约与故障矩阵已起草，未接 Temporal 运行时、未执行 DR2。
+> 状态：D3 设计草案；已接 Temporal dev 参考纵切，F01/F02/F04/F07/F21/F23 6/6；faux model + in-memory Temporal；S1 拓扑/升级/DR 与真实 provider 未做。
 >
 > 日期：2026-10-25
 >
@@ -388,10 +388,23 @@ D3 完成（DR2）需要：
 - Temporal history 中无正文/密钥；SSE 事件无正文。
 - 对账器只通过领域命令恢复；无直接表写。
 
+### 14.1 参考纵切验证（2026-10-25）
+
+- 环境：Temporal CLI 1.9.1 / Server 1.32.0 dev（in-memory）、Node 22 Linux 容器、PostgreSQL 16、D1 R0a schema、faux model。
+- 结果：F01/F02/F04/F07/F21/F23 **6/6** 通过；normal workflow smoke 1/1。
+  - F01：提交后不启动 relay；outbox 后补启动，仍只有一个 Task/Run/workflow。
+  - F02：start 成功但 relay 未 ACK；重试遇 `AlreadyStarted`，不创建第二个 Run。
+  - F04：provider accepted 后无回执 → Operation unknown、预算保留 100、无 artifact、无自动重放。
+  - F07：cancel 后迟到模型结果不发布 artifact；run canceled、Operation unknown、审计保留。
+  - F21：claim 后崩溃 → 一个 dispatch attempt、provider 调用 0、takeover claim 返回 null。
+  - F23：Task 删除标记后重放 → `task_deleted`，不创建新 Task/收费。
+- 边界：F04/F07/F21 使用测试 `faultMode` 直接启动 workflow，不经过 outbox；F23 是数据库幂等断言；未接真实 provider、sandbox、KMS 或 S1 拓扑/升级。
+- 资产：[work-temporal-slice-2026-10-25](assets/work-temporal-slice-2026-10-25/README.md)。
+
 ## 15. 未决与风险
 
 1. **Temporal 托管/运维**：自托管需要 S1 拓扑、升级、备份与监控；托管需驻留/条款评审。
-2. **D1 增量未实现**：wait/resume/unknown/reconcile/workflow-start outbox 仍是设计；D1 20/20 不覆盖。
+2. **D1 增量已实现**：wait/resume/unknown/reconcile/workflow-start/cancel outbox 已通过 34/34；仍需 Temporal 集成/正式评审与 S1 拓扑/升级。
 3. **供应商回执查询**：不同供应商对 unknown 的查询能力不同；无法确认时保持 unresolved，不释放预算。
 4. **预算等待信号权限**：谁可以补预算/发 resume 需运营权限与审计；R0a 无预算写 UI。
 5. **Workflow 版本/Worker 发布**：patching vs worker versioning 的最终选择、drain 流程、回滚演练未做。
@@ -407,4 +420,4 @@ D3 完成（DR2）需要：
 
 - [RunWorkflow.contract.ts](assets/work-r0a-orchestration-2026-10-25/RunWorkflow.contract.ts)：workflow/activity/signal/query/retry/错误分类契约。
 - [fault-matrix.yaml](assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)：F01/F02/F03/F04/F07/F21/F23 + D3 专项。
-- 下一步：DR2 前实现 D1 增量并补冒烟；随后 D4（Pi Adapter/沙箱/模型网关）与 D6（Temporal/DR/容量）。
+- 下一步：S1 拓扑/升级/DB-Temporal 偏移、outbox backlog/停用演练、真实 provider/sandbox；随后 D4/D6 评审。参考纵切见 [README](assets/work-temporal-slice-2026-10-25/README.md)。

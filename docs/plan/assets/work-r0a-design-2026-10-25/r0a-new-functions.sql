@@ -273,6 +273,11 @@ BEGIN
       'permission_mode', p_permission_mode
     )
   );
+  INSERT INTO work.outbox (org_id, aggregate_type, aggregate_id, event_id, payload)
+  VALUES (
+    p_org_id, 'run', new_run_id, gen_random_uuid(),
+    jsonb_build_object('kind', 'start_workflow', 'run_id', new_run_id, 'workflow_id', p_workflow_id)
+  );
   PERFORM work.append_audit(
     p_org_id, p_subject_id, 'task.submit', 'task', new_task_id::text,
     jsonb_build_object(
@@ -407,6 +412,11 @@ BEGIN
   PERFORM work.append_task_event(
     p_org_id, task_id, 'run.cancel_requested',
     jsonb_build_object('run_id', p_run_id, 'reason', p_reason)
+  );
+  INSERT INTO work.outbox (org_id, aggregate_type, aggregate_id, event_id, payload)
+  VALUES (
+    p_org_id, 'run', p_run_id, gen_random_uuid(),
+    jsonb_build_object('kind', 'cancel_signal', 'run_id', p_run_id, 'reason', p_reason)
   );
   PERFORM work.append_audit(
     p_org_id, p_actor_subject_id, 'run.cancel_request', 'run', p_run_id::text,
@@ -588,6 +598,279 @@ BEGIN
     RETURN;
   END IF;
   RETURN;
+END;
+$$;
+
+
+CREATE FUNCTION work.wait_run(
+  p_org_id text,
+  p_run_id uuid,
+  p_reason text
+) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  task_id uuid;
+  task_row work.task%ROWTYPE;
+  run_row work.run%ROWTYPE;
+BEGIN
+  IF p_reason NOT IN ('budget', 'provider', 'reconcile') THEN
+    RAISE EXCEPTION 'invalid_wait_reason' USING ERRCODE = '22023';
+  END IF;
+  SELECT r.task_id INTO task_id
+  FROM work.run r
+  WHERE r.id = p_run_id AND r.org_id = p_org_id;
+  IF task_id IS NULL THEN
+    RAISE EXCEPTION 'run_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  SELECT * INTO task_row
+  FROM work.task
+  WHERE id = task_id AND org_id = p_org_id
+  FOR UPDATE;
+  SELECT * INTO run_row
+  FROM work.run
+  WHERE id = p_run_id AND org_id = p_org_id
+  FOR UPDATE;
+  IF task_row.state <> 'open'
+     OR task_row.active_run_id IS DISTINCT FROM p_run_id THEN
+    RAISE EXCEPTION 'run_not_current' USING ERRCODE = 'P0001';
+  END IF;
+  IF run_row.state = 'waiting' THEN
+    IF run_row.wait_reason IS DISTINCT FROM p_reason THEN
+      UPDATE work.run
+      SET wait_reason = p_reason,
+          control_revision = control_revision + 1,
+          updated_at = now()
+      WHERE id = p_run_id AND org_id = p_org_id;
+      PERFORM work.append_task_event(
+        p_org_id, task_id, 'run.waiting',
+        jsonb_build_object('run_id', p_run_id, 'reason', p_reason)
+      );
+    END IF;
+    RETURN;
+  END IF;
+  IF run_row.state <> 'active' THEN
+    RAISE EXCEPTION 'run_not_active' USING ERRCODE = 'P0001';
+  END IF;
+  UPDATE work.run
+  SET state = 'waiting',
+      wait_reason = p_reason,
+      control_revision = control_revision + 1,
+      updated_at = now()
+  WHERE id = p_run_id AND org_id = p_org_id;
+  PERFORM work.append_task_event(
+    p_org_id, task_id, 'run.waiting',
+    jsonb_build_object('run_id', p_run_id, 'reason', p_reason)
+  );
+  PERFORM work.append_audit(
+    p_org_id, NULL, 'run.wait', 'run', p_run_id::text,
+    jsonb_build_object('task_id', task_id, 'reason', p_reason)
+  );
+END;
+$$;
+
+CREATE FUNCTION work.resume_run(
+  p_org_id text,
+  p_run_id uuid
+) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  task_id uuid;
+  task_row work.task%ROWTYPE;
+  run_row work.run%ROWTYPE;
+BEGIN
+  SELECT r.task_id INTO task_id
+  FROM work.run r
+  WHERE r.id = p_run_id AND r.org_id = p_org_id;
+  IF task_id IS NULL THEN
+    RAISE EXCEPTION 'run_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  SELECT * INTO task_row
+  FROM work.task
+  WHERE id = task_id AND org_id = p_org_id
+  FOR UPDATE;
+  SELECT * INTO run_row
+  FROM work.run
+  WHERE id = p_run_id AND org_id = p_org_id
+  FOR UPDATE;
+  IF task_row.state <> 'open'
+     OR task_row.active_run_id IS DISTINCT FROM p_run_id THEN
+    RAISE EXCEPTION 'run_not_current' USING ERRCODE = 'P0001';
+  END IF;
+  IF run_row.state = 'active' THEN
+    RETURN;
+  END IF;
+  IF run_row.state <> 'waiting' THEN
+    RAISE EXCEPTION 'run_not_waiting' USING ERRCODE = 'P0001';
+  END IF;
+  UPDATE work.run
+  SET state = 'active',
+      wait_reason = NULL,
+      control_revision = control_revision + 1,
+      updated_at = now()
+  WHERE id = p_run_id AND org_id = p_org_id;
+  PERFORM work.append_task_event(
+    p_org_id, task_id, 'run.resumed',
+    jsonb_build_object('run_id', p_run_id)
+  );
+  PERFORM work.append_audit(
+    p_org_id, NULL, 'run.resume', 'run', p_run_id::text,
+    jsonb_build_object('task_id', task_id)
+  );
+END;
+$$;
+
+CREATE FUNCTION work.mark_operation_unknown(
+  p_org_id text,
+  p_operation_id uuid,
+  p_reason text
+) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  task_id uuid;
+  operation_row work.operation%ROWTYPE;
+BEGIN
+  SELECT r.task_id INTO task_id
+  FROM work.operation o
+  JOIN work.run r ON r.id = o.run_id AND r.org_id = o.org_id
+  WHERE o.id = p_operation_id AND o.org_id = p_org_id;
+  IF task_id IS NULL THEN
+    RAISE EXCEPTION 'operation_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  PERFORM 1 FROM work.task
+  WHERE id = task_id AND org_id = p_org_id
+  FOR UPDATE;
+  SELECT * INTO operation_row
+  FROM work.operation
+  WHERE id = p_operation_id AND org_id = p_org_id
+  FOR UPDATE;
+  IF operation_row.state = 'unknown' THEN
+    RETURN;
+  END IF;
+  IF operation_row.state <> 'dispatching' THEN
+    RAISE EXCEPTION 'operation_not_dispatching' USING ERRCODE = 'P0001';
+  END IF;
+  UPDATE work.operation
+  SET state = 'unknown',
+      revision = revision + 1,
+      updated_at = now()
+  WHERE id = p_operation_id AND org_id = p_org_id;
+  PERFORM work.append_task_event(
+    p_org_id, task_id, 'operation.unknown',
+    jsonb_build_object('operation_id', p_operation_id, 'reason', p_reason)
+  );
+  PERFORM work.append_audit(
+    p_org_id, NULL, 'operation.unknown', 'operation', p_operation_id::text,
+    jsonb_build_object('task_id', task_id, 'reason', p_reason)
+  );
+END;
+$$;
+
+CREATE FUNCTION work.reconcile_operation(
+  p_org_id text,
+  p_operation_id uuid,
+  p_resolution text,
+  p_provider_request_id text DEFAULT NULL,
+  p_billable_cents bigint DEFAULT 0,
+  p_price_version text DEFAULT 'price-v1',
+  p_evidence_ref text DEFAULT NULL
+) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  task_id uuid;
+  operation_row work.operation%ROWTYPE;
+  reservation work.budget_reservation%ROWTYPE;
+  next_revision int;
+BEGIN
+  IF p_resolution NOT IN ('sent_succeeded', 'not_sent', 'unresolved') THEN
+    RAISE EXCEPTION 'invalid_reconciliation_resolution' USING ERRCODE = '22023';
+  END IF;
+  IF p_billable_cents < 0 THEN
+    RAISE EXCEPTION 'invalid_billable_amount' USING ERRCODE = '22023';
+  END IF;
+  IF p_resolution IN ('sent_succeeded', 'not_sent')
+     AND (p_evidence_ref IS NULL OR p_evidence_ref = '') THEN
+    RAISE EXCEPTION 'reconciliation_evidence_required' USING ERRCODE = '22023';
+  END IF;
+  IF p_price_version IS NULL OR p_price_version = '' THEN
+    RAISE EXCEPTION 'invalid_price_version' USING ERRCODE = '22023';
+  END IF;
+  SELECT r.task_id INTO task_id
+  FROM work.operation o
+  JOIN work.run r ON r.id = o.run_id AND r.org_id = o.org_id
+  WHERE o.id = p_operation_id AND o.org_id = p_org_id;
+  IF task_id IS NULL THEN
+    RAISE EXCEPTION 'operation_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  PERFORM 1 FROM work.task
+  WHERE id = task_id AND org_id = p_org_id
+  FOR UPDATE;
+  SELECT * INTO operation_row
+  FROM work.operation
+  WHERE id = p_operation_id AND org_id = p_org_id
+  FOR UPDATE;
+  IF operation_row.state = 'reconciled' THEN
+    RETURN;
+  END IF;
+  IF operation_row.state = 'unresolved' AND p_resolution = 'unresolved' THEN
+    RETURN;
+  END IF;
+  IF operation_row.state NOT IN ('unknown', 'unresolved') THEN
+    RAISE EXCEPTION 'operation_not_reconcilable' USING ERRCODE = 'P0001';
+  END IF;
+  SELECT * INTO reservation
+  FROM work.budget_reservation
+  WHERE operation_id = p_operation_id AND org_id = p_org_id
+  ORDER BY reservation_seq DESC
+  LIMIT 1
+  FOR UPDATE;
+  IF p_resolution = 'sent_succeeded' THEN
+    IF reservation.id IS NULL THEN
+      RAISE EXCEPTION 'reservation_not_found' USING ERRCODE = 'P0002';
+    END IF;
+    IF p_billable_cents > reservation.amount_cents THEN
+      RAISE EXCEPTION 'settlement_out_of_bounds' USING ERRCODE = '22023';
+    END IF;
+    next_revision := reservation.settlement_revision + 1;
+    PERFORM work.settle_budget(
+      reservation.id, p_billable_cents, p_price_version,
+      jsonb_build_object('resolution', p_resolution, 'evidence_ref', p_evidence_ref),
+      next_revision
+    );
+  ELSIF p_resolution = 'not_sent' THEN
+    IF reservation.id IS NOT NULL AND reservation.state = 'held' THEN
+      PERFORM work.release_budget(reservation.id);
+    ELSIF reservation.id IS NOT NULL AND reservation.state = 'unknown' THEN
+      next_revision := reservation.settlement_revision + 1;
+      PERFORM work.settle_budget(
+        reservation.id, 0, p_price_version,
+        jsonb_build_object('resolution', p_resolution, 'evidence_ref', p_evidence_ref),
+        next_revision
+      );
+    END IF;
+  END IF;
+  UPDATE work.operation
+  SET state = CASE WHEN p_resolution = 'unresolved' THEN 'unresolved' ELSE 'reconciled' END,
+      provider_request_id = COALESCE(p_provider_request_id, provider_request_id),
+      receipt_ref = COALESCE(p_evidence_ref, receipt_ref),
+      revision = revision + 1,
+      updated_at = now()
+  WHERE id = p_operation_id AND org_id = p_org_id;
+  PERFORM work.append_task_event(
+    p_org_id, task_id,
+    CASE WHEN p_resolution = 'unresolved' THEN 'operation.unresolved' ELSE 'operation.reconciled' END,
+    jsonb_build_object(
+      'operation_id', p_operation_id,
+      'resolution', p_resolution,
+      'billable_cents', p_billable_cents,
+      'evidence_ref', p_evidence_ref
+    )
+  );
+  PERFORM work.append_audit(
+    p_org_id, NULL,
+    CASE WHEN p_resolution = 'unresolved' THEN 'operation.unresolved' ELSE 'operation.reconcile' END,
+    'operation', p_operation_id::text,
+    jsonb_build_object('resolution', p_resolution, 'billable_cents', p_billable_cents, 'evidence_ref', p_evidence_ref)
+  );
 END;
 $$;
 

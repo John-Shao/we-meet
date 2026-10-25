@@ -44,14 +44,14 @@
 
 ### 0.3 W1 进展（2026-10-25）
 
-- **D1 已完成可执行草案**：[数据/权限/迁移设计](work-r0a-data-design-2026-10-25.md)、[schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；PostgreSQL 16 冒烟 20/20，未应用生产。
+- **D1 已完成可执行草案**：[数据/权限/迁移设计](work-r0a-data-design-2026-10-25.md)、[schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；PostgreSQL 16 冒烟 34/34，未应用生产。
 - **D2 已完成契约子集**：[API/事件设计](work-r0a-api-design-2026-10-25.md)、[OpenAPI](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、生成的 TypeScript 类型、mock server 与 6/6 合同测试；未做真实鉴权/持久化。
 - **DR1 尚未评审**：D1/D2 仍是草案；D3/D4 需在 DR1 后继续。
 
 ### 0.4 W2 进展（2026-10-25）
 
 - **D3 设计草案完成**：[控制面与持久编排设计](work-r0a-orchestration-design-2026-10-25.md)、[RunWorkflow/Activity 契约](assets/work-r0a-orchestration-2026-10-25/RunWorkflow.contract.ts)、[12 项故障矩阵](assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)。
-- **D3 仅为设计**：D1 增量命令（wait/resume/unknown/reconcile、workflow-start outbox）未实现；未接 Temporal，DR2 未评审。
+- **D3 参考纵切通过**：D1 增量 34/34；Temporal dev + faux model 执行 F01/F02/F04/F07/F21/F23 **6/6** + normal 1/1（[slice](assets/work-temporal-slice-2026-10-25/README.md)）；S1 拓扑/升级与 DR2 未做。
 - **D4 设计草案完成**：[Runtime/出口设计](work-r0a-runtime-egress-design-2026-10-25.md)、[WorkAdapter 契约](assets/work-r0a-runtime-2026-10-25/WorkAdapter.contract.ts)、[工具/沙箱/出口策略](assets/work-r0a-runtime-2026-10-25/policy/)、[10/10 策略测试](assets/work-r0a-runtime-2026-10-25/policy/evaluator.test.mjs)。
 - **D4 仅为设计**：未接真实 gVisor、Content Store、KMS、供应商条款或生产网关；DR2/D4 评审未执行。
 
@@ -60,7 +60,7 @@
 - **D5 设计草案完成**：[前端体验设计](work-r0a-frontend-design-2026-10-25.md)、[状态/路由/文案/UI 模型资产](assets/work-r0a-frontend-2026-10-25/README.md)；11/11 UI 模型测试通过。
 - **D5 仅为设计**：未实现 React 页面/React Query/SSE 客户端/Playwright，未做可用性测试。
 - **D6 设计草案完成**：[安全/运维/迁移/试点设计](work-r0a-security-ops-migration-design-2026-10-25.md)、[安全/SLO/容量/试点资产](assets/work-r0a-ops-2026-10-25/README.md)；8/8 校验通过。
-- **D6 当前 go/no-go = no-go**：30 个 blocking 项未关闭；未做真实演练、Temporal/沙箱/供应商/KMS 测试。
+- **D6 当前 go/no-go = no-go**：28 个 blocking 项未关闭；已完成 Temporal 6/6、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke，未做生产演练/真实 gVisor/云 KMS/供应商条款。
 
 ## 1. R0a 范围冻结
 
@@ -216,7 +216,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **设计输入**：[DDL 草案](work-data-model-ddl-draft-2026-10-25.md)、[架构 §5/§13/§14/§18](work-system-architecture-2026-10-25.md)、[ADR-0009/0011/0016/0017](../adr/)。
 
-**当前进展（2026-10-25）**：已产出 [D1 设计说明](work-r0a-data-design-2026-10-25.md) 与 [可执行 schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；独立 PostgreSQL 16 冒烟 20/20 通过。仍是草案，未评审、未应用生产。
+**当前进展（2026-10-25）**：已产出 [D1 设计说明](work-r0a-data-design-2026-10-25.md) 与 [可执行 schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；独立 PostgreSQL 16 冒烟 34/34 通过。仍是草案，未评审、未应用生产。
 
 **交付物**：
 
@@ -240,7 +240,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 **完成标准**：
 
 - 空库迁移成功；R0a 迁移重复执行幂等。
-- 现有 8 组 DDL 冒烟加 R0a 20 项断言/负例全部通过（D1 草案已通过 20/20）。
+- 现有 8 组 DDL 冒烟加 R0a 34 项断言/负例全部通过（D1 草案已通过 34/34）。
 - `work_api`/`work_worker` 不能直接 `INSERT/UPDATE/DELETE` fact/ledger 表；只能执行授权函数。
 - org1/org2 交叉读取为 0；`FORCE RLS` 生效。
 - 备份恢复后 Task/Run/Operation/预算/采纳/去重事实一致。
@@ -293,7 +293,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **设计输入**：[架构 §6/§7/§11/§14/§21](work-system-architecture-2026-10-25.md)、[云端纵切](assets/work-cloud-slice-2026-10-25/README.md)、[DDL 草案](work-data-model-ddl-draft-2026-10-25.md)。
 
-**当前进展（2026-10-25）**：D3 设计草案与契约已产出；Temporal 运行时、D1 增量命令与 DR2 故障注入均未执行。
+**当前进展（2026-10-25）**：D3 设计、契约与 Temporal dev 参考纵切已产出；F01/F02/F04/F07/F21/F23 6/6 + normal 1/1；S1 拓扑/升级与 DR2 未执行。
 
 **交付物**：
 
@@ -380,7 +380,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **设计输入**：[威胁模型](work-threat-model-2026-10-25.md)、[Runbook](work-operations-runbook-2026-10-25.md)、[架构 §17–§19](work-system-architecture-2026-10-25.md)、[容量烟雾](assets/work-ops-2026-10-25/README.md)。
 
-**当前进展（2026-10-25）**：D6 设计、安全控制/SLO/容量/试点清单已产出；8/8 校验通过，当前 no-go（30 个 blocking）。未执行真实演练/试点压测/供应商条款/KMS/沙箱测试。
+**当前进展（2026-10-25）**：D6 设计、安全控制/SLO/容量/试点清单已产出；8/8 校验通过，当前 no-go（28 个 blocking）。已完成 Temporal 6/6、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke；生产演练/真实 gVisor/云 KMS/供应商条款未完成。
 
 **交付物**：
 

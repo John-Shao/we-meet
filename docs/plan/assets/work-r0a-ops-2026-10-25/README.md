@@ -26,7 +26,7 @@ python -c "import json; [json.load(open(f, encoding='utf-8')) for f in ['securit
 ## 已验证
 
 - 8/8 测试通过：控制字段/证据、SLO 必需指标/未测不冒充、清单完整性、go/no-go、容量基线、10× 失败、零使用、非法输入。
-- 当前 `goNoGo`：**no-go，30 个 blocking 项**。
+- 当前 `goNoGo`：**no-go，28 个 blocking 项**。
 - 基线：36 Run/日、108 模型 Operation/日、7.5 provider req/min、0.125 DB 预留/秒、1.296M token/日、1.156GB/365 天；均在试点限制内。
 - 10× 压力会触发 provider RPM/token、workflow、内容留存与并发限制。
 
