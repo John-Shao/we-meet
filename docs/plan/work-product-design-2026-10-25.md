@@ -14,6 +14,7 @@
 >
 > 关联文档：
 >
+> - [WeMeet 工作目标系统架构（不以当前实现为约束）](work-system-architecture-2026-10-25.md)
 > - [豆包工作与千问办公扩展能力统一调研](../research/work-extension-unified-research-2026-10-25.md)
 > - [WeMeet 工作 R0 UX 设计蓝图](work-ux-design-r0-2026-10-25.md)
 > - [WeMeet 工作扩展 UX 设计（R1–R3）](work-ux-design-extensions-2026-10-25.md)
