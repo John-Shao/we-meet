@@ -137,6 +137,8 @@ jobs:
           python-version: '3.12'
       - name: Type-check workflow and background-job contracts
         run: npx --yes -p typescript@5 tsc --noEmit --skipLibCheck --target ES2022 --module ESNext RunWorkflow.contract.ts background-jobs.contract.ts
+      - name: Install PyYAML for the matrix check
+        run: python3 -m pip install --quiet pyyaml
       - name: Parse the fault matrix
         run: python -c "import yaml,sys; d=yaml.safe_load(open('fault-matrix.yaml', encoding='utf-8')); ids=[c['id'] for c in d['cases']]; sys.exit(0 if len(ids)==18 and len(set(ids))==18 and all(c.get('expected') and c.get('evidence') for c in d['cases']) else (print('bad matrix', ids) or 1))"
 
