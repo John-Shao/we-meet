@@ -150,9 +150,14 @@ jobs:
             exit 0
           fi
           printf '%s\n' "${files[@]}"
-          uv run ruff format --check "${files[@]}"
-          uv run ruff check "${files[@]}"
+          uv run ruff format --check --force-exclude "${files[@]}"
+          uv run ruff check --force-exclude "${files[@]}"
       # pylint 同样存在历史债：只检查本次变更的后端文件，新代码仍受约束。
+      # 生成的 migration 与 ruff 的 exclude 保持一致：显式传路径会绕过配置里的
+      # ignore-patterns，所以这里直接过滤掉 migrations 目录。
+      # 测试文件按仓库既有口径不算产品代码（coverage 的 source-exclude 同样排除
+      # **/tests/**、**/test_*.py），它们的 C0116 历史债不该由 lint 新增行来背；
+      # 测试仍受 ruff（含 isort/print 规则）与 pytest 约束。
       - name: Lint changed files with pylint
         run: |
           base="${{ github.event.pull_request.base.sha || github.event.before }}"
@@ -160,7 +165,7 @@ jobs:
             echo "No comparable base revision; skipping pylint."
             exit 0
           fi
-          mapfile -t files < <(git diff --name-only --relative --diff-filter=ACMRT "$base"...HEAD -- '*.py' | grep -E '^(meet|demo|core)/' || true)
+          mapfile -t files < <(git diff --name-only --relative --diff-filter=ACMRT "$base"...HEAD -- '*.py' | grep -E '^(meet|demo|core)/' | grep -v '/migrations/' | grep -vE '(^|/)tests?/|(^|/)test_[^/]*\.py$' || true)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No changed backend files."
             exit 0
