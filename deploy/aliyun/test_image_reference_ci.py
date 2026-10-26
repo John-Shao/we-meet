@@ -31,7 +31,6 @@ IMAGE = "fixture/backend@sha256:" + "b" * 64
 COMMIT = "a" * 40
 SETTINGS = (
     "aiBackend.enabled=true",
-    "workWorker.enabled=true",
     "celeryBeat.enabled=true",
     "backend.docsProfileSync.enabled=true",
     "backend.reminders.enabled=true",
@@ -54,7 +53,6 @@ class ImageReferenceTests(unittest.TestCase):
             "meet-backend",
             "meet-backend-ai",
             "meet-celery-backend",
-            "meet-celery-work",
             "meet-celery-beat",
             "meet-backend-docs-profiles",
             "meet-backend-reminders",
@@ -127,13 +125,12 @@ class ImageReferenceTests(unittest.TestCase):
         baseline = render(
             *SETTINGS,
             "backend.image.reference=" + IMAGE,
-            "backend.envVars.WORK_REVIEW_ENABLED=False",
+            "backend.envVars.BACKEND_TEST_FLAG=False",
         )
         names = {
             "meet-backend",
             "meet-backend-ai",
             "meet-celery-backend",
-            "meet-celery-work",
             "meet-celery-beat",
             "meet-backend-docs-profiles",
             "meet-backend-reminders",
@@ -151,7 +148,7 @@ class ImageReferenceTests(unittest.TestCase):
         pending = render(
             *SETTINGS,
             "backend.image.tag=old-default",
-            "backend.envVars.WORK_REVIEW_ENABLED=True",
+            "backend.envVars.BACKEND_TEST_FLAG=True",
             "frontend.image.reference=fixture/ui:new",
         )
         result = preserver.preserve(pending, {"items": old}, "meet")
@@ -251,12 +248,11 @@ class RealPartialReleaseTests(unittest.TestCase):
                 json.dumps(
                     {
                         "aiBackend": {"enabled": True},
-                        "workWorker": {"enabled": True},
                         "celeryBeat": {"enabled": True},
                         "backend": {
                             "docsProfileSync": {"enabled": True},
                             "reminders": {"enabled": True},
-                            "envVars": {"WORK_REVIEW_ENABLED": "True"},
+                            "envVars": {"BACKEND_TEST_FLAG": "True"},
                         },
                     }
                 )
@@ -264,7 +260,6 @@ class RealPartialReleaseTests(unittest.TestCase):
             secrets = root / "empty.json"
             secrets.write_text("{}")
             profile = root / "disabled.json"
-            profile.write_text('{"workAgent":{"enabled":false}}')
             scripts = {
                 "git": """#!/bin/sh
 case "$*" in
@@ -317,9 +312,6 @@ sys.exit(subprocess.run([os.environ['FIXTURE_REAL_HELM'],*out]).returncode)
                 PATH=str(root) + os.pathsep + os.environ["PATH"],
                 VALUES_FILE=str(values),
                 SECRETS_FILE=str(secrets),
-                WORK_VALUES_FILE=str(root / "absent"),
-                WORK_AGENT_VALUES_FILE=str(profile),
-                WORK_COHORT_VALUES_FILE=str(root / "absent-cohort"),
                 FIXTURE_SNAPSHOT=str(snapshot_path),
                 FIXTURE_COUNTER=str(root / "counter"),
                 FIXTURE_IMAGE=IMAGE,
@@ -367,13 +359,12 @@ sys.exit(subprocess.run([os.environ['FIXTURE_REAL_HELM'],*out]).returncode)
                 "meet-backend-ai",
                 "meet-celery-backend",
                 "meet-celery-beat",
-                "meet-celery-work",
                 "meet-backend-docs-profiles",
                 "meet-backend-reminders",
             }:
                 self.assertEqual(indexed[(old["kind"], name)]["spec"], old["spec"])
                 preserved += 1
-        self.assertEqual(preserved, 7)
+        self.assertEqual(preserved, 6)
         self.assertEqual(
             containers(indexed[("Deployment", "meet-frontend")])[0]["image"],
             "fixture/other:234567890",

@@ -1,9 +1,0 @@
-# Copy to values.work.yaml; release-meet.sh automatically includes it.
-# Start via deploy/aliyun/enable-work.sh check, then enable with `on`.
-workWorker:
-  enabled: true
-celeryBeat:
-  enabled: true
-backend:
-  envVars:
-    WORK_ENABLED: "True"

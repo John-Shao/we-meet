@@ -463,7 +463,6 @@ class Base(Configuration):
     INSTALLED_APPS = [
         # Meet
         "core",
-        "work",
         "demo",
         "drf_spectacular",
         # Third party apps
@@ -964,44 +963,6 @@ class Base(Configuration):
             5.0, environ_name="DOCS_TIMEOUT_S", environ_prefix=None
         ),
     }
-    WORK_ENABLED = values.BooleanValue(False, environ_prefix=None)
-    WORK_AGENT_ENABLED = values.BooleanValue(False, environ_prefix=None)
-    WORK_LOCAL_AGENT_ENABLED = values.BooleanValue(False, environ_prefix=None)
-    WORK_AGENT_ROLLOUT_MODE = values.Value("closed", environ_prefix=None)
-    WORK_AGENT_ALLOWED_USER_IDS = values.ListValue([], environ_prefix=None)
-    WORK_TENANT_ACCESS_ENABLED = values.BooleanValue(False, environ_prefix=None)
-    WORK_DISABLED_ORGANIZATION_IDS = values.ListValue([], environ_prefix=None)
-    WORK_REMOTE_AGENT_ENABLED = values.BooleanValue(False, environ_prefix=None)
-    WORK_AGENT_URL = values.Value("", environ_prefix=None)
-    WORK_AGENT_TOKEN = SecretFileValue(None, environ_prefix=None)
-    WORK_AGENT_CA_PEM = values.Value("", environ_prefix=None)
-    WORK_AGENT_MODEL = values.Value("deepseek-flash", environ_prefix=None)
-    WORK_AGENT_TIMEOUT = values.PositiveIntegerValue(180, environ_prefix=None)
-    WORK_AGENT_MAX_CALLS = values.PositiveIntegerValue(6, environ_prefix=None)
-    WORK_AGENT_TOKEN_BUDGET = values.PositiveIntegerValue(80000, environ_prefix=None)
-    WORK_REVIEW_ENABLED = values.BooleanValue(False, environ_prefix=None)
-    WORK_REVIEW_URL = values.Value("", environ_prefix=None)
-    WORK_REVIEW_TOKEN = SecretFileValue(None, environ_prefix=None)
-    WORK_REVIEW_CA_PEM = values.Value("", environ_prefix=None)
-    WORK_REVIEW_MODEL = values.Value("deepseek-flash", environ_prefix=None)
-    WORK_REVIEW_TOKEN_BUDGET = values.PositiveIntegerValue(20000, environ_prefix=None)
-    WORK_DAILY_TOKEN_BUDGET = values.PositiveIntegerValue(100000, environ_prefix=None)
-    WORK_MAX_OUTPUT_TOKENS = values.PositiveIntegerValue(3000, environ_prefix=None)
-    # Work access-audit retention. The purge is hourly and bounded instead of
-    # nightly and unbounded: a backlog is then drained as a rolling queue rather
-    # than a long transaction, and a steady-state tick usually deletes nothing.
-    # ``0`` disables the purge and removes its beat entry below.
-    WORK_ACCESS_AUDIT_RETENTION_DAYS = values.PositiveIntegerValue(
-        365, environ_prefix=None
-    )
-    WORK_ACCESS_AUDIT_RETENTION_DRY_RUN = values.BooleanValue(True, environ_prefix=None)
-    WORK_ACCESS_AUDIT_PRUNE_BATCH = values.PositiveIntegerValue(
-        5000, environ_prefix=None
-    )
-    WORK_ACCESS_AUDIT_EXPORT_MAX_ROWS = values.PositiveIntegerValue(
-        50000, environ_prefix=None
-    )
-
     celery_beat_entries = {
         "expire-remote-control-sessions": {
             "task": "core.tasks.remote_control.expire_remote_control_sessions",
@@ -1010,20 +971,6 @@ class Base(Configuration):
         "prune-remote-control-history": {
             "task": "core.tasks.remote_control.prune_remote_control_history",
             "schedule": 3600.0,
-        },
-        "tick-work-reviews": {
-            "task": "work.tasks.tick_reviews",
-            "schedule": 5.0,
-            "options": {"queue": "work", "expires": 30},
-        },
-        "tick-work-agent-runs": {
-            "task": "work.tasks.tick_agent_runs",
-            "schedule": 5.0,
-        },
-        "prune-work-access-audit": {
-            "task": "work.tasks.prune_access_audit",
-            "schedule": 3600.0,
-            "options": {"queue": "work", "expires": 1800},
         },
         "tick-upload-translations": {
             "task": "core.tasks.upload_translations.tick_upload_translations",
@@ -1864,10 +1811,6 @@ class Base(Configuration):
             self.MEETING_VOICEPRINT_ENABLED and self.MEETING_VOICEPRINT_MATCHING_ENABLED
         ):
             schedule.pop("identify-speakers", None)
-        if self.WORK_ACCESS_AUDIT_RETENTION_DAYS <= 0:
-            # Retention is off: keep the queue free of a task that can only
-            # return zero.
-            schedule.pop("prune-work-access-audit", None)
         # Erasure and lease recovery must survive collection/matching shutdown.
         return schedule
 

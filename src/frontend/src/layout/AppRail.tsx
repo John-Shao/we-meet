@@ -8,7 +8,6 @@ import {
 } from 'react-aria-components'
 import {
   RiMessage3Line,
-  RiBriefcaseLine,
   RiVidiconLine,
   RiApps2Line,
   RiFileTextLine,
@@ -58,7 +57,6 @@ const NAV: NavItem[] = [
   { to: '/im', labelKey: 'nav.messages', Icon: RiMessage3Line },
   { to: '/assistant', labelKey: 'nav.assistant', Icon: RiRobot2Line },
   { to: '/meeting', labelKey: 'nav.meeting', Icon: RiVidiconLine },
-  { to: '/work', labelKey: 'nav.work', Icon: RiBriefcaseLine },
   { to: '/docs', labelKey: 'nav.docs', Icon: RiFileTextLine },
   { to: '/apps', labelKey: 'nav.apps', Icon: RiApps2Line },
 ]
@@ -154,9 +152,7 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
     useSnapshot(systemSettingsStore)
   const docsUrl = config?.docs?.url
   const visibleNav = NAV.filter(
-    (item) =>
-      (item.to !== '/work' || config?.work?.enabled) &&
-      (item.to !== '/docs' || docsUrl)
+    (item) => item.to !== '/docs' || docsUrl
   )
   const initial = (user?.full_name || user?.email || '?')
     .slice(0, 1)

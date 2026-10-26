@@ -22,7 +22,6 @@ def preserve(resources, snapshot, release):
             "-backend-ai",
             "-celery-backend",
             "-celery-beat",
-            "-celery-work",
             "-backend-docs-profiles",
             "-backend-reminders",
         )

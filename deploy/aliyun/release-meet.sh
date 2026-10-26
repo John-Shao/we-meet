@@ -35,13 +35,6 @@ RELEASE="${RELEASE:-meet}"
 BRANCH="${BRANCH:-}"
 VALUES_FILE="${VALUES_FILE:-src/helm/env.d/aliyun-prod/values.meet.yaml}"
 SECRETS_FILE="${SECRETS_FILE:-src/helm/env.d/aliyun-prod/values.secrets.yaml}"
-WORK_VALUES_FILE="${WORK_VALUES_FILE:-src/helm/env.d/aliyun-prod/values.work.yaml}"
-work_cohort_default="${XDG_CONFIG_HOME:-$HOME/.config}/we-meet/values.work-cohort.yaml"
-if [[ ! -r "$work_cohort_default" ]]; then
-  work_cohort_default="src/helm/env.d/aliyun-prod/values.work-cohort.yaml"
-fi
-WORK_COHORT_VALUES_FILE="${WORK_COHORT_VALUES_FILE:-$work_cohort_default}"
-WORK_AGENT_VALUES_FILE="${WORK_AGENT_VALUES_FILE:-src/helm/env.d/aliyun-prod/values.work-agent.yaml}"
 ALL_MODULES=(backend frontend summary agents)
 SELECTED=()
 TAG=""
@@ -406,32 +399,14 @@ metadata_reference=$(module_reference agents "$RELEASE-agent-metadata" '.agentMe
 subtitles_reference=$(module_reference agents "$RELEASE-agent-subtitles" '.agentSubtitles.image.repository')
 assistant_reference=$(module_reference agents "$RELEASE-agent-ai-assistant" '.agentAIAssistant.image.repository')
 
-# Keep independent agent credentials out of the business Helm release history.
-# The shared operator file is filtered into private temporary values first.
-work_agent_business_overlay=""
+# Temporary render directory for backend snapshot/post-renderer.
 require_command python3
-work_agent_render_dir=$(mktemp -d)
-cleanup_work_agent_values() {
-  rm -f -- "$work_agent_render_dir/business-secrets.json" "$work_agent_render_dir/business-overlay.json"
-  rm -f -- "$work_agent_render_dir/backend-snapshot.json" "$work_agent_render_dir/backend-post-renderer"
-  rmdir -- "$work_agent_render_dir"
+render_dir=$(mktemp -d)
+cleanup_render_dir() {
+  rm -f -- "$render_dir/backend-snapshot.json" "$render_dir/backend-post-renderer"
+  rmdir -- "$render_dir"
 }
-trap cleanup_work_agent_values EXIT
-if [[ -r "$SECRETS_FILE" ]]; then
-  agent_profile="$WORK_AGENT_VALUES_FILE"
-  if [[ ! -r "$agent_profile" ]]; then
-    agent_profile="src/helm/env.d/aliyun-prod/values.work-agent.yaml.dist"
-  fi
-  python3 deploy/aliyun/check-work-agent.py \
-    --namespace "$NAMESPACE" --secrets-file "$SECRETS_FILE" \
-    --values-file "$agent_profile" \
-    --export-business-secrets "$work_agent_render_dir/business-secrets.json" \
-    --export-business-overlay "$work_agent_render_dir/business-overlay.json"
-  SECRETS_FILE="$work_agent_render_dir/business-secrets.json"
-  if [[ -r "$WORK_AGENT_VALUES_FILE" ]]; then
-    work_agent_business_overlay="$work_agent_render_dir/business-overlay.json"
-  fi
-fi
+trap cleanup_render_dir EXIT
 
 helm_args=(
   -n "$NAMESPACE" upgrade "$RELEASE" ./src/helm/meet
@@ -449,24 +424,6 @@ helm_args=(
   --set-string "agentAIAssistant.image.reference=$assistant_reference"
   --wait --timeout 10m
 )
-
-# Preserve the host-local Work configuration across regular releases.
-if [[ -r "$WORK_VALUES_FILE" ]]; then
-  helm_args+=(-f "$WORK_VALUES_FILE")
-fi
-if [[ -n "$work_agent_business_overlay" ]]; then
-  helm_args+=(-f "$work_agent_business_overlay")
-fi
-if [[ -r "$WORK_COHORT_VALUES_FILE" ]]; then
-  helm_args+=(-f "$WORK_COHORT_VALUES_FILE")
-fi
-
-# A missing/stale/partial overlay must fail before Helm can erase live settings.
-kubectl -n "$NAMESPACE" get deployment,cronjob -o json > "$work_agent_render_dir/backend-snapshot.json"
-chmod 600 "$work_agent_render_dir/backend-snapshot.json"
-python3 deploy/aliyun/check-work-cohort.py \
-  --snapshot "$work_agent_render_dir/backend-snapshot.json" \
-  --values-file "$WORK_COHORT_VALUES_FILE" --release "$RELEASE" --namespace "$NAMESPACE"
 
 # Optional AI processes use the agents image family. Preserve each live image reference on
 # partial releases, and leave absent workers at their explicitly configured tag.
@@ -488,7 +445,9 @@ done
 if ! contains_module backend; then
   # Helm separates hooks before invoking post-renderers; disable DB hooks here.
   helm_args+=(--set "backend.jobs.enabled=false")
-  python3 - "$PWD" "$work_agent_render_dir" "$RELEASE" "$NAMESPACE" "$backend_reference" <<'PY'
+  kubectl -n "$NAMESPACE" get deployment,cronjob -o json > "$render_dir/backend-snapshot.json"
+  chmod 600 "$render_dir/backend-snapshot.json"
+  python3 - "$PWD" "$render_dir" "$RELEASE" "$NAMESPACE" "$backend_reference" <<'PY'
 import os,pathlib,shlex,sys
 repo,folder,release,namespace,image=sys.argv[1:]
 path=pathlib.Path(folder)/'backend-post-renderer'
@@ -496,17 +455,7 @@ command=['python3',str(pathlib.Path(repo)/'deploy/aliyun/preserve-backend-releas
 path.write_text('#!/bin/sh\nexec '+shlex.join(command)+'\n')
 os.chmod(path,0o700)
 PY
-  helm_args+=(--post-renderer "$work_agent_render_dir/backend-post-renderer")
-else
-  python3 - "$PWD" "$work_agent_render_dir" "$RELEASE" "$NAMESPACE" "$WORK_COHORT_VALUES_FILE" <<'PY'
-import os,pathlib,shlex,sys
-repo,folder,release,namespace,values=sys.argv[1:]
-path=pathlib.Path(folder)/'backend-post-renderer'
-command=['python3',str(pathlib.Path(repo)/'deploy/aliyun/check-work-cohort.py'),'--snapshot',str(pathlib.Path(folder)/'backend-snapshot.json'),'--values-file',values,'--release',release,'--namespace',namespace,'--check-live','--render']
-path.write_text('#!/bin/sh\nexec '+shlex.join(command)+'\n')
-os.chmod(path,0o700)
-PY
-  helm_args+=(--post-renderer "$work_agent_render_dir/backend-post-renderer")
+  helm_args+=(--post-renderer "$render_dir/backend-post-renderer")
 fi
 
 if ((DRY_RUN)); then
@@ -524,10 +473,6 @@ if contains_module backend; then
     wait_for_deployment "$RELEASE-backend-ai"
   fi
   wait_for_deployment "$RELEASE-celery-backend"
-  work_worker=$(kubectl -n "$NAMESPACE" get deployment "$RELEASE-celery-work" --ignore-not-found -o name)
-  if [[ -n "$work_worker" ]]; then
-    wait_for_deployment "$RELEASE-celery-work"
-  fi
   beat=$(kubectl -n "$NAMESPACE" get deployment "$RELEASE-celery-beat" --ignore-not-found -o name)
   if [[ -n "$beat" ]]; then
     wait_for_deployment "$RELEASE-celery-beat"

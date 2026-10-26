@@ -11,7 +11,6 @@ export interface ApiConfig {
     matching_enabled?: boolean
     sampling_enabled?: boolean
   }
-  work?: { enabled: boolean }
   meeting_records?: {
     enabled: boolean
     summary_requests_enabled: boolean

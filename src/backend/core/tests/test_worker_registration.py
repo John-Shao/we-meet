@@ -18,8 +18,7 @@ def test_worker_can_resolve_every_scheduled_task():
             "expected.update({'core.tasks.summary.generate_meeting_summary', "
             "'core.tasks.embeddings.embed_meeting_transcripts'}); "
             "missing = expected.difference(app.tasks); "
-            "assert not missing, sorted(missing); "
-            "assert app.tasks['work.tasks.tick_agent_runs'].queue == 'work'",
+            "assert not missing, sorted(missing)",
         ],
         env={**os.environ, "CELERY_ENABLED": "True"},
         capture_output=True,

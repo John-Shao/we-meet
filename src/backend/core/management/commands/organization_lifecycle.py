@@ -65,9 +65,7 @@ class Command(BaseCommand):
                 "action": action,
                 "dry_run": True,
                 "state": organization_lifecycle.organization_state(organization),
-                "counts": organization_lifecycle.preview_counts(
-                    organization, action=action
-                ),
+                "counts": {},
             }
             self.stdout.write(json.dumps(payload, ensure_ascii=False))
             return

@@ -26,7 +26,6 @@ import { ApprovalRoute } from '@/features/approval'
 import { DocsRoute } from '@/features/docs'
 import { InviteRoute } from '@/features/invite'
 import { TasksRoute } from '@/features/tasks'
-import { WorkRoute } from '@/features/work/routes/WorkRoute'
 import { AiCallRoute } from '@/features/ai-call/AiCallRoute'
 import { AiAssistantRoute } from '@/features/ai-assistant/AiAssistantRoute'
 import { AppsRoute } from '@/features/apps/AppsPage'
@@ -60,7 +59,6 @@ export const routes: Record<
   | 'calendarSubscribe'
   | 'approval'
   | 'tasks'
-  | 'work'
   | 'apps'
   | 'docs'
   | 'invite'
@@ -189,11 +187,6 @@ export const routes: Record<
     name: 'tasks',
     path: '/tasks',
     Component: TasksRoute,
-  },
-  work: {
-    name: 'work',
-    path: /^\/work(?:\/new)?$/,
-    Component: WorkRoute,
   },
   docs: {
     name: 'docs',

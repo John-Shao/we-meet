@@ -10,9 +10,6 @@ from django.core.management.base import CommandError
 import pytest
 
 from core import factories, models
-from core.services import organization_lifecycle
-
-from work.models import WorkMemberGrant, WorkOrganizationEntitlement
 
 pytestmark = pytest.mark.django_db
 
@@ -35,28 +32,12 @@ def actor():
     return factories.UserFactory()
 
 
-def test_dry_run_reports_counts_without_writing(  # pylint: disable=unused-argument
-    org, actor
-):
-    membership = models.Membership.objects.create(
-        organization=org,
-        user=factories.UserFactory(),
-        org_role=models.OrgRoleChoices.MEMBER,
-        status=models.MembershipStatusChoices.ACTIVE,
-        is_primary=True,
-    )
-    WorkOrganizationEntitlement.objects.create(organization=org, enabled=True)
-    WorkMemberGrant.objects.create(organization=org, user=membership.user, enabled=True)
-
+def test_dry_run_does_not_write(org):
     payload = _call("archive", org.slug, "--dry-run")
 
     assert payload["dry_run"] is True
     assert payload["state"] == "active"
-    assert payload["counts"] == {
-        "grants_revoked": 1,
-        "runs_cancelled": 0,
-        "reviews_cancelled": 0,
-    }
+    assert payload["counts"] == {}
     org.refresh_from_db()
     assert org.archived_at is None
 
@@ -100,6 +81,8 @@ def test_archive_and_restore_through_the_command(org, actor):
 
 
 def test_archived_organization_cannot_be_suspended_by_command(org):
+    from core.services import organization_lifecycle
+
     organization_lifecycle.archive(org)
     with pytest.raises(CommandError) as exc:
         _call("suspend", org.slug)

@@ -181,7 +181,7 @@
 
 | 步骤 | 范围 | 覆盖模块 | 产物/证据 | 依赖/闸门 |
 |---|---|---|---|---|
-| E1 数据层 | D1 schema/函数/RLS/outbox + `work.audit_export`/`work_directory` 纳入迁移体系 | Task/Run、Artifact、Quota、Audit、Access | PG16 139/139 + 竞态 9/9（D-08 修订）；R0a 门禁已在 PR #7 首次远端跑绿（6/6），迁移体系尚未接入仓库 CI | D-04（DR0 11-03 前签；此前只做草案）、DR1；**E1 已于 2026-10-27 启动** |
+| E1 数据层 | D1 schema/函数/RLS/outbox + `work.audit_export`/`work_directory` 纳入迁移体系 | Task/Run、Artifact、Quota、Audit、Access | **E1 草案已落 `src/backend/work/sql/`**：在本机 PG16 上 roles+schema 应用后 **139/139** 冒烟通过；legacy `work` app/表迁移未迁数据 | D-04（DR0 11-03 前签；此前不注册 `INSTALLED_APPS`、不合并共享环境）、DR1；**E1 已于 2026-10-27 启动** |
 | E2 API | 33 operation、cookie+CSRF、错误码、幂等、正文下载、管理只读 6 接口、用量 2 接口、接入配置/凭证 6 接口、目录投影同步作业 | 首页/Composer、我的工作、任务/成果、Inbox、管理、接入配置 | 34/34；`ci-contract` | E1、D-02（DR0）、D-08c/d（DR1）、U2 |
 | E3 SSE/outbox | Last-Event-ID/409 resync、跨组织 relay、生命周期事件 | 任务工作区、Inbox、审计 | Temporal 切片 relay 部分；生产 SSE 未接 | E1、E2 |
 | E4 编排 | Temporal、取消四时点、unknown/reconcile、worker versioning | 任务/运行、配额（审批函数内部保留） | 故障 10/10、S1 4/4 | C03/C22 演练（U3 九项已确认）；真实部署前不签 C03 |
@@ -225,7 +225,7 @@
 | 阶段 | 状态 | 说明 |
 |---|---|---|
 | R0a 详细设计 | 可评审草案 | D1–D6 文档与资产齐备；4 个未决项（U2 已定待签收） |
-| R0a 产品代码 | **有条件启动（2026-10-27）** | E1 起开工；E2/E3 随后；E4–E6 只做契约/mock；生产/试点未放行；剩余 5 项 start 转遗留问题 |
+| R0a 产品代码 | **有条件启动（2026-10-27）** | legacy `work` 后端/前端/部署/Helm 已删（数据用 `deploy/aliyun/drop-legacy-work.sql` 手工清理，不迁移）；E1 草案已落 `src/backend/work/sql/`，本地 139/139；E2/E3 随后；生产/试点未放行 |
 | R0b+（本机/连接器/项目） | 未开始 | R1–R5 仅有产品/UX/架构方向 |
 | DR（设计评审）签收 | 0/5 | DR0–DR4 未开会 |
 | go/no-go | no-go | 30 blocking 中 19 未关闭（10 done / 15 partial / 4 todo / 1 waived）；开发准入是产品例外，不改变计数 |
@@ -400,6 +400,7 @@ Temporal 切片需要 Docker Compose/Temporal dev（Windows 主机不能直接�
 | 2026-10-27 | **有条件开发准入**：C01/C02/C14 已签、C15/S13 已关；E1–E3 先行、E4–E6 只做契约/mock；剩余 5 项 start 与 DR0 决策转 L01–L12 遗留问题，`canStartWork` 仍 false、生产/试点未放行 |
 | 2026-10-27 | **D-08b 签收清单**：把网关取凭证、KMS 信封、只写不回读、组织隔离、吊销/轮换、审计、unknown 对账、泄露应急、脱敏拆成 B1–B10；DR0 安全+平台 (b) 签；明确不关闭 C04，演示组织凭证模式待选 |
 | 2026-10-27 | **C03 阻塞与演练清单**：把 U3 九项承诺、C22 四项演练、D3-N01/N03/N06 与 S1 多节点重启拆成可催办/可验收表；U3 已于 2026-10-27 确认（全部"是"），C03 只剩演练；仍不建议提前签 |
+| 2026-10-27 | **legacy Work 清理 + E1 迁移草案**：删除后端 `work` app/模型/迁移/测试、`src/work-agent`、core 生命周期 Work 钩子、`org.work_grant.*` 权限（0234 清理迁移）、settings/urls/celery/feature flags、前端 `features/work` 与导航、桌面 local-agent 集成、Work deploy/Helm/values 与 3.4G release 产物；新增 `src/backend/work/sql/`（roles/schema/verify，本地 139/139）与 `deploy/aliyun/drop-legacy-work.sql`（不执行、不迁移）；E1 未注册 `INSTALLED_APPS`，等 D-04 |
 | 2026-10-27 | **S09 留存政策签收**：365 天审计 / 24h 输入 TTL / 180 天任务与成果只读归档后导出或删除；S09 open→partial；安全控制 0 open / 16 partial / 2 out_of_scope；C11 仍为 start 闸门、按 DR3 12-01 签 |
 | 2026-10-27 | **S13 转 out_of_scope**：随 C15 waived，S13（供应商训练/驻留/留存）标记不适用并保留重开条件；安全控制 open 4→3（S06/S09/S10）、out_of_scope 2（S13/S16）；C11 仍需 DR3 签收 |
 | 2026-10-27 | **C15 结项（waived）**：P1–P5 全部不适用（演示组织用阿里云百炼且只用演示数据），P6 价目仅参考；不再作为 start 闸门，开工闸门 9→8。配额到期与动态限流转为运营风险 |

@@ -19,7 +19,7 @@ const http = require('node:http')
     const pathname = new URL(req.url, 'http://fixture.invalid').pathname
     requests.push(pathname)
     if (pathname === '/api/v1.0/config/') return res.end(JSON.stringify({
-      work: { enabled: true }, feedback: { url: '' }, background_image: {},
+      feedback: { url: '' }, background_image: {},
       subtitle: { enabled: false }, telephony: { enabled: false },
       livekit: { url: '', default_sources: [] }, is_silent_login_enabled: false,
     }))
@@ -30,7 +30,7 @@ const http = require('node:http')
     if (pathname.endsWith('/work/capabilities/')) return res.end(JSON.stringify({ enabled: true, local_agent_enabled: true }))
     if (pathname.includes('/approvals/')) return res.end('[]')
     if (signedIn && pathname === '/api/v1.0/rooms/recent-meetings/') return res.end('[]')
-    if (signedIn && ['/api/v1.0/rooms/', '/api/v1.0/directory/members/', '/api/v1.0/work/tasks/'].includes(pathname)) return res.end(JSON.stringify({ results: [], count: 0, next: null, previous: null }))
+    if (signedIn && ['/api/v1.0/rooms/', '/api/v1.0/directory/members/'].includes(pathname)) return res.end(JSON.stringify({ results: [], count: 0, next: null, previous: null }))
     res.writeHead(401); res.end(JSON.stringify({ detail: 'Synthetic anonymous service' }))
   })
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))

@@ -16,7 +16,7 @@ jobs:
       # The publisher commits to gh-pages; keep chart jobs sequential.
       max-parallel: 1
       matrix:
-        chart: [meet, work-agent, work-agent-k8s]
+        chart: [meet]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
