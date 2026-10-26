@@ -126,6 +126,7 @@
   "work.r0a.error.scope_unavailable": "当前阶段不支持该能力。",
   "work.r0a.error.permission_mode_unavailable": "组织策略不允许该权限模式。",
   "work.r0a.error.version_conflict": "版本已变化，请刷新后重试。",
+  "work.r0a.error.artifact_read_only": "任务已结束或成果已只读，请刷新后查看。",
   "work.r0a.error.run_not_quiescent": "任务仍有未核对动作，暂时不能采纳或重试。",
   "work.r0a.error.resync_required": "事件游标已过期，正在重新读取任务快照。",
   "work.r0a.error.budget_exhausted": "预算不足，新的模型调用不会派发。",

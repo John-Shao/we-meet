@@ -118,7 +118,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 创建新 Run；默认沿用 Task 初始快照 */
+        /**
+         * 创建新 Run；沿用 Task 当前快照
+         * @description Task 必须为 open 且最近 Run 为 failed/canceled；expected_revision 与 target 必填。
+         */
         post: operations["retryTask"];
         delete?: never;
         options?: never;
@@ -220,7 +223,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 用户保存文本新版本；不覆盖旧版本 */
+        /**
+         * 用户保存文本新版本；不覆盖旧版本
+         * @description 仅当 Task 为 open/awaiting_acceptance 且最近 Run 非 failed/canceled 时允许，否则 409 artifact_read_only；base_version_no 必须等于最新已发布版本，否则 409 version_conflict。
+         */
         post: operations["createArtifactVersion"];
         delete?: never;
         options?: never;
@@ -585,8 +591,6 @@ export interface components {
         TaskRunRequest: {
             client_request_id: string;
             expected_revision: number;
-            /** Format: uuid */
-            snapshot_id?: string | null;
             target: components["schemas"]["Target"];
             reason?: string;
         };
@@ -892,6 +896,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["UnprocessableEntity"];
@@ -946,6 +951,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             422: components["responses"]["UnprocessableEntity"];
             503: components["responses"]["ServiceUnavailable"];
@@ -1005,6 +1011,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["UnprocessableEntity"];
@@ -1062,6 +1069,7 @@ export interface operations {
                     "application/json": components["schemas"]["TaskDeletion"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
@@ -1095,6 +1103,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
@@ -1129,6 +1138,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["UnprocessableEntity"];
@@ -1215,6 +1225,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
@@ -1317,6 +1328,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
@@ -1424,6 +1436,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
@@ -1503,6 +1516,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             422: components["responses"]["UnprocessableEntity"];
         };

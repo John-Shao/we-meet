@@ -94,7 +94,7 @@ export function canCancel(displayState) {
 }
 
 export function isArtifactReadOnly(displayState) {
-  return ['run_canceled', 'canceled', 'archived'].includes(displayState);
+  return ['completed', 'failed', 'run_canceled', 'canceled', 'archived'].includes(displayState);
 }
 
 export function taskUiModel(task) {

@@ -806,16 +806,16 @@ async function handle(req, res, state) {
     if (!Number.isInteger(body.expected_revision) || body.expected_revision < 0) {
       fail(400, 'invalid_request', 'expected_revision 必填');
     }
+    if (!body.target || body.target.kind !== 'cloud' || body.target.profile !== 'text-v1') {
+      fail(422, 'execution_target_unavailable', 'R0a 只支持 cloud/text-v1');
+    }
     if (body.expected_revision !== task.revision) {
       fail(409, 'version_conflict', '任务 revision 已变化', { current_revision: task.revision });
     }
-    if (!['open', 'awaiting_acceptance'].includes(task.state)) {
-      fail(409, 'task_not_runnable', '任务状态不可重试');
-    }
     if (task.activeRunId) fail(409, 'task_has_active_run', '任务已有活动运行');
     const latest = task.latestRunId ? task.runs.get(task.latestRunId) : null;
-    if (latest && !TERMINAL_RUN_STATES.has(latest.state)) {
-      fail(409, 'run_not_quiescent', '最近运行未终态');
+    if (task.state !== 'open' || !latest || !['failed', 'canceled'].includes(latest.state)) {
+      fail(409, 'task_not_runnable', '任务状态不可重试');
     }
     const attemptNo = Math.max(...[...task.runs.values()].map((r) => r.attemptNo)) + 1;
     const runId = uuid();
@@ -1051,6 +1051,14 @@ async function handle(req, res, state) {
     if (typeof body.content !== 'string' || Buffer.byteLength(body.content) > 262144) {
       fail(422, 'artifact_too_large', '成果正文超过 R0a 限制');
     }
+    const latestRun = task.latestRunId ? task.runs.get(task.latestRunId) : null;
+    if (
+      !['open', 'awaiting_acceptance'].includes(task.state)
+      || (latestRun && ['failed', 'canceled'].includes(latestRun.state))
+    ) {
+      fail(409, 'artifact_read_only', '任务已结束或最近运行未成功，成果只读');
+    }
+    if (task.activeRunId) fail(409, 'run_not_quiescent', '任务仍有活动运行');
     if (!Number.isInteger(body.base_version_no) || body.base_version_no < 1) {
       fail(400, 'invalid_request', 'base_version_no 必填且 ≥1');
     }

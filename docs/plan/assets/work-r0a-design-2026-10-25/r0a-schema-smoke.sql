@@ -553,6 +553,17 @@ INSERT INTO smoke_assert
 SELECT 'cancel_summary', :'display_state' = 'run_canceled' AND :'reserved_cents'::bigint = 0;
 
 SELECT revision AS task3_rev FROM work.task_summary WHERE task_id = :'task3_id'::uuid \gset
+DO $$
+DECLARE tid uuid := (SELECT id FROM work.task WHERE title = '取消路径');
+BEGIN
+  BEGIN
+    PERFORM work.retry_task('org1', tid, 'user1', 'req-retry-stale',
+      (SELECT revision FROM work.task WHERE id = tid) - 1, 'wf-stale-retry', 'pi-1.4.0');
+    RAISE EXCEPTION 'expected_version_conflict_retry';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'version_conflict' THEN RAISE; END IF;
+  END;
+END $$;
 SELECT run_id AS retry_run_id FROM work.retry_task(
   'org1', :'task3_id'::uuid, 'user1', 'req-retry-0001', :'task3_rev'::bigint,
   'wf-cancel-retry', 'pi-1.4.0'
@@ -1303,6 +1314,46 @@ SELECT 'user_artifact_version',
   AND (SELECT provenance->>'source' = 'user' FROM work.artifact_version
        WHERE artifact_id = :'art_b'::uuid AND version_no = 2)
   AND (SELECT version_no = 2 FROM work.acceptance WHERE id = :'acc_b'::uuid);
+
+-- A canceled latest run freezes the artifact, matching the run_canceled read-only UI.
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user1';
+SET LOCAL app.org_id = 'org1';
+SELECT work.create_input('org1', 'user1', 'content://org1/ro', 'sha256:ro', 8, 'application/json') AS ro_input \gset
+SELECT task_id AS ro_task, run_id AS ro_run FROM work.submit_task(
+  'org1', 'user1', 'req-ro-1', :'ro_input'::uuid, '取消后只读', 'ask_each', 'sha256:snap-ro',
+  '{}'::jsonb, ARRAY['model_call']::text[], '{"provider":"qwen"}'::jsonb, 'price-v1', 'wf-ro-1', 'pi-1.4.0'
+) \gset
+SET LOCAL ROLE work_worker;
+SET LOCAL app.org_id = 'org1';
+SELECT fence AS ro_fence FROM work.acquire_run(:'ro_run'::uuid, 'org1') \gset
+SELECT artifact_id AS ro_art FROM work.publish_artifact(
+  'org1', :'ro_task'::uuid, :'ro_run'::uuid, 'draft.md', 'content://org1/ro-v1',
+  'sha256:ro-v1', 8, 'text/markdown', '{}'::jsonb
+) \gset
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user1';
+SET LOCAL app.org_id = 'org1';
+SELECT work.request_cancel('org1', :'ro_run'::uuid, 'user1', 'user_requested');
+SET LOCAL ROLE work_worker;
+SET LOCAL app.org_id = 'org1';
+SELECT work.finish_run(:'ro_run'::uuid, 'org1', 'canceled', 'user_requested');
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user1';
+SET LOCAL app.org_id = 'org1';
+DO $$
+DECLARE aid uuid := (SELECT a.id FROM work.artifact a JOIN work.task t ON t.id = a.task_id WHERE t.title = '取消后只读');
+BEGIN
+  BEGIN
+    PERFORM work.create_user_artifact_version('org1', aid, 'user1', 'req-ro-version', 1,
+      'content://org1/ro-v2', 'sha256:ro-v2', 8, 'text/markdown');
+    RAISE EXCEPTION 'expected_artifact_read_only_after_cancel';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'artifact_read_only' THEN RAISE; END IF;
+  END;
+END $$;
+RESET ROLE;
+SET LOCAL app.org_id = 'org1';
 
 -- No session subject → every API command refuses.
 SET LOCAL ROLE work_api;

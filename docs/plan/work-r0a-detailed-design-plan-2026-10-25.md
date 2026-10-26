@@ -45,7 +45,7 @@
 ### 0.3 W1 进展（2026-10-25）
 
 - **D1 已完成可执行草案**：[数据/权限/迁移设计](work-r0a-data-design-2026-10-25.md)、[schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；PostgreSQL 16 冒烟 82/82，未应用生产。
-- **D2 已完成契约子集**：[API/事件设计](work-r0a-api-design-2026-10-25.md)、[OpenAPI](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、生成的 TypeScript 类型、mock server 与 6/6 合同测试；未做真实鉴权/持久化。
+- **D2 已完成契约子集**：[API/事件设计](work-r0a-api-design-2026-10-25.md)、[OpenAPI](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、生成的 TypeScript 类型、mock server 与 7/7 合同测试；未做真实鉴权/持久化。
 - **DR1 尚未评审**：D1/D2 仍是草案；D3/D4 需在 DR1 后继续。
 
 ### 0.4 W2 进展（2026-10-25）
@@ -64,7 +64,7 @@
 
 ### 0.6 下一批优先项进展（2026-10-26）
 
-- **C07 生成客户端/CI**：`generate-client.mjs` 从 OpenAPI 生成 23 个 operation 的零依赖客户端；客户端 12/12、设计包 30/30、`ci-contract.mjs` 漂移门禁（含 schema-draft 错误码扫描）通过；`.github/workflows/work-r0a-gates.yml` 已定义（远端未跑）。仍未接真实前端。
+- **C07 生成客户端/CI**：`generate-client.mjs` 从 OpenAPI 生成 23 个 operation 的零依赖客户端；客户端 12/12、设计包 31/31、`ci-contract.mjs` 漂移门禁（含 schema-draft 错误码扫描）通过；`.github/workflows/work-r0a-gates.yml` 已定义（远端未跑）。仍未接真实前端。
 - **C31 管理读**：严格适配器 12/12，证明 P1-A 原始字段不能直接充当 R0a 契约（role/revision/subject/seat total/cents/异步导出）；未接真实 P1-A/身份服务，C31 保持 partial。
 - **C16 日志扫描**：扫描器 8/8，覆盖 Key（含 `sk-proj-`/`sk-ant-`）/GitHub token/阿里云 AccessKey/Bearer/cookie/私钥/正文 canary/email；7 个既有证据日志 0 fail / 0 warn；未接 staging OTel/log pipeline，C16 保持 partial。
 - **C17 SLO 遥测**：12 个 SLO 全覆盖，生成 21 条 record + 19 条 alert，10/10 校验；未接 Prometheus/Alertmanager/仪表盘，所有 SLO 仍 `not_measured`，C17 保持 partial。
@@ -72,10 +72,10 @@
 
 ### 0.7 W4 详细设计收口（2026-10-26）
 
-- **设计缺口全部闭合**：标题编辑、受控导出下载、CSRF/cookie 生命周期、冻结错误码目录（`r0a-errors-v2`：42 公开码 / 87 SQL 映射，CI 扫描 schema-draft）；outbox 按聚合顺序 + 指数退避 + 死信/审计重排；usage 对账容差与价表校验；供应链准入（cosign/SLSA/SBOM/Pi 固定版本）；用户删除/运维代删/所有权转移；生命周期事件；黄金任务、试点指标、切换状态机；[试点运营 Runbook](work-r0a-pilot-operations-runbook-2026-10-26.md)。
-- **证据**：D1 冒烟 82/82（2026-10-26 修订）；API 20 path / 23 operation，设计包 30/30；Temporal 10/10 + S1 4/4；Runtime 10/10 + 19/19；UI 模型 13/13；日志扫描 8/8；KMS 6/6；ops/pilot/telemetry 24/24（19 alert）。
-- **W4 产出**：[实施就绪包](work-r0a-implementation-readiness-2026-10-26.md)——**可评审草案**。2026-10-26 复审撤回“§0 六条在设计层全部满足”的结论：D1/D3 的 P0/P1 已修复并补负例，但 §0 #2（错误码目录）、#5（管理页方案、可用性）未满足，另有 Temporal 托管与 §9.4 检查表共 4 个设计未决项；排期改为从 DR4（建议 2026-12-04）起算。
-- **仍不可实施**：DR0–DR4 未开会，D-01..D-06 未签收，go/no-go 仍 no-go（7 done / 2 waived / 18 partial / 5 todo）。
+- **本轮复审前记录的契约缺口已闭合**：标题编辑、受控导出下载、CSRF/cookie 生命周期、冻结错误码目录（`r0a-errors-v2`：42 公开码 / 87 SQL 映射，CI 扫描 schema-draft）；outbox 按聚合顺序 + 指数退避 + 死信/审计重排；usage 对账容差与价表校验；供应链准入（cosign/SLSA/SBOM/Pi 固定版本）；用户删除/运维代删/所有权转移；生命周期事件；黄金任务、试点指标、切换状态机；[试点运营 Runbook](work-r0a-pilot-operations-runbook-2026-10-26.md)。
+- **证据**：D1 冒烟 82/82（2026-10-26 修订）；API 20 path / 23 operation，设计包 31/31；Temporal 10/10 + S1 4/4；Runtime 10/10 + 19/19；UI 模型 13/13；日志扫描 8/8；KMS 6/6；ops/pilot/telemetry 24/24（19 alert）。
+- **W4 产出**：[实施就绪包](work-r0a-implementation-readiness-2026-10-26.md)——**可评审草案**。2026-10-26 复审撤回“§0 六条在设计层全部满足”的结论：D1/D3 的 P0/P1 已修复并补负例，但 §0 #5（管理页方案、可用性）未满足，另有 Temporal 托管（U3）与 §9.4 检查表（U4），连同 U1/U2 共 4 个设计未决项；排期改为从 DR4（建议 2026-12-04）起算。
+- **仍不可实施**：DR0–DR4 未开会，D-01..D-06 未签收，go/no-go 仍 no-go（30 个 blocking 中 7 done / 18 partial / 5 todo；另 2 项非 blocking 已 waived）。
 
 ## 1. R0a 范围冻结
 
@@ -294,7 +294,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 **完成标准**：
 
 - OpenAPI 3.1 校验通过；R0a 子集无未解析 `$ref`。
-- 生成的 TypeScript 类型通过 `tsc --noEmit`；mock 能跑通云端 golden path 与关键负例的合同测试（当前 6/6）。
+- 生成的 TypeScript 类型通过 `tsc --noEmit`；mock 能跑通云端 golden path 与关键负例的合同测试（当前 7/7）。
 - 重复提交同 key 同 payload 返回原结果；不同 payload 返回 409。
 - SSE 断线用 Last-Event-ID 恢复；游标过期返回 409 `resync_required`。
 - 事件、错误、日志中无 goal/background/成果正文；URL 中无会话 token。

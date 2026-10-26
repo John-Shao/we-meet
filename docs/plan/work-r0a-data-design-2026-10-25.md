@@ -1,6 +1,6 @@
 # Work R0a 数据、权限与迁移详细设计（D1）
 
-> 状态：D1 详细设计草案；可执行 SQL 已在独立 PostgreSQL 16 通过 82/82 冒烟（2026-10-26 修订在 58 项基础上新增 24 项：会话主体绑定、原因码枚举化、outbox 租约/跨组织 relay、死信阻塞、运维重放/跳过审计、启动前取消与 cancel_requested 收尾等），未评审、未应用生产。
+> 状态：D1 详细设计草案；可执行 SQL 已在独立 PostgreSQL 16 通过 82/82 冒烟（2026-10-26 修订在 58 项基础上新增 24 项：会话主体绑定、原因码枚举化、outbox 租约/跨组织 relay、死信阻塞、运维重放/跳过审计、启动前取消与 cancel_requested 收尾、成果编辑状态门槛等），未评审、未应用生产。
 >
 > 日期：2026-10-25
 >
@@ -171,6 +171,8 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 |---|---|---|
 | `update_task_title` | work_api | owner-only；1–80 字；revision；幂等；事件/审计只记字段名 |
 | `record_artifact_export` | work_api | owner-only；仅已发布版本；审计含版本/哈希/大小/类型 |
+| `retry_task` | work_api | owner-only；`expected_revision`；仅 task open 且 latest Run failed/canceled；沿用 snapshot；幂等 |
+| `create_user_artifact_version` | work_api | owner-only；`base_version_no` 必须为最新版本；仅 open/awaiting 且 latest Run 非 failed/canceled，否则 `artifact_read_only`；幂等；事件/审计不含正文 |
 | `claim_outbox`（修订） | work_worker | `outbox_seq` 单聚合有序；跳过死信 |
 | `mark_outbox_failed` | work_worker | 仅租约持有者；2^n 秒退避 ≤300s；第 10 次/不可重试死信 + 审计；死信继续阻塞同聚合；start 死信收尾 Run |
 | `requeue_outbox_dead_letter` | work_ops | 需理由；审计；不改 payload |
@@ -181,7 +183,7 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 
 ## 6. 冒烟结果
 
-脚本 [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql) 在 PostgreSQL 16.15 独立容器执行，事务结束回滚。82/82 断言通过（含 2026-10-26 新增 `title_update_*`、`title_event_no_text`、`artifact_export_*` 与编排专项 `acquire_cancel_requested_no_fence`、`no_success_over_cancel_request`、`unknown_reason_code_enforced`）：
+脚本 [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql) 在 PostgreSQL 16.15 独立容器执行，事务结束回滚。82/82 断言通过（含 2026-10-26 新增 `title_update_*`、`title_event_no_text`、`artifact_export_*`、编排专项 `acquire_cancel_requested_no_fence`、`no_success_over_cancel_request`、`unknown_reason_code_enforced` 与成果只读负例）：
 
 | 组 | 断言 |
 |---|---|
@@ -210,7 +212,7 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 7. **TaskSummary 性能**：视图含预算子查询；试点数据量下可接受，生产需物化/索引评估。
 8. **标题与输入**：标题生成规则、敏感元数据日志策略、输入大小上限（goal 2000/background 4000）需 D2/D5 固化。
 9. **审批路径**：函数已可执行，但 R0a golden path 不产生手工审批；审批 UI/通知/过期处理属 R0b/R2。
-10. **用户编辑/上传**：`upload_session` 表已建，但保存新版本的用户上传流程未在 D1 实现；D2/D5 补。
+10. **用户编辑/上传**：文本版本命令 `create_user_artifact_version` 已实现（状态门槛见 §5.2）；`upload_session` 表已建，但文件上传流程未在 D1 实现，D2/D5 补。
 11. **所有权转移/离职**：Task/成果接管仍是试点运营兜底，未做成产品化命令。
 12. **Admin 只读**：席位/审计读取复用 P1-A 的字段映射未在 D1 落地；D2/D6 补。
 

@@ -246,7 +246,7 @@ D4 完成（DR2/D4 评审）需要：
 ## 14. 未决与风险
 
 1. **gVisor 可用性/证明**：基础设施不一定提供 gVisor/等效 profile；降级声明需安全/产品签收。
-2. **Pi/镜像 digest**：1.4.0 是实验版本；生产需固定 digest、依赖锁定与升级/回滚验证（H10 只覆盖包版本）。**准入策略已定（2026-10-26）**：[supply-chain-policy.json](assets/work-r0a-runtime-2026-10-25/supply-chain/supply-chain-policy.json) + [评估器](assets/work-r0a-runtime-2026-10-25/supply-chain/supply-chain.mjs)：只接受 `@sha256` 引用且非占位 digest、cosign keyless 签名（GitHub OIDC issuer/本仓库 workflow subject/Rekor）、SLSA provenance ≥L2 且 digest 一致、SPDX/CycloneDX SBOM 组件完整、Pi 固定 1.4.0、禁止包管理器进入镜像、锁文件哈希、critical=0、high 仅限有 owner 且 ≤30 天未过期的豁免；当前 sandbox-profile 的占位 digest 会被拒绝（测试覆盖）。真实签名/SBOM 流水线未接。
+2. **Pi/镜像 digest**：1.4.0 是实验版本；生产需固定 digest、依赖锁定与升级/回滚验证（H10 只覆盖包版本）。**准入策略已定（2026-10-26）**：[supply-chain-policy.json](assets/work-r0a-runtime-2026-10-25/supply-chain/supply-chain-policy.json) + [评估器](assets/work-r0a-runtime-2026-10-25/supply-chain/supply-chain.mjs)：只接受 `@sha256` 引用且非占位 digest、cosign keyless 签名（GitHub OIDC issuer/本仓库 workflow subject/Rekor）、SLSA provenance ≥L2 且 digest 一致、SPDX/CycloneDX SBOM 组件完整、Pi 固定 1.4.0、禁止包管理器进入镜像、锁文件哈希、critical=0、high 仅限有 owner 且 ≤30 天未过期的豁免；当前 sandbox-profile 的占位 digest 会被拒绝（测试覆盖）；SBOM 的 `subject_digest` 必须等于镜像 digest，purl 统一小写并去除 qualifier。真实签名/SBOM 流水线未接。
 3. **供应商选择/条款/价表**：未取得书面条款；价格上界、驻留、训练/留存、配额未定。
 4. **unknown 回执查询**：供应商不一定支持按 request id 查询；无法确认时保持 unresolved，不释放预算。
 5. **秘密检测边界**：模式检测有误报/漏报，不承诺完整 DLP；用户输入/系统模板仍可能含敏感信息。
@@ -254,7 +254,7 @@ D4 完成（DR2/D4 评审）需要：
 7. **检查点格式/恢复**：Pi 检查点与 Work Adapter 状态的一致性未做真实恢复测试。
 8. **流式/过滤**：reasoning 过滤、chunk 丢失、背压、响应大小限制未做运行时验证。
 9. **取消/超时数值**：connect/first-token/total/心跳是初始建议，需试点校准。
-10. ~~价表/usage 差异~~：**规则已定（2026-10-26）**，见 [usage-reconcile.mjs](assets/work-r0a-runtime-2026-10-25/usage/usage-reconcile.mjs)：以供应商 usage 结算；reasoning 仅在价表声明时另计（实测 Qwen 的 reasoning 已含在 completion 内）；单次网关/供应商差异 > max(5%, 50 token) 标 `usage_mismatch`；无供应商 usage 用网关估算并标 `usage_estimated`；都无则 `hold_unknown` 保留预留；超预留截断结算 + `adjust_budget` 补差（`budget_overrun`）；月度账单对账容差 max(1%, 100 分)，超出列出差异 request id。价表仍为[占位](assets/work-r0a-runtime-2026-10-25/usage/price-table.placeholder.json)，书面价表未取得。
+10. ~~价表/usage 差异~~：**规则已定（2026-10-26）**，见 [usage-reconcile.mjs](assets/work-r0a-runtime-2026-10-25/usage/usage-reconcile.mjs)：以供应商 usage 结算；reasoning 仅在价表声明时另计（实测 Qwen 的 reasoning 已含在 completion 内）；单次网关/供应商差异 > max(5%, 50 token) 标 `usage_mismatch`；无供应商 usage 用网关估算并标 `usage_estimated`；都无则 `hold_unknown` 保留预留；超预留截断结算 + `adjust_budget` 补差（`budget_overrun`）；月度账单对账容差 max(1%, 100 分)，超出列出差异 request id；结算必须携带 `operation`（price_version/provider/model）且与价表一致，对账拒绝重复 provider_request_id 与非整数金额。价表仍为[占位](assets/work-r0a-runtime-2026-10-25/usage/price-table.placeholder.json)，书面价表未取得。
 11. **无正文日志**：策略已定义，但真实日志/trace 采样需运行时验证。
 12. **策略评估器不是生产网关**：它只验证设计策略，不能替代真实 egress、沙箱或供应商测试。
 

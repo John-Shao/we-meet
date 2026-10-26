@@ -423,7 +423,7 @@ D3 完成（DR2）需要：
   - S1-R04：旧 outbox start 行使新提交 `outbox_backlog`；清理后恢复。
   - S1-R05：v1 worker 停止后切 v2；旧 workflow 保持 v1 artifact `draft.md`，新 workflow 使用 `draft-v2.md`。
   - S1-R06：file-backed Temporal server 重启后，已完成 workflow 仍为 COMPLETED，Work DB task 仍 awaiting_acceptance。
-- 边界：F04/F07/F21/D3-R07/D3-R08 使用测试 `faultMode` 直接启动 workflow，不经过 outbox；F23 是数据库幂等断言；S1-R01 只验证 worker 重启，不做 Temporal server 重启/多节点/version patch；未接真实 provider、sandbox、KMS。
+- 边界：F04/F07/F21/D3-R07/D3-R08 使用测试 `faultMode` 直接启动 workflow，不经过 outbox；F23 是数据库幂等断言；S1-R01 只验证 worker 重启，不做 Temporal server 重启/多节点/version patch；切片为缩短测试把 activity 超时/心跳改为 30s/3s（设计基线为模型 15m、心跳 30s），D3-R08 不证明生产超时值；未接真实 provider、sandbox、KMS。
 - 资产：[work-temporal-slice-2026-10-25](assets/work-temporal-slice-2026-10-25/README.md)。
 
 ## 15. 未决与风险

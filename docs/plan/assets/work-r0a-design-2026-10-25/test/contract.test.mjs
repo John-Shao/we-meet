@@ -351,6 +351,68 @@ test('user edit creates a new immutable version', async () => {
   assert.equal(staleBase.data.code, 'version_conflict');
 });
 
+test('artifact versions are read-only after completion or a canceled latest run', async () => {
+  const { taskId } = await createTask('成果只读路径', 'req-task-5001');
+  await completeTask(taskId);
+  const detail = await getTask(taskId);
+  const artifactId = detail.summary.latest_artifact.artifact_id;
+  const versionNo = detail.summary.latest_artifact.version_no;
+
+  const earlyRetry = await request('POST', `/work/v1/tasks/${taskId}/runs`, {
+    body: {
+      client_request_id: 'req-retry-5001',
+      expected_revision: detail.summary.revision,
+      target: { kind: 'cloud', profile: 'text-v1' },
+    },
+  });
+  assert.equal(earlyRetry.response.status, 409);
+  assert.equal(earlyRetry.data.code, 'task_not_runnable');
+
+  const accepted = await request('POST', `/work/v1/tasks/${taskId}/acceptances`, {
+    body: {
+      client_request_id: 'req-accept-5001',
+      expected_revision: detail.summary.revision,
+      artifact_id: artifactId,
+      version_no: versionNo,
+    },
+  });
+  assert.equal(accepted.response.status, 200, accepted.text);
+
+  const afterCompletion = await request('POST', `/work/v1/artifacts/${artifactId}/versions`, {
+    body: {
+      client_request_id: 'req-version-5001',
+      base_version_no: versionNo,
+      content: 'after completion',
+    },
+  });
+  assert.equal(afterCompletion.response.status, 409);
+  assert.equal(afterCompletion.data.code, 'artifact_read_only');
+
+  // Cancel-after-publish edge: the mock has no command for it, so set the DB-shaped
+  // state that D1 covers in r0a-schema-smoke.sql.
+  const second = await createTask('取消后只读路径', 'req-task-5002');
+  await completeTask(second.taskId);
+  const secondDetail = await getTask(second.taskId);
+  const secondArtifact = secondDetail.summary.latest_artifact.artifact_id;
+  const secondVersion = secondDetail.summary.latest_artifact.version_no;
+  const task = app.state.tasks.get(second.taskId);
+  const latestRun = task.runs.get(task.latestRunId);
+  task.state = 'open';
+  task.activeRunId = null;
+  latestRun.state = 'canceled';
+  latestRun.terminalReason = 'user_requested';
+
+  const afterCancel = await request('POST', `/work/v1/artifacts/${secondArtifact}/versions`, {
+    body: {
+      client_request_id: 'req-version-5002',
+      base_version_no: secondVersion,
+      content: 'after cancel',
+    },
+  });
+  assert.equal(afterCancel.response.status, 409);
+  assert.equal(afterCancel.data.code, 'artifact_read_only');
+});
+
 test('cancel, retry and SSE recovery', async () => {
   const { taskId, runId } = await createTask('取消路径任务', 'req-task-4001');
 
@@ -371,6 +433,15 @@ test('cancel, retry and SSE recovery', async () => {
   assert.equal(finished.data.task.display_state, 'run_canceled');
 
   const canceledDetail = await getTask(taskId);
+  const noTarget = await request('POST', `/work/v1/tasks/${taskId}/runs`, {
+    body: {
+      client_request_id: 'req-retry-no-target',
+      expected_revision: canceledDetail.summary.revision,
+    },
+  });
+  assert.equal(noTarget.response.status, 422);
+  assert.equal(noTarget.data.code, 'execution_target_unavailable');
+
   const staleRetry = await request('POST', `/work/v1/tasks/${taskId}/runs`, {
     body: {
       client_request_id: 'req-retry-4000',

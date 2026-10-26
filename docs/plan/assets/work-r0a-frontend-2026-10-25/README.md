@@ -27,7 +27,7 @@ python -c "import json; [json.load(open(f, encoding='utf-8')) for f in ['state-m
 
 ## 已验证
 
-- 13/13 测试通过（含重命名/删除管理动作、静止门控与 canceled/archived 的 R0b 预留只读约束）：矩阵/文案完整性、reconciling 无重试/采纳、待验收采纳门控、运行取消只读+重试、失败/预算动作、完成/终止状态、Composer 门控、Inbox 映射、路由/旧链接、权限文案。
+- 13/13 测试通过（含重命名/删除管理动作、静止门控、completed/failed/run_canceled 只读与 canceled/archived 的 R0b 预留约束）：矩阵/文案完整性、reconciling 无重试/采纳、待验收采纳门控、运行取消只读+重试、失败/预算动作、完成/终止状态、Composer 门控、Inbox 映射、路由/旧链接、权限文案、`artifact_read_only` 文案。
 - `ui-state.contract.ts` 通过 `tsc --noEmit`。
 - 状态/路由/文案 JSON 可解析。
 

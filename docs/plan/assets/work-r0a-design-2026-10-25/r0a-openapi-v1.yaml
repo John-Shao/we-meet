@@ -53,6 +53,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/InputCreateRequest" }
       responses:
+        "401": { $ref: "#/components/responses/Unauthorized" }
         "201":
           description: 输入已持久化；正文由 Content Store 保存
           content:
@@ -91,6 +92,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/TaskPreviewRequest" }
       responses:
+        "401": { $ref: "#/components/responses/Unauthorized" }
         "200":
           description: 预览与费用上界；提交时必须重新解析
           content:
@@ -137,6 +139,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/TaskSubmitRequest" }
       responses:
+        "401": { $ref: "#/components/responses/Unauthorized" }
         "202":
           description: 已持久受理，不代表模型已开始或已计费
           headers:
@@ -180,6 +183,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/TaskUpdateRequest" }
       responses:
+        "401": { $ref: "#/components/responses/Unauthorized" }
         "200":
           description: 更新后的任务摘要；revision 递增
           content:
@@ -199,6 +203,7 @@ paths:
         - $ref: "#/components/parameters/CsrfToken"
         - $ref: "#/components/parameters/ExpectedRevision"
       responses:
+        "401": { $ref: "#/components/responses/Unauthorized" }
         "200":
           description: 已删除；重复删除返回同一结果（不再校验 revision）
           content:
@@ -212,7 +217,8 @@ paths:
     post:
       tags: [Runs]
       operationId: retryTask
-      summary: 创建新 Run；默认沿用 Task 初始快照
+      summary: 创建新 Run；沿用 Task 当前快照
+      description: Task 必须为 open 且最近 Run 为 failed/canceled；expected_revision 与 target 必填。
       parameters:
         - $ref: "#/components/parameters/TaskId"
         - $ref: "#/components/parameters/CsrfToken"
@@ -222,6 +228,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/TaskRunRequest" }
       responses:
+        "401": { $ref: "#/components/responses/Unauthorized" }
         "202":
           description: 新 Run 已持久受理
           content:
@@ -282,6 +289,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/CancelRequest" }
       responses:
+        "401": { $ref: "#/components/responses/Unauthorized" }
         "202":
           description: 取消请求已受理
           content:
@@ -346,6 +354,7 @@ paths:
       tags: [Artifacts]
       operationId: createArtifactVersion
       summary: 用户保存文本新版本；不覆盖旧版本
+      description: 仅当 Task 为 open/awaiting_acceptance 且最近 Run 非 failed/canceled 时允许，否则 409 artifact_read_only；base_version_no 必须等于最新已发布版本，否则 409 version_conflict。
       parameters:
         - $ref: "#/components/parameters/ArtifactId"
         - $ref: "#/components/parameters/CsrfToken"
@@ -355,6 +364,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/ArtifactVersionCreateRequest" }
       responses:
+        "401": { $ref: "#/components/responses/Unauthorized" }
         "201":
           description: 新版本已发布
           content:
@@ -439,6 +449,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/AcceptanceRequest" }
       responses:
+        "401": { $ref: "#/components/responses/Unauthorized" }
         "200":
           description: 采纳结果
           content:
@@ -494,6 +505,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/AuditExportRequest" }
       responses:
+        "401": { $ref: "#/components/responses/Unauthorized" }
         "202":
           description: 导出作业已受理
           content:
@@ -996,7 +1008,6 @@ components:
       properties:
         client_request_id: { type: string, minLength: 8, maxLength: 128 }
         expected_revision: { type: integer, minimum: 0 }
-        snapshot_id: { type: [string, "null"], format: uuid }
         target: { $ref: "#/components/schemas/Target" }
         reason: { type: string, maxLength: 500 }
 

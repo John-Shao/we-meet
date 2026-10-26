@@ -114,6 +114,7 @@ bash scripts/persist-restart.sh
 - `faultMode` 不在 D2 公开契约；faux model 只证明编排/账本行为，不证明供应商或沙箱。
 - S1-R01 只验证 worker 重启；S1-R05 验证 `patched` 升级；S1-R06 用 file-backed dev server 验证**已完成 workflow**的 server 重启持久化，不证明在途 workflow server 重启、多节点或生产 Temporal；S1-R02 验证 DB 终态优先；S1-R03/R04 是参考演练，不是生产操作。
 - Windows 主机不能直接运行 Temporal SDK；测试通过 Linux Node 容器执行。
+- 切片把 activity 超时/心跳缩短为 30s/3s 以便测试；设计基线为模型活动 15m、心跳 30s，D3-R08 只证明超时后的状态迁移，不证明生产数值。
 
 ## 相关文档
 

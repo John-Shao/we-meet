@@ -112,7 +112,7 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 - 基于 D2 OpenAPI 生成类型；`fetch` 使用 `credentials: 'same-origin'`。
 - `bootstrap` 返回 `csrf_token`；变更请求带 `X-CSRF-Token`。token 只放内存（可选 sessionStorage），不放 URL/localStorage。
 - 401 → 登录；403 CSRF → 重新 bootstrap 后重试一次；403 权限 → 文案；404 → 不可见；409/422 → 按错误码处理；503 → 退避重试/提示。
-- 提交/取消/重试/采纳使用 `client_request_id`；`useIdempotencyKey` 在输入变化/成功后轮换，网络失败复用。
+- 提交/取消/重试/采纳使用 `client_request_id`；`useIdempotencyKey` 在输入变化/成功后轮换，网络失败复用。重试另带 `expected_revision` + `target`；删除带 query `expected_revision`。
 
 ### 4.2 React Query 键
 
@@ -206,11 +206,11 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 - 路由 `/work/items/:taskId/artifacts/:artifactId`；`?version=` 选择版本。
 - 预览：`react-markdown`；编辑：纯文本 textarea/等宽字体；不引入富文本/Office。
 - 本地草稿：按账号/组织/设备；显示 dirty；不跨设备自动同步。
-- 保存：`base_version_no` 乐观并发；成功创建新版本并选中；409 `version_conflict` → 保留本地修改，提示“读取最新/继续编辑”；不覆盖。
+- 保存：`base_version_no` 乐观并发；成功创建新版本并选中；409 `version_conflict` → 保留本地修改，提示“读取最新/继续编辑”；409 `artifact_read_only` → 只读提示并刷新；不覆盖。
 - 版本列表：版本号、时间、短 hash、采纳标记；切换版本不丢 dirty（提示保存/放弃）。
 - 采纳：固定当前版本；若 dirty 必须先保存/放弃；确认后调用 acceptances；采纳后可改采纳其他版本。
 - 导出：读取 content → Blob → 下载 `.md`；文件名清洗；不提供分享/对外链接。
-- 只读：运行取消/已取消/归档时禁用编辑/保存/采纳；移动端只读。
+- 只读：完成后、运行取消/失败、已取消/归档时禁用编辑/保存/采纳（409 `artifact_read_only` → 刷新后只读）；移动端只读。
 - 正文不写 localStorage/日志；离开页面清理内存。
 
 ### 5.5 历史工作
@@ -261,7 +261,7 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 - 权限 chip 两种模式；`ask_each` 文案明确“R0a 没有外部工具动作，不会出现逐次审批”，避免暗示不存在的审批。
 - 不出现“全部允许”“永久允许”“跳过审批”。
 - 不显示套件/技能/连接器/项目/计划/分享入口；未实现即不出现。
-- 错误文案按 D2 错误码；`resync_required` 显示“已重新读取任务快照”，不显示失败。
+- 错误文案按 D2 错误码与 `ui` token；`artifact_read_only` 已补专属文案，未列专属文案的码回退 `work.r0a.error.generic`；`resync_required` 显示“已重新读取任务快照”，不显示失败。
 - 旧任务提示明确“不迁移”，不假装旧任务已在新工作空间。
 
 ## 8. SSE、轮询与刷新

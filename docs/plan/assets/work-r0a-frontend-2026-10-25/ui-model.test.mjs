@@ -82,6 +82,7 @@ test('canceled run keeps read-only artifact and allows retry, not accept', () =>
 
 test('failed retries; budget exhaustion cancels but does not retry', () => {
   assert.deepEqual(actionsFor('failed'), ['view_error', 'retry']);
+  assert.equal(isArtifactReadOnly('failed'), true);
   assert.equal(canRetry('failed'), true);
   assert.equal(canCancel('failed'), false);
   assert.deepEqual(actionsFor('budget_exhausted'), ['view_budget', 'cancel']);
@@ -91,6 +92,7 @@ test('failed retries; budget exhaustion cancels but does not retry', () => {
 
 test('completed and terminal tasks do not expose cancel/retry/accept', () => {
   assert.deepEqual(actionsFor('completed'), ['open_artifact', 'export', 'continue']);
+  assert.equal(isArtifactReadOnly('completed'), true);
   assert.equal(canRetry('completed'), false);
   assert.equal(canCancel('completed'), false);
   for (const state of ['canceled', 'archived']) {
@@ -175,7 +177,7 @@ test('delete is only offered for quiescent tasks and always confirms; rename is 
   assert.equal(canRename({ display_state: 'running' }), true);
   assert.equal(canRename({ display_state: 'archived' }), false);
   assert.equal(canRename({ display_state: 'completed' }, { mobile: true }), false);
-  for (const code of ['title_invalid', 'csrf_invalid', 'task_archived', 'run_not_quiescent', 'org_execution_unavailable', 'work_seat_required']) {
+  for (const code of ['title_invalid', 'csrf_invalid', 'task_archived', 'artifact_read_only', 'run_not_quiescent', 'org_execution_unavailable', 'work_seat_required']) {
     assert.ok(copy[`work.r0a.error.${code}`], code);
   }
   assert.ok(!/恢复|撤回/.test(copy['work.r0a.confirm.delete.body']));

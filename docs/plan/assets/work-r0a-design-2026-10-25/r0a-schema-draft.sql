@@ -3540,6 +3540,15 @@ BEGIN
   IF task_row.active_run_id IS NOT NULL THEN
     RAISE EXCEPTION 'run_not_quiescent' USING ERRCODE = 'P0001';
   END IF;
+  -- UI shows run_canceled/failed artifacts as read-only: a terminal, unsuccessful
+  -- latest run freezes editing until a later run succeeds.
+  IF task_row.latest_run_id IS NOT NULL AND EXISTS (
+    SELECT 1 FROM work.run r
+    WHERE r.id = task_row.latest_run_id AND r.org_id = p_org_id
+      AND r.state IN ('failed', 'canceled')
+  ) THEN
+    RAISE EXCEPTION 'artifact_read_only' USING ERRCODE = 'P0001';
+  END IF;
   SELECT MAX(v.version_no) INTO latest_version
   FROM work.artifact_version v
   WHERE v.artifact_id = p_artifact_id AND v.org_id = p_org_id AND v.state = 'published';
