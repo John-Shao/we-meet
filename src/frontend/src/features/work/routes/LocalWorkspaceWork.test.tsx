@@ -363,9 +363,7 @@ it('connects explicit local sync to separately authorized review and displays it
   fireEvent.click(within(reviewSection).getByLabelText('report.md'))
   expect(start).toBeDisabled()
   fireEvent.click(
-    within(reviewSection).getByLabelText(
-      '同意将选定成果发送至复核模型'
-    )
+    within(reviewSection).getByLabelText('同意将选定成果发送至复核模型')
   )
   await waitFor(() => expect(start).not.toBeDisabled())
   fireEvent.click(start)

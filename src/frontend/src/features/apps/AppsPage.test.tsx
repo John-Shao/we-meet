@@ -123,9 +123,7 @@ describe('App navigation and favorites', () => {
     fireEvent.change(screen.getByRole('searchbox'), {
       target: { value: '表格' },
     })
-    expect(
-      screen.queryByTestId('catalog-contacts')
-    ).not.toBeInTheDocument()
+    expect(screen.queryByTestId('catalog-contacts')).not.toBeInTheDocument()
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: '' } })
     fireEvent.click(screen.getByTestId('rail-shortcut-calendar'))
     fireEvent.click(screen.getByRole('button', { name: '最近使用' }))

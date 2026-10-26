@@ -11,15 +11,20 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0145_user_search_key'),
+        ("core", "0145_user_search_key"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='user',
-            name='full_name_initial',
-            field=models.CharField(blank=True, default='#', help_text="A–Z initial of `full name` (derived on save); '#' for names whose initial cannot be derived (digits, symbols, empty). Clients use it for the sticky letter header in the directory list.", max_length=1, verbose_name='full name initial'),
+            model_name="user",
+            name="full_name_initial",
+            field=models.CharField(
+                blank=True,
+                default="#",
+                help_text="A–Z initial of `full name` (derived on save); '#' for names whose initial cannot be derived (digits, symbols, empty). Clients use it for the sticky letter header in the directory list.",
+                max_length=1,
+                verbose_name="full name initial",
+            ),
         ),
     ]

@@ -6,25 +6,36 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0180_meetingoriginalrevision'),
+        ("core", "0180_meetingoriginalrevision"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='meetingspeaker',
-            name='attributed_at',
+            model_name="meetingspeaker",
+            name="attributed_at",
             field=models.DateTimeField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='meetingspeaker',
-            name='attributed_by',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='speaker_attributions', to=settings.AUTH_USER_MODEL),
+            model_name="meetingspeaker",
+            name="attributed_by",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="speaker_attributions",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
         migrations.AddField(
-            model_name='meetingspeaker',
-            name='user',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='attributed_speakers', to=settings.AUTH_USER_MODEL),
+            model_name="meetingspeaker",
+            name="user",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="attributed_speakers",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
     ]

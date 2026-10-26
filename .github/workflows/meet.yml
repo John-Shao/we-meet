@@ -25,10 +25,12 @@ jobs:
           fetch-depth: 0
       - name: show
         run: git log
+      # 这条守卫管的是产品代码里的 print：只看本次新增行，并排除设计资产
+      # docs/**（R0a 的冒烟/竞态/遥测脚本本来就要打印结果）与 workflow 自身。
       - name: Enforce absence of print statements in code
         if: always()
         run: |
-          ! git diff origin/${{ github.event.pull_request.base.ref }}..HEAD -- . ':(exclude)**/meet.yml' | grep "print("
+          ! git diff origin/${{ github.event.pull_request.base.ref }}..HEAD -- . ':(exclude)**/meet.yml' ':(exclude)docs/**' ':(exclude).github/workflows/**' | grep -E '^[+][^+]' | grep "print("
       - name: Check absence of fixup commits
         if: always()
         run: |

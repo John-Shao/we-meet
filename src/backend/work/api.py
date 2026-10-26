@@ -37,9 +37,7 @@ def request_key(request):
     try:
         return uuid.UUID(request.headers.get("Idempotency-Key", ""))
     except (ValueError, AttributeError) as exc:
-        raise serializers.ValidationError(
-            {"code": "invalid_idempotency_key"}
-        ) from exc
+        raise serializers.ValidationError({"code": "invalid_idempotency_key"}) from exc
 
 
 class CapabilitiesView(APIView):
@@ -65,9 +63,7 @@ class CapabilitiesView(APIView):
                 "agent_max_context_bytes": 400000,
                 "agent_token_budget": settings.WORK_AGENT_TOKEN_BUDGET,
                 "review_enabled": reviewer_enabled,
-                "review_model": settings.WORK_REVIEW_MODEL
-                if reviewer_enabled
-                else "",
+                "review_model": settings.WORK_REVIEW_MODEL if reviewer_enabled else "",
                 "review_token_budget": settings.WORK_REVIEW_TOKEN_BUDGET,
                 "local_agent_enabled": local_enabled,
                 "coordination_contract": "work-device/v1",
