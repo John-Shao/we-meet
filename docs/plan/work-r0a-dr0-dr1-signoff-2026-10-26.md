@@ -71,6 +71,8 @@ D-07 不放这里：它需要 DR1 与 D1 §7.14、Host 字段一起定案，见 
 
 ### R0-c D-08 大模型接入账号与计量边界（受理与提前签收）
 
+D-08b 的逐条设计口径与 DR0 签收表见 [D-08b 签收清单](work-r0a-d08b-credential-path-2026-10-27.md)。
+
 D-08a–d 的六字段签收表单已写在 [D-08 决策单 §6](work-r0a-provider-account-metering-decision-2026-10-26.md)（每项含读什么、证据边界、不签后果、逾期降级）。DR0 只做三件事：
 
 - 受理 D-08 范围：a/b/d 进入 R0a，c/d 留 DR1 随 C01/C02 冻结；

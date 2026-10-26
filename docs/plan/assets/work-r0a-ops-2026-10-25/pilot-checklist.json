@@ -67,7 +67,7 @@
       "evidence": [
         "D4 design + 10/10 policy tests"
       ],
-      "note": "No real sandbox/egress/provider."
+      "note": "No real sandbox/egress/provider. D-08b (gateway credential/KMS) is a DR0 sign-off and does not close C04; C04 still needs DR2 review."
     },
     {
       "id": "C05",

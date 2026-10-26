@@ -1,5 +1,7 @@
 # Work R0a Runtime、Harness 与受控出口详细设计（D4）
 
+> D-08b（网关取凭证/KMS）签收清单见 [D-08b 签收清单](work-r0a-d08b-credential-path-2026-10-27.md)；D-08b 不关闭 C04。
+>
 > 状态：D4 设计草案；策略/Adapter 已通过测试，并完成 runc 降级沙箱、本地 KMS envelope 与真实 Qwen smoke；未接真实 gVisor、Content Store、云 KMS，供应商条款未关闭。
 >
 > 日期：2026-10-25
