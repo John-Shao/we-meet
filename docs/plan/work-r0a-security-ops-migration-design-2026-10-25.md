@@ -43,8 +43,8 @@ D6 回答 R0a 试点能否开始、如何安全运行、如何切换/回滚、�
 | S06 | 供应链/Pi/镜像 | Pi/镜像固定；禁止运行时安装/扩展；签名/provenance/SBOM/漏洞准入策略 + 评估器 19/19（含 usage）已定义，真实流水线未接 | partial |
 | S07 | Unknown/重复付费调用 | Operation 账本、CAS/fence、不自动重放、保留预算 | partial |
 | S08 | 备份/恢复/DR 丢失安全事实 | 声明持久性边界；恢复核账；超出边界冻结 | partial |
-| S09 | 留存/删除/驻留 | 审计 365 天；任务/正文待产品/法务；crypto-shredding 计划 | open |
-| S10 | 管理读取/导出越权 | 只读管理面 + owner/admin 门控（`admin_access_denied`）；服务端绑组织；异步导出作业 + 一次性下载凭证（SHA-256 存库、`X-Download-Token` 不进 URL、兑换一次即失效、到期 410）；跨组织读作业统一 404；治理读与导出动作全部写审计（不含正文） | 设计已闭合（D1/D2 有负例），实现待 E2/E5 |
+| S09 | 留存/删除/驻留 | 政策已签（2026-10-27）：审计 365 天、输入 24h TTL、任务/成果 180 天只读归档后导出/删除、用户删除 tombstone + 粉碎；生产 KMS/Content Store/删除演练待 E5 | partial |
+| S10 | 管理读取/导出越权 | 只读管理面 + owner/admin 门控（`admin_access_denied`）；服务端绑组织；异步导出作业 + 一次性下载凭证（SHA-256 存库、`X-Download-Token` 不进 URL、兑换一次即失效、到期 410）；跨组织读作业统一 404；治理读与导出动作全部写审计（不含正文） | partial（设计闭合，D1/D2 有负例；实现待 E2/E5，P1-A 字段映射属 C31） |
 | S11 | 旧路由/开关暴露错误数据 | 组织开关；旧链接只读通知；不迁移/不双写 | partial |
 | S12 | 沙箱逃逸/宿主访问 | gVisor/等效；非 root/只读/无宿主挂载/egress-only；runc 降级已测 | partial |
 | S13 | 供应商训练/驻留/留存 | 不适用（C15 waived：演示组织用百炼 + 演示数据） | out_of_scope |

@@ -164,7 +164,7 @@
       "evidence": [
         "Threat model draft"
       ],
-      "note": "S01-S18 mapping drafted; S13 out_of_scope, S14 partial, several others partial - security sign-off not held."
+      "note": "S01-S18 mapping drafted; S09 policy signed 2026-10-27 (365/24h/180d) but implementation remains E5; S06/S10 partial; 16 partial, 2 out_of_scope, 0 open. C11 signs at DR3 2026-12-01."
     },
     {
       "id": "C12",

@@ -72,9 +72,10 @@
       "control": "Pi version pinned, image digest pinned, no runtime package install/user extensions; lockfile and reviewed base image; provenance/signature planned.",
       "evidence": [
         "D4 sandbox profile",
-        "H01/H10 partial package evidence"
+        "H01/H10 partial package evidence",
+        "D4 usage/supply-chain evaluator 19/19 includes signature/SBOM policy checks; real signed image/provenance pipeline not connected"
       ],
-      "status": "open",
+      "status": "partial",
       "owner": "runtime + security",
       "closeCondition": "Signed image/SBOM/provenance, dependency scan, reproducible build and upgrade/rollback drill."
     },
@@ -106,16 +107,16 @@
     {
       "id": "S09",
       "threat": "Retention, deletion or data-residency violation",
-      "control": "Audit 365 days baseline; task/content retention policy pending product/legal; tenant/region-prefixed content; crypto-shredding planned.",
+      "control": "R0a retention policy signed 2026-10-27: audit 365 days; input TTL 24h; task/artifact content becomes read-only/archived 180 days after last update, then export or delete; user deletion writes a tombstone and crypto-shreds content. Demo org stays in cn-north; customer orgs follow their contracts. Production KMS/Content Store and deletion drills remain E5 gates.",
       "evidence": [
-        "D6 design",
-        "Architecture §17",
-        "D1 tombstone design",
-        "Local envelope KMS reference 6/6 (not production KMS)"
+        "D6 retention/capacity design",
+        "D1 tombstone + input TTL + content shred design",
+        "Local envelope KMS reference 6/6 (not production KMS)",
+        "R0a retention policy signed by product 2026-10-27 (365/24h/180d)"
       ],
-      "status": "open",
-      "owner": "product + legal + platform",
-      "closeCondition": "Written retention/deletion policy, KMS/Content Store implementation, residency review and deletion test."
+      "status": "partial",
+      "owner": "product + platform",
+      "closeCondition": "Production KMS/Content Store implementation, residency review and deletion test at E5; policy itself is signed."
     },
     {
       "id": "S10",
@@ -123,9 +124,11 @@
       "control": "Admin surface is read-only in R0a; org bound server-side; no member content in overview; audit export is permission-checked and short-lived.",
       "evidence": [
         "D2 admin subset + mock test",
-        "P1-A existing permission codes"
+        "P1-A existing permission codes",
+        "D1/D2 admin read negative tests: owner/admin only, cross-org export 404, one-time X-Download-Token, audit without content (139/139, 34/34)",
+        "P1-A real field/permission mapping remains C31 (pilot gate)"
       ],
-      "status": "open",
+      "status": "partial",
       "owner": "backend + security",
       "closeCondition": "P1-A field/permission mapping, export download authorization test, no-content/log review."
     },
