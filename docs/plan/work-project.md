@@ -247,7 +247,7 @@
 | `3e564485f` | Work 项目文档 + 全库 LF 归一化 |
 | `beb67140b` | 成果编辑策略、artifact_read_only、retry/管理面/401/文档 P1–P2 |
 
-`3e564485f`、`73271f45f` 与 `fc876bcdc` 已推送至 `origin/refactor/work-module`（2026-10-26）；R0a 门禁只在 PR 或 `aliyun-dev` push 时触发，故远端 CI 仍未运行（C07）。本页状态截至快照日期；未提交变更不计入；提交表由后续一次文档同步补齐，最近一行的哈希以 `git log` 为准。
+`3e564485f` 起至 `7b41ae30e`（含 `fc876bcdc`、`616f26bba`、`542d78d8a`）共 7 个提交已推送至 `origin/refactor/work-module`（2026-10-26）；R0a 门禁只在 PR 或 `aliyun-dev` push 时触发，故远端 CI 仍未运行（C07）。本页状态截至快照日期；未提交变更不计入；提交表由后续一次文档同步补齐，最近一行的哈希以 `git log` 为准。
 
 ### 4.4 已定关键决策
 
