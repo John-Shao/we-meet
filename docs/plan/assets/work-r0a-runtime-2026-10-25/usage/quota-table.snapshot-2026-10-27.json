@@ -1,0 +1,39 @@
+{
+  "version": "console-snapshot-2026-10-27",
+  "status": "unconfirmed-console-snapshot",
+  "writtenCommitment": false,
+  "source": "2026-10-27 阿里云控制台 Qwen3.8-Flash 页面截图（项目方提供）；非合同、非书面配额承诺",
+  "provider": "aliyun",
+  "model": "qwen3.8-flash",
+  "scope": "演示组织使用的阿里云账号；客户组织不使用该账号",
+  "limits": {
+    "contextWindow": "1M",
+    "maxInput": "991K",
+    "maxInputThinkingMode": "983K",
+    "maxOutput": "128K",
+    "maxOutputThinkingMode": "128K",
+    "maxReasoningChain": "256K",
+    "unitNote": "K 为控制台显示单位，未换算为精确 token 数"
+  },
+  "quota": {
+    "metric": "TPM",
+    "value": 5000000,
+    "dynamicThrottling": true,
+    "validFrom": "2026-10-15",
+    "validUntil": "2026-11-15",
+    "note": "额度有效期早于 DR4（2026-12-04）与试点窗口；到期前必须取得续期或合同额度"
+  },
+  "r0aFit": {
+    "peakDemand": "7.5 请求/分钟、1.296M token/日、10 并发 Run",
+    "tpmHeadroom": "5M TPM 远高于 R0a 峰值；TPM 不是日配额，仍需确认日上限",
+    "contextHeadroom": "1M 上下文、991K 输入、128K 输出均高于 R0a 文本输入上限",
+    "blocking": false
+  },
+  "openQuestions": [
+    "2026-11-15 之后的续期或合同额度",
+    "动态限流触发条件、429 行为与重试语义",
+    "是否存在日/月 token 配额",
+    "推理区域与数据驻留",
+    "训练/改进与日志留存条款（仍属 P1–P4）"
+  ]
+}

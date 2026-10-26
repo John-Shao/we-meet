@@ -14,6 +14,7 @@
 | `policy/evaluator.test.mjs` | 10 组策略测试 |
 | `usage/usage-reconcile.mjs` | usage 归一、单次结算/容差/超预留、月度账单对账 |
 | `usage/price-table.snapshot-2026-10-26.json` | 三家**控制台价目快照**（截图来源，`usableInLedger: false`）+ R0a 预算上界建议值 + 三条设计约束 PC-1/2/3 |
+| `usage/quota-table.snapshot-2026-10-27.json` | 阿里云 Qwen3.8-Flash 控制台**配额快照**（TPM 5,000,000、动态限流、额度有效期 2026-10-15~2026-11-15；上下文 1M/输入 991K/输出 128K）；非书面承诺 |
 | `usage/price-table.placeholder.json` | **占位**价表（非供应商价格，仅用于对账规则自测） |
 | `supply-chain/supply-chain-policy.json` | 镜像签名/provenance/SBOM/Pi 固定/漏洞门禁策略 |
 | `supply-chain/supply-chain.mjs` | 发布准入评估器 |

@@ -217,9 +217,10 @@
         "scope narrowed to Alibaba Cloud Qwen by D-08a product sign-off 2026-10-27; legal signer still pending",
         "qwen3.8-flash real request 200; usage/provider request id recorded",
         "DeepSeek/Volcano moved to customer-managed (customer account and contract); PC-1/PC-2 void",
-        "console price snapshot 2026-10-26 kept as reference only (usableInLedger=false); Work has no price ledger"
+        "console price snapshot 2026-10-26 kept as reference only (usableInLedger=false); Work has no price ledger",
+        "Alibaba quota snapshot 2026-10-27: TPM 5,000,000 with dynamic throttling, valid 2026-10-15..2026-11-15; daily token quota still missing"
       ],
-      "note": "D-08a 已由产品 John Shao 于 2026-10-27 书面签收；法务签字待指定。C15 判定面已收窄为阿里云一家（演示组织），DeepSeek/火山改为客户自担 + 接入说明，PC-1/PC-2 作废。仍缺阿里云的书面条款/驻留/训练/留存/配额与书面价目。"
+      "note": "D-08a 已由产品 John Shao 于 2026-10-27 书面签收；法务签字待指定。C15 判定面已收窄为阿里云一家（演示组织），DeepSeek/火山改为客户自担 + 接入说明，PC-1/PC-2 作废。仍缺阿里云的书面条款/驻留/训练/留存/配额与书面价目。 2026-10-27 补阿里云配额快照：TPM 5M（动态限流），额度只到 2026-11-15，须在到期前取得续期/合同覆盖，否则 C15 与 E5 同时受阻；日 token 上限仍未给。"
     },
     {
       "id": "C16",
