@@ -48,8 +48,8 @@ CI：[work-r0a-gates.yml](../../.github/workflows/work-r0a-gates.yml) 覆盖 con
 
 | Epic | 内容 | 依赖 | 估算 | 角色 |
 |---|---|---|---|---|
-| E1 数据层落库 | 将 D1 schema/函数/授权纳入后端迁移体系；`work_*` 角色与 Secret；迁移 CI 跑 114 项冒烟与 7 组竞态 | DR1、D-04 | 2–3 | 后端 + DBA |
-| E2 API 服务 | 25 个 operation、cookie+CSRF、会话主体（`app.subject_id`）绑定、错误码目录映射、幂等、受控正文下载、管理只读 6 接口、`work_directory` 目录投影同步作业 | E1、DR1、U2 签收、Host 字段 | 4–5 | 后端 |
+| E1 数据层落库 | 将 D1 schema/函数/授权纳入后端迁移体系；`work_*` 角色与 Secret；迁移 CI 跑 139 项冒烟与 9 组竞态 | DR1、D-04 | 2–3 | 后端 + DBA |
+| E2 API 服务 | 33 个 operation（D-08d 未签则回到 25）、cookie+CSRF、会话主体（`app.subject_id`）绑定、错误码目录映射、幂等、受控正文下载、管理只读 6 接口、`work_directory` 目录投影同步作业 | E1、DR1、U2 签收、Host 字段 | 4–5 | 后端 |
 | E3 SSE 网关、outbox relay 与义务作业 | Last-Event-ID / 409 resync；跨组织租约 relay（顺序/退避/死信阻塞/运维重放与跳过）；生命周期事件 | E1、E2 | 2–3 | 后端 |
 | E4 编排 | Temporal 部署（按 §6.1 托管决定）、RunWorkflow/Activities（取消四时点、派发后失败一律 unknown、迟到用量计费）、`r0a-background` 队列与六类后台作业（义务作业不可停）、worker versioning/drain、故障矩阵子集（F*/D3-R/D3-N） | E1、DR2、C22 | 4–5 | 后端 + SRE |
 | E5 Runtime 与出口 | 每 Run 沙箱 Pod（gVisor 或签署降级）、Pi 1.4.0 Adapter、模型网关、usage 对账、Content Store + KMS | DR2、C13/C14 | 5–7 | 运行时 + 平台 + 安全 |
@@ -101,7 +101,7 @@ E5 不在关键路径上的前提：C14 沙箱结论在 **2026-12-11** 前到位
 | # | 未决项 | 现状 | 关闭条件 | 负责角色 | 截止（闸门） |
 |---|---|---|---|---|---|
 | U1 | 可用性验证（C25） | 研究计划与执行包已就绪（[UX §13.6](work-ux-design-r0-2026-10-25.md)），并已发出[U1 招募与执行排期单](work-r0a-usability-recruit-plan-2026-10-26.md)（名额/渠道/同意话术/档期/降级路径）；**判定任务集修正为 R0a 的 UT1–UT5**——原脚本里的本机授权与命令审批不在 R0a 交付面，不计入完成率 | 7–8 名设计伙伴（管理员 ≥3）、≥3 家组织；边界复述通过；发现的问题回写状态矩阵/文案并在 DR3 前冻结 | 产品 + 设计（运营给名单） | 名单锁定 2026-11-16；报告 2026-11-27；DR3 2026-12-01 |
-| U2 | 管理只读页方案 A/B | **已定 B 并落成设计物**（[admin mapping §3.1/§4/§5](work-r0a-admin-readonly-mapping-2026-10-25.md)）：管理读 6 个 operation 进入 OpenAPI；D1 提供 `work.audit_export`、席位/cents 聚合与 `work_directory` 投影写入；Host 端口契约可执行 | DR1 签收方案 B 口径，并确认 Host 需补的 `subject_id`/`role`/`revision`/席位布尔/组织字段与撤权收窄策略（D1 §7.14） | 后端 + 平台 + 产品 | DR1 2026-11-10（影响 API 冻结） |
+| U2 | 管理只读页方案 A/B | **已定 B 并落成设计物**（[admin mapping §3.1/§4/§5](work-r0a-admin-readonly-mapping-2026-10-25.md)）：管理读 6 个 operation 进入 OpenAPI；D1 提供 `work.audit_export`、席位/token 配额聚合与 `work_directory` 投影写入；Host 端口契约可执行 | DR1 签收方案 B 口径，并确认 Host 需补的 `subject_id`/`role`/`revision`/席位布尔/组织字段与撤权收窄策略（D1 §7.14） | 后端 + 平台 + 产品 | DR1 2026-11-10（影响 API 冻结） |
 | U3 | Temporal 托管方式 | **A 自托管**；九项承诺 **2026-10-27 确认（全部"是"）**、资源已批、演练由开发与测试 5 人排期；A2/A4/A8 数值随资源单回填 | [U3 决策征询单](work-r0a-temporal-hosting-decision-request-2026-10-26.md) 已答复；C22 仍待四项演练，C17 告警接入 12-04 前 | 平台 + SRE | DR2 2026-11-17（C22 演练） |
 | U4 | §9.4 设计评审检查表 | 10 项证据已预填（[大纲 §9.4](work-r0a-detailed-design-plan-2026-10-25.md)）；勾选待各 DR 完成 | 每次 DR 逐项勾选并附证据链接；DR4 时 10 项全部勾选或书面豁免 | 架构（评审主持） | 各 DR；DR4 2026-12-04 全部关闭 |
 
@@ -114,7 +114,7 @@ E5 不在关键路径上的前提：C14 沙箱结论在 **2026-12-11** 前到位
 | 迁移空库应用，RLS/直接 DML 负例 | 139/139；待按修订版复审 | DR1 |
 | OpenAPI 校验、客户端/mock/合同测试 | 34/34；错误码目录覆盖全部 104 个 SQL 码 | DR1 |
 | 提交/派发/预算/成果/采纳/取消/重试/unknown 负例 | PG 139/139 + 竞态 9/9 + Temporal 10/10；待复审 | DR2 |
-| Runtime 工具清单、沙箱、出口、usage/价表 | 策略可执行；三家控制台单价已录快照但未书面确认（PC-1/2/3 待 DR2）；gVisor 未证明 | DR2 |
+| Runtime 工具清单、沙箱、出口、usage/价表 | 策略可执行；C15 已 waived，价目不再进入账本（PC-1/PC-2 作废、PC-3 降为客户接入说明）；D-08b 凭证/KMS 路径待签；gVisor 未证明 | DR2 |
 | UI 全状态、无假入口、可访问性 | 规格完成；`canceled`/`archived` 已标为 R0b 预留只读（UI 模型 14/14 校验）；a11y 无实现可测 | DR3 |
 | SLO/告警、容量、恢复、切换、停用可演练 | 规则经 promtool 校验并带告警单测；容量/恢复/切换为本地演练；试点环境未演练 | DR3 |
 | 威胁模型控制映射（S01–S18）与未关闭项 | C11 todo | DR3 |
@@ -204,7 +204,7 @@ D-01..D-07 签收状态（同步大纲 §4/§8.1）：
 | U3 的 C22 演练未排期 | 九项已确认、资源已批，但四项演练的具体日期/角色未定 | 11-15/16 排期；D1/D2/D4 补 SRE、D3 补 DBA；未做则 C03 不在 DR2 签 |
 | U2 签收延迟（管理页） | DR1 前未确认方案 B 口径与 Host 字段清单 | 接口形状虽已冻结，但 C31 缺口未收敛；DR1 顺延，管理页开发不提前开工 |
 | 可用性结果推翻状态/文案（U1） | 研究发现边界复述失败或状态命名误解 | DR3 前回写状态矩阵/文案；若需改 API 语义则回到 DR1 变更控制 |
-| P1-A 字段不兼容 | `subject_id`/`role`/`revision`/席位布尔/组织字段无法提供 | 投影写不进来 → 席位与治理读按 gap 拒绝渲染（不显示假数据）；cents 预算与导出作业已由 Work 自有存储承担，不受影响 |
+| P1-A 字段不兼容 | `subject_id`/`role`/`revision`/席位布尔/组织字段无法提供 | 投影写不进来 → 席位与治理读按 gap 拒绝渲染（不显示假数据）；token 配额与导出作业已由 Work 自有存储承担，不受影响 |
 | 多节点下 relay/租约行为未证 | 时钟偏差、长 GC 导致租约过期后旧 relay 仍 ACK | DB 已拒绝非持有者 ACK（`outbox_lease_lost`）；C22 在多节点环境补测 |
 | 义务作业被误当可停功能 | kill switch/组织停用顺带停掉 relay、shredder、投影同步或清扫，事件丢失或正文未清理 | D3 §11.3 停止语义 + `OBLIGATION_JOBS` 常量 + D3-N06 演练；`WorkContentShredBacklog`/`WorkBackgroundJobStale` 为 page |
 | 撤权新鲜度不足 | 投影同步滞后或 Host 字段缺失，离职者仍能动作 | 同步周期上限 + `WorkDirectoryProjectionStale`；新工作在 `create_input` 即拒；在途 Run 处理待 D-07 签收 |

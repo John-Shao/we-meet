@@ -196,6 +196,8 @@ provider id/model/dataResidency/quota 是配置占位，需在 D4 评审与商�
 
 H02 已用 qwen3.8-flash、deepseek-chat、doubao-seed-2-1-lite 经本地网关做真实流式请求，但**不等于**生产网关、配额、条款或计费承诺。**接入模型已定为 `qwen3.8-flash`、`deepseek-v4.1-flash-1017`、`doubao-seed-2.1-lite`**：DeepSeek 的模型 id 与 H02 实测的 `deepseek-chat` 不同（1M 上下文、默认思考模式），三家的 usage 归一需按新 id 各复跑一次真实请求才算协议证据。
 
+> **2026-10-27 口径更新（D-08a）**：Work 不再计算模型费用，下列价目、预算上界与 PC-1–PC-3 仅作历史记录；PC-1/PC-2 作废，PC-3 降为客户接入说明，价目不再进入账本。
+
 三家控制台单价已于 2026-10-26 录入 [价目快照](assets/work-r0a-runtime-2026-10-25/usage/price-table.snapshot-2026-10-26.json)（`usableInLedger: false`）：R0a 文本三档为 input 0.8/1.0–2.0/0.8、output 2.7/4.0–8.0/2.7、cached input 0.1/0.02–0.04/0.16（阿里云/DeepSeek/火山，元/百万 tokens），**预算上界恒取三家最贵路径 = input 2.0、output 8.0、cached input 0.16**（上界不属任何单家标准价）。这批数字同时暴露三条设计约束：PC-1 DeepSeek 时段双价装不进单值 `price_version`（推荐恒取高峰价）、PC-2 火山缓存存储 0.017 元/百万 tokens/小时属时长维度（须关闭或排除在 Run 预算外）、PC-3 并发上限按家差异（DeepSeek 2500/500，另两家未给）。三项均须在 DR2 前定。
 
 ## 11. 测试与证据

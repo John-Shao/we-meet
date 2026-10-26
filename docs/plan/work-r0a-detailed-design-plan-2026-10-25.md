@@ -278,7 +278,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 | 内置模板 | 产品要求服务端返回 3 个模板，OpenAPI 无模板接口 | 新增 `GET /work/v1/templates`（或 bootstrap 字段）：返回 id/version/name/description/output_contract/content_hash；不建注册表 | 前端无法渲染模板；快照无法记录模板版本 |
 | Task 列表/详情 | `Task` 只有基础字段（id/state/goal/active_run/latest_run 等）；列表按 `TaskState` 过滤 | 新增 `TaskSummary`/`TaskDetail` 投影：title、display_state、latest_run（state/wait_reason/terminal_reason）、artifact 摘要、budget 摘要、pending_acceptance；列表增加 `view=pending, running, awaiting_acceptance, completed, all` | “我的工作”筛选和任务卡无法由现有 schema 稳定表达 |
 | 任务标题 | Task 无 title；产品要求自动生成/可编辑 | 服务端生成标题（目标前 20 字 + 动词），可编辑；按敏感元数据处理；写入 Task 或内容元数据 | 历史列表不可读；标题进入日志会造成内容泄漏 |
-| 管理只读 | R0a 需要席位/审计只读与异步导出；契约有 6 个管理读接口 | **已闭合（设计）**：方案 B——D1 提供 `work.audit_export`、席位/cents 聚合与 `work_directory` 投影写入，D2 冻结接口与一次性凭证；Host 字段缺口以端口 gap 暴露，不伪造 | 真实 P1-A/身份字段接入待 E2（C31 partial） |
+| 管理只读 | R0a 需要席位/审计只读与异步导出；契约有 6 个管理读接口 | **已闭合（设计）**：方案 B——D1 提供 `work.audit_export`、席位/token 配额聚合与 `work_directory` 投影写入，D2 冻结接口与一次性凭证；Host 字段缺口以端口 gap 暴露，不伪造 | 真实 P1-A/身份字段接入待 E2（C31 partial） |
 | SSE 鉴权/游标 | OpenAPI 同时声明 cookie 与 bearer；游标过期状态未定 | 同源 Web 用 HttpOnly cookie；SSE 不进 URL token；过期用 409 `resync_required` 并返回当前游标；Last-Event-ID 补读 | 客户端实现分裂、token 泄漏、重连行为不一致 |
 | 生成客户端/mock | 三条纵切是手写路由；未生成客户端/合同测试 | R0a 子集生成 TypeScript client + mock server；合同测试进 CI；切片路由逐步换生成类型 | “契约一致”仍是人工映射，不能防漂移 |
 
@@ -294,7 +294,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 **完成标准**：
 
 - OpenAPI 3.1 校验通过；R0a 子集无未解析 `$ref`。
-- 生成的 TypeScript 类型通过 `tsc --noEmit`；mock 能跑通云端 golden path 与关键负例的合同测试（当前 7/7）。
+- 生成的 TypeScript 类型通过 `tsc --noEmit`；mock 能跑通云端 golden path 与关键负例的合同测试（当前 34/34）。
 - 重复提交同 key 同 payload 返回原结果；不同 payload 返回 409。
 - SSE 断线用 Last-Event-ID 恢复；游标过期返回 409 `resync_required`。
 - 事件、错误、日志中无 goal/background/成果正文；URL 中无会话 token。
@@ -730,7 +730,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 | 迁移空库应用、RLS/直接 DML 负例 | D1 冒烟 139/139（[资产](assets/work-r0a-design-2026-10-25/README.md)） | 满足，待 DR1 复审 |
 | OpenAPI、客户端/mock/合同测试 | 34/34、`ci-contract`、错误码 104 SQL 码（D-08a 产品已签、c/d 未冻结） | 满足，待 DR1 |
 | 提交/派发/配额/成果/采纳/取消/重试/unknown 负例 | PG 139/139 + 竞态 9/9、Temporal 10/10、S1 4/4 | 满足，待 DR2 |
-| Runtime 工具/沙箱/出口/usage/价表 | 策略 10/10、usage/供应链 19/19；三家控制台单价已录快照（未书面确认，账本不可用；PC-1/2/3 待 DR2）、gVisor 未证明 | 部分 |
+| Runtime 工具/沙箱/出口/usage/价表 | 策略 10/10、usage/供应链 19/19；C15 已 waived、价目不再进入账本（PC-1/PC-2 作废、PC-3 降为客户接入说明）；D-08b 凭证/KMS 路径待签；gVisor 未证明 | 部分 |
 | UI 全状态、无假入口、可访问性 | UI 模型 14/14、状态矩阵；a11y 无实现可测 | 部分 |
 | SLO/告警/容量/恢复/切换/停用 | ops+pilot+telemetry 28/28 + promtool；试点环境未演练 | 部分 |
 | 威胁模型控制映射（S01–S18）与未关闭项 | [威胁模型](work-threat-model-2026-10-25.md)；C11 todo | 部分 |
