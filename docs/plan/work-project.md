@@ -241,6 +241,7 @@
 
 | 提交 | 内容 |
 |---|---|
+| `bdb91fe4e` | D-08 修订落到 D1/D2：金额账本改 token 配额、删 `currency`/`price_version`、新增接入配置/凭证/用量与 owner 写面；冒烟 139/139、竞态 9/9、契约 34/34（见 §9 同日条目） |
 | `9494f79b0` | 🐛 会议域声纹目录用例 `test_organization_directory_is_current_distinct_human_members_only` 的随机假名撞车：actor 由 `UserFactory` 生成、Faker 无种子，目录用 `icontains` 同时匹配两个姓名列，姓氏如 "Adams" 会命中 `q="Ada"`。先把 actor 钉成 "Carolyn Adams" 在本地精确复现出与 CI 同形状的多余行，再把 actor 名字钉成不可撞车的值——子串过滤语义与整目录断言都不变。全文件 31/31 通过 |
 | `1b3c4037c` | 🐛 四个 core 迁移测试用 `MigrationExecutor.migrate` 把 xdist 共享 worker 库倒到旧计划且 `transaction=True` 不回滚 DDL，污染同 worker 后续碰 `Organization` 的用例；新增 `restore_full_schema`（flush + 迁回图叶子）消除顺序依赖 |
 | `014e43014` `965fca391` | 🐛 后端 lint 口径：ruff 加 `--force-exclude`、pylint 过滤 migrations 与测试文件、print 守卫排除 `docs/**`，只查产品代码；清掉本分支引入的 lint 违规（格式与导入序） |
@@ -256,6 +257,8 @@
 | `868e10d2c` | 成果编辑策略、artifact_read_only、retry/管理面/401/文档 P1–P2 |
 
 分支 `refactor/work-module` 的 46 个提交已全部推送至 `origin/refactor/work-module`（2026-10-26；本页之后的文档同步提交本身不计入）。其中一次 message-only rebase 重写了 14 条提交信息以通过 `lint-git`：树内容与重写前逐字节相同（备份引用与重写链的 `git diff` 为空），但所有提交哈希都变了，本页与资产 README 引用的哈希已按 `git log` 同步；确认无独有内容后，改写前的备份引用 `refs/backup/pre-lint-rewrite` 已删除（远端从未推送该引用）。远端结果：PR #7 head `9494f79b0` 上 meet Workflow 15/15、Work R0a gates 6/6、Release guard 通过，25/25 检查通过且 `MERGEABLE/CLEAN`。本页状态截至快照日期；未提交变更不计入。
+
+PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `aliyun-dev`（merge commit `8d8c27a3a`），合并后 push 流水线已触发。D-08 修订在 `design/work-d08-token-metering`（commit `bdb91fe4e`），PR #9 已改基到 `aliyun-dev`，R0a 六门禁通过；完整 PR 检查（含 `check-changelog`）在改基后的同步事件上重新运行。
 
 ### 4.4 已定关键决策
 
