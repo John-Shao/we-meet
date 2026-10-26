@@ -2,7 +2,7 @@
 
 > 状态：D2 详细设计草案；R0a OpenAPI 子集（**29 path / 33 operation**）、生成类型、运行时客户端、管理读适配、mock server 与 **34 组测试**已完成（2026-10-26 D-08 修订：配额字段改 token、新增用量与接入配置 8 个 operation、错误码目录补 6 个内部码）；R0a 门禁已在 PR #7（`refactor/work-module` → `aliyun-dev`，commit `62affea4b`）首次远端运行 **6/6 job 通过**（Work R0a gates，31s）；首跑曾败于 `orchestration-contract` 缺 PyYAML，已在同一 PR 修复。仓库全量流水线也已跑绿（head `9494f79b0`：meet Workflow 15/15、Release guard 通过，25/25 检查通过且可合并）；未做真实鉴权/持久化/供应商回归。
 >
-> 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界与 D-08 接入配置/用量接口；D-08 尚未签收）
+> 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界与 D-08 接入配置/用量接口；D-08a 已于 2026-10-27 由产品签收，b/d/c/d 未签）
 >
 > 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[API 契约草案](work-api-contracts-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[架构 §15](work-system-architecture-2026-10-25.md)。
 >

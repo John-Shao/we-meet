@@ -44,7 +44,7 @@
 
 ### 0.3 W1 进展（2026-10-25）
 
-- **D1 已完成可执行草案**：[数据/权限/迁移设计](work-r0a-data-design-2026-10-25.md)、[schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；PostgreSQL 16 冒烟 139/139 + 多连接竞态 9 组（D-08 修订后；D-08 未签收），未应用生产。
+- **D1 已完成可执行草案**：[数据/权限/迁移设计](work-r0a-data-design-2026-10-25.md)、[schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；PostgreSQL 16 冒烟 139/139 + 多连接竞态 9 组（D-08 修订后；D-08a 产品已签、c/d 未冻结），未应用生产。
 - **D2 已完成契约子集**：[API/事件设计](work-r0a-api-design-2026-10-25.md)、[OpenAPI](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、生成的 TypeScript 类型/运行时客户端、mock server、[Host 端口契约](assets/work-r0a-design-2026-10-25/host-ports.mjs) 与设计包 34/34（合同 12 + 客户端 13 + 端口 9）；未做真实鉴权/持久化。
 - **DR1 尚未评审**：D1/D2 仍是草案；D3/D4 需在 DR1 后继续。
 
@@ -728,7 +728,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 | 范围/不做冻结，无 R0b+ 入口 | §1、§3；OpenAPI 29 path/33 operation 冻结集（D-08 扩范围，待签） | 满足，待 DR0 |
 | 7 项决策签收、未决项有负责人和日期 | §4、§8.1；就绪包 §6.1/§7 | 待 DR0 签收 |
 | 迁移空库应用、RLS/直接 DML 负例 | D1 冒烟 139/139（[资产](assets/work-r0a-design-2026-10-25/README.md)） | 满足，待 DR1 复审 |
-| OpenAPI、客户端/mock/合同测试 | 34/34、`ci-contract`、错误码 104 SQL 码（D-08 未签收） | 满足，待 DR1 |
+| OpenAPI、客户端/mock/合同测试 | 34/34、`ci-contract`、错误码 104 SQL 码（D-08a 产品已签、c/d 未冻结） | 满足，待 DR1 |
 | 提交/派发/配额/成果/采纳/取消/重试/unknown 负例 | PG 139/139 + 竞态 9/9、Temporal 10/10、S1 4/4 | 满足，待 DR2 |
 | Runtime 工具/沙箱/出口/usage/价表 | 策略 10/10、usage/供应链 19/19；三家控制台单价已录快照（未书面确认，账本不可用；PC-1/2/3 待 DR2）、gVisor 未证明 | 部分 |
 | UI 全状态、无假入口、可访问性 | UI 模型 14/14、状态矩阵；a11y 无实现可测 | 部分 |
