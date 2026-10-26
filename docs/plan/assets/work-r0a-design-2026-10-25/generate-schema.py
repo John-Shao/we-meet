@@ -72,6 +72,7 @@ extra_before_task, extra_after_task = extra.split(_marker, 1)
 extra_after_task = _marker + extra_after_task
 new_functions = (HERE / "r0a-new-functions.sql").read_text(encoding="utf-8").rstrip() + "\n"
 hardening = (HERE / "r0a-hardening.sql").read_text(encoding="utf-8").rstrip() + "\n"
+admin_directory = (HERE / "r0a-admin-directory.sql").read_text(encoding="utf-8").rstrip() + "\n"
 rls = (HERE / "r0a-rls-grants.sql").read_text(encoding="utf-8").rstrip() + "\n"
 
 header = """-- Work R0a 领域模型可执行草案
@@ -82,7 +83,8 @@ header = """-- Work R0a 领域模型可执行草案
 --   * 正文/检查点不进入本库；input_object/artifact_version 只存 Content Store 引用与哈希。
 --   * 应用角色 work_api/work_worker 只有 SELECT 与受限函数 EXECUTE，没有直接 DML。
 --   * RLS 以 current_setting('app.org_id', true) 为租户上下文；FORCE RLS 覆盖表 owner。
---   * work_owner 为 NOLOGIN；work_api/work_worker/work_ledger 也是 NOLOGIN，部署时由服务身份承载。
+--   * work_owner 为 NOLOGIN；work_api/work_worker/work_ledger/work_directory 也是 NOLOGIN，部署时由服务身份承载。
+--   * 目录投影（work.org/work.member）只由 work_directory 通过 sync_* 领域命令写入；管理只读与异步导出作业见 r0a-admin-directory.sql。
 BEGIN;
 
 DROP SCHEMA IF EXISTS work CASCADE;
@@ -91,6 +93,7 @@ DROP ROLE IF EXISTS work_worker;
 DROP ROLE IF EXISTS work_ledger;
 DROP ROLE IF EXISTS work_migrator;
 DROP ROLE IF EXISTS work_ops;
+DROP ROLE IF EXISTS work_directory;
 DROP ROLE IF EXISTS work_owner;
 
 CREATE ROLE work_owner NOLOGIN;
@@ -99,6 +102,7 @@ CREATE ROLE work_worker NOLOGIN;
 CREATE ROLE work_ledger NOLOGIN;
 CREATE ROLE work_migrator NOLOGIN;
 CREATE ROLE work_ops NOLOGIN;
+CREATE ROLE work_directory NOLOGIN;
 
 CREATE SCHEMA work AUTHORIZATION work_owner;
 SET LOCAL ROLE work_owner;
@@ -193,6 +197,7 @@ ON CONFLICT DO NOTHING;
 parts.append(functions + "\n")
 parts.append(new_functions + "\n")
 parts.append(hardening + "\n")
+parts.append(admin_directory + "\n")
 parts.append(rls + "\n")
 parts.append("RESET ROLE;\nCOMMIT;\n")
 

@@ -76,5 +76,7 @@
 
 - 架构 §0.1 A14、§4.2/§4.3；D1 §4.4；D2 §2.8；D6 §7.4。
 - 设计侧：禁止依赖清单、Host 端口表、部署单元表、Connector 契约评审。
-- 实施侧：stub-host 剥离演练（R1 前）、独立部署清单/计费/品牌（R4 前）。
+- **R0a 设计物（2026-10-26 二次修订）**：五个端口的可执行形状与校验器 [host-ports.mjs](../plan/assets/work-r0a-design-2026-10-25/host-ports.mjs)、WeMeet 适配 [we-meet-host-adapter.mjs](../plan/assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs)、独立产品替身 [stub-host.mjs](../plan/assets/work-r0a-design-2026-10-25/stub-host.mjs)，由 9/9 端口测试校验（含静态边界：Work 运行面不 import 适配器、适配器不含 SQL）。D1 侧新增 `work_directory` 角色与 `sync_org_projection`/`sync_member_projection` 作为投影唯一写入口（修订号单调、跨组织拒绝、不覆盖 `operator_suspended`），管理读的席位统计/cents 账本/异步审计导出作业归 Work 所有；这些是设计/参考证据，不是已部署能力。
+- 实施侧：目录投影同步作业、stub-host 剥离演练（R1 前）、独立部署清单/计费/品牌（R4 前）。
+- 仍未闭合：真实 IdP/目录字段（`subject_id`、成员 `role`/`revision`/席位布尔、组织 `name`/`home_region`）由 Host 提供的书面确认（C31 partial）；Connector 统一契约（内部系统不得旁路）在 R0a 只有清单，无实现。
 - 状态保持 Proposed，待架构评审签收；文档存在不代表已独立或可售卖。

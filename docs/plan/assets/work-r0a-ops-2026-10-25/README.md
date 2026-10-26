@@ -6,7 +6,7 @@
 
 | 文件 | 用途 |
 |---|---|
-| `security-controls.json` | S01–S16 威胁/控制/证据/状态/owner/关闭条件 |
+| `security-controls.json` | S01–S18 威胁/控制/证据/状态/owner/关闭条件 |
 | `slo-pilot.json` | 试点内部 SLO 口径、窗口、来源、状态 |
 | `pilot-checklist.json` | 设计/实现/安全/运维/产品/迁移的 blocking 清单 |
 | `pilot-capacity-model.mjs` | 3 组织/20 席位/10 并发的试点容量模型 |
@@ -31,13 +31,25 @@ python -c "import json; [json.load(open(f, encoding='utf-8')) for f in ['securit
 
 ## 已验证
 
-- 8/8 ops + 6/6 pilot-ops + 10/10 telemetry 测试通过（共 24/24；黄金任务/试点指标/切换状态机见 `pilot-ops.mjs`）：控制字段/证据、SLO 必需指标/未测不冒充、清单完整性、go/no-go、容量基线、10× 失败、零使用、非法输入；12 个 SLO 全覆盖、target/window/unit 与 `slo-pilot.json` 对齐、track-only 不产生 SLO 告警、缺失/篡改/内容标签/错误 runbook 被拒。
+- 9/9 ops + 6/6 pilot-ops + 11/11 telemetry 测试通过（共 26/26；黄金任务/试点指标/切换状态机见 `pilot-ops.mjs`）：控制字段/证据、SLO 必需指标/未测不冒充、清单完整性、go/no-go、容量基线、10× 失败、零使用、非法输入；12 个 SLO 全覆盖、target/window/unit 与 `slo-pilot.json` 对齐、track-only 不产生 SLO 告警、缺失/篡改/内容标签/错误 runbook 被拒。
 - `prometheus-rules.yaml` 由契约生成且无漂移：21 条 record、17 条 alert；每条告警带 severity/for/runbook 与 `org_id` 注释；标签白名单禁止 goal/background/prompt/content/body/email/api_key/authorization/cookie/session。
 - 当前 `goNoGo`：**no-go，23 个 blocking 项**。
 - 基线：36 Run/日、108 模型 Operation/日、7.5 provider req/min、0.125 DB 预留/秒、1.296M token/日、1.156GB/365 天；均在试点限制内。
 - S1 参考演练：worker 重启、DB 终态偏移、执行开关/组织停用、outbox backlog 4/4，`patched` 升级 1/1，file-backed server 重启为修订前结果（未复跑）；见 [Temporal slice](../work-temporal-slice-2026-10-25/README.md)。
 - 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03；C21 on-call runbook。剩余 23 个 blocking。
 - 10× 压力会触发 provider RPM/token、workflow、内容留存与并发限制。
+
+## 后台作业遥测（2026-10-26 增补）
+
+D3 §11 的六类非 Run 作业现在有指标与告警：
+
+| 类别 | 数量 | 关键项 |
+|---|---|---|
+| 指标 | 27 | `work_background_job_runs_total{kind,outcome}`、`work_background_job_last_success_seconds{kind}`、`work_background_job_lease_takeovers_total`、`work_directory_projection_lag_seconds`、`work_audit_export_backlog`、`work_audit_export_duration_seconds_bucket`、`work_audit_export_downloads_total{outcome}`、`work_content_shred_backlog` |
+| 告警 | 27（15 SLO + 12 运维） | 新增 `WorkBackgroundJobStale`、`WorkBackgroundJobLeaseTakeovers`、`WorkDirectoryProjectionStale`、`WorkAuditExportBacklog`、`WorkAuditExportFailureRatio`、`WorkAuditExportSlow`、`WorkAuditExportTokenFailureBurst`、`WorkContentShredBacklog`，全部指向[运行手册 §5.1 后台作业故障处置](../../work-operations-runbook-2026-10-25.md) |
+| 控制 | 18（S01–S18） | S17 目录投影写入与新鲜度；S18 治理读越权与一次性下载入口 |
+
+`telemetry.test.mjs` 额外做两项跨资产一致性校验：D3 `background-jobs.contract.ts` 声明的作业指标/告警名必须在契约里存在，且"义务作业"（relay/shredder/投影同步/清扫）与"产生新工作的作业"（导出 worker）的划分必须与类型契约一致；`ops-model.test.mjs` 断言 `S17/S18` 存在且冻结集里不出现 `download_url`。
 
 ## 未验证
 

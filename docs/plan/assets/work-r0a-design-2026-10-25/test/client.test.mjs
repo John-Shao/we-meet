@@ -54,10 +54,10 @@ test.after(async () => {
 
 test.beforeEach(reset);
 
-test('generated operation inventory matches the 20-path R0a subset', () => {
-  assert.equal(OPERATIONS.length, 23);
-  assert.equal(new Set(OPERATIONS.map((op) => op.operationId)).size, 23);
-  assert.equal(new Set(OPERATIONS.map((op) => op.path)).size, 20);
+test('generated operation inventory matches the 22-path R0a subset', () => {
+  assert.equal(OPERATIONS.length, 25);
+  assert.equal(new Set(OPERATIONS.map((op) => op.operationId)).size, 25);
+  assert.equal(new Set(OPERATIONS.map((op) => op.path)).size, 22);
   const submit = OPERATIONS.find((op) => op.operationId === 'submitTask');
   assert.equal(submit.method, 'POST');
   assert.equal(submit.successStatus, 202);
@@ -67,6 +67,10 @@ test('generated operation inventory matches the 20-path R0a subset', () => {
   assert.equal(stream.stream, true);
   assert.equal(stream.successContentType, 'text/event-stream');
   assert.deepEqual(stream.headerParams, ['Last-Event-ID']);
+  const content = OPERATIONS.find((op) => op.operationId === 'getAuditExportContent');
+  assert.equal(content.successContentType, 'text/csv');
+  assert.deepEqual(content.headerParams, ['X-Download-Token']);
+  assert.equal(OPERATIONS.find((op) => op.operationId === 'createAuditExportTicket').requiresCsrf, true);
 });
 
 test('golden path through the generated client', async () => {
@@ -209,9 +213,11 @@ test('admin read endpoints stay within the mapped contract', async () => {
   assert.deepEqual(Object.keys(overview.data).sort(), [
     'audit_retention_days',
     'budget',
+    'budget_period_id',
     'execution_enabled',
     'name',
     'org_id',
+    'org_revision',
     'seats',
     'status',
   ]);
@@ -227,17 +233,67 @@ test('admin read endpoints stay within the mapped contract', async () => {
     'work_seat',
   ]);
 
+  const rangeFrom = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const rangeTo = new Date().toISOString();
   const job = await api.createAuditExport({
-    body: {
-      client_request_id: 'req-export-0001',
-      from: '2026-10-01T00:00:00Z',
-      to: '2026-10-25T00:00:00Z',
-      format: 'csv',
-    },
+    body: { client_request_id: 'req-export-0001', range_from: rangeFrom, range_to: rangeTo, format: 'csv' },
   });
   assert.equal(job.status, 202);
-  const fetched = await api.getAuditExport({ path: { exportId: job.data.id } });
-  assert.equal(fetched.data.id, job.data.id);
+  assert.deepEqual(Object.keys(job.data).sort(), [
+    'bytes',
+    'download_available',
+    'downloaded_at',
+    'error_code',
+    'expires_at',
+    'format',
+    'id',
+    'range_from',
+    'range_to',
+    'ready_at',
+    'requested_at',
+    'requested_by',
+    'row_count',
+    'status',
+  ]);
+  assert.equal(job.data.status, 'queued');
+
+  await assert.rejects(
+    api.createAuditExportTicket({ path: { exportId: job.data.id } }),
+    (error) => error.status === 409 && error.code === 'audit_export_not_ready',
+  );
+
+  await raw('POST', '/__test/export-worker/run', {});
+  const ready = await api.getAuditExport({ path: { exportId: job.data.id } });
+  assert.equal(ready.data.status, 'ready');
+  assert.equal(ready.data.download_available, true);
+
+  const ticket = await api.createAuditExportTicket({ path: { exportId: job.data.id } });
+  assert.equal(ticket.status, 200);
+  assert.match(ticket.data.token, /^[0-9a-f]{48}$/);
+
+  const content = await api.getAuditExportContent({
+    path: { exportId: job.data.id },
+    headers: { 'X-Download-Token': ticket.data.token },
+  });
+  assert.equal(content.status, 200);
+  assert.equal(content.headers['content-type'], 'text/csv; charset=utf-8');
+  assert.equal(content.headers['cache-control'], 'no-store');
+  assert.match(content.data, /^action,actor_subject_id,target_type,target_id,created_at/);
+
+  await assert.rejects(
+    api.getAuditExportContent({
+      path: { exportId: job.data.id },
+      headers: { 'X-Download-Token': ticket.data.token },
+    }),
+    (error) => error.status === 403 && error.code === 'download_token_invalid',
+  );
+  await assert.rejects(
+    api.createAuditExportTicket({ path: { exportId: job.data.id } }),
+    (error) => error.status === 409 && error.code === 'audit_export_already_downloaded',
+  );
+  const afterDownload = await api.getAuditExport({ path: { exportId: job.data.id } });
+  assert.equal(afterDownload.data.download_available, false);
+  assert.ok(afterDownload.data.downloaded_at);
 });
 
 test('path and body validation happens before the request', async () => {

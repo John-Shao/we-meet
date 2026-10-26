@@ -202,6 +202,33 @@
       "status": "out_of_scope",
       "owner": "product + security",
       "closeCondition": "Revisit in R0b/R2; not a R0a gate."
+    },
+    {
+      "id": "S17",
+      "threat": "Directory projection is stale or forged: a revoked member keeps working, or a Host adapter writes another tenant’s seats/roles",
+      "control": "org/member projections are writable only through work.sync_org_projection/work.sync_member_projection, granted only to the work_directory service role; revisions must increase (projection_revision_stale) and the transaction tenant context must match the target org (directory_org_context_mismatch); operator_suspended is never settable from the directory path; every sync writes an audit row with entitlement_lost. Entitlement loss blocks new work at create_input/submit/retry. Stopping in-flight Runs is decision D-07, not an adapter side effect.",
+      "evidence": [
+        "D1 smoke 113/113 (directory_projection_write_path, projection_revision_monotonic, projection_cross_org_blocked, projection_ignores_operator_flag, projection_revocation_blocks_new_work)",
+        "host-ports.test.mjs 9/9",
+        "D3 §11.1 job list, D3-N05"
+      ],
+      "status": "partial",
+      "owner": "backend + platform + security",
+      "closeCondition": "Real IdentityDirectory/Entitlement fields wired in E2 (C31); projection lag alert threshold + sync interval signed with D-07; multi-replica sync drill."
+    },
+    {
+      "id": "S18",
+      "threat": "Governance read / audit export leaks data across tenants or through a leaked download link",
+      "control": "Admin read is owner/admin only and org-bound (admin_access_denied; cross-org export lookup returns audit_export_not_found so existence is not disclosed); export jobs contain metadata only (refs, counts, hashes) and never body text; download uses a single-use, 60–900s token presented via X-Download-Token header — never in the URL or query string — stored only as SHA-256, and one redemption marks it used; expired jobs purge the content reference via content_shred.",
+      "evidence": [
+        "D1 smoke 113/113 (admin_read_denied_for_non_admin, export_cross_org_not_found, export_download_single_use, export_ticket_single_use_enforced, export_audit_trail_no_body, audit_export_content_shred_once)",
+        "contract tests 10/10 (ticket/content lifecycle)",
+        "ci-contract forbids download_url in the frozen spec",
+        "D6 log-scan 8/8 covers no-body rules"
+      ],
+      "status": "partial",
+      "owner": "backend + security",
+      "closeCondition": "E2 real authz + token store; staging log/access-record scan proves the token never lands in a URL; brute-force/throttle policy for denied redemption confirmed in pilot (WorkAuditExportTokenFailureBurst)."
     }
   ]
 }

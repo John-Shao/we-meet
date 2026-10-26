@@ -37,6 +37,7 @@ CREATE TEMP TABLE smoke_assert (
   ok boolean NOT NULL
 );
 GRANT SELECT, INSERT ON smoke_assert TO work_worker;
+GRANT SELECT, INSERT ON smoke_assert TO work_directory;
 
 -- ---------------------------------------------------------------------------
 -- Input + submit
@@ -1414,6 +1415,409 @@ SELECT 'acquire_cancel_requested_no_fence',
 INSERT INTO smoke_assert SELECT 'no_success_over_cancel_request', true;
 INSERT INTO smoke_assert SELECT 'unknown_reason_code_enforced', true;
 RESET ROLE;
+
+-- ---------------------------------------------------------------------------
+-- Host 目录投影（ADR-0021）+ 管理只读与异步审计导出（U2 方案 B）
+-- ---------------------------------------------------------------------------
+RESET ROLE;
+SET LOCAL app.org_id = 'org1';
+
+SELECT has_function_privilege('work_directory',
+         'work.sync_org_projection(text,text,text,boolean,text,bigint)', 'EXECUTE')
+   AND NOT has_function_privilege('work_api',
+         'work.sync_org_projection(text,text,text,boolean,text,bigint)', 'EXECUTE')
+   AND NOT has_function_privilege('work_worker',
+         'work.sync_member_projection(text,text,text,text,boolean,bigint)', 'EXECUTE')
+   AND NOT has_table_privilege('work_directory', 'work.member', 'INSERT')
+   AND NOT has_table_privilege('work_directory', 'work.org', 'UPDATE') AS dir_write_path \gset
+INSERT INTO smoke_assert SELECT 'directory_projection_write_path', :'dir_write_path'::boolean;
+
+SELECT NOT has_table_privilege('work_api', 'work.audit_export', 'SELECT')
+   AND NOT has_table_privilege('work_worker', 'work.audit_export', 'SELECT')
+   AND NOT has_table_privilege('work_api', 'work.audit_export', 'INSERT') AS export_no_read \gset
+INSERT INTO smoke_assert SELECT 'export_metadata_not_directly_readable', :'export_no_read'::boolean;
+
+-- 投影写入只走 sync_* 领域命令；修订号必须单调，且不能跨组织写。
+SET LOCAL ROLE work_directory;
+SELECT work.sync_org_projection('org1', 'Acme 测试组织', 'active', true, 'cn-north', 5)
+  AS proj_org_rev \gset
+SELECT work.sync_member_projection('org1', 'user6', 'active', 'admin', true, 1) AS proj_u6 \gset
+SELECT work.sync_member_projection('org1', 'user7', 'left', 'member', true, 1) AS proj_u7 \gset
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.sync_member_projection('org1', 'user6', 'active', 'owner', true, 1);
+    RAISE EXCEPTION 'expected_revision_stale';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'projection_revision_stale' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'projection_revision_monotonic', true;
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.sync_org_projection('org2', 'Other 组织', 'active', true, 'cn-north', 5);
+    RAISE EXCEPTION 'expected_context_mismatch';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'directory_org_context_mismatch' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'projection_cross_org_blocked', true;
+SELECT work.sync_org_projection('org1', 'Acme 测试组织', 'suspended', false, 'cn-north', 6)
+  AS proj_org_rev2 \gset
+SELECT work.sync_org_projection('org1', 'Acme 测试组织', 'active', true, 'cn-north', 7)
+  AS proj_org_rev3 \gset
+RESET ROLE;
+INSERT INTO smoke_assert SELECT 'projection_written_through_sync',
+  :'proj_org_rev'::bigint = 5 AND :'proj_org_rev3'::bigint = 7
+  AND (SELECT name = 'Acme 测试组织' AND revision = 7 AND status = 'active'
+       FROM work.org WHERE id = 'org1')
+  AND (SELECT status = 'active' AND role = 'admin' AND work_seat
+       FROM work.member WHERE org_id = 'org1' AND subject_id = 'user6');
+-- 目录同步不得覆盖运维停用位（operator_suspended 只由 ops 路径写）。
+INSERT INTO smoke_assert SELECT 'projection_ignores_operator_flag',
+  (SELECT operator_suspended = false FROM work.org WHERE id = 'org1');
+
+-- 撤席位/停用后，新工作在建输入这一步就被挡住（投影是权限事实）。
+SET LOCAL ROLE work_directory;
+SELECT work.sync_member_projection('org1', 'user6', 'active', 'member', false, 2) AS proj_u6_off \gset
+RESET ROLE;
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user6';
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.create_input('org1', 'user6', 'content://org1/input-6',
+                              'sha256:input-6', 128, 'application/json');
+    RAISE EXCEPTION 'expected_seat_required';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'work_seat_required' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'projection_revocation_blocks_new_work', true;
+
+-- 管理读与导出创建都要求 owner/admin；会话主体必须先匹配，再看角色。
+SET LOCAL app.subject_id = 'user4';
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.admin_overview('org1', 'user4', 'default', '2026-10');
+    RAISE EXCEPTION 'expected_admin_denied';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'admin_access_denied' THEN RAISE; END IF;
+  END;
+  BEGIN
+    PERFORM work.list_seats('org1', 'user4', NULL, 20);
+    RAISE EXCEPTION 'expected_admin_denied';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'admin_access_denied' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'admin_read_denied_for_non_admin', true;
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.create_audit_export('org1', 'user4', 'exp-req-9000',
+      now() - interval '7 days', now() - interval '1 day', 'csv');
+    RAISE EXCEPTION 'expected_admin_denied';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'admin_access_denied' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'export_create_denied_for_non_admin', true;
+
+SET LOCAL app.subject_id = 'user1';
+SELECT work.admin_overview('org1', 'user1', 'default', '2026-10') AS ov \gset
+SELECT work.admin_overview('org1', 'user1') AS ov_default \gset
+SELECT b.limit_cents AS acct_limit, b.reserved_cents AS acct_reserved,
+       b.settled_cents AS acct_settled
+FROM work.budget_account b
+WHERE b.org_id = 'org1' AND b.account_key = 'default' AND b.period_id = '2026-10' \gset
+INSERT INTO smoke_assert SELECT 'admin_overview_cents_match_ledger',
+  (:'ov'::jsonb #>> '{budget,limit_cents}')::bigint = :'acct_limit'::bigint
+  AND (:'ov'::jsonb #>> '{budget,reserved_cents}')::bigint = :'acct_reserved'::bigint
+  AND (:'ov'::jsonb #>> '{budget,settled_cents}')::bigint = :'acct_settled'::bigint;
+INSERT INTO smoke_assert SELECT 'admin_overview_seats',
+  (:'ov'::jsonb #>> '{seats,total}')::int = 5
+  AND (:'ov'::jsonb #>> '{seats,active}')::int = 3
+  AND :'ov'::jsonb->>'name' = 'Acme 测试组织'
+  AND (:'ov'::jsonb->>'org_revision')::bigint = 7
+  AND (:'ov'::jsonb->>'audit_retention_days')::int = 365
+  AND (:'ov'::jsonb->>'execution_enabled')::text = 'true';
+INSERT INTO smoke_assert SELECT 'admin_overview_default_period',
+  :'ov_default'::jsonb->>'budget_period_id' = to_char(date_trunc('month', now()), 'YYYY-MM');
+
+-- 席位列表 keyset 分页；总数只来自 overview 聚合，不受分页影响。
+SELECT jsonb_agg(t.subject_id) AS seats_p1
+FROM work.list_seats('org1', 'user1', NULL, 1) t \gset
+SELECT jsonb_agg(t.subject_id) AS seats_p2
+FROM work.list_seats('org1', 'user1', 'user1', 2) t \gset
+INSERT INTO smoke_assert SELECT 'seat_keyset_pagination',
+  :'seats_p1'::jsonb = '["user1"]'::jsonb AND :'seats_p2'::jsonb = '["user3","user4"]'::jsonb;
+DO $$ BEGIN
+  BEGIN
+    PERFORM count(*) FROM work.list_seats('org1', 'user1', NULL, 500);
+    RAISE EXCEPTION 'expected_invalid_pagination';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'invalid_pagination' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'seat_pagination_limit_guard', true;
+
+-- 异步审计导出：幂等、范围校验、管理员门控。
+SELECT work.create_audit_export('org1', 'user1', 'exp-req-0001',
+  now() - interval '7 days', now() - interval '1 day', 'csv') AS ex1 \gset
+SELECT work.create_audit_export('org1', 'user1', 'exp-req-0001',
+  now() - interval '7 days', now() - interval '1 day', 'csv') AS ex1_replay \gset
+INSERT INTO smoke_assert SELECT 'export_idempotent_replay',
+  (:'ex1'::jsonb->>'id') = (:'ex1_replay'::jsonb->>'id')
+  AND (:'ex1'::jsonb->>'status') = 'queued'
+  AND (:'ex1'::jsonb->>'download_available')::boolean = false;
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.create_audit_export('org1', 'user1', 'exp-req-0001',
+      now() - interval '5 days', now() - interval '1 day', 'csv');
+    RAISE EXCEPTION 'expected_idempotency_conflict';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'idempotency_key_conflict' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'export_conflict_on_other_payload', true;
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.create_audit_export('org1', 'user1', 'exp-req-range-1',
+      now() - interval '1 day', now() - interval '7 days', 'csv');
+    RAISE EXCEPTION 'expected_range_invalid';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'audit_export_range_invalid' THEN RAISE; END IF;
+  END;
+  BEGIN
+    PERFORM work.create_audit_export('org1', 'user1', 'exp-req-range-2',
+      now() - interval '500 days', now() - interval '400 days', 'json');
+    RAISE EXCEPTION 'expected_range_invalid';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'audit_export_range_invalid' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'export_range_validation', true;
+
+CREATE TEMP TABLE export_ids AS
+SELECT (:'ex1'::jsonb->>'id')::uuid AS id1,
+       (work.create_audit_export('org1', 'user1', 'exp-req-0002',
+          now() - interval '6 days', now() - interval '2 days', 'json')->>'id')::uuid AS id2,
+       (work.create_audit_export('org1', 'user1', 'exp-req-0003',
+          now() - interval '6 days', now() - interval '3 days', 'csv')->>'id')::uuid AS id3;
+GRANT SELECT ON export_ids TO work_worker;
+
+-- worker 生命周期：租约独占、错误 worker 不能收尾、失败后不可再领取。
+SET LOCAL ROLE work_worker;
+DO $$
+DECLARE v export_ids%ROWTYPE; r jsonb;
+BEGIN
+  SELECT * INTO v FROM export_ids;
+  r := work.claim_audit_export(v.id1, 'worker-a', 600);
+  IF r->>'status' <> 'running' THEN RAISE EXCEPTION 'export_claim_failed'; END IF;
+  BEGIN
+    PERFORM work.claim_audit_export(v.id1, 'worker-b', 600);
+    RAISE EXCEPTION 'expected_not_claimable';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'audit_export_not_claimable' THEN RAISE; END IF;
+  END;
+  BEGIN
+    PERFORM work.complete_audit_export(v.id1, 'worker-b', 'content://org1/audit-1.csv',
+                                       'sha256:aaaaaaaa', 1024, 42, 86400);
+    RAISE EXCEPTION 'expected_lease_lost';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'audit_export_lease_lost' THEN RAISE; END IF;
+  END;
+  r := work.complete_audit_export(v.id1, 'worker-a', 'content://org1/audit-1.csv',
+                                  'sha256:aaaaaaaa', 1024, 42, 86400);
+  IF r->>'status' <> 'ready' OR (r->>'download_available')::boolean IS DISTINCT FROM TRUE THEN
+    RAISE EXCEPTION 'export_complete_failed';
+  END IF;
+
+  PERFORM work.claim_audit_export(v.id2, 'worker-a', 600);
+  PERFORM work.complete_audit_export(v.id2, 'worker-a', 'content://org1/audit-2.json',
+                                     'sha256:bbbbbbbb', 512, 7, 300);
+  PERFORM work.claim_audit_export(v.id3, 'worker-a', 600);
+  r := work.fail_audit_export(v.id3, 'worker-a', 'content_store_unavailable');
+  IF r->>'status' <> 'failed' OR r->>'error_code' <> 'content_store_unavailable' THEN
+    RAISE EXCEPTION 'export_fail_failed';
+  END IF;
+  BEGIN
+    PERFORM work.claim_audit_export(v.id3, 'worker-a', 600);
+    RAISE EXCEPTION 'expected_reclaim_blocked';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'audit_export_not_claimable' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'export_worker_lease_lifecycle', true;
+SELECT work.expire_due_audit_exports(now() + interval '5 minutes') AS expired_count \gset
+RESET ROLE;
+INSERT INTO smoke_assert SELECT 'export_expiry_sweep',
+  :'expired_count'::int = 1
+  AND (SELECT status FROM work.audit_export WHERE id = (SELECT id2 FROM export_ids)) = 'expired';
+
+-- 一次性下载令牌：服务只存哈希，兑换一次即失效。
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user1';
+SELECT work.get_audit_export('org1', 'user1', (SELECT id1 FROM export_ids)) AS ex1_get \gset
+SELECT work.issue_audit_export_download('org1', 'user1', (SELECT id1 FROM export_ids),
+       encode(sha256(convert_to('a1b2c3d4e5f60718293a4b5c', 'UTF8')), 'hex'), 300) AS ticket \gset
+SELECT work.redeem_audit_export_download('org1', 'user1',
+       encode(sha256(convert_to('a1b2c3d4e5f60718293a4b5c', 'UTF8')), 'hex')) AS redeem1 \gset
+SELECT work.get_audit_export('org1', 'user1', (SELECT id1 FROM export_ids)) AS ex1_after \gset
+INSERT INTO smoke_assert SELECT 'export_download_single_use',
+  (:'ticket'::jsonb->>'expires_at') IS NOT NULL
+  AND :'ticket'::jsonb->>'format' = 'csv'
+  AND :'redeem1'::jsonb->>'content_ref' = 'content://org1/audit-1.csv'
+  AND (:'ex1_get'::jsonb->>'download_available')::boolean = TRUE
+  AND (:'ex1_after'::jsonb->>'download_available')::boolean = FALSE
+  AND (:'ex1_after'::jsonb->>'downloaded_at') IS NOT NULL;
+DO $$
+DECLARE v export_ids%ROWTYPE;
+BEGIN
+  SELECT * INTO v FROM export_ids;
+  BEGIN
+    PERFORM work.redeem_audit_export_download('org1', 'user1',
+              encode(sha256(convert_to('a1b2c3d4e5f60718293a4b5c', 'UTF8')), 'hex'));
+    RAISE EXCEPTION 'expected_second_redeem_blocked';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'download_token_invalid' THEN RAISE; END IF;
+  END;
+  BEGIN
+    PERFORM work.issue_audit_export_download('org1', 'user1', v.id1,
+              encode(sha256(convert_to('b1b2c3d4e5f60718293a4b5c', 'UTF8')), 'hex'), 300);
+    RAISE EXCEPTION 'expected_already_downloaded';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'audit_export_already_downloaded' THEN RAISE; END IF;
+  END;
+  BEGIN
+    PERFORM work.redeem_audit_export_download('org1', 'user1', repeat('f', 64));
+    RAISE EXCEPTION 'expected_unknown_token';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'download_token_invalid' THEN RAISE; END IF;
+  END;
+  BEGIN
+    PERFORM work.issue_audit_export_download('org1', 'user1', v.id2,
+              encode(sha256(convert_to('c1b2c3d4e5f60718293a4b5c', 'UTF8')), 'hex'), 300);
+    RAISE EXCEPTION 'expected_expired_export';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'audit_export_expired' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'export_ticket_single_use_enforced', true;
+
+-- 跨组织不得泄露作业是否存在。
+RESET ROLE;
+SET LOCAL app.org_id = 'org2';
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user2';
+DO $$
+DECLARE v export_ids%ROWTYPE;
+BEGIN
+  SELECT * INTO v FROM export_ids;
+  BEGIN
+    PERFORM work.get_audit_export('org2', 'user2', v.id1);
+    RAISE EXCEPTION 'expected_cross_org_denied';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'audit_export_not_found' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'export_cross_org_not_found', true;
+
+RESET ROLE;
+SET LOCAL app.org_id = 'org1';
+INSERT INTO smoke_assert SELECT 'export_audit_trail_no_body',
+  (SELECT count(*) FROM work.audit_event WHERE action LIKE 'audit_export.%') >= 6
+  AND NOT EXISTS (
+    SELECT 1 FROM work.audit_event
+    WHERE action LIKE 'audit_export.%' AND (metadata ? 'body' OR metadata ? 'content')
+  );
+INSERT INTO smoke_assert SELECT 'directory_projection_audited',
+  (SELECT count(*) FROM work.audit_event
+    WHERE action IN ('directory.org_synced', 'directory.member_synced')) >= 5
+  AND (SELECT count(*) FROM work.audit_event
+        WHERE action = 'directory.member_synced'
+          AND metadata->>'entitlement_lost' = 'true') >= 1;
+
+-- ---------------------------------------------------------------------------
+-- 留存清扫作业（D3 §11）：未绑定输入到期 + 导出文件引用粉碎
+-- ---------------------------------------------------------------------------
+RESET ROLE;
+SET LOCAL app.org_id = 'org1';
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user1';
+
+SELECT work.create_input(
+  'org1', 'user1', 'content://org1/input-ttl-1', 'sha256:input-ttl-1', 128, 'application/json'
+) AS ttl_input \gset
+
+SELECT (expires_at BETWEEN now() + interval '23 hours' AND now() + interval '25 hours') AS ttl_ok
+FROM work.input_object WHERE id = :'ttl_input'::uuid \gset
+INSERT INTO smoke_assert SELECT 'input_expiry_bound_to_ttl_window', :'ttl_ok'::boolean;
+
+-- 同一 content_ref 被两个主体各建一份输入：两份都要过期，但正文只投递一次粉碎。
+SET LOCAL app.subject_id = 'user3';
+SELECT work.create_input(
+  'org1', 'user3', 'content://org1/input-ttl-1', 'sha256:input-ttl-1', 128, 'application/json'
+) AS ttl_shared_input \gset
+SET LOCAL app.subject_id = 'user1';
+SELECT count(*) AS ttl_inputs FROM work.input_object
+WHERE org_id = 'org1' AND content_ref = 'content://org1/input-ttl-1' AND status = 'active' \gset
+INSERT INTO smoke_assert SELECT 'input_shared_ref_two_rows', :'ttl_inputs'::int = 2;
+
+SET LOCAL ROLE work_worker;
+SELECT work.expire_due_inputs(now() + interval '30 hours') AS swept_inputs \gset
+RESET ROLE;
+INSERT INTO smoke_assert SELECT 'input_expiry_sweeps_unbound',
+  :'swept_inputs'::int >= 2
+  AND (SELECT status = 'expired' AND deleted_at IS NOT NULL
+       FROM work.input_object WHERE id = :'ttl_input'::uuid)
+  AND (SELECT status = 'expired' FROM work.input_object WHERE id = :'ttl_shared_input'::uuid)
+  AND NOT EXISTS (
+    SELECT 1 FROM work.input_object i
+    WHERE i.org_id = 'org1' AND i.task_id IS NOT NULL AND i.status = 'expired'
+  );
+
+INSERT INTO smoke_assert SELECT 'input_expiry_shared_ref_shredded_once',
+  (SELECT count(*) FROM work.outbox o
+    WHERE o.org_id = 'org1' AND o.aggregate_type = 'content'
+      AND o.payload->>'kind' = 'content_shred'
+      AND (o.payload->'content_refs' ? 'content://org1/input-ttl-1')) = 1
+  AND (SELECT count(*) FROM work.audit_event a
+        WHERE a.org_id = 'org1' AND a.action = 'input.expiry_swept') >= 1
+  AND NOT EXISTS (
+    SELECT 1 FROM work.outbox o WHERE o.org_id = 'org1' AND o.aggregate_type = 'content'
+      AND o.payload->>'kind' = 'content_shred' AND o.payload::text LIKE '%写一份%'
+  );
+
+SET LOCAL ROLE work_worker;
+SELECT work.expire_due_inputs(now() + interval '30 hours') AS swept_again \gset
+RESET ROLE;
+INSERT INTO smoke_assert SELECT 'input_expiry_idempotent', :'swept_again'::int = 0;
+
+-- 清扫按组织逐个事务运行：org2 上下文看不到也改不了 org1 的输入。
+SET LOCAL app.org_id = 'org2';
+SET LOCAL ROLE work_worker;
+SELECT work.expire_due_inputs(now() + interval '30 hours') AS swept_org2 \gset
+RESET ROLE;
+SET LOCAL app.org_id = 'org1';
+INSERT INTO smoke_assert SELECT 'input_expiry_per_org_scope',
+  :'swept_org2'::int = 0
+  AND (SELECT status = 'expired' FROM work.input_object WHERE id = :'ttl_input'::uuid);
+
+-- 到期导出文件：正文引用只投递一次，作业行保留元数据（审计事实不因清理丢失）。
+SET LOCAL ROLE work_worker;
+SELECT work.shred_due_audit_exports(now()) AS shredded_once \gset
+SELECT count(*) AS shred_rows FROM work.outbox
+WHERE org_id = 'org1' AND aggregate_type = 'content'
+  AND payload->>'kind' = 'content_shred' AND payload ? 'audit_export_id' \gset
+SELECT work.shred_due_audit_exports(now()) AS shredded_again \gset
+RESET ROLE;
+INSERT INTO smoke_assert SELECT 'audit_export_content_shred_once',
+  :'shredded_once'::int = 1 AND :'shred_rows'::int = 1 AND :'shredded_again'::int = 0
+  AND NOT EXISTS (
+    SELECT 1 FROM work.audit_export e
+    WHERE e.org_id = 'org1' AND e.status = 'expired' AND e.content_ref IS NOT NULL
+  )
+  AND (SELECT count(*) FROM work.audit_event WHERE org_id = 'org1'
+        AND action = 'audit_export.shredded') >= 1;
 
 -- ---------------------------------------------------------------------------
 -- Assertions

@@ -473,6 +473,8 @@ Operation key由Work生成，例如`(run_id, turn_seq, model_request_seq)`和`(r
 
 **Host 端口**：`IdentityDirectory`（subject/org/membership/revocation）、`Entitlement`（seat/feature/quota）、`Notification`、`BillingExport`、`ConnectorProvider`。Work Core 只依赖端口；R0a 提供 WeMeet 适配器，独立产品可替换为 OIDC/IdP、目录、通知和计费服务。R0a 的 `we_meet_session` 只是认证适配器，核心不依赖 cookie 细节。
 
+端口形状已在 R0a 变成可执行契约：[host-ports.mjs](assets/work-r0a-design-2026-10-25/host-ports.mjs) 声明方法清单与返回值校验（缺方法/多方法/缺字段/多余字段/枚举非法一律拒绝），[we-meet-host-adapter.mjs](assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs) 把 P1-A 形状映射成 `work.sync_org_projection`/`work.sync_member_projection` 的投影载荷并在字段缺失时报 gap（不把 token 配额当席位或 cents 预算），[stub-host.mjs](assets/work-r0a-design-2026-10-25/stub-host.mjs) 用本地数据实现同一组端口。R0a 数据层对应物：`work.org`/`work.member` 只有 `work_directory` 角色能经 `sync_*` 写入（修订号单调、跨组织拒绝、不覆盖 `operator_suspended`），管理读的席位统计/cents 账本/异步审计导出作业归 Work 所有（U2 方案 B）。校验见 [host-ports.test.mjs](assets/work-r0a-design-2026-10-25/test/host-ports.test.mjs) 9/9，含静态边界检查（Work 运行面不 import 适配器、适配器不写 SQL）。
+
 **Connector 标准**：消息/文档/会议与外部 SaaS 使用同一 manifest/auth/scope/resource selector/限流/撤销/审计契约；内部系统不给特权旁路，不直连表。
 
 **部署**：Work API/worker/relay/egress/SSE、独立 DB/schema/角色、Temporal namespace、对象存储/KMS、管理只读控制台和前端壳可独立部署；初期可同集群，但角色、密钥、配额、租户缓存必须可分离。

@@ -141,10 +141,12 @@ BEGIN
     RAISE EXCEPTION 'invalid_input' USING ERRCODE = '22023';
   END IF;
   -- 只复用尚未绑定任务的同哈希输入；已绑定的输入属于那个任务，删除时随之粉碎。
+  -- 未绑定输入按 work.input_ttl_hours（默认 24 小时）过期，由 work.expire_due_inputs 清扫。
   INSERT INTO work.input_object
-    (org_id, subject_id, purpose, content_ref, content_hash, bytes, media_type)
+    (org_id, subject_id, purpose, content_ref, content_hash, bytes, media_type, expires_at)
   VALUES
-    (p_org_id, p_subject_id, 'task_input', p_content_ref, p_content_hash, p_bytes, p_media_type)
+    (p_org_id, p_subject_id, 'task_input', p_content_ref, p_content_hash, p_bytes, p_media_type,
+     now() + make_interval(hours => work.input_ttl_hours()))
   ON CONFLICT (org_id, subject_id, content_hash, purpose) WHERE status = 'active' AND task_id IS NULL
   DO NOTHING
   RETURNING id INTO input_id;

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   loadTelemetry,
   renderRules,
@@ -23,8 +24,8 @@ test('telemetry contract covers every SLO and keeps targets aligned', () => {
     slos: 12,
     trackOnly: 3,
     records: 21,
-    alerts: 19,
-    metrics: 19,
+    alerts: 27,
+    metrics: 27,
   });
   const ids = new Set(contract.slos.map((entry) => entry.id));
   assert.equal(ids.size, slos.metrics.length);
@@ -117,5 +118,43 @@ test('all declared metrics are used and no forbidden label appears in rules', ()
       !new RegExp(`\\b${forbidden}\\b`).test(rulesYaml),
       `rules contain forbidden label ${forbidden}`,
     );
+  }
+});
+
+test('D3 background job contract names exist in the telemetry source of truth', () => {
+  const jobContractPath = new URL('../work-r0a-orchestration-2026-10-25/background-jobs.contract.ts', import.meta.url);
+  const source = readFileSync(jobContractPath, 'utf8');
+  const list = (name) => {
+    const match = source.match(new RegExp(`${name}: readonly [A-Za-z]+\\[\\] = Object.freeze\\(\\[([\\s\\S]*?)\\]\\)`));
+    assert.ok(match, `${name} is declared`);
+    return [...match[1].matchAll(/'([^']+)'/g)].map((item) => item[1]);
+  };
+  const jobs = list('BACKGROUND_JOBS');
+  const obligation = list('OBLIGATION_JOBS');
+  const metrics = list('REQUIRED_JOB_METRICS');
+  const alerts = list('REQUIRED_JOB_ALERTS');
+
+  assert.equal(jobs.length, 6, jobs.join(','));
+  assert.deepEqual([...obligation].sort(), [
+    'content_shredder', 'directory_projection_sync', 'expiry_sweep', 'outbox_relay',
+  ]);
+  assert.deepEqual(
+    jobs.filter((job) => !obligation.includes(job)).sort(),
+    ['audit_export_worker', 'dead_letter_ops'],
+    '只有产生新工作的作业才可被开关停止',
+  );
+  for (const metric of metrics) {
+    assert.ok(contract.metrics[metric], `metric not declared: ${metric}`);
+  }
+  const alertNames = new Set([
+    ...contract.operational_alerts.map((alert) => alert.name),
+    ...contract.slos.flatMap((slo) => slo.alerts.map((alert) => alert.name)),
+  ]);
+  for (const alert of alerts) {
+    assert.ok(alertNames.has(alert), `alert not declared: ${alert}`);
+  }
+  for (const alert of contract.operational_alerts) {
+    if (!/^Work(Background|Directory|Audit|Content)/.test(alert.name)) continue;
+    assert.ok(rulesYaml.includes(alert.name), `${alert.name} must reach the rendered rules`);
   }
 });

@@ -174,6 +174,48 @@ export function legacyRedirect(search) {
   return { to: routes.routes.items, noticeKey: null };
 }
 
+export const EXPORT_STATES = Object.freeze(['queued', 'running', 'ready', 'expired', 'failed']);
+export const ADMIN_ERROR_CODES = Object.freeze([
+  'admin_access_denied',
+  'audit_export_not_found',
+  'audit_export_not_ready',
+  'audit_export_already_downloaded',
+  'audit_export_expired',
+  'audit_export_range_invalid',
+  'download_token_invalid',
+  'download_token_expired',
+]);
+
+export function exportStateLabel(status) {
+  if (!EXPORT_STATES.includes(status)) {
+    fail('invalid_export_state', `unknown audit export state: ${status}`);
+  }
+  return `work.r0a.admin.exportState.${status}`;
+}
+
+export function adminCopyKeys() {
+  return [
+    'work.r0a.admin.title',
+    'work.r0a.admin.overview',
+    'work.r0a.admin.seats',
+    'work.r0a.admin.audit',
+    'work.r0a.admin.readonly',
+    'work.r0a.admin.orgNameMissing',
+    'work.r0a.admin.budgetPeriod',
+    'work.r0a.admin.orgRevision',
+    'work.r0a.admin.seatsTotal',
+    'work.r0a.admin.exportOneTime',
+    'work.r0a.admin.exportDownload',
+    'work.r0a.admin.noAccess',
+    ...EXPORT_STATES.map((state) => exportStateLabel(state)),
+    ...ADMIN_ERROR_CODES.map((code) => `work.r0a.error.${code}`),
+  ];
+}
+
+export function orgNameOr(copyValue, fallbackKey) {
+  return copyValue == null || copyValue === '' ? fallbackKey : copyValue;
+}
+
 export function permissionKey(mode) {
   if (mode !== 'ask_each' && mode !== 'auto_readonly') {
     fail('invalid_permission_mode', `unsupported R0a permission mode: ${mode}`);

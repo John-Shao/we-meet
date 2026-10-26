@@ -1,6 +1,6 @@
 # Work R0a 管理只读与 P1-A 字段/权限映射
 
-> 状态：映射草案；结论是 **P1-A 不能直接充当 R0a 管理面**。**2026-10-26 决策：采用方案 B**（新增 R0a 管理读接口，P1-A 只提供读权限与主组织上下文），待 DR1 签收；C31 保持未关闭。
+> 状态：映射草案；结论是 **P1-A 不能直接充当 R0a 管理面**。**2026-10-26 决策：采用方案 B**（新增 R0a 管理读接口，P1-A 只提供读权限与主组织上下文），待 DR1 签收。同日二次修订：方案 B 的契约（管理读 6 接口）与 Work 侧存储（席位投影、cents 账本、异步导出作业、一次性下载凭证）已在 D1/D2 落地并有负例，缺口收敛为 Host 必须提供 `subject_id`/`role`/`revision`/席位布尔与组织字段；C31 保持 partial。
 >
 > 日期：2026-10-25
 >
@@ -20,6 +20,8 @@
 P1-A 的租户来自管理员主组织上下文，`X-Organization-Id` 只用于不一致拒绝；R0a 必须继续由服务端绑定主组织。
 
 ## 2. R0a 目标字段映射
+
+> 本表是 2026-10-25 对 P1-A 原始返回的分析，保留作方案 A 的弃用依据；标注“不兼容/缺失”的行不等于 R0a 无数据源——方案 B 下由 Work 自己出（见 §5）。
 
 | R0a 目标 | P1-A 来源 | 映射结论 |
 |---|---|---|
@@ -47,38 +49,44 @@ P1-A 的租户来自管理员主组织上下文，`X-Organization-Id` 只用于�
 | 维度 | 决策 |
 |---|---|
 | 方案 | 新增 R0a 管理读接口；**不扩展 P1-A** 的预算/角色/导出字段 |
-| 契约落点 | OpenAPI 已含 `GET /admin/overview`、`GET /admin/seats`、`POST /admin/audit-exports`、`GET /admin/audit-exports/{id}`；进入 DR1 冻结集 |
+| 契约落点 | 管理读 6 个接口全部进入 OpenAPI 冻结集：overview、seats、audit-exports（创建/查询）、download-ticket、content（一次性凭证兑换） |
 | P1-A 边界 | 仅复用读权限 `org.work_grant.read`/`org.audit.read` 与主组织绑定；不新增字段、不双写 |
-| 数据来源 | Work 账本（cents）、Task/席位投影、导出作业表由 R0a 提供；subject/role/revision 由身份/成员服务提供 |
-| 实施 | E2 管理只读（按本映射），C31 在 E2 验证后关闭 |
-| 风险 | 身份/成员字段未按时提供时，按 §4 的 gap 拒绝渲染，不显示假数据 |
+| 数据来源 | Work 侧：`work.budget_account` 的 cents 账本、`work.member`/`work.org` 席位投影、`work.audit_export` 异步作业与一次性下载凭证哈希（D1 `r0a-admin-directory.sql`，2026-10-26 落地）；Host 侧：`subject_id`、成员 `role`/`work_seat`/`revision`、组织 `name`/`home_region`/`status` 由 `IdentityDirectory`/`Entitlement` 端口供给 |
+| 写入路径 | 只有 `work_directory` 角色能经 `work.sync_org_projection`/`work.sync_member_projection` 写投影；修订号单调、跨组织拒绝、不覆盖 `operator_suspended`（PG 冒烟 24 项断言） |
+| 实施 | E2 管理只读 + E5 导出 worker 收尾；C31 在真实 Host 字段接入并验证后关闭 |
+| 风险 | 身份/成员字段未按时提供时按 §4 的 gap 拒绝渲染，不显示假数据；撤权是否自动取消在途 Run 待 DR1 定案（D1 §7.14） |
 
 本决策只解除“API 冻结”的阻塞，不关闭 C31，也不替代 DR1 签收。
 
-## 4. 参考适配器（可执行）
+## 4. Host 端口契约与适配器（可执行）
 
-[admin-read-adapter.mjs](assets/work-r0a-design-2026-10-25/admin-read-adapter.mjs) 把上述缺口变成代码约束，并用 [12 组测试](assets/work-r0a-design-2026-10-25/test/admin-adapter.test.mjs) 验证：
+[host-ports.mjs](assets/work-r0a-design-2026-10-25/host-ports.mjs) 把上述缺口变成端口契约，[we-meet-host-adapter.mjs](assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs) 是其 WeMeet 实现，[stub-host.mjs](assets/work-r0a-design-2026-10-25/stub-host.mjs) 是独立产品替身；由 [9 组端口测试](assets/work-r0a-design-2026-10-25/test/host-ports.test.mjs) 验证：
 
 | 行为 | 结论 |
 |---|---|
-| `probeAdminSources` | 逐字段报告 supported/derived/missing/incompatible；原始 P1-A 的 overview/seats/export 均 not ready |
-| `mapAdminOverview` | 要求 seat total/active、cents 账本、org 状态/执行开关/留存；token 配额不会被换算成 cents |
-| `mapSeatPage` | 要求每个 grant 都有 identity `subject_id`、平台 `role` 与 `revision`；缺失即抛 `AdminReadGapError`，不返回空白角色 |
-| 席位状态 | `left`/`invited` 来自 membership；`revoked|disabled|expired` → `suspended`；未知状态直接报 gap |
-| 分页 | 按 `user_id` 稳定排序，opaque cursor；limit 1–100；非法 cursor/limit 拒绝 |
-| 审计导出 | 同步 CSV 源明确不兼容；只有真实 job store 才创建 queued 作业，不伪造 ready/download_url |
-| 输出 | 不返回 `display_name`/email；管理响应只含契约字段 |
+| 端口完整性 | 五个端口（IdentityDirectory/Entitlement/Notification/BillingExport/ConnectorProvider）缺方法或多方法都拒绝装配 |
+| 值校验 | 缺字段、枚举非法、以及 Host 试图塞入未声明字段（如 `meeting_id`）一律 `HostPortError`；Work 只消费声明过的形状 |
+| `listMemberships` | 要求 `subject_id`/`role`/`status`/`revision`；P1-A 只回 `user_id` 时报 `missing_field (p1a_returns_user_id_only)`，不做“user_id 就是 subject_id”的猜测 |
+| `getWorkSeat` | 必须是布尔席位；只有 token 配额时报 `incompatible_source (token_quota_only)`，不换算成席位，也不换算成 cents 预算 |
+| `getOrganization` | `name` 允许为 `null`（目录未提供时由管理页显示占位文案），`status`/`home_region`/`revision` 必填 |
+| 投影输出 | `buildDirectoryProjection` 产出与 `work.sync_org_projection`/`work.sync_member_projection` 参数一一对应的载荷；这是投影的唯一写入口 |
+| 收窄 | `narrowingHints` 只产出 `request_cancel` 提示（`seat_revoked`/`membership_inactive`），适配器不直接停止 Run |
+| Notification/BillingExport | 通知禁正文（`no_content_allowed`）、webhook 必须 https；账单只接受 Work 生成的 cents 账单引用，出现 token 字段即拒绝 |
+| 可替换性 | stub host 用本地数据产出同形状投影 → 证明 Work 不依赖 WeMeet 概念；测试还静态要求 Work 运行面不 import 适配器、适配器不含 SQL |
 
-边界：适配器只在 fixture 上验证，尚未接真实 P1-A/身份服务或 R0a 预算/导出存储；真实 P1-A 需要先提供 subject/role/revision 与 cents 账本，或改由新的 R0a 管理读 API 提供。
+边界：端口契约与两个实现只在 fixture 上验证；真实 P1-A/身份服务的字段、同步频率与失败重试仍未接入，D1 的导出 worker 是单事务冒烟，不是多副本竞争证明。
 
-真实接入前置：
+## 5. 字段归属与接入前置
 
-| 所需输入 | 来源 | 缺失后果 |
+| 所需输入 | 归属（方案 B） | 缺失后果 |
 |---|---|---|
-| `subject_id`、平台 `role`、`revision` | 身份/成员服务 | 席位页拒绝渲染（不显示空角色） |
-| `seats.total`（不受分页影响的计数） | 新管理读字段/计数查询 | overview 拒绝渲染 |
-| 组织 `status`、`execution_enabled`、`audit_retention_days` | 平台组织 + Work 执行开关/策略 | overview 拒绝渲染 |
-| `budget.{currency,limit_cents,reserved_cents,settled_cents}` | R0a 预算账本 | overview 拒绝渲染；不得用 token 配额替代 |
-| 异步导出 job store（id/status/一次性下载/过期） | R0a 导出作业 | 导出接口拒绝受理；不得把同步 CSV 包装成 ready job |
+| `subject_id`、平台 `role`、成员 `revision` | **Host**：`IdentityDirectory` | 投影无法写入，席位页拒绝渲染（不显示空角色） |
+| `work_seat` 布尔 | **Host**：`Entitlement` | 同上；不得由 token 配额推断 |
+| 组织 `name`/`home_region`/`status` | **Host**：`IdentityDirectory`（`name` 可为 null） | 投影缺失字段报 gap；管理页显示占位文案 |
+| `seats.total/active` | **Work**：`work.member` 投影聚合（`admin_overview`） | 已由 D1 提供，不再依赖 P1-A 计数 |
+| `budget.{currency,limit_cents,reserved_cents,settled_cents}` + `budget_period_id` | **Work**：`work.budget_account` cents 账本 | 已由 D1 提供；冒烟断言与账本逐字段相等 |
+| `org_revision`、`audit_retention_days` | **Work**：投影修订号 + `work.org_policy` 策略（默认 365 天） | 已由 D1 提供 |
+| 异步导出 job（id/status/租约/一次性下载/过期） | **Work**：`work.audit_export` + 6 个领域函数 | 已由 D1 提供；真实文件生成属 E5 |
+| 读权限与主组织绑定 | **P1-A**：`org.work_grant.read`/`org.audit.read` | 无读权限即 403；不新增字段、不双写 |
 
-C31 状态：**partial**；映射缺口已固化为可执行适配器与负例，但真实字段/接口接入未完成。
+C31 状态：**partial**；方案 B 的契约与 Work 侧存储已在 D1/D2 落地（PG 冒烟 113/113、设计包 31/31），缺口收敛为“Host 必须提供 subject/role/revision/席位布尔与组织字段”，且真实接入与导出 worker 验证仍属实施（E2/E5）。

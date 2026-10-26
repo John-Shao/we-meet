@@ -44,19 +44,22 @@ D6 回答 R0a 试点能否开始、如何安全运行、如何切换/回滚、�
 | S07 | Unknown/重复付费调用 | Operation 账本、CAS/fence、不自动重放、保留预算 | partial |
 | S08 | 备份/恢复/DR 丢失安全事实 | 声明持久性边界；恢复核账；超出边界冻结 | partial |
 | S09 | 留存/删除/驻留 | 审计 365 天；任务/正文待产品/法务；crypto-shredding 计划 | open |
-| S10 | 管理读取/导出越权 | 只读管理面；服务端绑组织；导出短时受控 | open |
+| S10 | 管理读取/导出越权 | 只读管理面 + owner/admin 门控（`admin_access_denied`）；服务端绑组织；异步导出作业 + 一次性下载凭证（SHA-256 存库、`X-Download-Token` 不进 URL、兑换一次即失效、到期 410）；跨组织读作业统一 404；治理读与导出动作全部写审计（不含正文） | 设计已闭合（D1/D2 有负例），实现待 E2/E5 |
 | S11 | 旧路由/开关暴露错误数据 | 组织开关；旧链接只读通知；不迁移/不双写 | partial |
 | S12 | 沙箱逃逸/宿主访问 | gVisor/等效；非 root/只读/无宿主挂载/egress-only；runc 降级已测 | partial |
 | S13 | 供应商训练/驻留/留存 | 书面条款/DPA；驻留/训练/留存/价表上界 | open |
 | S14 | 正文/密钥进日志 | 只记录 ID/哈希/usage/错误码；秘密阻断 | partial |
 | S15 | 停用/离职/所有权 | 停用 epoch；不自动恢复；所有权转移人工流程 | partial |
 | S16 | 连接器/设备 scope | R0a 不适用；R0b/R2 再审 | out_of_scope |
+| S17 | 目录投影滞后或被伪造 | 投影只由 `work_directory` 经 `sync_org_projection`/`sync_member_projection` 写入；修订号单调；租户上下文必须匹配；不覆盖 `operator_suspended`；失权在 `create_input`/提交/重试即拒；在途 Run 停止属 D-07 | partial |
+| S18 | 治理读越权 / 导出下载入口外流 | 管理读仅 owner/admin 且绑组织；跨组织与不存在统一 404；作业只含元数据；一次性短期 token 走 `X-Download-Token`（不进 URL），库内只存哈希、兑换一次即失效；到期作业清正文引用 | partial |
 
 **签收边界**：
 
 - S01/S02/S04/S07/S14 的 partial 不能当 closed；需要真实模型/网络/运行时/池化测试。
 - S06/S09/S12/S13 是试点前必须关闭或书面降级的硬项。
 - S16 的 out_of_scope 仅对 R0a 成立，不覆盖 R0b/R2。
+- S17/S18 是 2026-10-26 方案 B 与目录投影落地后新增的两条边界：Work 侧控制与负例已有（D1 113/113、合同 10/10、`ci-contract` 禁 `download_url`），关闭仍需真实身份字段接入（C31）、真实鉴权与访问日志证明 token 不落 URL。
 
 ## 4. SLO、告警与测量
 
@@ -85,6 +88,15 @@ D6 回答 R0a 试点能否开始、如何安全运行、如何切换/回滚、�
 - unknown 数量/年龄、重复 Operation 冲突、过期 fence、预算未结算/差异。
 - SSE 连接失败/resync、Provider 429/5xx/401、内容存储错误。
 - 告警必须带 org/task/run/operation ID，不带正文/密钥。
+
+### 4.1 后台作业的可观测与处置（2026-10-26 增补）
+
+D3 §11 的六类非 Run 作业纳入遥测与演练范围：
+
+- **指标**：`work_background_job_runs_total{kind,outcome}`、`work_background_job_last_success_seconds{kind}`、`work_background_job_lease_takeovers_total{kind}`、`work_directory_projection_lag_seconds`、`work_audit_export_backlog`、`work_audit_export_duration_seconds_bucket`、`work_audit_export_downloads_total{outcome}`、`work_content_shred_backlog`（连同原有共 27 个指标定义）。
+- **告警**：`WorkBackgroundJobStale`（义务作业 15 分钟无成功记录 → page）、`WorkBackgroundJobLeaseTakeovers`、`WorkDirectoryProjectionStale`（投影滞后 > 15 分钟 → page，撤权新鲜度）、`WorkAuditExportBacklog`、`WorkAuditExportFailureRatio`、`WorkAuditExportSlow`、`WorkAuditExportTokenFailureBurst`（凭证校验失败突增，泄露信号）、`WorkContentShredBacklog`（正文未清理 → page，优先于功能问题）。渲染规则 21 record / 27 alert；ops+pilot+telemetry 测试 **26/26**，其中跨资产断言要求 D3 作业契约声明的指标/告警名都存在于本契约。
+- **处置**：见[运行手册 §5.1 后台作业故障处置](work-operations-runbook-2026-10-25.md)——先判"是义务作业还是产生新工作的作业"，前者不许停，后者可停且在途可安全重领。
+- **演练新增项**（属既有 C20/C21/C22 范围，不新开 blocking）：kill switch/停用状态下义务作业继续运行的验证、租约接管与重复投递验证、粉碎积压的处置与恢复。
 
 ## 5. 试点容量模型
 
@@ -169,7 +181,7 @@ node pilot-capacity-model.mjs
 - 部署单元：Work API/worker/relay/egress/SSE、独立 DB/schema/角色、Temporal namespace、对象存储/KMS、管理控制台、前端壳；初期可同集群/同 VPC，但清单与权限可分离。
 - 安全/运维：不共享数据库写角色、租户缓存、密钥；Host 端口/Connector 只走版本化接口，内部系统不给旁路。
 - 验证：R1 前 stub-host 剥离演练；R4 独立售卖前独立部署/计费/品牌打包；R0a 不扩范围。
-- 迁移/导出：Work 数据可导出，Host 目录投影可重建；见 [D1 §4.4](work-r0a-data-design-2026-10-25.md)。
+- 迁移/导出：Work 数据可导出，Host 目录投影可重建（投影只由 `work_directory` 经 `sync_*` 写入，删库重放即可恢复）；见 [D1 §4.4](work-r0a-data-design-2026-10-25.md) 与 [host-ports.mjs](assets/work-r0a-design-2026-10-25/host-ports.mjs)。
 
 ## 8. 试点开通、支持与数据处置
 
@@ -214,14 +226,14 @@ node pilot-capacity-model.mjs
 - **真实 Qwen smoke**：qwen3.8-flash 200、首 token 2567ms、usage 80/110、provider request id 可记录，未输出 Key/正文；见 [provider-smoke.log](assets/work-r0a-hardening-2026-10-25/provider-smoke.log)。
 - **日志扫描参考 8/8**：Key（含 `sk-proj-`/`sk-ant-`）/GitHub token/阿里云 AccessKey/Bearer/cookie/私钥/正文 canary/email 规则；现有 7 个证据日志 0 fail / 0 warn，扫描结果只含脱敏预览；见 [log-scan-result.log](assets/work-r0a-hardening-2026-10-25/log-scan-result.log)。不是 staging OTel 证据。
 - **SLO 遥测规则 10/10**：12 个 SLO 全覆盖，生成 21 条 record + 19 条 alert（15 SLO + 4 operational，含 outbox 死信与 usage 偏差），每条告警带 severity/for/runbook，内容标签被禁止；见 [telemetry-contract](assets/work-r0a-ops-2026-10-25/telemetry-contract.json) / [rules](assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)。未接 Prometheus/Alertmanager，所有 SLO 仍 not_measured。
-- 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03 执行开关/组织停用；C21 §6.1 on-call/事故沟通。C31 仍 partial（P1-A 不能直接复用）；C16/C17 仍 partial（无 staging 遥测/日志后端）。
+- 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03 执行开关/组织停用；C21 §6.1 on-call/事故沟通。C31 仍 partial（P1-A 不能直接复用；方案 B 已让 Work 自己出席位/cents/导出作业，缺的是 Host 的身份与席位字段）；C16/C17 仍 partial（无 staging 遥测/日志后端）。
 - 当前 no-go 从 29 降为 **23**；C09/C13/C14/C22 仍 partial，C15/C24/C25/C27/C30 等仍待外部输入。
 
 **当前：no-go，23 个 blocking 项未关闭。** 主要阻塞：
 
-- D1–D5 设计尚未正式评审；D1 冒烟 82/82、Temporal 参考纵切 10/10 已完成，但 S1 多节点/在途 server 重启与正式评审仍未完成。
+- D1–D5 设计尚未正式评审；D1 冒烟 113/113、Temporal 参考纵切 10/10 已完成，但 S1 多节点/在途 server 重启与正式评审仍未完成。
 - D2 远端 CI 未运行、生成客户端未接前端；D4 真实 gVisor/Content Store/云 KMS/供应商条款；D5 React/E2E；C22 多节点/在途 server 重启。
-- C31 管理只读映射缺口：[映射说明](work-r0a-admin-readonly-mapping-2026-10-25.md) 明确 P1-A 的 role/revision/预算/异步导出不兼容；严格适配器已实现但未接真实 P1-A/身份字段。
+- C31 管理只读映射缺口：[映射说明](work-r0a-admin-readonly-mapping-2026-10-25.md) 明确 P1-A 的 role/revision/预算/异步导出不兼容；2026-10-26 决策 B 已把预算/席位统计/导出作业搬到 Work 侧（D1 113/113 冒烟），剩余缺口是 Host 必须经端口提供 `subject_id`/`role`/`revision`/席位布尔与组织字段；端口契约与 WeMeet 适配器已可执行但未接真实 P1-A/身份服务。
 - 威胁模型/控制签收；sandbox proof；供应商条款/价表；无正文日志只在本地证据日志扫描，未接 staging OTel/log pipeline。
 - SLO 规则已生成，未接 Prometheus/Alertmanager/仪表盘；C22 多节点/在途 server 重启；切换/旧链接/删除/所有权转移。
 - 3 家组织/5–8 名研究/golden tasks/支持流程；切换/旧链接/删除/所有权转移。
@@ -231,7 +243,7 @@ node pilot-capacity-model.mjs
 ## 11. D6 对 D1–D5 的待办
 
 1. D1：wait/resume/mark unknown/reconcile、workflow-start/cancel outbox 已实现并冒烟；剩余启动失败收尾、正式评审。
-2. D2：生成客户端/CI 合同测试；预算剩余、标题编辑、导出、admin P1-A 映射、CSRF 生命周期。
+2. D2：生成客户端/CI 合同测试；预算剩余、标题编辑、成果导出、admin 管理读（方案 B 已闭合接口与 Work 侧存储）、CSRF 生命周期。
 3. D3：Temporal dev 参考纵切 F01/F02/F04/F07/F21/F23 + D3-R06–R09 10/10、`patched` 升级与 DB 终态偏移已完成；剩余多节点/在途 server 重启与生产 Temporal。
 4. D4：已完成 runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke；剩余 gVisor/Content Store/云 KMS/条款/网关配额/无正文日志。
 5. D5：React 页面/React Query/SSE/Playwright/可用性；旧路由/flag 切换。
@@ -252,12 +264,13 @@ node pilot-capacity-model.mjs
 11. **合规**：数据驻留/删除/审计保留需法务/安全确认。
 12. **No-go 清单**：剩余 23 个 blocking 项是当前事实；本地测试不能替代试点环境、安全签收、供应商条款与组织研究。
 13. **独立产品边界**：Host 端口/Connector 契约与剥离演练未完成；ADR-0021 设计约束不等于可独立售卖。
+14. **目录投影新鲜度**：撤权/停席到 Work 生效取决于 Host 同步频率与失败重试；R0a 只保证“下一次授权/提交被拦住”，不保证在途 Run 立即停止（是否自动 `request_cancel` 待 DR1 定案，见 D1 §7.14）。运维需监控投影修订滞后与 `directory.member_synced` 的 `entitlement_lost` 事件。
 
 ## 13. 验收标准
 
 D6 完成（可进入 R0a 试点）需要：
 
-- 安全控制 S01–S15 全部 `closed` 或有签署风险接受/降级；S16 out_of_scope 仅 R0a。
+- 安全控制 S01–S15、S17–S18 全部 `closed` 或有签署风险接受/降级；S16 out_of_scope 仅 R0a。
 - SLO 指标/告警/仪表盘可测量；未测指标不标 met。
 - 容量模型 + 试点压测通过；outbox backlog 阈值/503 可演练。
 - 升级/回滚/DB 迁移/Temporal 升级/供应商故障/Runner 故障/恢复/kill switch/停用 Runbook 经走查。

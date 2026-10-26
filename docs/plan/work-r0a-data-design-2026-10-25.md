@@ -1,6 +1,6 @@
 # Work R0a 数据、权限与迁移详细设计（D1）
 
-> 状态：D1 详细设计草案；可执行 SQL 已在独立 PostgreSQL 16 通过 82/82 冒烟（2026-10-26 修订在 58 项基础上新增 24 项：会话主体绑定、原因码枚举化、outbox 租约/跨组织 relay、死信阻塞、运维重放/跳过审计、启动前取消与 cancel_requested 收尾、成果编辑状态门槛等），未评审、未应用生产。
+> 状态：D1 详细设计草案；可执行 SQL 已在独立 PostgreSQL 16 通过 113/113 冒烟（2026-10-26 首轮修订在 58 项基础上新增 24 项 → 82：会话主体绑定、原因码枚举化、outbox 租约/跨组织 relay、死信阻塞、运维重放/跳过审计、启动前取消与 cancel_requested 收尾、成果编辑状态门槛；同日二次修订再增 24 项 → 106：管理只读聚合、目录投影写入、异步审计导出生命周期），未评审、未应用生产。
 >
 > 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界）
 >
@@ -27,7 +27,7 @@ D1 的目标是回答四个问题：
 - `work_api`/`work_worker` 只有 `SELECT` 和指定函数 `EXECUTE`，没有事实/账本表的直接 `INSERT/UPDATE/DELETE`。
 - 所有 `work` schema 函数改为 `SECURITY DEFINER`，固定 `search_path = work, pg_catalog`，由 `work_owner` 拥有。
 - 冒烟覆盖输入/提交幂等、scope 拒绝、直接 DML 拒绝、跨租户 RLS、派发、预算结算/修正、成果发布、采纳、审批、取消/重试、outbox 与 task summary。
-- 冒烟结果：**82/82 断言通过**（2026-10-26 修订：原 58 项 + 会话主体绑定、原因码枚举化、outbox 租约/跨组织 relay、死信阻塞、运维重放/跳过审计、启动前取消与 cancel_requested 收尾等 24 项）；负例块在失败时会中止脚本。
+- 冒烟结果：**113/113 断言通过**（首轮修订 58 → 82；二次修订 82 → 106，新增管理只读、目录投影与异步导出三组）；负例块在失败时会中止脚本。
 
 复现命令：
 
@@ -58,6 +58,7 @@ docker exec -i work-r0a-pg psql -U postgres -d work_r0a \
 | 预算 | `budget_account`、`budget_reservation`、`budget_entry` | 整数金额、reservation_seq、settlement_revision、追加账目 |
 | 成果 | `artifact`、`artifact_version`、`upload_session`、`acceptance`、`artifact_tombstone` | 不可变版本、发布、采纳与删除事实 |
 | 事件 | `task_event`、`audit_event`、`outbox` | 每 Task 单调 seq、追加审计、投递 |
+| 管理 | `audit_export` | 异步审计导出作业：范围、格式、租约、Content Store 引用、一次性下载凭证哈希 |
 | 约束 | `state_transition` | 状态迁移白名单 |
 
 > 注：`org`/`member`/`org_policy` 是 Work 自有的授权投影，不是 WeMeet 核心表；由 Host `IdentityDirectory` 同步/校验，可重建。
@@ -99,6 +100,7 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 | `work_api` | NOLOGIN | `USAGE` + 查询表 `SELECT` + 输入/提交/重试/取消/采纳/审批函数 `EXECUTE` |
 | `work_worker` | NOLOGIN | `USAGE` + 查询表 `SELECT` + acquire/operation/budget/dispatch/finish/artifact/outbox 函数 `EXECUTE` |
 | `work_ledger` | NOLOGIN | 仅 append-only 表 `budget_entry`/`task_event`/`audit_event` 的 `SELECT, INSERT` |
+| `work_directory` | NOLOGIN | Host 目录/授权适配器身份：只有 `sync_org_projection`/`sync_member_projection` 的 `EXECUTE`，无任何表 DML |
 | `work_migrator` | NOLOGIN | 草案中占位；生产迁移应由独立、审计化的迁移连接执行 |
 
 部署时 `NOLOGIN` 角色由平台工作负载身份或受限登录角色承载；不使用共享静态密码。R0a 草案不把角色映射写死到某个 IAM。
@@ -123,9 +125,10 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 
 - Work 拥有 `work` schema、表、迁移和写路径；禁止跨 schema FK/JOIN、直接读写 WeMeet 消息/文档/会议/任务表。
 - `org`/`member`/`org_policy` 是 Host 目录投影，带版本/更新时间，可重建；权威事实在 `IdentityDirectory`。
-- Host 端口：`IdentityDirectory`/`Entitlement`/`Notification`/`BillingExport`/`ConnectorProvider`；R0a 提供 WeMeet 适配器，独立产品可替换。
+- **投影只有一条写入路径**：`work.sync_org_projection`/`work.sync_member_projection`，只授权给 `work_directory`；`work_api`/`work_worker` 既无这两个函数的 EXECUTE，也没有 `org`/`member` 的直接 DML。修订号必须严格递增（`projection_revision_stale`），且事务 `app.org_id` 必须与目标组织一致（`directory_org_context_mismatch`），因此一个租户的适配器无法改写另一个租户的投影；`operator_suspended` 只由运维路径写，目录同步不得覆盖。
+- Host 端口：`IdentityDirectory`/`Entitlement`/`Notification`/`BillingExport`/`ConnectorProvider`，形状见 [host-ports.mjs](assets/work-r0a-design-2026-10-25/host-ports.mjs)；WeMeet 适配器 [we-meet-host-adapter.mjs](assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs) 产出上述投影载荷，独立产品用 [stub-host.mjs](assets/work-r0a-design-2026-10-25/stub-host.mjs) 替换。适配器不把 P1-A 的 token 配额当作席位或 cents 预算，缺字段就报 gap。
 - 部署：Work DB/schema/角色、Temporal namespace、对象存储/KMS 可分离；不共享数据库写角色或租户缓存。
-- 验证：R1 前做 stub-host 剥离演练；详见 [ADR-0021](../adr/0021-work-standalone-product-boundary.md)。
+- 验证：R0a 有端口契约与 stub host 的静态/一致性测试（9/9）；R1 前做 stub-host 剥离演练；详见 [ADR-0021](../adr/0021-work-standalone-product-boundary.md)。
 
 ## 5. 领域命令
 
@@ -191,9 +194,27 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 | 生命周期触发器 | — | `run.succeeded/failed/canceled`、`task.awaiting_acceptance`、`task.completed`（basis，不含理由文本） |
 | `work_ops` 角色 | NOLOGIN | 只有上述运维函数 EXECUTE；无表权限 |
 
+### 5.3 2026-10-26 二次增量：管理只读、目录投影与异步导出
+
+| 命令/对象 | 授权 | 要点 |
+|---|---|---|
+| `sync_org_projection` | work_directory | 只写目录事实（name/status/execution_enabled/home_region/revision）；修订号必须递增；`operator_suspended` 不可被覆盖；跨组织上下文拒绝 |
+| `sync_member_projection` | work_directory | 同上，另记录 `entitlement_lost`；不直接取消在途 Run（收窄走 `request_cancel` 领域命令） |
+| `admin_overview` | work_api | owner/admin 且 active 才可读；席位统计、cents 预算、`budget_period_id`、`org_revision`、留存天数；读操作写审计 |
+| `list_seats` | work_api | keyset 分页（`subject_id > cursor`，limit 1..100）；排除 `left`；总数由 `admin_overview` 给出 |
+| `create_audit_export` | work_api | 管理员；`client_request_id` 幂等（异体 409）；范围校验（起点在留存窗口内、终点不过去、跨度 ≤92 天）；只写元数据与请求哈希 |
+| `get_audit_export` | work_api | 管理员；跨组织与不存在统一 `audit_export_not_found`；读到已过期的 ready 作业惰性转 expired |
+| `claim_audit_export` / `complete_audit_export` / `fail_audit_export` | work_worker | 租约领取（queued 或租约过期的 running）；只有当前持有者能收尾；正文只留 Content Store 引用+哈希 |
+| `expire_due_audit_exports` | work_worker | 清扫到期作业；与惰性过期共同保证状态收敛 |
+| `issue_audit_export_download` / `redeem_audit_export_download` | work_api | 服务传入令牌 SHA-256（原始令牌不落库）；有效期 60–900s；兑换一次即失效；重复发放拒绝 |
+| `work_directory` 角色 | NOLOGIN | 只有两个 `sync_*` 函数 EXECUTE；无表权限 |
+| `expire_due_inputs` | work_worker | 未绑定且到期输入 → expired + `deleted_at`；仅当引用不被其他 active 输入/成果共享时投递 `content_shred`；TTL 由 `work.input_ttl_hours`（默认 24h，GUC 可调），`create_input` 落 `expires_at`；每组织一个事务 |
+| `shred_due_audit_exports` | work_worker | 已 expired 且有引用的作业投递一次粉碎并清空引用；作业行保留（审计事实）；重复运行返回 0 |
+| `work.audit_export` | RLS | FORCE RLS；`work_api`/`work_worker` 无直接 SELECT/DML |
+
 ## 6. 冒烟结果
 
-脚本 [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql) 在 PostgreSQL 16.15 独立容器执行，事务结束回滚。82/82 断言通过（含 2026-10-26 新增 `title_update_*`、`title_event_no_text`、`artifact_export_*`、编排专项 `acquire_cancel_requested_no_fence`、`no_success_over_cancel_request`、`unknown_reason_code_enforced` 与成果只读负例）：
+脚本 [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql) 在 PostgreSQL 16.15 独立容器执行，事务结束回滚。113/113 断言通过（含 2026-10-26 新增 `title_update_*`、`title_event_no_text`、`artifact_export_*`、编排专项 `acquire_cancel_requested_no_fence`、`no_success_over_cancel_request`、`unknown_reason_code_enforced` 与成果只读负例）：
 
 | 组 | 断言 |
 |---|---|
@@ -206,10 +227,13 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 | 取消/重试 | `cancel_summary`、`retry_run_created`、`cancel_signal_outbox` |
 | 等待/对账 | `run4_active`、`run_waiting_budget`、`run_resumed`、`unknown_retained_budget`、`unknown_reserved`、`reconcile_not_sent_operation`、`reconcile_not_sent_released`、`run4_task_open`、`reconcile_sent_operation`、`reconcile_sent_amount`、`reconcile_sent_reserved_zero`、`run5_awaiting` |
 | Outbox | `outbox_claimed` |
+| 目录投影 | `directory_projection_write_path`、`projection_written_through_sync`、`projection_revision_monotonic`、`projection_cross_org_blocked`、`projection_ignores_operator_flag`、`projection_revocation_blocks_new_work`、`directory_projection_audited` |
+| 管理只读 | `admin_read_denied_for_non_admin`、`admin_overview_cents_match_ledger`、`admin_overview_seats`、`admin_overview_default_period`、`seat_keyset_pagination`、`seat_pagination_limit_guard` |
+| 审计导出 | `export_metadata_not_directly_readable`、`export_create_denied_for_non_admin`、`export_idempotent_replay`、`export_conflict_on_other_payload`、`export_range_validation`、`export_worker_lease_lifecycle`、`export_expiry_sweep`、`export_download_single_use`、`export_ticket_single_use_enforced`、`export_cross_org_not_found`、`export_audit_trail_no_body` |
 
-负例（脚本失败即中止）：同 key 不同 hash、非白名单工具、`plan_then_run`、connector Operation、直接 DML、重复采纳。
+负例（脚本失败即中止）：同 key 不同 hash、非白名单工具、`plan_then_run`、connector Operation、直接 DML、重复采纳、投影修订回退、跨组织投影写入、非管理员治理读、导出重复兑换、跨组织读他人导出作业。
 
-**未覆盖**：并发多连接竞态、连接池租户上下文残留、生产数据量/索引、迁移回滚、真实 Content Store、Temporal、SSE、真实模型/供应商、留存删除作业、operator 停用、admin 只读映射、P1-A 集成、上传会话与用户编辑。
+**未覆盖**：并发多连接竞态、连接池租户上下文残留、生产数据量/索引、迁移回滚、真实 Content Store、Temporal、SSE、真实模型/供应商、留存删除作业、operator 停用、P1-A 集成、上传会话与用户编辑；管理侧另未覆盖真实目录的迟到/乱序修订、批量回填与导出 worker 多副本租约竞争（单事务冒烟不足以证明）。
 
 ## 7. 未决与风险
 
@@ -224,12 +248,17 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 9. **审批路径**：函数已可执行，但 R0a golden path 不产生手工审批；审批 UI/通知/过期处理属 R0b/R2。
 10. **用户编辑/上传**：文本版本命令 `create_user_artifact_version` 已实现（状态门槛见 §5.2）；`upload_session` 表已建，但文件上传流程未在 D1 实现，D2/D5 补。
 11. **所有权转移/离职**：Task/成果接管仍是试点运营兜底，未做成产品化命令。
-12. **Admin 只读**：席位/审计读取复用 P1-A 的字段映射未在 D1 落地；D2/D6 补。
-13. **独立产品边界**：`org`/`member` 投影可能漂移，撤权新鲜度依赖 Host；剥离演练未做（ADR-0021）。
+12. **Admin 只读**：方案 B 的落点已在 D1/D2 落地（席位、cents 账本、异步导出作业与一次性下载凭证）。仍未闭合的是 Host 侧字段：P1-A 目前只回 `user_id` 与 token 配额，缺 `subject_id`、`work_seat` 布尔、成员 `revision` 与组织 `name`/`home_region`（C31 保持 partial）。
+13. **独立产品边界**：五个 Host 端口有了可执行契约与 WeMeet 适配器 + stub host（9/9 测试），`org`/`member` 只有一条 `work_directory` 写入路径；但投影仍可能滞后于权威目录，撤权新鲜度依赖 Host 同步频率；R1 前的 stub-host 剥离演练未做（ADR-0021）。
+14. **撤权是否自动停止在途 Run**：投影写入只记录 `entitlement_lost`，不调用 `request_cancel`，也不由 `sync_member_projection` 直接杀 Run——避免目录同步与编排抢同一状态机。是否改为“撤权即自动请求取消”属产品/安全决策，需在 DR1 定案；当前设计是下一次派发/授权时被投影拦住，在途 Run 由人工或运营流程取消。
+15. **导出作业的真实执行**：D1 只定义作业状态机、租约与引用；Content Store 写入、行数/字节上限、失败重试与留存删除由实施（E2/E5）补齐，R0a 设计不声称已验证。
+16. **目录同步作业本身**：同步频率、失败重试、乱序修订与批量回填策略未设计；冒烟只证明单调性与租户上下文约束，不证明真实 IdP/P1-A 的到达顺序。
 
 ## 8. 交付物与下一步
 
 - [r0a-schema-draft.sql](assets/work-r0a-design-2026-10-25/r0a-schema-draft.sql)：可执行 schema、角色、RLS、领域命令、task summary。
-- [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql)：82/82 冒烟与负例。
+- [r0a-admin-directory.sql](assets/work-r0a-design-2026-10-25/r0a-admin-directory.sql)：管理只读聚合、目录投影写入与异步审计导出作业（方案 B + ADR-0021 的数据层落点）。
+- [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql)：113/113 冒烟与负例。
 - [generate-schema.py](assets/work-r0a-design-2026-10-25/generate-schema.py)：从完整 DDL 裁剪 R0a 子集；后续契约/DDL 变更需同步。
-- 下一步 D2：R0a OpenAPI 子集、输入/模板/TaskSummary/SSE 契约、mock server 与合同测试。
+- [host-ports.mjs](assets/work-r0a-design-2026-10-25/host-ports.mjs) / [we-meet-host-adapter.mjs](assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs) / [stub-host.mjs](assets/work-r0a-design-2026-10-25/stub-host.mjs)：端口契约、WeMeet 适配与独立产品 stub；由 [host-ports.test.mjs](assets/work-r0a-design-2026-10-25/test/host-ports.test.mjs) 9/9 校验。
+- 下一步：D2 管理读接口对齐方案 B（已完成于本轮）；DR1 需要定案 §7.14（撤权是否自动取消在途 Run）与 Host 字段补齐口径（C31）。

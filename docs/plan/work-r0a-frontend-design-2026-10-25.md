@@ -1,12 +1,12 @@
 # Work R0a 前端体验详细设计（D5）
 
-> 状态：D5 设计草案；路由/状态矩阵/文案/UI 模型与 11 组测试已产出，未实现 React 页面。
+> 状态：D5 设计草案；路由/状态矩阵/文案（174 条）/UI 模型与 14 组测试已产出，未实现 React 页面。
 >
 > 日期：2026-10-25
 >
 > 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[D2 API 设计](work-r0a-api-design-2026-10-25.md)、[R0 UX 设计](work-ux-design-r0-2026-10-25.md)、[R0 原型](assets/work-ux-r0/prototype.html)、现有前端栈。
 >
-> 资产：[UI 状态契约](assets/work-r0a-frontend-2026-10-25/ui-state.contract.ts)、[状态矩阵](assets/work-r0a-frontend-2026-10-25/state-matrix.json)、[路由](assets/work-r0a-frontend-2026-10-25/routes.json)、[文案](assets/work-r0a-frontend-2026-10-25/copy.zh-CN.json)、[UI 模型](assets/work-r0a-frontend-2026-10-25/ui-model.mjs)、[11 组测试](assets/work-r0a-frontend-2026-10-25/ui-model.test.mjs)。
+> 资产：[UI 状态契约](assets/work-r0a-frontend-2026-10-25/ui-state.contract.ts)、[状态矩阵](assets/work-r0a-frontend-2026-10-25/state-matrix.json)、[路由](assets/work-r0a-frontend-2026-10-25/routes.json)、[文案](assets/work-r0a-frontend-2026-10-25/copy.zh-CN.json)、[UI 模型](assets/work-r0a-frontend-2026-10-25/ui-model.mjs)、[14 组测试](assets/work-r0a-frontend-2026-10-25/ui-model.test.mjs)。
 
 ## 1. 目标与范围
 
@@ -261,7 +261,7 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 - 权限 chip 两种模式；`ask_each` 文案明确“R0a 没有外部工具动作，不会出现逐次审批”，避免暗示不存在的审批。
 - 不出现“全部允许”“永久允许”“跳过审批”。
 - 不显示套件/技能/连接器/项目/计划/分享入口；未实现即不出现。
-- 错误文案按 D2 错误码与 `ui` token；`artifact_read_only` 已补专属文案，未列专属文案的码回退 `work.r0a.error.generic`；`resync_required` 显示“已重新读取任务快照”，不显示失败。
+- 错误文案按 D2 错误码与 `ui` token；`artifact_read_only` 与 8 个管理/导出码（`admin_access_denied`、`audit_export_*`、`download_token_*`）已补专属文案，未列专属文案的码回退 `work.r0a.error.generic`；`resync_required` 显示“已重新读取任务快照”，不显示失败。
 - 旧任务提示明确“不迁移”，不假装旧任务已在新工作空间。
 
 ## 8. SSE、轮询与刷新
@@ -332,7 +332,7 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 6. **旧路由/旧任务**：当前 `/work?view=...` 与旧 `office_agent` API 仍存在；R0a 用新路由/新 API，旧链接只读通知；D-06 的切换/回滚需实现。
 7. **SSE 传输（已定）**：生成客户端用 fetch stream + `readSse`，自行携带 `Last-Event-ID`；不用原生 EventSource。
 8. **移动端范围**：R0a 只读；若产品要求移动端创建/审批，另立阶段。
-9. **删除任务（2026-10-26 补齐）**：任务工作区“更多 → 删除任务”，仅在 `state-matrix.json` 的 `management.delete` 状态且无 active Run/阻塞 Operation 时可用（`canDelete`）；二次确认文案明确不可撤销、正文 24 小时内清除、用量/审计保留；成功后回到“我的工作”并移除卡片；409 `run_not_quiescent` 显示“请先取消并等待结束”。重命名为 `management.rename`（非归档、仅桌面）。UI 模型 13/13（2026-10-26 复核：reserved 状态约束 +1）。
+9. **删除任务（2026-10-26 补齐）**：任务工作区“更多 → 删除任务”，仅在 `state-matrix.json` 的 `management.delete` 状态且无 active Run/阻塞 Operation 时可用（`canDelete`）；二次确认文案明确不可撤销、正文 24 小时内清除、用量/审计保留；成功后回到“我的工作”并移除卡片；409 `run_not_quiescent` 显示“请先取消并等待结束”。重命名为 `management.rename`（非归档、仅桌面）。UI 模型 14/14（2026-10-26 复核：reserved 状态约束 +1）。
 
 ## 13. 未决与风险
 
@@ -349,7 +349,7 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 
 ## 14. 验收标准
 
-- 路由/状态矩阵/文案/UI 模型测试通过（当前 13/13，含重命名/删除管理动作与 R0b 预留状态约束）。
+- 路由/状态矩阵/文案/UI 模型测试通过（当前 14/14，含重命名/删除管理动作与 R0b 预留状态约束）。
 - 四个界面 + 历史/管理只读覆盖全部 12 个状态；没有假入口/假审批。
 - Composer 两阶段、preview_stale、idempotency、scope/permission 错误可走通。
 - SSE 断线/409 resync 后状态可恢复；unknown 不显示重试/采纳。
@@ -365,5 +365,5 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 - [state-matrix.json](assets/work-r0a-frontend-2026-10-25/state-matrix.json)
 - [routes.json](assets/work-r0a-frontend-2026-10-25/routes.json)
 - [copy.zh-CN.json](assets/work-r0a-frontend-2026-10-25/copy.zh-CN.json)
-- [ui-model.mjs](assets/work-r0a-frontend-2026-10-25/ui-model.mjs) + [11 组测试](assets/work-r0a-frontend-2026-10-25/ui-model.test.mjs)
+- [ui-model.mjs](assets/work-r0a-frontend-2026-10-25/ui-model.mjs) + [14 组测试](assets/work-r0a-frontend-2026-10-25/ui-model.test.mjs)
 - 下一步：D5 评审后实现 `features/work/r0a`；D6 补运维/试点/DR 与真实可用性测试。

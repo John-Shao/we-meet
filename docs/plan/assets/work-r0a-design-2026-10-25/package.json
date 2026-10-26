@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "generate": "node generate-client.mjs",
-    "test": "node --test test/admin-adapter.test.mjs test/client.test.mjs test/contract.test.mjs",
+    "test": "node --test test/client.test.mjs test/contract.test.mjs test/host-ports.test.mjs",
     "check": "node scripts/ci-contract.mjs"
   }
 }

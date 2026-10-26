@@ -1,5 +1,5 @@
 {
-  "version": "r0a-errors-v2",
+  "version": "r0a-errors-v3",
   "rules": [
     "Public responses only use codes listed in public; unknown internal failures map to service_degraded.",
     "message is safe display text; it never echoes goal, background, title or artifact content.",
@@ -45,6 +45,18 @@
       "ui": "silent_retry_once"
     },
     "forbidden": {
+      "status": 403,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "permission_denied"
+    },
+    "admin_access_denied": {
+      "status": 403,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "permission_denied"
+    },
+    "download_token_invalid": {
       "status": 403,
       "retryable": false,
       "recovery_action": null,
@@ -224,6 +236,18 @@
       "recovery_action": "refresh",
       "ui": "state_changed"
     },
+    "audit_export_not_ready": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": "refresh",
+      "ui": "state_changed"
+    },
+    "audit_export_already_downloaded": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": "refresh",
+      "ui": "state_changed"
+    },
     "acceptance_requires_artifact_or_reason": {
       "status": 422,
       "retryable": false,
@@ -236,6 +260,12 @@
       "recovery_action": null,
       "ui": "form_error"
     },
+    "audit_export_range_invalid": {
+      "status": 422,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "form_error"
+    },
     "budget_exhausted": {
       "status": 422,
       "retryable": false,
@@ -243,6 +273,18 @@
       "ui": "budget_exhausted"
     },
     "content_expired": {
+      "status": 410,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "content_expired"
+    },
+    "audit_export_expired": {
+      "status": 410,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "content_expired"
+    },
+    "download_token_expired": {
       "status": 410,
       "retryable": false,
       "recovery_action": null,
@@ -265,6 +307,7 @@
     "acceptance_requires_artifact_or_reason": "acceptance_requires_artifact_or_reason",
     "actor_mismatch": "forbidden",
     "adjustment_amount_zero": "service_degraded",
+    "admin_access_denied": "admin_access_denied",
     "append_only_table": "service_degraded",
     "approval_not_found": "not_found",
     "approval_not_pending": "run_not_active",
@@ -276,10 +319,20 @@
     "artifact_not_published_or_not_in_task": "artifact_not_published",
     "artifact_read_only": "artifact_read_only",
     "artifact_version_content_immutable": "service_degraded",
+    "audit_export_already_downloaded": "audit_export_already_downloaded",
+    "audit_export_expired": "audit_export_expired",
+    "audit_export_lease_lost": "service_degraded",
+    "audit_export_not_claimable": "service_degraded",
+    "audit_export_not_found": "audit_export_not_found",
+    "audit_export_not_ready": "audit_export_not_ready",
+    "audit_export_range_invalid": "audit_export_range_invalid",
     "budget_account_not_found": "service_degraded",
     "budget_exhausted": "budget_exhausted",
     "canceled_task_cannot_succeed": "run_not_active",
     "dedup_task_missing": "service_degraded",
+    "directory_org_context_mismatch": "service_degraded",
+    "download_token_expired": "download_token_expired",
+    "download_token_invalid": "download_token_invalid",
     "idempotency_key_conflict": "idempotency_key_conflict",
     "input_conflict_retry": "service_degraded",
     "input_not_found": "input_not_found",
@@ -291,6 +344,7 @@
     "invalid_decision_source": "service_degraded",
     "invalid_input": "invalid_request",
     "invalid_operation_outcome": "service_degraded",
+    "invalid_pagination": "invalid_pagination",
     "invalid_policy_epoch": "service_degraded",
     "invalid_price_version": "service_degraded",
     "invalid_reason_code": "invalid_request",
@@ -302,6 +356,7 @@
     "invalid_transition": "service_degraded",
     "invalid_wait_reason": "service_degraded",
     "latest_run_not_terminal": "run_not_quiescent",
+    "not_found": "not_found",
     "only_held_reservations_can_be_released": "service_degraded",
     "operation_has_active_reservation": "service_degraded",
     "operation_key_conflict": "service_degraded",
@@ -319,6 +374,7 @@
     "outbox_lease_lost": "service_degraded",
     "outbox_requeue_stale": "service_degraded",
     "permission_mode_unavailable": "permission_mode_unavailable",
+    "projection_revision_stale": "service_degraded",
     "reconciliation_evidence_required": "service_degraded",
     "reservation_not_found": "service_degraded",
     "reservation_not_settleable": "service_degraded",

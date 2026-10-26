@@ -5,6 +5,8 @@ on:
     paths:
       - 'docs/plan/assets/work-r0a-design-2026-10-25/**'
       - 'docs/plan/assets/work-r0a-ops-2026-10-25/**'
+      - 'docs/plan/assets/work-r0a-orchestration-2026-10-25/**'
+      - 'docs/plan/work-threat-model-2026-10-25.md'
       - 'docs/plan/assets/work-r0a-hardening-2026-10-25/**'
       - 'docs/plan/assets/work-temporal-slice-2026-10-25/**'
       - 'docs/plan/work-r0a-orchestration-design-2026-10-25.md'
@@ -22,6 +24,8 @@ on:
     paths:
       - 'docs/plan/assets/work-r0a-design-2026-10-25/**'
       - 'docs/plan/assets/work-r0a-ops-2026-10-25/**'
+      - 'docs/plan/assets/work-r0a-orchestration-2026-10-25/**'
+      - 'docs/plan/work-threat-model-2026-10-25.md'
       - 'docs/plan/assets/work-r0a-hardening-2026-10-25/**'
       - 'docs/plan/assets/work-temporal-slice-2026-10-25/**'
       - 'docs/plan/work-r0a-orchestration-design-2026-10-25.md'
@@ -102,6 +106,25 @@ jobs:
         run: node --test ops-model.test.mjs telemetry.test.mjs pilot-ops.test.mjs
       - name: Run capacity model
         run: node pilot-capacity-model.mjs
+
+  orchestration-contract:
+    name: Orchestration and background-job contracts parse
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs/plan/assets/work-r0a-orchestration-2026-10-25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Type-check workflow and background-job contracts
+        run: npx --yes -p typescript@5 tsc --noEmit --skipLibCheck --target ES2022 --module ESNext RunWorkflow.contract.ts background-jobs.contract.ts
+      - name: Parse the fault matrix
+        run: python -c "import yaml,sys; d=yaml.safe_load(open('fault-matrix.yaml', encoding='utf-8')); ids=[c['id'] for c in d['cases']]; sys.exit(0 if len(ids)==18 and len(set(ids))==18 and all(c.get('expected') and c.get('evidence') for c in d['cases']) else (print('bad matrix', ids) or 1))"
 
   runtime-frontend:
     name: Runtime policy, usage, supply chain and UI model

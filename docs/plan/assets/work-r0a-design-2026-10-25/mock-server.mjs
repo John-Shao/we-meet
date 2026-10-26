@@ -82,10 +82,198 @@ function createTemplates() {
   ];
 }
 
+function seatRows(state) {
+  return [...state.members.values()]
+    .filter((member) => member.status !== 'left')
+    .map((member) => ({ ...member }))
+    .sort((a, b) => (a.subject_id < b.subject_id ? -1 : 1));
+}
+
+function sendText(res, text, contentType, headers = {}) {
+  res.writeHead(200, {
+    'Content-Type': contentType,
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    ...headers,
+  });
+  res.end(text);
+}
+
+function currentPeriodId(date = new Date()) {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function memberOf(state, subjectId) {
+  return state.members.get(subjectId) ?? null;
+}
+
+// 管理读（方案 B）与提交门控都只看目录投影，与 D1 的 assert_org_admin /
+// work_seat_required 一一对应。
+function requireAdmin(state) {
+  const actor = memberOf(state, state.subjectId);
+  if (!actor || actor.status !== 'active' || !['owner', 'admin'].includes(actor.role)) {
+    fail(403, 'admin_access_denied', '仅组织管理员可以访问治理信息');
+  }
+  return actor;
+}
+
+function requireEntitlement(state) {
+  if (state.org.status !== 'active' || !state.org.execution_enabled) {
+    fail(403, 'org_execution_unavailable', '组织已暂停工作执行');
+  }
+  const actor = memberOf(state, state.subjectId);
+  if (!actor || actor.status !== 'active' || !actor.work_seat || actor.role === 'viewer') {
+    fail(403, 'work_seat_required', '当前账号没有可用的工作席位');
+  }
+  return actor;
+}
+
+function exportView(job) {
+  return {
+    id: job.id,
+    status: job.status,
+    format: job.format,
+    range_from: job.rangeFrom,
+    range_to: job.rangeTo,
+    requested_by: job.requestedBy,
+    requested_at: job.requestedAt,
+    ready_at: job.readyAt,
+    expires_at: job.expiresAt,
+    row_count: job.rowCount,
+    bytes: job.bytes,
+    error_code: job.errorCode,
+    download_available:
+      job.status === 'ready' &&
+      !job.downloadedAt &&
+      job.expiresAt !== null &&
+      Date.parse(job.expiresAt) > Date.now(),
+    downloaded_at: job.downloadedAt,
+  };
+}
+
+function findExport(state, id) {
+  const job = state.auditExports.get(id);
+  if (!job) fail(404, 'audit_export_not_found', '导出作业不存在或不属于当前组织');
+  return job;
+}
+
+// 与 D1 get_audit_export 的惰性过期一致：读到已过期的 ready 作业就落为 expired。
+function expireIfNeeded(job) {
+  if (job.status === 'ready' && job.expiresAt !== null && Date.parse(job.expiresAt) <= Date.now()) {
+    job.status = 'expired';
+    job.expiresAt = null;
+    job.tokenHash = null;
+    job.tokenExpiresAt = null;
+  }
+  return job;
+}
+
+function auditRowsInRange(state, job) {
+  const from = Date.parse(job.rangeFrom);
+  const to = Date.parse(job.rangeTo);
+  return state.auditLog
+    .filter((entry) => {
+      const at = Date.parse(entry.at ?? '');
+      return Number.isFinite(from) && Number.isFinite(to) && Number.isFinite(at) && at >= from && at <= to;
+    })
+    .map((entry) => ({
+      action: entry.action,
+      actor_subject_id: entry.actor_subject_id ?? '',
+      target_type: entry.target_type ?? 'task',
+      target_id: entry.target_id ?? '',
+      created_at: entry.at,
+    }));
+}
+
+function renderExportBody(job, rows) {
+  if (job.format === 'json') {
+    return JSON.stringify({
+      org_id: 'org1',
+      range_from: job.rangeFrom,
+      range_to: job.rangeTo,
+      rows,
+    });
+  }
+  const head = 'action,actor_subject_id,target_type,target_id,created_at';
+  const lines = [head, ...rows.map((r) => [r.action, r.actor_subject_id, r.target_type, r.target_id, r.created_at].join(','))];
+  return lines.join('\n');
+}
+
+// 参考实现里的导出 worker：领取 queued 作业，把审计元数据写入 Content Store，
+// 库里只留引用与哈希（对齐 work.claim_audit_export / complete_audit_export）。
+function runExportWorker(state, options = {}) {
+  const ttlSeconds = options.ttl_seconds ?? 86400;
+  const processed = [];
+  for (const job of state.auditExports.values()) {
+    if (job.status !== 'queued') continue;
+    job.status = 'running';
+    job.leaseOwner = options.worker_id ?? 'export-worker-test';
+    job.leaseUntil = new Date(Date.now() + 600 * 1000).toISOString();
+    if (options.fail_with) {
+      job.status = 'failed';
+      job.errorCode = options.fail_with;
+      processed.push(exportView(job));
+      continue;
+    }
+    const rows = auditRowsInRange(state, job);
+    const body = renderExportBody(job, rows);
+    job.rows = rows;
+    job.body = body;
+    job.contentRef = `content://org1/audit-${job.id}.${job.format}`;
+    job.contentHash = `sha256:${sha256(body)}`;
+    job.bytes = Buffer.byteLength(body);
+    job.rowCount = rows.length;
+    job.status = 'ready';
+    job.readyAt = now();
+    job.expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+    job.leaseOwner = null;
+    job.leaseUntil = null;
+    processed.push(exportView(job));
+  }
+  return processed;
+}
+
+function issueTicketFor(state, job, actor, ttlSeconds) {
+  if (job.status === 'expired') fail(410, 'audit_export_expired', '导出内容已过期');
+  if (job.status !== 'ready') fail(409, 'audit_export_not_ready', '导出作业尚未就绪');
+  if (job.expiresAt !== null && Date.parse(job.expiresAt) <= Date.now()) {
+    expireIfNeeded(job);
+    fail(410, 'audit_export_expired', '导出内容已过期');
+  }
+  if (job.downloadedAt) {
+    fail(409, 'audit_export_already_downloaded', '导出文件已下载过，一次性凭证不重复发放');
+  }
+  const token = crypto.randomBytes(24).toString('hex');
+  job.tokenHash = sha256(token);
+  job.tokenExpiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+  state.auditLog.push({
+    action: 'audit_export.ticket_issued',
+    actor_subject_id: actor.subject_id,
+    target_type: 'audit_export',
+    target_id: job.id,
+    at: now(),
+  });
+  return token;
+}
+
 function createState() {
   return {
-    org: { id: 'org1', name: '试点组织', role: 'owner', work_seat: true },
+    org: {
+      id: 'org1',
+      name: '试点组织',
+      status: 'active',
+      execution_enabled: true,
+      home_region: 'cn-north',
+      revision: 0,
+      audit_retention_days: 365,
+    },
     subjectId: 'user1',
+    members: new Map([
+      ['user1', {
+        subject_id: 'user1', role: 'owner', work_seat: true, status: 'active', revision: 0,
+      }],
+    ]),
+    budget: { currency: 'CNY', limitCents: 10000, periodId: currentPeriodId() },
     csrfToken: CSRF_TOKEN,
     templates: createTemplates(),
     inputs: new Map(),
@@ -102,6 +290,20 @@ function createState() {
 
 function resetState(state) {
   state.csrfToken = CSRF_TOKEN;
+  state.org = {
+    id: 'org1',
+    name: '试点组织',
+    status: 'active',
+    execution_enabled: true,
+    home_region: 'cn-north',
+    revision: 0,
+    audit_retention_days: 365,
+  };
+  state.subjectId = 'user1';
+  state.members = new Map([
+    ['user1', { subject_id: 'user1', role: 'owner', work_seat: true, status: 'active', revision: 0 }],
+  ]);
+  state.budget = { currency: 'CNY', limitCents: 10000, periodId: currentPeriodId() };
   state.auditLog.length = 0;
   state.deletedTasks.clear();
   state.inputs.clear();
@@ -672,7 +874,12 @@ async function handle(req, res, state) {
     res.setHeader('Set-Cookie', `${SESSION_COOKIE}; HttpOnly; SameSite=Lax; Path=/`);
     return sendJson(res, 200, {
       subject_id: state.subjectId,
-      org: state.org,
+      org: {
+        id: state.org.id,
+        name: state.org.name,
+        role: memberOf(state, state.subjectId)?.role ?? 'viewer',
+        work_seat: memberOf(state, state.subjectId)?.work_seat ?? false,
+      },
       permissions: ['work.task.create', 'work.artifact.read'],
       phases: ['R0a'],
       execution_targets: [{ kind: 'cloud', profile: 'text-v1' }],
@@ -693,6 +900,7 @@ async function handle(req, res, state) {
 
   if (method === 'POST' && pathname === '/work/v1/inputs') {
     requireCsrf(req, state);
+    requireEntitlement(state);
     const body = await readJson(req);
     if (!body.client_request_id || body.client_request_id.length < 8) {
       fail(400, 'invalid_request', 'client_request_id 至少 8 字符');
@@ -1128,57 +1336,246 @@ async function handle(req, res, state) {
   }
 
   if (method === 'GET' && pathname === '/work/v1/admin/overview') {
-    const settled = [...state.tasks.values()].reduce((sum, task) => sum + task.budget.settledCents, 0);
+    requireAdmin(state);
+    const cents = [...state.tasks.values()].reduce(
+      (acc, task) => {
+        acc.settled += task.budget.settledCents;
+        acc.reserved += task.budget.reservedCents ?? 0;
+        return acc;
+      },
+      { settled: 0, reserved: 0 },
+    );
+    const seats = seatRows(state);
     return sendJson(res, 200, {
       org_id: state.org.id,
       name: state.org.name,
-      status: 'active',
-      execution_enabled: true,
-      seats: { total: 1, active: 1 },
-      budget: {
-        currency: 'CNY',
-        limit_cents: 10000,
-        reserved_cents: 0,
-        settled_cents: settled,
+      status: state.org.status,
+      execution_enabled: state.org.execution_enabled,
+      seats: {
+        total: seats.length,
+        active: seats.filter((seat) => seat.status === 'active' && seat.work_seat).length,
       },
-      audit_retention_days: 365,
+      budget: {
+        currency: state.budget.currency,
+        limit_cents: state.budget.limitCents,
+        reserved_cents: cents.reserved,
+        settled_cents: cents.settled,
+      },
+      budget_period_id: state.budget.periodId,
+      org_revision: state.org.revision,
+      audit_retention_days: state.org.audit_retention_days,
     });
   }
 
   if (method === 'GET' && pathname === '/work/v1/admin/seats') {
-    const page = parsePagination(url);
-    return sendJson(res, 200, paginate([{
-      subject_id: state.subjectId,
-      role: 'owner',
-      work_seat: true,
-      status: 'active',
-      revision: 0,
-    }], page));
+    requireAdmin(state);
+    const limitParam = url.searchParams.get('limit');
+    const limit = limitParam === null ? 20 : Number(limitParam);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      fail(400, 'invalid_pagination', 'limit 需在 1..100');
+    }
+    const cursor = url.searchParams.get('cursor');
+    if (cursor !== null && cursor.trim() === '') fail(400, 'invalid_pagination', 'cursor 不能为空串');
+    // keyset 分页与 work.list_seats 一致：按 subject_id 升序，cursor 是上一页最后一个 subject_id。
+    const ordered = seatRows(state).filter((seat) => !cursor || seat.subject_id > cursor);
+    const items = ordered.slice(0, limit);
+    return sendJson(res, 200, {
+      items,
+      next_cursor: ordered.length > limit ? items[items.length - 1].subject_id : null,
+    });
   }
 
   if (method === 'POST' && pathname === '/work/v1/admin/audit-exports') {
     requireCsrf(req, state);
+    const actor = requireAdmin(state);
     const body = await readJson(req);
-    if (!body.client_request_id || !body.from || !body.to || !['csv', 'json'].includes(body.format)) {
-      fail(400, 'invalid_request', '审计导出参数非法');
+    requireClientRequestId(body);
+    if (!['csv', 'json'].includes(body.format)) fail(400, 'invalid_request', 'format 只能是 csv 或 json');
+    const rangeFrom = body.range_from;
+    const rangeTo = body.range_to;
+    const fromMs = Date.parse(rangeFrom ?? '');
+    const toMs = Date.parse(rangeTo ?? '');
+    const invalidRange = !Number.isFinite(fromMs) ||
+      !Number.isFinite(toMs) ||
+      fromMs >= toMs ||
+      toMs > Date.now() + 60_000 ||
+      toMs - fromMs > 92 * 86_400_000 ||
+      fromMs < Date.now() - state.org.audit_retention_days * 86_400_000;
+    if (invalidRange) fail(422, 'audit_export_range_invalid', '导出时间范围非法');
+    const requestHash = sha256(JSON.stringify([body.client_request_id, rangeFrom, rangeTo, body.format]));
+    const existing = [...state.auditExports.values()]
+      .find((job) => job.clientRequestId === body.client_request_id);
+    if (existing) {
+      if (existing.requestHash !== requestHash) {
+        fail(409, 'idempotency_key_conflict', '同一 client_request_id 携带了不同参数');
+      }
+      return sendJson(res, 202, exportView(expireIfNeeded(existing)));
     }
-    const id = uuid();
-    const exportJob = {
-      id,
-      status: 'ready',
-      requested_at: now(),
-      ready_at: now(),
-      expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-      download_url: `http://${req.headers.host}/__test/audit/${id}`,
+    const job = {
+      id: uuid(),
+      clientRequestId: body.client_request_id,
+      requestHash,
+      status: 'queued',
+      format: body.format,
+      rangeFrom,
+      rangeTo,
+      requestedBy: actor.subject_id,
+      requestedAt: now(),
+      readyAt: null,
+      expiresAt: null,
+      rowCount: null,
+      bytes: null,
+      errorCode: null,
+      contentRef: null,
+      contentHash: null,
+      body: null,
+      leaseOwner: null,
+      leaseUntil: null,
+      tokenHash: null,
+      tokenExpiresAt: null,
+      downloadedAt: null,
     };
-    state.auditExports.set(id, exportJob);
-    return sendJson(res, 202, exportJob);
+    state.auditExports.set(job.id, job);
+    state.auditLog.push({
+      action: 'audit_export.requested',
+      actor_subject_id: actor.subject_id,
+      target_type: 'audit_export',
+      target_id: job.id,
+      at: now(),
+    });
+    return sendJson(res, 202, exportView(job));
   }
 
   if ((match = pathname.match(/^\/work\/v1\/admin\/audit-exports\/([0-9a-f-]+)$/)) && method === 'GET') {
-    const exportJob = state.auditExports.get(match[1]);
-    if (!exportJob) fail(404, 'audit_export_not_found', '导出作业不存在');
-    return sendJson(res, 200, exportJob);
+    requireAdmin(state);
+    return sendJson(res, 200, exportView(expireIfNeeded(findExport(state, match[1]))));
+  }
+
+  if ((match = pathname.match(/^\/work\/v1\/admin\/audit-exports\/([0-9a-f-]+)\/download-ticket$/)) && method === 'POST') {
+    requireCsrf(req, state);
+    const actor = requireAdmin(state);
+    const job = expireIfNeeded(findExport(state, match[1]));
+    const options = await readJson(req);
+    const ttl = options.ttl_seconds ?? 300;
+    if (!Number.isInteger(ttl) || ttl < 60 || ttl > 900) fail(400, 'invalid_request', 'ttl_seconds 需在 60..900');
+    const token = issueTicketFor(state, job, actor, ttl);
+    return sendJson(res, 200, {
+      token,
+      expires_at: job.tokenExpiresAt,
+      format: job.format,
+      row_count: job.rowCount,
+      bytes: job.bytes,
+    });
+  }
+
+  if ((match = pathname.match(/^\/work\/v1\/admin\/audit-exports\/([0-9a-f-]+)\/content$/)) && method === 'GET') {
+    const actor = requireAdmin(state);
+    const job = expireIfNeeded(findExport(state, match[1]));
+    const token = req.headers['x-download-token'];
+    if (typeof token !== 'string' || !/^[0-9a-f]{16,128}$/.test(token)) {
+      fail(403, 'download_token_invalid', '缺少或非法的一次性下载凭证');
+    }
+    if (!job.tokenHash || job.tokenHash !== sha256(token)) {
+      fail(403, 'download_token_invalid', '下载凭证无效或已被使用');
+    }
+    if (Date.parse(job.tokenExpiresAt) <= Date.now()) {
+      job.tokenHash = null;
+      job.tokenExpiresAt = null;
+      fail(410, 'download_token_expired', '下载凭证已过期');
+    }
+    if (job.downloadedAt) fail(403, 'download_token_invalid', '下载凭证已使用');
+    job.downloadedAt = now();
+    job.tokenHash = null;
+    state.auditLog.push({
+      action: 'audit_export.downloaded',
+      actor_subject_id: actor.subject_id,
+      target_type: 'audit_export',
+      target_id: job.id,
+      at: now(),
+    });
+    return sendText(res, job.body, job.format === 'csv' ? 'text/csv; charset=utf-8' : 'application/json; charset=utf-8', {
+      'Content-Disposition': `attachment; filename="work-audit-${job.id.slice(0, 8)}.${job.format}"`,
+    });
+  }
+
+  if (method === 'POST' && pathname === '/__test/directory/sync-org') {
+    requireCsrf(req, state);
+    const body = await readJson(req);
+    const revision = Number(body.revision);
+    if (!Number.isInteger(revision) || revision <= state.org.revision) {
+      // D1 把投影修订号回退当作内部错误，公开面统一映射 service_degraded。
+      fail(503, 'service_degraded', '目录投影修订号必须递增');
+    }
+    if (!['active', 'suspended', 'archived'].includes(body.status)) {
+      fail(400, 'invalid_request', 'org status 非法');
+    }
+    state.org = {
+      ...state.org,
+      name: body.name ?? state.org.name,
+      status: body.status,
+      execution_enabled: body.execution_enabled ?? false,
+      home_region: body.home_region ?? state.org.home_region,
+      revision,
+      audit_retention_days: body.audit_retention_days ?? state.org.audit_retention_days,
+    };
+    return sendJson(res, 200, { ...state.org });
+  }
+
+  if (method === 'POST' && pathname === '/__test/directory/sync-member') {
+    requireCsrf(req, state);
+    const body = await readJson(req);
+    if (!body.subject_id) fail(400, 'invalid_request', 'subject_id 必填');
+    const existing = memberOf(state, body.subject_id);
+    const revision = Number(body.revision);
+    if (!Number.isInteger(revision) || (existing && revision <= existing.revision)) {
+      fail(503, 'service_degraded', '成员投影修订号必须递增');
+    }
+    const role = body.role ?? existing?.role ?? 'viewer';
+    const status = body.status ?? existing?.status ?? 'active';
+    if (!['owner', 'admin', 'member', 'viewer'].includes(role)) fail(400, 'invalid_request', 'role 非法');
+    if (!['invited', 'active', 'suspended', 'left'].includes(status)) fail(400, 'invalid_request', 'status 非法');
+    const member = {
+      subject_id: body.subject_id,
+      role,
+      work_seat: body.work_seat ?? existing?.work_seat ?? false,
+      status,
+      revision,
+    };
+    state.members.set(member.subject_id, member);
+    return sendJson(res, 200, member);
+  }
+
+  if (method === 'POST' && pathname === '/__test/subject') {
+    requireCsrf(req, state);
+    const body = await readJson(req);
+    if (!body.subject_id) fail(400, 'invalid_request', 'subject_id 必填');
+    state.subjectId = body.subject_id;
+    return sendJson(res, 200, { ok: true, subject_id: state.subjectId });
+  }
+
+  if (method === 'POST' && pathname === '/__test/export-worker/run') {
+    requireCsrf(req, state);
+    const options = await readJson(req);
+    return sendJson(res, 200, { jobs: runExportWorker(state, options) });
+  }
+
+  if ((match = pathname.match(/^\/__test\/export\/([0-9a-f-]+)\/expire$/)) && method === 'POST') {
+    requireCsrf(req, state);
+    const job = findExport(state, match[1]);
+    if (job.status !== 'ready') fail(409, 'audit_export_not_ready', '只有就绪作业可以过期');
+    job.status = 'expired';
+    job.expiresAt = null;
+    job.tokenHash = null;
+    job.tokenExpiresAt = null;
+    return sendJson(res, 200, exportView(job));
+  }
+
+  if ((match = pathname.match(/^\/__test\/export\/([0-9a-f-]+)\/expire-ticket$/)) && method === 'POST') {
+    requireCsrf(req, state);
+    const job = findExport(state, match[1]);
+    if (!job.tokenHash) fail(409, 'audit_export_not_ready', '尚未发放下载凭证');
+    job.tokenExpiresAt = new Date(Date.now() - 1000).toISOString();
+    return sendJson(res, 200, { ok: true });
   }
 
   if (method === 'POST' && pathname === '/__test/reset') {

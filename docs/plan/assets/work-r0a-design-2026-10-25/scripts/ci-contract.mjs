@@ -49,6 +49,8 @@ const FROZEN_OPERATIONS = Object.freeze([
   'listSeats',
   'createAuditExport',
   'getAuditExport',
+  'createAuditExportTicket',
+  'getAuditExportContent',
 ]);
 
 const FORBIDDEN_PATH_SEGMENTS = Object.freeze([
@@ -97,7 +99,7 @@ check(
 );
 
 const paths = new Set(operations.map((operation) => operation.path));
-check(paths.size === 20, `unique path count ${paths.size}/20`);
+check(paths.size === 22, `unique path count ${paths.size}/22`);
 check(
   operations.every((operation) => operation.path.startsWith('/work/v1/')),
   'all paths are under /work/v1/',
@@ -124,14 +126,30 @@ for (const segment of FORBIDDEN_PATH_SEGMENTS) {
 }
 
 const adminPaths = [...paths].filter((openapiPath) => openapiPath.includes('/admin/'));
-check(adminPaths.length === 4, `admin read paths 4/4 (${adminPaths.length})`);
+check(adminPaths.length === 6, `admin read paths 6/6 (${adminPaths.length})`);
 check(
   ![...paths].some(
     (openapiPath) =>
       openapiPath.includes('/admin/audit-exports') &&
-      openapiPath.endsWith('/download'),
+      (openapiPath.endsWith('/download') || openapiPath.includes('/public/')),
   ),
-  'audit downloads are one-time URLs, not a public download path',
+  'audit exports expose no public download path',
+);
+// 方案 B：作业状态与一次性凭证都由 R0a 自己给出，正文兑换必须带 header 凭证。
+check(
+  operations.some((operation) => operation.operationId === 'createAuditExportTicket') &&
+    operations.some((operation) => operation.operationId === 'getAuditExportContent'),
+  'audit export exposes ticket issue and single-use redemption operations',
+);
+const contentPathStart = spec.indexOf('/work/v1/admin/audit-exports/{exportId}/content:');
+const contentPathBody = spec.slice(contentPathStart, contentPathStart + 1600);
+check(
+  contentPathStart > 0 && contentPathBody.includes('"#/components/parameters/DownloadToken"'),
+  'export content redemption requires the X-Download-Token header (no credential in URLs)',
+);
+check(
+  !/download_url/.test(spec),
+  'AuditExport exposes no pre-baked download URL',
 );
 
 const localRefs = [...spec.matchAll(/\$ref: "#\/components\/(\w+)\/(\w+)"/g)];

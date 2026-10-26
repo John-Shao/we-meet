@@ -496,7 +496,11 @@ paths:
     post:
       tags: [Admin]
       operationId: createAuditExport
-      summary: 创建审计导出作业；下载入口一次性、短期
+      summary: 创建异步审计导出作业（202 受理，正文由 worker 写入 Content Store）
+      description: |
+        只导出审计事件元数据（动作、主体、目标、时间、哈希/字节数），不含任务或成果正文。
+        同一 client_request_id 同参数重放返回同一作业；参数不同返回 409 idempotency_key_conflict。
+        范围必须落在留存窗口内且不晚于当前时间，跨度上限 92 天。仅 owner/admin 可调用。
       parameters:
         - $ref: "#/components/parameters/CsrfToken"
       requestBody:
@@ -507,19 +511,23 @@ paths:
       responses:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "202":
-          description: 导出作业已受理
+          description: 导出作业已受理，状态为 queued
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AuditExport" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/UnprocessableEntity" }
 
   /work/v1/admin/audit-exports/{exportId}:
     get:
       tags: [Admin]
       operationId: getAuditExport
-      summary: 查询审计导出作业
+      summary: 查询审计导出作业状态
+      description: |
+        仅作业所属组织的 owner/admin 可见；其他组织或不存在一律 404，不泄露作业是否存在。
+        读取时若 ready 已过有效期，服务端把状态落为 expired（惰性过期），worker 另有清扫。
       parameters:
         - $ref: "#/components/parameters/ExportId"
       responses:
@@ -531,6 +539,69 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+  /work/v1/admin/audit-exports/{exportId}/download-ticket:
+    post:
+      tags: [Admin]
+      operationId: createAuditExportTicket
+      summary: 为已就绪作业发放一次性下载凭证
+      description: |
+        明文 token 只在本响应出现一次；服务端只保存其 SHA-256 哈希。
+        作业未 ready → 409 audit_export_not_ready；已过期 → 410 audit_export_expired；
+        已下载过 → 409 audit_export_already_downloaded（不重复发放）。
+      parameters:
+        - $ref: "#/components/parameters/ExportId"
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "200":
+          description: 一次性凭证与其有效期
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuditExportTicket" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "410":
+          description: 作业内容已过期
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /work/v1/admin/audit-exports/{exportId}/content:
+    get:
+      tags: [Admin]
+      operationId: getAuditExportContent
+      summary: 用一次性凭证兑换导出文件
+      description: |
+        需要会话 cookie + 管理员角色 + 有效 X-Download-Token；校验通过后标记为已下载，
+        同一凭证再次使用返回 403 download_token_invalid。响应不缓存、不写正文日志。
+      parameters:
+        - $ref: "#/components/parameters/ExportId"
+        - $ref: "#/components/parameters/DownloadToken"
+      responses:
+        "200":
+          description: 导出文件正文（按请求的 format）
+          headers:
+            Cache-Control:
+              schema: { type: string, enum: ["no-store"] }
+            Content-Disposition:
+              schema: { type: string }
+            X-Content-Type-Options:
+              schema: { type: string, enum: [nosniff] }
+          content:
+            text/csv:
+              schema: { type: string }
+            application/json:
+              schema: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "410":
+          description: 凭证或作业已过期
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
 components:
   securitySchemes:
@@ -588,6 +659,15 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+
+    DownloadToken:
+      name: X-Download-Token
+      in: header
+      required: true
+      description: |
+        download-ticket 返回的一次性明文凭证；服务端比对 SHA-256 哈希。
+        只走请求头：不进 URL、不进查询串、不写访问日志（D6 日志扫描门禁覆盖）。
+      schema: { type: string, minLength: 16, maxLength: 128, pattern: "^[0-9a-f]+$" }
 
   responses:
     BadRequest:
@@ -1159,19 +1239,27 @@ components:
     AdminOverview:
       type: object
       additionalProperties: false
-      required: [org_id, name, status, execution_enabled, seats, budget, audit_retention_days]
+      required: [org_id, name, status, execution_enabled, seats, budget, budget_period_id,
+                 org_revision, audit_retention_days]
       properties:
         org_id: { type: string }
-        name: { type: string }
+        name:
+          type: [string, "null"]
+          description: 来自 Host IdentityDirectory 投影；目录未提供名称时为 null，前端显示占位文案
         status: { type: string, enum: [active, suspended, archived] }
-        execution_enabled: { type: boolean }
+        execution_enabled:
+          type: boolean
+          description: 组织可执行 = 目录状态 active 且未被运维停用（operator_suspended）
         seats:
           type: object
           additionalProperties: false
           required: [total, active]
           properties:
-            total: { type: integer, minimum: 0 }
-            active: { type: integer, minimum: 0 }
+            total:
+              type: integer
+              minimum: 0
+              description: 非 left 成员数；不受列表分页影响
+            active: { type: integer, minimum: 0, description: status=active 且持有工作席位的成员数 }
         budget:
           type: object
           additionalProperties: false
@@ -1181,6 +1269,13 @@ components:
             limit_cents: { type: integer, minimum: 0 }
             reserved_cents: { type: integer, minimum: 0 }
             settled_cents: { type: integer, minimum: 0 }
+        budget_period_id:
+          type: string
+          description: 预算账本周期；cents 账本由 Work 自己持有（方案 B），P1-A 不提供
+        org_revision:
+          type: integer
+          minimum: 0
+          description: 目录投影修订号；用于判断管理页数据新鲜度
         audit_retention_days: { type: integer, minimum: 1 }
 
     Seat:
@@ -1207,21 +1302,56 @@ components:
     AuditExportRequest:
       type: object
       additionalProperties: false
-      required: [client_request_id, from, to, format]
+      required: [client_request_id, range_from, range_to, format]
       properties:
         client_request_id: { type: string, minLength: 8, maxLength: 128 }
-        from: { type: string, format: date-time }
-        to: { type: string, format: date-time }
+        range_from:
+          type: string
+          format: date-time
+          description: 不早于审计留存窗口起点，且必须早于 range_to；跨度上限 92 天
+        range_to: { type: string, format: date-time, description: 不得晚于服务端当前时间 }
         format: { type: string, enum: [csv, json] }
 
     AuditExport:
       type: object
       additionalProperties: false
-      required: [id, status, requested_at, download_url]
+      required: [id, status, format, range_from, range_to, requested_by, requested_at,
+                 ready_at, expires_at, row_count, bytes, error_code, download_available,
+                 downloaded_at]
+      description: |
+        异步审计导出作业。作业元数据与状态由 Work 自己的存储持有（方案 B）；
+        正文进 Content Store，库内只留引用与哈希，响应里不返回引用。
+        生命周期 queued → running → ready →（到期）expired，失败为 failed。
       properties:
         id: { type: string, format: uuid }
         status: { type: string, enum: [queued, running, ready, expired, failed] }
+        format: { type: string, enum: [csv, json] }
+        range_from: { type: string, format: date-time }
+        range_to: { type: string, format: date-time }
+        requested_by: { type: string, description: 发起导出的管理员 subject_id }
         requested_at: { type: string, format: date-time }
         ready_at: { type: [string, "null"], format: date-time }
         expires_at: { type: [string, "null"], format: date-time }
-        download_url: { type: [string, "null"], format: uri }
+        row_count: { type: [integer, "null"], minimum: 0 }
+        bytes: { type: [integer, "null"], minimum: 0 }
+        error_code:
+          type: [string, "null"]
+          description: 失败原因码（snake_case），不含正文；未失败为 null
+        download_available:
+          type: boolean
+          description: 可发放一次性下载凭证（ready、未下载过、未过期）
+        downloaded_at: { type: [string, "null"], format: date-time }
+
+    AuditExportTicket:
+      type: object
+      additionalProperties: false
+      required: [token, expires_at, format, row_count, bytes]
+      description: |
+        一次性下载凭证。服务端只存 SHA-256 哈希；明文 token 只在此响应出现一次，
+        通过 X-Download-Token 请求头回传（不进 URL、不写访问日志），兑换一次即失效。
+      properties:
+        token: { type: string, minLength: 16, maxLength: 128, pattern: "^[0-9a-f]+$" }
+        expires_at: { type: string, format: date-time }
+        format: { type: string, enum: [csv, json] }
+        row_count: { type: integer, minimum: 0 }
+        bytes: { type: integer, minimum: 0 }

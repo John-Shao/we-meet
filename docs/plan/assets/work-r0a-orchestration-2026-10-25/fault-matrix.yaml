@@ -229,3 +229,123 @@ cases:
       - dispatch denied after suspension
       - audit events
       - no automatic re-execution
+  - id: D3-N01
+    title: Content shredder crashes after claiming a content_shred outbox row
+    inject:
+      - Delete a quiescent task so D1 enqueues a content_shred outbox row.
+      - Claim the row, then kill the shredder before the Content Store delete or ACK.
+    expected:
+      duplicate_shred_events: 0
+      lease_takeover_after_expiry: true
+      task_state: deleted
+      task_resurrected: false
+      dead_letters: 0
+    recovery: >-
+      The outbox row keeps its lease until claimed_until expires, then another
+      replica claims it. Deletion by content reference is idempotent, so replay
+      cannot double-delete or resurrect the task. Persistent failure backs off
+      2^n and dead-letters without blocking task events on other aggregates.
+    evidence:
+      - same outbox event delivered once after takeover
+      - no new content_shred row created by the retry
+      - lease_owner/claimed_until transitions recorded
+
+  - id: D3-N02
+    title: Two unbound inputs share one content reference, one expires
+    inject:
+      - create_input twice from two subjects with the same content_hash/ref.
+      - Run expire_due_inputs so only the first input is past its TTL.
+    expected:
+      inputs_expired: 2
+      content_shred_events: 1
+      refs_in_payload: 1
+      goal_text_in_payload: false
+    recovery: >-
+      expire_due_inputs marks each input expired but only enqueues a shred when
+      no live row still references the content. The last holder produces the
+      single delete request; the reference itself never enters the payload.
+    evidence:
+      - exactly one content_shred outbox row for that ref
+      - both input rows status expired with deleted_at set
+      - payload contains refs only (no body, no title)
+
+  - id: D3-N03
+    title: Export worker writes the file then crashes before complete_audit_export
+    inject:
+      - Claim an audit export, write the object to the Content Store, kill the worker.
+    expected:
+      duplicate_objects: 0
+      lease_takeover_after_expiry: true
+      download_tickets_issued: 0
+      job_state_after_retry: ready
+    recovery: >-
+      Objects are named by export job id, so the takeover rewrites the same key
+      instead of orphaning a second file. complete_audit_export requires the
+      current lease owner; a stale worker gets audit_export_lease_lost. No
+      download ticket exists before the job is ready.
+    evidence:
+      - single content_ref per export id
+      - non-holder complete call rejected
+      - job reaches ready exactly once with row_count/bytes recorded
+
+  - id: D3-N04
+    title: Expiry sweep races a pending download ticket redemption
+    inject:
+      - Issue a download ticket, then run the expiry sweep past expires_at.
+      - Attempt the redemption afterwards.
+    expected:
+      redemption_status: 410
+      ticket_reuse_allowed: false
+      job_state: expired
+      content_ref_retained_after_expiry: false
+    recovery: >-
+      Redemption requires status=ready and a live single-use token; the sweep
+      only moves ready to expired, and shred_due_audit_exports then clears the
+      reference once, so a leaked token cannot fetch purged content.
+    evidence:
+      - download_token_expired or audit_export_expired returned
+      - downloaded_at remains null when the token expired unused
+      - one content_shred event for the expired job
+
+  - id: D3-N05
+    title: Directory projection sync fails for one organization
+    inject:
+      - Replay an already-applied revision for org A while org B syncs normally.
+    expected:
+      org_b_projection_applied: true
+      org_a_effect_after_replay: unchanged
+      public_error_code: service_degraded
+      in_flight_runs_cancelled: 0
+      admin_overview_behavior: stale_not_fabricated
+    recovery: >-
+      sync_* rejects non-monotonic revisions with projection_revision_stale,
+      which is a worker-only code mapped to service_degraded. One tenant failing
+      does not block other tenants because the job runs one transaction per
+      organization. Projection loss only records entitlement_lost; stopping a
+      running Run stays a domain decision (D-07), never an adapter side effect.
+    evidence:
+      - audit rows directory.org_synced / directory.member_synced per org
+      - entitlement_lost flag recorded, no run state change
+      - lag alert WorkDirectoryProjectionStale fires past threshold
+
+  - id: D3-N06
+    title: Kill switch or tenant suspension during background jobs
+    inject:
+      - Enable the kill switch (or suspend the org) while relay, shredder,
+        projection sync and expiry sweeps are due.
+    expected:
+      new_submissions: 0
+      new_export_jobs: 0
+      outbox_relay: continues
+      content_shredder: continues
+      projection_sync: continues
+      expiry_sweep: continues
+      in_flight_runs: cancellable_and_readable
+    recovery: >-
+      Only work-creating actions stop. Delivery and retention duties keep
+      running, so events are never lost and purged content stays purged.
+      Re-enabling does not replay completed external actions.
+    evidence:
+      - events delivered and content purged while kill switch is on
+      - new submit/export requests rejected with the mapped error code
+      - audit records for suspension and resume

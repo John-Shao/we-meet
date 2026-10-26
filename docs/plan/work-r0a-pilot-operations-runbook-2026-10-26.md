@@ -4,7 +4,7 @@
 >
 > 关联：[D6 安全/运维/迁移设计](work-r0a-security-ops-migration-design-2026-10-25.md)、[通用 Runbook](work-operations-runbook-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[D2 API](work-r0a-api-design-2026-10-25.md)。
 >
-> 可执行资产：[pilot-ops.mjs](assets/work-r0a-ops-2026-10-25/pilot-ops.mjs)（6/6）、[golden-tasks.json](assets/work-r0a-ops-2026-10-25/golden-tasks.json)、[pilot-metrics.json](assets/work-r0a-ops-2026-10-25/pilot-metrics.json)、[cutover-plan.json](assets/work-r0a-ops-2026-10-25/cutover-plan.json)、D1 领域命令（PG16 冒烟 82/82）、[usage 对账](assets/work-r0a-runtime-2026-10-25/usage/usage-reconcile.mjs)。
+> 可执行资产：[pilot-ops.mjs](assets/work-r0a-ops-2026-10-25/pilot-ops.mjs)（6/6）、[golden-tasks.json](assets/work-r0a-ops-2026-10-25/golden-tasks.json)、[pilot-metrics.json](assets/work-r0a-ops-2026-10-25/pilot-metrics.json)、[cutover-plan.json](assets/work-r0a-ops-2026-10-25/cutover-plan.json)、D1 领域命令（PG16 冒烟 113/113）、[usage 对账](assets/work-r0a-runtime-2026-10-25/usage/usage-reconcile.mjs)。
 
 ## 1. 原则
 
@@ -51,6 +51,16 @@
 - **前置**：新 owner 为同组织 `active` 且有 Work 席位（否则 `work_seat_required`）；任务静止（否则 `run_not_quiescent`）；需组织管理员书面确认（工单附件，不含正文）。
 - **效果**：owner 变更、revision+1、事件 `task.owner_changed`（payload 只含字段名）、审计 `task.ownership_transferred`（from/to/工单号）。原 owner 立即失去访问；**不复制**原 owner 的任何授权；未完成的采纳由新 owner 决定。
 - **批量**：离职交接按任务逐条执行并列清单；不提供“全部转移”的捷径以免误转。
+
+### 5.1 管理面与导出作业的支持路径（2026-10-26 增补）
+
+| 用户可见现象 | 一线判断 | 处理 | 分级 |
+|---|---|---|---|
+| 导出一直"排队中" | 作业积压或 worker 停摆（`WorkAuditExportBacklog`） | 不重复点击创建（同 `client_request_id` 幂等返回同一作业）；值班按运行手册 §5.1 处理，恢复后仍显示原作业 | S3 |
+| 导出显示"失败" | 看 `error_code`（Content Store/超时/行数上限） | 重新发起一次导出（新 `client_request_id`）；连续失败升 S2 | S3→S2 |
+| 下载提示"凭证无效或已使用" | 一次性凭证已用或已过期，属设计 | 重新发放凭证再下载；若同一账号短时间反复失败，按安全信号处理（`WorkAuditExportTokenFailureBurst`） | S3 / 安全升级 |
+| 管理页显示"数据陈旧"或没有组织名 | 目录投影滞后或 Host 未提供该字段 | 不以空值当"没有席位/没有预算"；按 D-07 与 C31 口径解释，必要时值班手工取消在途 Run | S2 |
+| 成员被撤席位后仍能看见旧任务 | 设计如此：投影只拦新工作 | 说明"历史成果仍可读，新任务会被拒"；需要停止在途 Run 走取消流程（D-07 未签收前为人工） | S3 |
 
 ## 6. Outbox 死信
 

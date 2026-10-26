@@ -6,7 +6,7 @@
 >
 > 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[API 契约草案](work-api-contracts-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[架构 §15](work-system-architecture-2026-10-25.md)。
 >
-> 资产：[R0a OpenAPI](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、[生成类型](assets/work-r0a-design-2026-10-25/r0a-api-types.d.ts)、[运行时客户端](assets/work-r0a-design-2026-10-25/r0a-client.mjs)、[管理读适配](assets/work-r0a-design-2026-10-25/admin-read-adapter.mjs)、[mock server](assets/work-r0a-design-2026-10-25/mock-server.mjs)、[CI 门禁](assets/work-r0a-design-2026-10-25/scripts/ci-contract.mjs)、[合同测试](assets/work-r0a-design-2026-10-25/test/contract.test.mjs)。
+> 资产：[R0a OpenAPI](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、[生成类型](assets/work-r0a-design-2026-10-25/r0a-api-types.d.ts)、[运行时客户端](assets/work-r0a-design-2026-10-25/r0a-client.mjs)、[Host 端口契约](assets/work-r0a-design-2026-10-25/host-ports.mjs)、[WeMeet 适配器](assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs)、[mock server](assets/work-r0a-design-2026-10-25/mock-server.mjs)、[CI 门禁](assets/work-r0a-design-2026-10-25/scripts/ci-contract.mjs)、[合同测试](assets/work-r0a-design-2026-10-25/test/contract.test.mjs)。
 
 ## 1. 目标与结论
 
@@ -18,7 +18,7 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 - R0a 如何明确拒绝 suite/connectors/plan 等未开通能力？
 - 哪些接口属于 R0a，哪些必须等 R0b/R1/R2/R3？
 
-**结论**：R0a 子集已形成 20 个 path、23 个 operation、50 个 schema、65 个唯一本地 `$ref`，OpenAPI 3.1 校验通过；生成 TypeScript 类型通过 `tsc --noEmit`；生成运行时客户端覆盖 23 个 operation（含 `deleteTask`）；合同/客户端/管理适配共 **31/31** 测试通过；错误码目录（`r0a-errors-v2`：42 个公开码、87 个 SQL 异常映射）冻结，CI 直接扫描 `r0a-schema-draft.sql` 做漂移门禁。它仍不是生产 API，也不证明真实 cookie/CSRF、Content Store、SSE 网关、P1-A 字段或供应商可用。
+**结论**：R0a 子集已形成 22 个 path、25 个 operation、51 个 schema、67 个唯一本地 `$ref`，OpenAPI 3.1 校验通过；生成 TypeScript 类型通过 `tsc --noEmit`；生成运行时客户端覆盖 25 个 operation（含 `deleteTask`）；合同/客户端/Host 端口共 **31/31** 测试通过；错误码目录（`r0a-errors-v3`：49 个公开码、101 个 SQL 异常映射）冻结，CI 直接扫描 `r0a-schema-draft.sql` 做漂移门禁。它仍不是生产 API，也不证明真实 cookie/CSRF、Content Store、SSE 网关、P1-A 字段或供应商可用。
 
 ## 2. 契约决策
 
@@ -68,24 +68,29 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 - R0a 子集不暴露 connectors、devices、workspace-grants、projects、capabilities 或 operator 路径。
 - 服务端必须拒绝非空 suite/connectors 与 `plan_then_run`；mock 与测试显式覆盖 `scope_unavailable`/`permission_mode_unavailable`，不依赖 UI 隐藏。
 
-### 2.6 管理只读
+### 2.6 管理只读（U2 方案 B）
 
-- `GET /admin/overview`、`GET /admin/seats`、`POST /admin/audit-exports`、`GET /admin/audit-exports/{exportId}` 构成 R0a 只读/导出子集。
-- 返回治理元数据，不返回成员正文；不提供席位/预算/策略写入。
-- **P1-A 字段映射仍未完成**：目标子集先冻结形状；落地时若复用 P1-A，需要 D6 给出字段/权限码适配表，不能假设字段一致。
+- 子集是 `GET /admin/overview`、`GET /admin/seats`、`POST /admin/audit-exports`、`GET /admin/audit-exports/{exportId}`、`POST /admin/audit-exports/{exportId}/download-ticket`、`GET /admin/audit-exports/{exportId}/content`：只读 + 导出，不提供席位/预算/策略写入。
+- **数据来源是 Work 自己**（2026-10-26 决策 B）：角色/修订号/席位来自 `work.member` 投影，预算是 `work.budget_account` 的整数 cents 账本，导出是 `work.audit_export` 作业；P1-A 只提供读权限与主组织上下文。此前设想的“在 P1-A 上适配出管理读”会迫使 Work 接受 token 计数当预算或伪造导出作业，故弃用。
+- `AdminOverview` 因此带 `budget_period_id`、`org_revision`，`name` 可为 `null`（目录投影未提供组织名时由前端显示占位文案），`seats.total` 明确排除 `left` 且不受列表分页影响。
+- 作业生命周期 `queued → running → ready →（到期）expired / failed`：`POST /audit-exports` 返回 **202 + queued**，不等正文；同 `client_request_id` 同参数幂等返回原作业，异参数 409 `idempotency_key_conflict`；范围必须落在留存窗口内、不晚于当前时间、跨度 ≤92 天，否则 422 `audit_export_range_invalid`。响应只含元数据（行数/字节/哈希有效期），不含 Content Store 引用。
+- 下载是一次性凭证：`download-ticket` 返回只在响应中出现一次的随机 token（服务端存 SHA-256），`content` 用 `X-Download-Token` 请求头兑换——**凭证不进 URL/查询串**，避免落入访问日志；兑换后立即失效（409 `audit_export_already_downloaded` 阻止重复发放，403 `download_token_invalid` 阻止复用），过期分别返回 410 `download_token_expired` / `audit_export_expired`。
+- 跨组织与不存在的作业统一 404 `audit_export_not_found`，不泄露作业是否存在；非 owner/admin 一律 403 `admin_access_denied`。
+- **Host 字段缺口仍未闭合**：适配器要求 `subject_id`、成员 `role`/`revision`/`work_seat` 布尔与组织 `name`/`home_region`；P1-A 当前只回 `user_id` 与 token 配额，缺字段时报 gap 不猜测（C31 partial）。
 
 ### 2.7 幂等、revision 与错误
 
 - 唯一幂等键是请求体 `client_request_id`；作用域为 `(org_id, subject_id, operation_type)`；不另设 `Idempotency-Key` 请求头。
 - 同 key 同 payload 返回原结果；不同 payload 返回 409。更新/采纳/取消使用 revision 或显式状态检查。
 - 错误结构：`code`、安全可展示 `message`、`retryable`、`correlation_id`、`current_revision`、`recovery_action`。
-- **错误码目录已冻结**：[error-codes.json](assets/work-r0a-design-2026-10-25/error-codes.json)（`r0a-errors-v2`）列出 42 个公开码的 HTTP 状态、`retryable`、`recovery_action` 与 UI 行为 token；文案键由 D5 [copy.zh-CN.json](assets/work-r0a-frontend-2026-10-25/copy.zh-CN.json) 维护，未知码回退 `work.r0a.error.generic`；`db_exception_map` 把 `r0a-schema-draft.sql` 中全部 87 个 SQL 异常码映射到公开码（worker/outbox 内部异常统一映射为 503 `service_degraded`，原始码只进内部日志）。CI 门禁校验：mock 使用的每个码及状态与目录一致；直接扫描 `r0a-schema-draft.sql` 的 `RAISE EXCEPTION`，要求均为 snake_case 码（可带 `:detail`）、每个码都有映射、映射表无 SQL 已不再抛出的条目；`retryable` 当且仅当 5xx/429（`preview_stale` 为 409、不可自动重试，需重新预览）。mock 未知错误默认 503。新增错误码必须先改目录。
+- **错误码目录已冻结**：[error-codes.json](assets/work-r0a-design-2026-10-25/error-codes.json)（`r0a-errors-v3`）列出 49 个公开码的 HTTP 状态、`retryable`、`recovery_action` 与 UI 行为 token；文案键由 D5 [copy.zh-CN.json](assets/work-r0a-frontend-2026-10-25/copy.zh-CN.json) 维护，未知码回退 `work.r0a.error.generic`；`db_exception_map` 把 `r0a-schema-draft.sql` 中全部 101 个 SQL 异常码映射到公开码（worker/outbox 内部异常统一映射为 503 `service_degraded`，原始码只进内部日志）。CI 门禁校验：mock 使用的每个码及状态与目录一致；直接扫描 `r0a-schema-draft.sql` 的 `RAISE EXCEPTION`，要求均为 snake_case 码（可带 `:detail`）、每个码都有映射、映射表无 SQL 已不再抛出的条目；`retryable` 当且仅当 5xx/429（`preview_stale` 为 409、不可自动重试，需重新预览）。mock 未知错误默认 503。新增错误码必须先改目录。
 - 代表错误：`scope_unavailable`、`permission_mode_unavailable`、`preview_stale`、`idempotency_key_conflict`、`version_conflict`、`run_not_quiescent`、`resync_required`、`input_not_found`、`artifact_not_published`、`csrf_invalid`、`title_invalid`。
 
 ### 2.8 Host 适配与独立部署边界（ADR-0021）
 
 - R0a 的 `we_meet_session` 只是 Host 认证适配器；核心只依赖认证端口，独立产品可接 OIDC/bearer。
-- 租户/成员/席位从 `IdentityDirectory`/`Entitlement` 端口解析；客户端 `org_id` 只用于资源定位。
+- 租户/成员/席位从 `IdentityDirectory`/`Entitlement` 端口解析；客户端 `org_id` 只用于资源定位。端口形状与校验器已可执行：[host-ports.mjs](assets/work-r0a-design-2026-10-25/host-ports.mjs)（五个端口、方法清单、值校验），[we-meet-host-adapter.mjs](assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs)（P1-A 形状 → `sync_*` 投影载荷，缺字段报 gap），[stub-host.mjs](assets/work-r0a-design-2026-10-25/stub-host.mjs)（独立产品替身，同一端口同一投影形状）。
+- 端口契约的三条硬规则：Host 不能塞未声明字段进 Work（`unexpected_field`）；不把 token 配额换算成席位或 cents 预算（`incompatible_source`）；通知投递不接受正文字段（`no_content_allowed`）。收窄（撤席位/停用成员）只产出 `request_cancel` 提示，由领域命令执行，适配器不写表。
 - 通知、计费、业务系统 Connector 通过 Host 端口；会议/消息/文档与外部 SaaS 使用同一 Connector 契约，不直连表。
 - 独立部署与剥离演练见 [ADR-0021](../adr/0021-work-standalone-product-boundary.md)；R0a API 不变。
 
@@ -112,12 +117,14 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 | GET | `/work/v1/artifacts/{artifactId}/versions/{versionNo}` | 版本元数据 + content_url |
 | GET | `/work/v1/artifacts/{artifactId}/versions/{versionNo}/content` | 受控正文；`disposition=attachment` 导出下载并审计 |
 | POST | `/work/v1/tasks/{taskId}/acceptances` | 采纳版本或完成理由 |
-| GET | `/work/v1/admin/overview` | 组织治理元数据 |
-| GET | `/work/v1/admin/seats` | 只读席位 |
-| POST | `/work/v1/admin/audit-exports` | 创建审计导出 |
-| GET | `/work/v1/admin/audit-exports/{exportId}` | 查询导出作业 |
+| GET | `/work/v1/admin/overview` | 组织治理元数据（席位统计、cents 预算、周期、目录修订号、留存天数） |
+| GET | `/work/v1/admin/seats` | 只读席位（keyset 分页） |
+| POST | `/work/v1/admin/audit-exports` | 创建异步审计导出作业（202 queued） |
+| GET | `/work/v1/admin/audit-exports/{exportId}` | 查询导出作业状态 |
+| POST | `/work/v1/admin/audit-exports/{exportId}/download-ticket` | 发放一次性下载凭证 |
+| GET | `/work/v1/admin/audit-exports/{exportId}/content` | 用 `X-Download-Token` 兑换导出文件（一次） |
 
-> 注：上表共 23 个 operation，但 OpenAPI 以 path 计为 20 个（`/tasks` 同时有 GET/POST，`/tasks/{id}` 同时有 GET/PATCH）。
+> 注：上表 25 个 operation 对应 22 个 path（`/tasks` 有 GET/POST，`/tasks/{id}` 有 GET/PATCH/DELETE，`/admin/audit-exports/{exportId}` 前缀下另有 ticket 与 content 两个子路径）。
 
 ## 4. 契约缺口闭合
 
@@ -130,7 +137,7 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 | 成果导出 | 已闭合 | content `disposition=attachment`；安全文件名 + 审计；D1 `record_artifact_export` |
 | CSRF/Cookie 生命周期 | 已闭合（设计） | 会话绑定 token、403 `csrf_invalid` 单次刷新重试、host-only cookie；真实会话服务未接 |
 | 错误码目录 | 已闭合 | `error-codes.json` + CI 校验 mock/SQL 映射 |
-| 管理只读映射 | 部分 | 目标形状已冻结；严格适配器 + 12 组负例已实现，真实 P1-A/身份字段未接 |
+| 管理只读映射 | 已闭合（设计） | 决策 B：Work 自己出角色/修订号/cents/异步导出，6 个管理读接口 + D1 `audit_export`/投影/聚合函数落地；契约与 mock 覆盖作业生命周期与一次性凭证；真实 P1-A 目录字段仍缺（C31 partial） |
 | SSE 鉴权/游标 | 已闭合 | cookie + 409 `resync_required`；Last-Event-ID |
 | 生成类型/合同测试 | 部分 | 类型 + 客户端 + mock + 31 组测试 + CI 门禁；远端 CI 与真实前端接入未做 |
 | 审批接口 | 按范围排除 | R0a 公开子集不暴露；D1 内部命令保留 |
@@ -141,23 +148,28 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 
 2026-10-25：
 
-- OpenAPI 3.1 YAML 解析成功；**20 个 path、48 个 schema、62 个唯一本地 `$ref`** 全部可解析；`openapi-spec-validator` 通过（2026-10-26 修订后：20 path / 23 operation / 50 schema / 65 唯一 `$ref`）。
+- OpenAPI 3.1 YAML 解析成功；**20 个 path、48 个 schema、62 个唯一本地 `$ref`** 全部可解析；`openapi-spec-validator` 通过（2026-10-26 二次修订：22 path / 25 operation / 51 schema / 67 唯一 `$ref`（212 处））。
 - `openapi-typescript 7.13.0` 生成 `r0a-api-types.d.ts`（45 KB）；`tsc --noEmit` 通过。
-- `node --test test/contract.test.mjs`：**7/7 测试通过**，覆盖：
+- `node --test test/contract.test.mjs`：**10/10 测试通过**，覆盖：
   1. bootstrap/templates/session/CSRF/401/404；
   2. 输入幂等、preview、submit 幂等、view 筛选、suite/plan/stale preview 负例；
   3. worker 完成、content 读取、inbox、采纳版本、重复采纳、完成理由；
   4. 用户编辑新版本、content 读取、base 冲突；
   5. 取消/重复取消/finish-cancel/重试/SSE Last-Event-ID/409 resync；
-  6. 管理只读 overview/seats/audit-export；
-  7. 成果版本只读（完成后、最近 Run 取消后 409 `artifact_read_only`）与重试状态门槛。
-- `node --test test/client.test.mjs`：**12/12**（2026-10-26 增至 12）；生成客户端覆盖 bootstrap→input→preview→submit→SSE→artifact 的 golden path，并验证 401/403/404、缺失/错误 CSRF、管理读、路径/body 前置校验、重试/删除的 revision 与幂等重放、code point 标题。
-- `node --test test/admin-adapter.test.mjs`：**12/12**；验证 P1-A 原始字段缺口、token/cents 不转换、角色/版本缺失拒绝、席位状态映射、分页、同步 CSV 不伪装异步导出。
-- `node scripts/ci-contract.mjs`：通过；冻结 23 个 operation/20 个 path、排除 R0b+ 路径、解析 187 处本地 `$ref`（65 个唯一目标）、客户端零漂移、类型覆盖全部 operation/schema、错误码目录与 `r0a-schema-draft.sql` 双向一致，并运行 31 组测试。
+  6. 成果版本只读（完成后、最近 Run 取消后 409 `artifact_read_only`）与重试状态门槛；
+  7. 管理读来自目录投影与 cents 账本：席位统计、keyset 分页、修订回退 503、非管理员 403（overview/seats/创建导出）；
+  8. 投影门控新工作：无席位、viewer 角色、组织停用分别在 `POST /inputs` 被拒；
+  9. 审计导出异步生命周期 + 一次性凭证：queued→worker→ready、幂等重放/异体 409、范围/留存校验、未就绪 409、兑换成功、复用 403、重复发放 409、下载后 `download_available=false`；
+  10. 失败/过期/凭证过期可区分：`failed`+错误码、`expired`+410、`download_token_expired`+410、未知作业 404。
+- `node --test test/client.test.mjs`：**12/12**；生成客户端覆盖 bootstrap→input→preview→submit→SSE→artifact 的 golden path，并验证 401/403/404、缺失/错误 CSRF、管理读（含 9 字段 overview 与一次性下载凭证兑换/复用）、路径/body 与 header 参数前置校验、重试/删除的 revision 与幂等重放、code point 标题。
+- `node --test test/host-ports.test.mjs`：**9/9**；验证五个端口必须齐全且不得多方法、返回值形状校验（缺字段/多余字段/枚举非法）、P1-A 只回 `user_id`/只有 token 配额时报 gap 而不猜测、`sync_*` 投影载荷形状、收窄只产出 `request_cancel` 提示、stub host 与 WeMeet 适配器产出同形状投影、通知禁正文/计费不收 token 字段、Work 运行面不 import 适配器且适配器不写 SQL。
+- `node scripts/ci-contract.mjs`：通过（32 项检查）；冻结 25 个 operation / 22 个 path / 管理读 6 个 path、排除 R0b+ 路径、要求导出正文兑换必须带 `X-Download-Token` 且契约中不存在 `download_url`、解析 212 处本地 `$ref`（67 个唯一目标）、客户端零漂移、类型覆盖全部 operation/schema、错误码目录与 mock（44 码）及 `r0a-schema-draft.sql`（101 码）双向一致，并运行 31 组测试。
 - 2026-10-26 增量：OpenAPI 增加 `updateTask` 与 `disposition`；**20 path / 22 operation / 49 schema / 63 唯一 `$ref`（179 处）**，`openapi-spec-validator` 通过；类型重新生成、`tsc` 通过；客户端测试 7→**10**（标题编辑含幂等/冲突/校验/事件无正文、导出头与审计、CSRF 轮换单次重试），设计包合计 **28/28**；D1 PG16 冒烟 34→**40/40**（标题裁剪/幂等/事件无正文/负例/越权、导出审计/缺失版本）；`ci-contract.mjs` 增加错误码目录 3 项校验。
 - 2026-10-26 增量二：增加 `deleteTask`（用户删除，需静止；内容异步粉碎、账本/审计保留）；**20 path / 23 operation / 50 schema / 64 唯一 `$ref`（185 处）**；客户端测试 **11/11**，设计包 **29/29**；D1 冒烟 **58/58**（含 outbox 顺序/退避/死信/重排、删除/代删/所有权转移、生命周期事件）。
 - 2026-10-26 修订：`createTaskPreview` 要求 CSRF；`deleteTask` 必带 `expected_revision`（已删除时幂等返回同一回执、不再校验）；`TaskRunRequest.expected_revision` 必填；`ArtifactVersionCreateRequest.base_version_no` 必填且 ≥1；重试/采纳/新版本按 `client_request_id` 幂等重放（同体返回同结果、异体 409 `idempotency_key_conflict`）；默认标题按 code point 截断 20 字；**65 唯一 `$ref`（187 处）**；客户端 **12/12**，设计包 **31/31**。
-- `.github/workflows/work-r0a-gates.yml` 已定义 contract（含 schema 再生成无漂移）、db-smoke（PG16 schema + 冒烟）、ops-telemetry、runtime-frontend、log-scan 五个 job；**未在远端运行**。
+- 2026-10-26 增量三（U2 方案 B + ADR-0021 落地）：OpenAPI 增加 `createAuditExportTicket`/`getAuditExportContent` 与一次性凭证头参数，重写 `AuditExport`（去 `download_url`，加 `format/range_*/row_count/bytes/error_code/download_available/downloaded_at`）与 `AdminOverview`（加 `budget_period_id`/`org_revision`，`name` 可为 null），席位请求改用 `range_from`/`range_to`；**22 path / 25 operation / 51 schema / 67 唯一 `$ref`（212 处）**；类型与客户端重新生成、`tsc` 通过；合同测试 7→**10**、客户端 **12/12**、新增 Host 端口 **9/9**，设计包 **31/31**；错误码目录升 `r0a-errors-v3`（49 公开 / 101 SQL）；D1 冒烟 82→**106/106**（同批后续清扫作业再到 113/113，见 §5 增量四）；退役方案 A 的 `admin-read-adapter.mjs` 与其 12 组测试（决策已定为 B，缺字段证明保留在管理只读映射文档的表格里）。
+- 2026-10-26 增量四（留存作业，无契约变更）：`POST /inputs` 的"未绑定输入 24 小时过期"从策略变成机制——D1 `create_input` 写入 `expires_at`（TTL 由 `work.input_ttl_hours` 配置，默认 24h），`work.expire_due_inputs` 逐组织清扫并只在引用不被共享时投递 `content_shred`；已到期输入继续走既有 422 `input_not_found` + `re_preview`，OpenAPI/错误码目录不变；D1 冒烟 106→**113/113**。
+- `.github/workflows/work-r0a-gates.yml` 已定义 contract（含 schema 再生成无漂移）、db-smoke（PG16 schema + 冒烟）、ops-telemetry、runtime-frontend、log-scan 六个 job；**未在远端运行**。
 - 未执行：真实 cookie 签发/轮换、P1-A 集成、真实 Content Store、SSE 网关/背压/多连接、Temporal、真实模型/供应商、速率限制、CORS、桌面/移动、性能与模糊测试、生成客户端接真实前端。
 
 ### 5.1 复现
@@ -176,7 +188,7 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 
 ## 6. 未决与风险
 
-1. **P1-A 映射**：admin overview/seats/audit-export 的目标字段与现有权限码未逐项对齐（严格适配器已证明缺口，见管理只读映射文档）。
+1. **P1-A 目录字段**：方案 B 已把角色/席位/cents/导出作业搬到 Work 侧，但 `subject_id`、成员 `role`/`revision`/`work_seat` 布尔与组织 `name`/`home_region` 仍要 P1-A/身份服务提供；缺失时适配器报 gap（C31 partial，见管理只读映射文档）。
 2. ~~CSRF 令牌生命周期~~：2026-10-26 定稿（§2.1）；真实会话服务签发/轮换仍待实现验证。
 3. ~~Cookie 边界~~：2026-10-26 定稿（§2.1）：host-only、同源 Web、CORS 拒绝；跨域客户端不在 R0a。
 4. **输入过期/留存**：未绑定输入 24 小时过期是 API 策略；绑定后按任务留存仍需产品/法务确认（D6 留存表给出默认值）。
@@ -184,20 +196,21 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 6. ~~成果导出/下载~~：已补 `disposition=attachment` + 审计（§2.4）；分享链接与格式转换明确不在 R0a。
 7. **SSE 工程化**：mock 在事件后结束；生产需心跳、背压、断线、Last-Event-ID 保留窗口与多实例。
 8. **生成 SDK/CI**：运行时客户端、漂移门禁和仓库 workflow 已定义；workflow 未在远端运行，客户端未接入真实前端，mock 未由契约生成。
-9. **Admin 导出下载**：目标字段有 `download_url`，但一次性下载、权限复验与过期未实现；P1-A 同步 CSV 仍不能直接满足作业生命周期。
+9. ~~Admin 导出下载~~：改为一次性凭证 + `X-Download-Token`（不进 URL），作业生命周期与租约由 D1 `work.audit_export` 承载；真实 Content Store 写入与导出 worker 的多副本竞争仍待实现验证。
 10. ~~错误码稳定性~~：`error-codes.json` 冻结并进入 CI（§2.7）；网关/Temporal 侧错误到公开码的映射随 D3/D4 实现补测。
 11. **内容大小**：256 KiB 是 R0a 文本上限，需与 D4/D5 的编辑器、SSE 和 Content Store 限制对齐。
 12. **多组织**：R0a 不支持多组织切换；bootstrap 只返回当前主组织。
-13. **独立产品边界**：当前 session/身份/席位仍是 WeMeet 适配器；剥离演练与独立部署清单未做（ADR-0021）。
+13. **独立产品边界**：五个端口已有可执行契约、WeMeet 适配器与 stub host（9/9），但真实 session/身份/席位仍来自 WeMeet 适配器；R1 前的 stub-host 剥离演练与独立部署清单未做（ADR-0021）。
 
 ## 7. 交付物与下一步
 
 - [r0a-openapi-v1.yaml](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)：R0a 公开契约子集。
 - [r0a-api-types.d.ts](assets/work-r0a-design-2026-10-25/r0a-api-types.d.ts)：生成的 TypeScript 类型。
 - [r0a-client.mjs](assets/work-r0a-design-2026-10-25/r0a-client.mjs)：从契约生成的运行时客户端；[生成器](assets/work-r0a-design-2026-10-25/generate-client.mjs) 带 `--check` 漂移校验。
-- [admin-read-adapter.mjs](assets/work-r0a-design-2026-10-25/admin-read-adapter.mjs)：P1-A 到 R0a 管理读契约的严格适配参考。
+- [host-ports.mjs](assets/work-r0a-design-2026-10-25/host-ports.mjs)：ADR-0021 五个 Host 端口的方法与值形状。
+- [we-meet-host-adapter.mjs](assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs) / [stub-host.mjs](assets/work-r0a-design-2026-10-25/stub-host.mjs)：WeMeet 适配与独立产品替身，产出 D1 `sync_*` 投影载荷。
 - [mock-server.mjs](assets/work-r0a-design-2026-10-25/mock-server.mjs)：无依赖合同 mock。
 - [error-codes.json](assets/work-r0a-design-2026-10-25/error-codes.json)：冻结错误码目录与 SQL 异常映射。
-- [contract.test.mjs](assets/work-r0a-design-2026-10-25/test/contract.test.mjs)：6 组合同测试；[client.test.mjs](assets/work-r0a-design-2026-10-25/test/client.test.mjs)：10 组客户端测试；[admin-adapter.test.mjs](assets/work-r0a-design-2026-10-25/test/admin-adapter.test.mjs)：12 组管理适配测试。
+- [contract.test.mjs](assets/work-r0a-design-2026-10-25/test/contract.test.mjs)：10 组合同测试；[client.test.mjs](assets/work-r0a-design-2026-10-25/test/client.test.mjs)：12 组客户端测试；[host-ports.test.mjs](assets/work-r0a-design-2026-10-25/test/host-ports.test.mjs)：9 组 Host 端口契约测试。
 - [ci-contract.mjs](assets/work-r0a-design-2026-10-25/scripts/ci-contract.mjs)：CI 门禁。
 - 下一步 D3：Temporal/编排与提交/派发/预算/成果/采纳/取消/恢复；D4：Pi Adapter、沙箱与模型网关。DR1 还需把 D1/D2 的接口与 schema 对齐评审。

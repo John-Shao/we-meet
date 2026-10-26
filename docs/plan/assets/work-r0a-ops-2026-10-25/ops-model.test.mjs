@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   loadOpsAssets,
   validateControls,
@@ -106,4 +107,25 @@ test('capacity inputs reject invalid seat/concurrency assumptions', () => {
     () => computeCapacity({ ...DEFAULT_INPUTS, avgRunMinutes: 0 }),
     (error) => error.message.includes('avgRunMinutes'),
   );
+});
+
+test('S17/S18 cover the projection write path and the one-time export download', () => {
+  const byId = new Map(controls.controls.map((item) => [item.id, item]));
+  const s17 = byId.get('S17');
+  const s18 = byId.get('S18');
+  assert.ok(s17 && s18, 'both controls are registered');
+  for (const [id, control] of [['S17', s17], ['S18', s18]]) {
+    assert.equal(control.status, 'partial', id);
+    assert.ok(control.closeCondition.length > 20, id);
+    assert.ok(control.evidence.length >= 3, id);
+  }
+  assert.match(s17.control, /work_directory/);
+  assert.match(s17.control, /projection_revision_stale/);
+  assert.match(s18.control, /X-Download-Token/);
+  assert.match(s18.control, /single-use/);
+  // 正文/令牌都不进 URL：导出与成果契约里不得出现预签下载链接字段。
+  const openapi = readFileSync(
+    new URL('../work-r0a-design-2026-10-25/r0a-openapi-v1.yaml', import.meta.url), 'utf8',
+  );
+  assert.ok(!/download_url/.test(openapi));
 });

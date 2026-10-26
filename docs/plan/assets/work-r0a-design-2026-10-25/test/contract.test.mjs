@@ -26,6 +26,19 @@ async function request(method, path, { body, headers = {}, useCsrf = true } = {}
   return { response, data, text };
 }
 
+function currentPeriod(date = new Date()) {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function exportRequest(clientRequestId) {
+  return {
+    client_request_id: clientRequestId,
+    range_from: new Date(Date.now() - 7 * 86_400_000).toISOString(),
+    range_to: new Date().toISOString(),
+    format: 'csv',
+  };
+}
+
 async function createInput(goal, background = '', clientRequestId = 'req-input-0001') {
   const result = await request('POST', '/work/v1/inputs', {
     body: { client_request_id: clientRequestId, goal, background, media_type: 'text/markdown' },
@@ -492,30 +505,231 @@ test('cancel, retry and SSE recovery', async () => {
   assert.equal(expired.data.code, 'resync_required');
 });
 
-test('admin read-only and audit export', async () => {
+test('admin read comes from the directory projection and the Work cents ledger', async () => {
+  for (const [subject, member] of [
+    ['user2', { role: 'admin', work_seat: true, status: 'active' }],
+    ['user3', { role: 'member', work_seat: true, status: 'left' }],
+    ['user4', { role: 'member', work_seat: true, status: 'active' }],
+  ]) {
+    const synced = await request('POST', '/__test/directory/sync-member', {
+      body: { subject_id: subject, revision: 1, ...member },
+    });
+    assert.equal(synced.response.status, 200, synced.text);
+  }
+
   const overview = await request('GET', '/work/v1/admin/overview');
-  assert.equal(overview.response.status, 200);
-  assert.equal(overview.data.org_id, 'org1');
-  assert.equal(overview.data.audit_retention_days, 365);
+  assert.equal(overview.response.status, 200, overview.text);
+  assert.deepEqual(overview.data.seats, { total: 3, active: 3 });
+  assert.equal(overview.data.budget.currency, 'CNY');
+  assert.equal(typeof overview.data.budget.limit_cents, 'number');
+  assert.equal(overview.data.budget_period_id, currentPeriod());
+  assert.equal(overview.data.org_revision, 0);
   assert.ok(!('goal' in overview.data));
   assert.ok(!('email' in overview.data));
 
-  const seats = await request('GET', '/work/v1/admin/seats');
-  assert.equal(seats.response.status, 200);
-  assert.equal(seats.data.items.length, 1);
+  // keyset 分页与 work.list_seats 同构；总数不受分页影响。
+  const page1 = await request('GET', '/work/v1/admin/seats?limit=1');
+  assert.deepEqual(page1.data.items.map((seat) => seat.subject_id), ['user1']);
+  assert.equal(page1.data.next_cursor, 'user1');
+  const page2 = await request('GET', '/work/v1/admin/seats?limit=1&cursor=user1');
+  assert.deepEqual(page2.data.items.map((seat) => seat.subject_id), ['user2']);
+  assert.equal(page2.data.next_cursor, 'user2');
+  const page3 = await request('GET', '/work/v1/admin/seats?limit=1&cursor=user2');
+  assert.deepEqual(page3.data.items.map((seat) => seat.subject_id), ['user4']);
+  assert.equal(page3.data.next_cursor, null);
+  const resynced = await request('GET', '/work/v1/admin/overview');
+  assert.deepEqual(resynced.data.seats, { total: 3, active: 3 });
 
-  const exportJob = await request('POST', '/work/v1/admin/audit-exports', {
-    body: {
-      client_request_id: 'req-audit-5001',
-      from: '2026-10-01T00:00:00Z',
-      to: '2026-10-25T23:59:59Z',
-      format: 'csv',
-    },
+  // 修订号回退是适配器/程序错误：公开面只说服务降级，不暴露目录细节。
+  const stale = await request('POST', '/__test/directory/sync-member', {
+    body: { subject_id: 'user2', role: 'owner', work_seat: true, status: 'active', revision: 1 },
   });
-  assert.equal(exportJob.response.status, 202, exportJob.text);
-  assert.equal(exportJob.data.status, 'ready');
+  assert.equal(stale.response.status, 503, stale.text);
+  assert.equal(stale.data.code, 'service_degraded');
 
-  const fetched = await request('GET', `/work/v1/admin/audit-exports/${exportJob.data.id}`);
-  assert.equal(fetched.response.status, 200);
-  assert.equal(fetched.data.id, exportJob.data.id);
+  // 非管理员读治理信息与创建导出作业都被拒。
+  await request('POST', '/__test/subject', { body: { subject_id: 'user4' } });
+  const forbiddenRead = await request('GET', '/work/v1/admin/overview');
+  assert.equal(forbiddenRead.response.status, 403, forbiddenRead.text);
+  assert.equal(forbiddenRead.data.code, 'admin_access_denied');
+  const seatsDenied = await request('GET', '/work/v1/admin/seats');
+  assert.equal(seatsDenied.data.code, 'admin_access_denied');
+  const exportDenied = await request('POST', '/work/v1/admin/audit-exports', {
+    body: exportRequest('req-audit-denied'),
+  });
+  assert.equal(exportDenied.response.status, 403);
+  assert.equal(exportDenied.data.code, 'admin_access_denied');
+});
+
+test('directory projection gates new work before any task state is written', async () => {
+  await request('POST', '/__test/directory/sync-member', {
+    body: { subject_id: 'user9', role: 'member', work_seat: false, status: 'active', revision: 1 },
+  });
+  await request('POST', '/__test/subject', { body: { subject_id: 'user9' } });
+  const noSeat = await request('POST', '/work/v1/inputs', {
+    body: { client_request_id: 'req-input-noseat', goal: '写一份方案', background: '', media_type: 'text/markdown' },
+  });
+  assert.equal(noSeat.response.status, 403, noSeat.text);
+  assert.equal(noSeat.data.code, 'work_seat_required');
+
+  await request('POST', '/__test/directory/sync-member', {
+    body: { subject_id: 'user10', role: 'viewer', work_seat: true, status: 'active', revision: 1 },
+  });
+  await request('POST', '/__test/subject', { body: { subject_id: 'user10' } });
+  const viewer = await request('POST', '/work/v1/inputs', {
+    body: { client_request_id: 'req-input-viewer', goal: '写一份方案', background: '', media_type: 'text/markdown' },
+  });
+  assert.equal(viewer.data.code, 'work_seat_required');
+
+  await request('POST', '/__test/subject', { body: { subject_id: 'user1' } });
+  const paused = await request('POST', '/__test/directory/sync-org', {
+    body: { name: '试点组织', status: 'active', execution_enabled: false, revision: 1 },
+  });
+  assert.equal(paused.response.status, 200, paused.text);
+  const orgBlocked = await request('POST', '/work/v1/inputs', {
+    body: { client_request_id: 'req-input-paused', goal: '写一份方案', background: '', media_type: 'text/markdown' },
+  });
+  assert.equal(orgBlocked.response.status, 403, orgBlocked.text);
+  assert.equal(orgBlocked.data.code, 'org_execution_unavailable');
+});
+
+test('audit export is asynchronous and its download token is one-time', async () => {
+  const { taskId } = await createTask();
+  assert.ok(taskId);
+  // 先跑完再删除：删除会写审计行，导出必须读得到它（只有元数据，不含正文）。
+  await request('POST', `/__test/tasks/${taskId}/complete`, { body: {} });
+  const detail = await request('GET', `/work/v1/tasks/${taskId}`);
+  const removed = await request('DELETE',
+    `/work/v1/tasks/${taskId}?expected_revision=${detail.data.summary.revision}`);
+  assert.equal(removed.response.status, 200, removed.text);
+  const rangeTo = new Date().toISOString();
+  const rangeFrom = new Date(Date.now() - 30 * 86_400_000).toISOString();
+
+  const created = await request('POST', '/work/v1/admin/audit-exports', {
+    body: { client_request_id: 'req-audit-5001', range_from: rangeFrom, range_to: rangeTo, format: 'csv' },
+  });
+  assert.equal(created.response.status, 202, created.text);
+  assert.equal(created.data.status, 'queued');
+  assert.equal(created.data.download_available, false);
+  assert.equal(created.data.row_count, null);
+  assert.deepEqual(Object.keys(created.data).sort(), [
+    'bytes', 'download_available', 'downloaded_at', 'error_code', 'expires_at', 'format', 'id',
+    'range_from', 'range_to', 'ready_at', 'requested_at', 'requested_by', 'row_count', 'status',
+  ]);
+
+  const replay = await request('POST', '/work/v1/admin/audit-exports', {
+    body: { client_request_id: 'req-audit-5001', range_from: rangeFrom, range_to: rangeTo, format: 'csv' },
+  });
+  assert.equal(replay.response.status, 202);
+  assert.equal(replay.data.id, created.data.id);
+  const conflict = await request('POST', '/work/v1/admin/audit-exports', {
+    body: { client_request_id: 'req-audit-5001', range_from: rangeFrom, range_to: rangeTo, format: 'json' },
+  });
+  assert.equal(conflict.response.status, 409, conflict.text);
+  assert.equal(conflict.data.code, 'idempotency_key_conflict');
+
+  for (const bad of [
+    { range_from: rangeTo, range_to: rangeFrom },
+    { range_from: new Date(Date.now() - 500 * 86_400_000).toISOString(), range_to: rangeFrom },
+    { range_from: rangeFrom, range_to: new Date(Date.now() + 86_400_000).toISOString() },
+  ]) {
+    const invalid = await request('POST', '/work/v1/admin/audit-exports', {
+      body: { client_request_id: 'req-audit-range', ...bad, format: 'csv' },
+    });
+    assert.equal(invalid.response.status, 422, invalid.text);
+    assert.equal(invalid.data.code, 'audit_export_range_invalid');
+  }
+
+  const pending = await request('GET', `/work/v1/admin/audit-exports/${created.data.id}`);
+  assert.equal(pending.data.status, 'queued');
+  const earlyTicket = await request('POST',
+    `/work/v1/admin/audit-exports/${created.data.id}/download-ticket`, { body: {} });
+  assert.equal(earlyTicket.response.status, 409, earlyTicket.text);
+  assert.equal(earlyTicket.data.code, 'audit_export_not_ready');
+
+  const run = await request('POST', '/__test/export-worker/run', { body: {} });
+  assert.equal(run.response.status, 200, run.text);
+  const ready = await request('GET', `/work/v1/admin/audit-exports/${created.data.id}`);
+  assert.equal(ready.data.status, 'ready');
+  assert.equal(ready.data.download_available, true);
+  assert.ok(ready.data.row_count >= 1);
+  assert.ok(!('content_ref' in ready.data));
+
+  const ticket = await request('POST',
+    `/work/v1/admin/audit-exports/${created.data.id}/download-ticket`, { body: { ttl_seconds: 300 } });
+  assert.equal(ticket.response.status, 200, ticket.text);
+  assert.match(ticket.data.token, /^[0-9a-f]{48}$/);
+  const content = await request('GET', `/work/v1/admin/audit-exports/${created.data.id}/content`, {
+    headers: { 'X-Download-Token': ticket.data.token },
+  });
+  assert.equal(content.response.status, 200, content.text);
+  assert.equal(content.response.headers.get('content-type'), 'text/csv; charset=utf-8');
+  assert.equal(content.response.headers.get('cache-control'), 'no-store');
+  assert.match(content.data, /^action,actor_subject_id,target_type,target_id,created_at/);
+  assert.ok(!content.data.includes('写一份会员改版方案初稿'));
+
+  const reuse = await request('GET', `/work/v1/admin/audit-exports/${created.data.id}/content`, {
+    headers: { 'X-Download-Token': ticket.data.token },
+  });
+  assert.equal(reuse.response.status, 403, reuse.text);
+  assert.equal(reuse.data.code, 'download_token_invalid');
+  const noToken = await request('GET', `/work/v1/admin/audit-exports/${created.data.id}/content`);
+  assert.equal(noToken.response.status, 403);
+  assert.equal(noToken.data.code, 'download_token_invalid');
+  const reissue = await request('POST',
+    `/work/v1/admin/audit-exports/${created.data.id}/download-ticket`, { body: {} });
+  assert.equal(reissue.response.status, 409, reissue.text);
+  assert.equal(reissue.data.code, 'audit_export_already_downloaded');
+  const afterDownload = await request('GET', `/work/v1/admin/audit-exports/${created.data.id}`);
+  assert.equal(afterDownload.data.download_available, false);
+  assert.ok(afterDownload.data.downloaded_at);
+});
+
+test('audit export failure, expired content and expired ticket are distinguishable', async () => {
+  const rangeTo = new Date().toISOString();
+  const rangeFrom = new Date(Date.now() - 10 * 86_400_000).toISOString();
+
+  const failed = await request('POST', '/work/v1/admin/audit-exports', {
+    body: { client_request_id: 'req-audit-fail', range_from: rangeFrom, range_to: rangeTo, format: 'json' },
+  });
+  const failRun = await request('POST', '/__test/export-worker/run', {
+    body: { fail_with: 'content_store_unavailable' },
+  });
+  assert.equal(failRun.response.status, 200, failRun.text);
+  const failedJob = await request('GET', `/work/v1/admin/audit-exports/${failed.data.id}`);
+  assert.equal(failedJob.data.status, 'failed');
+  assert.equal(failedJob.data.error_code, 'content_store_unavailable');
+  const stillFailed = await request('GET', `/work/v1/admin/audit-exports/${failed.data.id}`);
+  assert.equal(stillFailed.data.status, 'failed');
+
+  const expiring = await request('POST', '/work/v1/admin/audit-exports', {
+    body: { client_request_id: 'req-audit-expire', range_from: rangeFrom, range_to: rangeTo, format: 'csv' },
+  });
+  await request('POST', '/__test/export-worker/run', { body: { ttl_seconds: 300 } });
+  const expired = await request('POST', `/__test/export/${expiring.data.id}/expire`, { body: {} });
+  assert.equal(expired.response.status, 200, expired.text);
+  assert.equal(expired.data.status, 'expired');
+  assert.equal(expired.data.download_available, false);
+  const ticketAfterExpiry = await request('POST',
+    `/work/v1/admin/audit-exports/${expiring.data.id}/download-ticket`, { body: {} });
+  assert.equal(ticketAfterExpiry.response.status, 410, ticketAfterExpiry.text);
+  assert.equal(ticketAfterExpiry.data.code, 'audit_export_expired');
+
+  const fresh = await request('POST', '/work/v1/admin/audit-exports', {
+    body: { client_request_id: 'req-audit-ticket-expire', range_from: rangeFrom, range_to: rangeTo, format: 'csv' },
+  });
+  await request('POST', '/__test/export-worker/run', { body: {} });
+  const ticket = await request('POST',
+    `/work/v1/admin/audit-exports/${fresh.data.id}/download-ticket`, { body: { ttl_seconds: 60 } });
+  assert.equal(ticket.response.status, 200, ticket.text);
+  await request('POST', `/__test/export/${fresh.data.id}/expire-ticket`, { body: {} });
+  const late = await request('GET', `/work/v1/admin/audit-exports/${fresh.data.id}/content`, {
+    headers: { 'X-Download-Token': ticket.data.token },
+  });
+  assert.equal(late.response.status, 410, late.text);
+  assert.equal(late.data.code, 'download_token_expired');
+
+  const missing = await request('GET', '/work/v1/admin/audit-exports/00000000-0000-4000-8000-000000000000');
+  assert.equal(missing.response.status, 404);
+  assert.equal(missing.data.code, 'audit_export_not_found');
 });

@@ -1,7 +1,7 @@
 {
   "version": "r0a-telemetry-v1",
   "scope": "R0a 3-org pilot",
-  "note": "Rules-as-code for the internal pilot SLOs. Not a claim that telemetry is scraped or that targets are met.",
+  "note": "Rules-as-code for the internal pilot SLOs. Not a claim that telemetry is scraped or that targets are met. 2026-10-26 增补：D3 §11 的六类非 Run 后台作业指标与告警（义务作业停不停、投影滞后、导出积压/失败/凭证异常、粉碎积压）。",
   "labels_allowlist": [
     "org_id",
     "task_id",
@@ -179,6 +179,60 @@
         "org_id",
         "provider",
         "outcome"
+      ]
+    },
+    "work_background_job_runs_total": {
+      "type": "counter",
+      "labels": [
+        "kind",
+        "outcome",
+        "org_id"
+      ]
+    },
+    "work_background_job_last_success_seconds": {
+      "type": "gauge",
+      "labels": [
+        "kind",
+        "org_id"
+      ]
+    },
+    "work_background_job_lease_takeovers_total": {
+      "type": "counter",
+      "labels": [
+        "kind",
+        "org_id"
+      ]
+    },
+    "work_directory_projection_lag_seconds": {
+      "type": "gauge",
+      "labels": [
+        "org_id"
+      ]
+    },
+    "work_audit_export_backlog": {
+      "type": "gauge",
+      "labels": [
+        "org_id"
+      ]
+    },
+    "work_audit_export_duration_seconds_bucket": {
+      "type": "histogram",
+      "labels": [
+        "org_id",
+        "le"
+      ]
+    },
+    "work_audit_export_downloads_total": {
+      "type": "counter",
+      "labels": [
+        "outcome",
+        "org_id"
+      ]
+    },
+    "work_content_shred_backlog": {
+      "type": "gauge",
+      "labels": [
+        "org_id"
       ]
     }
   },
@@ -581,6 +635,78 @@
       "slo_alert": false,
       "summary": "供应商 usage 与网关计数不一致占比超过 5%",
       "runbook": "work-r0a-pilot-operations-runbook-2026-10-26.md#7-usage-与账单对账"
+    },
+    {
+      "name": "WorkBackgroundJobStale",
+      "expr": "(time() - min by (kind) (work_background_job_last_success_seconds)) > 900",
+      "for": "15m",
+      "severity": "page",
+      "slo_alert": false,
+      "summary": "某类后台作业 15 分钟没有成功记录（relay/shredder/投影/清扫属义务作业，必须查）",
+      "runbook": "work-operations-runbook-2026-10-25.md#51-后台作业故障处置"
+    },
+    {
+      "name": "WorkDirectoryProjectionStale",
+      "expr": "max by (org_id) (work_directory_projection_lag_seconds) > 900",
+      "for": "10m",
+      "severity": "page",
+      "slo_alert": false,
+      "summary": "组织目录投影滞后超过 15 分钟，撤权新鲜度不足；管理页应显示陈旧",
+      "runbook": "work-operations-runbook-2026-10-25.md#51-后台作业故障处置"
+    },
+    {
+      "name": "WorkAuditExportBacklog",
+      "expr": "sum by (org_id) (work_audit_export_backlog) > 20",
+      "for": "15m",
+      "severity": "ticket",
+      "slo_alert": false,
+      "summary": "审计导出作业积压超 20（管理员拿不到审计文件）",
+      "runbook": "work-operations-runbook-2026-10-25.md#51-后台作业故障处置"
+    },
+    {
+      "name": "WorkAuditExportFailureRatio",
+      "expr": "(sum by (org_id) (rate(work_background_job_runs_total{kind=\"audit_export_worker\",outcome=\"failed\"}[30m]))) / clamp_min(sum by (org_id) (rate(work_background_job_runs_total{kind=\"audit_export_worker\"}[30m])), 1e-9) > 0.05",
+      "for": "30m",
+      "severity": "ticket",
+      "slo_alert": false,
+      "summary": "审计导出失败率超 5%（看 error_code 与 Content Store 健康）",
+      "runbook": "work-operations-runbook-2026-10-25.md#51-后台作业故障处置"
+    },
+    {
+      "name": "WorkAuditExportTokenFailureBurst",
+      "expr": "sum by (org_id) (rate(work_audit_export_downloads_total{outcome=\"denied\"}[5m])) > 0.2",
+      "for": "5m",
+      "severity": "ticket",
+      "slo_alert": false,
+      "summary": "一次性下载凭证校验失败突增（可能凭证泄露后被反复尝试）",
+      "runbook": "work-operations-runbook-2026-10-25.md#51-后台作业故障处置"
+    },
+    {
+      "name": "WorkContentShredBacklog",
+      "expr": "sum by (org_id) (work_content_shred_backlog) > 100",
+      "for": "30m",
+      "severity": "page",
+      "slo_alert": false,
+      "summary": "正文粉碎请求积压超 100（留存义务未完成，优先于功能问题）",
+      "runbook": "work-operations-runbook-2026-10-25.md#51-后台作业故障处置"
+    },
+    {
+      "name": "WorkBackgroundJobLeaseTakeovers",
+      "expr": "sum by (kind) (rate(work_background_job_lease_takeovers_total[15m])) > 0.1",
+      "for": "15m",
+      "severity": "ticket",
+      "slo_alert": false,
+      "summary": "某类作业频繁发生租约接管（worker 崩溃、时钟偏差或外部调用卡住）",
+      "runbook": "work-operations-runbook-2026-10-25.md#51-后台作业故障处置"
+    },
+    {
+      "name": "WorkAuditExportSlow",
+      "expr": "histogram_quantile(0.95, sum by (le) (rate(work_audit_export_duration_seconds_bucket[30m]))) > 600",
+      "for": "30m",
+      "severity": "ticket",
+      "slo_alert": false,
+      "summary": "审计导出 P95 超 10 分钟（先查 Content Store 与作业积压）",
+      "runbook": "work-operations-runbook-2026-10-25.md#51-后台作业故障处置"
     }
   ]
 }

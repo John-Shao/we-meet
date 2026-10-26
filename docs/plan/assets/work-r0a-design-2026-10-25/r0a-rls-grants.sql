@@ -16,7 +16,7 @@ BEGIN
     'task', 'run', 'operation', 'approval', 'approval_operation',
     'submission_dedup', 'budget_account', 'budget_reservation',
     'artifact', 'artifact_version', 'upload_session', 'acceptance',
-    'outbox'
+    'outbox', 'audit_export'
   ]::text[]
   LOOP
     EXECUTE format('ALTER TABLE work.%I ENABLE ROW LEVEL SECURITY', table_name);
@@ -76,10 +76,12 @@ $$;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA work FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA work FROM PUBLIC;
 
-GRANT USAGE ON SCHEMA work TO work_api, work_worker, work_ledger, work_ops;
+GRANT USAGE ON SCHEMA work TO work_api, work_worker, work_ledger, work_ops, work_directory;
 GRANT SELECT ON ALL TABLES IN SCHEMA work TO work_api, work_worker;
 -- API 不读 outbox/幂等表（避免跨用户请求元数据可见）；relay 走 claim_outbox。
-REVOKE SELECT ON work.outbox, work.submission_dedup FROM work_api;
+-- 审计导出作业元数据（内容引用、行数、下载状态）只对管理员函数可见，走领域函数。
+REVOKE SELECT ON work.outbox, work.submission_dedup, work.audit_export FROM work_api;
+REVOKE SELECT ON work.audit_export FROM work_worker;
 GRANT SELECT ON work.task_summary TO work_api, work_worker;
 
 -- 账本/审计角色只读：所有账本写入必须经领域函数（reserve/settle/adjust/release），不允许直接 INSERT。
@@ -120,3 +122,23 @@ GRANT EXECUTE ON FUNCTION work.wait_run(text, uuid, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.resume_run(text, uuid) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.mark_operation_unknown(text, uuid, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.reconcile_operation(text, uuid, text, text, bigint, text, text) TO work_worker;
+
+-- Host 目录投影（ADR-0021）：只有 work_directory 服务身份能写 org/member 投影，
+-- 且必须经 sync_* 领域命令；应用与 worker 角色没有直接 DML，也不能调用这两个函数。
+GRANT EXECUTE ON FUNCTION work.sync_org_projection(text, text, text, boolean, text, bigint) TO work_directory;
+GRANT EXECUTE ON FUNCTION work.sync_member_projection(text, text, text, text, boolean, bigint) TO work_directory;
+
+-- 管理只读（U2 方案 B）：role/revision/席位/cents 预算与审计导出作业由 R0a 领域函数给出。
+GRANT EXECUTE ON FUNCTION work.admin_overview(text, text, text, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.list_seats(text, text, text, int) TO work_api;
+GRANT EXECUTE ON FUNCTION work.create_audit_export(text, text, text, timestamptz, timestamptz, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.get_audit_export(text, text, uuid) TO work_api;
+GRANT EXECUTE ON FUNCTION work.issue_audit_export_download(text, text, uuid, text, int) TO work_api;
+GRANT EXECUTE ON FUNCTION work.redeem_audit_export_download(text, text, text) TO work_api;
+-- 导出 worker：只领取与收尾作业，正文进 Content Store，库内只留引用与哈希。
+GRANT EXECUTE ON FUNCTION work.claim_audit_export(uuid, text, int) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.complete_audit_export(uuid, text, text, text, bigint, bigint, int) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.fail_audit_export(uuid, text, text) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.expire_due_audit_exports(timestamptz) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.expire_due_inputs(timestamptz) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.shred_due_audit_exports(timestamptz) TO work_worker;

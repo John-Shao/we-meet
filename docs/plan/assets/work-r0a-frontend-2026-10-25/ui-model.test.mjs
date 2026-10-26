@@ -15,6 +15,10 @@ import {
   inboxTypeFor,
   routeForTask,
   routeForArtifact,
+  adminCopyKeys,
+  exportStateLabel,
+  EXPORT_STATES,
+  ADMIN_ERROR_CODES,
   itemsRoute,
   legacyRedirect,
   permissionKey,
@@ -181,4 +185,19 @@ test('delete is only offered for quiescent tasks and always confirms; rename is 
     assert.ok(copy[`work.r0a.error.${code}`], code);
   }
   assert.ok(!/恢复|撤回/.test(copy['work.r0a.confirm.delete.body']));
+});
+
+test('admin read-only view labels every export state and every admin error code', () => {
+  const { copy: adminCopy } = loadUiAssets();
+  for (const key of adminCopyKeys()) {
+    assert.ok(adminCopy[key], key);
+  }
+  assert.deepEqual(EXPORT_STATES.slice(), ['queued', 'running', 'ready', 'expired', 'failed']);
+  assert.equal(exportStateLabel('ready'), 'work.r0a.admin.exportState.ready');
+  assert.equal(ADMIN_ERROR_CODES.length, 8);
+  assert.throws(() => exportStateLabel('done'), (error) => error.code === 'invalid_export_state');
+  // 一次性下载与只读口径必须在文案里说清楚，不能给用户“可以随时重新下载”的错觉。
+  assert.match(adminCopy['work.r0a.admin.exportState.ready'], /一次/);
+  assert.match(adminCopy['work.r0a.admin.readonly'], /只读/);
+  assert.match(adminCopy['work.r0a.error.audit_export_already_downloaded'], /重新发起/);
 });
