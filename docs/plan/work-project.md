@@ -174,7 +174,7 @@
 
 | 步骤 | 范围 | 覆盖模块 | 产物/证据 | 依赖/闸门 |
 |---|---|---|---|---|
-| E1 数据层 | D1 schema/函数/RLS/outbox + `work.audit_export`/`work_directory` 纳入迁移体系 | Task/Run、Artifact、Budget、Audit、Access | PG16 114/114 + 竞态 7/7；迁移 CI（待远端运行） | DR1、D-04 |
+| E1 数据层 | D1 schema/函数/RLS/outbox + `work.audit_export`/`work_directory` 纳入迁移体系 | Task/Run、Artifact、Budget、Audit、Access | PG16 114/114 + 竞态 7/7；R0a 门禁已在 PR #7 首次远端跑绿（6/6），迁移体系尚未接入仓库 CI | DR1、D-04 |
 | E2 API | 25 operation、cookie+CSRF、错误码、幂等、正文下载、管理只读 6 接口、目录投影同步作业 | 首页/Composer、我的工作、任务/成果、Inbox、管理 | 31/31；`ci-contract` | E1、DR1、U2 |
 | E3 SSE/outbox | Last-Event-ID/409 resync、跨组织 relay、生命周期事件 | 任务工作区、Inbox、审计 | Temporal 切片 relay 部分；生产 SSE 未接 | E1、E2 |
 | E4 编排 | Temporal、取消四时点、unknown/reconcile、worker versioning | 任务/运行、预算（审批函数内部保留） | 故障 10/10、S1 4/4 | DR2、U3、C22 |
@@ -239,6 +239,8 @@
 
 | 提交 | 内容 |
 |---|---|
+| `38b7d7fcd` | 🐛 CI：`orchestration-contract` 缺 PyYAML 导致首跑失败，补安装步骤——PR #7 的 R0a 六个 job 随后 6/6 通过 |
+| `9beb45e08` | 状态表补记已推送范围 |
 | `573d0f805` | 本页 §4.3 补 `616f26bba` 一行 |
 | `542d78d8a` | blocking 清单拆分闸门：每项加 `gate`（start/pilot/scale），ops-model 输出 `canStartWork` 与三组计数并新增 2 组测试（28/28）；清单里 9 处过期证据计数刷新；就绪包新增 §6.3、本页 §5.2 按闸门重排 |
 | `616f26bba` | 证据收口 + 三张外部决策/执行单：目录投影单调性改由 upsert 谓词保证（竞态实测出的丢更新已修，冒烟 113→114 加单调性哨兵）、7 组多连接并发竞态（门禁 7/7）入 CI db-smoke、promtool 校验 48 条规则与 14 条告警单测入 ops-telemetry、D3-N 逐例标注 `measured`、S17/S18 与 D1 §6.1/D3 §15.2 同步；U3 定 A（自托管，待平台确认 9 项承诺）、C15 定三家下限（阿里云/DeepSeek/火山引擎）、U1 招募单（判定集改 UT1–UT5、名额 7–8 且管理员 ≥3） |
@@ -281,7 +283,7 @@
 | start | 评审/研究 | C01–C05、C25 设计伙伴 | DR1–DR3 无法签收；研究影响 DR3 |
 | start | 安全/商务 | C11 威胁模型、C15 供应商条款（三家为下限）、C14 沙箱证明或签署降级 | 三者缺任一项即不能进 DR4 |
 | pilot | 环境 | C22 Temporal 多节点、C09/C13 Content Store/云 KMS | E4/E5 无法上试点环境 |
-| pilot | 实施 | C07 远端 CI（6 个 job 已定义，未跑）、C31 管理读（Work 侧已落地，缺 Host 字段与联调）、C10 React/E2E、C16/C17 遥测（含后台作业 8 条新告警未接） | 产品实现与运维证据 |
+| pilot | 实施 | C07 远端 CI（R0a 六个 job 已在 PR #7 跑绿；仍缺主干/迁移体系接入与生成客户端接真实前端）、C31 管理读（Work 侧已落地，缺 Host 字段与联调）、C10 React/E2E、C16/C17 遥测（含后台作业 8 条新告警未接） | 产品实现与运维证据 |
 | pilot | 试点 | C24 三家组织、C26 黄金任务、C27/C30 支持/删除、C28/C29 切换/旧数据 | 试点 go/no-go |
 
 `start` 的 9 项要 DR4（12-04）前关闭才能开工；`pilot` 的 14 项只能由实施与试点环境产生证据，**不可能在开工前关闭**，所以试点 `go` 的最早窗口仍是 2027-02-26～04-02。完整清单、负责人与日期见[就绪包 §6.2/§6.3](work-r0a-implementation-readiness-2026-10-26.md)。
@@ -291,7 +293,7 @@
 - 所有测试是**设计/参考证据**：mock、faux model、一次性 PG、Temporal dev；不是生产证明。
 - 未接真实供应商（仅一次 Qwen smoke）、真实 Content Store、真实云 KMS、真实 SSO/P1-A 身份字段。
 - 沙箱是 runc 降级 profile，不是 gVisor；本地 KMS 是 envelope 参考实现。
-- 远端 CI 从未运行；切片需要 Docker/Temporal dev；S1-R06 与 C19 在修订后未复跑。
+- R0a 门禁已在 PR #7 首次远端运行并通过，但那只覆盖设计资产；仓库全量流水线与真实实现的 CI 结果仍未确认；切片需要 Docker/Temporal dev；S1-R06 与 C19 在修订后未复跑。
 - 云/本机/连接器纵切的 10/10、8/8、7/7 是历史记录，本轮未复跑。
 
 ### 5.4 主要风险

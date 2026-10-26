@@ -1,6 +1,6 @@
 # Work R0a API、事件与协议详细设计（D2）
 
-> 状态：D2 详细设计草案；R0a OpenAPI 子集、生成类型、运行时客户端、管理读适配、mock server 与 31 组测试已完成；远端 CI 未运行，未做真实鉴权/持久化/供应商回归。
+> 状态：D2 详细设计草案；R0a OpenAPI 子集、生成类型、运行时客户端、管理读适配、mock server 与 31 组测试已完成；R0a 门禁已在 PR #7（`refactor/work-module` → `aliyun-dev`，commit `38b7d7fcd`）首次远端运行 **6/6 job 通过**（Work R0a gates，31s）；首跑曾败于 `orchestration-contract` 缺 PyYAML，已在同一 PR 修复。仓库全量流水线（meet Workflow / Release guard）仍在跑；未做真实鉴权/持久化/供应商回归。
 >
 > 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界）
 >
@@ -170,7 +170,7 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 - 2026-10-26 增量三（U2 方案 B + ADR-0021 落地）：OpenAPI 增加 `createAuditExportTicket`/`getAuditExportContent` 与一次性凭证头参数，重写 `AuditExport`（去 `download_url`，加 `format/range_*/row_count/bytes/error_code/download_available/downloaded_at`）与 `AdminOverview`（加 `budget_period_id`/`org_revision`，`name` 可为 null），席位请求改用 `range_from`/`range_to`；**22 path / 25 operation / 51 schema / 67 唯一 `$ref`（212 处）**；类型与客户端重新生成、`tsc` 通过；合同测试 7→**10**、客户端 **12/12**、新增 Host 端口 **9/9**，设计包 **31/31**；错误码目录升 `r0a-errors-v3`（49 公开 / 101 SQL）；D1 冒烟 82→**106/106**（同批后续清扫作业再到 113/113，见 §5 增量四）；退役方案 A 的 `admin-read-adapter.mjs` 与其 12 组测试（决策已定为 B，缺字段证明保留在管理只读映射文档的表格里）。
 - 2026-10-26 增量四（留存作业，无契约变更）：`POST /inputs` 的"未绑定输入 24 小时过期"从策略变成机制——D1 `create_input` 写入 `expires_at`（TTL 由 `work.input_ttl_hours` 配置，默认 24h），`work.expire_due_inputs` 逐组织清扫并只在引用不被共享时投递 `content_shred`；已到期输入继续走既有 422 `input_not_found` + `re_preview`，OpenAPI/错误码目录不变；D1 冒烟 106→**113/113**。
 - 2026-10-26 增量五（并发证据，无契约变更）：新增多连接竞态脚本，把管理读、目录投影、导出作业生命周期与留存清扫从"单事务断言"推进到"两个连接同时动手"的实测——10 路领取 1 胜、租约接管拒旧持有者、5 路兑换一次性凭证 1 成功、3 路清扫对 2 个共享引用恰好各投递一次粉碎、6 路提交在撤权事务提交前全部穿透（撤权只约束其后事务，D-07 的量化依据）。竞态测出并修复了数据层的投影丢更新；**公开错误码集合不变**（`projection_revision_stale` 仍是 worker-only，映射 `service_degraded`），D1 冒烟 113→**114/114**（新增投影单调性写入谓词哨兵），race 门禁 **7/7**。数字与边界见 [D1 §6.1](work-r0a-data-design-2026-10-25.md)、[D3 §15.2](work-r0a-orchestration-design-2026-10-25.md)。
-- `.github/workflows/work-r0a-gates.yml` 已定义 contract（含 schema 再生成无漂移）、db-smoke（PG16 schema + 冒烟 + 7 组多连接竞态）、ops-telemetry（规则再生成 + 模型测试 + promtool 校验/单测）、runtime-frontend、log-scan 六个 job；**未在远端运行**。
+- `.github/workflows/work-r0a-gates.yml` 已定义 contract（含 schema 再生成无漂移）、db-smoke（PG16 schema + 冒烟 + 7 组多连接竞态）、ops-telemetry（规则再生成 + 模型测试 + promtool 校验/单测）、runtime-frontend、log-scan 六个 job；**已在远端运行**——PR #7（`refactor/work-module` → `aliyun-dev`，commit `38b7d7fcd`）首次跑 Work R0a gates，6/6 通过（31s）；首跑曾败于 `orchestration-contract` 缺 PyYAML，已在同一 PR 修复。仓库全量流水线（meet Workflow / Release guard）仍在跑。
 - 未执行：真实 cookie 签发/轮换、P1-A 集成、真实 Content Store、SSE 网关/背压/多连接、Temporal、真实模型/供应商、速率限制、CORS、桌面/移动、性能与模糊测试、生成客户端接真实前端。
 
 ### 5.1 复现
@@ -196,7 +196,7 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 5. ~~标题编辑~~：已补 `PATCH /tasks/{id}`（§2.3）。
 6. ~~成果导出/下载~~：已补 `disposition=attachment` + 审计（§2.4）；分享链接与格式转换明确不在 R0a。
 7. **SSE 工程化**：mock 在事件后结束；生产需心跳、背压、断线、Last-Event-ID 保留窗口与多实例。
-8. **生成 SDK/CI**：运行时客户端、漂移门禁和仓库 workflow 已定义；workflow 未在远端运行，客户端未接入真实前端，mock 未由契约生成。
+8. **生成 SDK/CI**：运行时客户端、漂移门禁和仓库 workflow 已定义并在 PR #7 首次跑绿；客户端仍未接入真实前端，mock 未由契约生成。
 9. ~~Admin 导出下载~~：改为一次性凭证 + `X-Download-Token`（不进 URL），作业生命周期与租约由 D1 `work.audit_export` 承载；真实 Content Store 写入与导出 worker 的多副本竞争仍待实现验证。
 10. ~~错误码稳定性~~：`error-codes.json` 冻结并进入 CI（§2.7）；网关/Temporal 侧错误到公开码的映射随 D3/D4 实现补测。
 11. **内容大小**：256 KiB 是 R0a 文本上限，需与 D4/D5 的编辑器、SSE 和 Content Store 限制对齐。

@@ -93,7 +93,7 @@ python r0a-concurrency-smoke.py        # 默认 127.0.0.1:55433，可用 R0A_DAT
 - D2：OpenAPI 3.1 校验通过（22 path/25 operation/51 schema/67 唯一本地 `$ref`）；生成类型 `tsc --noEmit` 通过；合同测试 10/10、生成客户端 12/12、Host 端口 9/9 通过。
 - D2：`scripts/ci-contract.mjs` 通过：操作清单与 R0a 冻结集一致、212 处本地 `$ref`（67 个唯一目标）可解析、管理读路径 6/6、导出兑换必须带 `X-Download-Token` 且不存在 `download_url` 字段、生成客户端无漂移、类型包含全部 operation/引用的 schema、错误码目录与 mock（44 码）及 `r0a-schema-draft.sql`（101 码）双向一致、无自由文本 RAISE、`retryable` 仅 5xx/429；31/31 测试通过。
 - D2/ADR-0021：`host-ports.mjs` + `we-meet-host-adapter.mjs` + `stub-host.mjs` 证明边界可执行：缺 `subject_id`/`work_seat` 时报 gap（不猜映射、不把 token 配额当席位或 cents），同一套端口在 stub host 上产出同形状投影；静态检查要求 Work 运行面文件不 import 适配器、不出现他系统 schema 名，且适配器不写 SQL。
-- CI：`.github/workflows/work-r0a-gates.yml` 已定义 contract（含 schema 再生成无漂移）、db-smoke（PG16 schema + 114 项冒烟 + 7 组竞态）、ops-telemetry（规则再生成 + 模型测试 + promtool 校验/单测）、runtime-frontend、log-scan 六个 job；**尚未在远端运行**。
+- CI：`.github/workflows/work-r0a-gates.yml` 已定义 contract（含 schema 再生成无漂移）、db-smoke（PG16 schema + 114 项冒烟 + 7 组竞态）、ops-telemetry（规则再生成 + 模型测试 + promtool 校验/单测）、runtime-frontend、log-scan 六个 job；**已在远端运行**——PR #7（commit `38b7d7fcd`）首次跑 6/6 通过（31s）；首跑曾败于 `orchestration-contract` 缺 PyYAML，已在同一 PR 修复。仓库全量流水线（meet Workflow / Release guard）仍在跑。
 
 ## 未验证
 
