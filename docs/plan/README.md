@@ -1,48 +1,23 @@
 # 方案与执行记录目录
 
-整理日期：2026-09-22；Agent 架构导航更新：2026-10-08；Work 授权 / 任务关系 / 执行模型决策索引：2026-10-24；日常办公能力删除：2026-10-25；Work 产品重做方案：2026-10-25；Work R0 UX 设计：2026-10-25；Work 扩展 UX 设计：2026-10-25；Work 目标系统架构：2026-10-25；Work R0a 详细设计：2026-10-25；Work API/内部契约：2026-10-25；Work 云端任务纵切：2026-10-25；Work 本机断线纵切：2026-10-25；Work 连接器撤销纵切：2026-10-25；Work 威胁模型/运维证据：2026-10-25；Work R0a 数据设计：2026-10-25；Work R0a API 设计：2026-10-25；Work R0a 编排设计：2026-10-25；Work R0a Runtime/出口设计：2026-10-25；Work R0a 前端设计：2026-10-25；Work R0a 安全/运维/试点设计：2026-10-25；Work R0a 管理只读映射：2026-10-25；Work R0a 沙箱/KMS/供应商证据：2026-10-25；Work R0a Temporal 纵切：2026-10-25；Work R0a 生成客户端/管理适配/遥测/日志门禁：2026-10-26。
+整理日期：2026-09-22；最近更新：2026-10-26（Work 文档收敛到项目文档）。
 
 按主题查阅方案、实施契约、部署说明和历史执行记录。文档中的日期、代码版本、测试结果与部署状态保持原有语义；整理目录不代表重新测试或更新线上状态。
 
-推荐阅读顺序：产品方案 → 系统架构 → R0a 详细设计 → 实施计划 / 契约 → 技术评审 → 部署交接及后续修复；需要追查具体变更时，再进入批次归档。
+阅读顺序：**Work 先读[项目文档](work-project.md)**（资产索引、进展、问题、闸门）；其余文档按产品/模块方案、实施契约、技术评审、部署交接与批次归档查阅。
+
+## Work 模块
+
+> Work 的资产索引、阶段进展、测试数字、U1–U4、blocking 与闸门只在[项目文档](work-project.md)维护；本节不再逐篇罗列，也不复制状态/计数。
+
+| 文档 | 用途 |
+|---|---|
+| [work-project.md](work-project.md) | **Work 项目文档（活文档）**：全部 Work 文档/资产/ADR/调研索引、功能模块与落地计划、进展与证据、当前问题、DR0–DR4 闸门、验证命令与维护规则 |
 
 ## 产品与模块方案
 
 | 文档 | 用途 |
 |---|---|
-| [work-product-design-2026-10-25.md](work-product-design-2026-10-25.md) | **WeMeet 工作 clean-slate 产品设计方案**：定位与品牌、用户场景、产品架构、IA、Composer、任务工作区、成果与验收、套件/技能/连接器/项目、权限治理、指标与 R0a–R5c 路线图；R0 拆为 R0a/R0b，R4 拆为 R4a/R4b，R5 拆为协作/自动化/生态；不继承现有 Work 页面与交互 |
-| [work-system-architecture-2026-10-25.md](work-system-architecture-2026-10-25.md) | **Work clean-slate 目标系统架构**：不以当前实现为约束；模块化控制平面、Temporal 持久编排、端云共用 Pi agent-core + Work Adapter 的 Harness 选型（含候选对比、11项强制准入与1项条件备选评估）、Rust端侧安全边界、Task/Run/Operation/Artifact、授权撤销、预算与恢复；v2.9 已落地任务静止、预算账目、active_run/latest_run 与审批模式修订，新增 §22.2-2 契约草案、三条参考纵切、R2b 后台可用性、R3 Step 契约、ADR-0008–0020、威胁模型与运行手册；Harness 准入实验已收口（H01–H10/H12，H01/H02/H06/H10 部分通过，H11 未触发）；H01 已在模拟干净环境完成安装/自签名/启动/卸载验证，H02 已用 qwen3.8-flash、deepseek-chat 与豆包 Responses 经本地网关部分验证，H03–H05、H07–H09、H12 已执行（mock），H10 已做包版本 1.3.0↔1.4.0 升级/回退（镜像回退未测），H06 已在 Windows AppContainer+Node permission model 下部分验证隔离；S1–S6 已执行首轮（S1/S3/S5 真实 PostgreSQL，S4 策略，S2 设备 mock，S6 仅烟雾），均为部分通过，不是现状说明 |
-| [work-r0a-detailed-design-plan-2026-10-25.md](work-r0a-detailed-design-plan-2026-10-25.md) | **Work R0a 详细设计大纲与决策单**：R0a 范围冻结、D1–D6 设计包（数据/权限、API/事件、编排、Runtime/出口、前端、安全运维迁移）、6 项 P0 决策、DR0–DR4 闸门、追踪矩阵与契约缺口（输入创建、模板、TaskSummary、标题、管理只读映射、SSE 鉴权）；待第 0 周签收，未进入编码 |
-| [work-r0a-data-design-2026-10-25.md](work-r0a-data-design-2026-10-25.md) | **Work R0a 数据、权限与迁移详细设计（D1）**：R0a 表裁剪、input_object/title、角色/RLS、SECURITY DEFINER 领域命令、task summary；可执行 schema 在 PostgreSQL 16 冒烟 82/82；草案，未应用生产 |
-| [work-r0a-api-design-2026-10-25.md](work-r0a-api-design-2026-10-25.md) | **Work R0a API、事件与协议详细设计（D2）**：OpenAPI 20 path/23 operation/50 schema、inputs/templates/TaskSummary/view/SSE、生成 TypeScript 类型与运行时客户端、严格管理读适配、mock server 与 31/31 测试、CI 漂移门禁；远端 CI 未跑，未做真实鉴权/持久化/P1-A 接入 |
-| [assets/work-r0a-design-2026-10-25](assets/work-r0a-design-2026-10-25/README.md) | **R0a 详细设计资产**：可执行 schema + 82 项冒烟、OpenAPI + 生成类型/客户端 + 管理适配、无依赖 mock server、CI 门禁与 31 组测试；一次性数据库/本地 mock，不接生产 |
-| [work-r0a-orchestration-design-2026-10-25.md](work-r0a-orchestration-design-2026-10-25.md) | **Work R0a 控制面与持久编排详细设计（D3）**：Temporal 拓扑、每 Run 工作流、Activity/信号/重试/超时、提交/派发/未知/对账、取消/重试/预算等待、outbox/SSE、开关/停用/升级、F01–F23 与 D3 专项故障矩阵；2026-10-26 修订：取消四时点、派发后失败一律 unknown、迟到用量计费、跨组织租约 relay；Temporal dev 参考纵切 F01/F02/F04/F07/F21/F23 + D3-R06–R09 10/10、S1 R01–R05 复跑通过（R06 未复跑）；多节点/在途 server 重启/正式 worker versioning/DR2 未做 |
-| [assets/work-r0a-orchestration-2026-10-25](assets/work-r0a-orchestration-2026-10-25/README.md) | **R0a 编排设计资产**：RunWorkflow/Activity TypeScript 契约与 12 项故障矩阵 YAML；仅类型/矩阵校验，不含 Temporal 运行时 |
-| [assets/work-temporal-slice-2026-10-25](assets/work-temporal-slice-2026-10-25/README.md) | **R0a Temporal 参考纵切**：D1 schema + RunWorkflow/activities + outbox relay + faux model；F01/F02/F04/F07/F21/F23 + D3-R06–R09 10/10、normal 1/1；Temporal dev；S1 4/4 + patched 升级 1/1（file-backed server 重启为修订前结果）；不接真实 provider/sandbox |
-| [work-r0a-runtime-egress-design-2026-10-25.md](work-r0a-runtime-egress-design-2026-10-25.md) | **Work R0a Runtime、Harness 与受控出口详细设计（D4）**：每 Run 沙箱、Pi/WorkAdapter、3 个工具白名单、gVisor profile、模型网关、来源标签/秘密检测、响应过滤、usage/价表、取消/unknown、供应商条款清单；设计草案，未接真实沙箱/网关 |
-| [assets/work-r0a-runtime-2026-10-25](assets/work-r0a-runtime-2026-10-25/README.md) | **R0a Runtime/出口设计资产**：WorkAdapter 类型契约、工具/沙箱/出口 JSON 策略、策略评估器与 10/10 测试、usage 对账与供应链准入 19/19；faux model，无真实网络/沙箱 |
-| [work-r0a-frontend-design-2026-10-25.md](work-r0a-frontend-design-2026-10-25.md) | **Work R0a 前端体验详细设计（D5）**：React 18/wouter/React Query/Semi UI 落点、路由/功能开关、四界面/历史/管理只读、12 状态矩阵、Composer 两阶段、SSE fetch 客户端、成果编辑/版本/采纳/导出、响应式/可访问性、埋点与测试；设计草案，未实现页面 |
-| [assets/work-r0a-frontend-2026-10-25](assets/work-r0a-frontend-2026-10-25/README.md) | **R0a 前端设计资产**：UI 状态契约、12 状态矩阵、路由/旧链接、中文文案、UI 模型与 13/13 测试（canceled/archived 为 R0b 预留）；不含 React 页面实现 |
-| [work-r0a-admin-readonly-mapping-2026-10-25.md](work-r0a-admin-readonly-mapping-2026-10-25.md) | **Work R0a 管理只读与 P1-A 映射**：现状 grants/summary/entitlement/access-audit；role/revision/预算 cents/异步导出不兼容；严格适配器 12/12 证明缺口，未接真实 P1-A，C31 保持 partial |
-| [work-r0a-security-ops-migration-design-2026-10-25.md](work-r0a-security-ops-migration-design-2026-10-25.md) | **Work R0a 安全、运维、迁移与试点详细设计（D6）**：S01–S16 控制映射、SLO/告警规则即代码、试点容量模型、升级/回滚/故障 Runbook、切换/旧数据处理、试点开通/支持/删除、演练与 go/no-go；当前 no-go（30 个 blocking 中 23 个未关闭）；已做 Temporal 10/10、S1 4/4 + 升级 1/1、RLS/10 并发/恢复、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、遥测 10/10、日志扫描 8/8；未接真实遥测、多节点/在途 server 重启、生产演练、真实 gVisor/云 KMS/条款 |
-| [work-r0a-pilot-operations-runbook-2026-10-26.md](work-r0a-pilot-operations-runbook-2026-10-26.md) | **Work R0a 试点运营 Runbook**：支持分级 S1–S4、用户删除/运维代删/组织退出、所有权转移、outbox 死信、usage/账单对账、旧数据留存、切换回滚、黄金任务与指标；联系人与法务签收待试点开通 |
-| [work-r0a-implementation-readiness-2026-10-26.md](work-r0a-implementation-readiness-2026-10-26.md) | **Work R0a 实施就绪包（W4/DR4）**：设计物清单、对照 §0 完成审计、E1–E8 工作分解与估算（24–32 人周）、L1–L8 测试矩阵、4 个设计未决项（可用性、管理页方案 A/B、Temporal 托管、§9.4 检查表）与 23 个未关闭 blocking 项的负责人与日期、从 DR4 起算的排期基线（关键路径 11–16 周，go/no-go 窗口 2027-02-26～04-02）、DR0–DR4 议程；**可评审草案**，撤回此前“设计层未关闭项为 0”，尚不可实施 |
-| [assets/work-r0a-ops-2026-10-25](assets/work-r0a-ops-2026-10-25/README.md) | **R0a 安全/运维/容量/试点资产**：控制/SLO/试点清单 JSON、遥测契约 + 生成的 Prometheus 规则（21 record/19 alert，10/10）、容量模型、黄金任务/试点指标/切换计划、ops 校验，共 24/24 测试；未接 scrape/告警投递、当前 no-go |
-| [assets/work-r0a-hardening-2026-10-25](assets/work-r0a-hardening-2026-10-25/README.md) | **R0a 沙箱/KMS/供应商/日志证据**：runc 降级沙箱（非 gVisor）、本地 envelope KMS 6/6、真实 Qwen smoke、无正文/密钥日志扫描 8/8（既有证据 0 fail）；不替代生产沙箱/云 KMS/供应商条款/OTel pipeline |
-| [assets/harness-lab](assets/harness-lab/README.md) | **Harness / 技术验证脚本副本**：H01–H12（H11 未触发）与 S1–S6 首轮脚本；不含依赖、运行产物与密钥；需 Node 24、Windows PowerShell、PostgreSQL 16；结果与边界以架构文档 §3.8/§21.2 为准 |
-| [work-data-model-ddl-draft-2026-10-25.md](work-data-model-ddl-draft-2026-10-25.md) | **Work 领域模型 DDL 草案（§22.2-1）**：schema `work`、复合 FK、RLS、状态迁移触发器、预算锁、派发 CAS、采纳函数；已按 P0-1/P0-2/P1-1/P1-2 修订（任务静止、active_run/latest_run、reservation_seq/settlement_revision、审批模式），可执行 SQL 与冒烟脚本见 [assets/work-ddl-draft-2026-10-25.sql](assets/work-ddl-draft-2026-10-25.sql)、[assets/work-ddl-smoke-2026-10-25.sql](assets/work-ddl-smoke-2026-10-25.sql)；已在 PostgreSQL 16 烟雾验证，未评审/未应用生产 |
-| [work-api-contracts-2026-10-25.md](work-api-contracts-2026-10-25.md) | **Work API 与内部契约草案（§22.2-2）**：OpenAPI 3.1、内部 control/device/events/egress Protobuf、TaskEvent JSON Schema；已补 workspace grant 与 connector grant 列表、切片映射；覆盖幂等、revision、permission_mode、错误码、SSE/设备协议与版本规则；已通过语法校验，未做生成客户端/真实鉴权/协议回归 |
-| [work-threat-model-2026-10-25.md](work-threat-model-2026-10-25.md) | **Work 威胁模型与供应商/价表核对清单**：资产、信任边界、注入/IDOR/凭据/SSRF/宿主越界/审批重放/供应链/DR 威胁与控制，沙箱证明边界，供应商条款、资源 scope、价表上界；草案，未完成安全评审或供应商书面核对 |
-| [work-operations-runbook-2026-10-25.md](work-operations-runbook-2026-10-25.md) | **Work 升级/灾备/SLO/故障注入 Runbook**：工作流与 runtime 升级回滚、区域 DR 冻结与恢复、SLO 指标口径、F01–F27 注入矩阵；含当前 DDL 容量烟雾与逻辑恢复烟雾，未做区域演练 |
-| [assets/work-ops-2026-10-25](assets/work-ops-2026-10-25/README.md) | **运维/容量证据资产**：`capacity-smoke.py`（50 并发预留、100 重复提交、10 并发 dispatch CAS）与逻辑备份/恢复命令；结果为烟雾，不是生产压测/DR 证明 |
-| [assets/work-contracts-2026-10-25](assets/work-contracts-2026-10-25/README.md) | **Work 契约资产**：`openapi/work-openapi-v1.yaml`、`proto/work/{common,control,device,events,egress}/v1`、`schema/work-event-envelope-v1.schema.json` 及本地校验说明；不生成/提交生产 SDK |
-| [assets/work-cloud-slice-2026-10-25](assets/work-cloud-slice-2026-10-25/README.md) | **云端任务→采纳参考纵切**：Node 24 + PostgreSQL 16，应用角色 RLS；覆盖预览/提交幂等、`acquire_run`、模型/工具 Operation、审批、预算结算、成果发布、采纳、TaskEvent/outbox；10/10 测试通过；不接生产代码、真实模型、Temporal 或 SSE |
-| [assets/work-local-slice-2026-10-25](assets/work-local-slice-2026-10-25/README.md) | **本机授权→断线恢复参考纵切**：设备 hello/session、workspace grant、local Task/审批、lease/命令/签名 permit、设备 journal/receipt、回执丢失→unknown、重连对账、local-only 成果采纳；8/8 测试通过；不证明 OS 沙箱、mTLS 或真实设备 |
-| [assets/work-connector-slice-2026-10-25](assets/work-connector-slice-2026-10-25/README.md) | **连接器 scope→撤销参考纵切**：connection/grant、resource selector、adapter 边界校验、两阶段 connector Operation、预算/成果/采纳、refresh/revoke 竞争、在途 Operation 取消与预算释放；7/7 测试通过；mock adapter，不接真实供应商/OAuth |
-| [work-ux-design-r0-2026-10-25.md](work-ux-design-r0-2026-10-25.md) | **Work R0 中保真 UX 设计蓝图**：四界面、三条核心流程、组件/状态矩阵、审批与成果采纳、首次使用、历史工作、管理面、响应式、可访问性、可用性测试计划；工作首页对齐千问“新任务”（`＋` 菜单、执行器/权限 chip、R3 新建项目门控）；配套 [R0 原型](assets/work-ux-r0/prototype.html) 与 [管理面原型](assets/work-ux-admin/prototype.html) |
-| [work-ux-design-extensions-2026-10-25.md](work-ux-design-extensions-2026-10-25.md) | **Work 扩展 UX 设计（R1–R3）**：套件/技能收进 Composer `＋` 菜单、连接器独立入口、只读连接器授权、一级扩展能力首页 + 二级列表 + 三级套件/技能/连接器详情、加载/过期/错误状态、管理与创建入口；首页与千问“新任务”对齐并做能力范围门控；配套 [扩展原型](assets/work-ux-extensions/prototype.html) |
-| [work-module-product-architecture-agent-plan-2026-09-21.md](work-module-product-architecture-agent-plan-2026-09-21.md) | 工作（Work）历史产品计划：保留早期材料上传 / 沟通准备 / 周报 / 表格分析的范围与实施记录；这些日常办公能力已于 2026-10-25 删除，当前仅保留 `office_agent`、本地 / 远程协调和 Pi 复核；产品目标形态以 2026-10-25 clean-slate 方案为准 |
-| [Work Agent 架构](../features/work-agent-architecture.md) | 2026-10-08 当前实现：桌面 dsh、服务端 Pi、Android 分工，版本化契约、状态/计量、凭据边界、K3s 与客户端升级回退 |
 | [org-account-lifecycle-plan-2026-10-24.md](org-account-lifecycle-plan-2026-10-24.md) | 组织/账号生命周期与 Work 授权闭环：借鉴范围、现状校准、P0 所有权转移/离职撤权/席位上限/组织归档、P1 外部身份与组授权；已按 2026-10-24 评审修订；P0 与 P1-A 已实施并上线生产（镜像 `a34668295`），P1-B / P1-C 未实施；离职回填闸门 dry-run 已为 0 |
 | [org-account-lifecycle-system-design-2026-10-24.md](org-account-lifecycle-system-design-2026-10-24.md) | 上述方案的系统设计：模块边界、数据模型、接口契约、事务与并发、迁移回滚、文件级实施批次；已按 2026-10-24 评审修订；批次 1–4（P0）与 P1-A 已实施并上线生产（镜像 `a34668295`），批次 5 的 P1-B 组授权与 P1-C 外部身份未实施 |
 | [org-account-lifecycle-p1-implementation-2026-10-24.md](org-account-lifecycle-p1-implementation-2026-10-24.md) | P1 功能清单与实施步骤：按依赖顺序拆成 P1-A 租户 Work 管理面 API / 权限码 / 审计保留导出、P1-B 组授权与席位并集、P1-C 外部身份源与事件同步；含落点文件、硬约束、待产品与法务定案项和发布回滚顺序；P1-A 已实施并上线（镜像 `a34668295`），P1-B / P1-C 未实施 |
@@ -67,22 +42,7 @@
 | [ADR-0002](../adr/0002-upward-task-visibility.md) | 子任务向上可见 |
 | [ADR-0003](../adr/0003-task-delete-unbinds-subtasks.md) | 删除任务解绑子任务 |
 | [ADR-0004](../adr/0004-meeting-module-responsibility.md) | 会议模块职责边界 |
-| [ADR-0005](../adr/0005-work-two-layer-access.md) | Work 两层授权：组织白名单 + 账号 allowlist |
-| [ADR-0006](../adr/0006-work-absorbs-task.md) | Work 逐步吸收 Task，先统一入口不合并表 |
-| [ADR-0007](../adr/0007-work-execution-local-remote.md) | 只承诺本地 / 远程执行，云电脑规划中 |
-| [ADR-0008](../adr/0008-modular-control-plane.md) | A01 模块化控制平面 |
-| [ADR-0009](../adr/0009-postgres-fact-source.md) | A02 PostgreSQL 业务事实源 |
-| [ADR-0010](../adr/0010-temporal-orchestration.md) | A03 Temporal 持久编排 |
-| [ADR-0011](../adr/0011-domain-lifecycles.md) | A04 Task/Run/Operation/Artifact 分离 |
-| [ADR-0012](../adr/0012-controlled-egress.md) | A05 模型与工具受控代理 |
-| [ADR-0013](../adr/0013-unknown-side-effects.md) | A06 外部副作用 unknown 核对 |
-| [ADR-0014](../adr/0014-capability-freeze-live-revocation.md) | A07 能力冻结与实时收窄 |
-| [ADR-0015](../adr/0015-directory-grant-not-sandbox.md) | A08 目录授权不等于 OS 沙箱 |
-| [ADR-0016](../adr/0016-immutable-artifacts.md) | A09 成果不可覆盖 |
-| [ADR-0017](../adr/0017-single-writer-sync-dr.md) | A10 单写主与同步灾备安全账本 |
-| [ADR-0018](../adr/0018-r1-r3-workflow-boundary.md) | A11 R1 提示组合、R3 DAG |
-| [ADR-0019](../adr/0019-security-boundaries-service-split.md) | A12 按安全边界/瓶颈拆服务 |
-| [ADR-0020](../adr/0020-pi-agent-core-adapter.md) | A13 Pi agent-core + Work Adapter |
+| [ADR-0005–0020](../adr/0005-work-two-layer-access.md) | Work 相关 16 项 ADR（两层授权、吸收 Task、执行边界、控制平面、PG 事实源、Temporal、生命周期、出口、unknown、能力冻结、目录授权、成果不可变、单写 DR、R1/R3、服务拆分、Pi Adapter）；逐项索引见[项目文档](work-project.md) |
 
 ## 实施基线与评审
 
@@ -137,3 +97,4 @@
 - 独立产品方案、实施契约、部署操作指南及跨服务协议保持独立，即使篇幅较短；结构化 JSON 和原有日志文件保持不变，日志不作为方案入口。
 - 后续同主题小批次优先追加到对应归档并补目录；日期、版本、范围、验证和限制须明确。新专题才新增独立方案；主题过大时按能力边界拆分并更新本索引。
 - 调整路径或锚点时同步更新仓库引用；勿在合并后继续使用原小文件路径或旧行号引用。
+- **Work 文档只在[项目文档](work-project.md)维护**；本索引的 Work 节只保留入口，不复制状态、测试数字或未决项。新增 Work 文档先加到项目文档，只有新增独立专题时才在本索引加一行。
