@@ -12,5 +12,6 @@ DROP TABLE IF EXISTS public.work_workdevice CASCADE;
 DROP TABLE IF EXISTS public.work_workaccessaudit CASCADE;
 DROP TABLE IF EXISTS public.work_workmembergrant CASCADE;
 DROP TABLE IF EXISTS public.work_workorganizationentitlement CASCADE;
+DROP TABLE IF EXISTS public.work_workmaterial CASCADE;
 DROP TABLE IF EXISTS public.work_worktask CASCADE;
 COMMIT;
