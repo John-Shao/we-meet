@@ -233,12 +233,16 @@
 | D4 Runtime | 策略 **10/10**；usage/供应链 **19/19**；KMS 6/6；日志扫描 8/8 | [runtime](assets/work-r0a-runtime-2026-10-25/README.md)、[hardening](assets/work-r0a-hardening-2026-10-25/README.md) |
 | D5 前端 | UI 模型 **14/14**；174 条文案 | [frontend assets](assets/work-r0a-frontend-2026-10-25/README.md) |
 | D6 运维/试点 | ops+pilot+telemetry **28/28**（21 record/27 alert；指标 28）；promtool 校验 48 条规则 + 14 条告警单测 | [ops assets](assets/work-r0a-ops-2026-10-25/README.md) |
-| CI | 6 个 job 已定义；**远端未运行** | [work-r0a-gates.yml](../../.github/workflows/work-r0a-gates.yml) |
+| CI | R0a 六个 job 已在 PR #7 远端跑绿（6/6）；仓库全量流水线 meet Workflow **15/15 job 通过**、Release guard 通过，PR #7 25/25 检查通过且 `MERGEABLE/CLEAN`。仍只覆盖设计资产与既有后端，Work 实现未入库 | [work-r0a-gates.yml](../../.github/workflows/work-r0a-gates.yml) |
 
 ### 4.3 最近提交
 
 | 提交 | 内容 |
 |---|---|
+| `9494f79b0` | 🐛 会议域声纹目录用例 `test_organization_directory_is_current_distinct_human_members_only` 的随机假名撞车：actor 由 `UserFactory` 生成、Faker 无种子，目录用 `icontains` 同时匹配两个姓名列，姓氏如 "Adams" 会命中 `q="Ada"`。先把 actor 钉成 "Carolyn Adams" 在本地精确复现出与 CI 同形状的多余行，再把 actor 名字钉成不可撞车的值——子串过滤语义与整目录断言都不变。全文件 31/31 通过 |
+| `1b3c4037c` | 🐛 四个 core 迁移测试用 `MigrationExecutor.migrate` 把 xdist 共享 worker 库倒到旧计划且 `transaction=True` 不回滚 DDL，污染同 worker 后续碰 `Organization` 的用例；新增 `restore_full_schema`（flush + 迁回图叶子）消除顺序依赖 |
+| `014e43014` `965fca391` | 🐛 后端 lint 口径：ruff 加 `--force-exclude`、pylint 过滤 migrations 与测试文件、print 守卫排除 `docs/**`，只查产品代码；清掉本分支引入的 lint 违规（格式与导入序） |
+| `b31f33d24` | 📝 message-only rebase 重写 14 条提交信息以过 `lint-git`（UC1 gitmoji/B6 正文/T1 长度）后，把文档引用的哈希与计数同步到重写后的链；树内容与重写前逐字节相同 |
 | `62affea4b` | 🐛 CI：`orchestration-contract` 缺 PyYAML 导致首跑失败，补安装步骤——PR #7 的 R0a 六个 job 随后 6/6 通过 |
 | `35ef0b904` | 状态表补记已推送范围 |
 | `ef7a6a81b` | 本页 §4.3 补 `32f39311a` 一行 |
@@ -249,7 +253,7 @@
 | `ec54820cb` | Work 项目文档 + 全库 LF 归一化 |
 | `868e10d2c` | 成果编辑策略、artifact_read_only、retry/管理面/401/文档 P1–P2 |
 
-分支 `refactor/work-module` 的全部 44 个提交已推送至 `origin/refactor/work-module`（2026-10-26）。其中一次 message-only rebase 重写了 14 条提交信息以通过 `lint-git`：树内容与重写前逐字节相同，但所有提交哈希都变了，本页与资产 README 引用的哈希已按 `git log` 同步。本页状态截至快照日期；未提交变更不计入。
+分支 `refactor/work-module` 的 46 个提交已全部推送至 `origin/refactor/work-module`（2026-10-26；本页之后的文档同步提交本身不计入）。其中一次 message-only rebase 重写了 14 条提交信息以通过 `lint-git`：树内容与重写前逐字节相同（备份引用与重写链的 `git diff` 为空），但所有提交哈希都变了，本页与资产 README 引用的哈希已按 `git log` 同步；确认无独有内容后，改写前的备份引用 `refs/backup/pre-lint-rewrite` 已删除（远端从未推送该引用）。远端结果：PR #7 head `9494f79b0` 上 meet Workflow 15/15、Work R0a gates 6/6、Release guard 通过，25/25 检查通过且 `MERGEABLE/CLEAN`。本页状态截至快照日期；未提交变更不计入。
 
 ### 4.4 已定关键决策
 
@@ -293,7 +297,7 @@
 - 所有测试是**设计/参考证据**：mock、faux model、一次性 PG、Temporal dev；不是生产证明。
 - 未接真实供应商（仅一次 Qwen smoke）、真实 Content Store、真实云 KMS、真实 SSO/P1-A 身份字段。
 - 沙箱是 runc 降级 profile，不是 gVisor；本地 KMS 是 envelope 参考实现。
-- R0a 门禁已在 PR #7 首次远端运行并通过，但那只覆盖设计资产；仓库全量流水线与真实实现的 CI 结果仍未确认；切片需要 Docker/Temporal dev；S1-R06 与 C19 在修订后未复跑。
+- R0a 门禁已在 PR #7 首次远端运行并通过，仓库全量流水线（meet Workflow 15/15、Release guard）随后也跑绿——但这两者都只证明**设计资产不回归既有产品**，R0a 里还没有 Work 实现代码，所以"实现的 CI 证据"仍为零；切片需要 Docker/Temporal dev；S1-R06 与 C19 在修订后未复跑。
 - 云/本机/连接器纵切的 10/10、8/8、7/7 是历史记录，本轮未复跑。
 
 ### 5.4 主要风险
