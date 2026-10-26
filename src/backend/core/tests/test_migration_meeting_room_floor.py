@@ -7,6 +7,7 @@ import pytest
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("restore_full_schema")
 def test_nonempty_legacy_hierarchy_migrates_to_required_floor_attribute():
     """The destructive reset must commit before PostgreSQL alters the table."""
     executor = MigrationExecutor(connection)
