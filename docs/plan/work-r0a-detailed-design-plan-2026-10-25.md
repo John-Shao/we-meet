@@ -44,7 +44,7 @@
 
 ### 0.3 W1 进展（2026-10-25）
 
-- **D1 已完成可执行草案**：[数据/权限/迁移设计](work-r0a-data-design-2026-10-25.md)、[schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；PostgreSQL 16 冒烟 34/34，未应用生产。
+- **D1 已完成可执行草案**：[数据/权限/迁移设计](work-r0a-data-design-2026-10-25.md)、[schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；PostgreSQL 16 冒烟 82/82，未应用生产。
 - **D2 已完成契约子集**：[API/事件设计](work-r0a-api-design-2026-10-25.md)、[OpenAPI](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、生成的 TypeScript 类型、mock server 与 6/6 合同测试；未做真实鉴权/持久化。
 - **DR1 尚未评审**：D1/D2 仍是草案；D3/D4 需在 DR1 后继续。
 
@@ -231,7 +231,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **设计输入**：[DDL 草案](work-data-model-ddl-draft-2026-10-25.md)、[架构 §5/§13/§14/§18](work-system-architecture-2026-10-25.md)、[ADR-0009/0011/0016/0017](../adr/)。
 
-**当前进展（2026-10-25）**：已产出 [D1 设计说明](work-r0a-data-design-2026-10-25.md) 与 [可执行 schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；独立 PostgreSQL 16 冒烟 34/34 通过。仍是草案，未评审、未应用生产。
+**当前进展（2026-10-25）**：已产出 [D1 设计说明](work-r0a-data-design-2026-10-25.md) 与 [可执行 schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；独立 PostgreSQL 16 冒烟 34/34 通过（2026-10-26 修订后 82/82）。仍是草案，未评审、未应用生产。
 
 **交付物**：
 
@@ -255,7 +255,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 **完成标准**：
 
 - 空库迁移成功；R0a 迁移重复执行幂等。
-- 现有 8 组 DDL 冒烟加 R0a 34 项断言/负例全部通过（D1 草案已通过 34/34）。
+- 现有 8 组 DDL 冒烟加 R0a 82 项断言/负例全部通过（D1 草案已通过 82/82）。
 - `work_api`/`work_worker` 不能直接 `INSERT/UPDATE/DELETE` fact/ledger 表；只能执行授权函数。
 - org1/org2 交叉读取为 0；`FORCE RLS` 生效。
 - 备份恢复后 Task/Run/Operation/预算/采纳/去重事实一致。
@@ -365,7 +365,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **设计输入**：[R0 UX](work-ux-design-r0-2026-10-25.md)、[R0 原型](assets/work-ux-r0/prototype.html)、[产品设计](work-product-design-2026-10-25.md)、D2。
 
-**当前进展（2026-10-25）**：D5 设计草案、状态矩阵、路由/文案与 UI 模型已产出；11/11 测试与类型检查通过。React 页面/SSE/Playwright/真实可用性测试未执行。
+**当前进展（2026-10-25）**：D5 设计草案、状态矩阵、路由/文案与 UI 模型已产出；11/11 测试与类型检查通过（2026-10-26 增至 13/13）。React 页面/SSE/Playwright/真实可用性测试未执行。
 
 **交付物**：
 

@@ -1,6 +1,6 @@
 # Work R0a API、事件与协议详细设计（D2）
 
-> 状态：D2 详细设计草案；R0a OpenAPI 子集、生成类型、运行时客户端、管理读适配、mock server 与 25 组测试已完成；远端 CI 未运行，未做真实鉴权/持久化/供应商回归。
+> 状态：D2 详细设计草案；R0a OpenAPI 子集、生成类型、运行时客户端、管理读适配、mock server 与 30 组测试已完成；远端 CI 未运行，未做真实鉴权/持久化/供应商回归。
 >
 > 日期：2026-10-25
 >
@@ -93,6 +93,7 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 | POST | `/work/v1/tasks` | 幂等提交；202 TaskSummary + Run |
 | GET | `/work/v1/tasks/{taskId}` | TaskDetail（goal/background/template/snapshot） |
 | PATCH | `/work/v1/tasks/{taskId}` | 编辑标题（expected_revision + 幂等） |
+| DELETE | `/work/v1/tasks/{taskId}` | 删除本人任务（expected_revision + 需静止；已删除幂等） |
 | POST | `/work/v1/tasks/{taskId}/runs` | 重试新 Run；同快照 |
 | GET | `/work/v1/runs/{runId}` | Run 状态 |
 | GET | `/work/v1/runs/{runId}/operations` | Operation 列表（不含正文） |
@@ -108,7 +109,7 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 | POST | `/work/v1/admin/audit-exports` | 创建审计导出 |
 | GET | `/work/v1/admin/audit-exports/{exportId}` | 查询导出作业 |
 
-> 注：上表共 22 个 operation，但 OpenAPI 以 path 计为 20 个（`/tasks` 同时有 GET/POST，`/tasks/{id}` 同时有 GET/PATCH）。
+> 注：上表共 23 个 operation，但 OpenAPI 以 path 计为 20 个（`/tasks` 同时有 GET/POST，`/tasks/{id}` 同时有 GET/PATCH）。
 
 ## 4. 契约缺口闭合
 
@@ -132,7 +133,7 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 
 2026-10-25：
 
-- OpenAPI 3.1 YAML 解析成功；**20 个 path、48 个 schema、62 个唯一本地 `$ref`** 全部可解析；`openapi-spec-validator` 通过。
+- OpenAPI 3.1 YAML 解析成功；**20 个 path、48 个 schema、62 个唯一本地 `$ref`** 全部可解析；`openapi-spec-validator` 通过（2026-10-26 修订后：20 path / 23 operation / 50 schema / 65 唯一 `$ref`）。
 - `openapi-typescript 7.13.0` 生成 `r0a-api-types.d.ts`（45 KB）；`tsc --noEmit` 通过。
 - `node --test test/contract.test.mjs`：**6/6 测试通过**，覆盖：
   1. bootstrap/templates/session/CSRF/401/404；
@@ -143,7 +144,7 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
   6. 管理只读 overview/seats/audit-export。
 - `node --test test/client.test.mjs`：**7/7**；生成客户端覆盖 bootstrap→input→preview→submit→SSE→artifact 的 golden path，并验证 401/403/404、缺失/错误 CSRF、管理读、路径/body 前置校验。
 - `node --test test/admin-adapter.test.mjs`：**12/12**；验证 P1-A 原始字段缺口、token/cents 不转换、角色/版本缺失拒绝、席位状态映射、分页、同步 CSV 不伪装异步导出。
-- `node scripts/ci-contract.mjs`：通过；冻结 21 个 operation/20 个 path（2026-10-26 起 22 个）、排除 R0b+ 路径、解析 170 处本地 `$ref`（现 179 处）、客户端零漂移、类型覆盖全部 operation/schema，并运行 25 组测试。
+- `node scripts/ci-contract.mjs`：通过；冻结 23 个 operation/20 个 path、排除 R0b+ 路径、解析 187 处本地 `$ref`（65 个唯一目标）、客户端零漂移、类型覆盖全部 operation/schema、错误码目录与 `r0a-schema-draft.sql` 双向一致，并运行 30 组测试。
 - 2026-10-26 增量：OpenAPI 增加 `updateTask` 与 `disposition`；**20 path / 22 operation / 49 schema / 63 唯一 `$ref`（179 处）**，`openapi-spec-validator` 通过；类型重新生成、`tsc` 通过；客户端测试 7→**10**（标题编辑含幂等/冲突/校验/事件无正文、导出头与审计、CSRF 轮换单次重试），设计包合计 **28/28**；D1 PG16 冒烟 34→**40/40**（标题裁剪/幂等/事件无正文/负例/越权、导出审计/缺失版本）；`ci-contract.mjs` 增加错误码目录 3 项校验。
 - 2026-10-26 增量二：增加 `deleteTask`（用户删除，需静止；内容异步粉碎、账本/审计保留）；**20 path / 23 operation / 50 schema / 64 唯一 `$ref`（185 处）**；客户端测试 **11/11**，设计包 **29/29**；D1 冒烟 **58/58**（含 outbox 顺序/退避/死信/重排、删除/代删/所有权转移、生命周期事件）。
 - 2026-10-26 修订：`createTaskPreview` 要求 CSRF；`deleteTask` 必带 `expected_revision`（已删除时幂等返回同一回执、不再校验）；`TaskRunRequest.expected_revision` 必填；`ArtifactVersionCreateRequest.base_version_no` 必填且 ≥1；重试/采纳/新版本按 `client_request_id` 幂等重放（同体返回同结果、异体 409 `idempotency_key_conflict`）；默认标题按 code point 截断 20 字；**65 唯一 `$ref`（187 处）**；客户端 **12/12**，设计包 **30/30**。

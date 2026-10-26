@@ -1,6 +1,6 @@
 # Work R0a 数据、权限与迁移详细设计（D1）
 
-> 状态：D1 详细设计草案；可执行 SQL 已在独立 PostgreSQL 16 通过 58/58 冒烟（2026-10-26 增加标题编辑、导出审计、outbox 顺序/死信、删除/所有权转移、生命周期事件共 24 项），未评审、未应用生产。
+> 状态：D1 详细设计草案；可执行 SQL 已在独立 PostgreSQL 16 通过 82/82 冒烟（2026-10-26 修订在 58 项基础上新增 24 项：会话主体绑定、原因码枚举化、outbox 租约/跨组织 relay、死信阻塞、运维重放/跳过审计、启动前取消与 cancel_requested 收尾等），未评审、未应用生产。
 >
 > 日期：2026-10-25
 >
@@ -27,7 +27,7 @@ D1 的目标是回答四个问题：
 - `work_api`/`work_worker` 只有 `SELECT` 和指定函数 `EXECUTE`，没有事实/账本表的直接 `INSERT/UPDATE/DELETE`。
 - 所有 `work` schema 函数改为 `SECURITY DEFINER`，固定 `search_path = work, pg_catalog`，由 `work_owner` 拥有。
 - 冒烟覆盖输入/提交幂等、scope 拒绝、直接 DML 拒绝、跨租户 RLS、派发、预算结算/修正、成果发布、采纳、审批、取消/重试、outbox 与 task summary。
-- 冒烟结果：**58/58 断言通过**（2026-10-26：34 + 标题 4 + 导出 2 + outbox 7 + 删除/转移 7 + 事件 4）；负例块在失败时会中止脚本。
+- 冒烟结果：**82/82 断言通过**（2026-10-26 修订：原 58 项 + 会话主体绑定、原因码枚举化、outbox 租约/跨组织 relay、死信阻塞、运维重放/跳过审计、启动前取消与 cancel_requested 收尾等 24 项）；负例块在失败时会中止脚本。
 
 复现命令：
 
@@ -181,7 +181,7 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 
 ## 6. 冒烟结果
 
-脚本 [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql) 在 PostgreSQL 16.15 独立容器执行，事务结束回滚。58/58 断言通过（含 2026-10-26 新增 `title_update_*`、`title_event_no_text`、`artifact_export_*`）：
+脚本 [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql) 在 PostgreSQL 16.15 独立容器执行，事务结束回滚。82/82 断言通过（含 2026-10-26 新增 `title_update_*`、`title_event_no_text`、`artifact_export_*` 与编排专项 `acquire_cancel_requested_no_fence`、`no_success_over_cancel_request`、`unknown_reason_code_enforced`）：
 
 | 组 | 断言 |
 |---|---|
@@ -217,6 +217,6 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 ## 8. 交付物与下一步
 
 - [r0a-schema-draft.sql](assets/work-r0a-design-2026-10-25/r0a-schema-draft.sql)：可执行 schema、角色、RLS、领域命令、task summary。
-- [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql)：58/58 冒烟与负例。
+- [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql)：82/82 冒烟与负例。
 - [generate-schema.py](assets/work-r0a-design-2026-10-25/generate-schema.py)：从完整 DDL 裁剪 R0a 子集；后续契约/DDL 变更需同步。
 - 下一步 D2：R0a OpenAPI 子集、输入/模板/TaskSummary/SSE 契约、mock server 与合同测试。

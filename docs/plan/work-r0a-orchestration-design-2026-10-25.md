@@ -429,7 +429,7 @@ D3 完成（DR2）需要：
 ## 15. 未决与风险
 
 1. **Temporal 托管/运维**：自托管需要 S1 多节点拓扑、在途 workflow 的 server 重启、备份与监控；当前验证 worker 重启、`patched` 升级、已完成 workflow 的 file-backed server 重启与 DB 终态偏移。
-2. **D1 增量已实现**：wait/resume/unknown/reconcile/workflow-start/cancel outbox 已通过 34/34；仍需 Temporal 集成/正式评审与 S1 拓扑/升级。
+2. **D1 增量已实现**：wait/resume/unknown/reconcile/workflow-start/cancel outbox 已通过 34/34（2026-10-26 修订后冒烟 82/82）；仍需 Temporal 集成/正式评审与 S1 拓扑/升级。
 3. **供应商回执查询**：不同供应商对 unknown 的查询能力不同；无法确认时保持 unresolved，不释放预算。
 4. **预算等待信号权限**：谁可以补预算/发 resume 需运营权限与审计；R0a 无预算写 UI。
 5. **Workflow 版本/Worker 发布**：`patched` 升级已验证；worker versioning 部署、正式 drain/回滚演练未做。

@@ -11,7 +11,7 @@
 | `r0a-new-functions.sql` | 输入、提交、Operation 授权/完成/取消、等待/恢复、unknown/reconcile、审批、成果、Outbox、组织执行触发器、`task_summary` |
 | `r0a-rls-grants.sql` | FORCE RLS、函数所有权、`SECURITY DEFINER`、最小权限授权 |
 | `r0a-schema-draft.sql` | 生成的完整 R0a schema（唯一执行入口） |
-| `r0a-schema-smoke.sql` | 58 项断言 + 负例；事务结束回滚 |
+| `r0a-schema-smoke.sql` | 82 项断言 + 负例；事务结束回滚 |
 | `error-codes.json` | 冻结错误码目录 `r0a-errors-v2`（42 公开码）+ 87 个 SQL 异常映射；CI 直接扫描 `r0a-schema-draft.sql` 校验 |
 
 ### D2 契约资产
@@ -21,12 +21,12 @@
 | `r0a-openapi-v1.yaml` | R0a 公开 API 子集：20 path/23 operation/50 schema |
 | `r0a-api-types.d.ts` | `openapi-typescript 7.13.0` 生成的 TypeScript 类型 |
 | `generate-client.mjs` | 从 OpenAPI 生成运行时客户端、参数/body/响应模型与漂移检查入口 |
-| `r0a-client.mjs` | 生成的零依赖 fetch 客户端：cookie/CSRF、错误映射、SSE 解析、403 `csrf_invalid` 单次刷新重试；22 个 operation |
+| `r0a-client.mjs` | 生成的零依赖 fetch 客户端：cookie/CSRF、错误映射、SSE 解析、403 `csrf_invalid` 单次刷新重试；23 个 operation |
 | `admin-read-adapter.mjs` | P1-A → R0a 管理读契约的严格适配参考：缺失字段抛 gap，不伪造预算/角色/导出作业 |
 | `mock-server.mjs` | 无依赖内存 mock：cookie/CSRF、输入/模板、任务/运行、SSE、成果、管理只读 |
 | `scripts/ci-contract.mjs` | CI 门禁：冻结 operation、`$ref`、生成客户端/类型漂移、全部测试 |
 | `test/contract.test.mjs` | 6 组合同测试：golden path + 幂等/scope/取消/SSE/权限负例 |
-| `test/client.test.mjs` | 7 组生成客户端测试：golden path、SSE、401/403/404、CSRF、管理读、参数校验 |
+| `test/client.test.mjs` | 12 组生成客户端测试：golden path、SSE、401/403/404、CSRF、管理读、参数校验、重试/删除的 revision 与幂等重放、code point 标题 |
 | `test/admin-adapter.test.mjs` | 12 组管理适配测试：字段缺口、状态映射、分页、token/cents 不转换、导出生命周期 |
 | `package.json` | `npm test` / `npm run check` 入口（仅 Node 内置模块，无运行时依赖） |
 
@@ -35,7 +35,7 @@
 ```bash
 cd docs/plan/assets/work-r0a-design-2026-10-25
 
-# 25 组测试（合同 6 + 客户端 7 + 管理适配 12）
+# 30 组测试（合同 6 + 客户端 12 + 管理适配 12）
 npm test
 
 # CI 门禁：冻结 operation、$ref、客户端/类型漂移、全部测试
@@ -79,7 +79,7 @@ docker exec -i work-r0a-pg psql -U postgres -d work_r0a \
 - D2：OpenAPI 3.1 校验通过（20 path/23 operation/50 schema/65 唯一本地 `$ref`）；生成类型 `tsc --noEmit` 通过；合同测试 6/6、生成客户端 12/12、管理适配 12/12 通过。
 - D2：`scripts/ci-contract.mjs` 通过：操作清单与 R0a 冻结集一致、187 处本地 `$ref`（65 个唯一目标）可解析、生成客户端无漂移、类型包含全部 operation/引用的 schema、错误码目录与 mock（33 码）及 `r0a-schema-draft.sql`（87 码）双向一致、无自由文本 RAISE、`retryable` 仅 5xx/429；30/30 测试通过。
 - D2：管理适配参考证明 P1-A 原始返回不能伪装成 R0a 契约（缺 role/revision/subject/seat total、token≠cents、同步 CSV≠异步导出），缺口以错误暴露。
-- CI：`.github/workflows/work-r0a-gates.yml` 已定义 contract/ops-telemetry/log-scan 三个 job；**尚未在远端运行**。
+- CI：`.github/workflows/work-r0a-gates.yml` 已定义 contract（含 schema 再生成无漂移）、db-smoke（PG16 schema + 冒烟）、ops-telemetry、runtime-frontend、log-scan 五个 job；**尚未在远端运行**。
 
 ## 未验证
 
