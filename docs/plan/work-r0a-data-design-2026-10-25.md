@@ -2,7 +2,7 @@
 
 > 状态：D1 详细设计草案；可执行 SQL 已在独立 PostgreSQL 16 通过 82/82 冒烟（2026-10-26 修订在 58 项基础上新增 24 项：会话主体绑定、原因码枚举化、outbox 租约/跨组织 relay、死信阻塞、运维重放/跳过审计、启动前取消与 cancel_requested 收尾、成果编辑状态门槛等），未评审、未应用生产。
 >
-> 日期：2026-10-25
+> 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界）
 >
 > 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[DDL 草案](work-data-model-ddl-draft-2026-10-25.md)、[架构 §5/§13/§14/§18](work-system-architecture-2026-10-25.md)、[R0a 决策单](work-r0a-detailed-design-plan-2026-10-25.md) D-04。
 >
@@ -60,6 +60,8 @@ docker exec -i work-r0a-pg psql -U postgres -d work_r0a \
 | 事件 | `task_event`、`audit_event`、`outbox` | 每 Task 单调 seq、追加审计、投递 |
 | 约束 | `state_transition` | 状态迁移白名单 |
 
+> 注：`org`/`member`/`org_policy` 是 Work 自有的授权投影，不是 WeMeet 核心表；由 Host `IdentityDirectory` 同步/校验，可重建。
+
 ### 3.2 推到后续阶段的表
 
 - `device`、`device_session`、`workspace_grant`、`execution_lease`、`device_receipt`、`journal_release`：R0b。
@@ -116,6 +118,14 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 - `org` 表按 `id` 隔离；`state_transition` 是全局参考表，不承担租户数据。
 - 连接池归还前必须清空/覆盖租户上下文；RLS 是纵深防御，不替代资源级授权。
 - 跨租户读取冒烟为 0；生产连接池竞态、运维 bypass 角色仍未测。
+
+### 4.4 独立产品边界（ADR-0021）
+
+- Work 拥有 `work` schema、表、迁移和写路径；禁止跨 schema FK/JOIN、直接读写 WeMeet 消息/文档/会议/任务表。
+- `org`/`member`/`org_policy` 是 Host 目录投影，带版本/更新时间，可重建；权威事实在 `IdentityDirectory`。
+- Host 端口：`IdentityDirectory`/`Entitlement`/`Notification`/`BillingExport`/`ConnectorProvider`；R0a 提供 WeMeet 适配器，独立产品可替换。
+- 部署：Work DB/schema/角色、Temporal namespace、对象存储/KMS 可分离；不共享数据库写角色或租户缓存。
+- 验证：R1 前做 stub-host 剥离演练；详见 [ADR-0021](../adr/0021-work-standalone-product-boundary.md)。
 
 ## 5. 领域命令
 
@@ -215,6 +225,7 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 10. **用户编辑/上传**：文本版本命令 `create_user_artifact_version` 已实现（状态门槛见 §5.2）；`upload_session` 表已建，但文件上传流程未在 D1 实现，D2/D5 补。
 11. **所有权转移/离职**：Task/成果接管仍是试点运营兜底，未做成产品化命令。
 12. **Admin 只读**：席位/审计读取复用 P1-A 的字段映射未在 D1 落地；D2/D6 补。
+13. **独立产品边界**：`org`/`member` 投影可能漂移，撤权新鲜度依赖 Host；剥离演练未做（ADR-0021）。
 
 ## 8. 交付物与下一步
 

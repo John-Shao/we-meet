@@ -42,7 +42,7 @@
 | [ADR-0002](../adr/0002-upward-task-visibility.md) | 子任务向上可见 |
 | [ADR-0003](../adr/0003-task-delete-unbinds-subtasks.md) | 删除任务解绑子任务 |
 | [ADR-0004](../adr/0004-meeting-module-responsibility.md) | 会议模块职责边界 |
-| [ADR-0005–0020](../adr/0005-work-two-layer-access.md) | Work 相关 16 项 ADR（两层授权、吸收 Task、执行边界、控制平面、PG 事实源、Temporal、生命周期、出口、unknown、能力冻结、目录授权、成果不可变、单写 DR、R1/R3、服务拆分、Pi Adapter）；逐项索引见[项目文档](work-project.md) |
+| [ADR-0005–0021](../adr/0005-work-two-layer-access.md) | Work 相关 17 项 ADR（两层授权、吸收 Task、执行边界、控制平面、PG 事实源、Temporal、生命周期、出口、unknown、能力冻结、目录授权、成果不可变、单写 DR、R1/R3、服务拆分、Pi Adapter、独立产品边界）；逐项索引见[项目文档](work-project.md) |
 
 ## 实施基线与评审
 

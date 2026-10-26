@@ -2,7 +2,7 @@
 
 > 状态：D2 详细设计草案；R0a OpenAPI 子集、生成类型、运行时客户端、管理读适配、mock server 与 31 组测试已完成；远端 CI 未运行，未做真实鉴权/持久化/供应商回归。
 >
-> 日期：2026-10-25
+> 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界）
 >
 > 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[API 契约草案](work-api-contracts-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[架构 §15](work-system-architecture-2026-10-25.md)。
 >
@@ -81,6 +81,13 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 - 错误结构：`code`、安全可展示 `message`、`retryable`、`correlation_id`、`current_revision`、`recovery_action`。
 - **错误码目录已冻结**：[error-codes.json](assets/work-r0a-design-2026-10-25/error-codes.json)（`r0a-errors-v2`）列出 42 个公开码的 HTTP 状态、`retryable`、`recovery_action` 与 UI 行为 token；文案键由 D5 [copy.zh-CN.json](assets/work-r0a-frontend-2026-10-25/copy.zh-CN.json) 维护，未知码回退 `work.r0a.error.generic`；`db_exception_map` 把 `r0a-schema-draft.sql` 中全部 87 个 SQL 异常码映射到公开码（worker/outbox 内部异常统一映射为 503 `service_degraded`，原始码只进内部日志）。CI 门禁校验：mock 使用的每个码及状态与目录一致；直接扫描 `r0a-schema-draft.sql` 的 `RAISE EXCEPTION`，要求均为 snake_case 码（可带 `:detail`）、每个码都有映射、映射表无 SQL 已不再抛出的条目；`retryable` 当且仅当 5xx/429（`preview_stale` 为 409、不可自动重试，需重新预览）。mock 未知错误默认 503。新增错误码必须先改目录。
 - 代表错误：`scope_unavailable`、`permission_mode_unavailable`、`preview_stale`、`idempotency_key_conflict`、`version_conflict`、`run_not_quiescent`、`resync_required`、`input_not_found`、`artifact_not_published`、`csrf_invalid`、`title_invalid`。
+
+### 2.8 Host 适配与独立部署边界（ADR-0021）
+
+- R0a 的 `we_meet_session` 只是 Host 认证适配器；核心只依赖认证端口，独立产品可接 OIDC/bearer。
+- 租户/成员/席位从 `IdentityDirectory`/`Entitlement` 端口解析；客户端 `org_id` 只用于资源定位。
+- 通知、计费、业务系统 Connector 通过 Host 端口；会议/消息/文档与外部 SaaS 使用同一 Connector 契约，不直连表。
+- 独立部署与剥离演练见 [ADR-0021](../adr/0021-work-standalone-product-boundary.md)；R0a API 不变。
 
 ## 3. R0a API 子集
 
@@ -181,6 +188,7 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 10. ~~错误码稳定性~~：`error-codes.json` 冻结并进入 CI（§2.7）；网关/Temporal 侧错误到公开码的映射随 D3/D4 实现补测。
 11. **内容大小**：256 KiB 是 R0a 文本上限，需与 D4/D5 的编辑器、SSE 和 Content Store 限制对齐。
 12. **多组织**：R0a 不支持多组织切换；bootstrap 只返回当前主组织。
+13. **独立产品边界**：当前 session/身份/席位仍是 WeMeet 适配器；剥离演练与独立部署清单未做（ADR-0021）。
 
 ## 7. 交付物与下一步
 

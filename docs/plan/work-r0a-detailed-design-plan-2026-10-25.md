@@ -4,7 +4,7 @@
 >
 > 日期：2026-10-25
 >
-> 基线：[Work 系统架构 v2.9](work-system-architecture-2026-10-25.md)、[产品设计](work-product-design-2026-10-25.md)、[R0 UX](work-ux-design-r0-2026-10-25.md)、[DDL 草案](work-data-model-ddl-draft-2026-10-25.md)、[API 契约](work-api-contracts-2026-10-25.md)、[威胁模型](work-threat-model-2026-10-25.md)、[Runbook](work-operations-runbook-2026-10-25.md)、三条参考纵切与 [ADR-0008–0020](../adr/)。
+> 基线：[Work 系统架构 v2.10](work-system-architecture-2026-10-25.md)、[产品设计](work-product-design-2026-10-25.md)、[R0 UX](work-ux-design-r0-2026-10-25.md)、[DDL 草案](work-data-model-ddl-draft-2026-10-25.md)、[API 契约](work-api-contracts-2026-10-25.md)、[威胁模型](work-threat-model-2026-10-25.md)、[Runbook](work-operations-runbook-2026-10-25.md)、三条参考纵切与 [ADR-0008–0021](../adr/)。
 >
 > 适用阶段：R0a（云端主场景，3 家合作组织试点）。
 

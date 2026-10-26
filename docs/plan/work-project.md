@@ -109,7 +109,7 @@
 | [新建任务技术调研](../research/work-new-task-technical-research-2026-10-25.md) | 技术基线 |
 | [扩展能力统一调研](../research/work-extension-unified-research-2026-10-25.md) | 统一结论 |
 | [千问扩展](../research/work-extension-qwen-research-2026-10-25.md) / [豆包扩展](../research/work-extension-doubao-research-2026-10-25.md) | 分供应商调研 |
-| ADR | [0005](../adr/0005-work-two-layer-access.md) 两层授权、[0006](../adr/0006-work-absorbs-task.md) Work 吸收 Task、[0007](../adr/0007-work-execution-local-remote.md) 本地/远程执行、[0008](../adr/0008-modular-control-plane.md) 控制平面、[0009](../adr/0009-postgres-fact-source.md) PG 事实源、[0010](../adr/0010-temporal-orchestration.md) Temporal、[0011](../adr/0011-domain-lifecycles.md) 生命周期、[0012](../adr/0012-controlled-egress.md) 受控出口、[0013](../adr/0013-unknown-side-effects.md) unknown、[0014](../adr/0014-capability-freeze-live-revocation.md) 能力冻结、[0015](../adr/0015-directory-grant-not-sandbox.md) 目录授权≠沙箱、[0016](../adr/0016-immutable-artifacts.md) 成果不可变、[0017](../adr/0017-single-writer-sync-dr.md) 单写 DR、[0018](../adr/0018-r1-r3-workflow-boundary.md) R1/R3 边界、[0019](../adr/0019-security-boundaries-service-split.md) 服务拆分、[0020](../adr/0020-pi-agent-core-adapter.md) Pi Adapter |
+| ADR | [0005](../adr/0005-work-two-layer-access.md) 两层授权、[0006](../adr/0006-work-absorbs-task.md) Work 吸收 Task、[0007](../adr/0007-work-execution-local-remote.md) 本地/远程执行、[0008](../adr/0008-modular-control-plane.md) 控制平面、[0009](../adr/0009-postgres-fact-source.md) PG 事实源、[0010](../adr/0010-temporal-orchestration.md) Temporal、[0011](../adr/0011-domain-lifecycles.md) 生命周期、[0012](../adr/0012-controlled-egress.md) 受控出口、[0013](../adr/0013-unknown-side-effects.md) unknown、[0014](../adr/0014-capability-freeze-live-revocation.md) 能力冻结、[0015](../adr/0015-directory-grant-not-sandbox.md) 目录授权≠沙箱、[0016](../adr/0016-immutable-artifacts.md) 成果不可变、[0017](../adr/0017-single-writer-sync-dr.md) 单写 DR、[0018](../adr/0018-r1-r3-workflow-boundary.md) R1/R3 边界、[0019](../adr/0019-security-boundaries-service-split.md) 服务拆分、[0020](../adr/0020-pi-agent-core-adapter.md) Pi Adapter、[0021](../adr/0021-work-standalone-product-boundary.md) 独立产品边界 |
 
 ### 2.8 组织/账号与 Work 授权
 
@@ -200,6 +200,15 @@
 
 顺序理由：先修骨架与云端闭环，再补本机与治理，然后只读数据、项目上下文、富成果，最后协作/自动化/生态；远程设备独立批次，避免拖慢主线。
 
+### 3.5 可剥离性约束（ADR-0021）
+
+- Work Core 拥有 `work` schema/表/迁移和写路径；禁止跨 schema FK/JOIN、直接读写 WeMeet 消息/文档/会议/任务表。
+- Host 端口：`IdentityDirectory`/`Entitlement`/`Notification`/`BillingExport`/`ConnectorProvider`；R0a 用 WeMeet 适配器，独立产品可替换为 OIDC/IdP、目录、通知、计费。
+- 会议/消息/文档与外部 SaaS 使用同一 Connector 契约，内部系统不给特权旁路。
+- 部署：Work API/worker/relay/egress/SSE、独立 DB/schema/角色、Temporal namespace、对象存储/KMS、管理控制台、前端壳可分离。
+- R0a 只做设计/依赖检查与适配器，不扩大功能范围；R1 前做 stub-host 剥离演练，R4 独立售卖前做独立部署/计费/品牌打包。
+- 详见 [ADR-0021](../adr/0021-work-standalone-product-boundary.md)。
+
 ## 4. 项目进展
 
 ### 4.1 阶段进度
@@ -285,6 +294,7 @@
 | 供应商条款延迟 | 12-11 前无书面条款 | E5 进关键路径，试点顺延 | 商务 + 法务 |
 | 多节点 relay/租约未证 | 时钟偏差/长 GC | C22 多节点补测；DB 已拒绝非持有者 ACK | 平台 + 后端 |
 | P1-A 字段不兼容 | role/revision/cents 缺失 | 管理页降级显示，不重复建设 | 后端 + 平台 |
+| Host 耦合导致难以剥离 | 新增跨表查询/直接 import/共享角色 | 按 ADR-0021 端口/Connector/边界检查；R1 前 stub-host 演练 | 架构 + 平台 |
 
 ## 6. 下一步与闸门
 
@@ -343,6 +353,7 @@ Temporal 切片需要 Docker Compose/Temporal dev（Windows 主机不能直接�
 | 2026-10-26 | 章节重排：项目计划前置为 §3，进展/问题/下一步顺延 |
 | 2026-10-26 | 代号与缩写移入附录 §10；§1 只保留 R0a/R0b 简述 |
 | 2026-10-26 | 附录增加最小记忆集、口诀与易混对照；关键首次出现补中文别名 |
+| 2026-10-26 | 新增 ADR-0021 可剥离独立产品边界；架构 §4.3、D1 §4.4、D2 §2.8、D6 §7.4 同步 |
 
 ## 10. 附录：代号与缩写
 
@@ -402,7 +413,7 @@ Temporal 切片需要 Docker Compose/Temporal dev（Windows 主机不能直接�
 | H01–H12 | Harness 准入实验 | H11 未触发；多为 mock/部分通过 |
 | S1–S6 | 首轮验证包 | 持久编排、Windows Broker、预算、凭据/资源授权、成果/SSE/灾备、容量 |
 | S7 | Harness 准入结论 | 未宣称通过 |
-| A01–A13 | 架构决策编号 | 对应 ADR-0008–0020 |
+| A01–A14 | 架构决策编号 | 对应 ADR-0008–0021 |
 | P0/P1/P2 | 评审问题优先级 | P0 阻断、P1 高摩擦、P2 文案/视觉；与 6 项 P0 决策（D-01–D-06）不是一回事 |
 
 阶段标签（R0a–R5c）来源：[Work 产品设计 §阶段标签](work-product-design-2026-10-25.md)；设计包/未决项/Epic 等编号以对应文档为准。

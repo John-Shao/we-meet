@@ -2,7 +2,7 @@
 
 > 状态：D6 设计草案；安全控制/SLO/容量/试点清单已建模并通过 8/8 校验，当前 **go/no-go = no-go（23 个 blocking 项）**；已完成 Temporal dev 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、RLS 池化、10 并发负载、Work DB 恢复、试点 on-call runbook、SLO 规则即代码 10/10 与日志扫描 8/8；本地关闭 C12/C18/C19/C20/C21，剩余 23 个 blocking。未做多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/供应商条款/真实遥测接入。
 >
-> 日期：2026-10-25
+> 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界）
 >
 > 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[D3 编排](work-r0a-orchestration-design-2026-10-25.md)、[D4 Runtime/出口](work-r0a-runtime-egress-design-2026-10-25.md)、[D5 前端](work-r0a-frontend-design-2026-10-25.md)、[威胁模型](work-threat-model-2026-10-25.md)、[运行手册](work-operations-runbook-2026-10-25.md)。
 >
@@ -164,6 +164,13 @@ node pilot-capacity-model.mjs
 - 不重写新表/不删证据；D1 迁移采用前向修复，不做破坏性回滚。
 - 回滚演练需覆盖：旧链接、新任务读取、取消/采纳、SSE、审计。
 
+### 7.4 独立产品边界与剥离（ADR-0021）
+
+- 部署单元：Work API/worker/relay/egress/SSE、独立 DB/schema/角色、Temporal namespace、对象存储/KMS、管理控制台、前端壳；初期可同集群/同 VPC，但清单与权限可分离。
+- 安全/运维：不共享数据库写角色、租户缓存、密钥；Host 端口/Connector 只走版本化接口，内部系统不给旁路。
+- 验证：R1 前 stub-host 剥离演练；R4 独立售卖前独立部署/计费/品牌打包；R0a 不扩范围。
+- 迁移/导出：Work 数据可导出，Host 目录投影可重建；见 [D1 §4.4](work-r0a-data-design-2026-10-25.md)。
+
 ## 8. 试点开通、支持与数据处置
 
 每家组织：
@@ -244,6 +251,7 @@ node pilot-capacity-model.mjs
 10. **事故沟通/支持**：支持分级 S1–S4、工单模板与升级路径见[试点运营 runbook §2](work-r0a-pilot-operations-runbook-2026-10-26.md)；联系人/渠道待 C24。
 11. **合规**：数据驻留/删除/审计保留需法务/安全确认。
 12. **No-go 清单**：剩余 23 个 blocking 项是当前事实；本地测试不能替代试点环境、安全签收、供应商条款与组织研究。
+13. **独立产品边界**：Host 端口/Connector 契约与剥离演练未完成；ADR-0021 设计约束不等于可独立售卖。
 
 ## 13. 验收标准
 

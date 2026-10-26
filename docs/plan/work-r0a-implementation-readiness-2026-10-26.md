@@ -27,6 +27,8 @@
 
 CI：[work-r0a-gates.yml](../../.github/workflows/work-r0a-gates.yml) 覆盖 contract（含 schema 再生成无漂移）、db-smoke（PG16 schema + 冒烟）、ops/telemetry、runtime/frontend、log-scan 五个 job；仅在 PR 或 `aliyun-dev` push 时触发，**远端尚未运行**。
 
+架构约束：[ADR-0021](../adr/0021-work-standalone-product-boundary.md) 要求 Work Core 与 WeMeet Host 通过端口/Connector 解耦，保留独立售卖选项；R0a 不扩大功能范围，R1 前做 stub-host 剥离演练。
+
 ## 3. 完成审计（对照大纲 §0 “详细设计完成”定义）
 
 | # | 定义 | 设计层 | 证据 | 设计外剩余（不属于本阶段） |
@@ -183,3 +185,4 @@ D-01..D-06 签收状态（同步大纲 §8.1）：
 | 试点组织不足 | C24 少于 3 家 | 不扩大功能范围；推迟 go/no-go |
 | 合同漂移 | 实施期改接口未改 OpenAPI，或新增 SQL 码未进目录 | `ci-contract.mjs` 冻结集 + 生成客户端漂移门禁 + schema-draft 错误码扫描，变更走 §8 变更控制 |
 | 正文/密钥进入日志或工单 | 日志扫描告警 | L5 门禁；Runbook 禁止项；SEV1 处理 |
+| Work 独立产品边界失守 | 出现跨 schema 查询/直接 import/共享角色 | ADR-0021 边界检查；R1 前 stub-host 剥离演练；新增依赖需评审 |

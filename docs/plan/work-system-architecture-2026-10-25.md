@@ -1,8 +1,8 @@
 # WeMeet 工作系统架构设计
 
-> 版本：v2.9（clean-slate 目标架构；落地任务静止、预算账目、active_run 与审批模式修订，新增 §22.2-2 API/内部契约草案、§22.2-3 三条参考纵切，并补 R2b 后台可用性、R3 Step 契约、ADR、威胁模型与运行手册）
+> 版本：v2.10（clean-slate 目标架构；在 v2.9 基础上新增 A14/ADR-0021：Work 作为可剥离独立产品的边界）
 >
-> 日期：2026-10-25
+> 日期：2026-10-25（2026-10-26 增补 ADR-0021）
 >
 > 状态：架构提案，待评审与技术验证；不是当前系统实现说明，也不是上线证明。
 >
@@ -67,6 +67,7 @@
 | A11 | R1 单 Run 提示组合，R3 才启用确定性 DAG | 工作流引擎的存在不代表提前暴露产品链式能力 |
 | A12 | 按安全边界拆部署，按真实瓶颈拆服务 | R0 无需 Kafka、向量库、独立搜索集群和多 Agent 协作框架 |
 | A13 | 端云共用 Pi agent-core + Work 适配层，候选准入通过后落地 | 复用开源模型循环，不接管租户/审批/预算/恢复；主Runtime改为TypeScript/Node，见§3.2–§3.9 |
+| A14 | Work Core 与 WeMeet Host 通过端口/Connector 解耦，保留独立售卖选项 | 现在不拆仓/拆服务；R0a 做边界与适配器，R1 前做 stub-host 剥离演练；见 ADR-0021 |
 
 ### 0.2 选择标准
 
@@ -456,8 +457,27 @@ Operation key由Work生成，例如`(run_id, turn_seq, model_request_seq)`和`(r
 - 会话的主组织由服务端绑定。请求头/URL 中的 `org_id` 只能作为待校验资源定位，不能决定可信租户。
 - 身份停用与离职经可靠事件传入 Work；敏感动作在接受许可前要求成员资格仍有效，权威服务不可确认且超出约定新鲜度则拒绝。
 - `org.work_grant.read/write` 可作为与产品一致的逻辑权限名，但不沿用既有代码注册方式；能力发布、审计导出与席位管理分别授权。
-- 日后会议/消息/文档通过授权引用与事件连接 Work；不共享任务表，不直接跨库 JOIN。
+- 日后会议/消息/文档通过授权引用与事件连接 Work；统一走 §4.3 的 Connector 契约，不共享任务表，不直接跨库 JOIN。
 - Work 的治理预算不等于商业发票；结算记录可供统一计费使用，统一计费故障不改变已预留调用的执行正确性。
+
+### 4.3 Work 可剥离独立产品边界（ADR-0021）
+
+目标：服务、模块、库表尽量独立于 WeMeet 业务系统；跨系统只通过版本化接口、事件或 Connector；现在不拆仓/拆服务。
+
+| 层 | 允许 | 禁止 |
+|---|---|---|
+| 服务 | `work-api`/`work-worker`/relay/egress 调用 Host 端口或 Connector | 直接 import WeMeet 业务服务实现/ORM；读写消息/文档/会议表 |
+| 模块 | Work 模块间领域接口 | 跨模块直接改表；共享租户缓存 |
+| 库表 | `work` schema、本地投影、内容引用 | 跨 schema FK/JOIN；直连 core 表；共享写角色 |
+| 事件 | 版本化领域事件/Webhook/Connector | 共享队列表、双写、跨系统触发器 |
+
+**Host 端口**：`IdentityDirectory`（subject/org/membership/revocation）、`Entitlement`（seat/feature/quota）、`Notification`、`BillingExport`、`ConnectorProvider`。Work Core 只依赖端口；R0a 提供 WeMeet 适配器，独立产品可替换为 OIDC/IdP、目录、通知和计费服务。R0a 的 `we_meet_session` 只是认证适配器，核心不依赖 cookie 细节。
+
+**Connector 标准**：消息/文档/会议与外部 SaaS 使用同一 manifest/auth/scope/resource selector/限流/撤销/审计契约；内部系统不给特权旁路，不直连表。
+
+**部署**：Work API/worker/relay/egress/SSE、独立 DB/schema/角色、Temporal namespace、对象存储/KMS、管理只读控制台和前端壳可独立部署；初期可同集群，但角色、密钥、配额、租户缓存必须可分离。
+
+**验证**：R0a 做设计/依赖检查；R1 前做一次 stub-host 剥离演练（无 WeMeet 核心表）跑通 golden path；R4 独立售卖前再做独立部署、计费与品牌打包。R0a 不因此扩大功能范围。详见 [ADR-0021](../adr/0021-work-standalone-product-boundary.md)。
 
 ## 5. 数据模型与一致性
 
@@ -1426,7 +1446,7 @@ R0a也需要最小策略和计量，不把安全控制放到R0b补；R0b补的�
 5. 工作流升级与区域恢复runbook、SLO测量方案、故障注入自动化（[Runbook](work-operations-runbook-2026-10-25.md)，已起草；当前 DDL 容量烟雾与逻辑恢复烟雾完成，区域演练/生产 SLO 未做）。
 6. 当前产品与本架构§1.3差异回写；真实用户测试与技术验证签收仍单列，不由本文件代替。
 
-第1项已按 P0-1/P0-2/P1-1/P1-2 修订并冒烟（未评审、未应用生产）；第2项已起草契约草案并通过语法校验（未做真实鉴权/协议回归）；第3项的三条参考纵切已实现并测试通过；第4/5项已起草并完成局部证据，供应商/沙箱/区域演练未关闭；第6项未开始。A01–A13的ADR见§22.4。
+第1项已按 P0-1/P0-2/P1-1/P1-2 修订并冒烟（未评审、未应用生产）；第2项已起草契约草案并通过语法校验（未做真实鉴权/协议回归）；第3项的三条参考纵切已实现并测试通过；第4/5项已起草并完成局部证据，供应商/沙箱/区域演练未关闭；第6项未开始。A01–A14的ADR见§22.4。
 
 ### 22.3 评审结论边界
 
@@ -1455,5 +1475,6 @@ R0a也需要最小策略和计量，不把安全控制放到R0b补；R0b补的�
 | RLS/最小权限/直接 DML | 应用可绕过函数/账本 | FORCE RLS、REVOKE 直接写、SECURITY DEFINER/独立 ledger 角色 | 未关闭 |
 | 威胁模型/沙箱证明 | 安全声明缺少证据 | 威胁模型评审、Rust Broker/F13、gVisor/Kata 逃逸测试 | 已起草，证明未关闭 |
 | 运维/DR/容量 | 无法承诺 RPO/RTO/规格 | 区域演练、SLO 接入、三档压测、runbook 签收 | 已有烟雾，生产未关闭 |
-| A01–A13 的ADR拆分 | 不可逆决策追溯不足 | ADR-0008–0020 已拆分（Proposed），待评审签收 | 已拆分，待签收 |
+| A01–A14 的ADR拆分 | 不可逆决策追溯不足 | ADR-0008–0021 已拆分（Proposed），待评审签收 | 已拆分，待签收 |
+| Work 独立产品边界 | Host 耦合导致难以剥离/售卖 | ADR-0021 端口、Connector、stub-host 演练 | 设计约束，演练未做 |
 | §1.3差异回写与真实用户测试 | 产品/UX与架构漂移 | 回写并单列测试签收 | 未开始 |
