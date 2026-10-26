@@ -4,20 +4,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0227_bilingual_session'),
+        ("core", "0227_bilingual_session"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='bilingualsession',
-            name='usage',
+            model_name="bilingualsession",
+            name="usage",
             field=models.JSONField(blank=True, default=dict),
         ),
         migrations.AddField(
-            model_name='bilingualsession',
-            name='usage_updated_at',
+            model_name="bilingualsession",
+            name="usage_updated_at",
             field=models.DateTimeField(blank=True, null=True),
         ),
     ]

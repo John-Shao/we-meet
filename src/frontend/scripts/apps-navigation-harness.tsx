@@ -41,7 +41,7 @@ export async function mountAppsHarness() {
             }}
           >
             <AppRail collapsed={innerWidth < 768} />
-            <AppsContent ownerId="apps-ui-fixture" workEnabled />
+            <AppsContent ownerId="apps-ui-fixture" />
           </div>
         </Suspense>
       </QueryClientProvider>

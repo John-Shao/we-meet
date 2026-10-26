@@ -3,9 +3,6 @@ import {
   RiTaskLine,
   RiContactsBookLine,
   RiCheckboxCircleLine,
-  RiChatQuoteLine,
-  RiFileChartLine,
-  RiTableLine,
 } from '@remixicon/react'
 
 export const appCatalog = [
@@ -23,43 +20,14 @@ export const appCatalog = [
     group: 'organization',
     Icon: RiCheckboxCircleLine,
   },
-  {
-    id: 'communication',
-    href: '/work?view=communication',
-    group: 'ai',
-    Icon: RiChatQuoteLine,
-  },
-  {
-    id: 'weekly',
-    href: '/work?view=weekly',
-    group: 'ai',
-    Icon: RiFileChartLine,
-  },
-  {
-    id: 'spreadsheet',
-    href: '/work?view=spreadsheet',
-    group: 'ai',
-    Icon: RiTableLine,
-  },
 ] as const
 
 export type AppEntry = (typeof appCatalog)[number]
 export type AppId = AppEntry['id']
-export const availableApps = (workEnabled: boolean) =>
-  appCatalog.filter((app) => app.group !== 'ai' || workEnabled)
 export const isAppId = (id: unknown): id is AppId =>
   appCatalog.some((app) => app.id === id)
 export const isModulePath = (location: string, path: string) =>
   location === path || location.startsWith(`${path}/`)
-export function appAtLocation(
-  location: string,
-  search: string
-): AppEntry | undefined {
-  const view = new URLSearchParams(search).get('view')
-  return appCatalog.find((app) =>
-    app.group === 'ai'
-      ? location === '/work' &&
-        new URLSearchParams(app.href.split('?')[1]).get('view') === view
-      : isModulePath(location, app.href)
-  )
+export function appAtLocation(location: string): AppEntry | undefined {
+  return appCatalog.find((app) => isModulePath(location, app.href))
 }

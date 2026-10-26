@@ -10,6 +10,7 @@ import pytest
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("restore_full_schema")
 def test_recurrence_source_backfill_suppresses_only_overdue_unhandled_reminders():
     executor = MigrationExecutor(connection)
     executor.migrate([("core", "0090_meeting_room_optional_name_required_code")])

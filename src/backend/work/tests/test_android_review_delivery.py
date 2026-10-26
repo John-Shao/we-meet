@@ -12,11 +12,11 @@ from django.db import close_old_connections
 import pytest
 from rest_framework.test import APIClient
 
+from .support import client, work_settings
 from .test_local_review_flow import (
     test_selected_local_files_to_review_with_lost_admission_ack as run_review_flow,
 )
 from .test_local_runs import local_settings
-from .test_materials import client, work_settings
 
 pytestmark = [
     pytest.mark.django_db(transaction=True),

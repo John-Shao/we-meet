@@ -1,0 +1,10 @@
+node_modules/
+runs/
+final/
+*.log
+h01/build-*/
+h01/run-*/
+h06/run-*/
+h10/v13/node_modules/
+h10/v13/package-lock.json
+s1s6/s4-summary.json

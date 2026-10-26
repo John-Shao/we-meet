@@ -32,7 +32,7 @@ ADR-0005 把 Work 的准入拆成了两层：平台侧的 `WorkOrganizationEntit
 | 没有管理员角色与数据范围 | `AdminRole` / `AdminRoleAssignment` / `AdminRoleScopeDepartment` 与权限注册表已存在（P10 M2，[core/models.py:6827](../../src/backend/core/models.py#L6827)、[core/permissions_registry.py:29](../../src/backend/core/permissions_registry.py#L29)） | P1 只给现有角色体系增加 Work 域权限码，不重建角色系统 |
 | 没有外部身份映射 | 属实，`Membership` 只有内部 `user` | P1 新增外部身份表，不把 `open_id` 当跨租户主键 |
 | `member_limit` 没有真正执行 | 属实，字段存在但创建 grant 时不校验（[work/models.py:292](../../src/backend/work/models.py#L292)） | P0-3 补执行路径 |
-| Work 数据是 owner-scoped | 属实，`WorkTask.owner` / `WorkMaterial.owner` 都是个人（[work/models.py:10](../../src/backend/work/models.py#L10)、[work/models.py:62](../../src/backend/work/models.py#L62)） | P2 再做资源交接，P0 不碰数据归属 |
+| Work 数据是 owner-scoped | 属实，`WorkTask.owner` / `WorkDevice.owner` 都是个人（[work/models.py:10](../../src/backend/work/models.py#L10)、[work/models.py:38](../../src/backend/work/models.py#L38)） | P2 再做资源交接，P0 不碰数据归属 |
 | `WorkMemberGrant` 只支持逐人 | 属实 | P1 增加组授权，保留逐人授权作为例外 |
 | 没有审计留存策略 | 属实，`WorkAccessAudit` 只保证写入（[work/models.py:389](../../src/backend/work/models.py#L389)） | P1 定义留存期与导出 |
 
@@ -202,7 +202,7 @@ P0 的四个项都不依赖飞书，也不改变现有两层授权的语义，�
 5. 离职时的在途任务：
    - 该用户名下的 queued / running run 与 review 批量终止为 `canceled`，`error_code="membership_left"`。
    - 已在 provider 侧执行中的调用无法中断，但成果交付会走 `scope_denial`，因 membership 不再是 ACTIVE 而返回 `access_revoked`（[work/access.py:185](../../src/backend/work/access.py#L185)）。
-   - 任务与材料的归属不在 P0 迁移，保留给 P2 的交接流程。
+   - 任务与成果的归属不在 P0 迁移，保留给 P2 的交接流程。
 6. 提供回填命令 `manage.py revoke_departed_grants --dry-run`：
    - 找出所有 `Membership.status=LEFT` 但仍有效的 grant，输出数量与组织分布。
    - 实际执行时批量撤销，`revoked_reason="backfill"`，`revoked_by=None`。
@@ -380,7 +380,7 @@ P1 的前提是产品确认要接飞书 / 企微 / 钉钉中的一个。若只�
 
 ## 6. P2：规模化之后
 
-- **Work 资源交接**：离职时可选择把 `WorkTask` / `WorkMaterial` 转给同组织成员，或转为组织共享；需要新增所有权转移服务与界面。P0 只保证数据不丢、不可被离职账号继续访问。
+- **Work 资源交接**：离职时可选择把 `WorkTask` 及其 `WorkRun` / `WorkArtifactFile` 转给同组织成员，或转为组织共享；需要新增所有权转移服务与界面。P0 只保证数据不丢、不可被离职账号继续访问。
 - **个人版 Work**：如果产品允许个人使用，必须自动创建个人组织或定义个人额度，不能让 `organization_id IS NULL` 的新数据回潮。
 - **SCIM / HR 同步**：在事件 + 对账稳定后再评估；不把 SCIM 当作第一期接入方式。
 - **SSO 强制**：组织级 `require_sso`，开启后密码登录被拒绝；与外部身份映射一起设计。

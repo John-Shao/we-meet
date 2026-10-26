@@ -1,0 +1,717 @@
+{
+  "version": "r0a-telemetry-v1",
+  "scope": "R0a 3-org pilot",
+  "note": "Rules-as-code for the internal pilot SLOs. Not a claim that telemetry is scraped or that targets are met. 2026-10-26 增补：D3 §11 的六类非 Run 后台作业指标与告警（义务作业停不停、投影滞后、导出积压/失败/凭证异常、粉碎积压）。",
+  "labels_allowlist": [
+    "org_id",
+    "task_id",
+    "run_id",
+    "operation_id",
+    "route",
+    "method",
+    "status_class",
+    "http_status",
+    "provider",
+    "model",
+    "queue",
+    "device_class",
+    "network_class",
+    "reason",
+    "outcome",
+    "stage",
+    "state",
+    "event",
+    "kind",
+    "le"
+  ],
+  "forbidden_labels": [
+    "goal",
+    "background",
+    "prompt",
+    "messages",
+    "completion",
+    "content",
+    "body",
+    "email",
+    "api_key",
+    "authorization",
+    "cookie",
+    "session"
+  ],
+  "metrics": {
+    "work_api_requests_total": {
+      "type": "counter",
+      "labels": [
+        "route",
+        "method",
+        "status_class",
+        "org_id"
+      ]
+    },
+    "work_api_request_duration_seconds_bucket": {
+      "type": "histogram",
+      "labels": [
+        "route",
+        "method",
+        "org_id",
+        "le"
+      ]
+    },
+    "work_status_visible_seconds_bucket": {
+      "type": "histogram",
+      "labels": [
+        "org_id",
+        "le"
+      ]
+    },
+    "work_first_screen_seconds_bucket": {
+      "type": "histogram",
+      "labels": [
+        "device_class",
+        "network_class",
+        "le",
+        "org_id"
+      ]
+    },
+    "work_model_ttft_seconds_bucket": {
+      "type": "histogram",
+      "labels": [
+        "provider",
+        "model",
+        "le",
+        "org_id"
+      ]
+    },
+    "work_outbox_lag_seconds_bucket": {
+      "type": "histogram",
+      "labels": [
+        "queue",
+        "le",
+        "org_id"
+      ]
+    },
+    "work_unknown_operation_age_minutes_bucket": {
+      "type": "histogram",
+      "labels": [
+        "org_id",
+        "le"
+      ]
+    },
+    "work_budget_reconciliation_diff_cents": {
+      "type": "gauge",
+      "labels": [
+        "org_id"
+      ]
+    },
+    "work_budget_unsettled_reservations": {
+      "type": "gauge",
+      "labels": [
+        "org_id"
+      ]
+    },
+    "work_runs_total": {
+      "type": "counter",
+      "labels": [
+        "outcome",
+        "stage",
+        "org_id"
+      ]
+    },
+    "work_task_events_total": {
+      "type": "counter",
+      "labels": [
+        "event",
+        "org_id"
+      ]
+    },
+    "work_sse_events_total": {
+      "type": "counter",
+      "labels": [
+        "kind",
+        "org_id"
+      ]
+    },
+    "work_provider_requests_total": {
+      "type": "counter",
+      "labels": [
+        "provider",
+        "status_class",
+        "http_status",
+        "org_id"
+      ]
+    },
+    "work_workflow_start_total": {
+      "type": "counter",
+      "labels": [
+        "outcome",
+        "org_id"
+      ]
+    },
+    "work_outbox_backlog_events": {
+      "type": "gauge",
+      "labels": [
+        "queue",
+        "org_id"
+      ]
+    },
+    "work_unknown_operations": {
+      "type": "gauge",
+      "labels": [
+        "org_id"
+      ]
+    },
+    "work_unknown_operation_age_minutes_max": {
+      "type": "gauge",
+      "labels": [
+        "org_id"
+      ]
+    },
+    "work_outbox_dead_letters": {
+      "type": "gauge",
+      "labels": [
+        "org_id",
+        "kind"
+      ]
+    },
+    "work_usage_settlements_total": {
+      "type": "counter",
+      "labels": [
+        "org_id",
+        "provider",
+        "outcome"
+      ]
+    },
+    "work_background_job_runs_total": {
+      "type": "counter",
+      "labels": [
+        "kind",
+        "outcome",
+        "org_id"
+      ]
+    },
+    "work_background_job_last_success_seconds": {
+      "type": "gauge",
+      "labels": [
+        "kind",
+        "org_id"
+      ]
+    },
+    "work_background_job_lease_takeovers_total": {
+      "type": "counter",
+      "labels": [
+        "kind",
+        "org_id"
+      ]
+    },
+    "work_directory_projection_lag_seconds": {
+      "type": "gauge",
+      "labels": [
+        "org_id"
+      ]
+    },
+    "work_audit_export_backlog": {
+      "type": "gauge",
+      "labels": [
+        "org_id"
+      ]
+    },
+    "work_audit_export_downloads_total": {
+      "type": "counter",
+      "labels": [
+        "outcome",
+        "org_id"
+      ]
+    },
+    "work_content_shred_backlog": {
+      "type": "gauge",
+      "labels": [
+        "org_id"
+      ]
+    },
+    "work_audit_export_duration_seconds_sum": {
+      "type": "counter",
+      "labels": [
+        "org_id"
+      ]
+    },
+    "work_audit_export_duration_seconds_count": {
+      "type": "counter",
+      "labels": [
+        "org_id"
+      ]
+    }
+  },
+  "slos": [
+    {
+      "id": "control_api_availability",
+      "title": "控制 API 可用性",
+      "target": 99.9,
+      "unit": "percent",
+      "window": "30d",
+      "track_only": false,
+      "recording": [
+        {
+          "record": "work:slo_control_api_availability:ratio_5m",
+          "expr": "(sum by (org_id) (rate(work_api_requests_total{status_class!=\"5xx\"}[5m]))) / clamp_min(sum by (org_id) (rate(work_api_requests_total[5m])), 1e-9)"
+        },
+        {
+          "record": "work:slo_control_api_availability:ratio_1h",
+          "expr": "(sum by (org_id) (rate(work_api_requests_total{status_class!=\"5xx\"}[1h]))) / clamp_min(sum by (org_id) (rate(work_api_requests_total[1h])), 1e-9)"
+        },
+        {
+          "record": "work:slo_control_api_availability:ratio_6h",
+          "expr": "(sum by (org_id) (rate(work_api_requests_total{status_class!=\"5xx\"}[6h]))) / clamp_min(sum by (org_id) (rate(work_api_requests_total[6h])), 1e-9)"
+        },
+        {
+          "record": "work:slo_control_api_availability:ratio_1d",
+          "expr": "(sum by (org_id) (rate(work_api_requests_total{status_class!=\"5xx\"}[1d]))) / clamp_min(sum by (org_id) (rate(work_api_requests_total[1d])), 1e-9)"
+        }
+      ],
+      "alerts": [
+        {
+          "name": "WorkControlApiAvailabilityFastBurn",
+          "expr": "(1 - work:slo_control_api_availability:ratio_5m > 0.0144) and (1 - work:slo_control_api_availability:ratio_1h > 0.0144) and (sum by (org_id) (rate(work_api_requests_total[5m])) > 0)",
+          "for": "2m",
+          "severity": "page",
+          "slo_alert": true,
+          "summary": "控制 API 快速燃烧错误预算（30d 目标的 14.4 倍）",
+          "runbook": "work-operations-runbook-2026-10-25.md#4-slo-测量方案"
+        },
+        {
+          "name": "WorkControlApiAvailabilitySlowBurn",
+          "expr": "(1 - work:slo_control_api_availability:ratio_6h > 0.006) and (1 - work:slo_control_api_availability:ratio_1d > 0.006) and (sum by (org_id) (rate(work_api_requests_total[5m])) > 0)",
+          "for": "30m",
+          "severity": "ticket",
+          "slo_alert": true,
+          "summary": "控制 API 持续燃烧错误预算（30d 目标的 6 倍）",
+          "runbook": "work-operations-runbook-2026-10-25.md#4-slo-测量方案"
+        }
+      ]
+    },
+    {
+      "id": "submit_accept_p95_ms",
+      "title": "提交受理 P95",
+      "target": 500,
+      "unit": "ms",
+      "window": "7d",
+      "track_only": false,
+      "recording": [
+        {
+          "record": "work:slo_submit_accept_latency:p95_5m",
+          "expr": "histogram_quantile(0.95, sum by (org_id, le) (rate(work_api_request_duration_seconds_bucket{route=\"/work/v1/tasks\",method=\"POST\"}[5m]))) * 1000"
+        },
+        {
+          "record": "work:slo_submit_accept_latency:p95_1h",
+          "expr": "histogram_quantile(0.95, sum by (org_id, le) (rate(work_api_request_duration_seconds_bucket{route=\"/work/v1/tasks\",method=\"POST\"}[1h]))) * 1000"
+        }
+      ],
+      "alerts": [
+        {
+          "name": "WorkSubmitAcceptLatencyHigh",
+          "expr": "(work:slo_submit_accept_latency:p95_5m > 500) and (work:slo_submit_accept_latency:p95_1h > 500)",
+          "for": "10m",
+          "severity": "ticket",
+          "slo_alert": true,
+          "summary": "提交受理 P95 超过 500ms",
+          "runbook": "work-operations-runbook-2026-10-25.md#4-slo-测量方案"
+        }
+      ]
+    },
+    {
+      "id": "status_visible_p95_ms",
+      "title": "状态可见 P95",
+      "target": 2000,
+      "unit": "ms",
+      "window": "7d",
+      "track_only": false,
+      "recording": [
+        {
+          "record": "work:slo_status_visible_latency:p95_5m",
+          "expr": "histogram_quantile(0.95, sum by (org_id, le) (rate(work_status_visible_seconds_bucket[5m]))) * 1000"
+        },
+        {
+          "record": "work:slo_status_visible_latency:p95_1h",
+          "expr": "histogram_quantile(0.95, sum by (org_id, le) (rate(work_status_visible_seconds_bucket[1h]))) * 1000"
+        }
+      ],
+      "alerts": [
+        {
+          "name": "WorkStatusVisibleLatencyHigh",
+          "expr": "(work:slo_status_visible_latency:p95_5m > 2000) and (work:slo_status_visible_latency:p95_1h > 2000)",
+          "for": "10m",
+          "severity": "ticket",
+          "slo_alert": true,
+          "summary": "提交状态在 2s 内未可见（P95）",
+          "runbook": "work-operations-runbook-2026-10-25.md#4-slo-测量方案"
+        }
+      ]
+    },
+    {
+      "id": "first_screen_p95_ms",
+      "title": "首屏可交互 P95",
+      "target": 1500,
+      "unit": "ms",
+      "window": "7d",
+      "track_only": false,
+      "recording": [
+        {
+          "record": "work:slo_first_screen:p95_5m",
+          "expr": "histogram_quantile(0.95, sum by (org_id, le) (rate(work_first_screen_seconds_bucket{device_class=\"pilot_ref\",network_class=\"pilot_ref\"}[5m]))) * 1000"
+        },
+        {
+          "record": "work:slo_first_screen:p95_1h",
+          "expr": "histogram_quantile(0.95, sum by (org_id, le) (rate(work_first_screen_seconds_bucket{device_class=\"pilot_ref\",network_class=\"pilot_ref\"}[1h]))) * 1000"
+        }
+      ],
+      "alerts": [
+        {
+          "name": "WorkFirstScreenLatencyHigh",
+          "expr": "(work:slo_first_screen:p95_5m > 1500) and (work:slo_first_screen:p95_1h > 1500)",
+          "for": "10m",
+          "severity": "ticket",
+          "slo_alert": true,
+          "summary": "固定设备/网络档位下首屏 P95 超过 1.5s",
+          "runbook": "work-operations-runbook-2026-10-25.md#4-slo-测量方案"
+        }
+      ]
+    },
+    {
+      "id": "ttft_p95_ms",
+      "title": "首个公开 token P95",
+      "target": 10000,
+      "unit": "ms",
+      "window": "7d",
+      "track_only": false,
+      "recording": [
+        {
+          "record": "work:slo_model_ttft:p95_5m",
+          "expr": "histogram_quantile(0.95, sum by (org_id, le) (rate(work_model_ttft_seconds_bucket[5m]))) * 1000"
+        },
+        {
+          "record": "work:slo_model_ttft:p95_1h",
+          "expr": "histogram_quantile(0.95, sum by (org_id, le) (rate(work_model_ttft_seconds_bucket[1h]))) * 1000"
+        }
+      ],
+      "alerts": [
+        {
+          "name": "WorkModelTtftHigh",
+          "expr": "(work:slo_model_ttft:p95_5m > 10000) and (work:slo_model_ttft:p95_1h > 10000)",
+          "for": "15m",
+          "severity": "ticket",
+          "slo_alert": true,
+          "summary": "模型首 token P95 超过 10s（试点暂定目标）",
+          "runbook": "work-operations-runbook-2026-10-25.md#4-slo-测量方案"
+        }
+      ]
+    },
+    {
+      "id": "outbox_lag_p95_s",
+      "title": "Outbox 投递 lag P95",
+      "target": 30,
+      "unit": "s",
+      "window": "7d",
+      "track_only": false,
+      "recording": [
+        {
+          "record": "work:slo_outbox_lag:p95_5m",
+          "expr": "histogram_quantile(0.95, sum by (org_id, le) (rate(work_outbox_lag_seconds_bucket[5m])))"
+        },
+        {
+          "record": "work:slo_outbox_lag:p95_1h",
+          "expr": "histogram_quantile(0.95, sum by (org_id, le) (rate(work_outbox_lag_seconds_bucket[1h])))"
+        }
+      ],
+      "alerts": [
+        {
+          "name": "WorkOutboxLagHigh",
+          "expr": "(work:slo_outbox_lag:p95_5m > 30) and (work:slo_outbox_lag:p95_1h > 30)",
+          "for": "10m",
+          "severity": "page",
+          "slo_alert": true,
+          "summary": "Outbox 投递 lag P95 超过 30s",
+          "runbook": "work-operations-runbook-2026-10-25.md#4-slo-测量方案"
+        },
+        {
+          "name": "WorkOutboxBacklogHigh",
+          "expr": "sum by (org_id) (work_outbox_backlog_events) > 1000",
+          "for": "10m",
+          "severity": "page",
+          "slo_alert": false,
+          "summary": "Outbox backlog 超过 1000 条；新提交应返回 503",
+          "runbook": "work-r0a-security-ops-migration-design-2026-10-25.md#5-试点容量模型"
+        }
+      ]
+    },
+    {
+      "id": "unknown_age_p95_min",
+      "title": "Unknown Operation 年龄 P95",
+      "target": 15,
+      "unit": "min",
+      "window": "7d",
+      "track_only": false,
+      "recording": [
+        {
+          "record": "work:slo_unknown_age:p95_5m",
+          "expr": "histogram_quantile(0.95, sum by (org_id, le) (rate(work_unknown_operation_age_minutes_bucket[5m])))"
+        }
+      ],
+      "alerts": [
+        {
+          "name": "WorkUnknownOperationAgeHigh",
+          "expr": "(work:slo_unknown_age:p95_5m > 15) or (max by (org_id) (work_unknown_operation_age_minutes_max) > 15)",
+          "for": "1m",
+          "severity": "page",
+          "slo_alert": true,
+          "summary": "存在超过 15 分钟的 unknown Operation，需人工核对",
+          "runbook": "work-operations-runbook-2026-10-25.md#5-故障注入矩阵"
+        }
+      ]
+    },
+    {
+      "id": "budget_reconciliation_diff_cents",
+      "title": "预算对账差",
+      "target": 0,
+      "unit": "cents",
+      "window": "1d",
+      "track_only": false,
+      "recording": [
+        {
+          "record": "work:slo_budget_reconciliation:abs_max_5m",
+          "expr": "max by (org_id) (abs(work_budget_reconciliation_diff_cents))"
+        }
+      ],
+      "alerts": [
+        {
+          "name": "WorkBudgetReconciliationDiff",
+          "expr": "work:slo_budget_reconciliation:abs_max_5m > 0",
+          "for": "30m",
+          "severity": "page",
+          "slo_alert": true,
+          "summary": "预算账本与供应商 usage 对账存在差额",
+          "runbook": "work-r0a-data-design-2026-10-25.md#5-领域命令"
+        },
+        {
+          "name": "WorkBudgetUnsettledReservations",
+          "expr": "sum(work_budget_unsettled_reservations) > 0",
+          "for": "30m",
+          "severity": "ticket",
+          "slo_alert": false,
+          "summary": "存在超过 30 分钟未结算的预算预留",
+          "runbook": "work-r0a-data-design-2026-10-25.md#5-领域命令"
+        }
+      ]
+    },
+    {
+      "id": "technical_success_rate",
+      "title": "Golden task 技术成功",
+      "target": 95,
+      "unit": "percent",
+      "window": "7d",
+      "track_only": false,
+      "recording": [
+        {
+          "record": "work:slo_golden_technical_success:ratio_1h",
+          "expr": "(sum by (org_id) (rate(work_runs_total{stage=\"terminal\",outcome=\"succeeded\"}[1h]))) / clamp_min(sum by (org_id) (rate(work_runs_total{stage=\"terminal\",outcome=~\"succeeded|failed\"}[1h])), 1e-9)"
+        },
+        {
+          "record": "work:slo_golden_technical_success:ratio_1d",
+          "expr": "(sum by (org_id) (rate(work_runs_total{stage=\"terminal\",outcome=\"succeeded\"}[1d]))) / clamp_min(sum by (org_id) (rate(work_runs_total{stage=\"terminal\",outcome=~\"succeeded|failed\"}[1d])), 1e-9)"
+        }
+      ],
+      "alerts": [
+        {
+          "name": "WorkGoldenTechnicalSuccessLow",
+          "expr": "work:slo_golden_technical_success:ratio_1h < 0.95",
+          "for": "1h",
+          "severity": "ticket",
+          "slo_alert": true,
+          "summary": "Golden task 技术成功率低于 95%（排除用户取消/预算等待）",
+          "runbook": "work-operations-runbook-2026-10-25.md#4-slo-测量方案"
+        }
+      ]
+    },
+    {
+      "id": "acceptance_rate",
+      "title": "任务验收率",
+      "target": null,
+      "unit": "percent",
+      "window": "7d",
+      "track_only": true,
+      "recording": [
+        {
+          "record": "work:track_task_acceptance:ratio_1d",
+          "expr": "(sum by (org_id) (increase(work_task_events_total{event=\"accepted\"}[1d]))) / clamp_min(sum by (org_id) (increase(work_task_events_total{event=\"created\"}[1d])), 1e-9)"
+        }
+      ],
+      "alerts": []
+    },
+    {
+      "id": "sse_resync_rate",
+      "title": "SSE resync 率",
+      "target": null,
+      "unit": "percent",
+      "window": "7d",
+      "track_only": true,
+      "recording": [
+        {
+          "record": "work:track_sse_resync:ratio_1h",
+          "expr": "(sum by (org_id) (rate(work_sse_events_total{kind=\"resync_required\"}[1h]))) / clamp_min(sum by (org_id) (rate(work_sse_events_total{kind=~\"delivered|resync_required\"}[1h])), 1e-9)"
+        }
+      ],
+      "alerts": []
+    },
+    {
+      "id": "provider_error_rate",
+      "title": "供应商错误率",
+      "target": null,
+      "unit": "percent",
+      "window": "7d",
+      "track_only": true,
+      "recording": [
+        {
+          "record": "work:track_provider_error:ratio_1h",
+          "expr": "(sum by (org_id) (rate(work_provider_requests_total{status_class=~\"4xx|5xx\"}[1h]))) / clamp_min(sum by (org_id) (rate(work_provider_requests_total[1h])), 1e-9)"
+        }
+      ],
+      "alerts": [
+        {
+          "name": "WorkProviderErrorRateHigh",
+          "expr": "work:track_provider_error:ratio_1h > 0.05",
+          "for": "10m",
+          "severity": "ticket",
+          "slo_alert": false,
+          "summary": "供应商 4xx/5xx 比例超过 5%，区分限流/超时/unknown",
+          "runbook": "work-r0a-runtime-egress-design-2026-10-25.md"
+        },
+        {
+          "name": "WorkProviderAuthFailures",
+          "expr": "sum by (org_id) (rate(work_provider_requests_total{http_status=\"401\"}[5m])) > 0",
+          "for": "5m",
+          "severity": "page",
+          "slo_alert": false,
+          "summary": "供应商鉴权失败（401），检查凭据轮换/撤销",
+          "runbook": "work-r0a-runtime-egress-design-2026-10-25.md"
+        },
+        {
+          "name": "WorkProviderRateLimited",
+          "expr": "sum by (org_id) (rate(work_provider_requests_total{http_status=\"429\"}[10m])) > 0",
+          "for": "10m",
+          "severity": "ticket",
+          "slo_alert": false,
+          "summary": "供应商限流（429），检查配额与退避",
+          "runbook": "work-r0a-runtime-egress-design-2026-10-25.md"
+        }
+      ]
+    }
+  ],
+  "operational_alerts": [
+    {
+      "name": "WorkWorkflowStartFailures",
+      "expr": "(sum by (org_id) (rate(work_workflow_start_total{outcome=\"failed\"}[5m]))) / clamp_min(sum by (org_id) (rate(work_workflow_start_total[5m])), 1e-9) > 0.005",
+      "for": "5m",
+      "severity": "page",
+      "slo_alert": false,
+      "summary": "已提交 Run 的工作流启动失败率超过 0.5%",
+      "runbook": "work-operations-runbook-2026-10-25.md#2-升级-runbook"
+    },
+    {
+      "name": "WorkUnknownOperationsPresent",
+      "expr": "sum by (org_id) (work_unknown_operations) > 0",
+      "for": "15m",
+      "severity": "page",
+      "slo_alert": false,
+      "summary": "存在 unknown Operation 超过 15 分钟",
+      "runbook": "work-operations-runbook-2026-10-25.md#5-故障注入矩阵"
+    },
+    {
+      "name": "WorkOutboxDeadLetters",
+      "expr": "sum by (org_id) (work_outbox_dead_letters) > 0",
+      "for": "5m",
+      "severity": "page",
+      "slo_alert": false,
+      "summary": "Outbox 存在死信；对应启动/取消/粉碎未投递",
+      "runbook": "work-r0a-pilot-operations-runbook-2026-10-26.md#6-outbox-死信"
+    },
+    {
+      "name": "WorkUsageMismatchHigh",
+      "expr": "(sum by (org_id) (rate(work_usage_settlements_total{outcome=\"usage_mismatch\"}[1h]))) / clamp_min(sum by (org_id) (rate(work_usage_settlements_total[1h])), 1e-9) > 0.05",
+      "for": "30m",
+      "severity": "ticket",
+      "slo_alert": false,
+      "summary": "供应商 usage 与网关计数不一致占比超过 5%",
+      "runbook": "work-r0a-pilot-operations-runbook-2026-10-26.md#7-usage-与账单对账"
+    },
+    {
+      "name": "WorkBackgroundJobStale",
+      "expr": "(time() - min by (kind) (work_background_job_last_success_seconds)) > 900",
+      "for": "15m",
+      "severity": "page",
+      "slo_alert": false,
+      "summary": "某类后台作业 15 分钟没有成功记录（relay/shredder/投影/清扫属义务作业，必须查）",
+      "runbook": "work-operations-runbook-2026-10-25.md#51-后台作业故障处置"
+    },
+    {
+      "name": "WorkDirectoryProjectionStale",
+      "expr": "max by (org_id) (work_directory_projection_lag_seconds) > 900",
+      "for": "10m",
+      "severity": "page",
+      "slo_alert": false,
+      "summary": "组织目录投影滞后超过 15 分钟，撤权新鲜度不足；管理页应显示陈旧",
+      "runbook": "work-operations-runbook-2026-10-25.md#51-后台作业故障处置"
+    },
+    {
+      "name": "WorkAuditExportBacklog",
+      "expr": "sum by (org_id) (work_audit_export_backlog) > 20",
+      "for": "15m",
+      "severity": "ticket",
+      "slo_alert": false,
+      "summary": "审计导出作业积压超 20（管理员拿不到审计文件）",
+      "runbook": "work-operations-runbook-2026-10-25.md#51-后台作业故障处置"
+    },
+    {
+      "name": "WorkAuditExportFailureRatio",
+      "expr": "(sum by (org_id) (rate(work_background_job_runs_total{kind=\"audit_export_worker\",outcome=\"failed\"}[30m]))) / clamp_min(sum by (org_id) (rate(work_background_job_runs_total{kind=\"audit_export_worker\"}[30m])), 1e-9) > 0.05",
+      "for": "30m",
+      "severity": "ticket",
+      "slo_alert": false,
+      "summary": "审计导出失败率超 5%（看 error_code 与 Content Store 健康）",
+      "runbook": "work-operations-runbook-2026-10-25.md#51-后台作业故障处置"
+    },
+    {
+      "name": "WorkAuditExportTokenFailureBurst",
+      "expr": "sum by (org_id) (rate(work_audit_export_downloads_total{outcome=\"denied\"}[5m])) > 0.2",
+      "for": "5m",
+      "severity": "ticket",
+      "slo_alert": false,
+      "summary": "一次性下载凭证校验失败突增（可能凭证泄露后被反复尝试）",
+      "runbook": "work-operations-runbook-2026-10-25.md#51-后台作业故障处置"
+    },
+    {
+      "name": "WorkContentShredBacklog",
+      "expr": "sum by (org_id) (work_content_shred_backlog) > 100",
+      "for": "30m",
+      "severity": "page",
+      "slo_alert": false,
+      "summary": "正文粉碎请求积压超 100（留存义务未完成，优先于功能问题）",
+      "runbook": "work-operations-runbook-2026-10-25.md#51-后台作业故障处置"
+    },
+    {
+      "name": "WorkBackgroundJobLeaseTakeovers",
+      "expr": "sum by (kind) (rate(work_background_job_lease_takeovers_total[15m])) > 0.1",
+      "for": "15m",
+      "severity": "ticket",
+      "slo_alert": false,
+      "summary": "某类作业频繁发生租约接管（worker 崩溃、时钟偏差或外部调用卡住）",
+      "runbook": "work-operations-runbook-2026-10-25.md#51-后台作业故障处置"
+    },
+    {
+      "name": "WorkAuditExportSlow",
+      "expr": "(sum by (org_id) (rate(work_audit_export_duration_seconds_sum[30m]))) / clamp_min(sum by (org_id) (rate(work_audit_export_duration_seconds_count[30m])), 1e-9) > 600 and sum by (org_id) (rate(work_audit_export_duration_seconds_count[30m])) > 0",
+      "for": "30m",
+      "severity": "ticket",
+      "slo_alert": false,
+      "summary": "审计导出平均耗时超 10 分钟（R0a 量级先看均值；P95 等有量之后再开）",
+      "runbook": "work-operations-runbook-2026-10-25.md#51-后台作业故障处置"
+    }
+  ]
+}

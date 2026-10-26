@@ -47,18 +47,6 @@
     "approval": {
       "name": "Goedkeuringen",
       "description": "Aanvragen indienen en goedkeuren."
-    },
-    "communication": {
-      "name": "Gespreksvoorbereiding",
-      "description": "Achtergrond, vragen en gesprekspunten voorbereiden."
-    },
-    "weekly": {
-      "name": "Weekverslag",
-      "description": "Voortgang samenvatten en een verslag maken."
-    },
-    "spreadsheet": {
-      "name": "Spreadsheetanalyse",
-      "description": "Gegevens analyseren en resultaten samenvatten."
     }
   }
 }

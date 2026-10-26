@@ -8,9 +8,9 @@ import {
 } from '@testing-library/react'
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 import type { LocalWorkBridge, LocalJob } from '../api/local'
-import * as materialsApi from '../api/materials'
 import * as reviewsApi from '../api/reviews'
 import * as tasksApi from '../api/tasks'
+import * as workApi from '../api/work'
 import { LocalWorkspaceWork } from './LocalWorkspaceWork'
 import { WorkNavigation } from './WorkNavigation'
 
@@ -18,14 +18,9 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
 
-vi.mock('../api/materials', async (original) => ({
-  ...(await original<typeof import('../api/materials')>()),
+vi.mock('../api/work', async (original) => ({
+  ...(await original<typeof workApi>()),
   getWorkCapabilities: vi.fn(),
-  listMaterials: vi.fn(async () => ({
-    results: [],
-    next: null,
-    previous: null,
-  })),
 }))
 vi.mock('../api/reviews', () => ({
   listReviews: vi.fn(),
@@ -83,13 +78,8 @@ beforeEach(() => {
   vi.mocked(bridge.list).mockResolvedValue([])
   vi.mocked(bridge.pickWorkspace).mockResolvedValue(folder)
   vi.mocked(bridge.get).mockResolvedValue(job)
-  vi.mocked(materialsApi.getWorkCapabilities).mockResolvedValue({
+  vi.mocked(workApi.getWorkCapabilities).mockResolvedValue({
     enabled: true,
-    materials_enabled: true,
-    formats: ['md'],
-    max_file_bytes: 400000,
-    max_batch_files: 8,
-    max_batch_bytes: 400000,
     skills: [],
     review_enabled: true,
     review_token_budget: 20000,
@@ -127,7 +117,7 @@ it('requires native folder authorization before submission', async () => {
   mount()
   await screen.findByText(/已连接 dsh/)
   fireEvent.change(screen.getByLabelText('工作目标'), {
-    target: { value: '分析本地材料' },
+    target: { value: '分析本地文件' },
   })
   expect(screen.getByRole('button', { name: '开始本地处理' })).toBeDisabled()
   fireEvent.click(screen.getByRole('button', { name: '选择本地文件夹' }))
@@ -186,10 +176,10 @@ it('keeps the authorized workspace and draft while navigation is collapsed and r
 it('fills a suggested goal without executing and keeps configuration separate from task submission', async () => {
   mount()
   await screen.findByText(/已连接 dsh/)
-  fireEvent.click(screen.getByRole('button', { name: '周报' }))
+  fireEvent.click(screen.getByRole('button', { name: '整理要点' }))
   expect(
     (screen.getByLabelText('工作目标') as HTMLTextAreaElement).value
-  ).toContain('本周进展')
+  ).toContain('核心要点')
   expect(bridge.submit).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: '选择本地文件夹' }))
   await screen.findByText(/当前工作空间/)
@@ -210,7 +200,7 @@ it('reuses the same run UUID after a lost admission response, without passing a 
   fireEvent.click(await screen.findByRole('button', { name: '选择本地文件夹' }))
   await screen.findByText(/当前工作空间/)
   fireEvent.change(screen.getByLabelText('工作目标'), {
-    target: { value: '分析本地材料' },
+    target: { value: '分析本地文件' },
   })
   fireEvent.click(screen.getByRole('button', { name: '开始本地处理' }))
   await screen.findByRole('alert')
@@ -373,9 +363,7 @@ it('connects explicit local sync to separately authorized review and displays it
   fireEvent.click(within(reviewSection).getByLabelText('report.md'))
   expect(start).toBeDisabled()
   fireEvent.click(
-    within(reviewSection).getByLabelText(
-      '同意将选定成果和本任务已授权材料发送至复核模型'
-    )
+    within(reviewSection).getByLabelText('同意将选定成果发送至复核模型')
   )
   await waitFor(() => expect(start).not.toBeDisabled())
   fireEvent.click(start)

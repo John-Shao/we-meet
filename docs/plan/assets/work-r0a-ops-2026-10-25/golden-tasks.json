@@ -1,0 +1,146 @@
+{
+  "version": "r0a-golden-v1",
+  "note": "Design-partner golden tasks. Goals are synthetic and contain no customer data; real partner goals are recorded per org outside the repo.",
+  "templates": [
+    "tpl-report",
+    "tpl-plan",
+    "tpl-summary"
+  ],
+  "pass_rule": {
+    "runs_per_task": 3,
+    "min_passing_runs": 2,
+    "suite_min_pass_ratio": 0.8,
+    "max_cost_cents_per_run": 200,
+    "max_end_to_end_seconds_p95": 180
+  },
+  "tasks": [
+    {
+      "id": "G01",
+      "template": "tpl-report",
+      "goal": "为一款内部报销工具写一页改版方案初稿，面向部门负责人。",
+      "background_chars": 600,
+      "required_sections": [
+        "背景与目标",
+        "方案",
+        "风险",
+        "下一步"
+      ],
+      "length_chars": [
+        600,
+        2500
+      ],
+      "checks": [
+        "sections_present",
+        "length_in_range",
+        "no_fabricated_links",
+        "no_prompt_echo"
+      ]
+    },
+    {
+      "id": "G02",
+      "template": "tpl-report",
+      "goal": "比较两种客服排班方式的优缺点并给出建议。",
+      "background_chars": 1200,
+      "required_sections": [
+        "背景与目标",
+        "方案",
+        "风险",
+        "下一步"
+      ],
+      "length_chars": [
+        600,
+        2500
+      ],
+      "checks": [
+        "sections_present",
+        "length_in_range",
+        "has_recommendation",
+        "no_fabricated_links"
+      ]
+    },
+    {
+      "id": "G03",
+      "template": "tpl-plan",
+      "goal": "把季度培训计划拆成可执行步骤、负责人角色、依赖和验收标准。",
+      "background_chars": 400,
+      "required_sections": [
+        "目标",
+        "步骤",
+        "依赖",
+        "验收"
+      ],
+      "length_chars": [
+        400,
+        2000
+      ],
+      "checks": [
+        "sections_present",
+        "length_in_range",
+        "steps_numbered",
+        "no_named_people"
+      ]
+    },
+    {
+      "id": "G04",
+      "template": "tpl-plan",
+      "goal": "为一次办公室搬迁列出两周内的准备清单。",
+      "background_chars": 300,
+      "required_sections": [
+        "目标",
+        "步骤",
+        "依赖",
+        "验收"
+      ],
+      "length_chars": [
+        400,
+        2000
+      ],
+      "checks": [
+        "sections_present",
+        "length_in_range",
+        "steps_numbered"
+      ]
+    },
+    {
+      "id": "G05",
+      "template": "tpl-summary",
+      "goal": "把一段项目周会记录整理成结论、依据和待办。",
+      "background_chars": 2500,
+      "required_sections": [
+        "结论",
+        "依据",
+        "待办"
+      ],
+      "length_chars": [
+        300,
+        1500
+      ],
+      "checks": [
+        "sections_present",
+        "length_in_range",
+        "todos_have_owner_role",
+        "no_new_facts"
+      ]
+    },
+    {
+      "id": "G06",
+      "template": "tpl-summary",
+      "goal": "把客户反馈汇总成三条主要问题和建议的处理顺序。",
+      "background_chars": 3000,
+      "required_sections": [
+        "结论",
+        "依据",
+        "待办"
+      ],
+      "length_chars": [
+        300,
+        1500
+      ],
+      "checks": [
+        "sections_present",
+        "length_in_range",
+        "no_new_facts"
+      ]
+    }
+  ]
+}

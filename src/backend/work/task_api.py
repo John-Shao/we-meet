@@ -12,37 +12,14 @@ from rest_framework.response import Response
 from core.models import User
 
 from . import access, runs
-from .api import MaterialPagination, MaterialViewSet, WorkUser
-from .executor import MAX_ARTIFACT_CHARS
+from .api import WorkPagination, WorkUser, request_key
 from .models import WorkArtifactVersion, WorkRun
-from .services import MaterialError
-
-
-class SourceInput(serializers.Serializer):
-    id = serializers.UUIDField()
-    checksum = serializers.RegexField("^[a-f0-9]{64}$")
-    parser_version = serializers.CharField(max_length=40)
-    generation = serializers.IntegerField(min_value=1)
+from .services import MAX_ARTIFACT_CHARS, WorkError
 
 
 class TaskInput(serializers.Serializer):
-    kind = serializers.ChoiceField(
-        choices=["communication", "office_agent"], default="communication"
-    )
-    recipient = serializers.CharField(max_length=200, allow_blank=True, default="")
     goal = serializers.CharField(max_length=2000)
     background = serializers.CharField(max_length=4000, allow_blank=True, default="")
-    sources = SourceInput(many=True, min_length=1, max_length=10)
-
-    def validate(self, attrs):
-        if attrs["kind"] == "communication" and not attrs["recipient"]:
-            raise serializers.ValidationError({"recipient": "required"})
-        return attrs
-
-    def validate_sources(self, value):
-        if len({item["id"] for item in value}) != len(value):
-            raise serializers.ValidationError("duplicate_source")
-        return [{**item, "id": str(item["id"])} for item in value]
 
 
 class ArtifactInput(serializers.Serializer):
@@ -86,13 +63,12 @@ def task_data(task, detail=False):
     data = {
         "id": str(task.pk),
         "kind": task.kind,
-        "recipient": task.recipient,
         "goal": task.goal,
         "created_at": task.created_at,
         "runs": [run_data(run) for run in task.runs.all()],
     }
     if detail:
-        data.update(background=task.background, sources=task.sources)
+        data.update(background=task.background)
     return data
 
 
@@ -100,7 +76,6 @@ def artifact_data(version):
     return {
         "version": version.version,
         "body": version.body,
-        "citations": version.citations,
         "origin": version.origin,
         "adopted_at": version.adopted_at,
         "created_at": version.created_at,
@@ -111,7 +86,7 @@ class TaskViewSet(viewsets.GenericViewSet):
     """All reads scoped to owner/current org; no public download URLs."""
 
     permission_classes = [WorkUser]
-    pagination_class = MaterialPagination
+    pagination_class = WorkPagination
 
     def get_queryset(self):
         return runs.visible_tasks(
@@ -124,7 +99,7 @@ class TaskViewSet(viewsets.GenericViewSet):
         return response
 
     def handle_exception(self, exc):
-        if isinstance(exc, MaterialError):
+        if isinstance(exc, WorkError):
             return Response({"code": exc.code}, status=exc.status)
         return super().handle_exception(exc)
 
@@ -144,7 +119,7 @@ class TaskViewSet(viewsets.GenericViewSet):
         task, created = runs.create_task(
             request.user,
             form.validated_data,
-            MaterialViewSet.request_key(request),
+            request_key(request),
             access.request_organization_id(request),
         )
         return Response(task_data(task, True), status=201 if created else 200)
@@ -157,7 +132,7 @@ class TaskViewSet(viewsets.GenericViewSet):
 
     @action(detail=True, methods=["post"])
     def retry(self, request, pk=None):
-        key = MaterialViewSet.request_key(request)
+        key = request_key(request)
         with transaction.atomic():
             User.objects.select_for_update().get(pk=request.user.pk)
             task = get_object_or_404(self.get_queryset().select_for_update(), pk=pk)
@@ -166,7 +141,7 @@ class TaskViewSet(viewsets.GenericViewSet):
 
 
 class RunViewSet(TaskViewSet):
-    """Run endpoints validate task ownership and source permission on delivery."""
+    """Run endpoints validate task ownership before delivery."""
 
     def get_queryset(self):
         return WorkRun.objects.filter(
@@ -184,13 +159,11 @@ class RunViewSet(TaskViewSet):
     @action(detail=True, methods=["get"])
     def files(self, request, pk=None):
         run = self.authorized_run()
-        runs.sources_for(run.task)
         return Response(list(run.files.values("name", "sha256")))
 
     @action(detail=True, methods=["get"], url_path="file-download")
     def file_download(self, request, pk=None):
         run = self.authorized_run()
-        runs.sources_for(run.task)
         item = get_object_or_404(run.files, name=request.query_params.get("name", ""))
         response = HttpResponse(
             item.text.encode("utf-8"), content_type="application/octet-stream"
@@ -240,7 +213,6 @@ class RunViewSet(TaskViewSet):
         with transaction.atomic():
             run = get_object_or_404(self.get_queryset().select_for_update(), pk=pk)
             access.require_scope(request.user, run.task.organization_id)
-            runs.sources_for(run.task)
             latest = run.versions.last()
             if not latest:
                 return Response({"code": "artifact_not_ready"}, status=409)
@@ -255,7 +227,6 @@ class RunViewSet(TaskViewSet):
                     run=run,
                     version=latest.version + 1,
                     body=form.validated_data["body"],
-                    citations=latest.citations,
                     origin="edited",
                 )
             elif request.query_params.get("version"):
@@ -271,7 +242,6 @@ class RunViewSet(TaskViewSet):
         with transaction.atomic():
             run = get_object_or_404(self.get_queryset().select_for_update(), pk=pk)
             access.require_scope(request.user, run.task.organization_id)
-            runs.sources_for(run.task)
             version = run.versions.last()
             if not version or request.data.get("version") != version.version:
                 return Response({"code": "version_conflict"}, status=409)
@@ -284,7 +254,6 @@ class RunViewSet(TaskViewSet):
     @action(detail=True, methods=["get"])
     def download(self, request, pk=None):
         run = self.authorized_run()
-        runs.sources_for(run.task)
         try:
             version = int(request.query_params.get("version", "0"))
         except ValueError:
@@ -294,7 +263,7 @@ class RunViewSet(TaskViewSet):
             artifact.body, content_type="text/markdown; charset=utf-8"
         )
         response["Content-Disposition"] = (
-            f'attachment; filename="communication-{run.pk}-v{version}.md"'
+            f'attachment; filename="work-{run.pk}-v{version}.md"'
         )
         response["X-Content-Type-Options"] = "nosniff"
         return response

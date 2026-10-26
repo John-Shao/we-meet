@@ -1,0 +1,6 @@
+2026-10-25
+LOAD_RESULT {"runs":10,"elapsed_ms":1774,"settled_cents":800}
+ok 1 - 10 concurrent pilot-shaped runs complete within the pilot envelope
+# tests 1
+# pass 1
+# fail 0

@@ -63,7 +63,7 @@ const assert = require('node:assert/strict')
     const ui = page.getByRole('region', { name: '成果复核', exact: true })
     await ui.waitFor()
     await ui.getByLabel('report.md', { exact: true }).check()
-    await ui.getByLabel('同意将选定成果和本任务已授权材料发送至复核模型').check()
+    await ui.getByLabel('同意将选定成果发送至复核模型').check()
     fs.writeFileSync(path.join(output, 'pi-review-second-started.json'), JSON.stringify({ source_run_id: source.run_id, prior_failed_review: failed.id, budget: 20000, max_model_calls: 1 }))
     await ui.getByRole('button', { name: '开启本次复核', exact: true }).click()
     let review

@@ -965,8 +965,6 @@ class Base(Configuration):
         ),
     }
     WORK_ENABLED = values.BooleanValue(False, environ_prefix=None)
-    WORK_MATERIALS_ENABLED = values.BooleanValue(False, environ_prefix=None)
-    WORK_COMMUNICATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
     WORK_AGENT_ENABLED = values.BooleanValue(False, environ_prefix=None)
     WORK_LOCAL_AGENT_ENABLED = values.BooleanValue(False, environ_prefix=None)
     WORK_AGENT_ROLLOUT_MODE = values.Value("closed", environ_prefix=None)
@@ -987,14 +985,8 @@ class Base(Configuration):
     WORK_REVIEW_CA_PEM = values.Value("", environ_prefix=None)
     WORK_REVIEW_MODEL = values.Value("deepseek-flash", environ_prefix=None)
     WORK_REVIEW_TOKEN_BUDGET = values.PositiveIntegerValue(20000, environ_prefix=None)
-    WORK_MODEL = values.Value("", environ_prefix=None)
-    WORK_MODEL_BASE_URL = values.Value("", environ_prefix=None)
-    WORK_MODEL_API_KEY = SecretFileValue(None, environ_prefix=None)
     WORK_DAILY_TOKEN_BUDGET = values.PositiveIntegerValue(100000, environ_prefix=None)
     WORK_MAX_OUTPUT_TOKENS = values.PositiveIntegerValue(3000, environ_prefix=None)
-    WORK_STORAGE = values.DictValue(
-        {"BACKEND": "work.storage.PrivateMaterialStorage"}, environ_prefix=None
-    )
     # Work access-audit retention. The purge is hourly and bounded instead of
     # nightly and unbounded: a backlog is then drained as a rolling queue rather
     # than a long transaction, and a steady-state tick usually deletes nothing.
@@ -1024,19 +1016,9 @@ class Base(Configuration):
             "schedule": 5.0,
             "options": {"queue": "work", "expires": 30},
         },
-        "tick-work-runs": {
-            "task": "work.tasks.tick_runs",
-            "schedule": 5.0,
-            "options": {"queue": "work", "expires": 30},
-        },
         "tick-work-agent-runs": {
             "task": "work.tasks.tick_agent_runs",
             "schedule": 5.0,
-        },
-        "tick-work-materials": {
-            "task": "work.tasks.tick_materials",
-            "schedule": 5.0,
-            "options": {"queue": "work", "expires": 30},
         },
         "prune-work-access-audit": {
             "task": "work.tasks.prune_access_audit",

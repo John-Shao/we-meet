@@ -62,10 +62,8 @@ def _work(organization, owner, *, review=False):
         owner=owner,
         organization=organization,
         request_key=uuid.uuid4(),
-        kind="communication",
-        recipient="Project owner",
+        kind="office_agent",
         goal="Clarify launch requirements",
-        sources=[],
     )
     run = WorkRun.objects.create(
         task=task,

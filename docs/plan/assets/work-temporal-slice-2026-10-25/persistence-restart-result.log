@@ -1,0 +1,4 @@
+2026-10-25
+PERSIST_RESULT {"workflowId":"run:persist-1792939589529","taskId":"4ee8c762-5108-4b4a-986a-3855020c5442","display":"awaiting_acceptance"}
+PERSIST_READ {"ok":true,"workflow_status":"COMPLETED","task_display":"awaiting_acceptance"}
+# Temporal server restarted between write and read; workflow history survived.

@@ -1,0 +1,373 @@
+version: 1
+stage: R0a
+description: >-
+  R0a orchestration fault-injection matrix. Cases are design contracts for the
+  D3 implementation and DR2/DR4 execution; they are not executed by this file.
+cases:
+  - id: F01
+    title: Submit transaction commits, process exits before Temporal start
+    inject:
+      - Commit Task/Run/dedup/event/outbox.
+      - Kill the outbox relay before StartWorkflow.
+    expected:
+      tasks: 1
+      runs: 1
+      workflows_started: 1
+      duplicate_dispatches: 0
+      budget_reserved_cents: 0
+      run_state_after_recovery: active
+      task_state_after_recovery: open
+    recovery: >-
+      Outbox relay retries StartWorkflow with workflow_id run:<run_id>;
+      AlreadyStarted is treated as success; only one Run exists.
+    evidence:
+      - outbox workflow_start row delivered
+      - Temporal workflow id run:<run_id>
+      - Run active with fence
+      - no second Task/Run
+  - id: F02
+    title: Workflow start succeeds, relay crashes before ACK
+    inject:
+      - StartWorkflow succeeds.
+      - Kill the relay before marking the outbox row delivered.
+    expected:
+      tasks: 1
+      runs: 1
+      workflows_started: 1
+      duplicate_dispatches: 0
+      run_state_after_recovery: active
+    recovery: >-
+      Relay retries StartWorkflow with the same workflow ID; Temporal returns
+      AlreadyStarted; relay marks delivered. No new Run or workflow is created.
+    evidence:
+      - one Temporal workflow for run:<run_id>
+      - outbox row delivered after retry
+      - one Run
+  - id: F03
+    title: Approval decision races expiry/revoke (R0a internal path)
+    inject:
+      - Create an operation waiting_approval in the internal approval path.
+      - Race an approve decision with expiry or org/member suspension.
+    expected:
+      authoritative_decisions: 1
+      stale_approval_dispatches: 0
+      operation_state: authorized_or_canceled
+      task_blocks_on_unresolved: true
+    recovery: >-
+      Decision uses approval revision and params_hash CAS. R0a golden path has
+      no manual approval; this case protects the future R0b/R2 path and the
+      policy-auto vs org-suspend boundary.
+    evidence:
+      - approval_decision row is immutable
+      - stale decision returns conflict
+      - suspended org cannot authorize or dispatch
+  - id: F04
+    title: Model accepted, network lost, no receipt
+    inject:
+      - claim_dispatch commits.
+      - Provider accepts the request.
+      - Network drops before receipt/usage is recorded.
+    expected:
+      operation_state: unknown
+      budget_reserved_cents: held
+      provider_requests: 1
+      automatic_paid_replays: 0
+      run_state: waiting_or_reconcile
+      task_acceptance_allowed: false
+    recovery: >-
+      invokeModel returns an unknown error; workflow calls markOperationUnknown.
+      Reconciler queries the provider by provider_request_id or request hash.
+      Only a confirmed not-sent resolution releases the reservation; never
+      blindly resend a paid call.
+    evidence:
+      - Operation unknown and reservation held
+      - no second provider request
+      - reconciler evidence ref
+  - id: F07
+    title: Cancel request, then late model result or upload completes
+    inject:
+      - User requests cancel while the model is dispatching.
+      - Late model result or content upload completes.
+    expected:
+      operation_state: unknown_or_canceled
+      late_artifact_published: 0
+      task_state: open
+      run_state: canceled_or_waiting_reconcile
+      usage_and_audit_retained: true
+      budget_double_charge: 0
+    recovery: >-
+      request_cancel is authoritative in PostgreSQL. The workflow marks a
+      dispatching operation unknown, does not publish the late artifact, and
+      finishes the Run canceled only when allowed. Late results are attached as
+      evidence, not promoted to the Task.
+    evidence:
+      - no published artifact version after cancel
+      - audit event for cancel/unknown
+      - budget entries remain balanced
+  - id: F21
+    title: Dispatching commit confirmation lost or crash before/after send
+    inject:
+      - claim_dispatch CAS commits.
+      - Process crashes before or after the external request.
+      - A takeover worker tries to resume.
+    expected:
+      dispatch_attempts: 1
+      operation_state: dispatching_or_unknown
+      budget_reserved_cents: held
+      blind_resends: 0
+      new_run_created: 0
+    recovery: >-
+      Only the CAS winner may send once. A takeover does not inherit the send
+      right; it queries the provider and uses reconcileOperation. Unknown keeps
+      the reservation until resolved.
+    evidence:
+      - one dispatch_attempt_id
+      - no second send from takeover
+      - reconcile evidence
+  - id: F23
+    title: Idempotency record expires or Task is deleted, then submit replay
+    inject:
+      - Submit with client_request_id.
+      - Delete/archive the Task or wait beyond any short-lived cache.
+      - Replay the same submit request.
+    expected:
+      tasks_created: 1
+      charged_tasks: 1
+      duplicate_submissions: 0
+      response: original_or_deleted
+    recovery: >-
+      submission_dedup is a persistent cross-Task unique record; replay returns
+      the original Task/Run or deleted state. No new Task is created.
+    evidence:
+      - one submission_dedup row
+      - no second Task or budget account
+      - replay returns original/deleted
+  - id: D3-R01
+    title: Outbox relay crash loop and backlog
+    inject:
+      - Relay repeatedly crashes with undelivered workflow_start/events.
+      - Oldest undelivered row exceeds the recovery window.
+    expected:
+      new_submissions: 503_service_degraded
+      existing_runs_continue: true
+      duplicate_dispatches: 0
+      workflow_starts_without_outbox: 0
+    recovery: >-
+      Alert on backlog; stop accepting new Runs when oldest age/count exceeds
+      the configured limit; repair relay and drain in order. Existing Runs are
+      not restarted or blindly resent.
+    evidence:
+      - outbox age/count metric
+      - API 503 for new submissions
+      - drained backlog
+  - id: D3-R02
+    title: Worker crash during a non-idempotent activity
+    inject:
+      - Worker dies after claim_dispatch but before the model result is recorded.
+    expected:
+      operation_state: unknown_after_reconcile
+      automatic_paid_replays: 0
+      budget_reserved_cents: held_or_settled_once
+      duplicate_dispatch: 0
+    recovery: >-
+      Temporal retries only idempotent activities. invokeModel is not retried
+      after dispatch; reconciler resolves unknown. The same Run identity is
+      reused only for idempotent steps.
+    evidence:
+      - Temporal activity attempt history
+      - one provider request
+      - reconcile outcome
+  - id: D3-R03
+    title: Budget exhausted while Run is waiting
+    inject:
+      - reserve_budget returns budget_exhausted.
+      - Service operator adds budget later.
+    expected:
+      run_state: waiting
+      wait_reason: budget
+      new_dispatches_before_replenish: 0
+      resume_after_replenish: true
+      duplicate_changes: 0
+    recovery: >-
+      Workflow calls waitRun(budget); reconciler detects available budget and
+      sends budget_available/resume; workflow revalidates policy and reservation
+      before any new dispatch. If the 24h wait timer expires, finish failed with
+      budget_wait_timeout and keep the Task open.
+    evidence:
+      - Run waiting/budget
+      - no new operation before replenish
+      - resume audit and one new reservation
+  - id: D3-R04
+    title: Acceptance while Run active or Operation unknown
+    inject:
+      - User attempts accept_task while active_run_id is set or an Operation is unknown.
+    expected:
+      acceptance_status: 409_run_not_quiescent
+      task_state: unchanged
+      artifact_state: unchanged
+    recovery: >-
+      accept_task checks revision, active Run, latest terminal Run and all
+      blocking Operations. The UI must show reconciling, not offer retry or
+      acceptance as if complete.
+    evidence:
+      - 409 error with current revision
+      - no Acceptance row
+  - id: D3-R05
+    title: Organization suspended during dispatch
+    inject:
+      - Operator suspends the tenant after claim_dispatch.
+    expected:
+      new_dispatches: 0
+      in_flight_action: unknown_or_canceled
+      auto_resume_after_unsuspend: false
+      content_access: denied_or_policy_limited
+    recovery: >-
+      Suspension raises the execution epoch and blocks new permits. In-flight
+      external actions may already exist; reconcile and audit. Unsuspend is
+      explicit and does not restore revoked seats/grants or replay old actions.
+    evidence:
+      - dispatch denied after suspension
+      - audit events
+      - no automatic re-execution
+  - id: D3-N01
+    title: Content shredder crashes after claiming a content_shred outbox row
+    inject:
+      - Delete a quiescent task so D1 enqueues a content_shred outbox row.
+      - Claim the row, then kill the shredder before the Content Store delete or ACK.
+    expected:
+      duplicate_shred_events: 0
+      lease_takeover_after_expiry: true
+      task_state: deleted
+      task_resurrected: false
+      dead_letters: 0
+    recovery: >-
+      The outbox row keeps its lease until claimed_until expires, then another
+      replica claims it. Deletion by content reference is idempotent, so replay
+      cannot double-delete or resurrect the task. Persistent failure backs off
+      2^n and dead-letters without blocking task events on other aggregates.
+    evidence:
+      - same outbox event delivered once after takeover
+      - no new content_shred row created by the retry
+      - lease_owner/claimed_until transitions recorded
+
+  - id: D3-N02
+    title: Two unbound inputs share one content reference, one expires
+    inject:
+      - create_input twice from two subjects with the same content_hash/ref.
+      - Run expire_due_inputs so only the first input is past its TTL.
+    expected:
+      inputs_expired: 2
+      content_shred_events: 1
+      refs_in_payload: 1
+      goal_text_in_payload: false
+    recovery: >-
+      expire_due_inputs marks each input expired but only enqueues a shred when
+      no live row still references the content. The last holder produces the
+      single delete request; the reference itself never enters the payload.
+    evidence:
+      - exactly one content_shred outbox row for that ref
+      - both input rows status expired with deleted_at set
+      - payload contains refs only (no body, no title)
+    measured: >-
+      DB-level part executed locally: r0a-concurrency-smoke.py ran 3 concurrent
+      expire_due_inputs sweeps over 2 refs shared by 4 inputs; one sweep took all
+      4 rows (FOR UPDATE), the others returned 0, and the outbox holds exactly 2
+      content_shred rows for 2 distinct refs. Crash injection and the real Content
+      Store delete still need the Temporal/staging run.
+
+  - id: D3-N03
+    title: Export worker writes the file then crashes before complete_audit_export
+    inject:
+      - Claim an audit export, write the object to the Content Store, kill the worker.
+    expected:
+      duplicate_objects: 0
+      lease_takeover_after_expiry: true
+      download_tickets_issued: 0
+      job_state_after_retry: ready
+    recovery: >-
+      Objects are named by export job id, so the takeover rewrites the same key
+      instead of orphaning a second file. complete_audit_export requires the
+      current lease owner; a stale worker gets audit_export_lease_lost. No
+      download ticket exists before the job is ready.
+    evidence:
+      - single content_ref per export id
+      - non-holder complete call rejected
+      - job reaches ready exactly once with row_count/bytes recorded
+    measured: >-
+      DB-level part executed locally: 10 concurrent claim_audit_export calls gave
+      1 winner and 9 audit_export_not_claimable; after forcing the lease past its
+      expiry the new holder completed and the stale holder got
+      audit_export_lease_lost. duplicate_objects needs a real Content Store run.
+
+  - id: D3-N04
+    title: Expiry sweep races a pending download ticket redemption
+    inject:
+      - Issue a download ticket, then run the expiry sweep past expires_at.
+      - Attempt the redemption afterwards.
+    expected:
+      redemption_status: 410
+      ticket_reuse_allowed: false
+      job_state: expired
+      content_ref_retained_after_expiry: false
+    recovery: >-
+      Redemption requires status=ready and a live single-use token; the sweep
+      only moves ready to expired, and shred_due_audit_exports then clears the
+      reference once, so a leaked token cannot fetch purged content.
+    evidence:
+      - download_token_expired or audit_export_expired returned
+      - downloaded_at remains null when the token expired unused
+      - one content_shred event for the expired job
+    measured: >-
+      DB-level part executed locally: 5 concurrent
+      redeem_audit_export_download calls with the same token gave 1 success and 4
+      download_token_invalid with downloaded_at set on exactly one row.
+
+  - id: D3-N05
+    title: Directory projection sync fails for one organization
+    inject:
+      - Replay an already-applied revision for org A while org B syncs normally.
+    expected:
+      org_b_projection_applied: true
+      org_a_effect_after_replay: unchanged
+      public_error_code: service_degraded
+      in_flight_runs_cancelled: 0
+      admin_overview_behavior: stale_not_fabricated
+    recovery: >-
+      sync_* rejects non-monotonic revisions with projection_revision_stale,
+      which is a worker-only code mapped to service_degraded. One tenant failing
+      does not block other tenants because the job runs one transaction per
+      organization. Projection loss only records entitlement_lost; stopping a
+      running Run stays a domain decision (D-07), never an adapter side effect.
+    evidence:
+      - audit rows directory.org_synced / directory.member_synced per org
+      - entitlement_lost flag recorded, no run state change
+      - lag alert WorkDirectoryProjectionStale fires past threshold
+    measured: >-
+      Executed locally, and it found a real defect: before the fix, 8 concurrent
+      out-of-order syncs reported every revision applied while the stored
+      revision ended at 5 (org) and 6 (member), i.e. the highest revision was
+      overwritten. With the monotonic upsert predicate the final revision equals
+      the maximum applied revision and duplicates of one revision collapse to a
+      single apply. Real IdP replay timing and the lag alert still need staging.
+
+  - id: D3-N06
+    title: Kill switch or tenant suspension during background jobs
+    inject:
+      - Enable the kill switch (or suspend the org) while relay, shredder,
+        projection sync and expiry sweeps are due.
+    expected:
+      new_submissions: 0
+      new_export_jobs: 0
+      outbox_relay: continues
+      content_shredder: continues
+      projection_sync: continues
+      expiry_sweep: continues
+      in_flight_runs: cancellable_and_readable
+    recovery: >-
+      Only work-creating actions stop. Delivery and retention duties keep
+      running, so events are never lost and purged content stays purged.
+      Re-enabling does not replay completed external actions.
+    evidence:
+      - events delivered and content purged while kill switch is on
+      - new submit/export requests rejected with the mapped error code
+      - audit records for suspension and resume

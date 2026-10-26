@@ -145,7 +145,7 @@ we-meet 当前 `src/agents/plugins/doubao_translate.py` 接收已有 FINAL 文�
 2. 生产先等待活动翻译结束，在无活动翻译的窗口联合发布这三个镜像。检查服务器自有 values/环境文件是否覆盖 `QWEN_TRANSLATION_MODEL` 为旧值；三个翻译 Worker 均应为 3.8。密钥继续使用已有 Secret，不修改历史配置快照。
 3. 部署后用已授权的短合成音频运行 `bin/meeting-ai-phase0.py --live-translation --region cn-beijing --audio <16k-mono-pcm16.wav> --translation-mode server_vad`，分别补测 `--text-only`、`--target zh`、`--translation-mode manual`。脚本使用生产适配器；manual 测试的是按键收尾，不会发送旧版 commit。凭据通过环境或 `--secrets-file` 本地读取，不放命令行或日志。
 4. Web 验收录音翻译、私人翻译、同传频道；特别检查按键连续两轮、尾句、静音、断网和撤权。失败不自动重放音频，不影响原录音。
-5. 出现模型权限、协议或质量问题时停止新翻译，协调回退 backend/frontend/agents 镜像与三个 Worker 模型配置；只回退模型字符串不能恢复旧协议。Work 功能沿用已有 overlay，无需再次执行 `enable-work.sh materials`。
+5. 出现模型权限、协议或质量问题时停止新翻译，协调回退 backend/frontend/agents 镜像与三个 Worker 模型配置；只回退模型字符串不能恢复旧协议。Work 功能沿用已有 overlay，无需为本次模型切换单独调整 Work 开关。
 
 停止时，私人翻译的输入队列与供应商收尾共享 20 秒预算；不再用旧的 5 秒输入队列超时截断按键尾句，也不为已停止的任务预建下一轮连接。
 

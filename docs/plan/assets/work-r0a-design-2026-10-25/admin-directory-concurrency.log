@@ -1,0 +1,114 @@
+{
+  "database": "postgresql 16 / work_r0a (disposable)",
+  "export_claim_single_winner": {
+    "workers": 10,
+    "winners": 1,
+    "loss_codes": {
+      "audit_export_not_claimable": 9
+    },
+    "db_state": "running"
+  },
+  "export_lease_takeover": {
+    "a_claimed": true,
+    "b_claimed_after_expiry": true,
+    "stolder_holder_complete": "audit_export_lease_lost",
+    "current_holder_complete": "ok",
+    "db_state": "ready"
+  },
+  "download_token_single_use": {
+    "issued": true,
+    "workers": 5,
+    "outcomes": {
+      "success": 1,
+      "download_token_invalid": 4
+    },
+    "downloaded_at_count": 1
+  },
+  "projection_revision_race": {
+    "org": {
+      "applied": [
+        2,
+        4,
+        5,
+        8,
+        9
+      ],
+      "rejected": {
+        "projection_revision_stale": 3
+      },
+      "final_revision": 9,
+      "lost_update": false
+    },
+    "member": {
+      "applied": [
+        4,
+        5,
+        9
+      ],
+      "rejected": {
+        "projection_revision_stale": 5
+      },
+      "final_revision": 9,
+      "lost_update": false
+    },
+    "duplicate_delivery": {
+      "workers": 4,
+      "applied": 1,
+      "rejected": {
+        "projection_revision_stale": 3
+      }
+    }
+  },
+  "expiry_sweep_shared_ref": {
+    "workers": 3,
+    "swept": [
+      4,
+      0,
+      0
+    ],
+    "errors": [],
+    "expired_inputs": 4,
+    "shred_rows": 2,
+    "distinct_refs": 2
+  },
+  "submit_during_revocation": {
+    "workers": 6,
+    "outcomes": {
+      "created": 6
+    },
+    "post_revocation_submit": "work_seat_required",
+    "final_seat": false
+  },
+  "admin_overview_vs_settlements": {
+    "settled_calls": 6,
+    "settle_errors": [],
+    "ledger_settled_cents": 540,
+    "account": {
+      "settled_cents": 540,
+      "reserved_cents": 0
+    },
+    "overview_reads": 900,
+    "observed_settled_cents": [
+      0,
+      360,
+      450,
+      540
+    ],
+    "reads_interleaved_with_commits": true,
+    "reads_off_ledger_prefix": [],
+    "final_read_matches_ledger": true
+  },
+  "wall_seconds": 7.28,
+  "gate": {
+    "checks": {
+      "export_claim_single_winner": true,
+      "export_lease_takeover": true,
+      "download_token_single_use": true,
+      "projection_monotonic": true,
+      "expiry_sweep_shreds_once": true,
+      "revocation_blocks_new_work": true,
+      "overview_matches_ledger": true
+    },
+    "violations": []
+  }
+}

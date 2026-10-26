@@ -13,7 +13,7 @@ import { AppsContent } from './AppsPage'
 import { AppRail } from '@/layout/AppRail'
 import { useAppPreferences } from './useAppPreferences'
 
-const session = vi.hoisted(() => ({ owner: 'alice', work: true, docs: true }))
+const session = vi.hoisted(() => ({ owner: 'alice' }))
 vi.mock('react-i18next', () => ({
   useTranslation: (namespace: string) => ({
     t: (key: string, args: Record<string, unknown> = {}) => {
@@ -39,8 +39,8 @@ vi.mock('@/features/auth', () => ({
 vi.mock('@/api/useConfig', () => ({
   useConfig: () => ({
     data: {
-      work: { enabled: session.work },
-      docs: { url: session.docs ? '/docs' : null },
+      work: { enabled: true },
+      docs: { url: '/docs' },
     },
   }),
 }))
@@ -65,14 +65,12 @@ function mount() {
   return render(
     <QueryClientProvider client={client}>
       <AppRail />
-      <AppsContent ownerId={session.owner} workEnabled={session.work} />
+      <AppsContent ownerId={session.owner} />
     </QueryClientProvider>
   )
 }
 beforeEach(() => {
   session.owner = 'alice'
-  session.work = true
-  session.docs = true
   window.history.replaceState(null, '', '/apps')
 })
 
@@ -92,9 +90,9 @@ describe('App navigation and favorites', () => {
       'href',
       '/contacts'
     )
-    expect(screen.getByTestId('catalog-communication')).toHaveAttribute(
+    expect(screen.getByTestId('catalog-approval')).toHaveAttribute(
       'href',
-      '/work?view=communication'
+      '/approval'
     )
   })
   it('adds, reorders and removes favorites while keeping rail shortcuts in sync', () => {
@@ -119,13 +117,13 @@ describe('App navigation and favorites', () => {
   })
   it('filters categories and search and records visits through shortcuts', () => {
     mount()
-    fireEvent.click(screen.getByRole('button', { name: 'AI 工具' }))
+    fireEvent.click(screen.getByRole('button', { name: '组织与流程' }))
     expect(screen.queryByTestId('catalog-calendar')).not.toBeInTheDocument()
-    expect(screen.getByTestId('catalog-spreadsheet')).toBeInTheDocument()
+    expect(screen.getByTestId('catalog-contacts')).toBeInTheDocument()
     fireEvent.change(screen.getByRole('searchbox'), {
-      target: { value: '沟通' },
+      target: { value: '表格' },
     })
-    expect(screen.queryByTestId('catalog-spreadsheet')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('catalog-contacts')).not.toBeInTheDocument()
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: '' } })
     fireEvent.click(screen.getByTestId('rail-shortcut-calendar'))
     fireEvent.click(screen.getByRole('button', { name: '最近使用' }))
@@ -134,24 +132,6 @@ describe('App navigation and favorites', () => {
       'aria-current',
       'page'
     )
-  })
-  it('respects module availability without erasing saved favorites', () => {
-    localStorage.setItem(
-      'we-meet:apps:v1:alice',
-      JSON.stringify({ favorites: ['calendar', 'weekly'], recent: [] })
-    )
-    session.work = false
-    session.docs = false
-    mount()
-    expect(screen.queryByTestId('rail-/work')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('rail-/docs')).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'AI 工具' })
-    ).not.toBeInTheDocument()
-    expect(screen.queryByTestId('rail-shortcut-weekly')).not.toBeInTheDocument()
-    expect(
-      JSON.parse(localStorage.getItem('we-meet:apps:v1:alice')!).favorites
-    ).toContain('weekly')
   })
 })
 

@@ -13,14 +13,13 @@ from core.factories import UserFactory
 from work import agent_runs, local_runs, rollout
 from work.agent_client import AgentBoundaryError, AgentClient
 from work.models import WorkDevice, WorkRun, WorkTask
-from work.services import MaterialError
+from work.services import WorkError
 
 from . import test_agent_runs as cloud
 from . import test_local_runs as local
 from . import test_remote_runs as remote
 from . import test_reviews as review
-from .test_materials import client, upload, work_settings
-from .test_runs import model_settings, submit, task_input
+from .support import client, model_settings, submit, task_input, work_settings
 
 pytestmark = pytest.mark.django_db
 ROOT = "/api/v1.0/work/"
@@ -80,8 +79,6 @@ def test_closed_unknown_or_invalid_cohort_denies_new_features(
         assert value[feature] is False
     assert "office_agent" not in value["skills"]
     assert value["agent_model"] == value["review_model"] == ""
-    assert upload(client).status_code == 201
-    assert value["communication_enabled"] is True
 
 
 def test_cohort_capabilities_differ_for_two_users_without_exposing_ids(client):
@@ -98,7 +95,6 @@ def test_cohort_capabilities_differ_for_two_users_without_exposing_ids(client):
         assert value[feature] is True
         assert other[feature] is False
     assert str(client.work_user.pk) not in str(value)
-    assert upload(outsider).status_code == 201
 
 
 def test_invalid_entry_closes_whole_cohort_even_with_valid_member(client, settings):
@@ -135,7 +131,7 @@ def test_cohort_never_overrides_global_switches(client, settings):
 
 
 def test_denied_account_cannot_register_dispatch_or_create_cloud_run(client, settings):
-    data = {**task_input(client), "kind": "office_agent", "recipient": ""}
+    data = task_input()
     settings.WORK_AGENT_ALLOWED_USER_IDS = []
     assert submit(client, data).status_code == 503
     assert WorkTask.objects.count() == WorkRun.objects.count() == 0
@@ -149,7 +145,6 @@ def test_denied_account_cannot_register_dispatch_or_create_cloud_run(client, set
             "goal": "blocked",
             "model": "deepseek-flash",
             "workspace_label": "blocked",
-            "sources": [],
         },
         "workspaces/": {
             "device_id": device_id,
@@ -168,7 +163,7 @@ def test_denied_account_cannot_register_dispatch_or_create_cloud_run(client, set
     for endpoint, body in bodies.items():
         response = client.post(ROOT + "local/" + endpoint, body, format="json")
         assert response.status_code == 503
-    with pytest.raises(MaterialError, match="local_coordination_disabled"):
+    with pytest.raises(WorkError, match="local_coordination_disabled"):
         local_runs.register(client.work_user, uuid.uuid4(), "blocked")
     assert WorkDevice.objects.count() == WorkRun.objects.count() == 0
 

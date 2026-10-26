@@ -133,6 +133,10 @@ ACTION_ONLY_PERMISSIONS = frozenset(
         "org.import.write",  # /org 里的批量导入
         "org.ai_quota.read",  # 配额面板,挂在别的页里
         "org.bot.write",  # /bots 里的停用/启用按钮
+        # Work 席位授予：内置角色（hr/it/admin_office）被授了读码，管的是
+        # 管理接口与页内面板；R0a 管理页尚未实现，控制台里没有它这扇“门”，
+        # 所以它不是 NAV_CONTRACT 的遗漏。等管理页落地时必须移到 NAV_CONTRACT。
+        "org.work_grant.read",
     }
 )
 

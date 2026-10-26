@@ -1,0 +1,15 @@
+{
+  "price_version": "qwen3.8-flash-placeholder-2026-10",
+  "placeholder": true,
+  "note": "Not a provider price. Replace with the archived written price sheet before any budget commitment (D4-11).",
+  "provider": "dashscope",
+  "model": "qwen3.8-flash",
+  "currency": "CNY",
+  "per_million_cents": {
+    "input": 30,
+    "cached_input": 12,
+    "output": 120
+  },
+  "max_output_tokens": 4096,
+  "reasoning_billed_separately": false
+}

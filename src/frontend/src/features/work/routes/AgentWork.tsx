@@ -1,12 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'wouter'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  getWorkCapabilities,
-  listMaterials,
-  workError,
-  type Material,
-} from '../api/materials'
+import { getWorkCapabilities, workError } from '../api/work'
 import {
   cancelRun,
   createTask,
@@ -17,11 +12,11 @@ import {
   retryTask,
   type WorkRun,
 } from '../api/tasks'
-import { RunArtifacts, RunProgress } from './Communication'
+import { RunArtifacts, RunProgress } from './RunOutput'
 import { PiReview } from './PiReview'
 import { TaskComposer } from './TaskComposer'
 import { WorkSidebarSection } from './WorkNavigation'
-import { RiAttachment2, RiSparklingLine } from '@remixicon/react'
+import { RiSparklingLine } from '@remixicon/react'
 
 const active = (run?: WorkRun) =>
   run?.status === 'queued' || run?.status === 'running'
@@ -39,14 +34,6 @@ const states = {
 }
 const templates: Record<string, { title: string; goal: string }> = {
   new: { title: '新工作', goal: '' },
-  weekly: {
-    title: '周报',
-    goal: '根据选定材料整理本周进展、风险和下周计划，输出 report.md。保留未确认和待验收状态，缺失信息单独列出。',
-  },
-  spreadsheet: {
-    title: '表格分析',
-    goal: '分析选定材料中的表格数据，说明清洗和统计口径，输出 report.md 及可复核的 CSV 或 JSON 结果。缺失信息单独列出。',
-  },
 }
 
 export function AgentWork({
@@ -62,9 +49,7 @@ export function AgentWork({
   const client = useQueryClient()
   const root = ['work', ownerId]
   const [page, setPage] = useState(1)
-  const [materialPage, setMaterialPage] = useState(1)
   const [historyLimit, setHistoryLimit] = useState(8)
-  const [selected, setSelected] = useState<Material[]>([])
   const [goal, setGoal] = useState(templates[view].goal)
   const [background, setBackground] = useState('')
   const [error, setError] = useState('')
@@ -92,11 +77,6 @@ export function AgentWork({
     refetchInterval: (q) =>
       q.state.data?.runs.some(cancelable) ? 2000 : false,
   })
-  const materials = useQuery({
-    queryKey: [...root, 'materials', materialPage],
-    queryFn: () => listMaterials(materialPage),
-    retry: false,
-  })
   const enabled = capabilities.data?.agent_enabled === true
   const refresh = () => client.invalidateQueries({ queryKey: root })
   const open = (id = '') =>
@@ -105,17 +85,8 @@ export function AgentWork({
     mutationFn: async () => {
       const data = {
         kind: 'office_agent' as const,
-        recipient: '',
         goal,
         background,
-        sources: selected.map(
-          ({ id, checksum, parser_version, generation }) => ({
-            id,
-            checksum,
-            parser_version,
-            generation,
-          })
-        ),
       }
       const input = JSON.stringify(data)
       if (key.current.input !== input)
@@ -159,7 +130,7 @@ export function AgentWork({
   })
   return (
     <section
-      className={`work-materials work-task-page ${taskId ? '' : 'work-task-create'}`}
+      className={`work-page work-task-page ${taskId ? '' : 'work-task-create'}`}
       aria-label={templates[view].title}
     >
       <header className="work-heading work-task-heading">
@@ -169,7 +140,7 @@ export function AgentWork({
             云端工作助理
           </p>
           <h1>{taskId ? templates[view].title : '今天想完成什么工作？'}</h1>
-          <p>选择材料、说明目标，生成可核对和编辑的成果。</p>
+          <p>说明目标，生成可核对和编辑的成果。</p>
         </div>
         {window.weMeetDesktop?.localWork && (
           <button
@@ -211,7 +182,7 @@ export function AgentWork({
           {!tasks.isError &&
             recentTasks.map((t) => (
               <button
-                className="work-material-row"
+                className="work-task-row"
                 data-work-open-task
                 key={t.id}
                 aria-pressed={t.id === taskId}
@@ -242,7 +213,7 @@ export function AgentWork({
             </button>
           )}
           {tasks.data?.results.length === 0 && (
-            <p>还没有工作。先选择材料并填写目标。</p>
+            <p>还没有工作。直接描述目标即可开始。</p>
           )}
           <nav className="work-pagination" aria-label="工作分页">
             <button
@@ -268,118 +239,22 @@ export function AgentWork({
               className="work-form work-task-form"
               onSubmit={(e) => {
                 e.preventDefault()
-                if (selected.length && enabled && !submit.isPending) {
+                if (goal.trim() && enabled && !submit.isPending) {
                   setError('')
                   submit.mutate()
                 }
               }}
             >
-              {!enabled && (
-                <p role="status">工作生成尚未启用。可以先上传并核对材料。</p>
-              )}
+              {!enabled && <p role="status">工作生成尚未启用。</p>}
               <TaskComposer
                 goal={goal}
                 onGoalChange={setGoal}
                 maxLength={2000}
                 busy={submit.isPending}
-                disabled={
-                  !enabled ||
-                  !selected.length ||
-                  !goal.trim() ||
-                  submit.isPending
-                }
+                disabled={!enabled || !goal.trim() || submit.isPending}
                 submitLabel={submit.isPending ? '正在提交…' : '开始处理'}
-                tools={
-                  <details className="work-composer-menu">
-                    <summary>
-                      <RiAttachment2 size={18} aria-hidden="true" />
-                      选择材料（{selected.length} / 10）
-                    </summary>
-                    <fieldset
-                      className="work-composer-popover"
-                      disabled={submit.isPending}
-                    >
-                      <legend>选择材料（{selected.length} / 10）</legend>
-                      <p>
-                        读取选定材料的完整文本，总计不超过 400
-                        KB。文件会上传至模型服务处理。
-                      </p>
-                      {materials.isError && (
-                        <p role="alert">
-                          材料加载失败。
-                          <button
-                            type="button"
-                            onClick={() => void materials.refetch()}
-                          >
-                            重试
-                          </button>
-                        </p>
-                      )}
-                      {!materials.isError &&
-                        materials.data?.results.map((item) => (
-                          <label className="work-check" key={item.id}>
-                            <input
-                              type="checkbox"
-                              checked={selected.some((m) => m.id === item.id)}
-                              disabled={
-                                item.status !== 'ready' ||
-                                (selected.length >= 10 &&
-                                  !selected.some((m) => m.id === item.id))
-                              }
-                              onChange={() =>
-                                setSelected((old) =>
-                                  old.some((m) => m.id === item.id)
-                                    ? old.filter((m) => m.id !== item.id)
-                                    : [...old, item]
-                                )
-                              }
-                            />
-                            {item.original_name}
-                            {item.status !== 'ready' && '（尚未就绪）'}
-                          </label>
-                        ))}
-                      <nav className="work-pagination" aria-label="材料分页">
-                        <button
-                          type="button"
-                          disabled={!materials.data?.previous}
-                          onClick={() => setMaterialPage(materialPage - 1)}
-                        >
-                          上一页
-                        </button>
-                        <span>{materialPage}</span>
-                        <button
-                          type="button"
-                          disabled={!materials.data?.next}
-                          onClick={() => setMaterialPage(materialPage + 1)}
-                        >
-                          下一页
-                        </button>
-                      </nav>
-                      {selected.map((item) => (
-                        <p key={item.id}>
-                          {item.original_name}{' '}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setSelected((old) =>
-                                old.filter((m) => m.id !== item.id)
-                              )
-                            }
-                          >
-                            移除
-                          </button>
-                        </p>
-                      ))}
-                    </fieldset>
-                  </details>
-                }
                 context={
-                  <span>
-                    {selected.length
-                      ? `已选择 ${selected.length} 份材料`
-                      : '从云端工作材料中选择本次任务需要的文件'}{' '}
-                    · {capabilities.data?.agent_model || '已配置模型'}
-                  </span>
+                  <span>{capabilities.data?.agent_model || '已配置模型'}</span>
                 }
                 options={
                   <details className="work-task-options">
@@ -398,7 +273,7 @@ export function AgentWork({
                     </div>
                   </details>
                 }
-                hint="选定材料会发送到模型服务处理，成果需核实后使用。"
+                hint="目标会发送到模型服务处理，成果需核实后使用。"
               />
             </form>
           )}
@@ -413,7 +288,6 @@ export function AgentWork({
             <>
               <h2>{task.data.goal}</h2>
               <p>{task.data.background}</p>
-              <p>本次选择 {task.data.sources.length} 份材料</p>
               {run && (
                 <>
                   <p role="status">

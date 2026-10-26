@@ -10,6 +10,7 @@ import pytest
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("restore_full_schema")
 def test_external_calendar_sync_schema_and_data_are_removed():
     executor = MigrationExecutor(connection)
     executor.migrate([("core", "0097_require_event_source_calendar")])

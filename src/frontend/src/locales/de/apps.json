@@ -47,18 +47,6 @@
     "approval": {
       "name": "Genehmigungen",
       "description": "Anträge stellen und Genehmigungen bearbeiten."
-    },
-    "communication": {
-      "name": "Gesprächsvorbereitung",
-      "description": "Hintergrund, Fragen und Gesprächspunkte vorbereiten."
-    },
-    "weekly": {
-      "name": "Wochenbericht",
-      "description": "Fortschritte zusammenfassen und einen Bericht erstellen."
-    },
-    "spreadsheet": {
-      "name": "Tabellenanalyse",
-      "description": "Tabellendaten analysieren und Ergebnisse zusammenfassen."
     }
   }
 }

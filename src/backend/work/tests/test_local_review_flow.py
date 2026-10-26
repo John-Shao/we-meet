@@ -21,9 +21,8 @@ from work import agent_runs, review_runs
 from work.agent_client import AgentBoundaryError, AgentClient
 from work.models import WorkReview, WorkRun
 
+from .support import client, work_settings
 from .test_local_runs import ROOT, admit, local_settings, post_report, report_for
-from .test_materials import client, work_settings
-from .test_runs import task_input
 
 pytestmark = pytest.mark.django_db
 
@@ -40,8 +39,7 @@ def test_selected_local_files_to_review_with_lost_admission_ack(  # noqa: PLR091
     from work_agent.config import Config  # noqa: PLC0415
     from work_agent.server import Gateway  # noqa: PLC0415
 
-    sources = task_input(client)["sources"]
-    body, admitted, claim = admit(client, sources)
+    body, admitted, claim = admit(client)
     report = report_for(body, claim)
     private_text = "private-local-only-canary"
     report["artifacts"].append(
@@ -227,7 +225,5 @@ def test_selected_local_files_to_review_with_lost_admission_ack(  # noqa: PLR091
         assert admitted["task"]["id"] == str(run.task_id)
         if delivery_probe:
             delivery_probe(run, review)
-        assert client.delete(ROOT + f"materials/{sources[0]['id']}/").status_code == 204
-        assert client.get(review_url).status_code == 409
     finally:
         gateway.close()

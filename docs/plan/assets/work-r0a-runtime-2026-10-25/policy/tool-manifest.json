@@ -1,0 +1,50 @@
+{
+  "version": "r0a-v1",
+  "rejectUnknownTools": true,
+  "tools": [
+    {
+      "id": "model_call",
+      "purpose": "Generate or revise the Markdown answer through the controlled egress gateway.",
+      "sideEffect": "external_data_egress",
+      "approval": "task_submission_policy_auto",
+      "budget": true,
+      "network": "egress_only",
+      "contentRead": ["user_input", "system_template"],
+      "contentWrite": [],
+      "maxCalls": 3
+    },
+    {
+      "id": "read_builtin_template",
+      "purpose": "Read one of the three server-authored R0a templates.",
+      "sideEffect": "none",
+      "approval": "policy_auto",
+      "budget": false,
+      "network": "none",
+      "contentRead": ["system_template"],
+      "contentWrite": [],
+      "maxCalls": 3
+    },
+    {
+      "id": "write_artifact_draft",
+      "purpose": "Write the final Markdown content or a checkpoint to the scoped Content Store.",
+      "sideEffect": "internal_write",
+      "approval": "policy_auto",
+      "budget": false,
+      "network": "none",
+      "contentRead": [],
+      "contentWrite": ["artifact_draft", "checkpoint"],
+      "maxCalls": 3
+    }
+  ],
+  "denied": [
+    "shell",
+    "filesystem",
+    "network",
+    "browser",
+    "connector",
+    "code_exec",
+    "arbitrary_tool",
+    "package_install",
+    "user_extension"
+  ]
+}

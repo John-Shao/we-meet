@@ -1,0 +1,313 @@
+syntax = "proto3";
+
+package work.control.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "work/common/v1/common.proto";
+
+option go_package = "we-meet/gen/work/control/v1;controlv1";
+
+// 控制面内部命令。调用方必须来自受信工作负载身份；OrgContext 由认证层注入。
+// 每个命令都携带 request_id/expected_revision/fence 中的适用字段，禁止只靠网络重试。
+service WorkControlService {
+  rpc CreateRun(CreateRunRequest) returns (CreateRunResponse);
+  rpc FinishRun(FinishRunRequest) returns (FinishRunResponse);
+  rpc CreateOperation(CreateOperationRequest) returns (CreateOperationResponse);
+  rpc ClaimDispatch(ClaimDispatchRequest) returns (ClaimDispatchResponse);
+  rpc RequestApproval(RequestApprovalRequest) returns (RequestApprovalResponse);
+  rpc DecideApproval(DecideApprovalRequest) returns (DecideApprovalResponse);
+  rpc ReserveBudget(ReserveBudgetRequest) returns (BudgetReservationResponse);
+  rpc SettleBudget(SettleBudgetRequest) returns (BudgetReservationResponse);
+  rpc AdjustBudget(AdjustBudgetRequest) returns (BudgetReservationResponse);
+  rpc ReleaseBudget(ReleaseBudgetRequest) returns (BudgetReservationResponse);
+  rpc AcceptTask(AcceptTaskRequest) returns (AcceptTaskResponse);
+  rpc FinalizeArtifact(FinalizeArtifactRequest) returns (FinalizeArtifactResponse);
+  rpc GetTaskQuiescence(GetTaskQuiescenceRequest) returns (GetTaskQuiescenceResponse);
+  rpc GetRun(GetRunRequest) returns (GetRunResponse);
+}
+
+message CreateRunRequest {
+  work.common.v1.OrgContext context = 1;
+  string task_id = 2;
+  string snapshot_id = 3;
+  string workflow_id = 4;
+  string runtime_version = 5;
+  string request_id = 6;
+}
+
+message CreateRunResponse {
+  Run run = 1;
+}
+
+message FinishRunRequest {
+  work.common.v1.OrgContext context = 1;
+  string run_id = 2;
+  work.common.v1.RunOutcome outcome = 3;
+  string reason = 4;
+  int64 expected_control_revision = 5;
+  string request_id = 6;
+}
+
+message FinishRunResponse {
+  Run run = 1;
+  work.common.v1.Quiescence quiescence = 2;
+}
+
+message CreateOperationRequest {
+  work.common.v1.OrgContext context = 1;
+  string run_id = 2;
+  string logical_key = 3;
+  work.common.v1.OperationKind kind = 4;
+  string request_hash = 5;
+  string request_id = 6;
+}
+
+message CreateOperationResponse {
+  Operation operation = 1;
+}
+
+message ClaimDispatchRequest {
+  work.common.v1.OrgContext context = 1;
+  string operation_id = 2;
+  string consumer_id = 3;
+  int64 fence = 4;
+  int64 expected_operation_revision = 5;
+  string request_id = 6;
+}
+
+message ClaimDispatchResponse {
+  // 空表示 CAS 未胜出；调用方不得发送。
+  string dispatch_attempt_id = 1;
+  bytes signed_permit = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  Operation operation = 4;
+}
+
+enum ApprovalTargetType {
+  APPROVAL_TARGET_TYPE_UNSPECIFIED = 0;
+  APPROVAL_TARGET_TYPE_OPERATION = 1;
+  APPROVAL_TARGET_TYPE_PLAN = 2;
+}
+
+message RequestApprovalRequest {
+  work.common.v1.OrgContext context = 1;
+  string task_id = 2;
+  string run_id = 3;
+  oneof target {
+    string operation_id = 4;
+    string plan_version_id = 5;
+  }
+  string params_hash = 6;
+  google.protobuf.Struct scope = 7;
+  work.common.v1.RiskLevel risk = 8;
+  google.protobuf.Timestamp expires_at = 9;
+  string request_id = 10;
+}
+
+message RequestApprovalResponse {
+  Approval approval = 1;
+}
+
+message DecideApprovalRequest {
+  work.common.v1.OrgContext context = 1;
+  string approval_id = 2;
+  int64 expected_revision = 3;
+  string params_hash = 4;
+  work.common.v1.Decision decision = 5;
+  string comment = 6;
+  string request_id = 7;
+}
+
+message DecideApprovalResponse {
+  Approval approval = 1;
+}
+
+message ReserveBudgetRequest {
+  work.common.v1.OrgContext context = 1;
+  string account_key = 2;
+  string period_id = 3;
+  string operation_id = 4;
+  int64 amount_cents = 5;
+  string request_id = 6;
+}
+
+message SettleBudgetRequest {
+  work.common.v1.OrgContext context = 1;
+  string reservation_id = 2;
+  int64 amount_cents = 3;
+  string price_version = 4;
+  google.protobuf.Struct usage = 5;
+  int32 settlement_revision = 6;
+  string request_id = 7;
+}
+
+message AdjustBudgetRequest {
+  work.common.v1.OrgContext context = 1;
+  string reservation_id = 2;
+  int64 delta_cents = 3;
+  string reason = 4;
+  int32 settlement_revision = 5;
+  string request_id = 6;
+}
+
+message ReleaseBudgetRequest {
+  work.common.v1.OrgContext context = 1;
+  string reservation_id = 2;
+  string request_id = 3;
+}
+
+enum BudgetReservationState {
+  BUDGET_RESERVATION_STATE_UNSPECIFIED = 0;
+  BUDGET_RESERVATION_STATE_HELD = 1;
+  BUDGET_RESERVATION_STATE_SETTLED = 2;
+  BUDGET_RESERVATION_STATE_RELEASED = 3;
+  BUDGET_RESERVATION_STATE_UNKNOWN = 4;
+}
+
+message BudgetReservationResponse {
+  BudgetReservation reservation = 1;
+}
+
+message AcceptTaskRequest {
+  work.common.v1.OrgContext context = 1;
+  string task_id = 2;
+  oneof outcome {
+    work.common.v1.ArtifactVersionRef artifact = 3;
+    string completion_reason = 4;
+  }
+  int64 expected_revision = 5;
+  string request_id = 6;
+}
+
+message AcceptTaskResponse {
+  Acceptance acceptance = 1;
+  Task task = 2;
+}
+
+message FinalizeArtifactRequest {
+  work.common.v1.OrgContext context = 1;
+  string task_id = 2;
+  string upload_session_id = 3;
+  string logical_name = 4;
+  string content_ref = 5;
+  string content_hash = 6;
+  int64 size_bytes = 7;
+  string media_type = 8;
+  string request_id = 9;
+}
+
+message FinalizeArtifactResponse {
+  ArtifactVersion version = 1;
+}
+
+message GetTaskQuiescenceRequest {
+  work.common.v1.OrgContext context = 1;
+  string task_id = 2;
+}
+
+message GetTaskQuiescenceResponse {
+  work.common.v1.Quiescence quiescence = 1;
+}
+
+message GetRunRequest {
+  work.common.v1.OrgContext context = 1;
+  string run_id = 2;
+}
+
+message GetRunResponse {
+  Run run = 1;
+}
+
+message Run {
+  string id = 1;
+  string task_id = 2;
+  int32 attempt_no = 3;
+  work.common.v1.RunState state = 4;
+  work.common.v1.WaitReason wait_reason = 5;
+  string terminal_reason = 6;
+  string snapshot_id = 7;
+  work.common.v1.Target target = 8;
+  int64 fence = 9;
+  int64 control_revision = 10;
+  string runtime_version = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+}
+
+message Operation {
+  string id = 1;
+  string run_id = 2;
+  string logical_key = 3;
+  work.common.v1.OperationKind kind = 4;
+  work.common.v1.OperationState state = 5;
+  string request_hash = 6;
+  string dispatch_attempt_id = 7;
+  string consumer_id = 8;
+  string provider_request_id = 9;
+  string receipt_ref = 10;
+  int64 revision = 11;
+  google.protobuf.Timestamp created_at = 12;
+}
+
+message Approval {
+  string id = 1;
+  string task_id = 2;
+  string run_id = 3;
+  ApprovalTargetType target_type = 4;
+  string operation_id = 5;
+  string plan_version_id = 6;
+  string params_hash = 7;
+  google.protobuf.Struct scope = 8;
+  work.common.v1.RiskLevel risk = 9;
+  google.protobuf.Timestamp expires_at = 10;
+  work.common.v1.ApprovalStatus status = 11;
+  int64 revision = 12;
+}
+
+message BudgetReservation {
+  string id = 1;
+  string account_key = 2;
+  string period_id = 3;
+  string operation_id = 4;
+  int32 reservation_seq = 5;
+  int64 amount_cents = 6;
+  int64 settled_cents = 7;
+  BudgetReservationState state = 8;
+  int32 settlement_revision = 9;
+  string price_version = 10;
+}
+
+message Acceptance {
+  string id = 1;
+  string task_id = 2;
+  string artifact_id = 3;
+  int32 version_no = 4;
+  string completion_reason = 5;
+  string actor_subject_id = 6;
+  int64 task_revision = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+message ArtifactVersion {
+  string artifact_id = 1;
+  int32 version_no = 2;
+  string logical_name = 3;
+  string media_type = 4;
+  int64 size_bytes = 5;
+  string content_hash = 6;
+  string content_ref = 7;
+  work.common.v1.ArtifactState state = 8;
+  string location = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message Task {
+  string id = 1;
+  string owner_subject_id = 2;
+  work.common.v1.TaskState state = 3;
+  work.common.v1.PermissionMode permission_mode = 4;
+  string active_run_id = 5;
+  string latest_run_id = 6;
+  int64 revision = 7;
+}

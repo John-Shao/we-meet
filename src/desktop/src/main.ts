@@ -795,7 +795,7 @@ async function createWindow() {
       if (!(await localClient().request("capabilities")).features?.includes("command_approval")) throw new Error("local_adapter_upgrade_required");
       if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("invalid_local_request");
       const value = body as Record<string, unknown>;
-      if (Object.keys(value).some(key => !["goal", "run_id", "workspace_id", "track_cloud", "sources"].includes(key)) || typeof value.goal !== "string" || !value.goal.trim() || value.goal.length > 8000 || !validId(value.run_id) || !validId(value.workspace_id) || (value.track_cloud !== undefined && typeof value.track_cloud !== "boolean") || (value.sources !== undefined && (!Array.isArray(value.sources) || value.sources.length > 10))) throw new Error("invalid_local_request");
+      if (Object.keys(value).some(key => !["goal", "run_id", "workspace_id", "track_cloud"].includes(key)) || typeof value.goal !== "string" || !value.goal.trim() || value.goal.length > 8000 || !validId(value.run_id) || !validId(value.workspace_id) || (value.track_cloud !== undefined && typeof value.track_cloud !== "boolean")) throw new Error("invalid_local_request");
       const workspace = localGrants.get(value.workspace_id as string);
       if (!workspace) throw new Error("workspace_permission_required");
       if (value.track_cloud) return coordinator().submit(value, path.basename(workspace));

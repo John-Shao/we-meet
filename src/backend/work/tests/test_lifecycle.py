@@ -49,7 +49,6 @@ def _run(org, user, *, status="queued"):
         owner=user,
         organization=org,
         request_key=uuid.uuid4(),
-        recipient="Project owner",
         goal="Clarify launch requirements",
     )
     return WorkRun.objects.create(

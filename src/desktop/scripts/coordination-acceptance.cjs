@@ -35,7 +35,7 @@ const { WorkCoordinator } = require('../dist/work-coordinator')
       assert.equal(pending[0].run_id, runId)
       assert.deepEqual(await client.request('list'), [])
       job = await coordinator.takeRemote(runId, grant.id)
-    } else job = await coordinator.submit({ run_id: runId, workspace_id: grant.id, goal: 'Read input.txt from this local folder and the authorized cloud context. Write report.md containing both exact marker strings. Preserve input.txt.', sources: JSON.parse(process.env.WORK_COORDINATION_SOURCES || '[]') }, 'workspace')
+    } else job = await coordinator.submit({ run_id: runId, workspace_id: grant.id, goal: 'Read input.txt from this local folder and the authorized cloud context. Write report.md containing both exact marker strings. Preserve input.txt.' }, 'workspace')
     const started = Date.now()
     while (['queued', 'running'].includes(job.state) && Date.now() - started < 600000) {
       await new Promise(resolve => setTimeout(resolve, 300))

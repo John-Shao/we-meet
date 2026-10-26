@@ -1,0 +1,16 @@
+{
+  "name": "work-cloud-slice",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Reference vertical slice: Work cloud task to acceptance",
+  "scripts": {
+    "init": "node slice.mjs init",
+    "serve": "node slice.mjs serve",
+    "tick": "node slice.mjs tick",
+    "test": "node --test test/slice.test.mjs"
+  },
+  "dependencies": {
+    "pg": "8.23.1"
+  }
+}

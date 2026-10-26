@@ -2,8 +2,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/ApiError'
-import * as materials from '../api/materials'
 import * as tasks from '../api/tasks'
+import * as workApi from '../api/work'
 import { AgentWork } from './AgentWork'
 import { WorkNavigation } from './WorkNavigation'
 
@@ -15,14 +15,13 @@ vi.mock('../api/reviews', () => ({
   listReviews: vi.fn().mockResolvedValue([]),
 }))
 
-vi.mock('./Communication', () => ({
+vi.mock('./RunOutput', () => ({
   RunArtifacts: () => <div>成果编辑器</div>,
   RunProgress: () => <div>执行记录</div>,
 }))
-vi.mock('../api/materials', async (original) => ({
-  ...(await original<typeof materials>()),
+vi.mock('../api/work', async (original) => ({
+  ...(await original<typeof workApi>()),
   getWorkCapabilities: vi.fn(),
-  listMaterials: vi.fn(),
 }))
 vi.mock('../api/tasks', () => ({
   listTasks: vi.fn(),
@@ -34,26 +33,11 @@ vi.mock('../api/tasks', () => ({
   downloadRunFile: vi.fn(),
 }))
 
-const material: materials.Material = {
-  id: 'source-1',
-  original_name: 'orders.csv',
-  status: 'ready',
-  checksum: 'a'.repeat(64),
-  parser_version: 'plain-text-v1',
-  generation: 1,
-  size: 10,
-  line_count: 2,
-  error_code: '',
-  created_at: '',
-  updated_at: '',
-}
 const task: tasks.WorkTask = {
   id: 'task-1',
   kind: 'office_agent',
-  recipient: '',
   goal: '分析选定订单',
   background: '',
-  sources: [material],
   runs: [
     {
       id: 'run-1',
@@ -66,15 +50,10 @@ const task: tasks.WorkTask = {
     },
   ],
 }
-const capabilities: materials.WorkCapabilities = {
+const capabilities: workApi.WorkCapabilities = {
   enabled: true,
-  materials_enabled: true,
   agent_enabled: true,
   agent_model: 'deepseek-flash',
-  formats: ['.csv'],
-  max_file_bytes: 100,
-  max_batch_files: 10,
-  max_batch_bytes: 1000,
   skills: ['office_agent'],
 }
 function mount(view = 'new', withNavigation = false) {
@@ -102,13 +81,7 @@ function mount(view = 'new', withNavigation = false) {
 beforeEach(() => {
   vi.clearAllMocks()
   window.history.replaceState(null, '', '/work?view=new')
-  vi.mocked(materials.getWorkCapabilities).mockResolvedValue(capabilities)
-  vi.mocked(materials.listMaterials).mockResolvedValue({
-    count: 1,
-    next: null,
-    previous: null,
-    results: [material],
-  })
+  vi.mocked(workApi.getWorkCapabilities).mockResolvedValue(capabilities)
   vi.mocked(tasks.listTasks).mockResolvedValue({
     results: [],
     next: null,
@@ -147,12 +120,65 @@ describe('Agent Work integration', () => {
     ).not.toBeInTheDocument()
     expect(tasks.createTask).not.toHaveBeenCalled()
   })
-  it('reuses admission key after an unknown response and sends selected material identity', async () => {
+  it('does not expose removed daily-office entries', () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((media: string) => ({
+        matches: false,
+        media,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+      }))
+    )
+    mount('new', true)
+    expect(screen.queryByRole('link', { name: '周报' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: '表格分析' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '周报' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '表格分析' })
+    ).not.toBeInTheDocument()
+  })
+  it('does not expose unimplemented feature entries in navigation', () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((media: string) => ({
+        matches: false,
+        media,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+      }))
+    )
+    mount('new', true)
+    expect(screen.queryByText('筹备中的功能')).not.toBeInTheDocument()
+    for (const label of [
+      '我的工作',
+      '助理',
+      '项目',
+      '专家·技能·连接器',
+      '定时任务',
+      '成果与资料库',
+    ]) {
+      expect(
+        screen.queryByRole('link', { name: label })
+      ).not.toBeInTheDocument()
+    }
+  })
+  it('reuses admission key after an unknown response and submits without sources', async () => {
     vi.mocked(tasks.createTask).mockRejectedValue(
       new Error('unknown transport')
     )
-    mount('spreadsheet')
-    fireEvent.click(await screen.findByRole('checkbox'))
+    mount()
+    await screen.findByText('deepseek-flash')
+    fireEvent.click(screen.getByRole('button', { name: '整理要点' }))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: '开始处理' })
+      ).not.toBeDisabled()
+    )
     fireEvent.click(screen.getByRole('button', { name: '开始处理' }))
     await screen.findByRole('alert')
     fireEvent.click(screen.getByRole('button', { name: '开始处理' }))
@@ -160,23 +186,20 @@ describe('Agent Work integration', () => {
     const calls = vi.mocked(tasks.createTask).mock.calls
     expect(calls[0][0]).toMatchObject({
       kind: 'office_agent',
-      sources: [
-        { id: material.id, checksum: material.checksum, generation: 1 },
-      ],
+      goal: expect.stringContaining('核心要点'),
     })
+    expect(calls[0][0]).not.toHaveProperty('sources')
     expect(calls[0][1]).toBe(calls[1][1])
     expect(tasks.listTasks).toHaveBeenCalledWith(1, 'office_agent')
   })
   it('uses server capability to disable generation', async () => {
-    vi.mocked(materials.getWorkCapabilities).mockResolvedValue({
+    vi.mocked(workApi.getWorkCapabilities).mockResolvedValue({
       ...capabilities,
       agent_enabled: false,
     })
-    mount('weekly')
-    expect(
-      await screen.findByText('工作生成尚未启用。可以先上传并核对材料。')
-    ).toBeInTheDocument()
-    fireEvent.click(await screen.findByRole('checkbox'))
+    mount()
+    expect(await screen.findByText('工作生成尚未启用。')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '整理要点' }))
     expect(screen.getByRole('button', { name: '开始处理' })).toBeDisabled()
     expect(tasks.createTask).not.toHaveBeenCalled()
   })
@@ -191,14 +214,14 @@ describe('Agent Work integration', () => {
     await waitFor(() => expect(tasks.cancelRun).toHaveBeenCalledWith('run-1'))
     expect(screen.getByText('执行记录')).toBeInTheDocument()
   })
-  it('does not expose cached filenames after access is denied', async () => {
+  it('does not expose cached filenames after file access fails', async () => {
     window.history.replaceState(null, '', '/work?view=new&task=task-1')
     vi.mocked(tasks.getTask).mockResolvedValue({
       ...task,
       runs: [{ ...task.runs[0], status: 'succeeded' }],
     })
     vi.mocked(tasks.listRunFiles).mockRejectedValue(
-      new ApiError(409, { code: 'source_unavailable' })
+      new ApiError(409, { code: 'artifact_not_ready' })
     )
     mount()
     expect(await screen.findByRole('alert')).toBeInTheDocument()

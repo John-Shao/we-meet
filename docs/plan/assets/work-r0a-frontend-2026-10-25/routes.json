@@ -1,0 +1,34 @@
+{
+  "version": "r0a-v1",
+  "routes": {
+    "home": "/work",
+    "composer": "/work/new",
+    "items": "/work/items",
+    "task": "/work/items/:taskId",
+    "artifact": "/work/items/:taskId/artifacts/:artifactId",
+    "archive": "/work/archive",
+    "admin": "/admin/work"
+  },
+  "views": ["pending", "running", "awaiting_acceptance", "completed", "all"],
+  "legacy": {
+    "noticeKey": "work.r0a.legacy.notice",
+    "rules": [
+      {
+        "when": "task",
+        "to": "/work/archive?legacyTask=:taskId"
+      },
+      {
+        "when": "view:new",
+        "to": "/work/new"
+      },
+      {
+        "when": "view:history",
+        "to": "/work/archive"
+      },
+      {
+        "when": "other",
+        "to": "/work/items"
+      }
+    ]
+  }
+}

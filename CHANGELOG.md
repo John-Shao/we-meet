@@ -40,6 +40,13 @@ and this project adheres to
 - ✨(fullstack) link tasks created from reviewed meeting action items back to
   the meeting record
 
+### Removed
+
+- Remove the daily-office Work capabilities: material upload and parsing,
+  communication preparation, weekly report, and spreadsheet analysis, including
+  their APIs, task types, UI entries, tests, and documentation. Work tasks now
+  run from a goal and optional background only.
+
 ### Changed
 
 - 🔧(ci) run the full suite on every `aliyun-dev` push, so the development

@@ -20,8 +20,8 @@ from core.models import AIUsageRecord
 
 from work.models import WorkRun
 
+from .support import client, work_settings
 from .test_local_runs import local_settings
-from .test_materials import client, work_settings
 
 pytestmark = [
     pytest.mark.django_db(transaction=True),

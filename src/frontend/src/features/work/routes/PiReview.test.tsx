@@ -76,9 +76,7 @@ it('requires a selected hashed file and explicit upload consent, retaining the k
   expect(start).toBeDisabled()
   fireEvent.click(await screen.findByLabelText('report.md'))
   expect(start).toBeDisabled()
-  fireEvent.click(
-    screen.getByLabelText('同意将选定成果和本任务已授权材料发送至复核模型')
-  )
+  fireEvent.click(screen.getByLabelText('同意将选定成果发送至复核模型'))
   await waitFor(() => expect(start).not.toBeDisabled())
   fireEvent.click(start)
   await screen.findByRole('alert')
@@ -144,9 +142,7 @@ it.each(['files', 'reviews'] as const)(
     const { client } = mount()
     await screen.findByText('<script>unsafe()</script>')
     fireEvent.click(screen.getByLabelText('report.md'))
-    fireEvent.click(
-      screen.getByLabelText('同意将选定成果和本任务已授权材料发送至复核模型')
-    )
+    fireEvent.click(screen.getByLabelText('同意将选定成果发送至复核模型'))
     const denied = new ApiError(409, { code: 'source_unavailable' })
     if (resource === 'files')
       vi.mocked(tasks.listRunFiles).mockRejectedValue(denied)
@@ -166,7 +162,7 @@ it.each(['files', 'reviews'] as const)(
     // Restored access must require a new selection and sending consent.
     expect(screen.getByLabelText('report.md')).not.toBeChecked()
     expect(
-      screen.getByLabelText('同意将选定成果和本任务已授权材料发送至复核模型')
+      screen.getByLabelText('同意将选定成果发送至复核模型')
     ).not.toBeChecked()
   }
 )

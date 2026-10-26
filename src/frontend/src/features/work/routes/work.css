@@ -23,20 +23,6 @@
 .work-sidebar:has(.work-sidebar-tasks:empty) .work-nav-groups {
   max-height: none;
 }
-.work-nav-more {
-  margin-top: 16px;
-}
-.work-nav-more > summary {
-  cursor: pointer;
-  padding: 8px 10px;
-  font-size: 13px;
-  color: var(--colors-greyscale-700);
-}
-.work-nav-more > summary span {
-  margin-left: 10px;
-  font-size: 11px;
-  color: var(--colors-greyscale-600);
-}
 .work-sidebar-tasks {
   flex: 1;
   min-height: 0;
@@ -71,8 +57,7 @@
   opacity: 0.5;
   cursor: default;
 }
-.work-sidebar-tasks button:focus-visible,
-.work-nav-more summary:focus-visible {
+.work-sidebar-tasks button:focus-visible {
   outline: 2px solid var(--colors-primary-500);
   outline-offset: -2px;
 }
@@ -95,11 +80,11 @@
   color: var(--colors-greyscale-600);
   font-size: 12px;
 }
-.work-sidebar-history .work-material-row > span {
+.work-sidebar-history .work-task-row > span {
   flex: 1;
   min-width: 0;
 }
-.work-sidebar-history .work-material-row strong {
+.work-sidebar-history .work-task-row strong {
   font-size: 13px;
   font-weight: 500;
   display: -webkit-box;
@@ -107,13 +92,13 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.work-sidebar-history .work-material-row small {
+.work-sidebar-history .work-task-row small {
   font-size: 11px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.work-sidebar-history .work-material-row:hover {
+.work-sidebar-history .work-task-row:hover {
   background: var(--colors-greyscale-100);
 }
 .work-history-source {
@@ -175,12 +160,6 @@
 }
 .work-nav-link span {
   flex: 1;
-}
-.work-nav-link small,
-.work-entry-card small {
-  font-size: 11px;
-  white-space: nowrap;
-  color: var(--colors-greyscale-600);
 }
 .work-nav-link:hover,
 .work-entry-card:hover {
@@ -249,49 +228,47 @@
     width: 100%;
   }
 }
-.work-materials {
+.work-page {
   padding: clamp(16px, 3vw, 40px);
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
   color: var(--colors-default-text);
 }
-.work-heading,
-.work-detail-heading {
+.work-heading {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 24px;
 }
-.work-materials h1 {
+.work-page h1 {
   font-size: 28px;
   font-weight: 650;
   margin: 4px 0 8px;
 }
-.work-materials h2 {
+.work-page h2 {
   font-size: 17px;
   font-weight: 600;
   margin-bottom: 8px;
   overflow-wrap: anywhere;
 }
-.work-materials p {
+.work-page p {
   font-size: 14px;
   line-height: 1.7;
 }
 .work-eyebrow,
-.work-muted,
-.work-detail-heading p {
+.work-muted {
   color: var(--colors-greyscale-600);
 }
-.work-materials button {
+.work-page button {
   cursor: pointer;
 }
-.work-materials button:disabled {
+.work-page button:disabled {
   opacity: 0.5;
   cursor: default;
 }
-.work-materials button:focus-visible {
+.work-page button:focus-visible {
   outline: 2px solid var(--colors-primary-500);
   outline-offset: 3px;
 }
@@ -309,49 +286,18 @@
   color: var(--colors-greyscale-000);
   border-color: transparent;
 }
-.work-dropzone {
-  display: flex;
-  gap: 20px;
-  align-items: center;
-  padding: 24px;
-  border: 1px dashed var(--colors-greyscale-300);
-  border-radius: 16px;
-  background: var(--colors-greyscale-50);
-}
-.work-dropzone > div {
-  flex: 1;
-  min-width: 0;
-}
-.work-file-input {
-  display: none;
-}
-.work-notice {
-  min-height: 24px;
-  margin: 12px 0;
-}
-.work-errors {
-  padding: 12px;
-  border: 1px solid var(--colors-greyscale-300);
-  border-radius: 8px;
-  margin-bottom: 16px;
-  overflow-wrap: anywhere;
-}
-.work-errors button + button {
-  margin-left: 8px;
-}
 .work-columns {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr);
   gap: 24px;
 }
-.work-list,
 .work-detail {
   min-width: 0;
   border: 1px solid var(--colors-greyscale-200);
   border-radius: 12px;
   padding: 20px;
 }
-.work-material-row {
+.work-task-row {
   display: flex;
   width: 100%;
   text-align: left;
@@ -364,14 +310,14 @@
   background: transparent;
   border: 1px solid transparent;
 }
-.work-material-row[aria-pressed='true'] {
+.work-task-row[aria-pressed='true'] {
   background: var(--colors-greyscale-100);
   border-color: var(--colors-greyscale-300);
 }
-.work-material-row > svg {
+.work-task-row > svg {
   flex-shrink: 0;
 }
-.work-local-workspace .work-material-row > span {
+.work-local-workspace .work-task-row > span {
   min-width: 0;
   flex: 1;
   overflow-wrap: anywhere;
@@ -379,56 +325,24 @@
 .work-local-workspace p {
   overflow-wrap: anywhere;
 }
-.work-material-row strong {
+.work-task-row strong {
   display: block;
   font-size: 14px;
   overflow-wrap: anywhere;
 }
-.work-material-row small {
+.work-task-row small {
   display: block;
   color: var(--colors-greyscale-600);
   margin-top: 6px;
-}
-.work-empty {
-  text-align: center;
-  padding: 44px 8px;
-  color: var(--colors-greyscale-600);
-}
-.work-empty svg {
-  margin: 0 auto 12px;
-}
-.work-detail-heading {
-  flex-wrap: wrap;
 }
 .work-text {
   margin-top: 16px;
   border-top: 1px solid var(--colors-greyscale-200);
   padding-top: 12px;
 }
-.work-text-line {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  gap: 12px;
-  font-size: 13px;
-  line-height: 1.8;
-}
-.work-text-line > span {
-  color: var(--colors-greyscale-500);
-  text-align: right;
-  user-select: none;
-}
-.work-text-line pre {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  min-height: 1.8em;
-  font-family: inherit;
-}
 pre.work-text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-.work-text-line em {
-  color: var(--colors-greyscale-600);
 }
 .work-pagination {
   display: flex;
@@ -449,23 +363,15 @@ pre.work-text {
   .work-columns {
     grid-template-columns: minmax(0, 1fr);
   }
-  .work-dropzone {
-    flex-wrap: wrap;
-    padding: 16px;
-  }
 }
 @media (max-width: 600px) {
   .work-heading {
     flex-wrap: wrap;
   }
-  .work-dropzone > div {
-    flex-basis: 100%;
-  }
-  .work-list,
   .work-detail {
     padding: 12px;
   }
-  .work-materials h1 {
+  .work-page h1 {
     font-size: 24px;
   }
 }
@@ -539,8 +445,7 @@ pre.work-text {
   .work-entry-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-  .work-heading,
-  .work-dropzone {
+  .work-heading {
     flex-wrap: wrap;
   }
   .work-module-placeholder {
@@ -736,7 +641,7 @@ pre.work-text {
   flex-shrink: 0;
   margin-top: 4px;
 }
-.work-materials .work-composer-hint {
+.work-page .work-composer-hint {
   margin: 0;
   font-size: 12px;
   color: var(--colors-greyscale-600);

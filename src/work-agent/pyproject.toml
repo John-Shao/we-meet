@@ -13,7 +13,6 @@ dsh = ["deepseek-harness-sdk==0.1.5rc1", "pydantic==2.13.5"]
 
 [project.scripts]
 work-agent = "work_agent.server:main"
-work-agent-evaluate = "work_agent.evaluate:main"
 work-agent-local = "work_agent.local:main"
 
 [tool.setuptools.packages.find]

@@ -1,0 +1,139 @@
+{
+  "version": "r0a-v1",
+  "scope": "R0a 3-org pilot",
+  "note": "Internal measurement targets, not customer contracts. Not measured until implementation and pilot traffic exist.",
+  "metrics": [
+    {
+      "id": "control_api_availability",
+      "name": "Control API availability",
+      "target": 99.9,
+      "unit": "percent",
+      "window": "30d",
+      "source": "API/edge metrics",
+      "status": "not_measured",
+      "provisional": false,
+      "evidence": []
+    },
+    {
+      "id": "submit_accept_p95_ms",
+      "name": "Submit accepted latency",
+      "target": 500,
+      "unit": "ms",
+      "window": "7d",
+      "source": "API metrics (preview excluded)",
+      "status": "not_measured",
+      "provisional": false,
+      "evidence": []
+    },
+    {
+      "id": "status_visible_p95_ms",
+      "name": "Committed state visible to online client",
+      "target": 2000,
+      "unit": "ms",
+      "window": "7d",
+      "source": "SSE/UI RUM",
+      "status": "not_measured",
+      "provisional": false,
+      "evidence": []
+    },
+    {
+      "id": "first_screen_p95_ms",
+      "name": "Work first screen interactive",
+      "target": 1500,
+      "unit": "ms",
+      "window": "7d",
+      "source": "RUM with device/network profile",
+      "status": "not_measured",
+      "provisional": false,
+      "evidence": []
+    },
+    {
+      "id": "ttft_p95_ms",
+      "name": "Model time to first public token",
+      "target": 10000,
+      "unit": "ms",
+      "window": "7d",
+      "source": "egress metrics",
+      "status": "not_measured",
+      "provisional": true,
+      "evidence": []
+    },
+    {
+      "id": "outbox_lag_p95_s",
+      "name": "Outbox delivery lag",
+      "target": 30,
+      "unit": "s",
+      "window": "7d",
+      "source": "worker/outbox metrics",
+      "status": "not_measured",
+      "provisional": true,
+      "evidence": []
+    },
+    {
+      "id": "unknown_age_p95_min",
+      "name": "Unknown operation age",
+      "target": 15,
+      "unit": "min",
+      "window": "7d",
+      "source": "reconciler metrics",
+      "status": "not_measured",
+      "provisional": true,
+      "evidence": []
+    },
+    {
+      "id": "budget_reconciliation_diff_cents",
+      "name": "Budget ledger vs provider usage difference",
+      "target": 0,
+      "unit": "cents",
+      "window": "1d",
+      "source": "budget ledger + egress usage",
+      "status": "not_measured",
+      "provisional": false,
+      "evidence": []
+    },
+    {
+      "id": "technical_success_rate",
+      "name": "Golden-task technical success",
+      "target": 95,
+      "unit": "percent",
+      "window": "7d",
+      "source": "golden tasks; excludes user cancel/budget wait",
+      "status": "not_measured",
+      "provisional": true,
+      "evidence": []
+    },
+    {
+      "id": "acceptance_rate",
+      "name": "Task acceptance rate",
+      "target": null,
+      "unit": "percent",
+      "window": "7d",
+      "source": "product facts",
+      "status": "not_measured",
+      "provisional": true,
+      "evidence": []
+    },
+    {
+      "id": "sse_resync_rate",
+      "name": "SSE resync rate",
+      "target": null,
+      "unit": "percent",
+      "window": "7d",
+      "source": "SSE gateway",
+      "status": "not_measured",
+      "provisional": true,
+      "evidence": []
+    },
+    {
+      "id": "provider_error_rate",
+      "name": "Provider error rate",
+      "target": null,
+      "unit": "percent",
+      "window": "7d",
+      "source": "egress metrics",
+      "status": "not_measured",
+      "provisional": true,
+      "evidence": []
+    }
+  ]
+}

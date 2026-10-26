@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://work.example.com/schemas/work-event-envelope-v1.schema.json",
+  "title": "WeMeet Work TaskEvent envelope v1",
+  "description": "Task SSE / inbox 事件的公开信封。payload 不得包含原始 reasoning、目录绝对路径、凭据或完整提示词；正文只通过 content_ref 引用。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "task_id",
+    "aggregate_seq",
+    "schema_version",
+    "occurred_at",
+    "type",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "task_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "run_id": {
+      "type": ["string", "null"],
+      "format": "uuid"
+    },
+    "aggregate_seq": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "task.state_changed",
+        "task.run.state_changed",
+        "task.operation.state_changed",
+        "task.approval.requested",
+        "task.approval.decided",
+        "task.artifact.published",
+        "task.acceptance.recorded",
+        "task.budget.paused",
+        "task.run.failed",
+        "task.device.offline",
+        "task.reconcile.required"
+      ]
+    },
+    "payload": {
+      "type": "object",
+      "description": "按 type 版本化的公开 payload；由 OpenAPI/Protobuf 生成，不在此 schema 固化内部字段。"
+    },
+    "content_ref": {
+      "type": ["string", "null"],
+      "description": "受控正文引用；local_only 版本的正文不进入服务端。"
+    }
+  },
+  "examples": [
+    {
+      "event_id": "7f7e0d7e-1f26-4d4c-b9bd-8d0a45f1e5c1",
+      "task_id": "4d1f3b2a-8b0c-4a1e-9f5d-2c6b7a8e9f01",
+      "run_id": "9b2c4d6e-0f1a-4b3c-8d5e-6f7a8b9c0d1e",
+      "aggregate_seq": 12,
+      "schema_version": 1,
+      "occurred_at": "2026-10-25T10:00:00Z",
+      "type": "task.run.state_changed",
+      "payload": {
+        "from_state": "active",
+        "to_state": "waiting",
+        "wait_reason": "approval",
+        "control_revision": 4
+      }
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 from django.urls import path
 
-from .api import CapabilitiesView, MaterialViewSet
+from .api import CapabilitiesView
 from .api_admin import (
     AccessAuditExportView,
     AccessAuditListView,
@@ -55,11 +55,4 @@ urlpatterns = [
     path("runs/<uuid:pk>/files/", RunViewSet.as_view({"get": "files"})),
     path("runs/<uuid:pk>/file-download/", RunViewSet.as_view({"get": "file_download"})),
     path("capabilities/", CapabilitiesView.as_view()),
-    path("materials/", MaterialViewSet.as_view({"get": "list", "post": "create"})),
-    path(
-        "materials/<uuid:pk>/",
-        MaterialViewSet.as_view({"get": "retrieve", "delete": "destroy"}),
-    ),
-    path("materials/<uuid:pk>/preview/", MaterialViewSet.as_view({"get": "preview"})),
-    path("materials/<uuid:pk>/retry/", MaterialViewSet.as_view({"post": "retry"})),
 ]

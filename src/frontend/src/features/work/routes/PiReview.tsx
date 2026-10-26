@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { workError } from '../api/materials'
+import { workError } from '../api/work'
 import { cancelReview, createReview, listReviews } from '../api/reviews'
 import { listRunFiles } from '../api/tasks'
 
@@ -13,7 +13,7 @@ const states = {
   access_revoked: '访问权限已撤销',
 }
 const verdicts = {
-  no_issues: '在提供的材料中未发现问题',
+  no_issues: '在选定成果中未发现问题',
   needs_changes: '发现需要处理的问题',
   inconclusive: '信息不足，仍需确认',
 }
@@ -49,7 +49,7 @@ export function PiReview({
         ? 2000
         : false,
   })
-  // A failed permission recheck must not leave previously cached material visible.
+  // A failed permission recheck must not leave previously cached files visible.
   const unavailable = files.isError || reviews.isError
   useEffect(() => {
     if (unavailable) {
@@ -84,9 +84,7 @@ export function PiReview({
   return (
     <section className="work-output" aria-label="成果复核">
       <h2>成果复核</h2>
-      <p>
-        只检查选定成果与本任务材料，不修改文件或执行命令。复核意见需要核实。
-      </p>
+      <p>只检查选定成果，不修改文件或执行命令。复核意见需要核实。</p>
       {(error || files.isError || reviews.isError) && (
         <p role="alert">
           {error || workError(files.error || reviews.error)}
@@ -129,7 +127,7 @@ export function PiReview({
               checked={consent}
               onChange={(e) => setConsent(e.target.checked)}
             />
-            同意将选定成果和本任务已授权材料发送至复核模型
+            同意将选定成果发送至复核模型
           </label>
           <p>本次额外预留 {tokenBudget || 20000} tokens。</p>
           <button
@@ -182,7 +180,7 @@ export function PiReview({
                 }
               </h4>
               {!!review.report.missing_information?.length && (
-                <p>材料不完整，复核意见仍需核实，不能据此确认任务结果错误。</p>
+                <p>信息不完整，复核意见仍需核实，不能据此确认任务结果错误。</p>
               )}
               <p>{review.report.summary}</p>
               {review.report.findings?.map((finding, index) => (

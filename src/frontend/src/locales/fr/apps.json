@@ -47,18 +47,6 @@
     "approval": {
       "name": "Approbations",
       "description": "Envoyer des demandes et traiter les validations."
-    },
-    "communication": {
-      "name": "Préparation des échanges",
-      "description": "Préparer le contexte, les questions et les arguments."
-    },
-    "weekly": {
-      "name": "Rapport hebdomadaire",
-      "description": "Récapituler les avancées et préparer un rapport."
-    },
-    "spreadsheet": {
-      "name": "Analyse de tableaux",
-      "description": "Analyser les données et résumer les résultats."
     }
   }
 }

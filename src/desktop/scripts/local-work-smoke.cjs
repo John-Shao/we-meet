@@ -25,9 +25,7 @@ const crypto = require('node:crypto')
     if (/^\/api\/v1.0\/users\/me\/?$/.test(req.url) && req.headers.authorization)
       return res.end(JSON.stringify({ id: account, email: 'fixture@example.invalid', full_name: account, last_name: '', language: 'zh-CN', timezone: 'Asia/Shanghai' }))
     if (req.headers.authorization && req.url === '/api/v1.0/work/capabilities/')
-      return res.end(JSON.stringify({ enabled: true, local_agent_enabled: true, coordination_contract: 'work-device/v1', materials_enabled: true }))
-    if (req.headers.authorization && req.url.startsWith('/api/v1.0/work/materials/'))
-      return res.end(JSON.stringify({ results: [], count: 0, next: null, previous: null }))
+      return res.end(JSON.stringify({ enabled: true, local_agent_enabled: true, coordination_contract: 'work-device/v1' }))
     if (req.headers.authorization && req.method === 'POST' && req.url.startsWith('/api/v1.0/work/local/')) {
       let data = ''
       req.on('data', chunk => { data += chunk })

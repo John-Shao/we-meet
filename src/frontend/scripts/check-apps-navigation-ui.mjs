@@ -45,25 +45,24 @@ try {
   })
   await page.getByRole('button', { name: '添加常用', exact: true }).click()
   await page.getByRole('button', { name: '添加通讯录', exact: true }).click()
-  await page.getByRole('button', { name: '添加沟通准备', exact: true }).click()
   await page.screenshot({
     path: 'test-results/apps-navigation/apps-add-light.png',
   })
   await page.getByRole('button', { name: '管理常用', exact: true }).click()
   await page
-    .getByRole('button', { name: '拖动沟通准备排序', exact: true })
+    .getByRole('button', { name: '拖动通讯录排序', exact: true })
     .dragTo(page.locator('[data-app-id="calendar"]'))
   await page.waitForFunction(
     () =>
       JSON.parse(localStorage.getItem('we-meet:apps:v1:apps-ui-fixture'))
-        .favorites[0] === 'communication'
+        .favorites[0] === 'contacts'
   )
   const shortcuts = await page
     .locator('[data-testid^="rail-shortcut-"]')
     .evaluateAll((nodes) =>
       nodes.map((node) => node.getAttribute('data-testid'))
     )
-  assert.equal(shortcuts[0], 'rail-shortcut-communication')
+  assert.equal(shortcuts[0], 'rail-shortcut-contacts')
   await page.screenshot({
     path: 'test-results/apps-navigation/apps-manage-light.png',
   })
@@ -80,17 +79,16 @@ try {
         nodes.map((node) => node.getAttribute('data-testid'))
       ),
     [
-      'favorite-communication',
+      'favorite-contacts',
       'favorite-calendar',
       'favorite-approval',
-      'favorite-contacts',
       'favorite-tasks',
     ]
   )
-  await page.getByRole('button', { name: 'AI 工具', exact: true }).click()
-  assert.equal(await page.locator('[data-testid^="catalog-"]').count(), 3)
+  await page.getByRole('button', { name: '组织与流程', exact: true }).click()
+  assert.equal(await page.locator('[data-testid^="catalog-"]').count(), 2)
   await page.getByRole('searchbox').fill('表格')
-  assert.equal(await page.locator('[data-testid^="catalog-"]').count(), 1)
+  assert.equal(await page.locator('[data-testid^="catalog-"]').count(), 0)
   await page.getByRole('searchbox').fill('')
   await page.evaluate(() =>
     document.documentElement.setAttribute('data-theme', 'dark')

@@ -12,7 +12,7 @@ from django.utils import timezone
 from . import access, agent_runs, rollout, runs
 from .models import WorkReview
 from .review_contract import validate_report
-from .services import MaterialError
+from .services import WorkError
 
 VERSION = "pi-review-v1"
 
@@ -33,29 +33,22 @@ def new_review(run, key, selection):
     previous = run.reviews.filter(request_key=key).first()
     if previous:
         if previous.selection != selection:
-            raise MaterialError("idempotency_conflict", 409)
+            raise WorkError("idempotency_conflict", 409)
         return previous, False
     if not enabled(run.task.owner):
-        raise MaterialError("review_unavailable", 503)
+        raise WorkError("review_unavailable", 503)
     if run.status != "succeeded":
-        raise MaterialError("review_requires_success", 409)
+        raise WorkError("review_requires_success", 409)
     if run.reviews.filter(status__in=runs.ACTIVE).exists():
-        raise MaterialError("review_active", 409)
+        raise WorkError("review_active", 409)
     if run.reviews.count() >= 5:
-        raise MaterialError("review_limit", 429)
-    materials = runs.sources_for(run.task)
-    files = {
-        f"source-{item.pk}.{'csv' if item.mime == 'text/csv' else 'md'}": item.text
-        for item in materials
-    }
-    manifest = [
-        {"file": name, "kind": "material", "name": item.original_name}
-        for name, item in zip(files, materials, strict=True)
-    ]
+        raise WorkError("review_limit", 429)
+    files = {}
+    manifest = []
     for index, ref in enumerate(selection, 1):
         item = run.files.filter(name=ref["name"], sha256=ref["sha256"]).first()
         if not item:
-            raise MaterialError("review_file_unavailable", 409)
+            raise WorkError("review_file_unavailable", 409)
         name = f"result-{index:02}.{item.name.rsplit('.', 1)[-1]}"
         files[name] = item.text
         manifest.append(
@@ -65,15 +58,15 @@ def new_review(run, key, selection):
         {"source_run_id": str(run.pk), "files": manifest}, ensure_ascii=False
     )
     if sum(len(text.encode()) for text in files.values()) > 400000 or len(files) > 20:
-        raise MaterialError("context_too_large", 413)
+        raise WorkError("context_too_large", 413)
     budget = min(settings.WORK_REVIEW_TOKEN_BUDGET, 80000)
     output = min(settings.WORK_MAX_OUTPUT_TOKENS, 4096)
     if budget < output + 1024:
-        raise MaterialError("review_unavailable", 503)
+        raise WorkError("review_unavailable", 503)
     if runs.daily_reserved(
         run.task.owner_id, run.task.organization_id
     ) + budget > runs.daily_budget(run.task.organization_id):
-        raise MaterialError("budget_exceeded", 429)
+        raise WorkError("budget_exceeded", 429)
     value = WorkReview.objects.create(
         source_run=run,
         request_key=key,
@@ -110,7 +103,7 @@ def import_report(review, result):
         ]
         review.report = validate_report(report, files)
     except (ValueError, TypeError, KeyError):
-        raise MaterialError("invalid_review_report") from None
+        raise WorkError("invalid_review_report") from None
 
 
 def public_data(review):

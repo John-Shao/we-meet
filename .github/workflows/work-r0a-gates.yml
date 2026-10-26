@@ -1,0 +1,174 @@
+name: Work R0a gates
+
+on:
+  pull_request:
+    paths:
+      - 'docs/plan/assets/work-r0a-design-2026-10-25/**'
+      - 'docs/plan/assets/work-r0a-ops-2026-10-25/**'
+      - 'docs/plan/assets/work-r0a-orchestration-2026-10-25/**'
+      - 'docs/plan/work-threat-model-2026-10-25.md'
+      - 'docs/plan/assets/work-r0a-hardening-2026-10-25/**'
+      - 'docs/plan/assets/work-temporal-slice-2026-10-25/**'
+      - 'docs/plan/work-r0a-orchestration-design-2026-10-25.md'
+      - 'docs/plan/work-r0a-data-design-2026-10-25.md'
+      - 'docs/plan/work-r0a-api-design-2026-10-25.md'
+      - 'docs/plan/work-r0a-admin-readonly-mapping-2026-10-25.md'
+      - 'docs/plan/assets/work-r0a-runtime-2026-10-25/**'
+      - 'docs/plan/assets/work-r0a-frontend-2026-10-25/**'
+      - 'docs/plan/work-r0a-pilot-operations-runbook-2026-10-26.md'
+      - 'docs/plan/work-operations-runbook-2026-10-25.md'
+      - '.github/workflows/work-r0a-gates.yml'
+  push:
+    branches:
+      - aliyun-dev
+    paths:
+      - 'docs/plan/assets/work-r0a-design-2026-10-25/**'
+      - 'docs/plan/assets/work-r0a-ops-2026-10-25/**'
+      - 'docs/plan/assets/work-r0a-orchestration-2026-10-25/**'
+      - 'docs/plan/work-threat-model-2026-10-25.md'
+      - 'docs/plan/assets/work-r0a-hardening-2026-10-25/**'
+      - 'docs/plan/assets/work-temporal-slice-2026-10-25/**'
+      - 'docs/plan/work-r0a-orchestration-design-2026-10-25.md'
+      - 'docs/plan/work-r0a-data-design-2026-10-25.md'
+      - 'docs/plan/work-r0a-api-design-2026-10-25.md'
+      - 'docs/plan/work-r0a-admin-readonly-mapping-2026-10-25.md'
+      - 'docs/plan/assets/work-r0a-runtime-2026-10-25/**'
+      - 'docs/plan/assets/work-r0a-frontend-2026-10-25/**'
+      - 'docs/plan/work-r0a-pilot-operations-runbook-2026-10-26.md'
+      - 'docs/plan/work-operations-runbook-2026-10-25.md'
+      - '.github/workflows/work-r0a-gates.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Contract, types and generated client
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs/plan/assets/work-r0a-design-2026-10-25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Assembled schema matches its fragments
+        run: python3 generate-schema.py && git diff --exit-code -- r0a-schema-draft.sql
+      - name: Run contract gate
+        run: node scripts/ci-contract.mjs
+
+  db-smoke:
+    name: D1 schema, PostgreSQL smoke and concurrency races
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: work_r0a
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: docs/plan/assets/work-r0a-design-2026-10-25
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: work_r0a
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply schema on an empty database
+        run: psql -v ON_ERROR_STOP=1 -q -f r0a-schema-draft.sql
+      - name: Run smoke assertions
+        run: psql -v ON_ERROR_STOP=1 -f r0a-schema-smoke.sql
+      - name: Race the admin read, directory projection and retention paths
+        run: python3 -m pip install --quiet 'psycopg[binary]==3.3.3'
+      - name: Run concurrency races
+        env:
+          R0A_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/work_r0a
+        run: python3 r0a-concurrency-smoke.py
+
+  ops-telemetry:
+    name: SLO telemetry rules and ops model
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs/plan/assets/work-r0a-ops-2026-10-25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Check generated rules
+        run: node generate-telemetry.mjs --check
+      - name: Run ops and telemetry tests
+        run: node --test ops-model.test.mjs telemetry.test.mjs pilot-ops.test.mjs
+      - name: Run capacity model
+        run: node pilot-capacity-model.mjs
+      - name: Validate rules with promtool 2.54
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/w:ro" --entrypoint sh prom/prometheus:v2.54.1 \
+            -c "promtool check rules /w/docs/plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml \
+                 && promtool test rules /w/docs/plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.test.yml"
+
+  orchestration-contract:
+    name: Orchestration and background-job contracts parse
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs/plan/assets/work-r0a-orchestration-2026-10-25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Type-check workflow and background-job contracts
+        run: npx --yes -p typescript@5 tsc --noEmit --skipLibCheck --target ES2022 --module ESNext RunWorkflow.contract.ts background-jobs.contract.ts
+      - name: Install PyYAML for the matrix check
+        run: python3 -m pip install --quiet pyyaml
+      - name: Parse the fault matrix
+        run: python -c "import yaml,sys; d=yaml.safe_load(open('fault-matrix.yaml', encoding='utf-8')); ids=[c['id'] for c in d['cases']]; sys.exit(0 if len(ids)==18 and len(set(ids))==18 and all(c.get('expected') and c.get('evidence') for c in d['cases']) else (print('bad matrix', ids) or 1))"
+
+  runtime-frontend:
+    name: Runtime policy, usage, supply chain and UI model
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Runtime policy, usage reconciliation and release admission
+        working-directory: docs/plan/assets/work-r0a-runtime-2026-10-25
+        run: node --test policy/evaluator.test.mjs usage-supply-chain.test.mjs
+      - name: Frontend UI state model
+        working-directory: docs/plan/assets/work-r0a-frontend-2026-10-25
+        run: node --test ui-model.test.mjs
+
+  log-scan:
+    name: No-content/no-secret log scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs/plan/assets/work-r0a-hardening-2026-10-25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Run scanner tests
+        run: node --test log-scan.test.mjs
+      - name: Scan committed evidence logs
+        run: node log-scan.mjs provider-smoke.log sandbox-smoke.log ../work-temporal-slice-2026-10-25

@@ -9,6 +9,7 @@ import pytest
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("restore_full_schema")
 def test_all_day_backfill_uses_each_event_timezone_and_leaves_timed_dates_empty():
     executor = MigrationExecutor(connection)
     executor.migrate([("core", "0093_calendar_sharing_visibility")])

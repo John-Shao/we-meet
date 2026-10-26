@@ -1,0 +1,409 @@
+{
+  "version": "r0a-errors-v3",
+  "rules": [
+    "Public responses only use codes listed in public; unknown internal failures map to service_degraded.",
+    "message is safe display text; it never echoes goal, background, title or artifact content.",
+    "Worker-only database exceptions map to service_degraded on the public API and keep the raw code in internal logs.",
+    "retryable means the same request may be resent unchanged: true only for 5xx and 429. preview_stale is not retryable; the client must create a new preview (recovery_action re_preview).",
+    "db_exception_map lists every RAISE EXCEPTION code in r0a-schema-draft.sql (prefix before \":\"), including public codes raised verbatim; entries no longer raised are removed."
+  ],
+  "public": {
+    "invalid_request": {
+      "status": 400,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "form_error"
+    },
+    "invalid_json": {
+      "status": 400,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "form_error"
+    },
+    "invalid_pagination": {
+      "status": 400,
+      "retryable": false,
+      "recovery_action": "refresh",
+      "ui": "list_reset"
+    },
+    "invalid_view": {
+      "status": 400,
+      "retryable": false,
+      "recovery_action": "refresh",
+      "ui": "list_reset"
+    },
+    "unauthorized": {
+      "status": 401,
+      "retryable": false,
+      "recovery_action": "reauthenticate",
+      "ui": "session_expired"
+    },
+    "csrf_invalid": {
+      "status": 403,
+      "retryable": false,
+      "recovery_action": "refresh_csrf",
+      "ui": "silent_retry_once"
+    },
+    "forbidden": {
+      "status": 403,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "permission_denied"
+    },
+    "admin_access_denied": {
+      "status": 403,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "permission_denied"
+    },
+    "download_token_invalid": {
+      "status": 403,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "permission_denied"
+    },
+    "work_seat_required": {
+      "status": 403,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "no_seat"
+    },
+    "org_execution_unavailable": {
+      "status": 403,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "org_paused"
+    },
+    "not_found": {
+      "status": 404,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "not_found"
+    },
+    "task_not_found": {
+      "status": 404,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "not_found"
+    },
+    "run_not_found": {
+      "status": 404,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "not_found"
+    },
+    "artifact_not_found": {
+      "status": 404,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "not_found"
+    },
+    "version_not_found": {
+      "status": 404,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "not_found"
+    },
+    "audit_export_not_found": {
+      "status": 404,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "not_found"
+    },
+    "preview_stale": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": "re_preview",
+      "ui": "preview_refresh"
+    },
+    "idempotency_key_conflict": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "duplicate_request"
+    },
+    "version_conflict": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": "refresh",
+      "ui": "conflict_reload"
+    },
+    "run_not_quiescent": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": "refresh",
+      "ui": "wait_for_run"
+    },
+    "run_not_active": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": "refresh",
+      "ui": "state_changed"
+    },
+    "task_has_active_run": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": "refresh",
+      "ui": "wait_for_run"
+    },
+    "task_not_acceptable": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": "refresh",
+      "ui": "state_changed"
+    },
+    "task_not_runnable": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": "refresh",
+      "ui": "state_changed"
+    },
+    "task_archived": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "archived_readonly"
+    },
+    "resync_required": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": "resync",
+      "ui": "timeline_reload"
+    },
+    "scope_unavailable": {
+      "status": 422,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "not_in_r0a"
+    },
+    "permission_mode_unavailable": {
+      "status": 422,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "not_in_r0a"
+    },
+    "execution_target_unavailable": {
+      "status": 422,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "not_in_r0a"
+    },
+    "output_unsupported": {
+      "status": 422,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "not_in_r0a"
+    },
+    "template_unavailable": {
+      "status": 422,
+      "retryable": false,
+      "recovery_action": "re_preview",
+      "ui": "template_changed"
+    },
+    "input_not_found": {
+      "status": 422,
+      "retryable": false,
+      "recovery_action": "re_preview",
+      "ui": "input_expired"
+    },
+    "input_too_large": {
+      "status": 422,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "too_long"
+    },
+    "artifact_too_large": {
+      "status": 422,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "too_long"
+    },
+    "media_type_unsupported": {
+      "status": 422,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "not_in_r0a"
+    },
+    "artifact_not_published": {
+      "status": 422,
+      "retryable": false,
+      "recovery_action": "refresh",
+      "ui": "state_changed"
+    },
+    "artifact_read_only": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": "refresh",
+      "ui": "state_changed"
+    },
+    "audit_export_not_ready": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": "refresh",
+      "ui": "state_changed"
+    },
+    "audit_export_already_downloaded": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": "refresh",
+      "ui": "state_changed"
+    },
+    "acceptance_requires_artifact_or_reason": {
+      "status": 422,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "form_error"
+    },
+    "title_invalid": {
+      "status": 422,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "form_error"
+    },
+    "audit_export_range_invalid": {
+      "status": 422,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "form_error"
+    },
+    "budget_exhausted": {
+      "status": 422,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "budget_exhausted"
+    },
+    "content_expired": {
+      "status": 410,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "content_expired"
+    },
+    "audit_export_expired": {
+      "status": 410,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "content_expired"
+    },
+    "download_token_expired": {
+      "status": 410,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "content_expired"
+    },
+    "rate_limited": {
+      "status": 429,
+      "retryable": true,
+      "recovery_action": "retry_after",
+      "ui": "slow_down"
+    },
+    "service_degraded": {
+      "status": 503,
+      "retryable": true,
+      "recovery_action": "retry",
+      "ui": "temporary_failure"
+    }
+  },
+  "db_exception_map": {
+    "acceptance_requires_artifact_or_reason": "acceptance_requires_artifact_or_reason",
+    "actor_mismatch": "forbidden",
+    "adjustment_amount_zero": "service_degraded",
+    "admin_access_denied": "admin_access_denied",
+    "append_only_table": "service_degraded",
+    "approval_not_found": "not_found",
+    "approval_not_pending": "run_not_active",
+    "approval_required": "scope_unavailable",
+    "approval_stale_or_expired": "run_not_active",
+    "artifact_deleted": "artifact_not_found",
+    "artifact_not_found": "artifact_not_found",
+    "artifact_not_published": "artifact_not_published",
+    "artifact_not_published_or_not_in_task": "artifact_not_published",
+    "artifact_read_only": "artifact_read_only",
+    "artifact_version_content_immutable": "service_degraded",
+    "audit_export_already_downloaded": "audit_export_already_downloaded",
+    "audit_export_expired": "audit_export_expired",
+    "audit_export_lease_lost": "service_degraded",
+    "audit_export_not_claimable": "service_degraded",
+    "audit_export_not_found": "audit_export_not_found",
+    "audit_export_not_ready": "audit_export_not_ready",
+    "audit_export_range_invalid": "audit_export_range_invalid",
+    "budget_account_not_found": "service_degraded",
+    "budget_exhausted": "budget_exhausted",
+    "canceled_task_cannot_succeed": "run_not_active",
+    "dedup_task_missing": "service_degraded",
+    "directory_org_context_mismatch": "service_degraded",
+    "download_token_expired": "download_token_expired",
+    "download_token_invalid": "download_token_invalid",
+    "idempotency_key_conflict": "idempotency_key_conflict",
+    "input_conflict_retry": "service_degraded",
+    "input_not_found": "input_not_found",
+    "invalid_approval_decision": "invalid_request",
+    "invalid_approval_request": "invalid_request",
+    "invalid_artifact": "service_degraded",
+    "invalid_billable_amount": "service_degraded",
+    "invalid_client_request_id": "invalid_request",
+    "invalid_decision_source": "service_degraded",
+    "invalid_input": "invalid_request",
+    "invalid_operation_outcome": "service_degraded",
+    "invalid_pagination": "invalid_pagination",
+    "invalid_policy_epoch": "service_degraded",
+    "invalid_price_version": "service_degraded",
+    "invalid_reason_code": "invalid_request",
+    "invalid_reconciliation_resolution": "service_degraded",
+    "invalid_request": "invalid_request",
+    "invalid_reservation_amount": "service_degraded",
+    "invalid_run_outcome": "service_degraded",
+    "invalid_snapshot": "service_degraded",
+    "invalid_transition": "service_degraded",
+    "invalid_wait_reason": "service_degraded",
+    "latest_run_not_terminal": "run_not_quiescent",
+    "not_found": "not_found",
+    "only_held_reservations_can_be_released": "service_degraded",
+    "operation_has_active_reservation": "service_degraded",
+    "operation_key_conflict": "service_degraded",
+    "operation_not_approvable": "run_not_active",
+    "operation_not_authorizable": "service_degraded",
+    "operation_not_dispatching": "service_degraded",
+    "operation_not_found": "service_degraded",
+    "operation_not_reconcilable": "service_degraded",
+    "operation_not_reservable": "service_degraded",
+    "operation_run_not_active": "run_not_active",
+    "org_execution_unavailable": "org_execution_unavailable",
+    "org_policy_missing": "service_degraded",
+    "outbox_dead_lettered": "service_degraded",
+    "outbox_event_not_found": "service_degraded",
+    "outbox_lease_lost": "service_degraded",
+    "outbox_requeue_stale": "service_degraded",
+    "permission_mode_unavailable": "permission_mode_unavailable",
+    "projection_revision_stale": "service_degraded",
+    "reconciliation_evidence_required": "service_degraded",
+    "reservation_not_found": "service_degraded",
+    "reservation_not_settleable": "service_degraded",
+    "reservation_not_settled": "service_degraded",
+    "run_cancel_requested": "run_not_active",
+    "run_has_unresolved_operation": "run_not_quiescent",
+    "run_not_accepting_artifacts": "service_degraded",
+    "run_not_accepting_operations": "run_not_active",
+    "run_not_active": "run_not_active",
+    "run_not_current": "service_degraded",
+    "run_not_found": "run_not_found",
+    "run_not_queued": "run_not_active",
+    "run_not_quiescent": "run_not_quiescent",
+    "run_not_quiescent_or_revision_conflict": "run_not_quiescent",
+    "run_not_waiting": "service_degraded",
+    "scope_unavailable": "scope_unavailable",
+    "settlement_out_of_bounds": "service_degraded",
+    "settlement_revision_not_monotonic": "service_degraded",
+    "snapshot_not_in_task": "service_degraded",
+    "task_archived": "task_archived",
+    "task_deleted": "task_not_found",
+    "task_has_active_run": "task_has_active_run",
+    "task_has_unresolved_operation": "run_not_quiescent",
+    "task_not_acceptable": "task_not_acceptable",
+    "task_not_found": "task_not_found",
+    "task_not_runnable": "task_not_runnable",
+    "title_invalid": "title_invalid",
+    "version_conflict": "version_conflict",
+    "version_not_found": "version_not_found",
+    "work_seat_required": "work_seat_required"
+  }
+}

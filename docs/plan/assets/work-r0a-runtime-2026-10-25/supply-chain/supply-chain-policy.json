@@ -1,0 +1,46 @@
+{
+  "version": "r0a-supply-chain-v2",
+  "scope": "work-r0a-runner image (Pi agent-core + Work Adapter), work-api, work-worker, work-egress",
+  "image": {
+    "digest_pattern": "^sha256:[0-9a-f]{64}$",
+    "forbid_placeholder_digest": true,
+    "tag_only_reference": "deny",
+    "base_images_allowlist": ["gcr.io/distroless/nodejs24-debian12"]
+  },
+  "signature": {
+    "tool": "cosign",
+    "keyless": true,
+    "allowed_issuers": ["https://token.actions.githubusercontent.com"],
+    "allowed_subject_prefixes": ["https://github.com/we-meet/we-meet/.github/workflows/"],
+    "require_rekor_entry": true
+  },
+  "provenance": {
+    "format": "slsa-provenance-v1",
+    "min_slsa_build_level": 2,
+    "allowed_builders": ["https://github.com/actions/runner"]
+  },
+  "sbom": {
+    "formats": ["spdx-json", "cyclonedx-json"],
+    "required_fields": ["name", "version", "purl"],
+    "pinned_components": {
+      "pkg:npm/%40mariozechner/pi-agent-core": "1.4.0"
+    },
+    "forbidden_components": ["pkg:npm/npm", "pkg:npm/yarn", "pkg:npm/pnpm", "pkg:npm/corepack", "pkg:npm/node-gyp", "pkg:deb/debian/apt", "pkg:deb/debian/dpkg"],
+    "lockfile_required": true
+  },
+  "vulnerabilities": {
+    "scanner": "grype",
+    "max_critical": 0,
+    "max_high": 0,
+    "waiver": {
+      "requires": ["id", "owner", "reason", "expires_at"],
+      "max_days": 30,
+      "allowed_severities": ["high"]
+    }
+  },
+  "runtime": {
+    "package_install": false,
+    "user_extensions": false,
+    "admission": "deny unsigned or unverified digests at deploy (policy controller)"
+  }
+}

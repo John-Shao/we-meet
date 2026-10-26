@@ -4,15 +4,30 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0051_alter_auditlog_action'),
+        ("core", "0051_alter_auditlog_action"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='auditlog',
-            name='action',
-            field=models.CharField(choices=[('dept.create', 'Department created'), ('dept.rename', 'Department renamed'), ('dept.update', 'Department updated'), ('dept.move', 'Department moved'), ('dept.delete', 'Department deleted'), ('member.add', 'Member added'), ('member.update', 'Member updated'), ('member.role_change', 'Member role changed'), ('member.department_change', 'Member department changed'), ('member.suspend', 'Member suspended'), ('member.restore', 'Member restored'), ('member.remove', 'Member removed')], max_length=40),
+            model_name="auditlog",
+            name="action",
+            field=models.CharField(
+                choices=[
+                    ("dept.create", "Department created"),
+                    ("dept.rename", "Department renamed"),
+                    ("dept.update", "Department updated"),
+                    ("dept.move", "Department moved"),
+                    ("dept.delete", "Department deleted"),
+                    ("member.add", "Member added"),
+                    ("member.update", "Member updated"),
+                    ("member.role_change", "Member role changed"),
+                    ("member.department_change", "Member department changed"),
+                    ("member.suspend", "Member suspended"),
+                    ("member.restore", "Member restored"),
+                    ("member.remove", "Member removed"),
+                ],
+                max_length=40,
+            ),
         ),
     ]

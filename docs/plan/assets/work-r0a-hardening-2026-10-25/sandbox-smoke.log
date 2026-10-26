@@ -1,0 +1,11 @@
+uid=65532
+touch: cannot touch '/rootfile': Read-only file system
+root_write_exit=1
+ls: cannot access '/host': No such file or directory
+host_path_exit=2
+ls: cannot access '/var/run/docker.sock': No such file or directory
+docker_sock_exit=2
+tmp_write_exit=0
+network_blocked TypeError
+network_exit=0
+sandbox-smoke-complete
