@@ -4,6 +4,10 @@
  * Validates that controls have owners and close conditions, SLOs do not claim
  * unmeasured results, and the pilot go/no-go is blocked until every blocking
  * checklist item has evidence or a signed waiver.
+ *
+ * Blocking items carry a `gate`: `start` must close before code starts (DR4),
+ * `pilot` only before the pilot go/no-go, `scale` before growth. Without the
+ * split one flat number mixes "cannot start work" with "cannot pilot".
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -79,6 +83,7 @@ export function validateChecklist(checklist) {
   const issues = [];
   const categories = new Set(checklist.categories);
   const allowed = new Set(['todo', 'partial', 'done', 'waived']);
+  const gates = new Set(['start', 'pilot', 'scale']);
   const ids = new Set();
   let blocking = 0;
   for (const item of checklist.items) {
@@ -88,6 +93,7 @@ export function validateChecklist(checklist) {
     if (!allowed.has(item.status)) issues.push(`checklist ${item.id} has invalid status`);
     if (!item.owner) issues.push(`checklist ${item.id} has no owner`);
     if (typeof item.blocking !== 'boolean') issues.push(`checklist ${item.id} blocking must be boolean`);
+    if (!gates.has(item.gate)) issues.push(`checklist ${item.id} has invalid gate`);
     if (item.blocking) blocking += 1;
     if (item.status === 'done' && (!item.evidence || item.evidence.length === 0)) {
       issues.push(`checklist ${item.id} is done without evidence`);
@@ -101,12 +107,25 @@ export function validateChecklist(checklist) {
 }
 
 export function goNoGo(checklist) {
-  const blockers = checklist.items
-    .filter((item) => item.blocking && !['done', 'waived'].includes(item.status))
-    .map((item) => ({ id: item.id, title: item.title, status: item.status, owner: item.owner }));
+  const open = (gate) => checklist.items
+    .filter((item) => item.blocking && item.gate === gate && !['done', 'waived'].includes(item.status))
+    .map((item) => ({ id: item.id, title: item.title, status: item.status, owner: item.owner, gate }));
+  const startBlockers = open('start');
+  const pilotBlockers = open('pilot');
+  const scaleBlockers = open('scale');
+  const blockers = [...startBlockers, ...pilotBlockers, ...scaleBlockers];
   return {
     go: blockers.length === 0,
+    // canStartWork is the DR4 question; go is the pilot question. A pilot can
+    // only start when the implementation evidence behind pilotBlockers exists.
+    canStartWork: startBlockers.length === 0,
+    startBlockerCount: startBlockers.length,
+    pilotBlockerCount: pilotBlockers.length,
+    scaleBlockerCount: scaleBlockers.length,
     blockerCount: blockers.length,
     blockers,
+    startBlockers,
+    pilotBlockers,
+    scaleBlockers,
   };
 }

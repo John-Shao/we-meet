@@ -94,7 +94,7 @@ D6 回答 R0a 试点能否开始、如何安全运行、如何切换/回滚、�
 D3 §11 的六类非 Run 作业纳入遥测与演练范围：
 
 - **指标**：`work_background_job_runs_total{kind,outcome}`、`work_background_job_last_success_seconds{kind}`、`work_background_job_lease_takeovers_total{kind}`、`work_directory_projection_lag_seconds`、`work_audit_export_backlog`、`work_audit_export_duration_seconds_sum`/`_count`、`work_audit_export_downloads_total{outcome}`、`work_content_shred_backlog`（连同原有共 28 个指标定义）。
-- **告警**：`WorkBackgroundJobStale`（义务作业 15 分钟无成功记录 → page）、`WorkBackgroundJobLeaseTakeovers`、`WorkDirectoryProjectionStale`（投影滞后 > 15 分钟 → page，撤权新鲜度）、`WorkAuditExportBacklog`、`WorkAuditExportFailureRatio`、`WorkAuditExportSlow`、`WorkAuditExportTokenFailureBurst`（凭证校验失败突增，泄露信号）、`WorkContentShredBacklog`（正文未清理 → page，优先于功能问题）。渲染规则 21 record / 27 alert；ops+pilot+telemetry 测试 **26/26**，其中跨资产断言要求 D3 作业契约声明的指标/告警名都存在于本契约。
+- **告警**：`WorkBackgroundJobStale`（义务作业 15 分钟无成功记录 → page）、`WorkBackgroundJobLeaseTakeovers`、`WorkDirectoryProjectionStale`（投影滞后 > 15 分钟 → page，撤权新鲜度）、`WorkAuditExportBacklog`、`WorkAuditExportFailureRatio`、`WorkAuditExportSlow`、`WorkAuditExportTokenFailureBurst`（凭证校验失败突增，泄露信号）、`WorkContentShredBacklog`（正文未清理 → page，优先于功能问题）。渲染规则 21 record / 27 alert；ops+pilot+telemetry 测试 **28/28**，其中跨资产断言要求 D3 作业契约声明的指标/告警名都存在于本契约。
 - **导出耗时用均值不用分位**：`WorkAuditExportSlow` 比较 `rate(..._sum)/rate(..._count)` 的平均耗时（阈值 600s）。理由是 R0a 的导出量级是个位数作业，P95 在这个样本量上没有稳定含义；同时 histogram 需要应用侧显式注册 `_bucket` 家族，客户端未注册时告警表达式会静默失效（promtool 的表达式单测在 2.54 上也无法覆盖这类"永不触发"）。等有真实量之后再把这条换成 P95，并在单测里补分位序列。
 - **处置**：见[运行手册 §5.1 后台作业故障处置](work-operations-runbook-2026-10-25.md)——先判"是义务作业还是产生新工作的作业"，前者不许停，后者可停且在途可安全重领。
 - **演练新增项**（属既有 C20/C21/C22 范围，不新开 blocking）：kill switch/停用状态下义务作业继续运行的验证、租约接管与重复投递验证、粉碎积压的处置与恢复。

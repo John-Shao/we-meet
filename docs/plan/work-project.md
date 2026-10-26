@@ -80,7 +80,7 @@
 | [work-temporal-slice](assets/work-temporal-slice-2026-10-25/README.md) | Temporal dev 参考纵切：故障 10/10、normal 1/1、S1 4/4 + 升级 1/1 |
 | [work-r0a-runtime](assets/work-r0a-runtime-2026-10-25/README.md) | WorkAdapter、工具/沙箱/出口策略、usage 对账、供应链准入；策略 10/10 + usage/供应链 19/19 |
 | [work-r0a-frontend](assets/work-r0a-frontend-2026-10-25/README.md) | 状态矩阵、路由、174 条文案、UI 模型 14/14 |
-| [work-r0a-ops](assets/work-r0a-ops-2026-10-25/README.md) | SLO/试点清单、Prometheus 规则、容量模型、ops/pilot/telemetry 26/26 |
+| [work-r0a-ops](assets/work-r0a-ops-2026-10-25/README.md) | SLO/试点清单（含 start/pilot/scale 三闸门）、Prometheus 规则、容量模型、ops/pilot/telemetry 28/28 |
 | [work-r0a-hardening](assets/work-r0a-hardening-2026-10-25/README.md) | runc 降级沙箱、本地 KMS envelope 6/6、Qwen smoke、日志扫描 8/8 |
 
 ### 2.5 早期纵切、契约与实验
@@ -181,7 +181,7 @@
 | E5 Runtime/出口 | 沙箱、Pi Adapter、模型网关、usage、Content Store/KMS | 成果、预算、审计 | 策略 10/10、usage/供应链 19/19、KMS 6/6 | C13/C14/C15 |
 | E6 前端 | Composer、我的工作、任务/成果、Inbox、管理、Playwright/a11y | 全部 R0a 用户模块 | UI 模型 14/14；React 未实现 | E2/E3、DR3 |
 | E7 可观测/供应链 | OTel、日志扫描、Prometheus/告警、cosign/SLSA/SBOM | 全模块 | 遥测 10/10、日志 8/8 | E2–E5 |
-| E8 试点准备 | 组织开通、黄金任务、指标、切换/回滚、支持/删除 | 全模块 | ops/pilot/telemetry 测试 26/26；试点环境未演练 | E1–E7、C24/C27/C30 |
+| E8 试点准备 | 组织开通、黄金任务、指标、切换/回滚、支持/删除 | 全模块 | ops/pilot/telemetry 测试 28/28；试点环境未演练 | E1–E7、C24/C27/C30 |
 
 **并行说明**：E4/E5/E6 可在 E2/E3 后并行；关键路径仍是 E1→E2→E3→E7→E8（见[就绪包 §4](work-r0a-implementation-readiness-2026-10-26.md)）。
 
@@ -232,7 +232,7 @@
 | D3 编排 | Temporal dev 故障 **10/10** + normal 1/1；S1 **4/4** + 升级 1/1；RLS 3/3、10 并发 1/1；契约 tsc 通过、故障矩阵 18 例（D3-N02–N05 数据库侧交错已由竞态实测；崩溃注入与开关演练未执行） | [temporal slice](assets/work-temporal-slice-2026-10-25/README.md) |
 | D4 Runtime | 策略 **10/10**；usage/供应链 **19/19**；KMS 6/6；日志扫描 8/8 | [runtime](assets/work-r0a-runtime-2026-10-25/README.md)、[hardening](assets/work-r0a-hardening-2026-10-25/README.md) |
 | D5 前端 | UI 模型 **14/14**；174 条文案 | [frontend assets](assets/work-r0a-frontend-2026-10-25/README.md) |
-| D6 运维/试点 | ops+pilot+telemetry **26/26**（21 record/27 alert；指标 28）；promtool 校验 48 条规则 + 14 条告警单测 | [ops assets](assets/work-r0a-ops-2026-10-25/README.md) |
+| D6 运维/试点 | ops+pilot+telemetry **28/28**（21 record/27 alert；指标 28）；promtool 校验 48 条规则 + 14 条告警单测 | [ops assets](assets/work-r0a-ops-2026-10-25/README.md) |
 | CI | 6 个 job 已定义；**远端未运行** | [work-r0a-gates.yml](../../.github/workflows/work-r0a-gates.yml) |
 
 ### 4.3 最近提交
@@ -273,17 +273,17 @@
 | U3 Temporal 托管 | **已定 A：自托管**（同区、独立 PG、mTLS、history 7 天、≥2 副本），选型不再重开；待平台逐条确认 [U3 决策征询单](work-r0a-temporal-hosting-decision-request-2026-10-26.md) §3 的 9 项承诺与 §8 四项演练排期（期望答复 2026-11-14，DR2 前）。任一"否"→ 触发托管/重设计评估 | 平台 + SRE（法务仅在回退时介入） |
 | U4 §9.4 检查表 | 10 项证据已预填；勾选待各 DR | 架构（评审主持） |
 
-### 5.2 主要 blocking（23/30 未关闭）
+### 5.2 主要 blocking（23/30 未关闭 = 开工闸门 9 + 试点闸门 14）
 
-| 组 | 未关闭项 | 影响 |
-|---|---|---|
-| 评审/研究 | C01–C05、C25 设计伙伴 | DR1–DR3 无法签收；研究影响 DR3 |
-| 安全/商务 | C11 威胁模型、C15 供应商条款 | 安全与商务闸门 |
-| 环境 | C14 沙箱证明、C22 Temporal 多节点、C09/C13 Content Store/云 KMS | E5/E4 无法上试点环境 |
-| 实施 | C07 远端 CI（6 个 job 已定义，未跑）、C31 管理读（Work 侧已落地，缺 Host 字段与联调）、C10 React/E2E、C16/C17 遥测（含后台作业 8 条新告警未接） | 产品实现与运维证据 |
-| 试点 | C24 三家组织、C26 黄金任务、C27/C30 支持/删除、C28/C29 切换/旧数据 | go/no-go |
+| 闸门 | 组 | 未关闭项 | 影响 |
+|---|---|---|---|
+| start | 评审/研究 | C01–C05、C25 设计伙伴 | DR1–DR3 无法签收；研究影响 DR3 |
+| start | 安全/商务 | C11 威胁模型、C15 供应商条款（三家为下限）、C14 沙箱证明或签署降级 | 三者缺任一项即不能进 DR4 |
+| pilot | 环境 | C22 Temporal 多节点、C09/C13 Content Store/云 KMS | E4/E5 无法上试点环境 |
+| pilot | 实施 | C07 远端 CI（6 个 job 已定义，未跑）、C31 管理读（Work 侧已落地，缺 Host 字段与联调）、C10 React/E2E、C16/C17 遥测（含后台作业 8 条新告警未接） | 产品实现与运维证据 |
+| pilot | 试点 | C24 三家组织、C26 黄金任务、C27/C30 支持/删除、C28/C29 切换/旧数据 | 试点 go/no-go |
 
-完整清单、负责人与日期见[就绪包 §6.2](work-r0a-implementation-readiness-2026-10-26.md)。
+`start` 的 9 项要 DR4（12-04）前关闭才能开工；`pilot` 的 14 项只能由实施与试点环境产生证据，**不可能在开工前关闭**，所以试点 `go` 的最早窗口仍是 2027-02-26～04-02。完整清单、负责人与日期见[就绪包 §6.2/§6.3](work-r0a-implementation-readiness-2026-10-26.md)。
 
 ### 5.3 证据边界（必须按此解读）
 
@@ -376,6 +376,7 @@ Temporal 切片需要 Docker Compose/Temporal dev（Windows 主机不能直接�
 | 2026-10-26 | 非 Run 后台作业与留存清扫成机制：D3 §11 六类作业/义务作业语义、D1 `expire_due_inputs`/`shred_due_audit_exports` 与可配 TTL（冒烟 → 113/113）、D6 作业指标/告警与运行手册 §5.1；撤权收窄提为 P0 决策 D-07 |
 | 2026-10-26 | 并发与规则证据：多连接竞态脚本 7 组（导出领取/租约接管/一次性凭证/投影乱序与重复投递/清扫共享引用/撤权窗口/管理读与结算交错）作 CI 门禁，测出并修复目录投影丢更新（冒烟 → 114/114）；promtool 校验 48 条规则 + 14 条告警单测接入 `ops-telemetry`；`admin-directory-concurrency.log` 纳入日志扫描 |
 | 2026-10-26 | 发出 U1 招募与执行排期单，并**修正判定口径**：R0a 的可用性判定改用 D5 的 UT1–UT5，原 UX §13.2 的本机授权/命令审批/预算调整任务不在 R0a 交付面（只作 R0b 前瞻、不计完成率）；名额按管理员 ≥3 推出下限 7–8 人（原写 5–8 与 §13.5 的“至少 3 名管理员”自相矛盾）；含渠道、邀约与同意话术、mock server 环境与错误注入、三档降级路径与倒排档期 |
+| 2026-10-26 | **23 个未关闭 blocking 按闸门拆分**：清单 JSON 增加 `gate`（start/pilot/scale），`ops-model.mjs` 输出 `canStartWork` 与三组计数（start 9 / pilot 14 / scale 0），新增 2 组测试（ops 9→11，合计 28/28）。同时清掉清单里过期的证据计数（C01 20/20→114/114+竞态、C02 23 ops→25、C03 12 例→18 例、C05 11/11→14/14、C07 7/7+25/25→12/12+31/31、C16 7/7→8/8、C17 17 alert→27 alert+promtool、C25 5–8→7–8、C31 退役适配器 12/12→方案 B+端口 9/9）。
 | 2026-10-26 | **模型接入下限定为三家**（阿里云/DeepSeek/火山引擎）：三家全部进入 C15 闸门，任何一家缺书面结论即 C15 不关闭；同时明确三家可路由不等于同 Run 内静默换供应商（重投 = 新 Operation + 新预留），价表按各家独立 `price_version`、预算上界取最贵路径 |
 | 2026-10-26 | 发出 C15 供应商条款与价表确认单：把 D4 §10 的六类材料改成逐家可勾选的试点闸门 P1–P6，加三套价表上界（填完才能冻结 `price_version`）、五条不可协商耦合项（`provider_request_id` 可查询、缺 usage 不计免费、正文不进训练/日志、Key 只在网关、计量口径归一）、允许书面降级的三项；期望答复 12-04、硬期限 12-11 |
 | 2026-10-26 | **U3 定为 A（自托管）**：同区、独立 Temporal PG、mTLS、history 7 天、≥2 worker 副本；征询单随之从"三选一"改为"逐条确认 9 项承诺 + 资源申请 + 演练排期"，回退路线 B（托管条款 6 问）仅在出现"否"项时启动。选型确定≠外部依赖消除，U3/C22 仍未关闭 |

@@ -73,7 +73,7 @@
 ### 0.7 W4 详细设计收口（2026-10-26）
 
 - **本轮复审前记录的契约缺口已闭合**：标题编辑、受控导出下载、CSRF/cookie 生命周期、冻结错误码目录（`r0a-errors-v3`：49 公开码 / 101 SQL 映射，CI 扫描 schema-draft）；outbox 按聚合顺序 + 指数退避 + 死信/审计重排；usage 对账容差与价表校验；供应链准入（cosign/SLSA/SBOM/Pi 固定版本）；用户删除/运维代删/所有权转移；生命周期事件；黄金任务、试点指标、切换状态机；[试点运营 Runbook](work-r0a-pilot-operations-runbook-2026-10-26.md)。
-- **证据**：D1 冒烟 114/114 + 竞态门禁 7/7（2026-10-26 修订）；API 22 path / 25 operation，设计包 31/31；Temporal 10/10 + S1 4/4；Runtime 10/10 + 19/19；UI 模型 14/14；日志扫描 8/8；KMS 6/6；ops/pilot/telemetry 26/26（27 alert / 27 指标）。
+- **证据**：D1 冒烟 114/114 + 竞态门禁 7/7（2026-10-26 修订）；API 22 path / 25 operation，设计包 31/31；Temporal 10/10 + S1 4/4；Runtime 10/10 + 19/19；UI 模型 14/14；日志扫描 8/8；KMS 6/6；ops/pilot/telemetry 28/28（21 record + 27 alert = 48 条规则；指标 28）。
 - **W4 产出**：[实施就绪包](work-r0a-implementation-readiness-2026-10-26.md)——**可评审草案**。2026-10-26 复审撤回“§0 六条在设计层全部满足”的结论：D1/D3 的 P0/P1 已修复并补负例，但 §0 #5（可用性验证；管理页方案同日已定 B 并落成设计物）未满足，另有 Temporal 托管（U3）与 §9.4 检查表（U4）；U2 已于 2026-10-26 定方案 B（待 DR1 签收）、U3 同日定自托管 A（待平台确认 9 项承诺），U1/U4 仍开放；排期改为从 DR4（建议 2026-12-04）起算。
 - **仍不可实施**：DR0–DR4 未开会，D-01..D-07 未签收，go/no-go 仍 no-go（30 个 blocking 中 7 done / 18 partial / 5 todo；另 2 项非 blocking 已 waived）。
 
@@ -732,7 +732,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 | 提交/派发/预算/成果/采纳/取消/重试/unknown 负例 | PG 114/114 + 竞态 7/7、Temporal 10/10、S1 4/4 | 满足，待 DR2 |
 | Runtime 工具/沙箱/出口/usage/价表 | 策略 10/10、usage/供应链 19/19；价表占位、gVisor 未证明 | 部分 |
 | UI 全状态、无假入口、可访问性 | UI 模型 14/14、状态矩阵；a11y 无实现可测 | 部分 |
-| SLO/告警/容量/恢复/切换/停用 | ops+pilot+telemetry 26/26；试点环境未演练 | 部分 |
+| SLO/告警/容量/恢复/切换/停用 | ops+pilot+telemetry 28/28 + promtool；试点环境未演练 | 部分 |
 | 威胁模型控制映射（S01–S18）与未关闭项 | [威胁模型](work-threat-model-2026-10-25.md)；C11 todo | 部分 |
 | 3 家组织研究与 UAT 排期 | U1 执行包（UX §13.6）+ 招募与执行排期单（11-16 锁定名单、11-20～24 执行、11-27 报告）；C24/C25 todo | 未开始（招募单已发，待运营回填名单） |
 

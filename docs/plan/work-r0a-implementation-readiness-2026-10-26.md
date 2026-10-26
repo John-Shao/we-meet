@@ -23,7 +23,7 @@
 | D3 编排 | [orchestration design](work-r0a-orchestration-design-2026-10-25.md) | RunWorkflow/后台作业契约、故障矩阵 18 例（含 D3-N01–N06）、[Temporal 切片](assets/work-temporal-slice-2026-10-25/README.md) | Temporal dev 故障 **10/10**（F01/F02/F04/F07/F21/F23 + D3-R06–R09：启动前/claim 前取消、心跳超时 → unknown、跨组织单 relay），连续 3 次稳定；S1 **4/4**、升级 1/1、RLS 池化 3/3、10 并发 1/1；S1-R06 与 C19 恢复演练未在修订后复跑 |
 | D4 Runtime/出口 | [runtime design](work-r0a-runtime-egress-design-2026-10-25.md) | WorkAdapter 契约、工具/沙箱/出口策略、usage 对账、供应链准入 | 策略 **10/10** + usage/供应链 **19/19**；runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke |
 | D5 前端 | [frontend design](work-r0a-frontend-design-2026-10-25.md) | 状态矩阵、路由、174 条文案、UI 模型 | UI 模型 **14/14**（含重命名/删除门控、无假审批入口、completed/failed/run_canceled 只读，canceled/archived 为 R0b 预留只读）；**可用性未做**（§6.1） |
-| D6 安全/运维/试点 | [security-ops design](work-r0a-security-ops-migration-design-2026-10-25.md)、[pilot runbook](work-r0a-pilot-operations-runbook-2026-10-26.md)、[admin mapping](work-r0a-admin-readonly-mapping-2026-10-25.md) | 控制/SLO/清单 JSON、遥测规则、容量模型、黄金任务、试点指标、切换计划、日志扫描 | ops+pilot+telemetry **26/26**（21 record / 27 alert；指标 28）；promtool 校验 48 条规则 + 14 条告警单测；日志扫描 8/8（含并发竞态日志）；RLS 池化、10 并发、Work DB 恢复、kill switch 演练；管理页方案 B 的 Work 侧存储与端口契约已落地（§6.1），Host 字段接入仍是 C31 缺口 |
+| D6 安全/运维/试点 | [security-ops design](work-r0a-security-ops-migration-design-2026-10-25.md)、[pilot runbook](work-r0a-pilot-operations-runbook-2026-10-26.md)、[admin mapping](work-r0a-admin-readonly-mapping-2026-10-25.md) | 控制/SLO/清单 JSON、遥测规则、容量模型、黄金任务、试点指标、切换计划、日志扫描 | ops+pilot+telemetry **28/28**（21 record / 27 alert；指标 28）；promtool 校验 48 条规则 + 14 条告警单测；日志扫描 8/8（含并发竞态日志）；RLS 池化、10 并发、Work DB 恢复、kill switch 演练；管理页方案 B 的 Work 侧存储与端口契约已落地（§6.1），Host 字段接入仍是 C31 缺口 |
 
 CI：[work-r0a-gates.yml](../../.github/workflows/work-r0a-gates.yml) 覆盖 contract（含 schema 再生成无漂移）、db-smoke（PG16 schema + 冒烟）、ops/telemetry、runtime/frontend、log-scan 六个 job；仅在 PR 或 `aliyun-dev` push 时触发，**远端尚未运行**。
 
@@ -145,6 +145,23 @@ E5 不在关键路径上的前提：C15 条款与 C14 沙箱结论在 **2026-12-
 | 试点 | C28 切换/回滚、C29 旧数据只读 | partial | 试点环境演练；旧数据留存期法务定案（建议 180 天） | 产品 + 前端；后端 + 产品 | 2027-04-02 |
 
 已 done（试点环境需复测，不阻塞 DR4）：C06、C08、C12、C18、C19、C20、C21。已 waived（非 blocking）：C23（区域 DR，GA 前复议）、C32（移动编辑，R4b 复议）。
+
+### 6.3 两个闸门：能否开工 vs 能否试点（2026-10-26 拆分）
+
+把 23 个未关闭项当成同一个"no-go"会误导决策：其中一半**在设计阶段永远关不掉**（要真实实现与试点环境才能产生证据），把它们和"开工前必须定"的项混在一个计数里，结论就永远是 no-go，谁也看不出该先做什么。清单 JSON 因此给每个 blocking 项加了 `gate`，`ops-model.mjs` 分别输出 `startBlockerCount` / `pilotBlockerCount` / `scaleBlockerCount` 与 `canStartWork`（测试 28/28 覆盖这一拆分）。
+
+| 闸门 | 含义 | 当前未关闭 | 项 |
+|---|---|---|---|
+| `start` | **DR4 开工前必须关闭** | **9** | C01–C05（D1–D5 评审签收，DR1–DR3）、C11（威胁模型签收）、C14（沙箱证明或签署降级）、C15（三家供应商书面条款与价表）、C25（设计伙伴可用性研究） |
+| `pilot` | 只阻塞**试点 go/no-go**，证据由实施产生 | **14** | C07、C09、C10、C13、C16、C17、C22、C24、C26、C27、C28、C29、C30、C31 |
+| `scale` | 扩量/GA 前 | 0 | 仅 C23（已 waived，GA 前复议） |
+
+结论口径因此分两句说：
+
+1. **能否开工 = 否**，因为 `start` 还有 9 项。这 9 项的性质只有两类：6 项是**评审签收**（DR1 11-10 / DR2 11-17 / DR3 12-01 三个会议，材料已就绪），3 项是**外部结论**（C14 沙箱、C15 供应商、C25 研究）——后三项已各有一张带截止日的征询/排期单。最早可达开工日仍是 **DR4 2026-12-04**，前提是 12-04 前收到 C15/C25 答复且 C14 给出证明或签署降级。
+2. **能否试点 = 否，且不可能在开工前变是**：`pilot` 的 14 项需要真实 React/E2E、staging 遥测、多节点 Temporal、签约组织与切换演练。试点 `go` 的最早窗口仍是既定的 **2027-02-26～04-02**，其关键路径是 E1→E2→E3→E7→E8。
+
+用法约束（防误读）：`canStartWork` 与 `go` 是两个字段，报告里必须分别引用；把所有 `start` 项关掉只会让 `canStartWork` 变 true，试点仍被 14 项挡住——这条写进了 ops-model 测试，不能靠措辞绕过。
 
 ## 7. 评审议程与签收表
 

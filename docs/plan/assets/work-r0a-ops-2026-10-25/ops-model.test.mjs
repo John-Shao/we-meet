@@ -45,6 +45,40 @@ test('pilot checklist is valid and currently blocked', () => {
   assert.ok(result.blockers.every((item) => item.owner));
 });
 
+test('blocking items split into a start gate and a pilot gate', () => {
+  const result = goNoGo(checklist);
+  assert.deepEqual(
+    result.startBlockers.map((item) => item.id).sort(),
+    ['C01', 'C02', 'C03', 'C04', 'C05', 'C11', 'C14', 'C15', 'C25'],
+  );
+  assert.equal(result.pilotBlockerCount, 14);
+  assert.equal(result.scaleBlockerCount, 0);
+  assert.equal(result.canStartWork, false);
+  assert.equal(result.blockerCount, result.startBlockerCount + result.pilotBlockerCount + result.scaleBlockerCount);
+
+  // 关掉开工闸门只允许开工，不等于可以试点：14 个试点证据项仍必须由实施产生。
+  const started = structuredClone(checklist);
+  for (const item of started.items) {
+    if (item.gate === 'start' && item.blocking) {
+      item.status = 'done';
+      item.evidence = ['review sign-off'];
+    }
+  }
+  const afterStart = goNoGo(started);
+  assert.equal(afterStart.canStartWork, true);
+  assert.equal(afterStart.go, false);
+  assert.equal(afterStart.pilotBlockerCount, 14);
+});
+
+test('checklist rejects a missing or unknown gate', () => {
+  const noGate = structuredClone(checklist);
+  delete noGate.items[0].gate;
+  assert.ok(validateChecklist(noGate).some((issue) => issue.includes('invalid gate')));
+  const badGate = structuredClone(checklist);
+  badGate.items[0].gate = 'whenever';
+  assert.ok(validateChecklist(badGate).some((issue) => issue.includes('invalid gate')));
+});
+
 test('pilot go/no-go becomes true only when every blocking item is done or waived', () => {
   const done = structuredClone(checklist);
   for (const item of done.items) {
