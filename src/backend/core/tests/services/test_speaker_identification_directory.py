@@ -76,6 +76,11 @@ def test_personal_directory_does_not_include_organization_members(case):
 def test_organization_directory_is_current_distinct_human_members_only(case):
     organization, _ = org_for(case.actor)
     other, _ = org_for(case.actor)
+    # The actor arrives with a Faker name and the filter is an icontains on both
+    # name columns, so a surname like "Adams" would silently match the "Ada" query.
+    models.User.objects.filter(pk=case.actor.pk).update(
+        full_name="Zoe", short_name="Zoe"
+    )
     ada = MembershipFactory(organization=organization, user__full_name="Ada").user
     MembershipFactory(organization=organization, user=ada)
     retired = MembershipFactory(organization=organization, user__is_active=False).user
