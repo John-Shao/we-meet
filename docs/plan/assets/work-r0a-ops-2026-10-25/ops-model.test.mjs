@@ -49,8 +49,10 @@ test('blocking items split into a start gate and a pilot gate', () => {
   const result = goNoGo(checklist);
   assert.deepEqual(
     result.startBlockers.map((item) => item.id).sort(),
-    ['C01', 'C02', 'C03', 'C04', 'C05', 'C11', 'C14', 'C15', 'C25'],
+    ['C01', 'C02', 'C03', 'C04', 'C05', 'C11', 'C14', 'C25'],
   );
+  assert.ok(!result.startBlockers.some((item) => item.id === 'C15'));
+  assert.equal(checklist.items.find((item) => item.id === 'C15').status, 'waived');
   assert.equal(result.pilotBlockerCount, 14);
   assert.equal(result.scaleBlockerCount, 0);
   assert.equal(result.canStartWork, false);

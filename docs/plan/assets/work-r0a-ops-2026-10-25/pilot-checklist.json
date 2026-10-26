@@ -210,7 +210,7 @@
       "category": "security",
       "title": "Provider terms, residency, training/retention and price ceiling",
       "owner": "business + legal + security",
-      "status": "partial",
+      "status": "waived",
       "blocking": true,
       "gate": "start",
       "evidence": [
@@ -222,7 +222,7 @@
         "P1–P4 written clauses not applicable: Alibaba Bailian managed service, demo data only (product decision 2026-10-27)",
         "P6 price is reference only; Work has no money ledger"
       ],
-      "note": "C15 只剩 P5：演示组织使用阿里云百炼，P1–P4 不适用（演示数据；依赖标准服务条款），P6 仅参考。TPM 5M 快照（动态限流）额度只到 2026-11-15，续期/日上限/限流语义仍未取得。"
+      "note": "C15 waived（2026-10-27）：演示组织使用阿里云百炼且只用演示数据，P1–P5 全部不适用，P6 价目仅参考；不再作为 start 闸门。TPM 5M 额度 2026-11-15 到期与动态限流属运营风险，不影响 C15 结项。若演示组织将来处理客户数据，必须重开。"
     },
     {
       "id": "C16",

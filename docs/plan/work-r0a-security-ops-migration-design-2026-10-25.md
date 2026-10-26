@@ -1,6 +1,6 @@
 # Work R0a 安全、运维、迁移与试点详细设计（D6）
 
-> 状态：D6 设计草案；安全控制/SLO/容量/试点清单已建模并通过 8/8 校验，当前 **go/no-go = no-go（23 个 blocking 项）**；已完成 Temporal dev 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、RLS 池化、10 并发负载、Work DB 恢复、试点 on-call runbook、SLO 规则即代码 11/11 + promtool 校验（48 条规则 + 14 组告警单测）与日志扫描 8/8、管理读/目录投影/留存清扫的多连接竞态 7/7；本地关闭 C12/C18/C19/C20/C21，剩余 23 个 blocking。未做多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/供应商条款/真实遥测接入。
+> 状态：D6 设计草案；安全控制/SLO/容量/试点清单已建模并通过 8/8 校验，当前 **go/no-go = no-go（22 个 blocking 项；C15 已 waived）**；已完成 Temporal dev 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、RLS 池化、10 并发负载、Work DB 恢复、试点 on-call runbook、SLO 规则即代码 11/11 + promtool 校验（48 条规则 + 14 组告警单测）与日志扫描 8/8、管理读/目录投影/留存清扫的多连接竞态 7/7；本地关闭 C12/C18/C19/C20/C21，剩余 22 个 blocking。未做多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/真实遥测接入（C15 已 waived）。
 >
 > 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界）
 >
@@ -228,9 +228,9 @@ node pilot-capacity-model.mjs
 - **日志扫描参考 8/8**：Key（含 `sk-proj-`/`sk-ant-`）/GitHub token/阿里云 AccessKey/Bearer/cookie/私钥/正文 canary/email 规则；现有 7 个证据日志 0 fail / 0 warn，扫描结果只含脱敏预览；见 [log-scan-result.log](assets/work-r0a-hardening-2026-10-25/log-scan-result.log)。不是 staging OTel 证据。
 - **SLO 遥测规则 10/10**：12 个 SLO 全覆盖，生成 21 条 record + 19 条 alert（15 SLO + 4 operational，含 outbox 死信与 usage 偏差），每条告警带 severity/for/runbook，内容标签被禁止；见 [telemetry-contract](assets/work-r0a-ops-2026-10-25/telemetry-contract.json) / [rules](assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)。未接 Prometheus/Alertmanager，所有 SLO 仍 not_measured。
 - 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03 执行开关/组织停用；C21 §6.1 on-call/事故沟通。C31 仍 partial（P1-A 不能直接复用；方案 B 已让 Work 自己出席位/cents/导出作业，缺的是 Host 的身份与席位字段）；C16/C17 仍 partial：规则与告警单测可复现（promtool 48 条 + 14 断言），缺的是 staging 遥测/日志后端与真实序列上的验证。
-- 当前 no-go 从 29 降为 **23**；C09/C13/C14/C22 仍 partial，C15/C24/C25/C27/C30 等仍待外部输入。
+- 当前 no-go 从 29 降为 **23**；C09/C13/C14/C22 仍 partial，C15 已 waived（DR3 需判断 S13 是否豁免）、C24/C25/C27/C30 等仍待外部输入。
 
-**当前：no-go，23 个 blocking 项未关闭。** 主要阻塞：
+**当前：no-go，22 个 blocking 项未关闭（C15 已 waived）。** 主要阻塞：
 
 - D1–D5 设计尚未正式评审；D1 冒烟 114/114 + 竞态 7/7、Temporal 参考纵切 10/10 已完成，但 S1 多节点/在途 server 重启与正式评审仍未完成。
 - D2 生成客户端未接真实前端（R0a 门禁已在 PR #7 首次跑绿，仓库全量流水线 meet Workflow 也已 15/15 跑绿）；D4 真实 gVisor/Content Store/云 KMS/供应商条款；D5 React/E2E；C22 多节点/在途 server 重启。
@@ -263,7 +263,7 @@ node pilot-capacity-model.mjs
 9. **试点组织/研究**：3 家未签、7–8 名研究未做（招募与执行排期单已发，待运营回填名单）；不能以内部走查代替。
 10. **事故沟通/支持**：支持分级 S1–S4、工单模板与升级路径见[试点运营 runbook §2](work-r0a-pilot-operations-runbook-2026-10-26.md)；联系人/渠道待 C24。
 11. **合规**：数据驻留/删除/审计保留需法务/安全确认。
-12. **No-go 清单**：剩余 23 个 blocking 项是当前事实；本地测试不能替代试点环境、安全签收、供应商条款与组织研究。
+12. **No-go 清单**：剩余 22 个 blocking 项是当前事实；本地测试不能替代试点环境、安全签收与组织研究（C15 已 waived）。
 13. **独立产品边界**：Host 端口/Connector 契约与剥离演练未完成；ADR-0021 设计约束不等于可独立售卖。
 14. **目录投影新鲜度**：撤权/停席到 Work 生效取决于 Host 同步频率与失败重试；R0a 只保证“下一次授权/提交被拦住”，不保证在途 Run 立即停止（是否自动 `request_cancel` 待 DR1 定案，见 D1 §7.14）。运维需监控投影修订滞后与 `directory.member_synced` 的 `entitlement_lost` 事件。
 

@@ -30,10 +30,12 @@
     "blocking": false
   },
   "openQuestions": [
-    "2026-11-15 之后的续期或合同额度",
-    "动态限流触发条件、429 行为与重试语义",
-    "是否存在日/月 token 配额"
+    "TPM 续期/到期后的演示可用性（运营，不属 C15）",
+    "动态限流触发条件与 429 行为（运营）",
+    "日/月 token 配额（运营参考）"
   ],
   "p1p4": "not-applicable: Bailian managed service with demo data only (product decision 2026-10-27)",
-  "p6": "reference-only: Work has no money ledger"
+  "p6": "reference-only: Work has no money ledger",
+  "c15Status": "waived-2026-10-27",
+  "p1p5": "not-applicable: Bailian managed service with demo data only; not a C15 gate"
 }
