@@ -1,8 +1,8 @@
 # Work R0a API、事件与协议详细设计（D2）
 
-> 状态：D2 详细设计草案；R0a OpenAPI 子集、生成类型、运行时客户端、管理读适配、mock server 与 31 组测试已完成；R0a 门禁已在 PR #7（`refactor/work-module` → `aliyun-dev`，commit `62affea4b`）首次远端运行 **6/6 job 通过**（Work R0a gates，31s）；首跑曾败于 `orchestration-contract` 缺 PyYAML，已在同一 PR 修复。仓库全量流水线也已跑绿（head `9494f79b0`：meet Workflow 15/15、Release guard 通过，25/25 检查通过且可合并）；未做真实鉴权/持久化/供应商回归。
+> 状态：D2 详细设计草案；R0a OpenAPI 子集（**29 path / 33 operation**）、生成类型、运行时客户端、管理读适配、mock server 与 **34 组测试**已完成（2026-10-26 D-08 修订：配额字段改 token、新增用量与接入配置 8 个 operation、错误码目录补 6 个内部码）；R0a 门禁已在 PR #7（`refactor/work-module` → `aliyun-dev`，commit `62affea4b`）首次远端运行 **6/6 job 通过**（Work R0a gates，31s）；首跑曾败于 `orchestration-contract` 缺 PyYAML，已在同一 PR 修复。仓库全量流水线也已跑绿（head `9494f79b0`：meet Workflow 15/15、Release guard 通过，25/25 检查通过且可合并）；未做真实鉴权/持久化/供应商回归。
 >
-> 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界）
+> 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界与 D-08 接入配置/用量接口；D-08 尚未签收）
 >
 > 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[API 契约草案](work-api-contracts-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[架构 §15](work-system-architecture-2026-10-25.md)。
 >
@@ -44,10 +44,10 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 
 现有完整契约的 `Task` 只有基础字段，无法稳定支撑“待处理/进行中/待验收/已完成”。R0a 子集新增：
 
-- `TaskSummary`：`display_state`、`task_state`、latest Run、latest artifact、`budget.reserved_cents/settled_cents`、`blocking_operations`、`pending_acceptance`。
+- `TaskSummary`：`display_state`、`task_state`、latest Run、latest artifact、`quota.reserved_tokens/settled_tokens`、`blocking_operations`、`pending_acceptance`。
 - `TaskDetail`：summary + input_ref + goal/background + template + snapshot。
 - `GET /tasks?view=pending|running|awaiting_acceptance|completed|all`：服务端投影，前端不自行拼接第二套状态。
-- `DisplayState` 包含 `open/queued/running/awaiting_acceptance/completed/failed/run_canceled/reconciling/budget_exhausted/canceling/canceled/archived`；R0a golden path 不出现 `waiting_approval`。
+- `DisplayState` 包含 `open/queued/running/awaiting_acceptance/completed/failed/run_canceled/reconciling/quota_exhausted/canceling/canceled/archived`；R0a golden path 不出现 `waiting_approval`。
 - 标题由服务端从 goal 生成（前 20 字），按敏感元数据处理。
 - **标题编辑（2026-10-26 补齐）**：`PATCH /tasks/{taskId}`（`updateTask`），请求体 `client_request_id + expected_revision + title`；去首尾空白后 1–80 字符、禁止控制字符，否则 422 `title_invalid`；revision 不符 409 `version_conflict` + `current_revision`；同 key 同标题重放返回当前摘要，不同标题 409 `idempotency_key_conflict`；归档任务 409 `task_archived`；只允许 owner（非 owner 视为 404）。成功 revision +1，事件 `task.updated` 与审计 `task.title_update` 只记录 `fields:["title"]`，**不含标题文本**。D1 领域命令 `work.update_task_title`。
 
@@ -70,9 +70,9 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 
 ### 2.6 管理只读（U2 方案 B）
 
-- 子集是 `GET /admin/overview`、`GET /admin/seats`、`POST /admin/audit-exports`、`GET /admin/audit-exports/{exportId}`、`POST /admin/audit-exports/{exportId}/download-ticket`、`GET /admin/audit-exports/{exportId}/content`：只读 + 导出，不提供席位/预算/策略写入。
-- **数据来源是 Work 自己**（2026-10-26 决策 B）：角色/修订号/席位来自 `work.member` 投影，预算是 `work.budget_account` 的整数 cents 账本，导出是 `work.audit_export` 作业；P1-A 只提供读权限与主组织上下文。此前设想的“在 P1-A 上适配出管理读”会迫使 Work 接受 token 计数当预算或伪造导出作业，故弃用。
-- `AdminOverview` 因此带 `budget_period_id`、`org_revision`，`name` 可为 `null`（目录投影未提供组织名时由前端显示占位文案），`seats.total` 明确排除 `left` 且不受列表分页影响。
+- 子集是 `GET /admin/overview`、`GET /admin/seats`、`POST /admin/audit-exports`、`GET /admin/audit-exports/{exportId}`、`POST /admin/audit-exports/{exportId}/download-ticket`、`GET /admin/audit-exports/{exportId}/content`，外加 D-08 的 `GET /admin/usage`、`GET|PUT /admin/provider-config`、`POST /admin/provider-config/revoke`、`POST /admin/provider-credentials`、`POST /admin/provider-credentials/{id}/rotate|revoke`。席位/策略仍不写；**唯一的写面是组织 owner 改自己的大模型接入配置**（D-08d 显式扩范围），不预置 `org.work_grant.write`。
+- **数据来源是 Work 自己**（2026-10-26 决策 B）：角色/修订号/席位来自 `work.member` 投影，配额是 `work.quota_account` 的整数 token 护栏（不存金额），导出是 `work.audit_export` 作业；P1-A 只提供读权限与主组织上下文。此前设想的“在 P1-A 上适配出管理读”会迫使 Work 接受 token 计数当预算或伪造导出作业，故弃用。
+- `AdminOverview` 因此带 `quota_period_id`、`run_cap_tokens`、`quota.enforcement`、`org_revision`，`name` 可为 `null`（目录投影未提供组织名时由前端显示占位文案），`seats.total` 明确排除 `left` 且不受列表分页影响。
 - 作业生命周期 `queued → running → ready →（到期）expired / failed`：`POST /audit-exports` 返回 **202 + queued**，不等正文；同 `client_request_id` 同参数幂等返回原作业，异参数 409 `idempotency_key_conflict`；范围必须落在留存窗口内、不晚于当前时间、跨度 ≤92 天，否则 422 `audit_export_range_invalid`。响应只含元数据（行数/字节/哈希有效期），不含 Content Store 引用。
 - 下载是一次性凭证：`download-ticket` 返回只在响应中出现一次的随机 token（服务端存 SHA-256），`content` 用 `X-Download-Token` 请求头兑换——**凭证不进 URL/查询串**，避免落入访问日志；兑换后立即失效（409 `audit_export_already_downloaded` 阻止重复发放，403 `download_token_invalid` 阻止复用），过期分别返回 410 `download_token_expired` / `audit_export_expired`。
 - 跨组织与不存在的作业统一 404 `audit_export_not_found`，不泄露作业是否存在；非 owner/admin 一律 403 `admin_access_denied`。
@@ -90,7 +90,7 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 
 - R0a 的 `we_meet_session` 只是 Host 认证适配器；核心只依赖认证端口，独立产品可接 OIDC/bearer。
 - 租户/成员/席位从 `IdentityDirectory`/`Entitlement` 端口解析；客户端 `org_id` 只用于资源定位。端口形状与校验器已可执行：[host-ports.mjs](assets/work-r0a-design-2026-10-25/host-ports.mjs)（五个端口、方法清单、值校验），[we-meet-host-adapter.mjs](assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs)（P1-A 形状 → `sync_*` 投影载荷，缺字段报 gap），[stub-host.mjs](assets/work-r0a-design-2026-10-25/stub-host.mjs)（独立产品替身，同一端口同一投影形状）。
-- 端口契约的三条硬规则：Host 不能塞未声明字段进 Work（`unexpected_field`）；不把 token 配额换算成席位或 cents 预算（`incompatible_source`）；通知投递不接受正文字段（`no_content_allowed`）。收窄（撤席位/停用成员）只产出 `request_cancel` 提示，由领域命令执行，适配器不写表。
+- 端口契约的三条硬规则：Host 不能塞未声明字段进 Work（`unexpected_field`）；不把 token 配额换算成席位或金额预算（`incompatible_source`）；通知投递不接受正文字段（`no_content_allowed`）。收窄（撤席位/停用成员）只产出 `request_cancel` 提示，由领域命令执行，适配器不写表。
 - 通知、计费、业务系统 Connector 通过 Host 端口；会议/消息/文档与外部 SaaS 使用同一 Connector 契约，不直连表。
 - 独立部署与剥离演练见 [ADR-0021](../adr/0021-work-standalone-product-boundary.md)；R0a API 不变。
 
@@ -101,7 +101,7 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 | GET | `/work/v1/bootstrap` | 组织、阶段、执行目标、限制、允许权限模式、csrf_token |
 | POST | `/work/v1/inputs` | 创建/复用文本输入 |
 | GET | `/work/v1/templates` | 3 个内置模板 |
-| POST | `/work/v1/task-previews` | 边界摘要、费用上界、preview_hash |
+| POST | `/work/v1/task-previews` | 边界摘要、token 上限（`token_upper_bound`，不报价）、preview_hash |
 | GET | `/work/v1/tasks` | TaskSummary 列表；`view` 筛选 |
 | POST | `/work/v1/tasks` | 幂等提交；202 TaskSummary + Run |
 | GET | `/work/v1/tasks/{taskId}` | TaskDetail（goal/background/template/snapshot） |
@@ -117,12 +117,20 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 | GET | `/work/v1/artifacts/{artifactId}/versions/{versionNo}` | 版本元数据 + content_url |
 | GET | `/work/v1/artifacts/{artifactId}/versions/{versionNo}/content` | 受控正文；`disposition=attachment` 导出下载并审计 |
 | POST | `/work/v1/tasks/{taskId}/acceptances` | 采纳版本或完成理由 |
-| GET | `/work/v1/admin/overview` | 组织治理元数据（席位统计、cents 预算、周期、目录修订号、留存天数） |
+| GET | `/work/v1/admin/overview` | 组织治理元数据（席位统计、token 配额与 enforcement、周期、Run 上限、目录修订号、留存天数） |
 | GET | `/work/v1/admin/seats` | 只读席位（keyset 分页） |
 | POST | `/work/v1/admin/audit-exports` | 创建异步审计导出作业（202 queued） |
 | GET | `/work/v1/admin/audit-exports/{exportId}` | 查询导出作业状态 |
 | POST | `/work/v1/admin/audit-exports/{exportId}/download-ticket` | 发放一次性下载凭证 |
 | GET | `/work/v1/admin/audit-exports/{exportId}/content` | 用 `X-Download-Token` 兑换导出文件（一次） |
+| GET | `/work/v1/me/usage` | 本人 token 用量（按 provider/model/日；跨用户 403） |
+| GET | `/work/v1/admin/usage` | 组织按模型分列的 token 用量（owner/admin） |
+| GET | `/work/v1/admin/provider-config` | 当前接入配置（仅 owner；只回指纹，404 表示未配置） |
+| PUT | `/work/v1/admin/provider-config` | 切换接入配置（owner；`expected_revision` 版本化，冲突 409） |
+| POST | `/work/v1/admin/provider-config/revoke` | 吊销当前配置（owner；新调用立即失败） |
+| POST | `/work/v1/admin/provider-credentials` | 创建凭证（owner；`api_key` writeOnly、只回指纹；同 provider 单活） |
+| POST | `/work/v1/admin/provider-credentials/{credentialId}/rotate` | 轮换托管 Key（owner；key_version 递增） |
+| POST | `/work/v1/admin/provider-credentials/{credentialId}/revoke` | 即时吊销凭证（owner） |
 
 > 注：上表 25 个 operation 对应 22 个 path（`/tasks` 有 GET/POST，`/tasks/{id}` 有 GET/PATCH/DELETE，`/admin/audit-exports/{exportId}` 前缀下另有 ticket 与 content 两个子路径）。
 
@@ -137,7 +145,7 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 | 成果导出 | 已闭合 | content `disposition=attachment`；安全文件名 + 审计；D1 `record_artifact_export` |
 | CSRF/Cookie 生命周期 | 已闭合（设计） | 会话绑定 token、403 `csrf_invalid` 单次刷新重试、host-only cookie；真实会话服务未接 |
 | 错误码目录 | 已闭合 | `error-codes.json` + CI 校验 mock/SQL 映射 |
-| 管理只读映射 | 已闭合（设计） | 决策 B：Work 自己出角色/修订号/cents/异步导出，6 个管理读接口 + D1 `audit_export`/投影/聚合函数落地；契约与 mock 覆盖作业生命周期与一次性凭证；真实 P1-A 目录字段仍缺（C31 partial） |
+| 管理只读映射 | 已闭合（设计） | 决策 B：Work 自己出角色/修订号/token 配额/异步导出，6 个管理读接口 + D1 `audit_export`/投影/聚合函数落地；D-08 再补组织用量与接入配置读写（owner-only、只写不回读）；真实 P1-A 目录字段仍缺（C31 partial） |
 | SSE 鉴权/游标 | 已闭合 | cookie + 409 `resync_required`；Last-Event-ID |
 | 生成类型/合同测试 | 部分 | 类型 + 客户端 + mock + 31 组测试 + CI 门禁；远端 CI 与真实前端接入未做 |
 | 审批接口 | 按范围排除 | R0a 公开子集不暴露；D1 内部命令保留 |
@@ -148,7 +156,7 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 
 2026-10-25：
 
-- OpenAPI 3.1 YAML 解析成功；**20 个 path、48 个 schema、62 个唯一本地 `$ref`** 全部可解析；`openapi-spec-validator` 通过（2026-10-26 二次修订：22 path / 25 operation / 51 schema / 67 唯一 `$ref`（212 处））。
+- OpenAPI 3.1 YAML 解析成功；全部本地 `$ref` 可解析；`openapi-spec-validator` 通过（2026-10-26 D-08 修订：**29 path / 33 operation**；新增 8 个用量与接入配置 operation，`TokenUpperBound` 取代 `CostUpperBound`）。
 - `openapi-typescript 7.13.0` 生成 `r0a-api-types.d.ts`（45 KB）；`tsc --noEmit` 通过。
 - `node --test test/contract.test.mjs`：**10/10 测试通过**，覆盖：
   1. bootstrap/templates/session/CSRF/401/404；
@@ -157,12 +165,15 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
   4. 用户编辑新版本、content 读取、base 冲突；
   5. 取消/重复取消/finish-cancel/重试/SSE Last-Event-ID/409 resync；
   6. 成果版本只读（完成后、最近 Run 取消后 409 `artifact_read_only`）与重试状态门槛；
-  7. 管理读来自目录投影与 cents 账本：席位统计、keyset 分页、修订回退 503、非管理员 403（overview/seats/创建导出）；
+  7. 管理读来自目录投影与 token 配额：席位统计、keyset 分页、修订回退 503、非管理员 403（overview/seats/创建导出）；
+  8. 接入配置：owner-only、版本冲突、同 provider 单活、密钥只写不回读、吊销即时生效；
+  9. 用量：本人只读自己、组织按模型汇总仅 owner/admin、区间校验；
   8. 投影门控新工作：无席位、viewer 角色、组织停用分别在 `POST /inputs` 被拒；
   9. 审计导出异步生命周期 + 一次性凭证：queued→worker→ready、幂等重放/异体 409、范围/留存校验、未就绪 409、兑换成功、复用 403、重复发放 409、下载后 `download_available=false`；
   10. 失败/过期/凭证过期可区分：`failed`+错误码、`expired`+410、`download_token_expired`+410、未知作业 404。
 - `node --test test/client.test.mjs`：**12/12**；生成客户端覆盖 bootstrap→input→preview→submit→SSE→artifact 的 golden path，并验证 401/403/404、缺失/错误 CSRF、管理读（含 9 字段 overview 与一次性下载凭证兑换/复用）、路径/body 与 header 参数前置校验、重试/删除的 revision 与幂等重放、code point 标题。
-- `node --test test/host-ports.test.mjs`：**9/9**；验证五个端口必须齐全且不得多方法、返回值形状校验（缺字段/多余字段/枚举非法）、P1-A 只回 `user_id`/只有 token 配额时报 gap 而不猜测、`sync_*` 投影载荷形状、收窄只产出 `request_cancel` 提示、stub host 与 WeMeet 适配器产出同形状投影、通知禁正文/计费不收 token 字段、Work 运行面不 import 适配器且适配器不写 SQL。
+- 测试口径（2026-10-26 D-08）：合同 **12/12**、生成客户端 **13/13**、Host 端口 **9/9**，合计 **34/34**；`npm run check` 25 项全过。
+- `node --test test/host-ports.test.mjs`：**9/9**；验证五个端口必须齐全且不得多方法、返回值形状校验（缺字段/多余字段/枚举非法）、P1-A 只回 `user_id`/只有 token 配额时报 gap 而不猜测、`sync_*` 投影载荷形状、收窄只产出 `request_cancel` 提示、stub host 与 WeMeet 适配器产出同形状投影、通知禁正文/计费只收 token 字段（金额字段报 `incompatible_source`）、Work 运行面不 import 适配器且适配器不写 SQL。
 - `node scripts/ci-contract.mjs`：通过（32 项检查）；冻结 25 个 operation / 22 个 path / 管理读 6 个 path、排除 R0b+ 路径、要求导出正文兑换必须带 `X-Download-Token` 且契约中不存在 `download_url`、解析 212 处本地 `$ref`（67 个唯一目标）、客户端零漂移、类型覆盖全部 operation/schema、错误码目录与 mock（44 码）及 `r0a-schema-draft.sql`（101 码）双向一致，并运行 31 组测试。
 - 2026-10-26 增量：OpenAPI 增加 `updateTask` 与 `disposition`；**20 path / 22 operation / 49 schema / 63 唯一 `$ref`（179 处）**，`openapi-spec-validator` 通过；类型重新生成、`tsc` 通过；客户端测试 7→**10**（标题编辑含幂等/冲突/校验/事件无正文、导出头与审计、CSRF 轮换单次重试），设计包合计 **28/28**；D1 PG16 冒烟 34→**40/40**（标题裁剪/幂等/事件无正文/负例/越权、导出审计/缺失版本）；`ci-contract.mjs` 增加错误码目录 3 项校验。
 - 2026-10-26 增量二：增加 `deleteTask`（用户删除，需静止；内容异步粉碎、账本/审计保留）；**20 path / 23 operation / 50 schema / 64 唯一 `$ref`（185 处）**；客户端测试 **11/11**，设计包 **29/29**；D1 冒烟 **58/58**（含 outbox 顺序/退避/死信/重排、删除/代删/所有权转移、生命周期事件）。
@@ -187,9 +198,17 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
   --target ES2022 --moduleResolution bundler --module ESNext r0a-api-types.d.ts
 ```
 
+## 5.4 D-08 增量（2026-10-26）
+
+- 契约：`TaskSummary.budget` → `quota`（去币种）；`AdminOverview.budget` → `quota`（加 `enforcement`）；`WaitReason` 的 `budget` → `quota`；`TaskDetail.snapshot`、`submit_task` 入参与幂等哈希去掉 `price_version`；预览报价改为 `token_upper_bound`。
+- 新接口 8 个：用户本人用量、组织按模型用量、接入配置读/写/吊销、凭证创建/轮换/吊销。凭证请求体中的 `api_key` 为 `writeOnly`，响应只含指纹与 `key_version`。
+- 错误码：`r0a-errors-v3` 去掉 `invalid_price_version`/`settlement_out_of_bounds`/`adjustment_zero_tokens`/`invalid_billable_amount`，新增 `provider_not_configured`（422）及内部码映射（`run_cap_exceeded`→`quota_exhausted`、`owner_access_denied`→`admin_access_denied`、`revision_conflict`→`version_conflict` 等）。
+- mock：补齐配置/凭证/用量内存实现；完成一次 Run 会向 `usage_daily` 等价结构累加 50 input + 30 output；密钥只存指纹，不存明文。
+- 证据：`npm test` 34/34、`npm run check` 全过；D1 侧 139/139 与 9/9 竞态见 [D1 设计](work-r0a-data-design-2026-10-25.md)。
+
 ## 6. 未决与风险
 
-1. **P1-A 目录字段**：方案 B 已把角色/席位/cents/导出作业搬到 Work 侧，但 `subject_id`、成员 `role`/`revision`/`work_seat` 布尔与组织 `name`/`home_region` 仍要 P1-A/身份服务提供；缺失时适配器报 gap（C31 partial，见管理只读映射文档）。
+1. **P1-A 目录字段**：方案 B 已把角色/席位/token 配额/导出作业搬到 Work 侧，但 `subject_id`、成员 `role`/`revision`/`work_seat` 布尔与组织 `name`/`home_region` 仍要 P1-A/身份服务提供；缺失时适配器报 gap（C31 partial，见管理只读映射文档）。
 2. ~~CSRF 令牌生命周期~~：2026-10-26 定稿（§2.1）；真实会话服务签发/轮换仍待实现验证。
 3. ~~Cookie 边界~~：2026-10-26 定稿（§2.1）：host-only、同源 Web、CORS 拒绝；跨域客户端不在 R0a。
 4. **输入过期/留存**：未绑定输入 24 小时过期是 API 策略；绑定后按任务留存仍需产品/法务确认（D6 留存表给出默认值）。

@@ -62,6 +62,8 @@ CREATE TABLE work.org_policy (
   force_ask_each boolean NOT NULL DEFAULT false,
   allow_auto_readonly boolean NOT NULL DEFAULT false,
   allow_plan_approval boolean NOT NULL DEFAULT false,
+  -- 每个 Run 的 token 硬上限（D-08）：派发前按此值预留，所有组织都强制。
+  run_cap_tokens bigint NOT NULL DEFAULT 100000 CHECK (run_cap_tokens > 0),
   policy jsonb NOT NULL DEFAULT '{}'::jsonb,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -76,7 +78,6 @@ CREATE TABLE work.capability_snapshot (
   tool_allowlist text[] NOT NULL,
   model_route jsonb NOT NULL,
   scope_caps jsonb NOT NULL,
-  price_version text NOT NULL,
   manifest jsonb NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (id, org_id),
@@ -150,7 +151,7 @@ CREATE TABLE work.run (
   task_id uuid NOT NULL,
   attempt_no int NOT NULL CHECK (attempt_no > 0),
   state text NOT NULL CHECK (state IN ('queued', 'active', 'waiting', 'cancel_requested', 'succeeded', 'failed', 'canceled')),
-  wait_reason text CHECK (wait_reason IN ('approval', 'input', 'budget', 'device', 'provider', 'reconcile')),
+  wait_reason text CHECK (wait_reason IN ('approval', 'input', 'quota', 'device', 'provider', 'reconcile')),
   terminal_reason text,
   fence bigint NOT NULL DEFAULT 1,
   control_revision bigint NOT NULL DEFAULT 0,
@@ -256,7 +257,7 @@ CREATE TABLE work.approval_decision (
   FOREIGN KEY (approval_id, org_id) REFERENCES work.approval(id, org_id)
 );
 
--- 提交去重与预算
+-- 提交去重与配额
 CREATE TABLE work.submission_dedup (
   org_id text NOT NULL,
   subject_id text NOT NULL,
@@ -270,68 +271,130 @@ CREATE TABLE work.submission_dedup (
   PRIMARY KEY (org_id, subject_id, operation_type, client_request_id)
 );
 
-CREATE TABLE work.budget_account (
+CREATE TABLE work.quota_account (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id text NOT NULL,
   account_key text NOT NULL,
   period_id text NOT NULL,
-  currency char(3) NOT NULL,
-  limit_cents bigint NOT NULL CHECK (limit_cents >= 0),
-  reserved_cents bigint NOT NULL DEFAULT 0 CHECK (reserved_cents >= 0),
-  settled_cents bigint NOT NULL DEFAULT 0 CHECK (settled_cents >= 0),
+  limit_tokens bigint NOT NULL CHECK (limit_tokens >= 0),
+  reserved_tokens bigint NOT NULL DEFAULT 0 CHECK (reserved_tokens >= 0),
+  settled_tokens bigint NOT NULL DEFAULT 0 CHECK (settled_tokens >= 0),
+  -- soft：周期量只统计不阻断（客户自带账号，账单在云厂商）；hard：演示组织等由 platform 承担成本的组织。
+  enforcement text NOT NULL DEFAULT 'soft' CHECK (enforcement IN ('soft', 'hard')),
   version bigint NOT NULL DEFAULT 0,
   revision bigint NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (id, org_id),
   UNIQUE (org_id, account_key, period_id),
-  CHECK (settled_cents + reserved_cents <= limit_cents)
+  CHECK (enforcement = 'soft' OR settled_tokens + reserved_tokens <= limit_tokens)
 );
 
-CREATE TABLE work.budget_reservation (
+CREATE TABLE work.quota_reservation (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id text NOT NULL,
   account_id uuid NOT NULL,
   operation_id uuid NOT NULL,
   reservation_seq int NOT NULL DEFAULT 1 CHECK (reservation_seq > 0),
-  amount_cents bigint NOT NULL CHECK (amount_cents > 0),
-  settled_cents bigint NOT NULL DEFAULT 0 CHECK (settled_cents >= 0),
+  amount_tokens bigint NOT NULL CHECK (amount_tokens > 0),
+  settled_tokens bigint NOT NULL DEFAULT 0 CHECK (settled_tokens >= 0),
   state text NOT NULL CHECK (state IN ('held', 'settled', 'released', 'unknown')),
   settlement_revision int NOT NULL DEFAULT 0 CHECK (settlement_revision >= 0),
   created_at timestamptz NOT NULL DEFAULT now(),
   settled_at timestamptz,
   UNIQUE (id, org_id),
   UNIQUE (operation_id, reservation_seq),
-  CHECK (settled_cents <= amount_cents),
-  FOREIGN KEY (account_id, org_id) REFERENCES work.budget_account(id, org_id),
+  CHECK (settled_tokens <= amount_tokens),
+  FOREIGN KEY (account_id, org_id) REFERENCES work.quota_account(id, org_id),
   FOREIGN KEY (operation_id, org_id) REFERENCES work.operation(id, org_id)
 );
 
-CREATE TABLE work.budget_entry (
+CREATE TABLE work.quota_entry (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id text NOT NULL,
   account_id uuid NOT NULL,
   reservation_id uuid,
   operation_id uuid,
   kind text NOT NULL CHECK (kind IN ('reserve', 'settle', 'release', 'adjust')),
-  amount_cents bigint NOT NULL,
+  amount_tokens bigint NOT NULL,
   settlement_revision int NOT NULL DEFAULT 0 CHECK (settlement_revision >= 0),
-  price_version text,
   usage jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (id, org_id),
-  FOREIGN KEY (account_id, org_id) REFERENCES work.budget_account(id, org_id),
-  FOREIGN KEY (reservation_id, org_id) REFERENCES work.budget_reservation(id, org_id),
+  FOREIGN KEY (account_id, org_id) REFERENCES work.quota_account(id, org_id),
+  FOREIGN KEY (reservation_id, org_id) REFERENCES work.quota_reservation(id, org_id),
   FOREIGN KEY (operation_id, org_id) REFERENCES work.operation(id, org_id)
 );
 
 
-CREATE UNIQUE INDEX work_budget_one_active_reservation
-  ON work.budget_reservation(operation_id)
+CREATE UNIQUE INDEX work_quota_one_active_reservation
+  ON work.quota_reservation(operation_id)
   WHERE state IN ('held', 'unknown');
-CREATE UNIQUE INDEX work_budget_settlement_unique
-  ON work.budget_entry(operation_id, settlement_revision)
+CREATE UNIQUE INDEX work_quota_settlement_unique
+  ON work.quota_entry(operation_id, settlement_revision)
   WHERE kind IN ('settle', 'adjust') AND settlement_revision > 0;
+
+-- 大模型接入与用量（D-08）
+CREATE TABLE work.provider_credential (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id text NOT NULL REFERENCES work.org(id),
+  provider text NOT NULL CHECK (provider IN ('aliyun', 'volcengine', 'deepseek')),
+  mode text NOT NULL CHECK (mode IN ('sts_role', 'managed_key')),
+  role_ref text,
+  secret_ciphertext bytea,
+  wrapped_dek bytea,
+  kms_key_ref text,
+  secret_fingerprint text NOT NULL,
+  key_version int NOT NULL DEFAULT 1 CHECK (key_version > 0),
+  state text NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'revoked')),
+  created_by text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  rotated_at timestamptz,
+  revoked_at timestamptz,
+  revoked_by text,
+  UNIQUE (id, org_id),
+  CHECK (
+    (mode = 'sts_role' AND role_ref IS NOT NULL
+       AND secret_ciphertext IS NULL AND wrapped_dek IS NULL AND kms_key_ref IS NULL)
+    OR (mode = 'managed_key' AND role_ref IS NULL
+       AND secret_ciphertext IS NOT NULL AND wrapped_dek IS NOT NULL AND kms_key_ref IS NOT NULL)
+  )
+);
+
+CREATE TABLE work.provider_access_config (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id text NOT NULL REFERENCES work.org(id),
+  revision bigint NOT NULL CHECK (revision > 0),
+  provider text NOT NULL CHECK (provider IN ('aliyun', 'volcengine', 'deepseek')),
+  model text NOT NULL CHECK (length(model) BETWEEN 1 AND 120),
+  region text NOT NULL,
+  endpoint text NOT NULL,
+  credential_mode text NOT NULL CHECK (credential_mode IN ('sts_role', 'managed_key')),
+  credential_id uuid NOT NULL,
+  state text NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'superseded', 'revoked')),
+  created_by text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  superseded_at timestamptz,
+  revoked_at timestamptz,
+  UNIQUE (id, org_id),
+  UNIQUE (org_id, revision),
+  FOREIGN KEY (credential_id, org_id) REFERENCES work.provider_credential(id, org_id)
+);
+
+CREATE TABLE work.usage_daily (
+  org_id text NOT NULL REFERENCES work.org(id),
+  subject_id text NOT NULL,
+  provider text NOT NULL,
+  model text NOT NULL,
+  usage_date date NOT NULL,
+  input_tokens bigint NOT NULL DEFAULT 0 CHECK (input_tokens >= 0),
+  output_tokens bigint NOT NULL DEFAULT 0 CHECK (output_tokens >= 0),
+  cached_input_tokens bigint NOT NULL DEFAULT 0 CHECK (cached_input_tokens >= 0),
+  run_count int NOT NULL DEFAULT 0 CHECK (run_count >= 0),
+  revision bigint NOT NULL DEFAULT 0,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (org_id, subject_id, provider, model, usage_date)
+);
 
 -- 成果
 CREATE TABLE work.artifact (
@@ -801,7 +864,7 @@ CREATE TRIGGER audit_event_append_only BEFORE UPDATE OR DELETE ON work.audit_eve
   FOR EACH ROW EXECUTE FUNCTION work.prevent_mutation();
 CREATE TRIGGER approval_decision_append_only BEFORE UPDATE OR DELETE ON work.approval_decision
   FOR EACH ROW EXECUTE FUNCTION work.prevent_mutation();
-CREATE TRIGGER budget_entry_append_only BEFORE UPDATE OR DELETE ON work.budget_entry
+CREATE TRIGGER quota_entry_append_only BEFORE UPDATE OR DELETE ON work.quota_entry
   FOR EACH ROW EXECUTE FUNCTION work.prevent_mutation();
 CREATE TRIGGER task_event_append_only BEFORE UPDATE OR DELETE ON work.task_event
   FOR EACH ROW EXECUTE FUNCTION work.prevent_mutation();
@@ -830,24 +893,33 @@ CREATE TRIGGER artifact_version_content_immutable BEFORE UPDATE ON work.artifact
   FOR EACH ROW EXECUTE FUNCTION work.artifact_version_immutable_content();
 
 -- ---------------------------------------------------------------------------
--- 预算锁与线性化操作
+-- 配额锁与线性化操作（D-08：单位是 token，不是金额）
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION work.reserve_budget(
+CREATE FUNCTION work.reserve_quota(
   p_org_id text,
   p_account_key text,
   p_period_id text,
   p_operation_id uuid,
-  p_amount_cents bigint
+  p_amount_tokens bigint
 ) RETURNS uuid
 LANGUAGE plpgsql AS $$
 DECLARE
-  account work.budget_account%ROWTYPE;
+  account work.quota_account%ROWTYPE;
   operation_row work.operation%ROWTYPE;
+  policy_row work.org_policy%ROWTYPE;
   reservation_id uuid := gen_random_uuid();
   next_seq int;
 BEGIN
-  IF p_amount_cents <= 0 THEN
+  IF p_amount_tokens <= 0 THEN
     RAISE EXCEPTION 'invalid_reservation_amount' USING ERRCODE = '22023';
+  END IF;
+  -- Run 级硬上限对所有组织生效：预留不得超过组织策略允许的单 Run token 上限。
+  SELECT * INTO policy_row FROM work.org_policy WHERE org_id = p_org_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'org_policy_missing' USING ERRCODE = 'P0001';
+  END IF;
+  IF p_amount_tokens > policy_row.run_cap_tokens THEN
+    RAISE EXCEPTION 'run_cap_exceeded' USING ERRCODE = 'P0001';
   END IF;
   -- Operation 行锁同时串行化 reserve/release/re-reserve 与派发。
   SELECT * INTO operation_row
@@ -861,68 +933,71 @@ BEGIN
     RAISE EXCEPTION 'operation_not_reservable' USING ERRCODE = 'P0001';
   END IF;
   IF EXISTS (
-    SELECT 1 FROM work.budget_reservation
+    SELECT 1 FROM work.quota_reservation
     WHERE operation_id = p_operation_id AND state IN ('held', 'unknown')
   ) THEN
     RAISE EXCEPTION 'operation_has_active_reservation' USING ERRCODE = 'P0001';
   END IF;
   SELECT COALESCE(MAX(reservation_seq), 0) + 1 INTO next_seq
-  FROM work.budget_reservation
+  FROM work.quota_reservation
   WHERE operation_id = p_operation_id;
   SELECT * INTO account
-  FROM work.budget_account
+  FROM work.quota_account
   WHERE org_id = p_org_id AND account_key = p_account_key AND period_id = p_period_id
   FOR UPDATE;
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'budget_account_not_found' USING ERRCODE = 'P0002';
+    RAISE EXCEPTION 'quota_account_not_found' USING ERRCODE = 'P0002';
   END IF;
-  IF account.limit_cents - account.settled_cents - account.reserved_cents < p_amount_cents THEN
-    RAISE EXCEPTION 'budget_exhausted' USING ERRCODE = 'P0001';
+  -- soft 账户只统计（客户账单在云厂商侧）；hard 账户（演示组织）超限即拒。
+  IF account.enforcement = 'hard'
+     AND account.limit_tokens - account.settled_tokens - account.reserved_tokens < p_amount_tokens THEN
+    RAISE EXCEPTION 'quota_exhausted' USING ERRCODE = 'P0001';
   END IF;
-  UPDATE work.budget_account
-    SET reserved_cents = reserved_cents + p_amount_cents,
+  UPDATE work.quota_account
+    SET reserved_tokens = reserved_tokens + p_amount_tokens,
         version = version + 1,
         updated_at = now()
     WHERE id = account.id;
-  INSERT INTO work.budget_reservation
-    (id, org_id, account_id, operation_id, reservation_seq, amount_cents, state)
+  INSERT INTO work.quota_reservation
+    (id, org_id, account_id, operation_id, reservation_seq, amount_tokens, state)
   VALUES
-    (reservation_id, p_org_id, account.id, p_operation_id, next_seq, p_amount_cents, 'held');
-  INSERT INTO work.budget_entry
-    (org_id, account_id, reservation_id, operation_id, kind, amount_cents)
+    (reservation_id, p_org_id, account.id, p_operation_id, next_seq, p_amount_tokens, 'held');
+  INSERT INTO work.quota_entry
+    (org_id, account_id, reservation_id, operation_id, kind, amount_tokens)
   VALUES
-    (p_org_id, account.id, reservation_id, p_operation_id, 'reserve', p_amount_cents);
+    (p_org_id, account.id, reservation_id, p_operation_id, 'reserve', p_amount_tokens);
   RETURN reservation_id;
 END;
 $$;
 
-CREATE FUNCTION work.settle_budget(
+CREATE FUNCTION work.settle_quota(
   p_reservation_id uuid,
-  p_amount_cents bigint,
-  p_price_version text,
+  p_amount_tokens bigint,
   p_usage jsonb,
   p_settlement_revision int
 ) RETURNS void
 LANGUAGE plpgsql AS $$
 DECLARE
-  reservation work.budget_reservation%ROWTYPE;
-  account work.budget_account%ROWTYPE;
+  reservation work.quota_reservation%ROWTYPE;
+  account work.quota_account%ROWTYPE;
   existing_amount bigint;
+  v_settled bigint;
+  overrun boolean := false;
 BEGIN
-  SELECT * INTO reservation FROM work.budget_reservation
+  SELECT * INTO reservation FROM work.quota_reservation
     WHERE id = p_reservation_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'reservation_not_found' USING ERRCODE = 'P0002';
   END IF;
   IF p_settlement_revision <= reservation.settlement_revision THEN
     -- 同 revision 同金额视为幂等重试；不同金额或倒退 revision 冲突。
-    SELECT amount_cents INTO existing_amount
-    FROM work.budget_entry
+    SELECT amount_tokens INTO existing_amount
+    FROM work.quota_entry
     WHERE operation_id = reservation.operation_id
       AND kind IN ('settle', 'adjust')
       AND settlement_revision = p_settlement_revision
     LIMIT 1;
-    IF existing_amount IS NOT NULL AND existing_amount = p_amount_cents THEN
+    IF existing_amount IS NOT NULL AND existing_amount = LEAST(p_amount_tokens, reservation.amount_tokens) THEN
       RETURN;
     END IF;
     RAISE EXCEPTION 'settlement_revision_not_monotonic' USING ERRCODE = 'P0001';
@@ -930,45 +1005,54 @@ BEGIN
   IF reservation.state NOT IN ('held', 'unknown') THEN
     RAISE EXCEPTION 'reservation_not_settleable' USING ERRCODE = 'P0001';
   END IF;
-  IF p_amount_cents < 0 OR p_amount_cents > reservation.amount_cents THEN
-    RAISE EXCEPTION 'settlement_out_of_bounds' USING ERRCODE = '22023';
+  IF p_amount_tokens < 0 THEN
+    RAISE EXCEPTION 'invalid_settlement_amount' USING ERRCODE = '22023';
   END IF;
-  SELECT * INTO account FROM work.budget_account
+  -- 上游报告的用量可能略超预留（在途调用收尾）；结算按预留上界截断，
+  -- 超出部分只落在 usage 事实里供告警，不写进账户，避免账户不可变式越界。
+  v_settled := LEAST(p_amount_tokens, reservation.amount_tokens);
+  overrun := p_amount_tokens > reservation.amount_tokens;
+  SELECT * INTO account FROM work.quota_account
     WHERE id = reservation.account_id FOR UPDATE;
-  UPDATE work.budget_account
-    SET reserved_cents = reserved_cents - reservation.amount_cents,
-        settled_cents = settled_cents + p_amount_cents,
+  UPDATE work.quota_account
+    SET reserved_tokens = reserved_tokens - reservation.amount_tokens,
+        settled_tokens = settled_tokens + v_settled,
         version = version + 1,
         updated_at = now()
     WHERE id = account.id;
-  UPDATE work.budget_reservation
+  UPDATE work.quota_reservation
     SET state = 'settled',
-        settled_cents = p_amount_cents,
+        settled_tokens = v_settled,
         settlement_revision = p_settlement_revision,
         settled_at = now()
     WHERE id = reservation.id;
-  INSERT INTO work.budget_entry
-    (org_id, account_id, reservation_id, operation_id, kind, amount_cents,
-     settlement_revision, price_version, usage)
+  INSERT INTO work.quota_entry
+    (org_id, account_id, reservation_id, operation_id, kind, amount_tokens,
+     settlement_revision, usage)
   VALUES
     (reservation.org_id, account.id, reservation.id, reservation.operation_id,
-     'settle', p_amount_cents, p_settlement_revision, p_price_version, p_usage);
+     'settle', v_settled, p_settlement_revision,
+     COALESCE(p_usage, '{}'::jsonb) || jsonb_build_object(
+       'reserved_tokens', reservation.amount_tokens,
+       'reported_tokens', p_amount_tokens,
+       'overrun', overrun
+     ));
 END;
 $$;
 
--- 账单修正只追加 adjust 分录，不改写已结算金额。
-CREATE FUNCTION work.adjust_budget(
+-- 配额修正只追加 adjust 分录，不改写已结算量。
+CREATE FUNCTION work.adjust_quota(
   p_reservation_id uuid,
-  p_delta_cents bigint,
+  p_delta_tokens bigint,
   p_reason text,
   p_settlement_revision int
 ) RETURNS void
 LANGUAGE plpgsql AS $$
 DECLARE
-  reservation work.budget_reservation%ROWTYPE;
+  reservation work.quota_reservation%ROWTYPE;
   existing_amount bigint;
 BEGIN
-  SELECT * INTO reservation FROM work.budget_reservation
+  SELECT * INTO reservation FROM work.quota_reservation
     WHERE id = p_reservation_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'reservation_not_found' USING ERRCODE = 'P0002';
@@ -977,44 +1061,41 @@ BEGIN
     RAISE EXCEPTION 'reservation_not_settled' USING ERRCODE = 'P0001';
   END IF;
   IF p_settlement_revision <= reservation.settlement_revision THEN
-    SELECT amount_cents INTO existing_amount
-    FROM work.budget_entry
+    SELECT amount_tokens INTO existing_amount
+    FROM work.quota_entry
     WHERE operation_id = reservation.operation_id
       AND kind = 'adjust'
       AND settlement_revision = p_settlement_revision
     LIMIT 1;
-    IF existing_amount IS NOT NULL AND existing_amount = p_delta_cents THEN
+    IF existing_amount IS NOT NULL AND existing_amount = p_delta_tokens THEN
       RETURN;
     END IF;
     RAISE EXCEPTION 'settlement_revision_not_monotonic' USING ERRCODE = 'P0001';
   END IF;
-  IF p_delta_cents = 0 THEN
-    RAISE EXCEPTION 'adjustment_amount_zero' USING ERRCODE = '22023';
-  END IF;
-  UPDATE work.budget_account
-    SET settled_cents = settled_cents + p_delta_cents,
+  UPDATE work.quota_account
+    SET settled_tokens = settled_tokens + p_delta_tokens,
         version = version + 1,
         updated_at = now()
     WHERE id = reservation.account_id;
-  UPDATE work.budget_reservation
+  UPDATE work.quota_reservation
     SET settlement_revision = p_settlement_revision
     WHERE id = reservation.id;
-  INSERT INTO work.budget_entry
-    (org_id, account_id, reservation_id, operation_id, kind, amount_cents,
+  INSERT INTO work.quota_entry
+    (org_id, account_id, reservation_id, operation_id, kind, amount_tokens,
      settlement_revision, usage)
   VALUES
     (reservation.org_id, reservation.account_id, reservation.id, reservation.operation_id,
-     'adjust', p_delta_cents, p_settlement_revision,
+     'adjust', p_delta_tokens, p_settlement_revision,
      jsonb_build_object('reason', p_reason));
 END;
 $$;
 
-CREATE FUNCTION work.release_budget(p_reservation_id uuid) RETURNS void
+CREATE FUNCTION work.release_quota(p_reservation_id uuid) RETURNS void
 LANGUAGE plpgsql AS $$
 DECLARE
-  reservation work.budget_reservation%ROWTYPE;
+  reservation work.quota_reservation%ROWTYPE;
 BEGIN
-  SELECT * INTO reservation FROM work.budget_reservation
+  SELECT * INTO reservation FROM work.quota_reservation
     WHERE id = p_reservation_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'reservation_not_found' USING ERRCODE = 'P0002';
@@ -1022,17 +1103,17 @@ BEGIN
   IF reservation.state <> 'held' THEN
     RAISE EXCEPTION 'only_held_reservations_can_be_released' USING ERRCODE = 'P0001';
   END IF;
-  UPDATE work.budget_account
-    SET reserved_cents = reserved_cents - reservation.amount_cents,
+  UPDATE work.quota_account
+    SET reserved_tokens = reserved_tokens - reservation.amount_tokens,
         version = version + 1,
         updated_at = now()
     WHERE id = reservation.account_id;
-  UPDATE work.budget_reservation SET state = 'released' WHERE id = reservation.id;
-  INSERT INTO work.budget_entry
-    (org_id, account_id, reservation_id, operation_id, kind, amount_cents)
+  UPDATE work.quota_reservation SET state = 'released' WHERE id = reservation.id;
+  INSERT INTO work.quota_entry
+    (org_id, account_id, reservation_id, operation_id, kind, amount_tokens)
   VALUES
     (reservation.org_id, reservation.account_id, reservation.id,
-     reservation.operation_id, 'release', reservation.amount_cents);
+     reservation.operation_id, 'release', reservation.amount_tokens);
 END;
 $$;
 
@@ -1363,7 +1444,6 @@ CREATE FUNCTION work.submit_task(
   p_snapshot_manifest jsonb,
   p_tool_allowlist text[],
   p_model_route jsonb,
-  p_price_version text,
   p_workflow_id text,
   p_runtime_version text
 ) RETURNS TABLE (task_id uuid, run_id uuid, revision bigint)
@@ -1384,7 +1464,7 @@ BEGIN
   req_hash := work.sha256_text(jsonb_build_object(
     'input_id', p_input_id, 'title', p_title, 'permission_mode', p_permission_mode,
     'snapshot_hash', p_snapshot_hash, 'tool_allowlist', to_jsonb(p_tool_allowlist),
-    'model_route', p_model_route, 'price_version', p_price_version
+    'model_route', p_model_route
   )::text);
 
   SELECT * INTO dedup_row
@@ -1426,7 +1506,6 @@ BEGIN
   IF p_snapshot_hash IS NULL OR p_snapshot_hash = ''
      OR p_snapshot_manifest IS NULL
      OR p_model_route IS NULL
-     OR p_price_version IS NULL OR p_price_version = ''
      OR p_workflow_id IS NULL OR p_workflow_id = ''
      OR p_runtime_version IS NULL OR p_runtime_version = '' THEN
     RAISE EXCEPTION 'invalid_snapshot' USING ERRCODE = '22023';
@@ -1490,10 +1569,10 @@ BEGIN
 
   INSERT INTO work.capability_snapshot
     (id, org_id, task_id, resolver_version, snapshot_hash, tool_allowlist,
-     model_route, scope_caps, price_version, manifest)
+     model_route, scope_caps, manifest)
   VALUES
     (new_snapshot_id, p_org_id, new_task_id, 'r0a-v1', p_snapshot_hash,
-     p_tool_allowlist, p_model_route, '{}'::jsonb, p_price_version, p_snapshot_manifest);
+     p_tool_allowlist, p_model_route, '{}'::jsonb, p_snapshot_manifest);
 
   UPDATE work.task t
   SET snapshot_id = new_snapshot_id
@@ -1874,10 +1953,10 @@ BEGIN
     AND ao.operation_id = p_operation_id AND a.org_id = p_org_id
     AND a.status = 'pending';
   SELECT br.id INTO reservation_id
-  FROM work.budget_reservation br
+  FROM work.quota_reservation br
   WHERE br.operation_id = p_operation_id AND br.state = 'held';
   IF reservation_id IS NOT NULL THEN
-    PERFORM work.release_budget(reservation_id);
+    PERFORM work.release_quota(reservation_id);
   END IF;
   PERFORM work.append_task_event(
     p_org_id, task_id, 'operation.canceled',
@@ -1902,7 +1981,7 @@ DECLARE
   task_row work.task%ROWTYPE;
   run_row work.run%ROWTYPE;
 BEGIN
-  IF p_reason NOT IN ('budget', 'provider', 'reconcile') THEN
+  IF p_reason NOT IN ('quota', 'provider', 'reconcile') THEN
     RAISE EXCEPTION 'invalid_wait_reason' USING ERRCODE = '22023';
   END IF;
   SELECT r.task_id INTO task_id
@@ -2060,29 +2139,25 @@ CREATE FUNCTION work.reconcile_operation(
   p_operation_id uuid,
   p_resolution text,
   p_provider_request_id text DEFAULT NULL,
-  p_billable_cents bigint DEFAULT 0,
-  p_price_version text DEFAULT 'price-v1',
+  p_settled_tokens bigint DEFAULT 0,
   p_evidence_ref text DEFAULT NULL
 ) RETURNS void
 LANGUAGE plpgsql AS $$
 DECLARE
   task_id uuid;
   operation_row work.operation%ROWTYPE;
-  reservation work.budget_reservation%ROWTYPE;
+  reservation work.quota_reservation%ROWTYPE;
   next_revision int;
 BEGIN
   IF p_resolution NOT IN ('sent_succeeded', 'not_sent', 'unresolved') THEN
     RAISE EXCEPTION 'invalid_reconciliation_resolution' USING ERRCODE = '22023';
   END IF;
-  IF p_billable_cents < 0 THEN
-    RAISE EXCEPTION 'invalid_billable_amount' USING ERRCODE = '22023';
+  IF p_settled_tokens < 0 THEN
+    RAISE EXCEPTION 'invalid_settlement_amount' USING ERRCODE = '22023';
   END IF;
   IF p_resolution IN ('sent_succeeded', 'not_sent')
      AND (p_evidence_ref IS NULL OR p_evidence_ref = '') THEN
     RAISE EXCEPTION 'reconciliation_evidence_required' USING ERRCODE = '22023';
-  END IF;
-  IF p_price_version IS NULL OR p_price_version = '' THEN
-    RAISE EXCEPTION 'invalid_price_version' USING ERRCODE = '22023';
   END IF;
   SELECT r.task_id INTO task_id
   FROM work.operation o
@@ -2108,7 +2183,7 @@ BEGIN
     RAISE EXCEPTION 'operation_not_reconcilable' USING ERRCODE = 'P0001';
   END IF;
   SELECT * INTO reservation
-  FROM work.budget_reservation
+  FROM work.quota_reservation
   WHERE operation_id = p_operation_id AND org_id = p_org_id
   ORDER BY reservation_seq DESC
   LIMIT 1
@@ -2117,22 +2192,19 @@ BEGIN
     IF reservation.id IS NULL THEN
       RAISE EXCEPTION 'reservation_not_found' USING ERRCODE = 'P0002';
     END IF;
-    IF p_billable_cents > reservation.amount_cents THEN
-      RAISE EXCEPTION 'settlement_out_of_bounds' USING ERRCODE = '22023';
-    END IF;
     next_revision := reservation.settlement_revision + 1;
-    PERFORM work.settle_budget(
-      reservation.id, p_billable_cents, p_price_version,
+    PERFORM work.settle_quota(
+      reservation.id, p_settled_tokens,
       jsonb_build_object('resolution', p_resolution, 'evidence_ref', p_evidence_ref),
       next_revision
     );
   ELSIF p_resolution = 'not_sent' THEN
     IF reservation.id IS NOT NULL AND reservation.state = 'held' THEN
-      PERFORM work.release_budget(reservation.id);
+      PERFORM work.release_quota(reservation.id);
     ELSIF reservation.id IS NOT NULL AND reservation.state = 'unknown' THEN
       next_revision := reservation.settlement_revision + 1;
-      PERFORM work.settle_budget(
-        reservation.id, 0, p_price_version,
+      PERFORM work.settle_quota(
+        reservation.id, 0,
         jsonb_build_object('resolution', p_resolution, 'evidence_ref', p_evidence_ref),
         next_revision
       );
@@ -2151,7 +2223,7 @@ BEGIN
     jsonb_build_object(
       'operation_id', p_operation_id,
       'resolution', p_resolution,
-      'billable_cents', p_billable_cents,
+      'settled_tokens', p_settled_tokens,
       'evidence_ref', p_evidence_ref
     )
   );
@@ -2159,7 +2231,7 @@ BEGIN
     p_org_id, NULL,
     CASE WHEN p_resolution = 'unresolved' THEN 'operation.unresolved' ELSE 'operation.reconcile' END,
     'operation', p_operation_id::text,
-    jsonb_build_object('resolution', p_resolution, 'billable_cents', p_billable_cents, 'evidence_ref', p_evidence_ref)
+    jsonb_build_object('resolution', p_resolution, 'settled_tokens', p_settled_tokens, 'evidence_ref', p_evidence_ref)
   );
 END;
 $$;
@@ -2331,10 +2403,10 @@ BEGIN
         updated_at = now()
     WHERE o.id = operation_row.id AND o.org_id = p_org_id;
     SELECT br.id INTO reservation_id
-    FROM work.budget_reservation br
+    FROM work.quota_reservation br
     WHERE br.operation_id = operation_row.id AND br.state = 'held';
     IF reservation_id IS NOT NULL THEN
-      PERFORM work.release_budget(reservation_id);
+      PERFORM work.release_quota(reservation_id);
     END IF;
   END IF;
   PERFORM work.append_task_event(
@@ -2616,7 +2688,7 @@ CREATE TRIGGER operation_org_execution_start
   EXECUTE FUNCTION work.enforce_org_execution();
 
 CREATE TRIGGER reservation_org_execution
-  BEFORE INSERT ON work.budget_reservation
+  BEFORE INSERT ON work.quota_reservation
   FOR EACH ROW EXECUTE FUNCTION work.enforce_org_execution();
 
 -- ---------------------------------------------------------------------------
@@ -2651,23 +2723,23 @@ SELECT
       AND o.state IN ('prepared', 'waiting_approval', 'authorized', 'dispatching', 'unknown', 'unresolved')
   ), 0) AS blocking_operations,
   COALESCE((
-    SELECT SUM(br.amount_cents)
-    FROM work.budget_reservation br
+    SELECT SUM(br.amount_tokens)
+    FROM work.quota_reservation br
     JOIN work.operation o ON o.id = br.operation_id AND o.org_id = br.org_id
     WHERE o.run_id IN (
       SELECT rr.id FROM work.run rr WHERE rr.task_id = t.id AND rr.org_id = t.org_id
     )
       AND br.state IN ('held', 'unknown')
-  ), 0) AS reserved_cents,
+  ), 0) AS reserved_tokens,
   COALESCE((
-    SELECT SUM(be.amount_cents)
-    FROM work.budget_entry be
+    SELECT SUM(be.amount_tokens)
+    FROM work.quota_entry be
     JOIN work.operation o ON o.id = be.operation_id AND o.org_id = be.org_id
     WHERE o.run_id IN (
       SELECT rr.id FROM work.run rr WHERE rr.task_id = t.id AND rr.org_id = t.org_id
     )
       AND be.kind IN ('settle', 'adjust')
-  ), 0) AS settled_cents,
+  ), 0) AS settled_tokens,
   CASE
     WHEN t.state = 'completed' THEN 'completed'
     WHEN t.state = 'canceled' THEN 'canceled'
@@ -2675,7 +2747,7 @@ SELECT
     WHEN t.state = 'awaiting_acceptance' THEN 'awaiting_acceptance'
     WHEN r.state = 'queued' THEN 'queued'
     WHEN r.state = 'cancel_requested' THEN 'canceling'
-    WHEN r.state IN ('active', 'waiting') AND r.wait_reason = 'budget' THEN 'budget_exhausted'
+    WHEN r.state IN ('active', 'waiting') AND r.wait_reason = 'quota' THEN 'quota_exhausted'
     WHEN r.state IN ('active', 'waiting') AND EXISTS (
       SELECT 1 FROM work.operation o
       WHERE o.run_id = r.id AND o.org_id = t.org_id AND o.state IN ('unknown', 'unresolved')
@@ -3215,23 +3287,32 @@ END;
 $$;
 
 -- 预留：同 Operation 已有同额 held/unknown 预留时返回该预留（活动重试幂等）。
-CREATE OR REPLACE FUNCTION work.reserve_budget(
+CREATE OR REPLACE FUNCTION work.reserve_quota(
   p_org_id text,
   p_account_key text,
   p_period_id text,
   p_operation_id uuid,
-  p_amount_cents bigint
+  p_amount_tokens bigint
 ) RETURNS uuid
 LANGUAGE plpgsql AS $$
 DECLARE
-  account work.budget_account%ROWTYPE;
+  account work.quota_account%ROWTYPE;
   operation_row work.operation%ROWTYPE;
-  existing work.budget_reservation%ROWTYPE;
+  policy_row work.org_policy%ROWTYPE;
+  existing work.quota_reservation%ROWTYPE;
   reservation_id uuid := gen_random_uuid();
   next_seq int;
 BEGIN
-  IF p_amount_cents IS NULL OR p_amount_cents <= 0 THEN
+  IF p_amount_tokens IS NULL OR p_amount_tokens <= 0 THEN
     RAISE EXCEPTION 'invalid_reservation_amount' USING ERRCODE = '22023';
+  END IF;
+  -- Run 级硬上限对所有组织生效（D-08）。
+  SELECT * INTO policy_row FROM work.org_policy WHERE org_id = p_org_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'org_policy_missing' USING ERRCODE = 'P0001';
+  END IF;
+  IF p_amount_tokens > policy_row.run_cap_tokens THEN
+    RAISE EXCEPTION 'run_cap_exceeded' USING ERRCODE = 'P0001';
   END IF;
   SELECT * INTO operation_row
   FROM work.operation o
@@ -3241,10 +3322,10 @@ BEGIN
     RAISE EXCEPTION 'operation_not_found' USING ERRCODE = 'P0002';
   END IF;
   SELECT * INTO existing
-  FROM work.budget_reservation br
+  FROM work.quota_reservation br
   WHERE br.operation_id = p_operation_id AND br.state IN ('held', 'unknown');
   IF FOUND THEN
-    IF existing.amount_cents = p_amount_cents THEN
+    IF existing.amount_tokens = p_amount_tokens THEN
       RETURN existing.id;
     END IF;
     RAISE EXCEPTION 'operation_has_active_reservation' USING ERRCODE = 'P0001';
@@ -3253,31 +3334,33 @@ BEGIN
     RAISE EXCEPTION 'operation_not_reservable' USING ERRCODE = 'P0001';
   END IF;
   SELECT COALESCE(MAX(br.reservation_seq), 0) + 1 INTO next_seq
-  FROM work.budget_reservation br
+  FROM work.quota_reservation br
   WHERE br.operation_id = p_operation_id;
   SELECT * INTO account
-  FROM work.budget_account ba
+  FROM work.quota_account ba
   WHERE ba.org_id = p_org_id AND ba.account_key = p_account_key AND ba.period_id = p_period_id
   FOR UPDATE;
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'budget_account_not_found' USING ERRCODE = 'P0002';
+    RAISE EXCEPTION 'quota_account_not_found' USING ERRCODE = 'P0002';
   END IF;
-  IF account.limit_cents - account.settled_cents - account.reserved_cents < p_amount_cents THEN
-    RAISE EXCEPTION 'budget_exhausted' USING ERRCODE = 'P0001';
+  -- soft：客户自带账号，周期量只统计；hard：演示组织等平台承担成本的组织，超限即拒。
+  IF account.enforcement = 'hard'
+     AND account.limit_tokens - account.settled_tokens - account.reserved_tokens < p_amount_tokens THEN
+    RAISE EXCEPTION 'quota_exhausted' USING ERRCODE = 'P0001';
   END IF;
-  UPDATE work.budget_account ba
-  SET reserved_cents = ba.reserved_cents + p_amount_cents,
+  UPDATE work.quota_account ba
+  SET reserved_tokens = ba.reserved_tokens + p_amount_tokens,
       version = ba.version + 1,
       updated_at = now()
   WHERE ba.id = account.id;
-  INSERT INTO work.budget_reservation
-    (id, org_id, account_id, operation_id, reservation_seq, amount_cents, state)
+  INSERT INTO work.quota_reservation
+    (id, org_id, account_id, operation_id, reservation_seq, amount_tokens, state)
   VALUES
-    (reservation_id, p_org_id, account.id, p_operation_id, next_seq, p_amount_cents, 'held');
-  INSERT INTO work.budget_entry
-    (org_id, account_id, reservation_id, operation_id, kind, amount_cents)
+    (reservation_id, p_org_id, account.id, p_operation_id, next_seq, p_amount_tokens, 'held');
+  INSERT INTO work.quota_entry
+    (org_id, account_id, reservation_id, operation_id, kind, amount_tokens)
   VALUES
-    (p_org_id, account.id, reservation_id, p_operation_id, 'reserve', p_amount_cents);
+    (p_org_id, account.id, reservation_id, p_operation_id, 'reserve', p_amount_tokens);
   RETURN reservation_id;
 END;
 $$;
@@ -3595,7 +3678,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- 管理只读（U2 方案 B）与 Host 目录投影写入（ADR-0021）
 --
--- 方案 B 的前提是：R0a 管理读接口自己提供 role/revision/cents 账本与异步导出作业，
+-- 方案 B 的前提是：R0a 管理读接口自己提供 role/revision/token 配额与异步导出作业，
 -- P1-A 只负责读权限与主组织上下文。因此这些数据必须在 work schema 内有真实落点，
 -- 否则 OpenAPI 承诺的作业生命周期与席位/预算字段只能由服务端伪造。
 --
@@ -3793,7 +3876,7 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------------
--- 管理只读聚合（预算 cents、席位、策略）
+-- 管理只读聚合（token 配额、席位、策略）
 -- ---------------------------------------------------------------------------
 
 CREATE FUNCTION work.assert_org_admin(p_org_id text, p_subject_id text) RETURNS void
@@ -3821,7 +3904,7 @@ CREATE FUNCTION work.admin_overview(
 LANGUAGE plpgsql AS $$
 DECLARE
   org_row work.org%ROWTYPE;
-  account work.budget_account%ROWTYPE;
+  account work.quota_account%ROWTYPE;
   policy_row work.org_policy%ROWTYPE;
   seat_total bigint;
   seat_active bigint;
@@ -3840,7 +3923,7 @@ BEGIN
   WHERE m.org_id = p_org_id;
 
   SELECT * INTO account
-  FROM work.budget_account b
+  FROM work.quota_account b
   WHERE b.org_id = p_org_id AND b.account_key = p_account_key AND b.period_id = p_period_id;
 
   SELECT * INTO policy_row FROM work.org_policy p WHERE p.org_id = p_org_id;
@@ -3856,17 +3939,416 @@ BEGIN
     'status', org_row.status,
     'execution_enabled', org_row.execution_enabled AND NOT org_row.operator_suspended,
     'seats', jsonb_build_object('total', seat_total, 'active', seat_active),
-    'budget', jsonb_build_object(
-      'currency', COALESCE(account.currency, 'CNY'),
-      'limit_cents', COALESCE(account.limit_cents, 0),
-      'reserved_cents', COALESCE(account.reserved_cents, 0),
-      'settled_cents', COALESCE(account.settled_cents, 0)
+    'quota', jsonb_build_object(
+      'limit_tokens', COALESCE(account.limit_tokens, 0),
+      'reserved_tokens', COALESCE(account.reserved_tokens, 0),
+      'settled_tokens', COALESCE(account.settled_tokens, 0),
+      'enforcement', COALESCE(account.enforcement, 'soft')
     ),
-    'budget_period_id', p_period_id,
+    'quota_period_id', p_period_id,
+    'run_cap_tokens', COALESCE(policy_row.run_cap_tokens, 0),
     'org_revision', org_row.revision,
     'audit_retention_days',
       COALESCE(NULLIF(policy_row.policy->>'audit_retention_days', '')::int, 365)
   );
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- D-08 大模型接入配置与用量：写权限只给组织 owner；配置与凭证按组织隔离。
+-- 托管 Key 的明文没有任何读取入口：接口只回指纹，网关经 resolve_* 在调用瞬间取密文。
+-- ---------------------------------------------------------------------------
+
+CREATE FUNCTION work.assert_org_owner(p_org_id text, p_subject_id text) RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM work.assert_session_subject(p_subject_id);
+  IF NOT EXISTS (
+    SELECT 1 FROM work.member m
+    WHERE m.org_id = p_org_id
+      AND m.subject_id = p_subject_id
+      AND m.status = 'active'
+      AND m.role = 'owner'
+  ) THEN
+    RAISE EXCEPTION 'owner_access_denied' USING ERRCODE = '42501';
+  END IF;
+END;
+$$;
+
+CREATE FUNCTION work.create_provider_credential(
+  p_org_id text,
+  p_subject_id text,
+  p_provider text,
+  p_mode text,
+  p_role_ref text,
+  p_secret_ciphertext bytea,
+  p_wrapped_dek bytea,
+  p_kms_key_ref text,
+  p_secret_fingerprint text
+) RETURNS TABLE (credential_id uuid, key_version int)
+LANGUAGE plpgsql AS $$
+DECLARE
+  new_id uuid := gen_random_uuid();
+BEGIN
+  PERFORM work.assert_org_owner(p_org_id, p_subject_id);
+  IF p_provider NOT IN ('aliyun', 'volcengine', 'deepseek') THEN
+    RAISE EXCEPTION 'invalid_request:provider' USING ERRCODE = '22023';
+  END IF;
+  IF p_secret_fingerprint IS NULL OR length(btrim(p_secret_fingerprint)) NOT BETWEEN 8 AND 64 THEN
+    RAISE EXCEPTION 'invalid_request:fingerprint' USING ERRCODE = '22023';
+  END IF;
+  IF p_mode = 'managed_key' THEN
+    IF p_secret_ciphertext IS NULL OR p_wrapped_dek IS NULL OR p_kms_key_ref IS NULL
+       OR length(p_kms_key_ref) = 0 OR p_role_ref IS NOT NULL THEN
+      RAISE EXCEPTION 'invalid_request:credential' USING ERRCODE = '22023';
+    END IF;
+  ELSIF p_mode = 'sts_role' THEN
+    IF p_role_ref IS NULL OR length(btrim(p_role_ref)) = 0
+       OR p_secret_ciphertext IS NOT NULL OR p_wrapped_dek IS NOT NULL OR p_kms_key_ref IS NOT NULL THEN
+      RAISE EXCEPTION 'invalid_request:credential' USING ERRCODE = '22023';
+    END IF;
+  ELSE
+    RAISE EXCEPTION 'invalid_request:credential_mode' USING ERRCODE = '22023';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM work.provider_credential pc
+    WHERE pc.org_id = p_org_id AND pc.provider = p_provider AND pc.state = 'active'
+  ) THEN
+    RAISE EXCEPTION 'provider_credential_exists' USING ERRCODE = 'P0001';
+  END IF;
+  INSERT INTO work.provider_credential
+    (id, org_id, provider, mode, role_ref, secret_ciphertext, wrapped_dek, kms_key_ref,
+     secret_fingerprint, created_by)
+  VALUES
+    (new_id, p_org_id, p_provider, p_mode, p_role_ref, p_secret_ciphertext, p_wrapped_dek,
+     p_kms_key_ref, btrim(p_secret_fingerprint), p_subject_id);
+  PERFORM work.append_audit(
+    p_org_id, p_subject_id, 'provider.credential_created', 'provider_credential', new_id::text,
+    jsonb_build_object(
+      'provider', p_provider, 'mode', p_mode,
+      'fingerprint', btrim(p_secret_fingerprint), 'key_version', 1
+    )
+  );
+  RETURN QUERY SELECT new_id, 1;
+END;
+$$;
+
+CREATE FUNCTION work.rotate_provider_credential(
+  p_org_id text,
+  p_subject_id text,
+  p_credential_id uuid,
+  p_secret_ciphertext bytea,
+  p_wrapped_dek bytea,
+  p_kms_key_ref text,
+  p_secret_fingerprint text
+) RETURNS int
+LANGUAGE plpgsql AS $$
+DECLARE
+  credential work.provider_credential%ROWTYPE;
+  new_version int;
+BEGIN
+  PERFORM work.assert_org_owner(p_org_id, p_subject_id);
+  SELECT * INTO credential FROM work.provider_credential
+    WHERE id = p_credential_id AND org_id = p_org_id
+    FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF credential.state <> 'active' THEN
+    RAISE EXCEPTION 'provider_credential_revoked' USING ERRCODE = 'P0001';
+  END IF;
+  IF credential.mode <> 'managed_key' THEN
+    RAISE EXCEPTION 'invalid_request:credential_mode' USING ERRCODE = '22023';
+  END IF;
+  IF p_secret_ciphertext IS NULL OR p_wrapped_dek IS NULL OR p_kms_key_ref IS NULL
+     OR p_secret_fingerprint IS NULL OR length(btrim(p_secret_fingerprint)) NOT BETWEEN 8 AND 64 THEN
+    RAISE EXCEPTION 'invalid_request:credential' USING ERRCODE = '22023';
+  END IF;
+  new_version := credential.key_version + 1;
+  UPDATE work.provider_credential
+  SET secret_ciphertext = p_secret_ciphertext,
+      wrapped_dek = p_wrapped_dek,
+      kms_key_ref = p_kms_key_ref,
+      secret_fingerprint = btrim(p_secret_fingerprint),
+      key_version = new_version,
+      rotated_at = now()
+  WHERE id = credential.id;
+  PERFORM work.append_audit(
+    p_org_id, p_subject_id, 'provider.credential_rotated', 'provider_credential', credential.id::text,
+    jsonb_build_object('provider', credential.provider, 'key_version', new_version,
+                       'fingerprint', btrim(p_secret_fingerprint))
+  );
+  RETURN new_version;
+END;
+$$;
+
+CREATE FUNCTION work.revoke_provider_credential(
+  p_org_id text,
+  p_subject_id text,
+  p_credential_id uuid,
+  p_reason text
+) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  credential work.provider_credential%ROWTYPE;
+BEGIN
+  PERFORM work.assert_org_owner(p_org_id, p_subject_id);
+  IF p_reason IS NULL OR length(btrim(p_reason)) = 0 THEN
+    RAISE EXCEPTION 'invalid_request:reason' USING ERRCODE = '22023';
+  END IF;
+  SELECT * INTO credential FROM work.provider_credential
+    WHERE id = p_credential_id AND org_id = p_org_id
+    FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF credential.state = 'revoked' THEN
+    RETURN;
+  END IF;
+  UPDATE work.provider_credential
+  SET state = 'revoked', revoked_at = now(), revoked_by = p_subject_id
+  WHERE id = credential.id;
+  PERFORM work.append_audit(
+    p_org_id, p_subject_id, 'provider.credential_revoked', 'provider_credential', credential.id::text,
+    jsonb_build_object('provider', credential.provider, 'reason', p_reason)
+  );
+END;
+$$;
+
+CREATE FUNCTION work.set_provider_config(
+  p_org_id text,
+  p_subject_id text,
+  p_provider text,
+  p_model text,
+  p_region text,
+  p_endpoint text,
+  p_credential_mode text,
+  p_credential_id uuid,
+  p_expected_revision bigint DEFAULT NULL
+) RETURNS TABLE (config_id uuid, revision bigint)
+LANGUAGE plpgsql AS $$
+DECLARE
+  credential work.provider_credential%ROWTYPE;
+  current_revision bigint;
+  next_revision bigint;
+  new_id uuid := gen_random_uuid();
+BEGIN
+  PERFORM work.assert_org_owner(p_org_id, p_subject_id);
+  IF p_provider NOT IN ('aliyun', 'volcengine', 'deepseek') THEN
+    RAISE EXCEPTION 'invalid_request:provider' USING ERRCODE = '22023';
+  END IF;
+  IF p_model IS NULL OR length(btrim(p_model)) NOT BETWEEN 1 AND 120
+     OR p_region IS NULL OR length(btrim(p_region)) = 0
+     OR p_endpoint IS NULL OR p_endpoint !~ '^https://' THEN
+    RAISE EXCEPTION 'invalid_request:provider_config' USING ERRCODE = '22023';
+  END IF;
+  IF p_credential_mode NOT IN ('sts_role', 'managed_key') THEN
+    RAISE EXCEPTION 'invalid_request:credential_mode' USING ERRCODE = '22023';
+  END IF;
+  SELECT * INTO credential FROM work.provider_credential
+    WHERE id = p_credential_id AND org_id = p_org_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF credential.state <> 'active' THEN
+    RAISE EXCEPTION 'provider_credential_revoked' USING ERRCODE = 'P0001';
+  END IF;
+  IF credential.provider <> p_provider OR credential.mode <> p_credential_mode THEN
+    RAISE EXCEPTION 'provider_credential_mismatch' USING ERRCODE = '22023';
+  END IF;
+  -- 组织行锁序列化配置写入，保证同一时刻只有一条 active。
+  PERFORM 1 FROM work.org WHERE id = p_org_id FOR UPDATE;
+  SELECT c.revision INTO current_revision
+  FROM work.provider_access_config c
+  WHERE c.org_id = p_org_id AND c.state = 'active';
+  IF p_expected_revision IS NOT NULL
+     AND p_expected_revision <> COALESCE(current_revision, 0) THEN
+    RAISE EXCEPTION 'revision_conflict' USING ERRCODE = '40001';
+  END IF;
+  UPDATE work.provider_access_config
+  SET state = 'superseded', superseded_at = now()
+  WHERE org_id = p_org_id AND state = 'active';
+  SELECT COALESCE(MAX(c.revision), 0) + 1 INTO next_revision
+  FROM work.provider_access_config c WHERE c.org_id = p_org_id;
+  INSERT INTO work.provider_access_config
+    (id, org_id, revision, provider, model, region, endpoint, credential_mode, credential_id, created_by)
+  VALUES
+    (new_id, p_org_id, next_revision, p_provider, btrim(p_model), btrim(p_region),
+     btrim(p_endpoint), p_credential_mode, p_credential_id, p_subject_id);
+  PERFORM work.append_audit(
+    p_org_id, p_subject_id, 'provider.config_changed', 'provider_access_config', new_id::text,
+    jsonb_build_object('provider', p_provider, 'model', btrim(p_model), 'region', btrim(p_region),
+                       'credential_mode', p_credential_mode, 'revision', next_revision)
+  );
+  RETURN QUERY SELECT new_id, next_revision;
+END;
+$$;
+
+CREATE FUNCTION work.revoke_provider_config(
+  p_org_id text,
+  p_subject_id text,
+  p_reason text
+) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  config work.provider_access_config%ROWTYPE;
+BEGIN
+  PERFORM work.assert_org_owner(p_org_id, p_subject_id);
+  IF p_reason IS NULL OR length(btrim(p_reason)) = 0 THEN
+    RAISE EXCEPTION 'invalid_request:reason' USING ERRCODE = '22023';
+  END IF;
+  SELECT * INTO config FROM work.provider_access_config
+    WHERE org_id = p_org_id AND state = 'active'
+    FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+  UPDATE work.provider_access_config
+  SET state = 'revoked', revoked_at = now()
+  WHERE id = config.id;
+  PERFORM work.append_audit(
+    p_org_id, p_subject_id, 'provider.config_revoked', 'provider_access_config', config.id::text,
+    jsonb_build_object('provider', config.provider, 'model', config.model, 'reason', p_reason)
+  );
+END;
+$$;
+
+-- 网关/运行时取凭证的唯一入口：只能取本组织的 active 配置与 active 凭证。
+CREATE FUNCTION work.resolve_provider_context(p_org_id text)
+RETURNS TABLE (
+  config_id uuid,
+  provider text,
+  model text,
+  region text,
+  endpoint text,
+  credential_mode text,
+  role_ref text,
+  secret_ciphertext bytea,
+  wrapped_dek bytea,
+  kms_key_ref text
+)
+LANGUAGE plpgsql AS $$
+DECLARE
+  config work.provider_access_config%ROWTYPE;
+  credential work.provider_credential%ROWTYPE;
+BEGIN
+  SELECT * INTO config FROM work.provider_access_config c
+    WHERE c.org_id = p_org_id AND c.state = 'active';
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'provider_not_configured' USING ERRCODE = 'P0002';
+  END IF;
+  SELECT * INTO credential FROM work.provider_credential pc
+    WHERE pc.id = config.credential_id AND pc.org_id = p_org_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'provider_not_configured' USING ERRCODE = 'P0002';
+  END IF;
+  IF credential.state <> 'active' THEN
+    RAISE EXCEPTION 'provider_credential_revoked' USING ERRCODE = 'P0001';
+  END IF;
+  RETURN QUERY SELECT config.id, config.provider, config.model, config.region, config.endpoint,
+                      config.credential_mode, credential.role_ref, credential.secret_ciphertext,
+                      credential.wrapped_dek, credential.kms_key_ref;
+END;
+$$;
+
+CREATE FUNCTION work.record_usage(
+  p_org_id text,
+  p_subject_id text,
+  p_provider text,
+  p_model text,
+  p_usage_date date,
+  p_input_tokens bigint,
+  p_output_tokens bigint,
+  p_cached_input_tokens bigint,
+  p_runs int DEFAULT 1
+) RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF p_provider NOT IN ('aliyun', 'volcengine', 'deepseek') THEN
+    RAISE EXCEPTION 'invalid_request:provider' USING ERRCODE = '22023';
+  END IF;
+  IF p_model IS NULL OR length(btrim(p_model)) = 0 THEN
+    RAISE EXCEPTION 'invalid_request:model' USING ERRCODE = '22023';
+  END IF;
+  IF p_usage_date IS NULL OR p_input_tokens < 0 OR p_output_tokens < 0
+     OR p_cached_input_tokens < 0 OR p_runs < 0 THEN
+    RAISE EXCEPTION 'invalid_request:usage' USING ERRCODE = '22023';
+  END IF;
+  INSERT INTO work.usage_daily AS u
+    (org_id, subject_id, provider, model, usage_date,
+     input_tokens, output_tokens, cached_input_tokens, run_count, revision)
+  VALUES
+    (p_org_id, p_subject_id, p_provider, btrim(p_model), p_usage_date,
+     p_input_tokens, p_output_tokens, p_cached_input_tokens, p_runs, 1)
+  ON CONFLICT (org_id, subject_id, provider, model, usage_date) DO UPDATE
+  SET input_tokens = u.input_tokens + EXCLUDED.input_tokens,
+      output_tokens = u.output_tokens + EXCLUDED.output_tokens,
+      cached_input_tokens = u.cached_input_tokens + EXCLUDED.cached_input_tokens,
+      run_count = u.run_count + EXCLUDED.run_count,
+      revision = u.revision + 1,
+      updated_at = now();
+END;
+$$;
+
+-- C 端只读本人用量：会话主体必须与查询主体一致，跨用户读取直接拒绝。
+CREATE FUNCTION work.get_user_usage(
+  p_org_id text,
+  p_subject_id text,
+  p_from date,
+  p_to date
+) RETURNS TABLE (
+  provider text,
+  model text,
+  usage_date date,
+  input_tokens bigint,
+  output_tokens bigint,
+  cached_input_tokens bigint,
+  run_count int
+)
+LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM work.assert_session_subject(p_subject_id);
+  IF p_to < p_from OR p_to - p_from > 366 THEN
+    RAISE EXCEPTION 'invalid_request:usage_range' USING ERRCODE = '22023';
+  END IF;
+  RETURN QUERY
+    SELECT u.provider, u.model, u.usage_date, u.input_tokens, u.output_tokens,
+           u.cached_input_tokens, u.run_count
+    FROM work.usage_daily u
+    WHERE u.org_id = p_org_id AND u.subject_id = p_subject_id
+      AND u.usage_date BETWEEN p_from AND p_to
+    ORDER BY u.usage_date, u.provider, u.model;
+END;
+$$;
+
+-- 组织按模型汇总：只对 owner/admin 开放。
+CREATE FUNCTION work.get_org_usage_by_model(
+  p_org_id text,
+  p_subject_id text,
+  p_from date,
+  p_to date
+) RETURNS TABLE (
+  provider text,
+  model text,
+  input_tokens bigint,
+  output_tokens bigint,
+  cached_input_tokens bigint,
+  run_count bigint
+)
+LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM work.assert_org_admin(p_org_id, p_subject_id);
+  IF p_to < p_from OR p_to - p_from > 366 THEN
+    RAISE EXCEPTION 'invalid_request:usage_range' USING ERRCODE = '22023';
+  END IF;
+  RETURN QUERY
+    SELECT u.provider, u.model,
+           sum(u.input_tokens)::bigint, sum(u.output_tokens)::bigint,
+           sum(u.cached_input_tokens)::bigint, sum(u.run_count)::bigint
+    FROM work.usage_daily u
+    WHERE u.org_id = p_org_id AND u.usage_date BETWEEN p_from AND p_to
+    GROUP BY u.provider, u.model
+    ORDER BY u.provider, u.model;
 END;
 $$;
 
@@ -4440,7 +4922,8 @@ BEGIN
   FOREACH table_name IN ARRAY ARRAY[
     'member', 'org_policy', 'capability_snapshot', 'input_object',
     'task', 'run', 'operation', 'approval', 'approval_operation',
-    'submission_dedup', 'budget_account', 'budget_reservation',
+    'submission_dedup', 'quota_account', 'quota_reservation',
+    'provider_credential', 'provider_access_config', 'usage_daily',
     'artifact', 'artifact_version', 'upload_session', 'acceptance',
     'outbox', 'audit_export'
   ]::text[]
@@ -4465,7 +4948,7 @@ DECLARE
   table_name text;
 BEGIN
   FOREACH table_name IN ARRAY ARRAY[
-    'approval_decision', 'budget_entry', 'task_event', 'audit_event', 'artifact_tombstone'
+    'approval_decision', 'quota_entry', 'task_event', 'audit_event', 'artifact_tombstone'
   ]::text[]
   LOOP
     EXECUTE format('ALTER TABLE work.%I ENABLE ROW LEVEL SECURITY', table_name);
@@ -4508,13 +4991,18 @@ GRANT SELECT ON ALL TABLES IN SCHEMA work TO work_api, work_worker;
 -- 审计导出作业元数据（内容引用、行数、下载状态）只对管理员函数可见，走领域函数。
 REVOKE SELECT ON work.outbox, work.submission_dedup, work.audit_export FROM work_api;
 REVOKE SELECT ON work.audit_export FROM work_worker;
+-- 接入配置与凭证只经领域函数出入：API 与 worker 都没有直接读表路径，
+-- 凭证密文列对应用身份不可见（resolve_provider_context 是唯一取用入口）。
+REVOKE SELECT ON work.provider_credential, work.provider_access_config FROM work_api;
+REVOKE SELECT ON work.provider_credential, work.provider_access_config FROM work_worker;
+REVOKE SELECT ON work.usage_daily FROM work_api, work_worker;
 GRANT SELECT ON work.task_summary TO work_api, work_worker;
 
 -- 账本/审计角色只读：所有账本写入必须经领域函数（reserve/settle/adjust/release），不允许直接 INSERT。
-GRANT SELECT ON work.budget_entry, work.budget_reservation, work.budget_account, work.audit_event TO work_ledger;
+GRANT SELECT ON work.quota_entry, work.quota_reservation, work.quota_account, work.audit_event TO work_ledger;
 
 GRANT EXECUTE ON FUNCTION work.create_input(text, text, text, text, bigint, text) TO work_api;
-GRANT EXECUTE ON FUNCTION work.submit_task(text, text, text, uuid, text, text, text, jsonb, text[], jsonb, text, text, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.submit_task(text, text, text, uuid, text, text, text, jsonb, text[], jsonb, text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.retry_task(text, uuid, text, text, bigint, text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.request_cancel(text, uuid, text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.update_task_title(text, uuid, text, text, bigint, text) TO work_api;
@@ -4530,11 +5018,11 @@ GRANT EXECUTE ON FUNCTION work.create_operation(uuid, text, text, text, text) TO
 GRANT EXECUTE ON FUNCTION work.authorize_operation(text, uuid, bigint, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.finish_operation(text, uuid, text, text, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.cancel_operation(text, uuid, text, text) TO work_worker;
-GRANT EXECUTE ON FUNCTION work.reserve_budget(text, text, text, uuid, bigint) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.reserve_quota(text, text, text, uuid, bigint) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.claim_dispatch(uuid, text, text, bigint) TO work_worker;
-GRANT EXECUTE ON FUNCTION work.settle_budget(uuid, bigint, text, jsonb, int) TO work_worker;
-GRANT EXECUTE ON FUNCTION work.adjust_budget(uuid, bigint, text, int) TO work_worker;
-GRANT EXECUTE ON FUNCTION work.release_budget(uuid) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.settle_quota(uuid, bigint, jsonb, int) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.adjust_quota(uuid, bigint, text, int) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.release_quota(uuid) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.finish_run(uuid, text, text, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.claim_outbox(text, int, int) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.mark_outbox_delivered(uuid, text) TO work_worker;
@@ -4547,14 +5035,14 @@ GRANT EXECUTE ON FUNCTION work.transfer_task_ownership(text, uuid, text, text, t
 GRANT EXECUTE ON FUNCTION work.wait_run(text, uuid, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.resume_run(text, uuid) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.mark_operation_unknown(text, uuid, text) TO work_worker;
-GRANT EXECUTE ON FUNCTION work.reconcile_operation(text, uuid, text, text, bigint, text, text) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.reconcile_operation(text, uuid, text, text, bigint, text) TO work_worker;
 
 -- Host 目录投影（ADR-0021）：只有 work_directory 服务身份能写 org/member 投影，
 -- 且必须经 sync_* 领域命令；应用与 worker 角色没有直接 DML，也不能调用这两个函数。
 GRANT EXECUTE ON FUNCTION work.sync_org_projection(text, text, text, boolean, text, bigint) TO work_directory;
 GRANT EXECUTE ON FUNCTION work.sync_member_projection(text, text, text, text, boolean, bigint) TO work_directory;
 
--- 管理只读（U2 方案 B）：role/revision/席位/cents 预算与审计导出作业由 R0a 领域函数给出。
+-- 管理只读（U2 方案 B）：role/revision/席位/token 配额与审计导出作业由 R0a 领域函数给出。
 GRANT EXECUTE ON FUNCTION work.admin_overview(text, text, text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.list_seats(text, text, text, int) TO work_api;
 GRANT EXECUTE ON FUNCTION work.create_audit_export(text, text, text, timestamptz, timestamptz, text) TO work_api;
@@ -4568,6 +5056,17 @@ GRANT EXECUTE ON FUNCTION work.fail_audit_export(uuid, text, text) TO work_worke
 GRANT EXECUTE ON FUNCTION work.expire_due_audit_exports(timestamptz) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.expire_due_inputs(timestamptz) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.shred_due_audit_exports(timestamptz) TO work_worker;
+
+-- D-08 大模型接入与用量：配置写只给 owner（函数内断言）；网关取凭证只给 worker。
+GRANT EXECUTE ON FUNCTION work.create_provider_credential(text, text, text, text, text, bytea, bytea, text, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.rotate_provider_credential(text, text, uuid, bytea, bytea, text, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.revoke_provider_credential(text, text, uuid, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.set_provider_config(text, text, text, text, text, text, text, uuid, bigint) TO work_api;
+GRANT EXECUTE ON FUNCTION work.revoke_provider_config(text, text, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.get_user_usage(text, text, date, date) TO work_api;
+GRANT EXECUTE ON FUNCTION work.get_org_usage_by_model(text, text, date, date) TO work_api;
+GRANT EXECUTE ON FUNCTION work.resolve_provider_context(text) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.record_usage(text, text, text, text, date, bigint, bigint, bigint, int) TO work_worker;
 
 RESET ROLE;
 COMMIT;

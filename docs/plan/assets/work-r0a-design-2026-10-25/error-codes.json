@@ -266,11 +266,17 @@
       "recovery_action": null,
       "ui": "form_error"
     },
-    "budget_exhausted": {
+    "quota_exhausted": {
       "status": 422,
       "retryable": false,
       "recovery_action": null,
-      "ui": "budget_exhausted"
+      "ui": "quota_exhausted"
+    },
+    "provider_not_configured": {
+      "status": 422,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "form_error"
     },
     "content_expired": {
       "status": 410,
@@ -306,7 +312,6 @@
   "db_exception_map": {
     "acceptance_requires_artifact_or_reason": "acceptance_requires_artifact_or_reason",
     "actor_mismatch": "forbidden",
-    "adjustment_amount_zero": "service_degraded",
     "admin_access_denied": "admin_access_denied",
     "append_only_table": "service_degraded",
     "approval_not_found": "not_found",
@@ -326,8 +331,16 @@
     "audit_export_not_found": "audit_export_not_found",
     "audit_export_not_ready": "audit_export_not_ready",
     "audit_export_range_invalid": "audit_export_range_invalid",
-    "budget_account_not_found": "service_degraded",
-    "budget_exhausted": "budget_exhausted",
+    "quota_account_not_found": "service_degraded",
+    "quota_exhausted": "quota_exhausted",
+    "run_cap_exceeded": "quota_exhausted",
+    "owner_access_denied": "admin_access_denied",
+    "invalid_settlement_amount": "service_degraded",
+    "provider_credential_mismatch": "invalid_request",
+    "provider_credential_exists": "version_conflict",
+    "provider_credential_revoked": "provider_not_configured",
+    "provider_not_configured": "provider_not_configured",
+    "revision_conflict": "version_conflict",
     "canceled_task_cannot_succeed": "run_not_active",
     "dedup_task_missing": "service_degraded",
     "directory_org_context_mismatch": "service_degraded",
@@ -339,14 +352,12 @@
     "invalid_approval_decision": "invalid_request",
     "invalid_approval_request": "invalid_request",
     "invalid_artifact": "service_degraded",
-    "invalid_billable_amount": "service_degraded",
     "invalid_client_request_id": "invalid_request",
     "invalid_decision_source": "service_degraded",
     "invalid_input": "invalid_request",
     "invalid_operation_outcome": "service_degraded",
     "invalid_pagination": "invalid_pagination",
     "invalid_policy_epoch": "service_degraded",
-    "invalid_price_version": "service_degraded",
     "invalid_reason_code": "invalid_request",
     "invalid_reconciliation_resolution": "service_degraded",
     "invalid_request": "invalid_request",
@@ -391,7 +402,6 @@
     "run_not_quiescent_or_revision_conflict": "run_not_quiescent",
     "run_not_waiting": "service_degraded",
     "scope_unavailable": "scope_unavailable",
-    "settlement_out_of_bounds": "service_degraded",
     "settlement_revision_not_monotonic": "service_degraded",
     "snapshot_not_in_task": "service_degraded",
     "task_archived": "task_archived",

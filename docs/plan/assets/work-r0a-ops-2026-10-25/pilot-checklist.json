@@ -20,8 +20,8 @@
       "blocking": true,
       "gate": "start",
       "evidence": [
-        "D1 design + PG16 114/114 smoke",
-        "r0a-concurrency-smoke.py: 7 multi-connection races, invariant gate 7/7"
+        "D1 design + PG16 139/139 smoke (2026-10-26 D-08 revision; D-08 unsigned)",
+        "r0a-concurrency-smoke.py: 9 multi-connection races, invariant gate 9/9"
       ],
       "note": "Design draft; formal DR1 review not held."
     },
@@ -34,9 +34,9 @@
       "blocking": true,
       "gate": "start",
       "evidence": [
-        "D2 OpenAPI 3.1: 22 path / 25 operation / 51 schema",
-        "contract 10/10 + generated client 12/12 + host ports 9/9 (31/31)",
-        "error catalogue r0a-errors-v3: 49 public codes over 101 SQL codes"
+        "D2 OpenAPI 3.1: 29 path / 33 operation (D-08 adds 8 provider/usage operations; D-08d unsigned)",
+        "contract 12/12 + generated client 13/13 + host ports 9/9 (34/34)",
+        "error catalogue r0a-errors-v3: 50 public codes over 104 SQL codes"
       ],
       "note": "Draft frozen (25 ops, error catalogue v3, generated client, CI gate); formal DR1 review not held."
     },
@@ -218,7 +218,7 @@
         "models fixed 2026-10-26: qwen3.8-flash / deepseek-v4.1-flash-1017 / doubao-seed-2.1-lite",
         "console price snapshot 2026-10-26 recorded in assets/work-r0a-runtime-2026-10-25/usage/price-table.snapshot-2026-10-26.json with usableInLedger=false; R0a worst-path ceiling input 2.0 / output 8.0 / cached input 0.16 CNY per 1M tokens (DeepSeek peak tier plus Volcano cache tier, not any single provider list price)"
       ],
-      "note": "Three providers (Alibaba Cloud Qwen, DeepSeek, Volcano Engine Doubao) are the floor; terms/DPA/residency/training-retention still unconfirmed. Decision request issued 2026-10-26. Unit prices are now recorded but they come from console screenshots, not a written price list: still missing effective date, change-notice period, the DeepSeek peak/idle window definition, and whether the Volcano cache-storage charge (0.017 per 1M tokens per hour) counts into run cost. Three ledger-shape constraints (PC-1 time-segmented price vs single-value price_version, PC-2 hourly cache-storage dimension, PC-3 per-provider concurrency limits) need a DR2 decision before price_version can be frozen."
+      "note": "Three providers (Alibaba Cloud Qwen, DeepSeek, Volcano Engine Doubao) are the floor; terms/DPA/residency/training-retention still unconfirmed. Decision request issued 2026-10-26. Unit prices are now recorded but they come from console screenshots, not a written price list: still missing effective date, change-notice period, the DeepSeek peak/idle window definition, and whether the Volcano cache-storage charge (0.017 per 1M tokens per hour) counts into run cost. Three ledger-shape constraints (PC-1 time-segmented price vs single-value price_version, PC-2 hourly cache-storage dimension, PC-3 per-provider concurrency limits) need a DR2 decision before price_version can be frozen. D-08a（2026-10-26 方向已定、未签收）：若签收，判定面收窄为阿里云一家（演示组织用我们的账号）；DeepSeek/火山改为客户自担 + 接入说明，PC-1/PC-2 作废。价目快照只作成本参考，usableInLedger=false。"
     },
     {
       "id": "C16",

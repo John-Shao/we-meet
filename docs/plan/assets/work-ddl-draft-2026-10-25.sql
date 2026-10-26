@@ -47,6 +47,8 @@ CREATE TABLE work.org_policy (
   force_ask_each boolean NOT NULL DEFAULT false,
   allow_auto_readonly boolean NOT NULL DEFAULT false,
   allow_plan_approval boolean NOT NULL DEFAULT false,
+  -- 每个 Run 的 token 硬上限（D-08）：派发前按此值预留，所有组织都强制。
+  run_cap_tokens bigint NOT NULL DEFAULT 100000 CHECK (run_cap_tokens > 0),
   policy jsonb NOT NULL DEFAULT '{}'::jsonb,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -104,7 +106,6 @@ CREATE TABLE work.capability_snapshot (
   tool_allowlist text[] NOT NULL,
   model_route jsonb NOT NULL,
   scope_caps jsonb NOT NULL,
-  price_version text NOT NULL,
   manifest jsonb NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (id, org_id),
@@ -172,7 +173,7 @@ CREATE TABLE work.run (
   task_id uuid NOT NULL,
   attempt_no int NOT NULL CHECK (attempt_no > 0),
   state text NOT NULL CHECK (state IN ('queued', 'active', 'waiting', 'cancel_requested', 'succeeded', 'failed', 'canceled')),
-  wait_reason text CHECK (wait_reason IN ('approval', 'input', 'budget', 'device', 'provider', 'reconcile')),
+  wait_reason text CHECK (wait_reason IN ('approval', 'input', 'quota', 'device', 'provider', 'reconcile')),
   terminal_reason text,
   fence bigint NOT NULL DEFAULT 1,
   control_revision bigint NOT NULL DEFAULT 0,
@@ -302,72 +303,142 @@ CREATE TABLE work.submission_dedup (
 CREATE INDEX work_submission_task ON work.submission_dedup(org_id, task_id);
 
 -- ---------------------------------------------------------------------------
--- 预算
+-- 配额（D-08：token 护栏，不是金额账本；不存币种与价目版本）
 -- ---------------------------------------------------------------------------
-CREATE TABLE work.budget_account (
+CREATE TABLE work.quota_account (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id text NOT NULL,
   account_key text NOT NULL,
   period_id text NOT NULL,
-  currency char(3) NOT NULL,
-  limit_cents bigint NOT NULL CHECK (limit_cents >= 0),
-  reserved_cents bigint NOT NULL DEFAULT 0 CHECK (reserved_cents >= 0),
-  settled_cents bigint NOT NULL DEFAULT 0 CHECK (settled_cents >= 0),
+  limit_tokens bigint NOT NULL CHECK (limit_tokens >= 0),
+  reserved_tokens bigint NOT NULL DEFAULT 0 CHECK (reserved_tokens >= 0),
+  settled_tokens bigint NOT NULL DEFAULT 0 CHECK (settled_tokens >= 0),
+  -- soft：周期量只统计不阻断（客户自带账号，账单在云厂商）；hard：演示组织等由 platform 承担成本的组织。
+  enforcement text NOT NULL DEFAULT 'soft' CHECK (enforcement IN ('soft', 'hard')),
   version bigint NOT NULL DEFAULT 0,
   revision bigint NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (id, org_id),
   UNIQUE (org_id, account_key, period_id),
-  CHECK (settled_cents + reserved_cents <= limit_cents)
+  CHECK (enforcement = 'soft' OR settled_tokens + reserved_tokens <= limit_tokens)
 );
 
-CREATE TABLE work.budget_reservation (
+CREATE TABLE work.quota_reservation (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id text NOT NULL,
   account_id uuid NOT NULL,
   operation_id uuid NOT NULL,
   reservation_seq int NOT NULL DEFAULT 1 CHECK (reservation_seq > 0),
-  amount_cents bigint NOT NULL CHECK (amount_cents > 0),
-  settled_cents bigint NOT NULL DEFAULT 0 CHECK (settled_cents >= 0),
+  amount_tokens bigint NOT NULL CHECK (amount_tokens > 0),
+  settled_tokens bigint NOT NULL DEFAULT 0 CHECK (settled_tokens >= 0),
   state text NOT NULL CHECK (state IN ('held', 'settled', 'released', 'unknown')),
   settlement_revision int NOT NULL DEFAULT 0 CHECK (settlement_revision >= 0),
   created_at timestamptz NOT NULL DEFAULT now(),
   settled_at timestamptz,
   UNIQUE (id, org_id),
   UNIQUE (operation_id, reservation_seq),
-  CHECK (settled_cents <= amount_cents),
-  FOREIGN KEY (account_id, org_id) REFERENCES work.budget_account(id, org_id),
+  CHECK (settled_tokens <= amount_tokens),
+  FOREIGN KEY (account_id, org_id) REFERENCES work.quota_account(id, org_id),
   FOREIGN KEY (operation_id, org_id) REFERENCES work.operation(id, org_id)
 );
 
 -- 同一 Operation 最多一个 held/unknown 预留；释放后可用新的 reservation_seq 重预留。
-CREATE UNIQUE INDEX work_budget_one_active_reservation
-  ON work.budget_reservation(operation_id)
+CREATE UNIQUE INDEX work_quota_one_active_reservation
+  ON work.quota_reservation(operation_id)
   WHERE state IN ('held', 'unknown');
 
-CREATE TABLE work.budget_entry (
+CREATE TABLE work.quota_entry (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id text NOT NULL,
   account_id uuid NOT NULL,
   reservation_id uuid,
   operation_id uuid,
   kind text NOT NULL CHECK (kind IN ('reserve', 'settle', 'release', 'adjust')),
-  amount_cents bigint NOT NULL,
+  amount_tokens bigint NOT NULL,
   settlement_revision int NOT NULL DEFAULT 0 CHECK (settlement_revision >= 0),
-  price_version text,
   usage jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (id, org_id),
-  FOREIGN KEY (account_id, org_id) REFERENCES work.budget_account(id, org_id),
-  FOREIGN KEY (reservation_id, org_id) REFERENCES work.budget_reservation(id, org_id),
+  FOREIGN KEY (account_id, org_id) REFERENCES work.quota_account(id, org_id),
+  FOREIGN KEY (reservation_id, org_id) REFERENCES work.quota_reservation(id, org_id),
   FOREIGN KEY (operation_id, org_id) REFERENCES work.operation(id, org_id)
 );
 
 -- settle/adjust 按 operation_id + settlement_revision 唯一；reserve/release 不参与。
-CREATE UNIQUE INDEX work_budget_settlement_unique
-  ON work.budget_entry(operation_id, settlement_revision)
+CREATE UNIQUE INDEX work_quota_settlement_unique
+  ON work.quota_entry(operation_id, settlement_revision)
   WHERE kind IN ('settle', 'adjust') AND settlement_revision > 0;
+
+-- ---------------------------------------------------------------------------
+-- 大模型接入（D-08）：每组织一条生效配置；凭证与配置按组织隔离，不跨组织共享。
+-- 托管 Key 只存 KMS 信封加密后的密文；明文只在网关调用瞬间由 KMS 解出。
+-- ---------------------------------------------------------------------------
+CREATE TABLE work.provider_credential (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id text NOT NULL REFERENCES work.org(id),
+  provider text NOT NULL CHECK (provider IN ('aliyun', 'volcengine', 'deepseek')),
+  mode text NOT NULL CHECK (mode IN ('sts_role', 'managed_key')),
+  role_ref text,
+  secret_ciphertext bytea,
+  wrapped_dek bytea,
+  kms_key_ref text,
+  secret_fingerprint text NOT NULL,
+  key_version int NOT NULL DEFAULT 1 CHECK (key_version > 0),
+  state text NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'revoked')),
+  created_by text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  rotated_at timestamptz,
+  revoked_at timestamptz,
+  revoked_by text,
+  UNIQUE (id, org_id),
+  CHECK (
+    (mode = 'sts_role' AND role_ref IS NOT NULL
+       AND secret_ciphertext IS NULL AND wrapped_dek IS NULL AND kms_key_ref IS NULL)
+    OR (mode = 'managed_key' AND role_ref IS NULL
+       AND secret_ciphertext IS NOT NULL AND wrapped_dek IS NOT NULL AND kms_key_ref IS NOT NULL)
+  )
+);
+CREATE UNIQUE INDEX work_provider_credential_active
+  ON work.provider_credential(org_id, provider) WHERE state = 'active';
+
+CREATE TABLE work.provider_access_config (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id text NOT NULL REFERENCES work.org(id),
+  revision bigint NOT NULL CHECK (revision > 0),
+  provider text NOT NULL CHECK (provider IN ('aliyun', 'volcengine', 'deepseek')),
+  model text NOT NULL CHECK (length(model) BETWEEN 1 AND 120),
+  region text NOT NULL,
+  endpoint text NOT NULL,
+  credential_mode text NOT NULL CHECK (credential_mode IN ('sts_role', 'managed_key')),
+  credential_id uuid NOT NULL,
+  state text NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'superseded', 'revoked')),
+  created_by text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  superseded_at timestamptz,
+  revoked_at timestamptz,
+  UNIQUE (id, org_id),
+  UNIQUE (org_id, revision),
+  FOREIGN KEY (credential_id, org_id) REFERENCES work.provider_credential(id, org_id)
+);
+CREATE UNIQUE INDEX work_provider_config_one_active
+  ON work.provider_access_config(org_id) WHERE state = 'active';
+
+-- 用量统计：仅作用量参考，不作计费依据；按 (组织, 用户, provider, model, 自然日) 聚合。
+CREATE TABLE work.usage_daily (
+  org_id text NOT NULL REFERENCES work.org(id),
+  subject_id text NOT NULL,
+  provider text NOT NULL,
+  model text NOT NULL,
+  usage_date date NOT NULL,
+  input_tokens bigint NOT NULL DEFAULT 0 CHECK (input_tokens >= 0),
+  output_tokens bigint NOT NULL DEFAULT 0 CHECK (output_tokens >= 0),
+  cached_input_tokens bigint NOT NULL DEFAULT 0 CHECK (cached_input_tokens >= 0),
+  run_count int NOT NULL DEFAULT 0 CHECK (run_count >= 0),
+  revision bigint NOT NULL DEFAULT 0,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (org_id, subject_id, provider, model, usage_date)
+);
 
 -- ---------------------------------------------------------------------------
 -- 成果
@@ -1015,7 +1086,7 @@ CREATE TRIGGER audit_event_append_only BEFORE UPDATE OR DELETE ON work.audit_eve
   FOR EACH ROW EXECUTE FUNCTION work.prevent_mutation();
 CREATE TRIGGER approval_decision_append_only BEFORE UPDATE OR DELETE ON work.approval_decision
   FOR EACH ROW EXECUTE FUNCTION work.prevent_mutation();
-CREATE TRIGGER budget_entry_append_only BEFORE UPDATE OR DELETE ON work.budget_entry
+CREATE TRIGGER quota_entry_append_only BEFORE UPDATE OR DELETE ON work.quota_entry
   FOR EACH ROW EXECUTE FUNCTION work.prevent_mutation();
 CREATE TRIGGER task_event_append_only BEFORE UPDATE OR DELETE ON work.task_event
   FOR EACH ROW EXECUTE FUNCTION work.prevent_mutation();
@@ -1044,24 +1115,33 @@ CREATE TRIGGER artifact_version_content_immutable BEFORE UPDATE ON work.artifact
   FOR EACH ROW EXECUTE FUNCTION work.artifact_version_immutable_content();
 
 -- ---------------------------------------------------------------------------
--- 预算锁与线性化操作
+-- 配额锁与线性化操作（D-08：单位是 token，不是金额）
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION work.reserve_budget(
+CREATE FUNCTION work.reserve_quota(
   p_org_id text,
   p_account_key text,
   p_period_id text,
   p_operation_id uuid,
-  p_amount_cents bigint
+  p_amount_tokens bigint
 ) RETURNS uuid
 LANGUAGE plpgsql AS $$
 DECLARE
-  account work.budget_account%ROWTYPE;
+  account work.quota_account%ROWTYPE;
   operation_row work.operation%ROWTYPE;
+  policy_row work.org_policy%ROWTYPE;
   reservation_id uuid := gen_random_uuid();
   next_seq int;
 BEGIN
-  IF p_amount_cents <= 0 THEN
+  IF p_amount_tokens <= 0 THEN
     RAISE EXCEPTION 'invalid_reservation_amount' USING ERRCODE = '22023';
+  END IF;
+  -- Run 级硬上限对所有组织生效：预留不得超过组织策略允许的单 Run token 上限。
+  SELECT * INTO policy_row FROM work.org_policy WHERE org_id = p_org_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'org_policy_missing' USING ERRCODE = 'P0001';
+  END IF;
+  IF p_amount_tokens > policy_row.run_cap_tokens THEN
+    RAISE EXCEPTION 'run_cap_exceeded' USING ERRCODE = 'P0001';
   END IF;
   -- Operation 行锁同时串行化 reserve/release/re-reserve 与派发。
   SELECT * INTO operation_row
@@ -1075,68 +1155,71 @@ BEGIN
     RAISE EXCEPTION 'operation_not_reservable' USING ERRCODE = 'P0001';
   END IF;
   IF EXISTS (
-    SELECT 1 FROM work.budget_reservation
+    SELECT 1 FROM work.quota_reservation
     WHERE operation_id = p_operation_id AND state IN ('held', 'unknown')
   ) THEN
     RAISE EXCEPTION 'operation_has_active_reservation' USING ERRCODE = 'P0001';
   END IF;
   SELECT COALESCE(MAX(reservation_seq), 0) + 1 INTO next_seq
-  FROM work.budget_reservation
+  FROM work.quota_reservation
   WHERE operation_id = p_operation_id;
   SELECT * INTO account
-  FROM work.budget_account
+  FROM work.quota_account
   WHERE org_id = p_org_id AND account_key = p_account_key AND period_id = p_period_id
   FOR UPDATE;
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'budget_account_not_found' USING ERRCODE = 'P0002';
+    RAISE EXCEPTION 'quota_account_not_found' USING ERRCODE = 'P0002';
   END IF;
-  IF account.limit_cents - account.settled_cents - account.reserved_cents < p_amount_cents THEN
-    RAISE EXCEPTION 'budget_exhausted' USING ERRCODE = 'P0001';
+  -- soft 账户只统计（客户账单在云厂商侧）；hard 账户（演示组织）超限即拒。
+  IF account.enforcement = 'hard'
+     AND account.limit_tokens - account.settled_tokens - account.reserved_tokens < p_amount_tokens THEN
+    RAISE EXCEPTION 'quota_exhausted' USING ERRCODE = 'P0001';
   END IF;
-  UPDATE work.budget_account
-    SET reserved_cents = reserved_cents + p_amount_cents,
+  UPDATE work.quota_account
+    SET reserved_tokens = reserved_tokens + p_amount_tokens,
         version = version + 1,
         updated_at = now()
     WHERE id = account.id;
-  INSERT INTO work.budget_reservation
-    (id, org_id, account_id, operation_id, reservation_seq, amount_cents, state)
+  INSERT INTO work.quota_reservation
+    (id, org_id, account_id, operation_id, reservation_seq, amount_tokens, state)
   VALUES
-    (reservation_id, p_org_id, account.id, p_operation_id, next_seq, p_amount_cents, 'held');
-  INSERT INTO work.budget_entry
-    (org_id, account_id, reservation_id, operation_id, kind, amount_cents)
+    (reservation_id, p_org_id, account.id, p_operation_id, next_seq, p_amount_tokens, 'held');
+  INSERT INTO work.quota_entry
+    (org_id, account_id, reservation_id, operation_id, kind, amount_tokens)
   VALUES
-    (p_org_id, account.id, reservation_id, p_operation_id, 'reserve', p_amount_cents);
+    (p_org_id, account.id, reservation_id, p_operation_id, 'reserve', p_amount_tokens);
   RETURN reservation_id;
 END;
 $$;
 
-CREATE FUNCTION work.settle_budget(
+CREATE FUNCTION work.settle_quota(
   p_reservation_id uuid,
-  p_amount_cents bigint,
-  p_price_version text,
+  p_amount_tokens bigint,
   p_usage jsonb,
   p_settlement_revision int
 ) RETURNS void
 LANGUAGE plpgsql AS $$
 DECLARE
-  reservation work.budget_reservation%ROWTYPE;
-  account work.budget_account%ROWTYPE;
+  reservation work.quota_reservation%ROWTYPE;
+  account work.quota_account%ROWTYPE;
   existing_amount bigint;
+  v_settled bigint;
+  overrun boolean := false;
 BEGIN
-  SELECT * INTO reservation FROM work.budget_reservation
+  SELECT * INTO reservation FROM work.quota_reservation
     WHERE id = p_reservation_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'reservation_not_found' USING ERRCODE = 'P0002';
   END IF;
   IF p_settlement_revision <= reservation.settlement_revision THEN
     -- 同 revision 同金额视为幂等重试；不同金额或倒退 revision 冲突。
-    SELECT amount_cents INTO existing_amount
-    FROM work.budget_entry
+    SELECT amount_tokens INTO existing_amount
+    FROM work.quota_entry
     WHERE operation_id = reservation.operation_id
       AND kind IN ('settle', 'adjust')
       AND settlement_revision = p_settlement_revision
     LIMIT 1;
-    IF existing_amount IS NOT NULL AND existing_amount = p_amount_cents THEN
+    IF existing_amount IS NOT NULL AND existing_amount = LEAST(p_amount_tokens, reservation.amount_tokens) THEN
       RETURN;
     END IF;
     RAISE EXCEPTION 'settlement_revision_not_monotonic' USING ERRCODE = 'P0001';
@@ -1144,45 +1227,54 @@ BEGIN
   IF reservation.state NOT IN ('held', 'unknown') THEN
     RAISE EXCEPTION 'reservation_not_settleable' USING ERRCODE = 'P0001';
   END IF;
-  IF p_amount_cents < 0 OR p_amount_cents > reservation.amount_cents THEN
-    RAISE EXCEPTION 'settlement_out_of_bounds' USING ERRCODE = '22023';
+  IF p_amount_tokens < 0 THEN
+    RAISE EXCEPTION 'invalid_settlement_amount' USING ERRCODE = '22023';
   END IF;
-  SELECT * INTO account FROM work.budget_account
+  -- 上游报告的用量可能略超预留（在途调用收尾）；结算按预留上界截断，
+  -- 超出部分只落在 usage 事实里供告警，不写进账户，避免账户不可变式越界。
+  v_settled := LEAST(p_amount_tokens, reservation.amount_tokens);
+  overrun := p_amount_tokens > reservation.amount_tokens;
+  SELECT * INTO account FROM work.quota_account
     WHERE id = reservation.account_id FOR UPDATE;
-  UPDATE work.budget_account
-    SET reserved_cents = reserved_cents - reservation.amount_cents,
-        settled_cents = settled_cents + p_amount_cents,
+  UPDATE work.quota_account
+    SET reserved_tokens = reserved_tokens - reservation.amount_tokens,
+        settled_tokens = settled_tokens + v_settled,
         version = version + 1,
         updated_at = now()
     WHERE id = account.id;
-  UPDATE work.budget_reservation
+  UPDATE work.quota_reservation
     SET state = 'settled',
-        settled_cents = p_amount_cents,
+        settled_tokens = v_settled,
         settlement_revision = p_settlement_revision,
         settled_at = now()
     WHERE id = reservation.id;
-  INSERT INTO work.budget_entry
-    (org_id, account_id, reservation_id, operation_id, kind, amount_cents,
-     settlement_revision, price_version, usage)
+  INSERT INTO work.quota_entry
+    (org_id, account_id, reservation_id, operation_id, kind, amount_tokens,
+     settlement_revision, usage)
   VALUES
     (reservation.org_id, account.id, reservation.id, reservation.operation_id,
-     'settle', p_amount_cents, p_settlement_revision, p_price_version, p_usage);
+     'settle', v_settled, p_settlement_revision,
+     COALESCE(p_usage, '{}'::jsonb) || jsonb_build_object(
+       'reserved_tokens', reservation.amount_tokens,
+       'reported_tokens', p_amount_tokens,
+       'overrun', overrun
+     ));
 END;
 $$;
 
--- 账单修正只追加 adjust 分录，不改写已结算金额。
-CREATE FUNCTION work.adjust_budget(
+-- 配额修正只追加 adjust 分录，不改写已结算量。
+CREATE FUNCTION work.adjust_quota(
   p_reservation_id uuid,
-  p_delta_cents bigint,
+  p_delta_tokens bigint,
   p_reason text,
   p_settlement_revision int
 ) RETURNS void
 LANGUAGE plpgsql AS $$
 DECLARE
-  reservation work.budget_reservation%ROWTYPE;
+  reservation work.quota_reservation%ROWTYPE;
   existing_amount bigint;
 BEGIN
-  SELECT * INTO reservation FROM work.budget_reservation
+  SELECT * INTO reservation FROM work.quota_reservation
     WHERE id = p_reservation_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'reservation_not_found' USING ERRCODE = 'P0002';
@@ -1191,44 +1283,41 @@ BEGIN
     RAISE EXCEPTION 'reservation_not_settled' USING ERRCODE = 'P0001';
   END IF;
   IF p_settlement_revision <= reservation.settlement_revision THEN
-    SELECT amount_cents INTO existing_amount
-    FROM work.budget_entry
+    SELECT amount_tokens INTO existing_amount
+    FROM work.quota_entry
     WHERE operation_id = reservation.operation_id
       AND kind = 'adjust'
       AND settlement_revision = p_settlement_revision
     LIMIT 1;
-    IF existing_amount IS NOT NULL AND existing_amount = p_delta_cents THEN
+    IF existing_amount IS NOT NULL AND existing_amount = p_delta_tokens THEN
       RETURN;
     END IF;
     RAISE EXCEPTION 'settlement_revision_not_monotonic' USING ERRCODE = 'P0001';
   END IF;
-  IF p_delta_cents = 0 THEN
-    RAISE EXCEPTION 'adjustment_amount_zero' USING ERRCODE = '22023';
-  END IF;
-  UPDATE work.budget_account
-    SET settled_cents = settled_cents + p_delta_cents,
+  UPDATE work.quota_account
+    SET settled_tokens = settled_tokens + p_delta_tokens,
         version = version + 1,
         updated_at = now()
     WHERE id = reservation.account_id;
-  UPDATE work.budget_reservation
+  UPDATE work.quota_reservation
     SET settlement_revision = p_settlement_revision
     WHERE id = reservation.id;
-  INSERT INTO work.budget_entry
-    (org_id, account_id, reservation_id, operation_id, kind, amount_cents,
+  INSERT INTO work.quota_entry
+    (org_id, account_id, reservation_id, operation_id, kind, amount_tokens,
      settlement_revision, usage)
   VALUES
     (reservation.org_id, reservation.account_id, reservation.id, reservation.operation_id,
-     'adjust', p_delta_cents, p_settlement_revision,
+     'adjust', p_delta_tokens, p_settlement_revision,
      jsonb_build_object('reason', p_reason));
 END;
 $$;
 
-CREATE FUNCTION work.release_budget(p_reservation_id uuid) RETURNS void
+CREATE FUNCTION work.release_quota(p_reservation_id uuid) RETURNS void
 LANGUAGE plpgsql AS $$
 DECLARE
-  reservation work.budget_reservation%ROWTYPE;
+  reservation work.quota_reservation%ROWTYPE;
 BEGIN
-  SELECT * INTO reservation FROM work.budget_reservation
+  SELECT * INTO reservation FROM work.quota_reservation
     WHERE id = p_reservation_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'reservation_not_found' USING ERRCODE = 'P0002';
@@ -1236,17 +1325,17 @@ BEGIN
   IF reservation.state <> 'held' THEN
     RAISE EXCEPTION 'only_held_reservations_can_be_released' USING ERRCODE = 'P0001';
   END IF;
-  UPDATE work.budget_account
-    SET reserved_cents = reserved_cents - reservation.amount_cents,
+  UPDATE work.quota_account
+    SET reserved_tokens = reserved_tokens - reservation.amount_tokens,
         version = version + 1,
         updated_at = now()
     WHERE id = reservation.account_id;
-  UPDATE work.budget_reservation SET state = 'released' WHERE id = reservation.id;
-  INSERT INTO work.budget_entry
-    (org_id, account_id, reservation_id, operation_id, kind, amount_cents)
+  UPDATE work.quota_reservation SET state = 'released' WHERE id = reservation.id;
+  INSERT INTO work.quota_entry
+    (org_id, account_id, reservation_id, operation_id, kind, amount_tokens)
   VALUES
     (reservation.org_id, reservation.account_id, reservation.id,
-     reservation.operation_id, 'release', reservation.amount_cents);
+     reservation.operation_id, 'release', reservation.amount_tokens);
 END;
 $$;
 
@@ -1408,7 +1497,7 @@ BEGIN
     'member', 'org_policy', 'capability_definition', 'capability_version',
     'capability_installation', 'capability_snapshot', 'connector_connection',
     'connector_grant', 'task', 'run', 'operation', 'approval', 'approval_operation',
-    'submission_dedup', 'budget_account', 'budget_reservation',
+    'submission_dedup', 'quota_account', 'quota_reservation',
     'artifact', 'artifact_version', 'upload_session', 'acceptance',
     'device', 'device_session', 'workspace_grant', 'execution_lease',
     'device_receipt', 'journal_release',
@@ -1430,7 +1519,7 @@ DECLARE
   table_name text;
 BEGIN
   FOREACH table_name IN ARRAY ARRAY[
-    'approval_decision', 'budget_entry', 'task_event', 'audit_event', 'artifact_tombstone'
+    'approval_decision', 'quota_entry', 'task_event', 'audit_event', 'artifact_tombstone'
   ]::text[]
   LOOP
     EXECUTE format('ALTER TABLE work.%I ENABLE ROW LEVEL SECURITY', table_name);

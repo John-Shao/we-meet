@@ -37,8 +37,9 @@ def block(start_marker: str, end_marker: str) -> str:
 tables = {name: table(name) for name in [
     "org", "member", "org_policy", "capability_snapshot",
     "task", "run", "operation", "approval", "approval_operation",
-    "approval_decision", "submission_dedup", "budget_account",
-    "budget_reservation", "budget_entry", "artifact", "artifact_version",
+    "approval_decision", "submission_dedup", "quota_account",
+    "quota_reservation", "quota_entry", "provider_credential",
+    "provider_access_config", "usage_daily", "artifact", "artifact_version",
     "upload_session", "acceptance", "artifact_tombstone",
     "task_event", "audit_event", "outbox",
 ]}
@@ -138,12 +139,12 @@ CREATE INDEX work_operation_reconcile ON work.operation(org_id, state)
   WHERE state IN ('dispatching', 'unknown');
 """
 
-indexes_budget = """
-CREATE UNIQUE INDEX work_budget_one_active_reservation
-  ON work.budget_reservation(operation_id)
+indexes_quota = """
+CREATE UNIQUE INDEX work_quota_one_active_reservation
+  ON work.quota_reservation(operation_id)
   WHERE state IN ('held', 'unknown');
-CREATE UNIQUE INDEX work_budget_settlement_unique
-  ON work.budget_entry(operation_id, settlement_revision)
+CREATE UNIQUE INDEX work_quota_settlement_unique
+  ON work.quota_entry(operation_id, settlement_revision)
   WHERE kind IN ('settle', 'adjust') AND settlement_revision > 0;
 """
 
@@ -170,12 +171,16 @@ parts.append("-- 审批\n")
 parts.append(tables["approval"] + "\n\n")
 parts.append(tables["approval_operation"] + "\n\n")
 parts.append(tables["approval_decision"] + "\n\n")
-parts.append("-- 提交去重与预算\n")
+parts.append("-- 提交去重与配额\n")
 parts.append(tables["submission_dedup"] + "\n\n")
-parts.append(tables["budget_account"] + "\n\n")
-parts.append(tables["budget_reservation"] + "\n\n")
-parts.append(tables["budget_entry"] + "\n\n")
-parts.append(indexes_budget + "\n")
+parts.append(tables["quota_account"] + "\n\n")
+parts.append(tables["quota_reservation"] + "\n\n")
+parts.append(tables["quota_entry"] + "\n\n")
+parts.append(indexes_quota + "\n")
+parts.append("-- 大模型接入与用量（D-08）\n")
+parts.append(tables["provider_credential"] + "\n\n")
+parts.append(tables["provider_access_config"] + "\n\n")
+parts.append(tables["usage_daily"] + "\n\n")
 parts.append("-- 成果\n")
 parts.append(tables["artifact"] + "\n\n")
 parts.append(tables["artifact_version"] + "\n\n")

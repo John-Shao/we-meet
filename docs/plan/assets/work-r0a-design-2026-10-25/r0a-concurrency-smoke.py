@@ -58,7 +58,8 @@ def code_of(error):
     text = str(error)
     for token in ("projection_revision_stale", "audit_export_not_claimable", "audit_export_lease_lost",
                   "download_token_invalid", "work_seat_required", "admin_access_denied",
-                  "directory_org_context_mismatch"):
+                  "directory_org_context_mismatch", "revision_conflict", "quota_exhausted",
+                  "run_cap_exceeded", "owner_access_denied", "provider_not_configured"):
         if token in text:
             return token
     return text.split("\n")[0][:80]
@@ -113,8 +114,8 @@ def seed():
                     "VALUES (%s, 'user1', 'active', 'owner', true, 1)", (ORG,))
         cur.execute("INSERT INTO work.org_policy (org_id, revision, allow_auto_readonly, policy) "
                     "VALUES (%s, 1, true, '{\"schema\":\"r0a-policy-v1\"}'::jsonb)", (ORG,))
-        cur.execute("INSERT INTO work.budget_account (org_id, account_key, period_id, currency, limit_cents) "
-                    "VALUES (%s, 'default', %s, 'CNY', 100000)", (ORG, PERIOD))
+        cur.execute("INSERT INTO work.quota_account (org_id, account_key, period_id, limit_tokens, enforcement) "
+                    "VALUES (%s, 'default', %s, 100000, 'soft')", (ORG, PERIOD))
         conn.commit()
 
 
@@ -288,8 +289,8 @@ def race_submit_after_revocation(workers=6):
             "final_seat": scalar("SELECT work_seat FROM work.member WHERE org_id = %s AND subject_id = 'user-slip'", (ORG,))}
 
 
-def race_budget_and_overview(workers=6, reads_per_worker=150):
-    """admin_overview cents must equal the ledger even while settlements land."""
+def race_quota_and_overview(workers=6, reads_per_worker=150):
+    """admin_overview token totals must equal the ledger even while settlements land."""
     with connect() as conn:
         cur = session(ORG, "work_api", "user1")(conn)
         task = cur.execute(
@@ -298,7 +299,7 @@ def race_budget_and_overview(workers=6, reads_per_worker=150):
         row = cur.execute(
             """SELECT * FROM work.submit_task(%s,%s,%s,%s,'并发预算','ask_each','sha256:snap-race',
                    '{"template":null}'::jsonb, ARRAY['model_call']::text[], '{"provider":"qwen"}'::jsonb,
-                   'price-v1', 'wf-race-budget', 'pi-1.4.0')""",
+                   'wf-race-budget', 'pi-1.4.0')""",
             (ORG, "user1", "race-budget-0001", task)).fetchone()
         conn.commit()
         # submit_task returns (task_id, run_id, ...)
@@ -314,7 +315,7 @@ def race_budget_and_overview(workers=6, reads_per_worker=150):
             op = cur.execute("SELECT work.create_operation(%s, %s, %s, %s, %s)",
                              (run_id, ORG, "op-race-%d" % i, "model", "sha256:params-%d" % i)).fetchone()[0]
             cur.execute("SELECT work.authorize_operation(%s, %s, 1)", (ORG, op))
-            res = cur.execute("SELECT work.reserve_budget(%s, %s, %s, %s, %s)",
+            res = cur.execute("SELECT work.reserve_quota(%s, %s, %s, %s, %s)",
                               (ORG, "default", PERIOD, op, 100)).fetchone()[0]
             reservations.append(str(res))
             conn.commit()
@@ -323,8 +324,8 @@ def race_budget_and_overview(workers=6, reads_per_worker=150):
     barrier = threading.Barrier(workers)
 
     def settle(res):
-        return call_worker("SELECT work.settle_budget(%s, %s, %s, '{\"completion_tokens\":1}'::jsonb, 1)",
-                           (res, 90, "price-v1"), role="work_worker", barrier=barrier)
+        return call_worker("SELECT work.settle_quota(%s, %s, '{\"completion_tokens\":1}'::jsonb, 1)",
+                           (res, 90), role="work_worker", barrier=barrier)
 
     def read_overview(_):
         # 单个读者连续读，读者与结算提交交错：每次读必须落在已结算分录的前缀和上。
@@ -334,7 +335,7 @@ def race_budget_and_overview(workers=6, reads_per_worker=150):
                                     (ORG, "user1", "default", PERIOD), subject="user1")
             if not ok:
                 return False, value
-            values.append(int(as_dict(value)["budget"]["settled_cents"]))
+            values.append(int(as_dict(value)["quota"]["settled_tokens"]))
         return True, values
 
     results = []
@@ -348,26 +349,83 @@ def race_budget_and_overview(workers=6, reads_per_worker=150):
     for ok, value in results[workers:]:
         must_ok((ok, value), "overview read loop")
         overviews.extend(value)
-    ledger = scalar("SELECT COALESCE(SUM(amount_cents),0) FROM work.budget_entry "
+    ledger = scalar("SELECT COALESCE(SUM(amount_tokens),0) FROM work.quota_entry "
                     "WHERE org_id = %s AND kind = 'settle'", (ORG,))
-    account = scalar("SELECT row_to_json(b) FROM (SELECT settled_cents, reserved_cents "
-                     "FROM work.budget_account WHERE org_id = %s AND account_key = 'default' "
+    account = scalar("SELECT row_to_json(b) FROM (SELECT settled_tokens, reserved_tokens "
+                     "FROM work.quota_account WHERE org_id = %s AND account_key = 'default' "
                      "AND period_id = %s) b", (ORG, PERIOD))
     # 读到旧值不是缺陷（MVCC 快照），读到不属于任何已提交分录前缀的金额才是。
     observed = sorted(set(overviews))
     legal = {amount * 90 for amount in range(0, len(reservations) + 1)}
     final = as_dict(must_ok(call_worker("SELECT work.admin_overview(%s, %s, %s, %s)",
                                          (ORG, "user1", "default", PERIOD), subject="user1"),
-                            "final overview read"))["budget"]
+                            "final overview read"))["quota"]
     return {"settled_calls": workers, "settle_errors": settle_fail,
-            "ledger_settled_cents": int(ledger), "account": as_dict(account),
+            "ledger_settled_tokens": int(ledger), "account": as_dict(account),
             "overview_reads": len(overviews),
-            "observed_settled_cents": observed,
+            "observed_settled_tokens": observed,
             "reads_interleaved_with_commits": len(observed) > 1,
             "reads_off_ledger_prefix": sorted(set(overviews) - legal),
-            "final_read_matches_ledger": (int(final["settled_cents"]) == int(ledger)
-                                          and int(final["reserved_cents"])
-                                          == int(as_dict(account)["reserved_cents"]))}
+            "final_read_matches_ledger": (int(final["settled_tokens"]) == int(ledger)
+                                          and int(final["reserved_tokens"])
+                                          == int(as_dict(account)["reserved_tokens"]))}
+
+
+def race_provider_config(workers=6):
+    """并发写接入配置：同一个 expected_revision 只能有一个成功，始终只有一条 active。"""
+    cred = must_ok(call_worker(
+        "SELECT credential_id FROM work.create_provider_credential"
+        "(%s, %s, 'aliyun', 'managed_key', NULL, decode('00', 'hex'), decode('11', 'hex'),"
+        " 'kms://race/config', 'fp-race-config-0001')",
+        (ORG, "user1"), subject="user1"), "credential create")
+    must_ok(call_worker(
+        "SELECT revision FROM work.set_provider_config"
+        "(%s, %s, 'aliyun', 'qwen3.8-flash', 'cn-beijing', 'https://example.invalid',"
+        " 'managed_key', %s)",
+        (ORG, "user1", cred), subject="user1"), "initial config")
+    barrier = threading.Barrier(workers)
+
+    def write(_):
+        return call_worker(
+            "SELECT revision FROM work.set_provider_config"
+            "(%s, %s, 'aliyun', 'qwen3.8-flash', 'cn-beijing', 'https://example.invalid',"
+            " 'managed_key', %s, 1)",
+            (ORG, "user1", cred), subject="user1", barrier=barrier)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        results = [f.result() for f in [pool.submit(write, i) for i in range(workers)]]
+    successes = [r for r in results if r[0]]
+    failures = [r[1] for r in results if not r[0]]
+    return {
+        "workers": workers,
+        "successes": len(successes),
+        "success_revisions": sorted(int(r[1]) for r in successes),
+        "conflicts": failures,
+        "active_rows": int(scalar("SELECT count(*) FROM work.provider_access_config "
+                                  "WHERE org_id = %s AND state = 'active'", (ORG,))),
+        "max_revision": int(scalar("SELECT COALESCE(MAX(revision), 0) "
+                                   "FROM work.provider_access_config WHERE org_id = %s", (ORG,))),
+    }
+
+
+def race_usage_upsert(workers=10):
+    """并发累加同一天的用量：每次 +1，最终必须恰好等于次数（不丢更新）。"""
+    barrier = threading.Barrier(workers)
+
+    def add(_):
+        return call_worker(
+            "SELECT 1 FROM (SELECT work.record_usage"
+            "(%s, 'user1', 'aliyun', 'qwen3.8-flash', DATE '2026-10-21', 1, 1, 0, 1)) x",
+            (ORG,), role="work_worker", barrier=barrier)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        results = [f.result() for f in [pool.submit(add, i) for i in range(workers)]]
+    total = scalar("SELECT input_tokens FROM work.usage_daily "
+                   "WHERE org_id = %s AND subject_id = 'user1' AND usage_date = DATE '2026-10-21'",
+                   (ORG,))
+    return {"workers": workers,
+            "errors": [r[1] for r in results if not r[0]],
+            "input_tokens": int(total or 0)}
 
 
 def verify(report):
@@ -392,10 +450,18 @@ def verify(report):
                                      and sweep["shred_rows"] == 2 and sweep["distinct_refs"] == 2),
         "revocation_blocks_new_work": (revocation["post_revocation_submit"] == "work_seat_required"
                                        and revocation["final_seat"] is False),
+        "provider_config_one_active": (report["provider_config_revision_race"]["successes"] == 1
+                                       and report["provider_config_revision_race"]["active_rows"] == 1
+                                       and report["provider_config_revision_race"]["max_revision"] == 2
+                                       and all(c == "revision_conflict"
+                                               for c in report["provider_config_revision_race"]["conflicts"])),
+        "usage_upsert_no_lost_update": (report["usage_upsert_race"]["errors"] == []
+                                        and report["usage_upsert_race"]["input_tokens"]
+                                        == report["usage_upsert_race"]["workers"]),
         "overview_matches_ledger": (budget["settle_errors"] == []
                                     and budget["reads_off_ledger_prefix"] == []
                                     and budget["final_read_matches_ledger"]
-                                    and budget["account"]["reserved_cents"] == 0),
+                                    and budget["account"]["reserved_tokens"] == 0),
     }
     violations = [name for name, held in checks.items() if not held]
     return checks, violations
@@ -413,7 +479,9 @@ def main():
         "projection_revision_race": race_projection(),
         "expiry_sweep_shared_ref": race_expiry_sweep(),
         "submit_during_revocation": race_submit_after_revocation(),
-        "admin_overview_vs_settlements": race_budget_and_overview(),
+        "admin_overview_vs_settlements": race_quota_and_overview(),
+        "provider_config_revision_race": race_provider_config(),
+        "usage_upsert_race": race_usage_upsert(),
         "wall_seconds": round(time.time() - started, 2),
     }
     checks, violations = verify(report)

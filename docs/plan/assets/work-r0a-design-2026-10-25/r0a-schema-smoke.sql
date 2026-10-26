@@ -22,11 +22,12 @@ VALUES
   ('org1', 1, false, true, false, '{"schema":"r0a-policy-v1"}'::jsonb),
   ('org2', 1, false, true, false, '{"schema":"r0a-policy-v1"}'::jsonb);
 
-INSERT INTO work.budget_account
-  (org_id, account_key, period_id, currency, limit_cents)
+INSERT INTO work.quota_account
+  (org_id, account_key, period_id, limit_tokens, enforcement)
 VALUES
-  ('org1', 'default', '2026-10', 'CNY', 10000),
-  ('org2', 'default', '2026-10', 'CNY', 10000);
+  ('org1', 'default', '2026-10', 10000, 'soft'),
+  -- org2 模拟演示组织：由平台承担成本，周期量是硬上限。
+  ('org2', 'default', '2026-10', 500, 'hard');
 
 SET LOCAL app.org_id = 'org1';
 SET LOCAL ROLE work_api;
@@ -59,7 +60,7 @@ FROM work.submit_task(
   '{"template":{"id":"tpl-report","version":1,"content_hash":"sha256:tpl-1"},"limits":{"goal":2000,"background":4000}}'::jsonb,
   ARRAY['model_call', 'read_builtin_template', 'write_artifact_draft']::text[],
   '{"provider":"qwen","model":"qwen3.8-flash"}'::jsonb,
-  'price-v1', 'wf-req-0001', 'pi-1.4.0'
+  'wf-req-0001', 'pi-1.4.0'
 );
 
 SELECT task_id, run_id FROM ctx \gset
@@ -76,7 +77,7 @@ FROM work.submit_task(
   '{"template":{"id":"tpl-report","version":1,"content_hash":"sha256:tpl-1"},"limits":{"goal":2000,"background":4000}}'::jsonb,
   ARRAY['model_call', 'read_builtin_template', 'write_artifact_draft']::text[],
   '{"provider":"qwen","model":"qwen3.8-flash"}'::jsonb,
-  'price-v1', 'wf-req-0001', 'pi-1.4.0'
+  'wf-req-0001', 'pi-1.4.0'
 );
 
 INSERT INTO smoke_assert
@@ -108,7 +109,7 @@ DO $$ BEGIN
       '{}'::jsonb,
       ARRAY['model_call']::text[],
       '{"provider":"qwen"}'::jsonb,
-      'price-v1', 'wf-conflict', 'pi-1.4.0'
+      'wf-conflict', 'pi-1.4.0'
     );
     RAISE EXCEPTION 'expected_idempotency_conflict';
   EXCEPTION WHEN OTHERS THEN
@@ -127,7 +128,7 @@ DO $$ BEGIN
       '{}'::jsonb,
       ARRAY['shell']::text[],
       '{"provider":"qwen"}'::jsonb,
-      'price-v1', 'wf-scope', 'pi-1.4.0'
+      'wf-scope', 'pi-1.4.0'
     );
     RAISE EXCEPTION 'expected_scope_unavailable';
   EXCEPTION WHEN OTHERS THEN
@@ -146,7 +147,7 @@ DO $$ BEGIN
       '{}'::jsonb,
       ARRAY['model_call']::text[],
       '{"provider":"qwen"}'::jsonb,
-      'price-v1', 'wf-plan', 'pi-1.4.0'
+      'wf-plan', 'pi-1.4.0'
     );
     RAISE EXCEPTION 'expected_permission_mode_unavailable';
   EXCEPTION WHEN OTHERS THEN
@@ -185,10 +186,10 @@ SELECT NOT has_table_privilege('work_worker', 'work.task', 'INSERT')
    AND NOT has_table_privilege('work_worker', 'work.task', 'DELETE') AS worker_no_dml \gset
 INSERT INTO smoke_assert SELECT 'worker_no_direct_dml', :'worker_no_dml'::boolean;
 
-SELECT has_table_privilege('work_ledger', 'work.budget_entry', 'SELECT')
-   AND NOT has_table_privilege('work_ledger', 'work.budget_entry', 'INSERT')
-   AND NOT has_table_privilege('work_ledger', 'work.budget_entry', 'UPDATE')
-   AND NOT has_table_privilege('work_ledger', 'work.budget_entry', 'DELETE')
+SELECT has_table_privilege('work_ledger', 'work.quota_entry', 'SELECT')
+   AND NOT has_table_privilege('work_ledger', 'work.quota_entry', 'INSERT')
+   AND NOT has_table_privilege('work_ledger', 'work.quota_entry', 'UPDATE')
+   AND NOT has_table_privilege('work_ledger', 'work.quota_entry', 'DELETE')
    AND NOT has_table_privilege('work_ledger', 'work.audit_event', 'INSERT')
    AND NOT has_table_privilege('work_ledger', 'work.task_event', 'INSERT')
    AND NOT has_table_privilege('work_ledger', 'work.task', 'INSERT') AS ledger_ok \gset
@@ -240,7 +241,7 @@ END $$;
 
 SELECT work.authorize_operation('org1', :'op_id'::uuid, 1, 'policy_auto');
 
-SELECT work.reserve_budget(
+SELECT work.reserve_quota(
   'org1', 'default', '2026-10', :'op_id'::uuid, 100
 ) AS res_id \gset
 
@@ -252,7 +253,7 @@ INSERT INTO smoke_assert SELECT 'dispatch_once', :'dispatch_id'::uuid IS NOT NUL
 
 -- 活动重试（结果丢失后重放）返回相同结果，不报错、不重复记账。
 SELECT fence AS fence_replay FROM work.acquire_run(:'run_id'::uuid, 'org1') \gset
-SELECT work.reserve_budget('org1', 'default', '2026-10', :'op_id'::uuid, 100) AS res_replay \gset
+SELECT work.reserve_quota('org1', 'default', '2026-10', :'op_id'::uuid, 100) AS res_replay \gset
 SELECT work.claim_dispatch(:'op_id'::uuid, 'org1', 'worker-1', :'fence'::bigint) AS dispatch_replay \gset
 SELECT COALESCE(work.claim_dispatch(:'op_id'::uuid, 'org1', 'worker-2', :'fence'::bigint)::text, 'none') AS dispatch_other \gset
 INSERT INTO smoke_assert
@@ -261,7 +262,7 @@ SELECT 'worker_replay_idempotent',
   AND :'res_replay'::uuid = :'res_id'::uuid
   AND :'dispatch_replay'::uuid = :'dispatch_id'::uuid
   AND :'dispatch_other' = 'none'
-  AND (SELECT count(*) FROM work.budget_reservation WHERE operation_id = :'op_id'::uuid) = 1;
+  AND (SELECT count(*) FROM work.quota_reservation WHERE operation_id = :'op_id'::uuid) = 1;
 
 SELECT work.finish_operation(
   'org1', :'op_id'::uuid, 'succeeded', 'provider-req-1', 'receipt-1'
@@ -270,12 +271,12 @@ SELECT work.finish_operation(
   'org1', :'op_id'::uuid, 'succeeded', 'provider-req-1', 'receipt-1'
 );
 
-SELECT work.settle_budget(
-  :'res_id'::uuid, 80, 'price-v1',
+SELECT work.settle_quota(
+  :'res_id'::uuid, 80,
   '{"input_tokens":100,"output_tokens":200}'::jsonb, 1
 );
 
-SELECT work.adjust_budget(
+SELECT work.adjust_quota(
   :'res_id'::uuid, -5, 'provider discount', 2
 );
 
@@ -315,13 +316,13 @@ SET LOCAL ROLE work_api;
 SET LOCAL app.subject_id = 'user1';
 SET LOCAL app.org_id = 'org1';
 
-SELECT display_state, pending_acceptance, reserved_cents, settled_cents
+SELECT display_state, pending_acceptance, reserved_tokens, settled_tokens
 FROM work.task_summary WHERE task_id = :'task_id'::uuid \gset
 
 INSERT INTO smoke_assert
 SELECT 'summary_awaiting_acceptance', :'display_state' = 'awaiting_acceptance';
 INSERT INTO smoke_assert
-SELECT 'summary_budget_settled', :'reserved_cents'::bigint = 0 AND :'settled_cents'::bigint = 75;
+SELECT 'summary_quota_settled', :'reserved_tokens'::bigint = 0 AND :'settled_tokens'::bigint = 75;
 
 SELECT revision AS task_rev
 FROM work.task WHERE id = :'task_id'::uuid \gset
@@ -387,7 +388,7 @@ FROM work.submit_task(
   'sha256:snap-approval', '{}'::jsonb,
   ARRAY['model_call']::text[],
   '{"provider":"qwen"}'::jsonb,
-  'price-v1', 'wf-approval', 'pi-1.4.0'
+  'wf-approval', 'pi-1.4.0'
 );
 SELECT task_id AS task2_id, run_id AS run2_id FROM ctx2 \gset
 
@@ -400,7 +401,7 @@ FROM work.acquire_run(:'run2_id'::uuid, 'org1') \gset
 SELECT work.create_operation(
   :'run2_id'::uuid, 'org1', 'tool:approval', 'tool', 'sha256:tool-1'
 ) AS op2_id \gset
-SELECT work.reserve_budget(
+SELECT work.reserve_quota(
   'org1', 'default', '2026-10', :'op2_id'::uuid, 50
 ) AS res2_id \gset
 
@@ -451,8 +452,8 @@ INSERT INTO smoke_assert SELECT 'approval_dispatch', :'dispatch2_id'::uuid IS NO
 SELECT work.finish_operation(
   'org1', :'op2_id'::uuid, 'succeeded', 'provider-req-2', 'receipt-2'
 );
-SELECT work.settle_budget(
-  :'res2_id'::uuid, 30, 'price-v1', '{"calls":1}'::jsonb, 1
+SELECT work.settle_quota(
+  :'res2_id'::uuid, 30, '{"calls":1}'::jsonb, 1
 );
 SELECT work.finish_run(:'run2_id'::uuid, 'org1', 'succeeded', NULL);
 
@@ -486,7 +487,7 @@ FROM work.submit_task(
   'sha256:snap-cancel', '{}'::jsonb,
   ARRAY['model_call']::text[],
   '{"provider":"qwen"}'::jsonb,
-  'price-v1', 'wf-cancel', 'pi-1.4.0'
+  'wf-cancel', 'pi-1.4.0'
 );
 SELECT task_id AS task3_id, run_id AS run3_id FROM ctx3 \gset
 
@@ -499,7 +500,7 @@ SELECT work.create_operation(
   :'run3_id'::uuid, 'org1', 'model:cancel', 'model', 'sha256:model-cancel'
 ) AS op3_id \gset
 SELECT work.authorize_operation('org1', :'op3_id'::uuid, 1, 'policy_auto');
-SELECT work.reserve_budget(
+SELECT work.reserve_quota(
   'org1', 'default', '2026-10', :'op3_id'::uuid, 20
 ) AS res3_id \gset
 
@@ -548,10 +549,10 @@ RESET ROLE;
 SET LOCAL ROLE work_api;
 SET LOCAL app.subject_id = 'user1';
 SET LOCAL app.org_id = 'org1';
-SELECT display_state, reserved_cents
+SELECT display_state, reserved_tokens
 FROM work.task_summary WHERE task_id = :'task3_id'::uuid \gset
 INSERT INTO smoke_assert
-SELECT 'cancel_summary', :'display_state' = 'run_canceled' AND :'reserved_cents'::bigint = 0;
+SELECT 'cancel_summary', :'display_state' = 'run_canceled' AND :'reserved_tokens'::bigint = 0;
 
 SELECT revision AS task3_rev FROM work.task_summary WHERE task_id = :'task3_id'::uuid \gset
 DO $$
@@ -613,7 +614,7 @@ FROM work.submit_task(
   'sha256:snap-unknown', '{}'::jsonb,
   ARRAY['model_call']::text[],
   '{"provider":"qwen"}'::jsonb,
-  'price-v1', 'wf-unknown', 'pi-1.4.0'
+  'wf-unknown', 'pi-1.4.0'
 );
 SELECT task_id AS task4_id, run_id AS run4_id FROM ctx4 \gset
 
@@ -624,9 +625,9 @@ SELECT state AS run4_state, fence AS fence4
 FROM work.acquire_run(:'run4_id'::uuid, 'org1') \gset
 INSERT INTO smoke_assert SELECT 'run4_active', :'run4_state' = 'active';
 
-SELECT work.wait_run('org1', :'run4_id'::uuid, 'budget');
+SELECT work.wait_run('org1', :'run4_id'::uuid, 'quota');
 INSERT INTO smoke_assert
-SELECT 'run_waiting_budget', state = 'waiting' AND wait_reason = 'budget'
+SELECT 'run_waiting_quota', state = 'waiting' AND wait_reason = 'quota'
 FROM work.run WHERE id = :'run4_id'::uuid;
 
 SELECT work.resume_run('org1', :'run4_id'::uuid);
@@ -638,7 +639,7 @@ SELECT work.create_operation(
   :'run4_id'::uuid, 'org1', 'model:unknown', 'model', 'sha256:unknown-1'
 ) AS op4_id \gset
 SELECT work.authorize_operation('org1', :'op4_id'::uuid, 1, 'policy_auto');
-SELECT work.reserve_budget(
+SELECT work.reserve_quota(
   'org1', 'default', '2026-10', :'op4_id'::uuid, 30
 ) AS res4_id \gset
 SELECT work.claim_dispatch(
@@ -647,23 +648,23 @@ SELECT work.claim_dispatch(
 
 SELECT work.mark_operation_unknown('org1', :'op4_id'::uuid, 'provider_timeout');
 INSERT INTO smoke_assert
-SELECT 'unknown_retained_budget', state = 'unknown'
+SELECT 'unknown_retained_quota', state = 'unknown'
 FROM work.operation WHERE id = :'op4_id'::uuid;
 INSERT INTO smoke_assert
-SELECT 'unknown_reserved', reserved_cents = 30
-FROM work.budget_account
+SELECT 'unknown_reserved', reserved_tokens = 30
+FROM work.quota_account
 WHERE org_id = 'org1' AND account_key = 'default' AND period_id = '2026-10';
 
 SELECT work.reconcile_operation(
   'org1', :'op4_id'::uuid, 'not_sent',
-  NULL, 0, 'price-v1', 'evidence://not-sent'
+  NULL, 0, 'evidence://not-sent'
 );
 INSERT INTO smoke_assert
 SELECT 'reconcile_not_sent_operation', state = 'reconciled'
 FROM work.operation WHERE id = :'op4_id'::uuid;
 INSERT INTO smoke_assert
-SELECT 'reconcile_not_sent_released', reserved_cents = 0
-FROM work.budget_account
+SELECT 'reconcile_not_sent_released', reserved_tokens = 0
+FROM work.quota_account
 WHERE org_id = 'org1' AND account_key = 'default' AND period_id = '2026-10';
 
 SELECT work.finish_run(:'run4_id'::uuid, 'org1', 'failed', 'reconciled_not_sent');
@@ -687,7 +688,7 @@ FROM work.submit_task(
   'sha256:snap-reconcile', '{}'::jsonb,
   ARRAY['model_call']::text[],
   '{"provider":"qwen"}'::jsonb,
-  'price-v1', 'wf-reconcile', 'pi-1.4.0'
+  'wf-reconcile', 'pi-1.4.0'
 );
 SELECT task_id AS task5_id, run_id AS run5_id FROM ctx5 \gset
 
@@ -700,7 +701,7 @@ SELECT work.create_operation(
   :'run5_id'::uuid, 'org1', 'model:sent', 'model', 'sha256:sent-1'
 ) AS op5_id \gset
 SELECT work.authorize_operation('org1', :'op5_id'::uuid, 1, 'policy_auto');
-SELECT work.reserve_budget(
+SELECT work.reserve_quota(
   'org1', 'default', '2026-10', :'op5_id'::uuid, 40
 ) AS res5_id \gset
 SELECT work.claim_dispatch(
@@ -709,18 +710,18 @@ SELECT work.claim_dispatch(
 SELECT work.mark_operation_unknown('org1', :'op5_id'::uuid, 'receipt_lost');
 SELECT work.reconcile_operation(
   'org1', :'op5_id'::uuid, 'sent_succeeded',
-  'provider-req-5', 25, 'price-v1', 'evidence://provider-5'
+  'provider-req-5', 25, 'evidence://provider-5'
 );
 INSERT INTO smoke_assert
 SELECT 'reconcile_sent_operation', state = 'reconciled'
 FROM work.operation WHERE id = :'op5_id'::uuid;
 INSERT INTO smoke_assert
-SELECT 'reconcile_sent_amount', COALESCE(SUM(amount_cents), 0) = 25
-FROM work.budget_entry
+SELECT 'reconcile_sent_amount', COALESCE(SUM(amount_tokens), 0) = 25
+FROM work.quota_entry
 WHERE operation_id = :'op5_id'::uuid AND kind IN ('settle', 'adjust');
 INSERT INTO smoke_assert
-SELECT 'reconcile_sent_reserved_zero', reserved_cents = 0
-FROM work.budget_account
+SELECT 'reconcile_sent_reserved_zero', reserved_tokens = 0
+FROM work.quota_account
 WHERE org_id = 'org1' AND account_key = 'default' AND period_id = '2026-10';
 
 SELECT work.finish_run(:'run5_id'::uuid, 'org1', 'succeeded', NULL);
@@ -945,7 +946,7 @@ SELECT work.create_input(
 SELECT task_id AS dl_task, run_id AS dl_run FROM work.submit_task(
   'org1', 'user1', 'req-dead-start', :'dl_input'::uuid, '派发死信', 'ask_each', 'sha256:snap-dl',
   '{}'::jsonb, ARRAY['model_call']::text[], '{"provider":"qwen"}'::jsonb,
-  'price-v1', 'wf-dead-start', 'pi-1.4.0'
+  'wf-dead-start', 'pi-1.4.0'
 ) \gset
 SELECT work.request_cancel('org1', :'dl_run'::uuid, 'user1', 'user_requested');
 RESET ROLE;
@@ -985,7 +986,7 @@ SELECT task_id AS busy_task FROM work.submit_task(
   :'del_input'::uuid, '进行中任务', 'ask_each', 'sha256:snap-del',
   '{"template":null}'::jsonb,
   ARRAY['model_call']::text[], '{"provider":"qwen"}'::jsonb,
-  'price-v1', 'wf-req-del-busy', 'pi-1.4.0'
+  'wf-req-del-busy', 'pi-1.4.0'
 ) \gset
 
 DO $$ BEGIN
@@ -1034,7 +1035,7 @@ SELECT 'delete_shred_outbox_refs_only',
 FROM work.outbox WHERE aggregate_type = 'content' AND aggregate_id = :'task_id'::uuid;
 INSERT INTO smoke_assert
 SELECT 'delete_keeps_ledger_and_marks_dedup',
-  EXISTS (SELECT 1 FROM work.budget_entry e JOIN work.operation o ON o.id = e.operation_id
+  EXISTS (SELECT 1 FROM work.quota_entry e JOIN work.operation o ON o.id = e.operation_id
           JOIN work.run r ON r.id = o.run_id WHERE r.task_id = :'task_id'::uuid)
   AND NOT EXISTS (SELECT 1 FROM work.submission_dedup WHERE task_id = :'task_id'::uuid AND NOT task_deleted);
 INSERT INTO smoke_assert
@@ -1109,7 +1110,7 @@ SELECT 'ops_privileges_scoped',
   AND NOT has_function_privilege('work_api', 'work.ops_delete_task(text, uuid, text, text, text)', 'EXECUTE')
   AND NOT has_function_privilege('work_api', 'work.delete_task_core(text, uuid, text, text, bigint, text, text)', 'EXECUTE')
   AND NOT has_function_privilege('work_ops', 'work.delete_task_core(text, uuid, text, text, bigint, text, text)', 'EXECUTE')
-  AND NOT has_function_privilege('work_ops', 'work.submit_task(text, text, text, uuid, text, text, text, jsonb, text[], jsonb, text, text, text)', 'EXECUTE');
+  AND NOT has_function_privilege('work_ops', 'work.submit_task(text, text, text, uuid, text, text, text, jsonb, text[], jsonb, text, text)', 'EXECUTE');
 
 -- ---------------------------------------------------------------------------
 -- Lifecycle events for SSE/metrics (triggers)
@@ -1142,12 +1143,12 @@ SET LOCAL app.org_id = 'org1';
 SELECT work.create_input('org1', 'user1', 'content://org1/shared', 'sha256:shared', 64, 'application/json') AS shared_a \gset
 SELECT task_id AS shared_task_a, run_id AS shared_run_a FROM work.submit_task(
   'org1', 'user1', 'req-shared-a', :'shared_a'::uuid, '共享A', 'ask_each', 'sha256:snap-sa',
-  '{}'::jsonb, ARRAY['model_call']::text[], '{"provider":"qwen"}'::jsonb, 'price-v1', 'wf-shared-a', 'pi-1.4.0'
+  '{}'::jsonb, ARRAY['model_call']::text[], '{"provider":"qwen"}'::jsonb, 'wf-shared-a', 'pi-1.4.0'
 ) \gset
 SELECT work.create_input('org1', 'user1', 'content://org1/shared', 'sha256:shared', 64, 'application/json') AS shared_b \gset
 SELECT task_id AS shared_task_b, run_id AS shared_run_b FROM work.submit_task(
   'org1', 'user1', 'req-shared-b', :'shared_b'::uuid, '共享B', 'ask_each', 'sha256:snap-sb',
-  '{}'::jsonb, ARRAY['model_call']::text[], '{"provider":"qwen"}'::jsonb, 'price-v1', 'wf-shared-b', 'pi-1.4.0'
+  '{}'::jsonb, ARRAY['model_call']::text[], '{"provider":"qwen"}'::jsonb, 'wf-shared-b', 'pi-1.4.0'
 ) \gset
 INSERT INTO smoke_assert SELECT 'input_bound_not_reused', :'shared_a'::uuid <> :'shared_b'::uuid;
 DO $$ BEGIN
@@ -1155,7 +1156,7 @@ DO $$ BEGIN
     PERFORM 1 FROM work.submit_task(
       'org1', 'user1', 'req-shared-c', (SELECT input_id FROM work.task WHERE title = '共享A'),
       '共享C', 'ask_each', 'sha256:snap-sc', '{}'::jsonb, ARRAY['model_call']::text[],
-      '{"provider":"qwen"}'::jsonb, 'price-v1', 'wf-shared-c', 'pi-1.4.0');
+      '{"provider":"qwen"}'::jsonb, 'wf-shared-c', 'pi-1.4.0');
     RAISE EXCEPTION 'expected_input_not_found';
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM <> 'input_not_found' THEN RAISE; END IF;
@@ -1171,7 +1172,7 @@ SET LOCAL app.subject_id = 'user1';
 SET LOCAL app.org_id = 'org1';
 SELECT task_id AS shared_b_replay FROM work.submit_task(
   'org1', 'user1', 'req-shared-b', :'shared_b'::uuid, '共享B', 'ask_each', 'sha256:snap-sb',
-  '{}'::jsonb, ARRAY['model_call']::text[], '{"provider":"qwen"}'::jsonb, 'price-v1', 'wf-shared-b', 'pi-1.4.0'
+  '{}'::jsonb, ARRAY['model_call']::text[], '{"provider":"qwen"}'::jsonb, 'wf-shared-b', 'pi-1.4.0'
 ) \gset
 DO $$ BEGIN
   BEGIN
@@ -1179,7 +1180,7 @@ DO $$ BEGIN
     PERFORM 1 FROM work.submit_task(
       'org1', 'user1', 'req-suspended', (SELECT id FROM work.input_object WHERE content_hash = 'sha256:new'),
       '暂停中', 'ask_each', 'sha256:snap-x', '{}'::jsonb, ARRAY['model_call']::text[],
-      '{"provider":"qwen"}'::jsonb, 'price-v1', 'wf-suspended', 'pi-1.4.0');
+      '{"provider":"qwen"}'::jsonb, 'wf-suspended', 'pi-1.4.0');
     RAISE EXCEPTION 'expected_org_execution_unavailable';
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM <> 'org_execution_unavailable' THEN RAISE; END IF;
@@ -1241,7 +1242,7 @@ BEGIN
     PERFORM 1 FROM work.submit_task(
       'org1', 'user1', 'req-shared-a', (SELECT input_id FROM work.task WHERE id = tid), '共享A', 'ask_each',
       'sha256:snap-sa', '{}'::jsonb, ARRAY['model_call']::text[], '{"provider":"qwen"}'::jsonb,
-      'price-v1', 'wf-shared-a', 'pi-1.4.0');
+      'wf-shared-a', 'pi-1.4.0');
     RAISE EXCEPTION 'expected_task_deleted';
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM <> 'task_deleted' THEN RAISE; END IF;
@@ -1323,7 +1324,7 @@ SET LOCAL app.org_id = 'org1';
 SELECT work.create_input('org1', 'user1', 'content://org1/ro', 'sha256:ro', 8, 'application/json') AS ro_input \gset
 SELECT task_id AS ro_task, run_id AS ro_run FROM work.submit_task(
   'org1', 'user1', 'req-ro-1', :'ro_input'::uuid, '取消后只读', 'ask_each', 'sha256:snap-ro',
-  '{}'::jsonb, ARRAY['model_call']::text[], '{"provider":"qwen"}'::jsonb, 'price-v1', 'wf-ro-1', 'pi-1.4.0'
+  '{}'::jsonb, ARRAY['model_call']::text[], '{"provider":"qwen"}'::jsonb, 'wf-ro-1', 'pi-1.4.0'
 ) \gset
 SET LOCAL ROLE work_worker;
 SET LOCAL app.org_id = 'org1';
@@ -1384,7 +1385,7 @@ SET LOCAL app.org_id = 'org1';
 SELECT work.create_input('org1', 'user1', 'content://org1/orch', 'sha256:orch', 8, 'application/json') AS orch_input \gset
 SELECT run_id AS orch_run FROM work.submit_task(
   'org1', 'user1', 'req-orch-1', :'orch_input'::uuid, '编排守卫', 'ask_each', 'sha256:snap-orch',
-  '{}'::jsonb, ARRAY['model_call']::text[], '{"provider":"qwen"}'::jsonb, 'price-v1', 'wf-orch-1', 'pi-1.4.0'
+  '{}'::jsonb, ARRAY['model_call']::text[], '{"provider":"qwen"}'::jsonb, 'wf-orch-1', 'pi-1.4.0'
 ) \gset
 SELECT work.request_cancel('org1', :'orch_run'::uuid, 'user1', 'user_requested');
 RESET ROLE;
@@ -1531,14 +1532,16 @@ INSERT INTO smoke_assert SELECT 'export_create_denied_for_non_admin', true;
 SET LOCAL app.subject_id = 'user1';
 SELECT work.admin_overview('org1', 'user1', 'default', '2026-10') AS ov \gset
 SELECT work.admin_overview('org1', 'user1') AS ov_default \gset
-SELECT b.limit_cents AS acct_limit, b.reserved_cents AS acct_reserved,
-       b.settled_cents AS acct_settled
-FROM work.budget_account b
+SELECT b.limit_tokens AS acct_limit, b.reserved_tokens AS acct_reserved,
+       b.settled_tokens AS acct_settled
+FROM work.quota_account b
 WHERE b.org_id = 'org1' AND b.account_key = 'default' AND b.period_id = '2026-10' \gset
-INSERT INTO smoke_assert SELECT 'admin_overview_cents_match_ledger',
-  (:'ov'::jsonb #>> '{budget,limit_cents}')::bigint = :'acct_limit'::bigint
-  AND (:'ov'::jsonb #>> '{budget,reserved_cents}')::bigint = :'acct_reserved'::bigint
-  AND (:'ov'::jsonb #>> '{budget,settled_cents}')::bigint = :'acct_settled'::bigint;
+INSERT INTO smoke_assert SELECT 'admin_overview_tokens_match_ledger',
+  (:'ov'::jsonb #>> '{quota,limit_tokens}')::bigint = :'acct_limit'::bigint
+  AND (:'ov'::jsonb #>> '{quota,reserved_tokens}')::bigint = :'acct_reserved'::bigint
+  AND (:'ov'::jsonb #>> '{quota,settled_tokens}')::bigint = :'acct_settled'::bigint
+  AND (:'ov'::jsonb #>> '{quota,enforcement}') = 'soft'
+  AND (:'ov'::jsonb ->> 'run_cap_tokens')::bigint > 0;
 INSERT INTO smoke_assert SELECT 'admin_overview_seats',
   (:'ov'::jsonb #>> '{seats,total}')::int = 5
   AND (:'ov'::jsonb #>> '{seats,active}')::int = 3
@@ -1547,7 +1550,7 @@ INSERT INTO smoke_assert SELECT 'admin_overview_seats',
   AND (:'ov'::jsonb->>'audit_retention_days')::int = 365
   AND (:'ov'::jsonb->>'execution_enabled')::text = 'true';
 INSERT INTO smoke_assert SELECT 'admin_overview_default_period',
-  :'ov_default'::jsonb->>'budget_period_id' = to_char(date_trunc('month', now()), 'YYYY-MM');
+  :'ov_default'::jsonb->>'quota_period_id' = to_char(date_trunc('month', now()), 'YYYY-MM');
 
 -- 席位列表 keyset 分页；总数只来自 overview 聚合，不受分页影响。
 SELECT jsonb_agg(t.subject_id) AS seats_p1
@@ -1825,6 +1828,363 @@ INSERT INTO smoke_assert SELECT 'audit_export_content_shred_once',
   )
   AND (SELECT count(*) FROM work.audit_event WHERE org_id = 'org1'
         AND action = 'audit_export.shredded') >= 1;
+
+-- ---------------------------------------------------------------------------
+-- D-08 大模型接入账号与用量：组织隔离、托管 Key、token 护栏、用量可见性
+-- ---------------------------------------------------------------------------
+RESET ROLE;
+SET LOCAL app.org_id = 'org1';
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user3';
+
+-- 写接入配置只给组织 owner：普通成员与 viewer 都不行。
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.create_provider_credential(
+      'org1', 'user3', 'aliyun', 'managed_key', NULL,
+      decode('0011', 'hex'), decode('2233', 'hex'), 'kms://x/denied', 'fp-user3-denied'
+    );
+    RAISE EXCEPTION 'expected_owner_access_denied';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'owner_access_denied' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'provider_credential_owner_only', true;
+
+-- 演示组织（org2）用我们自己的阿里云 Qwen：托管 Key 只存密文与指纹。
+RESET ROLE;
+SET LOCAL app.org_id = 'org2';
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user2';
+SELECT credential_id AS d08_cred, key_version AS d08_cred_v
+FROM work.create_provider_credential(
+  'org2', 'user2', 'aliyun', 'managed_key', NULL,
+  decode('0f1e2d3c', 'hex'), decode('aabbccdd', 'hex'), 'kms://demo/aliyun', 'fp-demo-aliyun-0001'
+) \gset
+INSERT INTO smoke_assert SELECT 'provider_credential_created',
+  :'d08_cred'::uuid IS NOT NULL AND :'d08_cred_v'::int = 1;
+INSERT INTO smoke_assert SELECT 'provider_credential_audit_no_secret',
+  EXISTS (
+    SELECT 1 FROM work.audit_event a
+    WHERE a.org_id = 'org2' AND a.action = 'provider.credential_created'
+      AND a.metadata->>'fingerprint' = 'fp-demo-aliyun-0001'
+      AND a.metadata::text NOT LIKE '%secret_ciphertext%'
+      AND a.metadata::text NOT LIKE '%wrapped_dek%'
+  );
+INSERT INTO smoke_assert SELECT 'provider_secret_not_directly_readable',
+  NOT has_table_privilege('work_api', 'work.provider_credential', 'SELECT')
+  AND NOT has_table_privilege('work_worker', 'work.provider_credential', 'SELECT')
+  AND NOT has_table_privilege('work_api', 'work.provider_access_config', 'SELECT');
+
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.create_provider_credential(
+      'org2', 'user2', 'aliyun', 'managed_key', NULL, NULL, NULL, NULL, 'fp-bad-mode'
+    );
+    RAISE EXCEPTION 'expected_invalid_credential_mode';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'invalid_request:credential' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'provider_credential_mode_consistency', true;
+
+-- 同一 provider 同时只能有一个 active 凭证（409 语义，不靠唯一索引报 23505）。
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.create_provider_credential(
+      'org2', 'user2', 'aliyun', 'managed_key', NULL,
+      decode('1234', 'hex'), decode('5678', 'hex'), 'kms://demo/aliyun', 'fp-demo-duplicate'
+    );
+    RAISE EXCEPTION 'expected_provider_credential_exists';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'provider_credential_exists' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'provider_credential_single_active', true;
+
+SELECT config_id AS d08_cfg, revision AS d08_rev
+FROM work.set_provider_config(
+  'org2', 'user2', 'aliyun', 'qwen3.8-flash', 'cn-beijing',
+  'https://dashscope.aliyuncs.com', 'managed_key', :'d08_cred'::uuid
+) \gset
+INSERT INTO smoke_assert SELECT 'provider_config_active_rev1', :'d08_cfg'::uuid IS NOT NULL AND :'d08_rev'::int = 1;
+
+SELECT set_config('app.d08_cred', :'d08_cred', true) \gset
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.set_provider_config(
+      'org2', 'user2', 'aliyun', 'qwen3.8-flash', 'cn-beijing',
+      'https://dashscope.aliyuncs.com', 'managed_key',
+      current_setting('app.d08_cred')::uuid, 0
+    );
+    RAISE EXCEPTION 'expected_revision_conflict';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'revision_conflict' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'provider_config_revision_conflict', true;
+
+SELECT config_id AS d08_cfg2, revision AS d08_rev2
+FROM work.set_provider_config(
+  'org2', 'user2', 'aliyun', 'qwen3.8-flash', 'cn-beijing',
+  'https://dashscope.aliyuncs.com', 'managed_key', :'d08_cred'::uuid, 1
+) \gset
+RESET ROLE;
+INSERT INTO smoke_assert SELECT 'provider_config_single_active',
+  :'d08_rev2'::int = 2
+  AND (SELECT count(*) FROM work.provider_access_config
+        WHERE org_id = 'org2' AND state = 'active') = 1
+  AND EXISTS (SELECT 1 FROM work.provider_access_config
+               WHERE org_id = 'org2' AND state = 'superseded' AND revision = 1);
+
+-- org1 也有一条自己的接入配置（客户自带 STS 角色），用于证明跨组织不可见。
+SET LOCAL app.org_id = 'org1';
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user1';
+SELECT credential_id AS d08_org1_cred
+FROM work.create_provider_credential(
+  'org1', 'user1', 'aliyun', 'sts_role', 'acs:ram::123456:role/work-qwen',
+  NULL, NULL, NULL, 'fp-org1-role-0001'
+) \gset
+SELECT config_id AS d08_org1_cfg, revision AS d08_org1_rev
+FROM work.set_provider_config(
+  'org1', 'user1', 'aliyun', 'qwen3.8-flash', 'cn-beijing',
+  'https://dashscope.aliyuncs.com', 'sts_role', :'d08_org1_cred'::uuid
+) \gset
+INSERT INTO smoke_assert SELECT 'org1_sts_config_active',
+  :'d08_org1_cfg'::uuid IS NOT NULL AND :'d08_org1_rev'::int = 1;
+
+-- 网关只能取本组织的 active 配置：org2 上下文看不到 org1 的配置。
+RESET ROLE;
+SET LOCAL ROLE work_worker;
+SET LOCAL app.org_id = 'org2';
+SELECT provider AS d08_provider, model AS d08_model, credential_mode AS d08_mode
+FROM work.resolve_provider_context('org2') \gset
+INSERT INTO smoke_assert SELECT 'provider_resolve_own_org',
+  :'d08_provider' = 'aliyun' AND :'d08_model' = 'qwen3.8-flash' AND :'d08_mode' = 'managed_key';
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.resolve_provider_context('org1');
+    RAISE EXCEPTION 'expected_provider_not_configured';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'provider_not_configured' THEN RAISE; END IF;
+  END;
+END $$;
+RESET ROLE;
+INSERT INTO smoke_assert SELECT 'provider_config_not_shared_across_orgs',
+  (SELECT count(*) FROM work.provider_access_config
+    WHERE org_id = 'org1' AND state = 'active') = 1;
+SET LOCAL ROLE work_worker;
+SET LOCAL app.org_id = 'org2';
+
+-- 吊销凭证对新调用立即生效。
+RESET ROLE;
+SET LOCAL app.org_id = 'org2';
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user2';
+SELECT work.revoke_provider_credential('org2', 'user2', :'d08_cred'::uuid, 'rotated out') AS d08_revoked \gset
+RESET ROLE;
+SET LOCAL ROLE work_worker;
+SET LOCAL app.org_id = 'org2';
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.resolve_provider_context('org2');
+    RAISE EXCEPTION 'expected_provider_credential_revoked';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'provider_credential_revoked' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'credential_revoke_blocks_new_calls', true;
+
+-- 换一把新凭证后配置仍可继续，吊销整条配置则网关无可用接入点。
+RESET ROLE;
+SET LOCAL app.org_id = 'org2';
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user2';
+SELECT credential_id AS d08_cred2
+FROM work.create_provider_credential(
+  'org2', 'user2', 'aliyun', 'managed_key', NULL,
+  decode('44556677', 'hex'), decode('8899aabb', 'hex'), 'kms://demo/aliyun', 'fp-demo-aliyun-0002'
+) \gset
+SELECT config_id AS d08_cfg3, revision AS d08_rev3
+FROM work.set_provider_config(
+  'org2', 'user2', 'aliyun', 'qwen3.8-flash', 'cn-beijing',
+  'https://dashscope.aliyuncs.com', 'managed_key', :'d08_cred2'::uuid, 2
+) \gset
+SELECT work.revoke_provider_config('org2', 'user2', 'demo paused') AS d08_cfg_revoked \gset
+RESET ROLE;
+SET LOCAL ROLE work_worker;
+SET LOCAL app.org_id = 'org2';
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.resolve_provider_context('org2');
+    RAISE EXCEPTION 'expected_provider_not_configured';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'provider_not_configured' THEN RAISE; END IF;
+  END;
+END $$;
+RESET ROLE;
+INSERT INTO smoke_assert SELECT 'provider_config_revoke_stops_calls',
+  :'d08_rev3'::int = 3
+  AND NOT EXISTS (SELECT 1 FROM work.provider_access_config
+                   WHERE org_id = 'org2' AND state = 'active');
+
+-- 演示组织的周期量是硬上限；Run 级上限对所有组织生效。
+RESET ROLE;
+SET LOCAL app.org_id = 'org2';
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user2';
+SELECT work.create_input(
+  'org2', 'user2', 'content://org2/d08-input', 'sha256:d08-input', 64, 'application/json'
+) AS d08_input \gset
+SELECT task_id AS d08_task, run_id AS d08_run
+FROM work.submit_task(
+  'org2', 'user2', 'req-d08-quota', :'d08_input'::uuid, 'D-08 配额验证', 'ask_each',
+  'sha256:d08-snapshot', '{"schema":"r0a-snapshot"}'::jsonb,
+  ARRAY['model_call']::text[], '{"provider":"aliyun","model":"qwen3.8-flash"}'::jsonb,
+  'wf-d08', 'pi-1.4.0'
+) \gset
+RESET ROLE;
+SET LOCAL ROLE work_worker;
+SET LOCAL app.org_id = 'org2';
+SELECT fence AS d08_fence FROM work.acquire_run(:'d08_run'::uuid, 'org2') \gset
+SELECT work.create_operation(
+  :'d08_run'::uuid, 'org2', 'model:d08', 'model', 'sha256:d08-op'
+) AS d08_op \gset
+SELECT work.authorize_operation('org2', :'d08_op'::uuid, 1, 'policy_auto');
+SELECT set_config('app.d08_op', :'d08_op', true) \gset
+
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.reserve_quota('org2', 'default', '2026-10',
+      current_setting('app.d08_op')::uuid, 100001);
+    RAISE EXCEPTION 'expected_run_cap_exceeded';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'run_cap_exceeded' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'run_cap_exceeded', true;
+
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.reserve_quota('org2', 'default', '2026-10',
+      current_setting('app.d08_op')::uuid, 600);
+    RAISE EXCEPTION 'expected_quota_exhausted';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'quota_exhausted' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'demo_org_period_hard_limit', true;
+
+SELECT work.reserve_quota('org2', 'default', '2026-10', :'d08_op'::uuid, 400) AS d08_res \gset
+SELECT work.settle_quota(
+  :'d08_res'::uuid, 400, '{"input_tokens":300,"output_tokens":100}'::jsonb, 1
+) AS d08_settled \gset
+INSERT INTO smoke_assert SELECT 'demo_org_settled_400',
+  (SELECT settled_tokens = 400 AND reserved_tokens = 0
+     FROM work.quota_account
+    WHERE org_id = 'org2' AND account_key = 'default' AND period_id = '2026-10');
+
+SELECT work.create_operation(
+  :'d08_run'::uuid, 'org2', 'model:d08b', 'model', 'sha256:d08-op2'
+) AS d08_op2 \gset
+SELECT work.authorize_operation('org2', :'d08_op2'::uuid, 1, 'policy_auto');
+SELECT set_config('app.d08_op2', :'d08_op2', true) \gset
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.reserve_quota('org2', 'default', '2026-10',
+      current_setting('app.d08_op2')::uuid, 200);
+    RAISE EXCEPTION 'expected_quota_exhausted';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'quota_exhausted' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'demo_org_hard_blocks_next_run', true;
+
+-- 客户组织（org1）的周期量只统计不阻断：超出 10000 仍可预留，释放后账面无残留。
+RESET ROLE;
+SET LOCAL app.org_id = 'org1';
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user1';
+SELECT work.create_input(
+  'org1', 'user1', 'content://org1/d08-soft-input', 'sha256:d08-soft-input', 64, 'application/json'
+) AS d08_soft_input \gset
+SELECT task_id AS d08_soft_task, run_id AS d08_soft_run
+FROM work.submit_task(
+  'org1', 'user1', 'req-d08-soft', :'d08_soft_input'::uuid, 'D-08 软配额验证', 'ask_each',
+  'sha256:d08-soft-snapshot', '{"schema":"r0a-snapshot"}'::jsonb,
+  ARRAY['model_call']::text[], '{"provider":"aliyun","model":"qwen3.8-flash"}'::jsonb,
+  'wf-d08-soft', 'pi-1.4.0'
+) \gset
+RESET ROLE;
+SET LOCAL ROLE work_worker;
+SET LOCAL app.org_id = 'org1';
+SELECT fence AS d08_soft_fence FROM work.acquire_run(:'d08_soft_run'::uuid, 'org1') \gset
+SELECT work.create_operation(
+  :'d08_soft_run'::uuid, 'org1', 'model:d08-soft', 'model', 'sha256:d08-soft-op'
+) AS d08_soft_op \gset
+SELECT work.authorize_operation('org1', :'d08_soft_op'::uuid, 1, 'policy_auto');
+SELECT work.reserve_quota('org1', 'default', '2026-10', :'d08_soft_op'::uuid, 20000) AS d08_soft_res \gset
+INSERT INTO smoke_assert SELECT 'customer_org_soft_quota_not_blocked', :'d08_soft_res'::uuid IS NOT NULL;
+SELECT work.release_quota(:'d08_soft_res'::uuid) AS d08_soft_released \gset
+INSERT INTO smoke_assert SELECT 'customer_org_soft_release_clean',
+  (SELECT reserved_tokens = 0 FROM work.quota_account
+    WHERE org_id = 'org1' AND account_key = 'default' AND period_id = '2026-10');
+
+-- 用量统计：按 (组织, 用户, provider, model, 日) 累加；C 端只能读本人。
+SET LOCAL app.org_id = 'org2';
+SELECT work.record_usage('org2', 'user2', 'aliyun', 'qwen3.8-flash', DATE '2026-10-20', 120, 30, 10, 1);
+SELECT work.record_usage('org2', 'user2', 'aliyun', 'qwen3.8-flash', DATE '2026-10-20', 80, 20, 5, 1);
+RESET ROLE;
+SET LOCAL app.org_id = 'org2';
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user2';
+SELECT input_tokens AS d08_uin, output_tokens AS d08_uout,
+       cached_input_tokens AS d08_ucached, run_count AS d08_uruns
+FROM work.get_user_usage('org2', 'user2', DATE '2026-10-20', DATE '2026-10-20') \gset
+INSERT INTO smoke_assert SELECT 'usage_daily_accumulates',
+  :'d08_uin'::bigint = 200 AND :'d08_uout'::bigint = 50
+  AND :'d08_ucached'::bigint = 15 AND :'d08_uruns'::int = 2;
+
+RESET ROLE;
+SET LOCAL app.org_id = 'org1';
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user3';
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.get_user_usage('org1', 'user2', DATE '2026-10-20', DATE '2026-10-20');
+    RAISE EXCEPTION 'expected_subject_scope_denied';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'actor_mismatch' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'user_usage_self_only', true;
+
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.get_org_usage_by_model('org1', 'user3', DATE '2026-10-01', DATE '2026-10-31');
+    RAISE EXCEPTION 'expected_admin_access_denied';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'admin_access_denied' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'org_usage_admin_only', true;
+
+RESET ROLE;
+SET LOCAL app.org_id = 'org2';
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user2';
+SELECT provider AS d08_og_provider, model AS d08_og_model,
+       input_tokens AS d08_og_in, output_tokens AS d08_og_out,
+       cached_input_tokens AS d08_og_cached, run_count AS d08_og_runs
+FROM work.get_org_usage_by_model('org2', 'user2', DATE '2026-10-01', DATE '2026-10-31') \gset
+INSERT INTO smoke_assert SELECT 'org_usage_by_model',
+  :'d08_og_provider' = 'aliyun' AND :'d08_og_model' = 'qwen3.8-flash'
+  AND :'d08_og_in'::bigint = 200 AND :'d08_og_out'::bigint = 50
+  AND :'d08_og_cached'::bigint = 15 AND :'d08_og_runs'::bigint = 2;
+INSERT INTO smoke_assert SELECT 'usage_tables_not_directly_readable',
+  NOT has_table_privilege('work_api', 'work.usage_daily', 'SELECT')
+  AND NOT has_table_privilege('work_worker', 'work.usage_daily', 'SELECT');
 
 -- ---------------------------------------------------------------------------
 -- Assertions

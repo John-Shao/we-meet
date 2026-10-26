@@ -165,7 +165,8 @@ test('input idempotency, preview, submit idempotency and R0a scope', async () =>
   assert.equal(preview.response.status, 200, preview.text);
   assert.ok(preview.data.boundary_summary.some((line) => line.includes('云端')));
   assert.ok(preview.data.boundary_summary.some((line) => line.includes('不访问本机')));
-  assert.ok(preview.data.cost_upper_bound.amount_cents > 0);
+  assert.ok(preview.data.token_upper_bound.amount_tokens > 0);
+  assert.match(preview.data.token_upper_bound.note, /云厂商账单/);
   assert.equal(preview.data.effective_permission_mode, 'ask_each');
 
   const submit = await request('POST', '/work/v1/tasks', {
@@ -229,8 +230,8 @@ test('worker completion, artifact content, inbox and acceptance', async () => {
   const completed = await completeTask(taskId);
   assert.equal(completed.task.display_state, 'awaiting_acceptance');
   assert.equal(completed.task.pending_acceptance, true);
-  assert.equal(completed.task.budget.settled_cents, 80);
-  assert.equal(completed.task.budget.reserved_cents, 0);
+  assert.equal(completed.task.quota.settled_tokens, 80);
+  assert.equal(completed.task.quota.reserved_tokens, 0);
 
   const inbox = await request('GET', '/work/v1/inbox');
   assert.equal(inbox.response.status, 200);
@@ -505,7 +506,7 @@ test('cancel, retry and SSE recovery', async () => {
   assert.equal(expired.data.code, 'resync_required');
 });
 
-test('admin read comes from the directory projection and the Work cents ledger', async () => {
+test('admin read comes from the directory projection and the token quota ledger', async () => {
   for (const [subject, member] of [
     ['user2', { role: 'admin', work_seat: true, status: 'active' }],
     ['user3', { role: 'member', work_seat: true, status: 'left' }],
@@ -520,9 +521,11 @@ test('admin read comes from the directory projection and the Work cents ledger',
   const overview = await request('GET', '/work/v1/admin/overview');
   assert.equal(overview.response.status, 200, overview.text);
   assert.deepEqual(overview.data.seats, { total: 3, active: 3 });
-  assert.equal(overview.data.budget.currency, 'CNY');
-  assert.equal(typeof overview.data.budget.limit_cents, 'number');
-  assert.equal(overview.data.budget_period_id, currentPeriod());
+  assert.equal(overview.data.quota.enforcement, 'soft');
+  assert.equal(typeof overview.data.quota.limit_tokens, 'number');
+  assert.equal(typeof overview.data.quota.settled_tokens, 'number');
+  assert.equal(overview.data.quota_period_id, currentPeriod());
+  assert.equal(typeof overview.data.run_cap_tokens, 'number');
   assert.equal(overview.data.org_revision, 0);
   assert.ok(!('goal' in overview.data));
   assert.ok(!('email' in overview.data));
@@ -732,4 +735,219 @@ test('audit export failure, expired content and expired ticket are distinguishab
   const missing = await request('GET', '/work/v1/admin/audit-exports/00000000-0000-4000-8000-000000000000');
   assert.equal(missing.response.status, 404);
   assert.equal(missing.data.code, 'audit_export_not_found');
+});
+
+// ---------------------------------------------------------------------------
+// D-08: provider access config (write-only secrets) and token usage
+// ---------------------------------------------------------------------------
+async function actAs(subjectId, member) {
+  if (member) {
+    const synced = await request('POST', '/__test/directory/sync-member', {
+      body: { subject_id: subjectId, revision: 1, ...member },
+    });
+    assert.equal(synced.response.status, 200, synced.text);
+  }
+  const switched = await request('POST', '/__test/subject', { body: { subject_id: subjectId } });
+  assert.equal(switched.response.status, 200, switched.text);
+}
+
+async function createStsCredential(provider = 'aliyun') {
+  const created = await request('POST', '/work/v1/admin/provider-credentials', {
+    body: { provider, mode: 'sts_role', role_ref: `acs:ram::123456:role/${provider}-work` },
+  });
+  assert.equal(created.response.status, 201, created.text);
+  return created.data;
+}
+
+async function createManagedCredential(provider, apiKey) {
+  const created = await request('POST', '/work/v1/admin/provider-credentials', {
+    body: { provider, mode: 'managed_key', api_key: apiKey },
+  });
+  assert.equal(created.response.status, 201, created.text);
+  return created.data;
+}
+
+function configBody(provider, credentialId, expectedRevision, model = 'qwen3.8-flash') {
+  return {
+    provider,
+    model,
+    region: 'cn-beijing',
+    endpoint: 'https://dashscope.aliyuncs.com',
+    credential_mode: 'sts_role',
+    credential_id: credentialId,
+    expected_revision: expectedRevision,
+  };
+}
+
+test('provider config is owner-only, versioned and never echoes a secret', async () => {
+  await actAs('user2', { role: 'admin', work_seat: true, status: 'active' });
+  const deniedCreate = await request('POST', '/work/v1/admin/provider-credentials', {
+    body: { provider: 'aliyun', mode: 'sts_role', role_ref: 'acs:ram::1:role/x' },
+  });
+  assert.equal(deniedCreate.response.status, 403, deniedCreate.text);
+  assert.equal(deniedCreate.data.code, 'admin_access_denied');
+  const deniedSet = await request('PUT', '/work/v1/admin/provider-config', {
+    body: configBody('aliyun', '00000000-0000-4000-8000-000000000000', 0),
+  });
+  assert.equal(deniedSet.response.status, 403, deniedSet.text);
+
+  await actAs('user1');
+  const before = await request('GET', '/work/v1/admin/provider-config');
+  assert.equal(before.response.status, 404);
+  assert.equal(before.data.code, 'not_found');
+
+  const sts = await createStsCredential();
+  assert.deepEqual(Object.keys(sts).sort(), [
+    'created_at', 'credential_id', 'fingerprint', 'key_version', 'mode', 'provider', 'rotated_at', 'state',
+  ]);
+  const duplicate = await request('POST', '/work/v1/admin/provider-credentials', {
+    body: { provider: 'aliyun', mode: 'sts_role', role_ref: 'acs:ram::1:role/other' },
+  });
+  assert.equal(duplicate.response.status, 409, duplicate.text);
+  assert.equal(duplicate.data.code, 'version_conflict');
+
+  const set1 = await request('PUT', '/work/v1/admin/provider-config', {
+    body: configBody('aliyun', sts.credential_id, 0),
+  });
+  assert.equal(set1.response.status, 200, set1.text);
+  assert.equal(set1.data.revision, 1);
+  assert.equal(set1.data.credential.state, 'active');
+  assert.ok(!('api_key' in set1.data.credential));
+  assert.ok(!set1.text.includes('role_ref'));
+
+  const stale = await request('PUT', '/work/v1/admin/provider-config', {
+    body: configBody('aliyun', sts.credential_id, 0),
+  });
+  assert.equal(stale.response.status, 409, stale.text);
+  assert.equal(stale.data.code, 'version_conflict');
+
+  const rotateSts = await request('POST',
+    `/work/v1/admin/provider-credentials/${sts.credential_id}/rotate`, { body: { api_key: 'sk-sts-not-allowed' } });
+  assert.equal(rotateSts.response.status, 400, rotateSts.text);
+  assert.equal(rotateSts.data.code, 'invalid_request');
+
+  const managed = await createManagedCredential('deepseek', 'sk-deepseek-test-0001');
+  assert.match(managed.fingerprint, /^sha256:/);
+  const set2 = await request('PUT', '/work/v1/admin/provider-config', {
+    body: {
+      provider: 'deepseek',
+      model: 'deepseek-v4.1-flash-1017',
+      region: 'cn-beijing',
+      endpoint: 'https://api.deepseek.com',
+      credential_mode: 'managed_key',
+      credential_id: managed.credential_id,
+      expected_revision: 1,
+    },
+  });
+  assert.equal(set2.response.status, 200, set2.text);
+  assert.equal(set2.data.revision, 2);
+  assert.ok(!set2.text.includes('sk-deepseek-test-0001'));
+
+  const rotated = await request('POST',
+    `/work/v1/admin/provider-credentials/${managed.credential_id}/rotate`,
+    { body: { api_key: 'sk-deepseek-test-0002' } });
+  assert.equal(rotated.response.status, 200, rotated.text);
+  assert.equal(rotated.data.key_version, 2);
+  assert.notEqual(rotated.data.fingerprint, managed.fingerprint);
+  const current = await request('GET', '/work/v1/admin/provider-config');
+  assert.equal(current.data.credential.key_version, 2);
+
+  const revoked = await request('POST',
+    `/work/v1/admin/provider-credentials/${managed.credential_id}/revoke`, { body: { reason: 'lost key' } });
+  assert.equal(revoked.response.status, 200, revoked.text);
+  const afterRevoke = await request('GET', '/work/v1/admin/provider-config');
+  assert.equal(afterRevoke.data.credential.state, 'revoked');
+  const setWithRevoked = await request('PUT', '/work/v1/admin/provider-config', {
+    body: {
+      provider: 'deepseek',
+      model: 'deepseek-v4.1-flash-1017',
+      region: 'cn-beijing',
+      endpoint: 'https://api.deepseek.com',
+      credential_mode: 'managed_key',
+      credential_id: managed.credential_id,
+      expected_revision: 2,
+    },
+  });
+  assert.equal(setWithRevoked.response.status, 422, setWithRevoked.text);
+  assert.equal(setWithRevoked.data.code, 'provider_not_configured');
+
+  const replacement = await createManagedCredential('deepseek', 'sk-deepseek-test-0003');
+  const set3 = await request('PUT', '/work/v1/admin/provider-config', {
+    body: {
+      provider: 'deepseek',
+      model: 'deepseek-v4.1-flash-1017',
+      region: 'cn-beijing',
+      endpoint: 'https://api.deepseek.com',
+      credential_mode: 'managed_key',
+      credential_id: replacement.credential_id,
+      expected_revision: 2,
+    },
+  });
+  assert.equal(set3.response.status, 200, set3.text);
+  assert.equal(set3.data.revision, 3);
+
+  const noCsrf = await request('PUT', '/work/v1/admin/provider-config', {
+    body: configBody('aliyun', sts.credential_id, 3), useCsrf: false,
+  });
+  assert.equal(noCsrf.response.status, 403, noCsrf.text);
+  assert.equal(noCsrf.data.code, 'csrf_invalid');
+
+  const revokeConfig = await request('POST', '/work/v1/admin/provider-config/revoke', {
+    body: { reason: 'demo paused' },
+  });
+  assert.equal(revokeConfig.response.status, 200, revokeConfig.text);
+  assert.deepEqual(revokeConfig.data, { org_id: 'org1', state: 'revoked' });
+  const afterConfigRevoke = await request('GET', '/work/v1/admin/provider-config');
+  assert.equal(afterConfigRevoke.response.status, 404);
+});
+
+test('token usage is visible to the user and aggregated by model for admins', async () => {
+  const sts = await createStsCredential();
+  const configured = await request('PUT', '/work/v1/admin/provider-config', {
+    body: configBody('aliyun', sts.credential_id, 0),
+  });
+  assert.equal(configured.response.status, 200, configured.text);
+
+  const first = await createTask('写一份用量统计验证稿', 'req-usage-0001');
+  await request('POST', `/__test/tasks/${first.taskId}/complete`, { body: {} });
+  const second = await createTask('写一份用量统计验证稿二', 'req-usage-0002');
+  await request('POST', `/__test/tasks/${second.taskId}/complete`, { body: {} });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const mine = await request('GET', `/work/v1/me/usage?from=${today}&to=${today}`);
+  assert.equal(mine.response.status, 200, mine.text);
+  assert.match(mine.data.note, /云厂商账单/);
+  assert.deepEqual(mine.data.items, [
+    {
+      provider: 'aliyun',
+      model: 'qwen3.8-flash',
+      usage_date: today,
+      input_tokens: 100,
+      output_tokens: 60,
+      cached_input_tokens: 0,
+      run_count: 2,
+    },
+  ]);
+
+  const org = await request('GET', `/work/v1/admin/usage?from=${today}&to=${today}`);
+  assert.equal(org.response.status, 200, org.text);
+  assert.deepEqual(org.data.items, [
+    {
+      provider: 'aliyun',
+      model: 'qwen3.8-flash',
+      input_tokens: 100,
+      output_tokens: 60,
+      cached_input_tokens: 0,
+      run_count: 2,
+    },
+  ]);
+
+  const badRange = await request('GET', `/work/v1/me/usage?from=${today}&to=2020-01-01`);
+  assert.equal(badRange.response.status, 400, badRange.text);
+  assert.equal(badRange.data.code, 'invalid_request');
+
+  await actAs('user4', { role: 'member', work_seat: true, status: 'active' });
+  const denied = await request('GET', `/work/v1/admin/usage?from=${today}&to=${today}`);
+  assert.equal(denied.response.status, 403, denied.text);
+  assert.equal(denied.data.code, 'admin_access_denied');
 });

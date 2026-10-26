@@ -54,10 +54,10 @@ test.after(async () => {
 
 test.beforeEach(reset);
 
-test('generated operation inventory matches the 22-path R0a subset', () => {
-  assert.equal(OPERATIONS.length, 25);
-  assert.equal(new Set(OPERATIONS.map((op) => op.operationId)).size, 25);
-  assert.equal(new Set(OPERATIONS.map((op) => op.path)).size, 22);
+test('generated operation inventory matches the 29-path R0a subset', () => {
+  assert.equal(OPERATIONS.length, 33);
+  assert.equal(new Set(OPERATIONS.map((op) => op.operationId)).size, 33);
+  assert.equal(new Set(OPERATIONS.map((op) => op.path)).size, 29);
   const submit = OPERATIONS.find((op) => op.operationId === 'submitTask');
   assert.equal(submit.method, 'POST');
   assert.equal(submit.successStatus, 202);
@@ -71,6 +71,11 @@ test('generated operation inventory matches the 22-path R0a subset', () => {
   assert.equal(content.successContentType, 'text/csv');
   assert.deepEqual(content.headerParams, ['X-Download-Token']);
   assert.equal(OPERATIONS.find((op) => op.operationId === 'createAuditExportTicket').requiresCsrf, true);
+  const createCredential = OPERATIONS.find((op) => op.operationId === 'createProviderCredential');
+  assert.equal(createCredential.requiresCsrf, true);
+  assert.equal(createCredential.successStatus, 201);
+  assert.equal(OPERATIONS.find((op) => op.operationId === 'setProviderConfig').requiresCsrf, true);
+  assert.equal(OPERATIONS.find((op) => op.operationId === 'getUserUsage').requiresCsrf, false);
 });
 
 test('golden path through the generated client', async () => {
@@ -212,12 +217,13 @@ test('admin read endpoints stay within the mapped contract', async () => {
   assert.equal(overview.data.org_id, 'org1');
   assert.deepEqual(Object.keys(overview.data).sort(), [
     'audit_retention_days',
-    'budget',
-    'budget_period_id',
     'execution_enabled',
     'name',
     'org_id',
     'org_revision',
+    'quota',
+    'quota_period_id',
+    'run_cap_tokens',
     'seats',
     'status',
   ]);
@@ -500,4 +506,45 @@ test('deleteTask requires a quiescent task, is idempotent and makes content unre
     }),
     (error) => error.status === 403,
   );
+});
+
+test('provider config and usage through the generated client', async () => {
+  const api = client();
+  const credential = await api.createProviderCredential({
+    body: { provider: 'aliyun', mode: 'sts_role', role_ref: 'acs:ram::123456:role/work' },
+  });
+  assert.equal(credential.status, 201);
+  assert.match(credential.data.fingerprint, /^sha256:/);
+
+  const configured = await api.setProviderConfig({
+    body: {
+      provider: 'aliyun',
+      model: 'qwen3.8-flash',
+      region: 'cn-beijing',
+      endpoint: 'https://dashscope.aliyuncs.com',
+      credential_mode: 'sts_role',
+      credential_id: credential.data.credential_id,
+      expected_revision: 0,
+    },
+  });
+  assert.equal(configured.status, 200);
+  assert.equal(configured.data.revision, 1);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const usage = await api.getUserUsage({ query: { from: today, to: today } });
+  assert.equal(usage.status, 200);
+  assert.match(usage.data.note, /云厂商账单/);
+  assert.deepEqual(usage.data.items, []);
+
+  const orgUsage = await api.getAdminUsage({ query: { from: today, to: today } });
+  assert.deepEqual(orgUsage.data.items, []);
+
+  const revoked = await api.revokeProviderConfig({ body: { reason: 'client test' } });
+  assert.deepEqual(revoked.data, { org_id: 'org1', state: 'revoked' });
+  await assert.rejects(api.getProviderConfig(), (error) => {
+    assert.ok(error instanceof WorkApiError);
+    assert.equal(error.status, 404);
+    assert.equal(error.code, 'not_found');
+    return true;
+  });
 });

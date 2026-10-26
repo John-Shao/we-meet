@@ -4,7 +4,7 @@
  * Proves three things R0a has to keep true:
  *   1. Work only sees validated port values — a Host cannot smuggle extra fields in.
  *   2. The WeMeet adapter reports real P1-A gaps instead of inventing seats,
- *      subject ids or a cents budget from token quotas.
+ *      subject ids or a money budget from token quotas.
  *   3. A standalone stub host answers the same ports and yields the same
  *      projection payload, so Work is extractable without WeMeet.
  */
@@ -116,7 +116,7 @@ test('we-meet adapter output feeds work.sync_* projection payloads', async () =>
   assert.equal(await host.ports.IdentityDirectory.resolveSubject('cookie:unknown'), null);
 });
 
-test('documented P1-A gaps stay gaps: no subject mapping, no seat boolean, no cents', async () => {
+test('documented P1-A gaps stay gaps: no subject mapping, no seat boolean, no money budget', async () => {
   const p1aShaped = {
     ...weMeetSource(),
     memberships: [
@@ -183,7 +183,7 @@ test('stub host answers the same ports, so Work is extractable without we-meet',
   assert.deepEqual(delivered, { delivered: true, channel: 'in_app' });
   assert.deepEqual(state.delivered, [{ channel: 'in_app', subject_id: 'acme-admin', kind: 'task.awaiting_acceptance' }]);
   const statement = await host.ports.BillingExport.submitUsageStatement({
-    period_id: '2026-10', content_ref: 'content://acme/usage-2026-10.csv', fields: ['settled_cents'],
+    period_id: '2026-10', content_ref: 'content://acme/usage-2026-10.csv', fields: ['settled_tokens'],
   });
   assert.deepEqual(statement, { accepted: true, statement_id: 'stub-2026-10' });
 });
@@ -206,12 +206,13 @@ test('notification and billing reject unsafe or out-of-scope requests', async ()
 
   await assert.rejects(
     host.ports.BillingExport.submitUsageStatement({
-      period_id: '2026-10', content_ref: 'content://org1/usage.csv', fields: ['tokens_used'],
+      period_id: '2026-10', content_ref: 'content://org1/usage.csv', fields: ['amount_cents'],
     }),
     (error) => error.port === 'BillingExport' && error.reason === 'incompatible_source',
   );
   const accepted = await host.ports.BillingExport.submitUsageStatement({
-    period_id: '2026-10', content_ref: 'content://org1/usage.csv', fields: ['settled_cents', 'reserved_cents'],
+    period_id: '2026-10', content_ref: 'content://org1/usage.csv',
+    fields: ['input_tokens', 'output_tokens', 'cached_input_tokens', 'run_count'],
   });
   assert.deepEqual(accepted, { accepted: true, statement_id: 'stmt-2026-10' });
 });

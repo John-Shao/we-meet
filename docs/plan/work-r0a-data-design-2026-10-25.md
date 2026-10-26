@@ -1,8 +1,8 @@
 # Work R0a 数据、权限与迁移详细设计（D1）
 
-> 状态：D1 详细设计草案；可执行 SQL 已在独立 PostgreSQL 16 通过 114/114 冒烟（2026-10-26 首轮修订在 58 项基础上新增 24 项 → 82：会话主体绑定、原因码枚举化、outbox 租约/跨组织 relay、死信阻塞、运维重放/跳过审计、启动前取消与 cancel_requested 收尾、成果编辑状态门槛；同日二次修订再增 24 项 → 106：管理只读聚合、目录投影写入、异步审计导出生命周期；同日三次修订补留存清扫与共享引用只粉碎一次 → 113，再补投影单调性写入谓词哨兵 → 114），并用多连接并发脚本实测 7 组竞态（发现并修复目录投影的丢更新缺陷），未评审、未应用生产。
+> 状态：D1 详细设计草案；可执行 SQL 已在独立 PostgreSQL 16 通过 **139/139** 冒烟（2026-10-26 D-08 修订：金额账本改 token 配额、新增接入配置/凭证/用量日聚合，+25 项断言）（2026-10-26 首轮修订在 58 项基础上新增 24 项 → 82：会话主体绑定、原因码枚举化、outbox 租约/跨组织 relay、死信阻塞、运维重放/跳过审计、启动前取消与 cancel_requested 收尾、成果编辑状态门槛；同日二次修订再增 24 项 → 106：管理只读聚合、目录投影写入、异步审计导出生命周期；同日三次修订补留存清扫与共享引用只粉碎一次 → 113，再补投影单调性写入谓词哨兵 → 114），并用多连接并发脚本实测 **9 组**竞态（原 7 组；D-08 新增接入配置并发写与用量并发累加；早期测出并修复了目录投影的丢更新缺陷），未评审、未应用生产。
 >
-> 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界）
+> 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界；同日按 [D-08 决策单](work-r0a-provider-account-metering-decision-2026-10-26.md) 改为 token 配额模型，D-08 尚未签收）
 >
 > 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[DDL 草案](work-data-model-ddl-draft-2026-10-25.md)、[架构 §5/§13/§14/§18](work-system-architecture-2026-10-25.md)、[R0a 决策单](work-r0a-detailed-design-plan-2026-10-25.md) D-04。
 >
@@ -14,10 +14,10 @@ D1 的目标是回答四个问题：
 
 1. R0a 到底需要哪些表，哪些表必须推到 R0b/R1/R2/R3？
 2. 谁可以写业务事实；如何保证“领域函数是唯一写入口”，而不是只靠代码规范？
-3. 租户隔离、账本、幂等、任务静止与成果不可变如何由数据库保证？
+3. 租户隔离、token 配额护栏、幂等、任务静止与成果不可变如何由数据库保证？
 4. 这些约束能否在 PostgreSQL 16 上实际执行，而不是停留在设计图？
 
-**范围内**：org/member/policy、capability snapshot、input object、Task/Run/Operation、Approval、Submission dedup、Budget、Artifact/Version、Acceptance、TaskEvent/Audit/Outbox、task summary 投影，以及 R0a 领域命令与角色/RLS。
+**范围内**：org/member/policy、capability snapshot、input object、Task/Run/Operation、Approval、Submission dedup、token 配额（quota）、组织接入配置与凭证、用量日聚合、Artifact/Version、Acceptance、TaskEvent/Audit/Outbox、task summary 投影，以及 R0a 领域命令与角色/RLS。
 
 **范围外**：Device/Connector/Project/Plan/Capability Registry 表；真实 Content Store；Temporal 客户端；SSE 网关；生产迁移回滚；真实供应商调用。它们分别属于 R0b/R2/R3、D2/D4/D6。
 
@@ -26,8 +26,8 @@ D1 的目标是回答四个问题：
 - R0a schema 可从空库应用；所有业务表启用并 **FORCE RLS**。
 - `work_api`/`work_worker` 只有 `SELECT` 和指定函数 `EXECUTE`，没有事实/账本表的直接 `INSERT/UPDATE/DELETE`。
 - 所有 `work` schema 函数改为 `SECURITY DEFINER`，固定 `search_path = work, pg_catalog`，由 `work_owner` 拥有。
-- 冒烟覆盖输入/提交幂等、scope 拒绝、直接 DML 拒绝、跨租户 RLS、派发、预算结算/修正、成果发布、采纳、审批、取消/重试、outbox 与 task summary。
-- 冒烟结果：**114/114 断言通过**（首轮修订 58 → 82；二次修订 82 → 106，新增管理只读、目录投影与异步导出三组；三次修订 → 113 补留存清扫，→ 114 补投影单调性写入谓词哨兵）；负例块在失败时会中止脚本。
+- 冒烟覆盖输入/提交幂等、scope 拒绝、直接 DML 拒绝、跨租户 RLS、派发、token 配额结算/修正与硬上限、接入配置跨组织隔离、凭证吊销、用量越权、成果发布、采纳、审批、取消/重试、outbox 与 task summary。
+- 冒烟结果：**139/139 断言通过**（首轮 58 → 82 → 106 → 113 → 114；D-08 再增 25 项：配额单位、Run 级上限、演示组织周期硬上限、软账户不阻断、接入配置版本/跨组织拒绝、托管 Key 只写不回读、凭证吊销即时生效、用量本人可见与组织按模型汇总）；负例块在失败时会中止脚本。
 - 并发结果：**7 组多连接竞态全部通过不变量门禁**（导出领取/租约接管/一次性下载凭证/投影乱序与重复投递/到期清扫共享引用/撤权窗口/管理读与结算交错），见 §6.2；同一批竞态在修复投影写入前测出丢更新，属 D1 的真实缺陷而非通过项。
 
 复现命令：
@@ -59,7 +59,8 @@ python r0a-concurrency-smoke.py
 | 任务 | `task`、`run`、`operation` | active/latest Run、阻止派发的 Operation、逻辑键与 CAS |
 | 审批 | `approval`、`approval_operation`、`approval_decision` | 操作绑定、revision、不可变决定；R0a golden path 不产生手工审批 |
 | 去重 | `submission_dedup` | 跨 Task 的提交幂等与删除 tombstone |
-| 预算 | `budget_account`、`budget_reservation`、`budget_entry` | 整数金额、reservation_seq、settlement_revision、追加账目 |
+| token 配额（D-08） | `quota_account`、`quota_reservation`、`quota_entry` | 整数 token、`enforcement`（soft/hard）、reservation_seq、settlement_revision、追加账目；不存币种与价目版本 |
+| 模型接入（D-08） | `provider_credential`、`provider_access_config`、`usage_daily` | 凭证按组织隔离、只存密文与指纹；每组织一条 active 配置、版本化；用量按 (org, user, provider, model, 日) 聚合 |
 | 成果 | `artifact`、`artifact_version`、`upload_session`、`acceptance`、`artifact_tombstone` | 不可变版本、发布、采纳与删除事实 |
 | 事件 | `task_event`、`audit_event`、`outbox` | 每 Task 单调 seq、追加审计、投递 |
 | 管理 | `audit_export` | 异步审计导出作业：范围、格式、租约、Content Store 引用、一次性下载凭证哈希 |
@@ -90,7 +91,7 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 
 **Task 元数据**：增加 `input_id`（同租户输入引用）与 `title`（列约束 1–200 字，服务端生成；用户编辑经 `work.update_task_title`：owner-only、去空白后 1–80 字、无控制字符、`expected_revision` 乐观并发、`submission_dedup(operation_type='task_title')` 幂等，事件/审计只记字段名）。成果导出审计经 `work.record_artifact_export`（owner-only、仅已发布版本、审计只含版本/哈希/大小/类型）。标题按敏感元数据处理，不写普通日志；`goal` 不复制到 PostgreSQL。
 
-**`task_summary` 视图**：为“我的工作”和 TaskDetail 提供稳定投影，包含 `display_state`、latest Run、最新成果、`reserved_cents`、`settled_cents`、`blocking_operations`、`pending_acceptance`。视图使用 `security_invoker = true`，继承底层 RLS。
+**`task_summary` 视图**：为“我的工作”和 TaskDetail 提供稳定投影，包含 `display_state`、latest Run、最新成果、`reserved_tokens`、`settled_tokens`、`blocking_operations`、`pending_acceptance`。视图使用 `security_invoker = true`，继承底层 RLS。
 
 **Outbox 约定**：`submit_task` 同事务写 `aggregate_type=run`、`payload.kind=start_workflow` 的行；`request_cancel` 写 `payload.kind=cancel_signal`。任务事件仍为 `aggregate_type=task`。Relay 用 `payload.kind` 区分启动/取消信号/事件，不把 run 行投递到 Task SSE。
 
@@ -102,8 +103,8 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 |---|---|---|
 | `work_owner` | NOLOGIN | 拥有 schema 对象与 `SECURITY DEFINER` 函数；无 `BYPASSRLS`，仍受 FORCE RLS |
 | `work_api` | NOLOGIN | `USAGE` + 查询表 `SELECT` + 输入/提交/重试/取消/采纳/审批函数 `EXECUTE` |
-| `work_worker` | NOLOGIN | `USAGE` + 查询表 `SELECT` + acquire/operation/budget/dispatch/finish/artifact/outbox 函数 `EXECUTE` |
-| `work_ledger` | NOLOGIN | 仅 append-only 表 `budget_entry`/`task_event`/`audit_event` 的 `SELECT, INSERT` |
+| `work_worker` | NOLOGIN | `USAGE` + 查询表 `SELECT`（不含接入配置/凭证/用量表）+ acquire/operation/quota/dispatch/finish/artifact/outbox 与 `resolve_provider_context`/`record_usage` 函数 `EXECUTE` |
+| `work_ledger` | NOLOGIN | 仅配额与审计事实的 `SELECT`（`quota_entry`/`quota_reservation`/`quota_account`/`audit_event`）；无直接 INSERT，写入只经领域函数 |
 | `work_directory` | NOLOGIN | Host 目录/授权适配器身份：只有 `sync_org_projection`/`sync_member_projection` 的 `EXECUTE`，无任何表 DML |
 | `work_migrator` | NOLOGIN | 草案中占位；生产迁移应由独立、审计化的迁移连接执行 |
 
@@ -130,13 +131,13 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 - Work 拥有 `work` schema、表、迁移和写路径；禁止跨 schema FK/JOIN、直接读写 WeMeet 消息/文档/会议/任务表。
 - `org`/`member`/`org_policy` 是 Host 目录投影，带版本/更新时间，可重建；权威事实在 `IdentityDirectory`。
 - **投影只有一条写入路径**：`work.sync_org_projection`/`work.sync_member_projection`，只授权给 `work_directory`；`work_api`/`work_worker` 既无这两个函数的 EXECUTE，也没有 `org`/`member` 的直接 DML。修订号必须严格递增（`projection_revision_stale`），且事务 `app.org_id` 必须与目标组织一致（`directory_org_context_mismatch`），因此一个租户的适配器无法改写另一个租户的投影；`operator_suspended` 只由运维路径写，目录同步不得覆盖。单调性写在 `ON CONFLICT … DO UPDATE … WHERE revision < EXCLUDED.revision` 的谓词上，不是先读后写的校验——后者在并发重放下会把高修订号覆盖回低值（§6.1 实测到的缺陷）；读校验仍保留，只为了更早给出错误和计算 `entitlement_lost` 审计位。
-- Host 端口：`IdentityDirectory`/`Entitlement`/`Notification`/`BillingExport`/`ConnectorProvider`，形状见 [host-ports.mjs](assets/work-r0a-design-2026-10-25/host-ports.mjs)；WeMeet 适配器 [we-meet-host-adapter.mjs](assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs) 产出上述投影载荷，独立产品用 [stub-host.mjs](assets/work-r0a-design-2026-10-25/stub-host.mjs) 替换。适配器不把 P1-A 的 token 配额当作席位或 cents 预算，缺字段就报 gap。
+- Host 端口：`IdentityDirectory`/`Entitlement`/`Notification`/`BillingExport`/`ConnectorProvider`，形状见 [host-ports.mjs](assets/work-r0a-design-2026-10-25/host-ports.mjs)；WeMeet 适配器 [we-meet-host-adapter.mjs](assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs) 产出上述投影载荷，独立产品用 [stub-host.mjs](assets/work-r0a-design-2026-10-25/stub-host.mjs) 替换。适配器不把 P1-A 的 token 配额当作席位或金额预算，缺字段就报 gap。D-08 后 BillingExport 只接收 token 事实字段，金额字段直接报 `incompatible_source`。
 - 部署：Work DB/schema/角色、Temporal namespace、对象存储/KMS 可分离；不共享数据库写角色或租户缓存。
 - 验证：R0a 有端口契约与 stub host 的静态/一致性测试（9/9）；R1 前做 stub-host 剥离演练；详见 [ADR-0021](../adr/0021-work-standalone-product-boundary.md)。
 
 ## 5. 领域命令
 
-所有命令按 **Task → Run → Operation** 顺序加锁；审批/预算行在其后加锁。跨模块写由函数内事务完成，应用不拼接“先写事实再补审计”。
+所有命令按 **Task → Run → Operation** 顺序加锁；审批/配额行在其后加锁。跨模块写由函数内事务完成，应用不拼接“先写事实再补审计”。
 
 | 命令 | 调用方 | 状态/副作用 | 幂等/冲突 |
 |---|---|---|---|
@@ -146,19 +147,19 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 | `acquire_run` | worker | queued → active；fence +1 | 非 current/queued 拒绝 |
 | `authorize_operation` | worker | prepared → authorized；`policy_auto` 审计 | waiting_approval 返回 `approval_required` |
 | `request_approval` | api | prepared → waiting_approval；创建 pending approval | 已有 pending 返回原 approval |
-| `decide_approval` | api | pending → approved/rejected；批准 → authorized；拒绝 → canceled + 释放 held 预算 | revision/params_hash/expiry 冲突 |
+| `decide_approval` | api | pending → approved/rejected；批准 → authorized；拒绝 → canceled + 释放 held 配额 | revision/params_hash/expiry 冲突 |
 | `create_operation` | worker | 新建 prepared Operation；R0a 仅 model/tool/artifact | 同 key/hash 返回原 Operation；kind 越界拒绝 |
-| `reserve_budget` | worker | 创建 held 预留与 reserve 分录 | 同 Operation 最多一个 held/unknown |
+| `reserve_quota` | worker | 创建 held 预留与 reserve 分录；校验组织 `run_cap_tokens`；hard 账户超限即拒 | 同 Operation 最多一个 held/unknown；soft 账户只统计 |
 | `claim_dispatch` | worker | authorized → dispatching；写 dispatch_attempt/CAS | 非赢家返回 NULL |
 | `finish_operation` | worker | dispatching → succeeded/failed；写 provider_request_id/receipt | 非 dispatching 拒绝 |
-| `settle_budget` | worker | held/unknown → settled；追加 settle 分录 | 同 revision 同金额幂等；不同金额冲突 |
-| `adjust_budget` | worker | 追加 adjust 分录与 settlement revision | revision 单调；不能覆写历史 |
-| `release_budget` | worker | held → released；释放预留 | 非 held 拒绝 |
+| `settle_quota` | worker | held/unknown → settled；追加 settle 分录；上游报告超预留时按上界截断并在 usage 记 `overrun` | 同 revision 同金额幂等；不同金额冲突 |
+| `adjust_quota` | worker | 追加 adjust 分录与 settlement revision | revision 单调；不能覆写历史 |
+| `release_quota` | worker | held → released；释放预留 | 非 held 拒绝 |
 | `cancel_operation` | api/worker | prepared/waiting/authorized → canceled + 释放 held；dispatching → unknown | 终态/unknown 幂等返回 |
-| `wait_run` | worker | active → waiting；写 wait_reason（budget/provider/reconcile） | 已 waiting 同 reason 幂等；不同 reason 更新 |
+| `wait_run` | worker | active → waiting；写 wait_reason（quota/provider/reconcile） | 已 waiting 同 reason 幂等；不同 reason 更新 |
 | `resume_run` | worker | waiting → active；清 wait_reason | active 幂等；非 waiting 拒绝 |
-| `mark_operation_unknown` | worker | dispatching → unknown；保留预算 | unknown 幂等；非 dispatching 拒绝 |
-| `reconcile_operation` | worker | unknown/unresolved → reconciled/unresolved；按 resolution 结算/释放/保留预算 | 需 evidence；同状态幂等；billable ≤ 预留 |
+| `mark_operation_unknown` | worker | dispatching → unknown；保留配额 | unknown 幂等；非 dispatching 拒绝 |
+| `reconcile_operation` | worker | unknown/unresolved → reconciled/unresolved；按 resolution 结算/释放/保留配额 | 需 evidence；同状态幂等；报告值超预留按上界截断 |
 | `request_cancel` | api | Run → cancel_requested；写 cancel-signal outbox；不清空工程状态 | 终态/已请求幂等 |
 | `finish_run` | worker | Run 终态；清 active、保留 latest；成功 → awaiting_acceptance | 非 current Run 拒绝 |
 | `publish_artifact` | api/worker | 新建/更新 artifact，版本 staged → published；写事件/审计 | 版本号单调；内容不可变 |
@@ -171,15 +172,17 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 - **提交幂等**：`(org_id, subject_id, operation_type, client_request_id)` 跨 Task 唯一；请求哈希不同返回冲突。
 - **任务静止**：`active_run_id IS NULL`、latest Run 终态、无 `prepared/waiting_approval/authorized/dispatching/unknown/unresolved` Operation，才允许采纳。
 - **派发单胜者**：Task → Run → Operation 锁 + fence + dispatch CAS；读取 dispatching 不等于获得发送许可。
-- **预算不覆写**：reserve/settle/release/adjust 全部追加分录；settlement revision 单调；修正不改历史。
+- **配额不覆写**：reserve/settle/release/adjust 全部追加分录；settlement revision 单调；修正不改历史。
+- **Run 级硬上限**：`org_policy.run_cap_tokens` 对所有组织生效，预留不得超过；周期量只有 `quota_account.enforcement='hard'`（演示组织）才阻断。
+- **接入配置隔离**：`provider_access_config` 每组织一条 active（部分唯一索引）；`resolve_provider_context` 只按 Run 所属组织取配置与凭证；跨组织写在数据层看不到行。
 - **成果不可变**：artifact_version 的 content_ref/hash/bytes/media_type/provenance 不可更新；发布绑定版本。
 - **取消不谎报**：取消只把 Run 置为 cancel_requested；已派发 Operation 转 unknown，等待对账；不声称外部动作已停止。
 - **事件不带正文**：task_event/outbox payload 只带 ID、状态、哈希等；goal/background/成果正文不进入数据库事件。
 - **审计同事务**：关键命令写 audit_event；outbox 与 task_event 在同一事务。
-- **等待/恢复**：`wait_run`/`resume_run` 只改 Run 的 `state/wait_reason`，不消费 Operation 或预算。
-- **未知对账**：`mark_operation_unknown` 只把 dispatching 转 unknown，保留预算；`reconcile_operation` 的 sent_succeeded 结算、not_sent 释放/结算 0、unresolved 保留预算，且不重发外部请求。
+- **等待/恢复**：`wait_run`/`resume_run` 只改 Run 的 `state/wait_reason`，不消费 Operation 或配额。
+- **未知对账**：`mark_operation_unknown` 只把 dispatching 转 unknown，保留配额；`reconcile_operation` 的 sent_succeeded 结算、not_sent 释放/结算 0、unresolved 保留配额，且不重发外部请求。
 - **Outbox 分流**：workflow-start/cancel-signal 与 TaskEvent 分开处理；启动/信号重复由固定 workflow ID/DB 状态幂等。
-- **组织执行闸门**：新增 Run/Operation/预算预留，以及 Run→active、Operation→authorized/dispatching，必须检查 `org.status/execution_enabled/operator_suspended`；终态、取消与对账更新不被停用阻断。
+- **组织执行闸门**：新增 Run/Operation/配额预留，以及 Run→active、Operation→authorized/dispatching，必须检查 `org.status/execution_enabled/operator_suspended`；终态、取消与对账更新不被停用阻断。
 - **对账状态**：`unresolved` 可在后续证据下转 `reconciled`；不允许跳过 `unknown/unresolved` 直接伪造成功。
 
 ### 5.2 2026-10-26 增量命令
@@ -204,7 +207,7 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 |---|---|---|
 | `sync_org_projection` | work_directory | 只写目录事实（name/status/execution_enabled/home_region/revision）；修订号单调由 `DO UPDATE … WHERE revision < EXCLUDED.revision` 保证（读校验只用于提前报错）；`operator_suspended` 不可被覆盖；跨组织上下文拒绝 |
 | `sync_member_projection` | work_directory | 同上，另记录 `entitlement_lost`；行已存在时 `FOR UPDATE` 串行化，新行由 upsert 谓词裁决；不直接取消在途 Run（收窄走 `request_cancel` 领域命令） |
-| `admin_overview` | work_api | owner/admin 且 active 才可读；席位统计、cents 预算、`budget_period_id`、`org_revision`、留存天数；读操作写审计 |
+| `admin_overview` | work_api | owner/admin 且 active 才可读；席位统计、token 配额（含 `enforcement`）、`quota_period_id`、`run_cap_tokens`、`org_revision`、留存天数；读操作写审计 |
 | `list_seats` | work_api | keyset 分页（`subject_id > cursor`，limit 1..100）；排除 `left`；总数由 `admin_overview` 给出 |
 | `create_audit_export` | work_api | 管理员；`client_request_id` 幂等（异体 409）；范围校验（起点在留存窗口内、终点不过去、跨度 ≤92 天）；只写元数据与请求哈希 |
 | `get_audit_export` | work_api | 管理员；跨组织与不存在统一 `audit_export_not_found`；读到已过期的 ready 作业惰性转 expired |
@@ -225,14 +228,15 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 | 输入/提交 | `input_idempotent`、`submit_idempotent`、`one_task_after_retry`、`dedup_row`、`workflow_start_outbox` |
 | 权限 | `api_no_direct_dml`、`worker_no_direct_dml`、`ledger_append_only`、`functions_security_definer` |
 | RLS | `rls_org2_zero`、`rls_force_task` |
-| 执行/预算 | `run_active`、`dispatch_once`、`summary_budget_settled` |
+| 执行/配额 | `run_active`、`dispatch_once`、`summary_quota_settled` |
 | 成果/采纳 | `summary_awaiting_acceptance`、`task_completed` |
 | 审批 | `approval_dispatch`、`approval_task_completed` |
 | 取消/重试 | `cancel_summary`、`retry_run_created`、`cancel_signal_outbox` |
-| 等待/对账 | `run4_active`、`run_waiting_budget`、`run_resumed`、`unknown_retained_budget`、`unknown_reserved`、`reconcile_not_sent_operation`、`reconcile_not_sent_released`、`run4_task_open`、`reconcile_sent_operation`、`reconcile_sent_amount`、`reconcile_sent_reserved_zero`、`run5_awaiting` |
+| 等待/对账 | `run4_active`、`run_waiting_quota`、`run_resumed`、`unknown_retained_quota`、`unknown_reserved`、`reconcile_not_sent_operation`、`reconcile_not_sent_released`、`run4_task_open`、`reconcile_sent_operation`、`reconcile_sent_amount`、`reconcile_sent_reserved_zero`、`run5_awaiting` |
+| D-08 配额与接入 | `run_cap_exceeded`、`demo_org_period_hard_limit`、`demo_org_settled_400`、`demo_org_hard_blocks_next_run`、`customer_org_soft_quota_not_blocked`、`customer_org_soft_release_clean`、`provider_credential_owner_only`、`provider_credential_created`、`provider_credential_audit_no_secret`、`provider_secret_not_directly_readable`、`provider_credential_mode_consistency`、`provider_credential_single_active`、`provider_config_active_rev1`、`provider_config_revision_conflict`、`provider_config_single_active`、`org1_sts_config_active`、`provider_resolve_own_org`、`provider_config_not_shared_across_orgs`、`credential_revoke_blocks_new_calls`、`provider_config_revoke_stops_calls`、`usage_daily_accumulates`、`user_usage_self_only`、`org_usage_admin_only`、`org_usage_by_model`、`usage_tables_not_directly_readable` |
 | Outbox | `outbox_claimed` |
 | 目录投影 | `directory_projection_write_path`、`projection_written_through_sync`、`projection_revision_monotonic`、`projection_cross_org_blocked`、`projection_ignores_operator_flag`、`projection_revocation_blocks_new_work`、`directory_projection_audited`、`projection_guard_is_upsert_predicate` |
-| 管理只读 | `admin_read_denied_for_non_admin`、`admin_overview_cents_match_ledger`、`admin_overview_seats`、`admin_overview_default_period`、`seat_keyset_pagination`、`seat_pagination_limit_guard` |
+| 管理只读 | `admin_read_denied_for_non_admin`、`admin_overview_tokens_match_ledger`、`admin_overview_seats`、`admin_overview_default_period`、`seat_keyset_pagination`、`seat_pagination_limit_guard` |
 | 审计导出 | `export_metadata_not_directly_readable`、`export_create_denied_for_non_admin`、`export_idempotent_replay`、`export_conflict_on_other_payload`、`export_range_validation`、`export_worker_lease_lifecycle`、`export_expiry_sweep`、`export_download_single_use`、`export_ticket_single_use_enforced`、`export_cross_org_not_found`、`export_audit_trail_no_body` |
 | 留存清扫 | `input_expiry_bound_to_ttl_window`、`input_shared_ref_two_rows`、`input_expiry_sweeps_unbound`、`input_expiry_shared_ref_shredded_once`、`input_expiry_idempotent`、`input_expiry_per_org_scope` |
 
@@ -251,7 +255,9 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 | 目录投影重复投递 | 同修订号 4 连接 | 1 applied、3 `projection_revision_stale` | at-least-once 同步幂等 |
 | 到期清扫共享引用 | 3 连接 `expire_due_inputs` | 一轮扫到 4 行、其余 0；`content_shred` 2 行覆盖 2 个引用（两输入共享一引用只投一次） | 无重复粉碎、无漏粉碎 |
 | 撤权与在途提交 | 6 连接建输入 + 1 连接撤席位 | 撤权提交前已开始的 6 笔全部 `created`；撤权后新事务 `work_seat_required` | 撤权只约束其后事务（见 §7.14 / D-07） |
-| 管理读与结算交错 | 6 结算 + 6 读者各连续 150 次读 | 900 次读观测到 `{0, 270, 360, 540}`，全部落在已结算分录的前缀和上；0 次越账；终读与总账一致，`reserved_cents` 归零 | 管理读不报不存在的金额 |
+| 管理读与结算交错 | 6 结算 + 6 读者各连续 150 次读 | 900 次读观测到 `{0, 90, 180, 270, 360, 450, 540}` 的子集，全部落在已结算 token 分录的前缀和上；0 次越账；终读与总账一致，`reserved_tokens` 归零 | 管理读不报不存在的 token 合计 |
+| 接入配置并发写（D-08） | 6 个 owner 同时按 `expected_revision=1` 写入 | 1 成功（revision=2）、5 个 `revision_conflict`；始终 1 条 active、最大 revision=2 | 组织行锁 + 部分唯一索引保证单活 |
+| 用量并发累加（D-08） | 10 个 worker 同时给同一 (org,user,provider,model,日) +1 | 0 错误；`input_tokens` 精确等于 10 | upsert 累加不丢更新 |
 
 **测出的真实缺陷（已修，非通过项）**：修复前同一批乱序投影跑出 org 终态修订号 5、member 终态修订号 6，而 8 个修订号全部“成功”——最大值 9 被更低修订号覆盖，`lost_update = true`。原因是 `sync_org_projection`/`sync_member_projection` 用“先 `SELECT` 校验单调、再 `INSERT … ON CONFLICT DO UPDATE`”的两步写法，读-写窗口内并发写互相覆盖；`ON CONFLICT` 分支没有谓词，最后提交者无条件胜出。危害不止新鲜度：撤席位（`work_seat = false`，高修订号）可被并发的低修订号重放覆盖回去，等于目录同步自己把权限复活。
 
@@ -269,12 +275,14 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 4. **Content Store**：`input_object`/`artifact_version` 只定义引用和哈希；加密、留存、删除、恢复由 D1/D6 与平台对象存储补齐。
 5. **留存/删除**：input_object 的过期/删除、Task/Artifact tombstone、审计 365 天与客户正文留存期限仍需产品/法务定案。
 6. **硬删除/分区**：R0a 不承诺；task_event/audit_event/outbox 的归档与分区后续设计。
-7. **TaskSummary 性能**：视图含预算子查询；试点数据量下可接受，生产需物化/索引评估。
+7. **TaskSummary 性能**：视图含配额子查询；试点数据量下可接受，生产需物化/索引评估。
 8. **标题与输入**：标题生成规则、敏感元数据日志策略、输入大小上限（goal 2000/background 4000）需 D2/D5 固化。
 9. **审批路径**：函数已可执行，但 R0a golden path 不产生手工审批；审批 UI/通知/过期处理属 R0b/R2。
 10. **用户编辑/上传**：文本版本命令 `create_user_artifact_version` 已实现（状态门槛见 §5.2）；`upload_session` 表已建，但文件上传流程未在 D1 实现，D2/D5 补。
 11. **所有权转移/离职**：Task/成果接管仍是试点运营兜底，未做成产品化命令。
-12. **Admin 只读**：方案 B 的落点已在 D1/D2 落地（席位、cents 账本、异步导出作业与一次性下载凭证）。仍未闭合的是 Host 侧字段：P1-A 目前只回 `user_id` 与 token 配额，缺 `subject_id`、`work_seat` 布尔、成员 `revision` 与组织 `name`/`home_region`（C31 保持 partial）。
+12. **Admin 只读**：方案 B 的落点已在 D1/D2 落地（席位、token 配额、异步导出作业与一次性下载凭证）。仍未闭合的是 Host 侧字段：P1-A 目前只回 `user_id` 与 token 配额，缺 `subject_id`、`work_seat` 布尔、成员 `revision` 与组织 `name`/`home_region`（C31 保持 partial）。
+13. **D-08 未签收**：token 配额、接入配置、凭证托管与用量统计已按决策单落成可执行设计，但 D-08a–d 尚未签字；托管 Key 的 KMS 具体形态、吊销在途调用语义与配置探测参数在 DR0/DR1 上确认。
+14. **用量与对账**：`usage_daily` 由 worker 在结算路径调用 `record_usage` 写入；漏调时事实缺失不会被补偿。R0a 只保证接口与权限，生产需在 E5 的网关/结算事务里强制同写，并加漏记告警。
 13. **独立产品边界**：五个 Host 端口有了可执行契约与 WeMeet 适配器 + stub host（9/9 测试），`org`/`member` 只有一条 `work_directory` 写入路径；投影的乱序与重复投递已有多连接竞态证据（§6.1，含一个已修的丢更新缺陷）。仍开放：投影仍可能滞后于权威目录，撤权新鲜度依赖 Host 同步频率；R1 前的 stub-host 剥离演练未做（ADR-0021）。
 14. **撤权是否自动停止在途 Run**：投影写入只记录 `entitlement_lost`，不调用 `request_cancel`，也不由 `sync_member_projection` 直接杀 Run——避免目录同步与编排抢同一状态机。竞态实测给了这条决策一个具体量：撤权事务提交前已开始的 6 笔新工作全部穿透，提交后的新事务才 `work_seat_required`；修复投影丢更新之前，并发重放还能把已撤的席位覆盖回去。是否改为“撤权即自动请求取消”属产品/安全决策，需在 DR1 定案（D-07）；当前设计是下一次派发/授权时被投影拦住，在途 Run 由人工或运营流程取消。
 15. **导出作业的真实执行**：D1 只定义作业状态机、租约与引用；Content Store 写入、行数/字节上限、失败重试与留存删除由实施（E2/E5）补齐，R0a 设计不声称已验证。

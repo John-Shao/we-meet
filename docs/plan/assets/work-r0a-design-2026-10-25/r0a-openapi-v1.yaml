@@ -24,6 +24,8 @@ tags:
   - name: Inbox
   - name: Artifacts
   - name: Admin
+  - name: Usage
+  - name: Provider
 
 paths:
   /work/v1/bootstrap:
@@ -83,7 +85,7 @@ paths:
     post:
       tags: [Tasks]
       operationId: createTaskPreview
-      summary: 解析输入/模板/权限/预算，返回执行边界与 preview_hash
+      summary: 解析输入/模板/权限/token 配额，返回执行边界与 preview_hash
       parameters:
         - $ref: "#/components/parameters/CsrfToken"
       requestBody:
@@ -94,7 +96,7 @@ paths:
       responses:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "200":
-          description: 预览与费用上界；提交时必须重新解析
+          description: 预览与 token 上限；计费在客户自己的云厂商侧，Work 不报价
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TaskPreview" }
@@ -461,6 +463,187 @@ paths:
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/UnprocessableEntity" }
 
+  /work/v1/me/usage:
+    get:
+      tags: [Usage]
+      operationId: getUserUsage
+      summary: 当前用户自己的 token 用量（只读本人，跨用户返回 403）
+      description: |
+        只统计 token 事实，不含金额；input/output/cached 分列。数据按 (用户, provider, model, 自然日) 聚合，
+        仅供参考，费用以客户云厂商账单为准。区间上限 366 天。
+      parameters:
+        - $ref: "#/components/parameters/UsageFrom"
+        - $ref: "#/components/parameters/UsageTo"
+      responses:
+        "200":
+          description: 本人用量
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserUsage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/admin/usage:
+    get:
+      tags: [Usage]
+      operationId: getAdminUsage
+      summary: 组织按模型分列的 token 用量（owner/admin）
+      description: 按 provider + model 汇总组织内所有用户；同样只作用量参考，不作计费依据。
+      parameters:
+        - $ref: "#/components/parameters/UsageFrom"
+        - $ref: "#/components/parameters/UsageTo"
+      responses:
+        "200":
+          description: 组织用量
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrgUsage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/admin/provider-config:
+    get:
+      tags: [Provider]
+      operationId: getProviderConfig
+      summary: 本组织当前生效的大模型接入配置（仅 owner）
+      description: 只返回 provider/model/region/endpoint 与凭据指纹；任何情况下都不返回密钥明文或密文。
+      responses:
+        "200":
+          description: 当前配置；尚未配置或已吊销时返回 404 not_found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProviderConfigView" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [Provider]
+      operationId: setProviderConfig
+      summary: 切换本组织的大模型接入配置（仅 owner，版本化）
+      description: |
+        每次写入生成新 revision 并把上一条标记 superseded；expected_revision 不一致返回 409 version_conflict。
+        保存前网关会发一次最小真实请求做连通探测，失败不生效。变更写强审计（操作人/组织/版本/指纹）。
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProviderConfigSetRequest" }
+      responses:
+        "200":
+          description: 新配置已生效
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProviderConfigView" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/admin/provider-config/revoke:
+    post:
+      tags: [Provider]
+      operationId: revokeProviderConfig
+      summary: 吊销本组织当前接入配置（仅 owner；新调用立即失败）
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProviderRevokeRequest" }
+      responses:
+        "200":
+          description: 已吊销
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProviderConfigRevoked" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /work/v1/admin/provider-credentials:
+    post:
+      tags: [Provider]
+      operationId: createProviderCredential
+      summary: 为本组织创建大模型凭证（仅 owner；只写不回读）
+      description: |
+        阿里云/火山引擎走 sts_role：只提交角色标识，平台不持有长期密钥。
+        DeepSeek 走 managed_key：提交 api_key，服务端用 KMS 信封加密后只存密文；
+        接口只回指纹与密钥版本，任何读取路径都不返回明文。同一 provider 同时只能有一个 active 凭证。
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProviderCredentialCreateRequest" }
+      responses:
+        "201":
+          description: 凭证已创建
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProviderCredentialView" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /work/v1/admin/provider-credentials/{credentialId}/rotate:
+    post:
+      tags: [Provider]
+      operationId: rotateProviderCredential
+      summary: 轮换托管 Key（仅 owner；新版本立即生效）
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/CredentialId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProviderCredentialRotateRequest" }
+      responses:
+        "200":
+          description: 轮换后的凭证视图（仍只含指纹）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProviderCredentialView" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /work/v1/admin/provider-credentials/{credentialId}/revoke:
+    post:
+      tags: [Provider]
+      operationId: revokeProviderCredential
+      summary: 即时吊销凭证（仅 owner；在途调用以受控错误结束）
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/CredentialId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProviderRevokeRequest" }
+      responses:
+        "200":
+          description: 已吊销
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProviderCredentialRevoked" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /work/v1/admin/overview:
     get:
       tags: [Admin]
@@ -659,6 +842,23 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    CredentialId:
+      name: credentialId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    UsageFrom:
+      name: from
+      in: query
+      required: true
+      schema: { type: string, format: date }
+      description: 起始自然日（含）；不得晚于 to，跨度上限 366 天。
+    UsageTo:
+      name: to
+      in: query
+      required: true
+      schema: { type: string, format: date }
+      description: 结束自然日（含）。
 
     DownloadToken:
       name: X-Download-Token
@@ -696,7 +896,7 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
     UnprocessableEntity:
-      description: 语义不可执行（scope、权限模式、预算等）
+      description: 语义不可执行（scope、权限模式、配额等）
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -881,19 +1081,23 @@ components:
       properties:
         intent: { $ref: "#/components/schemas/R0aIntent" }
 
-    CostUpperBound:
+    TokenUpperBound:
       type: object
       additionalProperties: false
-      required: [amount_cents, currency, price_version]
+      required: [amount_tokens]
       properties:
-        amount_cents: { type: integer, minimum: 0 }
-        currency: { type: string, minLength: 3, maxLength: 3 }
-        price_version: { type: string }
+        amount_tokens:
+          type: integer
+          minimum: 0
+          description: 本次 Run 的 token 硬上限；派发前按该值预留，超限受控失败
+        note:
+          type: string
+          description: 固定提示：用量仅供参考，费用以客户云厂商账单为准
 
     TaskPreview:
       type: object
       additionalProperties: false
-      required: [preview_hash, effective_permission_mode, boundary_summary, cost_upper_bound, unavailable_reasons, expires_at]
+      required: [preview_hash, effective_permission_mode, boundary_summary, token_upper_bound, unavailable_reasons, expires_at]
       properties:
         preview_hash: { type: string }
         effective_permission_mode: { $ref: "#/components/schemas/PermissionMode" }
@@ -903,7 +1107,7 @@ components:
         boundary_summary:
           type: array
           items: { type: string }
-        cost_upper_bound: { $ref: "#/components/schemas/CostUpperBound" }
+        token_upper_bound: { $ref: "#/components/schemas/TokenUpperBound" }
         unavailable_reasons:
           type: array
           items: { type: string }
@@ -934,7 +1138,7 @@ components:
         - failed
         - run_canceled
         - reconciling
-        - budget_exhausted
+        - quota_exhausted
         - canceling
         - canceled
         - archived
@@ -945,7 +1149,7 @@ components:
 
     WaitReason:
       type: [string, "null"]
-      enum: [budget, provider, reconcile, null]
+      enum: [quota, provider, reconcile, null]
 
     OperationState:
       type: string
@@ -979,7 +1183,7 @@ components:
         - revision
         - pending_acceptance
         - blocking_operations
-        - budget
+        - quota
         - created_at
         - updated_at
       properties:
@@ -1004,14 +1208,13 @@ components:
         revision: { type: integer, minimum: 0 }
         pending_acceptance: { type: boolean }
         blocking_operations: { type: integer, minimum: 0 }
-        budget:
+        quota:
           type: object
           additionalProperties: false
-          required: [currency, reserved_cents, settled_cents]
+          required: [reserved_tokens, settled_tokens]
           properties:
-            currency: { type: string, minLength: 3, maxLength: 3 }
-            reserved_cents: { type: integer, minimum: 0 }
-            settled_cents: { type: integer }
+            reserved_tokens: { type: integer, minimum: 0, description: 在途 Operation 的 token 预留合计 }
+            settled_tokens: { type: integer, minimum: 0, description: 已结算 token 合计；与云厂商账单可能不同，平台不对账金额 }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
@@ -1038,7 +1241,7 @@ components:
         snapshot:
           type: object
           additionalProperties: false
-          required: [snapshot_id, snapshot_hash, tool_allowlist, model_route, price_version]
+          required: [snapshot_id, snapshot_hash, tool_allowlist, model_route]
           properties:
             snapshot_id: { type: string, format: uuid }
             snapshot_hash: { type: string }
@@ -1046,7 +1249,6 @@ components:
               type: array
               items: { type: string }
             model_route: { type: object, additionalProperties: true }
-            price_version: { type: string }
 
     TaskRun:
       type: object
@@ -1236,11 +1438,149 @@ components:
         acceptance: { $ref: "#/components/schemas/Acceptance" }
         task: { $ref: "#/components/schemas/TaskSummary" }
 
+    UsageRow:
+      type: object
+      additionalProperties: false
+      required: [provider, model, usage_date, input_tokens, output_tokens, cached_input_tokens, run_count]
+      properties:
+        provider: { type: string, enum: [aliyun, volcengine, deepseek] }
+        model: { type: string }
+        usage_date: { type: string, format: date }
+        input_tokens: { type: integer, minimum: 0 }
+        output_tokens: { type: integer, minimum: 0 }
+        cached_input_tokens: { type: integer, minimum: 0 }
+        run_count: { type: integer, minimum: 0 }
+
+    UserUsage:
+      type: object
+      additionalProperties: false
+      required: [from, to, note, items]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        note: { type: string, description: 固定提示：仅供参考，费用以云厂商账单为准 }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/UsageRow" }
+
+    OrgUsageRow:
+      type: object
+      additionalProperties: false
+      required: [provider, model, input_tokens, output_tokens, cached_input_tokens, run_count]
+      properties:
+        provider: { type: string, enum: [aliyun, volcengine, deepseek] }
+        model: { type: string }
+        input_tokens: { type: integer, minimum: 0 }
+        output_tokens: { type: integer, minimum: 0 }
+        cached_input_tokens: { type: integer, minimum: 0 }
+        run_count: { type: integer, minimum: 0 }
+
+    OrgUsage:
+      type: object
+      additionalProperties: false
+      required: [from, to, note, items]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        note: { type: string }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/OrgUsageRow" }
+
+    ProviderCredentialView:
+      type: object
+      additionalProperties: false
+      required: [credential_id, provider, mode, fingerprint, key_version, state, created_at]
+      properties:
+        credential_id: { type: string, format: uuid }
+        provider: { type: string, enum: [aliyun, volcengine, deepseek] }
+        mode: { type: string, enum: [sts_role, managed_key] }
+        fingerprint:
+          type: string
+          description: 指纹（如 SHA-256 前缀）；不可逆，用于审计与人工核对
+        key_version: { type: integer, minimum: 1 }
+        state: { type: string, enum: [active, revoked] }
+        created_at: { type: string, format: date-time }
+        rotated_at: { type: [string, "null"], format: date-time }
+
+    ProviderCredentialCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [provider, mode]
+      description: api_key 只写不回读；服务端加密后只返回指纹。sts_role 只接受 role_ref。
+      properties:
+        provider: { type: string, enum: [aliyun, volcengine, deepseek] }
+        mode: { type: string, enum: [sts_role, managed_key] }
+        role_ref: { type: string, description: 角色标识（sts_role 必填） }
+        api_key: { type: string, minLength: 8, writeOnly: true, description: 厂商 API Key（managed_key 必填；写后不可读） }
+
+    ProviderCredentialRotateRequest:
+      type: object
+      additionalProperties: false
+      required: [api_key]
+      properties:
+        api_key: { type: string, minLength: 8, writeOnly: true }
+
+    ProviderConfigView:
+      type: object
+      additionalProperties: false
+      required: [config_id, revision, provider, model, region, endpoint, credential_mode, credential, state, created_at]
+      properties:
+        config_id: { type: string, format: uuid }
+        revision: { type: integer, minimum: 1 }
+        provider: { type: string, enum: [aliyun, volcengine, deepseek] }
+        model: { type: string }
+        region: { type: string }
+        endpoint: { type: string, format: uri }
+        credential_mode: { type: string, enum: [sts_role, managed_key] }
+        credential: { $ref: "#/components/schemas/ProviderCredentialView" }
+        state: { type: string, enum: [active, superseded, revoked] }
+        created_at: { type: string, format: date-time }
+
+    ProviderConfigSetRequest:
+      type: object
+      additionalProperties: false
+      required: [provider, model, region, endpoint, credential_mode, credential_id, expected_revision]
+      properties:
+        provider: { type: string, enum: [aliyun, volcengine, deepseek] }
+        model: { type: string, minLength: 1, maxLength: 120 }
+        region: { type: string, minLength: 1 }
+        endpoint: { type: string, format: uri, pattern: "^https://" }
+        credential_mode: { type: string, enum: [sts_role, managed_key] }
+        credential_id: { type: string, format: uuid }
+        expected_revision:
+          type: integer
+          minimum: 0
+          description: 当前 active 配置的 revision；尚无配置时传 0，不一致返回 409 version_conflict
+
+    ProviderRevokeRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 200 }
+
+    ProviderConfigRevoked:
+      type: object
+      additionalProperties: false
+      required: [org_id, state]
+      properties:
+        org_id: { type: string }
+        state: { type: string, enum: [revoked] }
+
+    ProviderCredentialRevoked:
+      type: object
+      additionalProperties: false
+      required: [credential_id, state]
+      properties:
+        credential_id: { type: string, format: uuid }
+        state: { type: string, enum: [revoked] }
+
     AdminOverview:
       type: object
       additionalProperties: false
-      required: [org_id, name, status, execution_enabled, seats, budget, budget_period_id,
-                 org_revision, audit_retention_days]
+      required: [org_id, name, status, execution_enabled, seats, quota, quota_period_id,
+                 run_cap_tokens, org_revision, audit_retention_days]
       properties:
         org_id: { type: string }
         name:
@@ -1260,18 +1600,25 @@ components:
               minimum: 0
               description: 非 left 成员数；不受列表分页影响
             active: { type: integer, minimum: 0, description: status=active 且持有工作席位的成员数 }
-        budget:
+        quota:
           type: object
           additionalProperties: false
-          required: [currency, limit_cents, reserved_cents, settled_cents]
+          required: [enforcement, limit_tokens, reserved_tokens, settled_tokens]
           properties:
-            currency: { type: string, minLength: 3, maxLength: 3 }
-            limit_cents: { type: integer, minimum: 0 }
-            reserved_cents: { type: integer, minimum: 0 }
-            settled_cents: { type: integer, minimum: 0 }
-        budget_period_id:
+            enforcement:
+              type: string
+              enum: [soft, hard]
+              description: soft=客户自带账号，周期量只统计；hard=演示组织等平台承担成本的组织，超限即拒
+            limit_tokens: { type: integer, minimum: 0 }
+            reserved_tokens: { type: integer, minimum: 0 }
+            settled_tokens: { type: integer, minimum: 0 }
+        quota_period_id:
           type: string
-          description: 预算账本周期；cents 账本由 Work 自己持有（方案 B），P1-A 不提供
+          description: 用量统计周期（YYYY-MM）；token 账本由 Work 自己持有（方案 B），P1-A 不提供
+        run_cap_tokens:
+          type: integer
+          minimum: 1
+          description: 每个 Run 的 token 硬上限；所有组织强制
         org_revision:
           type: integer
           minimum: 0

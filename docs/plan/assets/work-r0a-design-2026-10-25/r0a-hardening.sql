@@ -155,23 +155,32 @@ END;
 $$;
 
 -- 预留：同 Operation 已有同额 held/unknown 预留时返回该预留（活动重试幂等）。
-CREATE OR REPLACE FUNCTION work.reserve_budget(
+CREATE OR REPLACE FUNCTION work.reserve_quota(
   p_org_id text,
   p_account_key text,
   p_period_id text,
   p_operation_id uuid,
-  p_amount_cents bigint
+  p_amount_tokens bigint
 ) RETURNS uuid
 LANGUAGE plpgsql AS $$
 DECLARE
-  account work.budget_account%ROWTYPE;
+  account work.quota_account%ROWTYPE;
   operation_row work.operation%ROWTYPE;
-  existing work.budget_reservation%ROWTYPE;
+  policy_row work.org_policy%ROWTYPE;
+  existing work.quota_reservation%ROWTYPE;
   reservation_id uuid := gen_random_uuid();
   next_seq int;
 BEGIN
-  IF p_amount_cents IS NULL OR p_amount_cents <= 0 THEN
+  IF p_amount_tokens IS NULL OR p_amount_tokens <= 0 THEN
     RAISE EXCEPTION 'invalid_reservation_amount' USING ERRCODE = '22023';
+  END IF;
+  -- Run 级硬上限对所有组织生效（D-08）。
+  SELECT * INTO policy_row FROM work.org_policy WHERE org_id = p_org_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'org_policy_missing' USING ERRCODE = 'P0001';
+  END IF;
+  IF p_amount_tokens > policy_row.run_cap_tokens THEN
+    RAISE EXCEPTION 'run_cap_exceeded' USING ERRCODE = 'P0001';
   END IF;
   SELECT * INTO operation_row
   FROM work.operation o
@@ -181,10 +190,10 @@ BEGIN
     RAISE EXCEPTION 'operation_not_found' USING ERRCODE = 'P0002';
   END IF;
   SELECT * INTO existing
-  FROM work.budget_reservation br
+  FROM work.quota_reservation br
   WHERE br.operation_id = p_operation_id AND br.state IN ('held', 'unknown');
   IF FOUND THEN
-    IF existing.amount_cents = p_amount_cents THEN
+    IF existing.amount_tokens = p_amount_tokens THEN
       RETURN existing.id;
     END IF;
     RAISE EXCEPTION 'operation_has_active_reservation' USING ERRCODE = 'P0001';
@@ -193,31 +202,33 @@ BEGIN
     RAISE EXCEPTION 'operation_not_reservable' USING ERRCODE = 'P0001';
   END IF;
   SELECT COALESCE(MAX(br.reservation_seq), 0) + 1 INTO next_seq
-  FROM work.budget_reservation br
+  FROM work.quota_reservation br
   WHERE br.operation_id = p_operation_id;
   SELECT * INTO account
-  FROM work.budget_account ba
+  FROM work.quota_account ba
   WHERE ba.org_id = p_org_id AND ba.account_key = p_account_key AND ba.period_id = p_period_id
   FOR UPDATE;
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'budget_account_not_found' USING ERRCODE = 'P0002';
+    RAISE EXCEPTION 'quota_account_not_found' USING ERRCODE = 'P0002';
   END IF;
-  IF account.limit_cents - account.settled_cents - account.reserved_cents < p_amount_cents THEN
-    RAISE EXCEPTION 'budget_exhausted' USING ERRCODE = 'P0001';
+  -- soft：客户自带账号，周期量只统计；hard：演示组织等平台承担成本的组织，超限即拒。
+  IF account.enforcement = 'hard'
+     AND account.limit_tokens - account.settled_tokens - account.reserved_tokens < p_amount_tokens THEN
+    RAISE EXCEPTION 'quota_exhausted' USING ERRCODE = 'P0001';
   END IF;
-  UPDATE work.budget_account ba
-  SET reserved_cents = ba.reserved_cents + p_amount_cents,
+  UPDATE work.quota_account ba
+  SET reserved_tokens = ba.reserved_tokens + p_amount_tokens,
       version = ba.version + 1,
       updated_at = now()
   WHERE ba.id = account.id;
-  INSERT INTO work.budget_reservation
-    (id, org_id, account_id, operation_id, reservation_seq, amount_cents, state)
+  INSERT INTO work.quota_reservation
+    (id, org_id, account_id, operation_id, reservation_seq, amount_tokens, state)
   VALUES
-    (reservation_id, p_org_id, account.id, p_operation_id, next_seq, p_amount_cents, 'held');
-  INSERT INTO work.budget_entry
-    (org_id, account_id, reservation_id, operation_id, kind, amount_cents)
+    (reservation_id, p_org_id, account.id, p_operation_id, next_seq, p_amount_tokens, 'held');
+  INSERT INTO work.quota_entry
+    (org_id, account_id, reservation_id, operation_id, kind, amount_tokens)
   VALUES
-    (p_org_id, account.id, reservation_id, p_operation_id, 'reserve', p_amount_cents);
+    (p_org_id, account.id, reservation_id, p_operation_id, 'reserve', p_amount_tokens);
   RETURN reservation_id;
 END;
 $$;

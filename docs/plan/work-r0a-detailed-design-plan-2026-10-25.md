@@ -44,8 +44,8 @@
 
 ### 0.3 W1 进展（2026-10-25）
 
-- **D1 已完成可执行草案**：[数据/权限/迁移设计](work-r0a-data-design-2026-10-25.md)、[schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；PostgreSQL 16 冒烟 114/114 + 多连接竞态 7 组，未应用生产。
-- **D2 已完成契约子集**：[API/事件设计](work-r0a-api-design-2026-10-25.md)、[OpenAPI](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、生成的 TypeScript 类型/运行时客户端、mock server、[Host 端口契约](assets/work-r0a-design-2026-10-25/host-ports.mjs) 与设计包 31/31（合同 10 + 客户端 12 + 端口 9）；未做真实鉴权/持久化。
+- **D1 已完成可执行草案**：[数据/权限/迁移设计](work-r0a-data-design-2026-10-25.md)、[schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；PostgreSQL 16 冒烟 139/139 + 多连接竞态 9 组（D-08 修订后；D-08 未签收），未应用生产。
+- **D2 已完成契约子集**：[API/事件设计](work-r0a-api-design-2026-10-25.md)、[OpenAPI](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、生成的 TypeScript 类型/运行时客户端、mock server、[Host 端口契约](assets/work-r0a-design-2026-10-25/host-ports.mjs) 与设计包 34/34（合同 12 + 客户端 13 + 端口 9）；未做真实鉴权/持久化。
 - **DR1 尚未评审**：D1/D2 仍是草案；D3/D4 需在 DR1 后继续。
 
 ### 0.4 W2 进展（2026-10-25）
@@ -64,7 +64,7 @@
 
 ### 0.6 下一批优先项进展（2026-10-26）
 
-- **C07 生成客户端/CI**：`generate-client.mjs` 从 OpenAPI 生成 25 个 operation 的零依赖客户端；客户端 12/12、设计包 31/31、`ci-contract.mjs` 漂移门禁（含 schema-draft 错误码扫描）通过；`.github/workflows/work-r0a-gates.yml` 已定义（远端未跑）。仍未接真实前端。
+- **C07 生成客户端/CI**：`generate-client.mjs` 从 OpenAPI 生成 33 个 operation 的零依赖客户端；客户端 13/13、设计包 34/34、`ci-contract.mjs` 漂移门禁（含 schema-draft 错误码扫描）通过；`.github/workflows/work-r0a-gates.yml` 已定义（远端未跑）。仍未接真实前端。
 - **C31 管理读**：严格适配器 12/12，证明 P1-A 原始字段不能直接充当 R0a 契约（role/revision/subject/seat total/cents/异步导出）；未接真实 P1-A/身份服务，C31 保持 partial。
 - **C16 日志扫描**：扫描器 8/8，覆盖 Key（含 `sk-proj-`/`sk-ant-`）/GitHub token/阿里云 AccessKey/Bearer/cookie/私钥/正文 canary/email；7 个既有证据日志 0 fail / 0 warn；未接 staging OTel/log pipeline，C16 保持 partial。
 - **C17 SLO 遥测**：12 个 SLO 全覆盖，生成 21 条 record + 19 条 alert，10/10 校验；未接 Prometheus/Alertmanager/仪表盘，所有 SLO 仍 `not_measured`，C17 保持 partial。
@@ -73,7 +73,7 @@
 ### 0.7 W4 详细设计收口（2026-10-26）
 
 - **本轮复审前记录的契约缺口已闭合**：标题编辑、受控导出下载、CSRF/cookie 生命周期、冻结错误码目录（`r0a-errors-v3`：49 公开码 / 101 SQL 映射，CI 扫描 schema-draft）；outbox 按聚合顺序 + 指数退避 + 死信/审计重排；usage 对账容差与价表校验；供应链准入（cosign/SLSA/SBOM/Pi 固定版本）；用户删除/运维代删/所有权转移；生命周期事件；黄金任务、试点指标、切换状态机；[试点运营 Runbook](work-r0a-pilot-operations-runbook-2026-10-26.md)。
-- **证据**：D1 冒烟 114/114 + 竞态门禁 7/7（2026-10-26 修订）；API 22 path / 25 operation，设计包 31/31；Temporal 10/10 + S1 4/4；Runtime 10/10 + 19/19；UI 模型 14/14；日志扫描 8/8；KMS 6/6；ops/pilot/telemetry 28/28（21 record + 27 alert = 48 条规则；指标 28）。
+- **证据**：D1 冒烟 139/139 + 竞态门禁 9/9（2026-10-26 D-08 修订）；API 29 path / 33 operation，设计包 34/34；Temporal 10/10 + S1 4/4；Runtime 10/10 + 19/19；UI 模型 14/14；日志扫描 8/8；KMS 6/6；ops/pilot/telemetry 28/28（21 record + 27 alert = 48 条规则；指标 28）。
 - **W4 产出**：[实施就绪包](work-r0a-implementation-readiness-2026-10-26.md)——**可评审草案**。2026-10-26 复审撤回“§0 六条在设计层全部满足”的结论：D1/D3 的 P0/P1 已修复并补负例，但 §0 #5（可用性验证；管理页方案同日已定 B 并落成设计物）未满足，另有 Temporal 托管（U3）与 §9.4 检查表（U4）；U2 已于 2026-10-26 定方案 B（待 DR1 签收）、U3 同日定自托管 A（待平台确认 9 项承诺），U1/U4 仍开放；排期改为从 DR4（建议 2026-12-04）起算。
 - **仍不可实施**：DR0–DR4 未开会，D-01..D-07 未签收，go/no-go 仍 no-go（30 个 blocking 中 7 done / 18 partial / 5 todo；另 2 项非 blocking 已 waived）。
 
@@ -231,7 +231,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **设计输入**：[DDL 草案](work-data-model-ddl-draft-2026-10-25.md)、[架构 §5/§13/§14/§18](work-system-architecture-2026-10-25.md)、[ADR-0009/0011/0016/0017](../adr/)。
 
-**当前进展（2026-10-25）**：已产出 [D1 设计说明](work-r0a-data-design-2026-10-25.md) 与 [可执行 schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；独立 PostgreSQL 16 冒烟 34/34 通过（2026-10-26 修订后 114/114）。仍是草案，未评审、未应用生产。
+**当前进展（2026-10-25）**：已产出 [D1 设计说明](work-r0a-data-design-2026-10-25.md) 与 [可执行 schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；独立 PostgreSQL 16 冒烟 34/34 通过（2026-10-26 D-08 修订后 139/139）。仍是草案，未评审、未应用生产。
 
 **交付物**：
 
@@ -255,7 +255,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 **完成标准**：
 
 - 空库迁移成功；R0a 迁移重复执行幂等。
-- 现有 8 组 DDL 冒烟加 R0a 断言/负例全部通过（D1 草案已通过 114/114，另有 7 组多连接竞态）。
+- 现有 8 组 DDL 冒烟加 R0a 断言/负例全部通过（D1 草案已通过 139/139，另有 9 组多连接竞态）。
 - `work_api`/`work_worker` 不能直接 `INSERT/UPDATE/DELETE` fact/ledger 表；只能执行授权函数。
 - org1/org2 交叉读取为 0；`FORCE RLS` 生效。
 - 备份恢复后 Task/Run/Operation/预算/采纳/去重事实一致。
@@ -725,11 +725,11 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 | 检查项 | 设计侧证据 | 现状 |
 |---|---|---|
-| 范围/不做冻结，无 R0b+ 入口 | §1、§3；OpenAPI 22 path/25 operation 冻结集 | 满足，待 DR0 |
+| 范围/不做冻结，无 R0b+ 入口 | §1、§3；OpenAPI 29 path/33 operation 冻结集（D-08 扩范围，待签） | 满足，待 DR0 |
 | 7 项决策签收、未决项有负责人和日期 | §4、§8.1；就绪包 §6.1/§7 | 待 DR0 签收 |
-| 迁移空库应用、RLS/直接 DML 负例 | D1 冒烟 114/114（[资产](assets/work-r0a-design-2026-10-25/README.md)） | 满足，待 DR1 复审 |
-| OpenAPI、客户端/mock/合同测试 | 31/31、`ci-contract`、错误码 101 SQL 码 | 满足，待 DR1 |
-| 提交/派发/预算/成果/采纳/取消/重试/unknown 负例 | PG 114/114 + 竞态 7/7、Temporal 10/10、S1 4/4 | 满足，待 DR2 |
+| 迁移空库应用、RLS/直接 DML 负例 | D1 冒烟 139/139（[资产](assets/work-r0a-design-2026-10-25/README.md)） | 满足，待 DR1 复审 |
+| OpenAPI、客户端/mock/合同测试 | 34/34、`ci-contract`、错误码 104 SQL 码（D-08 未签收） | 满足，待 DR1 |
+| 提交/派发/配额/成果/采纳/取消/重试/unknown 负例 | PG 139/139 + 竞态 9/9、Temporal 10/10、S1 4/4 | 满足，待 DR2 |
 | Runtime 工具/沙箱/出口/usage/价表 | 策略 10/10、usage/供应链 19/19；三家控制台单价已录快照（未书面确认，账本不可用；PC-1/2/3 待 DR2）、gVisor 未证明 | 部分 |
 | UI 全状态、无假入口、可访问性 | UI 模型 14/14、状态矩阵；a11y 无实现可测 | 部分 |
 | SLO/告警/容量/恢复/切换/停用 | ops+pilot+telemetry 28/28 + promtool；试点环境未演练 | 部分 |

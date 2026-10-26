@@ -10,6 +10,13 @@ and this project adheres to
 
 ### Added
 
+- Record the D-08 provider-account and token-metering decision together with
+  the design revision it drove.
+- Replace Work's money ledger with token quotas, organization-bound provider
+  access configs and daily usage aggregation; 139 smoke assertions and nine
+  concurrency races are green.
+- Add owner-only provider config and write-only credential endpoints, with
+  user token usage and per-model organization usage reads.
 - Add continuous record reading and toolbar refresh on Web and Android.
 - Unify record detail panel toolbars and retain browsing state across tabs.
 - Match all Web record panel toolbar buttons to transcript toolbar styling.

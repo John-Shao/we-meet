@@ -1,7 +1,7 @@
 -- ---------------------------------------------------------------------------
 -- 管理只读（U2 方案 B）与 Host 目录投影写入（ADR-0021）
 --
--- 方案 B 的前提是：R0a 管理读接口自己提供 role/revision/cents 账本与异步导出作业，
+-- 方案 B 的前提是：R0a 管理读接口自己提供 role/revision/token 配额与异步导出作业，
 -- P1-A 只负责读权限与主组织上下文。因此这些数据必须在 work schema 内有真实落点，
 -- 否则 OpenAPI 承诺的作业生命周期与席位/预算字段只能由服务端伪造。
 --
@@ -199,7 +199,7 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------------
--- 管理只读聚合（预算 cents、席位、策略）
+-- 管理只读聚合（token 配额、席位、策略）
 -- ---------------------------------------------------------------------------
 
 CREATE FUNCTION work.assert_org_admin(p_org_id text, p_subject_id text) RETURNS void
@@ -227,7 +227,7 @@ CREATE FUNCTION work.admin_overview(
 LANGUAGE plpgsql AS $$
 DECLARE
   org_row work.org%ROWTYPE;
-  account work.budget_account%ROWTYPE;
+  account work.quota_account%ROWTYPE;
   policy_row work.org_policy%ROWTYPE;
   seat_total bigint;
   seat_active bigint;
@@ -246,7 +246,7 @@ BEGIN
   WHERE m.org_id = p_org_id;
 
   SELECT * INTO account
-  FROM work.budget_account b
+  FROM work.quota_account b
   WHERE b.org_id = p_org_id AND b.account_key = p_account_key AND b.period_id = p_period_id;
 
   SELECT * INTO policy_row FROM work.org_policy p WHERE p.org_id = p_org_id;
@@ -262,17 +262,416 @@ BEGIN
     'status', org_row.status,
     'execution_enabled', org_row.execution_enabled AND NOT org_row.operator_suspended,
     'seats', jsonb_build_object('total', seat_total, 'active', seat_active),
-    'budget', jsonb_build_object(
-      'currency', COALESCE(account.currency, 'CNY'),
-      'limit_cents', COALESCE(account.limit_cents, 0),
-      'reserved_cents', COALESCE(account.reserved_cents, 0),
-      'settled_cents', COALESCE(account.settled_cents, 0)
+    'quota', jsonb_build_object(
+      'limit_tokens', COALESCE(account.limit_tokens, 0),
+      'reserved_tokens', COALESCE(account.reserved_tokens, 0),
+      'settled_tokens', COALESCE(account.settled_tokens, 0),
+      'enforcement', COALESCE(account.enforcement, 'soft')
     ),
-    'budget_period_id', p_period_id,
+    'quota_period_id', p_period_id,
+    'run_cap_tokens', COALESCE(policy_row.run_cap_tokens, 0),
     'org_revision', org_row.revision,
     'audit_retention_days',
       COALESCE(NULLIF(policy_row.policy->>'audit_retention_days', '')::int, 365)
   );
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- D-08 大模型接入配置与用量：写权限只给组织 owner；配置与凭证按组织隔离。
+-- 托管 Key 的明文没有任何读取入口：接口只回指纹，网关经 resolve_* 在调用瞬间取密文。
+-- ---------------------------------------------------------------------------
+
+CREATE FUNCTION work.assert_org_owner(p_org_id text, p_subject_id text) RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM work.assert_session_subject(p_subject_id);
+  IF NOT EXISTS (
+    SELECT 1 FROM work.member m
+    WHERE m.org_id = p_org_id
+      AND m.subject_id = p_subject_id
+      AND m.status = 'active'
+      AND m.role = 'owner'
+  ) THEN
+    RAISE EXCEPTION 'owner_access_denied' USING ERRCODE = '42501';
+  END IF;
+END;
+$$;
+
+CREATE FUNCTION work.create_provider_credential(
+  p_org_id text,
+  p_subject_id text,
+  p_provider text,
+  p_mode text,
+  p_role_ref text,
+  p_secret_ciphertext bytea,
+  p_wrapped_dek bytea,
+  p_kms_key_ref text,
+  p_secret_fingerprint text
+) RETURNS TABLE (credential_id uuid, key_version int)
+LANGUAGE plpgsql AS $$
+DECLARE
+  new_id uuid := gen_random_uuid();
+BEGIN
+  PERFORM work.assert_org_owner(p_org_id, p_subject_id);
+  IF p_provider NOT IN ('aliyun', 'volcengine', 'deepseek') THEN
+    RAISE EXCEPTION 'invalid_request:provider' USING ERRCODE = '22023';
+  END IF;
+  IF p_secret_fingerprint IS NULL OR length(btrim(p_secret_fingerprint)) NOT BETWEEN 8 AND 64 THEN
+    RAISE EXCEPTION 'invalid_request:fingerprint' USING ERRCODE = '22023';
+  END IF;
+  IF p_mode = 'managed_key' THEN
+    IF p_secret_ciphertext IS NULL OR p_wrapped_dek IS NULL OR p_kms_key_ref IS NULL
+       OR length(p_kms_key_ref) = 0 OR p_role_ref IS NOT NULL THEN
+      RAISE EXCEPTION 'invalid_request:credential' USING ERRCODE = '22023';
+    END IF;
+  ELSIF p_mode = 'sts_role' THEN
+    IF p_role_ref IS NULL OR length(btrim(p_role_ref)) = 0
+       OR p_secret_ciphertext IS NOT NULL OR p_wrapped_dek IS NOT NULL OR p_kms_key_ref IS NOT NULL THEN
+      RAISE EXCEPTION 'invalid_request:credential' USING ERRCODE = '22023';
+    END IF;
+  ELSE
+    RAISE EXCEPTION 'invalid_request:credential_mode' USING ERRCODE = '22023';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM work.provider_credential pc
+    WHERE pc.org_id = p_org_id AND pc.provider = p_provider AND pc.state = 'active'
+  ) THEN
+    RAISE EXCEPTION 'provider_credential_exists' USING ERRCODE = 'P0001';
+  END IF;
+  INSERT INTO work.provider_credential
+    (id, org_id, provider, mode, role_ref, secret_ciphertext, wrapped_dek, kms_key_ref,
+     secret_fingerprint, created_by)
+  VALUES
+    (new_id, p_org_id, p_provider, p_mode, p_role_ref, p_secret_ciphertext, p_wrapped_dek,
+     p_kms_key_ref, btrim(p_secret_fingerprint), p_subject_id);
+  PERFORM work.append_audit(
+    p_org_id, p_subject_id, 'provider.credential_created', 'provider_credential', new_id::text,
+    jsonb_build_object(
+      'provider', p_provider, 'mode', p_mode,
+      'fingerprint', btrim(p_secret_fingerprint), 'key_version', 1
+    )
+  );
+  RETURN QUERY SELECT new_id, 1;
+END;
+$$;
+
+CREATE FUNCTION work.rotate_provider_credential(
+  p_org_id text,
+  p_subject_id text,
+  p_credential_id uuid,
+  p_secret_ciphertext bytea,
+  p_wrapped_dek bytea,
+  p_kms_key_ref text,
+  p_secret_fingerprint text
+) RETURNS int
+LANGUAGE plpgsql AS $$
+DECLARE
+  credential work.provider_credential%ROWTYPE;
+  new_version int;
+BEGIN
+  PERFORM work.assert_org_owner(p_org_id, p_subject_id);
+  SELECT * INTO credential FROM work.provider_credential
+    WHERE id = p_credential_id AND org_id = p_org_id
+    FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF credential.state <> 'active' THEN
+    RAISE EXCEPTION 'provider_credential_revoked' USING ERRCODE = 'P0001';
+  END IF;
+  IF credential.mode <> 'managed_key' THEN
+    RAISE EXCEPTION 'invalid_request:credential_mode' USING ERRCODE = '22023';
+  END IF;
+  IF p_secret_ciphertext IS NULL OR p_wrapped_dek IS NULL OR p_kms_key_ref IS NULL
+     OR p_secret_fingerprint IS NULL OR length(btrim(p_secret_fingerprint)) NOT BETWEEN 8 AND 64 THEN
+    RAISE EXCEPTION 'invalid_request:credential' USING ERRCODE = '22023';
+  END IF;
+  new_version := credential.key_version + 1;
+  UPDATE work.provider_credential
+  SET secret_ciphertext = p_secret_ciphertext,
+      wrapped_dek = p_wrapped_dek,
+      kms_key_ref = p_kms_key_ref,
+      secret_fingerprint = btrim(p_secret_fingerprint),
+      key_version = new_version,
+      rotated_at = now()
+  WHERE id = credential.id;
+  PERFORM work.append_audit(
+    p_org_id, p_subject_id, 'provider.credential_rotated', 'provider_credential', credential.id::text,
+    jsonb_build_object('provider', credential.provider, 'key_version', new_version,
+                       'fingerprint', btrim(p_secret_fingerprint))
+  );
+  RETURN new_version;
+END;
+$$;
+
+CREATE FUNCTION work.revoke_provider_credential(
+  p_org_id text,
+  p_subject_id text,
+  p_credential_id uuid,
+  p_reason text
+) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  credential work.provider_credential%ROWTYPE;
+BEGIN
+  PERFORM work.assert_org_owner(p_org_id, p_subject_id);
+  IF p_reason IS NULL OR length(btrim(p_reason)) = 0 THEN
+    RAISE EXCEPTION 'invalid_request:reason' USING ERRCODE = '22023';
+  END IF;
+  SELECT * INTO credential FROM work.provider_credential
+    WHERE id = p_credential_id AND org_id = p_org_id
+    FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF credential.state = 'revoked' THEN
+    RETURN;
+  END IF;
+  UPDATE work.provider_credential
+  SET state = 'revoked', revoked_at = now(), revoked_by = p_subject_id
+  WHERE id = credential.id;
+  PERFORM work.append_audit(
+    p_org_id, p_subject_id, 'provider.credential_revoked', 'provider_credential', credential.id::text,
+    jsonb_build_object('provider', credential.provider, 'reason', p_reason)
+  );
+END;
+$$;
+
+CREATE FUNCTION work.set_provider_config(
+  p_org_id text,
+  p_subject_id text,
+  p_provider text,
+  p_model text,
+  p_region text,
+  p_endpoint text,
+  p_credential_mode text,
+  p_credential_id uuid,
+  p_expected_revision bigint DEFAULT NULL
+) RETURNS TABLE (config_id uuid, revision bigint)
+LANGUAGE plpgsql AS $$
+DECLARE
+  credential work.provider_credential%ROWTYPE;
+  current_revision bigint;
+  next_revision bigint;
+  new_id uuid := gen_random_uuid();
+BEGIN
+  PERFORM work.assert_org_owner(p_org_id, p_subject_id);
+  IF p_provider NOT IN ('aliyun', 'volcengine', 'deepseek') THEN
+    RAISE EXCEPTION 'invalid_request:provider' USING ERRCODE = '22023';
+  END IF;
+  IF p_model IS NULL OR length(btrim(p_model)) NOT BETWEEN 1 AND 120
+     OR p_region IS NULL OR length(btrim(p_region)) = 0
+     OR p_endpoint IS NULL OR p_endpoint !~ '^https://' THEN
+    RAISE EXCEPTION 'invalid_request:provider_config' USING ERRCODE = '22023';
+  END IF;
+  IF p_credential_mode NOT IN ('sts_role', 'managed_key') THEN
+    RAISE EXCEPTION 'invalid_request:credential_mode' USING ERRCODE = '22023';
+  END IF;
+  SELECT * INTO credential FROM work.provider_credential
+    WHERE id = p_credential_id AND org_id = p_org_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF credential.state <> 'active' THEN
+    RAISE EXCEPTION 'provider_credential_revoked' USING ERRCODE = 'P0001';
+  END IF;
+  IF credential.provider <> p_provider OR credential.mode <> p_credential_mode THEN
+    RAISE EXCEPTION 'provider_credential_mismatch' USING ERRCODE = '22023';
+  END IF;
+  -- 组织行锁序列化配置写入，保证同一时刻只有一条 active。
+  PERFORM 1 FROM work.org WHERE id = p_org_id FOR UPDATE;
+  SELECT c.revision INTO current_revision
+  FROM work.provider_access_config c
+  WHERE c.org_id = p_org_id AND c.state = 'active';
+  IF p_expected_revision IS NOT NULL
+     AND p_expected_revision <> COALESCE(current_revision, 0) THEN
+    RAISE EXCEPTION 'revision_conflict' USING ERRCODE = '40001';
+  END IF;
+  UPDATE work.provider_access_config
+  SET state = 'superseded', superseded_at = now()
+  WHERE org_id = p_org_id AND state = 'active';
+  SELECT COALESCE(MAX(c.revision), 0) + 1 INTO next_revision
+  FROM work.provider_access_config c WHERE c.org_id = p_org_id;
+  INSERT INTO work.provider_access_config
+    (id, org_id, revision, provider, model, region, endpoint, credential_mode, credential_id, created_by)
+  VALUES
+    (new_id, p_org_id, next_revision, p_provider, btrim(p_model), btrim(p_region),
+     btrim(p_endpoint), p_credential_mode, p_credential_id, p_subject_id);
+  PERFORM work.append_audit(
+    p_org_id, p_subject_id, 'provider.config_changed', 'provider_access_config', new_id::text,
+    jsonb_build_object('provider', p_provider, 'model', btrim(p_model), 'region', btrim(p_region),
+                       'credential_mode', p_credential_mode, 'revision', next_revision)
+  );
+  RETURN QUERY SELECT new_id, next_revision;
+END;
+$$;
+
+CREATE FUNCTION work.revoke_provider_config(
+  p_org_id text,
+  p_subject_id text,
+  p_reason text
+) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  config work.provider_access_config%ROWTYPE;
+BEGIN
+  PERFORM work.assert_org_owner(p_org_id, p_subject_id);
+  IF p_reason IS NULL OR length(btrim(p_reason)) = 0 THEN
+    RAISE EXCEPTION 'invalid_request:reason' USING ERRCODE = '22023';
+  END IF;
+  SELECT * INTO config FROM work.provider_access_config
+    WHERE org_id = p_org_id AND state = 'active'
+    FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+  UPDATE work.provider_access_config
+  SET state = 'revoked', revoked_at = now()
+  WHERE id = config.id;
+  PERFORM work.append_audit(
+    p_org_id, p_subject_id, 'provider.config_revoked', 'provider_access_config', config.id::text,
+    jsonb_build_object('provider', config.provider, 'model', config.model, 'reason', p_reason)
+  );
+END;
+$$;
+
+-- 网关/运行时取凭证的唯一入口：只能取本组织的 active 配置与 active 凭证。
+CREATE FUNCTION work.resolve_provider_context(p_org_id text)
+RETURNS TABLE (
+  config_id uuid,
+  provider text,
+  model text,
+  region text,
+  endpoint text,
+  credential_mode text,
+  role_ref text,
+  secret_ciphertext bytea,
+  wrapped_dek bytea,
+  kms_key_ref text
+)
+LANGUAGE plpgsql AS $$
+DECLARE
+  config work.provider_access_config%ROWTYPE;
+  credential work.provider_credential%ROWTYPE;
+BEGIN
+  SELECT * INTO config FROM work.provider_access_config c
+    WHERE c.org_id = p_org_id AND c.state = 'active';
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'provider_not_configured' USING ERRCODE = 'P0002';
+  END IF;
+  SELECT * INTO credential FROM work.provider_credential pc
+    WHERE pc.id = config.credential_id AND pc.org_id = p_org_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'provider_not_configured' USING ERRCODE = 'P0002';
+  END IF;
+  IF credential.state <> 'active' THEN
+    RAISE EXCEPTION 'provider_credential_revoked' USING ERRCODE = 'P0001';
+  END IF;
+  RETURN QUERY SELECT config.id, config.provider, config.model, config.region, config.endpoint,
+                      config.credential_mode, credential.role_ref, credential.secret_ciphertext,
+                      credential.wrapped_dek, credential.kms_key_ref;
+END;
+$$;
+
+CREATE FUNCTION work.record_usage(
+  p_org_id text,
+  p_subject_id text,
+  p_provider text,
+  p_model text,
+  p_usage_date date,
+  p_input_tokens bigint,
+  p_output_tokens bigint,
+  p_cached_input_tokens bigint,
+  p_runs int DEFAULT 1
+) RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF p_provider NOT IN ('aliyun', 'volcengine', 'deepseek') THEN
+    RAISE EXCEPTION 'invalid_request:provider' USING ERRCODE = '22023';
+  END IF;
+  IF p_model IS NULL OR length(btrim(p_model)) = 0 THEN
+    RAISE EXCEPTION 'invalid_request:model' USING ERRCODE = '22023';
+  END IF;
+  IF p_usage_date IS NULL OR p_input_tokens < 0 OR p_output_tokens < 0
+     OR p_cached_input_tokens < 0 OR p_runs < 0 THEN
+    RAISE EXCEPTION 'invalid_request:usage' USING ERRCODE = '22023';
+  END IF;
+  INSERT INTO work.usage_daily AS u
+    (org_id, subject_id, provider, model, usage_date,
+     input_tokens, output_tokens, cached_input_tokens, run_count, revision)
+  VALUES
+    (p_org_id, p_subject_id, p_provider, btrim(p_model), p_usage_date,
+     p_input_tokens, p_output_tokens, p_cached_input_tokens, p_runs, 1)
+  ON CONFLICT (org_id, subject_id, provider, model, usage_date) DO UPDATE
+  SET input_tokens = u.input_tokens + EXCLUDED.input_tokens,
+      output_tokens = u.output_tokens + EXCLUDED.output_tokens,
+      cached_input_tokens = u.cached_input_tokens + EXCLUDED.cached_input_tokens,
+      run_count = u.run_count + EXCLUDED.run_count,
+      revision = u.revision + 1,
+      updated_at = now();
+END;
+$$;
+
+-- C 端只读本人用量：会话主体必须与查询主体一致，跨用户读取直接拒绝。
+CREATE FUNCTION work.get_user_usage(
+  p_org_id text,
+  p_subject_id text,
+  p_from date,
+  p_to date
+) RETURNS TABLE (
+  provider text,
+  model text,
+  usage_date date,
+  input_tokens bigint,
+  output_tokens bigint,
+  cached_input_tokens bigint,
+  run_count int
+)
+LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM work.assert_session_subject(p_subject_id);
+  IF p_to < p_from OR p_to - p_from > 366 THEN
+    RAISE EXCEPTION 'invalid_request:usage_range' USING ERRCODE = '22023';
+  END IF;
+  RETURN QUERY
+    SELECT u.provider, u.model, u.usage_date, u.input_tokens, u.output_tokens,
+           u.cached_input_tokens, u.run_count
+    FROM work.usage_daily u
+    WHERE u.org_id = p_org_id AND u.subject_id = p_subject_id
+      AND u.usage_date BETWEEN p_from AND p_to
+    ORDER BY u.usage_date, u.provider, u.model;
+END;
+$$;
+
+-- 组织按模型汇总：只对 owner/admin 开放。
+CREATE FUNCTION work.get_org_usage_by_model(
+  p_org_id text,
+  p_subject_id text,
+  p_from date,
+  p_to date
+) RETURNS TABLE (
+  provider text,
+  model text,
+  input_tokens bigint,
+  output_tokens bigint,
+  cached_input_tokens bigint,
+  run_count bigint
+)
+LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM work.assert_org_admin(p_org_id, p_subject_id);
+  IF p_to < p_from OR p_to - p_from > 366 THEN
+    RAISE EXCEPTION 'invalid_request:usage_range' USING ERRCODE = '22023';
+  END IF;
+  RETURN QUERY
+    SELECT u.provider, u.model,
+           sum(u.input_tokens)::bigint, sum(u.output_tokens)::bigint,
+           sum(u.cached_input_tokens)::bigint, sum(u.run_count)::bigint
+    FROM work.usage_daily u
+    WHERE u.org_id = p_org_id AND u.usage_date BETWEEN p_from AND p_to
+    GROUP BY u.provider, u.model
+    ORDER BY u.provider, u.model;
 END;
 $$;
 
