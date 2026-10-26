@@ -29,6 +29,20 @@ test('state matrix and copy are internally complete', () => {
   assert.equal(routes.routes.admin, '/admin/work');
 });
 
+test('task canceled/archived are reserved for R0b: read-only, no management actions', () => {
+  const reserved = Object.entries(matrix.states)
+    .filter(([, entry]) => entry.reservedFor === 'R0b')
+    .map(([state]) => state);
+  assert.deepEqual(reserved.sort(), ['archived', 'canceled']);
+  const broken = structuredClone(matrix);
+  broken.management.delete.states.push('archived');
+  broken.states.canceled.actions.push('retry');
+  assert.deepEqual(validateMatrix(broken).sort(), [
+    'management delete references reserved state archived',
+    'reserved state canceled must be read-only',
+  ]);
+});
+
 test('reconciling blocks retry/accept but allows a request to cancel', () => {
   assert.deepEqual(actionsFor('reconciling'), ['view_timeline', 'cancel']);
   assert.equal(canRetry('reconciling'), false);

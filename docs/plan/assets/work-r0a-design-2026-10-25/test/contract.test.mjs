@@ -45,7 +45,6 @@ async function previewTask(inputRef, overrides = {}) {
   };
   const result = await request('POST', '/work/v1/task-previews', {
     body: { intent },
-    useCsrf: false,
   });
   return { result, intent };
 }
@@ -118,6 +117,13 @@ test('bootstrap, templates, session and CSRF', async () => {
   });
   assert.equal(noCsrf.response.status, 403);
   assert.equal(noCsrf.data.code, 'csrf_invalid');
+
+  const previewNoCsrf = await request('POST', '/work/v1/task-previews', {
+    body: { intent: {} },
+    useCsrf: false,
+  });
+  assert.equal(previewNoCsrf.response.status, 403);
+  assert.equal(previewNoCsrf.data.code, 'csrf_invalid');
 
   const noSession = await fetch(`${baseUrl}/work/v1/tasks`);
   assert.equal(noSession.status, 401);
@@ -240,6 +246,27 @@ test('worker completion, artifact content, inbox and acceptance', async () => {
   assert.equal(accept.data.task.display_state, 'completed');
   assert.equal(accept.data.acceptance.task_revision, detail.summary.revision + 1);
 
+  const acceptReplay = await request('POST', `/work/v1/tasks/${taskId}/acceptances`, {
+    body: {
+      client_request_id: 'req-accept-2001',
+      expected_revision: detail.summary.revision,
+      artifact_id: artifactId,
+      version_no: versionNo,
+    },
+  });
+  assert.equal(acceptReplay.response.status, 200, acceptReplay.text);
+  assert.equal(acceptReplay.data.acceptance.id, accept.data.acceptance.id);
+
+  const acceptKeyReuse = await request('POST', `/work/v1/tasks/${taskId}/acceptances`, {
+    body: {
+      client_request_id: 'req-accept-2001',
+      expected_revision: detail.summary.revision,
+      completion_reason: 'different body',
+    },
+  });
+  assert.equal(acceptKeyReuse.response.status, 409);
+  assert.equal(acceptKeyReuse.data.code, 'idempotency_key_conflict');
+
   const duplicate = await request('POST', `/work/v1/tasks/${taskId}/acceptances`, {
     body: {
       client_request_id: 'req-accept-2002',
@@ -287,6 +314,29 @@ test('user edit creates a new immutable version', async () => {
   assert.equal(edit.data.version_no, 2);
   assert.equal(edit.data.state, 'published');
 
+  const editReplay = await request('POST', `/work/v1/artifacts/${artifactId}/versions`, {
+    body: {
+      client_request_id: 'req-edit-3001',
+      base_version_no: 1,
+      media_type: 'text/markdown',
+      content: '# 会员改版方案（用户编辑）\n',
+    },
+  });
+  assert.equal(editReplay.response.status, 201, editReplay.text);
+  assert.equal(editReplay.data.version_no, 2);
+
+  const editKeyReuse = await request('POST', `/work/v1/artifacts/${artifactId}/versions`, {
+    body: { client_request_id: 'req-edit-3001', base_version_no: 2, content: 'other' },
+  });
+  assert.equal(editKeyReuse.response.status, 409);
+  assert.equal(editKeyReuse.data.code, 'idempotency_key_conflict');
+
+  const noBase = await request('POST', `/work/v1/artifacts/${artifactId}/versions`, {
+    body: { client_request_id: 'req-edit-3003', content: 'no base' },
+  });
+  assert.equal(noBase.response.status, 400);
+  assert.equal(noBase.data.code, 'invalid_request');
+
   const content = await request('GET', new URL(edit.data.content_url).pathname);
   assert.match(content.text, /用户编辑/);
 
@@ -320,12 +370,36 @@ test('cancel, retry and SSE recovery', async () => {
   assert.equal(finished.response.status, 200);
   assert.equal(finished.data.task.display_state, 'run_canceled');
 
-  const retry = await request('POST', `/work/v1/tasks/${taskId}/runs`, {
-    body: { client_request_id: 'req-retry-4001', target: { kind: 'cloud', profile: 'text-v1' } },
+  const canceledDetail = await getTask(taskId);
+  const staleRetry = await request('POST', `/work/v1/tasks/${taskId}/runs`, {
+    body: {
+      client_request_id: 'req-retry-4000',
+      expected_revision: canceledDetail.summary.revision - 1,
+      target: { kind: 'cloud', profile: 'text-v1' },
+    },
   });
+  assert.equal(staleRetry.response.status, 409);
+  assert.equal(staleRetry.data.code, 'version_conflict');
+
+  const retryBody = {
+    client_request_id: 'req-retry-4001',
+    expected_revision: canceledDetail.summary.revision,
+    target: { kind: 'cloud', profile: 'text-v1' },
+  };
+  const retry = await request('POST', `/work/v1/tasks/${taskId}/runs`, { body: retryBody });
   assert.equal(retry.response.status, 202, retry.text);
   assert.equal(retry.data.run.attempt_no, 2);
   assert.equal(retry.data.task.display_state, 'queued');
+
+  const retryReplay = await request('POST', `/work/v1/tasks/${taskId}/runs`, { body: retryBody });
+  assert.equal(retryReplay.response.status, 202, retryReplay.text);
+  assert.equal(retryReplay.data.run.id, retry.data.run.id);
+
+  const retryKeyReuse = await request('POST', `/work/v1/tasks/${taskId}/runs`, {
+    body: { ...retryBody, reason: 'changed' },
+  });
+  assert.equal(retryKeyReuse.response.status, 409);
+  assert.equal(retryKeyReuse.data.code, 'idempotency_key_conflict');
 
   const firstStream = await request('GET', `/work/v1/tasks/${taskId}/events`);
   assert.equal(firstStream.response.status, 200);

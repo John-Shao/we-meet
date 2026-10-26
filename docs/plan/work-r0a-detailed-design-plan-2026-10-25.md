@@ -51,30 +51,30 @@
 ### 0.4 W2 进展（2026-10-25）
 
 - **D3 设计草案完成**：[控制面与持久编排设计](work-r0a-orchestration-design-2026-10-25.md)、[RunWorkflow/Activity 契约](assets/work-r0a-orchestration-2026-10-25/RunWorkflow.contract.ts)、[12 项故障矩阵](assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)。
-- **D3 参考纵切通过**：D1 增量 34/34；Temporal dev + faux model 执行 F01/F02/F04/F07/F21/F23 **6/6** + normal 1/1、S1 参考演练 **6/6**（[slice](assets/work-temporal-slice-2026-10-25/README.md)）；多节点/在途 server 重启/正式 worker versioning 与 DR2 未做。
+- **D3 参考纵切通过（2026-10-26 修订后复跑）**：Temporal dev + faux model 执行 F01/F02/F04/F07/F21/F23 + D3-R06–R09 **10/10** + normal 1/1、S1 **4/4** + 升级 1/1（[slice](assets/work-temporal-slice-2026-10-25/README.md)）；S1-R06 未复跑；多节点/在途 server 重启/正式 worker versioning 与 DR2 未做。
 - **D4 设计草案完成**：[Runtime/出口设计](work-r0a-runtime-egress-design-2026-10-25.md)、[WorkAdapter 契约](assets/work-r0a-runtime-2026-10-25/WorkAdapter.contract.ts)、[工具/沙箱/出口策略](assets/work-r0a-runtime-2026-10-25/policy/)、[10/10 策略测试](assets/work-r0a-runtime-2026-10-25/policy/evaluator.test.mjs)。
 - **D4 仅为设计**：未接真实 gVisor、Content Store、KMS、供应商条款或生产网关；DR2/D4 评审未执行。
 
 ### 0.5 W3 进展（2026-10-25）
 
-- **D5 设计草案完成**：[前端体验设计](work-r0a-frontend-design-2026-10-25.md)、[状态/路由/文案/UI 模型资产](assets/work-r0a-frontend-2026-10-25/README.md)；UI 模型测试 11/11（2026-10-26 增至 12/12）。
+- **D5 设计草案完成**：[前端体验设计](work-r0a-frontend-design-2026-10-25.md)、[状态/路由/文案/UI 模型资产](assets/work-r0a-frontend-2026-10-25/README.md)；UI 模型测试 11/11（2026-10-26 增至 13/13，含 canceled/archived 的 R0b 预留约束）。
 - **D5 仅为设计**：未实现 React 页面/React Query/SSE 客户端/Playwright，未做可用性测试。
 - **D6 设计草案完成**：[安全/运维/迁移/试点设计](work-r0a-security-ops-migration-design-2026-10-25.md)、[安全/SLO/容量/试点资产](assets/work-r0a-ops-2026-10-25/README.md)；8/8 校验通过。
-- **D6 当前 go/no-go = no-go**：23 个 blocking 项未关闭；已完成 Temporal 6/6、S1 6/6、RLS 池化、10 并发负载、Work DB 恢复、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke；未做生产演练/真实 gVisor/云 KMS/供应商条款。
+- **D6 当前 go/no-go = no-go**：23 个 blocking 项未关闭；已完成 Temporal 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、RLS 池化、10 并发负载、Work DB 恢复、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke；未做生产演练/真实 gVisor/云 KMS/供应商条款。
 
 ### 0.6 下一批优先项进展（2026-10-26）
 
-- **C07 生成客户端/CI**：`generate-client.mjs` 从 OpenAPI 生成 21 个 operation 的零依赖客户端；客户端 7/7、设计包 25/25、`ci-contract.mjs` 漂移门禁通过；`.github/workflows/work-r0a-gates.yml` 已定义（远端未跑）。仍未接真实前端。
+- **C07 生成客户端/CI**：`generate-client.mjs` 从 OpenAPI 生成 23 个 operation 的零依赖客户端；客户端 12/12、设计包 30/30、`ci-contract.mjs` 漂移门禁（含 schema-draft 错误码扫描）通过；`.github/workflows/work-r0a-gates.yml` 已定义（远端未跑）。仍未接真实前端。
 - **C31 管理读**：严格适配器 12/12，证明 P1-A 原始字段不能直接充当 R0a 契约（role/revision/subject/seat total/cents/异步导出）；未接真实 P1-A/身份服务，C31 保持 partial。
-- **C16 日志扫描**：扫描器 7/7，覆盖 Key/Bearer/cookie/私钥/正文 canary/email；7 个既有证据日志 0 fail / 0 warn；未接 staging OTel/log pipeline，C16 保持 partial。
+- **C16 日志扫描**：扫描器 8/8，覆盖 Key（含 `sk-proj-`/`sk-ant-`）/GitHub token/阿里云 AccessKey/Bearer/cookie/私钥/正文 canary/email；7 个既有证据日志 0 fail / 0 warn；未接 staging OTel/log pipeline，C16 保持 partial。
 - **C17 SLO 遥测**：12 个 SLO 全覆盖，生成 21 条 record + 19 条 alert，10/10 校验；未接 Prometheus/Alertmanager/仪表盘，所有 SLO 仍 `not_measured`，C17 保持 partial。
 - **No-go 不变**：23 个 blocking 项；以上均为参考实现/门禁，不替代试点环境、真实遥测、P1-A 接入或安全签收。
 
 ### 0.7 W4 详细设计收口（2026-10-26）
 
-- **设计缺口全部闭合**：标题编辑、受控导出下载、CSRF/cookie 生命周期、冻结错误码目录（41 公开码 / 50 SQL 映射）；outbox 按聚合顺序 + 指数退避 + 死信/审计重排；usage 对账容差与价表校验；供应链准入（cosign/SLSA/SBOM/Pi 固定版本）；用户删除/运维代删/所有权转移；生命周期事件；黄金任务、试点指标、切换状态机；[试点运营 Runbook](work-r0a-pilot-operations-runbook-2026-10-26.md)。
-- **证据**：D1 冒烟 58/58；API 20 path / 23 operation，设计包 29/29；Temporal 6/6 + S1 4/4；Runtime 10/10 + 12/12；UI 模型 12/12；ops/pilot/telemetry 24/24（19 alert）。
-- **W4 产出**：[实施就绪包](work-r0a-implementation-readiness-2026-10-26.md)——对照 §0 六条定义在设计层全部满足；23 个 blocking 项均给出负责角色与建议日期。
+- **设计缺口全部闭合**：标题编辑、受控导出下载、CSRF/cookie 生命周期、冻结错误码目录（`r0a-errors-v2`：42 公开码 / 87 SQL 映射，CI 扫描 schema-draft）；outbox 按聚合顺序 + 指数退避 + 死信/审计重排；usage 对账容差与价表校验；供应链准入（cosign/SLSA/SBOM/Pi 固定版本）；用户删除/运维代删/所有权转移；生命周期事件；黄金任务、试点指标、切换状态机；[试点运营 Runbook](work-r0a-pilot-operations-runbook-2026-10-26.md)。
+- **证据**：D1 冒烟 82/82（2026-10-26 修订）；API 20 path / 23 operation，设计包 30/30；Temporal 10/10 + S1 4/4；Runtime 10/10 + 19/19；UI 模型 13/13；日志扫描 8/8；KMS 6/6；ops/pilot/telemetry 24/24（19 alert）。
+- **W4 产出**：[实施就绪包](work-r0a-implementation-readiness-2026-10-26.md)——**可评审草案**。2026-10-26 复审撤回“§0 六条在设计层全部满足”的结论：D1/D3 的 P0/P1 已修复并补负例，但 §0 #2（错误码目录）、#5（管理页方案、可用性）未满足，另有 Temporal 托管与 §9.4 检查表共 4 个设计未决项；排期改为从 DR4（建议 2026-12-04）起算。
 - **仍不可实施**：DR0–DR4 未开会，D-01..D-06 未签收，go/no-go 仍 no-go（7 done / 2 waived / 18 partial / 5 todo）。
 
 ## 1. R0a 范围冻结
@@ -308,7 +308,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **设计输入**：[架构 §6/§7/§11/§14/§21](work-system-architecture-2026-10-25.md)、[云端纵切](assets/work-cloud-slice-2026-10-25/README.md)、[DDL 草案](work-data-model-ddl-draft-2026-10-25.md)。
 
-**当前进展（2026-10-25）**：D3 设计、契约与 Temporal dev 参考纵切已产出；F01/F02/F04/F07/F21/F23 6/6 + normal 1/1、S1 参考演练 6/6；多节点/在途 server 重启/正式 worker versioning 与 DR2 未执行。
+**当前进展（2026-10-25）**：D3 设计、契约与 Temporal dev 参考纵切已产出；F01/F02/F04/F07/F21/F23 + D3-R06–R09 10/10 + normal 1/1、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）；多节点/在途 server 重启/正式 worker versioning 与 DR2 未执行。
 
 **交付物**：
 
@@ -395,7 +395,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **设计输入**：[威胁模型](work-threat-model-2026-10-25.md)、[Runbook](work-operations-runbook-2026-10-25.md)、[架构 §17–§19](work-system-architecture-2026-10-25.md)、[容量烟雾](assets/work-ops-2026-10-25/README.md)。
 
-**当前进展（2026-10-26）**：D6 设计、安全控制/SLO/容量/试点清单已产出；8/8 + 遥测 10/10 + 日志扫描 7/7 校验通过，当前 no-go（23 个 blocking）。已完成 Temporal 6/6、S1 6/6、RLS 池化、10 并发负载、Work DB 恢复、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、SLO 规则即代码；多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/供应商条款/真实遥测未完成。
+**当前进展（2026-10-26）**：D6 设计、安全控制/SLO/容量/试点清单已产出；8/8 + 遥测 10/10 + 日志扫描 8/8 校验通过，当前 no-go（23 个 blocking）。已完成 Temporal 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、RLS 池化、10 并发负载、Work DB 恢复、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、SLO 规则即代码；多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/供应商条款/真实遥测未完成。
 
 **交付物**：
 
@@ -544,7 +544,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 | W3 体验/运维 | D5 + D6 | 四界面规格、状态矩阵、SLO/告警、Runbook、切换回滚 | DR3 |
 | W4 实施就绪 | 汇总设计、测试计划、估算、依赖、风险 | 实施就绪包 | DR4 |
 
-波次是依赖顺序，不是工期承诺；W1 可与设计合作伙伴研究并行，但 R0a 开发启动仍需 §5.3 的研究与供应商闸门。当前 W1 的 D1/D2 草案、W2 的 D3/D4 草案、W3 的 D5/D6 草案与 W4 [实施就绪包](work-r0a-implementation-readiness-2026-10-26.md)均已完成；Temporal/真实沙箱/网关未接，演练/试点未做，DR2 未评审，D6 go/no-go 仍为 no-go。
+波次是依赖顺序，不是工期承诺；W1 可与设计合作伙伴研究并行，但 R0a 开发启动仍需 §5.3 的研究与供应商闸门。当前 W1 的 D1/D2 草案、W2 的 D3/D4 草案、W3 的 D5/D6 草案与 W4 [实施就绪包](work-r0a-implementation-readiness-2026-10-26.md)均为可评审草案（4 个设计未决项见就绪包 §6.1）；Temporal/真实沙箱/网关未接，演练/试点未做，DR2 未评审，D6 go/no-go 仍为 no-go。
 
 ### 5.2 评审闸门
 

@@ -32,6 +32,23 @@ test('detects environment assignments, bearer tokens and private keys', () => {
   assert.equal(result.byRule['secret.private_key'], 1);
 });
 
+test('detects project-scoped OpenAI, Anthropic, GitHub and Aliyun credentials', () => {
+  const samples = {
+    'secret.openai_like': `sk-proj-${'Ab3dEf6hIj9kLm2n'.repeat(3)}`,
+    'secret.anthropic_like': `sk-ant-api03-${'Zx8cVb7nMq6wEr5t'.repeat(2)}`,
+    'secret.github_token': [`ghp_${'a1B2c3D4e5'.repeat(4)}`, `github_pat_${'11AbCdEfGh'.repeat(3)}_xyz`],
+    'secret.aliyun_access_key': `LTAI5t${'Qw8Er7Ty6Ui5'.repeat(1)}Op`,
+  };
+  for (const [rule, value] of Object.entries(samples)) {
+    for (const secret of [value].flat()) {
+      const result = scanText(`upstream error token=${secret}`);
+      assert.equal(result.failed, true, rule);
+      assert.ok(result.byRule[rule] >= 1, `${rule} should match`);
+      assert.ok(!JSON.stringify(result).includes(secret), `${rule} must stay redacted`);
+    }
+  }
+});
+
 test('synthetic canary detects prompt or artifact content in logs', () => {
   const canary = 'CANARY-8f2c-46b1-9e77';
   const result = scanText(`run started goal=${canary}`, {

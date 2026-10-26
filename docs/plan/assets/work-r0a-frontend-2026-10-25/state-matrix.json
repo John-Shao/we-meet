@@ -99,6 +99,7 @@
     },
     "canceled": {
       "labelKey": "work.r0a.state.canceled",
+      "reservedFor": "R0b",
       "tone": "neutral",
       "actions": [
         "view_artifact_readonly"
@@ -108,6 +109,7 @@
     },
     "archived": {
       "labelKey": "work.r0a.state.archived",
+      "reservedFor": "R0b",
       "tone": "neutral",
       "actions": [
         "view_artifact_readonly"
@@ -213,8 +215,7 @@
         "run_canceled",
         "reconciling",
         "budget_exhausted",
-        "canceling",
-        "canceled"
+        "canceling"
       ],
       "desktopOnly": true
     },
@@ -224,9 +225,7 @@
         "awaiting_acceptance",
         "completed",
         "failed",
-        "run_canceled",
-        "canceled",
-        "archived"
+        "run_canceled"
       ],
       "requiresQuiescent": true
     }

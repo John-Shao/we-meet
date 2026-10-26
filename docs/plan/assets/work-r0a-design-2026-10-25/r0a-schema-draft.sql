@@ -93,15 +93,17 @@ CREATE TABLE work.input_object (
   bytes bigint NOT NULL CHECK (bytes > 0),
   media_type text NOT NULL DEFAULT 'application/json',
   status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'expired', 'deleted')),
+  task_id uuid,
   expires_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   deleted_at timestamptz,
   UNIQUE (id, org_id)
 );
 
+-- 输入一次性：同哈希只复用尚未绑定任务的输入；提交时绑定 task_id，删除只粉碎本任务输入。
 CREATE UNIQUE INDEX work_input_active_hash
   ON work.input_object(org_id, subject_id, content_hash, purpose)
-  WHERE status = 'active';
+  WHERE status = 'active' AND task_id IS NULL;
 
 
 CREATE TABLE work.task (
@@ -132,6 +134,9 @@ ALTER TABLE work.task
   ADD CONSTRAINT fk_task_input
   FOREIGN KEY (input_id, org_id)
   REFERENCES work.input_object(id, org_id);
+
+CREATE UNIQUE INDEX work_input_one_task
+  ON work.input_object(task_id) WHERE task_id IS NOT NULL;
 
 CREATE INDEX work_task_owner_created
   ON work.task(org_id, owner_subject_id, created_at DESC);
@@ -1173,16 +1178,62 @@ $$;
 -- 这些函数在装配后统一改为 SECURITY DEFINER，由 work_owner 拥有；
 -- 应用角色只获得具体函数的 EXECUTE，不获得事实/账本表的直接 DML。
 
--- Outbox：单聚合有序 + 失败退避 + 死信（D3 §15-6 闭合）
+-- Outbox：单聚合有序 + 领取租约 + 失败退避 + 死信（死信继续阻塞本聚合）
 ALTER TABLE work.outbox
   ADD COLUMN outbox_seq bigint GENERATED ALWAYS AS IDENTITY,
   ADD COLUMN last_error_code text,
-  ADD COLUMN dead_lettered_at timestamptz;
+  ADD COLUMN dead_lettered_at timestamptz,
+  ADD COLUMN claimed_by text,
+  ADD COLUMN claimed_until timestamptz;
 
 CREATE UNIQUE INDEX work_outbox_seq ON work.outbox(outbox_seq);
 CREATE INDEX work_outbox_aggregate_pending
   ON work.outbox(aggregate_type, aggregate_id, outbox_seq)
-  WHERE delivered_at IS NULL AND dead_lettered_at IS NULL;
+  WHERE delivered_at IS NULL;
+
+-- 幂等命令的结果引用（retry 的 run_id、accept 的 acceptance_id、用户版本号、标题 revision）
+ALTER TABLE work.submission_dedup ADD COLUMN result_ref text;
+
+-- 调用者身份绑定：API/运维会话必须 SET LOCAL app.subject_id，函数参数中的主体必须与之相同。
+CREATE FUNCTION work.assert_session_subject(p_subject_id text) RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF p_subject_id IS NULL OR p_subject_id = ''
+     OR p_subject_id IS DISTINCT FROM nullif(current_setting('app.subject_id', true), '') THEN
+    RAISE EXCEPTION 'actor_mismatch' USING ERRCODE = '42501';
+  END IF;
+END;
+$$;
+
+-- 事件/outbox/终态原因只允许枚举码，不允许自由文本（防止 provider 报错原文、用户输入进入事件）。
+CREATE FUNCTION work.reason_code(p_reason text) RETURNS text
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF p_reason IS NOT NULL AND p_reason !~ '^[a-z][a-z0-9_]{1,63}$' THEN
+    RAISE EXCEPTION 'invalid_reason_code' USING ERRCODE = '22023';
+  END IF;
+  RETURN p_reason;
+END;
+$$;
+
+-- 同一幂等键的并发请求串行化（行尚不存在时 FOR UPDATE 无效）。
+CREATE FUNCTION work.lock_request_key(
+  p_org_id text, p_subject_id text, p_operation_type text, p_client_request_id text
+) RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF p_client_request_id IS NULL OR length(p_client_request_id) NOT BETWEEN 8 AND 128 THEN
+    RAISE EXCEPTION 'invalid_client_request_id' USING ERRCODE = '22023';
+  END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended(
+    p_org_id || ':' || p_subject_id || ':' || p_operation_type || ':' || p_client_request_id, 0));
+END;
+$$;
+
+CREATE FUNCTION work.sha256_text(p_text text) RETURNS text
+LANGUAGE sql IMMUTABLE AS $$
+  SELECT encode(sha256(convert_to(p_text, 'UTF8')), 'hex');
+$$;
 
 CREATE FUNCTION work.append_audit(
   p_org_id text,
@@ -1249,6 +1300,7 @@ LANGUAGE plpgsql AS $$
 DECLARE
   input_id uuid;
 BEGIN
+  PERFORM work.assert_session_subject(p_subject_id);
   PERFORM 1 FROM work.member
   WHERE org_id = p_org_id
     AND subject_id = p_subject_id
@@ -1264,11 +1316,12 @@ BEGIN
      OR p_media_type IS NULL OR p_media_type = '' THEN
     RAISE EXCEPTION 'invalid_input' USING ERRCODE = '22023';
   END IF;
+  -- 只复用尚未绑定任务的同哈希输入；已绑定的输入属于那个任务，删除时随之粉碎。
   INSERT INTO work.input_object
     (org_id, subject_id, purpose, content_ref, content_hash, bytes, media_type)
   VALUES
     (p_org_id, p_subject_id, 'task_input', p_content_ref, p_content_hash, p_bytes, p_media_type)
-  ON CONFLICT (org_id, subject_id, content_hash, purpose) WHERE status = 'active'
+  ON CONFLICT (org_id, subject_id, content_hash, purpose) WHERE status = 'active' AND task_id IS NULL
   DO NOTHING
   RETURNING id INTO input_id;
   IF input_id IS NULL THEN
@@ -1278,7 +1331,11 @@ BEGIN
       AND subject_id = p_subject_id
       AND content_hash = p_content_hash
       AND purpose = 'task_input'
-      AND status = 'active';
+      AND status = 'active'
+      AND task_id IS NULL;
+  END IF;
+  IF input_id IS NULL THEN
+    RAISE EXCEPTION 'input_conflict_retry' USING ERRCODE = '40001';
   END IF;
   PERFORM work.append_audit(
     p_org_id, p_subject_id, 'input.create', 'input', input_id::text,
@@ -1288,11 +1345,12 @@ BEGIN
 END;
 $$;
 
+-- 提交：幂等键加锁 → 先查重放（重放不受后续席位/组织/输入变化影响）→ 再做准入检查。
+-- 请求哈希由服务端从规范化参数计算，不信任客户端摘要。
 CREATE FUNCTION work.submit_task(
   p_org_id text,
   p_subject_id text,
   p_client_request_id text,
-  p_request_hash text,
   p_input_id uuid,
   p_title text,
   p_permission_mode text,
@@ -1311,18 +1369,46 @@ DECLARE
   policy_row work.org_policy%ROWTYPE;
   dedup_row work.submission_dedup%ROWTYPE;
   input_row work.input_object%ROWTYPE;
+  req_hash text;
   new_task_id uuid := gen_random_uuid();
   new_snapshot_id uuid := gen_random_uuid();
   new_run_id uuid := gen_random_uuid();
 BEGIN
-  IF p_client_request_id IS NULL OR length(p_client_request_id) < 8 THEN
-    RAISE EXCEPTION 'invalid_client_request_id' USING ERRCODE = '22023';
+  PERFORM work.assert_session_subject(p_subject_id);
+  PERFORM work.lock_request_key(p_org_id, p_subject_id, 'task.submit', p_client_request_id);
+  req_hash := work.sha256_text(jsonb_build_object(
+    'input_id', p_input_id, 'title', p_title, 'permission_mode', p_permission_mode,
+    'snapshot_hash', p_snapshot_hash, 'tool_allowlist', to_jsonb(p_tool_allowlist),
+    'model_route', p_model_route, 'price_version', p_price_version
+  )::text);
+
+  SELECT * INTO dedup_row
+  FROM work.submission_dedup d
+  WHERE d.org_id = p_org_id
+    AND d.subject_id = p_subject_id
+    AND d.operation_type = 'task.submit'
+    AND d.client_request_id = p_client_request_id;
+  IF FOUND THEN
+    IF dedup_row.request_hash <> req_hash THEN
+      RAISE EXCEPTION 'idempotency_key_conflict' USING ERRCODE = 'P0001';
+    END IF;
+    IF dedup_row.task_deleted OR dedup_row.task_id IS NULL THEN
+      RAISE EXCEPTION 'task_deleted' USING ERRCODE = 'P0001';
+    END IF;
+    RETURN QUERY
+      SELECT t.id, r.id, t.revision
+      FROM work.task t
+      JOIN work.run r
+        ON r.task_id = t.id AND r.org_id = t.org_id AND r.attempt_no = 1
+      WHERE t.id = dedup_row.task_id AND t.org_id = p_org_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'dedup_task_missing' USING ERRCODE = 'P0001';
+    END IF;
+    RETURN;
   END IF;
-  IF p_request_hash IS NULL OR p_request_hash = '' THEN
-    RAISE EXCEPTION 'invalid_request_hash' USING ERRCODE = '22023';
-  END IF;
-  IF p_title IS NULL OR length(p_title) < 1 OR length(p_title) > 200 THEN
-    RAISE EXCEPTION 'invalid_title' USING ERRCODE = '22023';
+
+  IF p_title IS NULL OR char_length(btrim(p_title)) NOT BETWEEN 1 AND 80 THEN
+    RAISE EXCEPTION 'title_invalid' USING ERRCODE = '22023';
   END IF;
   IF p_permission_mode NOT IN ('ask_each', 'auto_readonly') THEN
     RAISE EXCEPTION 'permission_mode_unavailable' USING ERRCODE = 'P0001';
@@ -1377,46 +1463,25 @@ BEGIN
   END IF;
 
   SELECT * INTO input_row
-  FROM work.input_object
-  WHERE id = p_input_id
-    AND org_id = p_org_id
-    AND subject_id = p_subject_id
-    AND status = 'active'
-  FOR SHARE;
+  FROM work.input_object i
+  WHERE i.id = p_input_id
+    AND i.org_id = p_org_id
+    AND i.subject_id = p_subject_id
+    AND i.status = 'active'
+    AND i.task_id IS NULL
+  FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'input_not_found' USING ERRCODE = 'P0002';
-  END IF;
-
-  SELECT * INTO dedup_row
-  FROM work.submission_dedup
-  WHERE org_id = p_org_id
-    AND subject_id = p_subject_id
-    AND operation_type = 'task.submit'
-    AND client_request_id = p_client_request_id
-  FOR UPDATE;
-  IF FOUND THEN
-    IF dedup_row.request_hash <> p_request_hash THEN
-      RAISE EXCEPTION 'idempotency_key_conflict' USING ERRCODE = 'P0001';
-    END IF;
-    IF dedup_row.task_deleted OR dedup_row.task_id IS NULL THEN
-      RAISE EXCEPTION 'task_deleted' USING ERRCODE = 'P0001';
-    END IF;
-    RETURN QUERY
-      SELECT t.id, r.id, t.revision
-      FROM work.task t
-      JOIN work.run r
-        ON r.task_id = t.id AND r.org_id = t.org_id AND r.attempt_no = 1
-      WHERE t.id = dedup_row.task_id AND t.org_id = p_org_id;
-    IF NOT FOUND THEN
-      RAISE EXCEPTION 'dedup_task_missing' USING ERRCODE = 'P0001';
-    END IF;
-    RETURN;
   END IF;
 
   INSERT INTO work.task
     (id, org_id, owner_subject_id, state, permission_mode, title, input_id, revision)
   VALUES
-    (new_task_id, p_org_id, p_subject_id, 'open', p_permission_mode, p_title, p_input_id, 0);
+    (new_task_id, p_org_id, p_subject_id, 'open', p_permission_mode, btrim(p_title), p_input_id, 0);
+
+  UPDATE work.input_object i
+  SET task_id = new_task_id
+  WHERE i.id = p_input_id AND i.org_id = p_org_id;
 
   INSERT INTO work.capability_snapshot
     (id, org_id, task_id, resolver_version, snapshot_hash, tool_allowlist,
@@ -1425,9 +1490,9 @@ BEGIN
     (new_snapshot_id, p_org_id, new_task_id, 'r0a-v1', p_snapshot_hash,
      p_tool_allowlist, p_model_route, '{}'::jsonb, p_price_version, p_snapshot_manifest);
 
-  UPDATE work.task
+  UPDATE work.task t
   SET snapshot_id = new_snapshot_id
-  WHERE id = new_task_id AND org_id = p_org_id;
+  WHERE t.id = new_task_id AND t.org_id = p_org_id;
 
   INSERT INTO work.run
     (id, org_id, task_id, attempt_no, state, snapshot_id, workflow_id, runtime_version)
@@ -1442,9 +1507,9 @@ BEGIN
   WHERE t.id = new_task_id AND t.org_id = p_org_id;
 
   INSERT INTO work.submission_dedup
-    (org_id, subject_id, operation_type, client_request_id, request_hash, task_id, result_state)
+    (org_id, subject_id, operation_type, client_request_id, request_hash, task_id, result_state, result_ref)
   VALUES
-    (p_org_id, p_subject_id, 'task.submit', p_client_request_id, p_request_hash, new_task_id, 'accepted');
+    (p_org_id, p_subject_id, 'task.submit', p_client_request_id, req_hash, new_task_id, 'accepted', new_run_id::text);
 
   PERFORM work.append_task_event(
     p_org_id, new_task_id, 'task.submitted',
@@ -1472,6 +1537,7 @@ BEGIN
 END;
 $$;
 
+-- Worker 发布成果：仅当前 active/waiting Run；同 Run 同逻辑名同哈希的重放返回已有版本（活动重试幂等）。
 CREATE FUNCTION work.publish_artifact(
   p_org_id text,
   p_task_id uuid,
@@ -1487,6 +1553,7 @@ LANGUAGE plpgsql AS $$
 DECLARE
   artifact_row work.artifact%ROWTYPE;
   next_version int;
+  existing_version int;
   new_artifact_id uuid := gen_random_uuid();
 BEGIN
   IF p_logical_name IS NULL OR p_logical_name = ''
@@ -1502,18 +1569,36 @@ BEGIN
     ON r.task_id = t.id AND r.org_id = t.org_id
   WHERE t.id = p_task_id
     AND t.org_id = p_org_id
+    AND t.deleted_at IS NULL
     AND r.id = p_run_id
     AND r.org_id = p_org_id
-    AND r.state IN ('active', 'waiting')
   FOR UPDATE OF t, r;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'run_not_accepting_artifacts' USING ERRCODE = 'P0001';
   END IF;
   SELECT * INTO artifact_row
-  FROM work.artifact
-  WHERE org_id = p_org_id AND task_id = p_task_id AND logical_name = p_logical_name
+  FROM work.artifact a
+  WHERE a.org_id = p_org_id AND a.task_id = p_task_id AND a.logical_name = p_logical_name
   FOR UPDATE;
   IF FOUND THEN
+    SELECT av.version_no INTO existing_version
+    FROM work.artifact_version av
+    WHERE av.artifact_id = artifact_row.id AND av.org_id = p_org_id
+      AND av.content_hash = p_content_hash
+      AND av.provenance->>'run_id' = p_run_id::text
+    ORDER BY av.version_no DESC
+    LIMIT 1;
+    IF existing_version IS NOT NULL THEN
+      RETURN QUERY SELECT artifact_row.id, existing_version;
+      RETURN;
+    END IF;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM work.run r WHERE r.id = p_run_id AND r.org_id = p_org_id AND r.state IN ('active', 'waiting')
+  ) THEN
+    RAISE EXCEPTION 'run_not_accepting_artifacts' USING ERRCODE = 'P0001';
+  END IF;
+  IF artifact_row.id IS NOT NULL THEN
     IF artifact_row.state = 'deleted' THEN
       RAISE EXCEPTION 'artifact_deleted' USING ERRCODE = 'P0001';
     END IF;
@@ -1531,18 +1616,20 @@ BEGIN
     (artifact_id, org_id, version_no, content_ref, content_hash, bytes, media_type, state, provenance)
   VALUES
     (new_artifact_id, p_org_id, next_version, p_content_ref, p_content_hash,
-     p_bytes, p_media_type, 'staged', COALESCE(p_provenance, '{}'::jsonb));
+     p_bytes, p_media_type, 'staged',
+     COALESCE(p_provenance, '{}'::jsonb) || jsonb_build_object('source', 'run', 'run_id', p_run_id));
   UPDATE work.artifact_version AS av
   SET state = 'published', published_at = now()
   WHERE av.artifact_id = new_artifact_id AND av.org_id = p_org_id AND av.version_no = next_version;
-  UPDATE work.artifact
-  SET state = 'published', revision = revision + 1, updated_at = now()
-  WHERE id = new_artifact_id AND org_id = p_org_id;
+  UPDATE work.artifact a
+  SET state = 'published', revision = a.revision + 1, updated_at = now()
+  WHERE a.id = new_artifact_id AND a.org_id = p_org_id;
   PERFORM work.append_task_event(
     p_org_id, p_task_id, 'artifact.published',
     jsonb_build_object(
       'artifact_id', new_artifact_id,
       'version_no', next_version,
+      'source', 'run',
       'content_hash', p_content_hash,
       'bytes', p_bytes,
       'media_type', p_media_type
@@ -1556,6 +1643,7 @@ BEGIN
 END;
 $$;
 
+-- 用户取消运行：仅任务 owner；原因只收枚举码。
 CREATE FUNCTION work.request_cancel(
   p_org_id text,
   p_run_id uuid,
@@ -1567,7 +1655,9 @@ DECLARE
   run_row work.run%ROWTYPE;
   task_row work.task%ROWTYPE;
   task_id uuid;
+  reason text := work.reason_code(p_reason);
 BEGIN
+  PERFORM work.assert_session_subject(p_actor_subject_id);
   SELECT r.task_id INTO task_id
   FROM work.run r
   WHERE r.id = p_run_id AND r.org_id = p_org_id;
@@ -1575,34 +1665,37 @@ BEGIN
     RAISE EXCEPTION 'run_not_found' USING ERRCODE = 'P0002';
   END IF;
   SELECT * INTO task_row
-  FROM work.task
-  WHERE id = task_id AND org_id = p_org_id
+  FROM work.task t
+  WHERE t.id = task_id AND t.org_id = p_org_id
   FOR UPDATE;
+  IF task_row.deleted_at IS NOT NULL OR task_row.owner_subject_id <> p_actor_subject_id THEN
+    RAISE EXCEPTION 'run_not_found' USING ERRCODE = 'P0002';
+  END IF;
   SELECT * INTO run_row
-  FROM work.run
-  WHERE id = p_run_id AND org_id = p_org_id
+  FROM work.run r
+  WHERE r.id = p_run_id AND r.org_id = p_org_id
   FOR UPDATE;
   IF run_row.state IN ('succeeded', 'failed', 'canceled', 'cancel_requested') THEN
     RETURN;
   END IF;
-  UPDATE work.run
+  UPDATE work.run r
   SET state = 'cancel_requested',
       wait_reason = NULL,
-      control_revision = control_revision + 1,
+      control_revision = r.control_revision + 1,
       updated_at = now()
-  WHERE id = p_run_id AND org_id = p_org_id;
+  WHERE r.id = p_run_id AND r.org_id = p_org_id;
   PERFORM work.append_task_event(
     p_org_id, task_id, 'run.cancel_requested',
-    jsonb_build_object('run_id', p_run_id, 'reason', p_reason)
+    jsonb_build_object('run_id', p_run_id, 'reason', reason)
   );
   INSERT INTO work.outbox (org_id, aggregate_type, aggregate_id, event_id, payload)
   VALUES (
     p_org_id, 'run', p_run_id, gen_random_uuid(),
-    jsonb_build_object('kind', 'cancel_signal', 'run_id', p_run_id, 'reason', p_reason)
+    jsonb_build_object('kind', 'cancel_signal', 'run_id', p_run_id, 'reason', reason)
   );
   PERFORM work.append_audit(
     p_org_id, p_actor_subject_id, 'run.cancel_request', 'run', p_run_id::text,
-    jsonb_build_object('task_id', task_id, 'reason', p_reason)
+    jsonb_build_object('task_id', task_id, 'reason', reason)
   );
 END;
 $$;
@@ -1662,6 +1755,7 @@ BEGIN
 END;
 $$;
 
+-- 活动重试幂等：同结果同 provider_request_id 的重放直接返回。
 CREATE FUNCTION work.finish_operation(
   p_org_id text,
   p_operation_id uuid,
@@ -1684,21 +1778,25 @@ BEGIN
   IF task_id IS NULL THEN
     RAISE EXCEPTION 'operation_not_found' USING ERRCODE = 'P0002';
   END IF;
-  PERFORM 1 FROM work.task WHERE id = task_id AND org_id = p_org_id FOR UPDATE;
+  PERFORM 1 FROM work.task t WHERE t.id = task_id AND t.org_id = p_org_id FOR UPDATE;
   SELECT * INTO operation_row
-  FROM work.operation
-  WHERE id = p_operation_id AND org_id = p_org_id
+  FROM work.operation o
+  WHERE o.id = p_operation_id AND o.org_id = p_org_id
   FOR UPDATE;
+  IF operation_row.state = p_outcome
+     AND operation_row.provider_request_id IS NOT DISTINCT FROM p_provider_request_id THEN
+    RETURN;
+  END IF;
   IF operation_row.state <> 'dispatching' THEN
     RAISE EXCEPTION 'operation_not_dispatching' USING ERRCODE = 'P0001';
   END IF;
-  UPDATE work.operation
+  UPDATE work.operation o
   SET state = p_outcome,
       provider_request_id = p_provider_request_id,
       receipt_ref = p_receipt_ref,
-      revision = revision + 1,
+      revision = o.revision + 1,
       updated_at = now()
-  WHERE id = p_operation_id AND org_id = p_org_id;
+  WHERE o.id = p_operation_id AND o.org_id = p_org_id;
   PERFORM work.append_task_event(
     p_org_id, task_id, 'operation.finished',
     jsonb_build_object(
@@ -1714,6 +1812,7 @@ BEGIN
 END;
 $$;
 
+-- Worker 取消 Operation（仅 worker 授权）：派发中 → unknown；未派发 → canceled + 释放预算 + 过期审批。
 CREATE FUNCTION work.cancel_operation(
   p_org_id text,
   p_operation_id uuid,
@@ -1725,6 +1824,7 @@ DECLARE
   task_id uuid;
   operation_row work.operation%ROWTYPE;
   reservation_id uuid;
+  reason text := work.reason_code(p_reason);
 BEGIN
   SELECT r.task_id INTO task_id
   FROM work.operation o
@@ -1733,53 +1833,55 @@ BEGIN
   IF task_id IS NULL THEN
     RAISE EXCEPTION 'operation_not_found' USING ERRCODE = 'P0002';
   END IF;
-  PERFORM 1 FROM work.task WHERE id = task_id AND org_id = p_org_id FOR UPDATE;
+  PERFORM 1 FROM work.task t WHERE t.id = task_id AND t.org_id = p_org_id FOR UPDATE;
   SELECT * INTO operation_row
-  FROM work.operation
-  WHERE id = p_operation_id AND org_id = p_org_id
+  FROM work.operation o
+  WHERE o.id = p_operation_id AND o.org_id = p_org_id
   FOR UPDATE;
-  IF operation_row.state IN ('succeeded', 'failed', 'canceled', 'reconciled', 'unresolved') THEN
+  IF operation_row.state IN ('succeeded', 'failed', 'canceled', 'reconciled', 'unresolved', 'unknown') THEN
     RETURN;
   END IF;
   IF operation_row.state = 'dispatching' THEN
-    UPDATE work.operation
+    UPDATE work.operation o
     SET state = 'unknown',
-        revision = revision + 1,
+        revision = o.revision + 1,
         updated_at = now()
-    WHERE id = p_operation_id AND org_id = p_org_id;
+    WHERE o.id = p_operation_id AND o.org_id = p_org_id;
     PERFORM work.append_task_event(
       p_org_id, task_id, 'operation.unknown',
-      jsonb_build_object('operation_id', p_operation_id, 'reason', p_reason)
+      jsonb_build_object('operation_id', p_operation_id, 'reason', reason)
     );
     PERFORM work.append_audit(
       p_org_id, p_actor_subject_id, 'operation.unknown', 'operation', p_operation_id::text,
-      jsonb_build_object('reason', p_reason)
+      jsonb_build_object('reason', reason)
     );
     RETURN;
   END IF;
-  IF operation_row.state IN ('prepared', 'waiting_approval', 'authorized') THEN
-    UPDATE work.operation
-    SET state = 'canceled',
-        revision = revision + 1,
-        updated_at = now()
-    WHERE id = p_operation_id AND org_id = p_org_id;
-    SELECT id INTO reservation_id
-    FROM work.budget_reservation
-    WHERE operation_id = p_operation_id AND state = 'held';
-    IF reservation_id IS NOT NULL THEN
-      PERFORM work.release_budget(reservation_id);
-    END IF;
-    PERFORM work.append_task_event(
-      p_org_id, task_id, 'operation.canceled',
-      jsonb_build_object('operation_id', p_operation_id, 'reason', p_reason)
-    );
-    PERFORM work.append_audit(
-      p_org_id, p_actor_subject_id, 'operation.cancel', 'operation', p_operation_id::text,
-      jsonb_build_object('reason', p_reason)
-    );
-    RETURN;
+  UPDATE work.operation o
+  SET state = 'canceled',
+      revision = o.revision + 1,
+      updated_at = now()
+  WHERE o.id = p_operation_id AND o.org_id = p_org_id;
+  UPDATE work.approval a
+  SET status = 'expired', revision = a.revision + 1, updated_at = now()
+  FROM work.approval_operation ao
+  WHERE ao.approval_id = a.id AND ao.org_id = a.org_id
+    AND ao.operation_id = p_operation_id AND a.org_id = p_org_id
+    AND a.status = 'pending';
+  SELECT br.id INTO reservation_id
+  FROM work.budget_reservation br
+  WHERE br.operation_id = p_operation_id AND br.state = 'held';
+  IF reservation_id IS NOT NULL THEN
+    PERFORM work.release_budget(reservation_id);
   END IF;
-  RETURN;
+  PERFORM work.append_task_event(
+    p_org_id, task_id, 'operation.canceled',
+    jsonb_build_object('operation_id', p_operation_id, 'reason', reason)
+  );
+  PERFORM work.append_audit(
+    p_org_id, p_actor_subject_id, 'operation.cancel', 'operation', p_operation_id::text,
+    jsonb_build_object('reason', reason)
+  );
 END;
 $$;
 
@@ -1910,6 +2012,7 @@ LANGUAGE plpgsql AS $$
 DECLARE
   task_id uuid;
   operation_row work.operation%ROWTYPE;
+  reason text := work.reason_code(p_reason);
 BEGIN
   SELECT r.task_id INTO task_id
   FROM work.operation o
@@ -1938,11 +2041,11 @@ BEGIN
   WHERE id = p_operation_id AND org_id = p_org_id;
   PERFORM work.append_task_event(
     p_org_id, task_id, 'operation.unknown',
-    jsonb_build_object('operation_id', p_operation_id, 'reason', p_reason)
+    jsonb_build_object('operation_id', p_operation_id, 'reason', reason)
   );
   PERFORM work.append_audit(
     p_org_id, NULL, 'operation.unknown', 'operation', p_operation_id::text,
-    jsonb_build_object('task_id', task_id, 'reason', p_reason)
+    jsonb_build_object('task_id', task_id, 'reason', reason)
   );
 END;
 $$;
@@ -2056,6 +2159,7 @@ BEGIN
 END;
 $$;
 
+-- Worker 按策略为 Operation 发起审批（R0a golden path 不可达，内部命令保留）。
 CREATE FUNCTION work.request_approval(
   p_org_id text,
   p_operation_id uuid,
@@ -2069,7 +2173,7 @@ LANGUAGE plpgsql AS $$
 DECLARE
   task_id uuid;
   operation_row work.operation%ROWTYPE;
-  approval_id uuid := gen_random_uuid();
+  new_approval_id uuid := gen_random_uuid();
   existing_id uuid;
 BEGIN
   IF p_params_hash IS NULL OR p_params_hash = ''
@@ -2086,17 +2190,17 @@ BEGIN
   IF task_id IS NULL THEN
     RAISE EXCEPTION 'operation_not_found' USING ERRCODE = 'P0002';
   END IF;
-  PERFORM 1 FROM work.task
-  WHERE id = task_id AND org_id = p_org_id
+  PERFORM 1 FROM work.task t
+  WHERE t.id = task_id AND t.org_id = p_org_id
   FOR UPDATE;
   SELECT * INTO operation_row
-  FROM work.operation
-  WHERE id = p_operation_id AND org_id = p_org_id
+  FROM work.operation o
+  WHERE o.id = p_operation_id AND o.org_id = p_org_id
   FOR UPDATE;
   IF operation_row.state = 'waiting_approval' THEN
-    SELECT approval_id INTO existing_id
-    FROM work.approval_operation
-    WHERE operation_id = p_operation_id AND org_id = p_org_id;
+    SELECT ao.approval_id INTO existing_id
+    FROM work.approval_operation ao
+    WHERE ao.operation_id = p_operation_id AND ao.org_id = p_org_id;
     IF existing_id IS NOT NULL THEN
       RETURN existing_id;
     END IF;
@@ -2107,34 +2211,35 @@ BEGIN
   INSERT INTO work.approval
     (id, org_id, target_type, params_hash, scope, risk, expires_at, policy_epoch, status)
   VALUES
-    (approval_id, p_org_id, 'operation', p_params_hash, p_scope, p_risk,
+    (new_approval_id, p_org_id, 'operation', p_params_hash, p_scope, p_risk,
      p_expires_at, p_policy_epoch, 'pending');
   INSERT INTO work.approval_operation
     (approval_id, operation_id, org_id)
   VALUES
-    (approval_id, p_operation_id, p_org_id);
-  UPDATE work.operation
+    (new_approval_id, p_operation_id, p_org_id);
+  UPDATE work.operation o
   SET state = 'waiting_approval',
-      revision = revision + 1,
+      revision = o.revision + 1,
       updated_at = now()
-  WHERE id = p_operation_id AND org_id = p_org_id;
+  WHERE o.id = p_operation_id AND o.org_id = p_org_id;
   PERFORM work.append_task_event(
     p_org_id, task_id, 'approval.requested',
     jsonb_build_object(
-      'approval_id', approval_id,
+      'approval_id', new_approval_id,
       'operation_id', p_operation_id,
       'risk', p_risk,
       'expires_at', p_expires_at
     )
   );
   PERFORM work.append_audit(
-    p_org_id, NULL, 'approval.request', 'approval', approval_id::text,
+    p_org_id, NULL, 'approval.request', 'approval', new_approval_id::text,
     jsonb_build_object('operation_id', p_operation_id, 'risk', p_risk)
   );
-  RETURN approval_id;
+  RETURN new_approval_id;
 END;
 $$;
 
+-- 用户审批：R0a 审批人 = 任务 owner（在职、非 viewer）；与会话主体绑定。
 CREATE FUNCTION work.decide_approval(
   p_org_id text,
   p_approval_id uuid,
@@ -2147,10 +2252,12 @@ LANGUAGE plpgsql AS $$
 DECLARE
   approval_row work.approval%ROWTYPE;
   operation_row work.operation%ROWTYPE;
+  task_row work.task%ROWTYPE;
   task_id uuid;
   existing_decision work.approval_decision%ROWTYPE;
   reservation_id uuid;
 BEGIN
+  PERFORM work.assert_session_subject(p_actor_subject_id);
   IF p_decision NOT IN ('approved', 'rejected') THEN
     RAISE EXCEPTION 'invalid_approval_decision' USING ERRCODE = '22023';
   END IF;
@@ -2162,19 +2269,28 @@ BEGIN
   IF operation_row.id IS NULL THEN
     RAISE EXCEPTION 'approval_not_found' USING ERRCODE = 'P0002';
   END IF;
-  PERFORM 1 FROM work.task WHERE id = task_id AND org_id = p_org_id FOR UPDATE;
+  SELECT * INTO task_row FROM work.task t WHERE t.id = task_id AND t.org_id = p_org_id FOR UPDATE;
+  IF task_row.deleted_at IS NOT NULL
+     OR task_row.owner_subject_id <> p_actor_subject_id
+     OR NOT EXISTS (
+       SELECT 1 FROM work.member m
+       WHERE m.org_id = p_org_id AND m.subject_id = p_actor_subject_id
+         AND m.status = 'active' AND m.role <> 'viewer'
+     ) THEN
+    RAISE EXCEPTION 'approval_not_found' USING ERRCODE = 'P0002';
+  END IF;
   SELECT * INTO operation_row
-  FROM work.operation
-  WHERE id = operation_row.id AND org_id = p_org_id
+  FROM work.operation o
+  WHERE o.id = operation_row.id AND o.org_id = p_org_id
   FOR UPDATE;
   SELECT * INTO approval_row
-  FROM work.approval
-  WHERE id = p_approval_id AND org_id = p_org_id
+  FROM work.approval a
+  WHERE a.id = p_approval_id AND a.org_id = p_org_id
   FOR UPDATE;
   IF approval_row.status <> 'pending' THEN
     SELECT * INTO existing_decision
-    FROM work.approval_decision
-    WHERE approval_id = p_approval_id AND org_id = p_org_id;
+    FROM work.approval_decision d
+    WHERE d.approval_id = p_approval_id AND d.org_id = p_org_id;
     IF FOUND
        AND existing_decision.decision = p_decision
        AND existing_decision.params_hash = p_params_hash
@@ -2188,30 +2304,30 @@ BEGIN
      OR approval_row.expires_at <= now() THEN
     RAISE EXCEPTION 'approval_stale_or_expired' USING ERRCODE = 'P0001';
   END IF;
-  UPDATE work.approval
+  UPDATE work.approval a
   SET status = p_decision,
-      revision = revision + 1,
+      revision = a.revision + 1,
       updated_at = now()
-  WHERE id = p_approval_id AND org_id = p_org_id;
+  WHERE a.id = p_approval_id AND a.org_id = p_org_id;
   INSERT INTO work.approval_decision
     (approval_id, org_id, decision, actor_subject_id, params_hash, policy_epoch)
   VALUES
     (p_approval_id, p_org_id, p_decision, p_actor_subject_id, p_params_hash, approval_row.policy_epoch);
   IF p_decision = 'approved' THEN
-    UPDATE work.operation
+    UPDATE work.operation o
     SET state = 'authorized',
-        revision = revision + 1,
+        revision = o.revision + 1,
         updated_at = now()
-    WHERE id = operation_row.id AND org_id = p_org_id;
+    WHERE o.id = operation_row.id AND o.org_id = p_org_id;
   ELSE
-    UPDATE work.operation
+    UPDATE work.operation o
     SET state = 'canceled',
-        revision = revision + 1,
+        revision = o.revision + 1,
         updated_at = now()
-    WHERE id = operation_row.id AND org_id = p_org_id;
-    SELECT id INTO reservation_id
-    FROM work.budget_reservation
-    WHERE operation_id = operation_row.id AND state = 'held';
+    WHERE o.id = operation_row.id AND o.org_id = p_org_id;
+    SELECT br.id INTO reservation_id
+    FROM work.budget_reservation br
+    WHERE br.operation_id = operation_row.id AND br.state = 'held';
     IF reservation_id IS NOT NULL THEN
       PERFORM work.release_budget(reservation_id);
     END IF;
@@ -2231,33 +2347,78 @@ BEGIN
 END;
 $$;
 
--- 单聚合按 outbox_seq 严格有序：同一 (aggregate_type, aggregate_id) 只有最早的
--- 未投递、未死信行可被领取；被其他 relay 锁住或退避中的头部行会挡住后续行。
--- 跨聚合不保证顺序。死信行不再阻塞（下游以 DB 状态幂等兜底，并告警）。
-CREATE FUNCTION work.claim_outbox(p_limit int DEFAULT 50)
-RETURNS SETOF work.outbox
-LANGUAGE sql AS $$
-  SELECT o.*
-  FROM work.outbox o
-  WHERE o.delivered_at IS NULL
-    AND o.dead_lettered_at IS NULL
-    AND o.available_at <= now()
-    AND NOT EXISTS (
-      SELECT 1 FROM work.outbox e
-      WHERE e.aggregate_type = o.aggregate_type
-        AND e.aggregate_id = o.aggregate_id
-        AND e.outbox_seq < o.outbox_seq
-        AND e.delivered_at IS NULL
-        AND e.dead_lettered_at IS NULL
-    )
-  ORDER BY o.outbox_seq
-  LIMIT GREATEST(p_limit, 1)
-  FOR UPDATE OF o SKIP LOCKED;
+-- Outbox relay（跨组织）：relay 不设 app.org_id；本组函数在 work_owner 身份下临时打开
+-- app.outbox_relay，配合 outbox_relay 策略看到全部组织的行，函数返回前关闭。
+-- 顺序：同一 (aggregate_type, aggregate_id) 只有最早的未投递行可被领取；在途（租约未过期）、
+-- 退避中、死信中的头部行都会挡住后续行。跨聚合不保证顺序。
+-- 租约：领取写入 claimed_by/claimed_until；ACK/失败必须由持有者提交，否则 outbox_lease_lost。
+CREATE FUNCTION work.claim_outbox(
+  p_relay_id text,
+  p_limit int DEFAULT 20,
+  p_lease_seconds int DEFAULT 60
+) RETURNS SETOF work.outbox
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF p_relay_id IS NULL OR p_relay_id !~ '^[a-z0-9][a-z0-9._:-]{2,63}$'
+     OR p_lease_seconds IS NULL OR p_lease_seconds NOT BETWEEN 5 AND 600 THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
+  END IF;
+  PERFORM set_config('app.outbox_relay', 'on', true);
+  RETURN QUERY
+  WITH picked AS (
+    SELECT o.id
+    FROM work.outbox o
+    WHERE o.delivered_at IS NULL
+      AND o.dead_lettered_at IS NULL
+      AND o.available_at <= now()
+      AND (o.claimed_until IS NULL OR o.claimed_until < now())
+      AND NOT EXISTS (
+        SELECT 1 FROM work.outbox e
+        WHERE e.aggregate_type = o.aggregate_type
+          AND e.aggregate_id = o.aggregate_id
+          AND e.outbox_seq < o.outbox_seq
+          AND e.delivered_at IS NULL
+      )
+    ORDER BY o.outbox_seq
+    LIMIT LEAST(GREATEST(p_limit, 1), 100)
+    FOR UPDATE OF o SKIP LOCKED
+  )
+  UPDATE work.outbox u
+  SET claimed_by = p_relay_id,
+      claimed_until = now() + make_interval(secs => p_lease_seconds)
+  FROM picked
+  WHERE u.id = picked.id
+  RETURNING u.*;
+  PERFORM set_config('app.outbox_relay', 'off', true);
+END;
 $$;
 
--- 投递失败：可重试按 2^attempts 秒退避（上限 300s），第 8 次或不可重试即死信。
+CREATE FUNCTION work.lock_claimed_outbox(p_event_id uuid, p_relay_id text)
+RETURNS work.outbox
+LANGUAGE plpgsql AS $$
+DECLARE
+  row_ work.outbox%ROWTYPE;
+BEGIN
+  PERFORM set_config('app.outbox_relay', 'on', true);
+  SELECT * INTO row_ FROM work.outbox o WHERE o.event_id = p_event_id FOR UPDATE;
+  PERFORM set_config('app.outbox_relay', 'off', true);
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'outbox_event_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF row_.delivered_at IS NULL AND row_.dead_lettered_at IS NULL
+     AND row_.claimed_by IS DISTINCT FROM p_relay_id THEN
+    RAISE EXCEPTION 'outbox_lease_lost' USING ERRCODE = 'P0001';
+  END IF;
+  RETURN row_;
+END;
+$$;
+
+-- 投递失败：可重试按 2^attempts 秒退避（上限 300s）；第 10 次（约 13.5 分钟）或不可重试即死信。
+-- start_workflow 死信时 Run 若仍 queued → failed、若已 cancel_requested → canceled（原因 dispatch_dead_letter），
+-- 同一 Run 之后的消息标记 superseded（Run 已终态，不再阻塞，也不会留下无工作流的 cancel_requested）。
 CREATE FUNCTION work.mark_outbox_failed(
   p_event_id uuid,
+  p_relay_id text,
   p_error_code text,
   p_retryable boolean
 ) RETURNS text
@@ -2265,18 +2426,12 @@ LANGUAGE plpgsql AS $$
 DECLARE
   row_ work.outbox%ROWTYPE;
   next_attempts int;
+  prev_org text := current_setting('app.org_id', true);
 BEGIN
   IF p_error_code IS NULL OR p_error_code !~ '^[a-z][a-z0-9_]{1,63}$' THEN
     RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
   END IF;
-  SELECT * INTO row_
-  FROM work.outbox
-  WHERE event_id = p_event_id
-    AND org_id = current_setting('app.org_id', true)
-  FOR UPDATE;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'outbox_event_not_found' USING ERRCODE = 'P0002';
-  END IF;
+  row_ := work.lock_claimed_outbox(p_event_id, p_relay_id);
   IF row_.delivered_at IS NOT NULL THEN
     RETURN 'delivered';
   END IF;
@@ -2284,27 +2439,67 @@ BEGIN
     RETURN 'dead_letter';
   END IF;
   next_attempts := row_.attempts + 1;
-  IF NOT p_retryable OR next_attempts >= 8 THEN
-    UPDATE work.outbox
-    SET attempts = next_attempts, last_error_code = p_error_code, dead_lettered_at = now()
-    WHERE id = row_.id;
+  PERFORM set_config('app.org_id', row_.org_id, true);
+  IF NOT p_retryable OR next_attempts >= 10 THEN
+    UPDATE work.outbox o
+    SET attempts = next_attempts, last_error_code = p_error_code,
+        dead_lettered_at = now(), claimed_until = NULL
+    WHERE o.id = row_.id;
     PERFORM work.append_audit(
       row_.org_id, 'system:outbox-relay', 'outbox.dead_lettered', row_.aggregate_type,
       row_.aggregate_id::text,
       jsonb_build_object('event_id', p_event_id, 'attempts', next_attempts, 'error_code', p_error_code)
     );
+    IF row_.aggregate_type = 'run' AND row_.payload->>'kind' = 'start_workflow' AND EXISTS (
+      SELECT 1 FROM work.run r WHERE r.id = row_.aggregate_id AND r.org_id = row_.org_id
+        AND r.state IN ('queued', 'cancel_requested')
+    ) THEN
+      PERFORM work.finish_run(
+        row_.aggregate_id, row_.org_id,
+        CASE WHEN (SELECT r.state FROM work.run r WHERE r.id = row_.aggregate_id) = 'queued'
+             THEN 'failed' ELSE 'canceled' END,
+        'dispatch_dead_letter');
+      UPDATE work.outbox o
+      SET delivered_at = now(), last_error_code = 'superseded_run_terminal', claimed_until = NULL
+      WHERE o.aggregate_type = 'run' AND o.aggregate_id = row_.aggregate_id
+        AND o.outbox_seq > row_.outbox_seq AND o.delivered_at IS NULL;
+    END IF;
+    PERFORM set_config('app.org_id', COALESCE(prev_org, ''), true);
     RETURN 'dead_letter';
   END IF;
-  UPDATE work.outbox
+  UPDATE work.outbox o
   SET attempts = next_attempts,
       last_error_code = p_error_code,
+      claimed_until = NULL,
       available_at = now() + make_interval(secs => LEAST(power(2, next_attempts), 300))
-  WHERE id = row_.id;
+  WHERE o.id = row_.id;
+  PERFORM set_config('app.org_id', COALESCE(prev_org, ''), true);
   RETURN 'retry_scheduled';
 END;
 $$;
 
--- 运维重放死信：必须给理由；写审计；不改变 payload。
+CREATE FUNCTION work.mark_outbox_delivered(p_event_id uuid, p_relay_id text)
+RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  row_ work.outbox%ROWTYPE;
+BEGIN
+  row_ := work.lock_claimed_outbox(p_event_id, p_relay_id);
+  IF row_.delivered_at IS NOT NULL THEN
+    RETURN;
+  END IF;
+  IF row_.dead_lettered_at IS NOT NULL THEN
+    RAISE EXCEPTION 'outbox_dead_lettered' USING ERRCODE = 'P0001';
+  END IF;
+  PERFORM set_config('app.outbox_relay', 'on', true);
+  UPDATE work.outbox o
+  SET delivered_at = now(), attempts = o.attempts + 1, claimed_until = NULL
+  WHERE o.id = row_.id;
+  PERFORM set_config('app.outbox_relay', 'off', true);
+END;
+$$;
+
+-- 运维重放死信（本组织）：必须给理由；写审计；Run 已不在 queued 的 start_workflow 拒绝重放。
 CREATE FUNCTION work.requeue_outbox_dead_letter(
   p_event_id uuid,
   p_actor_subject_id text,
@@ -2314,20 +2509,27 @@ LANGUAGE plpgsql AS $$
 DECLARE
   row_ work.outbox%ROWTYPE;
 BEGIN
+  PERFORM work.assert_session_subject(p_actor_subject_id);
   IF p_reason IS NULL OR length(btrim(p_reason)) < 4 THEN
     RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
   END IF;
   SELECT * INTO row_
-  FROM work.outbox
-  WHERE event_id = p_event_id
-    AND org_id = current_setting('app.org_id', true)
+  FROM work.outbox o
+  WHERE o.event_id = p_event_id
+    AND o.org_id = current_setting('app.org_id', true)
   FOR UPDATE;
-  IF NOT FOUND OR row_.dead_lettered_at IS NULL THEN
+  IF NOT FOUND OR row_.dead_lettered_at IS NULL OR row_.delivered_at IS NOT NULL THEN
     RAISE EXCEPTION 'outbox_event_not_found' USING ERRCODE = 'P0002';
   END IF;
-  UPDATE work.outbox
-  SET dead_lettered_at = NULL, attempts = 0, available_at = now()
-  WHERE id = row_.id;
+  IF row_.payload->>'kind' = 'start_workflow' AND NOT EXISTS (
+    SELECT 1 FROM work.run r WHERE r.id = row_.aggregate_id AND r.org_id = row_.org_id AND r.state = 'queued'
+  ) THEN
+    RAISE EXCEPTION 'outbox_requeue_stale' USING ERRCODE = 'P0001';
+  END IF;
+  UPDATE work.outbox o
+  SET dead_lettered_at = NULL, attempts = 0, available_at = now(),
+      claimed_by = NULL, claimed_until = NULL
+  WHERE o.id = row_.id;
   PERFORM work.append_audit(
     row_.org_id, p_actor_subject_id, 'outbox.requeued', row_.aggregate_type,
     row_.aggregate_id::text,
@@ -2336,24 +2538,36 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION work.mark_outbox_delivered(p_event_id uuid)
-RETURNS void
+-- 运维跳过死信：确认下游不需要该消息后解除聚合阻塞；写审计。
+CREATE FUNCTION work.skip_outbox_dead_letter(
+  p_event_id uuid,
+  p_actor_subject_id text,
+  p_reason text
+) RETURNS void
 LANGUAGE plpgsql AS $$
+DECLARE
+  row_ work.outbox%ROWTYPE;
 BEGIN
-  UPDATE work.outbox
-  SET delivered_at = now(),
-      attempts = attempts + 1
-  WHERE event_id = p_event_id
-    AND org_id = current_setting('app.org_id', true)
-    AND delivered_at IS NULL;
-  IF NOT FOUND THEN
-    PERFORM 1 FROM work.outbox
-    WHERE event_id = p_event_id
-      AND org_id = current_setting('app.org_id', true);
-    IF NOT FOUND THEN
-      RAISE EXCEPTION 'outbox_event_not_found' USING ERRCODE = 'P0002';
-    END IF;
+  PERFORM work.assert_session_subject(p_actor_subject_id);
+  IF p_reason IS NULL OR length(btrim(p_reason)) < 4 THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
   END IF;
+  SELECT * INTO row_
+  FROM work.outbox o
+  WHERE o.event_id = p_event_id
+    AND o.org_id = current_setting('app.org_id', true)
+  FOR UPDATE;
+  IF NOT FOUND OR row_.dead_lettered_at IS NULL OR row_.delivered_at IS NOT NULL THEN
+    RAISE EXCEPTION 'outbox_event_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  UPDATE work.outbox o
+  SET delivered_at = now(), last_error_code = 'skipped_by_ops', claimed_until = NULL
+  WHERE o.id = row_.id;
+  PERFORM work.append_audit(
+    row_.org_id, p_actor_subject_id, 'outbox.skipped', row_.aggregate_type,
+    row_.aggregate_id::text,
+    jsonb_build_object('event_id', p_event_id, 'reason', p_reason, 'last_error_code', row_.last_error_code)
+  );
 END;
 $$;
 
@@ -2486,7 +2700,8 @@ LEFT JOIN LATERAL (
     AND v.state = 'published'
   ORDER BY v.version_no DESC
   LIMIT 1
-) av ON true;
+) av ON true
+WHERE t.deleted_at IS NULL;
 
 -- 标题编辑：仅 owner；乐观并发 + 幂等；事件/审计只记字段名，不记标题正文。
 CREATE FUNCTION work.update_task_title(
@@ -2504,49 +2719,49 @@ DECLARE
   req_hash text;
   dedup_row work.submission_dedup%ROWTYPE;
 BEGIN
-  IF p_client_request_id IS NULL OR length(p_client_request_id) NOT BETWEEN 8 AND 128 THEN
-    RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
-  END IF;
+  PERFORM work.assert_session_subject(p_subject_id);
+  PERFORM work.lock_request_key(p_org_id, p_subject_id, 'task.title', p_client_request_id);
   IF clean_title IS NULL OR char_length(clean_title) NOT BETWEEN 1 AND 80
      OR clean_title ~ '[[:cntrl:]]' THEN
     RAISE EXCEPTION 'title_invalid' USING ERRCODE = '22023';
   END IF;
-  req_hash := encode(sha256(convert_to(p_task_id::text || ':' || clean_title, 'UTF8')), 'hex');
+  req_hash := work.sha256_text(p_task_id::text || ':' || clean_title);
 
   SELECT * INTO task_row
-  FROM work.task
-  WHERE id = p_task_id AND org_id = p_org_id AND deleted_at IS NULL
+  FROM work.task t
+  WHERE t.id = p_task_id AND t.org_id = p_org_id AND t.deleted_at IS NULL
   FOR UPDATE;
   IF NOT FOUND OR task_row.owner_subject_id <> p_subject_id THEN
     RAISE EXCEPTION 'task_not_found' USING ERRCODE = 'P0002';
   END IF;
 
   SELECT * INTO dedup_row
-  FROM work.submission_dedup
-  WHERE org_id = p_org_id AND subject_id = p_subject_id
-    AND operation_type = 'task_title' AND client_request_id = p_client_request_id;
+  FROM work.submission_dedup d
+  WHERE d.org_id = p_org_id AND d.subject_id = p_subject_id
+    AND d.operation_type = 'task.title' AND d.client_request_id = p_client_request_id;
   IF FOUND THEN
     IF dedup_row.request_hash <> req_hash THEN
-      RAISE EXCEPTION 'idempotency_key_conflict' USING ERRCODE = '23505';
+      RAISE EXCEPTION 'idempotency_key_conflict' USING ERRCODE = 'P0001';
     END IF;
-    RETURN task_row.revision;
+    RETURN dedup_row.result_ref::bigint;
   END IF;
 
   IF task_row.revision <> p_expected_revision THEN
-    RAISE EXCEPTION 'version_conflict' USING ERRCODE = '40001',
+    RAISE EXCEPTION 'version_conflict' USING ERRCODE = 'P0001',
       DETAIL = task_row.revision::text;
   END IF;
   IF task_row.state = 'archived' THEN
-    RAISE EXCEPTION 'task_archived' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'task_archived' USING ERRCODE = 'P0001';
   END IF;
 
-  UPDATE work.task
-  SET title = clean_title, revision = revision + 1, updated_at = now()
-  WHERE id = p_task_id AND org_id = p_org_id;
+  UPDATE work.task t
+  SET title = clean_title, revision = t.revision + 1, updated_at = now()
+  WHERE t.id = p_task_id AND t.org_id = p_org_id;
   INSERT INTO work.submission_dedup
-    (org_id, subject_id, operation_type, client_request_id, request_hash, task_id, result_state)
+    (org_id, subject_id, operation_type, client_request_id, request_hash, task_id, result_state, result_ref)
   VALUES
-    (p_org_id, p_subject_id, 'task_title', p_client_request_id, req_hash, p_task_id, 'updated');
+    (p_org_id, p_subject_id, 'task.title', p_client_request_id, req_hash, p_task_id, 'updated',
+     (task_row.revision + 1)::text);
   PERFORM work.append_task_event(
     p_org_id, p_task_id, 'task.updated', jsonb_build_object('fields', jsonb_build_array('title'))
   );
@@ -2570,6 +2785,7 @@ DECLARE
   version_row work.artifact_version%ROWTYPE;
   owner_id text;
 BEGIN
+  PERFORM work.assert_session_subject(p_subject_id);
   SELECT t.owner_subject_id INTO owner_id
   FROM work.artifact a
   JOIN work.task t ON t.id = a.task_id AND t.org_id = a.org_id
@@ -2579,8 +2795,8 @@ BEGIN
     RAISE EXCEPTION 'artifact_not_found' USING ERRCODE = 'P0002';
   END IF;
   SELECT * INTO version_row
-  FROM work.artifact_version
-  WHERE artifact_id = p_artifact_id AND org_id = p_org_id AND version_no = p_version_no;
+  FROM work.artifact_version v
+  WHERE v.artifact_id = p_artifact_id AND v.org_id = p_org_id AND v.version_no = p_version_no;
   IF NOT FOUND OR version_row.state <> 'published' THEN
     RAISE EXCEPTION 'version_not_found' USING ERRCODE = 'P0002';
   END IF;
@@ -2592,13 +2808,15 @@ BEGIN
 END;
 $$;
 
--- 任务删除核心：要求静止（无 active Run、无阻塞 Operation）；逻辑 tombstone +
--- 正文引用进入 content_shred outbox（只含 content_ref，不含正文）。
--- 预算账本、审计与无正文事件保留；标题按敏感元数据清除。不授予任何应用角色。
+-- 任务删除核心：在任务行锁内校验 owner（用户删除）与 revision，要求静止；逻辑 tombstone +
+-- 本任务输入/成果的正文引用进入 content_shred outbox（只含引用）。预算账本、审计与无正文事件保留。
+-- 不授予任何应用角色。
 CREATE FUNCTION work.delete_task_core(
   p_org_id text,
   p_task_id uuid,
   p_actor_subject_id text,
+  p_required_owner text,
+  p_expected_revision bigint,
   p_reason text,
   p_action text
 ) RETURNS int
@@ -2609,25 +2827,25 @@ DECLARE
   artifact_count int;
 BEGIN
   SELECT * INTO task_row
-  FROM work.task
-  WHERE id = p_task_id AND org_id = p_org_id
+  FROM work.task t
+  WHERE t.id = p_task_id AND t.org_id = p_org_id
   FOR UPDATE;
-  IF NOT FOUND THEN
+  IF NOT FOUND
+     OR (p_required_owner IS NOT NULL AND task_row.owner_subject_id <> p_required_owner) THEN
     RAISE EXCEPTION 'task_not_found' USING ERRCODE = 'P0002';
   END IF;
   IF task_row.deleted_at IS NOT NULL THEN
     RETURN 0;
   END IF;
-  IF task_row.active_run_id IS NOT NULL OR EXISTS (
-    SELECT 1 FROM work.operation o
-    JOIN work.run r ON r.id = o.run_id AND r.org_id = o.org_id
-    WHERE r.task_id = p_task_id AND r.org_id = p_org_id
-      AND o.state IN ('prepared', 'waiting_approval', 'authorized', 'dispatching', 'unknown', 'unresolved')
-  ) THEN
-    RAISE EXCEPTION 'run_not_quiescent' USING ERRCODE = '55000';
+  IF p_expected_revision IS NOT NULL AND task_row.revision <> p_expected_revision THEN
+    RAISE EXCEPTION 'version_conflict' USING ERRCODE = 'P0001', DETAIL = task_row.revision::text;
+  END IF;
+  IF task_row.active_run_id IS NOT NULL OR work.task_has_blocking_operation(p_task_id, p_org_id) THEN
+    RAISE EXCEPTION 'run_not_quiescent' USING ERRCODE = 'P0001';
   END IF;
 
-  SELECT COALESCE(jsonb_agg(DISTINCT ref), '[]'::jsonb) INTO refs
+  -- 只粉碎不再被其他存活输入/成果引用的正文对象（Content Store 若按内容去重，引用可能共享）。
+  SELECT COALESCE(jsonb_agg(DISTINCT s.ref), '[]'::jsonb) INTO refs
   FROM (
     SELECT v.content_ref AS ref
     FROM work.artifact a
@@ -2636,29 +2854,41 @@ BEGIN
     UNION
     SELECT i.content_ref
     FROM work.input_object i
-    WHERE i.id = task_row.input_id AND i.org_id = p_org_id
-  ) s;
+    WHERE i.id = task_row.input_id AND i.org_id = p_org_id AND i.task_id = p_task_id
+  ) s
+  WHERE NOT EXISTS (
+    SELECT 1 FROM work.input_object i2
+    WHERE i2.org_id = p_org_id AND i2.content_ref = s.ref AND i2.deleted_at IS NULL
+      AND i2.task_id IS DISTINCT FROM p_task_id
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM work.artifact_version v2
+    JOIN work.artifact a2 ON a2.id = v2.artifact_id AND a2.org_id = v2.org_id
+    WHERE v2.org_id = p_org_id AND v2.content_ref = s.ref AND a2.deleted_at IS NULL
+      AND a2.task_id <> p_task_id
+  );
 
   INSERT INTO work.artifact_tombstone (artifact_id, org_id)
   SELECT a.id, a.org_id FROM work.artifact a
   WHERE a.task_id = p_task_id AND a.org_id = p_org_id AND a.deleted_at IS NULL
   ON CONFLICT (artifact_id) DO NOTHING;
-  UPDATE work.artifact
+  UPDATE work.artifact a
   SET state = 'deleted', deleted_at = now(), updated_at = now()
-  WHERE task_id = p_task_id AND org_id = p_org_id AND deleted_at IS NULL;
+  WHERE a.task_id = p_task_id AND a.org_id = p_org_id AND a.deleted_at IS NULL;
   GET DIAGNOSTICS artifact_count = ROW_COUNT;
 
-  UPDATE work.input_object
+  UPDATE work.input_object i
   SET status = 'deleted', deleted_at = now()
-  WHERE id = task_row.input_id AND org_id = p_org_id AND deleted_at IS NULL;
+  WHERE i.id = task_row.input_id AND i.org_id = p_org_id AND i.task_id = p_task_id
+    AND i.deleted_at IS NULL;
 
-  UPDATE work.submission_dedup
+  UPDATE work.submission_dedup d
   SET task_deleted = true
-  WHERE org_id = p_org_id AND task_id = p_task_id;
+  WHERE d.org_id = p_org_id AND d.task_id = p_task_id;
 
-  UPDATE work.task
-  SET deleted_at = now(), title = '[deleted]', revision = revision + 1, updated_at = now()
-  WHERE id = p_task_id AND org_id = p_org_id;
+  UPDATE work.task t
+  SET deleted_at = now(), title = '[deleted]', revision = t.revision + 1, updated_at = now()
+  WHERE t.id = p_task_id AND t.org_id = p_org_id;
 
   INSERT INTO work.outbox (org_id, aggregate_type, aggregate_id, event_id, payload)
   VALUES (p_org_id, 'content', p_task_id, gen_random_uuid(),
@@ -2673,26 +2903,27 @@ BEGIN
 END;
 $$;
 
--- 用户删除自己的任务。
+-- 用户删除自己的任务：owner 与 revision 在行锁内校验；原因只收枚举码。
 CREATE FUNCTION work.delete_task(
   p_org_id text,
   p_task_id uuid,
   p_subject_id text,
+  p_expected_revision bigint,
   p_reason text DEFAULT NULL
 ) RETURNS int
 LANGUAGE plpgsql AS $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM work.task
-    WHERE id = p_task_id AND org_id = p_org_id AND owner_subject_id = p_subject_id
-  ) THEN
-    RAISE EXCEPTION 'task_not_found' USING ERRCODE = 'P0002';
+  PERFORM work.assert_session_subject(p_subject_id);
+  IF p_expected_revision IS NULL THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
   END IF;
-  RETURN work.delete_task_core(p_org_id, p_task_id, p_subject_id, p_reason, 'task.deleted');
+  RETURN work.delete_task_core(
+    p_org_id, p_task_id, p_subject_id, p_subject_id, p_expected_revision,
+    work.reason_code(p_reason), 'task.deleted');
 END;
 $$;
 
--- 运维代执行删除（法务/组织退出/离职清理）：必须带工单号。
+-- 运维代执行删除（法务/组织退出/离职清理）：必须带工单号；运维身份与会话绑定。
 CREATE FUNCTION work.ops_delete_task(
   p_org_id text,
   p_task_id uuid,
@@ -2702,16 +2933,18 @@ CREATE FUNCTION work.ops_delete_task(
 ) RETURNS int
 LANGUAGE plpgsql AS $$
 BEGIN
+  PERFORM work.assert_session_subject(p_actor_subject_id);
   IF p_ticket_ref IS NULL OR p_ticket_ref !~ '^[A-Z][A-Z0-9]+-[0-9]+$' OR length(btrim(coalesce(p_reason, ''))) < 4 THEN
     RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
   END IF;
   RETURN work.delete_task_core(
-    p_org_id, p_task_id, p_actor_subject_id, p_ticket_ref || ': ' || p_reason, 'task.deleted_by_ops'
+    p_org_id, p_task_id, p_actor_subject_id, NULL, NULL,
+    p_ticket_ref || ': ' || p_reason, 'task.deleted_by_ops'
   );
 END;
 $$;
 
--- 所有权转移（试点人工流程）：新 owner 必须是同组织在职、有 Work 席位成员；
+-- 所有权转移（试点人工流程）：新 owner 必须是同组织在职、有 Work 席位、非 viewer 成员（锁定成员行）；
 -- 任务须静止；不复制原 owner 的任何授权；原 owner 立即失去访问。
 CREATE FUNCTION work.transfer_task_ownership(
   p_org_id text,
@@ -2725,12 +2958,13 @@ LANGUAGE plpgsql AS $$
 DECLARE
   task_row work.task%ROWTYPE;
 BEGIN
+  PERFORM work.assert_session_subject(p_actor_subject_id);
   IF p_ticket_ref IS NULL OR p_ticket_ref !~ '^[A-Z][A-Z0-9]+-[0-9]+$' OR length(btrim(coalesce(p_reason, ''))) < 4 THEN
     RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
   END IF;
   SELECT * INTO task_row
-  FROM work.task
-  WHERE id = p_task_id AND org_id = p_org_id AND deleted_at IS NULL
+  FROM work.task t
+  WHERE t.id = p_task_id AND t.org_id = p_org_id AND t.deleted_at IS NULL
   FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'task_not_found' USING ERRCODE = 'P0002';
@@ -2738,23 +2972,19 @@ BEGIN
   IF task_row.owner_subject_id = p_new_owner THEN
     RETURN task_row.revision;
   END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM work.member
-    WHERE org_id = p_org_id AND subject_id = p_new_owner AND status = 'active' AND work_seat
-  ) THEN
-    RAISE EXCEPTION 'work_seat_required' USING ERRCODE = '42501';
+  PERFORM 1 FROM work.member m
+  WHERE m.org_id = p_org_id AND m.subject_id = p_new_owner
+    AND m.status = 'active' AND m.work_seat AND m.role <> 'viewer'
+  FOR SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'work_seat_required' USING ERRCODE = 'P0001';
   END IF;
-  IF task_row.active_run_id IS NOT NULL OR EXISTS (
-    SELECT 1 FROM work.operation o
-    JOIN work.run r ON r.id = o.run_id AND r.org_id = o.org_id
-    WHERE r.task_id = p_task_id AND r.org_id = p_org_id
-      AND o.state IN ('prepared', 'waiting_approval', 'authorized', 'dispatching', 'unknown', 'unresolved')
-  ) THEN
-    RAISE EXCEPTION 'run_not_quiescent' USING ERRCODE = '55000';
+  IF task_row.active_run_id IS NOT NULL OR work.task_has_blocking_operation(p_task_id, p_org_id) THEN
+    RAISE EXCEPTION 'run_not_quiescent' USING ERRCODE = 'P0001';
   END IF;
-  UPDATE work.task
-  SET owner_subject_id = p_new_owner, revision = revision + 1, updated_at = now()
-  WHERE id = p_task_id AND org_id = p_org_id;
+  UPDATE work.task t
+  SET owner_subject_id = p_new_owner, revision = t.revision + 1, updated_at = now()
+  WHERE t.id = p_task_id AND t.org_id = p_org_id;
   PERFORM work.append_task_event(
     p_org_id, p_task_id, 'task.owner_changed', jsonb_build_object('fields', jsonb_build_array('owner'))
   );
@@ -2768,7 +2998,7 @@ END;
 $$;
 
 -- 生命周期事件由触发器统一补发，覆盖 finish_run/accept_task/cancel/对账等全部写路径，
--- 供 SSE 时间线与试点指标使用；payload 不含正文、标题或完成理由文本。
+-- 供 SSE 时间线与试点指标使用；payload 不含正文、标题或完成理由文本（terminal_reason 已是枚举码）。
 CREATE FUNCTION work.emit_run_terminal_event() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -2823,6 +3053,531 @@ CREATE TRIGGER acceptance_event
 AFTER INSERT ON work.acceptance
 FOR EACH ROW EXECUTE FUNCTION work.emit_acceptance_event();
 
+-- R0a 加固：覆盖基线 DDL 中的部分领域命令，并新增 API 侧重试/采纳/用户版本命令。
+-- 原则：API 命令都校验会话主体 = owner、任务未删除、乐观并发与幂等；Worker 命令对活动重试幂等。
+
+-- 基线 create_run 不校验 owner/删除，也不写 start_workflow；R0a 由 retry_task 取代。
+DROP FUNCTION work.create_run(uuid, text, uuid, text, text);
+DROP FUNCTION work.accept_task(uuid, text, uuid, int, text, bigint, text);
+
+-- Run 终态：活动重试幂等（已是目标终态直接返回）；原因只收枚举码。
+CREATE OR REPLACE FUNCTION work.finish_run(
+  p_run_id uuid,
+  p_org_id text,
+  p_outcome text,
+  p_reason text DEFAULT NULL
+) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  run_row work.run%ROWTYPE;
+  task_row work.task%ROWTYPE;
+  v_task_id uuid;
+  reason text := work.reason_code(p_reason);
+BEGIN
+  IF p_outcome NOT IN ('succeeded', 'failed', 'canceled') THEN
+    RAISE EXCEPTION 'invalid_run_outcome' USING ERRCODE = '22023';
+  END IF;
+  SELECT r.task_id INTO v_task_id FROM work.run r
+  WHERE r.id = p_run_id AND r.org_id = p_org_id;
+  IF v_task_id IS NULL THEN
+    RAISE EXCEPTION 'run_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  SELECT * INTO task_row FROM work.task t
+  WHERE t.id = v_task_id AND t.org_id = p_org_id FOR UPDATE;
+  SELECT * INTO run_row FROM work.run r
+  WHERE r.id = p_run_id AND r.org_id = p_org_id FOR UPDATE;
+  IF run_row.state = p_outcome THEN
+    RETURN;
+  END IF;
+  -- 取消请求已落库后不得再以成功收尾（迟到结果只结算、不发布）。
+  IF p_outcome = 'succeeded' AND run_row.state = 'cancel_requested' THEN
+    RAISE EXCEPTION 'run_cancel_requested' USING ERRCODE = 'P0001';
+  END IF;
+  IF task_row.state <> 'open' OR task_row.active_run_id IS DISTINCT FROM p_run_id THEN
+    RAISE EXCEPTION 'run_not_current' USING ERRCODE = 'P0001';
+  END IF;
+  IF p_outcome = 'succeeded' AND work.task_has_blocking_operation(v_task_id, p_org_id) THEN
+    RAISE EXCEPTION 'run_has_unresolved_operation' USING ERRCODE = 'P0001';
+  END IF;
+  UPDATE work.run r
+  SET state = p_outcome,
+      wait_reason = NULL,
+      terminal_reason = reason,
+      control_revision = r.control_revision + 1,
+      updated_at = now()
+  WHERE r.id = p_run_id AND r.org_id = p_org_id;
+  UPDATE work.task t
+  SET state = CASE WHEN p_outcome = 'succeeded' THEN 'awaiting_acceptance' ELSE t.state END,
+      active_run_id = NULL,
+      latest_run_id = p_run_id,
+      revision = t.revision + 1,
+      updated_at = now()
+  WHERE t.id = v_task_id AND t.org_id = p_org_id;
+END;
+$$;
+
+-- 领取 Run：queued → active 时 fence+1；活动重试（结果丢失）时 Run 已 active/waiting 则返回当前行，不再报 run_not_queued；
+-- 启动前已 cancel_requested 或已终态则返回当前行，工作流据此直接收尾。
+CREATE OR REPLACE FUNCTION work.acquire_run(
+  p_run_id uuid,
+  p_org_id text
+) RETURNS work.run
+LANGUAGE plpgsql AS $$
+DECLARE
+  run_row work.run%ROWTYPE;
+  task_row work.task%ROWTYPE;
+  v_task_id uuid;
+BEGIN
+  SELECT r.task_id INTO v_task_id
+  FROM work.run r
+  WHERE r.id = p_run_id AND r.org_id = p_org_id;
+  IF v_task_id IS NULL THEN
+    RAISE EXCEPTION 'run_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  SELECT * INTO task_row FROM work.task t WHERE t.id = v_task_id AND t.org_id = p_org_id FOR UPDATE;
+  SELECT * INTO run_row FROM work.run r WHERE r.id = p_run_id AND r.org_id = p_org_id FOR UPDATE;
+  -- 启动前已取消或已终态：原样返回，由工作流收尾，不 bump fence。
+  IF run_row.state IN ('cancel_requested', 'succeeded', 'failed', 'canceled') THEN
+    RETURN run_row;
+  END IF;
+  IF task_row.state <> 'open'
+     OR task_row.active_run_id IS DISTINCT FROM p_run_id THEN
+    RAISE EXCEPTION 'run_not_current' USING ERRCODE = 'P0001';
+  END IF;
+  IF run_row.state IN ('active', 'waiting') THEN
+    RETURN run_row;
+  END IF;
+  IF run_row.state <> 'queued' THEN
+    RAISE EXCEPTION 'run_not_queued' USING ERRCODE = 'P0001';
+  END IF;
+  UPDATE work.run r
+  SET state = 'active',
+      fence = r.fence + 1,
+      control_revision = r.control_revision + 1,
+      updated_at = now()
+  WHERE r.id = p_run_id AND r.org_id = p_org_id
+  RETURNING * INTO run_row;
+  RETURN run_row;
+END;
+$$;
+
+-- 派发许可：同 consumer + 同 fence 的重放返回已有 dispatch_attempt_id；其余未赢得返回 NULL，
+-- 调用方需重读 Operation 状态：authorized 且 Run 取消中 → cancel_operation + finish_run(canceled)；
+-- 已由其他 consumer/fence 派发 → 不动（结果归属派发方，崩溃由对账扫描接管）。
+CREATE OR REPLACE FUNCTION work.claim_dispatch(
+  p_operation_id uuid,
+  p_org_id text,
+  p_consumer_id text,
+  p_fence bigint
+) RETURNS uuid
+LANGUAGE plpgsql AS $$
+DECLARE
+  operation_row work.operation%ROWTYPE;
+  run_row work.run%ROWTYPE;
+  task_row work.task%ROWTYPE;
+  attempt uuid := gen_random_uuid();
+BEGIN
+  SELECT * INTO operation_row FROM work.operation o WHERE o.id = p_operation_id AND o.org_id = p_org_id;
+  IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+  SELECT * INTO run_row FROM work.run r WHERE r.id = operation_row.run_id AND r.org_id = p_org_id;
+  SELECT * INTO task_row FROM work.task t WHERE t.id = run_row.task_id AND t.org_id = p_org_id FOR UPDATE;
+  SELECT * INTO run_row FROM work.run r WHERE r.id = operation_row.run_id AND r.org_id = p_org_id FOR UPDATE;
+  SELECT * INTO operation_row FROM work.operation o WHERE o.id = p_operation_id AND o.org_id = p_org_id FOR UPDATE;
+  IF operation_row.state = 'dispatching'
+     AND operation_row.consumer_id = p_consumer_id
+     AND run_row.fence = p_fence THEN
+    RETURN operation_row.dispatch_attempt_id;
+  END IF;
+  IF task_row.state <> 'open'
+     OR task_row.active_run_id IS DISTINCT FROM run_row.id
+     OR run_row.state <> 'active'
+     OR run_row.fence <> p_fence
+     OR operation_row.state <> 'authorized'
+     OR operation_row.dispatch_attempt_id IS NOT NULL THEN
+    RETURN NULL;
+  END IF;
+  UPDATE work.operation o
+  SET state = 'dispatching',
+      dispatch_attempt_id = attempt,
+      consumer_id = p_consumer_id,
+      revision = o.revision + 1,
+      updated_at = now()
+  WHERE o.id = p_operation_id AND o.org_id = p_org_id;
+  RETURN attempt;
+END;
+$$;
+
+-- 预留：同 Operation 已有同额 held/unknown 预留时返回该预留（活动重试幂等）。
+CREATE OR REPLACE FUNCTION work.reserve_budget(
+  p_org_id text,
+  p_account_key text,
+  p_period_id text,
+  p_operation_id uuid,
+  p_amount_cents bigint
+) RETURNS uuid
+LANGUAGE plpgsql AS $$
+DECLARE
+  account work.budget_account%ROWTYPE;
+  operation_row work.operation%ROWTYPE;
+  existing work.budget_reservation%ROWTYPE;
+  reservation_id uuid := gen_random_uuid();
+  next_seq int;
+BEGIN
+  IF p_amount_cents IS NULL OR p_amount_cents <= 0 THEN
+    RAISE EXCEPTION 'invalid_reservation_amount' USING ERRCODE = '22023';
+  END IF;
+  SELECT * INTO operation_row
+  FROM work.operation o
+  WHERE o.id = p_operation_id AND o.org_id = p_org_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'operation_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  SELECT * INTO existing
+  FROM work.budget_reservation br
+  WHERE br.operation_id = p_operation_id AND br.state IN ('held', 'unknown');
+  IF FOUND THEN
+    IF existing.amount_cents = p_amount_cents THEN
+      RETURN existing.id;
+    END IF;
+    RAISE EXCEPTION 'operation_has_active_reservation' USING ERRCODE = 'P0001';
+  END IF;
+  IF operation_row.state NOT IN ('prepared', 'waiting_approval', 'authorized') THEN
+    RAISE EXCEPTION 'operation_not_reservable' USING ERRCODE = 'P0001';
+  END IF;
+  SELECT COALESCE(MAX(br.reservation_seq), 0) + 1 INTO next_seq
+  FROM work.budget_reservation br
+  WHERE br.operation_id = p_operation_id;
+  SELECT * INTO account
+  FROM work.budget_account ba
+  WHERE ba.org_id = p_org_id AND ba.account_key = p_account_key AND ba.period_id = p_period_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'budget_account_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF account.limit_cents - account.settled_cents - account.reserved_cents < p_amount_cents THEN
+    RAISE EXCEPTION 'budget_exhausted' USING ERRCODE = 'P0001';
+  END IF;
+  UPDATE work.budget_account ba
+  SET reserved_cents = ba.reserved_cents + p_amount_cents,
+      version = ba.version + 1,
+      updated_at = now()
+  WHERE ba.id = account.id;
+  INSERT INTO work.budget_reservation
+    (id, org_id, account_id, operation_id, reservation_seq, amount_cents, state)
+  VALUES
+    (reservation_id, p_org_id, account.id, p_operation_id, next_seq, p_amount_cents, 'held');
+  INSERT INTO work.budget_entry
+    (org_id, account_id, reservation_id, operation_id, kind, amount_cents)
+  VALUES
+    (p_org_id, account.id, reservation_id, p_operation_id, 'reserve', p_amount_cents);
+  RETURN reservation_id;
+END;
+$$;
+
+-- 用户重试：仅 owner、未删除、最新 Run 为 failed/canceled、任务静止；沿用任务快照；
+-- 写 start_workflow outbox；幂等键返回同一 Run。
+CREATE FUNCTION work.retry_task(
+  p_org_id text,
+  p_task_id uuid,
+  p_subject_id text,
+  p_client_request_id text,
+  p_expected_revision bigint,
+  p_workflow_id text,
+  p_runtime_version text
+) RETURNS TABLE (run_id uuid, revision bigint)
+LANGUAGE plpgsql AS $$
+DECLARE
+  task_row work.task%ROWTYPE;
+  dedup_row work.submission_dedup%ROWTYPE;
+  latest_state text;
+  req_hash text;
+  next_attempt int;
+  new_run_id uuid := gen_random_uuid();
+BEGIN
+  PERFORM work.assert_session_subject(p_subject_id);
+  PERFORM work.lock_request_key(p_org_id, p_subject_id, 'run.retry', p_client_request_id);
+  IF p_workflow_id IS NULL OR p_workflow_id = '' OR p_runtime_version IS NULL OR p_runtime_version = '' THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
+  END IF;
+  req_hash := work.sha256_text(p_task_id::text || ':' || p_expected_revision::text);
+  SELECT * INTO dedup_row
+  FROM work.submission_dedup d
+  WHERE d.org_id = p_org_id AND d.subject_id = p_subject_id
+    AND d.operation_type = 'run.retry' AND d.client_request_id = p_client_request_id;
+  IF FOUND THEN
+    IF dedup_row.request_hash <> req_hash THEN
+      RAISE EXCEPTION 'idempotency_key_conflict' USING ERRCODE = 'P0001';
+    END IF;
+    IF dedup_row.task_deleted THEN
+      RAISE EXCEPTION 'task_not_found' USING ERRCODE = 'P0002';
+    END IF;
+    RETURN QUERY SELECT dedup_row.result_ref::uuid, (p_expected_revision + 1);
+    RETURN;
+  END IF;
+
+  SELECT * INTO task_row
+  FROM work.task t
+  WHERE t.id = p_task_id AND t.org_id = p_org_id AND t.deleted_at IS NULL
+  FOR UPDATE;
+  IF NOT FOUND OR task_row.owner_subject_id <> p_subject_id THEN
+    RAISE EXCEPTION 'task_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  PERFORM 1 FROM work.member m
+  WHERE m.org_id = p_org_id AND m.subject_id = p_subject_id
+    AND m.status = 'active' AND m.work_seat AND m.role <> 'viewer'
+  FOR SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'work_seat_required' USING ERRCODE = 'P0001';
+  END IF;
+  IF task_row.revision <> p_expected_revision THEN
+    RAISE EXCEPTION 'version_conflict' USING ERRCODE = 'P0001', DETAIL = task_row.revision::text;
+  END IF;
+  IF task_row.active_run_id IS NOT NULL THEN
+    RAISE EXCEPTION 'task_has_active_run' USING ERRCODE = 'P0001';
+  END IF;
+  SELECT r.state INTO latest_state FROM work.run r
+  WHERE r.id = task_row.latest_run_id AND r.org_id = p_org_id
+  FOR UPDATE;
+  IF task_row.state <> 'open' OR latest_state IS NULL OR latest_state NOT IN ('failed', 'canceled') THEN
+    RAISE EXCEPTION 'task_not_runnable' USING ERRCODE = 'P0001';
+  END IF;
+  IF work.task_has_blocking_operation(p_task_id, p_org_id) THEN
+    RAISE EXCEPTION 'run_not_quiescent' USING ERRCODE = 'P0001';
+  END IF;
+
+  SELECT COALESCE(MAX(r.attempt_no), 0) + 1 INTO next_attempt
+  FROM work.run r WHERE r.task_id = p_task_id AND r.org_id = p_org_id;
+  INSERT INTO work.run
+    (id, org_id, task_id, attempt_no, state, snapshot_id, workflow_id, runtime_version)
+  VALUES
+    (new_run_id, p_org_id, p_task_id, next_attempt, 'queued', task_row.snapshot_id, p_workflow_id, p_runtime_version);
+  UPDATE work.task t
+  SET active_run_id = new_run_id, latest_run_id = new_run_id,
+      revision = t.revision + 1, updated_at = now()
+  WHERE t.id = p_task_id AND t.org_id = p_org_id;
+  INSERT INTO work.submission_dedup
+    (org_id, subject_id, operation_type, client_request_id, request_hash, task_id, result_state, result_ref)
+  VALUES
+    (p_org_id, p_subject_id, 'run.retry', p_client_request_id, req_hash, p_task_id, 'accepted', new_run_id::text);
+  PERFORM work.append_task_event(
+    p_org_id, p_task_id, 'run.queued',
+    jsonb_build_object('run_id', new_run_id, 'attempt_no', next_attempt)
+  );
+  INSERT INTO work.outbox (org_id, aggregate_type, aggregate_id, event_id, payload)
+  VALUES (
+    p_org_id, 'run', new_run_id, gen_random_uuid(),
+    jsonb_build_object('kind', 'start_workflow', 'run_id', new_run_id, 'workflow_id', p_workflow_id)
+  );
+  PERFORM work.append_audit(
+    p_org_id, p_subject_id, 'run.retry', 'task', p_task_id::text,
+    jsonb_build_object('run_id', new_run_id, 'attempt_no', next_attempt)
+  );
+  RETURN QUERY SELECT new_run_id, task_row.revision + 1;
+END;
+$$;
+
+-- 用户采纳：仅 owner、未删除、状态 awaiting_acceptance、静止；固定版本或完成理由；
+-- revision 冲突返回 version_conflict（DETAIL=当前 revision）；幂等键返回同一采纳。
+CREATE FUNCTION work.accept_task(
+  p_org_id text,
+  p_task_id uuid,
+  p_subject_id text,
+  p_client_request_id text,
+  p_expected_revision bigint,
+  p_artifact_id uuid,
+  p_version_no int,
+  p_completion_reason text
+) RETURNS TABLE (acceptance_id uuid, revision bigint)
+LANGUAGE plpgsql AS $$
+DECLARE
+  task_row work.task%ROWTYPE;
+  dedup_row work.submission_dedup%ROWTYPE;
+  req_hash text;
+  new_acceptance_id uuid := gen_random_uuid();
+BEGIN
+  PERFORM work.assert_session_subject(p_subject_id);
+  PERFORM work.lock_request_key(p_org_id, p_subject_id, 'task.accept', p_client_request_id);
+  IF (p_artifact_id IS NULL) = (p_completion_reason IS NULL)
+     OR (p_artifact_id IS NOT NULL AND p_version_no IS NULL)
+     OR (p_completion_reason IS NOT NULL AND char_length(btrim(p_completion_reason)) NOT BETWEEN 1 AND 500) THEN
+    RAISE EXCEPTION 'acceptance_requires_artifact_or_reason' USING ERRCODE = '22023';
+  END IF;
+  req_hash := work.sha256_text(concat_ws(':', p_task_id, p_expected_revision, p_artifact_id, p_version_no,
+                                         work.sha256_text(COALESCE(p_completion_reason, ''))));
+  SELECT * INTO dedup_row
+  FROM work.submission_dedup d
+  WHERE d.org_id = p_org_id AND d.subject_id = p_subject_id
+    AND d.operation_type = 'task.accept' AND d.client_request_id = p_client_request_id;
+  IF FOUND THEN
+    IF dedup_row.request_hash <> req_hash THEN
+      RAISE EXCEPTION 'idempotency_key_conflict' USING ERRCODE = 'P0001';
+    END IF;
+    IF dedup_row.task_deleted THEN
+      RAISE EXCEPTION 'task_not_found' USING ERRCODE = 'P0002';
+    END IF;
+    RETURN QUERY SELECT dedup_row.result_ref::uuid, (p_expected_revision + 1);
+    RETURN;
+  END IF;
+
+  SELECT * INTO task_row
+  FROM work.task t
+  WHERE t.id = p_task_id AND t.org_id = p_org_id AND t.deleted_at IS NULL
+  FOR UPDATE;
+  IF NOT FOUND OR task_row.owner_subject_id <> p_subject_id THEN
+    RAISE EXCEPTION 'task_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF task_row.revision <> p_expected_revision THEN
+    RAISE EXCEPTION 'version_conflict' USING ERRCODE = 'P0001', DETAIL = task_row.revision::text;
+  END IF;
+  IF task_row.state <> 'awaiting_acceptance' THEN
+    RAISE EXCEPTION 'task_not_acceptable' USING ERRCODE = 'P0001';
+  END IF;
+  IF task_row.active_run_id IS NOT NULL OR work.task_has_blocking_operation(p_task_id, p_org_id) THEN
+    RAISE EXCEPTION 'run_not_quiescent' USING ERRCODE = 'P0001';
+  END IF;
+  IF p_artifact_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1
+    FROM work.artifact a
+    JOIN work.artifact_version v ON v.artifact_id = a.id AND v.org_id = a.org_id
+    WHERE a.id = p_artifact_id AND a.org_id = p_org_id AND a.task_id = p_task_id
+      AND a.deleted_at IS NULL AND v.version_no = p_version_no
+      AND a.state = 'published' AND v.state = 'published'
+  ) THEN
+    RAISE EXCEPTION 'artifact_not_published' USING ERRCODE = 'P0001';
+  END IF;
+  UPDATE work.task t
+  SET state = 'completed', revision = t.revision + 1, updated_at = now()
+  WHERE t.id = p_task_id AND t.org_id = p_org_id;
+  INSERT INTO work.acceptance
+    (id, org_id, task_id, artifact_id, version_no, actor_subject_id, task_revision, completion_reason)
+  VALUES
+    (new_acceptance_id, p_org_id, p_task_id, p_artifact_id, p_version_no, p_subject_id,
+     p_expected_revision + 1, btrim(p_completion_reason));
+  INSERT INTO work.submission_dedup
+    (org_id, subject_id, operation_type, client_request_id, request_hash, task_id, result_state, result_ref)
+  VALUES
+    (p_org_id, p_subject_id, 'task.accept', p_client_request_id, req_hash, p_task_id, 'completed',
+     new_acceptance_id::text);
+  PERFORM work.append_audit(
+    p_org_id, p_subject_id, 'task.accept', 'task', p_task_id::text,
+    jsonb_build_object('acceptance_id', new_acceptance_id,
+                       'basis', CASE WHEN p_artifact_id IS NULL THEN 'reason' ELSE 'version' END,
+                       'artifact_id', p_artifact_id, 'version_no', p_version_no)
+  );
+  RETURN QUERY SELECT new_acceptance_id, task_row.revision + 1;
+END;
+$$;
+
+-- 用户编辑成果另存新版本：仅 owner、未删除、任务静止且未完成（open/awaiting_acceptance）；
+-- base_version_no 必须等于当前最新已发布版本（否则 version_conflict，DETAIL=最新版本号）；
+-- 版本不可变、来源标为 user；任务 revision +1，使旧视图的采纳失效。
+CREATE FUNCTION work.create_user_artifact_version(
+  p_org_id text,
+  p_artifact_id uuid,
+  p_subject_id text,
+  p_client_request_id text,
+  p_base_version_no int,
+  p_content_ref text,
+  p_content_hash text,
+  p_bytes bigint,
+  p_media_type text
+) RETURNS TABLE (version_no int, task_revision bigint)
+LANGUAGE plpgsql AS $$
+DECLARE
+  task_row work.task%ROWTYPE;
+  artifact_row work.artifact%ROWTYPE;
+  dedup_row work.submission_dedup%ROWTYPE;
+  v_task_id uuid;
+  latest_version int;
+  req_hash text;
+BEGIN
+  PERFORM work.assert_session_subject(p_subject_id);
+  PERFORM work.lock_request_key(p_org_id, p_subject_id, 'artifact.version', p_client_request_id);
+  IF p_base_version_no IS NULL OR p_base_version_no < 1
+     OR p_content_ref IS NULL OR p_content_ref = ''
+     OR p_content_hash IS NULL OR p_content_hash = ''
+     OR p_bytes IS NULL OR p_bytes <= 0
+     OR p_media_type IS NULL OR p_media_type = '' THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
+  END IF;
+  req_hash := work.sha256_text(concat_ws(':', p_artifact_id, p_base_version_no, p_content_hash));
+  SELECT * INTO dedup_row
+  FROM work.submission_dedup d
+  WHERE d.org_id = p_org_id AND d.subject_id = p_subject_id
+    AND d.operation_type = 'artifact.version' AND d.client_request_id = p_client_request_id;
+  IF FOUND THEN
+    IF dedup_row.request_hash <> req_hash THEN
+      RAISE EXCEPTION 'idempotency_key_conflict' USING ERRCODE = 'P0001';
+    END IF;
+    IF dedup_row.task_deleted THEN
+      RAISE EXCEPTION 'artifact_not_found' USING ERRCODE = 'P0002';
+    END IF;
+    RETURN QUERY
+      SELECT dedup_row.result_ref::int, t.revision
+      FROM work.task t WHERE t.id = dedup_row.task_id AND t.org_id = p_org_id;
+    RETURN;
+  END IF;
+
+  SELECT a.task_id INTO v_task_id FROM work.artifact a WHERE a.id = p_artifact_id AND a.org_id = p_org_id;
+  IF v_task_id IS NULL THEN
+    RAISE EXCEPTION 'artifact_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  SELECT * INTO task_row FROM work.task t
+  WHERE t.id = v_task_id AND t.org_id = p_org_id AND t.deleted_at IS NULL
+  FOR UPDATE;
+  SELECT * INTO artifact_row FROM work.artifact a
+  WHERE a.id = p_artifact_id AND a.org_id = p_org_id AND a.deleted_at IS NULL
+  FOR UPDATE;
+  IF task_row.id IS NULL OR artifact_row.id IS NULL OR task_row.owner_subject_id <> p_subject_id THEN
+    RAISE EXCEPTION 'artifact_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF task_row.state NOT IN ('open', 'awaiting_acceptance') THEN
+    RAISE EXCEPTION 'artifact_read_only' USING ERRCODE = 'P0001';
+  END IF;
+  IF task_row.active_run_id IS NOT NULL THEN
+    RAISE EXCEPTION 'run_not_quiescent' USING ERRCODE = 'P0001';
+  END IF;
+  SELECT MAX(v.version_no) INTO latest_version
+  FROM work.artifact_version v
+  WHERE v.artifact_id = p_artifact_id AND v.org_id = p_org_id AND v.state = 'published';
+  IF latest_version IS DISTINCT FROM p_base_version_no THEN
+    RAISE EXCEPTION 'version_conflict' USING ERRCODE = 'P0001', DETAIL = COALESCE(latest_version, 0)::text;
+  END IF;
+  INSERT INTO work.artifact_version
+    (artifact_id, org_id, version_no, content_ref, content_hash, bytes, media_type, state, provenance)
+  VALUES
+    (p_artifact_id, p_org_id, latest_version + 1, p_content_ref, p_content_hash, p_bytes, p_media_type,
+     'staged', jsonb_build_object('source', 'user', 'base_version_no', p_base_version_no));
+  UPDATE work.artifact_version v
+  SET state = 'published', published_at = now()
+  WHERE v.artifact_id = p_artifact_id AND v.org_id = p_org_id AND v.version_no = latest_version + 1;
+  UPDATE work.artifact a
+  SET revision = a.revision + 1, updated_at = now()
+  WHERE a.id = p_artifact_id AND a.org_id = p_org_id;
+  UPDATE work.task t
+  SET revision = t.revision + 1, updated_at = now()
+  WHERE t.id = v_task_id AND t.org_id = p_org_id;
+  INSERT INTO work.submission_dedup
+    (org_id, subject_id, operation_type, client_request_id, request_hash, task_id, result_state, result_ref)
+  VALUES
+    (p_org_id, p_subject_id, 'artifact.version', p_client_request_id, req_hash, v_task_id, 'published',
+     (latest_version + 1)::text);
+  PERFORM work.append_task_event(
+    p_org_id, v_task_id, 'artifact.published',
+    jsonb_build_object('artifact_id', p_artifact_id, 'version_no', latest_version + 1, 'source', 'user',
+                       'content_hash', p_content_hash, 'bytes', p_bytes, 'media_type', p_media_type)
+  );
+  PERFORM work.append_audit(
+    p_org_id, p_subject_id, 'artifact.version_create', 'artifact', p_artifact_id::text,
+    jsonb_build_object('task_id', v_task_id, 'version_no', latest_version + 1, 'base_version_no', p_base_version_no)
+  );
+  RETURN QUERY SELECT latest_version + 1, task_row.revision + 1;
+END;
+$$;
+
 -- R0a RLS、函数所有权与最小权限
 -- 应用每事务 SET LOCAL app.org_id；FORCE 让表 owner 也受策略约束。
 
@@ -2853,6 +3608,11 @@ BEGIN
   END LOOP;
 END;
 $$;
+
+-- Relay 跨组织：仅 work_owner 身份（领域函数内）且函数临时打开 app.outbox_relay 时可见全部组织的 outbox。
+CREATE POLICY outbox_relay ON work.outbox
+  USING (current_user = 'work_owner' AND current_setting('app.outbox_relay', true) = 'on')
+  WITH CHECK (current_user = 'work_owner' AND current_setting('app.outbox_relay', true) = 'on');
 
 DO $$
 DECLARE
@@ -2898,38 +3658,42 @@ REVOKE ALL ON ALL TABLES IN SCHEMA work FROM PUBLIC;
 
 GRANT USAGE ON SCHEMA work TO work_api, work_worker, work_ledger, work_ops;
 GRANT SELECT ON ALL TABLES IN SCHEMA work TO work_api, work_worker;
+-- API 不读 outbox/幂等表（避免跨用户请求元数据可见）；relay 走 claim_outbox。
+REVOKE SELECT ON work.outbox, work.submission_dedup FROM work_api;
 GRANT SELECT ON work.task_summary TO work_api, work_worker;
 
--- 账本/审计追加角色只获得追加表 INSERT + SELECT，不获得业务事实表写权限。
-GRANT SELECT, INSERT ON work.budget_entry, work.task_event, work.audit_event TO work_ledger;
+-- 账本/审计角色只读：所有账本写入必须经领域函数（reserve/settle/adjust/release），不允许直接 INSERT。
+GRANT SELECT ON work.budget_entry, work.budget_reservation, work.budget_account, work.audit_event TO work_ledger;
 
 GRANT EXECUTE ON FUNCTION work.create_input(text, text, text, text, bigint, text) TO work_api;
-GRANT EXECUTE ON FUNCTION work.submit_task(text, text, text, text, uuid, text, text, text, jsonb, text[], jsonb, text, text, text) TO work_api;
-GRANT EXECUTE ON FUNCTION work.create_run(uuid, text, uuid, text, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.submit_task(text, text, text, uuid, text, text, text, jsonb, text[], jsonb, text, text, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.retry_task(text, uuid, text, text, bigint, text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.request_cancel(text, uuid, text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.update_task_title(text, uuid, text, text, bigint, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.record_artifact_export(text, uuid, int, text) TO work_api;
-GRANT EXECUTE ON FUNCTION work.publish_artifact(text, uuid, uuid, text, text, text, bigint, text, jsonb) TO work_api, work_worker;
-GRANT EXECUTE ON FUNCTION work.accept_task(uuid, text, uuid, int, text, bigint, text) TO work_api;
-GRANT EXECUTE ON FUNCTION work.request_approval(text, uuid, text, jsonb, text, timestamptz, bigint) TO work_api;
+GRANT EXECUTE ON FUNCTION work.create_user_artifact_version(text, uuid, text, text, int, text, text, bigint, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.publish_artifact(text, uuid, uuid, text, text, text, bigint, text, jsonb) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.accept_task(text, uuid, text, text, bigint, uuid, int, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.request_approval(text, uuid, text, jsonb, text, timestamptz, bigint) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.decide_approval(text, uuid, text, text, bigint, text) TO work_api;
 
 GRANT EXECUTE ON FUNCTION work.acquire_run(uuid, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.create_operation(uuid, text, text, text, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.authorize_operation(text, uuid, bigint, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.finish_operation(text, uuid, text, text, text) TO work_worker;
-GRANT EXECUTE ON FUNCTION work.cancel_operation(text, uuid, text, text) TO work_api, work_worker;
+GRANT EXECUTE ON FUNCTION work.cancel_operation(text, uuid, text, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.reserve_budget(text, text, text, uuid, bigint) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.claim_dispatch(uuid, text, text, bigint) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.settle_budget(uuid, bigint, text, jsonb, int) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.adjust_budget(uuid, bigint, text, int) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.release_budget(uuid) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.finish_run(uuid, text, text, text) TO work_worker;
-GRANT EXECUTE ON FUNCTION work.claim_outbox(int) TO work_worker;
-GRANT EXECUTE ON FUNCTION work.mark_outbox_delivered(uuid) TO work_worker;
-GRANT EXECUTE ON FUNCTION work.mark_outbox_failed(uuid, text, boolean) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.claim_outbox(text, int, int) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.mark_outbox_delivered(uuid, text) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.mark_outbox_failed(uuid, text, text, boolean) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.requeue_outbox_dead_letter(uuid, text, text) TO work_ops;
-GRANT EXECUTE ON FUNCTION work.delete_task(text, uuid, text, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.skip_outbox_dead_letter(uuid, text, text) TO work_ops;
+GRANT EXECUTE ON FUNCTION work.delete_task(text, uuid, text, bigint, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.ops_delete_task(text, uuid, text, text, text) TO work_ops;
 GRANT EXECUTE ON FUNCTION work.transfer_task_ownership(text, uuid, text, text, text, text) TO work_ops;
 GRANT EXECUTE ON FUNCTION work.wait_run(text, uuid, text) TO work_worker;

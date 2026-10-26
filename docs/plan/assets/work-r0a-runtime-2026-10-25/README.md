@@ -30,7 +30,7 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 
 ## 已验证
 
-- 2026-10-26：usage/对账/供应链准入 **12/12**（合计 22/22），用真实 Qwen smoke 的 usage 形状验证不重复计 reasoning；CI `runtime-frontend` job 已定义。
+- 2026-10-26：usage/对账/供应链准入 **19/19**（合计 29/29；修订补 digest 绑定、purl 规范化、扫描完整性、operation 价表一致、对账输入校验），用真实 Qwen smoke 的 usage 形状验证不重复计 reasoning；CI `runtime-frontend` job 已定义。
 - 策略测试 **10/10** 通过：工具白名单、来源标签、秘密阻断、请求绑定、回退、响应过滤、沙箱不变量、无内容日志、usage、faux model。
 - `WorkAdapter.contract.ts` 通过 `tsc --noEmit`。
 - 策略 JSON 可解析；faux model 无网络依赖。

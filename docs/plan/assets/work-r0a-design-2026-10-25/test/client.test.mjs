@@ -264,6 +264,27 @@ async function submitted(api, suffix) {
   return submit.data.task;
 }
 
+test('default task title truncates by code point, never splitting surrogate pairs', async () => {
+  const api = client();
+  const goal = `${'😀'.repeat(19)}汉字尾巴`;
+  const input = await api.createInput({
+    body: { client_request_id: 'req-in-emoji-0001', goal, media_type: 'text/markdown' },
+  });
+  const intent = {
+    input_ref: input.data.input_ref,
+    target: { kind: 'cloud', profile: 'text-v1' },
+    template: null,
+    permission_mode: 'ask_each',
+    output: { format: 'markdown' },
+  };
+  const preview = await api.createTaskPreview({ body: { intent } });
+  const submit = await api.submitTask({
+    body: { client_request_id: 'req-task-emoji-0001', preview_hash: preview.data.preview_hash, intent },
+  });
+  assert.equal(submit.data.task.title, `${'😀'.repeat(19)}汉`);
+  assert.equal([...submit.data.task.title].length, 20);
+});
+
 test('updateTask edits title with revision check, idempotent replay and validation', async () => {
   const api = client();
   const task = await submitted(api, 'title-0001');
@@ -385,17 +406,26 @@ test('deleteTask requires a quiescent task, is idempotent and makes content unre
   const api = client();
   const task = await submitted(api, 'del-0001');
   await assert.rejects(
-    api.deleteTask({ path: { taskId: task.task_id } }),
+    api.deleteTask({ path: { taskId: task.task_id }, query: { expected_revision: task.revision } }),
     (error) => error.status === 409 && error.code === 'run_not_quiescent',
   );
   await raw('POST', `/__test/tasks/${task.task_id}/complete`, {});
   const detail = await api.getTask({ path: { taskId: task.task_id } });
   const { artifact_id: artifactId, version_no: versionNo } = detail.data.summary.latest_artifact;
+  const revision = detail.data.summary.revision;
 
-  const deleted = await api.deleteTask({ path: { taskId: task.task_id } });
+  await assert.rejects(
+    api.deleteTask({ path: { taskId: task.task_id }, query: { expected_revision: revision - 1 } }),
+    (error) => error.status === 409 && error.code === 'version_conflict',
+  );
+  await assert.rejects(
+    api.deleteTask({ path: { taskId: task.task_id } }),
+    (error) => error.status === 400 && error.code === 'invalid_request',
+  );
+  const deleted = await api.deleteTask({ path: { taskId: task.task_id }, query: { expected_revision: revision } });
   assert.equal(deleted.status, 200);
   assert.equal(deleted.data.content_purge, 'scheduled');
-  const again = await api.deleteTask({ path: { taskId: task.task_id } });
+  const again = await api.deleteTask({ path: { taskId: task.task_id }, query: { expected_revision: revision } });
   assert.deepEqual(again.data, deleted.data);
 
   await assert.rejects(api.getTask({ path: { taskId: task.task_id } }), (error) => error.status === 404);
@@ -408,7 +438,10 @@ test('deleteTask requires a quiescent task, is idempotent and makes content unre
   const row = app.state.auditLog.find((entry) => entry.action === 'task.deleted');
   assert.equal(row.target_id, task.task_id);
   await assert.rejects(
-    client({ csrfToken: 'wrong-token-0000000' }).deleteTask({ path: { taskId: task.task_id } }),
+    client({ csrfToken: 'wrong-token-0000000' }).deleteTask({
+      path: { taskId: task.task_id },
+      query: { expected_revision: revision },
+    }),
     (error) => error.status === 403,
   );
 });

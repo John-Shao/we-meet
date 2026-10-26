@@ -71,12 +71,39 @@ function totalTokens(t) {
   return t.input + t.cached_input + t.output;
 }
 
+// Gateway counts come from our own proxy; a NaN/negative/fractional count is a bug, not "zero usage".
+function validateGatewayTokens(tokens) {
+  if (tokens == null) return null;
+  const bad = TOKEN_CLASSES.filter((cls) => !Number.isInteger(tokens[cls]) || tokens[cls] < 0);
+  if (bad.length) {
+    throw Object.assign(new Error(`invalid gateway token counts: ${bad.join(', ')}`), { code: 'invalid_gateway_usage' });
+  }
+  return { input: tokens.input, cached_input: tokens.cached_input, output: tokens.output };
+}
+
+// The price table must be the one the operation was previewed/reserved under.
+function assertTableForOperation(table, operation) {
+  const mismatched = [
+    ['price_version', operation?.price_version],
+    ['provider', operation?.provider],
+    ['model', operation?.model],
+  ].filter(([field, expected]) => !expected || table[field] !== expected);
+  if (mismatched.length) {
+    throw Object.assign(
+      new Error(`price table does not match operation: ${mismatched.map(([f]) => f).join(', ')}`),
+      { code: 'price_version_mismatch' },
+    );
+  }
+}
+
 // Decide what to settle for one model operation and which flags to raise.
-export function settleOperation({ reservedCents, priceTable, providerUsage, gatewayTokens }) {
+export function settleOperation({ reservedCents, priceTable, operation, providerUsage, gatewayTokens: rawGateway }) {
   validatePriceTable(priceTable);
+  assertTableForOperation(priceTable, operation);
   if (!Number.isInteger(reservedCents) || reservedCents < 0) {
     throw Object.assign(new Error('reservedCents must be a non-negative integer'), { code: 'invalid_billable_amount' });
   }
+  const gatewayTokens = validateGatewayTokens(rawGateway);
   const flags = [];
   const provider = normalizeUsage(providerUsage, priceTable);
   let basis;
@@ -116,6 +143,20 @@ export function settleOperation({ reservedCents, priceTable, providerUsage, gate
 
 // Compare one org/period/provider invoice with internal ledger entries.
 export function reconcilePeriod({ ledger, invoice }) {
+  for (const [name, rows] of [['ledger', ledger], ['invoice', invoice]]) {
+    const ids = new Set();
+    for (const row of rows) {
+      if (!row.provider_request_id || !Number.isInteger(row.amount_cents)) {
+        throw Object.assign(new Error(`${name} row needs provider_request_id and integer amount_cents`), {
+          code: 'invalid_reconciliation_input',
+        });
+      }
+      if (ids.has(row.provider_request_id)) {
+        throw Object.assign(new Error(`${name} has duplicate provider_request_id`), { code: 'invalid_reconciliation_input' });
+      }
+      ids.add(row.provider_request_id);
+    }
+  }
   const byId = (rows) => new Map(rows.map((row) => [row.provider_request_id, row]));
   const ledgerById = byId(ledger);
   const invoiceById = byId(invoice);

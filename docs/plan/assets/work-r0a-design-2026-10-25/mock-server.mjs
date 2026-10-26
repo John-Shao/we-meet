@@ -12,7 +12,10 @@
  */
 import http from 'node:http';
 import crypto from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+
+const ERROR_CATALOG = JSON.parse(readFileSync(new URL('./error-codes.json', import.meta.url), 'utf8'));
 
 const SESSION_COOKIE = 'we_meet_session=test-session';
 const CSRF_TOKEN = 'test-csrf-token-123456';
@@ -131,6 +134,27 @@ function requireCsrf(req, state) {
   }
 }
 
+function requireClientRequestId(body) {
+  if (typeof body.client_request_id !== 'string' || body.client_request_id.length < 8) {
+    fail(400, 'invalid_request', 'client_request_id 至少 8 字符');
+  }
+}
+
+// Same key + same body returns the stored response; same key + different body is a conflict.
+function replayed(state, key, body) {
+  const previous = state.taskDedup.get(key);
+  if (!previous) return null;
+  if (previous.requestHash !== sha256(stableStringify(body))) {
+    fail(409, 'idempotency_key_conflict', '同一 client_request_id 的请求内容不同');
+  }
+  return previous.response;
+}
+
+function remember(state, key, body, status, payload) {
+  state.taskDedup.set(key, { requestHash: sha256(stableStringify(body)), response: { status, payload } });
+  return { status, payload };
+}
+
 function contentDisposition(task, artifact, version) {
   const ext = version.mediaType === 'text/plain' ? 'txt' : 'md';
   const ascii = `work-${artifact.id.slice(0, 8)}-v${version.versionNo}.${ext}`;
@@ -175,16 +199,11 @@ function sendJson(res, status, body, headers = {}) {
 }
 
 function sendError(res, error) {
-  const status = error.status ?? 500;
+  const status = error.status ?? 503;
   const code = error.code ?? 'service_degraded';
-  const retryable = status >= 500 || code === 'preview_stale';
-  const recovery =
-    error.extra?.recovery_action ??
-    (code === 'preview_stale'
-      ? 're_preview'
-      : code === 'version_conflict' || code === 'run_not_quiescent'
-        ? 'refresh'
-        : null);
+  const entry = ERROR_CATALOG.public[code];
+  const retryable = entry ? entry.retryable : status >= 500;
+  const recovery = error.extra?.recovery_action ?? entry?.recovery_action ?? null;
   sendJson(res, status, {
     code,
     message: error.message,
@@ -461,9 +480,7 @@ function createTask(state, intent, preview) {
   const input = validateInput(state, intent.input_ref);
   const taskId = uuid();
   const runId = uuid();
-  const title = intent.output?.required_sections?.length
-    ? `${input.goal.slice(0, 20)}`
-    : input.goal.slice(0, 20);
+  const title = [...input.goal.trim()].slice(0, 20).join('');
   const task = {
     id: taskId,
     title: title || '未命名任务',
@@ -614,7 +631,7 @@ function finishCancelForTest(state, task) {
     task.latestRunId = run.id;
     task.state = 'open';
     task.revision += 1;
-    addEvent(task, 'run.canceled', { run_id: run.id, reason: 'user canceled' }, run.id);
+    addEvent(task, 'run.canceled', { run_id: run.id, reason: 'user_requested' }, run.id);
   }
   return task;
 }
@@ -713,6 +730,7 @@ async function handle(req, res, state) {
   }
 
   if (method === 'POST' && pathname === '/work/v1/task-previews') {
+    requireCsrf(req, state);
     const body = await readJson(req);
     return sendJson(res, 200, makePreview(state, body.intent));
   }
@@ -780,6 +798,17 @@ async function handle(req, res, state) {
     requireCsrf(req, state);
     const task = state.tasks.get(match[1]);
     if (!task) fail(404, 'task_not_found', '任务不存在');
+    const body = await readJson(req);
+    requireClientRequestId(body);
+    const key = `retry:${task.id}:${body.client_request_id}`;
+    const prior = replayed(state, key, body);
+    if (prior) return sendJson(res, prior.status, prior.payload);
+    if (!Number.isInteger(body.expected_revision) || body.expected_revision < 0) {
+      fail(400, 'invalid_request', 'expected_revision 必填');
+    }
+    if (body.expected_revision !== task.revision) {
+      fail(409, 'version_conflict', '任务 revision 已变化', { current_revision: task.revision });
+    }
     if (!['open', 'awaiting_acceptance'].includes(task.state)) {
       fail(409, 'task_not_runnable', '任务状态不可重试');
     }
@@ -808,7 +837,8 @@ async function handle(req, res, state) {
     task.state = 'open';
     task.revision += 1;
     addEvent(task, 'run.retried', { run_id: runId, attempt_no: attemptNo }, runId);
-    return sendJson(res, 202, { task: summary(task), run: runView(run) });
+    const out = remember(state, key, body, 202, { task: summary(task), run: runView(run) });
+    return sendJson(res, out.status, out.payload);
   }
 
   if ((match = pathname.match(/^\/work\/v1\/tasks\/([0-9a-f-]+)\/events$/)) && method === 'GET') {
@@ -838,6 +868,10 @@ async function handle(req, res, state) {
     const task = state.tasks.get(match[1]);
     if (!task) fail(404, 'task_not_found', '任务不存在');
     const body = await readJson(req);
+    requireClientRequestId(body);
+    const key = `accept:${task.id}:${body.client_request_id}`;
+    const prior = replayed(state, key, body);
+    if (prior) return sendJson(res, prior.status, prior.payload);
     if (body.expected_revision !== task.revision) {
       fail(409, 'version_conflict', '任务 revision 已变化', { current_revision: task.revision });
     }
@@ -873,7 +907,8 @@ async function handle(req, res, state) {
     };
     task.acceptance = acceptance;
     addEvent(task, 'task.completed', { task_id: task.id, acceptance_id: acceptance.id }, latest?.id ?? null);
-    return sendJson(res, 200, { acceptance, task: summary(task) });
+    const out = remember(state, key, body, 200, { acceptance, task: summary(task) });
+    return sendJson(res, out.status, out.payload);
   }
 
   if ((match = pathname.match(/^\/work\/v1\/tasks\/([0-9a-f-]+)$/)) && method === 'GET') {
@@ -888,6 +923,13 @@ async function handle(req, res, state) {
     if (previous) return sendJson(res, 200, previous);
     const task = state.tasks.get(match[1]);
     if (!task) fail(404, 'task_not_found', '任务不存在');
+    const expected = url.searchParams.get('expected_revision');
+    if (expected === null || !/^\d+$/.test(expected)) {
+      fail(400, 'invalid_request', 'expected_revision 必填');
+    }
+    if (Number(expected) !== task.revision) {
+      fail(409, 'version_conflict', '任务 revision 已变化', { current_revision: task.revision });
+    }
     const blocking = [...task.operations.values()].some((op) => BLOCKING_STATES.has(op.state));
     const latest = task.latestRunId ? task.runs.get(task.latestRunId) : null;
     if (task.activeRunId || blocking || (latest && !TERMINAL_RUN_STATES.has(latest.state))) {
@@ -962,7 +1004,7 @@ async function handle(req, res, state) {
       run.controlRevision += 1;
       run.updatedAt = now();
       task.revision += 1;
-      addEvent(task, 'run.cancel_requested', { run_id: run.id, reason: 'user canceled' }, run.id);
+      addEvent(task, 'run.cancel_requested', { run_id: run.id, reason: 'user_requested' }, run.id);
     }
     return sendJson(res, 202, runView(run));
   }
@@ -1002,14 +1044,17 @@ async function handle(req, res, state) {
     if (!found) fail(404, 'artifact_not_found', '成果不存在');
     const { task, artifact } = found;
     const body = await readJson(req);
-    if (!body.client_request_id || body.client_request_id.length < 8) {
-      fail(400, 'invalid_request', 'client_request_id 至少 8 字符');
-    }
+    requireClientRequestId(body);
+    const key = `version:${artifact.id}:${body.client_request_id}`;
+    const prior = replayed(state, key, body);
+    if (prior) return sendJson(res, prior.status, prior.payload);
     if (typeof body.content !== 'string' || Buffer.byteLength(body.content) > 262144) {
       fail(422, 'artifact_too_large', '成果正文超过 R0a 限制');
     }
-    const base = body.base_version_no ?? 0;
-    if (base !== artifact.latestVersionNo) {
+    if (!Number.isInteger(body.base_version_no) || body.base_version_no < 1) {
+      fail(400, 'invalid_request', 'base_version_no 必填且 ≥1');
+    }
+    if (body.base_version_no !== artifact.latestVersionNo) {
       fail(409, 'version_conflict', 'base_version_no 不是最新版本');
     }
     const mediaType = body.media_type ?? 'text/markdown';
@@ -1033,7 +1078,8 @@ async function handle(req, res, state) {
       version_no: version.versionNo,
       content_hash: version.contentHash,
     }, task.latestRunId);
-    return sendJson(res, 201, versionView(req, artifact, version));
+    const out = remember(state, key, body, 201, versionView(req, artifact, version));
+    return sendJson(res, out.status, out.payload);
   }
 
   if ((match = pathname.match(/^\/work\/v1\/artifacts\/([0-9a-f-]+)\/versions\/(\d+)\/content$/)) && method === 'GET') {

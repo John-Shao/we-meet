@@ -1,11 +1,11 @@
 {
-  "version": "r0a-supply-chain-v1",
+  "version": "r0a-supply-chain-v2",
   "scope": "work-r0a-runner image (Pi agent-core + Work Adapter), work-api, work-worker, work-egress",
   "image": {
     "digest_pattern": "^sha256:[0-9a-f]{64}$",
     "forbid_placeholder_digest": true,
     "tag_only_reference": "deny",
-    "base_images_allowlist": ["node:24-bookworm-slim", "gcr.io/distroless/nodejs24-debian12"]
+    "base_images_allowlist": ["gcr.io/distroless/nodejs24-debian12"]
   },
   "signature": {
     "tool": "cosign",
@@ -25,7 +25,7 @@
     "pinned_components": {
       "pkg:npm/%40mariozechner/pi-agent-core": "1.4.0"
     },
-    "forbidden_components": ["pkg:npm/npm", "pkg:npm/yarn", "pkg:npm/pnpm", "pkg:npm/node-gyp"],
+    "forbidden_components": ["pkg:npm/npm", "pkg:npm/yarn", "pkg:npm/pnpm", "pkg:npm/corepack", "pkg:npm/node-gyp", "pkg:deb/debian/apt", "pkg:deb/debian/dpkg"],
     "lockfile_required": true
   },
   "vulnerabilities": {

@@ -37,6 +37,10 @@ export function validateMatrix(matrix) {
     if (entry.primaryAction && !entry.actions.includes(entry.primaryAction)) {
       errors.push(`state ${state} primary action is not in its action list`);
     }
+    // R0a never emits reserved states; render them read-only if a later phase does.
+    if (entry.reservedFor && entry.actions.some((action) => action !== 'view_artifact_readonly')) {
+      errors.push(`reserved state ${state} must be read-only`);
+    }
   }
   for (const [action, entry] of Object.entries(matrix.actions)) {
     if (!entry.labelKey) errors.push(`action ${action} has no label key`);
@@ -45,6 +49,9 @@ export function validateMatrix(matrix) {
     if (!matrix.actions[action]) errors.push(`management action ${action} has no action entry`);
     for (const state of rule.states) {
       if (!matrix.states[state]) errors.push(`management ${action} references unknown state ${state}`);
+      else if (matrix.states[state].reservedFor) {
+        errors.push(`management ${action} references reserved state ${state}`);
+      }
     }
   }
   return errors;

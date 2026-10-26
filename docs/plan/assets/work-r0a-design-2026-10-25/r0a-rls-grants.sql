@@ -29,6 +29,11 @@ BEGIN
 END;
 $$;
 
+-- Relay 跨组织：仅 work_owner 身份（领域函数内）且函数临时打开 app.outbox_relay 时可见全部组织的 outbox。
+CREATE POLICY outbox_relay ON work.outbox
+  USING (current_user = 'work_owner' AND current_setting('app.outbox_relay', true) = 'on')
+  WITH CHECK (current_user = 'work_owner' AND current_setting('app.outbox_relay', true) = 'on');
+
 DO $$
 DECLARE
   table_name text;
@@ -73,38 +78,42 @@ REVOKE ALL ON ALL TABLES IN SCHEMA work FROM PUBLIC;
 
 GRANT USAGE ON SCHEMA work TO work_api, work_worker, work_ledger, work_ops;
 GRANT SELECT ON ALL TABLES IN SCHEMA work TO work_api, work_worker;
+-- API 不读 outbox/幂等表（避免跨用户请求元数据可见）；relay 走 claim_outbox。
+REVOKE SELECT ON work.outbox, work.submission_dedup FROM work_api;
 GRANT SELECT ON work.task_summary TO work_api, work_worker;
 
--- 账本/审计追加角色只获得追加表 INSERT + SELECT，不获得业务事实表写权限。
-GRANT SELECT, INSERT ON work.budget_entry, work.task_event, work.audit_event TO work_ledger;
+-- 账本/审计角色只读：所有账本写入必须经领域函数（reserve/settle/adjust/release），不允许直接 INSERT。
+GRANT SELECT ON work.budget_entry, work.budget_reservation, work.budget_account, work.audit_event TO work_ledger;
 
 GRANT EXECUTE ON FUNCTION work.create_input(text, text, text, text, bigint, text) TO work_api;
-GRANT EXECUTE ON FUNCTION work.submit_task(text, text, text, text, uuid, text, text, text, jsonb, text[], jsonb, text, text, text) TO work_api;
-GRANT EXECUTE ON FUNCTION work.create_run(uuid, text, uuid, text, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.submit_task(text, text, text, uuid, text, text, text, jsonb, text[], jsonb, text, text, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.retry_task(text, uuid, text, text, bigint, text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.request_cancel(text, uuid, text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.update_task_title(text, uuid, text, text, bigint, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.record_artifact_export(text, uuid, int, text) TO work_api;
-GRANT EXECUTE ON FUNCTION work.publish_artifact(text, uuid, uuid, text, text, text, bigint, text, jsonb) TO work_api, work_worker;
-GRANT EXECUTE ON FUNCTION work.accept_task(uuid, text, uuid, int, text, bigint, text) TO work_api;
-GRANT EXECUTE ON FUNCTION work.request_approval(text, uuid, text, jsonb, text, timestamptz, bigint) TO work_api;
+GRANT EXECUTE ON FUNCTION work.create_user_artifact_version(text, uuid, text, text, int, text, text, bigint, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.publish_artifact(text, uuid, uuid, text, text, text, bigint, text, jsonb) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.accept_task(text, uuid, text, text, bigint, uuid, int, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.request_approval(text, uuid, text, jsonb, text, timestamptz, bigint) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.decide_approval(text, uuid, text, text, bigint, text) TO work_api;
 
 GRANT EXECUTE ON FUNCTION work.acquire_run(uuid, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.create_operation(uuid, text, text, text, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.authorize_operation(text, uuid, bigint, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.finish_operation(text, uuid, text, text, text) TO work_worker;
-GRANT EXECUTE ON FUNCTION work.cancel_operation(text, uuid, text, text) TO work_api, work_worker;
+GRANT EXECUTE ON FUNCTION work.cancel_operation(text, uuid, text, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.reserve_budget(text, text, text, uuid, bigint) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.claim_dispatch(uuid, text, text, bigint) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.settle_budget(uuid, bigint, text, jsonb, int) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.adjust_budget(uuid, bigint, text, int) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.release_budget(uuid) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.finish_run(uuid, text, text, text) TO work_worker;
-GRANT EXECUTE ON FUNCTION work.claim_outbox(int) TO work_worker;
-GRANT EXECUTE ON FUNCTION work.mark_outbox_delivered(uuid) TO work_worker;
-GRANT EXECUTE ON FUNCTION work.mark_outbox_failed(uuid, text, boolean) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.claim_outbox(text, int, int) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.mark_outbox_delivered(uuid, text) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.mark_outbox_failed(uuid, text, text, boolean) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.requeue_outbox_dead_letter(uuid, text, text) TO work_ops;
-GRANT EXECUTE ON FUNCTION work.delete_task(text, uuid, text, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.skip_outbox_dead_letter(uuid, text, text) TO work_ops;
+GRANT EXECUTE ON FUNCTION work.delete_task(text, uuid, text, bigint, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.ops_delete_task(text, uuid, text, text, text) TO work_ops;
 GRANT EXECUTE ON FUNCTION work.transfer_task_ownership(text, uuid, text, text, text, text) TO work_ops;
 GRANT EXECUTE ON FUNCTION work.wait_run(text, uuid, text) TO work_worker;

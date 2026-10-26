@@ -242,8 +242,8 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 | reconciling | — | 时间线、请求取消 | 重试/采纳 |
 | budget_exhausted | — | 查看预算、取消 | 重试/采纳 |
 | canceling | — | 时间线 | 重试/采纳/取消 |
-| canceled | — | 只读成果 | 重试/采纳/取消 |
-| archived | — | 只读成果 | 重试/采纳/取消 |
+| canceled（R0b 预留） | — | 只读成果 | 重试/采纳/取消/重命名/删除 |
+| archived（R0b 预留） | — | 只读成果 | 重试/采纳/取消/重命名/删除 |
 
 规则：
 
@@ -252,6 +252,7 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 - `canCancel` 只在 `queued`/`running`/`budget_exhausted`/`reconciling`；reconciling 只能“请求取消”，不能保证停止已派发请求。
 - 所有状态/动作/横幅文案键必须存在；测试校验矩阵/文案完整性。
 - 前端不根据 `run_state`/`operation_state` 自行拼第二套状态；服务端 `display_state` 优先。
+- Task `canceled`/`archived` 为 R0b 预留（`state-matrix.json` 标 `reservedFor: R0b`）：R0a 没有产生它们的接口；若收到只按只读渲染，不进入 `management.rename/delete`，`validateMatrix` 校验此约束。
 
 ## 7. 文案、边界与权限
 
@@ -331,7 +332,7 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 6. **旧路由/旧任务**：当前 `/work?view=...` 与旧 `office_agent` API 仍存在；R0a 用新路由/新 API，旧链接只读通知；D-06 的切换/回滚需实现。
 7. **SSE 传输（已定）**：生成客户端用 fetch stream + `readSse`，自行携带 `Last-Event-ID`；不用原生 EventSource。
 8. **移动端范围**：R0a 只读；若产品要求移动端创建/审批，另立阶段。
-9. **删除任务（2026-10-26 补齐）**：任务工作区“更多 → 删除任务”，仅在 `state-matrix.json` 的 `management.delete` 状态且无 active Run/阻塞 Operation 时可用（`canDelete`）；二次确认文案明确不可撤销、正文 24 小时内清除、用量/审计保留；成功后回到“我的工作”并移除卡片；409 `run_not_quiescent` 显示“请先取消并等待结束”。重命名为 `management.rename`（非归档、仅桌面）。UI 模型 12/12。
+9. **删除任务（2026-10-26 补齐）**：任务工作区“更多 → 删除任务”，仅在 `state-matrix.json` 的 `management.delete` 状态且无 active Run/阻塞 Operation 时可用（`canDelete`）；二次确认文案明确不可撤销、正文 24 小时内清除、用量/审计保留；成功后回到“我的工作”并移除卡片；409 `run_not_quiescent` 显示“请先取消并等待结束”。重命名为 `management.rename`（非归档、仅桌面）。UI 模型 13/13（2026-10-26 复核：reserved 状态约束 +1）。
 
 ## 13. 未决与风险
 
@@ -348,7 +349,7 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 
 ## 14. 验收标准
 
-- 路由/状态矩阵/文案/UI 模型测试通过（当前 12/12，含重命名/删除管理动作）。
+- 路由/状态矩阵/文案/UI 模型测试通过（当前 13/13，含重命名/删除管理动作与 R0b 预留状态约束）。
 - 四个界面 + 历史/管理只读覆盖全部 12 个状态；没有假入口/假审批。
 - Composer 两阶段、preview_stale、idempotency、scope/permission 错误可走通。
 - SSE 断线/409 resync 后状态可恢复；unknown 不显示重试/采纳。

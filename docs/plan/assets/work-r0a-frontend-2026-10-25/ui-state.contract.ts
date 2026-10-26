@@ -20,6 +20,7 @@ export type DisplayState =
   | 'canceled'
   | 'archived';
 
+// 'canceled' | 'archived' are reserved for R0b; R0a has no API that produces them.
 export type TaskState = 'open' | 'awaiting_acceptance' | 'completed' | 'canceled' | 'archived';
 
 export type UiActionId =

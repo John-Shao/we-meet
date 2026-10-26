@@ -479,7 +479,10 @@ export interface components {
             preview_hash: string;
             intent: components["schemas"]["R0aIntent"];
         };
-        /** @enum {string} */
+        /**
+         * @description canceled/archived 为 R0b 预留；R0a 没有产生这两个状态的接口，客户端按只读渲染。
+         * @enum {string}
+         */
         TaskState: "open" | "awaiting_acceptance" | "completed" | "canceled" | "archived";
         /** @enum {string} */
         DisplayState: "open" | "queued" | "running" | "awaiting_acceptance" | "completed" | "failed" | "run_canceled" | "reconciling" | "budget_exhausted" | "canceling" | "canceled" | "archived";
@@ -581,6 +584,7 @@ export interface components {
         };
         TaskRunRequest: {
             client_request_id: string;
+            expected_revision: number;
             /** Format: uuid */
             snapshot_id?: string | null;
             target: components["schemas"]["Target"];
@@ -661,7 +665,6 @@ export interface components {
         };
         ArtifactVersionCreateRequest: {
             client_request_id: string;
-            /** @default 0 */
             base_version_no: number;
             logical_name?: string;
             /**
@@ -825,6 +828,8 @@ export interface components {
     parameters: {
         /** @description double-submit token；与 bootstrap 返回的 csrf_token 一致。 */
         CsrfToken: string;
+        /** @description 乐观并发；与 Task.revision 不一致返回 409 version_conflict。 */
+        ExpectedRevision: number;
         Cursor: string;
         Limit: number;
         TaskId: string;
@@ -918,7 +923,10 @@ export interface operations {
     createTaskPreview: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description double-submit token；与 bootstrap 返回的 csrf_token 一致。 */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -1030,7 +1038,10 @@ export interface operations {
     };
     deleteTask: {
         parameters: {
-            query?: never;
+            query: {
+                /** @description 乐观并发；与 Task.revision 不一致返回 409 version_conflict。 */
+                expected_revision: components["parameters"]["ExpectedRevision"];
+            };
             header: {
                 /** @description double-submit token；与 bootstrap 返回的 csrf_token 一致。 */
                 "X-CSRF-Token": components["parameters"]["CsrfToken"];
@@ -1042,7 +1053,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 已删除；重复删除返回同一结果 */
+            /** @description 已删除；重复删除返回同一结果（不再校验 revision） */
             200: {
                 headers: {
                     [name: string]: unknown;

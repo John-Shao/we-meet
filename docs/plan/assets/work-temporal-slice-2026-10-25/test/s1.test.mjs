@@ -124,15 +124,16 @@ test('S1-R02: DB terminal wins over an in-flight workflow; no late artifact', as
   assert.equal(failedTask.display_state, 'failed');
 
   await signalResume(task.workflowId);
-  const failedWorkflow = await waitFor(async () => {
+  // The workflow re-reads the DB before publishing and exits cleanly as superseded.
+  const closedWorkflow = await waitFor(async () => {
     try {
       const description = await describeWorkflow(task.workflowId);
-      return description.status?.name === 'FAILED' ? description : null;
+      return description.status?.name === 'COMPLETED' ? description : null;
     } catch {
       return null;
     }
   }, 15000);
-  assert.equal(failedWorkflow.status.name, 'FAILED');
+  assert.equal(closedWorkflow.status.name, 'COMPLETED');
   assert.equal(await getArtifactCount(task.task_id), 0);
   assert.equal((await getTask(task.task_id)).display_state, 'failed');
 });

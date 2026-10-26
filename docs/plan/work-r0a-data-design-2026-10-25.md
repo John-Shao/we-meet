@@ -172,7 +172,7 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 | `update_task_title` | work_api | owner-only；1–80 字；revision；幂等；事件/审计只记字段名 |
 | `record_artifact_export` | work_api | owner-only；仅已发布版本；审计含版本/哈希/大小/类型 |
 | `claim_outbox`（修订） | work_worker | `outbox_seq` 单聚合有序；跳过死信 |
-| `mark_outbox_failed` | work_worker | 2^n 秒退避 ≤300s；第 8 次/不可重试死信 + 审计 |
+| `mark_outbox_failed` | work_worker | 仅租约持有者；2^n 秒退避 ≤300s；第 10 次/不可重试死信 + 审计；死信继续阻塞同聚合；start 死信收尾 Run |
 | `requeue_outbox_dead_letter` | work_ops | 需理由；审计；不改 payload |
 | `delete_task` / `ops_delete_task` | work_api / work_ops | 需静止；tombstone；标题清除；`content_shred` outbox 只含引用；账本/审计保留；ops 需工单号 |
 | `transfer_task_ownership` | work_ops | 新 owner 在职且有席位；需静止；工单号；事件/审计 |

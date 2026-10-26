@@ -1,6 +1,6 @@
 # Work R0a 安全、运维、迁移与试点详细设计（D6）
 
-> 状态：D6 设计草案；安全控制/SLO/容量/试点清单已建模并通过 8/8 校验，当前 **go/no-go = no-go（23 个 blocking 项）**；已完成 Temporal dev 6/6、S1 6/6、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、RLS 池化、10 并发负载、Work DB 恢复、试点 on-call runbook、SLO 规则即代码 10/10 与日志扫描 7/7；本地关闭 C12/C18/C19/C20/C21，剩余 23 个 blocking。未做多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/供应商条款/真实遥测接入。
+> 状态：D6 设计草案；安全控制/SLO/容量/试点清单已建模并通过 8/8 校验，当前 **go/no-go = no-go（23 个 blocking 项）**；已完成 Temporal dev 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、RLS 池化、10 并发负载、Work DB 恢复、试点 on-call runbook、SLO 规则即代码 10/10 与日志扫描 8/8；本地关闭 C12/C18/C19/C20/C21，剩余 23 个 blocking。未做多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/供应商条款/真实遥测接入。
 >
 > 日期：2026-10-25
 >
@@ -40,7 +40,7 @@ D6 回答 R0a 试点能否开始、如何安全运行、如何切换/回滚、�
 | S03 | 供应商 Key/凭据泄漏 | KMS/egress 持有；Runtime 无长期 Key；日志不含 Key/正文 | partial |
 | S04 | SSRF/DNS/直连互联网 | 仅 `work-egress`；固定目标；禁 metadata/loopback/private | partial |
 | S05 | 审批重放/陈旧批准 | R0a 无手工审批；policy_auto + audit；R0b/R2 保留 CAS | partial |
-| S06 | 供应链/Pi/镜像 | Pi/镜像固定；禁止运行时安装/扩展；签名/provenance/SBOM/漏洞准入策略 + 评估器 12/12（含 usage）已定义，真实流水线未接 | partial |
+| S06 | 供应链/Pi/镜像 | Pi/镜像固定；禁止运行时安装/扩展；签名/provenance/SBOM/漏洞准入策略 + 评估器 19/19（含 usage）已定义，真实流水线未接 | partial |
 | S07 | Unknown/重复付费调用 | Operation 账本、CAS/fence、不自动重放、保留预算 | partial |
 | S08 | 备份/恢复/DR 丢失安全事实 | 声明持久性边界；恢复核账；超出边界冻结 | partial |
 | S09 | 留存/删除/驻留 | 审计 365 天；任务/正文待产品/法务；crypto-shredding 计划 | open |
@@ -200,19 +200,19 @@ node pilot-capacity-model.mjs
 
 ### 10.1 执行进展（2026-10-25）
 
-- **Temporal 参考纵切**：F01/F02/F04/F07/F21/F23 **6/6** + normal 1/1（dev server、faux model、D1 schema）；见 [slice](assets/work-temporal-slice-2026-10-25/README.md)。
-- **S1 参考演练 6/6**：worker 重启/resume；DB 终态优先（无迟到 artifact）；执行开关/组织停用阻断 submit/acquire；outbox backlog 新提交失败并在 drain 后恢复；`patched` v1→v2 升级保持旧 workflow 行为；file-backed server 重启后已完成 workflow 仍 COMPLETED。
+- **Temporal 参考纵切**：F01/F02/F04/F07/F21/F23 + D3-R06–R09 **10/10** + normal 1/1（dev server、faux model、D1 schema）；见 [slice](assets/work-temporal-slice-2026-10-25/README.md)。
+- **S1 参考演练 4/4 + 升级 1/1**：worker 重启/resume；DB 终态优先（无迟到 artifact，workflow 以 superseded 完成）；执行开关/组织停用阻断 submit/acquire；outbox backlog 新提交失败并在 drain 后恢复；`patched` v1→v2 升级保持旧 workflow 行为；file-backed server 重启后已完成 workflow 仍 COMPLETED 为修订前结果，修订后未复跑。
 - **沙箱降级 profile**：runc、非 root(65532)、只读根、无宿主挂载、`--network none`、cap-drop；gVisor 不可用，`sandboxProof=false`；见 [sandbox-smoke.log](assets/work-r0a-hardening-2026-10-25/sandbox-smoke.log)。
 - **本地 KMS envelope**：租户隔离/轮换/主密钥轮换/shredding **6/6**；不是云 KMS/HSM；见 [kms-envelope](assets/work-r0a-hardening-2026-10-25/kms-envelope.mjs)。
 - **真实 Qwen smoke**：qwen3.8-flash 200、首 token 2567ms、usage 80/110、provider request id 可记录，未输出 Key/正文；见 [provider-smoke.log](assets/work-r0a-hardening-2026-10-25/provider-smoke.log)。
-- **日志扫描参考 7/7**：Key/Bearer/cookie/私钥/正文 canary/email 规则；现有 7 个证据日志 0 fail / 0 warn，扫描结果只含脱敏预览；见 [log-scan-result.log](assets/work-r0a-hardening-2026-10-25/log-scan-result.log)。不是 staging OTel 证据。
+- **日志扫描参考 8/8**：Key（含 `sk-proj-`/`sk-ant-`）/GitHub token/阿里云 AccessKey/Bearer/cookie/私钥/正文 canary/email 规则；现有 7 个证据日志 0 fail / 0 warn，扫描结果只含脱敏预览；见 [log-scan-result.log](assets/work-r0a-hardening-2026-10-25/log-scan-result.log)。不是 staging OTel 证据。
 - **SLO 遥测规则 10/10**：12 个 SLO 全覆盖，生成 21 条 record + 19 条 alert（15 SLO + 4 operational，含 outbox 死信与 usage 偏差），每条告警带 severity/for/runbook，内容标签被禁止；见 [telemetry-contract](assets/work-r0a-ops-2026-10-25/telemetry-contract.json) / [rules](assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)。未接 Prometheus/Alertmanager，所有 SLO 仍 not_measured。
 - 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03 执行开关/组织停用；C21 §6.1 on-call/事故沟通。C31 仍 partial（P1-A 不能直接复用）；C16/C17 仍 partial（无 staging 遥测/日志后端）。
 - 当前 no-go 从 29 降为 **23**；C09/C13/C14/C22 仍 partial，C15/C24/C25/C27/C30 等仍待外部输入。
 
 **当前：no-go，23 个 blocking 项未关闭。** 主要阻塞：
 
-- D1–D5 设计尚未正式评审；D1 增量 34/34、Temporal 参考纵切 6/6 已完成，但 S1 多节点/在途 server 重启与正式评审仍未完成。
+- D1–D5 设计尚未正式评审；D1 冒烟 82/82、Temporal 参考纵切 10/10 已完成，但 S1 多节点/在途 server 重启与正式评审仍未完成。
 - D2 远端 CI 未运行、生成客户端未接前端；D4 真实 gVisor/Content Store/云 KMS/供应商条款；D5 React/E2E；C22 多节点/在途 server 重启。
 - C31 管理只读映射缺口：[映射说明](work-r0a-admin-readonly-mapping-2026-10-25.md) 明确 P1-A 的 role/revision/预算/异步导出不兼容；严格适配器已实现但未接真实 P1-A/身份字段。
 - 威胁模型/控制签收；sandbox proof；供应商条款/价表；无正文日志只在本地证据日志扫描，未接 staging OTel/log pipeline。
@@ -225,7 +225,7 @@ node pilot-capacity-model.mjs
 
 1. D1：wait/resume/mark unknown/reconcile、workflow-start/cancel outbox 已实现并冒烟；剩余启动失败收尾、正式评审。
 2. D2：生成客户端/CI 合同测试；预算剩余、标题编辑、导出、admin P1-A 映射、CSRF 生命周期。
-3. D3：Temporal dev 参考纵切 F01/F02/F04/F07/F21/F23 6/6、`patched` 升级与 DB 终态偏移已完成；剩余多节点/在途 server 重启与生产 Temporal。
+3. D3：Temporal dev 参考纵切 F01/F02/F04/F07/F21/F23 + D3-R06–R09 10/10、`patched` 升级与 DB 终态偏移已完成；剩余多节点/在途 server 重启与生产 Temporal。
 4. D4：已完成 runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke；剩余 gVisor/Content Store/云 KMS/条款/网关配额/无正文日志。
 5. D5：React 页面/React Query/SSE/Playwright/可用性；旧路由/flag 切换。
 6. 平台：S1 worker 重启/DB 偏移/`patched` 升级/已完成 workflow 的 server 重启已完成；剩余多节点/在途 server 重启、worker versioning/drain、备份恢复、SLO 遥测、容量压测；R0a 不承诺区域 DR。

@@ -10,6 +10,8 @@ export const CFG = {
   taskQueue: 'work-r0a-run',
   org: 'org1',
   subject: 'user1',
+  org2: 'org2',
+  subject2: 'user2',
   period: '2026-10',
   accountKey: 'default',
   budgetLimitCents: 1_000_000,
@@ -26,12 +28,13 @@ function poolFor(role) {
   return pools.get(role);
 }
 
-export async function withRole(role, fn) {
+export async function withRole(role, fn, { org = CFG.org, subject = null } = {}) {
   const client = await poolFor(role).connect();
   try {
     await client.query('BEGIN');
     await client.query(`SET LOCAL ROLE ${role}`);
-    await client.query("SELECT set_config('app.org_id', $1, true)", [CFG.org]);
+    if (org) await client.query("SELECT set_config('app.org_id', $1, true)", [org]);
+    if (subject) await client.query("SELECT set_config('app.subject_id', $1, true)", [subject]);
     const result = await fn(client);
     await client.query('COMMIT');
     return result;
@@ -43,8 +46,11 @@ export async function withRole(role, fn) {
   }
 }
 
-export const withApi = (fn) => withRole('work_api', fn);
-export const withWorker = (fn) => withRole('work_worker', fn);
+export const withApi = (fn, opts = {}) =>
+  withRole('work_api', fn, { subject: CFG.subject, ...opts });
+export const withWorker = (fn, opts = {}) => withRole('work_worker', fn, opts);
+// Relay spans orgs: no app.org_id; claim/ACK functions open the outbox_relay scope themselves.
+export const withRelay = (fn) => withRole('work_worker', fn, { org: null });
 
 export async function withAdmin(fn) {
   const client = new Client({ connectionString: CFG.pgAdmin });
@@ -66,34 +72,36 @@ export async function setupDatabase() {
   await client.connect();
   try {
     await client.query(schema);
-    await client.query(
-      `INSERT INTO work.org (id, status, execution_enabled, home_region)
-       VALUES ($1, 'active', true, 'cn-north')
-       ON CONFLICT (id) DO NOTHING`,
-      [CFG.org],
-    );
-    await client.query(
-      `INSERT INTO work.member (org_id, subject_id, status, role, work_seat)
-       VALUES ($1, $2, 'active', 'owner', true)
-       ON CONFLICT (org_id, subject_id) DO NOTHING`,
-      [CFG.org, CFG.subject],
-    );
-    await client.query(
-      `INSERT INTO work.org_policy
-         (org_id, revision, force_ask_each, allow_auto_readonly, allow_plan_approval, policy)
-       VALUES ($1, 1, false, true, false, '{"schema":"r0a-policy-v1"}'::jsonb)
-       ON CONFLICT (org_id) DO NOTHING`,
-      [CFG.org],
-    );
-    await client.query(
-      `INSERT INTO work.budget_account
-         (org_id, account_key, period_id, currency, limit_cents)
-       VALUES ($1, $2, $3, 'CNY', $4)
-       ON CONFLICT (org_id, account_key, period_id)
-       DO UPDATE SET limit_cents = EXCLUDED.limit_cents,
-                     reserved_cents = 0, settled_cents = 0`,
-      [CFG.org, CFG.accountKey, CFG.period, CFG.budgetLimitCents],
-    );
+    for (const [org, subject] of [[CFG.org, CFG.subject], [CFG.org2, CFG.subject2]]) {
+      await client.query(
+        `INSERT INTO work.org (id, status, execution_enabled, home_region)
+         VALUES ($1, 'active', true, 'cn-north')
+         ON CONFLICT (id) DO NOTHING`,
+        [org],
+      );
+      await client.query(
+        `INSERT INTO work.member (org_id, subject_id, status, role, work_seat)
+         VALUES ($1, $2, 'active', 'owner', true)
+         ON CONFLICT (org_id, subject_id) DO NOTHING`,
+        [org, subject],
+      );
+      await client.query(
+        `INSERT INTO work.org_policy
+           (org_id, revision, force_ask_each, allow_auto_readonly, allow_plan_approval, policy)
+         VALUES ($1, 1, false, true, false, '{"schema":"r0a-policy-v1"}'::jsonb)
+         ON CONFLICT (org_id) DO NOTHING`,
+        [org],
+      );
+      await client.query(
+        `INSERT INTO work.budget_account
+           (org_id, account_key, period_id, currency, limit_cents)
+         VALUES ($1, $2, $3, 'CNY', $4)
+         ON CONFLICT (org_id, account_key, period_id)
+         DO UPDATE SET limit_cents = EXCLUDED.limit_cents,
+                       reserved_cents = 0, settled_cents = 0`,
+        [org, CFG.accountKey, CFG.period, CFG.budgetLimitCents],
+      );
+    }
   } finally {
     await client.end();
   }

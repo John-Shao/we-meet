@@ -71,6 +71,7 @@ if _marker not in extra:
 extra_before_task, extra_after_task = extra.split(_marker, 1)
 extra_after_task = _marker + extra_after_task
 new_functions = (HERE / "r0a-new-functions.sql").read_text(encoding="utf-8").rstrip() + "\n"
+hardening = (HERE / "r0a-hardening.sql").read_text(encoding="utf-8").rstrip() + "\n"
 rls = (HERE / "r0a-rls-grants.sql").read_text(encoding="utf-8").rstrip() + "\n"
 
 header = """-- Work R0a 领域模型可执行草案
@@ -191,6 +192,7 @@ ON CONFLICT DO NOTHING;
 """)
 parts.append(functions + "\n")
 parts.append(new_functions + "\n")
+parts.append(hardening + "\n")
 parts.append(rls + "\n")
 parts.append("RESET ROLE;\nCOMMIT;\n")
 

@@ -83,6 +83,8 @@ paths:
       tags: [Tasks]
       operationId: createTaskPreview
       summary: 解析输入/模板/权限/预算，返回执行边界与 preview_hash
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
@@ -195,9 +197,10 @@ paths:
       parameters:
         - $ref: "#/components/parameters/TaskId"
         - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/ExpectedRevision"
       responses:
         "200":
-          description: 已删除；重复删除返回同一结果
+          description: 已删除；重复删除返回同一结果（不再校验 revision）
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TaskDeletion" }
@@ -532,6 +535,12 @@ components:
       required: true
       schema: { type: string, minLength: 16 }
       description: double-submit token；与 bootstrap 返回的 csrf_token 一致。
+    ExpectedRevision:
+      name: expected_revision
+      in: query
+      required: true
+      schema: { type: integer, minimum: 0 }
+      description: 乐观并发；与 Task.revision 不一致返回 409 version_conflict。
     Cursor:
       name: cursor
       in: query
@@ -820,6 +829,7 @@ components:
     TaskState:
       type: string
       enum: [open, awaiting_acceptance, completed, canceled, archived]
+      description: canceled/archived 为 R0b 预留；R0a 没有产生这两个状态的接口，客户端按只读渲染。
 
     DisplayState:
       type: string
@@ -982,9 +992,10 @@ components:
     TaskRunRequest:
       type: object
       additionalProperties: false
-      required: [client_request_id, target]
+      required: [client_request_id, expected_revision, target]
       properties:
         client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        expected_revision: { type: integer, minimum: 0 }
         snapshot_id: { type: [string, "null"], format: uuid }
         target: { $ref: "#/components/schemas/Target" }
         reason: { type: string, maxLength: 500 }
@@ -1080,10 +1091,10 @@ components:
     ArtifactVersionCreateRequest:
       type: object
       additionalProperties: false
-      required: [client_request_id, content]
+      required: [client_request_id, base_version_no, content]
       properties:
         client_request_id: { type: string, minLength: 8, maxLength: 128 }
-        base_version_no: { type: integer, minimum: 0, default: 0 }
+        base_version_no: { type: integer, minimum: 1 }
         logical_name: { type: string, maxLength: 200 }
         media_type: { type: string, enum: [text/markdown, text/plain], default: text/markdown }
         content: { type: string, maxLength: 262144 }

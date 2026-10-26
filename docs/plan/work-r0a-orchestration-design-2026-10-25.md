@@ -1,6 +1,6 @@
 # Work R0a 控制面与持久编排详细设计（D3）
 
-> 状态：D3 设计草案；Temporal dev 参考纵切 F01/F02/F04/F07/F21/F23 6/6，S1 参考演练 6/6（worker 重启、DB 终态偏移、执行开关/停用、outbox backlog、patched 升级、file-backed server 重启）；多节点/在途 server 重启/生产 Temporal、真实 provider 未做。
+> 状态：D3 可评审草案（2026-10-26 修订：取消四时点、派发后失败一律 unknown、迟到用量计费、跨组织租约 relay）；Temporal dev 参考纵切 F01/F02/F04/F07/F21/F23 + D3-R06–R09 10/10，S1 参考演练 R01–R05 本轮复跑通过、R06 未复跑；多节点/在途 server 重启/生产 Temporal、真实 provider 未做。
 >
 > 日期：2026-10-25
 >
@@ -220,7 +220,9 @@ sequenceDiagram
 | 无法确认 | unresolved | 保留 held | Task 阻塞 | 告警/人工核对，不重放 |
 
 - `reconcileOperation` 只处理确认结果；不创建新的 provider 请求。
-- 若 Run 已 cancel_requested，迟到的成功结果只作为证据/审计，不发布为 Task 成果。
+- 若 Run 已 cancel_requested，迟到的成功结果不发布为 Task 成果，但其用量按 `sent_succeeded` 对账计费（供应商确实执行过，不得按 not_sent 释放而少计费）。
+- 派发许可（`claim_dispatch` 非 NULL）之后，`invokeModel` 的**任何**失败——供应商无回执、worker 崩溃、启动/心跳超时、未知错误——都进入 `markOperationUnknown` + `waitRun(reconcile)`；只有供应商明确拒绝且可证明未执行时才可走 failed。
+- `claim_dispatch` 返回 NULL 时 workflow 重读 Operation/Run：authorized 且 Run cancel_requested → `cancelOperation` + `finishRun(canceled)`；已由其他 consumer/fence 派发 → 不动（结果归属派发方，崩溃由对账器接管）；**不得**把别人的 dispatching 标为 unknown。
 - 若 Run 仍 current 且未取消，对账器可在确认后走 `publishArtifact`/`finishRun`；所有动作仍经领域命令。
 
 ### 7.3 对账器
@@ -243,12 +245,17 @@ sequenceDiagram
 ### 8.1 取消
 
 1. API `request_cancel` 写 `run.cancel_requested`、事件、audit、outbox cancel signal；返回 202，不宣称进程已停止。
-2. Relay 发送 cancel signal；workflow 重新读取 DB。
+2. Relay 发送 cancel signal；workflow 重新读取 DB。信号可能丢失或晚于 DB，因此 workflow 在四个时点都以 DB 为准：
+   - **启动前**：`acquire_run` 对 cancel_requested/终态 Run 原样返回（不 bump fence）→ `finishRun(canceled)`，不创建 Operation；
+   - **派发前**：claim 前检查信号；`claim_dispatch` 因 Run 非 active 返回 NULL 时重读（见 §7.2）；
+   - **派发中**：见第 5 条；
+   - **结果后/发布前**：`settle` 后重读 Run；cancel_requested → `finishRun(canceled)` 不发布；已终态 → workflow 以 superseded 正常结束。
 3. 若 Run 已终态：忽略信号。
-4. 若 Operation prepared/authorized：`cancelOperation` 取消并释放 held 预算。
-5. 若 Operation dispatching：`markOperationUnknown`；保留预算；等待对账。
-6. 无阻塞 Operation 后 `finishRun(canceled)`；Task 保持 open，可重试。
-7. 迟到模型结果/上传不发布；计量/审计保留。
+4. 若 Operation prepared/authorized：`cancelOperation` 取消、过期待决审批并释放 held 预算。
+5. 若 Operation dispatching：`cancelOperation` 将其置 unknown（保留预留），立即 `finishRun(canceled)`；随后等待在途活动结束：成功 → `reconcile_operation(sent_succeeded, 实际用量)`；失败/超时 → 保持 unknown 交对账器。
+6. 无阻塞 Operation 后 `finishRun(canceled)`；Task 保持 open，可重试。`finish_run(succeeded)` 遇 cancel_requested 拒绝（`run_cancel_requested`）。
+7. 迟到模型结果/上传不发布；用量计费、审计保留。
+8. 取消原因只存枚举码（如 `user_requested`）；信号里的非枚举文本由 workflow 归一，不进入事件/审计。
 
 ### 8.2 重试
 
@@ -293,12 +300,16 @@ sequenceDiagram
     W->>D: cancelOperation → canceled + release held
     W->>D: finishRun(canceled)
   else Operation dispatching
-    W->>D: markOperationUnknown → unknown, 保留 held
-    W-->>T: 退出/等待对账
-    R->>E: 查询供应商回执（不重发）
-    R->>D: reconcileOperation + 预算/终态处理
+    W->>D: cancelOperation → unknown, 保留 held
+    W->>D: finishRun(canceled)
+    alt 在途活动返回成功
+      W->>D: reconcileOperation(sent_succeeded, 实际用量)
+    else 失败/超时
+      R->>E: 查询供应商回执（不重发）
+      R->>D: reconcileOperation + 预算处理
+    end
   end
-  Note over E,D: 迟到模型结果只作为证据，不发布为 Task 成果
+  Note over E,D: 迟到模型结果不发布为 Task 成果，但用量照实计费
 ```
 
 ## 9. 成果与采纳
@@ -331,7 +342,9 @@ sequenceDiagram
   - `task_event`：aggregate_type=`task`，投递 SSE；
   - `start_workflow`：aggregate_type=`run`，启动 `run:<run_id>`；
   - `cancel_signal`：aggregate_type=`run`，发送 cancel signal。
-- Relay 用 `FOR UPDATE SKIP LOCKED` 领取；至少一次；处理后 `mark_outbox_delivered`。
+- Relay 跨组织运行（不设 `app.org_id`）：`claim_outbox(relay_id, limit, lease_seconds)` 以 `FOR UPDATE SKIP LOCKED` 领取并写租约（`claimed_by/claimed_until`），短事务提交后才调用 Temporal（不在持锁事务里做网络调用，Temporal 调用带 deadline）；逐行 `mark_outbox_delivered(event_id, relay_id)` / `mark_outbox_failed(event_id, relay_id, code, retryable)`，非租约持有者 ACK 得 `outbox_lease_lost`。至少一次。
+- 同聚合头部行未投递（在途/退避/**死信**）即阻塞后续行；start_workflow 死信时 Run queued→failed、cancel_requested→canceled（`dispatch_dead_letter`），同 Run 后续消息 superseded；运维 `requeue`（Run 已非 queued 的 start 拒绝）或 `skip`，均需理由并审计。
+- cancel signal 遇 Temporal NotFound：仅当 DB 已显示 Run 终态才视为投递，否则按可重试失败处理。
 - StartWorkflow 的 `AlreadyStarted` 视为成功；不创建第二个 Run。
 - SSE 只投递公开 TaskEvent；每 Task `aggregate_seq` 单调；客户端按 event_id 去重；Last-Event-ID 补读；游标过期 409 `resync_required`。
 - Inbox 先轮询；跨 Task SSE 后置。
@@ -355,7 +368,7 @@ sequenceDiagram
 | F02 | 启动成功、Relay 未记 ACK | 固定 workflow ID 去重；不启动第二个 Run |
 | F03 | 批准与到期/撤销并发（R0a 内部路径） | 一个权威决定；陈旧批准不得派发；R0a golden path 无手工审批 |
 | F04 | 模型受理后断网、无回执 | Operation unknown；保留预留；不自动付费重发 |
-| F07 | 取消后模型结果/上传完成 | 不发布迟到成果；计量/审计不丢；预算不双扣 |
+| F07 | 取消后模型结果/上传完成 | 不发布迟到成果；迟到用量按 sent_succeeded 计费（不少计）；审计不丢；预算不双扣 |
 | F21 | dispatching 提交确认丢失/崩溃 | 只有 CAS 胜者发送；接管不盲重发；unknown 保留预留 |
 | F23 | 幂等记录过期/Task 删除后重放 | 跨 Task 持久记录返回原关联/删除状态；不创建新收费 Task |
 | D3-R01 | Relay 崩溃/backlog | 新提交 503；已有 Run 继续；不丢 outbox |
@@ -363,6 +376,10 @@ sequenceDiagram
 | D3-R03 | 预算耗尽后补充 | Run waiting(budget)；补充前不派发；恢复后一次预留 |
 | D3-R04 | Run active/unknown 时采纳 | 409；Task/成果不变；UI 不显示假完成 |
 | D3-R05 | 派发中组织停用 | 新派发 0；在途 unknown/canceled；解除后不自动重放 |
+| D3-R06 | 工作流启动前取消 | acquire 不 bump fence；Run canceled；0 Operation、0 派发 |
+| D3-R07 | 授权/预留后、claim 前仅 DB 取消 | claim 返回 NULL 后重读；Operation canceled、预留释放；0 派发 |
+| D3-R08 | 派发后 worker 停止心跳 | 心跳超时 → unknown + waiting(reconcile)；不按 not_sent 释放 |
+| D3-R09 | 单 relay 跨多组织 | 一次领取多组织 start；各 Run 只在本组织执行；租户读隔离 |
 
 ## 13. D3 对 D1/D2 的增量
 
@@ -388,24 +405,25 @@ D3 完成（DR2）需要：
 - Temporal history 中无正文/密钥；SSE 事件无正文。
 - 对账器只通过领域命令恢复；无直接表写。
 
-### 14.1 参考纵切验证（2026-10-25）
+### 14.1 参考纵切验证（2026-10-25，2026-10-26 修订后复跑）
 
 - 环境：Temporal CLI 1.9.1 / Server 1.32.0 dev（in-memory）、Node 22 Linux 容器、PostgreSQL 16、D1 R0a schema、faux model。
-- 结果：F01/F02/F04/F07/F21/F23 **6/6** 通过；normal workflow smoke 1/1。
+- 结果：F01/F02/F04/F07/F21/F23 + D3-R06–R09 **10/10** 通过（连续 3 次）；normal workflow smoke 1/1；RLS 连接池 3/3；10 并发负载 1/1。
   - F01：提交后不启动 relay；outbox 后补启动，仍只有一个 Task/Run/workflow。
-  - F02：start 成功但 relay 未 ACK；重试遇 `AlreadyStarted`，不创建第二个 Run。
+  - F02：start 成功但 relay 崩溃未 ACK；租约内另一 relay 领不到；租约过期后被接管，遇 `AlreadyStarted` 视为投递，不创建第二个 Run。
   - F04：provider accepted 后无回执 → Operation unknown、预算保留 100、无 artifact、无自动重放。
-  - F07：cancel 后迟到模型结果不发布 artifact；run canceled、Operation unknown、审计保留。
+  - F07：派发中取消 → run canceled、Operation 先 unknown；迟到结果不发布 artifact，但按 sent_succeeded 对账，预留 settled=80；非枚举取消原因归一为 `user_requested`。
+  - D3-R06/R07/R08/R09：启动前取消、claim 前仅 DB 取消、心跳超时 → unknown、跨组织单 relay（见 §12）。
   - F21：claim 后崩溃 → 一个 dispatch attempt、provider 调用 0、takeover claim 返回 null。
   - F23：Task 删除标记后重放 → `task_deleted`，不创建新 Task/收费。
-- **S1 参考演练（6/6）**：
+- **S1 参考演练（R01–R05 本轮复跑通过；R06 沿用 2026-10-25 结果，未复跑）**：
   - S1-R01：worker 停止/重启后，hold workflow 继续；resume 后只发布 1 个 artifact。
-  - S1-R02：DB 先置 Run failed，workflow resume 后发布被拒；无迟到 artifact，Temporal workflow FAILED。
+  - S1-R02：DB 先置 Run failed，workflow resume 后发布前重读 DB，判 superseded 正常结束（COMPLETED）；无迟到 artifact。
   - S1-R03：`execution_enabled=false`/`operator_suspended=true` 阻断 submit/acquire；恢复需显式操作。
   - S1-R04：旧 outbox start 行使新提交 `outbox_backlog`；清理后恢复。
   - S1-R05：v1 worker 停止后切 v2；旧 workflow 保持 v1 artifact `draft.md`，新 workflow 使用 `draft-v2.md`。
   - S1-R06：file-backed Temporal server 重启后，已完成 workflow 仍为 COMPLETED，Work DB task 仍 awaiting_acceptance。
-- 边界：F04/F07/F21 使用测试 `faultMode` 直接启动 workflow，不经过 outbox；F23 是数据库幂等断言；S1-R01 只验证 worker 重启，不做 Temporal server 重启/多节点/version patch；未接真实 provider、sandbox、KMS。
+- 边界：F04/F07/F21/D3-R07/D3-R08 使用测试 `faultMode` 直接启动 workflow，不经过 outbox；F23 是数据库幂等断言；S1-R01 只验证 worker 重启，不做 Temporal server 重启/多节点/version patch；未接真实 provider、sandbox、KMS。
 - 资产：[work-temporal-slice-2026-10-25](assets/work-temporal-slice-2026-10-25/README.md)。
 
 ## 15. 未决与风险
@@ -415,7 +433,7 @@ D3 完成（DR2）需要：
 3. **供应商回执查询**：不同供应商对 unknown 的查询能力不同；无法确认时保持 unresolved，不释放预算。
 4. **预算等待信号权限**：谁可以补预算/发 resume 需运营权限与审计；R0a 无预算写 UI。
 5. **Workflow 版本/Worker 发布**：`patched` 升级已验证；worker versioning 部署、正式 drain/回滚演练未做。
-6. ~~Outbox 顺序/DLQ~~：**已定并实现于 D1（2026-10-26）**：`outbox_seq` 单聚合严格有序（头部未投递/退避/被锁即阻塞同聚合后续行；跨聚合不保证）；`mark_outbox_failed` 2^n 秒退避（≤300s），第 8 次或不可重试即死信 + 审计；死信不再阻塞，下游 DB 状态幂等兜底；`requeue_outbox_dead_letter` 仅 `work_ops`、需理由、审计。参考 relay 已改为处理 start/cancel/task 三类并在失败时调用 `mark_outbox_failed`；PG 冒烟 7 项 + Temporal 切片 faults 6/6、s1 4/4 回归通过。告警 `WorkOutboxDeadLetters`，处置见[试点运营 runbook §6](work-r0a-pilot-operations-runbook-2026-10-26.md)。
+6. ~~Outbox 顺序/DLQ~~：**已定并实现于 D1（2026-10-26 修订）**：`outbox_seq` 单聚合严格有序（头部未投递——在途租约/退避/死信——即阻塞同聚合后续行；跨聚合不保证）；`mark_outbox_failed` 2^n 秒退避（≤300s），第 10 次（约 13.5 分钟）或不可重试即死信 + 审计；**死信继续阻塞同聚合**，start_workflow 死信同时收尾 Run（queued→failed / cancel_requested→canceled）并 supersede 同 Run 后续消息；`requeue_outbox_dead_letter`/`skip_outbox_dead_letter` 仅 `work_ops`、需理由、审计；relay 租约 + 跨组织策略见 §10。PG 冒烟 82/82、Temporal 切片 faults 10/10、s1 4/4 回归通过。告警 `WorkOutboxDeadLetters`，处置见[试点运营 runbook §6](work-r0a-pilot-operations-runbook-2026-10-26.md)。
 7. **SSE 多实例/背压**：长连接、游标保留、重连风暴未实现。
 8. **人工审批**：R0a 不覆盖 F03 的完整审批 UI/通知；待 R0b/R2。
 9. **超时数值**：Run/模型/预算等待是初始建议，需产品与试点数据校准。

@@ -1,19 +1,19 @@
-# Work R0a Temporal 参考纵切（F01/F02/F04/F07/F21/F23）
+# Work R0a Temporal 参考纵切（F01/F02/F04/F07/F21/F23 + D3-R06–R09）
 
-本目录把 D1 schema 与 D3 `RunWorkflow`/Activity 契约接到真实 Temporal dev server，用 faux model 执行六项故障；不是生产实现。
+本目录把 D1 schema 与 D3 `RunWorkflow`/Activity 契约接到真实 Temporal dev server，用 faux model 执行十项故障；不是生产实现。
 
 ## 组成
 
 | 文件 | 用途 |
 |---|---|
-| `src/db.mjs` | PostgreSQL 连接、roles/RLS 上下文、schema+seed 初始化 |
-| `src/workflows.mjs` | `RunWorkflow`：提交→acquire→operation→budget→dispatch→model→settle→artifact→finish；cancel signal |
-| `src/activities.mjs` | D1 领域命令、faux model、provider call 计数、故障模式 |
-| `src/relay.mjs` | outbox → StartWorkflow（固定 workflow ID/REJECT_DUPLICATE） |
+| `src/db.mjs` | PostgreSQL 连接、roles/RLS 上下文（`app.org_id`、API 的 `app.subject_id`；relay 不设组织）、schema+seed（org1/org2）初始化 |
+| `src/workflows.mjs` | `RunWorkflow`：提交→acquire→operation→budget→dispatch→model→settle→artifact→finish；启动前/派发前/派发中/结果后四个取消点；派发后任何失败（含心跳超时）→ unknown；原因只用枚举码 |
+| `src/activities.mjs` | D1 领域命令（按 Activity 的 orgId 设租户）、faux model（心跳）、provider call 计数、故障模式、迟到结果对账 |
+| `src/relay.mjs` | 跨组织 outbox relay：租约领取（`claim_outbox(relay_id, …)`）、逐行短事务、Temporal 调用不持 DB 锁且有 deadline；StartWorkflow 固定 ID/REJECT_DUPLICATE；cancel 遇 NotFound 仅在 DB 已终态时视为投递 |
 | `src/worker.mjs` | Temporal worker |
 | `src/api.mjs` | API 提交/取消/查询/对账辅助 |
 | `test/smoke.test.mjs` | normal workflow 1/1 |
-| `test/faults.test.mjs` | F01/F02/F04/F07/F21/F23 6/6 |
+| `test/faults.test.mjs` | F01/F02/F04/F07/F21/F23 + D3-R06/R07/R08/R09 10/10 |
 | `test/s1.test.mjs` | S1 参考演练：worker 重启、DB 终态偏移、执行开关/组织停用、outbox backlog 4/4 |
 | `test/upgrade.test.mjs` | 版本升级：v1 worker → v2 `patched`；旧 workflow 保持 v1 行为，新 workflow 用 v2 |
 | `test/rls-pool.test.mjs` | 连接池复用下的 RLS 隔离、缺租户上下文、直接 DML 拒绝 |
@@ -80,30 +80,36 @@ normal baseline / S1 / upgrade / RLS / load：
 bash scripts/persist-restart.sh
 ```
 
-## 结果（2026-10-25）
+## 结果（2026-10-26，D1 修订后 schema 复跑）
 
 | 用例 | 结果 | 关键断言 |
 |---|---|---|
 | normal | 1/1 | task awaiting_acceptance；artifact=1；budget reserved=0/settled=80 |
 | F01 | 通过 | relay 前无 workflow；outbox 后补启动；1 Task/Run/workflow；artifact=1 |
-| F02 | 通过 | start 后 relay 丢 ACK；重试 `AlreadyStarted`；1 Run，不重复 |
+| F02 | 通过 | start 后 relay 崩溃未 ACK；租约内另一 relay 领不到；租约（5s）过期后 relay-b 接管，`AlreadyStarted` 视为投递；1 Run，不重复 |
 | F04 | 通过 | provider_unknown→Operation unknown；provider calls=1；reserved=100；artifact=0；reconcile not_sent 后 reserved=0 |
-| F07 | 通过 | cancel→run canceled；Operation unknown；迟到结果不发布；audit>0；budget 保留后 reconcile 释放 |
+| F07 | 通过 | 派发中取消→run canceled、Operation 先 unknown；非枚举取消原因被归一为 `user_requested`；迟到结果不发布，但按 `sent_succeeded` 对账：预留 settled=80（不再少计费）；provider calls=1 |
+| D3-R06 | 通过 | 启动前取消：acquire 返回 cancel_requested（不 bump fence）→ run canceled；0 Operation；provider calls=0；同聚合 cancel_signal 在下一轮投递 |
+| D3-R07 | 通过 | 授权与预留后、claim 前仅 DB 取消：claim_dispatch=NULL → 重读为 authorized+cancel_requested → cancel_operation + finish_run(canceled)；无 dispatch attempt；预留 released |
+| D3-R08 | 通过 | 派发后 worker 停止心跳→Temporal 心跳超时→Operation unknown（`activity_timeout`）+ run waiting(reconcile)；不按 not_sent 处理 |
+| D3-R09 | 通过 | 单次 relay 领取 org1/org2 两个 start；各自 workflow 在本组织完成；org1 会话查不到 org2 的 run |
 | F21 | 通过 | claim 后崩溃→1 dispatch attempt；provider calls=0；takeover claim=null；reserved=100→释放 |
-| F23 | 通过 | 同 key replay 同 Task；task_deleted 后 replay 拒绝；Task 数不增加 |
+| F23 | 通过 | 同 key、同 input 的 replay 返回同 Task；task_deleted 后 replay 拒绝；Task 数不增加 |
 | S1-R01 | 通过 | worker 停止/重启后 hold workflow 继续，resume 后只发布 1 个 artifact |
-| S1-R02 | 通过 | DB 先置 failed 后，workflow resume 发布被拒；无迟到 artifact，Temporal workflow failed |
+| S1-R02 | 通过 | DB 先置 failed 后，workflow resume 前重读 DB，判为 superseded 正常结束（COMPLETED）；不发布、无迟到 artifact |
 | S1-R03 | 通过 | execution_enabled=false/operator_suspended=true 阻断 submit/acquire；恢复需显式操作 |
 | S1-R04 | 通过 | 旧 outbox start 行使新提交 `outbox_backlog`；清理后恢复 |
 | S1-R05 | 通过 | v1 worker 停止后切 v2；旧 workflow 只发布 `draft.md`，新 workflow 发布 `draft-v2.md` |
-| S1-R06 | 通过 | file-backed Temporal server 重启后仍可 describe `COMPLETED` workflow，Work DB task 仍 awaiting |
+| S1-R06 | 未复跑 | 2026-10-25 旧 schema 结果：file-backed server 重启后仍可 describe `COMPLETED` workflow；本轮未重跑 |
 | C12 | 通过 | 单连接池复用 org1/org2 不串租户；缺 app.org_id 返回 0；work_api 直接写 fact 表被拒 |
-| C18 | 通过 | 10 并发 Run 全部 awaiting；1.774s；budget settled=800、reserved=0（faux dev） |
-| C19 | 通过 | Work DB dump/restore 后 task/run/operation/artifact/ledger/tombstone/dedup/outbox 计数一致；恢复库 RLS 仍为 10 |
+| C18 | 通过 | 10 并发 Run 全部 awaiting；1.612s；budget settled=800、reserved=0（faux dev） |
+| C19 | 未复跑 | 2026-10-25 旧 schema 结果：dump/restore 计数一致、RLS 仍为 10；本轮未重跑 |
 
 ## 边界
 
-- F04/F07/F21 用测试-only `faultMode` 直接启动 workflow，不经过 outbox；F01/F02 才走 relay。
+- F04/F07/F21/D3-R07/D3-R08 用测试-only `faultMode` 直接启动 workflow，不经过 outbox；F01/F02/D3-R06/D3-R09 走 relay。
+- D3-R06–R09 是编排专项编号，不是架构故障矩阵的 F08–F11（后者另有含义）。
+- 测试共享同一预算账户；涉及计费的断言按 Operation 的预留行判断，不依赖账户总额（其他用例的 relay 可能同时启动排队中的 workflow）。
 - F23 是数据库幂等断言，不启动 workflow。
 - `faultMode` 不在 D2 公开契约；faux model 只证明编排/账本行为，不证明供应商或沙箱。
 - S1-R01 只验证 worker 重启；S1-R05 验证 `patched` 升级；S1-R06 用 file-backed dev server 验证**已完成 workflow**的 server 重启持久化，不证明在途 workflow server 重启、多节点或生产 Temporal；S1-R02 验证 DB 终态优先；S1-R03/R04 是参考演练，不是生产操作。

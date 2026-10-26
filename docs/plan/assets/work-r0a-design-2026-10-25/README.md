@@ -12,7 +12,7 @@
 | `r0a-rls-grants.sql` | FORCE RLS、函数所有权、`SECURITY DEFINER`、最小权限授权 |
 | `r0a-schema-draft.sql` | 生成的完整 R0a schema（唯一执行入口） |
 | `r0a-schema-smoke.sql` | 58 项断言 + 负例；事务结束回滚 |
-| `error-codes.json` | 冻结错误码目录（41 公开码）+ 49 个 SQL 异常映射；CI 校验 |
+| `error-codes.json` | 冻结错误码目录 `r0a-errors-v2`（42 公开码）+ 87 个 SQL 异常映射；CI 直接扫描 `r0a-schema-draft.sql` 校验 |
 
 ### D2 契约资产
 
@@ -70,14 +70,14 @@ docker exec -i work-r0a-pg psql -U postgres -d work_r0a \
   -v ON_ERROR_STOP=1 -f - < r0a-schema-smoke.sql
 ```
 
-预期最后输出 58 行 `ok = t`，然后 `ROLLBACK`。
+预期最后输出 82 行 `ok = t`，然后 `ROLLBACK`。
 
 ## 已验证
 
-- D1：空库应用 schema 成功；58/58 断言通过（outbox 单聚合有序/退避/死信/重放审计、删除与粉碎 outbox、所有权转移、ops 权限、生命周期事件、标题编辑幂等/冲突/越权/事件无正文、导出审计、输入/提交幂等、scope 拒绝、直接 DML 拒绝、跨租户 RLS、派发、预算结算/修正、成果发布、采纳、审批、取消/重试、等待/恢复、unknown/reconcile、workflow-start/cancel outbox、task summary）。
+- D1（2026-10-26 修订）：空库应用 schema 成功；82/82 断言通过。修订新增：会话主体绑定（`app.subject_id`）、原因码枚举化、输入一次性绑定与共享引用不粉碎、删除/取消/转移的 owner+删除态校验、账本角色只读、worker 活动重放幂等（acquire/claim/reserve/finish/publish）、outbox 租约与跨组织 relay 策略、死信阻塞同聚合与 start 死信收尾 Run、运维重放/跳过审计、用户成果版本命令、启动前取消不 bump fence、cancel_requested 不得以成功收尾、unknown 原因码校验。原有覆盖：outbox 单聚合有序/退避/死信/重放审计、删除与粉碎 outbox、所有权转移、ops 权限、生命周期事件、标题编辑幂等/冲突/越权/事件无正文、导出审计、输入/提交幂等、scope 拒绝、直接 DML 拒绝、跨租户 RLS、派发、预算结算/修正、成果发布、采纳、审批、取消/重试、等待/恢复、unknown/reconcile、workflow-start/cancel outbox、task summary）。
 - D1：所有 `work` schema 函数为 `SECURITY DEFINER`，`work_api`/`work_worker` 无事实表直接 DML；所有租户表 `ENABLE` + `FORCE ROW LEVEL SECURITY`。
-- D2：OpenAPI 3.1 校验通过（20 path/23 operation/50 schema/64 唯一本地 `$ref`）；生成类型 `tsc --noEmit` 通过；合同测试 6/6、生成客户端 11/11、管理适配 12/12 通过。
-- D2：`scripts/ci-contract.mjs` 通过：操作清单与 R0a 冻结集一致、185 处本地 `$ref`（64 个唯一目标）可解析、生成客户端无漂移、类型包含全部 operation/引用的 schema、错误码目录与 mock/SQL 一致；29/29 测试通过。
+- D2：OpenAPI 3.1 校验通过（20 path/23 operation/50 schema/65 唯一本地 `$ref`）；生成类型 `tsc --noEmit` 通过；合同测试 6/6、生成客户端 12/12、管理适配 12/12 通过。
+- D2：`scripts/ci-contract.mjs` 通过：操作清单与 R0a 冻结集一致、187 处本地 `$ref`（65 个唯一目标）可解析、生成客户端无漂移、类型包含全部 operation/引用的 schema、错误码目录与 mock（33 码）及 `r0a-schema-draft.sql`（87 码）双向一致、无自由文本 RAISE、`retryable` 仅 5xx/429；30/30 测试通过。
 - D2：管理适配参考证明 P1-A 原始返回不能伪装成 R0a 契约（缺 role/revision/subject/seat total、token≠cents、同步 CSV≠异步导出），缺口以错误暴露。
 - CI：`.github/workflows/work-r0a-gates.yml` 已定义 contract/ops-telemetry/log-scan 三个 job；**尚未在远端运行**。
 

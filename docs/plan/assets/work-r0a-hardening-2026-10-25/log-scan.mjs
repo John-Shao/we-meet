@@ -24,6 +24,16 @@ const RULES = [
     pattern: /\bsk-ant-[A-Za-z0-9_-]{16,}\b/g,
   },
   {
+    id: 'secret.github_token',
+    severity: 'fail',
+    pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,})\b/g,
+  },
+  {
+    id: 'secret.aliyun_access_key',
+    severity: 'fail',
+    pattern: /\bLTAI[A-Za-z0-9]{12,30}\b/g,
+  },
+  {
     id: 'secret.bearer',
     severity: 'fail',
     pattern: /\bBearer\s+[A-Za-z0-9._~+/-]{20,}=*/g,

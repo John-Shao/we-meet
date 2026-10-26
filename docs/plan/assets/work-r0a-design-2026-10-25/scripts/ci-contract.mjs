@@ -212,21 +212,32 @@ check(
 if (badMock.length > 0) {
   fail(`mock codes missing/mismatched: ${badMock.map((c) => `${c.code}:${c.status}`).join(', ')}`);
 }
-const sqlSource = read(path.join(HERE, 'r0a-new-functions.sql'));
-const sqlCodes = [...new Set([...sqlSource.matchAll(/RAISE EXCEPTION '([a-z_]+)'/g)].map((m) => m[1]))];
-const unmappedSql = sqlCodes.filter(
-  (code) => !catalog.public[catalog.db_exception_map[code]],
-);
+// Scan the assembled schema (all source fragments), not one fragment; ':detail' suffixes share the prefix code.
+const sqlSource = read(path.join(HERE, 'r0a-schema-draft.sql'));
+const sqlCodes = [
+  ...new Set(
+    [...sqlSource.matchAll(/RAISE\s+EXCEPTION\s+'([a-z][a-z0-9_:]*)/g)].map((m) => m[1].split(':')[0]),
+  ),
+].sort();
+const nonCodeRaises = [...sqlSource.matchAll(/RAISE\s+EXCEPTION\s+'([^']*)'/g)]
+  .map((m) => m[1])
+  .filter((text) => !/^[a-z][a-z0-9_]*(:[a-z0-9_:%>-]*)?$/.test(text));
+check(nonCodeRaises.length === 0, 'every SQL RAISE EXCEPTION message is a snake_case code');
+if (nonCodeRaises.length > 0) fail(`SQL raises free text: ${nonCodeRaises.join(' | ')}`);
+const unmappedSql = sqlCodes.filter((code) => !catalog.public[catalog.db_exception_map[code]]);
 check(
   unmappedSql.length === 0,
-  `every SQL exception maps to a public code (${sqlCodes.length} codes)`,
+  `every SQL exception in r0a-schema-draft.sql maps to a public code (${sqlCodes.length} codes)`,
 );
 if (unmappedSql.length > 0) fail(`unmapped SQL exceptions: ${unmappedSql.join(', ')}`);
+const staleMap = Object.keys(catalog.db_exception_map).filter((code) => !sqlCodes.includes(code));
+check(staleMap.length === 0, 'db_exception_map has no entries that SQL no longer raises');
+if (staleMap.length > 0) fail(`stale db_exception_map entries: ${staleMap.join(', ')}`);
 check(
   Object.values(catalog.public).every(
-    (entry) => entry.retryable === (entry.status >= 500 || entry.status === 429 || entry.recovery_action === 're_preview' && entry.status === 409),
+    (entry) => entry.retryable === (entry.status >= 500 || entry.status === 429),
   ),
-  'retryable is true only for 5xx/429/preview_stale',
+  'retryable is true exactly for 5xx/429 (preview_stale needs a new preview, not a resend)',
 );
 
 const testFiles = fs

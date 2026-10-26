@@ -24,7 +24,7 @@ python -c "import yaml; d=yaml.safe_load(open('fault-matrix.yaml', encoding='utf
 
 - TypeScript 契约通过 `tsc --noEmit`。
 - 故障矩阵 YAML 可解析，包含 12 个案例（7 个架构 F 用例 + 5 个 D3 专项）。
-- **Temporal dev 参考纵切**：[work-temporal-slice-2026-10-25](../work-temporal-slice-2026-10-25/README.md)；F01/F02/F04/F07/F21/F23 **6/6** + normal smoke 1/1。
+- **Temporal dev 参考纵切**：[work-temporal-slice-2026-10-25](../work-temporal-slice-2026-10-25/README.md)；F01/F02/F04/F07/F21/F23 + D3-R06–R09 **10/10** + normal smoke 1/1（2026-10-26 修订后连续 3 次通过）。
 
 ## 未验证
 

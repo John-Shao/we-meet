@@ -6,7 +6,9 @@ on:
       - 'docs/plan/assets/work-r0a-design-2026-10-25/**'
       - 'docs/plan/assets/work-r0a-ops-2026-10-25/**'
       - 'docs/plan/assets/work-r0a-hardening-2026-10-25/**'
-      - 'docs/plan/assets/work-temporal-slice-2026-10-25/*.log'
+      - 'docs/plan/assets/work-temporal-slice-2026-10-25/**'
+      - 'docs/plan/work-r0a-orchestration-design-2026-10-25.md'
+      - 'docs/plan/work-r0a-data-design-2026-10-25.md'
       - 'docs/plan/work-r0a-api-design-2026-10-25.md'
       - 'docs/plan/work-r0a-admin-readonly-mapping-2026-10-25.md'
       - 'docs/plan/assets/work-r0a-runtime-2026-10-25/**'
@@ -21,7 +23,9 @@ on:
       - 'docs/plan/assets/work-r0a-design-2026-10-25/**'
       - 'docs/plan/assets/work-r0a-ops-2026-10-25/**'
       - 'docs/plan/assets/work-r0a-hardening-2026-10-25/**'
-      - 'docs/plan/assets/work-temporal-slice-2026-10-25/*.log'
+      - 'docs/plan/assets/work-temporal-slice-2026-10-25/**'
+      - 'docs/plan/work-r0a-orchestration-design-2026-10-25.md'
+      - 'docs/plan/work-r0a-data-design-2026-10-25.md'
       - 'docs/plan/work-r0a-api-design-2026-10-25.md'
       - 'docs/plan/work-r0a-admin-readonly-mapping-2026-10-25.md'
       - 'docs/plan/assets/work-r0a-runtime-2026-10-25/**'
@@ -45,8 +49,41 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
+      - name: Assembled schema matches its fragments
+        run: python3 generate-schema.py && git diff --exit-code -- r0a-schema-draft.sql
       - name: Run contract gate
         run: node scripts/ci-contract.mjs
+
+  db-smoke:
+    name: D1 schema and PostgreSQL smoke
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: work_r0a
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: docs/plan/assets/work-r0a-design-2026-10-25
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: work_r0a
+    steps:
+      - uses: actions/checkout@v6
+      - name: Apply schema on an empty database
+        run: psql -v ON_ERROR_STOP=1 -q -f r0a-schema-draft.sql
+      - name: Run smoke assertions
+        run: psql -v ON_ERROR_STOP=1 -f r0a-schema-smoke.sql
 
   ops-telemetry:
     name: SLO telemetry rules and ops model

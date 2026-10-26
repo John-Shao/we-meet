@@ -18,7 +18,7 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 - R0a 如何明确拒绝 suite/connectors/plan 等未开通能力？
 - 哪些接口属于 R0a，哪些必须等 R0b/R1/R2/R3？
 
-**结论**：R0a 子集已形成 20 个 path、23 个 operation、50 个 schema、64 个唯一本地 `$ref`，OpenAPI 3.1 校验通过；生成 TypeScript 类型通过 `tsc --noEmit`；生成运行时客户端覆盖 23 个 operation（含 `deleteTask`）；合同/客户端/管理适配共 **29/29** 测试通过；错误码目录（41 个公开码、50 个 SQL 异常映射）冻结并进入 CI 漂移门禁。它仍不是生产 API，也不证明真实 cookie/CSRF、Content Store、SSE 网关、P1-A 字段或供应商可用。
+**结论**：R0a 子集已形成 20 个 path、23 个 operation、50 个 schema、65 个唯一本地 `$ref`，OpenAPI 3.1 校验通过；生成 TypeScript 类型通过 `tsc --noEmit`；生成运行时客户端覆盖 23 个 operation（含 `deleteTask`）；合同/客户端/管理适配共 **30/30** 测试通过；错误码目录（`r0a-errors-v2`：42 个公开码、87 个 SQL 异常映射）冻结，CI 直接扫描 `r0a-schema-draft.sql` 做漂移门禁。它仍不是生产 API，也不证明真实 cookie/CSRF、Content Store、SSE 网关、P1-A 字段或供应商可用。
 
 ## 2. 契约决策
 
@@ -78,7 +78,7 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 - 唯一幂等键是请求体 `client_request_id`；作用域为 `(org_id, subject_id, operation_type)`；不另设 `Idempotency-Key` 请求头。
 - 同 key 同 payload 返回原结果；不同 payload 返回 409。更新/采纳/取消使用 revision 或显式状态检查。
 - 错误结构：`code`、安全可展示 `message`、`retryable`、`correlation_id`、`current_revision`、`recovery_action`。
-- **错误码目录已冻结**：[error-codes.json](assets/work-r0a-design-2026-10-25/error-codes.json)（`r0a-errors-v1`）列出 41 个公开码的 HTTP 状态、`retryable`、`recovery_action` 与 UI 文案键；`db_exception_map` 把 D1 全部 49 个 SQL 异常映射到公开码（worker 内部异常统一映射为 503 `service_degraded`，原始码只进内部日志）。CI 门禁校验：mock 使用的每个码及状态与目录一致；每个 SQL 异常都有映射；`retryable` 只在 5xx/429/`preview_stale` 为真。新增错误码必须先改目录。
+- **错误码目录已冻结**：[error-codes.json](assets/work-r0a-design-2026-10-25/error-codes.json)（`r0a-errors-v2`）列出 42 个公开码的 HTTP 状态、`retryable`、`recovery_action` 与 UI 文案键；`db_exception_map` 把 `r0a-schema-draft.sql` 中全部 87 个 SQL 异常码映射到公开码（worker/outbox 内部异常统一映射为 503 `service_degraded`，原始码只进内部日志）。CI 门禁校验：mock 使用的每个码及状态与目录一致；直接扫描 `r0a-schema-draft.sql` 的 `RAISE EXCEPTION`，要求均为 snake_case 码（可带 `:detail`）、每个码都有映射、映射表无 SQL 已不再抛出的条目；`retryable` 当且仅当 5xx/429（`preview_stale` 为 409、不可自动重试，需重新预览）。mock 未知错误默认 503。新增错误码必须先改目录。
 - 代表错误：`scope_unavailable`、`permission_mode_unavailable`、`preview_stale`、`idempotency_key_conflict`、`version_conflict`、`run_not_quiescent`、`resync_required`、`input_not_found`、`artifact_not_published`、`csrf_invalid`、`title_invalid`。
 
 ## 3. R0a API 子集
@@ -146,7 +146,8 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 - `node scripts/ci-contract.mjs`：通过；冻结 21 个 operation/20 个 path（2026-10-26 起 22 个）、排除 R0b+ 路径、解析 170 处本地 `$ref`（现 179 处）、客户端零漂移、类型覆盖全部 operation/schema，并运行 25 组测试。
 - 2026-10-26 增量：OpenAPI 增加 `updateTask` 与 `disposition`；**20 path / 22 operation / 49 schema / 63 唯一 `$ref`（179 处）**，`openapi-spec-validator` 通过；类型重新生成、`tsc` 通过；客户端测试 7→**10**（标题编辑含幂等/冲突/校验/事件无正文、导出头与审计、CSRF 轮换单次重试），设计包合计 **28/28**；D1 PG16 冒烟 34→**40/40**（标题裁剪/幂等/事件无正文/负例/越权、导出审计/缺失版本）；`ci-contract.mjs` 增加错误码目录 3 项校验。
 - 2026-10-26 增量二：增加 `deleteTask`（用户删除，需静止；内容异步粉碎、账本/审计保留）；**20 path / 23 operation / 50 schema / 64 唯一 `$ref`（185 处）**；客户端测试 **11/11**，设计包 **29/29**；D1 冒烟 **58/58**（含 outbox 顺序/退避/死信/重排、删除/代删/所有权转移、生命周期事件）。
-- `.github/workflows/work-r0a-gates.yml` 已定义 contract/ops-telemetry/log-scan 三个 job；**未在远端运行**。
+- 2026-10-26 修订：`createTaskPreview` 要求 CSRF；`deleteTask` 必带 `expected_revision`（已删除时幂等返回同一回执、不再校验）；`TaskRunRequest.expected_revision` 必填；`ArtifactVersionCreateRequest.base_version_no` 必填且 ≥1；重试/采纳/新版本按 `client_request_id` 幂等重放（同体返回同结果、异体 409 `idempotency_key_conflict`）；默认标题按 code point 截断 20 字；**65 唯一 `$ref`（187 处）**；客户端 **12/12**，设计包 **30/30**。
+- `.github/workflows/work-r0a-gates.yml` 已定义 contract（含 schema 再生成无漂移）、db-smoke（PG16 schema + 冒烟）、ops-telemetry、runtime-frontend、log-scan 五个 job；**未在远端运行**。
 - 未执行：真实 cookie 签发/轮换、P1-A 集成、真实 Content Store、SSE 网关/背压/多连接、Temporal、真实模型/供应商、速率限制、CORS、桌面/移动、性能与模糊测试、生成客户端接真实前端。
 
 ### 5.1 复现

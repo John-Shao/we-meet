@@ -35,7 +35,7 @@ python -c "import json; [json.load(open(f, encoding='utf-8')) for f in ['securit
 - `prometheus-rules.yaml` 由契约生成且无漂移：21 条 record、17 条 alert；每条告警带 severity/for/runbook 与 `org_id` 注释；标签白名单禁止 goal/background/prompt/content/body/email/api_key/authorization/cookie/session。
 - 当前 `goNoGo`：**no-go，23 个 blocking 项**。
 - 基线：36 Run/日、108 模型 Operation/日、7.5 provider req/min、0.125 DB 预留/秒、1.296M token/日、1.156GB/365 天；均在试点限制内。
-- S1 参考演练：worker 重启、DB 终态偏移、执行开关/组织停用、outbox backlog、`patched` 升级、file-backed server 重启 6/6；见 [Temporal slice](../work-temporal-slice-2026-10-25/README.md)。
+- S1 参考演练：worker 重启、DB 终态偏移、执行开关/组织停用、outbox backlog 4/4，`patched` 升级 1/1，file-backed server 重启为修订前结果（未复跑）；见 [Temporal slice](../work-temporal-slice-2026-10-25/README.md)。
 - 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03；C21 on-call runbook。剩余 23 个 blocking。
 - 10× 压力会触发 provider RPM/token、workflow、内容留存与并发限制。
 

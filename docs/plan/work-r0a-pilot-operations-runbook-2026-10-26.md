@@ -54,12 +54,12 @@
 
 ## 6. Outbox 死信
 
-- **语义**（D1）：同一聚合（`aggregate_type + aggregate_id`）按 `outbox_seq` 严格有序；头部未投递会挡住后续行；跨聚合不保证顺序。投递失败 `mark_outbox_failed`：可重试按 2^n 秒退避（≤300s），第 8 次或不可重试即死信并审计 `outbox.dead_lettered`；死信不再阻塞后续行，下游以 DB 状态幂等兜底。
+- **语义**（D1）：同一聚合（`aggregate_type + aggregate_id`）按 `outbox_seq` 严格有序；头部未投递会挡住后续行；跨聚合不保证顺序。投递失败 `mark_outbox_failed`：可重试按 2^n 秒退避（≤300s），第 10 次（约 13.5 分钟）或不可重试即死信并审计 `outbox.dead_lettered`；**死信继续阻塞同聚合后续行**，直到运维 `requeue_outbox_dead_letter`（Run 已非 queued 的 start 拒绝重放）或 `skip_outbox_dead_letter`（均需理由并审计）。start_workflow 死信同时把 Run 收尾为 failed（queued）或 canceled（cancel_requested），原因 `dispatch_dead_letter`，同 Run 后续消息 superseded。relay 以租约领取，非持有者 ACK 得 `outbox_lease_lost`。
 - **告警**：`WorkOutboxDeadLetters`（存在死信 > 0 持续 5 分钟，page）。
 - **处置**：
   1. 按 `last_error_code` 分类：`temporal_unavailable`/`delivery_failed` → 先恢复依赖；`payload_invalid`/未知 kind → 研发修复 relay 后再重放。
-  2. 确认重放安全：`start_workflow` 重放靠 workflow id `REJECT_DUPLICATE`；`cancel_signal` 对已结束 workflow 视为成功；`content_shred` 幂等。
-  3. `work_ops` 执行 `work.requeue_outbox_dead_letter(event_id, actor, reason)`（审计 `outbox.requeued`）。
+  2. 确认重放安全：`start_workflow` 重放靠 workflow id `REJECT_DUPLICATE`，且仅 Run 仍 queued 时允许（否则 `outbox_requeue_stale`）；`cancel_signal` 遇 workflow 不存在时只有 DB 已显示 Run 终态才算投递；`content_shred` 幂等。
+  3. 二选一（`work_ops`，会话需设 `app.subject_id` = actor）：可重放 → `work.requeue_outbox_dead_letter(event_id, actor, reason)`（审计 `outbox.requeued`）；不再需要投递（如 Run 已终态的 cancel_signal）→ `work.skip_outbox_dead_letter(event_id, actor, reason)`（审计 `outbox.skipped`）。死信阻塞同聚合，未处置前该 Task 的后续事件不会投递。
   4. 核对：死信=0、对应 Run/Task 状态与 Temporal 一致（S1 偏移核对）。
 - **禁止**：直接 UPDATE outbox、修改 payload、批量清空死信。
 
