@@ -64,7 +64,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 解析输入/模板/权限/预算，返回执行边界与 preview_hash */
+        /** 解析输入/模板/权限/token 配额，返回执行边界与 preview_hash */
         post: operations["createTaskPreview"];
         delete?: never;
         options?: never;
@@ -279,6 +279,145 @@ export interface paths {
         put?: never;
         /** 采纳固定版本或记录完成理由 */
         post: operations["acceptTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/work/v1/me/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 当前用户自己的 token 用量（只读本人，跨用户返回 403）
+         * @description 只统计 token 事实，不含金额；input/output/cached 分列。数据按 (用户, provider, model, 自然日) 聚合，
+         *     仅供参考，费用以客户云厂商账单为准。区间上限 366 天。
+         */
+        get: operations["getUserUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/work/v1/admin/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 组织按模型分列的 token 用量（owner/admin）
+         * @description 按 provider + model 汇总组织内所有用户；同样只作用量参考，不作计费依据。
+         */
+        get: operations["getAdminUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/work/v1/admin/provider-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 本组织当前生效的大模型接入配置（仅 owner）
+         * @description 只返回 provider/model/region/endpoint 与凭据指纹；任何情况下都不返回密钥明文或密文。
+         */
+        get: operations["getProviderConfig"];
+        /**
+         * 切换本组织的大模型接入配置（仅 owner，版本化）
+         * @description 每次写入生成新 revision 并把上一条标记 superseded；expected_revision 不一致返回 409 version_conflict。
+         *     保存前网关会发一次最小真实请求做连通探测，失败不生效。变更写强审计（操作人/组织/版本/指纹）。
+         */
+        put: operations["setProviderConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/work/v1/admin/provider-config/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 吊销本组织当前接入配置（仅 owner；新调用立即失败） */
+        post: operations["revokeProviderConfig"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/work/v1/admin/provider-credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 为本组织创建大模型凭证（仅 owner；只写不回读）
+         * @description 阿里云/火山引擎走 sts_role：只提交角色标识，平台不持有长期密钥。
+         *     DeepSeek 走 managed_key：提交 api_key，服务端用 KMS 信封加密后只存密文；
+         *     接口只回指纹与密钥版本，任何读取路径都不返回明文。同一 provider 同时只能有一个 active 凭证。
+         */
+        post: operations["createProviderCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/work/v1/admin/provider-credentials/{credentialId}/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 轮换托管 Key（仅 owner；新版本立即生效） */
+        post: operations["rotateProviderCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/work/v1/admin/provider-credentials/{credentialId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 即时吊销凭证（仅 owner；在途调用以受控错误结束） */
+        post: operations["revokeProviderCredential"];
         delete?: never;
         options?: never;
         head?: never;
@@ -517,17 +656,18 @@ export interface components {
         TaskPreviewRequest: {
             intent: components["schemas"]["R0aIntent"];
         };
-        CostUpperBound: {
-            amount_cents: number;
-            currency: string;
-            price_version: string;
+        TokenUpperBound: {
+            /** @description 本次 Run 的 token 硬上限；派发前按该值预留，超限受控失败 */
+            amount_tokens: number;
+            /** @description 固定提示：用量仅供参考，费用以客户云厂商账单为准 */
+            note?: string;
         };
         TaskPreview: {
             preview_hash: string;
             effective_permission_mode: components["schemas"]["PermissionMode"];
             allowed_permission_modes?: components["schemas"]["PermissionMode"][];
             boundary_summary: string[];
-            cost_upper_bound: components["schemas"]["CostUpperBound"];
+            token_upper_bound: components["schemas"]["TokenUpperBound"];
             unavailable_reasons: string[];
             /** Format: date-time */
             expires_at: string;
@@ -543,11 +683,11 @@ export interface components {
          */
         TaskState: "open" | "awaiting_acceptance" | "completed" | "canceled" | "archived";
         /** @enum {string} */
-        DisplayState: "open" | "queued" | "running" | "awaiting_acceptance" | "completed" | "failed" | "run_canceled" | "reconciling" | "budget_exhausted" | "canceling" | "canceled" | "archived";
+        DisplayState: "open" | "queued" | "running" | "awaiting_acceptance" | "completed" | "failed" | "run_canceled" | "reconciling" | "quota_exhausted" | "canceling" | "canceled" | "archived";
         /** @enum {string} */
         RunState: "queued" | "active" | "waiting" | "cancel_requested" | "succeeded" | "failed" | "canceled";
         /** @enum {string|null} */
-        WaitReason: "budget" | "provider" | "reconcile" | null;
+        WaitReason: "quota" | "provider" | "reconcile" | null;
         /** @enum {string} */
         OperationState: "prepared" | "waiting_approval" | "authorized" | "dispatching" | "unknown" | "succeeded" | "failed" | "canceled" | "reconciled" | "unresolved";
         Run: {
@@ -587,10 +727,11 @@ export interface components {
             revision: number;
             pending_acceptance: boolean;
             blocking_operations: number;
-            budget: {
-                currency: string;
-                reserved_cents: number;
-                settled_cents: number;
+            quota: {
+                /** @description 在途 Operation 的 token 预留合计 */
+                reserved_tokens: number;
+                /** @description 已结算 token 合计；与云厂商账单可能不同，平台不对账金额 */
+                settled_tokens: number;
             };
             /** Format: date-time */
             created_at: string;
@@ -616,7 +757,6 @@ export interface components {
                 model_route: {
                     [key: string]: unknown;
                 };
-                price_version: string;
             };
         };
         TaskRun: {
@@ -761,6 +901,120 @@ export interface components {
             acceptance: components["schemas"]["Acceptance"];
             task: components["schemas"]["TaskSummary"];
         };
+        UsageRow: {
+            /** @enum {string} */
+            provider: "aliyun" | "volcengine" | "deepseek";
+            model: string;
+            /** Format: date */
+            usage_date: string;
+            input_tokens: number;
+            output_tokens: number;
+            cached_input_tokens: number;
+            run_count: number;
+        };
+        UserUsage: {
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** @description 固定提示：仅供参考，费用以云厂商账单为准 */
+            note: string;
+            items: components["schemas"]["UsageRow"][];
+        };
+        OrgUsageRow: {
+            /** @enum {string} */
+            provider: "aliyun" | "volcengine" | "deepseek";
+            model: string;
+            input_tokens: number;
+            output_tokens: number;
+            cached_input_tokens: number;
+            run_count: number;
+        };
+        OrgUsage: {
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            note: string;
+            items: components["schemas"]["OrgUsageRow"][];
+        };
+        ProviderCredentialView: {
+            /** Format: uuid */
+            credential_id: string;
+            /** @enum {string} */
+            provider: "aliyun" | "volcengine" | "deepseek";
+            /** @enum {string} */
+            mode: "sts_role" | "managed_key";
+            /** @description 指纹（如 SHA-256 前缀）；不可逆，用于审计与人工核对 */
+            fingerprint: string;
+            key_version: number;
+            /** @enum {string} */
+            state: "active" | "revoked";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            rotated_at?: string | null;
+        };
+        /** @description api_key 只写不回读；服务端加密后只返回指纹。sts_role 只接受 role_ref。 */
+        ProviderCredentialCreateRequest: {
+            /** @enum {string} */
+            provider: "aliyun" | "volcengine" | "deepseek";
+            /** @enum {string} */
+            mode: "sts_role" | "managed_key";
+            /** @description 角色标识（sts_role 必填） */
+            role_ref?: string;
+            /** @description 厂商 API Key（managed_key 必填；写后不可读） */
+            api_key?: string;
+        };
+        ProviderCredentialRotateRequest: {
+            api_key: string;
+        };
+        ProviderConfigView: {
+            /** Format: uuid */
+            config_id: string;
+            revision: number;
+            /** @enum {string} */
+            provider: "aliyun" | "volcengine" | "deepseek";
+            model: string;
+            region: string;
+            /** Format: uri */
+            endpoint: string;
+            /** @enum {string} */
+            credential_mode: "sts_role" | "managed_key";
+            credential: components["schemas"]["ProviderCredentialView"];
+            /** @enum {string} */
+            state: "active" | "superseded" | "revoked";
+            /** Format: date-time */
+            created_at: string;
+        };
+        ProviderConfigSetRequest: {
+            /** @enum {string} */
+            provider: "aliyun" | "volcengine" | "deepseek";
+            model: string;
+            region: string;
+            /** Format: uri */
+            endpoint: string;
+            /** @enum {string} */
+            credential_mode: "sts_role" | "managed_key";
+            /** Format: uuid */
+            credential_id: string;
+            /** @description 当前 active 配置的 revision；尚无配置时传 0，不一致返回 409 version_conflict */
+            expected_revision: number;
+        };
+        ProviderRevokeRequest: {
+            reason: string;
+        };
+        ProviderConfigRevoked: {
+            org_id: string;
+            /** @enum {string} */
+            state: "revoked";
+        };
+        ProviderCredentialRevoked: {
+            /** Format: uuid */
+            credential_id: string;
+            /** @enum {string} */
+            state: "revoked";
+        };
         AdminOverview: {
             org_id: string;
             /** @description 来自 Host IdentityDirectory 投影；目录未提供名称时为 null，前端显示占位文案 */
@@ -775,14 +1029,20 @@ export interface components {
                 /** @description status=active 且持有工作席位的成员数 */
                 active: number;
             };
-            budget: {
-                currency: string;
-                limit_cents: number;
-                reserved_cents: number;
-                settled_cents: number;
+            quota: {
+                /**
+                 * @description soft=客户自带账号，周期量只统计；hard=演示组织等平台承担成本的组织，超限即拒
+                 * @enum {string}
+                 */
+                enforcement: "soft" | "hard";
+                limit_tokens: number;
+                reserved_tokens: number;
+                settled_tokens: number;
             };
-            /** @description 预算账本周期；cents 账本由 Work 自己持有（方案 B），P1-A 不提供 */
-            budget_period_id: string;
+            /** @description 用量统计周期（YYYY-MM）；token 账本由 Work 自己持有（方案 B），P1-A 不提供 */
+            quota_period_id: string;
+            /** @description 每个 Run 的 token 硬上限；所有组织强制 */
+            run_cap_tokens: number;
             /** @description 目录投影修订号；用于判断管理页数据新鲜度 */
             org_revision: number;
             audit_retention_days: number;
@@ -908,7 +1168,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description 语义不可执行（scope、权限模式、预算等） */
+        /** @description 语义不可执行（scope、权限模式、配额等） */
         UnprocessableEntity: {
             headers: {
                 [name: string]: unknown;
@@ -939,6 +1199,11 @@ export interface components {
         ArtifactId: string;
         VersionNo: number;
         ExportId: string;
+        CredentialId: string;
+        /** @description 起始自然日（含）；不得晚于 to，跨度上限 366 天。 */
+        UsageFrom: string;
+        /** @description 结束自然日（含）。 */
+        UsageTo: string;
         /**
          * @description download-ticket 返回的一次性明文凭证；服务端比对 SHA-256 哈希。
          *     只走请求头：不进 URL、不进查询串、不写访问日志（D6 日志扫描门禁覆盖）。
@@ -1044,7 +1309,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 预览与费用上界；提交时必须重新解析 */
+            /** @description 预览与 token 上限；计费在客户自己的云厂商侧，Work 不报价 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1544,6 +1809,247 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["UnprocessableEntity"];
+        };
+    };
+    getUserUsage: {
+        parameters: {
+            query: {
+                /** @description 起始自然日（含）；不得晚于 to，跨度上限 366 天。 */
+                from: components["parameters"]["UsageFrom"];
+                /** @description 结束自然日（含）。 */
+                to: components["parameters"]["UsageTo"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 本人用量 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserUsage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
+    getAdminUsage: {
+        parameters: {
+            query: {
+                /** @description 起始自然日（含）；不得晚于 to，跨度上限 366 天。 */
+                from: components["parameters"]["UsageFrom"];
+                /** @description 结束自然日（含）。 */
+                to: components["parameters"]["UsageTo"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 组织用量 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgUsage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
+    getProviderConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前配置；尚未配置或已吊销时返回 404 not_found */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderConfigView"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setProviderConfig: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description double-submit token；与 bootstrap 返回的 csrf_token 一致。 */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderConfigSetRequest"];
+            };
+        };
+        responses: {
+            /** @description 新配置已生效 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderConfigView"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
+    revokeProviderConfig: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description double-submit token；与 bootstrap 返回的 csrf_token 一致。 */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderRevokeRequest"];
+            };
+        };
+        responses: {
+            /** @description 已吊销 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderConfigRevoked"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createProviderCredential: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description double-submit token；与 bootstrap 返回的 csrf_token 一致。 */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderCredentialCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 凭证已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderCredentialView"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    rotateProviderCredential: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description double-submit token；与 bootstrap 返回的 csrf_token 一致。 */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                credentialId: components["parameters"]["CredentialId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderCredentialRotateRequest"];
+            };
+        };
+        responses: {
+            /** @description 轮换后的凭证视图（仍只含指纹） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderCredentialView"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    revokeProviderCredential: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description double-submit token；与 bootstrap 返回的 csrf_token 一致。 */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                credentialId: components["parameters"]["CredentialId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderRevokeRequest"];
+            };
+        };
+        responses: {
+            /** @description 已吊销 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderCredentialRevoked"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     getAdminOverview: {

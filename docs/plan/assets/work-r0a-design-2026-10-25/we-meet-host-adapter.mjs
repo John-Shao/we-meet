@@ -5,7 +5,7 @@
  * directory/entitlement/notification/connector questions, and Work writes the
  * answers into its own projection through work.sync_org_projection /
  * work.sync_member_projection. Nothing here reads or writes a WeMeet business
- * table, and nothing here converts WeMeet token quota into a Work cents budget —
+ * table, and nothing here converts WeMeet token quota into a Work money budget —
  * that ledger belongs to Work (U2 方案 B).
  *
  * Where the current P1-A payload cannot fill a required port field, the adapter
@@ -161,9 +161,9 @@ export function createWeMeetHost(source) {
       if (!statement?.content_ref || !/^[a-z0-9-]{3,64}$/.test(String(statement.period_id ?? ''))) {
         gap('BillingExport', 'submitUsageStatement', 'statement', 'missing_field');
       }
-      if (Array.isArray(statement.fields) && statement.fields.some((field) => /token/i.test(field))) {
-        // WeMeet 计费侧不能要求 Work 交出 token 计数；Work 只交 cents 账单引用。
-        gap('BillingExport', 'submitUsageStatement', 'fields', 'incompatible_source', 'token_fields');
+      if (Array.isArray(statement.fields) && statement.fields.some((field) => /cent|money|currency|amount/i.test(field))) {
+        // D-08：Work 不产生金额；对客户计价由 Work 之外定义，导出只允许 token 事实字段。
+        gap('BillingExport', 'submitUsageStatement', 'fields', 'incompatible_source', 'money_fields');
       }
       return { accepted: true, statement_id: `stmt-${statement.period_id}` };
     },

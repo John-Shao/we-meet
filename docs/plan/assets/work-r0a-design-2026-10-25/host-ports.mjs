@@ -115,8 +115,8 @@ export const PORT_CONTRACTS = Object.freeze({
     },
   },
   BillingExport: {
-    // 只导出「哪个主体在哪个周期花了多少」的请求；cents 账本在 Work 自己库里，
-    // Host 只能接收 Work 生成的账单文件引用，不得期望 Work 交出 token 计数。
+    // 只导出「哪个主体在哪个周期用了多少 token」的请求；费用计算在 Work 之外，
+    // Host 只接收 Work 生成的用量文件引用，不得要求 Work 交出金额。
     submitUsageStatement: {
       args: ['statement'],
       returns: {

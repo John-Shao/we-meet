@@ -184,7 +184,6 @@ CREATE FUNCTION work.submit_task(
   p_snapshot_manifest jsonb,
   p_tool_allowlist text[],
   p_model_route jsonb,
-  p_price_version text,
   p_workflow_id text,
   p_runtime_version text
 ) RETURNS TABLE (task_id uuid, run_id uuid, revision bigint)
@@ -205,7 +204,7 @@ BEGIN
   req_hash := work.sha256_text(jsonb_build_object(
     'input_id', p_input_id, 'title', p_title, 'permission_mode', p_permission_mode,
     'snapshot_hash', p_snapshot_hash, 'tool_allowlist', to_jsonb(p_tool_allowlist),
-    'model_route', p_model_route, 'price_version', p_price_version
+    'model_route', p_model_route
   )::text);
 
   SELECT * INTO dedup_row
@@ -247,7 +246,6 @@ BEGIN
   IF p_snapshot_hash IS NULL OR p_snapshot_hash = ''
      OR p_snapshot_manifest IS NULL
      OR p_model_route IS NULL
-     OR p_price_version IS NULL OR p_price_version = ''
      OR p_workflow_id IS NULL OR p_workflow_id = ''
      OR p_runtime_version IS NULL OR p_runtime_version = '' THEN
     RAISE EXCEPTION 'invalid_snapshot' USING ERRCODE = '22023';
@@ -311,10 +309,10 @@ BEGIN
 
   INSERT INTO work.capability_snapshot
     (id, org_id, task_id, resolver_version, snapshot_hash, tool_allowlist,
-     model_route, scope_caps, price_version, manifest)
+     model_route, scope_caps, manifest)
   VALUES
     (new_snapshot_id, p_org_id, new_task_id, 'r0a-v1', p_snapshot_hash,
-     p_tool_allowlist, p_model_route, '{}'::jsonb, p_price_version, p_snapshot_manifest);
+     p_tool_allowlist, p_model_route, '{}'::jsonb, p_snapshot_manifest);
 
   UPDATE work.task t
   SET snapshot_id = new_snapshot_id
@@ -695,10 +693,10 @@ BEGIN
     AND ao.operation_id = p_operation_id AND a.org_id = p_org_id
     AND a.status = 'pending';
   SELECT br.id INTO reservation_id
-  FROM work.budget_reservation br
+  FROM work.quota_reservation br
   WHERE br.operation_id = p_operation_id AND br.state = 'held';
   IF reservation_id IS NOT NULL THEN
-    PERFORM work.release_budget(reservation_id);
+    PERFORM work.release_quota(reservation_id);
   END IF;
   PERFORM work.append_task_event(
     p_org_id, task_id, 'operation.canceled',
@@ -723,7 +721,7 @@ DECLARE
   task_row work.task%ROWTYPE;
   run_row work.run%ROWTYPE;
 BEGIN
-  IF p_reason NOT IN ('budget', 'provider', 'reconcile') THEN
+  IF p_reason NOT IN ('quota', 'provider', 'reconcile') THEN
     RAISE EXCEPTION 'invalid_wait_reason' USING ERRCODE = '22023';
   END IF;
   SELECT r.task_id INTO task_id
@@ -881,29 +879,25 @@ CREATE FUNCTION work.reconcile_operation(
   p_operation_id uuid,
   p_resolution text,
   p_provider_request_id text DEFAULT NULL,
-  p_billable_cents bigint DEFAULT 0,
-  p_price_version text DEFAULT 'price-v1',
+  p_settled_tokens bigint DEFAULT 0,
   p_evidence_ref text DEFAULT NULL
 ) RETURNS void
 LANGUAGE plpgsql AS $$
 DECLARE
   task_id uuid;
   operation_row work.operation%ROWTYPE;
-  reservation work.budget_reservation%ROWTYPE;
+  reservation work.quota_reservation%ROWTYPE;
   next_revision int;
 BEGIN
   IF p_resolution NOT IN ('sent_succeeded', 'not_sent', 'unresolved') THEN
     RAISE EXCEPTION 'invalid_reconciliation_resolution' USING ERRCODE = '22023';
   END IF;
-  IF p_billable_cents < 0 THEN
-    RAISE EXCEPTION 'invalid_billable_amount' USING ERRCODE = '22023';
+  IF p_settled_tokens < 0 THEN
+    RAISE EXCEPTION 'invalid_settlement_amount' USING ERRCODE = '22023';
   END IF;
   IF p_resolution IN ('sent_succeeded', 'not_sent')
      AND (p_evidence_ref IS NULL OR p_evidence_ref = '') THEN
     RAISE EXCEPTION 'reconciliation_evidence_required' USING ERRCODE = '22023';
-  END IF;
-  IF p_price_version IS NULL OR p_price_version = '' THEN
-    RAISE EXCEPTION 'invalid_price_version' USING ERRCODE = '22023';
   END IF;
   SELECT r.task_id INTO task_id
   FROM work.operation o
@@ -929,7 +923,7 @@ BEGIN
     RAISE EXCEPTION 'operation_not_reconcilable' USING ERRCODE = 'P0001';
   END IF;
   SELECT * INTO reservation
-  FROM work.budget_reservation
+  FROM work.quota_reservation
   WHERE operation_id = p_operation_id AND org_id = p_org_id
   ORDER BY reservation_seq DESC
   LIMIT 1
@@ -938,22 +932,19 @@ BEGIN
     IF reservation.id IS NULL THEN
       RAISE EXCEPTION 'reservation_not_found' USING ERRCODE = 'P0002';
     END IF;
-    IF p_billable_cents > reservation.amount_cents THEN
-      RAISE EXCEPTION 'settlement_out_of_bounds' USING ERRCODE = '22023';
-    END IF;
     next_revision := reservation.settlement_revision + 1;
-    PERFORM work.settle_budget(
-      reservation.id, p_billable_cents, p_price_version,
+    PERFORM work.settle_quota(
+      reservation.id, p_settled_tokens,
       jsonb_build_object('resolution', p_resolution, 'evidence_ref', p_evidence_ref),
       next_revision
     );
   ELSIF p_resolution = 'not_sent' THEN
     IF reservation.id IS NOT NULL AND reservation.state = 'held' THEN
-      PERFORM work.release_budget(reservation.id);
+      PERFORM work.release_quota(reservation.id);
     ELSIF reservation.id IS NOT NULL AND reservation.state = 'unknown' THEN
       next_revision := reservation.settlement_revision + 1;
-      PERFORM work.settle_budget(
-        reservation.id, 0, p_price_version,
+      PERFORM work.settle_quota(
+        reservation.id, 0,
         jsonb_build_object('resolution', p_resolution, 'evidence_ref', p_evidence_ref),
         next_revision
       );
@@ -972,7 +963,7 @@ BEGIN
     jsonb_build_object(
       'operation_id', p_operation_id,
       'resolution', p_resolution,
-      'billable_cents', p_billable_cents,
+      'settled_tokens', p_settled_tokens,
       'evidence_ref', p_evidence_ref
     )
   );
@@ -980,7 +971,7 @@ BEGIN
     p_org_id, NULL,
     CASE WHEN p_resolution = 'unresolved' THEN 'operation.unresolved' ELSE 'operation.reconcile' END,
     'operation', p_operation_id::text,
-    jsonb_build_object('resolution', p_resolution, 'billable_cents', p_billable_cents, 'evidence_ref', p_evidence_ref)
+    jsonb_build_object('resolution', p_resolution, 'settled_tokens', p_settled_tokens, 'evidence_ref', p_evidence_ref)
   );
 END;
 $$;
@@ -1152,10 +1143,10 @@ BEGIN
         updated_at = now()
     WHERE o.id = operation_row.id AND o.org_id = p_org_id;
     SELECT br.id INTO reservation_id
-    FROM work.budget_reservation br
+    FROM work.quota_reservation br
     WHERE br.operation_id = operation_row.id AND br.state = 'held';
     IF reservation_id IS NOT NULL THEN
-      PERFORM work.release_budget(reservation_id);
+      PERFORM work.release_quota(reservation_id);
     END IF;
   END IF;
   PERFORM work.append_task_event(
@@ -1437,7 +1428,7 @@ CREATE TRIGGER operation_org_execution_start
   EXECUTE FUNCTION work.enforce_org_execution();
 
 CREATE TRIGGER reservation_org_execution
-  BEFORE INSERT ON work.budget_reservation
+  BEFORE INSERT ON work.quota_reservation
   FOR EACH ROW EXECUTE FUNCTION work.enforce_org_execution();
 
 -- ---------------------------------------------------------------------------
@@ -1472,23 +1463,23 @@ SELECT
       AND o.state IN ('prepared', 'waiting_approval', 'authorized', 'dispatching', 'unknown', 'unresolved')
   ), 0) AS blocking_operations,
   COALESCE((
-    SELECT SUM(br.amount_cents)
-    FROM work.budget_reservation br
+    SELECT SUM(br.amount_tokens)
+    FROM work.quota_reservation br
     JOIN work.operation o ON o.id = br.operation_id AND o.org_id = br.org_id
     WHERE o.run_id IN (
       SELECT rr.id FROM work.run rr WHERE rr.task_id = t.id AND rr.org_id = t.org_id
     )
       AND br.state IN ('held', 'unknown')
-  ), 0) AS reserved_cents,
+  ), 0) AS reserved_tokens,
   COALESCE((
-    SELECT SUM(be.amount_cents)
-    FROM work.budget_entry be
+    SELECT SUM(be.amount_tokens)
+    FROM work.quota_entry be
     JOIN work.operation o ON o.id = be.operation_id AND o.org_id = be.org_id
     WHERE o.run_id IN (
       SELECT rr.id FROM work.run rr WHERE rr.task_id = t.id AND rr.org_id = t.org_id
     )
       AND be.kind IN ('settle', 'adjust')
-  ), 0) AS settled_cents,
+  ), 0) AS settled_tokens,
   CASE
     WHEN t.state = 'completed' THEN 'completed'
     WHEN t.state = 'canceled' THEN 'canceled'
@@ -1496,7 +1487,7 @@ SELECT
     WHEN t.state = 'awaiting_acceptance' THEN 'awaiting_acceptance'
     WHEN r.state = 'queued' THEN 'queued'
     WHEN r.state = 'cancel_requested' THEN 'canceling'
-    WHEN r.state IN ('active', 'waiting') AND r.wait_reason = 'budget' THEN 'budget_exhausted'
+    WHEN r.state IN ('active', 'waiting') AND r.wait_reason = 'quota' THEN 'quota_exhausted'
     WHEN r.state IN ('active', 'waiting') AND EXISTS (
       SELECT 1 FROM work.operation o
       WHERE o.run_id = r.id AND o.org_id = t.org_id AND o.state IN ('unknown', 'unresolved')

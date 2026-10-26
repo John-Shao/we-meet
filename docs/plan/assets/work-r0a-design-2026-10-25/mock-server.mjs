@@ -19,7 +19,6 @@ const ERROR_CATALOG = JSON.parse(readFileSync(new URL('./error-codes.json', impo
 
 const SESSION_COOKIE = 'we_meet_session=test-session';
 const CSRF_TOKEN = 'test-csrf-token-123456';
-const PRICE_VERSION = 'price-v1';
 const ALLOWED_TOOLS = ['model_call', 'read_builtin_template', 'write_artifact_draft'];
 const BLOCKING_STATES = new Set([
   'prepared',
@@ -109,6 +108,91 @@ function memberOf(state, subjectId) {
 
 // 管理读（方案 B）与提交门控都只看目录投影，与 D1 的 assert_org_admin /
 // work_seat_required 一一对应。
+const USAGE_NOTE = '用量仅供参考，费用以云厂商账单为准';
+
+function requireOwner(state) {
+  const actor = requireAdmin(state);
+  if (actor.role !== 'owner') fail(403, 'admin_access_denied', '仅组织 owner 可修改接入配置');
+  return actor;
+}
+
+function credentialView(credential) {
+  return {
+    credential_id: credential.id,
+    provider: credential.provider,
+    mode: credential.mode,
+    fingerprint: credential.fingerprint,
+    key_version: credential.keyVersion,
+    state: credential.state,
+    created_at: credential.createdAt,
+    rotated_at: credential.rotatedAt ?? null,
+  };
+}
+
+function activeCredential(state, provider) {
+  return [...state.credentials.values()]
+    .find((item) => item.provider === provider && item.state === 'active') ?? null;
+}
+
+function providerConfigView(state) {
+  const config = state.providerConfig;
+  const credential = state.credentials.get(config.credentialId);
+  return {
+    config_id: config.id,
+    revision: config.revision,
+    provider: config.provider,
+    model: config.model,
+    region: config.region,
+    endpoint: config.endpoint,
+    credential_mode: config.credentialMode,
+    credential: credentialView(credential),
+    state: config.state,
+    created_at: config.createdAt,
+  };
+}
+
+function usageRange(url) {
+  const from = url.searchParams.get('from') ?? '';
+  const to = url.searchParams.get('to') ?? '';
+  const pattern = /^\d{4}-\d{2}-\d{2}$/;
+  if (!pattern.test(from) || !pattern.test(to)) {
+    fail(400, 'invalid_request', 'from/to 需为 YYYY-MM-DD');
+  }
+  const fromMs = Date.parse(`${from}T00:00:00Z`);
+  const toMs = Date.parse(`${to}T00:00:00Z`);
+  if (!(fromMs <= toMs) || toMs - fromMs > 366 * 86_400_000) {
+    fail(400, 'invalid_request', '用量区间非法（跨度上限 366 天）');
+  }
+  return { from, to };
+}
+
+function usageRows(state, from, to, subject) {
+  return [...state.usage.values()]
+    .filter((row) => row.usage_date >= from && row.usage_date <= to)
+    .filter((row) => subject === undefined || row.subject_id === subject);
+}
+
+function recordMockUsage(state, task) {
+  const provider = state.providerConfig?.provider ?? 'aliyun';
+  const model = state.providerConfig?.model ?? 'qwen3.8-flash';
+  const usageDate = new Date().toISOString().slice(0, 10);
+  const key = [state.org.id, state.subjectId, provider, model, usageDate].join('|');
+  const row = state.usage.get(key) ?? {
+    subject_id: state.subjectId,
+    provider,
+    model,
+    usage_date: usageDate,
+    input_tokens: 0,
+    output_tokens: 0,
+    cached_input_tokens: 0,
+    run_count: 0,
+  };
+  row.input_tokens += 50;
+  row.output_tokens += 30;
+  row.run_count += 1;
+  state.usage.set(key, row);
+}
+
 function requireAdmin(state) {
   const actor = memberOf(state, state.subjectId);
   if (!actor || actor.status !== 'active' || !['owner', 'admin'].includes(actor.role)) {
@@ -273,7 +357,11 @@ function createState() {
         subject_id: 'user1', role: 'owner', work_seat: true, status: 'active', revision: 0,
       }],
     ]),
-    budget: { currency: 'CNY', limitCents: 10000, periodId: currentPeriodId() },
+    quota: { limitTokens: 10000, runCapTokens: 50000, enforcement: 'soft', periodId: currentPeriodId() },
+    credentials: new Map(),
+    providerConfig: null,
+    providerConfigRevisions: [],
+    usage: new Map(),
     csrfToken: CSRF_TOKEN,
     templates: createTemplates(),
     inputs: new Map(),
@@ -303,7 +391,11 @@ function resetState(state) {
   state.members = new Map([
     ['user1', { subject_id: 'user1', role: 'owner', work_seat: true, status: 'active', revision: 0 }],
   ]);
-  state.budget = { currency: 'CNY', limitCents: 10000, periodId: currentPeriodId() };
+  state.quota = { limitTokens: 10000, runCapTokens: 50000, enforcement: 'soft', periodId: currentPeriodId() };
+  state.credentials.clear();
+  state.providerConfig = null;
+  state.providerConfigRevisions.length = 0;
+  state.usage.clear();
   state.auditLog.length = 0;
   state.deletedTasks.clear();
   state.inputs.clear();
@@ -477,7 +569,7 @@ function displayState(task) {
   if (run.state === 'canceled') return 'run_canceled';
   if (run.state === 'failed') return 'failed';
   if (run.state === 'active' || run.state === 'waiting') {
-    if (run.waitReason === 'budget') return 'budget_exhausted';
+    if (run.waitReason === 'quota') return 'quota_exhausted';
     if ([...task.operations.values()].some((op) => ['unknown', 'unresolved'].includes(op.state))) {
       return 'reconciling';
     }
@@ -517,10 +609,9 @@ function summary(task) {
     revision: task.revision,
     pending_acceptance: task.state === 'awaiting_acceptance',
     blocking_operations: blocking,
-    budget: {
-      currency: task.budget.currency,
-      reserved_cents: task.budget.reservedCents,
-      settled_cents: task.budget.settledCents,
+    quota: {
+      reserved_tokens: task.quota.reservedTokens,
+      settled_tokens: task.quota.settledTokens,
     },
     created_at: task.createdAt,
     updated_at: task.updatedAt,
@@ -641,14 +732,14 @@ function makePreview(state, intent) {
   }
   const effectiveMode = normalized.permission_mode;
   const intentHash = sha256(stableStringify(normalized));
-  const cost = Math.min(500, 100 + Math.ceil((input.goal.length + (input.background?.length ?? 0)) / 200) * 10);
+  const tokenCap = state.quota.runCapTokens;
   const previewHash = sha256(
     stableStringify({
       intentHash,
       inputHash: input.contentHash,
       templateHash: template?.content_hash ?? null,
       effectiveMode,
-      priceVersion: PRICE_VERSION,
+      tokenCap,
     }),
   );
   const preview = {
@@ -657,7 +748,7 @@ function makePreview(state, intent) {
     effectiveMode,
     inputHash: input.contentHash,
     expiresAt: Date.now() + 10 * 60 * 1000,
-    cost,
+    tokenCap,
     template,
   };
   state.previews.set(previewHash, preview);
@@ -670,9 +761,9 @@ function makePreview(state, intent) {
       '数据：仅本次输入的文本；不访问本机、连接器或项目',
       '权限：本次任务内模型生成；无外部写动作',
       '成果：Markdown，保存到任务，可编辑并采纳',
-      `预算上限：¥${(cost / 100).toFixed(2)}（${PRICE_VERSION}）`,
+      `token 上限：${tokenCap}（超出即受控失败；费用以云厂商账单为准）`,
     ],
-    cost_upper_bound: { amount_cents: cost, currency: 'CNY', price_version: PRICE_VERSION },
+    token_upper_bound: { amount_tokens: tokenCap, note: USAGE_NOTE },
     unavailable_reasons: [],
     expires_at: new Date(preview.expiresAt).toISOString(),
   };
@@ -702,14 +793,13 @@ function createTask(state, intent, preview) {
       snapshot_hash: `sha256:r0a-${sha256(input.contentHash).slice(0, 16)}`,
       tool_allowlist: [...ALLOWED_TOOLS],
       model_route: { provider: 'mock', model: 'mock-text-v1' },
-      price_version: PRICE_VERSION,
     },
     runs: new Map(),
     operations: new Map(),
     artifacts: new Map(),
     acceptance: null,
     events: [],
-    budget: { currency: 'CNY', reservedCents: 0, settledCents: 0 },
+    quota: { reservedTokens: 0, settledTokens: 0 },
   };
   const run = {
     id: runId,
@@ -756,7 +846,7 @@ function completeTaskForTest(state, task) {
     updatedAt: now(),
   };
   task.operations.set(opId, op);
-  task.budget.reservedCents = 100;
+  task.quota.reservedTokens = 100;
   addEvent(task, 'operation.authorized', { operation_id: opId, decision_source: 'policy_auto' }, run.id);
   op.state = 'dispatching';
   op.revision += 1;
@@ -767,8 +857,9 @@ function completeTaskForTest(state, task) {
   op.receiptRef = 'mock-receipt-1';
   op.revision += 1;
   op.updatedAt = now();
-  task.budget.reservedCents = 0;
-  task.budget.settledCents += 80;
+  task.quota.reservedTokens = 0;
+  task.quota.settledTokens += 80;
+  recordMockUsage(state, task);
   addEvent(task, 'operation.finished', { operation_id: opId, outcome: 'succeeded' }, run.id);
 
   const artifactId = uuid();
@@ -992,7 +1083,7 @@ async function handle(req, res, state) {
         const display = displayState(task);
         if (view === 'pending') return ['failed', 'reconciling', 'run_canceled'].includes(display);
         if (view === 'running') {
-          return ['queued', 'running', 'canceling', 'budget_exhausted'].includes(display);
+          return ['queued', 'running', 'canceling', 'quota_exhausted'].includes(display);
         }
         return display === view;
       })
@@ -1335,12 +1426,206 @@ async function handle(req, res, state) {
     return sendJson(res, 200, versionView(req, found.artifact, version));
   }
 
+  if (method === 'GET' && pathname === '/work/v1/me/usage') {
+    const { from, to } = usageRange(url);
+    const items = usageRows(state, from, to, state.subjectId)
+      .map(({ subject_id, ...row }) => row)
+      .sort((a, b) => a.usage_date.localeCompare(b.usage_date) || a.provider.localeCompare(b.provider));
+    return sendJson(res, 200, { from, to, note: USAGE_NOTE, items });
+  }
+
+  if (method === 'GET' && pathname === '/work/v1/admin/usage') {
+    requireAdmin(state);
+    const { from, to } = usageRange(url);
+    const grouped = new Map();
+    for (const row of usageRows(state, from, to)) {
+      const key = `${row.provider}|${row.model}`;
+      const item = grouped.get(key) ?? {
+        provider: row.provider,
+        model: row.model,
+        input_tokens: 0,
+        output_tokens: 0,
+        cached_input_tokens: 0,
+        run_count: 0,
+      };
+      item.input_tokens += row.input_tokens;
+      item.output_tokens += row.output_tokens;
+      item.cached_input_tokens += row.cached_input_tokens;
+      item.run_count += row.run_count;
+      grouped.set(key, item);
+    }
+    return sendJson(res, 200, {
+      from,
+      to,
+      note: USAGE_NOTE,
+      items: [...grouped.values()].sort(
+        (a, b) => a.provider.localeCompare(b.provider) || a.model.localeCompare(b.model),
+      ),
+    });
+  }
+
+  if (method === 'GET' && pathname === '/work/v1/admin/provider-config') {
+    requireOwner(state);
+    if (!state.providerConfig) fail(404, 'not_found', '当前组织尚未配置大模型接入');
+    return sendJson(res, 200, providerConfigView(state));
+  }
+
+  if (method === 'PUT' && pathname === '/work/v1/admin/provider-config') {
+    requireCsrf(req, state);
+    const actor = requireOwner(state);
+    const body = await readJson(req);
+    if (!['aliyun', 'volcengine', 'deepseek'].includes(body.provider)) {
+      fail(400, 'invalid_request', 'provider 非法');
+    }
+    if (typeof body.endpoint !== 'string' || !body.endpoint.startsWith('https://')) {
+      fail(400, 'invalid_request', 'endpoint 必须为 https');
+    }
+    const credential = state.credentials.get(body.credential_id);
+    if (!credential || credential.state !== 'active') {
+      fail(422, 'provider_not_configured', '凭证不存在或已吊销');
+    }
+    if (credential.provider !== body.provider || credential.mode !== body.credential_mode) {
+      fail(400, 'invalid_request', '凭证与 provider/mode 不匹配');
+    }
+    const current = state.providerConfig?.revision ?? 0;
+    if (body.expected_revision !== current) {
+      fail(409, 'version_conflict', '接入配置已被其他人修改');
+    }
+    if (state.providerConfig) {
+      state.providerConfig.state = 'superseded';
+      state.providerConfigRevisions.push(state.providerConfig);
+    }
+    state.providerConfig = {
+      id: uuid(),
+      revision: current + 1,
+      provider: body.provider,
+      model: body.model,
+      region: body.region,
+      endpoint: body.endpoint,
+      credentialMode: body.credential_mode,
+      credentialId: credential.id,
+      state: 'active',
+      createdAt: now(),
+      createdBy: actor.subject_id,
+    };
+    state.auditLog.push({
+      action: 'provider.config_changed',
+      actor_subject_id: actor.subject_id,
+      target_type: 'provider_access_config',
+      target_id: state.providerConfig.id,
+      at: now(),
+    });
+    return sendJson(res, 200, providerConfigView(state));
+  }
+
+  if (method === 'POST' && pathname === '/work/v1/admin/provider-config/revoke') {
+    requireCsrf(req, state);
+    const actor = requireOwner(state);
+    const body = await readJson(req);
+    if (typeof body.reason !== 'string' || body.reason.trim() === '') {
+      fail(400, 'invalid_request', 'reason 不能为空');
+    }
+    if (state.providerConfig) {
+      state.providerConfig.state = 'revoked';
+      state.providerConfigRevisions.push(state.providerConfig);
+      state.providerConfig = null;
+      state.auditLog.push({
+        action: 'provider.config_revoked',
+        actor_subject_id: actor.subject_id,
+        target_type: 'provider_access_config',
+        target_id: state.providerConfigRevisions[state.providerConfigRevisions.length - 1].id,
+        at: now(),
+      });
+    }
+    return sendJson(res, 200, { org_id: state.org.id, state: 'revoked' });
+  }
+
+  if (method === 'POST' && pathname === '/work/v1/admin/provider-credentials') {
+    requireCsrf(req, state);
+    const actor = requireOwner(state);
+    const body = await readJson(req);
+    if (!['aliyun', 'volcengine', 'deepseek'].includes(body.provider)) {
+      fail(400, 'invalid_request', 'provider 非法');
+    }
+    if (!['sts_role', 'managed_key'].includes(body.mode)) {
+      fail(400, 'invalid_request', 'mode 非法');
+    }
+    if (body.mode === 'managed_key' && (typeof body.api_key !== 'string' || body.api_key.length < 8)) {
+      fail(400, 'invalid_request', 'api_key 缺失或过短');
+    }
+    if (body.mode === 'sts_role' && (typeof body.role_ref !== 'string' || body.role_ref.trim() === '')) {
+      fail(400, 'invalid_request', 'role_ref 缺失');
+    }
+    if (activeCredential(state, body.provider)) {
+      fail(409, 'version_conflict', '该 provider 已有生效凭证；请轮换或先吊销');
+    }
+    const credential = {
+      id: uuid(),
+      provider: body.provider,
+      mode: body.mode,
+      roleRef: body.role_ref ?? null,
+      fingerprint: `sha256:${sha256(body.api_key ?? body.role_ref).slice(0, 16)}`,
+      keyVersion: 1,
+      state: 'active',
+      createdAt: now(),
+      rotatedAt: null,
+      createdBy: actor.subject_id,
+    };
+    state.credentials.set(credential.id, credential);
+    state.auditLog.push({
+      action: 'provider.credential_created',
+      actor_subject_id: actor.subject_id,
+      target_type: 'provider_credential',
+      target_id: credential.id,
+      at: now(),
+    });
+    return sendJson(res, 201, credentialView(credential));
+  }
+
+  if ((match = pathname.match(/^\/work\/v1\/admin\/provider-credentials\/([0-9a-f-]+)\/(rotate|revoke)$/)) && method === 'POST') {
+    requireCsrf(req, state);
+    const actor = requireOwner(state);
+    const credential = state.credentials.get(match[1]);
+    if (!credential) fail(404, 'not_found', '凭证不存在');
+    const body = await readJson(req);
+    if (match[2] === 'rotate') {
+      if (credential.state !== 'active') fail(409, 'version_conflict', '凭证已吊销');
+      if (credential.mode !== 'managed_key') fail(400, 'invalid_request', 'STS 角色凭证不支持轮换 Key');
+      if (typeof body.api_key !== 'string' || body.api_key.length < 8) {
+        fail(400, 'invalid_request', 'api_key 缺失或过短');
+      }
+      credential.fingerprint = `sha256:${sha256(body.api_key).slice(0, 16)}`;
+      credential.keyVersion += 1;
+      credential.rotatedAt = now();
+      state.auditLog.push({
+        action: 'provider.credential_rotated',
+        actor_subject_id: actor.subject_id,
+        target_type: 'provider_credential',
+        target_id: credential.id,
+        at: now(),
+      });
+      return sendJson(res, 200, credentialView(credential));
+    }
+    if (typeof body.reason !== 'string' || body.reason.trim() === '') {
+      fail(400, 'invalid_request', 'reason 不能为空');
+    }
+    credential.state = 'revoked';
+    state.auditLog.push({
+      action: 'provider.credential_revoked',
+      actor_subject_id: actor.subject_id,
+      target_type: 'provider_credential',
+      target_id: credential.id,
+      at: now(),
+    });
+    return sendJson(res, 200, { credential_id: credential.id, state: 'revoked' });
+  }
+
   if (method === 'GET' && pathname === '/work/v1/admin/overview') {
     requireAdmin(state);
-    const cents = [...state.tasks.values()].reduce(
+    const totals = [...state.tasks.values()].reduce(
       (acc, task) => {
-        acc.settled += task.budget.settledCents;
-        acc.reserved += task.budget.reservedCents ?? 0;
+        acc.settled += task.quota.settledTokens;
+        acc.reserved += task.quota.reservedTokens ?? 0;
         return acc;
       },
       { settled: 0, reserved: 0 },
@@ -1355,13 +1640,14 @@ async function handle(req, res, state) {
         total: seats.length,
         active: seats.filter((seat) => seat.status === 'active' && seat.work_seat).length,
       },
-      budget: {
-        currency: state.budget.currency,
-        limit_cents: state.budget.limitCents,
-        reserved_cents: cents.reserved,
-        settled_cents: cents.settled,
+      quota: {
+        enforcement: state.quota.enforcement,
+        limit_tokens: state.quota.limitTokens,
+        reserved_tokens: totals.reserved,
+        settled_tokens: totals.settled,
       },
-      budget_period_id: state.budget.periodId,
+      quota_period_id: state.quota.periodId,
+      run_cap_tokens: state.quota.runCapTokens,
       org_revision: state.org.revision,
       audit_retention_days: state.org.audit_retention_days,
     });
