@@ -4,7 +4,7 @@
 >
 > 关联：[D6 安全/运维/迁移设计](work-r0a-security-ops-migration-design-2026-10-25.md)、[通用 Runbook](work-operations-runbook-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[D2 API](work-r0a-api-design-2026-10-25.md)。
 >
-> 可执行资产：[pilot-ops.mjs](assets/work-r0a-ops-2026-10-25/pilot-ops.mjs)（6/6）、[golden-tasks.json](assets/work-r0a-ops-2026-10-25/golden-tasks.json)、[pilot-metrics.json](assets/work-r0a-ops-2026-10-25/pilot-metrics.json)、[cutover-plan.json](assets/work-r0a-ops-2026-10-25/cutover-plan.json)、D1 领域命令（PG16 冒烟 113/113）、[usage 对账](assets/work-r0a-runtime-2026-10-25/usage/usage-reconcile.mjs)。
+> 可执行资产：[pilot-ops.mjs](assets/work-r0a-ops-2026-10-25/pilot-ops.mjs)（6/6）、[golden-tasks.json](assets/work-r0a-ops-2026-10-25/golden-tasks.json)、[pilot-metrics.json](assets/work-r0a-ops-2026-10-25/pilot-metrics.json)、[cutover-plan.json](assets/work-r0a-ops-2026-10-25/cutover-plan.json)、D1 领域命令（PG16 冒烟 114/114 + 多连接竞态 7/7）、[usage 对账](assets/work-r0a-runtime-2026-10-25/usage/usage-reconcile.mjs)。
 
 ## 1. 原则
 

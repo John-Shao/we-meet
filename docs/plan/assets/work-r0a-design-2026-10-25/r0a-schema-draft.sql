@@ -3660,6 +3660,7 @@ CREATE FUNCTION work.sync_org_projection(
 LANGUAGE plpgsql AS $$
 DECLARE
   current_revision bigint;
+  applied_revision bigint;
 BEGIN
   IF p_org_id IS NULL OR p_org_id = '' OR p_org_id IS DISTINCT FROM current_setting('app.org_id', true) THEN
     RAISE EXCEPTION 'directory_org_context_mismatch' USING ERRCODE = 'P0001';
@@ -3685,6 +3686,8 @@ BEGIN
     RAISE EXCEPTION 'projection_revision_stale' USING ERRCODE = 'P0001';
   END IF;
 
+  -- 只读校验挡不住并发写：两个同步可能同时读到旧修订号。
+  -- 单调性由 DO UPDATE 的 WHERE 保证，读校验只用于给出更早的错误。
   INSERT INTO work.org (id, name, status, execution_enabled, home_region, revision)
   VALUES (p_org_id, btrim(p_name), p_status, p_execution_enabled, p_home_region, p_revision)
   ON CONFLICT (id) DO UPDATE
@@ -3693,7 +3696,12 @@ BEGIN
         execution_enabled = EXCLUDED.execution_enabled,
         home_region = EXCLUDED.home_region,
         revision = EXCLUDED.revision,
-        updated_at = now();
+        updated_at = now()
+    WHERE work.org.revision < EXCLUDED.revision
+  RETURNING work.org.revision INTO applied_revision;
+  IF applied_revision IS DISTINCT FROM p_revision THEN
+    RAISE EXCEPTION 'projection_revision_stale' USING ERRCODE = 'P0001';
+  END IF;
 
   -- operator_suspended 只由运维停用路径设置，目录同步不得覆盖。
   PERFORM work.append_audit(
@@ -3740,7 +3748,8 @@ BEGIN
 
   SELECT * INTO member_row
   FROM work.member m
-  WHERE m.org_id = p_org_id AND m.subject_id = p_subject_id;
+  WHERE m.org_id = p_org_id AND m.subject_id = p_subject_id
+  FOR UPDATE;
   IF FOUND THEN
     IF p_revision <= member_row.revision THEN
       RAISE EXCEPTION 'projection_revision_stale' USING ERRCODE = 'P0001';
@@ -3749,6 +3758,8 @@ BEGIN
       OR (member_row.status = 'active' AND p_status IN ('suspended', 'left'));
   END IF;
 
+  -- 行锁只覆盖已存在的成员：新成员的两个并发写由 DO UPDATE 的修订号守卫裁决，
+  -- 否则低修订号会在读-写窗口里覆盖高修订号（投影必须单调）。
   INSERT INTO work.member
     (org_id, subject_id, status, role, work_seat, revision)
   VALUES
@@ -3759,7 +3770,11 @@ BEGIN
         work_seat = EXCLUDED.work_seat,
         revision = EXCLUDED.revision,
         updated_at = now()
+    WHERE work.member.revision < EXCLUDED.revision
   RETURNING id INTO member_id;
+  IF member_id IS NULL THEN
+    RAISE EXCEPTION 'projection_revision_stale' USING ERRCODE = 'P0001';
+  END IF;
 
   -- 收窄只落投影；在途 Run 的停止走 sanctioned request_cancel（D3），
   -- 投影写入不直接杀 Run，避免目录同步与编排抢同一状态机。

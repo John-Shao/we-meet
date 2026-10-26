@@ -89,4 +89,4 @@ P1-A 的租户来自管理员主组织上下文，`X-Organization-Id` 只用于�
 | 异步导出 job（id/status/租约/一次性下载/过期） | **Work**：`work.audit_export` + 6 个领域函数 | 已由 D1 提供；真实文件生成属 E5 |
 | 读权限与主组织绑定 | **P1-A**：`org.work_grant.read`/`org.audit.read` | 无读权限即 403；不新增字段、不双写 |
 
-C31 状态：**partial**；方案 B 的契约与 Work 侧存储已在 D1/D2 落地（PG 冒烟 113/113、设计包 31/31），缺口收敛为“Host 必须提供 subject/role/revision/席位布尔与组织字段”，且真实接入与导出 worker 验证仍属实施（E2/E5）。
+C31 状态：**partial**；方案 B 的契约与 Work 侧存储已在 D1/D2 落地（PG 冒烟 114/114、多连接竞态 7/7、设计包 31/31），缺口收敛为“Host 必须提供 subject/role/revision/席位布尔与组织字段”，且真实接入与导出 worker 验证仍属实施（E2/E5）。

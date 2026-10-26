@@ -138,6 +138,19 @@ R0a 有六类不属于任何 Run 的常驻作业（见 [D3 §11](work-r0a-orches
 
 旧简化 schema 的 50 并发预留 `p95=238ms`、100 重复提交去重通过；仅作趋势参考，不替代当前 DDL/生产测试。
 
+### 6.4 并发正确性竞态（2026-10-26，非容量）
+
+同一 PostgreSQL 16 容器，`r0a-concurrency-smoke.py` 用多连接同时打同一组领域命令。这是**正确性**测量，不带吞吐结论：
+
+- 导出作业领取 10 路并发 → 1 winner、9 次 `audit_export_not_claimable`；租约过期后旧持有者收尾被拒（`audit_export_lease_lost`）。
+- 一次性下载凭证 5 路并发兑换 → 1 成功、4 次 `download_token_invalid`，`downloaded_at` 恰一行。
+- 到期清扫 3 路并发 → 一路领走全部到期行，共享引用各只投递一次 `content_shred`（不重复删、不漏删）。
+- 目录投影 8 路乱序修订并发 + 同修订号 4 路重复投递 → 终态等于最大已应用修订号、重复投递只落地一次。**修复前同批并发把终态停在 5/6**（低修订号覆盖高修订号，可复活已撤席位），现由单调 upsert 谓词保证。
+- 撤权窗口：撤权事务提交前已开始的 6 笔新工作全部穿透，提交后的新事务被 `work_seat_required` 拒——这是 D-07 要定案的人工/Auto 取消边界，不是缺陷。
+- 管理读与结算交错：900 次 `admin_overview` 读到的 `settled_cents` 全部落在已结算分录的前缀和上，无越账读数，终读与账本一致、`reserved_cents` 归零。
+
+原始输出：[admin-directory-concurrency.log](assets/work-r0a-design-2026-10-25/admin-directory-concurrency.log)。未覆盖：崩溃注入、连接池、多副本长跑、真实时钟偏差、生产数据量。
+
 ### 5.2 后台作业健康检查（值班用）
 
 ```sql

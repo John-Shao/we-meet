@@ -1475,6 +1475,13 @@ INSERT INTO smoke_assert SELECT 'projection_written_through_sync',
 -- 目录同步不得覆盖运维停用位（operator_suspended 只由 ops 路径写）。
 INSERT INTO smoke_assert SELECT 'projection_ignores_operator_flag',
   (SELECT operator_suspended = false FROM work.org WHERE id = 'org1');
+-- 单调性必须由写入语句自身的谓词保证：先读后写的守卫在并发下会被低修订号覆盖（已实测丢更新）。
+-- 真正的并发验证在 r0a-concurrency-smoke.py，这里只作回归哨兵，防止守卫被静默删除。
+INSERT INTO smoke_assert SELECT 'projection_guard_is_upsert_predicate',
+  pg_get_functiondef('work.sync_org_projection(text,text,text,boolean,text,bigint)'::regprocedure)
+    LIKE '%WHERE work.org.revision < EXCLUDED.revision%'
+  AND pg_get_functiondef('work.sync_member_projection(text,text,text,text,boolean,bigint)'::regprocedure)
+    LIKE '%WHERE work.member.revision < EXCLUDED.revision%';
 
 -- 撤席位/停用后，新工作在建输入这一步就被挡住（投影是权限事实）。
 SET LOCAL ROLE work_directory;

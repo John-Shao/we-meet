@@ -25,7 +25,7 @@ test('telemetry contract covers every SLO and keeps targets aligned', () => {
     trackOnly: 3,
     records: 21,
     alerts: 27,
-    metrics: 27,
+    metrics: 28,
   });
   const ids = new Set(contract.slos.map((entry) => entry.id));
   assert.equal(ids.size, slos.metrics.length);

@@ -1,0 +1,238 @@
+# promtool unit tests for the R0a rules-as-code output.
+#
+# Run (Docker Desktop, Git Bash):
+#   export MSYS_NO_PATHCONV=1
+#   docker run --rm -v "D:/workspace/we-meet/we-meet/docs/plan/assets/work-r0a-ops-2026-10-25:/w" \
+#     --entrypoint promtool prom/prometheus:v2.54.1 test rules /w/prometheus-rules.test.yml
+#
+# Proves the generated rules parse, that every recording expression evaluates,
+# and that each alert under test turns on above its threshold and stays off
+# below it, with aggregated labels (org_id / kind), severity/slo labels and the
+# summary/runbook annotations intact.
+#
+# Design-side rule validation only: nothing is scraped and no Alertmanager route
+# or pager is exercised, so C16/C17 stay partial.
+#
+# Prometheus 2.54 names this block `alert_rule_test` (singular) and compares
+# annotations as well as labels, so expectations must track the contract.
+
+rule_files:
+  - prometheus-rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # obligation job heartbeat: success clock went stale (15m `for`)
+  - interval: 1m
+    input_series:
+      - series: 'work_background_job_last_success_seconds{kind="content_shredder",org_id="org1"}'
+        values: '0+0x60'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: WorkBackgroundJobStale
+        exp_alerts: []
+      - eval_time: 31m
+        alertname: WorkBackgroundJobStale
+        exp_alerts:
+          - exp_labels:
+              alert_class: operational
+              kind: content_shredder
+              severity: page
+              slo: operational
+            exp_annotations:
+              org_id: 
+              runbook: work-operations-runbook-2026-10-25.md#51-后台作业故障处置
+              summary: "某类后台作业 15 分钟没有成功记录（relay/shredder/投影/清扫属义务作业，必须查）"
+  # directory projection freshness bounds revocation latency
+  - interval: 1m
+    input_series:
+      - series: 'work_directory_projection_lag_seconds{org_id="org1"}'
+        values: '1200+0x60'
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: WorkDirectoryProjectionStale
+        exp_alerts:
+          - exp_labels:
+              alert_class: operational
+              org_id: org1
+              severity: page
+              slo: operational
+            exp_annotations:
+              org_id: org1
+              runbook: work-operations-runbook-2026-10-25.md#51-后台作业故障处置
+              summary: "组织目录投影滞后超过 15 分钟，撤权新鲜度不足；管理页应显示陈旧"
+  # the same alert stays silent below the threshold
+  - interval: 1m
+    input_series:
+      - series: 'work_directory_projection_lag_seconds{org_id="org1"}'
+        values: '300+0x60'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WorkDirectoryProjectionStale
+        exp_alerts: []
+  # audit export backlog: threshold is strictly above 20
+  - interval: 1m
+    input_series:
+      - series: 'work_audit_export_backlog{org_id="org1"}'
+        values: '25+0x60'
+    alert_rule_test:
+      - eval_time: 21m
+        alertname: WorkAuditExportBacklog
+        exp_alerts:
+          - exp_labels:
+              alert_class: operational
+              org_id: org1
+              severity: ticket
+              slo: operational
+            exp_annotations:
+              org_id: org1
+              runbook: work-operations-runbook-2026-10-25.md#51-后台作业故障处置
+              summary: "审计导出作业积压超 20（管理员拿不到审计文件）"
+  # backlog of exactly 20 must not alert
+  - interval: 1m
+    input_series:
+      - series: 'work_audit_export_backlog{org_id="org1"}'
+        values: '20+0x60'
+    alert_rule_test:
+      - eval_time: 21m
+        alertname: WorkAuditExportBacklog
+        exp_alerts: []
+  # audit export failure ratio across outcomes
+  - interval: 1m
+    input_series:
+      - series: 'work_background_job_runs_total{kind="audit_export_worker",outcome="failed",org_id="org1"}'
+        values: '0+5x60'
+      - series: 'work_background_job_runs_total{kind="audit_export_worker",outcome="succeeded",org_id="org1"}'
+        values: '0+1x60'
+    alert_rule_test:
+      - eval_time: 36m
+        alertname: WorkAuditExportFailureRatio
+        exp_alerts:
+          - exp_labels:
+              alert_class: operational
+              org_id: org1
+              severity: ticket
+              slo: operational
+            exp_annotations:
+              org_id: org1
+              runbook: work-operations-runbook-2026-10-25.md#51-后台作业故障处置
+              summary: "审计导出失败率超 5%（看 error_code 与 Content Store 健康）"
+  # one-time download token misuse is a security signal, not a perf note
+  - interval: 1m
+    input_series:
+      - series: 'work_audit_export_downloads_total{outcome="denied",org_id="org1"}'
+        values: '0+30x60'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: WorkAuditExportTokenFailureBurst
+        exp_alerts:
+          - exp_labels:
+              alert_class: operational
+              org_id: org1
+              severity: ticket
+              slo: operational
+            exp_annotations:
+              org_id: org1
+              runbook: work-operations-runbook-2026-10-25.md#51-后台作业故障处置
+              summary: "一次性下载凭证校验失败突增（可能凭证泄露后被反复尝试）"
+  # content purge backlog means the retention duty is not being met
+  - interval: 1m
+    input_series:
+      - series: 'work_content_shred_backlog{org_id="org1"}'
+        values: '150+0x60'
+    alert_rule_test:
+      - eval_time: 36m
+        alertname: WorkContentShredBacklog
+        exp_alerts:
+          - exp_labels:
+              alert_class: operational
+              org_id: org1
+              severity: page
+              slo: operational
+            exp_annotations:
+              org_id: org1
+              runbook: work-operations-runbook-2026-10-25.md#51-后台作业故障处置
+              summary: "正文粉碎请求积压超 100（留存义务未完成，优先于功能问题）"
+  # lease takeover storm: crashed workers or clock skew
+  - interval: 1m
+    input_series:
+      - series: 'work_background_job_lease_takeovers_total{kind="outbox_relay",org_id="org1"}'
+        values: '0+40x60'
+    alert_rule_test:
+      - eval_time: 31m
+        alertname: WorkBackgroundJobLeaseTakeovers
+        exp_alerts:
+          - exp_labels:
+              alert_class: operational
+              kind: outbox_relay
+              severity: ticket
+              slo: operational
+            exp_annotations:
+              org_id: 
+              runbook: work-operations-runbook-2026-10-25.md#51-后台作业故障处置
+              summary: "某类作业频繁发生租约接管（worker 崩溃、时钟偏差或外部调用卡住）"
+  # slow exports: average duration, because R0a volume cannot support a percentile
+  - interval: 1m
+    input_series:
+      - series: 'work_audit_export_duration_seconds_sum{org_id="org1"}'
+        values: '0+1200x60'
+      - series: 'work_audit_export_duration_seconds_count{org_id="org1"}'
+        values: '0+1x60'
+    alert_rule_test:
+      - eval_time: 61m
+        alertname: WorkAuditExportSlow
+        exp_alerts:
+          - exp_labels:
+              alert_class: operational
+              org_id: org1
+              severity: ticket
+              slo: operational
+            exp_annotations:
+              org_id: org1
+              runbook: work-operations-runbook-2026-10-25.md#51-后台作业故障处置
+              summary: "审计导出平均耗时超 10 分钟（R0a 量级先看均值；P95 等有量之后再开）"
+  # existing operational alert keeps its labels after regeneration
+  - interval: 1m
+    input_series:
+      - series: 'work_unknown_operations{org_id="org9"}'
+        values: '1+0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WorkUnknownOperationsPresent
+        exp_alerts:
+          - exp_labels:
+              alert_class: operational
+              org_id: org9
+              severity: page
+              slo: operational
+            exp_annotations:
+              org_id: org9
+              runbook: work-operations-runbook-2026-10-25.md#5-故障注入矩阵
+              summary: "存在 unknown Operation 超过 15 分钟"
+  # legacy outbox dead-letter alert still bites
+  - interval: 1m
+    input_series:
+      - series: 'work_outbox_dead_letters{org_id="org1",kind="start_workflow"}'
+        values: '3+0x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: WorkOutboxDeadLetters
+        exp_alerts:
+          - exp_labels:
+              alert_class: operational
+              org_id: org1
+              severity: page
+              slo: operational
+            exp_annotations:
+              org_id: org1
+              runbook: work-r0a-pilot-operations-runbook-2026-10-26.md#6-outbox-死信
+              summary: "Outbox 存在死信；对应启动/取消/粉碎未投递"
+  # no dead letters means no alert
+  - interval: 1m
+    input_series:
+      - series: 'work_outbox_dead_letters{org_id="org1",kind="start_workflow"}'
+        values: '0+0x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: WorkOutboxDeadLetters
+        exp_alerts: []

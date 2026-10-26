@@ -190,6 +190,8 @@ Runtime/Adapter
 
 provider id/model/dataResidency/quota 是配置占位，需在 D4 评审与商务/安全确认后替换；不能把示例值当成采购承诺。
 
+上述六类材料已收敛成可勾选的外部问句：[C15 供应商条款与价表确认单](work-r0a-provider-terms-price-decision-request-2026-10-26.md)。它把**接入下限定为三家：阿里云（Qwen）、DeepSeek、火山引擎（Doubao/Seed）**，三家全部进入闸门——任何一家缺书面结论，C15 就不关闭；并把驻留/训练/留存/子处理者/配额/价格上界列为试点闸门硬项，把 SLA、事故责任、免费额度列为可书面降级项。价表按各家独立 `price_version` 冻结，预算上界取三家最贵路径，未版本化价格不得进入 cents 账本。三家并列可路由**不改变派发语义**：路由在 Run 开始前决定，已派发失败进 unknown/对账，不在同一 Operation 上静默改投他家。期望答复 2026-12-04，硬期限 12-11。
+
 H02 已用 qwen3.8-flash、deepseek-chat、doubao-seed-2-1-lite 经本地网关做真实流式请求，但**不等于**生产网关、配额、条款或计费承诺。
 
 ## 11. 测试与证据

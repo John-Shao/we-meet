@@ -99,16 +99,18 @@ test('directory scan is recursive and stays redacted in the report', () => {
 });
 
 test('current R0a evidence logs contain no secret or content leaks', () => {
-  const sliceDir = path.join(HERE, '..', 'work-temporal-slice-2026-10-25');
-  const evidenceFiles = fs
-    .readdirSync(sliceDir)
+  const logsOf = (directory) => fs
+    .readdirSync(directory)
     .filter((file) => file.endsWith('.log'))
-    .map((file) => path.join(sliceDir, file));
+    .map((file) => path.join(directory, file));
   const result = scanPaths([
     path.join(HERE, 'provider-smoke.log'),
     path.join(HERE, 'sandbox-smoke.log'),
-    ...evidenceFiles,
+    ...logsOf(path.join(HERE, '..', 'work-temporal-slice-2026-10-25')),
+    // 并发证据日志：下载令牌、租约与投影竞态的原始输出也在扫描范围内。
+    ...logsOf(path.join(HERE, '..', 'work-r0a-design-2026-10-25')),
   ]);
+  assert.ok(result.files >= 8, `expected the evidence logs to be scanned, got ${result.files}`);
   assert.equal(result.bySeverity.fail, 0, JSON.stringify(result.findings, null, 2));
   assert.equal(result.failed, false);
 });

@@ -20,7 +20,7 @@ D3 把 R0a 的“提交 → 派发 → 模型 → 预算 → 成果 → 采纳�
 
 | ID | 设计选择 | 理由 |
 |---|---|---|
-| D3-01 | R0a 优先**自托管 Temporal**：同区域、独立 PostgreSQL 数据库/角色、namespace `work-r0a`、task queue `work-r0a-run`、mTLS、历史保留 7 天 | 数据驻留、独立持久化、可验证 S1；若平台无运维能力，改用托管 Temporal，但必须有书面驻留/留存/DPA，工作流契约不变 |
+| D3-01 | R0a **采用自托管 Temporal**（U3 于 2026-10-26 定 A）：同区域、独立 PostgreSQL 数据库/角色、namespace `work-r0a`、task queue `work-r0a-run`、mTLS、历史保留 7 天 | 数据驻留、独立持久化、可验证 S1；若平台对 9 项承诺任一项答"否"，才改用托管 Temporal（须有书面驻留/留存/DPA）或重做控制面调度；工作流契约不变 |
 | D3-02 | **每 Run 一个 `RunWorkflow`**，workflow ID `run:<run_id>`，启动策略 `REJECT_DUPLICATE`；R0a 不做 TaskWorkflow | 固定单步/有界模型循环；重试创建新 Run/新 workflow；采纳在 workflow 之外 |
 | D3-03 | Temporal history 只放 Run/Task/Operation ID、哈希、公开状态；不放 goal、正文、提示词、路径、连接器数据或密钥 | 业务事实在 PostgreSQL；history 不是内容存储 |
 | D3-04 | R0a 最多 **3 个顺序 model Operation**，逻辑键 `model:<n>`；不做通用 DAG/Step | 满足“大纲→初稿”一类文本任务，同时保持有界、可计量、可审批 |
@@ -67,7 +67,7 @@ D3 把 R0a 的“提交 → 派发 → 模型 → 预算 → 成果 → 采纳�
 
 ### 4.1 托管决策单（U3，2026-10-26）
 
-| 维度 | 自托管（推荐） | 托管 Temporal Cloud |
+| 维度 | 自托管（**已选定 A**） | 托管 Temporal Cloud（回退路线 B） |
 |---|---|---|
 | 数据驻留 | 同区域、独立 PG/角色，可控 | 依赖供应商区域；需 DPA/驻留/留存书面承诺 |
 | 运维 | 平台需提供多节点、值班、备份/升级 | 供应商 SLA；仍需本团队处理 workflow/worker 与 namespace 配额 |
@@ -76,9 +76,11 @@ D3 把 R0a 的“提交 → 派发 → 模型 → 预算 → 成果 → 采纳�
 | 故障排查 | 可查 server/PG/history | 受供应商支持流程约束 |
 | 迁移 | 自托管可导出/迁移 | 迁出成本与合同约束需先确认 |
 
-**推荐**：自托管（同区、独立 PG、mTLS、7 天 history、2 worker 副本），与 D3-01 一致；**DR2 前必须由平台书面确认**多节点拓扑、值班/告警、PG 备份恢复与版本升级窗口。若平台无法承担，则转托管，但必须先取得驻留/留存/DPA 书面承诺；工作流契约和本设计的取消/对账语义不变。
+**决定（2026-10-26）：采用自托管**（同区、独立 PG、mTLS、7 天 history、≥2 worker 副本），与 D3-01 一致；A/B 比较到此为止，不再重开。仍**待平台书面确认**多节点拓扑、值班/告警、PG 备份恢复与 ≥15 分钟 drain 窗口等 9 项承诺（逐条见 [U3 决策征询单 §3](work-r0a-temporal-hosting-decision-request-2026-10-26.md)）；确认前 U3/C22 保持未关闭。若任一项被判"否"，才回退到托管路线（须先取得驻留/留存/DPA 书面承诺）或重做控制面调度——两条都需要新 ADR 与 E4 重排。工作流契约和本设计的取消/对账语义不因托管方式改变。
 
-未确认前，E4 不得按“已排期”承诺；U3 保持未关闭。
+未确认前，E4 不得按“已排期”承诺；U3 与 C22 保持未关闭（选定 A 只消除了选型不确定，没有消除对平台的资源与运维依赖）。
+
+为把“等平台答复”变成可签收动作，已发出 [U3 决策征询单](work-r0a-temporal-hosting-decision-request-2026-10-26.md)：自托管路线列出平台必须逐条承诺的 9 项（多副本、独立 PG、内网 mTLS、备份 RPO/RTO、**≥15 分钟 drain 窗口**、值班、`temporal_*` 告警接入、namespace 配额、演练排期），托管路线列出法务必须先答的 6 项（驻留、history 保留与个人数据判定、训练条款、退出条款、DPA/认证、计费口径），并写明期望答复日 2026-11-14 与三种不答复后果。选 A 之后的四项演练就是 C22 的关闭动作。
 
 **Workflow 与 Run 的关系**：
 
@@ -447,16 +449,18 @@ R0a 的编排不止"每个 Run 一个 workflow"。下面这些常驻/周期性�
 | D3-N05 | 目录投影连续失败 / 单 org 抛错 | 其他 org 继续同步；同 revision 重放被拒但不算失败；滞后越限告警；管理页显示陈旧而非假数据 |
 | D3-N06 | Kill switch 或组织停用期间的义务作业 | 新提交/新导出停止；relay、shredder、投影同步、清扫继续；恢复后不重放已完成的外部动作 |
 
+证据分三层，不合并计数：F/D3-R 例有 Temporal dev 切片执行记录（§15.1）；**D3-N02/N03/N04/N05 的数据库侧交错**已由 [r0a-concurrency-smoke.py](assets/work-r0a-design-2026-10-25/r0a-concurrency-smoke.py) 多连接实测（数字见 [D1 §6.1](work-r0a-data-design-2026-10-25.md)，矩阵里逐例记在 `measured` 字段）；崩溃注入（D3-N01 与 D3-N03 的进程被杀、D3-N06 的开关演练）、真实 Content Store 删除确认与真实 IdP 重放节奏**仍未执行**——因此 D3-N 组不能记作“已通过”。
+
 ## 14. D3 对 D1/D2 的增量
 
 2026-10-26 复核：本节的早期版本写的是"D1 20/20 冒烟不包含这些"，现已过期，按当前状态重写。
 
-**已在 D1 落地并有负例（PG16 冒烟 113/113）**
+**已在 D1 落地并有负例（PG16 冒烟 114/114，另有 7 组多连接竞态）**
 
 1. `wait_run`/`resume_run`/`mark_operation_unknown`/`reconcile_operation` 与 Run `wait_reason`、Operation `unknown/unresolved` 迁移。
 2. Outbox `kind`：`submit_task` 同事务写 `start_workflow`、`request_cancel` 写 `cancel_signal`、删除/清扫写 `content_shred`；`task_event` 与三类信号共用 `outbox_seq` 单聚合有序。
 3. Relay 跨组织租约：`claim_outbox` 的 `claimed_by/claimed_until`、非持有者 ACK 拒绝、退避与第 10 次死信、死信阻塞同聚合、start 死信收尾 Run、`work_ops` 重排/跳过并审计。
-4. 作业租约：`claim_audit_export` 的 `lease_owner/lease_until` 与 `audit_export_lease_lost`；到期清扫 `expire_due_*`/`shred_due_audit_exports` 的条件更新幂等。
+4. 作业租约：`claim_audit_export` 的 `lease_owner/lease_until` 与 `audit_export_lease_lost`；到期清扫 `expire_due_*`/`shred_due_audit_exports` 的条件更新幂等——单持有者与清扫独占已由并发脚本实测（§15.2）。
 5. 预算/派发 CAS 与 fence：`acquire_run`、`claim_dispatch`、`reserve/settle/adjust/release` 账目单调；启动前取消不 bump fence。
 
 **仍待实施（不属于设计层，DR2/E4/E5 验证）**
@@ -478,7 +482,7 @@ D3 完成（DR2）需要：
 - Temporal history 中无正文/密钥；SSE 事件无正文。
 - 对账器只通过领域命令恢复；无直接表写。
 
-### 14.1 参考纵切验证（2026-10-25，2026-10-26 修订后复跑）
+### 15.1 参考纵切验证（2026-10-25，2026-10-26 修订后复跑）
 
 - 环境：Temporal CLI 1.9.1 / Server 1.32.0 dev（in-memory）、Node 22 Linux 容器、PostgreSQL 16、D1 R0a schema、faux model。
 - 结果：F01/F02/F04/F07/F21/F23 + D3-R06–R09 **10/10** 通过（连续 3 次）；normal workflow smoke 1/1；RLS 连接池 3/3；10 并发负载 1/1。
@@ -499,14 +503,26 @@ D3 完成（DR2）需要：
 - 边界：F04/F07/F21/D3-R07/D3-R08 使用测试 `faultMode` 直接启动 workflow，不经过 outbox；F23 是数据库幂等断言；S1-R01 只验证 worker 重启，不做 Temporal server 重启/多节点/version patch；切片为缩短测试把 activity 超时/心跳改为 30s/3s（设计基线为模型 15m、心跳 30s），D3-R08 不证明生产超时值；未接真实 provider、sandbox、KMS。
 - 资产：[work-temporal-slice-2026-10-25](assets/work-temporal-slice-2026-10-25/README.md)。
 
+### 15.2 数据库侧并发竞态（2026-10-26）
+
+编排关心的交错在数据库层就能测，不需要等 Temporal worker 就位。[r0a-concurrency-smoke.py](assets/work-r0a-design-2026-10-25/r0a-concurrency-smoke.py) 用多连接同时打同一组领域命令，完整数字见 [D1 §6.1](work-r0a-data-design-2026-10-25.md)；与 D3 相关的三条结论：
+
+1. **作业只有一个持有者**：10 个并发 `claim_audit_export` → 1 胜、9 个 `audit_export_not_claimable`；租约过期后新持有者收尾成功、旧持有者得 `audit_export_lease_lost`。§11.2 的"租约 + 只有当前持有者能收尾"不是纸面约定。
+2. **清扫不重复也不漏**：3 个并发 `expire_due_inputs` 只有一个领到 4 行（`FOR UPDATE` 串行化），2 个共享引用各投递一次 `content_shred`；义务作业（§11.3）在并发下不产生第二条删除请求。
+3. **一次性凭证真的只有一次**：5 个并发兑换同一令牌 → 1 成功、4 `download_token_invalid`，`downloaded_at` 恰一行。
+
+同批竞态测出并修复了目录投影的丢更新（低修订号覆盖高修订号，修复前 8 个修订号全部"成功"而终态停在 5/6）。这直接改变 D3-N05 与 D-07 的判断依据：修复前并发重放可把已撤的席位覆盖回去，撤权在 Work 侧并不单调。
+
+仍然没测到的：进程被杀（D3-N01/N03 的崩溃窗口）、真实时钟偏差下的租约、Temporal Schedule 与独立 worker 部署（§11.4、C22）。
+
 ## 16. 未决与风险
 
 1. **Temporal 托管/运维**：自托管需要 S1 多节点拓扑、在途 workflow 的 server 重启、备份与监控；当前验证 worker 重启、`patched` 升级、已完成 workflow 的 file-backed server 重启与 DB 终态偏移。
-2. **D1 增量已实现**：wait/resume/unknown/reconcile/workflow-start/cancel outbox 已通过 34/34（2026-10-26 修订后冒烟 113/113）；仍需 Temporal 集成/正式评审与 S1 拓扑/升级。
+2. **D1 增量已实现**：wait/resume/unknown/reconcile/workflow-start/cancel outbox 已通过 34/34（2026-10-26 修订后冒烟 114/114）；仍需 Temporal 集成/正式评审与 S1 拓扑/升级。
 3. **供应商回执查询**：不同供应商对 unknown 的查询能力不同；无法确认时保持 unresolved，不释放预算。
 4. **预算等待信号权限**：谁可以补预算/发 resume 需运营权限与审计；R0a 无预算写 UI。
 5. **Workflow 版本/Worker 发布**：`patched` 升级已验证；worker versioning 部署、正式 drain/回滚演练未做。
-6. ~~Outbox 顺序/DLQ~~：**已定并实现于 D1（2026-10-26 修订）**：`outbox_seq` 单聚合严格有序（头部未投递——在途租约/退避/死信——即阻塞同聚合后续行；跨聚合不保证）；`mark_outbox_failed` 2^n 秒退避（≤300s），第 10 次（约 13.5 分钟）或不可重试即死信 + 审计；**死信继续阻塞同聚合**，start_workflow 死信同时收尾 Run（queued→failed / cancel_requested→canceled）并 supersede 同 Run 后续消息；`requeue_outbox_dead_letter`/`skip_outbox_dead_letter` 仅 `work_ops`、需理由、审计；relay 租约 + 跨组织策略见 §10。PG 冒烟 113/113、Temporal 切片 faults 10/10、s1 4/4 回归通过。告警 `WorkOutboxDeadLetters`，处置见[试点运营 runbook §6](work-r0a-pilot-operations-runbook-2026-10-26.md)。
+6. ~~Outbox 顺序/DLQ~~：**已定并实现于 D1（2026-10-26 修订）**：`outbox_seq` 单聚合严格有序（头部未投递——在途租约/退避/死信——即阻塞同聚合后续行；跨聚合不保证）；`mark_outbox_failed` 2^n 秒退避（≤300s），第 10 次（约 13.5 分钟）或不可重试即死信 + 审计；**死信继续阻塞同聚合**，start_workflow 死信同时收尾 Run（queued→failed / cancel_requested→canceled）并 supersede 同 Run 后续消息；`requeue_outbox_dead_letter`/`skip_outbox_dead_letter` 仅 `work_ops`、需理由、审计；relay 租约 + 跨组织策略见 §10。PG 冒烟 114/114、竞态 7/7、Temporal 切片 faults 10/10、s1 4/4 回归通过。告警 `WorkOutboxDeadLetters`，处置见[试点运营 runbook §6](work-r0a-pilot-operations-runbook-2026-10-26.md)。
 7. **SSE 多实例/背压**：长连接、游标保留、重连风暴未实现。
 8. **人工审批**：R0a 不覆盖 F03 的完整审批 UI/通知；待 R0b/R2。
 9. **超时数值**：Run/模型/预算等待是初始建议，需产品与试点数据校准。
@@ -515,7 +531,7 @@ D3 完成（DR2）需要：
 12. **D1 直方/容量**：Temporal 与 PG 的吞吐、history 大小、outbox 延迟未压测。
 13. **义务作业被误停**：relay/shredder/投影同步/清扫必须跨 kill switch 与组织停用继续运行（§11.3）。D3-N06 只写在矩阵里，未执行；实现若把它们并入"产生新工作"的开关，事件会丢、正文会留。
 14. **Content Store 删除确认缺失**：shredder 只有投递与 ACK，没有"确实删掉了"的二次核对；孤儿对象扫描推到 R1（§11.4）。
-15. **投影同步新鲜度未定**：周期与全量回填窗口影响撤权生效时间，与 D-07 一起定；当前只能保证"下一次动作被拦"。
+15. **投影同步新鲜度未定**：周期与全量回填窗口影响撤权生效时间，与 D-07 一起定；当前只能保证"下一次动作被拦"。竞态还要求投影写入本身单调（§15.2 的修复项）——否则并发重放会把刚撤掉的席位覆盖回去，"下一次动作被拦"也就不成立。
 
 ## 17. 交付物与下一步
 

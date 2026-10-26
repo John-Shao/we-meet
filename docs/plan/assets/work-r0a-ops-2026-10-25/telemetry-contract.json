@@ -215,13 +215,6 @@
         "org_id"
       ]
     },
-    "work_audit_export_duration_seconds_bucket": {
-      "type": "histogram",
-      "labels": [
-        "org_id",
-        "le"
-      ]
-    },
     "work_audit_export_downloads_total": {
       "type": "counter",
       "labels": [
@@ -231,6 +224,18 @@
     },
     "work_content_shred_backlog": {
       "type": "gauge",
+      "labels": [
+        "org_id"
+      ]
+    },
+    "work_audit_export_duration_seconds_sum": {
+      "type": "counter",
+      "labels": [
+        "org_id"
+      ]
+    },
+    "work_audit_export_duration_seconds_count": {
+      "type": "counter",
       "labels": [
         "org_id"
       ]
@@ -701,11 +706,11 @@
     },
     {
       "name": "WorkAuditExportSlow",
-      "expr": "histogram_quantile(0.95, sum by (le) (rate(work_audit_export_duration_seconds_bucket[30m]))) > 600",
+      "expr": "(sum by (org_id) (rate(work_audit_export_duration_seconds_sum[30m]))) / clamp_min(sum by (org_id) (rate(work_audit_export_duration_seconds_count[30m])), 1e-9) > 600 and sum by (org_id) (rate(work_audit_export_duration_seconds_count[30m])) > 0",
       "for": "30m",
       "severity": "ticket",
       "slo_alert": false,
-      "summary": "审计导出 P95 超 10 分钟（先查 Content Store 与作业积压）",
+      "summary": "审计导出平均耗时超 10 分钟（R0a 量级先看均值；P95 等有量之后再开）",
       "runbook": "work-operations-runbook-2026-10-25.md#51-后台作业故障处置"
     }
   ]

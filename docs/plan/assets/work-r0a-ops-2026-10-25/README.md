@@ -12,11 +12,12 @@
 | `pilot-capacity-model.mjs` | 3 组织/20 席位/10 并发的试点容量模型 |
 | `telemetry-contract.json` | 12 个 SLO 的指标/标签/记录规则/告警/runbook 契约；禁止正文/密钥标签 |
 | `generate-telemetry.mjs` | 生成 `prometheus-rules.yaml`；`--check` 检测漂移 |
-| `prometheus-rules.yaml` | 21 条 recording rule + 17 条告警（15 SLO + 2 operational） |
+| `prometheus-rules.yaml` | 21 条 recording rule + 27 条告警（15 SLO + 12 operational）= 48 条规则 |
+| `prometheus-rules.test.yml` | promtool 告警单测：13 组输入序列、14 条断言，触发与不触发两侧都测 |
 | `telemetry-model.mjs` | 契约/SLO/runbook/标签/PromQL 引用校验 |
-| `telemetry.test.mjs` | 10 组测试（覆盖、target 对齐、track-only、篡改负例、漂移） |
+| `telemetry.test.mjs` | 11 组测试（覆盖、target 对齐、track-only、篡改负例、漂移、与 D3 作业契约的跨资产一致性） |
 | `ops-model.mjs` | 控制/SLO/清单校验与 go/no-go |
-| `ops-model.test.mjs` | 8 组测试 |
+| `ops-model.test.mjs` | 9 组测试（含 S17/S18 存在性与冻结契约里禁 `download_url`） |
 
 ## 校验
 
@@ -26,13 +27,17 @@ node generate-telemetry.mjs --check
 node --test ops-model.test.mjs telemetry.test.mjs
 node pilot-capacity-model.mjs
 
+# 用真实 Prometheus 工具校验规则与告警语义（需 Docker；CI ops-telemetry job 同一条命令）
+docker run --rm -v "$PWD:/w:ro" --entrypoint sh prom/prometheus:v2.54.1 \n  -c "promtool check rules /w/prometheus-rules.yaml && promtool test rules /w/prometheus-rules.test.yml"
+# Windows Git Bash 会改写 -v 路径，需要 MSYS_NO_PATHCONV=1 且用绝对盘符路径
+
 python -c "import json; [json.load(open(f, encoding='utf-8')) for f in ['security-controls.json','slo-pilot.json','pilot-checklist.json','telemetry-contract.json']]; print('json-ok')"
 ```
 
 ## 已验证
 
 - 9/9 ops + 6/6 pilot-ops + 11/11 telemetry 测试通过（共 26/26；黄金任务/试点指标/切换状态机见 `pilot-ops.mjs`）：控制字段/证据、SLO 必需指标/未测不冒充、清单完整性、go/no-go、容量基线、10× 失败、零使用、非法输入；12 个 SLO 全覆盖、target/window/unit 与 `slo-pilot.json` 对齐、track-only 不产生 SLO 告警、缺失/篡改/内容标签/错误 runbook 被拒。
-- `prometheus-rules.yaml` 由契约生成且无漂移：21 条 record、17 条 alert；每条告警带 severity/for/runbook 与 `org_id` 注释；标签白名单禁止 goal/background/prompt/content/body/email/api_key/authorization/cookie/session。
+- `prometheus-rules.yaml` 由契约生成且无漂移：21 条 record、27 条 alert；`promtool check rules`（prom/prometheus:v2.54.1）报告 **SUCCESS: 48 rules found**，`promtool test rules` 对 `prometheus-rules.test.yml` 的 13 组序列、14 条断言 **SUCCESS**。2.54 的 promtool 只支持 `alert_rule_test`（单数）并比较标签与注解，没有表达式单测，所以慢查询类告警改用可被单测覆盖的平均耗时形式；每条告警带 severity/for/runbook 与 `org_id` 注释；标签白名单禁止 goal/background/prompt/content/body/email/api_key/authorization/cookie/session。
 - 当前 `goNoGo`：**no-go，23 个 blocking 项**。
 - 基线：36 Run/日、108 模型 Operation/日、7.5 provider req/min、0.125 DB 预留/秒、1.296M token/日、1.156GB/365 天；均在试点限制内。
 - S1 参考演练：worker 重启、DB 终态偏移、执行开关/组织停用、outbox backlog 4/4，`patched` 升级 1/1，file-backed server 重启为修订前结果（未复跑）；见 [Temporal slice](../work-temporal-slice-2026-10-25/README.md)。
@@ -45,7 +50,7 @@ D3 §11 的六类非 Run 作业现在有指标与告警：
 
 | 类别 | 数量 | 关键项 |
 |---|---|---|
-| 指标 | 27 | `work_background_job_runs_total{kind,outcome}`、`work_background_job_last_success_seconds{kind}`、`work_background_job_lease_takeovers_total`、`work_directory_projection_lag_seconds`、`work_audit_export_backlog`、`work_audit_export_duration_seconds_bucket`、`work_audit_export_downloads_total{outcome}`、`work_content_shred_backlog` |
+| 指标 | 28 | `work_background_job_runs_total{kind,outcome}`、`work_background_job_last_success_seconds{kind}`、`work_background_job_lease_takeovers_total`、`work_directory_projection_lag_seconds`、`work_audit_export_backlog`、`work_audit_export_duration_seconds_sum`/`_count`、`work_audit_export_downloads_total{outcome}`、`work_content_shred_backlog` |
 | 告警 | 27（15 SLO + 12 运维） | 新增 `WorkBackgroundJobStale`、`WorkBackgroundJobLeaseTakeovers`、`WorkDirectoryProjectionStale`、`WorkAuditExportBacklog`、`WorkAuditExportFailureRatio`、`WorkAuditExportSlow`、`WorkAuditExportTokenFailureBurst`、`WorkContentShredBacklog`，全部指向[运行手册 §5.1 后台作业故障处置](../../work-operations-runbook-2026-10-25.md) |
 | 控制 | 18（S01–S18） | S17 目录投影写入与新鲜度；S18 治理读越权与一次性下载入口 |
 
@@ -53,7 +58,7 @@ D3 §11 的六类非 Run 作业现在有指标与告警：
 
 ## 未验证
 
-- **遥测未接入**：没有 Prometheus scrape、仪表盘、Alertmanager 或真实告警投递；规则未用 `promtool`/真实序列验证；所有 SLO 仍为 `not_measured`。
+- **遥测未接入**：没有 Prometheus scrape、仪表盘、Alertmanager 或真实告警投递；规则已由 `promtool` 校验并带告警单测，但**没有真实序列**——阈值是否合适应在试点数据上复核，所有 SLO 仍为 `not_measured`。
 - 指标/告警保留 `org_id`；task/run/operation ID 不进入指标标签（高基数），需由 exemplar/trace/结构化日志关联。
 - 未做试点压测/备份恢复/停用/kill switch/RLS 池化演练。
 - 未接真实 Temporal、沙箱、KMS、Content Store 或供应商条款。

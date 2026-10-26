@@ -1,6 +1,6 @@
 # Work R0a 安全、运维、迁移与试点详细设计（D6）
 
-> 状态：D6 设计草案；安全控制/SLO/容量/试点清单已建模并通过 8/8 校验，当前 **go/no-go = no-go（23 个 blocking 项）**；已完成 Temporal dev 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、RLS 池化、10 并发负载、Work DB 恢复、试点 on-call runbook、SLO 规则即代码 10/10 与日志扫描 8/8；本地关闭 C12/C18/C19/C20/C21，剩余 23 个 blocking。未做多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/供应商条款/真实遥测接入。
+> 状态：D6 设计草案；安全控制/SLO/容量/试点清单已建模并通过 8/8 校验，当前 **go/no-go = no-go（23 个 blocking 项）**；已完成 Temporal dev 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、RLS 池化、10 并发负载、Work DB 恢复、试点 on-call runbook、SLO 规则即代码 11/11 + promtool 校验（48 条规则 + 14 组告警单测）与日志扫描 8/8、管理读/目录投影/留存清扫的多连接竞态 7/7；本地关闭 C12/C18/C19/C20/C21，剩余 23 个 blocking。未做多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/供应商条款/真实遥测接入。
 >
 > 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界）
 >
@@ -59,13 +59,13 @@ D6 回答 R0a 试点能否开始、如何安全运行、如何切换/回滚、�
 - S01/S02/S04/S07/S14 的 partial 不能当 closed；需要真实模型/网络/运行时/池化测试。
 - S06/S09/S12/S13 是试点前必须关闭或书面降级的硬项。
 - S16 的 out_of_scope 仅对 R0a 成立，不覆盖 R0b/R2。
-- S17/S18 是 2026-10-26 方案 B 与目录投影落地后新增的两条边界：Work 侧控制与负例已有（D1 113/113、合同 10/10、`ci-contract` 禁 `download_url`），关闭仍需真实身份字段接入（C31）、真实鉴权与访问日志证明 token 不落 URL。
+- S17/S18 是 2026-10-26 方案 B 与目录投影落地后新增的两条边界：Work 侧控制与负例已有（D1 114/114、多连接竞态 7/7、合同 10/10、`ci-contract` 禁 `download_url`），关闭仍需真实身份字段接入（C31）、真实鉴权与访问日志证明 token 不落 URL。
 
 ## 4. SLO、告警与测量
 
 完整 SLO 见 [slo-pilot.json](assets/work-r0a-ops-2026-10-25/slo-pilot.json)。所有指标当前为 `not_measured`；`met/missed` 必须有证据。
 
-规则即代码见 [telemetry-contract.json](assets/work-r0a-ops-2026-10-25/telemetry-contract.json) 与生成的 [prometheus-rules.yaml](assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)：12 个 SLO 全覆盖，21 条 recording rule、17 条告警；每条告警带 severity/for/runbook 与 `org_id` 注释，指标标签禁止正文/密钥。规则未接入 Prometheus/Alertmanager，也没有仪表盘或真实序列；通过校验不代表已测量。`org_id` 进入指标与告警；task/run/operation ID 因基数过高不进入指标标签，需通过 exemplar/trace/结构化日志关联。
+规则即代码见 [telemetry-contract.json](assets/work-r0a-ops-2026-10-25/telemetry-contract.json) 与生成的 [prometheus-rules.yaml](assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)：12 个 SLO 全覆盖，21 条 recording rule、27 条告警（合计 48 条规则）；每条告警带 severity/for/runbook 与 `org_id` 注释，指标标签禁止正文/密钥。规则已用 `prom/prometheus:v2.54.1` 的 `promtool check rules` 与 `promtool test rules` 验证（[prometheus-rules.test.yml](assets/work-r0a-ops-2026-10-25/prometheus-rules.test.yml)：13 组输入序列、14 条断言，含触发与不触发两侧），CI 的 `ops-telemetry` job 直接跑 promtool；但**规则未接入 Prometheus/Alertmanager，也没有仪表盘或真实序列**——通过校验只证明表达式与阈值语义，不代表已测量。`org_id` 进入指标与告警；task/run/operation ID 因基数过高不进入指标标签，需通过 exemplar/trace/结构化日志关联。
 
 | 指标 | 目标/口径 | 窗口 | 状态 |
 |---|---|---|---|
@@ -93,8 +93,9 @@ D6 回答 R0a 试点能否开始、如何安全运行、如何切换/回滚、�
 
 D3 §11 的六类非 Run 作业纳入遥测与演练范围：
 
-- **指标**：`work_background_job_runs_total{kind,outcome}`、`work_background_job_last_success_seconds{kind}`、`work_background_job_lease_takeovers_total{kind}`、`work_directory_projection_lag_seconds`、`work_audit_export_backlog`、`work_audit_export_duration_seconds_bucket`、`work_audit_export_downloads_total{outcome}`、`work_content_shred_backlog`（连同原有共 27 个指标定义）。
+- **指标**：`work_background_job_runs_total{kind,outcome}`、`work_background_job_last_success_seconds{kind}`、`work_background_job_lease_takeovers_total{kind}`、`work_directory_projection_lag_seconds`、`work_audit_export_backlog`、`work_audit_export_duration_seconds_sum`/`_count`、`work_audit_export_downloads_total{outcome}`、`work_content_shred_backlog`（连同原有共 28 个指标定义）。
 - **告警**：`WorkBackgroundJobStale`（义务作业 15 分钟无成功记录 → page）、`WorkBackgroundJobLeaseTakeovers`、`WorkDirectoryProjectionStale`（投影滞后 > 15 分钟 → page，撤权新鲜度）、`WorkAuditExportBacklog`、`WorkAuditExportFailureRatio`、`WorkAuditExportSlow`、`WorkAuditExportTokenFailureBurst`（凭证校验失败突增，泄露信号）、`WorkContentShredBacklog`（正文未清理 → page，优先于功能问题）。渲染规则 21 record / 27 alert；ops+pilot+telemetry 测试 **26/26**，其中跨资产断言要求 D3 作业契约声明的指标/告警名都存在于本契约。
+- **导出耗时用均值不用分位**：`WorkAuditExportSlow` 比较 `rate(..._sum)/rate(..._count)` 的平均耗时（阈值 600s）。理由是 R0a 的导出量级是个位数作业，P95 在这个样本量上没有稳定含义；同时 histogram 需要应用侧显式注册 `_bucket` 家族，客户端未注册时告警表达式会静默失效（promtool 的表达式单测在 2.54 上也无法覆盖这类"永不触发"）。等有真实量之后再把这条换成 P95，并在单测里补分位序列。
 - **处置**：见[运行手册 §5.1 后台作业故障处置](work-operations-runbook-2026-10-25.md)——先判"是义务作业还是产生新工作的作业"，前者不许停，后者可停且在途可安全重领。
 - **演练新增项**（属既有 C20/C21/C22 范围，不新开 blocking）：kill switch/停用状态下义务作业继续运行的验证、租约接管与重复投递验证、粉碎积压的处置与恢复。
 
@@ -226,17 +227,17 @@ node pilot-capacity-model.mjs
 - **真实 Qwen smoke**：qwen3.8-flash 200、首 token 2567ms、usage 80/110、provider request id 可记录，未输出 Key/正文；见 [provider-smoke.log](assets/work-r0a-hardening-2026-10-25/provider-smoke.log)。
 - **日志扫描参考 8/8**：Key（含 `sk-proj-`/`sk-ant-`）/GitHub token/阿里云 AccessKey/Bearer/cookie/私钥/正文 canary/email 规则；现有 7 个证据日志 0 fail / 0 warn，扫描结果只含脱敏预览；见 [log-scan-result.log](assets/work-r0a-hardening-2026-10-25/log-scan-result.log)。不是 staging OTel 证据。
 - **SLO 遥测规则 10/10**：12 个 SLO 全覆盖，生成 21 条 record + 19 条 alert（15 SLO + 4 operational，含 outbox 死信与 usage 偏差），每条告警带 severity/for/runbook，内容标签被禁止；见 [telemetry-contract](assets/work-r0a-ops-2026-10-25/telemetry-contract.json) / [rules](assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)。未接 Prometheus/Alertmanager，所有 SLO 仍 not_measured。
-- 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03 执行开关/组织停用；C21 §6.1 on-call/事故沟通。C31 仍 partial（P1-A 不能直接复用；方案 B 已让 Work 自己出席位/cents/导出作业，缺的是 Host 的身份与席位字段）；C16/C17 仍 partial（无 staging 遥测/日志后端）。
+- 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03 执行开关/组织停用；C21 §6.1 on-call/事故沟通。C31 仍 partial（P1-A 不能直接复用；方案 B 已让 Work 自己出席位/cents/导出作业，缺的是 Host 的身份与席位字段）；C16/C17 仍 partial：规则与告警单测可复现（promtool 48 条 + 14 断言），缺的是 staging 遥测/日志后端与真实序列上的验证。
 - 当前 no-go 从 29 降为 **23**；C09/C13/C14/C22 仍 partial，C15/C24/C25/C27/C30 等仍待外部输入。
 
 **当前：no-go，23 个 blocking 项未关闭。** 主要阻塞：
 
-- D1–D5 设计尚未正式评审；D1 冒烟 113/113、Temporal 参考纵切 10/10 已完成，但 S1 多节点/在途 server 重启与正式评审仍未完成。
+- D1–D5 设计尚未正式评审；D1 冒烟 114/114 + 竞态 7/7、Temporal 参考纵切 10/10 已完成，但 S1 多节点/在途 server 重启与正式评审仍未完成。
 - D2 远端 CI 未运行、生成客户端未接前端；D4 真实 gVisor/Content Store/云 KMS/供应商条款；D5 React/E2E；C22 多节点/在途 server 重启。
-- C31 管理只读映射缺口：[映射说明](work-r0a-admin-readonly-mapping-2026-10-25.md) 明确 P1-A 的 role/revision/预算/异步导出不兼容；2026-10-26 决策 B 已把预算/席位统计/导出作业搬到 Work 侧（D1 113/113 冒烟），剩余缺口是 Host 必须经端口提供 `subject_id`/`role`/`revision`/席位布尔与组织字段；端口契约与 WeMeet 适配器已可执行但未接真实 P1-A/身份服务。
+- C31 管理只读映射缺口：[映射说明](work-r0a-admin-readonly-mapping-2026-10-25.md) 明确 P1-A 的 role/revision/预算/异步导出不兼容；2026-10-26 决策 B 已把预算/席位统计/导出作业搬到 Work 侧（D1 114/114 冒烟 + 竞态 7/7），剩余缺口是 Host 必须经端口提供 `subject_id`/`role`/`revision`/席位布尔与组织字段；端口契约与 WeMeet 适配器已可执行但未接真实 P1-A/身份服务。
 - 威胁模型/控制签收；sandbox proof；供应商条款/价表；无正文日志只在本地证据日志扫描，未接 staging OTel/log pipeline。
 - SLO 规则已生成，未接 Prometheus/Alertmanager/仪表盘；C22 多节点/在途 server 重启；切换/旧链接/删除/所有权转移。
-- 3 家组织/5–8 名研究/golden tasks/支持流程；切换/旧链接/删除/所有权转移。
+- 3 家组织 / 7–8 名研究（管理员 ≥3）/ golden tasks / 支持流程；切换/旧链接/删除/所有权转移。
 
 **Go 条件**：所有 blocking 项 `done` 或有签署 `waived` 且证据可查；安全/供应商/沙箱/恢复/容量/试点研究均签收；没有“以烟雾代替演练”。
 
@@ -259,7 +260,7 @@ node pilot-capacity-model.mjs
 6. **容量**：模型只覆盖试点假设；10× 压力不通过；生产三档未做。
 7. **旧数据/路由**：保留期提案 180 天只读后归档导出再删（待法务）；切换状态机见 [cutover-plan.json](assets/work-r0a-ops-2026-10-25/cutover-plan.json)；回滚演练未做。
 8. **所有权转移/离职**：D1 `transfer_task_ownership`（work_ops、工单号、静止、席位校验、审计）+ [试点运营 runbook §5](work-r0a-pilot-operations-runbook-2026-10-26.md)；未演练、未签收。
-9. **试点组织/研究**：3 家未签、5–8 名研究未做；不能以内部走查代替。
+9. **试点组织/研究**：3 家未签、7–8 名研究未做（招募与执行排期单已发，待运营回填名单）；不能以内部走查代替。
 10. **事故沟通/支持**：支持分级 S1–S4、工单模板与升级路径见[试点运营 runbook §2](work-r0a-pilot-operations-runbook-2026-10-26.md)；联系人/渠道待 C24。
 11. **合规**：数据驻留/删除/审计保留需法务/安全确认。
 12. **No-go 清单**：剩余 23 个 blocking 项是当前事实；本地测试不能替代试点环境、安全签收、供应商条款与组织研究。
@@ -276,7 +277,7 @@ D6 完成（可进入 R0a 试点）需要：
 - 升级/回滚/DB 迁移/Temporal 升级/供应商故障/Runner 故障/恢复/kill switch/停用 Runbook 经走查。
 - 备份恢复、RLS/直接 DML、密钥泄漏、沙箱/egress、旧链接/flag 回滚演练通过。
 - 3 家组织/20 席位/已知限制/支持/删除/所有权转移完成。
-- 5–8 名研究 + 3 家组织 golden tasks；边界复述/验收/采纳指标可算。
+- 7–8 名研究 + 3 家组织 golden tasks；边界复述/验收/采纳指标可算。
 - `pilot-checklist.json` 所有 blocking 项 done/waived；go/no-go 记录签署。
 
 ## 14. 交付物与下一步

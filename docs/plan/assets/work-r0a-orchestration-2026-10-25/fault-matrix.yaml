@@ -268,6 +268,12 @@ cases:
       - exactly one content_shred outbox row for that ref
       - both input rows status expired with deleted_at set
       - payload contains refs only (no body, no title)
+    measured: >-
+      DB-level part executed locally: r0a-concurrency-smoke.py ran 3 concurrent
+      expire_due_inputs sweeps over 2 refs shared by 4 inputs; one sweep took all
+      4 rows (FOR UPDATE), the others returned 0, and the outbox holds exactly 2
+      content_shred rows for 2 distinct refs. Crash injection and the real Content
+      Store delete still need the Temporal/staging run.
 
   - id: D3-N03
     title: Export worker writes the file then crashes before complete_audit_export
@@ -287,6 +293,11 @@ cases:
       - single content_ref per export id
       - non-holder complete call rejected
       - job reaches ready exactly once with row_count/bytes recorded
+    measured: >-
+      DB-level part executed locally: 10 concurrent claim_audit_export calls gave
+      1 winner and 9 audit_export_not_claimable; after forcing the lease past its
+      expiry the new holder completed and the stale holder got
+      audit_export_lease_lost. duplicate_objects needs a real Content Store run.
 
   - id: D3-N04
     title: Expiry sweep races a pending download ticket redemption
@@ -306,6 +317,10 @@ cases:
       - download_token_expired or audit_export_expired returned
       - downloaded_at remains null when the token expired unused
       - one content_shred event for the expired job
+    measured: >-
+      DB-level part executed locally: 5 concurrent
+      redeem_audit_export_download calls with the same token gave 1 success and 4
+      download_token_invalid with downloaded_at set on exactly one row.
 
   - id: D3-N05
     title: Directory projection sync fails for one organization
@@ -327,6 +342,13 @@ cases:
       - audit rows directory.org_synced / directory.member_synced per org
       - entitlement_lost flag recorded, no run state change
       - lag alert WorkDirectoryProjectionStale fires past threshold
+    measured: >-
+      Executed locally, and it found a real defect: before the fix, 8 concurrent
+      out-of-order syncs reported every revision applied while the stored
+      revision ended at 5 (org) and 6 (member), i.e. the highest revision was
+      overwritten. With the monotonic upsert predicate the final revision equals
+      the maximum applied revision and duplicates of one revision collapse to a
+      single apply. Real IdP replay timing and the lag alert still need staging.
 
   - id: D3-N06
     title: Kill switch or tenant suspension during background jobs

@@ -59,7 +59,7 @@ jobs:
         run: node scripts/ci-contract.mjs
 
   db-smoke:
-    name: D1 schema and PostgreSQL smoke
+    name: D1 schema, PostgreSQL smoke and concurrency races
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -84,10 +84,19 @@ jobs:
       PGDATABASE: work_r0a
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Apply schema on an empty database
         run: psql -v ON_ERROR_STOP=1 -q -f r0a-schema-draft.sql
       - name: Run smoke assertions
         run: psql -v ON_ERROR_STOP=1 -f r0a-schema-smoke.sql
+      - name: Race the admin read, directory projection and retention paths
+        run: python3 -m pip install --quiet 'psycopg[binary]==3.3.3'
+      - name: Run concurrency races
+        env:
+          R0A_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/work_r0a
+        run: python3 r0a-concurrency-smoke.py
 
   ops-telemetry:
     name: SLO telemetry rules and ops model
@@ -106,6 +115,11 @@ jobs:
         run: node --test ops-model.test.mjs telemetry.test.mjs pilot-ops.test.mjs
       - name: Run capacity model
         run: node pilot-capacity-model.mjs
+      - name: Validate rules with promtool 2.54
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/w:ro" --entrypoint sh prom/prometheus:v2.54.1 \
+            -c "promtool check rules /w/docs/plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml \
+                 && promtool test rules /w/docs/plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.test.yml"
 
   orchestration-contract:
     name: Orchestration and background-job contracts parse
