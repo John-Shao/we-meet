@@ -258,7 +258,7 @@
 
 分支 `refactor/work-module` 的 46 个提交已全部推送至 `origin/refactor/work-module`（2026-10-26；本页之后的文档同步提交本身不计入）。其中一次 message-only rebase 重写了 14 条提交信息以通过 `lint-git`：树内容与重写前逐字节相同（备份引用与重写链的 `git diff` 为空），但所有提交哈希都变了，本页与资产 README 引用的哈希已按 `git log` 同步；确认无独有内容后，改写前的备份引用 `refs/backup/pre-lint-rewrite` 已删除（远端从未推送该引用）。远端结果：PR #7 head `9494f79b0` 上 meet Workflow 15/15、Work R0a gates 6/6、Release guard 通过，25/25 检查通过且 `MERGEABLE/CLEAN`。本页状态截至快照日期；未提交变更不计入。
 
-PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `aliyun-dev`（merge commit `8d8c27a3a`），合并后 push 流水线已触发。D-08 修订在 `design/work-d08-token-metering`（commit `bdb91fe4e`），PR #9 已改基到 `aliyun-dev`，R0a 六门禁通过；完整 PR 检查（含 `check-changelog`）在改基后的同步事件上重新运行。
+PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `aliyun-dev`（merge commit `8d8c27a3a`），合并后 push 流水线全绿。PR #9（D-08 修订，`bdb91fe4e` + `3cc06cf46`）也已于同日合并（merge commit `4ee992d01`），合并前 **25/25** 检查全绿（含 `check-changelog`、lint-git 与 R0a 六门禁），合并后 push 流水线已触发。`refactor/work-module` 与 `design/work-d08-token-metering` 两条分支均保留未删。
 
 ### 4.4 已定关键决策
 
