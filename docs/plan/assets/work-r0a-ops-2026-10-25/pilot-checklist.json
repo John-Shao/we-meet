@@ -54,7 +54,7 @@
         "D3 design + fault-matrix.yaml 18 cases (F, D3-R, D3-N)",
         "Temporal dev slice 10/10; D3-N02-N05 database-side interleavings measured"
       ],
-      "note": "No Temporal test environment."
+      "note": "No Temporal test environment. U3 nine commitments are unanswered (due 2026-11-14); C22 drills and D3-N01/N03/N06 crash/kill-switch cases are unexecuted. See work-r0a-c03-u3-drills-2026-10-27.md."
     },
     {
       "id": "C04",
