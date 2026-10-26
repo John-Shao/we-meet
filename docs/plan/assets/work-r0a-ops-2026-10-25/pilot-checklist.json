@@ -16,29 +16,31 @@
       "category": "design",
       "title": "D1 data/permissions/migration design reviewed",
       "owner": "backend + DBA/security",
-      "status": "partial",
+      "status": "done",
       "blocking": true,
       "gate": "start",
       "evidence": [
         "D1 design + PG16 139/139 smoke (2026-10-26 D-08 revision; D-08 unsigned)",
-        "r0a-concurrency-smoke.py: 9 multi-connection races, invariant gate 9/9"
+        "r0a-concurrency-smoke.py: 9 multi-connection races, invariant gate 9/9",
+        "early written design sign-off 2026-10-27: John Shao (backend + DBA/security roles, (b) self-attestation); DR1 2026-11-10 acknowledgment pending"
       ],
-      "note": "Design draft; formal DR1 review not held."
+      "note": "提前签收（2026-10-27）：冻结 D1 设计（schema/函数/RLS/迁移草案）；D-08c/D-08d 的决策签收仍待 DR1，不因本项关闭而视为已签。"
     },
     {
       "id": "C02",
       "category": "design",
       "title": "D2 API/event/SSE contract reviewed",
       "owner": "backend + frontend",
-      "status": "partial",
+      "status": "done",
       "blocking": true,
       "gate": "start",
       "evidence": [
         "D2 OpenAPI 3.1: 29 path / 33 operation (D-08 adds 8 provider/usage operations; D-08d unsigned)",
         "contract 12/12 + generated client 13/13 + host ports 9/9 (34/34)",
-        "error catalogue r0a-errors-v3: 50 public codes over 104 SQL codes"
+        "error catalogue r0a-errors-v3: 50 public codes over 104 SQL codes",
+        "early written design sign-off 2026-10-27: John Shao (backend + frontend roles, (b) self-attestation); DR1 2026-11-10 acknowledgment pending"
       ],
-      "note": "Draft frozen (25 ops, error catalogue v3, generated client, CI gate); formal DR1 review not held."
+      "note": "提前签收（2026-10-27）：冻结 29 path/33 operation 与错误码 v3；D-08d 未签，若退回则冻结集回到 25 operation。"
     },
     {
       "id": "C03",
@@ -197,13 +199,14 @@
       "category": "security",
       "title": "Sandbox proof or signed reduced-profile no-claim",
       "owner": "runtime + security",
-      "status": "partial",
+      "status": "done",
       "blocking": true,
       "gate": "start",
       "evidence": [
-        "runc non-root/read-only/no-host/no-network smoke"
+        "runc non-root/read-only/no-host/no-network smoke",
+        "signed reduced-profile no-claim 2026-10-27: R0a does not claim gVisor isolation; runc profile risk accepted; re-evaluate before pilot and before DR3"
       ],
-      "note": "gVisor unavailable; reduced profile tested but no signed no-claim/certification."
+      "note": "已签降级（2026-10-27）：不声明 gVisor 隔离，接受 runc 降级 profile 的逃逸风险；试点前复评，DR3 前补 gVisor 或等效证据。"
     },
     {
       "id": "C15",
