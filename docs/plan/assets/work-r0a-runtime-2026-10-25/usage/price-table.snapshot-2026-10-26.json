@@ -1,0 +1,138 @@
+{
+  "version": "console-snapshot-2026-10-26",
+  "status": "unconfirmed-console-snapshot",
+  "usableInLedger": false,
+  "currency": "CNY",
+  "unit": "per_1M_tokens",
+  "source": "2026-10-26 三家控制台/文档页截图（项目方提供）；非书面价目、非合同附件",
+  "blockingItem": "C15 / S13",
+  "r0aScope": {
+    "included": ["text input", "text output", "cached text input"],
+    "excluded": ["audio", "image understanding", "FIM", "batch", "flex", "low-latency"],
+    "note": "R0a 只有云端文本任务；被排除的档位若将来启用（例如 Batch 离线重跑），必须另立 price_version 再进账本"
+  },
+  "providers": [
+    {
+      "provider": "aliyun",
+      "model": "qwen3.8-flash",
+      "routingRole": "one-of-three",
+      "r0aText": { "input": 0.8, "output": 2.7, "cachedInput": 0.1 },
+      "otherDimensions": {
+        "batchInput": 0.4,
+        "batchOutput": 1.35,
+        "explicitCacheCreate": 1.25,
+        "explicitCacheHit": 0.1
+      },
+      "quota": null,
+      "openQuestions": ["书面价目与生效日", "变价通知期", "配额与超限行为（429/排队/降级）"]
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4.1-flash-1017",
+      "routingRole": "one-of-three",
+      "h02TestedModel": "deepseek-chat",
+      "protocolEvidenceNeedsRerun": true,
+      "capabilities": {
+        "context": "1M",
+        "maxOutput": "384K",
+        "thinkingModeDefault": true,
+        "jsonOutput": true,
+        "toolCalls": true,
+        "responsesApi": true,
+        "anthropicApi": true,
+        "prefixContinuationBeta": true,
+        "fim": "non-thinking only",
+        "imageUnderstanding": true
+      },
+      "r0aText": {
+        "inputCacheMissIdle": 1.0,
+        "inputCacheMissPeak": 2.0,
+        "outputIdle": 4.0,
+        "outputPeak": 8.0,
+        "cachedInputIdle": 0.02,
+        "cachedInputPeak": 0.04
+      },
+      "pricingIsTimeSegmented": true,
+      "peakWindowDefinition": null,
+      "concurrencyLimit": 2500,
+      "notIntegrated": {
+        "model": "deepseek-v4-pro-0813",
+        "reason": "R0a 三家下限各接一家；Pro 档未接入，仅记录以免误用",
+        "inputCacheMissIdle": 4.5,
+        "inputCacheMissPeak": 9.0,
+        "outputIdle": 13.5,
+        "outputPeak": 27.0,
+        "cachedInputIdle": 0.15,
+        "cachedInputPeak": 0.3,
+        "concurrencyLimit": 500,
+        "imageUnderstanding": false
+      },
+      "openQuestions": ["书面价目与生效日", "变价通知期", "高峰/空闲时段划分", "配额与超限行为"]
+    },
+    {
+      "provider": "volcengine",
+      "model": "doubao-seed-2.1-lite",
+      "routingRole": "one-of-three",
+      "r0aText": { "input": 0.8, "output": 2.7, "cachedInput": 0.16 },
+      "cacheStorage": {
+        "value": 0.017,
+        "unit": "CNY per 1M tokens per hour",
+        "fitsTokenLedger": false,
+        "decisionNeeded": "R0a 要么关闭显式缓存存储，要么把它排除在 Run 预算之外单列为成本项；不得默默计入 cents/token 账本"
+      },
+      "otherDimensions": {
+        "batchInput": 0.4,
+        "batchOutput": 1.35,
+        "batchCachedInput": 0.16,
+        "lowLatencyInput": 1.6,
+        "lowLatencyOutput": 5.4,
+        "lowLatencyCachedInput": 0.32,
+        "flexInput": 0.4,
+        "flexOutput": 1.35,
+        "flexCachedInput": 0.16,
+        "audioInput": 12,
+        "audioCachedInput": 2.4,
+        "batchAudioInput": 6,
+        "batchAudioCachedInput": 2.4,
+        "lowLatencyAudioInput": 24,
+        "lowLatencyAudioCachedInput": 4.8,
+        "flexAudioInput": 6,
+        "flexAudioCachedInput": 2.4
+      },
+      "quota": null,
+      "openQuestions": ["书面价目与生效日", "变价通知期", "缓存存储是否计入 Run 成本", "配额与超限行为"]
+    }
+  ],
+  "budgetCeilingR0a": {
+    "rule": "按三家最贵路径取，防止路由切换穿透预算",
+    "input": 2.0,
+    "output": 8.0,
+    "cachedInput": 0.16,
+    "derivation": "input/output 上界来自 DeepSeek 高峰档（缓存未命中），cached input 上界来自火山缓存档；三者不属于同一家",
+    "status": "proposed-pending-written-confirmation"
+  },
+  "designConstraints": [
+    {
+      "id": "PC-1",
+      "finding": "DeepSeek 同一版本有两个价格（空闲/高峰），现有 price_version 是单值快照，装不下",
+      "options": [
+        "a: 预算上界恒取高峰价（账本与结算实现不变，空闲时段预留偏保守）",
+        "b: 价表加时段维度（需改 D1 cents 结算与 usage 归一规则）"
+      ],
+      "recommendation": "a",
+      "gate": "DR2 2026-11-17"
+    },
+    {
+      "id": "PC-2",
+      "finding": "火山缓存存储按小时计费（0.017 元/百万 tokens/小时），属时长维度，不属于 cents/token 账本",
+      "options": ["关闭显式缓存存储", "排除在 Run 预算外并单列成本项"],
+      "gate": "DR2 2026-11-17"
+    },
+    {
+      "id": "PC-3",
+      "finding": "并发上限按家差异（DeepSeek Flash 2500 / Pro 500；另两家未给）",
+      "options": ["网关按家配 concurrency 上限", "容量模型 S6 重算"],
+      "gate": "DR2 2026-11-17"
+    }
+  ]
+}

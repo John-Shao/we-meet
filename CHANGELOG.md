@@ -39,6 +39,10 @@ and this project adheres to
   page, and let users customize favorite apps
 - ✨(fullstack) link tasks created from reviewed meeting action items back to
   the meeting record
+- Document the DR0/DR1 signoff sheet: named signers, evidence boundaries and
+  the consequence of leaving each gate item unsigned.
+- Record the three provider console price snapshots and the ledger limits they
+  expose: peak-tier pricing, hourly cache storage, per-provider concurrency.
 
 ### Removed
 

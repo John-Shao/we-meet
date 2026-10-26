@@ -162,7 +162,8 @@
         "D4 vendor checklist",
         "C15 provider terms & price decision request issued 2026-10-26: per-provider gates P1-P6 (residency/training/retention/sub-processors/quota/price ceiling), the price table must be filled per provider before price_version is frozen, and the floor is three providers (Alibaba Cloud Qwen, DeepSeek, Volcano Engine Doubao) - C15 stays open until all three have written terms; routing across them never changes dispatch semantics: a dispatched failure goes to unknown/reconcile, not a silent re-send to another provider",
         "H02 real requests but not terms/pricing",
-        "qwen3.8-flash real request 200 with usage/provider request id"
+        "qwen3.8-flash real request 200 with usage/provider request id",
+        "console unit prices recorded 2026-10-26 (price-table.snapshot-2026-10-26.json, usableInLedger=false); screenshots are not written terms, so the price ceiling stays unconfirmed until a written price list with effective date and change-notice period is archived"
       ],
       "status": "open",
       "owner": "business + legal + security",

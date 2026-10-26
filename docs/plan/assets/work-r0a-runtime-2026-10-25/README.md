@@ -13,7 +13,8 @@
 | `policy/evaluator.mjs` | 设计级策略评估器（不是生产网关） |
 | `policy/evaluator.test.mjs` | 10 组策略测试 |
 | `usage/usage-reconcile.mjs` | usage 归一、单次结算/容差/超预留、月度账单对账 |
-| `usage/price-table.placeholder.json` | **占位**价表（非供应商价格） |
+| `usage/price-table.snapshot-2026-10-26.json` | 三家**控制台价目快照**（截图来源，`usableInLedger: false`）+ R0a 预算上界建议值 + 三条设计约束 PC-1/2/3 |
+| `usage/price-table.placeholder.json` | **占位**价表（非供应商价格，仅用于对账规则自测） |
 | `supply-chain/supply-chain-policy.json` | 镜像签名/provenance/SBOM/Pi 固定/漏洞门禁策略 |
 | `supply-chain/supply-chain.mjs` | 发布准入评估器 |
 | `usage-supply-chain.test.mjs` | 12 组 usage/对账/准入测试 |
@@ -44,7 +45,7 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 - 真实 Content Store/云 KMS/HSM/scoped token；本地 envelope 不是生产 KMS。
 - 真实网关鉴权、配额、回退、价表、usage 对账；provider smoke 不经过 D4 gateway/Temporal。
 - 取消/超时、检查点恢复、无正文日志运行时验证；仅完成一次真实流式 smoke。
-- 供应商书面条款/价表；H02 只是真实请求，不是生产承诺。provider id/model/dataResidency/quota 是占位，需商务/安全确认。
+- 供应商书面条款/价表；H02 只是真实请求，不是生产承诺。provider id/model/dataResidency/quota 是占位，需商务/安全确认。2026-10-26 已录入三家控制台单价快照（`usage/price-table.snapshot-2026-10-26.json`），但它是**截图证据不是书面价目**，`usableInLedger` 仍为 false；且 DeepSeek 时段双价与火山缓存存储按小时计费这两项，现有 cents/token 账本装不下（PC-1/PC-2，DR2 前定）。
 
 ## 与其他文档
 
