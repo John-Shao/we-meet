@@ -5,7 +5,7 @@
   "source": "2026-10-27 阿里云控制台 Qwen3.8-Flash 页面截图（项目方提供）；非合同、非书面配额承诺",
   "provider": "aliyun",
   "model": "qwen3.8-flash",
-  "scope": "演示组织使用的阿里云账号；客户组织不使用该账号",
+  "scope": "演示组织使用的阿里云百炼账号；仅演示数据；客户组织不使用该账号",
   "limits": {
     "contextWindow": "1M",
     "maxInput": "991K",
@@ -32,8 +32,8 @@
   "openQuestions": [
     "2026-11-15 之后的续期或合同额度",
     "动态限流触发条件、429 行为与重试语义",
-    "是否存在日/月 token 配额",
-    "推理区域与数据驻留",
-    "训练/改进与日志留存条款（仍属 P1–P4）"
-  ]
+    "是否存在日/月 token 配额"
+  ],
+  "p1p4": "not-applicable: Bailian managed service with demo data only (product decision 2026-10-27)",
+  "p6": "reference-only: Work has no money ledger"
 }
