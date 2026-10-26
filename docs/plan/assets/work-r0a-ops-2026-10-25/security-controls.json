@@ -157,17 +157,16 @@
     {
       "id": "S13",
       "threat": "Provider uses content for training or violates residency/retention",
-      "control": "Only allowlisted providers with written terms, data residency/retention/training review, price ceiling and quota; no production claim before terms close.",
+      "control": "Not applicable to R0a: the platform holds only the demo organization account, which uses Alibaba Bailian with demo data; no customer content is sent through it. Customer organizations bring their own accounts and carry their own terms.",
       "evidence": [
-        "D4 vendor checklist",
-        "C15 provider terms & price decision request issued 2026-10-26: per-provider gates P1-P6 (residency/training/retention/sub-processors/quota/price ceiling), the price table must be filled per provider before price_version is frozen, and the floor is three providers (Alibaba Cloud Qwen, DeepSeek, Volcano Engine Doubao) - C15 stays open until all three have written terms; routing across them never changes dispatch semantics: a dispatched failure goes to unknown/reconcile, not a silent re-send to another provider",
-        "H02 real requests but not terms/pricing",
-        "qwen3.8-flash real request 200 with usage/provider request id",
-        "console unit prices recorded 2026-10-26 (price-table.snapshot-2026-10-26.json, usableInLedger=false); screenshots are not written terms, so the price ceiling stays unconfirmed until a written price list with effective date and change-notice period is archived"
+        "C15 waived 2026-10-27: P1–P5 not applicable for the demo organization (Bailian + demo data), P6 price reference only",
+        "D-08a product sign-off 2026-10-27 narrowed the platform gate to Alibaba Bailian",
+        "D4 egress/logging policy forbids content and keys in logs",
+        "qwen3.8-flash real request 200 with usage/provider request id"
       ],
-      "status": "open",
-      "owner": "business + legal + security",
-      "closeCondition": "Signed terms/DPA, residency/training/retention confirmation, price ceiling and quota."
+      "status": "out_of_scope",
+      "owner": "product + security",
+      "closeCondition": "Reopen if the demo organization handles customer content or the platform provides a fallback account; not an R0a gate."
     },
     {
       "id": "S14",
@@ -211,7 +210,7 @@
       "control": "org/member projections are writable only through work.sync_org_projection/work.sync_member_projection, granted only to the work_directory service role; revisions must increase (projection_revision_stale) and the transaction tenant context must match the target org (directory_org_context_mismatch); operator_suspended is never settable from the directory path; every sync writes an audit row with entitlement_lost. Entitlement loss blocks new work at create_input/submit/retry. Stopping in-flight Runs is decision D-07, not an adapter side effect.",
       "evidence": [
         "D1 smoke 114/114 (directory_projection_write_path, projection_revision_monotonic, projection_cross_org_blocked, projection_ignores_operator_flag, projection_revocation_blocks_new_work, projection_guard_is_upsert_predicate)",
-    "r0a-concurrency-smoke.py: 8 concurrent out-of-order revisions per target end at the maximum applied revision (lost_update=false); a duplicated revision collapses to one apply; before the monotonic upsert predicate the same run left org at revision 5 and member at 6 while reporting all 8 applied - a real lost update that could resurrect a revoked seat",
+        "r0a-concurrency-smoke.py: 8 concurrent out-of-order revisions per target end at the maximum applied revision (lost_update=false); a duplicated revision collapses to one apply; before the monotonic upsert predicate the same run left org at revision 5 and member at 6 while reporting all 8 applied - a real lost update that could resurrect a revoked seat",
         "host-ports.test.mjs 9/9",
         "D3 §11.1 job list, D3-N05"
       ],
@@ -225,7 +224,7 @@
       "control": "Admin read is owner/admin only and org-bound (admin_access_denied; cross-org export lookup returns audit_export_not_found so existence is not disclosed); export jobs contain metadata only (refs, counts, hashes) and never body text; download uses a single-use, 60–900s token presented via X-Download-Token header — never in the URL or query string — stored only as SHA-256, and one redemption marks it used; expired jobs purge the content reference via content_shred.",
       "evidence": [
         "D1 smoke 114/114 (admin_read_denied_for_non_admin, export_cross_org_not_found, export_download_single_use, export_ticket_single_use_enforced, export_audit_trail_no_body, audit_export_content_shred_once)",
-    "r0a-concurrency-smoke.py: 10 concurrent claim calls -> 1 winner; stale lease holder rejected on complete; 5 concurrent redemptions of one token -> 1 success and downloaded_at on exactly one row",
+        "r0a-concurrency-smoke.py: 10 concurrent claim calls -> 1 winner; stale lease holder rejected on complete; 5 concurrent redemptions of one token -> 1 success and downloaded_at on exactly one row",
         "contract tests 10/10 (ticket/content lifecycle)",
         "ci-contract forbids download_url in the frozen spec",
         "D6 log-scan 8/8 covers no-body rules"

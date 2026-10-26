@@ -47,7 +47,7 @@ D6 回答 R0a 试点能否开始、如何安全运行、如何切换/回滚、�
 | S10 | 管理读取/导出越权 | 只读管理面 + owner/admin 门控（`admin_access_denied`）；服务端绑组织；异步导出作业 + 一次性下载凭证（SHA-256 存库、`X-Download-Token` 不进 URL、兑换一次即失效、到期 410）；跨组织读作业统一 404；治理读与导出动作全部写审计（不含正文） | 设计已闭合（D1/D2 有负例），实现待 E2/E5 |
 | S11 | 旧路由/开关暴露错误数据 | 组织开关；旧链接只读通知；不迁移/不双写 | partial |
 | S12 | 沙箱逃逸/宿主访问 | gVisor/等效；非 root/只读/无宿主挂载/egress-only；runc 降级已测 | partial |
-| S13 | 供应商训练/驻留/留存 | 书面条款/DPA；驻留/训练/留存/价表上界 | open |
+| S13 | 供应商训练/驻留/留存 | 不适用（C15 waived：演示组织用百炼 + 演示数据） | out_of_scope |
 | S14 | 正文/密钥进日志 | 只记录 ID/哈希/usage/错误码；秘密阻断 | partial |
 | S15 | 停用/离职/所有权 | 停用 epoch；不自动恢复；所有权转移人工流程 | partial |
 | S16 | 连接器/设备 scope | R0a 不适用；R0b/R2 再审 | out_of_scope |
@@ -57,7 +57,7 @@ D6 回答 R0a 试点能否开始、如何安全运行、如何切换/回滚、�
 **签收边界**：
 
 - S01/S02/S04/S07/S14 的 partial 不能当 closed；需要真实模型/网络/运行时/池化测试。
-- S06/S09/S12/S13 是试点前必须关闭或书面降级的硬项。
+- S06/S09/S12 是试点前必须关闭或书面降级的硬项；S13 已 out_of_scope（C15 waived）。
 - S16 的 out_of_scope 仅对 R0a 成立，不覆盖 R0b/R2。
 - S17/S18 是 2026-10-26 方案 B 与目录投影落地后新增的两条边界：Work 侧控制与负例已有（D1 114/114、多连接竞态 7/7、合同 10/10、`ci-contract` 禁 `download_url`），关闭仍需真实身份字段接入（C31）、真实鉴权与访问日志证明 token 不落 URL。
 
@@ -227,12 +227,12 @@ node pilot-capacity-model.mjs
 - **真实 Qwen smoke**：qwen3.8-flash 200、首 token 2567ms、usage 80/110、provider request id 可记录，未输出 Key/正文；见 [provider-smoke.log](assets/work-r0a-hardening-2026-10-25/provider-smoke.log)。
 - **日志扫描参考 8/8**：Key（含 `sk-proj-`/`sk-ant-`）/GitHub token/阿里云 AccessKey/Bearer/cookie/私钥/正文 canary/email 规则；现有 7 个证据日志 0 fail / 0 warn，扫描结果只含脱敏预览；见 [log-scan-result.log](assets/work-r0a-hardening-2026-10-25/log-scan-result.log)。不是 staging OTel 证据。
 - **SLO 遥测规则 10/10**：12 个 SLO 全覆盖，生成 21 条 record + 19 条 alert（15 SLO + 4 operational，含 outbox 死信与 usage 偏差），每条告警带 severity/for/runbook，内容标签被禁止；见 [telemetry-contract](assets/work-r0a-ops-2026-10-25/telemetry-contract.json) / [rules](assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)。未接 Prometheus/Alertmanager，所有 SLO 仍 not_measured。
-- 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03 执行开关/组织停用；C21 §6.1 on-call/事故沟通。C31 仍 partial（P1-A 不能直接复用；方案 B 已让 Work 自己出席位/cents/导出作业，缺的是 Host 的身份与席位字段）；C16/C17 仍 partial：规则与告警单测可复现（promtool 48 条 + 14 断言），缺的是 staging 遥测/日志后端与真实序列上的验证。
-- 当前 no-go 从 29 降为 **23**；C09/C13/C14/C22 仍 partial，C15 已 waived（DR3 需判断 S13 是否豁免）、C24/C25/C27/C30 等仍待外部输入。
+- 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03 执行开关/组织停用；C21 §6.1 on-call/事故沟通。C31 仍 partial（P1-A 不能直接复用；方案 B 已让 Work 自己出席位/token 配额/导出作业，缺的是 Host 的身份与席位字段）；C16/C17 仍 partial：规则与告警单测可复现（promtool 48 条 + 14 断言），缺的是 staging 遥测/日志后端与真实序列上的验证。
+- 当前 no-go 从 29 降为 **22**；C09/C13/C14/C22 仍 partial，C15 已 waived、S13 已 out_of_scope、C24/C25/C27/C30 等仍待外部输入。
 
 **当前：no-go，22 个 blocking 项未关闭（C15 已 waived）。** 主要阻塞：
 
-- D1–D5 设计尚未正式评审；D1 冒烟 114/114 + 竞态 7/7、Temporal 参考纵切 10/10 已完成，但 S1 多节点/在途 server 重启与正式评审仍未完成。
+- D1–D5 设计尚未正式评审；D1 冒烟 139/139 + 竞态 9/9、Temporal 参考纵切 10/10 已完成，但 S1 多节点/在途 server 重启与正式评审仍未完成。
 - D2 生成客户端未接真实前端（R0a 门禁已在 PR #7 首次跑绿，仓库全量流水线 meet Workflow 也已 15/15 跑绿）；D4 真实 gVisor/Content Store/云 KMS/供应商条款；D5 React/E2E；C22 多节点/在途 server 重启。
 - C31 管理只读映射缺口：[映射说明](work-r0a-admin-readonly-mapping-2026-10-25.md) 明确 P1-A 的 role/revision/预算/异步导出不兼容；2026-10-26 决策 B 已把预算/席位统计/导出作业搬到 Work 侧（D1 114/114 冒烟 + 竞态 7/7），剩余缺口是 Host 必须经端口提供 `subject_id`/`role`/`revision`/席位布尔与组织字段；端口契约与 WeMeet 适配器已可执行但未接真实 P1-A/身份服务。
 - 威胁模型/控制签收；sandbox proof；供应商条款/价表；无正文日志只在本地证据日志扫描，未接 staging OTel/log pipeline。

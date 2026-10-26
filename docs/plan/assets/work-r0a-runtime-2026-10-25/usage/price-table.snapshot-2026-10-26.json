@@ -5,10 +5,21 @@
   "currency": "CNY",
   "unit": "per_1M_tokens",
   "source": "2026-10-26 三家控制台/文档页截图（项目方提供）；非书面价目、非合同附件",
-  "blockingItem": "C15 / S13",
+  "blockingItem": "none: C15 waived 2026-10-27; price is reference only",
   "r0aScope": {
-    "included": ["text input", "text output", "cached text input"],
-    "excluded": ["audio", "image understanding", "FIM", "batch", "flex", "low-latency"],
+    "included": [
+      "text input",
+      "text output",
+      "cached text input"
+    ],
+    "excluded": [
+      "audio",
+      "image understanding",
+      "FIM",
+      "batch",
+      "flex",
+      "low-latency"
+    ],
     "note": "R0a 只有云端文本任务；被排除的档位若将来启用（例如 Batch 离线重跑），必须另立 price_version 再进账本"
   },
   "providers": [
@@ -16,7 +27,11 @@
       "provider": "aliyun",
       "model": "qwen3.8-flash",
       "routingRole": "one-of-three",
-      "r0aText": { "input": 0.8, "output": 2.7, "cachedInput": 0.1 },
+      "r0aText": {
+        "input": 0.8,
+        "output": 2.7,
+        "cachedInput": 0.1
+      },
       "otherDimensions": {
         "batchInput": 0.4,
         "batchOutput": 1.35,
@@ -24,7 +39,11 @@
         "explicitCacheHit": 0.1
       },
       "quota": null,
-      "openQuestions": ["书面价目与生效日", "变价通知期", "配额与超限行为（429/排队/降级）"]
+      "openQuestions": [
+        "书面价目与生效日",
+        "变价通知期",
+        "配额与超限行为（429/排队/降级）"
+      ]
     },
     {
       "provider": "deepseek",
@@ -67,13 +86,22 @@
         "concurrencyLimit": 500,
         "imageUnderstanding": false
       },
-      "openQuestions": ["书面价目与生效日", "变价通知期", "高峰/空闲时段划分", "配额与超限行为"]
+      "openQuestions": [
+        "书面价目与生效日",
+        "变价通知期",
+        "高峰/空闲时段划分",
+        "配额与超限行为"
+      ]
     },
     {
       "provider": "volcengine",
       "model": "doubao-seed-2.1-lite",
       "routingRole": "one-of-three",
-      "r0aText": { "input": 0.8, "output": 2.7, "cachedInput": 0.16 },
+      "r0aText": {
+        "input": 0.8,
+        "output": 2.7,
+        "cachedInput": 0.16
+      },
       "cacheStorage": {
         "value": 0.017,
         "unit": "CNY per 1M tokens per hour",
@@ -100,7 +128,12 @@
         "flexAudioCachedInput": 2.4
       },
       "quota": null,
-      "openQuestions": ["书面价目与生效日", "变价通知期", "缓存存储是否计入 Run 成本", "配额与超限行为"]
+      "openQuestions": [
+        "书面价目与生效日",
+        "变价通知期",
+        "缓存存储是否计入 Run 成本",
+        "配额与超限行为"
+      ]
     }
   ],
   "budgetCeilingR0a": {
@@ -125,13 +158,19 @@
     {
       "id": "PC-2",
       "finding": "火山缓存存储按小时计费（0.017 元/百万 tokens/小时），属时长维度，不属于 cents/token 账本",
-      "options": ["关闭显式缓存存储", "排除在 Run 预算外并单列成本项"],
+      "options": [
+        "关闭显式缓存存储",
+        "排除在 Run 预算外并单列成本项"
+      ],
       "gate": "DR2 2026-11-17"
     },
     {
       "id": "PC-3",
       "finding": "并发上限按家差异（DeepSeek Flash 2500 / Pro 500；另两家未给）",
-      "options": ["网关按家配 concurrency 上限", "容量模型 S6 重算"],
+      "options": [
+        "网关按家配 concurrency 上限",
+        "容量模型 S6 重算"
+      ],
       "gate": "DR2 2026-11-17"
     }
   ]

@@ -162,7 +162,7 @@
       "evidence": [
         "Threat model draft"
       ],
-      "note": "S01-S18 mapping drafted; S13 open, S14 partial, several others partial - security sign-off not held."
+      "note": "S01-S18 mapping drafted; S13 out_of_scope, S14 partial, several others partial - security sign-off not held."
     },
     {
       "id": "C12",
