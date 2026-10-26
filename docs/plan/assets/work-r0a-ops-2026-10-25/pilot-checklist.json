@@ -214,9 +214,11 @@
       "blocking": true,
       "gate": "start",
       "evidence": [
-        "qwen3.8-flash real request 200; usage/provider request id recorded"
+        "qwen3.8-flash real request 200; usage/provider request id recorded",
+        "models fixed 2026-10-26: qwen3.8-flash / deepseek-v4.1-flash-1017 / doubao-seed-2.1-lite",
+        "console price snapshot 2026-10-26 recorded in assets/work-r0a-runtime-2026-10-25/usage/price-table.snapshot-2026-10-26.json with usableInLedger=false; R0a worst-path ceiling input 2.0 / output 8.0 / cached input 0.16 CNY per 1M tokens (DeepSeek peak tier plus Volcano cache tier, not any single provider list price)"
       ],
-      "note": "Three providers (Alibaba Cloud Qwen, DeepSeek, Volcano Engine Doubao) are the floor; terms/DPA/residency/training-retention/price ceiling still unconfirmed. Decision request issued 2026-10-26."
+      "note": "Three providers (Alibaba Cloud Qwen, DeepSeek, Volcano Engine Doubao) are the floor; terms/DPA/residency/training-retention still unconfirmed. Decision request issued 2026-10-26. Unit prices are now recorded but they come from console screenshots, not a written price list: still missing effective date, change-notice period, the DeepSeek peak/idle window definition, and whether the Volcano cache-storage charge (0.017 per 1M tokens per hour) counts into run cost. Three ledger-shape constraints (PC-1 time-segmented price vs single-value price_version, PC-2 hourly cache-storage dimension, PC-3 per-provider concurrency limits) need a DR2 decision before price_version can be frozen."
     },
     {
       "id": "C16",

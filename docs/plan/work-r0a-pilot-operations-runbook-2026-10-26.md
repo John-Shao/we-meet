@@ -79,7 +79,7 @@
 - **周期对账**：每组织/月/供应商比对账单与账本；差额 ≤ max(1%, 100 分) 为 `within_tolerance`，否则 `adjustment_required`，列出账单有/账本无与账本有/账单无的 `provider_request_id`。
 - **告警**：`WorkUsageMismatchHigh`（1 小时内 `usage_mismatch` 占比 > 5%，ticket）。
 - **处置**：`adjustment_required` → 后端定位缺失结算或 unknown；用 `adjust_budget` 修正并审计；不得“再生成一次”来补账。
-- **价表**：当前为 [占位价表](assets/work-r0a-runtime-2026-10-25/usage/price-table.placeholder.json)，书面价表归档前不得作预算承诺（C15）。
+- **价表**：2026-10-26 已录入三家**控制台单价快照** [price-table.snapshot-2026-10-26.json](assets/work-r0a-runtime-2026-10-25/usage/price-table.snapshot-2026-10-26.json)（`usableInLedger: false`）；预算上界建议恒取三家最贵路径 input 2.0 / output 8.0 / cached input 0.16 元/百万 tokens。书面价目归档前仍不得作预算承诺（C15），对账自测继续用[占位价表](assets/work-r0a-runtime-2026-10-25/usage/price-table.placeholder.json)。
 
 ## 8. 旧 Work 数据留存
 

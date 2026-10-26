@@ -192,7 +192,9 @@ provider id/model/dataResidency/quota 是配置占位，需在 D4 评审与商�
 
 上述六类材料已收敛成可勾选的外部问句：[C15 供应商条款与价表确认单](work-r0a-provider-terms-price-decision-request-2026-10-26.md)。它把**接入下限定为三家：阿里云（Qwen）、DeepSeek、火山引擎（Doubao/Seed）**，三家全部进入闸门——任何一家缺书面结论，C15 就不关闭；并把驻留/训练/留存/子处理者/配额/价格上界列为试点闸门硬项，把 SLA、事故责任、免费额度列为可书面降级项。价表按各家独立 `price_version` 冻结，预算上界取三家最贵路径，未版本化价格不得进入 cents 账本。三家并列可路由**不改变派发语义**：路由在 Run 开始前决定，已派发失败进 unknown/对账，不在同一 Operation 上静默改投他家。期望答复 2026-12-04，硬期限 12-11。
 
-H02 已用 qwen3.8-flash、deepseek-chat、doubao-seed-2-1-lite 经本地网关做真实流式请求，但**不等于**生产网关、配额、条款或计费承诺。
+H02 已用 qwen3.8-flash、deepseek-chat、doubao-seed-2-1-lite 经本地网关做真实流式请求，但**不等于**生产网关、配额、条款或计费承诺。**接入模型已定为 `qwen3.8-flash`、`deepseek-v4.1-flash-1017`、`doubao-seed-2.1-lite`**：DeepSeek 的模型 id 与 H02 实测的 `deepseek-chat` 不同（1M 上下文、默认思考模式），三家的 usage 归一需按新 id 各复跑一次真实请求才算协议证据。
+
+三家控制台单价已于 2026-10-26 录入 [价目快照](assets/work-r0a-runtime-2026-10-25/usage/price-table.snapshot-2026-10-26.json)（`usableInLedger: false`）：R0a 文本三档为 input 0.8/1.0–2.0/0.8、output 2.7/4.0–8.0/2.7、cached input 0.1/0.02–0.04/0.16（阿里云/DeepSeek/火山，元/百万 tokens），**预算上界恒取三家最贵路径 = input 2.0、output 8.0、cached input 0.16**（上界不属任何单家标准价）。这批数字同时暴露三条设计约束：PC-1 DeepSeek 时段双价装不进单值 `price_version`（推荐恒取高峰价）、PC-2 火山缓存存储 0.017 元/百万 tokens/小时属时长维度（须关闭或排除在 Run 预算外）、PC-3 并发上限按家差异（DeepSeek 2500/500，另两家未给）。三项均须在 DR2 前定。
 
 ## 11. 测试与证据
 
@@ -256,7 +258,7 @@ D4 完成（DR2/D4 评审）需要：
 7. **检查点格式/恢复**：Pi 检查点与 Work Adapter 状态的一致性未做真实恢复测试。
 8. **流式/过滤**：reasoning 过滤、chunk 丢失、背压、响应大小限制未做运行时验证。
 9. **取消/超时数值**：connect/first-token/total/心跳是初始建议，需试点校准。
-10. ~~价表/usage 差异~~：**规则已定（2026-10-26）**，见 [usage-reconcile.mjs](assets/work-r0a-runtime-2026-10-25/usage/usage-reconcile.mjs)：以供应商 usage 结算；reasoning 仅在价表声明时另计（实测 Qwen 的 reasoning 已含在 completion 内）；单次网关/供应商差异 > max(5%, 50 token) 标 `usage_mismatch`；无供应商 usage 用网关估算并标 `usage_estimated`；都无则 `hold_unknown` 保留预留；超预留截断结算 + `adjust_budget` 补差（`budget_overrun`）；月度账单对账容差 max(1%, 100 分)，超出列出差异 request id；结算必须携带 `operation`（price_version/provider/model）且与价表一致，对账拒绝重复 provider_request_id 与非整数金额。价表仍为[占位](assets/work-r0a-runtime-2026-10-25/usage/price-table.placeholder.json)，书面价表未取得。
+10. ~~价表/usage 差异~~：**规则已定（2026-10-26）**，见 [usage-reconcile.mjs](assets/work-r0a-runtime-2026-10-25/usage/usage-reconcile.mjs)：以供应商 usage 结算；reasoning 仅在价表声明时另计（实测 Qwen 的 reasoning 已含在 completion 内）；单次网关/供应商差异 > max(5%, 50 token) 标 `usage_mismatch`；无供应商 usage 用网关估算并标 `usage_estimated`；都无则 `hold_unknown` 保留预留；超预留截断结算 + `adjust_budget` 补差（`budget_overrun`）；月度账单对账容差 max(1%, 100 分)，超出列出差异 request id；结算必须携带 `operation`（price_version/provider/model）且与价表一致，对账拒绝重复 provider_request_id 与非整数金额。价表：控制台单价已按 2026-10-26 截图录入[价目快照](assets/work-r0a-runtime-2026-10-25/usage/price-table.snapshot-2026-10-26.json)，但书面价目、生效日、变价通知期、DeepSeek 高峰/空闲时段划分与火山缓存存储归属仍未确认，**账本仍不得启用**（对账规则自测继续用[占位价表](assets/work-r0a-runtime-2026-10-25/usage/price-table.placeholder.json)）。
 11. **无正文日志**：策略已定义，但真实日志/trace 采样需运行时验证。
 12. **策略评估器不是生产网关**：它只验证设计策略，不能替代真实 egress、沙箱或供应商测试。
 

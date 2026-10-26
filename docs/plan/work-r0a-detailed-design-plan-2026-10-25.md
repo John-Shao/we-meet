@@ -730,7 +730,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 | 迁移空库应用、RLS/直接 DML 负例 | D1 冒烟 114/114（[资产](assets/work-r0a-design-2026-10-25/README.md)） | 满足，待 DR1 复审 |
 | OpenAPI、客户端/mock/合同测试 | 31/31、`ci-contract`、错误码 101 SQL 码 | 满足，待 DR1 |
 | 提交/派发/预算/成果/采纳/取消/重试/unknown 负例 | PG 114/114 + 竞态 7/7、Temporal 10/10、S1 4/4 | 满足，待 DR2 |
-| Runtime 工具/沙箱/出口/usage/价表 | 策略 10/10、usage/供应链 19/19；价表占位、gVisor 未证明 | 部分 |
+| Runtime 工具/沙箱/出口/usage/价表 | 策略 10/10、usage/供应链 19/19；三家控制台单价已录快照（未书面确认，账本不可用；PC-1/2/3 待 DR2）、gVisor 未证明 | 部分 |
 | UI 全状态、无假入口、可访问性 | UI 模型 14/14、状态矩阵；a11y 无实现可测 | 部分 |
 | SLO/告警/容量/恢复/切换/停用 | ops+pilot+telemetry 28/28 + promtool；试点环境未演练 | 部分 |
 | 威胁模型控制映射（S01–S18）与未关闭项 | [威胁模型](work-threat-model-2026-10-25.md)；C11 todo | 部分 |
