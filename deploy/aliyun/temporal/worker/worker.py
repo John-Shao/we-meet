@@ -16,7 +16,6 @@ from datetime import timedelta
 from typing import Optional
 
 import asyncpg
-from openai import AsyncOpenAI
 from temporalio import workflow, activity
 from temporalio.worker import Worker
 from temporalio.client import Client
@@ -69,23 +68,26 @@ async def prepare_run_activity(run_id: str, org_id: str) -> dict:
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
-        await conn.execute(f"SET LOCAL app.subject_id = 'system'")
-        row = await conn.fetchrow("""
-            SELECT r.id, r.task_id, r.org_id, r.snapshot_id, r.fence, 
-                   r.permission_mode, r.target
-            FROM work.run r
-            WHERE r.id = $1 AND r.org_id = $2 AND r.state = 'queued'
+        await conn.execute("SET LOCAL app.subject_id = 'system'")
+        # Get run data
+        run_row = await conn.fetchrow("""
+            SELECT id, task_id, org_id, snapshot_id, fence
+            FROM work.run
+            WHERE id = $1 AND org_id = $2 AND state = 'queued'
         """, run_id, org_id)
-        if not row:
+        if not run_row:
             raise Exception(f"run_not_found: {run_id}")
+        # Get task permission_mode separately
+        task_row = await conn.fetchrow("""
+            SELECT permission_mode FROM work.task WHERE id = $1 AND org_id = $2
+        """, run_row["task_id"], org_id)
     return {
-        "run_id": str(row["id"]),
-        "task_id": str(row["task_id"]),
-        "org_id": row["org_id"],
-        "snapshot_id": str(row["snapshot_id"]) if row["snapshot_id"] else None,
-        "fence": row["fence"],
-        "permission_mode": row["permission_mode"],
-        "target": row["target"],
+        "run_id": str(run_row["id"]),
+        "task_id": str(run_row["task_id"]),
+        "org_id": run_row["org_id"],
+        "snapshot_id": str(run_row["snapshot_id"]) if run_row["snapshot_id"] else None,
+        "fence": run_row["fence"],
+        "permission_mode": task_row["permission_mode"] if task_row else "ask_each",
     }
 
 
@@ -129,17 +131,17 @@ async def create_model_operation_activity(
         await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
         await conn.execute(f"SET LOCAL app.subject_id = 'system'")
         row = await conn.fetchrow("""
-            INSERT INTO work.operation (run_id, org_id, logical_key, step_no, type, state)
-            VALUES ($1, $2, $3, $4, 'model', 'created')
-            ON CONFLICT (run_id, org_id, logical_key) DO UPDATE
-            SET step_no = EXCLUDED.step_no
-            RETURNING id, run_id, org_id, logical_key, step_no, type, state
-        """, run_id, org_id, f"model:{step_no}", step_no)
+            INSERT INTO work.operation (run_id, org_id, logical_key, kind, request_hash, state)
+            VALUES ($1, $2, $3, 'model', $4, 'prepared')
+            ON CONFLICT (org_id, run_id, logical_key) DO UPDATE
+            SET request_hash = EXCLUDED.request_hash
+            RETURNING id, run_id, org_id, logical_key, kind, state
+        """, run_id, org_id, f"model:{step_no}", f"hash:{run_id}:{step_no}")
     return {
         "operation_id": str(row["id"]),
         "run_id": str(row["run_id"]),
-        "step_no": row["step_no"],
-        "type": row["type"],
+        "step_no": step_no,
+        "kind": row["kind"],
         "state": row["state"],
     }
 
@@ -179,8 +181,8 @@ async def reserve_quota_activity(
         await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
         await conn.execute(f"SET LOCAL app.subject_id = 'system'")
         row = await conn.fetchrow("""
-            SELECT work.reserve_quota($1, $2, $3)
-        """, operation_id, org_id, amount_tokens)
+            SELECT work.reserve_quota($1, $2, $3, $4, $5)
+        """, org_id, "default", "monthly", operation_id, amount_tokens)
         reservation_id = row["reserve_quota"]
     return {
         "reservation_id": str(reservation_id),
@@ -204,8 +206,8 @@ async def claim_dispatch_activity(
         await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
         await conn.execute(f"SET LOCAL app.subject_id = 'system'")
         row = await conn.fetchrow("""
-            SELECT work.claim_dispatch($1, $2, $3)
-        """, operation_id, org_id, fence)
+            SELECT work.claim_dispatch($1, $2, $3, $4)
+        """, operation_id, org_id, "temporal-worker", fence)
         dispatch_id = row["claim_dispatch"]
     return {
         "dispatch_attempt_id": str(dispatch_id),
@@ -225,6 +227,9 @@ async def invoke_model_activity(
     - Return usage + content_ref
     """
     logger.info(f"[Activity] invoke_model: op_id={operation_id}, model={model}")
+    
+    # Lazy import: openai is blocked by Temporal's workflow sandbox at module level
+    from openai import AsyncOpenAI
     
     # Get API keys from environment
     ark_api_key = os.getenv("ARK_API_KEY")
@@ -342,8 +347,8 @@ async def settle_quota_activity(
         await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
         await conn.execute(f"SET LOCAL app.subject_id = 'system'")
         await conn.execute("""
-            SELECT work.settle_quota($1, $2, $3)
-        """, reservation_id, org_id, actual_tokens)
+            SELECT work.settle_quota($1, $2, $3, $4)
+        """, reservation_id, actual_tokens, '{"source": "worker"}', 1)
     return {"reservation_id": reservation_id, "settled_tokens": actual_tokens}
 
 
@@ -361,15 +366,33 @@ async def publish_artifact_activity(
     async with pool.acquire() as conn:
         await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
         await conn.execute(f"SET LOCAL app.subject_id = 'system'")
-        row = await conn.fetchrow("""
-            INSERT INTO work.artifact (run_id, org_id, version_no, content_ref, content_hash, bytes, media_type)
-            VALUES ($1, $2, 1, $3, $4, $5, 'text/markdown')
-            RETURNING id, run_id, org_id, version_no, content_ref
-        """, run_id, org_id, content_ref, content_hash, bytes_)
+        # Get task_id from run
+        run_row = await conn.fetchrow("""
+            SELECT task_id FROM work.run WHERE id = $1 AND org_id = $2
+        """, run_id, org_id)
+        task_id = run_row["task_id"]
+        # Insert artifact (logical entity)
+        artifact_row = await conn.fetchrow("""
+            INSERT INTO work.artifact (org_id, task_id, logical_name, state)
+            VALUES ($1, $2, $3, 'published')
+            ON CONFLICT (org_id, task_id, logical_name) DO UPDATE
+            SET state = 'published', updated_at = now()
+            RETURNING id, org_id, task_id, logical_name
+        """, org_id, task_id, f"run-{run_id[:8]}-output")
+        artifact_id = artifact_row["id"]
+        # Insert artifact_version (content)
+        version_row = await conn.fetchrow("""
+            INSERT INTO work.artifact_version (artifact_id, org_id, version_no, content_ref, content_hash, bytes, media_type, state, provenance)
+            VALUES ($1, $2, 1, $3, $4, $5, 'text/markdown', 'published', $6)
+            ON CONFLICT (artifact_id, org_id, version_no) DO UPDATE
+            SET content_ref = EXCLUDED.content_ref
+            RETURNING artifact_id, version_no, content_ref
+        """, artifact_id, org_id, content_ref, content_hash, bytes_,
+            f'{{"run_id": "{run_id}", "provider": "llm"}}')
     return {
-        "artifact_id": str(row["id"]),
-        "version_no": row["version_no"],
-        "content_ref": row["content_ref"],
+        "artifact_id": str(artifact_id),
+        "version_no": version_row["version_no"],
+        "content_ref": version_row["content_ref"],
     }
 
 
@@ -529,10 +552,6 @@ class RunWorkflow:
     @workflow.run
     async def run(self, run_id: str, task_id: str, org_id: str) -> dict:
         logger.info(f"[Workflow] Starting RunWorkflow: run_id={run_id}")
-        
-        # Set timeouts per D3
-        workflow.info().timeout = timedelta(minutes=30)
-        workflow.info().run_timeout = timedelta(minutes=30)
         
         try:
             # Step 1: Prepare
