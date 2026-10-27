@@ -12,11 +12,12 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT/src/backend"
 python manage.py shell -c "
 import os
+import sys
 from core.models import Organization
 from work.jobs.directory_sync import sync_org
 name = os.environ['ORG_NAME']
 slug = os.environ['ORG_SLUG']
 org, created = Organization.objects.get_or_create(slug=slug, defaults={'name': name})
 sync_org(org)
-print('org_id=' + str(org.id), 'created=' + str(created))
+sys.stdout.write('org_id=' + str(org.id) + ' created=' + str(created) + '\n')
 "

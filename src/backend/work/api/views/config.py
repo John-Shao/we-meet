@@ -119,11 +119,11 @@ class ProviderCredentialCreateView(WorkAPIView):
                 context.org_id, secret.encode("utf-8")
             )
             role_ref = None
-            fp = credential_cipher.fingerprint(secret)
+            fp = credential_cipher.digest(secret)
         else:
             ciphertext = None
             role_ref = data["role_ref"]
-            fp = credential_cipher.fingerprint(role_ref)
+            fp = credential_cipher.digest(role_ref)
         with work_cursor(context) as cursor:
             cursor.execute(
                 "SELECT credential_id, key_version FROM "
@@ -165,7 +165,7 @@ class ProviderCredentialRotateView(WorkAPIView):
                     credential_cipher.encrypt(context.org_id, secret.encode("utf-8")),
                     None,
                     None,
-                    credential_cipher.fingerprint(secret),
+                    credential_cipher.digest(secret),
                 ],
             )
             credential = _credential(

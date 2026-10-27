@@ -60,5 +60,5 @@ def decrypt(org_id: str, ciphertext: bytes) -> bytes:
         raise WorkAPIError("service_degraded") from error
 
 
-def fingerprint(value: str) -> str:
+def digest(value: str) -> str:
     return "fp:" + hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
