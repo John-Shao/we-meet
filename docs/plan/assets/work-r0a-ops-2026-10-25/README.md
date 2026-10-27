@@ -38,10 +38,10 @@ python -c "import json; [json.load(open(f, encoding='utf-8')) for f in ['securit
 
 - 11/11 ops + 6/6 pilot-ops + 11/11 telemetry 测试通过（共 28/28；黄金任务/试点指标/切换状态机见 `pilot-ops.mjs`）：控制字段/证据、SLO 必需指标/未测不冒充、清单完整性、go/no-go、容量基线、10× 失败、零使用、非法输入；12 个 SLO 全覆盖、target/window/unit 与 `slo-pilot.json` 对齐、track-only 不产生 SLO 告警、缺失/篡改/内容标签/错误 runbook 被拒。
 - `prometheus-rules.yaml` 由契约生成且无漂移：21 条 record、27 条 alert；`promtool check rules`（prom/prometheus:v2.54.1）报告 **SUCCESS: 48 rules found**，`promtool test rules` 对 `prometheus-rules.test.yml` 的 13 组序列、14 条断言 **SUCCESS**。2.54 的 promtool 只支持 `alert_rule_test`（单数）并比较标签与注解，没有表达式单测，所以慢查询类告警改用可被单测覆盖的平均耗时形式；每条告警带 severity/for/runbook 与 `org_id` 注释；标签白名单禁止 goal/background/prompt/content/body/email/api_key/authorization/cookie/session。
-- 当前 `goNoGo`：**no-go，18 个 blocking 项**，并按 `gate` 拆开：`start`（DR4 开工前必须关闭）**4 项**（C01/C02/C11/C14 已提前签，C15 已 waived）、`pilot`（试点前）14 项、`scale` 0 项；`canStartWork` 为 false。关闭全部 start 项只会让 `canStartWork` 变 true，试点 `go` 仍需 14 项实施证据。
+- 当前 `goNoGo`：**no-go，30 个 blocking 中 18 个未关闭**，并按 `gate` 拆开：`start`（DR4 开工前必须关闭）**4 项**（C01/C02/C11/C14 已提前签，C15 已 waived）、`pilot`（试点前）14 项、`scale` 0 项；`canStartWork` 为 false。关闭全部 start 项只会让 `canStartWork` 变 true，试点 `go` 仍需 14 项实施证据。
 - 基线：36 Run/日、108 模型 Operation/日、7.5 provider req/min、0.125 DB 预留/秒、1.296M token/日、1.156GB/365 天；均在试点限制内。
 - S1 参考演练：worker 重启、DB 终态偏移、执行开关/组织停用、outbox backlog 4/4，`patched` 升级 1/1，file-backed server 重启为修订前结果（未复跑）；见 [Temporal slice](../work-temporal-slice-2026-10-25/README.md)。
-- 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03；C21 on-call runbook。剩余 18 个 blocking（C01/C02/C11/C14 已提前签，C15 已 waived）。
+- 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03；C21 on-call runbook。30 个 blocking 中 18 个未关闭（C01/C02/C11/C14 已提前签，C15 已 waived）。
 - 10× 压力会触发 provider RPM/token、workflow、内容留存与并发限制。
 
 ## 后台作业遥测（2026-10-26 增补）

@@ -44,7 +44,7 @@
 
 ### 0.3 W1 进展（2026-10-25）
 
-- **D1 已完成可执行草案**：[数据/权限/迁移设计](work-r0a-data-design-2026-10-25.md)、[schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；PostgreSQL 16 冒烟 148/148 + 多连接竞态 9 组（D-08 修订、D-03 B 静态凭证、D-07 A 运营取消命令；D-08a–d 已于 2026-10-27 签收），未应用生产。
+- **D1 已完成可执行草案**：[数据/权限/迁移设计](work-r0a-data-design-2026-10-25.md)、[schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；PostgreSQL 16 冒烟 148/148 + 多连接竞态 9 组（D-08 修订、D-03 B 静态凭证、D-07 A 运营取消命令；D-08a 已于 2026-10-27 签收，D-08b 会前确认，D-08c/d 待 DR1 冻结），未应用生产。
 - **D2 已完成契约子集**：[API/事件设计](work-r0a-api-design-2026-10-25.md)、[OpenAPI](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、生成的 TypeScript 类型/运行时客户端、mock server、[Host 端口契约](assets/work-r0a-design-2026-10-25/host-ports.mjs) 与设计包 34/34（合同 12 + 客户端 13 + 端口 9）；未做真实鉴权/持久化。
 - **DR1 尚未评审**：D1/D2 仍是草案；D3/D4 需在 DR1 后继续。
 
@@ -60,7 +60,7 @@
 - **D5 设计草案完成**：[前端体验设计](work-r0a-frontend-design-2026-10-25.md)、[状态/路由/文案/UI 模型资产](assets/work-r0a-frontend-2026-10-25/README.md)；UI 模型测试 11/11（2026-10-26 增至 14/14，含 canceled/archived 的 R0b 预留约束）。
 - **D5 仅为设计**：未实现 React 页面/React Query/SSE 客户端/Playwright，未做可用性测试。
 - **D6 设计草案完成**：[安全/运维/迁移/试点设计](work-r0a-security-ops-migration-design-2026-10-25.md)、[安全/SLO/容量/试点资产](assets/work-r0a-ops-2026-10-25/README.md)；8/8 校验通过。
-- **D6 当前 go/no-go = no-go**：18 个 blocking 项未关闭（C01/C02/C11/C14 提前签、C15 已 waived）；已完成 Temporal 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、RLS 池化、10 并发负载、Work DB 恢复、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke；未做生产演练/真实 gVisor/云 KMS（C14 已签降级，C15 waived）。
+- **D6 当前 go/no-go = no-go**：30 个 blocking 中 18 个未关闭（C01/C02/C11/C14 提前签、C15 已 waived）；已完成 Temporal 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、RLS 池化、10 并发负载、Work DB 恢复、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke；未做生产演练/真实 gVisor/云 KMS（C14 已签降级，C15 waived）。
 
 ### 0.6 下一批优先项进展（2026-10-26）
 
@@ -68,7 +68,7 @@
 - **C31 管理读**：严格适配器 12/12，证明 P1-A 原始字段不能直接充当 R0a 契约（role/revision/subject/seat total/cents/异步导出）；未接真实 P1-A/身份服务，C31 保持 partial。
 - **C16 日志扫描**：扫描器 8/8，覆盖 Key（含 `sk-proj-`/`sk-ant-`）/GitHub token/阿里云 AccessKey/Bearer/cookie/私钥/正文 canary/email；7 个既有证据日志 0 fail / 0 warn；未接 staging OTel/log pipeline，C16 保持 partial。
 - **C17 SLO 遥测**：12 个 SLO 全覆盖，生成 21 条 record + 19 条 alert，10/10 校验；未接 Prometheus/Alertmanager/仪表盘，所有 SLO 仍 `not_measured`，C17 保持 partial。
-- **No-go 不变**：18 个 blocking 项；以上均为参考实现/门禁，不替代试点环境、真实遥测、P1-A 接入或安全签收。
+- **No-go 不变**：30 个 blocking 中 18 个未关闭；以上均为参考实现/门禁，不替代试点环境、真实遥测、P1-A 接入或安全签收。
 
 ### 0.7 W4 详细设计收口（2026-10-26）
 
@@ -395,7 +395,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **设计输入**：[威胁模型](work-threat-model-2026-10-25.md)、[Runbook](work-operations-runbook-2026-10-25.md)、[架构 §17–§19](work-system-architecture-2026-10-25.md)、[容量烟雾](assets/work-ops-2026-10-25/README.md)。
 
-**当前进展（2026-10-26）**：D6 设计、安全控制/SLO/容量/试点清单已产出；8/8 + 遥测 10/10 + 日志扫描 8/8 校验通过，当前 no-go（18 个 blocking；C01/C02/C11/C14 提前签、C15 已 waived）。已完成 Temporal 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、RLS 池化、10 并发负载、Work DB 恢复、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、SLO 规则即代码；多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/真实遥测未完成（C14 已签降级、C15 已 waived）。
+**当前进展（2026-10-26）**：D6 设计、安全控制/SLO/容量/试点清单已产出；8/8 + 遥测 10/10 + 日志扫描 8/8 校验通过，当前 no-go（30 个 blocking 中 18 个未关闭；C01/C02/C11/C14 提前签、C15 已 waived）。已完成 Temporal 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、RLS 池化、10 并发负载、Work DB 恢复、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、SLO 规则即代码；多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/真实遥测未完成（C14 已签降级、C15 已 waived）。
 
 **交付物**：
 

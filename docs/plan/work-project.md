@@ -42,7 +42,7 @@
 |---|---|
 | [方案目录索引](README.md) | 全仓库方案/执行记录索引 |
 | **本文** | Work 项目资产、进展、问题、下一步 |
-| [R0a 实施就绪包](work-r0a-implementation-readiness-2026-10-26.md) | W4/DR4：完成审计、E1–E8 估算、L1–L8 测试矩阵、U1–U4、18 个 blocking、排期与 DR 议程 |
+| [R0a 实施就绪包](work-r0a-implementation-readiness-2026-10-26.md) | W4/DR4：完成审计、E1–E8 估算、L1–L8 测试矩阵、U1–U4、30 个 blocking 中 18 个未关闭、排期与 DR 议程 |
 | [R0a 详细设计大纲与决策单](work-r0a-detailed-design-plan-2026-10-25.md) | 范围冻结、D1–D6 包、7 项 P0 决策、DR 闸门、§9.4 检查表 |
 
 ### 2.2 产品与目标架构

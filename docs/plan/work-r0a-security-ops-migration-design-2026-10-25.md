@@ -1,6 +1,6 @@
 # Work R0a 安全、运维、迁移与试点详细设计（D6）
 
-> 状态：D6 设计草案；安全控制/SLO/容量/试点清单已建模并通过 8/8 校验，当前 **go/no-go = no-go（18 个 blocking 项；C01/C02/C11/C14 提前签、C15 已 waived）**；已完成 Temporal dev 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、RLS 池化、10 并发负载、Work DB 恢复、试点 on-call runbook、SLO 规则即代码 11/11 + promtool 校验（48 条规则 + 14 组告警单测）与日志扫描 8/8、管理读/目录投影/留存清扫的多连接竞态 7/7；本地关闭 C12/C18/C19/C20/C21，剩余 18 个 blocking（C01/C02/C11/C14 已提前签）。未做多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/真实遥测接入（C15 已 waived）。
+> 状态：D6 设计草案；安全控制/SLO/容量/试点清单已建模并通过 8/8 校验，当前 **go/no-go = no-go（30 个 blocking 中 18 个未关闭；C01/C02/C14 提前签、C11 仅签映射口径、C15 已 waived）**；已完成 Temporal dev 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、RLS 池化、10 并发负载、Work DB 恢复、试点 on-call runbook、SLO 规则即代码 11/11 + promtool 校验（48 条规则 + 14 组告警单测）与日志扫描 8/8、管理读/目录投影/留存清扫的多连接竞态 7/7；本地关闭 C12/C18/C19/C20/C21，剩余 18 个未关闭（C01/C02/C14 已提前签，C11 仅签映射口径）。未做多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/真实遥测接入（C15 已 waived）。
 >
 > 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界）
 >
@@ -230,7 +230,7 @@ node pilot-capacity-model.mjs
 - 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03 执行开关/组织停用；C21 §6.1 on-call/事故沟通。C31 仍 partial（P1-A 不能直接复用；方案 B 已让 Work 自己出席位/token 配额/导出作业，缺的是 Host 的身份与席位字段）；C16/C17 仍 partial：规则与告警单测可复现（promtool 48 条 + 14 断言），缺的是 staging 遥测/日志后端与真实序列上的验证。
 - 当前 no-go 从 29 降为 **22**；C09/C13/C14/C22 仍 partial，C15 已 waived、S13 已 out_of_scope、C24/C25/C27/C30 等仍待外部输入。
 
-**当前：no-go，18 个 blocking 项未关闭（C01/C02/C11/C14 已提前签、C15 已 waived）。** 主要阻塞：
+**当前：no-go，30 个 blocking 中 18 个未关闭（C01/C02/C11/C14 已提前签、C15 已 waived）。** 主要阻塞：
 
 - D1–D5 设计尚未正式评审；D1 冒烟 148/148 + 竞态 9/9、Temporal 参考纵切 10/10 已完成，但 S1 多节点/在途 server 重启与正式评审仍未完成。
 - D2 生成客户端未接真实前端（R0a 门禁已在 PR #7 首次跑绿，仓库全量流水线 meet Workflow 也已 15/15 跑绿）；D4 真实 gVisor/Content Store/云 KMS/供应商条款；D5 React/E2E；C22 多节点/在途 server 重启。
@@ -263,7 +263,7 @@ node pilot-capacity-model.mjs
 9. **试点组织/研究**：3 家未签、7–8 名研究未做（招募与执行排期单已发，待运营回填名单）；不能以内部走查代替。
 10. **事故沟通/支持**：支持分级 S1–S4、工单模板与升级路径见[试点运营 runbook §2](work-r0a-pilot-operations-runbook-2026-10-26.md)；联系人/渠道待 C24。
 11. **合规**：数据驻留/删除/审计保留需法务/安全确认。
-12. **No-go 清单**：剩余 18 个 blocking 项是当前事实；本地测试不能替代试点环境、安全签收与组织研究（C15 已 waived）。
+12. **No-go 清单**：30 个 blocking 中 18 个未关闭是当前事实；本地测试不能替代试点环境、安全签收与组织研究（C15 已 waived）。
 13. **独立产品边界**：Host 端口/Connector 契约与剥离演练未完成；ADR-0021 设计约束不等于可独立售卖。
 14. **目录投影新鲜度（D-07 A 已定案，2026-10-27）**：增量同步 5 分钟 + 每日全量校对，`WorkDirectoryProjectionStale` 在滞后 > 600 秒（2 个增量周期）且持续 5 分钟时 page。R0a 只保证"下一次授权/提交被拦住"，**不自动取消在途 Run**（自动取消 = D-07 B 推到 R0b）；值班按[试点运营 Runbook §5.2](work-r0a-pilot-operations-runbook-2026-10-26.md)用 `work.ops_cancel_run` 手工停止。已接受风险：窗口内继续消耗该组织 token 配额。运维需监控投影修订滞后与 `directory.member_synced` 的 `entitlement_lost` 事件。
 
