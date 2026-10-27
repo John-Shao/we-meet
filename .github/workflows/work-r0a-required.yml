@@ -1,0 +1,59 @@
+name: Work R0a required gate
+
+on:
+  pull_request:
+    branches:
+      - aliyun-dev
+
+permissions:
+  actions: read
+  pull-requests: read
+
+jobs:
+  work-r0a-required:
+    name: Work R0a required gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Detect Work R0a changes
+        id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          files="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename')"
+          # Keep in sync with the pull_request.paths filter in work-r0a-gates.yml.
+          pattern='^(docs/plan/assets/work-r0a-design-2026-10-25/|docs/plan/assets/work-r0a-ops-2026-10-25/|docs/plan/assets/work-r0a-orchestration-2026-10-25/|docs/plan/work-threat-model-2026-10-25\.md|docs/plan/assets/work-r0a-hardening-2026-10-25/|docs/plan/assets/work-temporal-slice-2026-10-25/|docs/plan/work-r0a-orchestration-design-2026-10-25\.md|docs/plan/work-r0a-data-design-2026-10-25\.md|docs/plan/work-r0a-api-design-2026-10-25\.md|docs/plan/work-r0a-admin-readonly-mapping-2026-10-25\.md|docs/plan/assets/work-r0a-runtime-2026-10-25/|docs/plan/assets/work-r0a-frontend-2026-10-25/|docs/plan/work-r0a-pilot-operations-runbook-2026-10-26\.md|docs/plan/work-operations-runbook-2026-10-25\.md|docs/plan/work-r0a-migration-runbook\.md|scripts/golden-tasks/|scripts/onboarding/|scripts/supply-chain/|src/backend/work/|src/backend/meet/settings\.py|deploy/aliyun/work-roles\.sql|deploy/aliyun/secrets/work-db\.yaml|\.github/workflows/work-r0a-gates\.yml)'
+          if printf '%s\n' "$files" | grep -qE "$pattern"; then
+            echo "work=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "work=false" >> "$GITHUB_OUTPUT"
+            echo "No Work R0a paths changed; no gate run required."
+          fi
+
+      - name: Wait for Work R0a gates
+        if: steps.detect.outputs.work == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          run_id=""
+          for _ in $(seq 1 20); do
+            run_id="$(gh run list --repo "$REPO" \
+              --workflow work-r0a-gates.yml --event pull_request \
+              --commit "$HEAD_SHA" --limit 1 \
+              --json databaseId --jq '.[0].databaseId // empty')"
+            if [ -n "$run_id" ]; then
+              break
+            fi
+            sleep 15
+          done
+          if [ -z "$run_id" ]; then
+            echo "Work R0a gates run not found for $HEAD_SHA" >&2
+            exit 1
+          fi
+          gh run watch "$run_id" --repo "$REPO" --exit-status --interval 20
