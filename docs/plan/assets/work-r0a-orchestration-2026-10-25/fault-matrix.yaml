@@ -14,7 +14,7 @@ cases:
       runs: 1
       workflows_started: 1
       duplicate_dispatches: 0
-      budget_reserved_cents: 0
+      quota_reserved_tokens: 0
       run_state_after_recovery: active
       task_state_after_recovery: open
     recovery: >-
@@ -69,7 +69,7 @@ cases:
       - Network drops before receipt/usage is recorded.
     expected:
       operation_state: unknown
-      budget_reserved_cents: held
+      quota_reserved_tokens: held
       provider_requests: 1
       automatic_paid_replays: 0
       run_state: waiting_or_reconcile
@@ -94,7 +94,7 @@ cases:
       task_state: open
       run_state: canceled_or_waiting_reconcile
       usage_and_audit_retained: true
-      budget_double_charge: 0
+      quota_double_charge: 0
     recovery: >-
       request_cancel is authoritative in PostgreSQL. The workflow marks a
       dispatching operation unknown, does not publish the late artifact, and
@@ -103,7 +103,7 @@ cases:
     evidence:
       - no published artifact version after cancel
       - audit event for cancel/unknown
-      - budget entries remain balanced
+      - quota entries remain balanced
   - id: F21
     title: Dispatching commit confirmation lost or crash before/after send
     inject:
@@ -113,7 +113,7 @@ cases:
     expected:
       dispatch_attempts: 1
       operation_state: dispatching_or_unknown
-      budget_reserved_cents: held
+      quota_reserved_tokens: held
       blind_resends: 0
       new_run_created: 0
     recovery: >-
@@ -140,7 +140,7 @@ cases:
       the original Task/Run or deleted state. No new Task is created.
     evidence:
       - one submission_dedup row
-      - no second Task or budget account
+      - no second Task or quota account
       - replay returns original/deleted
   - id: D3-R01
     title: Outbox relay crash loop and backlog
@@ -167,7 +167,7 @@ cases:
     expected:
       operation_state: unknown_after_reconcile
       automatic_paid_replays: 0
-      budget_reserved_cents: held_or_settled_once
+      quota_reserved_tokens: held_or_settled_once
       duplicate_dispatch: 0
     recovery: >-
       Temporal retries only idempotent activities. invokeModel is not retried
@@ -178,23 +178,23 @@ cases:
       - one provider request
       - reconcile outcome
   - id: D3-R03
-    title: Budget exhausted while Run is waiting
+    title: Quota exhausted while Run is waiting
     inject:
-      - reserve_budget returns budget_exhausted.
-      - Service operator adds budget later.
+      - reserve_quota returns quota_exhausted.
+      - Service operator adds quota later.
     expected:
       run_state: waiting
-      wait_reason: budget
+      wait_reason: quota
       new_dispatches_before_replenish: 0
       resume_after_replenish: true
       duplicate_changes: 0
     recovery: >-
-      Workflow calls waitRun(budget); reconciler detects available budget and
-      sends budget_available/resume; workflow revalidates policy and reservation
+      Workflow calls waitRun(quota); reconciler detects available quota and
+      sends quota_available/resume; workflow revalidates policy and reservation
       before any new dispatch. If the 24h wait timer expires, finish failed with
-      budget_wait_timeout and keep the Task open.
+      quota_wait_timeout and keep the Task open.
     evidence:
-      - Run waiting/budget
+      - Run waiting/quota
       - no new operation before replenish
       - resume audit and one new reservation
   - id: D3-R04

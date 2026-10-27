@@ -201,7 +201,7 @@ export function adminCopyKeys() {
     'work.r0a.admin.audit',
     'work.r0a.admin.readonly',
     'work.r0a.admin.orgNameMissing',
-    'work.r0a.admin.budgetPeriod',
+    'work.r0a.admin.quotaPeriod',
     'work.r0a.admin.orgRevision',
     'work.r0a.admin.seatsTotal',
     'work.r0a.admin.exportOneTime',

@@ -22,8 +22,8 @@ test('tool manifest allows exactly the three R0a tools', () => {
     manifest.tools.map((tool) => tool.id),
     ['model_call', 'read_builtin_template', 'write_artifact_draft'],
   );
-  assert.equal(assertToolAllowed(manifest, 'model_call').budget, true);
-  assert.equal(assertToolAllowed(manifest, 'read_builtin_template').budget, false);
+  assert.equal(assertToolAllowed(manifest, 'model_call').consumesQuota, true);
+  assert.equal(assertToolAllowed(manifest, 'read_builtin_template').consumesQuota, false);
   assert.equal(assertToolAllowed(manifest, 'write_artifact_draft').network, 'none');
   for (const denied of ['shell', 'filesystem', 'network', 'browser', 'connector', 'code_exec', 'unknown_tool']) {
     assert.throws(
@@ -62,7 +62,7 @@ test('secret patterns block before egress and do not echo the secret', () => {
   assert.doesNotThrow(() => assertNoSecrets(egress, '会员改版方案：先做访谈，再出初稿。'));
 });
 
-test('request binding requires operation, attempt, fence, hash and price version', () => {
+test('request binding requires operation, attempt, fence and hash', () => {
   const operation = {
     id: 'op-1',
     state: 'dispatching',
@@ -159,14 +159,14 @@ test('content and credential logging must stay disabled', () => {
   );
 });
 
-test('usage requires non-negative tokens and the current price version', () => {
-  assert.equal(validateUsage(egress, { inputTokens: 10, outputTokens: 20 }, 'price-v1'), true);
+test('usage requires non-negative token integers', () => {
+  assert.equal(validateUsage({ inputTokens: 10, outputTokens: 20 }), true);
   assert.throws(
-    () => validateUsage(egress, { inputTokens: -1, outputTokens: 20 }, 'price-v1'),
+    () => validateUsage({ inputTokens: -1, outputTokens: 20 }),
     (error) => error.code === 'usage_invalid',
   );
   assert.throws(
-    () => validateUsage(egress, { inputTokens: 10, outputTokens: 20 }, 'price-v0'),
+    () => validateUsage({ inputTokens: 10, outputTokens: 1.5 }),
     (error) => error.code === 'usage_invalid',
   );
 });

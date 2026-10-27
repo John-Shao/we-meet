@@ -97,13 +97,13 @@
         "le"
       ]
     },
-    "work_budget_reconciliation_diff_cents": {
+    "work_quota_reconciliation_diff_tokens": {
       "type": "gauge",
       "labels": [
         "org_id"
       ]
     },
-    "work_budget_unsettled_reservations": {
+    "work_quota_unsettled_reservations": {
       "type": "gauge",
       "labels": [
         "org_id"
@@ -470,20 +470,20 @@
     {
       "id": "quota_reconciliation_diff_tokens",
       "title": "配额对账差",
-      "target": 0,
+      "target": null,
       "unit": "tokens",
       "window": "1d",
       "track_only": true,
       "recording": [
         {
-          "record": "work:slo_quota_reconciliation:abs_max_5m",
+          "record": "work:track_quota_reconciliation:abs_max_5m",
           "expr": "max by (org_id) (abs(work_quota_reconciliation_diff_tokens))"
         }
       ],
       "alerts": [
         {
           "name": "WorkQuotaReconciliationDiff",
-          "expr": "work:slo_quota_reconciliation:abs_max_5m > 0",
+          "expr": "work:track_quota_reconciliation:abs_max_5m > 0",
           "for": "30m",
           "severity": "ticket",
           "slo_alert": false,

@@ -279,6 +279,9 @@ $$;
 
 -- ---------------------------------------------------------------------------
 -- D-08 大模型接入配置与用量：写权限只给组织 owner；配置与凭证按组织隔离。
+-- 每组织每供应商只允许一条 active 凭证（函数内 EXISTS 检查之外的数据库兜底）。
+CREATE UNIQUE INDEX IF NOT EXISTS work_provider_credential_one_active
+  ON work.provider_credential(org_id, provider) WHERE state = 'active';
 -- 托管 Key 的明文没有任何读取入口：接口只回指纹，网关经 resolve_* 在调用瞬间取密文。
 -- ---------------------------------------------------------------------------
 

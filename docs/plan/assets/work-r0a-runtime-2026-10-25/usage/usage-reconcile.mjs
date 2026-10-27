@@ -1,35 +1,17 @@
-// R0a usage pricing, per-operation settlement and period reconciliation rules.
-// Pure functions; integer cents only. Prices are placeholders until the
-// provider's written price sheet is archived (D4-11).
+// R0a token usage normalization, per-operation settlement and period
+// reconciliation rules. Pure functions; integer tokens only (D-08: Work counts
+// tokens, it does not price them).
 
 export const TOLERANCE = Object.freeze({
   // Gateway-counted vs provider-reported tokens for one operation.
   operationTokenRatio: 0.05,
   operationTokenFloor: 50,
-  // Provider invoice vs internal ledger for one org/period/provider.
+  // Provider invoice vs internal ledger token totals for one org/period/provider.
   periodRatio: 0.01,
-  periodFloorCents: 100,
+  periodFloorTokens: 100,
 });
 
 const TOKEN_CLASSES = ['input', 'cached_input', 'output'];
-
-export function validatePriceTable(table) {
-  const errors = [];
-  if (!/^[a-z0-9][a-z0-9.-]{2,63}$/.test(table?.price_version ?? '')) errors.push('price_version');
-  if (!/^[A-Z]{3}$/.test(table?.currency ?? '')) errors.push('currency');
-  for (const cls of TOKEN_CLASSES) {
-    const value = table?.per_million_cents?.[cls];
-    if (!Number.isInteger(value) || value < 0) errors.push(`per_million_cents.${cls}`);
-  }
-  if (!Number.isInteger(table?.max_output_tokens) || table.max_output_tokens < 1) {
-    errors.push('max_output_tokens');
-  }
-  if (typeof table?.reasoning_billed_separately !== 'boolean') errors.push('reasoning_billed_separately');
-  if (errors.length) {
-    throw Object.assign(new Error(`invalid price table: ${errors.join(', ')}`), { code: 'invalid_price_version' });
-  }
-  return table;
-}
 
 function int(value) {
   return Number.isInteger(value) && value >= 0 ? value : null;
@@ -37,7 +19,7 @@ function int(value) {
 
 // Provider usage → canonical token classes. Unknown shape returns null so the
 // caller must treat usage as missing rather than guessing.
-export function normalizeUsage(raw, table) {
+export function normalizeUsage(raw, { reasoningBilledSeparately = false } = {}) {
   if (!raw || typeof raw !== 'object') return null;
   const prompt = int(raw.prompt_tokens ?? raw.input_tokens);
   const completion = int(raw.completion_tokens ?? raw.output_tokens);
@@ -48,27 +30,27 @@ export function normalizeUsage(raw, table) {
     input: Math.max(prompt - cached, 0),
     cached_input: Math.min(cached, prompt),
     // Providers that already count reasoning inside completion_tokens must not
-    // be charged twice; only a price table flag adds it on top.
-    output: completion + (table.reasoning_billed_separately ? reasoning : 0),
+    // be counted twice; only an explicit flag adds it on top.
+    output: completion + (reasoningBilledSeparately ? reasoning : 0),
   };
 }
 
-export function priceTokens(tokens, table) {
-  let micro = 0;
-  for (const cls of TOKEN_CLASSES) micro += tokens[cls] * table.per_million_cents[cls];
-  return Math.ceil(micro / 1_000_000);
-}
-
-export function upperBoundCents(table, { maxInputTokens }) {
-  validatePriceTable(table);
-  return priceTokens(
-    { input: maxInputTokens, cached_input: 0, output: table.max_output_tokens },
-    table,
-  );
-}
-
-function totalTokens(t) {
+export function totalTokens(t) {
   return t.input + t.cached_input + t.output;
+}
+
+export function upperBoundTokens({ maxInputTokens, maxOutputTokens }) {
+  if (
+    !Number.isInteger(maxInputTokens) ||
+    !Number.isInteger(maxOutputTokens) ||
+    maxInputTokens < 0 ||
+    maxOutputTokens < 1
+  ) {
+    throw Object.assign(new Error('maxInputTokens/maxOutputTokens must be integers'), {
+      code: 'invalid_token_bound',
+    });
+  }
+  return maxInputTokens + maxOutputTokens;
 }
 
 // Gateway counts come from our own proxy; a NaN/negative/fractional count is a bug, not "zero usage".
@@ -76,36 +58,39 @@ function validateGatewayTokens(tokens) {
   if (tokens == null) return null;
   const bad = TOKEN_CLASSES.filter((cls) => !Number.isInteger(tokens[cls]) || tokens[cls] < 0);
   if (bad.length) {
-    throw Object.assign(new Error(`invalid gateway token counts: ${bad.join(', ')}`), { code: 'invalid_gateway_usage' });
+    throw Object.assign(new Error(`invalid gateway token counts: ${bad.join(', ')}`), {
+      code: 'invalid_gateway_usage',
+    });
   }
   return { input: tokens.input, cached_input: tokens.cached_input, output: tokens.output };
 }
 
-// The price table must be the one the operation was previewed/reserved under.
-function assertTableForOperation(table, operation) {
-  const mismatched = [
-    ['price_version', operation?.price_version],
-    ['provider', operation?.provider],
-    ['model', operation?.model],
-  ].filter(([field, expected]) => !expected || table[field] !== expected);
-  if (mismatched.length) {
-    throw Object.assign(
-      new Error(`price table does not match operation: ${mismatched.map(([f]) => f).join(', ')}`),
-      { code: 'price_version_mismatch' },
-    );
+// The operation must carry the provider/model the Run was routed to.
+function assertOperationBinding(operation) {
+  if (!operation?.provider || !operation?.model) {
+    throw Object.assign(new Error('operation must carry provider and model'), {
+      code: 'operation_binding_mismatch',
+    });
   }
 }
 
 // Decide what to settle for one model operation and which flags to raise.
-export function settleOperation({ reservedCents, priceTable, operation, providerUsage, gatewayTokens: rawGateway }) {
-  validatePriceTable(priceTable);
-  assertTableForOperation(priceTable, operation);
-  if (!Number.isInteger(reservedCents) || reservedCents < 0) {
-    throw Object.assign(new Error('reservedCents must be a non-negative integer'), { code: 'invalid_billable_amount' });
+export function settleOperation({
+  reservedTokens,
+  operation,
+  providerUsage,
+  gatewayTokens: rawGateway,
+  reasoningBilledSeparately = false,
+}) {
+  assertOperationBinding(operation);
+  if (!Number.isInteger(reservedTokens) || reservedTokens < 0) {
+    throw Object.assign(new Error('reservedTokens must be a non-negative integer'), {
+      code: 'invalid_reservation_amount',
+    });
   }
   const gatewayTokens = validateGatewayTokens(rawGateway);
   const flags = [];
-  const provider = normalizeUsage(providerUsage, priceTable);
+  const provider = normalizeUsage(providerUsage, { reasoningBilledSeparately });
   let basis;
   let tokens;
   if (provider) {
@@ -125,34 +110,45 @@ export function settleOperation({ reservedCents, priceTable, operation, provider
     flags.push('usage_estimated');
   } else {
     // No evidence at all: keep the reservation; reconciliation decides later.
-    return { action: 'hold_unknown', settleCents: null, overageCents: 0, flags: ['usage_missing'], basis: null };
+    return {
+      action: 'hold_unknown',
+      settleTokens: null,
+      overageTokens: 0,
+      flags: ['usage_missing'],
+      basis: null,
+    };
   }
-  const priced = priceTokens(tokens, priceTable);
-  const settleCents = Math.min(priced, reservedCents);
-  const overageCents = priced - settleCents;
-  if (overageCents > 0) flags.push('budget_overrun');
+  const measured = totalTokens(tokens);
+  const settleTokens = Math.min(measured, reservedTokens);
+  const overageTokens = measured - settleTokens;
+  if (overageTokens > 0) flags.push('quota_overrun');
   return {
     action: 'settle',
-    settleCents,
-    overageCents,
+    settleTokens,
+    overageTokens,
     flags,
     basis,
-    usage: { ...tokens, price_version: priceTable.price_version },
+    usage: { ...tokens },
   };
 }
 
 // Compare one org/period/provider invoice with internal ledger entries.
 export function reconcilePeriod({ ledger, invoice }) {
-  for (const [name, rows] of [['ledger', ledger], ['invoice', invoice]]) {
+  for (const [name, rows] of [
+    ['ledger', ledger],
+    ['invoice', invoice],
+  ]) {
     const ids = new Set();
     for (const row of rows) {
-      if (!row.provider_request_id || !Number.isInteger(row.amount_cents)) {
-        throw Object.assign(new Error(`${name} row needs provider_request_id and integer amount_cents`), {
+      if (!row.provider_request_id || !Number.isInteger(row.tokens) || row.tokens < 0) {
+        throw Object.assign(new Error(`${name} row needs provider_request_id and non-negative integer tokens`), {
           code: 'invalid_reconciliation_input',
         });
       }
       if (ids.has(row.provider_request_id)) {
-        throw Object.assign(new Error(`${name} has duplicate provider_request_id`), { code: 'invalid_reconciliation_input' });
+        throw Object.assign(new Error(`${name} has duplicate provider_request_id`), {
+          code: 'invalid_reconciliation_input',
+        });
       }
       ids.add(row.provider_request_id);
     }
@@ -160,8 +156,8 @@ export function reconcilePeriod({ ledger, invoice }) {
   const byId = (rows) => new Map(rows.map((row) => [row.provider_request_id, row]));
   const ledgerById = byId(ledger);
   const invoiceById = byId(invoice);
-  const ledgerTotal = ledger.reduce((sum, row) => sum + row.amount_cents, 0);
-  const invoiceTotal = invoice.reduce((sum, row) => sum + row.amount_cents, 0);
+  const ledgerTotal = ledger.reduce((sum, row) => sum + row.tokens, 0);
+  const invoiceTotal = invoice.reduce((sum, row) => sum + row.tokens, 0);
   const missingInLedger = invoice
     .filter((row) => !ledgerById.has(row.provider_request_id))
     .map((row) => row.provider_request_id);
@@ -170,28 +166,28 @@ export function reconcilePeriod({ ledger, invoice }) {
     .map((row) => row.provider_request_id);
   const mismatched = invoice
     .filter((row) => ledgerById.has(row.provider_request_id))
-    .filter((row) => ledgerById.get(row.provider_request_id).amount_cents !== row.amount_cents)
+    .filter((row) => ledgerById.get(row.provider_request_id).tokens !== row.tokens)
     .map((row) => ({
       provider_request_id: row.provider_request_id,
-      ledger_cents: ledgerById.get(row.provider_request_id).amount_cents,
-      invoice_cents: row.amount_cents,
+      ledger_tokens: ledgerById.get(row.provider_request_id).tokens,
+      invoice_tokens: row.tokens,
     }));
-  const diffCents = invoiceTotal - ledgerTotal;
+  const diffTokens = invoiceTotal - ledgerTotal;
   const allowed = Math.max(
     Math.ceil(Math.abs(invoiceTotal) * TOLERANCE.periodRatio),
-    TOLERANCE.periodFloorCents,
+    TOLERANCE.periodFloorTokens,
   );
-  const withinTolerance = Math.abs(diffCents) <= allowed;
+  const withinTolerance = Math.abs(diffTokens) <= allowed;
   let status = 'matched';
-  if (diffCents !== 0 || missingInLedger.length || missingInInvoice.length || mismatched.length) {
+  if (diffTokens !== 0 || missingInLedger.length || missingInInvoice.length || mismatched.length) {
     status = withinTolerance ? 'within_tolerance' : 'adjustment_required';
   }
   return {
     status,
     ledgerTotal,
     invoiceTotal,
-    diffCents,
-    allowedCents: allowed,
+    diffTokens,
+    allowedTokens: allowed,
     missingInLedger,
     missingInInvoice,
     mismatched,
