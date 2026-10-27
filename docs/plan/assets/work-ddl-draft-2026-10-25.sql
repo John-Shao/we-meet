@@ -392,11 +392,15 @@ CREATE TABLE work.provider_credential (
   revoked_at timestamptz,
   revoked_by text,
   UNIQUE (id, org_id),
+  -- managed_key: both KMS fields NULL = static single-layer; both present = reserved KMS envelope.
   CHECK (
     (mode = 'sts_role' AND role_ref IS NOT NULL
        AND secret_ciphertext IS NULL AND wrapped_dek IS NULL AND kms_key_ref IS NULL)
     OR (mode = 'managed_key' AND role_ref IS NULL
-       AND secret_ciphertext IS NOT NULL AND wrapped_dek IS NOT NULL AND kms_key_ref IS NOT NULL)
+       AND secret_ciphertext IS NOT NULL
+       AND ((wrapped_dek IS NULL AND kms_key_ref IS NULL)
+         OR (wrapped_dek IS NOT NULL AND kms_key_ref IS NOT NULL
+             AND length(btrim(kms_key_ref)) > 0)))
   )
 );
 CREATE UNIQUE INDEX work_provider_credential_active

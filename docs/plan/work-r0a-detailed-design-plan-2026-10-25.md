@@ -44,7 +44,7 @@
 
 ### 0.3 W1 进展（2026-10-25）
 
-- **D1 已完成可执行草案**：[数据/权限/迁移设计](work-r0a-data-design-2026-10-25.md)、[schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；PostgreSQL 16 冒烟 139/139 + 多连接竞态 9 组（D-08 修订后；D-08a 产品已签、c/d 未冻结），未应用生产。
+- **D1 已完成可执行草案**：[数据/权限/迁移设计](work-r0a-data-design-2026-10-25.md)、[schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；PostgreSQL 16 冒烟 143/143 + 多连接竞态 9 组（D-08 修订后；D-08a 产品已签、c/d 未冻结），未应用生产。
 - **D2 已完成契约子集**：[API/事件设计](work-r0a-api-design-2026-10-25.md)、[OpenAPI](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、生成的 TypeScript 类型/运行时客户端、mock server、[Host 端口契约](assets/work-r0a-design-2026-10-25/host-ports.mjs) 与设计包 34/34（合同 12 + 客户端 13 + 端口 9）；未做真实鉴权/持久化。
 - **DR1 尚未评审**：D1/D2 仍是草案；D3/D4 需在 DR1 后继续。
 
@@ -72,10 +72,10 @@
 
 ### 0.7 W4 详细设计收口（2026-10-26）
 
-- **本轮复审前记录的契约缺口已闭合**：标题编辑、受控导出下载、CSRF/cookie 生命周期、冻结错误码目录（`r0a-errors-v3`：49 公开码 / 101 SQL 映射，CI 扫描 schema-draft）；outbox 按聚合顺序 + 指数退避 + 死信/审计重排；usage 对账容差与价表校验；供应链准入（cosign/SLSA/SBOM/Pi 固定版本）；用户删除/运维代删/所有权转移；生命周期事件；黄金任务、试点指标、切换状态机；[试点运营 Runbook](work-r0a-pilot-operations-runbook-2026-10-26.md)。
-- **证据**：D1 冒烟 139/139 + 竞态门禁 9/9（2026-10-26 D-08 修订）；API 29 path / 33 operation，设计包 34/34；Temporal 10/10 + S1 4/4；Runtime 10/10 + 19/19；UI 模型 14/14；日志扫描 8/8；KMS 6/6；ops/pilot/telemetry 28/28（21 record + 27 alert = 48 条规则；指标 28）。
+- **本轮复审前记录的契约缺口已闭合**：标题编辑、受控导出下载、CSRF/cookie 生命周期、冻结错误码目录（`r0a-errors-v3`：50 公开码 / 104 SQL 映射，CI 扫描 schema-draft）；outbox 按聚合顺序 + 指数退避 + 死信/审计重排；usage 对账容差与价表校验；供应链准入（cosign/SLSA/SBOM/Pi 固定版本）；用户删除/运维代删/所有权转移；生命周期事件；黄金任务、试点指标、切换状态机；[试点运营 Runbook](work-r0a-pilot-operations-runbook-2026-10-26.md)。
+- **证据**：D1 冒烟 143/143 + 竞态门禁 9/9（2026-10-26 D-08 修订；2026-10-27 静态凭证 +4）；API 29 path / 33 operation，设计包 34/34；Temporal 10/10 + S1 4/4；Runtime 10/10 + 19/19；UI 模型 14/14；日志扫描 8/8；静态凭证 4 项；ops/pilot/telemetry 28/28（21 record + 27 alert = 48 条规则；指标 28）。
 - **W4 产出**：[实施就绪包](work-r0a-implementation-readiness-2026-10-26.md)——**可评审草案**。2026-10-26 复审撤回“§0 六条在设计层全部满足”的结论：D1/D3 的 P0/P1 已修复并补负例，但 §0 #5（可用性验证；管理页方案同日已定 B 并落成设计物）未满足，另有 Temporal 托管（U3）与 §9.4 检查表（U4）；U2 已于 2026-10-26 定方案 B（待 DR1 签收）、U3 同日定自托管 A（待平台确认 9 项承诺），U1/U4 仍开放；排期改为从 DR4（建议 2026-12-04）起算。
-- **仍不可实施**：DR0–DR4 未开会，D-01..D-07 未签收，go/no-go 仍 no-go（30 个 blocking 中 7 done / 18 partial / 5 todo；另 2 项非 blocking 已 waived）。
+- **仍不可实施**：DR0–DR4 未开会，D-01..D-07 已于 2026-10-27 会前确认、待 DR0 追认；go/no-go 仍 no-go（30 个 blocking 中 7 done / 18 partial / 5 todo；另 2 项非 blocking 已 waived）。
 
 ## 1. R0a 范围冻结
 
@@ -164,12 +164,12 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 |---|---|---|
 | `work-api` | 会话/组织适配、领域命令、查询、SSE（初期同进程） | 模型 SDK、执行子进程、长期凭据 |
 | `work-worker` | Outbox、Temporal 编排、对账、事件投递 | 绕过领域状态直接改业务表 |
-| `work-egress` | 模型出口、供应商鉴权、配额、usage、价表版本 | 持有正文日志、授予权限 |
+| `work-egress` | 模型出口、供应商鉴权、配额、usage 归一 | 持有正文日志、授予权限 |
 | `work-runner` | 每 Run 的 Pod/进程生命周期、沙箱、检查点 | 租户归属、模型路由决策 |
 | PostgreSQL | 业务事实、账本、事件、审计、outbox | 正文大对象 |
 | Temporal | 持久编排历史、定时器、信号 | 作为业务事实源 |
 | Content Store | 加密正文、成果版本、输入对象、检查点 | 授权判断 |
-| KMS | CMK/DEK、凭据加密、轮换与撤销 | 业务身份 |
+| Secret / 静态主密钥 | 进程 Secret、按 `org_id` 派生、`key_version` 轮换；未来 KMS 预留 | 业务身份 |
 | SSE | Task 事件流；初期随 API 部署 | 作为事件事实源 |
 | Admin read-only | 复用 P1-A 或最小只读页 | 预算/策略写入、席位产品化管理 |
 
@@ -231,7 +231,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **设计输入**：[DDL 草案](work-data-model-ddl-draft-2026-10-25.md)、[架构 §5/§13/§14/§18](work-system-architecture-2026-10-25.md)、[ADR-0009/0011/0016/0017](../adr/)。
 
-**当前进展（2026-10-25）**：已产出 [D1 设计说明](work-r0a-data-design-2026-10-25.md) 与 [可执行 schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；独立 PostgreSQL 16 冒烟 34/34 通过（2026-10-26 D-08 修订后 139/139）。仍是草案，未评审、未应用生产。
+**当前进展（2026-10-25）**：已产出 [D1 设计说明](work-r0a-data-design-2026-10-25.md) 与 [可执行 schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；独立 PostgreSQL 16 冒烟 34/34 通过（2026-10-26 D-08 修订后 143/143）。仍是草案，未评审、未应用生产。
 
 **交付物**：
 
@@ -255,7 +255,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 **完成标准**：
 
 - 空库迁移成功；R0a 迁移重复执行幂等。
-- 现有 8 组 DDL 冒烟加 R0a 断言/负例全部通过（D1 草案已通过 139/139，另有 9 组多连接竞态）。
+- 现有 8 组 DDL 冒烟加 R0a 断言/负例全部通过（D1 草案已通过 143/143，另有 9 组多连接竞态）。
 - `work_api`/`work_worker` 不能直接 `INSERT/UPDATE/DELETE` fact/ledger 表；只能执行授权函数。
 - org1/org2 交叉读取为 0；`FORCE RLS` 生效。
 - 备份恢复后 Task/Run/Operation/预算/采纳/去重事实一致。
@@ -425,9 +425,9 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 |---|---|---|---|---|---|
 | D-01 | 部署形态与提交持久性边界 | A：单区域 SaaS 共享、同区多 AZ；试点不承诺区域 DR | 平台/基础设施 + 产品；安全评审 | W0 | D1/D3/D6 |
 | D-02 | 会话、API 鉴权与 SSE | A：HttpOnly cookie + CSRF；同源 SSE；409 resync | 后端 + 前端 + 安全 | W0 | D2/D5 |
-| D-03 | 服务身份与密钥层级 | A：平台 workload identity/mTLS + 短期 audience token；KMS CMK/DEK | 安全 + 平台 | W0 | D1/D3/D4/D6 |
+| D-03 | 服务身份与密钥层级 | A：平台 workload identity/mTLS + 短期 audience token；KMS CMK/DEK；**2026-10-27 会前改选 B：静态服务密钥 + 单层静态凭证加密（全局主密钥 + 按 org 派生）** | 安全 + 平台 | W0 | D1/D3/D4/D6 |
 | D-04 | DB 权限、RLS 与迁移 | A：SECURITY DEFINER 领域命令 + REVOKE 直接 DML + 独立角色 | 后端 + DBA/安全 | W0 | D1/全部写路径 |
-| D-05 | Runtime/Adapter 边界与沙箱 | A：每 Run 一 Pod、Pi 内嵌、窄 Adapter、gVisor/等效；工具清单冻结 | 运行时 + 安全 | W0 | D3/D4 |
+| D-05 | Runtime/Adapter 边界与沙箱 | A：每 Run 一 Pod、Pi 内嵌、窄 Adapter、gVisor/等效（C14 已签 runc 降级） | 运行时 + 安全 | W0 | D3/D4 |
 | D-06 | 迁移/切换与旧数据 | A：新 `/work` + 组织 flag；不迁旧数据、不双写；旧页只读/归档 | 产品 + 前端/后端 | W0 | D5/D6 |
 | D-07 | 撤权收窄的执行方式（新） | A：只拦新工作，在途 Run 由运营手工取消；B：投影同步附带定向取消意图，经 `request_cancel` 领域命令执行；C：投影直接停止 Run（拒绝） | 后端 + 安全 + 产品 | DR1 | D1/D3/D6 |
 
@@ -458,7 +458,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 - **B. Bearer access token**：内存 access token + refresh；SSE 用 fetch stream + Authorization；适合跨域/移动，但 XSS 风险与刷新复杂度更高。
 - **C. Cookie + URL ticket**：拒绝；token 进入日志/Referer/历史记录。
 
-**推荐**：A 作为 R0a Web 方案；B 仅用于未来桌面/移动客户端。OpenAPI 明确公开用户 API 用 `cookieAuth`，内部服务用 mTLS（D-03），移除“同时声明 cookie 与 bearer”的歧义。SSE 游标过期用 **409 `resync_required`**（与当前契约示例一致），返回当前游标；不使用 410。Last-Event-ID 只用于补读，不携带权限。
+**推荐**：A 作为 R0a 全部形态的会话方案（桌面壳加载同源 Web、移动端只读同源）；B 仅用于未来原生/跨域客户端。OpenAPI 明确公开用户 API 用 `cookieAuth`，内部服务按 D-03 的静态身份，移除“同时声明 cookie 与 bearer”的歧义。SSE 游标过期用 **409 `resync_required`**（与当前契约示例一致），返回当前游标；不使用 410。Last-Event-ID 只用于补读，不携带权限。
 
 **影响**：API 客户端、CSRF、SSE 重连、会话撤销、桌面壳未来接入。
 **未定后果**：前端/SSE/OpenAPI 三套实现；token 泄漏；重连行为不一致。
@@ -472,15 +472,16 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 **选项**：
 
 - **A. 平台 workload identity/mTLS**：短期证书或 audience-scoped token；每 Run 短期身份；KMS region CMK + 租户 DEK 信封；供应商 Key 只在 egress；Content Store SSE-KMS；删除时 crypto-shredding。
-- **B. 每服务自建 CA/mTLS**：控制力强，但运维与兼容成本高。
-- **C. 静态 service token/共享密钥**：拒绝；无法轮换、无法审计、易泄漏。
+- **B. 静态 service 账号/密钥 + 单层静态凭证加密（2026-10-27 选择）**：服务间用静态账号/密钥（按环境隔离、定期轮换、secret scanning）；供应商凭证用单层静态加密，全局主密钥放进程 Secret，按 `org_id` 派生每组织密钥，`key_version` 管轮换；`wrapped_dek`/`kms_key_ref` 保留为未来 KMS 预留并允许 NULL。
+- **C. 每服务自建 CA/mTLS**：控制力强，但运维与兼容成本高。
+- **D. 无轮换/无审计的静态 token**：拒绝；无法追溯、泄露后无法收敛。
 
-**推荐**：A，优先复用平台现有 workload identity。若平台暂无，R0a 用 service mesh mTLS + 短期证书，不降级为静态 token。密钥层级：region CMK → tenant DEK → content object/credential；轮换、撤销、访问审计；Runtime 不持有长期供应商 Key；egress 不记录正文；内容与凭据使用不同密钥域。
+**2026-10-27 会前确认：改选 B（静态密钥）**。接受以下代价：无云 KMS/HSM 的审计与自动轮换；主密钥泄露影响全部组织（按 `org_id` 派生只能帮助定位，不能隔离主密钥）；轮换需手工重加密或双版本读。缓解：主密钥只放进程 Secret、不入库；`key_version` 单调；泄露时批量吊销并重加密；C11 把“无 KMS/HSM”列为残余风险。原推荐 A 保留为 R0b 升级路径；C13 的云 KMS 部分在 R0a 转 out_of_scope，Content Store 仍保留。
 
-**影响**：服务间调用、KMS、凭据注入、内容加密、删除承诺、威胁模型。
-**未定后果**：凭据流无法实现；租户删除/恢复承诺不成立；mTLS 只能做成“设计声明”。
+**影响**：服务间调用、静态密钥托管、凭据注入、内容加密、删除承诺、威胁模型。
+**未定后果**：凭据流无法实现；租户删除/恢复承诺不成立；静态密钥只能做成“有轮换的设计声明”。
 
-**签收**：安全负责人 + 平台负责人；DR1 前给出密钥/角色细化。
+**签收**：安全负责人 + 平台负责人；DR1 前给出主密钥托管/派生与轮换细化。
 
 ### D-04 DB 权限、RLS 与迁移
 
@@ -646,12 +647,13 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 | 决策 | 推荐 | 决策人 | 日期 | 结论 | 备注 |
 |---|---|---|---|---|---|
-| D-01 部署/持久性边界 | A |  |  |  |  |
-| D-02 会话/鉴权/SSE | A |  |  |  |  |
-| D-03 服务身份/KMS | A |  |  |  |  |
-| D-04 DB 权限/迁移 | A |  |  |  |  |
-| D-05 Runtime/沙箱 | A |  |  |  |  |
-| D-06 迁移/切换 | A |  |  |  |  |
+| D-01 部署/持久性边界 | A | 产品/平台 | 2026-10-27 会前 | A | DR0 追认 |
+| D-02 会话/鉴权/SSE | A | 后端/前端/安全 | 2026-10-27 会前 | A | C02 不返工 |
+| D-03 服务身份/密钥 | A | 安全/平台 | 2026-10-27 会前 | **B 静态单层加密** | 无 KMS/HSM；D1 最小修订；C01 DR1 附修订 |
+| D-04 DB 权限/迁移 | A | 后端/DBA | 2026-10-27 会前 | A | E1 接入迁移体系 |
+| D-05 Runtime/沙箱 | A | 运行时/安全 | 2026-10-27 会前 | A | 沙箱按 C14 runc 降级 |
+| D-06 迁移/切换 | A | 产品/前端/后端 | 2026-10-27 会前 | A | 不迁旧数据 |
+| D-07 撤权收窄 | B | 后端/安全/产品 | DR1 定案 | 进入 R0a | 投影同步经 request_cancel |
 
 ## 9. 附录
 
@@ -727,9 +729,9 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 |---|---|---|
 | 范围/不做冻结，无 R0b+ 入口 | §1、§3；OpenAPI 29 path/33 operation 冻结集（D-08 扩范围，待签） | 满足，待 DR0 |
 | 7 项决策签收、未决项有负责人和日期 | §4、§8.1；就绪包 §6.1/§7 | 待 DR0 签收 |
-| 迁移空库应用、RLS/直接 DML 负例 | D1 冒烟 139/139（[资产](assets/work-r0a-design-2026-10-25/README.md)） | 满足，待 DR1 复审 |
+| 迁移空库应用、RLS/直接 DML 负例 | D1 冒烟 143/143（[资产](assets/work-r0a-design-2026-10-25/README.md)） | 满足，待 DR1 复审 |
 | OpenAPI、客户端/mock/合同测试 | 34/34、`ci-contract`、错误码 104 SQL 码（D-08a 产品已签、c/d 未冻结） | 满足，待 DR1 |
-| 提交/派发/配额/成果/采纳/取消/重试/unknown 负例 | PG 139/139 + 竞态 9/9、Temporal 10/10、S1 4/4 | 满足，待 DR2 |
+| 提交/派发/配额/成果/采纳/取消/重试/unknown 负例 | PG 143/143 + 竞态 9/9、Temporal 10/10、S1 4/4 | 满足，待 DR2 |
 | Runtime 工具/沙箱/出口/usage/价表 | 策略 10/10、usage/供应链 19/19；C15 已 waived、价目不再进入账本（PC-1/PC-2 作废、PC-3 降为客户接入说明）；D-08b 凭证/KMS 路径待签；gVisor 未证明 | 部分 |
 | UI 全状态、无假入口、可访问性 | UI 模型 14/14、状态矩阵；a11y 无实现可测 | 部分 |
 | SLO/告警/容量/恢复/切换/停用 | ops+pilot+telemetry 28/28 + promtool；试点环境未演练 | 部分 |

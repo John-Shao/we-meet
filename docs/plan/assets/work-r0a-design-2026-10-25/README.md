@@ -12,7 +12,7 @@
 | `r0a-admin-directory.sql` | 管理只读（U2 方案 B）与 Host 目录投影（ADR-0021）：`audit_export` 表、`sync_org_projection`/`sync_member_projection`、`admin_overview`/`list_seats`、异步导出生命周期与一次性下载令牌 |
 | `r0a-rls-grants.sql` | FORCE RLS、函数所有权、`SECURITY DEFINER`、最小权限授权（含 `work_directory`） |
 | `r0a-schema-draft.sql` | 生成的完整 R0a schema（唯一执行入口） |
-| `r0a-schema-smoke.sql` | 139 项断言 + 负例（D-08 增加 25 项：token 配额、接入配置、凭证、用量越权）；单事务，结束回滚 |
+| `r0a-schema-smoke.sql` | 143 项断言 + 负例（D-08 增加 25 项：token 配额、接入配置、凭证、用量越权；D-03 B 增加 4 项：静态单层创建/轮换、KMS 字段成对拒绝、resolve 静态凭证）；单事务，结束回滚 |
 | `r0a-concurrency-smoke.py` | 9 组多连接竞态（导出领取/租约接管/一次性凭证/投影乱序与重复投递/到期清扫/撤权窗口/管理读与结算交错/接入配置并发写/用量并发累加）；不变量被破坏时非零退出 |
 | `admin-directory-concurrency.log` | 上述竞态脚本的原始输出（已纳入日志扫描范围） |
 | `error-codes.json` | 冻结错误码目录 `r0a-errors-v3`（50 公开码）+ 104 个 SQL 异常映射；CI 直接扫描 `r0a-schema-draft.sql` 校验 |
@@ -79,7 +79,7 @@ pip install 'psycopg[binary]==3.3.3'
 python r0a-concurrency-smoke.py        # 默认 127.0.0.1:55433，可用 R0A_DATABASE_URL 覆盖
 ```
 
-预期冒烟最后输出 139 行 `ok = t` 并 `ROLLBACK`；竞态脚本输出 JSON 报告（9 组），`gate.violations` 为空时退出 0。
+预期冒烟最后输出 143 行 `ok = t` 并 `ROLLBACK`；竞态脚本输出 JSON 报告（9 组），`gate.violations` 为空时退出 0。
 
 `admin-directory-concurrency.log` 命中仓库根 `.gitignore` 的 `*.log`：作为证据提交时需 `git add -f`（与 [work-temporal-slice](../work-temporal-slice-2026-10-25/README.md) 里的 `*-result.log` 同一做法）。
 
@@ -89,12 +89,13 @@ python r0a-concurrency-smoke.py        # 默认 127.0.0.1:55433，可用 R0A_DAT
 - D1（2026-10-26 二次修订，`r0a-admin-directory.sql`）：新增 `work.audit_export` 表、`work_directory` 角色与 14 个领域函数，把 U2 方案 B 与 ADR-0021 从“只有 API 承诺”变成有落点的数据层。新增 24 项断言覆盖：投影只经 `sync_*` 写入（`work_api`/`work_worker` 无 EXECUTE、`work_directory` 无直接 DML）、修订号单调、跨组织上下文拒绝、目录同步不覆盖 `operator_suspended`、撤席位后新工作在 `create_input` 就被拒、非管理员读治理信息与创建导出被拒、`admin_overview` 的 cents 与 `budget_account` 逐字段相等、席位总数不受 keyset 分页影响、导出幂等重放与异体 409、时间范围/留存窗口校验、worker 租约独占与错误 worker 收尾拒绝、失败作业不可再领取、清扫过期计数、一次性下载令牌（服务存哈希、兑换一次即失效、重复发放拒绝）、跨组织读取不泄露作业存在性、审计轨迹不含正文。
 - D1（2026-10-26 三次修订）：留存清扫 6 项（TTL 窗口、共享引用两个输入、只过期不粉碎、共享引用只投递一次、重复清扫返回 0、按组织作用域）+ 投影单调性写入谓词哨兵 1 项 → 114/114。
 - D1（2026-10-26 四次修订，D-08）：金额账本改 token 配额（`quota_*`、去 `currency`/`price_version`、`wait_reason` 改 `quota`）；新增接入配置/凭证/用量日聚合与组织 Run 上限；新增 25 项断言覆盖 Run 级上限、演示组织周期硬上限、软账户不阻断、接入配置版本与跨组织拒绝、托管 Key 只写不回读、凭证吊销即时生效、用量本人可见与组织按模型汇总 → **139/139**。
+- D1（2026-10-27 五次修订，D-03 B 静态凭证）：`provider_credential` 允许 `managed_key` 的 `wrapped_dek`/`kms_key_ref` 同时为 NULL（静态单层加密）或成对出现（未来 KMS）；create/rotate 支持两种形态；新增静态创建、静态轮换、KMS 字段成对拒绝、resolve 静态凭证 4 项断言 → **143/143**。
 - D1（并发竞态，9 组）：**同一批竞态测出并修复了一个真实缺陷**——`sync_org_projection`/`sync_member_projection` 用"先读校验、再 upsert"的写法，8 个乱序修订号并发时全部报"成功"，终态却停在 org 5 / member 6：高修订号被低修订号覆盖，已撤的席位可被重放复活。修法是把单调性写进 `ON CONFLICT … DO UPDATE … WHERE revision < EXCLUDED.revision`，返回行缺失即 `projection_revision_stale`；冒烟加哨兵，竞态脚本作判定。其余为通过项：领取 1 胜 9 拒、旧持有者收尾被拒、5 路兑换 1 成功、3 路清扫对 2 个共享引用各投一次粉碎、撤权提交前 6 笔穿透且提交后被拒、900 次管理读全部落在已结算分录的前缀和上；D-08 新增：6 路并发配置写 1 成功 5 冲突且始终单 active、10 路并发用量累加零丢失。
 - D1：所有 `work` schema 函数为 `SECURITY DEFINER`，`work_api`/`work_worker` 无事实表直接 DML；所有租户表 `ENABLE` + `FORCE ROW LEVEL SECURITY`；`work_api`/`work_worker` 对 `work.audit_export` 无 SELECT（作业元数据只经领域函数出入）。
 - D2：OpenAPI 3.1 校验通过（D-08 后 29 path/33 operation）；生成类型 `tsc --noEmit` 通过；合同测试 12/12、生成客户端 13/13、Host 端口 9/9，合计 **34/34**。
 - D2：`scripts/ci-contract.mjs` 通过：33 个操作与冻结集一致、29 个 path、管理路径 12/12（6 读 + 用量 + 接入配置/凭证）、导出兑换必须带 `X-Download-Token` 且不存在 `download_url` 字段、生成客户端无漂移、类型包含全部 operation/引用的 schema、错误码目录与 mock（45 码）及 `r0a-schema-draft.sql`（104 码）双向一致、无自由文本 RAISE、`retryable` 仅 5xx/429；34/34 测试通过。
 - D2/ADR-0021：`host-ports.mjs` + `we-meet-host-adapter.mjs` + `stub-host.mjs` 证明边界可执行：缺 `subject_id`/`work_seat` 时报 gap（不猜映射、不把 token 配额当席位或金额），BillingExport 只收 token 字段、金额字段报 `incompatible_source`，同一套端口在 stub host 上产出同形状投影；静态检查要求 Work 运行面文件不 import 适配器、不出现他系统 schema 名，且适配器不写 SQL。
-- CI：`.github/workflows/work-r0a-gates.yml` 已定义 contract（含 schema 再生成无漂移）、db-smoke（PG16 schema + 139 项冒烟 + 9 组竞态）、ops-telemetry（规则再生成 + 模型测试 + promtool 校验/单测）、runtime-frontend、log-scan 六个 job；**已在远端运行**——PR #7（commit `62affea4b`）首次跑 6/6 通过（31s）；首跑曾败于 `orchestration-contract` 缺 PyYAML，已在同一 PR 修复。仓库全量流水线也已跑绿（head `9494f79b0`：meet Workflow 15/15、Release guard 通过，PR #7 25/25 检查通过且可合并）。
+- CI：`.github/workflows/work-r0a-gates.yml` 已定义 contract（含 schema 再生成无漂移）、db-smoke（PG16 schema + 143 项冒烟 + 9 组竞态）、ops-telemetry（规则再生成 + 模型测试 + promtool 校验/单测）、runtime-frontend、log-scan 六个 job；**已在远端运行**——PR #7（commit `62affea4b`）首次跑 6/6 通过（31s）；首跑曾败于 `orchestration-contract` 缺 PyYAML，已在同一 PR 修复。仓库全量流水线也已跑绿（head `9494f79b0`：meet Workflow 15/15、Release guard 通过，PR #7 25/25 检查通过且可合并）。
 
 ## 未验证
 

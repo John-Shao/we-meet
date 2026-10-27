@@ -1851,7 +1851,7 @@ DO $$ BEGIN
 END $$;
 INSERT INTO smoke_assert SELECT 'provider_credential_owner_only', true;
 
--- 演示组织（org2）用我们自己的阿里云 Qwen：托管 Key 只存密文与指纹。
+-- 演示组织（org2）用我们自己的阿里云 Qwen：静态单层加密，只存密文与指纹。
 RESET ROLE;
 SET LOCAL app.org_id = 'org2';
 SET LOCAL ROLE work_api;
@@ -1859,10 +1859,23 @@ SET LOCAL app.subject_id = 'user2';
 SELECT credential_id AS d08_cred, key_version AS d08_cred_v
 FROM work.create_provider_credential(
   'org2', 'user2', 'aliyun', 'managed_key', NULL,
-  decode('0f1e2d3c', 'hex'), decode('aabbccdd', 'hex'), 'kms://demo/aliyun', 'fp-demo-aliyun-0001'
+  decode('0f1e2d3c', 'hex'), NULL, NULL, 'fp-demo-aliyun-0001'
 ) \gset
 INSERT INTO smoke_assert SELECT 'provider_credential_created',
   :'d08_cred'::uuid IS NOT NULL AND :'d08_cred_v'::int = 1;
+RESET ROLE;
+SELECT (wrapped_dek IS NULL AND kms_key_ref IS NULL
+        AND secret_ciphertext IS NOT NULL) AS d08_static_ok
+FROM work.provider_credential WHERE id = :'d08_cred'::uuid \gset
+SET LOCAL app.org_id = 'org2';
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user2';
+INSERT INTO smoke_assert SELECT 'provider_credential_static_mode', :'d08_static_ok'::boolean;
+SELECT work.rotate_provider_credential(
+  'org2', 'user2', :'d08_cred'::uuid, decode('0f1e2d3d', 'hex'),
+  NULL, NULL, 'fp-demo-aliyun-0001b'
+) AS d08_rotated \gset
+INSERT INTO smoke_assert SELECT 'provider_credential_static_rotate', :'d08_rotated'::int = 2;
 INSERT INTO smoke_assert SELECT 'provider_credential_audit_no_secret',
   EXISTS (
     SELECT 1 FROM work.audit_event a
@@ -1887,6 +1900,20 @@ DO $$ BEGIN
   END;
 END $$;
 INSERT INTO smoke_assert SELECT 'provider_credential_mode_consistency', true;
+
+-- KMS 预留路径要求 wrapped_dek 与 kms_key_ref 成对出现，禁止半套字段。
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.create_provider_credential(
+      'org2', 'user2', 'volcengine', 'managed_key', NULL,
+      decode('00', 'hex'), decode('11', 'hex'), NULL, 'fp-kms-pair-bad'
+    );
+    RAISE EXCEPTION 'expected_invalid_credential';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'invalid_request:credential' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'provider_credential_kms_pair_consistency', true;
 
 -- 同一 provider 同时只能有一个 active 凭证（409 语义，不靠唯一索引报 23505）。
 DO $$ BEGIN
@@ -1958,10 +1985,14 @@ INSERT INTO smoke_assert SELECT 'org1_sts_config_active',
 RESET ROLE;
 SET LOCAL ROLE work_worker;
 SET LOCAL app.org_id = 'org2';
-SELECT provider AS d08_provider, model AS d08_model, credential_mode AS d08_mode
+SELECT provider AS d08_provider, model AS d08_model, credential_mode AS d08_mode,
+       wrapped_dek IS NULL AS d08_no_dek, kms_key_ref IS NULL AS d08_no_kms,
+       secret_ciphertext IS NOT NULL AS d08_has_ciphertext
 FROM work.resolve_provider_context('org2') \gset
 INSERT INTO smoke_assert SELECT 'provider_resolve_own_org',
   :'d08_provider' = 'aliyun' AND :'d08_model' = 'qwen3.8-flash' AND :'d08_mode' = 'managed_key';
+INSERT INTO smoke_assert SELECT 'provider_resolve_static_credential',
+  :'d08_no_dek'::boolean AND :'d08_no_kms'::boolean AND :'d08_has_ciphertext'::boolean;
 DO $$ BEGIN
   BEGIN
     PERFORM work.resolve_provider_context('org1');
@@ -2004,7 +2035,7 @@ SET LOCAL app.subject_id = 'user2';
 SELECT credential_id AS d08_cred2
 FROM work.create_provider_credential(
   'org2', 'user2', 'aliyun', 'managed_key', NULL,
-  decode('44556677', 'hex'), decode('8899aabb', 'hex'), 'kms://demo/aliyun', 'fp-demo-aliyun-0002'
+  decode('44556677', 'hex'), NULL, NULL, 'fp-demo-aliyun-0002'
 ) \gset
 SELECT config_id AS d08_cfg3, revision AS d08_rev3
 FROM work.set_provider_config(

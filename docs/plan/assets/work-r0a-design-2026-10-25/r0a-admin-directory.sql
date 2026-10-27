@@ -321,8 +321,9 @@ BEGIN
     RAISE EXCEPTION 'invalid_request:fingerprint' USING ERRCODE = '22023';
   END IF;
   IF p_mode = 'managed_key' THEN
-    IF p_secret_ciphertext IS NULL OR p_wrapped_dek IS NULL OR p_kms_key_ref IS NULL
-       OR length(p_kms_key_ref) = 0 OR p_role_ref IS NOT NULL THEN
+    IF p_secret_ciphertext IS NULL OR p_role_ref IS NOT NULL
+       OR (p_wrapped_dek IS NULL) <> (p_kms_key_ref IS NULL)
+       OR (p_kms_key_ref IS NOT NULL AND length(btrim(p_kms_key_ref)) = 0) THEN
       RAISE EXCEPTION 'invalid_request:credential' USING ERRCODE = '22023';
     END IF;
   ELSIF p_mode = 'sts_role' THEN
@@ -383,8 +384,10 @@ BEGIN
   IF credential.mode <> 'managed_key' THEN
     RAISE EXCEPTION 'invalid_request:credential_mode' USING ERRCODE = '22023';
   END IF;
-  IF p_secret_ciphertext IS NULL OR p_wrapped_dek IS NULL OR p_kms_key_ref IS NULL
-     OR p_secret_fingerprint IS NULL OR length(btrim(p_secret_fingerprint)) NOT BETWEEN 8 AND 64 THEN
+  IF p_secret_ciphertext IS NULL OR p_secret_fingerprint IS NULL
+     OR length(btrim(p_secret_fingerprint)) NOT BETWEEN 8 AND 64
+     OR (p_wrapped_dek IS NULL) <> (p_kms_key_ref IS NULL)
+     OR (p_kms_key_ref IS NOT NULL AND length(btrim(p_kms_key_ref)) = 0) THEN
     RAISE EXCEPTION 'invalid_request:credential' USING ERRCODE = '22023';
   END IF;
   new_version := credential.key_version + 1;
@@ -537,6 +540,7 @@ END;
 $$;
 
 -- 网关/运行时取凭证的唯一入口：只能取本组织的 active 配置与 active 凭证。
+-- wrapped_dek/kms_key_ref 为 NULL 表示静态单层加密；两者都有值表示预留的 KMS 信封。
 CREATE FUNCTION work.resolve_provider_context(p_org_id text)
 RETURNS TABLE (
   config_id uuid,

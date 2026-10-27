@@ -1,6 +1,6 @@
 # Work R0a 数据、权限与迁移详细设计（D1）
 
-> 状态：D1 详细设计草案；可执行 SQL 已在独立 PostgreSQL 16 通过 **139/139** 冒烟（2026-10-26 D-08 修订：金额账本改 token 配额、新增接入配置/凭证/用量日聚合，+25 项断言）（2026-10-26 首轮修订在 58 项基础上新增 24 项 → 82：会话主体绑定、原因码枚举化、outbox 租约/跨组织 relay、死信阻塞、运维重放/跳过审计、启动前取消与 cancel_requested 收尾、成果编辑状态门槛；同日二次修订再增 24 项 → 106：管理只读聚合、目录投影写入、异步审计导出生命周期；同日三次修订补留存清扫与共享引用只粉碎一次 → 113，再补投影单调性写入谓词哨兵 → 114），并用多连接并发脚本实测 **9 组**竞态（原 7 组；D-08 新增接入配置并发写与用量并发累加；早期测出并修复了目录投影的丢更新缺陷），未评审、未应用生产。
+> 状态：D1 详细设计草案；本地独立 PostgreSQL 16 已通过 **143/143** 冒烟（2026-10-26 D-08 修订：金额账本改 token 配额、新增接入配置/凭证/用量日聚合，+25 项断言；2026-10-27 D-03 B 静态凭证再 +4 项，待提交）（2026-10-26 首轮修订在 58 项基础上新增 24 项 → 82：会话主体绑定、原因码枚举化、outbox 租约/跨组织 relay、死信阻塞、运维重放/跳过审计、启动前取消与 cancel_requested 收尾、成果编辑状态门槛；同日二次修订再增 24 项 → 106：管理只读聚合、目录投影写入、异步审计导出生命周期；同日三次修订补留存清扫与共享引用只粉碎一次 → 113，再补投影单调性写入谓词哨兵 → 114），并用多连接并发脚本实测 **9 组**竞态（原 7 组；D-08 新增接入配置并发写与用量并发累加；早期测出并修复了目录投影的丢更新缺陷），未评审、未应用生产。
 >
 > 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界；同日按 [D-08 决策单](work-r0a-provider-account-metering-decision-2026-10-26.md) 改为 token 配额模型；D-08a 已于 2026-10-27 由产品签收，b/d/c/d 未签）
 >
@@ -27,7 +27,7 @@ D1 的目标是回答四个问题：
 - `work_api`/`work_worker` 只有 `SELECT` 和指定函数 `EXECUTE`，没有事实/账本表的直接 `INSERT/UPDATE/DELETE`。
 - 所有 `work` schema 函数改为 `SECURITY DEFINER`，固定 `search_path = work, pg_catalog`，由 `work_owner` 拥有。
 - 冒烟覆盖输入/提交幂等、scope 拒绝、直接 DML 拒绝、跨租户 RLS、派发、token 配额结算/修正与硬上限、接入配置跨组织隔离、凭证吊销、用量越权、成果发布、采纳、审批、取消/重试、outbox 与 task summary。
-- 冒烟结果：**139/139 断言通过**（首轮 58 → 82 → 106 → 113 → 114；D-08 再增 25 项：配额单位、Run 级上限、演示组织周期硬上限、软账户不阻断、接入配置版本/跨组织拒绝、托管 Key 只写不回读、凭证吊销即时生效、用量本人可见与组织按模型汇总）；负例块在失败时会中止脚本。
+- 冒烟结果：**143/143 断言通过**（首轮 58 → 82 → 106 → 113 → 114；D-08 再增 25 项：配额单位、Run 级上限、演示组织周期硬上限、软账户不阻断、接入配置版本/跨组织拒绝、托管 Key 只写不回读、凭证吊销即时生效、用量本人可见与组织按模型汇总；D-03 B 再增 4 项：静态单层创建、静态轮换、KMS 字段成对拒绝、resolve 返回静态凭证）；负例块在失败时会中止脚本。
 - 并发结果：**7 组多连接竞态全部通过不变量门禁**（导出领取/租约接管/一次性下载凭证/投影乱序与重复投递/到期清扫共享引用/撤权窗口/管理读与结算交错），见 §6.2；同一批竞态在修复投影写入前测出丢更新，属 D1 的真实缺陷而非通过项。
 
 复现命令：
@@ -60,7 +60,7 @@ python r0a-concurrency-smoke.py
 | 审批 | `approval`、`approval_operation`、`approval_decision` | 操作绑定、revision、不可变决定；R0a golden path 不产生手工审批 |
 | 去重 | `submission_dedup` | 跨 Task 的提交幂等与删除 tombstone |
 | token 配额（D-08） | `quota_account`、`quota_reservation`、`quota_entry` | 整数 token、`enforcement`（soft/hard）、reservation_seq、settlement_revision、追加账目；不存币种与价目版本 |
-| 模型接入（D-08） | `provider_credential`、`provider_access_config`、`usage_daily` | 凭证按组织隔离、只存密文与指纹；每组织一条 active 配置、版本化；用量按 (org, user, provider, model, 日) 聚合 |
+| 模型接入（D-08） | `provider_credential`、`provider_access_config`、`usage_daily` | 凭证按组织隔离、只存密文与指纹；static 模式 `wrapped_dek`/`kms_key_ref` 均为 NULL，两者成对出现表示预留 KMS 信封；每组织一条 active 配置、版本化；用量按 (org, user, provider, model, 日) 聚合 |
 | 成果 | `artifact`、`artifact_version`、`upload_session`、`acceptance`、`artifact_tombstone` | 不可变版本、发布、采纳与删除事实 |
 | 事件 | `task_event`、`audit_event`、`outbox` | 每 Task 单调 seq、追加审计、投递 |
 | 管理 | `audit_export` | 异步审计导出作业：范围、格式、租约、Content Store 引用、一次性下载凭证哈希 |
@@ -281,7 +281,7 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 10. **用户编辑/上传**：文本版本命令 `create_user_artifact_version` 已实现（状态门槛见 §5.2）；`upload_session` 表已建，但文件上传流程未在 D1 实现，D2/D5 补。
 11. **所有权转移/离职**：Task/成果接管仍是试点运营兜底，未做成产品化命令。
 12. **Admin 只读**：方案 B 的落点已在 D1/D2 落地（席位、token 配额、异步导出作业与一次性下载凭证）。仍未闭合的是 Host 侧字段：P1-A 目前只回 `user_id` 与 token 配额，缺 `subject_id`、`work_seat` 布尔、成员 `revision` 与组织 `name`/`home_region`（C31 保持 partial）。
-13. **D-08 签收进度**：D-08a 已由产品于 2026-10-27 签收（法务待指定），C15 已于同日 waived（百炼 + 演示数据，P1–P5 不适用）；D-08b/D-08d 待 DR0 按 (b) 自证签收，D-08c/D-08d 待 DR1 冻结。托管 Key 的 KMS 具体形态、吊销在途调用语义与配置探测参数仍在 DR0/DR1 上确认。
+13. **D-08 签收进度**：D-08a 已由产品于 2026-10-27 签收，法务 Lily Zhu（授权 11-06 前确认）；C15 已于同日 waived（百炼 + 演示数据，P1–P5 不适用）；D-08b 会前确认 A managed_key、B2/B6 按 D-03 B 静态单层加密重写，D1 已最小修订并复跑 143/143，D-08c/D-08d 待 DR1 冻结。静态主密钥的托管/派生/轮换、吊销在途调用语义与配置探测参数仍在 DR0/DR1 上确认。
 14. **用量与对账**：`usage_daily` 由 worker 在结算路径调用 `record_usage` 写入；漏调时事实缺失不会被补偿。R0a 只保证接口与权限，生产需在 E5 的网关/结算事务里强制同写，并加漏记告警。
 13. **独立产品边界**：五个 Host 端口有了可执行契约与 WeMeet 适配器 + stub host（9/9 测试），`org`/`member` 只有一条 `work_directory` 写入路径；投影的乱序与重复投递已有多连接竞态证据（§6.1，含一个已修的丢更新缺陷）。仍开放：投影仍可能滞后于权威目录，撤权新鲜度依赖 Host 同步频率；R1 前的 stub-host 剥离演练未做（ADR-0021）。
 14. **撤权是否自动停止在途 Run**：投影写入只记录 `entitlement_lost`，不调用 `request_cancel`，也不由 `sync_member_projection` 直接杀 Run——避免目录同步与编排抢同一状态机。竞态实测给了这条决策一个具体量：撤权事务提交前已开始的 6 笔新工作全部穿透，提交后的新事务才 `work_seat_required`；修复投影丢更新之前，并发重放还能把已撤的席位覆盖回去。是否改为“撤权即自动请求取消”属产品/安全决策，需在 DR1 定案（D-07）；当前设计是下一次派发/授权时被投影拦住，在途 Run 由人工或运营流程取消。

@@ -232,7 +232,7 @@ node pilot-capacity-model.mjs
 
 **当前：no-go，19 个 blocking 项未关闭（C01/C02/C14 已提前签、C15 已 waived）。** 主要阻塞：
 
-- D1–D5 设计尚未正式评审；D1 冒烟 139/139 + 竞态 9/9、Temporal 参考纵切 10/10 已完成，但 S1 多节点/在途 server 重启与正式评审仍未完成。
+- D1–D5 设计尚未正式评审；D1 冒烟 143/143 + 竞态 9/9、Temporal 参考纵切 10/10 已完成，但 S1 多节点/在途 server 重启与正式评审仍未完成。
 - D2 生成客户端未接真实前端（R0a 门禁已在 PR #7 首次跑绿，仓库全量流水线 meet Workflow 也已 15/15 跑绿）；D4 真实 gVisor/Content Store/云 KMS/供应商条款；D5 React/E2E；C22 多节点/在途 server 重启。
 - C31 管理只读映射缺口：[映射说明](work-r0a-admin-readonly-mapping-2026-10-25.md) 明确 P1-A 的 role/revision/预算/异步导出不兼容；2026-10-26 决策 B 已把预算/席位统计/导出作业搬到 Work 侧（D1 114/114 冒烟 + 竞态 7/7），剩余缺口是 Host 必须经端口提供 `subject_id`/`role`/`revision`/席位布尔与组织字段；端口契约与 WeMeet 适配器已可执行但未接真实 P1-A/身份服务。
 - 威胁模型/控制签收；sandbox proof；供应商条款/价表；无正文日志只在本地证据日志扫描，未接 staging OTel/log pipeline。

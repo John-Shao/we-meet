@@ -60,7 +60,7 @@
 
 | 包 | 文档 | 说明 |
 |---|---|---|
-| D1 | [数据、权限与迁移](work-r0a-data-design-2026-10-25.md) | 表裁剪、RLS、SECURITY DEFINER 命令、outbox、管理只读聚合与目录投影、异步导出作业、留存清扫、token 配额与模型接入；139/139 冒烟 + 9 组多连接竞态（D-08a 已签、c/d 未冻结） |
+| D1 | [数据、权限与迁移](work-r0a-data-design-2026-10-25.md) | 表裁剪、RLS、SECURITY DEFINER 命令、outbox、管理只读聚合与目录投影、异步导出作业、留存清扫、token 配额与模型接入；143/143 冒烟 + 9 组多连接竞态（D-08a 已签、c/d 未冻结） |
 | D2 | [API、事件与协议](work-r0a-api-design-2026-10-25.md) | 29 path/33 operation（管理读 6 + 用量 2 + 接入配置/凭证 6）、错误码 v3、mock、合同/客户端/端口测试（D-08a 已签、c/d 未冻结） |
 | D3 | [控制面与持久编排](work-r0a-orchestration-design-2026-10-25.md) | Temporal 拓扑、取消四时点、unknown/reconcile、跨组织 relay、§11 非 Run 后台作业与停止语义、托管决策单（§4.1）、D-07 |
 | D4 | [Runtime、Harness 与出口](work-r0a-runtime-egress-design-2026-10-25.md) | 沙箱、工具白名单、模型网关、usage/价表、供应链准入 |
@@ -76,13 +76,13 @@
 | — | [C03 阻塞与演练清单](work-r0a-c03-u3-drills-2026-10-27.md) | **U3 九项已确认（2026-10-27，全部"是"）**；C22 四项演练（11-15/16，开发与测试 5 人）、D3-N01/N03/N06 崩溃/开关与 S1 多节点重启；C03 仍待演练，DR2 签收 |
 | — | [C11 未关闭控制处置单](work-r0a-c11-open-controls-decision-2026-10-27.md) | **S09 政策已签（365/24h/180d）**，S06/S09/S10 均为 partial；安全控制 0 open / 16 partial / 2 out_of_scope；C11 按 DR3 12-01 签，附残余风险清单 |
 | — | [开工闸门 8 项处置单](work-r0a-start-gate-disposition-2026-10-27.md) | **C01/C02/C14 已于 2026-10-27 提前签**（start 8→5）；C04 需 D-08b；C03/C05/C11/C25 需外部/实证；含代价与 11-03—12-01 动作表 |
-| — | [D-08 大模型接入账号与计量边界决策单](work-r0a-provider-account-metering-decision-2026-10-26.md) | **D-08a 产品已签 2026-10-27、法务待指定；b/d 走 (b) 自证待 DR0；c/d 待 DR1**：Work 不算钱只统计 token、客户自带账号、演示组织独接阿里云 Qwen、凭证方案 (i)、token 护栏取代 cents 账本、用量可见性、管理台 owner 写；R1–R10 细则、对 D1/D2/D4/D6/C15 的冲击面与 D-08a–d 签收栏 |
+| — | [D-08 大模型接入账号与计量边界决策单](work-r0a-provider-account-metering-decision-2026-10-26.md) | **D-08a 产品已签 2026-10-27、法务 Lily Zhu（授权 11-06 前确认）；D-08b 会前确认（A managed_key，B2/B6 静态改写）；c/d 待 DR1**：Work 不算钱只统计 token、客户自带账号、演示组织独接阿里云 Qwen、凭证方案 (i)、token 护栏取代 cents 账本、用量可见性、管理台 owner 写；R1–R10 细则、对 D1/D2/D4/D6/C15 的冲击面与 D-08a–d 签收栏 |
 
 ### 2.4 R0a 可执行资产
 
 | 资产 | 内容与证据 |
 |---|---|
-| [work-r0a-design](assets/work-r0a-design-2026-10-25/README.md) | schema/函数/冒烟（139/139，含管理读+投影+导出作业 24 项与 D-08 25 项）+ 9 组多连接竞态脚本与输出日志、OpenAPI（29 path/33 operation）、生成客户端/类型、mock、错误码目录 v3（50 公开/104 SQL）、Host 端口契约/WeMeet 适配器/stub host、CI 门禁；设计包 34/34 |
+| [work-r0a-design](assets/work-r0a-design-2026-10-25/README.md) | schema/函数/冒烟（143/143，含管理读+投影+导出作业 24 项、D-08 25 项与静态凭证 4 项）+ 9 组多连接竞态脚本与输出日志、OpenAPI（29 path/33 operation）、生成客户端/类型、mock、错误码目录 v3（50 公开/104 SQL）、Host 端口契约/WeMeet 适配器/stub host、CI 门禁；设计包 34/34 |
 | [work-r0a-orchestration](assets/work-r0a-orchestration-2026-10-25/README.md) | RunWorkflow + 后台作业类型契约、18 项故障矩阵 YAML（含 6 个 D3-N 作业用例） |
 | [work-temporal-slice](assets/work-temporal-slice-2026-10-25/README.md) | Temporal dev 参考纵切：故障 10/10、normal 1/1、S1 4/4 + 升级 1/1 |
 | [work-r0a-runtime](assets/work-r0a-runtime-2026-10-25/README.md) | WorkAdapter、工具/沙箱/出口策略、usage 对账、供应链准入；策略 10/10 + usage/供应链 19/19 |
@@ -181,7 +181,7 @@
 
 | 步骤 | 范围 | 覆盖模块 | 产物/证据 | 依赖/闸门 |
 |---|---|---|---|---|
-| E1 数据层 | D1 schema/函数/RLS/outbox + `work.audit_export`/`work_directory` 纳入迁移体系 | Task/Run、Artifact、Quota、Audit、Access | **E1 草案已落 `src/backend/work/sql/`**：在本机 PG16 上 roles+schema 应用后 **139/139** 冒烟通过；legacy `work` app/表迁移未迁数据 | D-04（DR0 11-03 前签；此前不注册 `INSTALLED_APPS`、不合并共享环境）、DR1；**E1 已于 2026-10-27 启动** |
+| E1 数据层 | D1 schema/函数/RLS/outbox + `work.audit_export`/`work_directory` 纳入迁移体系 | Task/Run、Artifact、Quota、Audit、Access | **E1 草案已落 `src/backend/work/sql/`**：在本机 PG16 上 roles+schema 应用后 **143/143** 冒烟通过；legacy `work` app/表迁移未迁数据 | D-04（DR0 11-03 前签；此前不注册 `INSTALLED_APPS`、不合并共享环境）、DR1；**E1 已于 2026-10-27 启动** |
 | E2 API | 33 operation、cookie+CSRF、错误码、幂等、正文下载、管理只读 6 接口、用量 2 接口、接入配置/凭证 6 接口、目录投影同步作业 | 首页/Composer、我的工作、任务/成果、Inbox、管理、接入配置 | 34/34；`ci-contract` | E1、D-02（DR0）、D-08c/d（DR1）、U2 |
 | E3 SSE/outbox | Last-Event-ID/409 resync、跨组织 relay、生命周期事件 | 任务工作区、Inbox、审计 | Temporal 切片 relay 部分；生产 SSE 未接 | E1、E2 |
 | E4 编排 | Temporal、取消四时点、unknown/reconcile、worker versioning | 任务/运行、配额（审批函数内部保留） | 故障 10/10、S1 4/4 | C03/C22 演练（U3 九项已确认）；真实部署前不签 C03 |
@@ -225,7 +225,7 @@
 | 阶段 | 状态 | 说明 |
 |---|---|---|
 | R0a 详细设计 | 可评审草案 | D1–D6 文档与资产齐备；4 个未决项（U2 已定待签收） |
-| R0a 产品代码 | **有条件启动（2026-10-27）** | legacy `work` 后端/前端/部署/Helm 已删（数据用 `deploy/aliyun/drop-legacy-work.sql` 手工清理，不迁移）；E1 草案已落 `src/backend/work/sql/`，本地 139/139；E2/E3 随后；生产/试点未放行 |
+| R0a 产品代码 | **有条件启动（2026-10-27）** | legacy `work` 后端/前端/部署/Helm 已删（数据用 `deploy/aliyun/drop-legacy-work.sql` 手工清理，不迁移）；E1 草案已落 `src/backend/work/sql/`，本地 143/143；E2/E3 随后；生产/试点未放行 |
 | R0b+（本机/连接器/项目） | 未开始 | R1–R5 仅有产品/UX/架构方向 |
 | DR（设计评审）签收 | 0/5 | DR0–DR4 未开会 |
 | go/no-go | no-go | 30 blocking 中 19 未关闭（10 done / 15 partial / 4 todo / 1 waived）；开发准入是产品例外，不改变计数 |
@@ -234,7 +234,7 @@
 
 | 层 | 结果 | 位置 |
 |---|---|---|
-| D1 schema/RLS/命令 | PG16 冒烟 **139/139**（D-08 修订 +25）；多连接竞态门禁 **9/9**（新增接入配置并发写、用量并发累加；早期测出并修复目录投影丢更新） | [design assets](assets/work-r0a-design-2026-10-25/README.md) |
+| D1 schema/RLS/命令 | PG16 冒烟 **143/143**（D-08 +25、静态凭证 +4）；多连接竞态门禁 **9/9**（新增接入配置并发写、用量并发累加；早期测出并修复目录投影丢更新） | [design assets](assets/work-r0a-design-2026-10-25/README.md) |
 | D2 契约 | 29 path/33 operation（D-08 新增 8 个接入配置/用量接口）；**34/34**（合同 12 + 客户端 13 + Host 端口 9）；错误码 50 公开/104 SQL | 同上 |
 | D3 编排 | Temporal dev 故障 **10/10** + normal 1/1；S1 **4/4** + 升级 1/1；RLS 3/3、10 并发 1/1；契约 tsc 通过、故障矩阵 18 例（D3-N02–N05 数据库侧交错已由竞态实测；崩溃注入与开关演练未执行） | [temporal slice](assets/work-temporal-slice-2026-10-25/README.md) |
 | D4 Runtime | 策略 **10/10**；usage/供应链 **19/19**；KMS 6/6；日志扫描 8/8 | [runtime](assets/work-r0a-runtime-2026-10-25/README.md)、[hardening](assets/work-r0a-hardening-2026-10-25/README.md) |
@@ -275,8 +275,9 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 - 管理面：**方案 B**（新增 R0a 管理读接口，P1-A 只提供权限/租户），待 DR1 签收。二次修订已把 B 落成设计物：`work.audit_export` 作业 + `work_directory` 投影写入 + `admin_overview`/`list_seats` 聚合 + 6 个管理读接口 + 一次性下载凭证（走 `X-Download-Token`，不进 URL）。
 - 模型供应商（2026-10-27 收窄）：**R0a 平台自持账号只接阿里云百炼上的 Qwen（`qwen3.8-flash`）**，用于演示组织且只用演示数据；DeepSeek/火山由客户自带账号、自担条款与计费。Work 不再按 provider 维护价表或 `price_version`，价目快照只作成本参考（`usableInLedger:false`）；R0a 每组织一条接入配置，不做跨厂商自动切换。
 - Temporal：**已定自托管（U3 = A，2026-10-26）；九项承诺已于 2026-10-27 确认、资源已批、演练由开发与测试 5 人排期**；A2/A4/A8 数值随资源单回填，C22 待四项演练。
-- **D-07（新增，待 DR1 定案）**：撤席位/停用后在途 Run 怎么办。现状只拦"新工作"；推荐 B——投影同步检测到失权后经 `request_cancel` 定向取消，可按组织关闭；适配器无权直接停 Run。
-- **D-08（2026-10-27 D-08a 产品已签、法务待指定；D-08b/d 走 (b) 自证待 DR0；D-08c/d 待 DR1；D1/D2 修订稿已合并）**：Work **不计算模型费用**，只统计 token（每用户 + 组织按模型分列，C 端可见本人用量，标"仅供参考"）；客户用自己的云厂商账号、无平台兜底账号；独立演示组织只接阿里云百炼上的 Qwen 且配置不共享（演示数据，P1–P5 不适用）；阿里云/火山走客户授权角色 + STS，DeepSeek Key 由平台托管（加密、只写不回读、可即时吊销、强审计）；cents 账本改为 token 护栏（Run 级硬上限，演示组织周期硬上限）；扩大 R0a 范围允许组织 owner 写接入配置。上条模型供应商里的 `price_version`、最贵路径上界、PC-1/PC-2 已随 D-08a 作废；C15 已于 2026-10-27 waived（百炼 + 演示数据，P1–P5 不适用）。详见[决策单](work-r0a-provider-account-metering-decision-2026-10-26.md)。
+- **D-01–D-06（2026-10-27 会前确认，DR0 追认）**：D-01 A 单区域同区多 AZ；D-02 A cookie + CSRF/同源 SSE（C02 不返工）；**D-03 B 静态服务密钥 + 单层静态凭证加密（全局主密钥 + 按 `org_id` 派生）**，D1 最小修订、C01 在 DR1 附修订；D-04 A 领域命令 + 独立角色；D-05 A 每 Run 一 Pod（C14 runc 降级）；D-06 A 新 `/work` 不迁移。
+- **D-07（2026-10-27 会前确认进入 R0a，DR1 定案）**：撤席位/停用后在途 Run 怎么办。现状只拦"新工作"；推荐 B——投影同步检测到失权后经 `request_cancel` 定向取消，可按组织关闭；适配器无权直接停 Run。
+- **D-08（2026-10-27 D-08a 产品已签、法务 Lily Zhu（授权 11-06 前确认）；D-08b 会前确认演示组织 A managed_key、B1–B10 通过但 B2/B6 因 D-03 静态密钥重写；D-08c/d 待 DR1；D1/D2 修订稿已合并）**：Work **不计算模型费用**，只统计 token（每用户 + 组织按模型分列，C 端可见本人用量，标"仅供参考"）；客户用自己的云厂商账号、无平台兜底账号；独立演示组织只接阿里云百炼上的 Qwen 且配置不共享（演示数据，P1–P5 不适用）；阿里云/火山走客户授权角色 + STS，DeepSeek Key 由平台静态加密托管（只写不回读、可即时吊销、强审计）；cents 账本改为 token 护栏（Run 级硬上限，演示组织周期硬上限）；扩大 R0a 范围允许组织 owner 写接入配置。上条模型供应商里的 `price_version`、最贵路径上界、PC-1/PC-2 已随 D-08a 作废；C15 已于 2026-10-27 waived（百炼 + 演示数据，P1–P5 不适用）。详见[决策单](work-r0a-provider-account-metering-decision-2026-10-26.md)。
 - **R0a 留存政策（2026-10-27）**：审计 365 天；输入 24h TTL；任务/成果最后更新后 180 天转只读/归档，再导出或删除；用户删除写 tombstone 并粉碎内容；演示组织 `cn-north`；生产 KMS/Content Store/删除演练属 E5。S09 因此从 open 转 partial，C11 按 DR3 12-01 签。
 - **非 Run 后台作业（D3 §11）**：六类作业有清单、租约/公平规则与停止语义——投递与留存属义务作业，kill switch 不能停；对应指标/告警与运行手册 §5.1/§5.2 已落地。
 - Host 边界：五个端口的形状、WeMeet 适配器与独立产品 stub host 已可执行（端口测试 9/9）；投影只允许 `work_directory` 经 `sync_*` 写入，适配器不写 SQL、不把 token 配额当席位或预算。
@@ -287,7 +288,7 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 
 | 项 | 状态 | 需要谁 |
 |---|---|---|
-| U1 可用性验证 | 研究执行包就绪，**招募与执行排期单已发**[U1 招募与执行排期单](work-r0a-usability-recruit-plan-2026-10-26.md)；未招募/未执行（11-16 锁定名单 → 11-20～24 执行 → 11-27 报告） | 产品 + 设计 + 运营；7–8 名设计伙伴（管理员 ≥3）、≥3 家组织 |
+| U1 可用性验证 | 研究执行包就绪，**招募与执行排期单已发**[U1 招募与执行排期单](work-r0a-usability-recruit-plan-2026-10-26.md)；**判定集已确认 UT1–UT5，T2/T3 不计分**；未招募/未执行（11-16 锁定名单 → 11-20～24 执行 → 11-27 报告） | 产品 + 设计 + 运营；7–8 名设计伙伴（管理员 ≥3）、≥3 家组织 |
 | U2 管理页 A/B | **已定 B 并落成设计物**：6 个管理读接口 + D1 存储/聚合/投影写入 + 端口契约；DR1 需签收口径，并确认 Host 待补字段与撤权收窄策略（D1 §7.14） | 后端 + 平台 + 产品 |
 | U3 Temporal 托管 | **已定 A：自托管**；[U3 决策征询单](work-r0a-temporal-hosting-decision-request-2026-10-26.md) §3 九项已于 2026-10-27 确认（全部"是"），资源已批；A2/A4/A8 数值随资源单回填；C22 待四项演练 | 平台 + SRE（法务不再介入） |
 | U4 §9.4 检查表 | 10 项证据已预填；勾选待各 DR | 架构（评审主持） |
@@ -300,7 +301,7 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 |---|---|---|---|
 | start | 评审/研究 | C03/C04/C05/C11、C25；C01/C02/C14 已于 2026-10-27 提前签 | DR2/DR3 无法签收；研究影响 DR3 |
 | start | 安全/商务 | C11 威胁模型 | 缺 C11 即不能进 DR4；C14 已于 2026-10-27 提前签降级、试点前复评 |
-| pilot | 环境 | C22 Temporal 多节点、C09/C13 Content Store/云 KMS | E4/E5 无法上试点环境 |
+| pilot | 环境 | C22 Temporal 多节点、C09/C13 Content Store/云 KMS（**C13 的云 KMS 部分随 D-03 B 转 out_of_scope，Content Store 仍 pilot**） | E4/E5 无法上试点环境 |
 | pilot | 实施 | C07 远端 CI（R0a 六个 job 已在 PR #7 跑绿；仍缺主干/迁移体系接入与生成客户端接真实前端）、C31 管理读（Work 侧已落地，缺 Host 字段与联调）、C10 React/E2E、C16/C17 遥测（含后台作业 8 条新告警未接） | 产品实现与运维证据 |
 | pilot | 试点 | C24 三家组织、C26 黄金任务、C27/C30 支持/删除、C28/C29 切换/旧数据 | 试点 go/no-go |
 
@@ -313,7 +314,7 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 - 沙箱是 runc 降级 profile，不是 gVisor；本地 KMS 是 envelope 参考实现。
 - R0a 门禁已在 PR #7 首次远端运行并通过，仓库全量流水线（meet Workflow 15/15、Release guard）随后也跑绿——但这两者都只证明**设计资产不回归既有产品**，R0a 里还没有 Work 实现代码，所以"实现的 CI 证据"仍为零；切片需要 Docker/Temporal dev；S1-R06 与 C19 在修订后未复跑。
 - 云/本机/连接器纵切的 10/10、8/8、7/7 是历史记录，本轮未复跑。
-- D-08 修订只到设计资产：KMS 信封加密、STS 换角色、配置连通探测与上游 usage 归一都未接真实服务；D-08a 仅产品签收（法务待指定），b/d/c/d 未签；C15 已 waived（百炼 + 演示数据，P1–P5 不适用），配额到期属运营风险。
+- D-08 修订只到设计资产：静态主密钥托管/轮换、STS 换角色、配置连通探测与上游 usage 归一都未接真实服务；D-08a 产品已签、法务 Lily Zhu（授权待确认），D-08b 会前确认、B2/B6 重写，D-08c/d 未签；C15 已 waived（百炼 + 演示数据，P1–P5 不适用），配额到期属运营风险。
 
 ### 5.4 主要风险
 
@@ -333,8 +334,8 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 | 日期 | 动作 | 产出/闸门 | 负责角色 |
 |---|---|---|---|
 | 现在 | 确认 U2 B；**U3 已定 A，九项承诺已确认（2026-10-27）、资源已批；四项演练由开发与测试 5 人排期（11-06 环境预检、11-15/16 执行）**；自托管资源已批（资源单/规格待回填）；启动 U1 招募（[U1 招募与执行排期单](work-r0a-usability-recruit-plan-2026-10-26.md)，11-05 前需运营回填渠道候选数与合规限制）；开 PR 跑 6 个 CI job；**2026-10-27 获有条件开发准入，E1 已启动**（剩余 5 项 start 转遗留，计数不变）；**C15 已 waived**；**C01/C02/C14 已于 2026-10-27 提前签，C04/C05/C11/C25 待 DR 或研究**；**D-08b/d 待 DR0 走 (b) 自证签收，D-08c/d 待 DR1 冻结** | U3 已答复、资源单回填、C07 首次绿、D-08b–d | 产品 + 平台 + 商务 |
-| 2026-11-03 | DR0 范围/决策（**已排定，2026-10-26 确认**） | D-01..D-06 签收、受理 D-07；**D-08a 追认（产品已签 2026-10-27，法务待指定）**；D-08b/D-08d 按 (b) 自证签收；c/d 随 DR1 冻结；C15 已 waived，不再列入议程；确认负责人/日期；接受重基线；开场逐条决定签字独立性走 (a) 补复核人还是 (b) 书面接受自证（[签收单 §0.1](work-r0a-dr0-dr1-signoff-2026-10-26.md)） | 架构/评审主持 |
-| 2026-11-10 | DR1 数据/API | **C01/C02 提前签追认**（2026-10-27 已签）；U2 签收；**D-08c/d 冻结**；139/139、竞态 9/9、34/34、错误码 v3（50 公开/104 SQL） | 后端 + DBA/安全 |
+| 2026-11-03 | DR0 范围/决策（**已排定，2026-10-26 确认**） | **追认 D-01..D-06 会前确认（D-03 为 B 静态单层加密）**；D-07 进入 R0a；**D-08a 追认（产品已签，法务 Lily Zhu 授权 11-06 前确认）**；D-08b 按 (a)/(b) 签修订版（B2/B6 静态）；c/d 随 DR1 冻结；C15 已 waived；确认负责人/日期与重基线；签字独立性已定：关键项 (a) Lily Zhu，其余 (b)（[签收单 §0.3](work-r0a-dr0-dr1-signoff-2026-10-26.md)） | 架构/评审主持 |
+| 2026-11-10 | DR1 数据/API | **C01/C02 提前签追认**（2026-10-27 已签）；U2 签收；**D-08c/d 冻结**；143/143、竞态 9/9、34/34、错误码 v3（50 公开/104 SQL） | 后端 + DBA/安全 |
 | 2026-11-17 | DR2 编排/Runtime | **U3 九项已确认；C22 四项演练**；C04 设计；**C14 已于 2026-10-27 提前签降级** | 后端 + SRE + 平台 |
 | 2026-12-01 | DR3 体验/运维 | U1 研究结果；D5/D6 签收；威胁模型 | 前端 + 产品 + 安全 |
 | 2026-12-04 | DR4 实施就绪 | §9.4 全勾选或豁免；是否开工 | 架构/评审主持 |
@@ -396,10 +397,13 @@ Temporal 切片需要 Docker Compose/Temporal dev（Windows 主机不能直接�
 | 2026-10-26 | 代号与缩写移入附录 §10；§1 只保留 R0a/R0b 简述 |
 | 2026-10-26 | 附录增加最小记忆集、口诀与易混对照；关键首次出现补中文别名 |
 | 2026-10-26 | 新增 ADR-0021 可剥离独立产品边界；架构 §4.3、D1 §4.4、D2 §2.8、D6 §7.4 同步 |
+| 2026-10-27 | **D-03 B 静态凭证落到 D1**：`provider_credential` 支持 static（KMS 字段 NULL）与预留 KMS 成对；create/rotate 支持静态；新增 static_mode/static_rotate/kms_pair/resolve_static 4 项断言；冒烟 139→**143/143**、竞态 **9/9**；E1 schema 重新生成；L13 关闭条件剩 C01 DR1 附修订 |
+| 2026-10-27 | **11-06 演练环境/档期确认**：五席与 SRE/DBA 按角色占位（真名 11-06 补）、Temporal 2 副本/独立 PG/mTLS 可于 11-06 前就绪、namespace 配额可调、独立 Content Store 桶、kill switch 已有可操作开关；档期维持 11-15（周日）/11-16 |
+| 2026-10-27 | **DR0 会前确认（待 11-03 追认）**：D-01 A、D-02 A、D-03 B（静态单层加密，D1 最小修订/C01 DR1 附修订）、D-04 A、D-05 A、D-06 A、D-07 进入 R0a/DR1 定 B；D-08b 演示组织 A managed_key、B1–B10 通过但 B2/B6 重写；U1 UT1–UT5；C01 附修订、C02/C14 追认；Lily Zhu 独立复核 + D-08a 法务（授权待确认）；排期与负责人不变 |
 | 2026-10-27 | **状态口径清理与三项排期**：`start` 9→5 的残留（§5.2、DR0/DR1 签收单）、C11 “3 open/13 partial”→“0 open/16 partial”、U3 已答复后的“待 11-14”、D-08a 后的 cents/PC-1/2/3 过期表述统一；DR0 11-03 增会前检查表、C03 演练排期落到 11-15/16（5 席 + SRE/DBA、11-06 环境预检）、U1 增候选登记模板与 10-27～11-05 动作 |
 | 2026-10-27 | **C01/C02/C14 提前签**：C01 冻结 D1 设计、C02 冻结 29/33、C14 签"不声明 gVisor 隔离"降级；均为 (b) 自证，DR1/DR2 追认，开工闸门 8→5。C04 等 D-08b，C03/C05/C11/C25 仍需外部/实证 |
 | 2026-10-27 | **有条件开发准入**：C01/C02/C14 已签、C15/S13 已关；E1–E3 先行、E4–E6 只做契约/mock；剩余 5 项 start 与 DR0 决策转 L01–L12 遗留问题，`canStartWork` 仍 false、生产/试点未放行 |
-| 2026-10-27 | **D-08b 签收清单**：把网关取凭证、KMS 信封、只写不回读、组织隔离、吊销/轮换、审计、unknown 对账、泄露应急、脱敏拆成 B1–B10；DR0 安全+平台 (b) 签；明确不关闭 C04，演示组织凭证模式待选 |
+| 2026-10-27 | **D-08b 签收清单**：把网关取凭证、静态密钥、只写不回读、组织隔离、吊销/轮换、审计、unknown 对账、泄露应急、脱敏拆成 B1–B10；DR0 安全+平台签；明确不关闭 C04。**同日 D-03 改 B 静态单层加密后，B2/B6 重写，其余沿用** |
 | 2026-10-27 | **C03 阻塞与演练清单**：把 U3 九项承诺、C22 四项演练、D3-N01/N03/N06 与 S1 多节点重启拆成可催办/可验收表；U3 已于 2026-10-27 确认（全部"是"），C03 只剩演练；仍不建议提前签 |
 | 2026-10-27 | **legacy Work 清理 + E1 迁移草案**：删除后端 `work` app/模型/迁移/测试、`src/work-agent`、core 生命周期 Work 钩子、`org.work_grant.*` 权限（0234 清理迁移）、settings/urls/celery/feature flags、前端 `features/work` 与导航、桌面 local-agent 集成、Work deploy/Helm/values 与 3.4G release 产物；新增 `src/backend/work/sql/`（roles/schema/verify，本地 139/139）与 `deploy/aliyun/drop-legacy-work.sql`（不执行、不迁移）；E1 未注册 `INSTALLED_APPS`，等 D-04 |
 | 2026-10-27 | **S09 留存政策签收**：365 天审计 / 24h 输入 TTL / 180 天任务与成果只读归档后导出或删除；S09 open→partial；安全控制 0 open / 16 partial / 2 out_of_scope；C11 仍为 start 闸门、按 DR3 12-01 签 |
@@ -407,7 +411,7 @@ Temporal 切片需要 Docker Compose/Temporal dev（Windows 主机不能直接�
 | 2026-10-27 | **C15 结项（waived）**：P1–P5 全部不适用（演示组织用阿里云百炼且只用演示数据），P6 价目仅参考；不再作为 start 闸门，开工闸门 9→8。配额到期与动态限流转为运营风险 |
 | 2026-10-27 | **阿里云百炼范围确认**：演示组织使用百炼托管服务且只用演示数据，P1–P4 书面条款不适用、不索取；P6 价目仅参考；C15 只剩 P5 配额续期/日上限/限流语义，pilot-checklist 状态改 `partial`（随后同日 P1–P5 全部判为不适用，C15 最终 waived） |
 | 2026-10-27 | **C15 阿里云配额快照**：Qwen3.8-Flash TPM 5,000,000（动态限流），额度有效期 2026-10-15~2026-11-15；上下文 1M / 输入 991K（思考 983K）/ 输出 128K / 思维链 256K。容量上高于 R0a 峰值，但额度早于 DR4 与试点到期，且日 token 上限未给；新增 11-15 前续期/合同覆盖动作与风险行 |
-| 2026-10-27 | **D-08a 产品签收（法务待指定）并收窄 C15**：C15 判定面从三家降为阿里云一家（演示组织），DeepSeek/火山转客户自担，PC-1/PC-2 作废；D-08b/d 的签字独立性定为 (b) 自证（DR0 签、DR3 前补独立复核），D-08c/d 留 DR1；pilot-checklist C15 证据与 work-project 口径同步 |
+| 2026-10-27 | **D-08a 产品签收并收窄 C15**：C15 判定面从三家降为阿里云一家（演示组织），DeepSeek/火山转客户自担，PC-1/PC-2 作废；D-08b/d 的签字独立性后定为关键项 (a) Lily Zhu、其余 (b)，D-08c/d 留 DR1；法务签字人后指定 Lily Zhu（授权待确认）；pilot-checklist C15 证据与 work-project 口径同步 |
 | 2026-10-26 | **D-08 修订落到 D1/D2 资产**：`budget_*`→`quota_*`、`*_cents`→`*_tokens`，删除 `currency`/`price_version` 与金额类错误码；新增 `provider_credential`/`provider_access_config`/`usage_daily`、`org_policy.run_cap_tokens`、组织 owner 写配置与吊销、网关 `resolve_provider_context`、用量汇总。冒烟 114→**139/139**（+25 D-08 断言），竞态 7→**9/9**（配置并发写、用量累加），契约 22/25→**29 path/33 operation**、测试 31→**34/34**、错误码 49/101→**50/104**；D-08 仍未签收 |
 | 2026-10-26 | **D-08 大模型接入账号与计量边界**：产品拍板 Work 只统计 token 不算钱、客户自带账号、演示组织独接阿里云 Qwen、DeepSeek Key 平台托管、token 护栏取代 cents 账本、组织 owner 可写接入配置；出决策单（R1–R10 细则 + 冲击面 + D-08a–d 签收栏），DR0 议程延至 75 分钟，签收单 R1-1 第 4 问改写。D1/D2/D4/D6 待签收后修订，闸门计数不变 |
 | 2026-10-26 | 非 Run 后台作业与留存清扫成机制：D3 §11 六类作业/义务作业语义、D1 `expire_due_inputs`/`shred_due_audit_exports` 与可配 TTL（冒烟 → 113/113）、D6 作业指标/告警与运行手册 §5.1；撤权收窄提为 P0 决策 D-07 |

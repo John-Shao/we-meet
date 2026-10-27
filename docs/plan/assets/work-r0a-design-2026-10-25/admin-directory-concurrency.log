@@ -19,15 +19,15 @@
     "issued": true,
     "workers": 5,
     "outcomes": {
-      "success": 1,
-      "download_token_invalid": 4
+      "download_token_invalid": 4,
+      "success": 1
     },
     "downloaded_at_count": 1
   },
   "projection_revision_race": {
     "org": {
       "applied": [
-        6,
+        5,
         7,
         8,
         9
@@ -40,13 +40,10 @@
     },
     "member": {
       "applied": [
-        6,
-        7,
-        8,
         9
       ],
       "rejected": {
-        "projection_revision_stale": 4
+        "projection_revision_stale": 7
       },
       "final_revision": 9,
       "lost_update": false
@@ -62,8 +59,8 @@
   "expiry_sweep_shared_ref": {
     "workers": 3,
     "swept": [
-      4,
       0,
+      4,
       0
     ],
     "errors": [],
@@ -90,6 +87,7 @@
     "overview_reads": 900,
     "observed_settled_tokens": [
       0,
+      360,
       450,
       540
     ],
@@ -118,7 +116,7 @@
     "errors": [],
     "input_tokens": 10
   },
-  "wall_seconds": 7.68,
+  "wall_seconds": 7.93,
   "gate": {
     "checks": {
       "export_claim_single_winner": true,

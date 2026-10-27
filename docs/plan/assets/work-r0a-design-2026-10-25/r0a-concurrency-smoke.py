@@ -375,8 +375,8 @@ def race_provider_config(workers=6):
     """并发写接入配置：同一个 expected_revision 只能有一个成功，始终只有一条 active。"""
     cred = must_ok(call_worker(
         "SELECT credential_id FROM work.create_provider_credential"
-        "(%s, %s, 'aliyun', 'managed_key', NULL, decode('00', 'hex'), decode('11', 'hex'),"
-        " 'kms://race/config', 'fp-race-config-0001')",
+        "(%s, %s, 'aliyun', 'managed_key', NULL, decode('00', 'hex'), NULL, NULL,"
+        " 'fp-race-config-0001')",
         (ORG, "user1"), subject="user1"), "credential create")
     must_ok(call_worker(
         "SELECT revision FROM work.set_provider_config"
