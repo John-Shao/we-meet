@@ -5099,10 +5099,11 @@ GRANT EXECUTE ON FUNCTION work.create_provider_credential(text, text, text, text
 GRANT EXECUTE ON FUNCTION work.rotate_provider_credential(text, text, uuid, bytea, bytea, text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.revoke_provider_credential(text, text, uuid, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.set_provider_config(text, text, text, text, text, text, text, uuid, bigint) TO work_api;
+GRANT EXECUTE ON FUNCTION work.get_provider_config(text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.revoke_provider_config(text, text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.get_user_usage(text, text, date, date) TO work_api;
 GRANT EXECUTE ON FUNCTION work.get_org_usage_by_model(text, text, date, date) TO work_api;
 GRANT EXECUTE ON FUNCTION work.resolve_provider_context(text) TO work_worker;
-GRANT EXECUTE ON FUNCTION work.record_usage(text, text, text, text, date, bigint, bigint, bigint, int) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.record_usage(text, text, uuid, text, text, date, bigint, bigint, bigint, int) TO work_worker;
 
 RESET ROLE;

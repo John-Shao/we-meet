@@ -225,7 +225,7 @@ H02 已用 qwen3.8-flash、deepseek-chat、doubao-seed-2-1-lite 经本地网关�
   - 工具清单只允许 3 个工具，shell/文件/网络/浏览器/连接器/代码/未知工具拒绝；
   - 来源标签只允许 user/system；外部/连接器/工具结果拒绝；
   - 秘密模式（OpenAI/AWS/私钥/Bearer/GitHub）阻断且错误不回显密钥；
-  - Operation/fence/requestHash/priceVersion 绑定；
+  - Operation/fence/requestHash 绑定；
   - 回退只允许派发前；
   - 响应过滤丢弃 reasoning/tool calls，限制 256 KiB；
   - 沙箱 profile 的 gVisor/非 root/只读/无宿主挂载/egress-only/无凭据；
@@ -279,7 +279,7 @@ D4 完成（DR2/D4 评审）需要：
 7. **检查点格式/恢复**：Pi 检查点与 Work Adapter 状态的一致性未做真实恢复测试。
 8. **流式/过滤**：reasoning 过滤、chunk 丢失、背压、响应大小限制未做运行时验证。
 9. **取消/超时数值**：connect/first-token/total/心跳是初始建议，需试点校准。
-10. ~~价表/usage 差异~~：**规则已定（2026-10-26）**，见 [usage-reconcile.mjs](assets/work-r0a-runtime-2026-10-25/usage/usage-reconcile.mjs)：以供应商 usage 结算；reasoning 仅在价表声明时另计（实测 Qwen 的 reasoning 已含在 completion 内）；单次网关/供应商差异 > max(5%, 50 token) 标 `usage_mismatch`；无供应商 usage 用网关估算并标 `usage_estimated`；都无则 `hold_unknown` 保留预留；超预留截断结算 + `adjust_budget` 补差（`budget_overrun`）；月度账单对账容差 max(1%, 100 分)，超出列出差异 request id；结算必须携带 `operation`（price_version/provider/model）且与价表一致，对账拒绝重复 provider_request_id 与非整数金额。价表：控制台单价已按 2026-10-26 截图录入[价目快照](assets/work-r0a-runtime-2026-10-25/usage/price-table.snapshot-2026-10-26.json)，但书面价目、生效日、变价通知期、DeepSeek 高峰/空闲时段划分与火山缓存存储归属仍未确认，**账本仍不得启用**（对账规则自测继续用[占位价表](assets/work-r0a-runtime-2026-10-25/usage/price-table.placeholder.json)）。
+10. ~~价表/usage 差异~~：**D-08 已定（2026-10-26）**，客户自带账号，Work 只统计 token 不计费；演示组织由平台承担成本，走配额硬上限。供应商 usage 直接入账 `usage_daily`；reasoning token 已含在 completion 内（实测 Qwen）；单次网关/供应商差异 > max(5%, 50 token) 标 `usage_mismatch`；无供应商 usage 用网关估算并标 `usage_estimated`；都无则 `hold_unknown` 保留预留；超预留截断结算 + `adjust_quota` 补差。月度对账只统计 token 总量，不做金额对账。
 11. **无正文日志**：策略已定义，但真实日志/trace 采样需运行时验证。
 12. **策略评估器不是生产网关**：它只验证设计策略，不能替代真实 egress、沙箱或供应商测试。
 

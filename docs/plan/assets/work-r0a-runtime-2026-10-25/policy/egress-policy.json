@@ -5,9 +5,8 @@
       "id": "primary-text-provider",
       "adapter": "openai-compatible",
       "model": "r0a-text-v1",
-      "priceVersion": "price-v1",
       "dataResidency": "cn-north",
-      "credentialRef": "kms://work/providers/primary",
+      "credentialRef": "per-org-resolved",
       "timeout": {
         "connectMs": 5000,
         "firstTokenMs": 30000,
@@ -23,9 +22,8 @@
       "id": "fallback-text-provider",
       "adapter": "openai-compatible",
       "model": "r0a-text-fallback-v1",
-      "priceVersion": "price-v1",
       "dataResidency": "cn-north",
-      "credentialRef": "kms://work/providers/fallback",
+      "credentialRef": "per-org-resolved",
       "enabled": false
     }
   },
@@ -34,7 +32,6 @@
     "requireDispatchAttemptId": true,
     "requireFence": true,
     "requireRequestHash": true,
-    "requirePriceVersion": true,
     "requireDispatchingState": true
   },
   "fallbackPolicy": {
@@ -75,9 +72,7 @@
   },
   "usage": {
     "recordProviderRequestId": true,
-    "recordTokens": true,
-    "priceVersionRequired": true,
-    "currency": "CNY"
+    "recordTokens": true
   },
   "retry": {
     "beforeDispatchMaxAttempts": 2,

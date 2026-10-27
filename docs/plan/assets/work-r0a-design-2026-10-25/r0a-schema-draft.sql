@@ -365,6 +365,11 @@ CREATE TABLE work.provider_credential (
   )
 );
 
+-- 每组织每供应商只允许一条 active 凭证（P2-10 部分唯一索引）。
+CREATE UNIQUE INDEX work_provider_credential_one_active
+  ON work.provider_credential(org_id, provider)
+  WHERE state = 'active';
+
 CREATE TABLE work.provider_access_config (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id text NOT NULL REFERENCES work.org(id),

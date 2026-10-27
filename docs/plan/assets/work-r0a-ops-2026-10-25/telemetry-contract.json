@@ -468,35 +468,35 @@
       ]
     },
     {
-      "id": "budget_reconciliation_diff_cents",
-      "title": "预算对账差",
+      "id": "quota_reconciliation_diff_tokens",
+      "title": "配额对账差",
       "target": 0,
-      "unit": "cents",
+      "unit": "tokens",
       "window": "1d",
-      "track_only": false,
+      "track_only": true,
       "recording": [
         {
-          "record": "work:slo_budget_reconciliation:abs_max_5m",
-          "expr": "max by (org_id) (abs(work_budget_reconciliation_diff_cents))"
+          "record": "work:slo_quota_reconciliation:abs_max_5m",
+          "expr": "max by (org_id) (abs(work_quota_reconciliation_diff_tokens))"
         }
       ],
       "alerts": [
         {
-          "name": "WorkBudgetReconciliationDiff",
-          "expr": "work:slo_budget_reconciliation:abs_max_5m > 0",
-          "for": "30m",
-          "severity": "page",
-          "slo_alert": true,
-          "summary": "预算账本与供应商 usage 对账存在差额",
-          "runbook": "work-r0a-data-design-2026-10-25.md#5-领域命令"
-        },
-        {
-          "name": "WorkBudgetUnsettledReservations",
-          "expr": "sum(work_budget_unsettled_reservations) > 0",
+          "name": "WorkQuotaReconciliationDiff",
+          "expr": "work:slo_quota_reconciliation:abs_max_5m > 0",
           "for": "30m",
           "severity": "ticket",
           "slo_alert": false,
-          "summary": "存在超过 30 分钟未结算的预算预留",
+          "summary": "配额账本与供应商 usage 对账存在差额（仅统计，不阻断）",
+          "runbook": "work-r0a-data-design-2026-10-25.md#5-领域命令"
+        },
+        {
+          "name": "WorkQuotaUnsettledReservations",
+          "expr": "sum(work_quota_unsettled_reservations) > 0",
+          "for": "30m",
+          "severity": "ticket",
+          "slo_alert": false,
+          "summary": "存在超过 30 分钟未结算的配额预留",
           "runbook": "work-r0a-data-design-2026-10-25.md#5-领域命令"
         }
       ]
