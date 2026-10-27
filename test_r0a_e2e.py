@@ -20,17 +20,17 @@ async def test_temporal_connection():
     
     try:
         client = await Client.connect(temporal_address)
-        print("✓ Temporal connected")
+        print("[OK] Temporal connected")
         
         # 列出 task queues
         print("\nChecking task queues...")
         # Temporal Python SDK 没有直接列出 task queues 的 API
         # 但我们可以检查 worker 是否注册
-        print("✓ Temporal client ready")
+        print("[OK] Temporal client ready")
         
         return True
     except Exception as e:
-        print(f"✗ Temporal connection failed: {e}")
+        print(f"[FAIL] Temporal connection failed: {e}")
         return False
 
 
@@ -40,7 +40,7 @@ async def test_database_connection():
     
     db_url = os.getenv(
         "WORK_DATABASE_URL",
-        "postgresql://postgres@127.0.0.1:55435/work_r0a_e1"
+        "postgresql://postgres:postgres@127.0.0.1:55435/work_r0a_e1"
     )
     print(f"\nConnecting to database...")
     
@@ -55,9 +55,9 @@ async def test_database_connection():
                 )
             """)
             if result:
-                print("✓ work schema exists")
+                print("[OK] work schema exists")
             else:
-                print("✗ work schema not found")
+                print("[FAIL] work schema not found")
                 return False
             
             # 检查关键表
@@ -67,7 +67,7 @@ async def test_database_connection():
                 AND table_name IN ('org', 'task', 'run', 'operation', 'artifact')
                 ORDER BY table_name
             """)
-            print(f"✓ Found {len(tables)} tables: {[t['table_name'] for t in tables]}")
+            print(f"[OK] Found {len(tables)} tables: {[t['table_name'] for t in tables]}")
             
             # 检查 SQL 函数
             functions = await conn.fetch("""
@@ -76,12 +76,12 @@ async def test_database_connection():
                 AND routine_name IN ('acquire_run', 'reserve_quota', 'claim_dispatch', 'finish_run')
                 ORDER BY routine_name
             """)
-            print(f"✓ Found {len(functions)} functions: {[f['routine_name'] for f in functions]}")
+            print(f"[OK] Found {len(functions)} functions: {[f['routine_name'] for f in functions]}")
         
         await pool.close()
         return True
     except Exception as e:
-        print(f"✗ Database connection failed: {e}")
+        print(f"[FAIL] Database connection failed: {e}")
         return False
 
 
@@ -104,14 +104,14 @@ async def main():
     print("验证结果")
     print("=" * 60)
     if all(results):
-        print("✓ 所有测试通过")
+        print("[OK] All tests passed")
         print("\n下一步:")
         print("1. 启动 worker: python deploy/aliyun/temporal/worker/worker.py")
         print("2. 创建 outbox 事件并提交")
         print("3. 观察 Temporal workflow 执行")
         return 0
     else:
-        print("✗ 部分测试失败")
+        print("[FAIL] Some tests failed")
         return 1
 
 
