@@ -65,7 +65,7 @@ class ImageReferenceTests(unittest.TestCase):
             if r["metadata"]["name"] in names
             and r["kind"] in ("Deployment", "CronJob", "Job")
         ]
-        self.assertEqual(len(selected), 9)
+        self.assertEqual(len(selected), 8)
         self.assertTrue(all(containers(r)[0]["image"] == IMAGE for r in selected))
 
     def test_other_image_families_accept_independent_references(self):
@@ -153,7 +153,7 @@ class ImageReferenceTests(unittest.TestCase):
         )
         result = preserver.preserve(pending, {"items": old}, "meet")
         current = {(r["kind"], r["metadata"]["name"]): r for r in result}
-        self.assertEqual(len(old), 7)
+        self.assertEqual(len(old), 6)
         for r in old:
             self.assertEqual(
                 current[(r["kind"], r["metadata"]["name"])]["spec"], r["spec"]

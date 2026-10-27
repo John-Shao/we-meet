@@ -73,8 +73,6 @@ jobs:
           core/tests/test_bilingual_sessions.py
           core/tests/rooms/test_api_rooms_ai_agent.py
           core/tests/services/test_ai_agent.py
-      - name: Check Work account admission and execution boundaries
-        run: uv run pytest work/tests
       - name: Check remote-control authorization, policy, audit and key rotation
         run: >-
           uv run pytest

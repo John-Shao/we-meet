@@ -151,9 +151,7 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
   const { open: settingsOpen, section: settingsSection } =
     useSnapshot(systemSettingsStore)
   const docsUrl = config?.docs?.url
-  const visibleNav = NAV.filter(
-    (item) => item.to !== '/docs' || docsUrl
-  )
+  const visibleNav = NAV.filter((item) => item.to !== '/docs' || docsUrl)
   const initial = (user?.full_name || user?.email || '?')
     .slice(0, 1)
     .toUpperCase()
