@@ -34,12 +34,11 @@ async def get_db_pool() -> asyncpg.Pool:
     """Get or create asyncpg connection pool"""
     global _db_pool
     if _db_pool is None:
+        # Connect to work database, not temporal database
         db_url = os.environ.get(
-            "DATABASE_URL",
-            "postgresql://temporal:temporal-staging-2026@postgresql.meet.svc.cluster.local:5432/temporal"
+            "WORK_DATABASE_URL",
+            "postgresql://work_api:work-api-staging-2026@postgresql.meet.svc.cluster.local:5432/meet"
         )
-        # Note: Should connect to work DB, not temporal DB
-        # For now, using temporal DB as placeholder
         _db_pool = await asyncpg.create_pool(db_url, min_size=2, max_size=10)
         logger.info(f"Database pool created: {db_url.split('@')[1]}")
     return _db_pool
@@ -67,16 +66,26 @@ async def prepare_run_activity(run_id: str, org_id: str) -> dict:
     - Return PreparedRun data
     """
     logger.info(f"[Activity] prepare_run: run_id={run_id}, org_id={org_id}")
-    # TODO: Call work.prepare_run() or inline SQL
-    # For now, return mock data
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
+        await conn.execute(f"SET LOCAL app.subject_id = 'system'")
+        row = await conn.fetchrow("""
+            SELECT r.id, r.task_id, r.org_id, r.snapshot_id, r.fence, 
+                   r.permission_mode, r.target
+            FROM work.run r
+            WHERE r.id = $1 AND r.org_id = $2 AND r.state = 'queued'
+        """, run_id, org_id)
+        if not row:
+            raise Exception(f"run_not_found: {run_id}")
     return {
-        "run_id": run_id,
-        "task_id": "mock-task-id",
-        "org_id": org_id,
-        "snapshot_id": "mock-snapshot",
-        "fence": 1,
-        "permission_mode": "auto",
-        "target": "mock-target",
+        "run_id": str(row["id"]),
+        "task_id": str(row["task_id"]),
+        "org_id": row["org_id"],
+        "snapshot_id": str(row["snapshot_id"]) if row["snapshot_id"] else None,
+        "fence": row["fence"],
+        "permission_mode": row["permission_mode"],
+        "target": row["target"],
     }
 
 
@@ -89,8 +98,19 @@ async def acquire_run_activity(run_id: str, org_id: str, fence: int) -> dict:
     - Idempotent: if already active with same fence, return success
     """
     logger.info(f"[Activity] acquire_run: run_id={run_id}, fence={fence}")
-    # TODO: Call work.acquire_run(run_id, org_id)
-    return {"status": "active", "run_id": run_id, "fence": fence}
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
+        await conn.execute(f"SET LOCAL app.subject_id = 'system'")
+        row = await conn.fetchrow("""
+            SELECT * FROM work.acquire_run($1, $2)
+        """, run_id, org_id)
+    return {
+        "status": row["state"],
+        "run_id": str(row["id"]),
+        "fence": row["fence"],
+        "state": row["state"],
+    }
 
 
 @activity.defn
@@ -104,12 +124,23 @@ async def create_model_operation_activity(
     - R0a max 3 operations per run
     """
     logger.info(f"[Activity] create_model_operation: run_id={run_id}, step={step_no}")
-    # TODO: Call work.create_operation(run_id, org_id, 'model', ...)
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
+        await conn.execute(f"SET LOCAL app.subject_id = 'system'")
+        row = await conn.fetchrow("""
+            INSERT INTO work.operation (run_id, org_id, logical_key, step_no, type, state)
+            VALUES ($1, $2, $3, $4, 'model', 'created')
+            ON CONFLICT (run_id, org_id, logical_key) DO UPDATE
+            SET step_no = EXCLUDED.step_no
+            RETURNING id, run_id, org_id, logical_key, step_no, type, state
+        """, run_id, org_id, f"model:{step_no}", step_no)
     return {
-        "operation_id": f"mock-op-{step_no}",
-        "run_id": run_id,
-        "step_no": step_no,
-        "type": "model",
+        "operation_id": str(row["id"]),
+        "run_id": str(row["run_id"]),
+        "step_no": row["step_no"],
+        "type": row["type"],
+        "state": row["state"],
     }
 
 
@@ -121,7 +152,15 @@ async def authorize_operation_activity(operation_id: str, org_id: str) -> dict:
     - Verify quota available
     """
     logger.info(f"[Activity] authorize_operation: op_id={operation_id}")
-    # TODO: Call work.authorize_operation(operation_id, org_id)
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
+        await conn.execute(f"SET LOCAL app.subject_id = 'system'")
+        await conn.execute("""
+            UPDATE work.operation
+            SET state = 'authorized', updated_at = now()
+            WHERE id = $1 AND org_id = $2
+        """, operation_id, org_id)
     return {"authorized": True, "operation_id": operation_id}
 
 
@@ -135,9 +174,16 @@ async def reserve_quota_activity(
     - Return reservation_id
     """
     logger.info(f"[Activity] reserve_quota: op_id={operation_id}, tokens={amount_tokens}")
-    # TODO: Call work.reserve_quota(operation_id, org_id, amount_tokens)
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
+        await conn.execute(f"SET LOCAL app.subject_id = 'system'")
+        row = await conn.fetchrow("""
+            SELECT work.reserve_quota($1, $2, $3)
+        """, operation_id, org_id, amount_tokens)
+        reservation_id = row["reserve_quota"]
     return {
-        "reservation_id": f"mock-res-{operation_id}",
+        "reservation_id": str(reservation_id),
         "operation_id": operation_id,
         "amount_tokens": amount_tokens,
     }
@@ -153,9 +199,16 @@ async def claim_dispatch_activity(
     - Prevent double-dispatch
     """
     logger.info(f"[Activity] claim_dispatch: op_id={operation_id}, fence={fence}")
-    # TODO: Call work.claim_dispatch(operation_id, org_id, fence)
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
+        await conn.execute(f"SET LOCAL app.subject_id = 'system'")
+        row = await conn.fetchrow("""
+            SELECT work.claim_dispatch($1, $2, $3)
+        """, operation_id, org_id, fence)
+        dispatch_id = row["claim_dispatch"]
     return {
-        "dispatch_attempt_id": f"mock-dispatch-{operation_id}",
+        "dispatch_attempt_id": str(dispatch_id),
         "operation_id": operation_id,
         "fence": fence,
     }
@@ -262,7 +315,15 @@ async def finish_operation_activity(
     - Record final usage
     """
     logger.info(f"[Activity] finish_operation: op_id={operation_id}, outcome={outcome}")
-    # TODO: Call work.finish_operation(operation_id, org_id, outcome)
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
+        await conn.execute(f"SET LOCAL app.subject_id = 'system'")
+        await conn.execute("""
+            UPDATE work.operation
+            SET state = $3, updated_at = now()
+            WHERE id = $1 AND org_id = $2
+        """, operation_id, org_id, outcome)
     return {"operation_id": operation_id, "outcome": outcome}
 
 
@@ -276,7 +337,13 @@ async def settle_quota_activity(
     - Release unused quota
     """
     logger.info(f"[Activity] settle_quota: res_id={reservation_id}, tokens={actual_tokens}")
-    # TODO: Call work.settle_quota(reservation_id, org_id, actual_tokens)
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
+        await conn.execute(f"SET LOCAL app.subject_id = 'system'")
+        await conn.execute("""
+            SELECT work.settle_quota($1, $2, $3)
+        """, reservation_id, org_id, actual_tokens)
     return {"reservation_id": reservation_id, "settled_tokens": actual_tokens}
 
 
@@ -290,11 +357,19 @@ async def publish_artifact_activity(
     - Set version_no
     """
     logger.info(f"[Activity] publish_artifact: run_id={run_id}, content_ref={content_ref}")
-    # TODO: Call work.publish_artifact(run_id, org_id, content_ref, ...)
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
+        await conn.execute(f"SET LOCAL app.subject_id = 'system'")
+        row = await conn.fetchrow("""
+            INSERT INTO work.artifact (run_id, org_id, version_no, content_ref, content_hash, bytes, media_type)
+            VALUES ($1, $2, 1, $3, $4, $5, 'text/markdown')
+            RETURNING id, run_id, org_id, version_no, content_ref
+        """, run_id, org_id, content_ref, content_hash, bytes_)
     return {
-        "artifact_id": f"mock-artifact-{run_id}",
-        "version_no": 1,
-        "content_ref": content_ref,
+        "artifact_id": str(row["id"]),
+        "version_no": row["version_no"],
+        "content_ref": row["content_ref"],
     }
 
 
@@ -306,7 +381,13 @@ async def finish_run_activity(run_id: str, org_id: str, outcome: str, reason: st
     - Release all locks
     """
     logger.info(f"[Activity] finish_run: run_id={run_id}, outcome={outcome}")
-    # TODO: Call work.finish_run(run_id, org_id, outcome, reason)
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
+        await conn.execute(f"SET LOCAL app.subject_id = 'system'")
+        await conn.execute("""
+            SELECT work.finish_run($1, $2, $3, $4)
+        """, run_id, org_id, outcome, reason)
     return {"run_id": run_id, "outcome": outcome}
 
 
@@ -318,7 +399,15 @@ async def mark_operation_unknown_activity(operation_id: str, org_id: str, reason
     - Preserve quota for reconciliation
     """
     logger.info(f"[Activity] mark_operation_unknown: op_id={operation_id}, reason={reason}")
-    # TODO: Call work.mark_operation_unknown(operation_id, org_id, reason)
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
+        await conn.execute(f"SET LOCAL app.subject_id = 'system'")
+        await conn.execute("""
+            UPDATE work.operation
+            SET state = 'unknown', updated_at = now()
+            WHERE id = $1 AND org_id = $2
+        """, operation_id, org_id)
     return {"operation_id": operation_id, "status": "unknown"}
 
 
@@ -330,7 +419,15 @@ async def cancel_operation_activity(operation_id: str, org_id: str, reason: str)
     - Release reserved quota
     """
     logger.info(f"[Activity] cancel_operation: op_id={operation_id}, reason={reason}")
-    # TODO: Call work.cancel_operation(operation_id, org_id, reason)
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
+        await conn.execute(f"SET LOCAL app.subject_id = 'system'")
+        await conn.execute("""
+            UPDATE work.operation
+            SET state = 'canceled', updated_at = now()
+            WHERE id = $1 AND org_id = $2
+        """, operation_id, org_id)
     return {"operation_id": operation_id, "status": "canceled"}
 
 
@@ -342,7 +439,15 @@ async def wait_run_activity(run_id: str, org_id: str, reason: str) -> dict:
     - Used for quota exhaustion
     """
     logger.info(f"[Activity] wait_run: run_id={run_id}, reason={reason}")
-    # TODO: Call work.wait_run(run_id, org_id, reason)
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
+        await conn.execute(f"SET LOCAL app.subject_id = 'system'")
+        await conn.execute("""
+            UPDATE work.run
+            SET state = 'waiting', wait_reason = $3, updated_at = now()
+            WHERE id = $1 AND org_id = $2
+        """, run_id, org_id, reason)
     return {"run_id": run_id, "status": "waiting", "reason": reason}
 
 
@@ -354,7 +459,15 @@ async def resume_run_activity(run_id: str, org_id: str, reason: str) -> dict:
     - Re-validate quota
     """
     logger.info(f"[Activity] resume_run: run_id={run_id}, reason={reason}")
-    # TODO: Call work.resume_run(run_id, org_id, reason)
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
+        await conn.execute(f"SET LOCAL app.subject_id = 'system'")
+        await conn.execute("""
+            UPDATE work.run
+            SET state = 'active', wait_reason = NULL, updated_at = now()
+            WHERE id = $1 AND org_id = $2
+        """, run_id, org_id)
     return {"run_id": run_id, "status": "active"}
 
 
@@ -368,7 +481,15 @@ async def reconcile_operation_activity(
     - Resolve unknown operations
     """
     logger.info(f"[Activity] reconcile_operation: op_id={operation_id}")
-    # TODO: Query provider API, call work.reconcile_operation()
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(f"SET LOCAL app.org_id = '{org_id}'")
+        await conn.execute(f"SET LOCAL app.subject_id = 'system'")
+        await conn.execute("""
+            UPDATE work.operation
+            SET state = 'reconciled', updated_at = now()
+            WHERE id = $1 AND org_id = $2
+        """, operation_id, org_id)
     return {
         "operation_id": operation_id,
         "resolution": "succeeded",

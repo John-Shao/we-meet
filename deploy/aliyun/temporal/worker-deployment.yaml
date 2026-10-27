@@ -26,6 +26,11 @@ spec:
               value: "default"
             - name: TASK_QUEUE
               value: "work-r0a-run"
+            - name: WORK_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: worker-secrets
+                  key: work-database-url
             - name: ARK_API_KEY
               valueFrom:
                 secretKeyRef:
