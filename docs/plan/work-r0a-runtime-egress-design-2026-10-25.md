@@ -52,7 +52,7 @@ work-runner 创建每 Run Pod
 | `allocated` | 校验 Run/Operation/fence/快照；分配 Pod、scoped token、CPU/内存/时间 |
 | `ready` | 加载 Pi/Adapter；不做用户安装/扩展 |
 | `executing` | Adapter 处理 `model_call`/模板/草稿/检查点；心跳 |
-| `checkpointed` | 等待审批/预算/未知时写检查点；释放计算 |
+| `checkpointed` | 等待审批/配额/未知时写检查点；释放计算 |
 | `waiting` | DB `run.waiting`；恢复时新 Pod，沿用 Run/Operation 身份 |
 | `finalizing` | 写最终草稿；等待 worker 发布/结算 |
 | `destroyed` | 清理临时文件/token；不保留可复用容器 |
@@ -72,7 +72,7 @@ work-runner 创建每 Run Pod
 | `readBuiltinTemplate` | template id/version | 系统模板正文/哈希 | 只读系统资产；不读用户文件 |
 | `writeArtifactDraft` | logical name/content/media type/step | content_ref/hash/bytes | 只写任务内草稿/检查点；不发布/不采纳 |
 | `checkpoint` | step/state/hash/bytes | state_ref/hash/bytes | 加密 Content Store；不写宿主路径 |
-| `reportUsage` | operation/provider/usage/price | 本地回报 | 不直接写预算；由 worker 结算 |
+| `reportUsage` | operation/provider/usage | 本地回报 | 不直接写配额；由 worker 结算 |
 | `onCancel` | request id/reason | 停止新调用 | 已派发动作转 unknown；不谎报停止 |
 
 **边界规则**：
@@ -84,7 +84,7 @@ work-runner 创建每 Run Pod
 
 ## 5. R0a 工具清单
 
-| 工具 | 用途 | 副作用 | 审批/授权 | 预算 | 网络 | 内容 | 最大调用 |
+| 工具 | 用途 | 副作用 | 审批/授权 | 配额 | 网络 | 内容 | 最大调用 |
 |---|---|---|---|---|---|---|---|
 | `model_call` | 生成/修订 Markdown | 数据外发到模型供应商 | 提交/策略自动 | 是 | 仅 egress | 读 user/system | 3/Run |
 | `read_builtin_template` | 读取 3 个内置模板 | 无 | 策略自动 | 否 | 无 | 读 system | 3/Run |
@@ -138,9 +138,9 @@ Runtime/Adapter
 
 | 项 | 设计 |
 |---|---|
-| 主供应商 | 从 H02 已测的 qwen/deepseek/doubao 中选一个；`openai-compatible` 适配；`price-v1` |
+| 主供应商 | 从 H02 已测的 qwen/deepseek/doubao 中选一个；`openai-compatible` 适配；按组织接入配置路由（D-08） |
 | 回退 | 可选；默认关闭；只允许**派发前**切换 |
-| 派发后/unknown | 不跨供应商重放；进入 unknown/对账；保留预算 |
+| 派发后/unknown | 不跨供应商重放；进入 unknown/对账；保留配额 |
 | 超时 | connect 5s；first token 30s；total 15m；心跳 30s |
 | 限流/5xx | 派发前可重试/回退；派发后不自动重试 |
 | 401/403 | 阻断并告警，不切换/不重试 |
@@ -191,7 +191,7 @@ D-08b 的 B1–B10 于 2026-10-27 签收，本小节是其在 D4 的落点。**�
 | 场景 | 行为 |
 |---|---|
 | 用户取消 | `onCancel` 停止新 model_call；已 dispatching 的请求可能 unknown；不发布迟到成果 |
-| 连接超时/断网 | 若已派发，返回 `provider_unknown`；Operation unknown；保留预算；交对账器 |
+| 连接超时/断网 | 若已派发，返回 `provider_unknown`；Operation unknown；保留配额；交对账器 |
 | 供应商 429/5xx | 派发前可重试/回退；派发后不自动重试 |
 | 检查点失败 | 不继续执行；Run failed/waiting；不把检查点失败当成功 |
 | 沙箱销毁 | 只表示计算结束；Run 终态由 PG/worker 决定 |
@@ -273,7 +273,7 @@ D4 完成（DR2/D4 评审）需要：
 1. **gVisor 可用性/证明**：基础设施不一定提供 gVisor/等效 profile；降级声明需安全/产品签收。
 2. **Pi/镜像 digest**：1.4.0 是实验版本；生产需固定 digest、依赖锁定与升级/回滚验证（H10 只覆盖包版本）。**准入策略已定（2026-10-26）**：[supply-chain-policy.json](assets/work-r0a-runtime-2026-10-25/supply-chain/supply-chain-policy.json) + [评估器](assets/work-r0a-runtime-2026-10-25/supply-chain/supply-chain.mjs)：只接受 `@sha256` 引用且非占位 digest、cosign keyless 签名（GitHub OIDC issuer/本仓库 workflow subject/Rekor）、SLSA provenance ≥L2 且 digest 一致、SPDX/CycloneDX SBOM 组件完整、Pi 固定 1.4.0、禁止包管理器进入镜像、锁文件哈希、critical=0、high 仅限有 owner 且 ≤30 天未过期的豁免；当前 sandbox-profile 的占位 digest 会被拒绝（测试覆盖）；SBOM 的 `subject_digest` 必须等于镜像 digest，purl 统一小写并去除 qualifier。真实签名/SBOM 流水线未接。
 3. **供应商选择/条款/价表**：未取得书面条款；价格上界、驻留、训练/留存、配额未定。
-4. **unknown 回执查询**：供应商不一定支持按 request id 查询；无法确认时保持 unresolved，不释放预算。
+4. **unknown 回执查询**：供应商不一定支持按 request id 查询；无法确认时保持 unresolved，不释放配额。
 5. **秘密检测边界**：模式检测有误报/漏报，不承诺完整 DLP；用户输入/系统模板仍可能含敏感信息。
 6. **Content Store/密钥**：scoped 引用、加密、删除、恢复、crypto-shredding 未实现/未验证。凭证侧按 D-03 B 走**静态单层加密**（进程 Secret 里的全局主密钥 + 按 `org_id` 派生），R0a 不接云 KMS/HSM，因此没有 KMS 访问审计；主密钥托管、派生参数与轮换演练在 E5 补（C11 已把它列为残余风险）。
 7. **检查点格式/恢复**：Pi 检查点与 Work Adapter 状态的一致性未做真实恢复测试。

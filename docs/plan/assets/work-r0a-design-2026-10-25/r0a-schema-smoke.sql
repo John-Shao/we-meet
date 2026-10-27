@@ -2164,8 +2164,8 @@ INSERT INTO smoke_assert SELECT 'customer_org_soft_release_clean',
 
 -- 用量统计：按 (组织, 用户, provider, model, 日) 累加；C 端只能读本人。
 SET LOCAL app.org_id = 'org2';
-SELECT work.record_usage('org2', 'user2', 'aliyun', 'qwen3.8-flash', DATE '2026-10-20', 120, 30, 10, 1);
-SELECT work.record_usage('org2', 'user2', 'aliyun', 'qwen3.8-flash', DATE '2026-10-20', 80, 20, 5, 1);
+SELECT work.record_usage('org2', 'user2', gen_random_uuid(), 'aliyun', 'qwen3.8-flash', DATE '2026-10-20', 120, 30, 10, 1);
+SELECT work.record_usage('org2', 'user2', gen_random_uuid(), 'aliyun', 'qwen3.8-flash', DATE '2026-10-20', 80, 20, 5, 1);
 RESET ROLE;
 SET LOCAL app.org_id = 'org2';
 SET LOCAL ROLE work_api;

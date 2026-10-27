@@ -8,7 +8,7 @@
 
 export type RunWorkflowVersion = 'r0a-v1';
 export type IsoDateTime = string;
-export type WaitReason = 'budget' | 'provider' | 'reconcile';
+export type WaitReason = 'quota' | 'provider' | 'reconcile';
 export type RunTerminal = 'succeeded' | 'failed' | 'canceled';
 export type OperationOutcome = 'succeeded' | 'failed';
 export type ErrorClass = 'domain_terminal' | 'domain_wait' | 'transient' | 'unknown';
@@ -217,7 +217,7 @@ export const WORKFLOW_DEFAULTS = {
   historyRetention: '7 days',
   maxRunBytes: 262144,
   maxModelOperations: 3,
-  budgetWaitTimeout: '24 hours',
+  quotaWaitTimeout: '24 hours',
   outboxBacklogLimit: 1000,
   outboxOldestAge: '5 minutes',
 } as const;
@@ -354,7 +354,7 @@ export const ERROR_CLASSIFICATION: Record<string, ErrorClass> = {
   operation_not_dispatching: 'domain_terminal',
   operation_not_reconcilable: 'domain_terminal',
   approval_required: 'domain_wait',
-  budget_exhausted: 'domain_wait',
+  quota_exhausted: 'domain_wait',
   run_not_accepting_artifacts: 'domain_terminal',
   artifact_deleted: 'domain_terminal',
   settlement_revision_not_monotonic: 'domain_terminal',

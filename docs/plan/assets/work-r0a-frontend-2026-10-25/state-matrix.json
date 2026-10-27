@@ -164,8 +164,8 @@
       "destructive": false,
       "requiresConfirm": false
     },
-    "view_budget": {
-      "labelKey": "work.r0a.action.view_budget",
+    "view_quota": {
+      "labelKey": "work.r0a.action.view_quota",
       "destructive": false,
       "requiresConfirm": false
     },
@@ -198,7 +198,7 @@
       "onlyStates": [
         "queued",
         "running",
-        "budget_exhausted",
+        "quota_exhausted",
         "reconciling"
       ]
     }
@@ -214,7 +214,7 @@
         "failed",
         "run_canceled",
         "reconciling",
-        "budget_exhausted",
+        "quota_exhausted",
         "canceling"
       ],
       "desktopOnly": true

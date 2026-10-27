@@ -173,10 +173,7 @@ export function assertNoContentLogging(egress) {
   return true;
 }
 
-export function validateUsage(egress, usage, priceVersion) {
-  if (priceVersion !== egress.providers.primary.priceVersion) {
-    fail('usage_invalid', 'price version does not match the primary provider');
-  }
+export function validateUsage(usage) {
   if (
     !Number.isInteger(usage.inputTokens) ||
     !Number.isInteger(usage.outputTokens) ||

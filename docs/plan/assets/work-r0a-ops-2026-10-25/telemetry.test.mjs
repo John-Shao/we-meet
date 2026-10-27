@@ -22,7 +22,7 @@ test('telemetry contract covers every SLO and keeps targets aligned', () => {
   assert.deepEqual(result.errors, []);
   assert.deepEqual(result.summary, {
     slos: 12,
-    trackOnly: 3,
+    trackOnly: 4,
     records: 21,
     alerts: 27,
     metrics: 28,
@@ -34,7 +34,7 @@ test('telemetry contract covers every SLO and keeps targets aligned', () => {
 
 test('track-only SLOs never page as SLO alerts but can keep operational alerts', () => {
   const trackOnly = contract.slos.filter((entry) => entry.track_only);
-  assert.equal(trackOnly.length, 3);
+  assert.equal(trackOnly.length, 4);
   for (const entry of trackOnly) {
     assert.equal(entry.target, null);
     assert.ok(entry.alerts.every((alert) => alert.slo_alert === false));

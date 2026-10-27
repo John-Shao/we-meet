@@ -15,7 +15,7 @@ export type DisplayState =
   | 'failed'
   | 'run_canceled'
   | 'reconciling'
-  | 'budget_exhausted'
+  | 'quota_exhausted'
   | 'canceling'
   | 'canceled'
   | 'archived';
@@ -33,7 +33,7 @@ export type UiActionId =
   | 'continue'
   | 'view_error'
   | 'view_timeline'
-  | 'view_budget';
+  | 'view_quota';
 
 export type Tone = 'neutral' | 'active' | 'attention' | 'success' | 'danger' | 'warning';
 
