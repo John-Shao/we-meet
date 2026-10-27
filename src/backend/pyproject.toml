@@ -91,6 +91,9 @@ dependencies = [
     "pypinyin==0.55.0",
     "pypdf==6.19.0",
     "defusedxml==0.7.1",
+    # Work R0a — Temporal SDK for workflow orchestration (E4).
+    # Connects to self-hosted Temporal server for RunWorkflow execution.
+    "temporalio==1.9.0",
 ]
 
 [project.urls]

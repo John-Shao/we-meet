@@ -1,0 +1,105 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: temporal-db-backup
+  namespace: work-staging
+spec:
+  schedule: "0 2 * * *"  # 每天凌晨 2 点
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: backup
+            image: jusi-cn-guangzhou.cr.volces.com/we-meet/temporal-backup:1.0.0
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              # 生成备份文件名（带时间戳）
+              BACKUP_DATE=$(date +%Y%m%d-%H%M%S)
+              export BACKUP_FILE="temporal-db-${BACKUP_DATE}.sql.gz"
+
+              echo "Starting backup at $(date)"
+              echo "Backup file: ${BACKUP_FILE}"
+
+              # 执行 PostgreSQL 备份并压缩
+              PGPASSWORD=${DB_PASSWORD} pg_dump -h postgresql.meet.svc.cluster.local -U temporal -d temporal --format=custom --compress=9 > /tmp/${BACKUP_FILE}
+
+              echo "Backup completed, size: $(ls -lh /tmp/${BACKUP_FILE} | awk '{print $5}')"
+
+              # 上传到阿里云 OSS (使用 boto3)
+              python3 << 'PYEOF'
+              import boto3
+              from botocore.config import Config
+              import os
+
+              s3 = boto3.client(
+                  's3',
+                  endpoint_url='https://oss-cn-shenzhen.aliyuncs.com',
+                  aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+                  aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
+                  config=Config(
+                      s3={
+                          'addressing_style': 'virtual',
+                          'payload_signing_enabled': True
+                      },
+                      request_checksum_calculation='when_required',
+                      response_checksum_validation='when_required'
+                  ),
+                  region_name='cn-shenzhen'
+              )
+
+              backup_file = os.environ['BACKUP_FILE']
+              bucket = 'we-work-backup'
+              key = f'temporal/{backup_file}'
+
+              print(f"Uploading {backup_file} to s3://{bucket}/{key}")
+
+              # Use put_object directly to avoid chunked encoding issues with OSS
+              with open(f'/tmp/{backup_file}', 'rb') as f:
+                  s3.put_object(
+                      Bucket=bucket,
+                      Key=key,
+                      Body=f.read()
+                  )
+              print("Upload successful")
+
+              # 清理旧备份（保留最近 30 天）
+              print("Cleaning up old backups (keeping last 30 days)")
+              response = s3.list_objects_v2(Bucket=bucket, Prefix='temporal/temporal-db-')
+              if 'Contents' in response:
+                  files = sorted(response['Contents'], key=lambda x: x['LastModified'])
+                  if len(files) > 30:
+                      for f in files[:-30]:
+                          print(f"Deleting {f['Key']}")
+                          s3.delete_object(Bucket=bucket, Key=f['Key'])
+              PYEOF
+
+              echo "Backup uploaded to OSS successfully"
+
+              # 清理本地文件
+              rm /tmp/${BACKUP_FILE}
+
+              echo "Backup job completed at $(date)"
+            env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-db-backup-secrets
+                  key: db-password
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-db-backup-secrets
+                  key: aws-access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-db-backup-secrets
+                  key: aws-secret-access-key
+          restartPolicy: OnFailure
+          imagePullSecrets:
+          - name: meet-dockerconfig

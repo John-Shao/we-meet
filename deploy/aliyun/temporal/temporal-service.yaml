@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal-server
+  namespace: work-staging
+  labels:
+    app: temporal-server
+spec:
+  type: ClusterIP
+  ports:
+    - name: frontend-grpc
+      port: 7233
+      targetPort: 7233
+    - name: frontend-http
+      port: 7243
+      targetPort: 7243
+    - name: history-grpc
+      port: 7234
+      targetPort: 7234
+    - name: matching-grpc
+      port: 7235
+      targetPort: 7235
+    - name: worker-grpc
+      port: 7239
+      targetPort: 7239
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+  selector:
+    app: temporal-server

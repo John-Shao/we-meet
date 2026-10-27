@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-worker
+  namespace: work-staging
+  labels:
+    app: temporal-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: temporal-worker
+  template:
+    metadata:
+      labels:
+        app: temporal-worker
+    spec:
+      containers:
+        - name: worker
+          image: jusi-cn-guangzhou.cr.volces.com/we-meet/work-r0a-worker:1.0.1
+          imagePullPolicy: Always
+          env:
+            - name: TEMPORAL_ADDRESS
+              value: "temporal-server.work-staging.svc.cluster.local:7233"
+            - name: TEMPORAL_NAMESPACE
+              value: "default"
+            - name: TASK_QUEUE
+              value: "work-r0a-run"
+            - name: ARK_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: worker-secrets
+                  key: ark-api-key
+            - name: DASHSCOPE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: worker-secrets
+                  key: dashscope-api-key
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          readinessProbe:
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            exec:
+              command:
+                - python
+                - -c
+                - "import sys; sys.exit(0)"
+          livenessProbe:
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            exec:
+              command:
+                - python
+                - -c
+                - "import sys; sys.exit(0)"
