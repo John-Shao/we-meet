@@ -59,8 +59,22 @@
 | 导出一直"排队中" | 作业积压或 worker 停摆（`WorkAuditExportBacklog`） | 不重复点击创建（同 `client_request_id` 幂等返回同一作业）；值班按运行手册 §5.1 处理，恢复后仍显示原作业 | S3 |
 | 导出显示"失败" | 看 `error_code`（Content Store/超时/行数上限） | 重新发起一次导出（新 `client_request_id`）；连续失败升 S2 | S3→S2 |
 | 下载提示"凭证无效或已使用" | 一次性凭证已用或已过期，属设计 | 重新发放凭证再下载；若同一账号短时间反复失败，按安全信号处理（`WorkAuditExportTokenFailureBurst`） | S3 / 安全升级 |
-| 管理页显示"数据陈旧"或没有组织名 | 目录投影滞后或 Host 未提供该字段 | 不以空值当"没有席位/没有预算"；按 D-07 与 C31 口径解释，必要时值班手工取消在途 Run | S2 |
-| 成员被撤席位后仍能看见旧任务 | 设计如此：投影只拦新工作 | 说明"历史成果仍可读，新任务会被拒"；需要停止在途 Run 走取消流程（D-07 未签收前为人工） | S3 |
+| 管理页显示"数据陈旧"或没有组织名 | 目录投影滞后或 Host 未提供该字段 | 不以空值当"没有席位/没有预算"；滞后 > 10 分钟（2 个增量周期）按 §5.2 处置，缺字段按 C31 gap 口径解释 | S2 |
+| 成员被撤席位后仍能看见旧任务 | 设计如此：投影只拦新工作；D-07 已定 A，在途 Run 不自动取消 | 说明"历史成果仍可读，新任务会被拒"；需要停止在途 Run 走 §5.2 手工取消 | S3 |
+
+### 5.2 撤权/离职后的在途 Run 处置（D-07 A，2026-10-27 定案）
+
+- **口径**：R0a 只做"拦新工作 + 人工取消在途"。投影同步检测到 `entitlement_lost` 后**不会**自动取消任何 Run；自动定向取消（D-07 B）推到 R0b。
+- **触发**：① `directory.member_synced` 审计里该主体 `entitlement_lost=true`；② `WorkDirectoryProjectionStale`（滞后 > 600 秒即 2 个增量周期且持续 5 分钟，page）；③ 组织停用/kill switch（此时按 §5.1 与 D3 §11.3，义务作业继续跑）。
+- **步骤**：
+  1. 查该主体 `queued`/`active`/`waiting` 的 Run 清单（只读，不改状态）。
+  2. 与组织管理员确认"确需停止"（离职交接中的成果归属先按 §5 转移，避免误停无人认领的任务）。
+  3. `work_ops` 执行 `work.ops_cancel_run(org, run, actor, ticket_ref, reason)`，reason 用枚举码 `entitlement_revoked`、ticket_ref 用工单号（形如 `OPS-1024`）；每次调用只针对一个 Run，**不批量脚本化**（保留逐条工单证据）。审计写 `run.cancel_requested_by_ops`（含操作人、工单号、旧状态）。
+  4. 已派发给模型供应商的请求按 unknown/对账收尾，不声称"已停止外部动作"；迟到用量照常结算，配额不少计（F07）。
+  5. 核对：Run 进入 `cancel_requested` → `canceled`；取消信号只投递一次（重复调用幂等，不产生第二个 `cancel_signal`）；无第二个 Run 被创建。
+- **权限边界**：`ops_cancel_run` 只授 `work_ops`，API/worker/目录角色都没有；它复用 owner 侧 `request_cancel` 的同一状态机与 outbox 路径，不新增终态、不直接改 Temporal。owner 本人在职时仍用常规取消入口。
+- **时限**：与 §2 支持分级对齐——组织管理员发起的离职停止请求按 S2（1 小时内响应）；`WorkDirectoryProjectionStale` 触发的按 page（15 分钟内响应）。
+- **已接受风险**：从撤权生效到人工取消之间，在途 Run 继续消耗该组织 token 配额；这是 D-07 A 的既定代价，写进风险登记与客户接入说明，不作为缺陷处理。
 
 ## 6. Outbox 死信
 

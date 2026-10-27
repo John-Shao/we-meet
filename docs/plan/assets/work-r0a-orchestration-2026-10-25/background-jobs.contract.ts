@@ -161,7 +161,10 @@ export interface ProjectionSyncResult {
 }
 
 /** Narrowing is not this job's decision: it records intent, orchestration acts.
- *  See decision D-07 — auto-cancel of in-flight Runs is still unsigned off. */
+ *  D-07 A (signed 2026-10-27): R0a records the hint and pages the on-call; nothing
+ *  consumes it automatically. An operator cancels through work.ops_cancel_run
+ *  (granted to work_ops only). Auto-cancel is the R0b enhancement (D-07 option B).
+ *  The directory adapter never writes a Run row. */
 export interface EntitlementNarrowingHint {
   readonly orgId: string;
   readonly subjectId: string;

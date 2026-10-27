@@ -204,7 +204,7 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 - 新接口 8 个：用户本人用量、组织按模型用量、接入配置读/写/吊销、凭证创建/轮换/吊销。凭证请求体中的 `api_key` 为 `writeOnly`，响应只含指纹与 `key_version`。
 - 错误码：`r0a-errors-v3` 去掉 `invalid_price_version`/`settlement_out_of_bounds`/`adjustment_zero_tokens`/`invalid_billable_amount`，新增 `provider_not_configured`（422）及内部码映射（`run_cap_exceeded`→`quota_exhausted`、`owner_access_denied`→`admin_access_denied`、`revision_conflict`→`version_conflict` 等）。
 - mock：补齐配置/凭证/用量内存实现；完成一次 Run 会向 `usage_daily` 等价结构累加 50 input + 30 output；密钥只存指纹，不存明文。
-- 证据：`npm test` 34/34、`npm run check` 全过；D1 侧 143/143 与 9/9 竞态见 [D1 设计](work-r0a-data-design-2026-10-25.md)。
+- 证据：`npm test` 34/34、`npm run check` 全过；D1 侧 148/148 与 9/9 竞态见 [D1 设计](work-r0a-data-design-2026-10-25.md)。
 
 ## 6. 未决与风险
 

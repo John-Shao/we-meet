@@ -174,14 +174,15 @@
     {
       "id": "S14",
       "threat": "User content or secrets leak into logs/traces/errors",
-      "control": "Egress/runtime policy forbids content/prompt/response/key logging; only IDs/hashes/usage/error codes; secret detection blocks before send.",
+      "control": "Egress/runtime policy forbids content/prompt/response/key logging; only IDs/hashes/usage/error codes; secret detection blocks before send. Customer-hosted credentials (D-08b B3/B7/B10, signed 2026-10-27) are stored as ciphertext + fingerprint only: the API is write-only (no plaintext read-back), resolve_provider_context is worker-only, and key create/rotate/revoke plus call failures are audited by operator/org/time/key_version/fingerprint — never by key material. A suspected master-key leak goes through bulk revoke + customer notification + re-encryption drill.",
       "evidence": [
         "D4 logging policy + policy tests",
-        "D2 no content in events/errors"
+        "D2 no content in events/errors",
+        "D1 148/148 writeOnly credential, revoke-blocks-new-calls, audit-has-no-ciphertext negatives"
       ],
       "status": "partial",
       "owner": "backend + runtime + security",
-      "closeCondition": "Runtime log/trace scan with synthetic secrets, error payload review and provider adapter audit."
+      "closeCondition": "Runtime log/trace scan with synthetic secrets (E5 probe), error payload review and provider adapter audit; the master-key custody/rotation drill is an E5 gate because R0a uses a static single-layer key, not cloud KMS."
     },
     {
       "id": "S15",
@@ -210,7 +211,7 @@
     {
       "id": "S17",
       "threat": "Directory projection is stale or forged: a revoked member keeps working, or a Host adapter writes another tenant’s seats/roles",
-      "control": "org/member projections are writable only through work.sync_org_projection/work.sync_member_projection, granted only to the work_directory service role; revisions must increase (projection_revision_stale) and the transaction tenant context must match the target org (directory_org_context_mismatch); operator_suspended is never settable from the directory path; every sync writes an audit row with entitlement_lost. Entitlement loss blocks new work at create_input/submit/retry. Stopping in-flight Runs is decision D-07, not an adapter side effect.",
+      "control": "org/member projections are writable only through work.sync_org_projection/work.sync_member_projection, granted only to the work_directory service role; revisions must increase (projection_revision_stale) and the transaction tenant context must match the target org (directory_org_context_mismatch); operator_suspended is never settable from the directory path; every sync writes an audit row with entitlement_lost. Entitlement loss blocks new work at create_input/submit/retry. D-07 signed A on 2026-10-27: in-flight Runs are NOT cancelled automatically; the on-call cancels them through work.ops_cancel_run (work_ops only, ticket ref required), per pilot runbook §5.2, and the residual window is bounded by the signed sync cadence (incremental 5m + daily full reconcile, alert at lag > 600s for 5m).",
       "evidence": [
         "D1 smoke 114/114 (directory_projection_write_path, projection_revision_monotonic, projection_cross_org_blocked, projection_ignores_operator_flag, projection_revocation_blocks_new_work, projection_guard_is_upsert_predicate)",
         "r0a-concurrency-smoke.py: 8 concurrent out-of-order revisions per target end at the maximum applied revision (lost_update=false); a duplicated revision collapses to one apply; before the monotonic upsert predicate the same run left org at revision 5 and member at 6 while reporting all 8 applied - a real lost update that could resurrect a revoked seat",
@@ -219,7 +220,7 @@
       ],
       "status": "partial",
       "owner": "backend + platform + security",
-      "closeCondition": "Real IdentityDirectory/Entitlement fields wired in E2 (C31); projection lag alert threshold + sync interval signed with D-07; multi-replica sync drill."
+      "closeCondition": "Real IdentityDirectory/Entitlement fields wired in E2 (C31); multi-replica sync drill. Sync cadence and the lag alert threshold were signed with D-07 A on 2026-10-27, so they are no longer open here."
     },
     {
       "id": "S18",

@@ -2218,6 +2218,112 @@ INSERT INTO smoke_assert SELECT 'usage_tables_not_directly_readable',
   AND NOT has_table_privilege('work_worker', 'work.usage_daily', 'SELECT');
 
 -- ---------------------------------------------------------------------------
+-- D-07 A: 运营代取消在途 Run（ops_cancel_run，只授 work_ops）
+-- ---------------------------------------------------------------------------
+RESET ROLE;
+SET LOCAL ROLE work_api;
+SET LOCAL app.subject_id = 'user1';
+SET LOCAL app.org_id = 'org1';
+SELECT work.create_input(
+  'org1', 'user1', 'content://org1/input-ops-cancel', 'sha256:input-ops-cancel', 96, 'application/json'
+) AS oc_input_id \gset
+CREATE TEMP TABLE ctx_oc AS
+SELECT *
+FROM work.submit_task(
+  'org1', 'user1', 'req-ops-cancel',
+  :'oc_input_id'::uuid, '运营取消路径', 'ask_each',
+  'sha256:snap-ops-cancel', '{}'::jsonb,
+  ARRAY['model_call']::text[],
+  '{"provider":"qwen"}'::jsonb,
+  'wf-ops-cancel', 'pi-1.4.0'
+);
+SELECT task_id AS oc_task_id, run_id AS oc_run_id FROM ctx_oc \gset
+
+INSERT INTO smoke_assert
+SELECT 'ops_cancel_run_only_granted_to_ops',
+  has_function_privilege('work_ops', 'work.ops_cancel_run(text, uuid, text, text, text)', 'EXECUTE')
+  AND NOT has_function_privilege('work_api', 'work.ops_cancel_run(text, uuid, text, text, text)', 'EXECUTE')
+  AND NOT has_function_privilege('work_worker', 'work.ops_cancel_run(text, uuid, text, text, text)', 'EXECUTE')
+  AND NOT has_function_privilege('work_directory', 'work.ops_cancel_run(text, uuid, text, text, text)', 'EXECUTE');
+
+SET LOCAL ROLE work_ops;
+SET LOCAL app.subject_id = 'ops:oncall';
+SET LOCAL app.org_id = 'org1';
+-- work_ops 对 run 表没有 SELECT，run id 通过会话变量传入 DO 块。
+SELECT set_config('app.oc_run', :'oc_run_id', true);
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.ops_cancel_run('org1', current_setting('app.oc_run')::uuid,
+      'ops:oncall', 'no-ticket', 'entitlement_revoked');
+    RAISE EXCEPTION 'expected_invalid_request';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'invalid_request' THEN RAISE; END IF;
+  END;
+  BEGIN
+    PERFORM work.ops_cancel_run('org1', current_setting('app.oc_run')::uuid,
+      'ops:oncall', 'OPS-1', 'Stop it now');
+    RAISE EXCEPTION 'expected_invalid_reason_code';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'invalid_reason_code' THEN RAISE; END IF;
+  END;
+  BEGIN
+    PERFORM work.ops_cancel_run('org2', current_setting('app.oc_run')::uuid,
+      'ops:oncall', 'OPS-1', 'entitlement_revoked');
+    RAISE EXCEPTION 'expected_run_not_found';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'run_not_found' THEN RAISE; END IF;
+  END;
+  BEGIN
+    PERFORM work.ops_cancel_run('org1', current_setting('app.oc_run')::uuid,
+      'ops:intruder', 'OPS-1', 'entitlement_revoked');
+    RAISE EXCEPTION 'expected_actor_mismatch';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'actor_mismatch' THEN RAISE; END IF;
+  END;
+END $$;
+RESET ROLE;
+SET LOCAL app.org_id = 'org1';
+INSERT INTO smoke_assert SELECT 'ops_cancel_run_needs_ticket_and_org', true;
+
+SET LOCAL ROLE work_ops;
+SET LOCAL app.subject_id = 'ops:oncall';
+SET LOCAL app.org_id = 'org1';
+SELECT work.ops_cancel_run('org1', :'oc_run_id'::uuid, 'ops:oncall', 'OPS-1024', 'entitlement_revoked');
+RESET ROLE;
+SET LOCAL app.org_id = 'org1';
+INSERT INTO smoke_assert
+SELECT 'ops_cancel_run_state_and_signal',
+  (SELECT state = 'cancel_requested' FROM work.run WHERE id = :'oc_run_id'::uuid)
+  AND (SELECT count(*) = 1 FROM work.outbox
+       WHERE org_id = 'org1' AND aggregate_type = 'run' AND aggregate_id = :'oc_run_id'::uuid
+         AND payload->>'kind' = 'cancel_signal')
+  AND (SELECT count(*) = 1 FROM work.task_event
+       WHERE task_id = :'oc_task_id'::uuid AND type = 'run.cancel_requested'
+         AND payload->>'requested_by' = 'ops');
+INSERT INTO smoke_assert
+SELECT 'ops_cancel_run_audited_with_ticket',
+  EXISTS (SELECT 1 FROM work.audit_event
+    WHERE action = 'run.cancel_requested_by_ops' AND target_id = :'oc_run_id'::text
+      AND actor_subject_id = 'ops:oncall'
+      AND metadata->>'ticket_ref' = 'OPS-1024'
+      AND metadata->>'reason' = 'entitlement_revoked'
+      AND metadata ? 'previous_state');
+
+SET LOCAL ROLE work_ops;
+SET LOCAL app.subject_id = 'ops:oncall';
+SET LOCAL app.org_id = 'org1';
+SELECT work.ops_cancel_run('org1', :'oc_run_id'::uuid, 'ops:oncall', 'OPS-1025', 'entitlement_revoked');
+RESET ROLE;
+SET LOCAL app.org_id = 'org1';
+INSERT INTO smoke_assert
+SELECT 'ops_cancel_run_idempotent_on_terminal_or_requested',
+  (SELECT count(*) = 1 FROM work.outbox
+     WHERE org_id = 'org1' AND aggregate_type = 'run' AND aggregate_id = :'oc_run_id'::uuid
+       AND payload->>'kind' = 'cancel_signal')
+  AND (SELECT count(*) = 1 FROM work.audit_event
+       WHERE action = 'run.cancel_requested_by_ops' AND target_id = :'oc_run_id'::text);
+
+-- ---------------------------------------------------------------------------
 -- Assertions
 -- ---------------------------------------------------------------------------
 DO $$

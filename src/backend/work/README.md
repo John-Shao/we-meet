@@ -10,7 +10,7 @@ it is **not registered in `INSTALLED_APPS`** and no legacy data is migrated.
 |---|---|
 | `sql/r0a_roles.sql` | Local-only role bootstrap (D-04 owns production role provisioning) |
 | `sql/r0a_schema.sql` | R0a schema, functions, RLS and grants, generated from the D1 design asset |
-| `sql/verify_local.sh` | Applies roles + schema to a disposable PostgreSQL 16 and runs the 143 smoke assertions |
+| `sql/verify_local.sh` | Applies roles + schema to a disposable PostgreSQL 16 and runs the 148 smoke assertions |
 | `apps.py` | App config placeholder; registration waits for D-04 |
 
 ## Local verification

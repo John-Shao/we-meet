@@ -158,13 +158,15 @@
       "category": "security",
       "title": "Threat model and R0a controls signed off",
       "owner": "security",
-      "status": "todo",
+      "status": "done",
       "blocking": true,
       "gate": "start",
       "evidence": [
-        "Threat model draft"
+        "Threat model draft",
+        "mapping sign-off 2026-10-27: John Shao (security, (b) self-attestation) signs the S01-S18 threat-to-control/alert/negative-test mapping and the residual-risk list, not the implementation evidence",
+        "D-07 A signed 2026-10-27 closes the S17 open parameter (incremental sync 5m + daily full reconcile, WorkDirectoryProjectionStale at lag > 600s for 5m)"
       ],
-      "note": "S01-S18 mapping drafted; S09 policy signed 2026-10-27 (365/24h/180d) but implementation remains E5; S06/S10 partial; 16 partial, 2 out_of_scope, 0 open. C11 signs at DR3 2026-12-01."
+      "note": "提前签收映射口径（2026-10-27）：S01–S18 与控制点/告警/负例的对应关系 + 残余风险清单（静态主密钥无 KMS/HSM 审计、S15 人工流程、S16 仅 R0a out_of_scope、撤权窗口内在途 Run 继续消耗 token）。16 个控制仍为 partial，其实施证据（C31 真实字段、staging 日志、多节点演练）属 pilot 闸门，DR3 2026-12-01 复审状态列，不改本项口径。"
     },
     {
       "id": "C12",

@@ -1814,6 +1814,59 @@ BEGIN
 END;
 $$;
 
+-- 运维代取消在途 Run（D-07 A，2026-10-27 定案）：撤席位/停用后在途 Run 不自动取消，
+-- 由值班按工单执行本命令。走与 request_cancel 相同的 cancel_signal outbox 与状态机，
+-- 区别只是不要求调用者是任务 owner（owner 可能已失权）。调用方需 SET LOCAL app.org_id/app.subject_id。
+CREATE FUNCTION work.ops_cancel_run(
+  p_org_id text,
+  p_run_id uuid,
+  p_actor_subject_id text,
+  p_ticket_ref text,
+  p_reason text
+) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  run_row work.run%ROWTYPE;
+  reason text;
+BEGIN
+  PERFORM work.assert_session_subject(p_actor_subject_id);
+  IF p_ticket_ref IS NULL OR p_ticket_ref !~ '^[A-Z][A-Z0-9]+-[0-9]+$' OR length(btrim(coalesce(p_reason, ''))) < 4 THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
+  END IF;
+  reason := work.reason_code(p_reason);
+  SELECT * INTO run_row
+  FROM work.run r
+  WHERE r.id = p_run_id AND r.org_id = p_org_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'run_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF run_row.state IN ('succeeded', 'failed', 'canceled', 'cancel_requested') THEN
+    RETURN;
+  END IF;
+  UPDATE work.run r
+  SET state = 'cancel_requested',
+      wait_reason = NULL,
+      control_revision = r.control_revision + 1,
+      updated_at = now()
+  WHERE r.id = p_run_id AND r.org_id = p_org_id;
+  PERFORM work.append_task_event(
+    p_org_id, run_row.task_id, 'run.cancel_requested',
+    jsonb_build_object('run_id', p_run_id, 'reason', reason, 'requested_by', 'ops')
+  );
+  INSERT INTO work.outbox (org_id, aggregate_type, aggregate_id, event_id, payload)
+  VALUES (
+    p_org_id, 'run', p_run_id, gen_random_uuid(),
+    jsonb_build_object('kind', 'cancel_signal', 'run_id', p_run_id, 'reason', reason)
+  );
+  PERFORM work.append_audit(
+    p_org_id, p_actor_subject_id, 'run.cancel_requested_by_ops', 'run', p_run_id::text,
+    jsonb_build_object('task_id', run_row.task_id, 'previous_state', run_row.state,
+                       'ticket_ref', p_ticket_ref, 'reason', reason)
+  );
+END;
+$$;
+
 -- 生命周期事件由触发器统一补发，覆盖 finish_run/accept_task/cancel/对账等全部写路径，
 -- 供 SSE 时间线与试点指标使用；payload 不含正文、标题或完成理由文本（terminal_reason 已是枚举码）。
 CREATE FUNCTION work.emit_run_terminal_event() RETURNS trigger

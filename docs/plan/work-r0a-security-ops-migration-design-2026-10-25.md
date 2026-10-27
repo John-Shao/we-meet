@@ -1,6 +1,6 @@
 # Work R0a 安全、运维、迁移与试点详细设计（D6）
 
-> 状态：D6 设计草案；安全控制/SLO/容量/试点清单已建模并通过 8/8 校验，当前 **go/no-go = no-go（19 个 blocking 项；C01/C02/C14 提前签、C15 已 waived）**；已完成 Temporal dev 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、RLS 池化、10 并发负载、Work DB 恢复、试点 on-call runbook、SLO 规则即代码 11/11 + promtool 校验（48 条规则 + 14 组告警单测）与日志扫描 8/8、管理读/目录投影/留存清扫的多连接竞态 7/7；本地关闭 C12/C18/C19/C20/C21，剩余 19 个 blocking（C01/C02/C14 已提前签）。未做多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/真实遥测接入（C15 已 waived）。
+> 状态：D6 设计草案；安全控制/SLO/容量/试点清单已建模并通过 8/8 校验，当前 **go/no-go = no-go（18 个 blocking 项；C01/C02/C11/C14 提前签、C15 已 waived）**；已完成 Temporal dev 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、RLS 池化、10 并发负载、Work DB 恢复、试点 on-call runbook、SLO 规则即代码 11/11 + promtool 校验（48 条规则 + 14 组告警单测）与日志扫描 8/8、管理读/目录投影/留存清扫的多连接竞态 7/7；本地关闭 C12/C18/C19/C20/C21，剩余 18 个 blocking（C01/C02/C11/C14 已提前签）。未做多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/真实遥测接入（C15 已 waived）。
 >
 > 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界）
 >
@@ -48,10 +48,10 @@ D6 回答 R0a 试点能否开始、如何安全运行、如何切换/回滚、�
 | S11 | 旧路由/开关暴露错误数据 | 组织开关；旧链接只读通知；不迁移/不双写 | partial |
 | S12 | 沙箱逃逸/宿主访问 | gVisor/等效；非 root/只读/无宿主挂载/egress-only；runc 降级已测 | partial |
 | S13 | 供应商训练/驻留/留存 | 不适用（C15 waived：演示组织用百炼 + 演示数据） | out_of_scope |
-| S14 | 正文/密钥进日志 | 只记录 ID/哈希/usage/错误码；秘密阻断 | partial |
+| S14 | 正文/密钥进日志 | 只记录 ID/哈希/usage/错误码；秘密阻断；**托管客户密钥只存密文 + 指纹，API 只写不回读，创建/轮换/吊销/调用失败记审计但不含密钥材料**（D-08b B3/B7/B10 已于 2026-10-27 签收） | partial |
 | S15 | 停用/离职/所有权 | 停用 epoch；不自动恢复；所有权转移人工流程 | partial |
 | S16 | 连接器/设备 scope | R0a 不适用；R0b/R2 再审 | out_of_scope |
-| S17 | 目录投影滞后或被伪造 | 投影只由 `work_directory` 经 `sync_org_projection`/`sync_member_projection` 写入；修订号单调；租户上下文必须匹配；不覆盖 `operator_suspended`；失权在 `create_input`/提交/重试即拒；在途 Run 停止属 D-07 | partial |
+| S17 | 目录投影滞后或被伪造 | 投影只由 `work_directory` 经 `sync_org_projection`/`sync_member_projection` 写入；修订号单调；租户上下文必须匹配；不覆盖 `operator_suspended`；失权在 `create_input`/提交/重试即拒；**D-07 已签 A（2026-10-27）**：在途 Run 不自动取消，由值班按试点 Runbook §5.2 执行 `work.ops_cancel_run`；增量同步 5 分钟 + 每日全量校对，滞后 > 600 秒 page | partial |
 | S18 | 治理读越权 / 导出下载入口外流 | 管理读仅 owner/admin 且绑组织；跨组织与不存在统一 404；作业只含元数据；一次性短期 token 走 `X-Download-Token`（不进 URL），库内只存哈希、兑换一次即失效；到期作业清正文引用 | partial |
 
 **签收边界**：
@@ -59,7 +59,7 @@ D6 回答 R0a 试点能否开始、如何安全运行、如何切换/回滚、�
 - S01/S02/S04/S07/S14 的 partial 不能当 closed；需要真实模型/网络/运行时/池化测试。
 - S06/S09/S12 是试点前必须关闭或书面降级的硬项；S13 已 out_of_scope（C15 waived）。
 - S16 的 out_of_scope 仅对 R0a 成立，不覆盖 R0b/R2。
-- S17/S18 是 2026-10-26 方案 B 与目录投影落地后新增的两条边界：Work 侧控制与负例已有（D1 114/114、多连接竞态 7/7、合同 10/10、`ci-contract` 禁 `download_url`），关闭仍需真实身份字段接入（C31）、真实鉴权与访问日志证明 token 不落 URL。
+- S17/S18 是 2026-10-26 方案 B 与目录投影落地后新增的两条边界：Work 侧控制与负例已有（D1 148/148、多连接竞态 9/9、合同 10/10、`ci-contract` 禁 `download_url`），关闭仍需真实身份字段接入（C31）、真实鉴权与访问日志证明 token 不落 URL。S17 的同步节奏与滞后告警阈值已随 **D-07 A（2026-10-27）** 定案，因此 C11 的映射口径可提前签；本行状态仍为 partial。
 
 ## 4. SLO、告警与测量
 
@@ -230,9 +230,9 @@ node pilot-capacity-model.mjs
 - 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03 执行开关/组织停用；C21 §6.1 on-call/事故沟通。C31 仍 partial（P1-A 不能直接复用；方案 B 已让 Work 自己出席位/token 配额/导出作业，缺的是 Host 的身份与席位字段）；C16/C17 仍 partial：规则与告警单测可复现（promtool 48 条 + 14 断言），缺的是 staging 遥测/日志后端与真实序列上的验证。
 - 当前 no-go 从 29 降为 **22**；C09/C13/C14/C22 仍 partial，C15 已 waived、S13 已 out_of_scope、C24/C25/C27/C30 等仍待外部输入。
 
-**当前：no-go，19 个 blocking 项未关闭（C01/C02/C14 已提前签、C15 已 waived）。** 主要阻塞：
+**当前：no-go，18 个 blocking 项未关闭（C01/C02/C11/C14 已提前签、C15 已 waived）。** 主要阻塞：
 
-- D1–D5 设计尚未正式评审；D1 冒烟 143/143 + 竞态 9/9、Temporal 参考纵切 10/10 已完成，但 S1 多节点/在途 server 重启与正式评审仍未完成。
+- D1–D5 设计尚未正式评审；D1 冒烟 148/148 + 竞态 9/9、Temporal 参考纵切 10/10 已完成，但 S1 多节点/在途 server 重启与正式评审仍未完成。
 - D2 生成客户端未接真实前端（R0a 门禁已在 PR #7 首次跑绿，仓库全量流水线 meet Workflow 也已 15/15 跑绿）；D4 真实 gVisor/Content Store/云 KMS/供应商条款；D5 React/E2E；C22 多节点/在途 server 重启。
 - C31 管理只读映射缺口：[映射说明](work-r0a-admin-readonly-mapping-2026-10-25.md) 明确 P1-A 的 role/revision/预算/异步导出不兼容；2026-10-26 决策 B 已把预算/席位统计/导出作业搬到 Work 侧（D1 114/114 冒烟 + 竞态 7/7），剩余缺口是 Host 必须经端口提供 `subject_id`/`role`/`revision`/席位布尔与组织字段；端口契约与 WeMeet 适配器已可执行但未接真实 P1-A/身份服务。
 - 威胁模型/控制签收；sandbox proof；供应商条款/价表；无正文日志只在本地证据日志扫描，未接 staging OTel/log pipeline。
@@ -263,9 +263,9 @@ node pilot-capacity-model.mjs
 9. **试点组织/研究**：3 家未签、7–8 名研究未做（招募与执行排期单已发，待运营回填名单）；不能以内部走查代替。
 10. **事故沟通/支持**：支持分级 S1–S4、工单模板与升级路径见[试点运营 runbook §2](work-r0a-pilot-operations-runbook-2026-10-26.md)；联系人/渠道待 C24。
 11. **合规**：数据驻留/删除/审计保留需法务/安全确认。
-12. **No-go 清单**：剩余 19 个 blocking 项是当前事实；本地测试不能替代试点环境、安全签收与组织研究（C15 已 waived）。
+12. **No-go 清单**：剩余 18 个 blocking 项是当前事实；本地测试不能替代试点环境、安全签收与组织研究（C15 已 waived）。
 13. **独立产品边界**：Host 端口/Connector 契约与剥离演练未完成；ADR-0021 设计约束不等于可独立售卖。
-14. **目录投影新鲜度**：撤权/停席到 Work 生效取决于 Host 同步频率与失败重试；R0a 只保证“下一次授权/提交被拦住”，不保证在途 Run 立即停止（是否自动 `request_cancel` 待 DR1 定案，见 D1 §7.14）。运维需监控投影修订滞后与 `directory.member_synced` 的 `entitlement_lost` 事件。
+14. **目录投影新鲜度（D-07 A 已定案，2026-10-27）**：增量同步 5 分钟 + 每日全量校对，`WorkDirectoryProjectionStale` 在滞后 > 600 秒（2 个增量周期）且持续 5 分钟时 page。R0a 只保证"下一次授权/提交被拦住"，**不自动取消在途 Run**（自动取消 = D-07 B 推到 R0b）；值班按[试点运营 Runbook §5.2](work-r0a-pilot-operations-runbook-2026-10-26.md)用 `work.ops_cancel_run` 手工停止。已接受风险：窗口内继续消耗该组织 token 配额。运维需监控投影修订滞后与 `directory.member_synced` 的 `entitlement_lost` 事件。
 
 ## 13. 验收标准
 

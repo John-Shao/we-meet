@@ -131,7 +131,7 @@ Runtime/Adapter
 
 - 请求必须绑定 `operation_id`、`dispatch_attempt_id`、`fence`、`request_hash`、`price_version`；不匹配拒绝。
 - Egress 只接受 `dispatching` Operation；不接受 prepared/authorized 直接调用。
-- 供应商 Key 由 KMS/凭据库注入 egress；Runtime 不持有；egress 不把 Key 写入日志/响应。
+- 供应商凭证**按组织**由 egress 取得（见 §7.5），Runtime 与 Adapter 都不持有；egress 不把明文、密文或密钥材料写入日志/响应/trace，只允许指纹。
 - 请求/响应正文可能含用户内容：禁止普通日志、trace attribute、错误详情；只记录哈希/ID/usage。
 
 ### 7.2 供应商与回退
@@ -160,6 +160,23 @@ Runtime/Adapter
 - 最终正文以 ArtifactVersion 为准；流式 chunk 丢失不影响终态/计费/审批。
 - 返回 `provider_request_id`、`usage`（input/output/cached）、`finish_reason`、`price_version`；worker 结算。
 - 供应商账单与内部 ledger 的差异进入对账；不以“再生成一次”冒充恢复。
+
+### 7.5 按组织取凭证（D-08b 已签，2026-10-27）
+
+D-08b 的 B1–B10 于 2026-10-27 签收，本小节是其在 D4 的落点。**凭证路径不是"平台持有一把全局 Key"**：
+
+| 项 | 口径 |
+|---|---|
+| 取得方式 | egress 以 `org_id` 调 `resolve_provider_context(org_id)`（worker-only 领域函数）取该组织当前 active 配置的密文凭证；应用与 worker 对 `provider_credential` 没有直接 SELECT 路径 |
+| 两种模式 | `managed_key`（DeepSeek、演示组织百炼）：解密托管 Key；`sts_role`（阿里云/火山按客户角色能力）：用客户授权角色换短期凭证。客户自建代理只是接入说明里的**条件备选**，不进 R0a 实现 |
+| 加密形态 | **静态单层加密**（D-03 B）：全局主密钥放进程 Secret，按 `org_id` 派生每组织密钥；只存密文 + 指纹 + `key_version`，`wrapped_dek`/`kms_key_ref` 同时为 NULL。成对非 NULL 是未来 KMS 信封的预留位，R0a 不启用 |
+| 只写不回读 | 管理 API 只回指纹/后四位与 `key_version`；任何响应、日志、trace、错误体与审计都不含明文或密文（B10 脱敏负例） |
+| 吊销 | `revoke_provider_credential`/`revoke_provider_config` 后**新调用立即失败**；在途调用以受控错误结束并进入 unknown/对账，**不静默换一把 Key 重试**（B5）。撤权后在途 Run 的停止属 D-07 A，由值班执行 `ops_cancel_run`，网关不做这件事 |
+| 轮换 | `key_version` 单调递增，旧版本不再被 `resolve_provider_context` 返回；静态主密钥轮换是运维动作，R0a 无 KMS 自动轮换（B6） |
+| unknown 对账 | 用**该组织当前凭证**查上游 request id；凭证已吊销则保持 unresolved，不回落到平台兜底 Key（B8） |
+| 缓存 | egress 可缓存解密结果，但必须按 `org_id` 分片并随 `key_version`/吊销失效；多副本缓存隔离在 E5 演练验证（B4 未证项） |
+
+**边界**：本小节是设计口径，不是实现证明。真实静态主密钥的托管与派生参数（HKDF/salt）、解密路径的授权边界、吊销对在途调用的实际影响、真实 OTel/日志后端扫描，都要在 **E5** 用合成密钥探针复验；C04 仍按 DR2 签。
 
 ## 8. 内容、检查点与清理
 
@@ -258,7 +275,7 @@ D4 完成（DR2/D4 评审）需要：
 3. **供应商选择/条款/价表**：未取得书面条款；价格上界、驻留、训练/留存、配额未定。
 4. **unknown 回执查询**：供应商不一定支持按 request id 查询；无法确认时保持 unresolved，不释放预算。
 5. **秘密检测边界**：模式检测有误报/漏报，不承诺完整 DLP；用户输入/系统模板仍可能含敏感信息。
-6. **Content Store/KMS**：scoped 引用、加密、删除、恢复、crypto-shredding 未实现/未验证。
+6. **Content Store/密钥**：scoped 引用、加密、删除、恢复、crypto-shredding 未实现/未验证。凭证侧按 D-03 B 走**静态单层加密**（进程 Secret 里的全局主密钥 + 按 `org_id` 派生），R0a 不接云 KMS/HSM，因此没有 KMS 访问审计；主密钥托管、派生参数与轮换演练在 E5 补（C11 已把它列为残余风险）。
 7. **检查点格式/恢复**：Pi 检查点与 Work Adapter 状态的一致性未做真实恢复测试。
 8. **流式/过滤**：reasoning 过滤、chunk 丢失、背压、响应大小限制未做运行时验证。
 9. **取消/超时数值**：connect/first-token/total/心跳是初始建议，需试点校准。

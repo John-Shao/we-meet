@@ -60,7 +60,7 @@ tests:
             exp_annotations:
               org_id: org1
               runbook: work-operations-runbook-2026-10-25.md#51-后台作业故障处置
-              summary: "组织目录投影滞后超过 15 分钟，撤权新鲜度不足；管理页应显示陈旧"
+              summary: "组织目录投影滞后超过 10 分钟（D-07 已签：2 个增量同步周期，增量周期 5 分钟），撤权新鲜度不足；管理页应显示陈旧"
   # the same alert stays silent below the threshold
   - interval: 1m
     input_series:
