@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Added
 
+- Implement Work R0a's clean-slate data layer, 33 API operations, SSE and
+  outbox delivery, mock runtime adapters and mock/live UI; 39 backend and
+  1713 frontend tests are green.
 - Record the D-08 provider-account and token-metering decision together with
   the design revision it drove.
 - Replace Work's money ledger with token quotas, organization-bound provider
