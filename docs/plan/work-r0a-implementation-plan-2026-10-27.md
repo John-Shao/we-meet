@@ -1,6 +1,6 @@
 # Work R0a 实施计划
 
-> 状态：**有条件开发准入**（2026-10-27 起；项目状态以 [work-project.md](work-project.md) 为准）
+> 状态：**E1-E8 契约/mock 实现完成**（2026-10-27；详见 [实施状态总结](work-r0a-implementation-status-2026-10-27.md)）
 > 
 > 日期：2026-10-27
 > 
@@ -9,6 +9,13 @@
 > 分支：`dev/work-r0a`（从 `aliyun-dev` 拉出）
 > 
 > 准入：[开发准入单](work-r0a-development-entry-2026-10-27.md)：E1 立即开工，E2/E3 依次开工，E4 只做契约/本地切片，E5 只做设计/原型，E6 mock 先行，E7/E8 排在其后
+> 
+> **完成度**：
+> - E1-E3 ✅ 完整实现（数据层/API/SSE+outbox）
+> - E4 ✅ 契约 + Mock Worker + 真实 Temporal 部署（K3s work-staging）
+> - E5-E8 ✅ 契约 + Mock 实现
+> - 未提交：E4 Temporal 集成代码（temporal_client.py, settings.py, outbox_relay.py, deploy YAML）
+> - 下一阶段：提交 E4 代码 → 端到端验证 → Worker 真实化（替换 mock activity 为 SQL 调用）→ 试点演练（2026-11-06）
 
 ## 1. 总体范围与约束
 

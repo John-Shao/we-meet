@@ -955,6 +955,30 @@ class Base(Configuration):
         ),
     }
 
+    # Work R0a — Temporal orchestration (E4)
+    # Self-hosted Temporal server for workflow execution.
+    # See: docs/plan/work-r0a-orchestration-design-2026-10-25.md §4
+    TEMPORAL_ADDRESS = values.Value(
+        "temporal-server.work-staging.svc.cluster.local:7233",
+        environ_name="TEMPORAL_ADDRESS",
+        environ_prefix=None,
+    )
+    TEMPORAL_NAMESPACE = values.Value(
+        "default",
+        environ_name="TEMPORAL_NAMESPACE",
+        environ_prefix=None,
+    )
+    TEMPORAL_API_KEY = SecretFileValue(
+        environ_name="TEMPORAL_API_KEY",
+        environ_prefix=None,
+        default=None,
+    )
+    TEMPORAL_TLS = values.BooleanValue(
+        False,
+        environ_name="TEMPORAL_TLS",
+        environ_prefix=None,
+    )
+
     # La Suite Docs (collaborative docs bridge — see core/services/docs_client.py).
     # api_url is the Docs host (serves both /api/... and the /docs/<id>/ deep link).
     # Empty token/url ⇒ the summary→doc hook silently no-ops (Docs not wired up yet).

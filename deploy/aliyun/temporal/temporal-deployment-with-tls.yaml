@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-server
+  namespace: work-staging
+  labels:
+    app: temporal-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal-server
+  template:
+    metadata:
+      labels:
+        app: temporal-server
+    spec:
+      containers:
+        - name: temporal
+          image: jusi-cn-guangzhou.cr.volces.com/we-meet/temporal-auto-setup:1.25.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 7233
+              name: frontend-grpc
+            - containerPort: 7234
+              name: history-grpc
+            - containerPort: 7235
+              name: matching-grpc
+            - containerPort: 7239
+              name: worker-grpc
+            - containerPort: 7243
+              name: frontend-http
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: SERVICES
+              value: "frontend:history:matching:worker"
+            - name: TEMPORAL_STORE
+              value: "default"
+            - name: VISIBILITY_STORE
+              value: "visibility"
+            - name: NUM_HISTORY_SHARDS
+              value: "4"
+            - name: LOG_LEVEL
+              value: "info"
+            - name: DB
+              value: "postgres12"
+            - name: DB_PORT
+              value: "5432"
+            - name: POSTGRES_SEEDS
+              value: "postgresql.meet.svc.cluster.local"
+            - name: POSTGRES_USER
+              value: "temporal"
+            - name: POSTGRES_PWD
+              value: "temporal-staging-2026"
+            - name: POSTGRES_DB
+              value: "temporal_staging"
+            # Server-side TLS (encryption in transit, no client cert required)
+            - name: TEMPORAL_TLS_FRONTEND_CERT
+              value: "/etc/temporal/certs/server-cert.pem"
+            - name: TEMPORAL_TLS_FRONTEND_KEY
+              value: "/etc/temporal/certs/server-key.pem"
+            - name: TEMPORAL_TLS_REQUIRE_CLIENT_AUTH
+              value: "false"
+            - name: TEMPORAL_TLS_CLIENT1_CA_CERT
+              value: "/etc/temporal/certs/ca-cert.pem"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1
+              memory: 2Gi
+          volumeMounts:
+            - name: tls-certs
+              mountPath: /etc/temporal/certs
+              readOnly: true
+          readinessProbe:
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            tcpSocket:
+              port: 7233
+          livenessProbe:
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            tcpSocket:
+              port: 7233
+      volumes:
+        - name: tls-certs
+          secret:
+            secretName: temporal-tls-certs
