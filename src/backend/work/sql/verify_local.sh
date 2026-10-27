@@ -4,6 +4,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../.." && pwd)"
 DB="${WORK_R0A_DB:-work_r0a_e1}"
+python "$HERE/check_schema_sync.py"
 CONTAINER="${WORK_R0A_PG:-work-r0a-pg}"
 docker exec -i "$CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
   -c "DROP DATABASE IF EXISTS $DB" -c "CREATE DATABASE $DB"

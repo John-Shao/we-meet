@@ -171,6 +171,56 @@ BEGIN
 END;
 $$;
 
+-- 输入创建幂等：client_request_id 同键同内容返回原 input；同键异内容 409。
+CREATE FUNCTION work.create_input_idempotent(
+  p_org_id text,
+  p_subject_id text,
+  p_client_request_id text,
+  p_content_ref text,
+  p_content_hash text,
+  p_bytes bigint,
+  p_media_type text DEFAULT 'application/json'
+) RETURNS uuid
+LANGUAGE plpgsql AS $$
+DECLARE
+  dedup_row work.submission_dedup%ROWTYPE;
+  req_hash text;
+  input_id uuid;
+BEGIN
+  PERFORM work.assert_session_subject(p_subject_id);
+  PERFORM work.lock_request_key(
+    p_org_id, p_subject_id, 'input.create', p_client_request_id
+  );
+  req_hash := work.sha256_text(jsonb_build_object(
+    'content_hash', p_content_hash,
+    'bytes', p_bytes,
+    'media_type', p_media_type
+  )::text);
+  SELECT * INTO dedup_row
+  FROM work.submission_dedup d
+  WHERE d.org_id = p_org_id
+    AND d.subject_id = p_subject_id
+    AND d.operation_type = 'input.create'
+    AND d.client_request_id = p_client_request_id
+  FOR UPDATE;
+  IF FOUND THEN
+    IF dedup_row.request_hash <> req_hash THEN
+      RAISE EXCEPTION 'idempotency_key_conflict' USING ERRCODE = 'P0001';
+    END IF;
+    RETURN dedup_row.result_ref::uuid;
+  END IF;
+  input_id := work.create_input(
+    p_org_id, p_subject_id, p_content_ref, p_content_hash, p_bytes, p_media_type
+  );
+  INSERT INTO work.submission_dedup
+    (org_id, subject_id, operation_type, client_request_id, request_hash, result_ref)
+  VALUES
+    (p_org_id, p_subject_id, 'input.create', p_client_request_id, req_hash,
+     input_id::text);
+  RETURN input_id;
+END;
+$$;
+
 -- 提交：幂等键加锁 → 先查重放（重放不受后续席位/组织/输入变化影响）→ 再做准入检查。
 -- 请求哈希由服务端从规范化参数计算，不信任客户端摘要。
 CREATE FUNCTION work.submit_task(

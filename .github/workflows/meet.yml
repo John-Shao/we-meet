@@ -374,7 +374,8 @@ jobs:
             args+=("--deselect" "$node")
           done
           echo "Deselecting ${#known[@]} known baseline failures."
-          uv run pytest -n 2 "${args[@]}"
+          # Work E1 gates have their own PostgreSQL/psql job in work-r0a-gates.yml.
+          uv run pytest -n 2 "${args[@]}" --ignore=work/tests
 
   test-summary:
     runs-on: ubuntu-latest

@@ -94,6 +94,7 @@ GRANT SELECT ON work.task_summary TO work_api, work_worker;
 GRANT SELECT ON work.quota_entry, work.quota_reservation, work.quota_account, work.audit_event TO work_ledger;
 
 GRANT EXECUTE ON FUNCTION work.create_input(text, text, text, text, bigint, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.create_input_idempotent(text, text, text, text, text, bigint, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.submit_task(text, text, text, uuid, text, text, text, jsonb, text[], jsonb, text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.retry_task(text, uuid, text, text, bigint, text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.request_cancel(text, uuid, text, text) TO work_api;
@@ -143,6 +144,7 @@ GRANT EXECUTE ON FUNCTION work.get_audit_export(text, text, uuid) TO work_api;
 GRANT EXECUTE ON FUNCTION work.issue_audit_export_download(text, text, uuid, text, int) TO work_api;
 GRANT EXECUTE ON FUNCTION work.redeem_audit_export_download(text, text, text) TO work_api;
 -- 导出 worker：只领取与收尾作业，正文进 Content Store，库内只留引用与哈希。
+GRANT EXECUTE ON FUNCTION work.list_pending_audit_exports(text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.claim_audit_export(uuid, text, int) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.complete_audit_export(uuid, text, text, text, bigint, bigint, int) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.fail_audit_export(uuid, text, text) TO work_worker;
@@ -160,4 +162,5 @@ GRANT EXECUTE ON FUNCTION work.get_user_usage(text, text, date, date) TO work_ap
 GRANT EXECUTE ON FUNCTION work.get_org_usage_by_model(text, text, date, date) TO work_api;
 GRANT EXECUTE ON FUNCTION work.resolve_provider_context(text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.get_provider_config(text, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.get_provider_credential_view(text, text, uuid) TO work_api;
 GRANT EXECUTE ON FUNCTION work.record_usage(text, text, uuid, text, text, date, bigint, bigint, bigint, int) TO work_worker;

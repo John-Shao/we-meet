@@ -44,6 +44,7 @@
 | **本文** | Work 项目资产、进展、问题、下一步 |
 | [R0a 实施就绪包](work-r0a-implementation-readiness-2026-10-26.md) | W4/DR4：完成审计、E1–E8 估算、L1–L8 测试矩阵、U1–U4、30 个 blocking 中 18 个未关闭、排期与 DR 议程 |
 | [R0a 实施计划](work-r0a-implementation-plan-2026-10-27.md) | 开发实施步骤：E1–E8 文件清单与验收；E1 迁移顺序与角色前置、CI 落点（work-r0a-gates）、凭证加密、六类后台作业归属；2026-10-27 复审 3 P0 / 6 P1 / 12 P2 已修 |
+| [R0a 迁移 Runbook](work-r0a-migration-runbook.md) | E1 正向迁移、回滚（保留角色）、前置检查、故障排查与 CI 闸门 |
 | [R0a 详细设计大纲与决策单](work-r0a-detailed-design-plan-2026-10-25.md) | 范围冻结、D1–D6 包、7 项 P0 决策、DR 闸门、§9.4 检查表 |
 
 ### 2.2 产品与目标架构
@@ -61,8 +62,8 @@
 
 | 包 | 文档 | 说明 |
 |---|---|---|
-| D1 | [数据、权限与迁移](work-r0a-data-design-2026-10-25.md) | 表裁剪、RLS、SECURITY DEFINER 命令、outbox、管理只读聚合与目录投影、异步导出作业、留存清扫、token 配额与模型接入；148/148 冒烟 + 9 组多连接竞态（D-08a 已签、c/d 未冻结） |
-| D2 | [API、事件与协议](work-r0a-api-design-2026-10-25.md) | 29 path/33 operation（管理读 6 + 用量 2 + 接入配置/凭证 6）、错误码 v3、mock、合同/客户端/端口测试（D-08a 已签、c/d 未冻结） |
+| D1 | [数据、权限与迁移](work-r0a-data-design-2026-10-25.md) | 表裁剪、RLS、SECURITY DEFINER 命令、outbox、管理只读聚合与目录投影、异步导出作业、留存清扫、token 配额与模型接入；148/148 冒烟 + 9 组多连接竞态（D-08a–d 已签（c/d 冻结）） |
+| D2 | [API、事件与协议](work-r0a-api-design-2026-10-25.md) | 29 path/33 operation（管理读 6 + 用量 2 + 接入配置/凭证 6）、错误码 v3、mock、合同/客户端/端口测试（D-08a–d 已签（c/d 冻结）） |
 | D3 | [控制面与持久编排](work-r0a-orchestration-design-2026-10-25.md) | Temporal 拓扑、取消四时点、unknown/reconcile、跨组织 relay、§11 非 Run 后台作业与停止语义、托管决策单（§4.1）、D-07 A 已签（只拦新工作 + `work.ops_cancel_run`） |
 | D4 | [Runtime、Harness 与出口](work-r0a-runtime-egress-design-2026-10-25.md) | 沙箱、工具白名单、模型网关、usage/价表、供应链准入 |
 | D5 | [前端体验](work-r0a-frontend-design-2026-10-25.md) | 四界面、状态矩阵、Composer、成果工作区、SSE、可访问性 |
@@ -77,7 +78,7 @@
 | — | [C03 阻塞与演练清单](work-r0a-c03-u3-drills-2026-10-27.md) | **U3 九项已确认（2026-10-27，全部"是"）**；C22 四项演练（11-15/16，开发与测试 5 人）、D3-N01/N03/N06 崩溃/开关与 S1 多节点重启；C03 仍待演练，DR2 签收 |
 | — | [C11 未关闭控制处置单](work-r0a-c11-open-controls-decision-2026-10-27.md) | **C11 已签映射口径 + 残余风险清单（2026-10-27）**；S09 政策已签（365/24h/180d），S06/S09/S10 均为 partial；安全控制 0 open / 16 partial / 2 out_of_scope；实施证据按 DR3 12-01 签 |
 | — | [开工闸门 8 项处置单](work-r0a-start-gate-disposition-2026-10-27.md) | **C01/C02/C11/C14 已于 2026-10-27 提前签**（start 8→4）；C04 需 D-08b；C03/C05/C25 需外部/实证；含代价与 11-03—12-01 动作表 |
-| — | [D-08 大模型接入账号与计量边界决策单](work-r0a-provider-account-metering-decision-2026-10-26.md) | **D-08a 产品已签 2026-10-27、法务 Lily Zhu（授权 11-06 前确认）；D-08b 会前确认（A managed_key，B2/B6 静态改写）；c/d 待 DR1**：Work 不算钱只统计 token、客户自带账号、演示组织独接阿里云 Qwen、凭证方案 (i)、token 护栏取代 cents 账本、用量可见性、管理台 owner 写；R1–R10 细则、对 D1/D2/D4/D6/C15 的冲击面与 D-08a–d 签收栏 |
+| — | [D-08 大模型接入账号与计量边界决策单](work-r0a-provider-account-metering-decision-2026-10-26.md) | **D-08a–d 已签 2026-10-27；D-08a 产品 John Shao + 法务 Lily Zhu（资格/授权 11-06 前补齐），D-08b A managed_key、B2/B6 静态改写，D-08c/d 通过并冻结**：Work 不算钱只统计 token、客户自带账号、演示组织独接阿里云 Qwen、凭证方案 (i)、token 护栏取代 cents 账本、用量可见性、管理台 owner 写；R1–R10 细则、对 D1/D2/D4/D6/C15 的冲击面与 D-08a–d 签收栏 |
 
 ### 2.4 R0a 可执行资产
 
@@ -183,7 +184,7 @@
 | 步骤 | 范围 | 覆盖模块 | 产物/证据 | 依赖/闸门 |
 |---|---|---|---|---|
 | E1 数据层 | D1 schema/函数/RLS/outbox + `work.audit_export`/`work_directory` 纳入迁移体系 | Task/Run、Artifact、Quota、Audit、Access | **E1 草案已落 `src/backend/work/sql/`**：在本机 PG16 上 roles+schema 应用后 **148/148** 冒烟通过（含 `work.ops_cancel_run` 运营取消 +5 项）；legacy `work` app/表迁移未迁数据 | **D-04 已正式签收（2026-10-27）**，可接入迁移体系；DR1；**E1 已于 2026-10-27 启动** |
-| E2 API | 33 operation、cookie+CSRF、错误码、幂等、正文下载、管理只读 6 接口、用量 2 接口、接入配置/凭证 6 接口、目录投影同步作业 | 首页/Composer、我的工作、任务/成果、Inbox、管理、接入配置 | 34/34；`ci-contract` | E1、**D-02 已正式签收（2026-10-27）**、D-08c/d（DR1）、U2 |
+| E2 API | 33 operation、cookie+CSRF、错误码、幂等、正文下载、管理只读 6 接口、用量 2 接口、接入配置/凭证 6 接口、目录投影同步作业 | 首页/Composer、我的工作、任务/成果、Inbox、管理、接入配置 | 34/34；`ci-contract` | E1、**D-02 已正式签收（2026-10-27）**、D-08c/d 已签（冻结）、U2 |
 | E3 SSE/outbox | Last-Event-ID/409 resync、跨组织 relay、生命周期事件 | 任务工作区、Inbox、审计 | Temporal 切片 relay 部分；生产 SSE 未接 | E1、E2 |
 | E4 编排 | Temporal、取消四时点、unknown/reconcile、worker versioning | 任务/运行、配额（审批函数内部保留） | 故障 10/10、S1 4/4 | C03/C22 演练（U3 九项已确认）；真实部署前不签 C03 |
 | E5 Runtime/出口 | 沙箱、Pi Adapter、模型网关、usage、Content Store/静态主密钥 | 成果、配额、审计 | 策略 10/10、usage/供应链 19/19、D1 静态凭证 148/148 | D-08b（B2/B6 已按 D-03 B 静态加密重写）、C04、C13/C14；真实网关前必须签 D-08b |
@@ -226,7 +227,7 @@
 | 阶段 | 状态 | 说明 |
 |---|---|---|
 | R0a 详细设计 | 可评审草案 | D1–D6 文档与资产齐备；4 个未决项（U2 已定待签收） |
-| R0a 产品代码 | **有条件启动（2026-10-27）** | legacy `work` 后端/前端/部署/Helm 已删（数据用 `deploy/aliyun/drop-legacy-work.sql` 手工清理，不迁移）；E1 草案已落 `src/backend/work/sql/`，本地 148/148；E2/E3 随后；生产/试点未放行 |
+| R0a 产品代码 | **E1–E3 实现 + E4–E8 契约/资产已落地工作区（2026-10-27，未提交）** | legacy `work` 已删；E1：迁移 0001/0002、7 个 NOLOGIN 角色、角色脚本、Runbook、冒烟/竞态执行器；E2：33 operation API、Cookie+CSRF、幂等、目录同步、凭证加密、`ops_cancel_run`、审计导出 worker；E3：SSE Last-Event-ID/409、outbox relay/死信；E4/E5：编排/六类作业契约、真实 SQL 本地纵切、到期清扫作业、Runtime/Content Store mock、凭证解析/解密；E6：API/SSE/状态 TS 契约、真实 `/work/v1` 客户端与 live 路由（`VITE_WORK_API_MODE=live`）、Mock UI（Composer/我的工作/任务工作区/Inbox/管理概览）；E7：请求指标/关联 ID 中间件、Prometheus/Grafana/OTel 资产、日志守卫与 log-scan CLI；E8：开通/黄金任务 runner（`--dry-run` 校验 6 任务/3 模板，create-org 与 assign-seats 本地验证）与 Runbook 增补。本地：Work pytest **39/39**、API 覆盖 **88%**、前端 **1713/1713**、148/148、9/9；真实 HTTP（Cookie+CSRF）走通 bootstrap → input → preview → submit → run → artifact → SSE → usage → acceptance；Playwright axe（含颜色对比）通过。未完成：staging DBA 角色、CI 远端、真实 Temporal/Content Store/供应商、真实 API 接入的 UI 与试点；生产/试点未放行 |
 | R0b+（本机/连接器/项目） | 未开始 | R1–R5 仅有产品/UX/架构方向 |
 | DR（设计评审）签收 | 0/5 | DR0–DR4 未形成正式会议纪要；D-01–D-07 已会前正式签收 |
 | go/no-go | no-go | 30 blocking 中 18 未关闭（11 done / 15 partial / 3 todo / 1 waived）；开发准入是产品例外，不改变计数 |
@@ -241,7 +242,8 @@
 | D4 Runtime | 策略 **10/10**；usage/供应链 **19/19**；KMS 6/6；日志扫描 8/8 | [runtime](assets/work-r0a-runtime-2026-10-25/README.md)、[hardening](assets/work-r0a-hardening-2026-10-25/README.md) |
 | D5 前端 | UI 模型 **14/14**；174 条文案 | [frontend assets](assets/work-r0a-frontend-2026-10-25/README.md) |
 | D6 运维/试点 | ops+pilot+telemetry **28/28**（21 record/27 alert；指标 28）；promtool 校验 48 条规则 + 14 条告警单测 | [ops assets](assets/work-r0a-ops-2026-10-25/README.md) |
-| CI | R0a 六个 job 已在 PR #7 远端跑绿（6/6）；仓库全量流水线 meet Workflow **15/15 job 通过**、Release guard 通过，PR #7 25/25 检查通过且 `MERGEABLE/CLEAN`。仍只覆盖设计资产与既有后端，Work 实现未入库 | [work-r0a-gates.yml](../../.github/workflows/work-r0a-gates.yml) |
+| **R0a 实现（本地）** | E1 迁移/回滚 + 148 冒烟 + 9 竞态；E2 33 operation（路由 33/33）与 API 契约测试；E3 SSE/outbox；E4/E5 契约与本地纵切；E6 Mock UI + 真实客户端；E7 指标/日志守卫。Work pytest **39/39**，`work/api` 覆盖 **88%**，前端 **1713/1713**；真实 HTTP（Cookie+CSRF）全链路通过；Playwright axe（含颜色对比）通过；全部为本地/一次性 PG/mock 证据，不是生产证明 | [work/tests](../../src/backend/work/tests)、[work/README](../../src/backend/work/README.md) |
+| CI | 设计资产六个 job 已在 PR #7 远端跑绿（6/6）；新增 `backend-migration`（迁移→148 冒烟→9 竞态→回滚/重放→Work pytest+覆盖率门槛），本地等价步骤已验证、远端未跑；仓库全量流水线 meet Workflow **15/15 job 通过**、Release guard 通过。R0a 实现仍在工作区未提交 | [work-r0a-gates.yml](../../.github/workflows/work-r0a-gates.yml) |
 
 ### 4.3 最近提交
 
@@ -278,7 +280,7 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 - Temporal：**已定自托管（U3 = A，2026-10-26）；九项承诺已于 2026-10-27 确认、资源已批、演练由开发与测试 5 人排期**；A2/A4/A8 数值随资源单回填，C22 待四项演练。
 - **D-01–D-06（2026-10-27 正式签收；DR0 11-03 出纪要）**：D-01 A 单区域同区多 AZ；D-02 A cookie + CSRF/同源 SSE（C02 不返工）；**D-03 B 静态服务密钥 + 单层静态凭证加密（全局主密钥 + 按 `org_id` 派生）**，D1 最小修订、C01 在 DR1 附修订；D-04 A 领域命令 + 独立角色；D-05 A 每 Run 一 Pod（C14 runc 降级）；D-06 A 新 `/work` 不迁移。
 - **D-07（2026-10-27 正式签收 A）**：撤席位/停用后只拦新工作（同步周期上限 5 min + 每日全量对账；投影滞后 > 600s 持续 5 min 告警 `WorkDirectoryProjectionStale`）；在途 Run 由运营通过 `work.ops_cancel_run` 手工取消（需工单号 + 原因 ≥4 字，仅 `work_ops` 角色可执行，幂等、记审计与 outbox）。D1 已补函数/授权/冒烟 +5（148/148）。
-- **D-08（2026-10-27 D-08a 产品已签、法务 Lily Zhu（授权 11-06 前确认）；D-08b 会前确认演示组织 A managed_key、B1–B10 通过但 B2/B6 因 D-03 静态密钥重写；D-08c/d 待 DR1；D1/D2 修订稿已合并）**：Work **不计算模型费用**，只统计 token（每用户 + 组织按模型分列，C 端可见本人用量，标"仅供参考"）；客户用自己的云厂商账号、无平台兜底账号；独立演示组织只接阿里云百炼上的 Qwen 且配置不共享（演示数据，P1–P5 不适用）；阿里云/火山走客户授权角色 + STS，DeepSeek Key 由平台静态加密托管（只写不回读、可即时吊销、强审计）；cents 账本改为 token 护栏（Run 级硬上限，演示组织周期硬上限）；扩大 R0a 范围允许组织 owner 写接入配置。上条模型供应商里的 `price_version`、最贵路径上界、PC-1/PC-2 已随 D-08a 作废；C15 已于 2026-10-27 waived（百炼 + 演示数据，P1–P5 不适用）。详见[决策单](work-r0a-provider-account-metering-decision-2026-10-26.md)。
+- **D-08（2026-10-27 D-08a–d 全部签收：D-08a 产品 John Shao + 法务 Lily Zhu（资格/授权 11-06 前补齐）；D-08b 演示组织 A managed_key、B1–B10 通过且 B2/B6 按 D-03 静态改写；D-08c/d 通过并冻结；D1/D2 修订稿已合并）**：Work **不计算模型费用**，只统计 token（每用户 + 组织按模型分列，C 端可见本人用量，标"仅供参考"）；客户用自己的云厂商账号、无平台兜底账号；独立演示组织只接阿里云百炼上的 Qwen 且配置不共享（演示数据，P1–P5 不适用）；阿里云/火山走客户授权角色 + STS，DeepSeek Key 由平台静态加密托管（只写不回读、可即时吊销、强审计）；cents 账本改为 token 护栏（Run 级硬上限，演示组织周期硬上限）；扩大 R0a 范围允许组织 owner 写接入配置。上条模型供应商里的 `price_version`、最贵路径上界、PC-1/PC-2 已随 D-08a 作废；C15 已于 2026-10-27 waived（百炼 + 演示数据，P1–P5 不适用）。详见[决策单](work-r0a-provider-account-metering-decision-2026-10-26.md)。
 - **R0a 留存政策（2026-10-27）**：审计 365 天；输入 24h TTL；任务/成果最后更新后 180 天转只读/归档，再导出或删除；用户删除写 tombstone 并粉碎内容；演示组织 `cn-north`；生产 KMS/Content Store/删除演练属 E5。S09 因此从 open 转 partial，C11 按 DR3 12-01 签。
 - **非 Run 后台作业（D3 §11）**：六类作业有清单、租约/公平规则与停止语义——投递与留存属义务作业，kill switch 不能停；对应指标/告警与运行手册 §5.1/§5.2 已落地。
 - Host 边界：五个端口的形状、WeMeet 适配器与独立产品 stub host 已可执行（端口测试 9/9）；投影只允许 `work_directory` 经 `sync_*` 写入，适配器不写 SQL、不把 token 配额当席位或预算。
@@ -313,9 +315,9 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 - 所有测试是**设计/参考证据**：mock、faux model、一次性 PG、Temporal dev；不是生产证明。
 - 未接真实供应商（仅一次 Qwen smoke）、真实 Content Store、真实云 KMS、真实 SSO/P1-A 身份字段。
 - 沙箱是 runc 降级 profile，不是 gVisor；本地 KMS 是 envelope 参考实现。
-- R0a 门禁已在 PR #7 首次远端运行并通过，仓库全量流水线（meet Workflow 15/15、Release guard）随后也跑绿——但这两者都只证明**设计资产不回归既有产品**，R0a 里还没有 Work 实现代码，所以"实现的 CI 证据"仍为零；切片需要 Docker/Temporal dev；S1-R06 与 C19 在修订后未复跑。
+- R0a 门禁已在 PR #7 首次远端运行并通过，仓库全量流水线（meet Workflow 15/15、Release guard）随后也跑绿——但这两者只证明**设计资产不回归既有产品**。E1–E3 实现与 E4–E8 契约/资产已在工作区落地并本地验证（Work pytest 39/39、前端 1713/1713、148/148、9/9、API 覆盖 88%、tsc 通过；真实 HTTP 全链路与 Playwright axe（含颜色对比）通过）；`backend-migration` job 尚未推送远端，"实现的 CI 证据"仍为待产生；staging 角色脚本由 DBA 验证；E4/E5 未接真实 Temporal/Content Store/供应商，E6 有 mock UI 但未接真实 API，E7 未部署，E8 未试点；切片需要 Docker/Temporal dev；S1-R06 与 C19 在修订后未复跑。
 - 云/本机/连接器纵切的 10/10、8/8、7/7 是历史记录，本轮未复跑。
-- D-08 修订只到设计资产：静态主密钥托管/轮换、STS 换角色、配置连通探测与上游 usage 归一都未接真实服务；D-08a 产品已签、法务 Lily Zhu（授权待确认），D-08b 会前确认、B2/B6 重写，D-08c/d 未签；C15 已 waived（百炼 + 演示数据，P1–P5 不适用），配额到期属运营风险。
+- D-08 修订只到设计资产：静态主密钥托管/轮换、STS 换角色、配置连通探测与上游 usage 归一都未接真实服务；D-08a–d 已于 2026-10-27 全部签收（D-08a 法务资格/授权 11-06 前补齐；D-08b A managed_key、B2/B6 静态改写；D-08c/d 冻结）；C15 已 waived（百炼 + 演示数据，P1–P5 不适用），配额到期属运营风险。
 
 ### 5.4 主要风险
 

@@ -16,6 +16,7 @@ urlpatterns = [
     # Django admin moved off /admin/ so the front path is free for the
     # management console (M 端) SPA served at /admin/. See the M 端 plan.
     path("dj-admin/", admin.site.urls),
+    path("work/v1/", include("work.api.urls")),
     path("", include("core.urls")),
     path("", include("lasuite.oidc_resource_server.urls")),
 ]

@@ -252,6 +252,23 @@ migrate:  ## run django migrations for the Meet project.
 	@$(MANAGE) migrate
 .PHONY: migrate
 
+# -- Work (R0a), local convenience only; CI runs the same commands directly.
+
+work-migrate:  ## apply the Work R0a migrations.
+	@echo "$(BOLD)Running Work migrations$(RESET)"
+	@$(COMPOSE) up -d postgresql
+	@$(WAIT_DB)
+	@$(MANAGE) migrate work
+.PHONY: work-migrate
+
+work-test:  ## run the Work E1 pytest gates.
+	@$(COMPOSE_RUN_APP) python -m pytest work/tests
+.PHONY: work-test
+
+work-verify-local:  ## verify Work roles + schema + smoke on a disposable container.
+	@bash src/backend/work/sql/verify_local.sh
+.PHONY: work-verify-local
+
 superuser: ## Create an admin superuser with password "admin"
 	@echo "$(BOLD)Creating a Django superuser$(RESET)"
 	@$(MANAGE) createsuperuser --email admin@example.com --password admin

@@ -29,6 +29,7 @@ import { TasksRoute } from '@/features/tasks'
 import { AiCallRoute } from '@/features/ai-call/AiCallRoute'
 import { AiAssistantRoute } from '@/features/ai-assistant/AiAssistantRoute'
 import { AppsRoute } from '@/features/apps/AppsPage'
+import { WorkRoute } from '@/features/work/WorkRoute'
 
 const roomIdRegex = new RegExp(`^[/](?<roomId>${flexibleRoomIdPattern})$`)
 
@@ -63,7 +64,8 @@ export const routes: Record<
   | 'docs'
   | 'invite'
   | 'aiCall'
-  | 'aiAssistant',
+  | 'aiAssistant'
+  | 'work',
   {
     name: RouteName
     path: RegExp | string
@@ -72,6 +74,11 @@ export const routes: Record<
     to?: (...args: any[]) => string | URL
   }
 > = {
+  work: {
+    name: 'work',
+    path: '/work',
+    Component: WorkRoute,
+  },
   home: {
     name: 'home',
     // 会议主页迁到 /meeting;根路径 "/" 在 App.tsx 重定向到此。

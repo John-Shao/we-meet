@@ -1,0 +1,42 @@
+{
+  "title": "Work R0a overview",
+  "uid": "work-r0a-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "API requests by status",
+      "targets": [
+        { "expr": "sum by (status_class) (rate(work_api_requests_total[5m]))" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Outbox lag",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(work_outbox_lag_seconds_bucket[5m])) by (le))" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Quota reconciliation diff (track-only)",
+      "targets": [
+        { "expr": "abs(work_quota_reconciliation_diff_tokens)" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Unsettled reservations",
+      "targets": [{ "expr": "work_quota_unsettled_reservations" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "SSE events",
+      "targets": [
+        { "expr": "sum(rate(work_sse_events_total[5m]))" }
+      ]
+    }
+  ]
+}

@@ -1410,6 +1410,56 @@ BEGIN
 END;
 $$;
 
+-- 输入创建幂等：client_request_id 同键同内容返回原 input；同键异内容 409。
+CREATE FUNCTION work.create_input_idempotent(
+  p_org_id text,
+  p_subject_id text,
+  p_client_request_id text,
+  p_content_ref text,
+  p_content_hash text,
+  p_bytes bigint,
+  p_media_type text DEFAULT 'application/json'
+) RETURNS uuid
+LANGUAGE plpgsql AS $$
+DECLARE
+  dedup_row work.submission_dedup%ROWTYPE;
+  req_hash text;
+  input_id uuid;
+BEGIN
+  PERFORM work.assert_session_subject(p_subject_id);
+  PERFORM work.lock_request_key(
+    p_org_id, p_subject_id, 'input.create', p_client_request_id
+  );
+  req_hash := work.sha256_text(jsonb_build_object(
+    'content_hash', p_content_hash,
+    'bytes', p_bytes,
+    'media_type', p_media_type
+  )::text);
+  SELECT * INTO dedup_row
+  FROM work.submission_dedup d
+  WHERE d.org_id = p_org_id
+    AND d.subject_id = p_subject_id
+    AND d.operation_type = 'input.create'
+    AND d.client_request_id = p_client_request_id
+  FOR UPDATE;
+  IF FOUND THEN
+    IF dedup_row.request_hash <> req_hash THEN
+      RAISE EXCEPTION 'idempotency_key_conflict' USING ERRCODE = 'P0001';
+    END IF;
+    RETURN dedup_row.result_ref::uuid;
+  END IF;
+  input_id := work.create_input(
+    p_org_id, p_subject_id, p_content_ref, p_content_hash, p_bytes, p_media_type
+  );
+  INSERT INTO work.submission_dedup
+    (org_id, subject_id, operation_type, client_request_id, request_hash, result_ref)
+  VALUES
+    (p_org_id, p_subject_id, 'input.create', p_client_request_id, req_hash,
+     input_id::text);
+  RETURN input_id;
+END;
+$$;
+
 -- 提交：幂等键加锁 → 先查重放（重放不受后续席位/组织/输入变化影响）→ 再做准入检查。
 -- 请求哈希由服务端从规范化参数计算，不信任客户端摘要。
 CREATE FUNCTION work.submit_task(
@@ -4292,6 +4342,32 @@ BEGIN
 END;
 $$;
 
+-- 管理台读取凭证元数据（脱敏）：owner 可读 key_version/时间戳，不返回密文。
+CREATE FUNCTION work.get_provider_credential_view(
+  p_org_id text,
+  p_subject_id text,
+  p_credential_id uuid
+) RETURNS TABLE (
+  credential_id uuid,
+  provider text,
+  mode text,
+  fingerprint text,
+  key_version int,
+  state text,
+  created_at timestamptz,
+  rotated_at timestamptz
+)
+LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM work.assert_org_owner(p_org_id, p_subject_id);
+  RETURN QUERY
+  SELECT pc.id, pc.provider, pc.mode, pc.secret_fingerprint, pc.key_version,
+         pc.state, pc.created_at, pc.rotated_at
+  FROM work.provider_credential pc
+  WHERE pc.org_id = p_org_id AND pc.id = p_credential_id;
+END;
+$$;
+
 -- 网关/运行时取凭证的唯一入口：只能取本组织的 active 配置与 active 凭证。
 -- wrapped_dek/kms_key_ref 为 NULL 表示静态单层加密；两者都有值表示预留的 KMS 信封。
 CREATE FUNCTION work.resolve_provider_context(p_org_id text)
@@ -4607,6 +4683,18 @@ BEGIN
     );
   END IF;
   RETURN work.audit_export_view(export_row);
+END;
+$$;
+
+-- worker 发现入口：只返回本组织 queued 作业 ID，audit_export 表本身仍不对 worker 开放。
+CREATE FUNCTION work.list_pending_audit_exports(p_org_id text)
+RETURNS TABLE (export_id uuid)
+LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+  SELECT e.id FROM work.audit_export e
+  WHERE e.org_id = p_org_id AND e.status = 'queued'
+  ORDER BY e.created_at;
 END;
 $$;
 
@@ -5108,6 +5196,7 @@ GRANT SELECT ON work.task_summary TO work_api, work_worker;
 GRANT SELECT ON work.quota_entry, work.quota_reservation, work.quota_account, work.audit_event TO work_ledger;
 
 GRANT EXECUTE ON FUNCTION work.create_input(text, text, text, text, bigint, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.create_input_idempotent(text, text, text, text, text, bigint, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.submit_task(text, text, text, uuid, text, text, text, jsonb, text[], jsonb, text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.retry_task(text, uuid, text, text, bigint, text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.request_cancel(text, uuid, text, text) TO work_api;
@@ -5157,6 +5246,7 @@ GRANT EXECUTE ON FUNCTION work.get_audit_export(text, text, uuid) TO work_api;
 GRANT EXECUTE ON FUNCTION work.issue_audit_export_download(text, text, uuid, text, int) TO work_api;
 GRANT EXECUTE ON FUNCTION work.redeem_audit_export_download(text, text, text) TO work_api;
 -- 导出 worker：只领取与收尾作业，正文进 Content Store，库内只留引用与哈希。
+GRANT EXECUTE ON FUNCTION work.list_pending_audit_exports(text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.claim_audit_export(uuid, text, int) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.complete_audit_export(uuid, text, text, text, bigint, bigint, int) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.fail_audit_export(uuid, text, text) TO work_worker;
@@ -5174,6 +5264,7 @@ GRANT EXECUTE ON FUNCTION work.get_user_usage(text, text, date, date) TO work_ap
 GRANT EXECUTE ON FUNCTION work.get_org_usage_by_model(text, text, date, date) TO work_api;
 GRANT EXECUTE ON FUNCTION work.resolve_provider_context(text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.get_provider_config(text, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.get_provider_credential_view(text, text, uuid) TO work_api;
 GRANT EXECUTE ON FUNCTION work.record_usage(text, text, uuid, text, text, date, bigint, bigint, bigint, int) TO work_worker;
 
 RESET ROLE;
