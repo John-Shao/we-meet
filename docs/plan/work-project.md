@@ -227,7 +227,7 @@
 | 阶段 | 状态 | 说明 |
 |---|---|---|
 | R0a 详细设计 | 可评审草案 | D1–D6 文档与资产齐备；4 个未决项（U2 已定待签收） |
-| R0a 产品代码 | **E1–E3 实现 + E4–E8 契约/资产已落地工作区（2026-10-27，未提交）** | legacy `work` 已删；E1：迁移 0001/0002、7 个 NOLOGIN 角色、角色脚本、Runbook、冒烟/竞态执行器；E2：33 operation API、Cookie+CSRF、幂等、目录同步、凭证加密、`ops_cancel_run`、审计导出 worker；E3：SSE Last-Event-ID/409、outbox relay/死信；E4/E5：编排/六类作业契约、真实 SQL 本地纵切、到期清扫作业、Runtime/Content Store mock、凭证解析/解密；E6：API/SSE/状态 TS 契约、真实 `/work/v1` 客户端与 live 路由（`VITE_WORK_API_MODE=live`）、Mock UI（Composer/我的工作/任务工作区/Inbox/管理概览）；E7：请求指标/关联 ID 中间件、Prometheus/Grafana/OTel 资产、日志守卫与 log-scan CLI；E8：开通/黄金任务 runner（`--dry-run` 校验 6 任务/3 模板，create-org 与 assign-seats 本地验证）与 Runbook 增补。本地：Work pytest **39/39**、API 覆盖 **88%**、前端 **1713/1713**、148/148、9/9；真实 HTTP（Cookie+CSRF）走通 bootstrap → input → preview → submit → run → artifact → SSE → usage → acceptance；Playwright axe（含颜色对比）通过。未完成：staging DBA 角色、CI 远端、真实 Temporal/Content Store/供应商、真实 API 接入的 UI 与试点；生产/试点未放行 |
+| R0a 产品代码 | **E1–E3 实现 + E4–E8 契约/资产（2026-10-27，已提交，PR #10）** | legacy `work` 已删；E1：迁移 0001/0002、7 个 NOLOGIN 角色、角色脚本、Runbook、冒烟/竞态执行器；E2：33 operation API、Cookie+CSRF、幂等、目录同步、凭证加密、`ops_cancel_run`、审计导出 worker；E3：SSE Last-Event-ID/409、outbox relay/死信；E4/E5：编排/六类作业契约、真实 SQL 本地纵切、到期清扫作业、Runtime/Content Store mock、凭证解析/解密；E6：API/SSE/状态 TS 契约、真实 `/work/v1` 客户端与 live 路由（`VITE_WORK_API_MODE=live`）、Mock UI（Composer/我的工作/任务工作区/Inbox/管理概览）；E7：请求指标/关联 ID 中间件、Prometheus/Grafana/OTel 资产、日志守卫与 log-scan CLI；E8：开通/黄金任务 runner（`--dry-run` 校验 6 任务/3 模板，create-org 与 assign-seats 本地验证）与 Runbook 增补。本地：Work pytest **39/39**、API 覆盖 **88%**、前端 **1713/1713**、148/148、9/9；真实 HTTP（Cookie+CSRF）走通 bootstrap → input → preview → submit → run → artifact → SSE → usage → acceptance；Playwright axe（含颜色对比）通过。已预置：jd-sjy `meet` 库 7 个 NOLOGIN 角色 + `work_owner`→`meet`（2026-10-27，未创建 schema）；该主机无独立 staging 库，迁移身份仍以应用登录承载（D1 §6.1 未正式签收）。未完成：CI 远端、真实 Temporal/Content Store/供应商、真实 API 接入的 UI 与试点；生产/试点未放行 |
 | R0b+（本机/连接器/项目） | 未开始 | R1–R5 仅有产品/UX/架构方向 |
 | DR（设计评审）签收 | 0/5 | DR0–DR4 未形成正式会议纪要；D-01–D-07 已会前正式签收 |
 | go/no-go | no-go | 30 blocking 中 18 未关闭（11 done / 15 partial / 3 todo / 1 waived）；开发准入是产品例外，不改变计数 |
@@ -243,7 +243,7 @@
 | D5 前端 | UI 模型 **14/14**；174 条文案 | [frontend assets](assets/work-r0a-frontend-2026-10-25/README.md) |
 | D6 运维/试点 | ops+pilot+telemetry **28/28**（21 record/27 alert；指标 28）；promtool 校验 48 条规则 + 14 条告警单测 | [ops assets](assets/work-r0a-ops-2026-10-25/README.md) |
 | **R0a 实现（本地）** | E1 迁移/回滚 + 148 冒烟 + 9 竞态；E2 33 operation（路由 33/33）与 API 契约测试；E3 SSE/outbox；E4/E5 契约与本地纵切；E6 Mock UI + 真实客户端；E7 指标/日志守卫。Work pytest **39/39**，`work/api` 覆盖 **88%**，前端 **1713/1713**；真实 HTTP（Cookie+CSRF）全链路通过；Playwright axe（含颜色对比）通过；全部为本地/一次性 PG/mock 证据，不是生产证明 | [work/tests](../../src/backend/work/tests)、[work/README](../../src/backend/work/README.md) |
-| CI | 设计资产六个 job 已在 PR #7 远端跑绿（6/6）；新增 `backend-migration`（迁移→148 冒烟→9 竞态→回滚/重放→Work pytest+覆盖率门槛），本地等价步骤已验证、远端未跑；仓库全量流水线 meet Workflow **15/15 job 通过**、Release guard 通过。R0a 实现仍在工作区未提交 | [work-r0a-gates.yml](../../.github/workflows/work-r0a-gates.yml) |
+| CI | 设计资产六个 job 已在 PR #7 远端跑绿（6/6）；新增 7 个 `work-r0a-gates` job 已在 PR #10 远端全部通过（含 `backend-migration`：迁移→148 冒烟→9 竞态→回滚/重放→Work pytest），`lint-git`/`check-changelog` 通过；`aliyun-dev` 保护要求常驻聚合检查 `Work R0a required gate`（非 Work PR 直接通过，Work PR 镜像 7 个 gate）。仓库全量流水线 meet Workflow **15/15 job 通过**、Release guard 通过 | [work-r0a-gates.yml](../../.github/workflows/work-r0a-gates.yml) |
 
 ### 4.3 最近提交
 
@@ -315,7 +315,7 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 - 所有测试是**设计/参考证据**：mock、faux model、一次性 PG、Temporal dev；不是生产证明。
 - 未接真实供应商（仅一次 Qwen smoke）、真实 Content Store、真实云 KMS、真实 SSO/P1-A 身份字段。
 - 沙箱是 runc 降级 profile，不是 gVisor；本地 KMS 是 envelope 参考实现。
-- R0a 门禁已在 PR #7 首次远端运行并通过，仓库全量流水线（meet Workflow 15/15、Release guard）随后也跑绿——但这两者只证明**设计资产不回归既有产品**。E1–E3 实现与 E4–E8 契约/资产已在工作区落地并本地验证（Work pytest 39/39、前端 1713/1713、148/148、9/9、API 覆盖 88%、tsc 通过；真实 HTTP 全链路与 Playwright axe（含颜色对比）通过）；`backend-migration` job 尚未推送远端，"实现的 CI 证据"仍为待产生；staging 角色脚本由 DBA 验证；E4/E5 未接真实 Temporal/Content Store/供应商，E6 有 mock UI 但未接真实 API，E7 未部署，E8 未试点；切片需要 Docker/Temporal dev；S1-R06 与 C19 在修订后未复跑。
+- R0a 门禁已在 PR #7 首次远端运行并通过，仓库全量流水线（meet Workflow 15/15、Release guard）随后也跑绿——但这两者只证明**设计资产不回归既有产品**。E1–E3 实现与 E4–E8 契约/资产已在工作区落地并本地验证（Work pytest 39/39、前端 1713/1713、148/148、9/9、API 覆盖 88%、tsc 通过；真实 HTTP 全链路与 Playwright axe（含颜色对比）通过）；`backend-migration` job 已在 PR #10 远端跑绿，"实现的 CI 证据"已产生；DBA 角色已在 jd-sjy `meet` 库预置（7 NOLOGIN + `work_owner`→`meet`，2026-10-27，未建 schema）；无独立 staging 库，D1 §6.1 迁移身份仍开放；E4/E5 未接真实 Temporal/Content Store/供应商，E6 有 mock UI 但未接真实 API，E7 未部署，E8 未试点；切片需要 Docker/Temporal dev；S1-R06 与 C19 在修订后未复跑。
 - 云/本机/连接器纵切的 10/10、8/8、7/7 是历史记录，本轮未复跑。
 - D-08 修订只到设计资产：静态主密钥托管/轮换、STS 换角色、配置连通探测与上游 usage 归一都未接真实服务；D-08a–d 已于 2026-10-27 全部签收（D-08a 法务资格/授权 11-06 前补齐；D-08b A managed_key、B2/B6 静态改写；D-08c/d 冻结）；C15 已 waived（百炼 + 演示数据，P1–P5 不适用），配额到期属运营风险。
 
