@@ -36,6 +36,7 @@ from work.api.serializers import (
     TaskSubmitSerializer,
     TaskUpdateSerializer,
 )
+from work.observability.metrics import emit
 
 TOOL_ALLOWLIST = ["model_call", "read_builtin_template", "write_artifact_draft"]
 DEFAULT_MODEL_ROUTE = {"provider": "mock", "model": "mock-text-v1"}
@@ -288,6 +289,14 @@ class TaskSubmitView(WorkAPIView):
             {"task": task_summary(summary_row), "run": run_view(run)}, status=202
         )
         response["Location"] = f"/work/v1/tasks/{task_id}"
+        emit(
+            "work_task_events_total", 1, {"org_id": context.org_id, "event": "created"}
+        )
+        emit(
+            "work_runs_total",
+            1,
+            {"org_id": context.org_id, "stage": "queued", "outcome": "queued"},
+        )
         return response
 
 

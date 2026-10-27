@@ -14,7 +14,10 @@ EXECUTION_TARGETS = [dict(CLOUD_TARGET)]
 PHASES = ["R0a"]
 PERMISSIONS = ["work.task.create", "work.artifact.read"]
 USAGE_NOTE = "用量仅供参考，费用以云厂商账单为准"
-RUNTIME_VERSION = os.environ.get("WORK_RUNTIME_VERSION", "pi-1.4.0")
+# Records what actually executes the Run.  R0a runs on the Python Temporal
+# worker against a mock model gateway, not on the Pi agent-core runtime that
+# the architecture targets, and the ledger must not claim otherwise.
+RUNTIME_VERSION = os.environ.get("WORK_RUNTIME_VERSION", "r0a-temporal-py-1")
 
 TEMPLATES = [
     {

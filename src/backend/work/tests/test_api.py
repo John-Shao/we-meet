@@ -575,12 +575,20 @@ def test_api_emits_correlation_and_request_metric(work_org):
         response = client.get("/work/v1/bootstrap")
     assert response.status_code == 200
     assert response["X-Correlation-ID"]
-    emit.assert_called_once()
-    name, value, labels = emit.call_args.args
-    assert name == "work_api_requests_total"
+    emitted = {call.args[0]: call.args for call in emit.call_args_list}
+    assert set(emitted) == {
+        "work_api_requests_total",
+        "work_api_request_duration_seconds",
+    }
+    _, value, labels = emitted["work_api_requests_total"]
     assert value == 1
     assert labels["status_class"] == "2xx"
     assert labels["method"] == "GET"
+    # org_id is what every `sum by (org_id)` recording rule groups on.
+    assert "org_id" in labels
+    _, elapsed, duration_labels = emitted["work_api_request_duration_seconds"]
+    assert elapsed >= 0
+    assert duration_labels["route"] == labels["route"]
 
 
 def test_unsupported_intent_values_have_contract_error_codes(work_org):

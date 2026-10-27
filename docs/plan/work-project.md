@@ -44,6 +44,7 @@
 | **本文** | Work 项目资产、进展、问题、下一步 |
 | [R0a 实施就绪包](work-r0a-implementation-readiness-2026-10-26.md) | W4/DR4：完成审计、E1–E8 估算、L1–L8 测试矩阵、U1–U4、30 个 blocking 中 18 个未关闭、排期与 DR 议程 |
 | [R0a 实施计划](work-r0a-implementation-plan-2026-10-27.md) | 开发实施步骤：E1–E8 文件清单与验收；E1 迁移顺序与角色前置、CI 落点（work-r0a-gates）、凭证加密、六类后台作业归属；2026-10-27 复审 3 P0 / 6 P1 / 12 P2 已修 |
+| [R0a 架构对齐重做计划](work-r0a-architecture-rebuild-plan-2026-10-28.md) | 按 A13/§3 的 Node/Pi 形态重做 Runtime 与 API 层：RB-01–RB-05 决策、保留/废止清单、Phase 0–7 步骤、必须继承的缺陷结论 |
 | [R0a 迁移 Runbook](work-r0a-migration-runbook.md) | E1 正向迁移、回滚（保留角色）、前置检查、故障排查与 CI 闸门 |
 | [R0a 详细设计大纲与决策单](work-r0a-detailed-design-plan-2026-10-25.md) | 范围冻结、D1–D6 包、7 项 P0 决策、DR 闸门、§9.4 检查表 |
 
