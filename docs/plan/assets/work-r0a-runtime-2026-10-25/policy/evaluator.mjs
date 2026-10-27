@@ -90,9 +90,6 @@ export function assertRequestBound(egress, request, operation) {
   if (binding.requireRequestHash && request.requestHash !== operation.requestHash) {
     fail('request_binding_mismatch', 'request hash mismatch');
   }
-  if (binding.requirePriceVersion && request.priceVersion !== egress.providers.primary.priceVersion) {
-    fail('request_binding_mismatch', 'price version mismatch');
-  }
   return true;
 }
 

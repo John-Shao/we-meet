@@ -78,15 +78,15 @@
       "primaryAction": null,
       "bannerKey": "work.r0a.banner.reconciling"
     },
-    "budget_exhausted": {
-      "labelKey": "work.r0a.state.budget_exhausted",
+    "quota_exhausted": {
+      "labelKey": "work.r0a.state.quota_exhausted",
       "tone": "warning",
       "actions": [
-        "view_budget",
+        "view_quota",
         "cancel"
       ],
       "primaryAction": null,
-      "bannerKey": "work.r0a.banner.budget"
+      "bannerKey": "work.r0a.banner.quota_exhausted"
     },
     "canceling": {
       "labelKey": "work.r0a.state.canceling",

@@ -35,7 +35,7 @@ export interface CancelSignal {
   reason?: string;
 }
 
-export interface BudgetAvailableSignal {
+export interface QuotaAvailableSignal {
   requestId: string;
   accountKey: string;
   periodId: string;
@@ -43,7 +43,7 @@ export interface BudgetAvailableSignal {
 
 export interface ResumeSignal {
   requestId: string;
-  reason: 'budget' | 'reconcile' | 'operator';
+  reason: 'quota' | 'reconcile' | 'operator';
 }
 
 /** R0a golden path has no manual approval; kept for R0b/R2 compatibility. */
@@ -63,14 +63,12 @@ export interface PreparedRun {
   fence: number;
   target: { kind: 'cloud'; profile: 'text-v1' };
   permissionMode: 'ask_each' | 'auto_readonly';
-  priceVersion: string;
 }
 
-export interface BudgetReservation {
+export interface QuotaReservation {
   reservationId: string;
   operationId: string;
-  amountCents: number;
-  currency: string;
+  amountTokens: bigint;
   reservationSeq: number;
 }
 
@@ -94,7 +92,6 @@ export interface ModelCallRequest {
   checkpointRef: string | null;
   templateRef: string | null;
   outputFormat: 'markdown';
-  priceVersion: string;
 }
 
 export interface ModelUsage {
@@ -132,7 +129,7 @@ export interface ReconcileResolution {
   operationId: string;
   resolution: 'sent_succeeded' | 'not_sent' | 'unresolved';
   providerRequestId: string | null;
-  billableCents: number;
+  billableTokens: bigint;
   evidenceRef: string | null;
 }
 
@@ -155,13 +152,13 @@ export interface RunActivities {
     orgId: string,
     policyEpoch: number,
   ): Promise<void>;
-  reserveBudget(
+  reserveQuota(
     orgId: string,
     accountKey: string,
     periodId: string,
     operationId: string,
-    amountCents: number,
-  ): Promise<BudgetReservation>;
+    amountTokens: bigint,
+  ): Promise<QuotaReservation>;
   claimDispatch(
     operationId: string,
     orgId: string,
@@ -176,10 +173,9 @@ export interface RunActivities {
     providerRequestId: string | null,
     receiptRef: string | null,
   ): Promise<void>;
-  settleBudget(
+  settleQuota(
     reservationId: string,
-    amountCents: number,
-    priceVersion: string,
+    amountTokens: bigint,
     usage: ModelUsage,
     settlementRevision: number,
   ): Promise<void>;
@@ -260,12 +256,12 @@ export const ACTIVITY_POLICIES: Record<string, ActivityPolicy> = {
     backoffCoefficient: 2,
     nonRetryableErrorTypes: ['approval_required', 'operation_not_authorizable'],
   },
-  reserveBudget: {
+  reserveQuota: {
     startToCloseTimeout: '10 seconds',
     maximumAttempts: 3,
     initialInterval: '1 second',
     backoffCoefficient: 2,
-    nonRetryableErrorTypes: ['budget_exhausted', 'operation_not_reservable'],
+    nonRetryableErrorTypes: ['quota_exhausted', 'operation_not_reservable'],
   },
   claimDispatch: {
     startToCloseTimeout: '10 seconds',
@@ -290,7 +286,7 @@ export const ACTIVITY_POLICIES: Record<string, ActivityPolicy> = {
     backoffCoefficient: 2,
     nonRetryableErrorTypes: ['operation_not_dispatching'],
   },
-  settleBudget: {
+  settleQuota: {
     startToCloseTimeout: '10 seconds',
     maximumAttempts: 5,
     initialInterval: '1 second',

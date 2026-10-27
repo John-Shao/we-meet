@@ -81,12 +81,12 @@
       "evidence": []
     },
     {
-      "id": "budget_reconciliation_diff_cents",
-      "name": "Budget ledger vs provider usage difference",
+      "id": "quota_reconciliation_diff_tokens",
+      "name": "Quota ledger vs provider usage difference",
       "target": 0,
-      "unit": "cents",
+      "unit": "tokens",
       "window": "1d",
-      "source": "budget ledger + egress usage",
+      "source": "quota ledger + egress usage",
       "status": "not_measured",
       "provisional": false,
       "evidence": []
@@ -97,7 +97,7 @@
       "target": 95,
       "unit": "percent",
       "window": "7d",
-      "source": "golden tasks; excludes user cancel/budget wait",
+      "source": "golden tasks; excludes user cancel/quota wait",
       "status": "not_measured",
       "provisional": true,
       "evidence": []

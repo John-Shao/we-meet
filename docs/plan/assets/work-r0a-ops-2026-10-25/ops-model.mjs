@@ -54,7 +54,7 @@ export function validateSlo(slo) {
     'first_screen_p95_ms',
     'outbox_lag_p95_s',
     'unknown_age_p95_min',
-    'budget_reconciliation_diff_cents',
+    'quota_reconciliation_diff_tokens',
     'technical_success_rate',
   ]);
   const allowed = new Set(['not_measured', 'met', 'missed', 'waived']);

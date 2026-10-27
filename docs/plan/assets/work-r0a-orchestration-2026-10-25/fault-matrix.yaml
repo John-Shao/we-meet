@@ -286,9 +286,11 @@ cases:
       job_state_after_retry: ready
     recovery: >-
       Objects are named by export job id, so the takeover rewrites the same key
-      instead of orphaning a second file. complete_audit_export requires the
-      current lease owner; a stale worker gets audit_export_lease_lost. No
-      download ticket exists before the job is ready.
+      instead of orphaning a second file. Before writing, the worker checks the
+      Content Store object etag/version against the DB record (storage fencing)
+      to prevent concurrent workers from overwriting each other's writes.
+      complete_audit_export requires the current lease owner; a stale worker
+      gets audit_export_lease_lost. No download ticket exists before the job is ready.
     evidence:
       - single content_ref per export id
       - non-holder complete call rejected

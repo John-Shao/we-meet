@@ -222,7 +222,9 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 ### 5.6 管理只读
 
 - `/admin/work` 走 Admin shell；权限码/主组织由平台绑定。
-- 概览、席位列表、审计导出；不提供席位/预算/策略写入。
+- 概览、席位列表、审计导出、接入配置（脱敏）、用量统计；不提供席位/配额/策略写入。
+- 接入配置只读展示 provider/model/region/endpoint/credential_mode/fingerprint，不返回密文。
+- 用量统计按 org/subject/provider/model/date 聚合，C 端只能看本人、管理员可看本组织。
 - 不返回/展示成员正文；字段缺失时用只读适配器，不猜。
 - P1-A 已有接口优先；D6 补字段/权限映射。
 
@@ -240,7 +242,7 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 | failed | 重试 | 查看原因、重试 | 取消/采纳 |
 | run_canceled | 重试 | 只读成果、重试 | 采纳/取消 |
 | reconciling | — | 时间线、请求取消 | 重试/采纳 |
-| budget_exhausted | — | 查看预算、取消 | 重试/采纳 |
+| quota_exhausted | — | 查看配额、取消 | 重试/采纳 |
 | canceling | — | 时间线 | 重试/采纳/取消 |
 | canceled（R0b 预留） | — | 只读成果 | 重试/采纳/取消/重命名/删除 |
 | archived（R0b 预留） | — | 只读成果 | 重试/采纳/取消/重命名/删除 |
@@ -249,7 +251,7 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 
 - `canAccept` 只在 `awaiting_acceptance` + `pending_acceptance=true` + `blocking_operations=0`。
 - `canRetry` 只在 `failed`/`run_canceled`；unknown/reconciling 绝不显示“重试”。
-- `canCancel` 只在 `queued`/`running`/`budget_exhausted`/`reconciling`；reconciling 只能“请求取消”，不能保证停止已派发请求。
+- `canCancel` 只在 `queued`/`running`/`quota_exhausted`/`reconciling`；reconciling 只能”请求取消”，不能保证停止已派发请求。
 - 所有状态/动作/横幅文案键必须存在；测试校验矩阵/文案完整性。
 - 前端不根据 `run_state`/`operation_state` 自行拼第二套状态；服务端 `display_state` 优先。
 - Task `canceled`/`archived` 为 R0b 预留（`state-matrix.json` 标 `reservedFor: R0b`）：R0a 没有产生它们的接口；若收到只按只读渲染，不进入 `management.rename/delete`，`validateMatrix` 校验此约束。

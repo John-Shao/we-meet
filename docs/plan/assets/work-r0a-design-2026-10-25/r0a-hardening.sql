@@ -170,6 +170,7 @@ DECLARE
   existing work.quota_reservation%ROWTYPE;
   reservation_id uuid := gen_random_uuid();
   next_seq int;
+  run_cumulative_tokens bigint;
 BEGIN
   IF p_amount_tokens IS NULL OR p_amount_tokens <= 0 THEN
     RAISE EXCEPTION 'invalid_reservation_amount' USING ERRCODE = '22023';
@@ -188,6 +189,16 @@ BEGIN
   FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'operation_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  -- Run 级累计检查：已结算 + 已预留（held/unknown）不得超过 run_cap_tokens（D-08）。
+  SELECT COALESCE(SUM(br.settled_tokens), 0) + COALESCE(SUM(
+    CASE WHEN br.state IN ('held', 'unknown') THEN br.amount_tokens ELSE 0 END
+  ), 0) INTO run_cumulative_tokens
+  FROM work.quota_reservation br
+  JOIN work.operation o ON o.id = br.operation_id
+  WHERE o.run_id = operation_row.run_id AND o.org_id = p_org_id;
+  IF run_cumulative_tokens + p_amount_tokens > policy_row.run_cap_tokens THEN
+    RAISE EXCEPTION 'run_cap_exceeded' USING ERRCODE = 'P0001';
   END IF;
   SELECT * INTO existing
   FROM work.quota_reservation br
