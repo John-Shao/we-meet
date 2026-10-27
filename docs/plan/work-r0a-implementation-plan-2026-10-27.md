@@ -1,7 +1,5 @@
 # Work R0a 实施计划
 
-> 状态：**E1-E8 契约/mock 实现完成**（2026-10-27；详见 [实施状态总结](work-r0a-implementation-status-2026-10-27.md)）
-> 
 > 日期：2026-10-27
 > 
 > 基线：[实施就绪包](work-r0a-implementation-readiness-2026-10-26.md)、[详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、D1–D6 设计文档
@@ -10,12 +8,7 @@
 > 
 > 准入：[开发准入单](work-r0a-development-entry-2026-10-27.md)：E1 立即开工，E2/E3 依次开工，E4 只做契约/本地切片，E5 只做设计/原型，E6 mock 先行，E7/E8 排在其后
 > 
-> **完成度**：
-> - E1-E3 ✅ 完整实现（数据层/API/SSE+outbox）
-> - E4 ✅ 契约 + Mock Worker + 真实 Temporal 部署（K3s work-staging）
-> - E5-E8 ✅ 契约 + Mock 实现
-> - 未提交：E4 Temporal 集成代码（temporal_client.py, settings.py, outbox_relay.py, deploy YAML）
-> - 下一阶段：提交 E4 代码 → 端到端验证 → Worker 真实化（替换 mock activity 为 SQL 调用）→ 试点演练（2026-11-06）
+> **完成度与阻塞项以 [实施状态总结](work-r0a-implementation-status-2026-10-27.md) 为唯一来源**，本文只写步骤与验收标准，不重复状态与数字。
 
 ## 1. 总体范围与约束
 
@@ -889,11 +882,11 @@ python manage.py migrate work       # 重新应用
 
 ## 6. 下一步
 
-1. **本地闭环**：E1 迁移/回滚 + 148 冒烟 + 9 竞态；E2 33 operation API；E3 SSE/outbox；E4/E5 契约与本地纵切；E6 Mock UI + 真实客户端；E7 指标/日志守卫。Work pytest **39/39**，`work/api` 覆盖 **88%**；真实 HTTP（Cookie+CSRF）走通 bootstrap → input → preview → submit → run → artifact → SSE → usage → acceptance；Playwright axe（含颜色对比）通过
+1. **本地闭环范围**：E1 迁移/回滚 + 冒烟 + 竞态；E2 33 operation API；E3 SSE/outbox；E4/E5 契约与本地纵切；E6 Mock UI + 真实客户端；E7 指标/日志守卫。通过计数、覆盖率与阻塞项见 [实施状态总结](work-r0a-implementation-status-2026-10-27.md)
 2. **已定的数据库与角色口径**：schema 隔离、同一数据库；默认连接 `search_path=public,work`；DBA 生产预建角色（`deploy/aliyun/work-roles.sql`），迁移 `0001` 幂等校验
 3. **E1–E3 外部动作**：DBA 在 staging 执行角色脚本并把 `work_owner` 授给迁移身份；推送后触发 `backend-migration` job，并在分支保护中设为 required check
-4. **E4–E8 外部依赖**：真实 Temporal、Content Store、供应商网关与前端 UI 尚未接入；E8 试点环境、C24/C27/C30 与黄金任务演练仍待外部
-5. **下一阶段**：E4 真实 Temporal 部署（DR2/C22）、E5 平台 Content Store/主密钥托管、E6 UI 实现（DR3/U1）、E7 部署与供应链签名、E8 试点放行
+4. **E4–E8 外部依赖**：真实 Content Store、供应商网关与前端管理只读 UI 尚未接入；Temporal 已部署但端到端执行未通过；E8 试点环境、C24/C27/C30 与黄金任务演练仍待外部
+5. **下一阶段**：E4 worker 运行环境定版并跑通端到端、E5 平台 Content Store/主密钥托管、E6 UI 实现（DR3/U1）、E7 部署验证与供应链签名、E8 试点放行
 
 ---
 
@@ -901,4 +894,4 @@ python manage.py migrate work       # 重新应用
 
 **评审**：DR1 2026-11-10、DR2 2026-11-17、DR3 2026-12-01、DR4 2026-12-04
 
-**更新记录**：2026-10-27 初稿；2026-10-27 实现回写：psql 执行器、NOLOGIN 角色、E1–E3 本地实现与 E4–E8 契约/资产、E6 Playwright axe、SSE/事件实现位置
+**更新记录**：2026-10-27 初稿；2026-10-27 实现回写：psql 执行器、NOLOGIN 角色、E1–E3 本地实现与 E4–E8 契约/资产、E6 Playwright axe、SSE/事件实现位置；2026-10-27 状态收口：完成度与数字移交状态总结，头部与 §6 不再自带状态
