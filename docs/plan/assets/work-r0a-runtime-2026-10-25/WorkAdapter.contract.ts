@@ -21,7 +21,6 @@ export interface RunContext {
   permissionMode: PermissionMode;
   toolAllowlist: readonly ToolId[];
   modelRoute: { provider: string; model: string };
-  priceVersion: string;
   deadlineAt: IsoDateTime;
   stepLimit: number;
 }
@@ -42,7 +41,6 @@ export interface ModelCallRequest {
   stepNo: number;
   messages: readonly ModelMessage[];
   maxOutputTokens: number;
-  priceVersion: string;
 }
 
 export interface Usage {
@@ -104,7 +102,6 @@ export interface UsageReport {
   operationId: string;
   providerRequestId: string;
   usage: Usage;
-  priceVersion: string;
 }
 
 export type AdapterErrorCode =

@@ -95,11 +95,11 @@ groups:
         labels:
           slo: "unknown_age_p95_min"
           mode: "slo"
-      - record: "work:slo_budget_reconciliation:abs_max_5m"
+      - record: "work:slo_quota_reconciliation:abs_max_5m"
         expr: |
-          max by (org_id) (abs(work_budget_reconciliation_diff_cents))
+          max by (org_id) (abs(work_quota_reconciliation_diff_tokens))
         labels:
-          slo: "budget_reconciliation_diff_cents"
+          slo: "quota_reconciliation_diff_tokens"
           mode: "slo"
       - record: "work:slo_golden_technical_success:ratio_1h"
         expr: |
@@ -241,25 +241,25 @@ groups:
           summary: "存在超过 15 分钟的 unknown Operation，需人工核对"
           org_id: "{{ $labels.org_id }}"
           runbook: "work-operations-runbook-2026-10-25.md#5-故障注入矩阵"
-      - alert: "WorkBudgetReconciliationDiff"
+      - alert: "WorkQuotaReconciliationDiff"
         expr: |
-          work:slo_budget_reconciliation:abs_max_5m > 0
+          work:slo_quota_reconciliation:abs_max_5m > 0
         for: "30m"
         labels:
-          severity: "page"
-          slo: "budget_reconciliation_diff_cents"
+          severity: "ticket"
+          slo: "quota_reconciliation_diff_tokens"
           alert_class: "slo"
         annotations:
           summary: "预算账本与供应商 usage 对账存在差额"
           org_id: "{{ $labels.org_id }}"
           runbook: "work-r0a-data-design-2026-10-25.md#5-领域命令"
-      - alert: "WorkBudgetUnsettledReservations"
+      - alert: "WorkQuotaUnsettledReservations"
         expr: |
-          sum(work_budget_unsettled_reservations) > 0
+          sum(work_quota_unsettled_reservations) > 0
         for: "30m"
         labels:
           severity: "ticket"
-          slo: "budget_reconciliation_diff_cents"
+          slo: "quota_reconciliation_diff_tokens"
           alert_class: "operational"
         annotations:
           summary: "存在超过 30 分钟未结算的预算预留"

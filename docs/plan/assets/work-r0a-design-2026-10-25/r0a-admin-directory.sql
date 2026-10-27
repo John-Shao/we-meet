@@ -539,6 +539,36 @@ BEGIN
 END;
 $$;
 
+-- 管理台读取接入配置（脱敏）：owner 可查看本组织 active 配置，不返回密文字段（P1-4）。
+CREATE FUNCTION work.get_provider_config(
+  p_org_id text,
+  p_subject_id text
+) RETURNS TABLE (
+  config_id uuid,
+  revision bigint,
+  provider text,
+  model text,
+  region text,
+  endpoint text,
+  credential_mode text,
+  credential_id uuid,
+  credential_fingerprint text,
+  state text,
+  created_by text,
+  created_at timestamptz
+)
+LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM work.assert_org_owner(p_org_id, p_subject_id);
+  RETURN QUERY SELECT c.id, c.revision, c.provider, c.model, c.region, c.endpoint,
+                      c.credential_mode, c.credential_id, pc.secret_fingerprint,
+                      c.state, c.created_by, c.created_at
+  FROM work.provider_access_config c
+  JOIN work.provider_credential pc ON pc.id = c.credential_id
+  WHERE c.org_id = p_org_id AND c.state = 'active';
+END;
+$$;
+
 -- 网关/运行时取凭证的唯一入口：只能取本组织的 active 配置与 active 凭证。
 -- wrapped_dek/kms_key_ref 为 NULL 表示静态单层加密；两者都有值表示预留的 KMS 信封。
 CREATE FUNCTION work.resolve_provider_context(p_org_id text)
@@ -581,6 +611,7 @@ $$;
 CREATE FUNCTION work.record_usage(
   p_org_id text,
   p_subject_id text,
+  p_operation_id uuid,
   p_provider text,
   p_model text,
   p_usage_date date,
@@ -600,6 +631,14 @@ BEGIN
   IF p_usage_date IS NULL OR p_input_tokens < 0 OR p_output_tokens < 0
      OR p_cached_input_tokens < 0 OR p_runs < 0 THEN
     RAISE EXCEPTION 'invalid_request:usage' USING ERRCODE = '22023';
+  END IF;
+  -- 幂等检查：同一 operation 的用量只记录一次（P1-3）。
+  IF EXISTS (
+    SELECT 1 FROM work.quota_entry qe
+    WHERE qe.operation_id = p_operation_id AND qe.org_id = p_org_id
+      AND qe.kind = 'settle' AND qe.settlement_revision = 1
+  ) THEN
+    RETURN;
   END IF;
   INSERT INTO work.usage_daily AS u
     (org_id, subject_id, provider, model, usage_date,
@@ -1035,19 +1074,29 @@ BEGIN
     RAISE EXCEPTION 'audit_export_already_downloaded' USING ERRCODE = 'P0001';
   END IF;
 
+  -- 下载令牌有效期不得超过文件留存截止时间（P1-2）。
   UPDATE work.audit_export e
     SET download_token_hash = p_token_hash,
-        download_expires_at = now() + make_interval(secs => p_ttl_seconds),
+        download_expires_at = LEAST(
+          now() + make_interval(secs => p_ttl_seconds),
+          export_row.expires_at
+        ),
         updated_at = now()
   WHERE e.id = export_row.id;
 
   PERFORM work.append_audit(
     p_org_id, p_subject_id, 'audit_export.ticket_issued', 'audit_export', export_row.id::text,
-    jsonb_build_object('expires_at', now() + make_interval(secs => p_ttl_seconds))
+    jsonb_build_object('expires_at', LEAST(
+      now() + make_interval(secs => p_ttl_seconds),
+      export_row.expires_at
+    ))
   );
   RETURN jsonb_build_object(
     'export_id', export_row.id,
-    'expires_at', now() + make_interval(secs => p_ttl_seconds),
+    'expires_at', LEAST(
+      now() + make_interval(secs => p_ttl_seconds),
+      export_row.expires_at
+    ),
     'bytes', export_row.bytes,
     'row_count', export_row.row_count,
     'format', export_row.format
@@ -1076,6 +1125,13 @@ BEGIN
   FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'download_token_invalid' USING ERRCODE = '42501';
+  END IF;
+  -- 文件级过期与状态检查（P1-2）：令牌有效但文件已过期/已下载/非 ready 时拒绝。
+  IF export_row.status = 'expired' OR export_row.expires_at <= now() THEN
+    RAISE EXCEPTION 'audit_export_expired' USING ERRCODE = 'P0001';
+  END IF;
+  IF export_row.status <> 'ready' THEN
+    RAISE EXCEPTION 'audit_export_not_ready' USING ERRCODE = 'P0001';
   END IF;
   IF export_row.download_expires_at <= now() THEN
     UPDATE work.audit_export e

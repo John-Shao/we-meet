@@ -31,14 +31,15 @@
     {
       "id": "S03",
       "threat": "Provider key or credential leakage",
-      "control": "Provider keys live in KMS/egress only; runtime has no long-term keys; logs/traces/errors do not contain keys or content; per-Run scoped token.",
+      "control": "Provider credentials stored as static single-layer ciphertext (D-03 B); runtime resolves via resolve_provider_context (worker-only); logs/traces/errors do not contain keys or content; per-Run scoped token.",
       "evidence": [
         "D4 egress policy + policy tests",
-        "D4 sandbox profile secrets=false"
+        "D4 sandbox profile secrets=false",
+        "D1 writeOnly credential API, 148/148 negatives"
       ],
       "status": "partial",
       "owner": "security + platform",
-      "closeCondition": "KMS credential injection/rotation implemented; runtime secret-leak test and log scan."
+      "closeCondition": "Static master-key custody/rotation implemented; runtime secret-leak test and log scan."
     },
     {
       "id": "S04",
@@ -107,16 +108,16 @@
     {
       "id": "S09",
       "threat": "Retention, deletion or data-residency violation",
-      "control": "R0a retention policy signed 2026-10-27: audit 365 days; input TTL 24h; task/artifact content becomes read-only/archived 180 days after last update, then export or delete; user deletion writes a tombstone and crypto-shreds content. Demo org stays in cn-north; customer orgs follow their contracts. Production KMS/Content Store and deletion drills remain E5 gates.",
+      "control": "R0a retention policy signed 2026-10-27: audit 365 days; input TTL 24h; task/artifact content becomes read-only/archived 180 days after last update, then export or delete; user deletion writes a tombstone and crypto-shreds content. Demo org stays in cn-north; customer orgs follow their contracts. Production Content Store and deletion drills remain E5 gates.",
       "evidence": [
         "D6 retention/capacity design",
         "D1 tombstone + input TTL + content shred design",
-        "Local envelope KMS reference 6/6 (not production KMS)",
+        "D1 static single-layer credential encryption (not cloud KMS)",
         "R0a retention policy signed by product 2026-10-27 (365/24h/180d)"
       ],
       "status": "partial",
       "owner": "product + platform",
-      "closeCondition": "Production KMS/Content Store implementation, residency review and deletion test at E5; policy itself is signed."
+      "closeCondition": "Production Content Store implementation, residency review and deletion test at E5; policy itself is signed."
     },
     {
       "id": "S10",

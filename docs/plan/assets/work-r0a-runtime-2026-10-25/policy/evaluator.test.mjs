@@ -75,7 +75,6 @@ test('request binding requires operation, attempt, fence, hash and price version
     dispatchAttemptId: 'attempt-1',
     fence: 2,
     requestHash: 'sha256:req-1',
-    priceVersion: 'price-v1',
   };
   assert.equal(assertRequestBound(egress, request, operation), true);
   assert.throws(
