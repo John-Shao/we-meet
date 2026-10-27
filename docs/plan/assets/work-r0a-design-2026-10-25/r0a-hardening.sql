@@ -190,6 +190,15 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'operation_not_found' USING ERRCODE = 'P0002';
   END IF;
+  SELECT * INTO existing
+  FROM work.quota_reservation br
+  WHERE br.operation_id = p_operation_id AND br.state IN ('held', 'unknown');
+  IF FOUND THEN
+    IF existing.amount_tokens = p_amount_tokens THEN
+      RETURN existing.id;
+    END IF;
+    RAISE EXCEPTION 'operation_has_active_reservation' USING ERRCODE = 'P0001';
+  END IF;
   -- Run 级累计检查：已结算 + 已预留（held/unknown）不得超过 run_cap_tokens（D-08）。
   SELECT COALESCE(SUM(br.settled_tokens), 0) + COALESCE(SUM(
     CASE WHEN br.state IN ('held', 'unknown') THEN br.amount_tokens ELSE 0 END
@@ -199,15 +208,6 @@ BEGIN
   WHERE o.run_id = operation_row.run_id AND o.org_id = p_org_id;
   IF run_cumulative_tokens + p_amount_tokens > policy_row.run_cap_tokens THEN
     RAISE EXCEPTION 'run_cap_exceeded' USING ERRCODE = 'P0001';
-  END IF;
-  SELECT * INTO existing
-  FROM work.quota_reservation br
-  WHERE br.operation_id = p_operation_id AND br.state IN ('held', 'unknown');
-  IF FOUND THEN
-    IF existing.amount_tokens = p_amount_tokens THEN
-      RETURN existing.id;
-    END IF;
-    RAISE EXCEPTION 'operation_has_active_reservation' USING ERRCODE = 'P0001';
   END IF;
   IF operation_row.state NOT IN ('prepared', 'waiting_approval', 'authorized') THEN
     RAISE EXCEPTION 'operation_not_reservable' USING ERRCODE = 'P0001';

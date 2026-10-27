@@ -10,9 +10,9 @@
 
 ## 1. 目标与范围
 
-D3 把 R0a 的“提交 → 派发 → 模型 → 预算 → 成果 → 采纳”做成可恢复、可对账、不可双重消费的持久流程。
+D3 把 R0a 的“提交 → 派发 → 模型 → 配额 → 成果 → 采纳”做成可恢复、可对账、不可双重消费的持久流程。
 
-**范围内**：单区域 Temporal 拓扑、每 Run 工作流、活动契约、提交/启动、派发/未知、取消/重试/预算等待、成果发布与采纳边界、outbox/SSE、对账器、功能开关/停用/版本升级、故障矩阵。
+**范围内**：单区域 Temporal 拓扑、每 Run 工作流、活动契约、提交/启动、派发/未知、取消/重试/配额等待、成果发布与采纳边界、outbox/SSE、对账器、功能开关/停用/版本升级、故障矩阵。
 
 **范围外**：Temporal 部署自动化、真实供应商回执查询、R0b 本机/设备、R2 连接器、R3 通用 DAG/Step、区域灾备演练、生产容量/SLO。它们属于 D4/D6 或后续阶段。
 
@@ -24,23 +24,23 @@ D3 把 R0a 的“提交 → 派发 → 模型 → 预算 → 成果 → 采纳�
 | D3-02 | **每 Run 一个 `RunWorkflow`**，workflow ID `run:<run_id>`，启动策略 `REJECT_DUPLICATE`；R0a 不做 TaskWorkflow | 固定单步/有界模型循环；重试创建新 Run/新 workflow；采纳在 workflow 之外 |
 | D3-03 | Temporal history 只放 Run/Task/Operation ID、哈希、公开状态；不放 goal、正文、提示词、路径、连接器数据或密钥 | 业务事实在 PostgreSQL；history 不是内容存储 |
 | D3-04 | R0a 最多 **3 个顺序 model Operation**，逻辑键 `model:<n>`；不做通用 DAG/Step | 满足“大纲→初稿”一类文本任务，同时保持有界、可计量、可审批 |
-| D3-05 | 派发后不自动重放模型调用；超时/断网进入 `unknown`，保留预算，由对账器核实 | 付费外部动作不能靠无限重试“碰运气” |
-| D3-06 | 预算耗尽进入 `waiting(budget)`，workflow 等 `budget_available/resume` 信号，最长 24h；恢复前重新校验策略/预留 | 不无预算派发；不把等待变成无限容器 |
+| D3-05 | 派发后不自动重放模型调用；超时/断网进入 `unknown`，保留配额，由对账器核实 | 付费外部动作不能靠无限重试“碰运气” |
+| D3-06 | 配额耗尽进入 `waiting(quota)`，workflow 等 `quota_available/resume` 信号，最长 24h；恢复前重新校验策略/预留 | 不无配额派发；不把等待变成无限容器 |
 | D3-07 | R0a golden path **没有手工审批**，使用 `policy_auto`；批准信号/命令保留给 R0b/R2 | 与产品范围一致；F03 只测内部审批路径 |
 | D3-08 | 工作流版本 `r0a-v1`；升级使用补丁/worker 版本化，不改变运行中 workflow 的行为；新 Run 才使用新版本 | 避免升级时改变在途语义 |
-| D3-09 | 超时基线：Run 30m、模型活动 15m、心跳 30s、预算等待 24h；可配置 | 文本任务有界；超时后进入 unknown 而非无限重试 |
+| D3-09 | 超时基线：Run 30m、模型活动 15m、心跳 30s、配额等待 24h；可配置 | 文本任务有界；超时后进入 unknown 而非无限重试 |
 | D3-10 | Outbox backlog 最旧 >5m 或积压 >1000 时，新提交返回 503 `service_degraded`；已有 Run 继续 | 防止无限接收但无法启动的 Run |
 
 ## 3. 模块边界与依赖
 
 | 模块 | 职责 | 不允许 |
 |---|---|---|
-| `work-api` | 领域命令、查询、SSE（初期）、授权/预算/采纳 | 直接调用 Temporal、直接改账本/状态表 |
+| `work-api` | 领域命令、查询、SSE（初期）、授权/配额/采纳 | 直接调用 Temporal、直接改账本/状态表 |
 | `work-worker` | Temporal workflow/activities、outbox relay、对账器 | 绕过领域函数改事实；在 history 放正文 |
-| `work-runner` | 每 Run 沙箱/Pi 生命周期 | 租户归属、模型路由、预算决策 |
+| `work-runner` | 每 Run 沙箱/Pi 生命周期 | 租户归属、模型路由、配额决策 |
 | `work-egress` | 模型/工具出口、供应商鉴权、usage、价表版本 | 直接改业务事实、记录正文日志 |
 | Content Store | 输入、检查点、成果正文 | 授权判断、事件正文 |
-| Temporal | 等待点、定时器、活动重试、history | 业务事实源、权限/预算权威 |
+| Temporal | 等待点、定时器、活动重试、history | 业务事实源、权限/配额权威 |
 | SSE | Task 事件流 | 事件事实源、跨 Task 游标 |
 
 依赖规则：
@@ -48,7 +48,7 @@ D3 把 R0a 的“提交 → 派发 → 模型 → 预算 → 成果 → 采纳�
 - API 提交只写 PostgreSQL/outbox；**不直接启动 Temporal**。
 - Outbox relay 是唯一启动 workflow/发送取消信号的入口。
 - Activities 只调用 D1 领域命令；不直接写表。
-- Reconciler 只调用同一组领域命令，不手工改数据库绕过已批准内容/预算。
+- Reconciler 只调用同一组领域命令，不手工改数据库绕过已批准内容/配额。
 - Runner 只通过 egress 访问模型；egress 不持有长期业务凭据之外的供应商 Key。
 
 ## 4. Temporal 拓扑与版本
@@ -105,7 +105,7 @@ interface RunWorkflowInput {
 | 类型 | 名称 | 语义 |
 |---|---|---|
 | Signal | `cancel(requestId, reason?)` | 唤醒提示；DB `run.cancel_requested` 是权威 |
-| Signal | `budgetAvailable(requestId, accountKey, periodId)` | 预算补充提示；恢复前重新校验 |
+| Signal | `quotaAvailable(requestId, accountKey, periodId)` | 配额补充提示；恢复前重新校验 |
 | Signal | `resume(requestId, reason)` | 对账/运维恢复提示 |
 | Signal | `approvalDecided(...)` | 仅供 R0b/R2；R0a golden path 不触发 |
 | Query | `status` | 调试用：Run/Operation/wait reason；不是业务查询 API |
@@ -118,21 +118,21 @@ prepareRun
   → for step 1..min(3, plannedSteps):
        createModelOperation(model:<n>)
        authorizeOperation(policy_auto)
-       reserveBudget
+       reserveQuota
        claimDispatch（CAS）
        invokeModel（egress，携带 permit/fence/requestHash）
        finishOperation(succeeded|failed)
-       settleBudget
+       settleQuota
   → publishArtifact（最终正文）
   → finishRun(succeeded)
 ```
 
 - 中间 step 的正文作为 Content Store 检查点/引用，只有最终版本发布为 ArtifactVersion。
-- 每一步预算、Operation、审计独立；前一步失败不自动开始下一步。
+- 每一步配额、Operation、审计独立；前一步失败不自动开始下一步。
 - 取消在 step 之间生效；已 dispatching 的 step 只能转 unknown/核对，不能假装停止。
 - 模型失败：`finishOperation(failed)`，按规则释放/结算，`finishRun(failed)`；Task 保持 open，可重试。
-- 模型超时/断网：`markOperationUnknown`，保留预算，Run 进入 `waiting(reconcile)` 或结束等待；不自动付费重发。
-- 预算耗尽：`waitRun(budget)`，等待 `budgetAvailable`/`resume`；恢复前重新读取策略/账户/许可。
+- 模型超时/断网：`markOperationUnknown`，保留配额，Run 进入 `waiting(reconcile)` 或结束等待；不自动付费重发。
+- 配额耗尽：`waitRun(quota)`，等待 `quotaAvailable`/`resume`；恢复前重新读取策略/账户/许可。
 - 所有步骤无阻塞 Operation 后，`finishRun(succeeded)` 使 Task 进入 `awaiting_acceptance`。
 
 ### 5.3 提交/启动时序
@@ -174,14 +174,14 @@ sequenceDiagram
   participant C as Content Store
   W->>D: createModelOperation(model:1)
   W->>D: authorizeOperation(policy_auto)
-  W->>D: reserveBudget
+  W->>D: reserveQuota
   W->>D: claimDispatch (CAS, permit)
   W->>E: invokeModel(permit, fence, requestHash)
   E->>E: 校验 permit/scope/来源标签/秘密检测
   E->>C: 写模型结果正文（content_ref/hash）
   E-->>W: content_ref/hash/usage/provider_request_id
   W->>D: finishOperation(succeeded)
-  W->>D: settleBudget(usage, price_version)
+  W->>D: settleQuota(usage)
   W->>D: publishArtifact(最终 step)
   W->>D: finishRun(succeeded)
   D-->>W: Task awaiting_acceptance
@@ -197,23 +197,23 @@ sequenceDiagram
 | `acquireRun` | run_id/org | active + fence | run_id/fence | 3 次；10s；非 current 不重试 |
 | `createModelOperation` | run_id/org/logical_key/request_hash | operation_id | run_id + logical_key | 5 次；10s；同 key/hash 幂等 |
 | `authorizeOperation` | operation_id/org/policy_epoch | prepared → authorized | operation_id | 5 次；10s；waiting_approval → `approval_required` |
-| `reserveBudget` | account/period/operation/amount | reservation_id | operation_id + reservation_seq | 3 次；10s；budget_exhausted → wait |
+| `reserveQuota` | account/period/operation/amount_tokens | reservation_id | operation_id + reservation_seq | 3 次；10s；quota_exhausted → wait |
 | `claimDispatch` | operation/fence/consumer | dispatch_attempt 或 null | operation_id + CAS | 3 次；10s；null 表示未胜出 |
 | `invokeModel` | permit/fence/request_hash/input/checkpoint | content_ref/hash/usage | run + operation + request_hash | **1 次**；15m；心跳 30s；派发后不自动重试 |
 | `finishOperation` | operation/outcome/provider_request_id | dispatching → succeeded/failed | operation_id | 5 次；10s；非 dispatching 不重试 |
-| `settleBudget` | reservation/amount/price/usage/revision | settle 分录 | operation + settlement_revision | 5 次；10s；revision 冲突不重试 |
+| `settleQuota` | reservation/amount_tokens/usage/revision | settle 分录 | operation + settlement_revision | 5 次；10s；revision 冲突不重试 |
 | `publishArtifact` | task/run/content/hash | artifact/version | task + logical_name + content_hash | 5 次；30s；同 hash 幂等 |
 | `finishRun` | run/outcome/reason | Run/Task 终态 | run_id | 5 次；10s；非 current 不重试 |
-| `markOperationUnknown` | operation/reason | dispatching → unknown | operation_id | 5 次；10s；不释放预算 |
+| `markOperationUnknown` | operation/reason | dispatching → unknown | operation_id | 5 次；10s；不释放配额 |
 | `cancelOperation` | operation/actor/reason | prepared/authorized → canceled；dispatching → unknown | operation_id | 5 次；10s；终态幂等 |
 | `waitRun` | run/reason | active → waiting | run_id | 5 次；10s |
 | `resumeRun` | run | waiting → active | run_id | 5 次；10s |
-| `reconcileOperation` | operation/resolution/evidence | reconciled/unresolved + 预算处理 | operation_id + evidence | 5 次；10s；不重发外部请求 |
+| `reconcileOperation` | operation/resolution/evidence | reconciled/unresolved + 配额处理 | operation_id + evidence | 5 次；10s；不重发外部请求 |
 
 **错误分类**：
 
 - `domain_terminal`：Run/Operation 不可继续，结束 workflow，写终态/事件，不重试。
-- `domain_wait`：预算/审批等待，进入 waiting，等待信号/定时器。
+- `domain_wait`：配额/审批等待，进入 waiting，等待信号/定时器。
 - `transient`：DB/Temporal/Content Store/供应商限流或 5xx；活动按策略重试。
 - `unknown`：派发后超时/断网/回执丢失；进入 unknown，不自动重试，交对账器。
 
@@ -228,7 +228,7 @@ sequenceDiagram
 
 ### 7.2 未知
 
-| 场景 | Operation | 预算 | Run/Task | 下一步 |
+| 场景 | Operation | 配额 | Run/Task | 下一步 |
 |---|---|---|---|---|
 | 派发前失败 | failed/canceled | 释放/结算 0 | Run failed/canceled | 可重试 |
 | 派发后超时/断网 | unknown | 保留 held | Run waiting(reconcile) | 对账器查询供应商 |
@@ -250,14 +250,14 @@ sequenceDiagram
 - active/waiting Run 无 workflow/心跳过期 → 查询 Temporal；无派发可重启，有派发则核对。
 - dispatching 超过 2× 模型超时 → `markOperationUnknown`。
 - unknown/unresolved → 查询供应商；写入 resolution/evidence；必要时告警。
-- waiting(budget) → 检查账户；有额度发送 `budgetAvailable`/`resume`。
+- waiting(quota) → 检查账户；有额度发送 `quotaAvailable`/`resume`。
 - cancel_requested 无 workflow → 结束 Run；有 pending Operation → cancel/unknown。
 - outbox 积压/最旧年龄 → 告警；达到阈值时提交入口 503。
 - 终态 Run 的 active 指针/未结算费用 → 用领域命令收尾。
 
 对账器只调用 D1 领域命令；不得直接更新状态/账本，不得把 unknown 直接退回 authorized。
 
-## 8. 取消、重试、预算等待与审批
+## 8. 取消、重试、配额等待与审批
 
 ### 8.1 取消
 
@@ -268,7 +268,7 @@ sequenceDiagram
    - **派发中**：见第 5 条；
    - **结果后/发布前**：`settle` 后重读 Run；cancel_requested → `finishRun(canceled)` 不发布；已终态 → workflow 以 superseded 正常结束。
 3. 若 Run 已终态：忽略信号。
-4. 若 Operation prepared/authorized：`cancelOperation` 取消、过期待决审批并释放 held 预算。
+4. 若 Operation prepared/authorized：`cancelOperation` 取消、过期待决审批并释放 held 配额。
 5. 若 Operation dispatching：`cancelOperation` 将其置 unknown（保留预留），立即 `finishRun(canceled)`；随后等待在途活动结束：成功 → `reconcile_operation(sent_succeeded, 实际用量)`；失败/超时 → 保持 unknown 交对账器。
 6. 无阻塞 Operation 后 `finishRun(canceled)`；Task 保持 open，可重试。`finish_run(succeeded)` 遇 cancel_requested 拒绝（`run_cancel_requested`）。
 7. 迟到模型结果/上传不发布；用量计费、审计保留。
@@ -277,15 +277,15 @@ sequenceDiagram
 ### 8.2 重试
 
 - API `create_run` 检查 active Run/阻塞 Operation；新 Run 沿用 Task 快照（或显式新快照）。
-- 新 Run ID/新 workflow ID；旧 workflow 终态/被停止；不复用旧 permit/approval/budget。
+- 新 Run ID/新 workflow ID；旧 workflow 终态/被停止；不复用旧 permit/approval/quota。
 - 旧 Run 的迟到回执不能覆盖新 Run 或已完成 Task。
 
-### 8.3 预算等待
+### 8.3 配额等待
 
-- `reserveBudget` 返回 `budget_exhausted` → `waitRun(budget)`，workflow 等待 `budgetAvailable`/`resume`，最长 24h。
+- `reserveQuota` 返回 `quota_exhausted` → `waitRun(quota)`，workflow 等待 `quotaAvailable`/`resume`，最长 24h。
 - 恢复时重新读取策略、账户、许可；重新 reserve 成功后才派发。
-- 24h 超时 → `finishRun(failed, budget_wait_timeout)`；Task 保持 open，可重试。
-- 预算调整/补充是服务方运营动作；R0a 不做预算写 UI。
+- 24h 超时 → `finishRun(failed, quota_wait_timeout)`；Task 保持 open，可重试。
+- 配额调整/补充是服务方运营动作；R0a 不做配额写 UI。
 
 ### 8.4 审批
 
@@ -323,7 +323,7 @@ sequenceDiagram
       W->>D: reconcileOperation(sent_succeeded, 实际用量)
     else 失败/超时
       R->>E: 查询供应商回执（不重发）
-      R->>D: reconcileOperation + 预算处理
+      R->>D: reconcileOperation + 配额处理
     end
   end
   Note over E,D: 迟到模型结果不发布为 Task 成果，但用量照实计费
@@ -389,7 +389,7 @@ R0a 的编排不止"每个 Run 一个 workflow"。下面这些常驻/周期性�
 - **租约与接管**：所有领取都带持有者与到期时间；只有租约过期才允许接管；接管不得重复外部副作用——导出正文按作业 ID 固定对象名（重放覆盖），但写入前须检查 Content Store 对象 etag/版本与 DB 记录一致（存储围栏），防止并发 worker 覆盖他人写入；内容删除本身幂等。
 - **租户公平**：跨组织可见性只给 relay（专门的 relay RLS 策略）。其余作业**每 org 一个事务、一个上下文**，调度层轮转 org 并限制每轮行数；因此吞吐上限是 `org 数 × 每轮上限 / 周期`，单个大组织不能饿死其他组织。
 - **队列与容量隔离**：后台作业使用独立任务队列（`r0a-background`）与独立 worker 部署、独立副本数与自动扩缩，不与 Run worker 抢槽位；作业 worker 崩溃不影响在途 Run。
-- **不消耗用户预算**：后台作业不进 cents 账本（导出、清扫、同步都不是模型调用），避免管理员导出把组织预算打空。
+- **不消耗用户配额**：后台作业不是模型调用（导出、清扫、同步），不计入 token 配额。
 - **可观测**：每类作业上报最近成功时间、积压量、失败率与租约接管次数；心跳缺失或积压越限告警。指标与告警名见 D6 遥测契约（`work:r0a` 规则组）。
 - **审计与无正文**：投影同步、导出、清扫都写审计事件，只含 ID/计数/引用，不含正文（D6 日志扫描门禁覆盖同样断言）。
 - **时钟**：清扫与租约使用数据库时间（`now()`），不用应用时钟，避免多副本时钟偏差导致提前过期或租约永不失效。
@@ -426,7 +426,7 @@ R0a 的编排不止"每个 Run 一个 workflow"。下面这些常驻/周期性�
 - **Kill switch**：停止新提交与派发；保留查询/采纳/审计；不自动恢复；恢复需显式操作并审计。
 - **组织停用**：提升 execution epoch；拒绝新许可/派发；在途动作按 unknown 核对；解除停用不自动恢复席位/grant/旧操作。
 - **Worker/Workflow 升级**：`r0a-v1`；运行中 workflow 保持旧行为；新 Run 用新版本；升级前 drain，回滚不重写 history。
-- **配置**：超时、预算等待、outbox backlog 阈值、模型最大步数可配置；配置变更写审计。
+- **配置**：超时、配额等待、outbox backlog 阈值、模型最大步数可配置；配置变更写审计。
 
 ## 13. 故障矩阵
 
@@ -438,12 +438,12 @@ R0a 的编排不止"每个 Run 一个 workflow"。下面这些常驻/周期性�
 | F02 | 启动成功、Relay 未记 ACK | 固定 workflow ID 去重；不启动第二个 Run |
 | F03 | 批准与到期/撤销并发（R0a 内部路径） | 一个权威决定；陈旧批准不得派发；R0a golden path 无手工审批 |
 | F04 | 模型受理后断网、无回执 | Operation unknown；保留预留；不自动付费重发 |
-| F07 | 取消后模型结果/上传完成 | 不发布迟到成果；迟到用量按 sent_succeeded 计费（不少计）；审计不丢；预算不双扣 |
+| F07 | 取消后模型结果/上传完成 | 不发布迟到成果；迟到用量按 sent_succeeded 结算（不少计）；审计不丢；配额不双扣 |
 | F21 | dispatching 提交确认丢失/崩溃 | 只有 CAS 胜者发送；接管不盲重发；unknown 保留预留 |
 | F23 | 幂等记录过期/Task 删除后重放 | 跨 Task 持久记录返回原关联/删除状态；不创建新收费 Task |
 | D3-R01 | Relay 崩溃/backlog | 新提交 503；已有 Run 继续；不丢 outbox |
 | D3-R02 | Worker 在非幂等活动崩溃 | 不自动重放模型；unknown 对账；一次派发 |
-| D3-R03 | 预算耗尽后补充 | Run waiting(budget)；补充前不派发；恢复后一次预留 |
+| D3-R03 | 配额耗尽后补充 | Run waiting(quota)；补充前不派发；恢复后一次预留 |
 | D3-R04 | Run active/unknown 时采纳 | 409；Task/成果不变；UI 不显示假完成 |
 | D3-R05 | 派发中组织停用 | 新派发 0；在途 unknown/canceled；解除后不自动重放 |
 | D3-R06 | 工作流启动前取消 | acquire 不 bump fence；Run canceled；0 Operation、0 派发 |
@@ -469,7 +469,7 @@ R0a 的编排不止"每个 Run 一个 workflow"。下面这些常驻/周期性�
 2. Outbox `kind`：`submit_task` 同事务写 `start_workflow`、`request_cancel` 写 `cancel_signal`、删除/清扫写 `content_shred`；`task_event` 与三类信号共用 `outbox_seq` 单聚合有序。
 3. Relay 跨组织租约：`claim_outbox` 的 `claimed_by/claimed_until`、非持有者 ACK 拒绝、退避与第 10 次死信、死信阻塞同聚合、start 死信收尾 Run、`work_ops` 重排/跳过并审计。
 4. 作业租约：`claim_audit_export` 的 `lease_owner/lease_until` 与 `audit_export_lease_lost`；到期清扫 `expire_due_*`/`shred_due_audit_exports` 的条件更新幂等——单持有者与清扫独占已由并发脚本实测（§15.2）。
-5. 预算/派发 CAS 与 fence：`acquire_run`、`claim_dispatch`、`reserve/settle/adjust/release` 账目单调；启动前取消不 bump fence。
+5. 配额/派发 CAS 与 fence：`acquire_run`、`claim_dispatch`、`reserve/settle/adjust/release` 账目单调；启动前取消不 bump fence。
 
 **仍待实施（不属于设计层，DR2/E4/E5 验证）**
 
@@ -484,7 +484,7 @@ D3 完成（DR2）需要：
 
 - RunWorkflow/Activity 契约通过类型检查；设计评审无 P0。
 - D1 增量命令实现并通过冒烟（含 F01/F02/F04/F21/F23 数据库侧）。
-- 使用 Temporal 测试环境执行：提交/启动、模型成功、取消、超时 unknown、预算等待/恢复、worker 崩溃、DB/Temporal 偏移。
+- 使用 Temporal 测试环境执行：提交/启动、模型成功、取消、超时 unknown、配额等待/恢复、worker 崩溃、DB/Temporal 偏移。
 - 并发/故障下：单派发、单次扣费、无第二个 Run、无迟到成果发布、unknown 不被自动重发。
 - Outbox backlog/kill switch/org suspend 可演练。
 - Temporal history 中无正文/密钥；SSE 事件无正文。
@@ -496,7 +496,7 @@ D3 完成（DR2）需要：
 - 结果：F01/F02/F04/F07/F21/F23 + D3-R06–R09 **10/10** 通过（连续 3 次）；normal workflow smoke 1/1；RLS 连接池 3/3；10 并发负载 1/1。
   - F01：提交后不启动 relay；outbox 后补启动，仍只有一个 Task/Run/workflow。
   - F02：start 成功但 relay 崩溃未 ACK；租约内另一 relay 领不到；租约过期后被接管，遇 `AlreadyStarted` 视为投递，不创建第二个 Run。
-  - F04：provider accepted 后无回执 → Operation unknown、预算保留 100、无 artifact、无自动重放。
+  - F04：provider accepted 后无回执 → Operation unknown、配额保留 100、无 artifact、无自动重放。
   - F07：派发中取消 → run canceled、Operation 先 unknown；迟到结果不发布 artifact，但按 sent_succeeded 对账，预留 settled=80；非枚举取消原因归一为 `user_requested`。
   - D3-R06/R07/R08/R09：启动前取消、claim 前仅 DB 取消、心跳超时 → unknown、跨组织单 relay（见 §13）。
   - F21：claim 后崩溃 → 一个 dispatch attempt、provider 调用 0、takeover claim 返回 null。
@@ -527,13 +527,13 @@ D3 完成（DR2）需要：
 
 1. **Temporal 托管/运维**：自托管需要 S1 多节点拓扑、在途 workflow 的 server 重启、备份与监控；当前验证 worker 重启、`patched` 升级、已完成 workflow 的 file-backed server 重启与 DB 终态偏移。
 2. **D1 增量已实现**：wait/resume/unknown/reconcile/workflow-start/cancel outbox 已通过 34/34（2026-10-26 修订后冒烟 114/114）；仍需 Temporal 集成/正式评审与 S1 拓扑/升级。
-3. **供应商回执查询**：不同供应商对 unknown 的查询能力不同；无法确认时保持 unresolved，不释放预算。
-4. **预算等待信号权限**：谁可以补预算/发 resume 需运营权限与审计；R0a 无预算写 UI。
+3. **供应商回执查询**：不同供应商对 unknown 的查询能力不同；无法确认时保持 unresolved，不释放配额。
+4. **配额等待信号权限**：谁可以补配额/发 resume 需运营权限与审计；R0a 无配额写 UI。
 5. **Workflow 版本/Worker 发布**：`patched` 升级已验证；worker versioning 部署、正式 drain/回滚演练未做。
 6. ~~Outbox 顺序/DLQ~~：**已定并实现于 D1（2026-10-26 修订）**：`outbox_seq` 单聚合严格有序（头部未投递——在途租约/退避/死信——即阻塞同聚合后续行；跨聚合不保证）；`mark_outbox_failed` 2^n 秒退避（≤300s），第 10 次（约 13.5 分钟）或不可重试即死信 + 审计；**死信继续阻塞同聚合**，start_workflow 死信同时收尾 Run（queued→failed / cancel_requested→canceled）并 supersede 同 Run 后续消息；`requeue_outbox_dead_letter`/`skip_outbox_dead_letter` 仅 `work_ops`、需理由、审计；relay 租约 + 跨组织策略见 §10。PG 冒烟 114/114、竞态 7/7、Temporal 切片 faults 10/10、s1 4/4 回归通过。告警 `WorkOutboxDeadLetters`，处置见[试点运营 runbook §6](work-r0a-pilot-operations-runbook-2026-10-26.md)。
 7. **SSE 多实例/背压**：长连接、游标保留、重连风暴未实现。
 8. **人工审批**：R0a 不覆盖 F03 的完整审批 UI/通知；待 R0b/R2。
-9. **超时数值**：Run/模型/预算等待是初始建议，需产品与试点数据校准。
+9. **超时数值**：Run/模型/配额等待是初始建议，需产品与试点数据校准。
 10. **对账收尾策略**：确认已发送后的发布/完成由对账器还是新 workflow 执行，需在 D4 定案；无论哪种都不得重发。
 11. **Temporal history 驻留**：即使不含正文，仍需区域/保留/访问审计。
 12. **D1 直方/容量**：Temporal 与 PG 的吞吐、history 大小、outbox 延迟未压测。

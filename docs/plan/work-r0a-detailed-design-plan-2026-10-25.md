@@ -244,7 +244,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 3. **角色与权限矩阵**  
    `work_owner`（对象/函数所有者）、`work_api`、`work_worker`、`work_egress`（仅出口相关）、`work_migrator`、`work_ledger`（账本/审计追加）分离；业务角色无 `BYPASSRLS`；`FORCE ROW LEVEL SECURITY`；`REVOKE` 对 fact/ledger 表的直接 DML。
 4. **领域命令契约**  
-   `create_input/submit_task/create_run/acquire_run/create_operation/authorize_operation/finish_operation/cancel_operation/claim_dispatch/reserve_budget/settle_budget/adjust_budget/release_budget/publish_artifact/request_cancel/finish_run/accept_task/request_approval/decide_approval/claim_outbox/mark_outbox_delivered` 的输入、锁顺序、事务边界、返回码与幂等规则；明确 `SECURITY DEFINER` 函数清单、`search_path` 加固与 `EXECUTE` 授权；草案当前 `SECURITY INVOKER` 的实现需按 D-04 修订。
+   `create_input/submit_task/create_run/acquire_run/create_operation/authorize_operation/finish_operation/cancel_operation/claim_dispatch/reserve_quota/settle_quota/adjust_quota/release_quota/publish_artifact/request_cancel/finish_run/accept_task/request_approval/decide_approval/claim_outbox/mark_outbox_delivered` 的输入、锁顺序、事务边界、返回码与幂等规则；明确 `SECURITY DEFINER` 函数清单、`search_path` 加固与 `EXECUTE` 授权；草案当前 `SECURITY INVOKER` 的实现需按 D-04 修订。
 5. **输入/成果/模板元数据**  
    输入对象生命周期（创建 → 绑定 Task → 保留/过期/删除）；成果版本不可变、发布/采纳/导出；模板版本资产的内容哈希与快照引用；上传会话与内容寻址。
 6. **留存、删除与恢复**  

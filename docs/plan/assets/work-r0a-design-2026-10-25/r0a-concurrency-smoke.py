@@ -415,7 +415,7 @@ def race_usage_upsert(workers=10):
     def add(_):
         return call_worker(
             "SELECT 1 FROM (SELECT work.record_usage"
-            "(%s, 'user1', 'aliyun', 'qwen3.8-flash', DATE '2026-10-21', 1, 1, 0, 1)) x",
+            "(%s, 'user1', gen_random_uuid(), 'aliyun', 'qwen3.8-flash', DATE '2026-10-21', 1, 1, 0, 1)) x",
             (ORG,), role="work_worker", barrier=barrier)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:

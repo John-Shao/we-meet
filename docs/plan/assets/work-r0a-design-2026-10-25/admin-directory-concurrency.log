@@ -27,7 +27,7 @@
   "projection_revision_race": {
     "org": {
       "applied": [
-        5,
+        3,
         6,
         8,
         9
@@ -40,11 +40,12 @@
     },
     "member": {
       "applied": [
+        4,
         8,
         9
       ],
       "rejected": {
-        "projection_revision_stale": 6
+        "projection_revision_stale": 5
       },
       "final_revision": 9,
       "lost_update": false
@@ -60,9 +61,9 @@
   "expiry_sweep_shared_ref": {
     "workers": 3,
     "swept": [
-      4,
       0,
-      0
+      0,
+      4
     ],
     "errors": [],
     "expired_inputs": 4,
@@ -88,7 +89,7 @@
     "overview_reads": 900,
     "observed_settled_tokens": [
       0,
-      90,
+      360,
       450,
       540
     ],
@@ -117,7 +118,7 @@
     "errors": [],
     "input_tokens": 10
   },
-  "wall_seconds": 7.11,
+  "wall_seconds": 6.9,
   "gate": {
     "checks": {
       "export_claim_single_winner": true,

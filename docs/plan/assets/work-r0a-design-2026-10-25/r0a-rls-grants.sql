@@ -159,4 +159,5 @@ GRANT EXECUTE ON FUNCTION work.revoke_provider_config(text, text, text) TO work_
 GRANT EXECUTE ON FUNCTION work.get_user_usage(text, text, date, date) TO work_api;
 GRANT EXECUTE ON FUNCTION work.get_org_usage_by_model(text, text, date, date) TO work_api;
 GRANT EXECUTE ON FUNCTION work.resolve_provider_context(text) TO work_worker;
-GRANT EXECUTE ON FUNCTION work.record_usage(text, text, text, text, date, bigint, bigint, bigint, int) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.get_provider_config(text, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.record_usage(text, text, uuid, text, text, date, bigint, bigint, bigint, int) TO work_worker;

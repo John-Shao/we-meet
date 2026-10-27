@@ -84,14 +84,14 @@ test('canceled run keeps read-only artifact and allows retry, not accept', () =>
   );
 });
 
-test('failed retries; budget exhaustion cancels but does not retry', () => {
+test('failed retries; quota exhaustion cancels but does not retry', () => {
   assert.deepEqual(actionsFor('failed'), ['view_error', 'retry']);
   assert.equal(isArtifactReadOnly('failed'), true);
   assert.equal(canRetry('failed'), true);
   assert.equal(canCancel('failed'), false);
-  assert.deepEqual(actionsFor('budget_exhausted'), ['view_budget', 'cancel']);
-  assert.equal(canRetry('budget_exhausted'), false);
-  assert.equal(canCancel('budget_exhausted'), true);
+  assert.deepEqual(actionsFor('quota_exhausted'), ['view_quota', 'cancel']);
+  assert.equal(canRetry('quota_exhausted'), false);
+  assert.equal(canCancel('quota_exhausted'), true);
 });
 
 test('completed and terminal tasks do not expose cancel/retry/accept', () => {
@@ -140,7 +140,7 @@ test('inbox projection maps only acceptance/failed/reconciling', () => {
   assert.equal(inboxTypeFor('awaiting_acceptance'), 'acceptance_required');
   assert.equal(inboxTypeFor('failed'), 'failed');
   assert.equal(inboxTypeFor('reconciling'), 'reconciling');
-  for (const state of ['queued', 'running', 'completed', 'run_canceled', 'budget_exhausted']) {
+  for (const state of ['queued', 'running', 'completed', 'run_canceled', 'quota_exhausted']) {
     assert.equal(inboxTypeFor(state), null);
   }
 });
@@ -173,7 +173,7 @@ test('delete is only offered for quiescent tasks and always confirms; rename is 
   const { matrix, copy } = loadUiAssets();
   assert.equal(matrix.actions.delete.requiresConfirm, true);
   assert.equal(matrix.actions.delete.destructive, true);
-  for (const state of ['queued', 'running', 'reconciling', 'budget_exhausted', 'canceling']) {
+  for (const state of ['queued', 'running', 'reconciling', 'quota_exhausted', 'canceling']) {
     assert.equal(canDelete({ display_state: state, active_run_id: null, blocking_operations: 0 }), false, state);
   }
   assert.equal(canDelete({ display_state: 'completed', active_run_id: null, blocking_operations: 0 }), true);

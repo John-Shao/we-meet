@@ -6,13 +6,11 @@ import {
   normalizeUsage,
   reconcilePeriod,
   settleOperation,
-  upperBoundCents,
-  validatePriceTable,
+  upperBoundTokens,
 } from './usage/usage-reconcile.mjs';
 import { evaluateRelease } from './supply-chain/supply-chain.mjs';
 
-const price = JSON.parse(fs.readFileSync(new URL('./usage/price-table.placeholder.json', import.meta.url)));
-const operation = { price_version: price.price_version, provider: price.provider, model: price.model };
+const operation = { provider: 'aliyun', model: 'qwen3.8-flash' };
 const policy = JSON.parse(fs.readFileSync(new URL('./supply-chain/supply-chain-policy.json', import.meta.url)));
 
 // Usage shape observed in the real qwen3.8-flash smoke (provider-smoke.log).
@@ -23,52 +21,43 @@ const qwenUsage = {
   completion_tokens_details: { reasoning_tokens: 77, text_tokens: 110 },
 };
 
-test('price table is validated and placeholder is explicit', () => {
-  assert.equal(price.placeholder, true);
-  assert.doesNotThrow(() => validatePriceTable(price));
-  assert.throws(() => validatePriceTable({ ...price, currency: 'cny' }), /currency/);
-  assert.throws(
-    () => validatePriceTable({ ...price, per_million_cents: { ...price.per_million_cents, output: 1.5 } }),
-    /output/,
-  );
+test('token bound requires integer limits', () => {
+  assert.equal(upperBoundTokens({ maxInputTokens: 8000, maxOutputTokens: 4096 }), 12096);
+  assert.throws(() => upperBoundTokens({ maxInputTokens: -1, maxOutputTokens: 4096 }), /maxInputTokens/);
+  assert.throws(() => upperBoundTokens({ maxInputTokens: 8000, maxOutputTokens: 0 }), /maxInputTokens/);
 });
 
-test('reasoning tokens are not double-charged unless the price table says so', () => {
-  assert.deepEqual(normalizeUsage(qwenUsage, price), { input: 80, cached_input: 0, output: 110 });
-  assert.equal(
-    normalizeUsage(qwenUsage, { ...price, reasoning_billed_separately: true }).output,
-    187,
-  );
-  assert.equal(normalizeUsage({ total_tokens: 5 }, price), null);
+test('reasoning tokens are counted once unless explicitly billed separately', () => {
+  assert.deepEqual(normalizeUsage(qwenUsage), { input: 80, cached_input: 0, output: 110 });
+  assert.equal(normalizeUsage(qwenUsage, { reasoningBilledSeparately: true }).output, 187);
+  assert.equal(normalizeUsage({ total_tokens: 5 }), null);
 });
 
-test('preview upper bound covers the worst-case settlement', () => {
-  const bound = upperBoundCents(price, { maxInputTokens: 8000 });
+test('preview token bound covers the worst-case settlement', () => {
+  const bound = upperBoundTokens({ maxInputTokens: 8000, maxOutputTokens: 4096 });
   const worst = settleOperation({
-    reservedCents: bound,
-    priceTable: price,
+    reservedTokens: bound,
     operation,
-    providerUsage: { prompt_tokens: 8000, completion_tokens: price.max_output_tokens },
+    providerUsage: { prompt_tokens: 8000, completion_tokens: 4096 },
   });
-  assert.equal(worst.settleCents, bound);
-  assert.equal(worst.overageCents, 0);
+  assert.equal(worst.settleTokens, bound);
+  assert.equal(worst.overageTokens, 0);
 });
 
 test('provider usage is the settlement basis; mismatch beyond tolerance is flagged', () => {
   const close = settleOperation({
-    reservedCents: 100,
-    priceTable: price,
+    reservedTokens: 400,
     operation,
     providerUsage: qwenUsage,
     gatewayTokens: { input: 80, cached_input: 0, output: 140 },
   });
   assert.equal(close.basis, 'provider');
   assert.deepEqual(close.flags, []);
-  assert.equal(close.usage.price_version, price.price_version);
+  assert.equal(close.settleTokens, 190);
+  assert.deepEqual(close.usage, { input: 80, cached_input: 0, output: 110 });
 
   const far = settleOperation({
-    reservedCents: 100,
-    priceTable: price,
+    reservedTokens: 400,
     operation,
     providerUsage: qwenUsage,
     gatewayTokens: { input: 80, cached_input: 0, output: 110 + TOLERANCE.operationTokenFloor + 1 },
@@ -78,93 +67,87 @@ test('provider usage is the settlement basis; mismatch beyond tolerance is flagg
 
 test('missing provider usage settles on gateway estimate or holds as unknown', () => {
   const estimated = settleOperation({
-    reservedCents: 100,
-    priceTable: price,
+    reservedTokens: 3000,
     operation,
     providerUsage: null,
     gatewayTokens: { input: 1000, cached_input: 0, output: 1000 },
   });
   assert.equal(estimated.basis, 'gateway_estimate');
   assert.deepEqual(estimated.flags, ['usage_estimated']);
+  assert.equal(estimated.settleTokens, 2000);
 
-  const unknown = settleOperation({ reservedCents: 100, priceTable: price, operation, providerUsage: null });
+  const unknown = settleOperation({ reservedTokens: 100, operation, providerUsage: null });
   assert.equal(unknown.action, 'hold_unknown');
-  assert.equal(unknown.settleCents, null);
+  assert.equal(unknown.settleTokens, null);
 });
 
-test('overage is capped at the reservation and surfaced for adjust_budget', () => {
+test('overage is capped at the reservation and surfaced for adjust_quota', () => {
   const result = settleOperation({
-    reservedCents: 1,
-    priceTable: price,
+    reservedTokens: 1,
     operation,
     providerUsage: { prompt_tokens: 100000, completion_tokens: 100000 },
   });
-  assert.equal(result.settleCents, 1);
-  assert.ok(result.overageCents > 0);
-  assert.ok(result.flags.includes('budget_overrun'));
+  assert.equal(result.settleTokens, 1);
+  assert.ok(result.overageTokens > 0);
+  assert.ok(result.flags.includes('quota_overrun'));
   assert.throws(
-    () => settleOperation({ reservedCents: -1, priceTable: price, operation, providerUsage: qwenUsage }),
-    /reservedCents/,
+    () => settleOperation({ reservedTokens: -1, operation, providerUsage: qwenUsage }),
+    /reservedTokens/,
   );
 });
 
-test('period reconciliation applies max(1%, 100 cents) tolerance and lists unmatched ids', () => {
+test('period reconciliation applies max(1%, 100 tokens) tolerance and lists unmatched ids', () => {
   const ledger = [
-    { provider_request_id: 'a', amount_cents: 5000 },
-    { provider_request_id: 'b', amount_cents: 3000 },
+    { provider_request_id: 'a', tokens: 5000 },
+    { provider_request_id: 'b', tokens: 3000 },
   ];
   assert.equal(reconcilePeriod({ ledger, invoice: ledger }).status, 'matched');
 
   const small = reconcilePeriod({
     ledger,
     invoice: [
-      { provider_request_id: 'a', amount_cents: 5050 },
-      { provider_request_id: 'b', amount_cents: 3000 },
+      { provider_request_id: 'a', tokens: 5050 },
+      { provider_request_id: 'b', tokens: 3000 },
     ],
   });
   assert.equal(small.status, 'within_tolerance');
-  assert.equal(small.allowedCents, 100);
+  assert.equal(small.allowedTokens, 100);
   assert.equal(small.mismatched.length, 1);
 
   const big = reconcilePeriod({
     ledger,
-    invoice: [...ledger, { provider_request_id: 'c', amount_cents: 400 }],
+    invoice: [...ledger, { provider_request_id: 'c', tokens: 400 }],
   });
   assert.equal(big.status, 'adjustment_required');
   assert.deepEqual(big.missingInLedger, ['c']);
-  assert.equal(big.diffCents, 400);
+  assert.equal(big.diffTokens, 400);
 });
 
 test('gateway counts must be non-negative integers; bad counts never settle as zero', () => {
   for (const bad of [{ input: NaN, cached_input: 0, output: 1 }, { input: 1, cached_input: -1, output: 1 }, { input: 1.5, cached_input: 0, output: 1 }, { input: 1, output: 1 }]) {
     assert.throws(
-      () => settleOperation({ reservedCents: 100, priceTable: price, operation, providerUsage: null, gatewayTokens: bad }),
+      () => settleOperation({ reservedTokens: 100, operation, providerUsage: null, gatewayTokens: bad }),
       (error) => error.code === 'invalid_gateway_usage',
     );
   }
 });
 
-test('settlement refuses a price table that is not the operation\'s reserved price version/model', () => {
-  for (const op of [
-    { ...operation, price_version: 'qwen3.8-flash-2027-01' },
-    { ...operation, model: 'qwen3.8-max' },
-    { ...operation, provider: 'openai' },
-    undefined,
-  ]) {
+test('settlement requires the operation provider/model binding', () => {
+  for (const op of [undefined, { provider: 'aliyun' }, { model: 'qwen3.8-flash' }]) {
     assert.throws(
-      () => settleOperation({ reservedCents: 100, priceTable: price, operation: op, providerUsage: qwenUsage }),
-      (error) => error.code === 'price_version_mismatch',
+      () => settleOperation({ reservedTokens: 100, operation: op, providerUsage: qwenUsage }),
+      (error) => error.code === 'operation_binding_mismatch',
     );
   }
 });
 
-test('period reconciliation rejects duplicate ids and non-integer amounts', () => {
+test('period reconciliation rejects duplicate ids and non-integer tokens', () => {
   assert.throws(
-    () => reconcilePeriod({ ledger: [{ provider_request_id: 'a', amount_cents: 1 }, { provider_request_id: 'a', amount_cents: 2 }], invoice: [] }),
+    () => reconcilePeriod({ ledger: [{ provider_request_id: 'a', tokens: 1 }, { provider_request_id: 'a', tokens: 2 }], invoice: [] }),
     (error) => error.code === 'invalid_reconciliation_input',
   );
   assert.throws(
-    () => reconcilePeriod({ ledger: [], invoice: [{ provider_request_id: 'a', amount_cents: 1.25 }] }),
+    () => reconcilePeriod({ ledger: [], invoice: [{ provider_request_id: 'a', tokens: 1.25 }] }),
     (error) => error.code === 'invalid_reconciliation_input',
   );
 });

@@ -12,10 +12,10 @@
 | `policy/egress-policy.json` | 供应商、请求绑定、来源标签、秘密模式、响应过滤、usage、日志、回退 |
 | `policy/evaluator.mjs` | 设计级策略评估器（不是生产网关） |
 | `policy/evaluator.test.mjs` | 10 组策略测试 |
-| `usage/usage-reconcile.mjs` | usage 归一、单次结算/容差/超预留、月度账单对账 |
+| `usage/usage-reconcile.mjs` | token usage 归一、单次按 token 结算/容差/超预留、按 token 月度对账（D-08：不计价） |
 | `usage/price-table.snapshot-2026-10-26.json` | 三家**控制台价目快照**（截图来源，`usableInLedger: false`）+ R0a 预算上界建议值 + 三条设计约束 PC-1/2/3；**D-08a（2026-10-27）后仅作成本参考，不再进入账本；PC-1/2 作废** |
 | `usage/quota-table.snapshot-2026-10-27.json` | 阿里云 Qwen3.8-Flash 控制台**配额快照**（TPM 5,000,000、动态限流、额度有效期 2026-10-15~2026-11-15；上下文 1M/输入 991K/输出 128K）；非书面承诺 |
-| `usage/price-table.placeholder.json` | **占位**价表（非供应商价格，仅用于对账规则自测） |
+| `usage/price-table.placeholder.json` | 历史**占位**价表；D-08a 后仅成本参考，测试与账本均不再引用 |
 | `supply-chain/supply-chain-policy.json` | 镜像签名/provenance/SBOM/Pi 固定/漏洞门禁策略 |
 | `supply-chain/supply-chain.mjs` | 发布准入评估器 |
 | `usage-supply-chain.test.mjs` | 12 组 usage/对账/准入测试 |

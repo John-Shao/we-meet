@@ -83,12 +83,12 @@
     {
       "id": "quota_reconciliation_diff_tokens",
       "name": "Quota ledger vs provider usage difference",
-      "target": 0,
+      "target": null,
       "unit": "tokens",
       "window": "1d",
       "source": "quota ledger + egress usage",
       "status": "not_measured",
-      "provisional": false,
+      "provisional": true,
       "evidence": []
     },
     {
