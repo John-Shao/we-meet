@@ -397,14 +397,14 @@ Temporal 切片需要 Docker Compose/Temporal dev（Windows 主机不能直接�
 | 2026-10-26 | 代号与缩写移入附录 §10；§1 只保留 R0a/R0b 简述 |
 | 2026-10-26 | 附录增加最小记忆集、口诀与易混对照；关键首次出现补中文别名 |
 | 2026-10-26 | 新增 ADR-0021 可剥离独立产品边界；架构 §4.3、D1 §4.4、D2 §2.8、D6 §7.4 同步 |
-| 2026-10-27 | **D-01–D-06 正式签收，D-07 受理**：D-01 A、D-02 A、D-03 B（静态服务密钥 + 单层静态凭证加密，接受无 KMS/HSM 审计）、D-04 A、D-05 A、D-06 A；关键项独立复核 Lily Zhu 已确认；D-07 进入 R0a、方法 DR1 定。E1 可接入真实迁移体系；DR0 11-03 仍需形成纪要并签 R0-a |
+| 2026-10-27 | **D-01–D-06 正式签收，D-07 受理**：D-01 A、D-02 A、D-03 B（静态服务密钥 + 单层静态凭证加密，接受无 KMS/HSM 审计）、D-04 A、D-05 A、D-06 A；关键项独立复核 Lily Zhu 已确认；D-07 进入 R0a、方法 DR1 定（**同日午后 D-07 正式签收 A，含 `ops_cancel_run` 与告警阈值**）。E1 可接入真实迁移体系；DR0 11-03 仍需形成纪要并签 R0-a |
 | 2026-10-27 | **D-07 正式签收 A + C11 提前签映射口径**：D-07 A（只拦新工作 + 运营手工取消），同步周期上限 5 min + 每日全量对账、投影滞后 > 600s 持续 5 min 告警 `WorkDirectoryProjectionStale`；补 D1 `work.ops_cancel_run`（需工单号 + 原因 ≥4 字，仅 `work_ops` 可执行，幂等、记审计与 outbox），冒烟 143→**148/148**（+5）；C11 签映射口径 + 残余风险清单（不签实施证据），开工闸门 5→4（start 剩余 C03/C04/C05/C25）；`WorkDirectoryProjectionStale` 阈值 900→600、持续 10m→5m；D3 §11.5、Runbook §5.2、安全控制 S17 同步 |
 | 2026-10-27 | **D-03 B 静态凭证落到 D1**：`provider_credential` 支持 static（KMS 字段 NULL）与预留 KMS 成对；create/rotate 支持静态；新增 static_mode/static_rotate/kms_pair/resolve_static 4 项断言；冒烟 139→**143/143**、竞态 **9/9**；E1 schema 重新生成；L13 关闭条件剩 C01 DR1 附修订 |
 | 2026-10-27 | **11-06 演练环境/档期确认**：五席与 SRE/DBA 按角色占位（真名 11-06 补）、Temporal 2 副本/独立 PG/mTLS 可于 11-06 前就绪、namespace 配额可调、独立 Content Store 桶、kill switch 已有可操作开关；档期维持 11-15（周日）/11-16 |
 | 2026-10-27 | **DR0 会前确认（待 11-03 追认）**：D-01 A、D-02 A、D-03 B（静态单层加密，D1 最小修订/C01 DR1 附修订）、D-04 A、D-05 A、D-06 A、D-07 进入 R0a/DR1 定 B；D-08b 演示组织 A managed_key、B1–B10 通过但 B2/B6 重写；U1 UT1–UT5；C01 附修订、C02/C14 追认；Lily Zhu 独立复核 + D-08a 法务（授权待确认）；排期与负责人不变 |
 | 2026-10-27 | **状态口径清理与三项排期**：`start` 9→5 的残留（§5.2、DR0/DR1 签收单）、C11 “3 open/13 partial”→“0 open/16 partial”、U3 已答复后的“待 11-14”、D-08a 后的 cents/PC-1/2/3 过期表述统一；DR0 11-03 增会前检查表、C03 演练排期落到 11-15/16（5 席 + SRE/DBA、11-06 环境预检）、U1 增候选登记模板与 10-27～11-05 动作 |
 | 2026-10-27 | **C01/C02/C14 提前签**：C01 冻结 D1 设计、C02 冻结 29/33、C14 签"不声明 gVisor 隔离"降级；均为 (b) 自证，DR1/DR2 追认，开工闸门 8→5。C04 等 D-08b，C03/C05/C11/C25 仍需外部/实证 |
-| 2026-10-27 | **有条件开发准入**：C01/C02/C14 已签、C15/S13 已关；E1–E3 先行、E4–E6 只做契约/mock；剩余 5 项 start 与 DR0 决策转 L01–L12 遗留问题，`canStartWork` 仍 false、生产/试点未放行 |
+| 2026-10-27 | **有条件开发准入**：C01/C02/C14 已签、C15/S13 已关；E1–E3 先行、E4–E6 只做契约/mock；剩余 5 项 start 与 DR0 决策转 L01–L12 遗留问题，`canStartWork` 仍 false、生产/试点未放行（**同日 C11 提前签映射口径后降为 4 项**） |
 | 2026-10-27 | **D-08b 签收清单**：把网关取凭证、静态密钥、只写不回读、组织隔离、吊销/轮换、审计、unknown 对账、泄露应急、脱敏拆成 B1–B10；DR0 安全+平台签；明确不关闭 C04。**同日 D-03 改 B 静态单层加密后，B2/B6 重写，其余沿用** |
 | 2026-10-27 | **C03 阻塞与演练清单**：把 U3 九项承诺、C22 四项演练、D3-N01/N03/N06 与 S1 多节点重启拆成可催办/可验收表；U3 已于 2026-10-27 确认（全部"是"），C03 只剩演练；仍不建议提前签 |
 | 2026-10-27 | **legacy Work 清理 + E1 迁移草案**：删除后端 `work` app/模型/迁移/测试、`src/work-agent`、core 生命周期 Work 钩子、`org.work_grant.*` 权限（0234 清理迁移）、settings/urls/celery/feature flags、前端 `features/work` 与导航、桌面 local-agent 集成、Work deploy/Helm/values 与 3.4G release 产物；新增 `src/backend/work/sql/`（roles/schema/verify，本地 139/139）与 `deploy/aliyun/drop-legacy-work.sql`（不执行、不迁移）；E1 未注册 `INSTALLED_APPS`，等 D-04 |
