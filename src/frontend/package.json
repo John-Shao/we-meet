@@ -66,9 +66,9 @@
     "wouter": "3.9.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.1",
     "@douyinfe/semi-vite-plugin": "^2.102.0",
     "@pandacss/dev": "1.11.1",
+    "@playwright/test": "^1.62.1",
     "@tanstack/eslint-plugin-query": "5.91.4",
     "@tanstack/react-query-devtools": "5.91.3",
     "@testing-library/jest-dom": "^6.9.1",
@@ -82,6 +82,7 @@
     "@typescript-eslint/eslint-plugin": "8.35.1",
     "@typescript-eslint/parser": "8.35.1",
     "@vitejs/plugin-react": "5.1.4",
+    "axe-core": "^4.12.1",
     "eslint": "8.57.0",
     "eslint-config-prettier": "10.1.5",
     "eslint-plugin-jsx-a11y": "6.10.2",

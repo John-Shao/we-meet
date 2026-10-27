@@ -9,6 +9,7 @@ import {
 import {
   RiMessage3Line,
   RiVidiconLine,
+  RiListCheck3,
   RiApps2Line,
   RiFileTextLine,
   RiRobot2Line,
@@ -57,6 +58,7 @@ const NAV: NavItem[] = [
   { to: '/im', labelKey: 'nav.messages', Icon: RiMessage3Line },
   { to: '/assistant', labelKey: 'nav.assistant', Icon: RiRobot2Line },
   { to: '/meeting', labelKey: 'nav.meeting', Icon: RiVidiconLine },
+  { to: '/work', labelKey: 'nav.work', Icon: RiListCheck3 },
   { to: '/docs', labelKey: 'nav.docs', Icon: RiFileTextLine },
   { to: '/apps', labelKey: 'nav.apps', Icon: RiApps2Line },
 ]

@@ -1,4 +1,4 @@
-"""Clean-slate Work R0a app (not registered until D-04)."""
+"""Work R0a app: schema, functions and domain commands live in sql/r0a_schema.sql."""
 
 from django.apps import AppConfig
 

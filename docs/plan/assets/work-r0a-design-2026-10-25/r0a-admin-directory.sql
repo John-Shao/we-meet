@@ -572,6 +572,32 @@ BEGIN
 END;
 $$;
 
+-- 管理台读取凭证元数据（脱敏）：owner 可读 key_version/时间戳，不返回密文。
+CREATE FUNCTION work.get_provider_credential_view(
+  p_org_id text,
+  p_subject_id text,
+  p_credential_id uuid
+) RETURNS TABLE (
+  credential_id uuid,
+  provider text,
+  mode text,
+  fingerprint text,
+  key_version int,
+  state text,
+  created_at timestamptz,
+  rotated_at timestamptz
+)
+LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM work.assert_org_owner(p_org_id, p_subject_id);
+  RETURN QUERY
+  SELECT pc.id, pc.provider, pc.mode, pc.secret_fingerprint, pc.key_version,
+         pc.state, pc.created_at, pc.rotated_at
+  FROM work.provider_credential pc
+  WHERE pc.org_id = p_org_id AND pc.id = p_credential_id;
+END;
+$$;
+
 -- 网关/运行时取凭证的唯一入口：只能取本组织的 active 配置与 active 凭证。
 -- wrapped_dek/kms_key_ref 为 NULL 表示静态单层加密；两者都有值表示预留的 KMS 信封。
 CREATE FUNCTION work.resolve_provider_context(p_org_id text)
@@ -887,6 +913,18 @@ BEGIN
     );
   END IF;
   RETURN work.audit_export_view(export_row);
+END;
+$$;
+
+-- worker 发现入口：只返回本组织 queued 作业 ID，audit_export 表本身仍不对 worker 开放。
+CREATE FUNCTION work.list_pending_audit_exports(p_org_id text)
+RETURNS TABLE (export_id uuid)
+LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+  SELECT e.id FROM work.audit_export e
+  WHERE e.org_id = p_org_id AND e.status = 'queued'
+  ORDER BY e.created_at;
 END;
 $$;
 
