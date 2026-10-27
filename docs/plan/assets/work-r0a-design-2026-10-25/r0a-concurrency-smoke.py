@@ -17,6 +17,10 @@ Set R0A_DATABASE_URL to point somewhere else (CI uses the postgres service).
 A disposable database only: the script drops and recreates the work schema.
 It exits non-zero when a race invariant is violated, so the same run is both
 evidence and gate.
+
+R0A_SCHEMA_SQL can point at another schema build (E1 passes the generated
+src/backend/work/sql/r0a_schema.sql); R0A_LOG_FILE moves the JSON report out of
+the asset directory.
 """
 import concurrent.futures
 import json
@@ -30,8 +34,8 @@ import uuid
 import psycopg
 
 BASE = pathlib.Path(__file__).resolve().parent
-SCHEMA = BASE / "r0a-schema-draft.sql"
-LOG = BASE / "admin-directory-concurrency.log"
+SCHEMA = pathlib.Path(os.environ.get("R0A_SCHEMA_SQL", BASE / "r0a-schema-draft.sql"))
+LOG = pathlib.Path(os.environ.get("R0A_LOG_FILE", BASE / "admin-directory-concurrency.log"))
 ADMIN_URL = os.environ.get("R0A_DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:55433/work_r0a")
 ORG = "org1"
 PERIOD = "2026-10"
@@ -102,7 +106,7 @@ def reset():
     with connect() as conn:
         conn.autocommit = True
         conn.execute("DROP SCHEMA IF EXISTS work CASCADE")
-        conn.execute((BASE / "r0a-schema-draft.sql").read_text(encoding="utf-8"))
+        conn.execute(SCHEMA.read_text(encoding="utf-8"))
 
 
 def seed():

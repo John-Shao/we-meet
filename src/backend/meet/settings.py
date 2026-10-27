@@ -122,6 +122,9 @@ class Base(Configuration):
             "PORT": values.Value(5432, environ_name="DB_PORT", environ_prefix=None),
         }
     }
+    DATABASES["default"].setdefault("OPTIONS", {}).setdefault(
+        "options", "-c search_path=public,work"
+    )
     DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
     # Static files (CSS, JavaScript, Images)
@@ -452,6 +455,8 @@ class Base(Configuration):
         # and only looks at the finished response. It never touches the DB —
         # see core/middleware/activity.py.
         "core.middleware.activity.ActivityMiddleware",
+        # Work R0a: correlation id + metadata-only request metrics (E7).
+        "work.api.middleware.WorkObservabilityMiddleware",
     ]
 
     AUTHENTICATION_BACKENDS = [
@@ -464,6 +469,7 @@ class Base(Configuration):
         # Meet
         "core",
         "demo",
+        "work",
         "drf_spectacular",
         # Third party apps
         "corsheaders",

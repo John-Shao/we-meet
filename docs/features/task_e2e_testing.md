@@ -44,6 +44,8 @@ npm run test:e2e:update-responsive
 
 桌面 Web 视觉回归覆盖 `1024 x 768`、`1366 x 768` 和 `1600 x 900` 列表，并在 `1439/1440px` 两侧验证全屏详情与右侧详情面板切换。Web 产品验收最小宽度为 `1024px`，更小的移动设备不属于 Web 适配范围，由移动 App 承接。桌面基线位于 `e2e/tasks.responsive.spec.ts-snapshots/`。
 
+Work Mock UI 另有无障碍用例 `e2e/work-a11y.spec.ts`：登录后打开 `/work`，对五个任务视图分别执行 axe WCAG 2 A/AA 扫描（含颜色对比）。
+
 可用环境变量：
 
 - `E2E_BASE_URL`：前端地址，默认 `http://localhost:3000`。

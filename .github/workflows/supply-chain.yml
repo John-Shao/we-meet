@@ -1,0 +1,38 @@
+name: Work supply chain
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: Image reference to sign, verify and scan
+        required: true
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  supply-chain:
+    runs-on: ubuntu-latest
+    env:
+      COSIGN_KEY: ${{ secrets.COSIGN_KEY }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+      - name: Install syft
+        uses: anchore/sbom-action/download-syft@v0
+      - name: Generate SBOM
+        env:
+          IMAGE_REF: ${{ inputs.image }}
+          SBOM_OUT: ${{ runner.temp }}/work.spdx.json
+        run: bash scripts/supply-chain/generate-sbom.sh
+      - name: Sign and verify
+        if: ${{ env.COSIGN_KEY != '' }}
+        env:
+          IMAGE_REF: ${{ inputs.image }}
+          COSIGN_KEY: ${{ secrets.COSIGN_KEY }}
+        run: bash scripts/supply-chain/sign.sh
+      - name: Record evidence boundary
+        run: |
+          echo "SBOM generated. Signing ran only when COSIGN_KEY is configured." >> "$GITHUB_STEP_SUMMARY"

@@ -115,58 +115,60 @@ python manage.py migrate work zero  # 回滚 schema，保留角色
 
 1. `deploy/aliyun/work-roles.sql`（新建）
    - 生产角色创建脚本（由 DBA 执行）
-   - 权限矩阵：
+   - 权限矩阵（[D1 §4.1](work-r0a-data-design-2026-10-25.md) 为权威）：
      - `work_owner`：NOLOGIN，拥有 work schema 所有对象
-     - `work_api`：LOGIN，SELECT + 指定函数 EXECUTE
-     - `work_worker`：LOGIN，SELECT + 指定函数 EXECUTE
+     - `work_api`：NOLOGIN，SELECT + 指定函数 EXECUTE
+     - `work_worker`：NOLOGIN，SELECT + 指定函数 EXECUTE
      - `work_ledger`：NOLOGIN，账本/审计只读；写入经领域函数以 work_owner 执行
-     - `work_migrator`：LOGIN，DDL 权限
-     - `work_ops`：LOGIN，运维函数 EXECUTE
-     - `work_directory`：LOGIN，投影同步函数 EXECUTE
-   - 权限矩阵以 [D1 §4](work-r0a-data-design-2026-10-25.md) 为准；本表只列连接属性与用途
+     - `work_migrator`：NOLOGIN，DDL 占位
+     - `work_ops`：NOLOGIN，运维函数 EXECUTE
+     - `work_directory`：NOLOGIN，投影同步函数 EXECUTE
+   - 7 个角色全部 NOLOGIN；工作负载以平台登录身份 `SET ROLE` 到目标角色（D1 §6.1），迁移身份需 `GRANT work_owner`
 
 2. `deploy/aliyun/secrets/work-db.yaml`（新建，示例）
-   - Kubernetes Secret 模板
-   - 包含各角色连接字符串
-   - 环境变量：`WORK_DB_USER`, `WORK_DB_PASSWORD`, `WORK_DB_HOST`, `WORK_DB_PORT`, `WORK_DB_NAME`
+   - Kubernetes Secret 模板，只写占位符，不提交真实凭据
+   - 环境变量：`WORK_DB_USER`, `WORK_DB_PASSWORD`, `WORK_DB_HOST`, `WORK_DB_PORT`, `WORK_DB_NAME`, `WORK_DB_SET_ROLE`
+   - `WORK_DB_USER` 是平台登录身份；`WORK_DB_SET_ROLE=work_api` 表示进入工作负载后 SET ROLE
 
 3. `src/backend/meet/settings.py`（修改）
-   - 读取 WORK_DB_* 环境变量
-   - 配置数据库连接（推荐 schema 隔离，同一数据库）
+   - 默认连接配置 `search_path=public,work`，`work` 加入 `INSTALLED_APPS`
+   - API/worker 在事务内 `SET ROLE work_api/work_worker/work_directory`；专用登录身份与 `WORK_DB_*` alias 待平台 IAM 映射（D1 §6.1）落地，当前不建第二个 DB alias，避免 core 测试与迁移双跑
 
 **验证**：
-- DBA 在 staging 环境执行角色创建
-- 应用启动时能连接到 work schema
-- `SELECT current_user, current_schema()` 返回正确角色与 schema
+- DBA 在 staging 环境执行角色创建（7 个角色均 NOLOGIN）
+- 迁移身份 `SELECT pg_has_role(current_user, 'work_owner', 'MEMBER')` 为 true
+- `SHOW search_path` 包含 `work`；`work` 在 `INSTALLED_APPS` 中
 
 #### 步骤 1.3：冒烟测试集成
 
 **文件清单**：
 
 1. `src/backend/work/tests/test_r0a_schema_smoke.py`（新建）
-   - 薄执行器：用 psycopg 对 Django 测试库执行 `docs/plan/assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql`，不重写 148 项断言（单一事实源）
-   - 失败时透传 SQL 输出与断言名
-   - 使用 Django 测试数据库；角色缺失时先执行 `sql/r0a_roles.sql`
+   - 薄执行器：用 **psql 子进程**对 Django 测试库执行 `docs/plan/assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql`，不重写 148 项断言（单一事实源）
+   - 冒烟脚本使用 `\gset` 等 psql 元命令，psycopg 不能直接执行；断言数仍以脚本自身输出为准
+   - 失败时透传 SQL 错误；`WORK_PSQL` 可指向容器内 psql，CI 缺 psql 直接失败
 
 2. `src/backend/work/tests/test_r0a_concurrency.py`（新建）
-   - 薄执行器：以子进程调用 `docs/plan/assets/work-r0a-design-2026-10-25/r0a-concurrency-smoke.py`，`R0A_DATABASE_URL` 指向测试库
+   - 薄执行器：以子进程调用 `docs/plan/assets/work-r0a-design-2026-10-25/r0a-concurrency-smoke.py`
+   - 使用独立一次性 scratch 数据库（脚本会 DROP/重建 schema）；`R0A_SCHEMA_SQL` 指向迁移产物 `src/backend/work/sql/r0a_schema.sql`，`R0A_LOG_FILE` 写临时目录
    - 透传不变量结果；非零退出即失败
    - 覆盖：导出领取/租约接管、一次性下载凭证、投影乱序与重复投递、到期清扫共享引用、撤权窗口、管理读与结算交错、接入配置并发写、用量并发累加
 
 3. `src/backend/work/tests/conftest.py`（新建）
-   - Work 模块测试 fixtures
-   - 角色切换上下文管理器
-   - 测试数据工厂（org/member/task/run/operation）
+   - Django 测试库与一次性 scratch 库 fixtures；`support.py` 提供 psql 运行器与 DSN 构造
+   - 角色切换/数据工厂随 E2 领域测试需要补充（E1 的断言由 SQL 脚本自带）
 
 4. `.github/workflows/work-r0a-gates.yml`（修改）
-   - 触发器 `paths` 增加 `src/backend/work/**`
-   - 新增 backend job：postgres:16 服务容器 → 建库 → 应用 `sql/r0a_roles.sql` → `python manage.py migrate work` → 对迁移产物跑 `r0a-schema-smoke.sql` 与 `r0a-concurrency-smoke.py`
+   - 触发器 `paths` 增加 `src/backend/work/**`、`src/backend/meet/settings.py`、迁移 Runbook 与角色/Secret 模板
+   - 新增 `backend-migration` job：postgres:16 服务容器 → 应用 `deploy/aliyun/work-roles.sql` → `python manage.py migrate work` → 148 冒烟 → 9 竞态（独立 race 库）→ 回滚/重放 → Work pytest
+   - core `meet.yml` 的 `test-back` 忽略 `work/tests`，Work 测试只在上述 job 执行
    - 保留既有 `db-smoke` job（针对设计资产源），两者互不替代：A 证明迁移路径，B 证明设计资产
 
 **验证**：
 ```bash
-pytest src/backend/work/tests/ -v
-# 期望：冒烟脚本退出码 0（148 项断言）；竞态脚本退出码 0（9 组不变量）
+cd src/backend && pytest work/tests -v
+# 当前 39 项：E1 迁移/冒烟/竞态/回滚，E2 API 契约，E3 SSE/outbox，E4/E5 契约与本地纵切，E6 契约与 Mock UI，E7 可观测
+# 需要 psql（WORK_PSQL 可指向容器）与 Redis（CSRF 会话）
 ```
 
 #### 步骤 1.4：迁移回滚与版本控制
@@ -451,9 +453,8 @@ python manage.py migrate work       # 重新应用
    - 行级租约：`claimed_by/claimed_until`
    - 非持有者 ACK → `outbox_lease_lost`
 
-3. `src/backend/work/api/views/admin.py`（修改）
-   - 添加死信查询端点
-   - 运维重放/跳过接口
+3. `src/backend/work/management/commands/work_outbox_dead_letter.py`（新建）
+   - 值班重放/跳过死信（work_ops，工单/原因必填；不新增对外 API）
 
 **验证**：
 - Outbox 事件正常投递
@@ -476,6 +477,8 @@ python manage.py migrate work       # 重新应用
 3. `src/backend/work/api/views/task.py`（修改）
    - 在状态变更时发布事件
    - 事件写入 outbox 表
+
+> 实现回写：SSE 连接、Last-Event-ID、409 resync 与心跳在 `api/views/run.py`（`StreamTaskEventsView`）；生命周期事件由 SQL 领域函数写入 `work.task_event`/`work.outbox`，未单建 `work/sse/` 与 `work/events/` 包。relay 常驻入口在 `management/commands/work_outbox_relay.py`，未单建 `jobs/relay_worker.py`。
 
 **验证**：
 - 生命周期事件正常发布
@@ -514,6 +517,7 @@ python manage.py migrate work       # 重新应用
      - `activities.py` - Activities 契约
    - `mock/` - Mock 实现
      - `temporal_mock.py` - Temporal 客户端 mock
+   - `local_workflow.py` - 无 Temporal 的本地 Run 纵切（Work SQL + faux gateway）
 
 2. `src/backend/work/orchestration/contracts/run_workflow.py`（新建）
    - RunWorkflow 输入/输出
@@ -545,6 +549,8 @@ python manage.py migrate work       # 重新应用
    - 六类后台作业输入/输出
    - 租约与接管规则
    - 停止/恢复矩阵
+3. `src/backend/work/jobs/expiry_sweep.py`、`management/commands/work_expiry_sweep.py`（新建）
+   - 逐 org 执行 input/export 到期清扫并投递 content_shred
 
 **验证**：
 - 契约定义完整
@@ -611,6 +617,10 @@ python manage.py migrate work       # 重新应用
    - 对象命名规则（固定对象名 + 存储围栏）
    - Etag/版本检查
 
+3. `src/backend/work/content/mock/local_filesystem.py`（新建）
+   - 本地文件系统 mock；按 org 隔离，拒绝路径穿越
+   - E2 的 `work/api/content_store.py` 复用该实现
+
 **验证**：
 - 契约定义完整
 - Mock 实现可调用
@@ -643,6 +653,14 @@ python manage.py migrate work       # 重新应用
      - `api.ts` - API 客户端契约
      - `sse.ts` - SSE 客户端契约
      - `state.ts` - 状态管理契约
+   - `mock/mockClient.ts` - 内存 mock（任务/状态/配额/Inbox）
+   - `api/client.ts` - 真实 `/work/v1` 客户端（Cookie+CSRF、错误目录、SSE）
+   - `api/client.test.ts` - 客户端/SSE 契约测试
+   - `WorkRoute.tsx` - 默认 Mock UI：Composer、我的工作、任务工作区、Inbox、管理概览
+   - `WorkLiveRoute.tsx` - React Query + 真实 API + SSE 的 live 路由（`VITE_WORK_API_MODE=live`）
+   - `WorkRoute.test.tsx` - 组件行为测试
+   - `WorkRoute.a11y.test.tsx` - axe-core DOM 无障碍扫描（颜色对比交给浏览器）
+   - `../../e2e/work-a11y.spec.ts` - Playwright Chromium + axe WCAG A/AA（含颜色对比）
 
 2. `src/frontend/src/features/work/contracts/api.ts`（新建）
    - 33 个 operation 的 TypeScript 类型
@@ -684,7 +702,9 @@ python manage.py migrate work       # 重新应用
    - `__init__.py`
    - `metrics.py` - 指标上报
    - `tracing.py` - 分布式追踪
-   - `logging.py` - 日志扫描（无正文）
+   - `logging.py` - 日志字段守卫（无正文/密钥）
+   - `log_scan.py` - 对已提交日志的正文/密钥扫描 CLI
+   - `api/middleware.py` - 请求关联 ID 与元数据指标（已接入 MIDDLEWARE）
 
 **验证**：
 - Prometheus 规则生效
@@ -753,8 +773,10 @@ python manage.py migrate work       # 重新应用
 
 1. `docs/plan/assets/work-r0a-ops-2026-10-25/golden-tasks.json`（复用，不改结构）
    - 6 个黄金任务（每模板 2 个），章节与服务端模板一致
-2. `scripts/golden-tasks/run-golden-tasks.sh`（新建）
-   - 调 `pilot-ops.mjs` 执行并写 `pilot-metrics.json`
+2. `scripts/golden-tasks/run-golden-tasks.sh` + `run-golden-tasks.mjs`（新建）
+   - 用生成的 Work 客户端逐任务跑 3 次、轮询终态、读取成果并按 `pilot-ops.mjs` 判据评估
+   - `--dry-run` 只校验 6 个任务/3 模板与合成目标，不访问 API
+   - 结果写 `WORK_PILOT_OUT`（默认 `pilot-run.json`），不覆盖设计资产
 
 **验证**：
 - 每任务跑 3 次、≥2 次通过；套件通过率 ≥80%
@@ -860,12 +882,11 @@ python manage.py migrate work       # 重新应用
 
 ## 6. 下一步
 
-1. **登记文档**：本计划已加入 [work-project.md](work-project.md) 文档表（2026-10-27）；待更新 `src/backend/work/README.md`（INSTALLED_APPS 与迁移说明）
-2. **确认数据库配置方案**：schema 隔离 vs 独立数据库？（推荐 schema 隔离）
-3. **确认角色创建流程**：DBA 手动执行 vs 迁移自动创建？（推荐 DBA 手动）
-4. **开始 E1 步骤 1.1**：创建 Django 迁移文件
-5. **本地验证**：运行 `verify_local.sh` 确认冒烟通过
-6. **CI 集成**：扩展 `work-r0a-gates.yml`（见步骤 1.3/1.5）
+1. **本地闭环**：E1 迁移/回滚 + 148 冒烟 + 9 竞态；E2 33 operation API；E3 SSE/outbox；E4/E5 契约与本地纵切；E6 Mock UI + 真实客户端；E7 指标/日志守卫。Work pytest **39/39**，`work/api` 覆盖 **88%**；真实 HTTP（Cookie+CSRF）走通 bootstrap → input → preview → submit → run → artifact → SSE → usage → acceptance；Playwright axe（含颜色对比）通过
+2. **已定的数据库与角色口径**：schema 隔离、同一数据库；默认连接 `search_path=public,work`；DBA 生产预建角色（`deploy/aliyun/work-roles.sql`），迁移 `0001` 幂等校验
+3. **E1–E3 外部动作**：DBA 在 staging 执行角色脚本并把 `work_owner` 授给迁移身份；推送后触发 `backend-migration` job，并在分支保护中设为 required check
+4. **E4–E8 外部依赖**：真实 Temporal、Content Store、供应商网关与前端 UI 尚未接入；E8 试点环境、C24/C27/C30 与黄金任务演练仍待外部
+5. **下一阶段**：E4 真实 Temporal 部署（DR2/C22）、E5 平台 Content Store/主密钥托管、E6 UI 实现（DR3/U1）、E7 部署与供应链签名、E8 试点放行
 
 ---
 
@@ -873,4 +894,4 @@ python manage.py migrate work       # 重新应用
 
 **评审**：DR1 2026-11-10、DR2 2026-11-17、DR3 2026-12-01、DR4 2026-12-04
 
-**更新记录**：2026-10-27 初稿
+**更新记录**：2026-10-27 初稿；2026-10-27 实现回写：psql 执行器、NOLOGIN 角色、E1–E3 本地实现与 E4–E8 契约/资产、E6 Playwright axe、SSE/事件实现位置
