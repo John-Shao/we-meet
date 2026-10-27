@@ -14,6 +14,7 @@ from work.api.errors import WorkAPIError
 from work.api.presenters import iso, operation_view, run_view
 from work.api.queries import run_row
 from work.api.serializers import CancelSerializer
+from work.observability.metrics import emit
 
 
 class RunDetailView(WorkAPIView):
@@ -92,6 +93,11 @@ class StreamTaskEventsView(WorkAPIView):
                 )
                 row = cursor.fetchone()
                 if row is None:
+                    emit(
+                        "work_sse_events_total",
+                        1,
+                        {"org_id": context.org_id, "kind": "resync_required"},
+                    )
                     raise WorkAPIError("resync_required")
                 after_seq = row[0]
             cursor.execute(
@@ -104,6 +110,11 @@ class StreamTaskEventsView(WorkAPIView):
         idle_seconds = float(os.environ.get("WORK_SSE_IDLE_SECONDS", "30"))
 
         def framed(event):
+            emit(
+                "work_sse_events_total",
+                1,
+                {"org_id": context.org_id, "kind": "delivered"},
+            )
             body = {
                 "event_id": str(event["id"]),
                 "task_id": str(task_id),

@@ -12,11 +12,14 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
+from work.observability.views import MetricsView as WorkMetricsView
+
 urlpatterns = [
     # Django admin moved off /admin/ so the front path is free for the
     # management console (M 端) SPA served at /admin/. See the M 端 plan.
     path("dj-admin/", admin.site.urls),
     path("work/v1/", include("work.api.urls")),
+    path("work/metrics", WorkMetricsView.as_view(), name="work-metrics"),
     path("", include("core.urls")),
     path("", include("lasuite.oidc_resource_server.urls")),
 ]

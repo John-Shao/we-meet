@@ -17,18 +17,28 @@ class WorkObservabilityMiddleware:
         response = self.get_response(request)
         path = getattr(request, "path", "")
         if path.startswith("/work/v1/"):
+            elapsed = time.monotonic() - started
             match = getattr(request, "resolver_match", None)
+            route = getattr(match, "url_name", None) or "unmatched"
+            context = getattr(request, "work_context", None)
+            # Unauthenticated and rejected calls have no tenant yet; they still
+            # need a series, and "" keeps `sum by (org_id)` from dropping them.
+            org_id = getattr(context, "org_id", "") or ""
             emit(
                 "work_api_requests_total",
                 1,
                 {
-                    "route": getattr(match, "url_name", None) or "unmatched",
+                    "org_id": org_id,
+                    "route": route,
                     "method": request.method,
                     "status_class": f"{response.status_code // 100}xx",
                 },
             )
-            response["X-Correlation-ID"] = correlation_id
-            response["X-Work-Duration-Ms"] = str(
-                int((time.monotonic() - started) * 1000)
+            emit(
+                "work_api_request_duration_seconds",
+                elapsed,
+                {"org_id": org_id, "route": route, "method": request.method},
             )
+            response["X-Correlation-ID"] = correlation_id
+            response["X-Work-Duration-Ms"] = str(int(elapsed * 1000))
         return response

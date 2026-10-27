@@ -19,6 +19,7 @@ from work.api.serializers import (
     ArtifactVersionCreateSerializer,
 )
 from work.content.contracts.content_store import ContentStoreError
+from work.observability.metrics import emit
 
 SUFFIX = {"text/markdown": ".md", "text/plain": ".txt"}
 
@@ -192,6 +193,9 @@ class AcceptanceView(WorkAPIView):
             summary_row = summary_for_task(
                 cursor, context.org_id, str(task_id), context.subject_id
             )
+        emit(
+            "work_task_events_total", 1, {"org_id": context.org_id, "event": "accepted"}
+        )
         return Response(
             {
                 "acceptance": {
