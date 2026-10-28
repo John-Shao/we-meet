@@ -177,3 +177,4 @@ SELECT has_table_privilege(current_user, 'work.member', 'SELECT') AS member_sele
 - **运维**：`systemctl status work-api work-directory-sync.timer work-directory-sync-full.timer`；`journalctl -u work-directory-sync-full -n 50`。轮换客户端证书：重签后更新 `/etc/work/certs/client.{crt,key}` 并 `systemctl restart work-api`；轮换 CA 需同步更新 meet 的 `work-host-ca` Secret 并重新发布。
 - **未完成**：真实 meet session → work-api bootstrap 200（需临时身份）、生产 mass-absence 闸门、work-api 对外入口/Work 前端、指标与告警；`realHostIntegrationVerified=false` 保持到真实 session 链路验收。
 - **数据库边界（2026-10-28）**：meet 仅保留 Host core 字段；`work` schema、Work 角色、`meet_migrator` 与 Secret 已从 meet 库/命名空间删除，Work schema 只在 Work ECS `work` 库。
+- **旧 Work 下线（2026-10-28）**：Django `work` app、`/work/v1`、`/work/metrics`、前端 `/work` 与旧依赖已删除；meet 库 12 张 `public.work_*` 表与 11 条 work 台账已 drop，后端直连旧路由 404。启用 Ingress 时发现 `auth-tls-*` 按 host 生效，`verify-client=on` 导致主站全部 400；已改为 `optional`（Django 仍强制校验 `/work-host`）。

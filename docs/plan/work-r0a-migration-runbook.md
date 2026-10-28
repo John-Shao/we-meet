@@ -126,3 +126,5 @@ meet 生产库只保留 Host 侧数据（`core.organization.home_region/director
 - `Production.MIGRATION_MODULES = {"work": None}`，生产 `manage.py migrate` 跳过 work app；CI/Test 仍运行 work 迁移以校验 SQL 资产。
 - 2026-10-28 已清理 meet 库中空的 `work` schema、3 条 work 迁移台账（0001–0003）、7 个未使用 Work 角色，以及 `meet_migrator` 与 Secret `meet-migrator-db`。
 - 禁止在 meet 库重新启用 Work 迁移或手工创建 `work` schema；Work schema 的增量与回滚只在 Work ECS `work` 库执行。
+
+> 2026-10-28：meet 库旧 `public.work_*` 表（12 张）与 `django_migrations` 中 `app='work'` 记录已删除；`/work/v1` 后端路由已移除。
