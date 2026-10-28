@@ -1,0 +1,67 @@
+{
+  "version": "work-host-contract-v2",
+  "supersedesOnImplementation": "r0a-host-v1",
+  "approval": "design_signed",
+  "evidence": "design_model_only",
+  "ports": ["SessionVerifier", "IdentityDirectory", "Entitlement", "OrgDiscovery", "Notification", "BillingExport", "ConnectorProvider"],
+  "newPortsAtSignoff": ["SessionVerifier", "OrgDiscovery"],
+  "adapter": {
+    "placement": "go_control_plane_module",
+    "callableFrom": ["go_control_plane"],
+    "forbiddenCallers": ["node_runtime_parent", "pi_child_process", "work_egress", "frontend"],
+    "writesTablesDirectly": false,
+    "domainCommands": ["work.sync_org_projection", "work.sync_member_projection"],
+    "databaseRole": "work_directory",
+    "serviceIdentity": "mtls_workload_certificate",
+    "hostSuppliedRoleFromRequestBody": false
+  },
+  "sessionVerification": {
+    "inRequestPath": true,
+    "failClosed": true,
+    "maxAcceptedAgeSeconds": 60,
+    "positiveCacheSeconds": 0,
+    "returnedFields": ["subject_id", "org_id", "session_revision", "verified_at"],
+    "revocationIsImmediateForNewRequests": true,
+    "inFlightRequestsCancelled": false
+  },
+  "authoritativeReads": {
+    "requestPathSource": "work_projection",
+    "hostInRequestPathForEntitlement": false,
+    "projectionStalenessIsVisible": true,
+    "staleProjectionBlocksNewWork": true
+  },
+  "orgDiscovery": {
+    "authoritative": "host",
+    "clientSelectedOrgAccepted": false,
+    "multiOrgSwitchingSupported": false,
+    "unknownOrgIsNotFound": true
+  },
+  "sync": {
+    "mode": ["incremental_by_revision", "periodic_full_reconcile"],
+    "fullReconcileIntervalSeconds": 86400,
+    "incrementalIntervalSeconds": 300,
+    "monotonicRevisionRequired": true,
+    "lowerRevisionIgnored": true,
+    "equalRevisionDifferentFactsRejected": true,
+    "fullSnapshotMayDeleteRows": false,
+    "absentInFullSnapshot": "narrow_to_left",
+    "operatorSuspendedOverridable": false,
+    "syncMayCancelRuns": false,
+    "cancelHandledBy": "ops_cancel_run"
+  },
+  "failureSemantics": {
+    "hostUnavailableBlocksSessionVerification": true,
+    "hostUnavailableBlocksSyncOnly": ["projection_updates"],
+    "hostUnavailableAllowsReadsFromProjection": true,
+    "gapFieldsReported": ["subject_id", "role", "revision", "work_seat", "name", "home_region"],
+    "missingFieldIsGapNotGuess": true,
+    "quotaTokensAsSeatsOrMoney": false,
+    "notificationBodyFields": false
+  },
+  "acceptance": {
+    "contractTestsRequired": true,
+    "stubHostParityRequired": true,
+    "realHostIntegrationVerified": false,
+    "hostFieldGapsClosed": false
+  }
+}

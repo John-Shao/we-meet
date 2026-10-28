@@ -1,0 +1,52 @@
+{
+  "version": "work-migration-takeover-v1",
+  "approval": "design_signed",
+  "evidence": "design_model_only",
+  "rehearsed": false,
+  "ledger": {
+    "newLedgerTable": "work.schema_migration",
+    "legacyLedgerTable": "django_migrations",
+    "legacyRecordsRetainedAsEvidence": true,
+    "versionedChecksumRequired": true,
+    "publishedMigrationBodyImmutable": true,
+    "ledgerAndIncrementSameTransaction": true
+  },
+  "serialization": {
+    "advisoryLockRequired": true,
+    "singleWriterOnly": true,
+    "concurrentRunnerOutcome": "lock_wait_then_noop",
+    "applicationRoleMayMigrate": false,
+    "legacyAndNewRunnerBothWritable": false
+  },
+  "prerequisites": {
+    "rolesMustExist": ["work_api", "work_worker", "work_ops", "work_directory"],
+    "rolesMustBeNologin": true,
+    "baselineRevisionPinned": true,
+    "baselineChecksumPinned": true
+  },
+  "takeover": {
+    "emptyDatabase": "initialize_baseline_then_increments",
+    "existingDatabase": "verify_then_adopt_then_increments_only",
+    "verifiedObjects": ["tables", "functions", "constraints", "indexes", "rls_policies", "grants"],
+    "replayFullSchemaOnExisting": false,
+    "stampWithoutVerification": false,
+    "driftOutcome": "reject_with_diff"
+  },
+  "recovery": {
+    "forwardFixOnly": true,
+    "dropSchemaProvided": false,
+    "migrateZeroProvided": false,
+    "backupRestoreRequiresRehearsal": true,
+    "repeatRunIsNoop": true,
+    "nonTransactionalStepsNeedNamedProtocol": true
+  },
+  "cutover": {
+    "routingSwitchAfterGreenRegression": true,
+    "legacyWorkflowsDrainedNotKilled": true,
+    "hostReferencesRemovedPerModule": true,
+    "rollbackBuildMustMatchCurrentSchema": true,
+    "rollbackRestoresDualExecution": false,
+    "rollbackReplaysPaidRequests": false,
+    "retentionAndReconciliationContinueDuringCutover": true
+  }
+}

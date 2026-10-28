@@ -1,0 +1,105 @@
+{
+  "version": "work-d2-prime-v1",
+  "approval": "design_signed",
+  "evidence": "design_model_only",
+  "surfaceFrozen": false,
+  "supersedes": "r0a-openapi-v1",
+  "preservedFromR0a": [
+    "public_error_catalog_semantics",
+    "client_request_id_idempotency",
+    "keyset_pagination",
+    "expected_revision_optimistic_concurrency",
+    "no_body_in_events_logs_errors"
+  ],
+  "identity": {
+    "serverDerivedFields": ["org_id", "subject_id"],
+    "rejectedBodyFields": ["org_id", "subject_id", "role", "scopes"],
+    "orgIdInPathForLocationOnly": true,
+    "sessionAssertedInDatabase": "work.assert_session_subject"
+  },
+  "session": {
+    "cookieName": "we_meet_session",
+    "csrfHeader": "X-CSRF-Token",
+    "csrfSingleSourceOfTruth": "contract",
+    "csrfRequiredForMutations": true,
+    "bearerDeclared": false,
+    "refreshRetries": 1
+  },
+  "idempotency": {
+    "bodyField": "client_request_id",
+    "scope": ["org_id", "subject_id", "operation_type"],
+    "headerKeyAccepted": false,
+    "sameKeyDifferentPayload": "idempotency_key_conflict"
+  },
+  "pagination": {
+    "style": "keyset",
+    "cursorField": "cursor",
+    "cursorType": "opaque_string",
+    "offsetAccepted": false,
+    "limitMin": 1,
+    "limitMax": 100,
+    "totalsFromProjectionNotPage": true
+  },
+  "conflict": {
+    "status": 409,
+    "currentRevisionRequired": true,
+    "currentRevisionSource": "sql_detail",
+    "codesCarryingCurrentRevision": ["version_conflict", "run_not_quiescent", "artifact_read_only"]
+  },
+  "errorMapping": {
+    "order": ["db_exception_map", "public_code_catalog", "sqlstate_fallback", "service_degraded"],
+    "hardcodedStatusInHandlers": false,
+    "retryableOnlyForStatuses": [429, 500, 502, 503, 504],
+    "unmappedInternalCode": "service_degraded",
+    "detailEchoedToClient": false
+  },
+  "mediaType": {
+    "transportMismatchStatus": 415,
+    "transportMismatchCode": "unsupported_media_type",
+    "declaredFieldInvalidStatus": 422,
+    "declaredFieldInvalidCode": "media_type_invalid",
+    "allowedArtifactMediaTypes": ["text/markdown", "text/plain"]
+  },
+  "taskDetailSnapshot": {
+    "shape": "explicit_object",
+    "additionalProperties": false,
+    "requiredFields": [
+      "snapshot_id",
+      "snapshot_revision",
+      "template",
+      "limits",
+      "permission_mode",
+      "created_at"
+    ],
+    "forbiddenFields": [
+      "goal",
+      "background",
+      "prompt",
+      "messages",
+      "runtime_version",
+      "provider",
+      "model",
+      "checkpoint_ref",
+      "request_hash"
+    ],
+    "freeFormMapAllowed": false
+  },
+  "runtimeExposure": {
+    "internalContractsPublished": false,
+    "forbiddenPublicFields": ["execution_id", "dispatch_attempt_id", "request_hash", "checkpoint_ref", "receipt_ref"],
+    "unknownResultDisplayState": "reconciling",
+    "unknownResultMayShowSuccess": false
+  },
+  "gates": {
+    "codegenOwner": "go_control_plane",
+    "legacyMockAndClientRetired": true,
+    "driftGateRequired": true,
+    "openQuestionsResolvedAtSignoff": [
+      "task_detail_snapshot_shape",
+      "admin_seats_keyset_cursor_type",
+      "conflict_current_revision_source",
+      "invalid_media_type_semantics",
+      "csrf_header_single_source"
+    ]
+  }
+}
