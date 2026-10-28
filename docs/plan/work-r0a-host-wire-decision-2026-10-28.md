@@ -163,6 +163,16 @@ SELECT has_table_privilege(current_user, 'work.member', 'SELECT') AS member_sele
 - **镜像**：`jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:547f3bcb7`（由同一 tree 构建；`prometheus-client 0.24.1`、Django `manage.py check` 通过）。
 - **运行面**：`meet-backend`、`meet-celery-backend`、`meet-celery-beat` 已滚动到 `547f3bcb7`；frontend/summary/agents 保持原 tag。发布脚本 `release-meet.sh backend` 退出 0。
 - **数据层**：生产 DB 已建 7 个 NOLOGIN Work 角色；`core.0235_work_directory_fields` 与 `work.0001`–`0003` 已应用（`migration_0235=1`、`work` 86 个函数、3 个 `core_*directory*` 触发器）。首次发布前两次 Helm 失败分别为：Work 角色缺失、`meet` 无 `work_owner` 成员；均按 D-04 处理。
-- **安全边界**：`workHost.enabled` 仍为 false；无 `/work-host` Ingress，`GET https://meet.we-meet.online/work-host/v2/orgs` 只返回前端 SPA fallback（`text/html`），Host API 未暴露。
-- **未关闭**：生产 CA/`work-host-ca` Secret 与 CN=`work-control-plane` 客户端证书未创建；Work 控制面/`work-directory-sync` 未部署；生产负例矩阵未执行，`realHostIntegrationVerified=false`。
-- **D-04 最小收口（2026-10-28）**：生产已建 `meet_migrator`（LOGIN，仅 `work_owner`）与 Secret `meet-migrator-db`；Helm 支持 `backend.migrate.envVars` 但生产暂不启用（`meet` 拥有 public 1257 个对象与 `django_migrations`，专用登录无法跑完整 Django migrate）。已 `REVOKE work_owner FROM meet`：运行时 `SET ROLE work_owner` 返回失败、`manage.py migrate` no-op 成功、服务健康。**未完成**：public 所有权拆分或 Work 迁移移出 Django；新增 `work.000N` 须 out-of-band 应用并补 Django 台账，详见 [迁移 Runbook §5](work-r0a-migration-runbook.md#5-生产-meet-库的-work-迁移2026-10-28)。
+- **安全边界**：发布时 `workHost.enabled=false`；同日 P1 激活见 §10。
+- **后续（已在 §10 完成）**：生产 CA/Secret/客户端证书、Work 控制面/同步、mTLS 负例均已补齐；真实 session bootstrap 与生产 mass-absence 闸门仍未做，`realHostIntegrationVerified=false`。
+- **D-04 最小收口（2026-10-28）**：生产已建 `meet_migrator`（LOGIN，仅 `work_owner`）与 Secret `meet-migrator-db`；Helm 支持 `backend.migrate.envVars` 但生产暂不启用（`meet` 拥有 public 1257 个对象与 `django_migrations`，专用登录无法跑完整 Django migrate）。已 `REVOKE work_owner FROM meet`：运行时 `SET ROLE work_owner` 返回失败、`manage.py migrate` no-op 成功、服务健康。**未完成**：public 所有权拆分或 Work 迁移移出 Django；新增 `work.000N` 须 out-of-band 应用并补 Django 台账，详见 [迁移 Runbook §7](work-r0a-migration-runbook.md#7-生产-meet-库的-work-迁移2026-10-28)。
+
+## 10. 生产 Host 激活（2026-10-28）
+
+- **凭据**：`work-host-ca` Secret 只含 `ca.crt`（CA 指纹 `72:16:9B:…:BC:A5`，10 年）；客户端证书 CN=`work-control-plane`（2 年）。CA 私钥与客户端私钥只在 Work ECS `/root/work-host/`（目录 700、key 600），运行副本 `/etc/work/certs`（root:work-control 640），不进 Secret/仓库。
+- **Ingress**：`workHost.enabled=true` 已发布（chart-only，镜像仍 `547f3bcb7`）；`meet-work-host` Ingress 使用 `auth-tls-secret=meet/work-host-ca`、`verify-client=on`、`pass-certificate-to-upstream=true`，TLS 复用 `meet-tls`。
+- **负例（Work ECS → `https://meet.we-meet.online`）**：无证书 **400**；自签/不受信 **400**；CA 签发但 CN 错误 **403** `client_identity_invalid`；有效证书 `GET /work-host/v2/orgs` **200**（1 org，字段 `org_id/name/status/home_region/revision/gaps`）；`/sessions/verify` 仅 POST：无 cookie、伪造 cookie、重复 `sessionid` 均 **401** `session_invalid`。
+- **Work 控制面**：systemd 部署在 Work ECS。`work-api` 以 `work-control` 用户监听 `127.0.0.1:8080`，DB 身份 `work_api_login`→`work_api`；目录同步 timer：incremental 每 10 分钟、full 每日 03:15，DB 身份 `work_control_login`→`work_directory`。环境文件 `/etc/work/work-api.env`、`/etc/work/work-directory.env`（root:work-control 640）。
+- **同步实测**：full `orgs_total=1/applied=1`、`members_total=14/applied=14`、audits 15；紧随其后的 incremental `orgs_stale=1`、`members_stale=14`、无写入。`work-api /healthz` 200、bootstrap 无 cookie 401。
+- **运维**：`systemctl status work-api work-directory-sync.timer work-directory-sync-full.timer`；`journalctl -u work-directory-sync-full -n 50`。轮换客户端证书：重签后更新 `/etc/work/certs/client.{crt,key}` 并 `systemctl restart work-api`；轮换 CA 需同步更新 meet 的 `work-host-ca` Secret 并重新发布。
+- **未完成**：真实 meet session → work-api bootstrap 200（需临时身份）、生产 mass-absence 闸门、work-api 对外入口/Work 前端、指标与告警；`realHostIntegrationVerified=false` 保持到真实 session 链路验收。
