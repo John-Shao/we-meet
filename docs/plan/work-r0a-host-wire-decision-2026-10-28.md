@@ -162,10 +162,10 @@ SELECT has_table_privilege(current_user, 'work.member', 'SELECT') AS member_sele
 - **合并**：PR #10 以 rebase 合并到 `aliyun-dev`，merge HEAD `547f3bcb7dbf565bb0c05a76249e43a212890b46`；push 事件 [Release guard 40668936366](https://github.com/John-Shao/we-meet/actions/runs/40668936366) 通过（backend-boundaries/frontend-artifact/deployment-boundaries/desktop-boundaries 全绿）。
 - **镜像**：`jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:547f3bcb7`（由同一 tree 构建；`prometheus-client 0.24.1`、Django `manage.py check` 通过）。
 - **运行面**：`meet-backend`、`meet-celery-backend`、`meet-celery-beat` 已滚动到 `547f3bcb7`；frontend/summary/agents 保持原 tag。发布脚本 `release-meet.sh backend` 退出 0。
-- **数据层**：生产 DB 已建 7 个 NOLOGIN Work 角色；`core.0235_work_directory_fields` 与 `work.0001`–`0003` 已应用（`migration_0235=1`、`work` 86 个函数、3 个 `core_*directory*` 触发器）。首次发布前两次 Helm 失败分别为：Work 角色缺失、`meet` 无 `work_owner` 成员；均按 D-04 处理。
+- **数据层**：生产 `core.0235` 已应用（`home_region/directory_revision/work_seat` 与 3 个目录触发器）；meet 库不再创建 Work schema（空 `work` schema/3 条台账已清理），Work `0001`–`0003` 在 Work ECS `work` 库。
 - **安全边界**：发布时 `workHost.enabled=false`；同日 P1 激活见 §10。
 - **后续（已在 §10 完成）**：生产 CA/Secret/客户端证书、Work 控制面/同步、mTLS 负例均已补齐；真实 session bootstrap 与生产 mass-absence 闸门仍未做，`realHostIntegrationVerified=false`。
-- **D-04 最小收口（2026-10-28）**：生产已建 `meet_migrator`（LOGIN，仅 `work_owner`）与 Secret `meet-migrator-db`；Helm 支持 `backend.migrate.envVars` 但生产暂不启用（`meet` 拥有 public 1257 个对象与 `django_migrations`，专用登录无法跑完整 Django migrate）。已 `REVOKE work_owner FROM meet`：运行时 `SET ROLE work_owner` 返回失败、`manage.py migrate` no-op 成功、服务健康。**未完成**：public 所有权拆分或 Work 迁移移出 Django；新增 `work.000N` 须 out-of-band 应用并补 Django 台账，详见 [迁移 Runbook §7](work-r0a-migration-runbook.md#7-生产-meet-库的-work-迁移2026-10-28)。
+- **D-04 收敛（2026-10-28）**：meet 不再迁移 Work（`MIGRATION_MODULES={"work": None}`），空 `work` schema、3 条台账、7 个 Work 角色、`meet_migrator` 与 Secret 已清理；Work schema 只由 Work ECS `work_migrator_login` 迁移，边界见 [迁移 Runbook §7](work-r0a-migration-runbook.md#7-数据库边界2026-10-28)。
 
 ## 10. 生产 Host 激活（2026-10-28）
 
@@ -176,3 +176,4 @@ SELECT has_table_privilege(current_user, 'work.member', 'SELECT') AS member_sele
 - **同步实测**：full `orgs_total=1/applied=1`、`members_total=14/applied=14`、audits 15；紧随其后的 incremental `orgs_stale=1`、`members_stale=14`、无写入。`work-api /healthz` 200、bootstrap 无 cookie 401。
 - **运维**：`systemctl status work-api work-directory-sync.timer work-directory-sync-full.timer`；`journalctl -u work-directory-sync-full -n 50`。轮换客户端证书：重签后更新 `/etc/work/certs/client.{crt,key}` 并 `systemctl restart work-api`；轮换 CA 需同步更新 meet 的 `work-host-ca` Secret 并重新发布。
 - **未完成**：真实 meet session → work-api bootstrap 200（需临时身份）、生产 mass-absence 闸门、work-api 对外入口/Work 前端、指标与告警；`realHostIntegrationVerified=false` 保持到真实 session 链路验收。
+- **数据库边界（2026-10-28）**：meet 仅保留 Host core 字段；`work` schema、Work 角色、`meet_migrator` 与 Secret 已从 meet 库/命名空间删除，Work schema 只在 Work ECS `work` 库。
