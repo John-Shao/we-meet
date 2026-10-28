@@ -2037,6 +2037,11 @@ class Production(Base):
     ALLOWED_HOSTS=["foo.com", "foo.fr"]
     """
 
+    # Work owns its own database; the meet deployment must never create or
+    # migrate the Work schema. CI/test configurations still run the migrations
+    # to validate the SQL assets.
+    MIGRATION_MODULES = {"work": None}
+
     # Security
     ALLOWED_HOSTS = [
         *values.ListValue([], environ_name="ALLOWED_HOSTS"),
