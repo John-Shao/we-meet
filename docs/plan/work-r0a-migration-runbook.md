@@ -103,7 +103,7 @@ SELECT count(*) FROM pg_roles WHERE rolname LIKE 'work\_%';  -- 7
 | 现象 | 原因 | 处置 |
 |---|---|---|
 | `Work roles missing (...)` | 角色未预建，且迁移身份无 CREATEROLE | DBA 执行 `deploy/aliyun/work-roles.sql`；本地执行 `sql/r0a_roles.sql` |
-| `migration user ... cannot SET ROLE work_owner` | 迁移身份不是 work_owner 成员 | `GRANT work_owner TO <migration_login_role>` 后重跑 |
+| `migration user ... cannot SET ROLE work_owner` | 迁移身份不是 work_owner 成员 | 本地/Work DB：`GRANT work_owner TO <migration_login_role>` 后重跑；生产 meet 库禁止给 `meet` 授权，按 §7 走 out-of-band |
 | `permission denied to create role` | 迁移身份无 CREATEROLE 且角色缺失 | 同第一行；生产禁止给应用身份 CREATEROLE |
 | `schema "work" already exists` 或对象冲突 | 手工建过 schema 或迁移状态被清理 | 确认无业务数据后 `DROP SCHEMA work CASCADE`，再重跑；不要手工改 `django_migrations` |
 | 冒烟脚本 `\gset: command not found` | 用 psycopg 而非 psql 执行 | 用 `psql -f`；测试中设置 `WORK_PSQL` |
@@ -116,3 +116,19 @@ SELECT count(*) FROM pg_roles WHERE rolname LIKE 'work\_%';  -- 7
 - 该 job 与既有 `db-smoke`（设计资产源）互不替代：前者证明迁移路径，后者证明设计资产。
 - 在仓库分支保护中把 `E1 migration, smoke, races and rollback` 设为 required check；本文件不修改仓库设置。
 - Work 测试在 core `test-back` 中被忽略（`src/backend/work/tests`），由上述 job 执行；`work` 迁移仍随 core 测试库一起建表。
+
+## 7. 生产 meet 库的 Work 迁移（2026-10-28）
+
+生产 `meet` 库中的 `work` schema 与 Django `django_migrations` 不在同一身份下：
+
+- Django pre-upgrade migrate 仍以应用身份 `meet` 执行（`meet` 是库 owner，拥有 public 下 1257 个对象）；`meet` 已于 2026-10-28 被 `REVOKE work_owner`，**不得**再授予。
+- Work schema 专用登录为 `meet_migrator`（LOGIN，仅 `work_owner` 成员）；密码只在 Secret `meet-migrator-db` 的 `password` 键，不落盘、不进入 values。
+- `meet_migrator` 不具备 public 表权限，不能跑完整 `manage.py migrate`；Helm `backend.migrate.envVars` 通用能力已保留，但生产 values 暂不启用。
+
+新增 `work.000N` 时的顺序：
+
+1. 以 `meet_migrator` 连接生产库，在事务内执行增量 SQL（SQL 自带 `SET ROLE work_owner`；或手动 `SET LOCAL ROLE work_owner`）。
+2. 以 superuser（postgres）向 `public.django_migrations` 插入 `('work','000N_name', now())`，使 Django 台账与 schema 一致。
+3. 再执行 `release-meet.sh`；否则 pre-upgrade `manage.py migrate` 会因 `cannot SET ROLE work_owner` 失败（fail closed）。
+
+禁止事项：把 `work_owner` 重新授予 `meet`；用 `--fake` 跳过 Work SQL 而不落 schema；在应用 Pod 内手工改 `django_migrations`。
