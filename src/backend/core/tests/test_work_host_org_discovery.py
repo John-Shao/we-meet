@@ -274,7 +274,9 @@ def test_member_list_rejects_invalid_parameters(client, params):
 @override_settings(
     WORK_HOST_MTLS_CA_PEM=CA_PEM, WORK_HOST_MTLS_CLIENT_IDENTITY=IDENTITY
 )
-@pytest.mark.parametrize("url", [ORGS_URL, MEMBERS_URL.format(uuid.uuid4())])
+@pytest.mark.parametrize(
+    "url", [ORGS_URL, MEMBERS_URL.format("117d1112-aa41-4a14-a629-a0c382c0e86f")]
+)
 @pytest.mark.parametrize("headers", [{}, cert_headers(OTHER_CN_PEM)])
 def test_org_discovery_requires_workload_certificate(client, url, headers):
     response = client.get(url, **headers)
