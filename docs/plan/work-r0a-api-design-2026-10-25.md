@@ -30,7 +30,7 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 - 游标过期返回 **409 `resync_required`**，客户端重新取 Task 快照；不使用 410。错误响应带 `correlation_id` 与 `recovery_action`。
 - 内部服务身份/mTLS 不在公开 OpenAPI 中；由 D-03 的部署身份承载。
 - **CSRF 生命周期（2026-10-26 定稿）**：token 与服务端会话绑定（同一会话所有标签页共享同一 token，不做每请求轮换）；登录、会话刷新、权限提升或会话撤销时轮换。服务端在任何副作用前校验，失败返回 403 `csrf_invalid` + `recovery_action=refresh_csrf`。生成客户端提供 `refreshCsrfToken()`：重新调用 bootstrap 取新 token，**只重试一次**，第二次失败交给调用方（UI 提示刷新页面）。多标签页：任一标签页刷新得到的新 token 对所有标签页有效，旧 token 立即失效，其他标签页靠同一重试路径自愈。
-- **Cookie 边界（2026-10-26 定稿）**：沿用平台 `we_meet_session`；HttpOnly + Secure + SameSite=Lax + `Path=/`，**不设 Domain**（host-only），不跨子域共享。R0a 只支持同源 Web（含桌面壳加载同源 Web 页面）；手机仅只读同源访问。跨域客户端/原生移动端不在 R0a，未来按 D-02 选项 B 使用 bearer + fetch streaming，不在 R0a 契约中声明。CORS 默认拒绝（不返回 `Access-Control-Allow-Origin`）。
+- **Cookie 边界（2026-10-26 定稿）**：沿用平台实际使用的 `sessionid`；HttpOnly + Secure + SameSite=Lax + `Path=/`，**不设 Domain**（host-only），不跨子域共享。**2026-10-28 勘误（John）：线上 meet 的 `SESSION_COOKIE_NAME` 实为 `sessionid`，`we_meet_session` 作废。**R0a 只支持同源 Web（含桌面壳加载同源 Web 页面）；手机仅只读同源访问。跨域客户端/原生移动端不在 R0a，未来按 D-02 选项 B 使用 bearer + fetch streaming，不在 R0a 契约中声明。CORS 默认拒绝（不返回 `Access-Control-Allow-Origin`）。
 
 ### 2.2 输入与模板
 
@@ -88,7 +88,7 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 
 ### 2.8 Host 适配与独立部署边界（ADR-0021）
 
-- R0a 的 `we_meet_session` 只是 Host 认证适配器；核心只依赖认证端口，独立产品可接 OIDC/bearer。
+- R0a 的 `sessionid` 只是 Host 认证适配器（2026-10-28 勘误：原 `we_meet_session` 作废）；核心只依赖认证端口，独立产品可接 OIDC/bearer。
 - 租户/成员/席位从 `IdentityDirectory`/`Entitlement` 端口解析；客户端 `org_id` 只用于资源定位。端口形状与校验器已可执行：[host-ports.mjs](assets/work-r0a-design-2026-10-25/host-ports.mjs)（五个端口、方法清单、值校验），[we-meet-host-adapter.mjs](assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs)（P1-A 形状 → `sync_*` 投影载荷，缺字段报 gap），[stub-host.mjs](assets/work-r0a-design-2026-10-25/stub-host.mjs)（独立产品替身，同一端口同一投影形状）。
 - 端口契约的三条硬规则：Host 不能塞未声明字段进 Work（`unexpected_field`）；不把 token 配额换算成席位或金额预算（`incompatible_source`）；通知投递不接受正文字段（`no_content_allowed`）。收窄（撤席位/停用成员）只产出 `request_cancel` 提示，由领域命令执行，适配器不写表。
 - 通知、计费、业务系统 Connector 通过 Host 端口；会议/消息/文档与外部 SaaS 使用同一 Connector 契约，不直连表。

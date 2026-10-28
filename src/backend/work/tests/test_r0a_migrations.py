@@ -100,6 +100,14 @@ def test_migration_rolls_back_and_reapplies(scratch_database):
     applied = _manage(env, "migrate", "work")
     assert applied.returncode == 0, applied.stderr[-4000:]
     assert _scalar(dsn, "SELECT to_regclass('work.task') IS NOT NULL") is True
+    assert (
+        _scalar(
+            dsn,
+            "SELECT to_regprocedure("
+            "'work.mark_members_absent(text,text[],boolean)') IS NOT NULL",
+        )
+        is True
+    )
 
     rolled_back = _manage(env, "migrate", "work", "zero")
     assert rolled_back.returncode == 0, rolled_back.stderr[-4000:]
@@ -107,7 +115,16 @@ def test_migration_rolls_back_and_reapplies(scratch_database):
     assert (
         _scalar(
             dsn,
-            "SELECT count(*) FROM pg_roles WHERE rolname LIKE 'work\\_%'",
+            "SELECT to_regprocedure("
+            "'work.mark_members_absent(text,text[],boolean)') IS NULL",
+        )
+        is True
+    )
+    assert (
+        _scalar(
+            dsn,
+            "SELECT count(*) FROM pg_roles "
+            "WHERE rolname LIKE 'work\\_%' AND NOT rolcanlogin",
         )
         == 7
     )
@@ -115,3 +132,11 @@ def test_migration_rolls_back_and_reapplies(scratch_database):
     reapplied = _manage(env, "migrate", "work")
     assert reapplied.returncode == 0, reapplied.stderr[-4000:]
     assert _scalar(dsn, "SELECT to_regclass('work.task') IS NOT NULL") is True
+    assert (
+        _scalar(
+            dsn,
+            "SELECT to_regprocedure("
+            "'work.mark_members_absent(text,text[],boolean)') IS NOT NULL",
+        )
+        is True
+    )

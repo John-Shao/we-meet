@@ -421,6 +421,15 @@ ingress:
           port:
             number: 80
 
+# Work Host OrgDiscovery (/work-host). Enable only after the platform creates
+# the `work-host-ca` Secret (CA cert only; the client key stays in the Work
+# control plane) and the release includes core migration 0235.
+# workHost:
+#   enabled: true
+#   caSecretName: work-host-ca
+#   caSecretKey: ca.crt
+#   clientIdentity: work-control-plane
+
 ingressAdmin:
   enabled: true
   className: nginx

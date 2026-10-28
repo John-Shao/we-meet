@@ -6695,6 +6695,20 @@ class Organization(BaseModel):
         ),
     )
     is_active = models.BooleanField(_("active"), default=True)
+    home_region = models.CharField(
+        _("Work home region"),
+        max_length=64,
+        default="cn-north",
+        validators=[validators.RegexValidator(r"^[a-z0-9-]{3,64}$")],
+    )
+    directory_revision = models.PositiveBigIntegerField(
+        _("directory revision"),
+        default=1,
+        help_text=_(
+            "Organization-wide directory sequence; every organization or "
+            "membership change advances it."
+        ),
+    )
     archived_at = models.DateTimeField(
         _("archived on"),
         null=True,
@@ -6843,6 +6857,18 @@ class Membership(BaseModel):
     )
     org_role = models.CharField(
         max_length=20, choices=OrgRoleChoices.choices, default=OrgRoleChoices.MEMBER
+    )
+    work_seat = models.BooleanField(
+        _("Work seat"),
+        default=False,
+        help_text=_(
+            "Explicit entitlement; directory membership alone does not grant it."
+        ),
+    )
+    directory_revision = models.PositiveBigIntegerField(
+        _("directory revision"),
+        default=1,
+        help_text=_("Organization directory revision at this member's last change."),
     )
     employee_no = models.CharField(max_length=64, blank=True, default="")
     status = models.CharField(

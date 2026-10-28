@@ -105,7 +105,7 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 | `work_api` | NOLOGIN | `USAGE` + 查询表 `SELECT` + 输入/提交/重试/取消/采纳/审批函数 `EXECUTE` |
 | `work_worker` | NOLOGIN | `USAGE` + 查询表 `SELECT`（不含接入配置/凭证/用量表）+ acquire/operation/quota/dispatch/finish/artifact/outbox 与 `resolve_provider_context`/`record_usage` 函数 `EXECUTE` |
 | `work_ledger` | NOLOGIN | 仅配额与审计事实的 `SELECT`（`quota_entry`/`quota_reservation`/`quota_account`/`audit_event`）；无直接 INSERT，写入只经领域函数 |
-| `work_directory` | NOLOGIN | Host 目录/授权适配器身份：只有 `sync_org_projection`/`sync_member_projection` 的 `EXECUTE`，无任何表 DML |
+| `work_directory` | NOLOGIN | Host 目录/授权适配器身份：只有 `sync_org_projection`/`sync_member_projection`/`directory_watermark`/`mark_members_absent` 的 `EXECUTE`，无任何表 DML |
 | `work_migrator` | NOLOGIN | 草案中占位；生产迁移应由独立、审计化的迁移连接执行 |
 
 部署时 `NOLOGIN` 角色由平台工作负载身份或受限登录角色承载；不使用共享静态密码。R0a 草案不把角色映射写死到某个 IAM。
@@ -183,6 +183,7 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 - **等待/恢复**：`wait_run`/`resume_run` 只改 Run 的 `state/wait_reason`，不消费 Operation 或配额。
 - **未知对账**：`mark_operation_unknown` 只把 dispatching 转 unknown，保留配额；`reconcile_operation` 的 sent_succeeded 结算、not_sent 释放/结算 0、unresolved 保留配额，且不重发外部请求。
 - **Outbox 分流**：workflow-start/cancel-signal 与 TaskEvent 分开处理；启动/信号重复由固定 workflow ID/DB 状态幂等。
+- **组织级目录序列与缺席收窄（2026-10-28 增补，John 选 A）**：Host 的 `Organization.directory_revision` 是组织级单调序列：成员 INSERT/UPDATE 先推进所属组织，再把新值盖到成员行；成员 DELETE 与组织自身 UPDATE 也推进。因此快照 revision 兼任增量 `revision_after` 水位与缺席判定的快照水位。Work 增量 `0003_directory_absence` 只新增两个命令（`directory_watermark` 读水位、`mark_members_absent` 收窄缺席），仍由 `work_directory` 独占，跨租户上下文拒绝。缺席命令对 `work.org` 行加锁并读取快照 revision（不再接受调用方传 `p_revision`），`p_present_subjects` 上限 10,000；只处理 `revision < snapshot_revision` 的成员（不覆盖更新事实），置 `left`、撤 `work_seat`、`revision = snapshot_revision`，写 `entitlement_lost` 审计，不删除行、不取消 Run。缺席数 ≥ max(10, 候选成员 20%) 时默认拦截：写 `directory.member_absence_blocked` 审计并返回 -1，不写入；需 `p_allow_mass_absence=true` 才放行，放行写 `directory.member_absence_applied` 审计。成员失败/gap 不推进组织水位，下一轮重试；失败/拦截后的缺席重试依赖下一轮 full 或值班补跑。
 - **组织执行闸门**：新增 Run/Operation/配额预留，以及 Run→active、Operation→authorized/dispatching，必须检查 `org.status/execution_enabled/operator_suspended`；终态、取消与对账更新不被停用阻断。
 - **对账状态**：`unresolved` 可在后续证据下转 `reconciled`；不允许跳过 `unknown/unresolved` 直接伪造成功。
 
@@ -208,6 +209,8 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 |---|---|---|
 | `sync_org_projection` | work_directory | 只写目录事实（name/status/execution_enabled/home_region/revision）；修订号单调由 `DO UPDATE … WHERE revision < EXCLUDED.revision` 保证（读校验只用于提前报错）；`operator_suspended` 不可被覆盖；跨组织上下文拒绝 |
 | `sync_member_projection` | work_directory | 同上，另记录 `entitlement_lost`；行已存在时 `FOR UPDATE` 串行化，新行由 upsert 谓词裁决；**不取消任何 Run**（D-07 A：在途 Run 由 `work_ops` 执行 `ops_cancel_run` 手工处置） |
+| `directory_watermark` | work_directory | 读当前组织在 Work 投影中的 revision，作为增量同步的 `revision_after` 水位；跨租户上下文拒绝（`0003_directory_absence`） |
+| `mark_members_absent(text,text[],boolean)` | work_directory | 从 `work.org` 行锁读快照 revision；present 上限 10,000；只处理 `revision < snapshot_revision` 的缺席成员（不覆盖更新事实），置 `left`、撤 `work_seat`、`revision=snapshot_revision`；写 `directory.member_absent` 与 `entitlement_lost`；缺席 ≥ max(10,20%) 默认拦截（写 `directory.member_absence_blocked`、返回 -1），`p_allow_mass_absence=true` 才放行并写 `directory.member_absence_applied`；不删除行、不取消 Run；跨租户上下文拒绝（`0003_directory_absence`） |
 | `admin_overview` | work_api | owner/admin 且 active 才可读；席位统计、token 配额（含 `enforcement`）、`quota_period_id`、`run_cap_tokens`、`org_revision`、留存天数；读操作写审计 |
 | `list_seats` | work_api | keyset 分页（`subject_id > cursor`，limit 1..100）；排除 `left`；总数由 `admin_overview` 给出 |
 | `create_audit_export` | work_api | 管理员；`client_request_id` 幂等（异体 409）；范围校验（起点在留存窗口内、终点不过去、跨度 ≤92 天）；只写元数据与请求哈希 |

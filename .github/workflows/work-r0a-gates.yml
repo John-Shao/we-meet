@@ -12,6 +12,7 @@ on:
       - 'docs/plan/work-r0a-orchestration-design-2026-10-25.md'
       - 'docs/plan/work-r0a-data-design-2026-10-25.md'
       - 'docs/plan/work-r0a-api-design-2026-10-25.md'
+      - 'docs/plan/work-r0a-host-wire-decision-2026-10-28.md'
       - 'docs/plan/work-r0a-admin-readonly-mapping-2026-10-25.md'
       - 'docs/plan/assets/work-r0a-runtime-2026-10-25/**'
       - 'docs/plan/assets/work-r0a-frontend-2026-10-25/**'
@@ -21,8 +22,19 @@ on:
       - 'scripts/golden-tasks/**'
       - 'scripts/onboarding/**'
       - 'scripts/supply-chain/**'
+      - 'src/work/**'
       - 'src/backend/work/**'
+      - 'src/backend/meet/urls.py'
+      - 'src/backend/core/api/work_host.py'
+      - 'src/backend/core/models.py'
+      - 'src/backend/core/admin.py'
+      - 'src/backend/core/migrations/0235_work_directory_fields.py'
+      - 'src/backend/core/tests/host_mtls.py'
+      - 'src/backend/core/tests/test_work_host_*.py'
+      - 'src/backend/core/tests/test_work_directory_fields.py'
       - 'src/backend/meet/settings.py'
+      - 'src/backend/pyproject.toml'
+      - 'src/backend/uv.lock'
       - 'deploy/aliyun/work-roles.sql'
       - 'deploy/aliyun/secrets/work-db.yaml'
       - '.github/workflows/work-r0a-gates.yml'
@@ -39,6 +51,7 @@ on:
       - 'docs/plan/work-r0a-orchestration-design-2026-10-25.md'
       - 'docs/plan/work-r0a-data-design-2026-10-25.md'
       - 'docs/plan/work-r0a-api-design-2026-10-25.md'
+      - 'docs/plan/work-r0a-host-wire-decision-2026-10-28.md'
       - 'docs/plan/work-r0a-admin-readonly-mapping-2026-10-25.md'
       - 'docs/plan/assets/work-r0a-runtime-2026-10-25/**'
       - 'docs/plan/assets/work-r0a-frontend-2026-10-25/**'
@@ -48,8 +61,19 @@ on:
       - 'scripts/golden-tasks/**'
       - 'scripts/onboarding/**'
       - 'scripts/supply-chain/**'
+      - 'src/work/**'
       - 'src/backend/work/**'
+      - 'src/backend/meet/urls.py'
+      - 'src/backend/core/api/work_host.py'
+      - 'src/backend/core/models.py'
+      - 'src/backend/core/admin.py'
+      - 'src/backend/core/migrations/0235_work_directory_fields.py'
+      - 'src/backend/core/tests/host_mtls.py'
+      - 'src/backend/core/tests/test_work_host_*.py'
+      - 'src/backend/core/tests/test_work_directory_fields.py'
       - 'src/backend/meet/settings.py'
+      - 'src/backend/pyproject.toml'
+      - 'src/backend/uv.lock'
       - 'deploy/aliyun/work-roles.sql'
       - 'deploy/aliyun/secrets/work-db.yaml'
       - '.github/workflows/work-r0a-gates.yml'
@@ -198,8 +222,40 @@ jobs:
           psql -h localhost -U dinum -d work_r0a -Atc "SELECT to_regclass('work.task') IS NOT NULL" | grep -qx t
       - name: Run the Work pytest gates
         run: >-
-          uv run pytest work/tests -q --create-db
+          uv run pytest work/tests core/tests/test_work_host_session_verify.py
+          core/tests/test_work_host_org_discovery.py core/tests/test_work_directory_fields.py
+          -q --create-db
           --cov=work/api --cov-report=term-missing --cov-fail-under=80
+
+  go-migrate:
+    name: Go migration, RLS, API and directory sync (PG16)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/work
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/work/go.mod
+          cache-dependency-path: src/work/go.sum
+      - name: Run Go control-plane tests
+        env:
+          WORK_TEST_PG_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+        run: go test ./... -p 1 -count=1
 
   ops-telemetry:
     name: SLO telemetry rules and ops model

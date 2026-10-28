@@ -978,6 +978,18 @@ class Base(Configuration):
         environ_name="TEMPORAL_TLS",
         environ_prefix=None,
     )
+    # The meet ingress verifies the Work control-plane client certificate and
+    # passes it as ssl-client-cert; this view verifies it again against the CA.
+    WORK_HOST_MTLS_CA_PEM = values.Value(
+        "",
+        environ_name="WORK_HOST_MTLS_CA_PEM",
+        environ_prefix=None,
+    )
+    WORK_HOST_MTLS_CLIENT_IDENTITY = values.Value(
+        "work-control-plane",
+        environ_name="WORK_HOST_MTLS_CLIENT_IDENTITY",
+        environ_prefix=None,
+    )
 
     # La Suite Docs (collaborative docs bridge — see core/services/docs_client.py).
     # api_url is the Docs host (serves both /api/... and the /docs/<id>/ deep link).

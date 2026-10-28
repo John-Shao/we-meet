@@ -1,0 +1,47 @@
+{{- if .Values.workHost.enabled -}}
+{{- if not .Values.workHost.caSecretName -}}
+{{- fail "workHost.caSecretName is required when workHost.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.ingress.host -}}
+{{- fail "ingress.host is required when workHost.enabled=true" -}}
+{{- end -}}
+{{- $fullName := include "meet.fullname" . -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ printf "%s-work-host" $fullName }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "meet.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "101m"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+    nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
+    nginx.ingress.kubernetes.io/auth-tls-secret: {{ printf "%s/%s" .Release.Namespace .Values.workHost.caSecretName | quote }}
+    nginx.ingress.kubernetes.io/auth-tls-pass-certificate-to-upstream: "true"
+    nginx.ingress.kubernetes.io/auth-tls-verify-depth: "1"
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tls.secretName | default (printf "%s-tls" $fullName) | quote }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /work-host
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "meet.backend.fullname" . }}
+                port:
+                  number: {{ .Values.backend.service.port }}
+{{- end }}
