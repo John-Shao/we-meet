@@ -18,7 +18,6 @@ from core.api.work_host import (
     WorkHostSessionVerifyView,
 )
 
-
 urlpatterns = [
     # Django admin moved off /admin/ so the front path is free for the
     # management console (M 端) SPA served at /admin/. See the M 端 plan.
