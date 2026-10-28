@@ -31,7 +31,7 @@
       "file": "increments/0003_directory_absence.sql",
       "checksum": "sha256:5207ab404dd37651f629b5a74b5a298bf763db091d8349328b2fa6cd5c9d9c47",
       "catalog": "catalogs/0003_directory_absence.json",
-      "catalog_checksum": "sha256:11ead3d6b82cda0b961195cf1961cee6aeccb1f75bc04196475f81ae0862062f",
+      "catalog_checksum": "sha256:ef69dbd3a9dfe252ce84d4a4f3dcffe155831349d9595583f9f3faa6aff5ed51",
       "transactional": true,
       "executable": true
     }
