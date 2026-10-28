@@ -122,7 +122,7 @@ RUN apk add postgresql-client
 
 # Install development dependencies
 RUN --mount=from=ghcr.io/astral-sh/uv:0.10.9,source=/uv,target=/bin/uv \
-  uv sync --all-extras --no-extra legacy-work --locked
+  uv sync --locked
 
 # Restore the un-privileged user running the application
 ARG DOCKER_USER

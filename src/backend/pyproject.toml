@@ -56,9 +56,6 @@ dependencies = [
     # 换了依赖,机器人头像会静默退回无图(渲染包在 try 里),没人会立刻发现。
     "Pillow==12.2.0",
     "psycopg[binary]==3.3.3",
-    # Work R0a 遥测:deploy/observability/prometheus-rules.yaml 的告警直接读
-    # work_* 序列,只有被 Prometheus 抓取才会触发,所以指标必须真实导出而非打日志。
-    "prometheus-client==0.24.1",
     "pydantic==2.12.5",
     "PyJWT==2.12.1",
     "python-frontmatter==1.1.0",
@@ -102,15 +99,6 @@ dependencies = [
 "Homepage" = "https://github.com/suitenumerique/meet"
 "Repository" = "https://github.com/suitenumerique/meet"
 
-[project.optional-dependencies]
-# Legacy Python Work orchestration only. The meet production image is Alpine;
-# temporalio publishes manylinux wheels only, so it must not be a main
-# dependency. CI/dev images install this extra; the Go Work control plane
-# carries its own Temporal SDK.
-legacy-work = [
-    "temporalio==1.9.0",
-]
-
 [dependency-groups]
 dev = [
     "django-extensions==4.1",
@@ -134,7 +122,6 @@ dev = [
 [tool.uv.build-backend]
 module-name = [
     "core",
-    "work",
     "demo",
     "meet"
 ]
