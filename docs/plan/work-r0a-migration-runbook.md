@@ -12,6 +12,7 @@
 |---|---|---|
 | `work.0001_create_work_roles` | 检查/创建 7 个 NOLOGIN 角色（work_owner/api/worker/ledger/migrator/ops/directory） | 不回滚角色（集群级，可能被其他库复用） |
 | `work.0002_initial_r0a_schema` | 执行 `src/backend/work/sql/r0a_schema.sql`：schema、表、SECURITY DEFINER 函数、RLS、授权 | `DROP SCHEMA work CASCADE` |
+| `work.0003_directory_absence` | 执行 `src/backend/work/sql/directory_absence.sql`：`directory_watermark`/`mark_members_absent`，仅授 `work_directory` | 删除这两个函数（Go runner 不提供破坏性回滚） |
 
 `0002` 的 SQL 第一条是 `CREATE SCHEMA ... AUTHORIZATION work_owner`，随后
 `GRANT ... TO work_api/work_worker/work_ledger/work_migrator/work_ops/work_directory`，
@@ -38,7 +39,7 @@ python manage.py migrate work
 python manage.py showmigrations work
 ```
 
-期望：`0001_create_work_roles` 与 `0002_initial_r0a_schema` 均为 `[X]`。
+期望：`0001_create_work_roles`、`0002_initial_r0a_schema` 与 `0003_directory_absence` 均为 `[X]`。
 
 迁移后验证（同一库）：
 
@@ -58,6 +59,24 @@ python docs/plan/assets/work-r0a-design-2026-10-25/r0a-concurrency-smoke.py
 ```
 
 期望：`gate.violations` 为空，9 项检查全部为 `true`。
+
+### 3.1 Go 迁移运行器（新 ECS 生产路径）
+
+新 ECS 的 Work schema 由 `src/work/cmd/work-migrate` 管理，不依赖 Django：
+
+```bash
+cd src/work
+go run ./cmd/work-migrate status -url "$WORK_DATABASE_URL"
+go run ./cmd/work-migrate apply  -url "$WORK_DATABASE_URL"
+```
+
+期望：`status` 在 apply 前显示 `0003_directory_absence` pending；apply 后台账 **3 行**
+（0001 precondition、0002 baseline、0003 increment），并校验 `catalogs/0003_directory_absence.json`。
+2026-10-28 新 ECS 已 apply 0003：`status=up_to_date`、台账 3 行、86 个函数、catalog checkpoint
+校验通过；schema 备份 `/root/work-backups/work-pre-0003-20261028.dump`，旧二进制
+`work-migrate.baseline-20261028`。部署目录同步前仍要先跑一次 `WORK_DIRECTORY_MODE=full`
+初始化水位。Go runner 不执行破坏性回滚；回滚只在
+一次性库用 Django `migrate work zero` 验证。
 
 ## 4. 回滚
 

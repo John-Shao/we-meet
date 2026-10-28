@@ -12,6 +12,12 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
+from core.api.work_host import (
+    WorkHostMemberListView,
+    WorkHostOrgListView,
+    WorkHostSessionVerifyView,
+)
+
 from work.observability.views import MetricsView as WorkMetricsView
 
 urlpatterns = [
@@ -20,6 +26,21 @@ urlpatterns = [
     path("dj-admin/", admin.site.urls),
     path("work/v1/", include("work.api.urls")),
     path("work/metrics", WorkMetricsView.as_view(), name="work-metrics"),
+    path(
+        "work-host/v2/sessions/verify",
+        WorkHostSessionVerifyView.as_view(),
+        name="work-host-session-verify",
+    ),
+    path(
+        "work-host/v2/orgs",
+        WorkHostOrgListView.as_view(),
+        name="work-host-org-list",
+    ),
+    path(
+        "work-host/v2/orgs/<uuid:org_id>/members",
+        WorkHostMemberListView.as_view(),
+        name="work-host-member-list",
+    ),
     path("", include("core.urls")),
     path("", include("lasuite.oidc_resource_server.urls")),
 ]

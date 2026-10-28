@@ -78,6 +78,15 @@ spec:
             {{- if $envVars }}
             {{- $envVars | indent 12 }}
             {{- end }}
+            {{- if and .Values.workHost .Values.workHost.enabled (eq $component "backend") }}
+            - name: WORK_HOST_MTLS_CLIENT_IDENTITY
+              value: {{ .Values.workHost.clientIdentity | quote }}
+            - name: WORK_HOST_MTLS_CA_PEM
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.workHost.caSecretName }}
+                  key: {{ .Values.workHost.caSecretKey }}
+            {{- end }}
           {{- with $containerSecurity }}
           securityContext:
             {{- . | nindent 12 }}

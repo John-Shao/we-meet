@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "ledger_table": "work.schema_migration",
+  "catalog": "baseline/catalog.json",
+  "catalog_checksum": "sha256:0587fafbb21689098b660c152c00c2d4e064aa89d171e94d5174ac5aada95efc",
+  "baseline": [
+    {
+      "version": 1,
+      "name": "0001_create_work_roles",
+      "kind": "precondition",
+      "file": "baseline/0001_roles_precondition.sql",
+      "checksum": "sha256:e8e3edcca55b9295fbf858f93d91e481d91e1f654c435807c805a7a0ae600af3",
+      "transactional": true,
+      "executable": false
+    },
+    {
+      "version": 2,
+      "name": "0002_initial_r0a_schema",
+      "kind": "baseline",
+      "file": "baseline/0002_initial_r0a_schema.sql",
+      "checksum": "sha256:73c3731ce55fffb18a7c68ab4111b98c1c6072544ab90968b0e3d1d723738e3f",
+      "transactional": true,
+      "executable": true
+    }
+  ],
+  "increments": [
+    {
+      "version": 3,
+      "name": "0003_directory_absence",
+      "kind": "increment",
+      "file": "increments/0003_directory_absence.sql",
+      "checksum": "sha256:87ea354b2afd664d0c27c25410e1be1b78ef77884cddeb4dbe6087f1da6b0636",
+      "catalog": "catalogs/0003_directory_absence.json",
+      "catalog_checksum": "sha256:11ead3d6b82cda0b961195cf1961cee6aeccb1f75bc04196475f81ae0862062f",
+      "transactional": true,
+      "executable": true
+    }
+  ]
+}

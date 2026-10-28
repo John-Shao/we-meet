@@ -102,7 +102,7 @@ R0a 有六类不属于任何 Run 的常驻作业（见 [D3 §11](work-r0a-orches
 |---|---|---|---|
 | outbox relay | `WorkOutboxBacklogHigh` / 死信数 / 租约接管次数 | 确认 Temporal 可达与租约未死锁；死信走 `work_ops` 重排或跳过（需理由+工单） | **不可停**：停投递等于丢事件 |
 | content shredder | `WorkContentShredBacklog`、Content Store 错误率 | 校验 Store 凭据与可达；同一引用不重复投递（D1 共享引用守卫） | 不可停：留存/删除是义务 |
-| directory_projection_sync | `WorkDirectoryProjectionStale`（滞后秒数） | 先看 Host 端口是否报错或返回旧修订号；重放同修订会被拒（`projection_revision_stale`），属正常幂等而非故障 | 不停同步：撤权靠它生效；只在确认目录不可用时降级为"管理页显示陈旧" |
+| directory_projection_sync | `WorkDirectoryProjectionStale`（滞后秒数） | 先看 Host 端口是否报错或返回旧修订号；同/旧修订重放被拒（`projection_revision_stale`）属正常幂等；`host_revision_regressed` 是 Host 数据回退/Failover 异常，先冻结同步并核对 Host，不要强推 | 不停同步：撤权靠它生效；只在确认目录不可用时降级为"管理页显示陈旧" |
 | audit_export_worker | `WorkAuditExportBacklog` / `WorkAuditExportFailureRatio` | 作业停在 `running` 且租约过期可重领；停在 `failed` 看 `error_code`；不做人工改状态 | 可停新作业（属"产生新工作"），已 ready 文件仍可一次性下载 |
 | expiry_sweep | `work_background_job_last_success_seconds{kind="expiry_sweep"}` | 清扫按组织逐事务、条件更新，重复运行返回 0 行，可安全重跑 | 不可停：过期内容不能留在存储 |
 | dead_letter_ops | 人工触发，无告警 | 仅 `work_ops` 角色、必须带理由与工单号并审计 | — |
@@ -165,6 +165,14 @@ SELECT kind, max(last_success) FROM work_background_job_last_success GROUP BY ki
 3. `WorkAuditExportBacklog` / `WorkAuditExportFailureRatio` / `WorkAuditExportSlow` → 看作业 `error_code` 与租约是否被卡住；租约过期可重领，不要手工改作业状态。
 
 `WorkAuditExportTokenFailureBurst` 属安全信号：按秘密疑似泄露处理（该管理员的一次性凭证可能被转发），不要只当性能问题。
+
+### 5.3 目录同步作业（work-directory-sync）
+
+- **增量**：`WORK_DIRECTORY_MODE=incremental`，按 5 分钟调度；以 Work 投影的 `work.org.revision` 为水位，只拉 `revision_after` 之后的成员变更；不判定缺席。
+- **全量**：`WORK_DIRECTORY_MODE=full`（默认），每日至少一次；拉完整成员快照后，把 Host 缺席成员收窄为 `left`、撤 `work_seat`、记 `entitlement_lost`，不取消 Run。快照最多 10,000 个 subject，超过直接失败。缺席数 ≥ max(10, 候选成员 20%) 时默认拦截（写 `directory.member_absence_blocked`，不写入）；候选成员少于 10 人的组织不触发闸门。确认 Host 数据后以 `WORK_DIRECTORY_ALLOW_MASS_ABSENCE=1` 重跑 full，放行会写 `directory.member_absence_applied`。
+- **首次部署**：先按 [Host wire §8 L1](work-r0a-host-wire-decision-2026-10-28.md) 提交控制面登录身份证据（仅成员于 `work_directory`、无表权限）；再跑一次 full 建立水位；新组织先以 revision 1 建行，成员全部成功后才推进到快照 revision。
+- **失败处置**：进程非零退出或报告 `orgs_failed/members_failed > 0` 时，**下一轮必须补跑 full**，不能只重跑增量——失败组织的低修订成员不会被增量窗口重新拉取。成员失败/gap 不推进水位，可安全重试。
+- **不要**为缺席成员手工执行 `ops_cancel_run` 以外的表写入；投影写入只经 `work_directory` 的领域函数。
 
 ## 7. 关闭条件
 

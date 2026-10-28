@@ -14,6 +14,7 @@
 | RB-03 | 不保 D2 契约，重新设计 API | 现有 29 path / 33 operation 不再是约束；D2 整篇作废重签 |
 | RB-04 | 前端不推倒，补齐缺口 | 语言框架仍为 TS + React；但数据层（`client.ts` / `contracts/api.ts`）属**重写**，UI 缺口属**补齐** |
 | RB-05 | 演练范围收窄 | 11-15/16 的 U3/C22 只验数据层与基础设施；经 API/编排/Runtime 的端到端项移出本轮 |
+| RB-06 | 不拆仓，保持可拆 | 继续留在 `we-meet` 单仓；新 Go/Node 实现聚成独立子树，依赖单向指向 Host HTTP 合同；满足触发条件后再按保留历史的方式拆出 |
 
 ### RB-02 的形态与升级闸门
 
@@ -73,6 +74,17 @@ D3'/D4' 在 Phase 0 联合签收以下边界与机器可读契约，再进入 Go
 2. UI 缺口补齐（D5 三个页面、SSE 重连/去重、状态矩阵门控、删双 UI）。
 
 不得在旧契约上先补 UI，否则补完即废。
+
+### RB-06 的仓库与模块边界
+
+2026-10-28 决策：**不新建 Work 仓库，沿用 `we-meet` 单仓，但把新实现聚成可独立拆出的子树。** 语言不同（Go/Node vs Python/React）不构成拆仓理由；当前变更耦合在 D2' 契约、前端数据层与 Host 接入合同，拆仓会让同一次变更跨两仓。仓库边界也不提供运行隔离——隔离仍由独立 ECS、PG cluster、Temporal namespace 与 K8s namespace 提供。
+
+- **唯一落点**：新 Go 控制面、Go 编排与迁移运行器、Node/Pi Runtime、跨语言 Schema 与生成物、新增的 Work 专属镜像与部署清单都放在 `src/work/` 下；旧 `src/backend/work` 与既有 `deploy/aliyun/` 资产保留到 Phase 7 切换验收完成，新旧实现不得互相 import。Work 既有部署资产在拆仓时按归属搬入，不在本轮移动。
+- **单向依赖**：`src/work` 只通过固定版本的 Host HTTP 合同（`work-host-contract-v2`）访问 Django 侧身份/目录/席位；禁止 import `src/backend` 的 Django 模块、ORM 模型或 `core` 代码。共享只允许固定版本 wire schema 与生成的类型。
+- **前端例外**：R0a 前端仍在 `src/frontend/src/features/work`，同源 `/work`、host-only cookie 与导航不拆；前端可引用 `src/work` 生成的契约产物，但 `src/work` 不反向依赖前端。“Work 前端成为独立应用”是拆仓的前置条件，不在本轮。
+- **SQL 与迁移**：Phase 1 接管时以原样基线 + 版本化增量进入 `src/work`；旧路径只读保留到接管验收，不双写、不改写已发布迁移正文。
+- **可拆验收**：`git subtree split --prefix=src/work` 可独立成仓并自足构建；CI 按路径过滤，Work 变更不触发 meet 全量流水线；镜像、版本与部署入口独立。Phase 0 冻结的实现文件清单以该子树为根，例外须逐项列明。
+- **再拆触发条件**（满足任一条再评估，不构成排期）：Work 前端独立成应用并有独立发布节奏；需要只向外部人员开放 Work 仓库权限；Go/Node 构建或 CI 被 meet 显著拖累（当前没有）。
 
 ## 1. 留存与作废清单
 
@@ -268,3 +280,4 @@ RB-05 **只收窄指定基础设施演练，不缩小试点放行标准**。U3/C
 - 2026-10-28：按 RB-01–RB-05 首次成文。
 - 2026-10-28：RB-02 复议，选择常驻池 Pod + 每 Run 子进程、Node Temporal worker，并保留升级到每 Run Pod 的硬闸门。
 - 2026-10-28：按审阅修正安全免签推断、网络/身份、跨语言执行与失败分类；补 D1 行为签收、迁移接管、Host 接入、模块切换、测试保留及完整试点闸门；修复失效章节引用。
+- 2026-10-28：新增 RB-06，确定不拆仓、`src/work/` 独立子树、单向依赖与再拆触发条件。

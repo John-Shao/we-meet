@@ -573,6 +573,7 @@ class OrganizationAdmin(admin.ModelAdmin):
         "name",
         "slug",
         "primary_domain",
+        "home_region",
         "is_active",
         "archived_at",
         "_departments",
@@ -584,6 +585,7 @@ class OrganizationAdmin(admin.ModelAdmin):
         "id",
         "created_at",
         "updated_at",
+        "directory_revision",
         "archived_at",
         "archive_reason",
     )
@@ -851,6 +853,7 @@ class MembershipAdmin(admin.ModelAdmin):
         "title",
         "org_role",
         "status",
+        "work_seat",
         "is_primary",
         "joined_at",
     )
@@ -872,6 +875,7 @@ class MembershipAdmin(admin.ModelAdmin):
         "id",
         "created_at",
         "updated_at",
+        "directory_revision",
         "org_role",
         "status",
         "left_at",

@@ -1,0 +1,52 @@
+{
+  "version": "work-bootstrap-v1",
+  "approval": "design_signed",
+  "evidence": "implementation_frozen",
+  "surfaceFrozen": "bootstrap_only",
+  "signoff": {
+    "by": "John Shao",
+    "date": "2026-10-28",
+    "scope": "bootstrap response shape; other D2' resources remain unfrozen"
+  },
+  "additionalProperties": false,
+  "required": [
+    "subject_id",
+    "org",
+    "permissions",
+    "phases",
+    "execution_targets",
+    "allowed_permission_modes",
+    "limits",
+    "csrf_token"
+  ],
+  "org": {
+    "required": ["id", "name", "role", "work_seat"],
+    "roles": ["owner", "admin", "member", "viewer"],
+    "name": "string; empty string when the Host projection has no name"
+  },
+  "permissions": ["work.task.create", "work.artifact.read"],
+  "phases": ["R0a"],
+  "execution_targets": [{"kind": "cloud", "profile": "text-v1"}],
+  "allowed_permission_modes": {
+    "values": ["ask_each", "auto_readonly"],
+    "rule": "auto_readonly is included only when work.org_policy.allow_auto_readonly is true; ask_each is always included"
+  },
+  "limits": {
+    "max_goal_chars": 2000,
+    "max_background_chars": 4000,
+    "max_artifact_bytes": 262144,
+    "max_active_runs": 1
+  },
+  "csrf": {
+    "cookie": "work_csrf",
+    "header": "X-CSRF-Token",
+    "tokenPrefix": "v1.",
+    "ttlSeconds": 3600,
+    "cookieAttributes": "Path=/work; Secure; SameSite=Strict; HttpOnly=false"
+  },
+  "identity": {
+    "subjectSource": "verified Host session",
+    "orgSource": "verified Host session",
+    "projection": "work.member/work.org/work.org_policy under work_api RLS"
+  }
+}

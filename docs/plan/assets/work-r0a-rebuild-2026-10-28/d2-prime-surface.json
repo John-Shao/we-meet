@@ -18,7 +18,7 @@
     "sessionAssertedInDatabase": "work.assert_session_subject"
   },
   "session": {
-    "cookieName": "we_meet_session",
+    "cookieName": "sessionid",
     "csrfHeader": "X-CSRF-Token",
     "csrfSingleSourceOfTruth": "contract",
     "csrfRequiredForMutations": true,

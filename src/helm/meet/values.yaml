@@ -80,6 +80,17 @@ ingressWebhook:
 ## @param ingressAdmin.className IngressClass to use for the Ingress
 ## @param ingressAdmin.host Host for the Ingress
 ## @param ingressAdmin.path Path to use for the Ingress
+## Work Host OrgDiscovery over mTLS
+## @param workHost.enabled Enable the dedicated /work-host Ingress and backend env
+## @param workHost.caSecretName Secret containing the Work Host client CA
+## @param workHost.caSecretKey Key inside that Secret
+## @param workHost.clientIdentity Expected client certificate CN
+workHost:
+  enabled: false
+  caSecretName: work-host-ca
+  caSecretKey: ca.crt
+  clientIdentity: work-control-plane
+
 ingressAdmin:
   enabled: false
   className: null
