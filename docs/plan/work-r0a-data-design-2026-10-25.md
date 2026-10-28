@@ -220,6 +220,84 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 | `shred_due_audit_exports` | work_worker | 已 expired 且有引用的作业投递一次粉碎并清空引用；作业行保留（审计事实）；重复运行返回 0 |
 | `work.audit_export` | RLS | FORCE RLS；`work_api`/`work_worker` 无直接 SELECT/DML |
 
+### 5.4 F0-R2 片段所有权与发送去重增量（设计已签，未迁移）
+
+本节是[重做计划](work-r0a-architecture-rebuild-plan-2026-10-28.md)的增量设计，已于 2026-10-28 随 F0-R2 设计签收，但**不是现有数据库能力**，也不修改已应用 SQL。现有 `operation` 只有 attempt/consumer/receipt_ref；最终 `claim_dispatch` 对同 consumer 可重放返回原 attempt（`r0a_schema.sql` 的最终定义），这只恢复领域许可，**不授权重复发送**。现有 `resume_run` 不提升 fence，不能单独隔离旧子进程。`finish_operation` 的同结果短路不核对 receipt_ref，`reconcile_operation` 对 reconciled 直接返回；新收尾入口必须在调用它们前验证唯一回执绑定，必要修订随 D1 单独签。
+
+#### 持久对象与约束
+
+所有新增对象均在业务 PG 的 `work` schema，启用 ENABLE/FORCE RLS、复合租户外键、固定 search_path 的 SECURITY DEFINER 命令；不新增 Node/egress 的数据库登录或表级 DML。下列名称是拟议名称，具体迁移必须经 D1 审核生成并走基线接管，不能直接往当前 schema 追加执行。
+
+| 对象 | 字段/唯一性 | 不变量 |
+|---|---|---|
+| `runtime_execution` | execution_id UUID PK；org_id/run_id/task_id、mode、run_fence、input_checkpoint_ref/hash、intent_ref/hash、request_hash、operation_id/attempt（plan 时空）、state、holder_id、lease_until、hard_deadline、heartbeat_seq、revision | state = registered/active/completed/revoked/expired；`UNIQUE(org_id, run_id) WHERE state IN ('registered','active')`；绑定字段不可改；holder_id 为本次父进程启动实例，不是可复用 Pod 名 |
+| `dispatch_delivery` | `PRIMARY KEY(org_id, operation_id)`；attempt_id、execution_id、holder_id、request_hash、gate_state、consumed_at、gateway_invocation_id、receipt_slot_id、receipt_ref/hash | 一个 Operation 一生只有一个 gate；gate_state = sealed_not_sent/consumed/receipt_recorded；已消费不因租约过期、worker 重启或 receipt 丢失而重开；receipt_recorded 不再变更首个终态回执 |
+| `runtime_checkpoint_head` | `PRIMARY KEY(org_id, run_id)`；checkpoint_revision、checkpoint_ref/hash、runtime_version、committed_execution_id | 只存已验证、可恢复的 canonical head；按 expected_revision/ref/hash CAS；同 revision 同 hash 重放幂等，异体冲突；不能根据对象创建时间挑“最新文件” |
+| 内容代理的引用注册表 | ref_id → org/task/run、kind、logical_slot、不可变 object_version、hash/bytes、writer 身份及 tombstone | 属 Content Store 元数据，不把正文塞进 PG；同 slot 只接受同 hash 重放；receipt slot 仅可信出口可写，checkpoint slot 只接已绑定片段候选；删除后旧授权不能复活正文 |
+
+首次 checkpoint head 不存在时，以“空 head”作为 expected base，在 Task/Run 锁下插入 revision 0；已有 head 后必须 CAS 到 base+1。候选对象/引用存在不能跳过首次绑定核验，head 不能被无条件 upsert 覆盖。
+
+`registered/active` 的部分唯一索引不含 `now()`；到期由同一持锁命令将旧行显式置 expired，再注册新 execution_id。所有到期比较在获取锁后用数据库时钟，不能用进入事务前的时间戳；续租 `lease_until = min(db_now + 30s, hard_deadline)`，建议每 10s 一次，单调 heartbeat_seq 且只能当前 holder 续租，过期不续活。注册在队列等待期间只受有界 hard_deadline；active 才有短租约。时间值随 F0-R1 一并签收。
+
+#### 授权服务与命令边界
+
+由 Go 控制面的**内部执行授权模块**承接 Node/egress 的受鉴权 RPC，再以 `work_worker` 事务调用领域命令；这是同一控制面内的模块，不新拆通用微服务。Node/egress 不直连 PG。调用方种类和 holder/gateway 身份从工作负载认证得出，不能接受请求体自报；模块按 RPC 白名单授权，不能提供“执行任意函数”接口。身份签发/证书配置仍受 F0-R4/F0-R5 闸门。
+
+统一锁序：Task → Run → Operation（若有）→ runtime_execution → dispatch_delivery → checkpoint head；其他配额/usage 锁沿现行命令顺序，在相同 Task 锁下收尾。查询可先找 ID，但作决定前必须按该序重读锁定值。SQL 事务不包供应商调用或 Content Store 网络 I/O。
+
+| 拟议命令 | 允许的内部调用方 | 输入与效果 / 重试规则 |
+|---|---|---|
+| `register_runtime_execution` | Go workflow 领域活动 | execution_id、run/fence、mode、head CAS、intent/permit 引用及期限；读 current Run、授权/限额；同 ID 同绑定幂等，异体拒绝；execute 只能绑定原 pending intent 与 claim 的 attempt |
+| `claim_runtime_execution` | Node 父进程 | registered → active，固定 holder_id 与短租约；同 holder 重放仅可查询，不能启动第二子进程；父进程本地启动互斥，重启换 holder。响应丢失后若无法证明本次仍未启动则放弃并待到期，不猜测重启 |
+| `renew_runtime_execution` | 同 holder 父进程 | 校验 active/未到期/seq 单调/current Run 与控制状态；更新租约但不改变硬期限；重复 seq 不延长租约，晚到心跳不复活旧 execution |
+| `revoke_runtime_execution` | Go 取消/对账活动 | 终止未来内容写入/head 提交和 gate 消费；状态终态幂等；若 gate 已消费，不能据撤销推导 not_sent |
+| `consume_dispatch_delivery` | 可信 egress（经 Go 内部模块） | 在发送前原子验证 Run/策略/预留、active lease、holder、fence、execution/operation/attempt/hash，插入 consumed gate 与固定 receipt slot；**只有此次成功提交的插入者获得一次 won 回应**；任何冲突/重试/查询只回 observed，不重发 won |
+| `seal_dispatch_not_sent` | Go 对账活动 | 在同锁序下先终止片段，gate 尚不存在则插入 sealed_not_sent；只有这次封口后“未发送”才可证明；若 gate 已 consumed 则拒绝 not_sent 推断 |
+| `attach_dispatch_receipt` | 可信 egress；或受控对账验证器 | 验证不可变 receipt slot/version/hash 与 gate 元组，consumed → receipt_recorded；同 hash 幂等，异体冲突告警。允许迟到回执挂接已撤销片段/已取消 Run，但只作计量/证据，不恢复执行权 |
+| `commit_runtime_checkpoint` | Go workflow/对账活动 | 验证内容候选、引用归属、receipt 集合、模型序号与 base head；CAS 推进 head 并完成当前片段。已撤销片段候选拒绝；同已提交 execution+hash 的重放只返回历史结果，不覆盖后来的 head |
+
+run_id/attempt/hash/ref 都不是 bearer 授权。所有命令的公开错误只含枚举与允许的修订元数据，不回显正文/凭据。内部状态查询（用于 ACK 丢失）只返回该调用方有权见的元数据，永不返回可再次消费的发送权。
+
+#### 发送边界与 ACK 丢失
+
+1. Go 先从 checkpoint 中已冻结的意图创建/授权/预留/claim Operation，登记 execute 片段；Node 领取后才启动子进程。`claim_dispatch` 原 attempt 的幂等回读不等于 egress won。
+2. Egress 在获得 gate 前完成消息/来源、hash、路由、凭据和调用参数校验；随后请求 consume。Go 服务仅在 PG 提交确认、满足部署持久性边界后回 won；commit 不确定或响应丢失时不得回 won。客户端/RPC代理不得缓存或重放 won；重试只能得到 observed。
+3. 收到 won 的**本次 egress 调用栈**最多发一个上游请求，关闭 HTTP SDK/代理/流重连自动重试。DB提交与外部 HTTP 无原子事务：提交后崩溃可能没有发送，但必须保守 unknown；这是以可用性换取不重复收费，不承诺外部 exactly-once。
+4. consume 与取消竞争以 Task/Run 锁下的 gate 提交为线性化点：取消先提交则禁止消费；consume 先提交则视为在途，即使物理 HTTP 稍晚发送，也不能声称取消已阻止。发送前再次检查期限可缩小窗口，但不能把这次检查宣传为原子外部撤销。
+5. Gate 已消费后永远不能换 holder/attempt 或重新 won。RPC ACK 丢失、父进程/egress 崩溃、租约过期只触发 receipt 查询/对账；拿不到可信证据则 unresolved，保留预留。
+6. 没有 gate 的观察**不是** not_sent 证据。只有 seal 与 consume 同锁竞争获胜、封死晚到 consume 后，才可按 not_sent 核销旧 Operation；即便证明没发，也不重用旧许可，后续尝试遵循新的 Run/Operation 业务规则。
+
+新增 gate 与业务账本必须同库、同持久性/恢复边界。备份恢复若可能丢失已消费 gate，先关派发并核对所有受影响在途 Operation；不得把恢复后的空 gate 当成可发送。新表/引用随任务删除进入现有留存与粉碎流程：最小 gate/去重 tombstone 保留到签收的账本重放保留期结束，不因正文删除或 Redis 清理而恢复发送权。
+
+#### 回执与用量的原子收尾
+
+`attach_dispatch_receipt` 只登记可信外部证据，不直接宣布任务成功。Go 新的收尾领域命令以 receipt 引用/哈希为幂等输入，在同事务锁定 Operation，验证 gate 终态回执，再确认 Operation、写独立 usage 去重事实并 settle/reconcile；发表成果另走幂等命令。新 usage 去重事实拟为 `(org_id, operation_id, usage_revision)` 唯一，保存 source_receipt_hash 与用量值；同修订同值重放无效果，异体拒绝，高修订按签收差额规则更新，不能靠 settle 分录猜测是否记过。
+
+现有 `finish_operation`/`reconcile_operation` 的短路不能绕过回执验证；尤其未知转成功的 reconcile 内部会 settle，因此 usage 必须在同事务中先可靠记录。供应商用量缺失时，回执可记录 `unavailable`，但不能补 0 假结算；保留预留并进入用量核对，确认用量后才允许下一次模型许可。取消 Run 的迟到成功仍记真实用量，禁止发布；已 succeeded 的 Operation 后续 DB/Content Store 故障仅恢复收尾，不改回 unknown。
+
+本节的表/命令/usage 修订已随 F0-R2 完成设计签收，但 PG 迁移、RLS/GRANT、并发死锁/ACK 故障/DR 验证均未执行；迁移须经 D1 审核生成并通过上述验收后才可接真实收费链路。
+
+### 5.5 F0-R4/R5 Capability 与内容代理授权增量（设计已签，已复核）
+
+配套协议见 [D4 §6.2](work-r0a-runtime-egress-design-2026-10-25.md#62-f0-r4-身份签发与父子凭据隔离设计已签已复核)与[§6.3](work-r0a-runtime-egress-design-2026-10-25.md#63-f0-r5-内容代理与网络协议设计已签已复核)。本节只提出授权元数据增量，不创建角色、权限或实际签发服务；Node/egress 仍不直连数据库。
+
+| 拟议记录 | 字段/来源 | 不变量 |
+|---|---|---|
+| holder 身份注册 | 授权模块生成 holder_id，绑定已验真的平台证书实例、启动会话与撤销状态；平台证书注册与 tenant scope 分离 | 来自 mTLS 角色注册，不信任请求体 role/holder；证书实例被撤销时旧 holder 不能续租/签发。其运维登记由受控服务身份配置负责，不给 runtime 查询全局注册表 |
+| `runtime_capability` | credential_id UUID、org_id/execution_id/holder_id、audience、generation、token_hash、issued_at/expires_at/revoked_at；运行绑定经 execution 外键解析 | token 明文不落库；token_hash 唯一；`UNIQUE(org_id, execution_id, audience, generation)`；每 audience 当前 generation 保存在 execution 授权元数据中；不复用旧 generation |
+| 内容 slot 授权描述符 | 引用注册表记录 execution_id、kind、base_head、候选 hash/bytes、slot_state、对象版本与 tombstone；read scope 从已批准引用图推导 | 全局模板等共享对象只有 snapshot 确认的只读视图，不因共享存储位置产生跨组织遍历权限；子进程不能创建 receipt slot 或提交 head |
+
+`runtime_capability` 遵循 ENABLE/FORCE RLS、复合租户外键与固定 search_path 的领域函数；运行角色无表级 DML。签发/吊销与 execution/generation 更新在同事务进行，锁序沿 Task → Run → Operation（需要时）→ execution，再访问 capability/引用元数据，不能反向拿 Task 锁。存储 hash 只用于在线查验，不能将 hash 本身当 bearer。
+
+- **issue**：仅认证为当前 holder 的父进程可请求，参数只含 executionId/audience；服务端生成随机 token，在事务中校验 current Run/状态/租约，推进该 audience generation、保存新摘要与期限并失效旧代。提交确认后仅本次响应交付明文；commit/ACK 不确定时不恢复旧明文，重试产生新代且不续活过期 execution。
+- **authorize**：8444/8445 从实际 bearer 计算摘要，读取可信记录；token 元数据、execution/holder/generation/lease/deadline/Run取消/Task tombstone 全部实时匹配。不能只验证 token 格式或在应用缓存一次允许结果。失败不返回目标记录内容。issuer 与 access checker 不将用户提交的 orgId 作为授权上下文。
+- **revoke**：execution 结束或身份撤销立即阻止新授权；到期无需清扫才生效。清扫只处理过期摘要保留，不得删除 dispatch gate/tombstone 以“清 session”的方式恢复发送权。
+- **reserve/finalize candidate**：内容代理先在线验证 scope/base head/kind/大小后保留本 execution slot；上传后重算 hash、验证文档及引用图，在最终绑定时重查当前状态。对象写入在数据库事务外，只有 metadata commit 成功才可被查阅；失败对象保持不可见并通过持久 slot 进入清理流程，不能因晚到写入恢复已删正文。tombstone 阻止新访问不等于在途对象写入已经物理停止；删除完成确认须等在途写入有界结束并核实关联候选/孤儿版本粉碎，不能提前以“元数据不可见”宣称正文已删除。
+- **consume**：egress 对子 capability 的在线验证必须与 D1 §5.4 的 gate 消费使用同一权威状态检查/事务边界，不能“先 introspect 允许、缓存片刻、再发模型”。仍只有首次 gate 插入者 won，token 刷新不刷新发送资格。
+- **privileged receipt path**：经 mTLS 的 egress 仅能在原 consumed gate/receipt slot 上补证据；不要求孩子 capability 仍有效，也不绕过 tombstone。该路径与子进程的候选上传监听器分离，不能接受子 token 假装可信写入者。
+
+发行者/角色映射、证书撤销服务与内容图校验属于受信任 Go 模块的显式输入边界。签收需确认新增表/函数/授权迁移、发行接口的错误码与无正文审计；纯策略模型不会创建这些对象或验证真实事务竞争。
+
 ## 6. 冒烟结果
 
 脚本 [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql) 在 PostgreSQL 16.15 独立容器执行，事务结束回滚。114/114 断言通过（含 2026-10-26 新增 `title_update_*`、`title_event_no_text`、`artifact_export_*`、编排专项 `acquire_cancel_requested_no_fence`、`no_success_over_cancel_request`、`unknown_reason_code_enforced`、成果只读负例、留存清扫专项 `input_expiry_*` 与投影单调性哨兵 `projection_guard_is_upsert_predicate`）：

@@ -233,4 +233,76 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 - [error-codes.json](assets/work-r0a-design-2026-10-25/error-codes.json)：冻结错误码目录与 SQL 异常映射。
 - [contract.test.mjs](assets/work-r0a-design-2026-10-25/test/contract.test.mjs)：10 组合同测试；[client.test.mjs](assets/work-r0a-design-2026-10-25/test/client.test.mjs)：12 组客户端测试；[host-ports.test.mjs](assets/work-r0a-design-2026-10-25/test/host-ports.test.mjs)：9 组 Host 端口契约测试。
 - [ci-contract.mjs](assets/work-r0a-design-2026-10-25/scripts/ci-contract.mjs)：CI 门禁。
+- Phase 0 已签设计资产：[d2-prime-surface.json](assets/work-r0a-rebuild-2026-10-28/d2-prime-surface.json)（`design_signed`）、[host-contract.json](assets/work-r0a-rebuild-2026-10-28/host-contract.json)（`design_signed`）及各自模型/测试（见 §8）；evidence 仍为 `design_model_only`，契约与客户端未重建。
 - 下一步 D3：Temporal/编排与提交/派发/预算/成果/采纳/取消/恢复；D4：Pi Adapter、沙箱与模型网关。DR1 还需把 D1/D2 的接口与 schema 对齐评审。
+
+## 8. D2' 公开契约重签（2026-10-28 设计签收）
+
+本节是[重做计划](work-r0a-architecture-rebuild-plan-2026-10-28.md) Phase 0 第 1、5 项的设计签收记录。上文 §1–§7 的 29 path / 33 operation 属 `r0a-openapi-v1`，按 RB-03 **不作为必须保留的契约**；它仍是错误语义、幂等与投影口径的来源，不能被当成新契约的实现证据。**OpenAPI、生成客户端与前端调用层尚未重建**，`surfaceFrozen` 保持 `false`。
+
+### 8.0 签收结论与条件
+
+| 项 | 结论 | 随签条件（后续变更须重新签） | 署名 |
+|---|---|---|---|
+| D2' 公开契约 | 签收 | 含旧资产退役：旧 mock server、旧生成客户端与旧漂移门禁停止作为合格证据，前端调用层随新生成物重写；§8.2 五项结论为准 | John |
+| Host 接入合同 v2 | 签收（Lily 已复核通过） | 严格 fail closed：Host/身份服务不可用时**连只读也拒绝新请求**，换取撤销即时生效与最小缓存面；联调仍受 F0-R5「仅内部名称解析」硬前置约束，不开 staging 例外 | John 主签 / Lily 复核 |
+
+2026-10-28，Lily 对 Host 合同复核通过，未附加条件：接受席位/角色收窄按 300s 周期同步、同步不取消在途 Run，由 `ops_cancel_run` 处置。300s 是正常成功同步的调度周期，不是故障下的收窄时延上界；失败、积压与投影过期仍须拒绝新工作。解除复核前不实施限制，严格 fail closed 与内部 DNS 硬前置不变；DP 条目未执行。
+
+资产：[d2-prime-surface.json](assets/work-r0a-rebuild-2026-10-28/d2-prime-surface.json)（契约常量）、[d2-prime.model.mjs](assets/work-r0a-rebuild-2026-10-28/d2-prime.model.mjs) 与[测试](assets/work-r0a-rebuild-2026-10-28/d2-prime.test.mjs)；[host-contract.json](assets/work-r0a-rebuild-2026-10-28/host-contract.json)、[host-contract.model.mjs](assets/work-r0a-rebuild-2026-10-28/host-contract.model.mjs) 与[测试](assets/work-r0a-rebuild-2026-10-28/host-contract.test.mjs)。它们只在"已验真的服务端事实"上判定语义，不实现 HTTP、SQL、会话、mTLS 或 codegen。
+
+### 8.1 保留项与重签项
+
+| 必须保留（与实现语言无关） | 必须重签 |
+|---|---|
+| 公开错误码目录语义、`retryable` 只给 429/5xx、未映射内部码降级为 `service_degraded` | 资源/操作切分、路径与 schema 名称、生成链路由 Go 控制面承载 |
+| `client_request_id` 幂等且作用域 `(org_id, subject_id, operation_type)`，不接受 `Idempotency-Key` 头 | 旧 mock server、旧生成客户端与旧漂移门禁退役，不再作为合格证据 |
+| keyset 分页、`expected_revision` 乐观并发、事件/错误/日志无正文 | Runtime 内部标识（execution/attempt/hash/ref）一律不进公开响应 |
+| org/subject 只由服务端解析，DB 侧 `work.assert_session_subject` 二次比对 | `WAITING_RECONCILE` 等内部状态到 `DisplayState` 的映射随 D3' 重核 |
+
+### 8.2 五个必解项的拟定结论
+
+| 问题 | 拟定结论 | 不可退化为 |
+|---|---|---|
+| `TaskDetail.snapshot` 形状 | 显式闭合对象：`snapshot_id`、`snapshot_revision`、`template`、`limits`、`permission_mode`、`created_at`；`additionalProperties: false` | 自由 map、嵌正文（goal/background/prompt）或回传 `runtime_version`/`request_hash`/`checkpoint_ref` |
+| 管理席位分页 | 统一 keyset：不透明字符串 `cursor` + `limit` 1–100；总数来自 `admin_overview` 投影而非当页 | 整数 offset/page，或让 cursor 类型随接口而变 |
+| 409 的 `current_revision` | 由领域命令在 SQL `DETAIL` 返回，服务端解析后填入；拿不到即按 `conflict_detail_missing` 降级 503，不猜测 | 用请求中的 `expected_revision` 回填，或静默省略字段 |
+| 非法 `media_type` | 传输层 `Content-Type` 不符 → 415 `unsupported_media_type`；请求体声明的成果 `media_type` 不在 `text/markdown`、`text/plain` → 422 `media_type_invalid` | 把两种失败混成同一个码，或用 400 兜底 |
+| CSRF 头名 | 契约是唯一来源：`X-CSRF-Token`，服务端与前端都从生成物取名；变更请求必带，刷新只重试一次 | 在服务端或前端各写一份常量，或接受别名头 |
+
+### 8.3 Host 接入合同增量（`work-host-contract-v2`，设计已签、已复核）
+
+现有五端口 [host-ports.mjs](assets/work-r0a-design-2026-10-25/host-ports.mjs)（`r0a-host-v1`）保留；v2 新增 `SessionVerifier` 与 `OrgDiscovery` 两个端口，并把同步协议与失效语义写成可判定规则。Lily 已复核通过，实现时替换 v1。
+
+- **适配器位置与身份**：Host adapter 是 Go 控制面内的模块，以工作负载 mTLS 身份调用 Host；Node 父进程、Pi 子进程、egress 与前端都不可调用。适配器不写表，只经 `work.sync_org_projection` / `work.sync_member_projection`（`work_directory` 角色）落投影；Host 不能用请求体自报角色。
+- **会话验真**：在请求路径内、**严格 fail closed**——Host/身份服务不可用时新请求一律拒绝，包括只读；接受的验真结果最多 60s，正向结果零缓存。可用性代价已随签收接受，不得私自加降级放行。缺 `subject_id`/`org_id`/`session_revision`/`verified_at` 任一字段即报 gap，不猜测。撤销对**新请求**立即生效，但不声称已取消在途请求。
+- **权威读源**：请求路径的角色/席位/配额来自 Work 自己的 `work.member`/`quota_account` 投影（§2.6 决策 B），Host 不在请求路径；投影过期可读但禁止开新工作。Host 不可用时只阻断投影更新与会话验真，不伪造权益。
+- **组织发现**：组织由 Host 权威给出，客户端不能选择；与会话不符的 `org_id` 统一 `org_not_found`，R0a 仍不支持多组织切换。
+- **同步协议**：按 revision 增量（建议 300s）+ 周期全量对账（建议 86400s）。修订号单调，低修订忽略，同修订异事实冲突；全量快照不得删行，缺席成员只收窄为 `left`，`operator_suspended` 不被覆盖。同步**不取消任何 Run**，取消仍由 `ops_cancel_run` 执行（D-07 A）。
+- **载荷边界**：Host 不得塞未声明字段，不得把 token 配额换算成席位或金额，通知不接受正文字段。
+
+§2.6 记录的 P1-A 字段缺口（`subject_id`、成员 `role`/`revision`/`work_seat`、组织 `name`/`home_region`）仍未关闭；合同只规定"缺字段报 gap"，不代表真实 Host 已能提供。联调同样受 F0-R5「仅内部名称解析」硬前置约束，不开 staging 例外。
+
+### 8.4 负例验收合同（未执行）
+
+| ID | 场景 | 必须证明 |
+|---|---|---|
+| DP-01 | 请求体夹带 `org_id`/`subject_id`/`role`/`scopes`、伪造会话 | 一律拒绝；身份只来自已验真会话并经 DB 二次比对 |
+| DP-02 | 缺失/错名/过期 CSRF 头，多标签页刷新 | 403 `csrf_invalid` + 单次刷新重试；别名头不被接受 |
+| DP-03 | 同幂等键异体负载、跨 subject 同键、空键 | 分别 409、各自执行、422；无 header 幂等键旁路 |
+| DP-04 | offset/page 分页、越界 limit、伪造 cursor | 422 拒绝；总数来自投影不随分页漂移 |
+| DP-05 | 领域命令抛冲突但 DETAIL 缺失 | 有 DETAIL 时 409 带 `current_revision`；缺失时降级且不编造修订号 |
+| DP-06 | 未知内部异常、SQLSTATE 兜底 | 公开码只来自目录；`service_degraded` 不回显 DETAIL/原始码 |
+| DP-07 | 传输 `Content-Type` 与成果 `media_type` 两类非法 | 415 与 422 分别返回，不混码 |
+| DP-08 | 响应/事件中出现 execution/attempt/hash/ref，或 unknown 结果 | 内部标识不外泄；unknown 显示 `reconciling` 且不可采纳 |
+| DP-09 | Host 不可用、会话过期 61s、缺字段、跨组织 org_id | 会话 fail closed；投影可读但禁开新工作；缺字段报 gap；越权组织 `org_not_found` |
+| DP-10 | 同步低修订/同修订异事实/全量缺席/撤权 | 单调推进、冲突拒绝、只收窄为 `left`、不由同步取消 Run |
+
+运行设计模型：
+
+```sh
+node --test docs/plan/assets/work-r0a-rebuild-2026-10-28/d2-prime.test.mjs
+node --test docs/plan/assets/work-r0a-rebuild-2026-10-28/host-contract.test.mjs
+```
+
+它们只验证契约常量与判定规则，不验证真实 HTTP、会话服务、Host、SQL 或生成链；DP 条目须在 Go 控制面与真实 Host 上执行后才算证据。`surfaceFrozen` 仍为 `false`（接口面随实现冻结），`approval` 为 `design_signed`/`design_signed`。

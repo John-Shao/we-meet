@@ -91,6 +91,111 @@ D3 把 R0a 的“提交 → 派发 → 模型 → 配额 → 成果 → 采纳�
 
 ## 5. RunWorkflow 契约
 
+### 5.0 D3' 执行片段协议（F0-R1 设计已签）
+
+本节按[重做计划](work-r0a-architecture-rebuild-plan-2026-10-28.md#跨语言执行契约)提出 Go/Node 接口，**不是 D3' 全部完成或已签收**。后续 §5.1–§6 与 `RunWorkflow.contract.ts` 保留旧 `r0a-v1` 的历史协议；其中同队列部署、直接 `invokeModel` 入口及旧 bigint 参数不能直接当作新 wire contract。其余领域活动仍需逐项与 D1 对齐，不在本次消息 Schema 中假定已经完成。
+
+资产：
+
+- [AdvanceRuntime.contract.ts](assets/work-r0a-orchestration-2026-10-25/AdvanceRuntime.contract.ts)：TS 消息类型、单次执行与超时建议；无 Temporal SDK 依赖。
+- [advance-runtime.schema.json](assets/work-r0a-orchestration-2026-10-25/advance-runtime.schema.json)：JSON Schema Draft-07，作为本轮 wire 形状校验基线。
+- [advance-runtime.test.mjs](assets/work-r0a-orchestration-2026-10-25/advance-runtime.test.mjs)：结构正负例；复用前端已有 Ajv，不安装新依赖。TS 类型不能替代运行时验证，Go codec 双向与实际 Temporal payload 测试仍待实现。
+
+#### 消息与控制权
+
+Go 保持唯一 RunWorkflow，领域活动在 Go 队列执行；Node Activity worker 只接收 `work-r0a-runtime` 上的 `advanceRuntime`。Node 不自行创建 Run/Operation、不做业务状态迁移、不注册第二套 workflow。一个片段使用新的 executionId 和独占子进程；worker 重启不得重用其发送权。
+
+| 消息 | 语义 | 返回后允许的动作 |
+|---|---|---|
+| `advance_request / plan` | 无 permit/intent，只从已确认 canonical checkpoint 或初始 snapshot 推进 Pi 到下一个提交点；不调用供应商 | `MODEL_REQUEST` 只提出下一次请求；Go 验证持久意图后登记/授权/预留/claim |
+| `advance_request / execute` | 必须有 checkpoint、持久意图及完整 permit；一个片段至多发送一个模型 Operation | 成功返回 `CHECKPOINTED` 与可信回执引用；Go 核对后确认 Operation、记用量并结算，再启动 plan 片段 |
+| `MODEL_REQUEST` | 必须有 checkpoint、request 引用、requestHash、`model:1..3` 逻辑键 | 返回消息不是授权，不能直接发模型 |
+| `CHECKPOINTED` | 必须有 checkpoint 与回执引用；回执由受信任出口保存 | 只有回执与账本绑定一致才补确认/收尾；不是仅凭 Node 自报成功 |
+| `WAITING_RECONCILE` | 只有绑定本 execute 请求的 Operation 结果未知时使用；checkpoint 可以为空 | 保留预留、停止推进，Go 按 DB 当前状态等待或收尾 |
+| `FINISHED` | 仅 plan 片段在已确认的最后回执之后提出；必须有 checkpoint 与最终成果引用 | Go 检查无阻塞 Operation、用量/结算与授权，然后发布；不是 Runtime 宣告 Run succeeded |
+| `FAILED / CANCELED` | 表示本片段结束，原因仅枚举；不直接代表 Run 或外部请求终态 | Go 重读许可/账本/持久回执，按失败分类恢复；不能据此释放已派发预留 |
+| `runtime_heartbeat / runtime_cancel` | 绑定 executionId 的监督消息；无正文、token 或自由文本 | 心跳对应子进程活性；取消只停止本片段，不证明供应商取消 |
+
+父进程必须检查请求/响应配对：plan 不接受 CHECKPOINTED/WAITING_RECONCILE；execute 不接受 MODEL_REQUEST/FINISHED；响应 executionId 必须匹配，未知结果的 operationId 必须匹配 permit。结构校验器**不完成这些关联检查**，也不证明租户身份有效。
+
+身份启动/刷新使用 [D4 §6.2](work-r0a-runtime-egress-design-2026-10-25.md#62-f0-r4-身份签发与父子凭据隔离设计已签已复核)的私有管道，不复用本节 Temporal 消息；父进程真实续租后才刷新 audience capability，子进程心跳本身不产生新权限。授权服务不可用、launcher 未达到内核前提或 capability 已失效时拒绝新读写/发送，不能因 activity 尚未超时继续调用。
+
+#### 引用、整数与信任边界
+
+- 所有对象拒绝未知字段；不接受 prompt/messages/content/reasoning、错误堆栈或任意 metadata。消息编码为 UTF-8 JSON，单帧最多 16 KiB；大小限制由接收边界在解析前执行，Schema 本身不限制编码字节数。
+- `StoredReference` 为 `{refId: UUID, hash: sha256}`，不是 URL、路径或 bearer token。内容代理按可信身份解析引用，核验 org/task/run、对象类型、hash 与生命周期；必须拒绝其他租户即使形状合法的引用。旧 `content://` 引用须由受信任适配层映射，不能通过改字符串前缀伪装为授权。
+- fence 是无前导零的十进制字符串，保留 PG bigint 精度；Go/Node 接收端还须解析并拒绝超过有符号 bigint 上限的值，Schema 的位数限制不代替数值范围检查。deadline/heartbeat sequence 是 JSON 安全整数，拒绝溢出，接收端同时校验实际期限与序号单调。
+- requestHash 绑定冻结的 provider/model、消息/模板版本引用、参数与输出限制，不能只是某个正文 hash；规范化算法及参与字段在 F0-R3 签收。permit.requestHash 与 intent.requestHash 必须相等，且与可信存储/账本复算结果一致。
+- Schema 不能证明无敏感内容隐写进合法 ID 字符串，也不能证明引用归属。ID/版本只从服务端记录取得，不透传模型生成标识或任意错误文本；history 脱敏仍需实际采样测试。
+- Canonical checkpoint 与模型意图/回执是 Content Store 的版本化内容，不在 Temporal history。恢复先核账、补真实回执；不能把 SDK aborted 占位回执持久化为已执行结果。内容 Schema 与恢复算法草案见 [D4 §8.1](work-r0a-runtime-egress-design-2026-10-25.md#81-f0-r3-canonical-state请求与可信回执设计已签)，仍须 F0-R3 签收与真实 Pi 恢复验证。
+
+#### 超时、取消与重复投递
+
+数值已随 F0-R1 设计签收（2026-10-28），按试点真实数据校准，位于 `RUNTIME_ACTIVITY_DRAFT`：start-to-close 16m，schedule-to-close 17m，为模型最长 15m 留出持久化/回收时间；心跳超时 30s、子进程活性间隔 10s、取消 grace 5s。实际有效 deadline 取请求、当前执行授权与 Run 剩余活跃预算的最小值；配额等待独立计时，不把旧 30m Run timeout 用作允许等待 24h 的 workflow 总期限。
+
+`maximumAttempts=1` 仅禁用 SDK 自动重试，**不是 exactly-once 证明**。重复 activity 投递、响应丢失与旧子进程仍活着的情况都必须通过片段所有权和出口持久发送门闩处理；D1/出口持久化尚未签收前，不得实现真实收费链路。任何 execute 片段超时都先核账，不能直接新建片段重发同许可。
+
+Go cancel signal 先读 DB，再请求取消 activity；父进程通过私有 IPC 投递 RuntimeCancel，在 grace 后回收仍未退出的子进程。Go 不依赖 activity 已确认取消才停止新许可；若旧进程无法确认退出，先让片段身份在出口失效并按账本对账。父进程崩溃/心跳超时、重复心跳、旧 executionId、过期 permit、成功后 checkpoint 写失败均列入真实故障矩阵。
+
+池容量不足、drain 中、运行时版本不兼容时，父进程在 `claim_runtime_execution` **之前**把片段退回为可重试的调度失败，不排队占住 slot，也不记为业务失败；已 claim 后无法启动只能走撤销/到期。本地回收完成不等于外部已停止：gate 已消费按 unknown 对账，未消费仍须同锁封口才能证明 not_sent。并发/预算、回收、drain 与升级约束见 [D4 §6.5](work-r0a-runtime-egress-design-2026-10-25.md#65-f0-r6-池并发资源预算与回收设计已签)，PR 负例见 [D4 §6.6](work-r0a-runtime-egress-design-2026-10-25.md#66-f0-r6-负例验收合同)。
+
+#### 运行结构检查
+
+从仓库根目录执行：
+
+```sh
+node --test docs/plan/assets/work-r0a-orchestration-2026-10-25/advance-runtime.test.mjs
+node src/frontend/node_modules/typescript/bin/tsc --noEmit --strict --skipLibCheck --target ES2022 --module ESNext docs/plan/assets/work-r0a-orchestration-2026-10-25/AdvanceRuntime.contract.ts
+```
+
+以上仅验证消息结构与 TS 类型，不运行 Go、Pi、Temporal、出口或 OS 隔离；结果在项目文档记录，不能用来关闭[D4 的 Phase 0 签收项](work-r0a-runtime-egress-design-2026-10-25.md#61-phase-0-执行与安全签收清单2026-10-28-设计签收)。
+
+### 5.0.1 所有权、去重与恢复矩阵（F0-R2/F0-R3，设计已签）
+
+持久表/命令与锁序见 [D1 §5.4](work-r0a-data-design-2026-10-25.md#54-f0-r2-片段所有权与发送去重增量设计已签未迁移)，Content Store 文档与可信回执见 [D4 §8.1](work-r0a-runtime-egress-design-2026-10-25.md#81-f0-r3-canonical-state请求与可信回执设计已签)。恢复由 Go 的领域活动发起；Node 不能从 schema 合法或 activity 重试自行推导派发资格。
+
+恢复先读取同一 Run 的 Task/Run/Operation、片段/gate、已提交 head；缺任一权威记录、数据库不可达、hash/版本/引用归属冲突时停止推进并告警，不降级为“从头再跑”。持久回执验证在事务外读不可变版本，应用时在事务内重新校验账本绑定。以下动作均以 current Run/取消状态为前提；终态 Run 只允许义务收尾，不重新设为 active。
+
+| 窗口 | 可证明事实 | 恢复动作 | 新模型请求 |
+|---|---|---|---|
+| 注册片段后、领取前退出 | registered，gate 不存在 | 原执行期限内可领取；过期先显式 expire，再注册新 execution；未确认旧片段失效不得并行 | 无自动发送 |
+| 领取 ACK 丢失/子进程启动不明 | active 绑定 holder，但未证明启动情况 | 同 holder 查状态，不再 fork；新父进程换 holder，等租约/硬期限后核账 | 禁止接管旧进程发送权 |
+| 意图对象写成功、head CAS 前退出 | 只有未提交候选 | 按固定 slot 找同 hash 候选并验来源；当前 holder 可补 CAS，旧 holder 失效后由新片段重建 | 先提交 pending，再授权 |
+| claim_dispatch ACK 丢失 | Operation 已 dispatching，可回读 attempt | 只恢复领域许可；仍须有效 execution 与 gate 首次消费。若片段已失效，走 seal/核对，不把同 consumer 的原 attempt 当 won | 只允许有效片段首次消费 |
+| consume 与 seal/取消竞争 | 在同锁序下决定谁先提交 | seal 先赢则 not_sent 可证明；consume 先赢则在途/unknown | seal 后旧许可不可发；consume 不再授权第二次 |
+| consume 提交后 ACK 丢失或发送前崩溃 | gate=consumed，无法证明是否已发送 | 查固定 receipt slot/供应商；无证据则 unknown/unresolved，保留配额 | 禁止 |
+| 正文写成功、回执未落地 | 有正文但无可信终态证据 | 核对供应商/可信出口观察，不能只据正文确认成功；无法确认仍 unresolved | 禁止 |
+| 回执已写、attach 未提交/ACK 丢失 | 固定 slot 有可信不可变回执 | 按原元组补 attach；若出现冲突隔离，不覆盖 | 禁止重发，可补确认 |
+| Operation/usage 已确认、settle/head 未完成 | 外部成功确定，内部步骤缺失 | 从账本读缺失步骤，幂等补核账及 canonical head；不用 markOperationUnknown | 核账完成前禁止下一次 |
+| 旧 checkpoint 指向 pending，但回执已确认 | head 落后于可信外部事实 | 新 plan 片段从旧 head+receipt 重建 ready checkpoint，校验顺序和哈希，CAS 成功后恢复 Pi | 只允许新的下一逻辑键 |
+| 仅旧片段过期后迟到成功，Run 仍 current 且未取消 | gate 已消费且回执可信，旧 execution 无提交权 | 补确认/核账；拒绝旧片段写 head，由新 plan 片段补 head 并恢复；最终发布仍需完整领域检查 | 核账/head 恢复后才允许下一逻辑键 |
+| Run 取消后迟到成功 | gate 已消费且回执可信 | 保持取消；补用量/结算，拒绝旧片段写 head、禁止发布 | 禁止 |
+| Task tombstone 或恢复后 gate 可能丢失 | 正文留存已终止，或派发权威不完整 | 保留最小计量证据/去重 tombstone；关闭派发，按 DR 核对，不凭“空记录”重新发送 | 禁止 |
+
+#### 故障验收合同
+
+下列条目均为**待执行的真实集成验收**。Schema 测试和纯 gate 模型只能先验证字段/规则，不得把顺序枚举说成数据库并发已通过。
+
+| ID | 注入点 | 必须断言 |
+|---|---|---|
+| RR-01 | 两个 Node holder 并发领取同片段；旧 seq 续租；租约过期续租 | 一个有效 holder；重复/旧心跳不续命；旧片段不能消费 gate/写 head |
+| RR-02 | 两个 egress 并发 consume，及同 invocation RPC 重试 | PG 实际只插入一个 gate、只有一次 won；上游最多一个请求，不依赖进程内去重 |
+| RR-03 | consume 的 commit/响应前后杀 Go/egress | commit 未确认不发送；commit 已提交但 ACK 丢失不再 won；无回执保持预留 |
+| RR-04 | seal/取消与 consume 并发 | 与线性化顺序一致；不能在 consumed 后证明 not_sent；取消后不发布 |
+| RR-05 | 断网/5xx/部分回答/供应商 ID 缺失 | 无完整可信证据不伪造成功/拒绝；不跨模型/供应商重发 |
+| RR-06 | 正文 put、receipt put、attach commit 各点退出 | 按固定 slot 补挂，不全库扫描猜测；正文单独存在不能证明成功；回执冲突拒绝 |
+| RR-07 | finish/record_usage/settle/head CAS 各提交点丢 ACK | 不重复用量、不重复扣配额、succeeded 不回退 unknown、head 不覆盖新版本 |
+| RR-08 | 第二/第三模型轮、Pi 恢复、含伪造 model_output 来源 | 每轮独立 Operation/许可；使用已确认公开回执；无隐藏重试/摘要调用、无原始 reasoning |
+| RR-09 | stale execution/hash/base revision/跨 org 引用 | 拒绝接管、越权读写及 head 分叉；无正文/凭据出现在 history/日志 |
+| RR-10 | 取消/删除后迟到回执，及备份恢复到 consume 之前 | 计量义务保留、正文不复活、发布为零；派发保持禁用直至权威核对完成 |
+
+执行命令（设计结构与纯模型，不调用外部服务）：
+
+```sh
+node --test docs/plan/assets/work-r0a-orchestration-2026-10-25/runtime-recovery.test.mjs
+node src/frontend/node_modules/typescript/bin/tsc --noEmit --strict --skipLibCheck --target ES2022 --module ESNext docs/plan/assets/work-r0a-orchestration-2026-10-25/RuntimeRecovery.contract.ts
+```
+
 ### 5.1 输入、信号与查询
 
 ```ts

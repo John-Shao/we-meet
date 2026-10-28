@@ -1,0 +1,127 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Work Runtime fragment wire contract draft",
+  "oneOf": [
+    { "$ref": "#/definitions/request" },
+    { "$ref": "#/definitions/result" },
+    { "$ref": "#/definitions/heartbeat" },
+    { "$ref": "#/definitions/cancel" }
+  ],
+  "definitions": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
+    "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$" },
+    "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "version": { "const": "work-runtime-fragment-v1" },
+    "reference": {
+      "type": "object", "additionalProperties": false,
+      "required": ["refId", "hash"],
+      "properties": { "refId": { "$ref": "#/definitions/uuid" }, "hash": { "$ref": "#/definitions/hash" } }
+    },
+    "nullableReference": { "anyOf": [{ "$ref": "#/definitions/reference" }, { "type": "null" }] },
+    "intent": {
+      "type": "object", "additionalProperties": false,
+      "required": ["request", "requestHash", "logicalKey"],
+      "properties": {
+        "request": { "$ref": "#/definitions/reference" },
+        "requestHash": { "$ref": "#/definitions/hash" },
+        "logicalKey": { "enum": ["model:1", "model:2", "model:3"] }
+      }
+    },
+    "permit": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operationId", "dispatchAttemptId", "requestHash"],
+      "properties": {
+        "operationId": { "$ref": "#/definitions/uuid" },
+        "dispatchAttemptId": { "$ref": "#/definitions/uuid" },
+        "requestHash": { "$ref": "#/definitions/hash" }
+      }
+    },
+    "request": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "contractVersion", "executionId", "runId", "taskId", "orgId", "snapshotId", "runtimeVersion", "fence", "deadlineUnixMs", "mode", "checkpoint", "intent", "permit"],
+      "properties": {
+        "kind": { "const": "advance_request" },
+        "contractVersion": { "$ref": "#/definitions/version" },
+        "executionId": { "$ref": "#/definitions/uuid" },
+        "runId": { "$ref": "#/definitions/uuid" },
+        "taskId": { "$ref": "#/definitions/uuid" },
+        "orgId": { "$ref": "#/definitions/id" },
+        "snapshotId": { "$ref": "#/definitions/uuid" },
+        "runtimeVersion": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._-]+$" },
+        "fence": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,18})$" },
+        "deadlineUnixMs": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "mode": { "enum": ["plan", "execute"] },
+        "checkpoint": { "$ref": "#/definitions/nullableReference" },
+        "intent": { "anyOf": [{ "$ref": "#/definitions/intent" }, { "type": "null" }] },
+        "permit": { "anyOf": [{ "$ref": "#/definitions/permit" }, { "type": "null" }] }
+      },
+      "oneOf": [
+        { "properties": { "mode": { "const": "plan" }, "intent": { "type": "null" }, "permit": { "type": "null" } } },
+        { "properties": { "mode": { "const": "execute" }, "checkpoint": { "$ref": "#/definitions/reference" }, "intent": { "$ref": "#/definitions/intent" }, "permit": { "$ref": "#/definitions/permit" } } }
+      ]
+    },
+    "result": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "contractVersion", "executionId", "state", "checkpoint"],
+      "properties": {
+        "kind": { "const": "advance_result" },
+        "contractVersion": { "$ref": "#/definitions/version" },
+        "executionId": { "$ref": "#/definitions/uuid" },
+        "state": { "enum": ["MODEL_REQUEST", "CHECKPOINTED", "WAITING_RECONCILE", "FINISHED", "FAILED", "CANCELED"] },
+        "checkpoint": { "$ref": "#/definitions/nullableReference" },
+        "intent": { "$ref": "#/definitions/intent" },
+        "receipt": { "$ref": "#/definitions/reference" },
+        "artifact": { "$ref": "#/definitions/reference" },
+        "operationId": { "$ref": "#/definitions/uuid" },
+        "reason": { "enum": ["provider_unknown", "receipt_unavailable", "invalid_context", "checkpoint_failed", "runtime_fault", "deadline_exceeded", "cancel_requested"] }
+      },
+      "oneOf": [
+        {
+          "required": ["intent"],
+          "properties": { "intent": { "$ref": "#/definitions/intent" }, "state": { "const": "MODEL_REQUEST" }, "checkpoint": { "$ref": "#/definitions/reference" }, "receipt": false, "artifact": false, "operationId": false, "reason": false }
+        },
+        {
+          "required": ["receipt"],
+          "properties": { "receipt": { "$ref": "#/definitions/reference" }, "state": { "const": "CHECKPOINTED" }, "checkpoint": { "$ref": "#/definitions/reference" }, "intent": false, "artifact": false, "operationId": false, "reason": false }
+        },
+        {
+          "required": ["operationId", "reason"],
+          "properties": { "operationId": { "$ref": "#/definitions/uuid" }, "state": { "const": "WAITING_RECONCILE" }, "reason": { "enum": ["provider_unknown", "receipt_unavailable"] }, "intent": false, "receipt": false, "artifact": false }
+        },
+        {
+          "required": ["artifact"],
+          "properties": { "artifact": { "$ref": "#/definitions/reference" }, "state": { "const": "FINISHED" }, "checkpoint": { "$ref": "#/definitions/reference" }, "intent": false, "receipt": false, "operationId": false, "reason": false }
+        },
+        {
+          "required": ["reason"],
+          "properties": { "state": { "const": "FAILED" }, "reason": { "enum": ["invalid_context", "checkpoint_failed", "runtime_fault", "deadline_exceeded"] }, "intent": false, "receipt": false, "artifact": false, "operationId": false }
+        },
+        {
+          "required": ["reason"],
+          "properties": { "state": { "const": "CANCELED" }, "reason": { "const": "cancel_requested" }, "intent": false, "receipt": false, "artifact": false, "operationId": false }
+        }
+      ]
+    },
+    "heartbeat": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "contractVersion", "executionId", "sequence", "phase"],
+      "properties": {
+        "kind": { "const": "runtime_heartbeat" },
+        "contractVersion": { "$ref": "#/definitions/version" },
+        "executionId": { "$ref": "#/definitions/uuid" },
+        "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "phase": { "enum": ["starting", "planning", "executing", "persisting", "stopping"] }
+      }
+    },
+    "cancel": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "contractVersion", "executionId", "reason"],
+      "properties": {
+        "kind": { "const": "runtime_cancel" },
+        "contractVersion": { "$ref": "#/definitions/version" },
+        "executionId": { "$ref": "#/definitions/uuid" },
+        "reason": { "enum": ["cancel_requested", "deadline_exceeded", "worker_shutdown"] }
+      }
+    }
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "F0-R3 Content Store recovery documents, draft only",
+  "oneOf": [
+    { "$ref": "#/definitions/modelRequest" },
+    { "$ref": "#/definitions/checkpoint" },
+    { "$ref": "#/definitions/receipt" }
+  ],
+  "definitions": {
+    "uuid": { "$ref": "advance-runtime.schema.json#/definitions/uuid" },
+    "reference": { "$ref": "advance-runtime.schema.json#/definitions/reference" },
+    "nullableReference": { "$ref": "advance-runtime.schema.json#/definitions/nullableReference" },
+    "hash": { "$ref": "advance-runtime.schema.json#/definitions/hash" },
+    "logicalKey": { "enum": ["model:1", "model:2", "model:3"] },
+    "versionName": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._-]+$" },
+    "safeInteger": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["orgId", "taskId", "runId", "snapshotId", "runtimeVersion"],
+      "properties": {
+        "orgId": { "$ref": "advance-runtime.schema.json#/definitions/id" },
+        "taskId": { "$ref": "#/definitions/uuid" },
+        "runId": { "$ref": "#/definitions/uuid" },
+        "snapshotId": { "$ref": "#/definitions/uuid" },
+        "runtimeVersion": { "$ref": "#/definitions/versionName" }
+      }
+    },
+    "modelRequest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "schemaVersion", "binding", "logicalKey", "input", "template", "priorReceipts", "route", "parameters"],
+      "properties": {
+        "kind": { "const": "model_request" },
+        "schemaVersion": { "const": "work-model-request-v1" },
+        "binding": { "$ref": "#/definitions/binding" },
+        "logicalKey": { "$ref": "#/definitions/logicalKey" },
+        "input": { "$ref": "#/definitions/reference" },
+        "template": { "$ref": "#/definitions/nullableReference" },
+        "priorReceipts": { "type": "array", "maxItems": 2, "uniqueItems": true, "items": { "$ref": "#/definitions/reference" } },
+        "route": {
+          "type": "object", "additionalProperties": false,
+          "required": ["provider", "model", "configRevision", "compatProfileVersion"],
+          "properties": {
+            "provider": { "enum": ["aliyun", "deepseek", "volcengine"] },
+            "model": { "$ref": "#/definitions/versionName" },
+            "configRevision": { "type": "string", "pattern": "^[1-9][0-9]{0,18}$" },
+            "compatProfileVersion": { "$ref": "#/definitions/versionName" }
+          }
+        },
+        "parameters": {
+          "type": "object", "additionalProperties": false,
+          "required": ["maxOutputTokens", "temperatureMilli", "outputFormat"],
+          "properties": {
+            "maxOutputTokens": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+            "temperatureMilli": { "type": "integer", "minimum": 0, "maximum": 2000 },
+            "outputFormat": { "const": "markdown" }
+          }
+        }
+      }
+    },
+    "completedModel": {
+      "type": "object", "additionalProperties": false,
+      "required": ["logicalKey", "requestHash", "receipt"],
+      "properties": {
+        "logicalKey": { "$ref": "#/definitions/logicalKey" },
+        "requestHash": { "$ref": "#/definitions/hash" },
+        "receipt": { "$ref": "#/definitions/reference" }
+      }
+    },
+    "checkpoint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "schemaVersion", "binding", "revision", "previous", "writerExecutionId", "input", "template", "completedModels", "phase", "pending", "artifact"],
+      "properties": {
+        "kind": { "const": "canonical_state" },
+        "schemaVersion": { "const": "work-canonical-v1" },
+        "binding": { "$ref": "#/definitions/binding" },
+        "revision": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "previous": { "$ref": "#/definitions/nullableReference" },
+        "writerExecutionId": { "$ref": "#/definitions/uuid" },
+        "input": { "$ref": "#/definitions/reference" },
+        "template": { "$ref": "#/definitions/nullableReference" },
+        "completedModels": { "type": "array", "maxItems": 3, "uniqueItems": true, "items": { "$ref": "#/definitions/completedModel" } },
+        "phase": { "enum": ["ready", "awaiting_model", "finished"] },
+        "pending": { "anyOf": [{ "$ref": "advance-runtime.schema.json#/definitions/intent" }, { "type": "null" }] },
+        "artifact": { "$ref": "#/definitions/nullableReference" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "revision": { "const": 0 } } },
+          "then": { "properties": { "previous": { "type": "null" }, "phase": { "const": "ready" }, "completedModels": { "type": "array", "maxItems": 0 } } },
+          "else": { "properties": { "previous": { "$ref": "#/definitions/reference" } } }
+        }
+      ],
+      "oneOf": [
+        { "properties": { "phase": { "const": "ready" }, "pending": { "type": "null" }, "artifact": { "type": "null" } } },
+        { "properties": { "phase": { "const": "awaiting_model" }, "pending": { "$ref": "advance-runtime.schema.json#/definitions/intent" }, "artifact": { "type": "null" }, "completedModels": { "type": "array", "maxItems": 2 } } },
+        { "properties": { "phase": { "const": "finished" }, "pending": { "type": "null" }, "artifact": { "$ref": "#/definitions/reference" }, "completedModels": { "type": "array", "minItems": 1 } } }
+      ]
+    },
+    "usage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source", "inputTokens", "outputTokens", "cachedInputTokens"],
+      "properties": {
+        "source": { "enum": ["provider", "gateway_estimate", "unavailable"] },
+        "inputTokens": { "anyOf": [{ "$ref": "#/definitions/safeInteger" }, { "type": "null" }] },
+        "outputTokens": { "anyOf": [{ "$ref": "#/definitions/safeInteger" }, { "type": "null" }] },
+        "cachedInputTokens": { "anyOf": [{ "$ref": "#/definitions/safeInteger" }, { "type": "null" }] }
+      },
+      "oneOf": [
+        { "properties": { "source": { "enum": ["provider", "gateway_estimate"] }, "inputTokens": { "$ref": "#/definitions/safeInteger" }, "outputTokens": { "$ref": "#/definitions/safeInteger" }, "cachedInputTokens": { "$ref": "#/definitions/safeInteger" } } },
+        { "properties": { "source": { "const": "unavailable" }, "inputTokens": { "type": "null" }, "outputTokens": { "type": "null" }, "cachedInputTokens": { "type": "null" } } }
+      ]
+    },
+    "receipt": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "schemaVersion", "receiptId", "binding", "logicalKey", "operationId", "dispatchAttemptId", "executionId", "requestHash", "writerGatewayId", "recordedAtUnixMs", "outcome", "providerRequestId", "content", "contentBytes", "usage", "rejectionEvidence"],
+      "properties": {
+        "kind": { "const": "model_receipt" },
+        "schemaVersion": { "const": "work-model-receipt-v1" },
+        "receiptId": { "$ref": "#/definitions/uuid" },
+        "binding": { "$ref": "#/definitions/binding" },
+        "logicalKey": { "$ref": "#/definitions/logicalKey" },
+        "operationId": { "$ref": "#/definitions/uuid" },
+        "dispatchAttemptId": { "$ref": "#/definitions/uuid" },
+        "executionId": { "$ref": "#/definitions/uuid" },
+        "requestHash": { "$ref": "#/definitions/hash" },
+        "writerGatewayId": { "$ref": "#/definitions/uuid" },
+        "recordedAtUnixMs": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "outcome": { "enum": ["succeeded", "rejected_not_executed"] },
+        "providerRequestId": { "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9._:-]+$" }, { "type": "null" }] },
+        "content": { "$ref": "#/definitions/nullableReference" },
+        "contentBytes": { "type": "integer", "minimum": 0, "maximum": 262144 },
+        "usage": { "$ref": "#/definitions/usage" },
+        "rejectionEvidence": { "$ref": "#/definitions/nullableReference" }
+      },
+      "oneOf": [
+        { "properties": { "outcome": { "const": "succeeded" }, "content": { "$ref": "#/definitions/reference" }, "contentBytes": { "type": "integer", "minimum": 1 }, "rejectionEvidence": { "type": "null" } } },
+        { "properties": { "outcome": { "const": "rejected_not_executed" }, "content": { "type": "null" }, "contentBytes": { "const": 0 }, "rejectionEvidence": { "$ref": "#/definitions/reference" }, "usage": { "type": "object", "properties": { "source": { "const": "provider" }, "inputTokens": { "const": 0 }, "outputTokens": { "const": 0 }, "cachedInputTokens": { "const": 0 } } } } }
+      ]
+    }
+  }
+}

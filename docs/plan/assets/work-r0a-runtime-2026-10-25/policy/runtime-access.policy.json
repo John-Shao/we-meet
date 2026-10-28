@@ -1,0 +1,82 @@
+{
+  "version": "work-runtime-access-v1",
+  "approval": "design_signed",
+  "evidence": "design_model_only",
+  "sandboxProof": false,
+  "capability": {
+    "format": "opaque_random",
+    "randomBytes": 32,
+    "storedRepresentation": "sha256",
+    "maxTtlSeconds": 30,
+    "positiveAuthorizationCacheSeconds": 0,
+    "requiresOnlineExecutionCheck": true,
+    "childCanRenewLease": false,
+    "childCanIssueCapabilities": false
+  },
+  "audiences": {
+    "work-content": {
+      "plan": ["read_bound_object", "write_model_request", "write_checkpoint_candidate"],
+      "execute": ["read_bound_object", "write_checkpoint_candidate"]
+    },
+    "work-egress": {
+      "plan": [],
+      "execute": ["invoke_bound_model"]
+    }
+  },
+  "authorityActions": {
+    "pool_parent": ["register_holder", "claim_execution", "renew_execution", "issue_capabilities", "query_own_execution"],
+    "go_worker": ["register_execution", "revoke_execution", "seal_not_sent", "commit_checkpoint", "finalize_receipt"],
+    "egress_service": ["consume_delivery", "write_receipt_slot", "attach_receipt"],
+    "content_proxy": ["authorize_content", "register_candidate"]
+  },
+  "services": {
+    "authority": {
+      "logicalService": "work-control-internal",
+      "port": 8443,
+      "transport": "mtls",
+      "callers": ["pool_parent", "go_worker", "egress_service", "content_proxy"]
+    },
+    "content": {
+      "logicalService": "work-control-internal",
+      "port": 8444,
+      "transport": "tls",
+      "callers": ["runtime_child"]
+    },
+    "model": {
+      "logicalService": "work-egress",
+      "port": 8445,
+      "transport": "tls",
+      "callers": ["runtime_child"]
+    },
+    "temporal": {
+      "logicalService": "temporal-frontend",
+      "port": 7233,
+      "transport": "mtls",
+      "callers": ["pool_parent", "go_worker"]
+    }
+  },
+  "isolation": {
+    "launcher": "unprivileged_native_before_node_exec",
+    "noNewPrivileges": true,
+    "parentDumpable": false,
+    "landlockMinimumAbi": 3,
+    "landlockRightsFallback": false,
+    "seccompRequired": true,
+    "allowRootOrAddedCapabilities": false,
+    "inheritedEnvironment": "explicit_allowlist",
+    "inheritedFileDescriptors": "explicit_allowlist",
+    "privatePerExecutionDirectories": true,
+    "childCanReadProc": false,
+    "childCanCreateProcesses": false,
+    "childCanSignalOtherProcesses": false,
+    "nodePermissionModelIsSecurityBoundary": false
+  },
+  "network": {
+    "policyBoundary": "pod_not_process",
+    "runtimeInternet": false,
+    "runtimeMetadata": false,
+    "runtimeDirectObjectStore": false,
+    "dns": "cluster_internal_only_no_external_recursion",
+    "positiveClaimsRequireLiveCniTests": true
+  }
+}

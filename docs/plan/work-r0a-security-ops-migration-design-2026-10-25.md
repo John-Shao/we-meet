@@ -184,6 +184,45 @@ node pilot-capacity-model.mjs
 - 验证：R1 前 stub-host 剥离演练；R4 独立售卖前独立部署/计费/品牌打包；R0a 不扩范围。
 - 迁移/导出：Work 数据可导出，Host 目录投影可重建（投影只由 `work_directory` 经 `sync_*` 写入，删库重放即可恢复）；见 [D1 §4.4](work-r0a-data-design-2026-10-25.md) 与 [host-ports.mjs](assets/work-r0a-design-2026-10-25/host-ports.mjs)。
 
+### 7.5 迁移台账接管与切换合同（2026-10-28 设计签收）
+
+本节是[重做计划](work-r0a-architecture-rebuild-plan-2026-10-28.md) Phase 0 第 6 项的设计签收记录（John 主签，Lily 于 2026-10-28 复核通过，未附加条件；解除复核前不实施限制，接受漂移即中止、周期可能拉长的代价），**不是已执行的接管，也没有演练记录**。随签条件：**不提供强制接管通道**——发现任何对象/权限/校验和漂移即停下对齐，不允许工单批准的强行 stamp，也不提供破坏性回滚。资产：[migration-takeover.policy.json](assets/work-r0a-rebuild-2026-10-28/migration-takeover.policy.json) + [模型](assets/work-r0a-rebuild-2026-10-28/migration-takeover.model.mjs) + [测试](assets/work-r0a-rebuild-2026-10-28/migration-takeover.test.mjs)；模型不连数据库、不执行 SQL，也不证明任何真实库可被接管。
+
+#### 单写入者与前置条件
+
+Go 迁移运行器以 advisory lock 串行化，**同一时刻只有一个写入者**：第二个运行器等锁后变为 no-op，不重复应用。应用角色永不获得迁移权限；旧 Django 迁移入口与新运行器不得同时可写。前置检查要求 `work_api`/`work_worker`/`work_ops`/`work_directory` 四个角色存在且为 NOLOGIN，基线 revision 与校验和已钉住；任一不满足即拒绝启动。
+
+#### 接管判定
+
+| 库状态 | 行为 |
+|---|---|
+| 空库 | 按签收顺序初始化角色前置、schema 基线与后续增量；逐步记录版本/校验和/成功状态 |
+| 已有库 | 核验表、函数、约束、索引、RLS 策略与 GRANT 后映射到新台账 `work.schema_migration`，**只执行未应用增量**；原 `django_migrations` 记录保留为审计证据 |
+| 漂移 | 任一对象/权限/校验和不符即拒绝接管并输出差异；不盲目 stamp 成成功 |
+
+已发布迁移正文不可修改：同版本异校验和报 `published_migration_modified`；版本必须单调；重复运行是 no-op。增量与台账在同一事务提交；确有必要的非事务步骤（如并发建索引）必须带具名恢复协议才允许执行，否则拒绝。
+
+#### 恢复与切换
+
+恢复只有两条路：前向修复，或经演练的备份恢复；不提供 `DROP SCHEMA` / `migrate work zero` 式破坏性回滚。切换要求回归全绿且旧执行已排空（排空而非强杀），随后切路由并按模块摘除宿主引用；切换期间留存与对账义务不中断。回退只允许与当前 schema 兼容的已验证构建，**不恢复双执行、不回退数据库、不重放已付费请求**。
+
+#### 负例验收合同（未执行）
+
+| ID | 场景 | 必须证明 |
+|---|---|---|
+| MT-01 | 两个运行器并发、应用角色尝试迁移、旧入口仍可写 | 锁串行化后 no-op；应用角色与双写入者被拒 |
+| MT-02 | 角色缺失或可登录、基线未钉住 | 启动前拒绝，不创建对象 |
+| MT-03 | 空库初始化与含代表性 Task/Run/Operation/用量数据的旧库接管 | 空库按序建立；旧库只应用未应用增量，绝不重放整份 schema |
+| MT-04 | 对象/权限/RLS/校验和漂移 | 拒绝并输出差异；不 stamp、不静默修补 |
+| MT-05 | 同版本改正文、版本回退、重复运行 | 分别拒绝与 no-op；台账与增量同事务 |
+| MT-06 | 非事务步骤中断、提交前后中断 | 具名协议恢复；无半应用且台账记成功的状态 |
+| MT-07 | 请求 `DROP SCHEMA`/`migrate zero`/未演练恢复 | 一律拒绝；只允许前向修复或已演练恢复 |
+| MT-08 | 回归未绿/旧执行未排空就切换 | 阻断切换；排空而非强杀 |
+| MT-09 | 用不兼容构建回退、尝试恢复双执行 | 拒绝；不回退数据库、不重放付费请求 |
+| MT-10 | 切换/回退期间的留存与对账 | 义务持续执行，不因停用 Work 而中止 |
+
+运行设计模型：`node --test docs/plan/assets/work-r0a-rebuild-2026-10-28/migration-takeover.test.mjs`。它只验证判定规则与策略常量；MT 条目须在真实 PG（空库 + 既有数据库副本）上执行后才算证据；`approval` 为 `design_signed`，`rehearsed` 仍为 `false`。
+
 ## 8. 试点开通、支持与数据处置
 
 每家组织：

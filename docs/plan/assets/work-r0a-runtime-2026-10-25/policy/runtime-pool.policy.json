@@ -1,0 +1,78 @@
+{
+  "version": "work-runtime-pool-v1",
+  "approval": "design_signed",
+  "evidence": "design_model_only",
+  "loadTested": false,
+  "sandboxProof": false,
+  "concurrency": {
+    "maxChildrenPerPod": 2,
+    "maxChildrenWithoutCgroupDelegation": 1,
+    "cgroupSubtreeDelegationRequired": true,
+    "localAdmissionIsFinalGate": true,
+    "prewarmChildren": false,
+    "reuseChildAcrossRuns": false,
+    "rejectBeforeClaim": true
+  },
+  "perChildBudget": {
+    "cpuMillis": 1000,
+    "memoryMiB": 1024,
+    "pids": 256,
+    "scratchMiB": 256,
+    "scratchCountsAgainstPodMemory": true,
+    "fragmentBudgetMs": 960000,
+    "startBudgetMs": 15000,
+    "cancelGraceMs": 5000
+  },
+  "podBudget": {
+    "parentReserveMemoryMiB": 256,
+    "overheadMemoryMiB": 128,
+    "qos": "guaranteed",
+    "requestsEqualLimits": true,
+    "terminationGracePeriodSeconds": 1020
+  },
+  "reclamation": {
+    "childDiesWithParent": true,
+    "readyHandshakeTimeoutMs": 15000,
+    "forceKillAfterCancelGrace": true,
+    "scratchPerExecution": true,
+    "staleScratchSweepOnStart": true,
+    "localReclaimProvesNotSent": false,
+    "restartFromLocalResidue": false
+  },
+  "drain": {
+    "stopPollingFirst": true,
+    "allowRenewDuringDrain": true,
+    "acceptNewFragmentsDuringDrain": false,
+    "awaitInFlightMs": 960000,
+    "hardKillFallbackRequiresProductDisclosure": true
+  },
+  "upgrade": {
+    "executionBoundRuntimeVersion": true,
+    "rejectIncompatibleCheckpointClaim": true,
+    "perRunPodHardGates": [
+      "capabilities_beyond_three_text_tools",
+      "validated_gvisor_or_equivalent_available",
+      "external_per_run_sandbox_promise"
+    ],
+    "runtimeClassAloneIsIsolationEvidence": false
+  },
+  "lateFragment": {
+    "staleHolderAllowed": false,
+    "staleGenerationAllowed": false,
+    "staleExecutionAllowed": false,
+    "lateActivityResultAdvancesHead": false
+  },
+  "observability": {
+    "requiredSignals": [
+      "local_concurrency",
+      "admission_rejections",
+      "child_start_latency",
+      "oom_and_force_kill",
+      "drain_duration",
+      "orphan_sweep",
+      "scratch_usage"
+    ],
+    "highCardinalityIdentifiersInMetrics": false,
+    "capacityNumbersSignedOff": false
+  }
+}
