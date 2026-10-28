@@ -345,6 +345,13 @@ backend:
     - "meet.wsgi:application"
 
   migrate:
+    # Dedicated Work migration login; runtime keeps DB_USER=meet.
+    envVars:
+      DB_USER: meet_migrator
+      DB_PASSWORD:
+        secretKeyRef:
+          name: meet-migrator-db
+          key: password
     command:
       - "/bin/sh"
       - "-c"

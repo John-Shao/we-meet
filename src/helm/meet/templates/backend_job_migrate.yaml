@@ -1,5 +1,6 @@
 {{- if .Values.backend.jobs.enabled }}
-{{- $envVars := include "meet.common.env" (list . .Values.backend) -}}
+{{- $envVars := deepCopy (.Values.backend.envVars | default dict) -}}
+{{- $_ := mergeOverwrite $envVars (.Values.backend.migrate.envVars | default dict) -}}
 {{- $fullName := include "meet.backend.fullname" . -}}
 {{- $component := "backend-migrate" -}}
 apiVersion: batch/v1
@@ -56,7 +57,7 @@ spec:
           {{- end }}
           env:
             {{- if $envVars }}
-            {{- $envVars | indent 12 }}
+            {{- include "meet.env.transformDict" $envVars | indent 12 }}
             {{- end }}
           {{- with .Values.backend.securityContext }}
           securityContext:
