@@ -156,3 +156,13 @@ SELECT has_table_privilege(current_user, 'work.member', 'SELECT') AS member_sele
 实测：角色成员 `work_control_login` + `work_directory`；两个 `*_select` 均为 `f`；`mark_members_absent` EXECUTE 为 `t`；`SET ROLE work_directory` 成功、`SET ROLE work_owner` 被拒（`permission denied to set role "work_owner"`）；直接读 `work.member` 返回 42501。密码只存 `/root/work-secrets.env` 的 `PG_WORK_DIRECTORY_PASSWORD`；控制面部署必须使用该登录，不得改用 `work_owner`/迁移登录。
 
 
+
+## 9. 生产后端发布（2026-10-28）
+
+- **合并**：PR #10 以 rebase 合并到 `aliyun-dev`，merge HEAD `547f3bcb7dbf565bb0c05a76249e43a212890b46`；push 事件 [Release guard 40668936366](https://github.com/John-Shao/we-meet/actions/runs/40668936366) 通过（backend-boundaries/frontend-artifact/deployment-boundaries/desktop-boundaries 全绿）。
+- **镜像**：`jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:547f3bcb7`（由同一 tree 构建；`prometheus-client 0.24.1`、Django `manage.py check` 通过）。
+- **运行面**：`meet-backend`、`meet-celery-backend`、`meet-celery-beat` 已滚动到 `547f3bcb7`；frontend/summary/agents 保持原 tag。发布脚本 `release-meet.sh backend` 退出 0。
+- **数据层**：生产 DB 已建 7 个 NOLOGIN Work 角色；`core.0235_work_directory_fields` 与 `work.0001`–`0003` 已应用（`migration_0235=1`、`work` 86 个函数、3 个 `core_*directory*` 触发器）。首次发布前两次 Helm 失败分别为：Work 角色缺失、`meet` 无 `work_owner` 成员；均按 D-04 处理。
+- **安全边界**：`workHost.enabled` 仍为 false；无 `/work-host` Ingress，`GET https://meet.we-meet.online/work-host/v2/orgs` 只返回前端 SPA fallback（`text/html`），Host API 未暴露。
+- **未关闭**：生产 CA/`work-host-ca` Secret 与 CN=`work-control-plane` 客户端证书未创建；Work 控制面/`work-directory-sync` 未部署；生产负例矩阵未执行，`realHostIntegrationVerified=false`。
+- **安全债（D-04）**：生产迁移与应用共用 `meet` 登录，已 `GRANT work_owner TO meet` 让 Helm pre-upgrade migrate 可 `SET ROLE`；运行时因此可提权到 `work_owner`。启用 Host 前必须拆分专用迁移身份并撤销该成员关系。
