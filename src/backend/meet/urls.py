@@ -18,14 +18,11 @@ from core.api.work_host import (
     WorkHostSessionVerifyView,
 )
 
-from work.observability.views import MetricsView as WorkMetricsView
 
 urlpatterns = [
     # Django admin moved off /admin/ so the front path is free for the
     # management console (M 端) SPA served at /admin/. See the M 端 plan.
     path("dj-admin/", admin.site.urls),
-    path("work/v1/", include("work.api.urls")),
-    path("work/metrics", WorkMetricsView.as_view(), name="work-metrics"),
     path(
         "work-host/v2/sessions/verify",
         WorkHostSessionVerifyView.as_view(),

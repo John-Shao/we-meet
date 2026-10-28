@@ -23,7 +23,6 @@ on:
       - 'scripts/onboarding/**'
       - 'scripts/supply-chain/**'
       - 'src/work/**'
-      - 'src/backend/work/**'
       - 'src/backend/meet/urls.py'
       - 'src/backend/core/api/work_host.py'
       - 'src/backend/core/models.py'
@@ -36,7 +35,6 @@ on:
       - 'src/backend/pyproject.toml'
       - 'src/backend/uv.lock'
       - 'deploy/aliyun/work-roles.sql'
-      - 'deploy/aliyun/secrets/work-db.yaml'
       - '.github/workflows/work-r0a-gates.yml'
   push:
     branches:
@@ -62,7 +60,6 @@ on:
       - 'scripts/onboarding/**'
       - 'scripts/supply-chain/**'
       - 'src/work/**'
-      - 'src/backend/work/**'
       - 'src/backend/meet/urls.py'
       - 'src/backend/core/api/work_host.py'
       - 'src/backend/core/models.py'
@@ -75,7 +72,6 @@ on:
       - 'src/backend/pyproject.toml'
       - 'src/backend/uv.lock'
       - 'deploy/aliyun/work-roles.sql'
-      - 'deploy/aliyun/secrets/work-db.yaml'
       - '.github/workflows/work-r0a-gates.yml'
 
 permissions:
@@ -141,8 +137,8 @@ jobs:
           R0A_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/work_r0a
         run: python3 r0a-concurrency-smoke.py
 
-  backend-migration:
-    name: E1 migration, smoke, races and rollback
+  backend-host-tests:
+    name: Django Host directory and session tests (PG16)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -181,9 +177,7 @@ jobs:
       DB_USER: dinum
       DB_PASSWORD: pass
       PGPASSWORD: pass
-      R0A_DATABASE_URL: postgresql://dinum:pass@localhost:5432/work_r0a_race
       REDIS_URL: redis://localhost:6379/1
-      WORK_PSQL_REQUIRED: '1'
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -191,41 +185,12 @@ jobs:
           python-version: '3.13'
       - uses: astral-sh/setup-uv@v7
       - name: Install backend dependencies
-        run: uv sync --locked --all-extras
-      - name: Install PostgreSQL client
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
-      - name: Migrated SQL matches the design asset
-        run: python work/sql/check_schema_sync.py
-      - name: Error catalog matches the design asset
-        run: cmp work/api/error-codes.json ../../docs/plan/assets/work-r0a-design-2026-10-25/error-codes.json
-      - name: Provision roles (D-04)
-        run: psql -h localhost -U dinum -d work_r0a -v ON_ERROR_STOP=1 -f ../../deploy/aliyun/work-roles.sql
-      - name: Apply Work migrations
-        run: uv run python manage.py migrate work
-      - name: Show Work migrations
-        run: uv run python manage.py showmigrations work
-      - name: Run 148 smoke assertions on the migrated schema
-        run: psql -h localhost -U dinum -d work_r0a -v ON_ERROR_STOP=1 -f ../../docs/plan/assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql
-      - name: Create the disposable race database
-        run: psql -h localhost -U dinum -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE work_r0a_race"
-      - name: Run the nine concurrency races
-        env:
-          R0A_SCHEMA_SQL: ${{ github.workspace }}/src/backend/work/sql/r0a_schema.sql
-          R0A_LOG_FILE: ${{ runner.temp }}/work-race.json
-        run: uv run python ../../docs/plan/assets/work-r0a-design-2026-10-25/r0a-concurrency-smoke.py
-      - name: Roll back, verify roles stay, reapply
-        run: |
-          uv run python manage.py migrate work zero
-          psql -h localhost -U dinum -d work_r0a -Atc "SELECT to_regclass('work.task') IS NULL" | grep -qx t
-          psql -h localhost -U dinum -d postgres -Atc "SELECT count(*) FROM pg_roles WHERE rolname LIKE 'work\\_%'" | grep -qx 7
-          uv run python manage.py migrate work
-          psql -h localhost -U dinum -d work_r0a -Atc "SELECT to_regclass('work.task') IS NOT NULL" | grep -qx t
-      - name: Run the Work pytest gates
+        run: uv sync --locked
+      - name: Run Host directory and session tests
         run: >-
-          uv run pytest work/tests core/tests/test_work_host_session_verify.py
+          uv run pytest core/tests/test_work_host_session_verify.py
           core/tests/test_work_host_org_discovery.py core/tests/test_work_directory_fields.py
           -q --create-db
-          --cov=work/api --cov-report=term-missing --cov-fail-under=80
 
   go-migrate:
     name: Go migration, RLS, API and directory sync (PG16)

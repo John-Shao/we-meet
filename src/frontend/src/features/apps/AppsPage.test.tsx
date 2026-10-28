@@ -74,14 +74,13 @@ beforeEach(() => {
 })
 
 describe('App navigation and favorites', () => {
-  it('shows six primary destinations and opens existing modules directly', () => {
+  it('shows five primary destinations and opens existing modules directly', () => {
     mount()
     const primary = screen.getAllByTestId(/^rail-\//)
     expect(primary.map((link) => link.getAttribute('href'))).toEqual([
       '/im',
       '/assistant',
       '/meeting',
-      '/work',
       '/docs',
       '/apps',
     ])

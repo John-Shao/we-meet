@@ -123,7 +123,7 @@ class Base(Configuration):
         }
     }
     DATABASES["default"].setdefault("OPTIONS", {}).setdefault(
-        "options", "-c search_path=public,work"
+        "options", "-c search_path=public"
     )
     DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
@@ -455,8 +455,6 @@ class Base(Configuration):
         # and only looks at the finished response. It never touches the DB —
         # see core/middleware/activity.py.
         "core.middleware.activity.ActivityMiddleware",
-        # Work R0a: correlation id + metadata-only request metrics (E7).
-        "work.api.middleware.WorkObservabilityMiddleware",
     ]
 
     AUTHENTICATION_BACKENDS = [
@@ -469,7 +467,6 @@ class Base(Configuration):
         # Meet
         "core",
         "demo",
-        "work",
         "drf_spectacular",
         # Third party apps
         "corsheaders",
@@ -955,29 +952,6 @@ class Base(Configuration):
         ),
     }
 
-    # Work R0a — Temporal orchestration (E4)
-    # Self-hosted Temporal server for workflow execution.
-    # See: docs/plan/work-r0a-orchestration-design-2026-10-25.md §4
-    TEMPORAL_ADDRESS = values.Value(
-        "temporal-server.work-staging.svc.cluster.local:7233",
-        environ_name="TEMPORAL_ADDRESS",
-        environ_prefix=None,
-    )
-    TEMPORAL_NAMESPACE = values.Value(
-        "default",
-        environ_name="TEMPORAL_NAMESPACE",
-        environ_prefix=None,
-    )
-    TEMPORAL_API_KEY = SecretFileValue(
-        environ_name="TEMPORAL_API_KEY",
-        environ_prefix=None,
-        default=None,
-    )
-    TEMPORAL_TLS = values.BooleanValue(
-        False,
-        environ_name="TEMPORAL_TLS",
-        environ_prefix=None,
-    )
     # The meet ingress verifies the Work control-plane client certificate and
     # passes it as ssl-client-cert; this view verifies it again against the CA.
     WORK_HOST_MTLS_CA_PEM = values.Value(
@@ -2036,11 +2010,6 @@ class Production(Base):
     configuration (and derived configurations):
     ALLOWED_HOSTS=["foo.com", "foo.fr"]
     """
-
-    # Work owns its own database; the meet deployment must never create or
-    # migrate the Work schema. CI/test configurations still run the migrations
-    # to validate the SQL assets.
-    MIGRATION_MODULES = {"work": None}
 
     # Security
     ALLOWED_HOSTS = [
