@@ -19,7 +19,11 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
-    nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
+    # ingress-nginx applies auth-tls-* per host, not per path: "on" would make
+    # every request on meet.we-meet.online require a client certificate.
+    # "optional" still verifies a presented cert; Django rejects missing/wrong
+    # certs on /work-host itself.
+    nginx.ingress.kubernetes.io/auth-tls-verify-client: "optional"
     nginx.ingress.kubernetes.io/auth-tls-secret: {{ printf "%s/%s" .Release.Namespace .Values.workHost.caSecretName | quote }}
     nginx.ingress.kubernetes.io/auth-tls-pass-certificate-to-upstream: "true"
     nginx.ingress.kubernetes.io/auth-tls-verify-depth: "1"
