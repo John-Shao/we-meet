@@ -288,7 +288,9 @@ backend:
 
   ## @param backend.migrate.command backend migrate command
   ## @param backend.migrate.restartPolicy backend migrate job restart policy
+  ## @param backend.migrate.envVars Override environment variables for the migrate job only
   migrate:
+    envVars: {}
     command:
       - "/bin/sh"
       - "-c"
