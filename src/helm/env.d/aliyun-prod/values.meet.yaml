@@ -30,6 +30,10 @@ aiBackend:
 
 backend:
   replicas: 1
+  networkPolicy:
+    enabled: true
+    # meet ECS node (ingress-nginx hostNetwork); update if the node moves.
+    nodeCIDR: 172.16.0.4/32
 
   resources:
     requests:
