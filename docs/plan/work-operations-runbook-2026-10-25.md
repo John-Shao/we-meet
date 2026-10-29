@@ -410,6 +410,14 @@ env 结构见 `src/work/deploy/ecs/work-worker.env.example`（占位值，不含
 替换 provider key 后执行 `systemctl restart work-worker`，不需要重新安装 unit。
 `work-healthcheck.sh` 已改为仅在 unit 被 enable 时检查 worker，避免未启用阶段误报。
 
+### 5.12 Work 前端发布（2026-10-29）
+
+Work 前端与 meet 同源，代码在 `src/frontend/src/features/work/r0a`，随 `meet-frontend`
+镜像发布，不单独部署 Work 容器。2026-10-29 发布 `meet-frontend:6126a0ef6`（Helm revision 519）；
+浏览器真实登录跑通 `/work` 提交 → SSE → 成果 Markdown 预览 → 下载 → 验收（task
+`7347c43e-a9ff-4464-8a3f-e1bf62011d1a`，无 console/page error）。回滚到上一版前端：
+`bash deploy/aliyun/release-meet.sh --tag b5049d451 frontend`。
+
 ## 6. 容量证据
 
 ### 6.1 当前 DDL 烟雾（2026-10-25）
