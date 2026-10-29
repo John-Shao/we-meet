@@ -371,12 +371,12 @@ mTLS 透传；同命名空间 agent 被攻破仍可伪造 `Ssl-Client-Cert`。
 - 部署：`work-relay.service` + `src/work/deploy/ecs/work-relay.service`；修改二进制或 env 后
   `daemon-reload`/restart。
 - 验证（2026-10-29）：生产 relay active；合成 `content_shred` 行被领取并 ACK
-  （`delivered_at` 非空、attempts=1），随后删除该合成行，生产 outbox 归零；无真实
-  start/cancel 正向证据，因为没有任务/worker。
-- 边界：RunWorkflow worker 代码与 OpenAI-compatible/reference runtime 已实现但**未部署**；
-  生产已 provision policy/quota，但没有 Work 专属 provider key/runtime，workflow 仍会等待，
-  Run 仍是 `queued`，**不能宣称已执行**。0005 已把 `work.run.workflow_id` 统一为
-  `run:<run_id>`；无 Prometheus 指标/积压告警；多实例 relay 未验证。
+  （`delivered_at` 非空、attempts=1），随后删除该合成行，生产 outbox 归零；当时无任务/worker，
+  无真实 start/cancel 正向证据；后续 worker 已启用并完成一次真实 start→succeeded（见 §5.11），
+  cancel 正向证据仍缺。
+- 边界：RunWorkflow worker 代码与 OpenAI-compatible/reference runtime 已实现并在 §5.11 启用
+  （临时百炼 key）；Work 专属 provider key 待替换；多步/unknown 对账未验证；0005 已把
+  `work.run.workflow_id` 统一为 `run:<run_id>`；无 Prometheus 指标/积压告警；多实例 relay 未验证。
 
 ### 5.11 RunWorkflow worker（2026-10-29，pilot/reference）
 
@@ -394,16 +394,20 @@ worker 启动前会调用 `work.ensure_quota_account` 补齐后续月份。
 
 - 新增 `openai_compatible` runtime（OpenAI chat-completions 协议），支持 aliyun/volcengine/deepseek
   供应商名；单测用本地 stub 验证请求、usage 与响应解析。
-- **尚未启用**：Work ECS 没有 Work 专属的 provider base URL/API key；meet 的 DashScope
-  key 属于 meet 边界，未复制复用。配置 `WORK_MODEL_*` 后才能启动 worker；否则会因启动校验失败
-  而不启动，避免 reference/空 provider 产生假执行。
+- **临时启用（2026-10-29，用户授权）**：`/etc/work/work-worker.env` 复用 meet 的百炼
+  `DASHSCOPE_API_KEY`（`qwen3.8-flash`，`https://dashscope.aliyuncs.com/compatible-mode/v1`，
+  provider `aliyun`），worker 已 enabled/active。真实任务 `ed67eb84-8897-4d4d-9d20-c952ae33bad3`
+  走通 `queued → active → awaiting_acceptance`：artifact `sha256:9950…`（695 bytes）、settled
+  527 tokens、`provider_request_id=chatcmpl-7c25…`，验收 200 后 completed。Work 专属 key
+  下来后替换 `WORK_MODEL_API_KEY` 并 `systemctl restart work-worker`；该 key 只留在 640 env
+  文件，不写入仓库。
 - 真实 provider/egress、Pi/Node runtime、operation 心跳与 unknown 对账仍未实现；`ExecuteStep`
   一次活动完成单步，不是 F0-R1 的 plan/execute 片段协议。
 
-部署资产已安装：`/usr/local/bin/work-worker` 与 `work-worker.service` 已存在但
-**disabled/inactive**，尚无 `/etc/work/work-worker.env`。启用前需写入 Work 专属
-`WORK_MODEL_BASE_URL`/`WORK_MODEL_API_KEY`/`WORK_MODEL_NAME`/`WORK_MODEL_PROVIDER`
-及 DB/Content/Temporal/quota 配置，然后 `systemctl enable --now work-worker`。
+部署资产已安装：`/usr/local/bin/work-worker`、`work-worker.service` 与
+`/etc/work/work-worker.env`（root:work-control 640）已就位，worker 已 enabled/active。
+env 结构见 `src/work/deploy/ecs/work-worker.env.example`（占位值，不含真实密钥）；
+替换 provider key 后执行 `systemctl restart work-worker`，不需要重新安装 unit。
 `work-healthcheck.sh` 已改为仅在 unit 被 enable 时检查 worker，避免未启用阶段误报。
 
 ## 6. 容量证据
