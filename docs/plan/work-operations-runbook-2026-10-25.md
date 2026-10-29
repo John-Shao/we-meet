@@ -318,7 +318,8 @@ mTLS 透传；同命名空间 agent 被攻破仍可伪造 `Ssl-Client-Cert`。
 
 - 未接 OSS 异地备份、对象生命周期、key_version 重加密或内容删除清扫；主密钥和该目录必须单独
   纳入备份/恢复演练，丢失主密钥将使正文不可恢复。
-- 目录 `/var/lib/work/content` 应 `work-control:work-control 700`；对象文件名不含用户输入。
+- 目录 `/var/lib/work/content` 应 `work-control:work-control 700`；`work-api.service` 使用
+  `ProtectSystem=strict`，必须保留 `ReadWritePaths=/var/lib/work/content`，否则服务启动失败；对象文件名不含用户输入。
 - 输入 `POST /work/v1/inputs` 需要 CSRF、非 viewer 席位；正文上限 goal 2000 字符、background
   4000 字符，响应只含 `input_ref/content_hash/bytes/expires_at`。
 - 验证：`curl` 无会话 401；本地测试覆盖加密回读、幂等重放、冲突和 viewer。接 OSS 前不要把
