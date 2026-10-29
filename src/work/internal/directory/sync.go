@@ -88,6 +88,11 @@ func Sync(ctx context.Context, discovery Discovery, writer ProjectionWriter, opt
 
 	orgs, err := discovery.ListOrgs(ctx)
 	if err != nil {
+		record(ItemError{
+			Scope:   "host",
+			Code:    errorCode(err),
+			Message: fmt.Sprintf("list Host organizations: %v", err),
+		})
 		return report, fmt.Errorf("list Host organizations: %w", err)
 	}
 	for _, org := range orgs {
@@ -106,6 +111,12 @@ func Sync(ctx context.Context, discovery Discovery, writer ProjectionWriter, opt
 		}
 	}
 	if options.OrgID != "" && report.OrgsTotal == 0 {
+		record(ItemError{
+			Scope:   "org",
+			OrgID:   options.OrgID,
+			Code:    "org_not_found",
+			Message: "organization was not returned by Host",
+		})
 		return report, fmt.Errorf("organization %q was not returned by Host", options.OrgID)
 	}
 	return report, nil

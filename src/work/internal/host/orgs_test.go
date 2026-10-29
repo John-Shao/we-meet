@@ -99,6 +99,35 @@ func TestListMembersSendsRevisionWatermark(t *testing.T) {
 	}
 }
 
+func TestDirectoryRowsPreserveCodeOwnerGaps(t *testing.T) {
+	server, pki := startHostServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/work-host/v2/orgs" {
+			fmt.Fprint(w, `{"items":[{"org_id":"org_1","name":null,"status":"active","home_region":null,"revision":null,"gaps":["name","home_region","revision"]}],"next_cursor":null}`)
+			return
+		}
+		fmt.Fprint(w, `{"items":[{"subject_id":null,"status":"active","role":null,"work_seat":false,"revision":null,"gaps":["subject_id","role","revision"]}],"next_cursor":null}`)
+	})
+	client := newClient(t, server.URL, pki, time.Now())
+
+	orgs, err := client.ListOrgs(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(orgs) != 1 || orgs[0].OrgID != "org_1" || orgs[0].Revision != 0 ||
+		len(orgs[0].Gaps) != 3 {
+		t.Fatalf("org = %#v", orgs)
+	}
+	members, err := client.ListMembers(context.Background(), "org_1", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(members) != 1 || members[0].SubjectID != "" || members[0].Role != "" ||
+		members[0].Revision != 0 || len(members[0].Gaps) != 3 {
+		t.Fatalf("member = %#v", members)
+	}
+}
+
 func TestListOrgsRejectsProtocolViolations(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -113,6 +142,8 @@ func TestListOrgsRejectsProtocolViolations(t *testing.T) {
 		{"missing org field", http.StatusOK, `{"items":[{"org_id":"org_1","name":"Acme","status":"active","home_region":"cn-north","revision":1}],"next_cursor":null}`, "host_field_gap"},
 		{"extra org field", http.StatusOK, `{"items":[{"org_id":"org_1","name":"Acme","status":"active","home_region":"cn-north","revision":1,"gaps":[],"extra":1}],"next_cursor":null}`, "directory_protocol_invalid"},
 		{"bad org status", http.StatusOK, `{"items":[{"org_id":"org_1","name":"Acme","status":"deleted","home_region":"cn-north","revision":1,"gaps":[]}],"next_cursor":null}`, "directory_protocol_invalid"},
+		{"bad home region", http.StatusOK, `{"items":[{"org_id":"org_1","name":"Acme","status":"active","home_region":"CN","revision":1,"gaps":[]}],"next_cursor":null}`, "directory_protocol_invalid"},
+		{"empty name without gap", http.StatusOK, `{"items":[{"org_id":"org_1","name":"","status":"active","home_region":"cn-north","revision":1,"gaps":[]}],"next_cursor":null}`, "directory_protocol_invalid"},
 		{"unknown gap", http.StatusOK, `{"items":[{"org_id":"org_1","name":"Acme","status":"active","home_region":"cn-north","revision":1,"gaps":["seat"]}],"next_cursor":null}`, "directory_protocol_invalid"},
 		{"trailing json", http.StatusOK, `{"items":[],"next_cursor":null}{}`, "directory_protocol_invalid"},
 	}
@@ -136,6 +167,8 @@ func TestListMembersRejectsProtocolViolations(t *testing.T) {
 		wantCode string
 	}{
 		{"missing seat", `{"items":[{"subject_id":"sub_1","status":"active","role":"owner","revision":1,"gaps":[]}],"next_cursor":null}`, "host_field_gap"},
+		{"bad subject", `{"items":[{"subject_id":"bad subject","status":"active","role":"owner","work_seat":false,"revision":1,"gaps":[]}],"next_cursor":null}`, "directory_protocol_invalid"},
+		{"empty subject without gap", `{"items":[{"subject_id":"","status":"active","role":"owner","work_seat":false,"revision":1,"gaps":[]}],"next_cursor":null}`, "directory_protocol_invalid"},
 		{"bad role", `{"items":[{"subject_id":"sub_1","status":"active","role":"ghost","work_seat":false,"revision":1,"gaps":[]}],"next_cursor":null}`, "directory_protocol_invalid"},
 		{"bad status", `{"items":[{"subject_id":"sub_1","status":"deleted","role":"owner","work_seat":false,"revision":1,"gaps":[]}],"next_cursor":null}`, "directory_protocol_invalid"},
 		{"negative revision", `{"items":[{"subject_id":"sub_1","status":"active","role":"owner","work_seat":false,"revision":-1,"gaps":[]}],"next_cursor":null}`, "directory_protocol_invalid"},

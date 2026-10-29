@@ -141,7 +141,7 @@ func verifyLedgerAgainstManifest(state *State, manifest *Manifest) error {
 				version, row.Kind, row.Name, migration.Kind, migration.Name,
 			)
 		}
-		if row.Checksum != migration.Checksum {
+		if !checksumMatches(row.Checksum, migration) {
 			return newError(
 				"published_migration_modified",
 				"ledger version %d pins %s, manifest pins %s",
@@ -158,6 +158,18 @@ func verifyLedgerAgainstManifest(state *State, manifest *Manifest) error {
 		}
 	}
 	return verifyAppliedPrefix(manifest, applied)
+}
+
+func checksumMatches(checksum string, migration Migration) bool {
+	if checksum == migration.Checksum {
+		return true
+	}
+	for _, legacy := range migration.LegacyChecksums {
+		if checksum == legacy {
+			return true
+		}
+	}
+	return false
 }
 
 func verifyAppliedPrefix(manifest *Manifest, applied map[int64]LedgerRow) error {

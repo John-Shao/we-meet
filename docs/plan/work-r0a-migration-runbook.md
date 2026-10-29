@@ -146,3 +146,24 @@ meet 生产库只保留 Host 侧数据（`core.organization.home_region/director
   `work-migrate apply -legacy-migrator-disabled`；不要手工改 `django_migrations` 或 `work.schema_migration`。
 - 证据边界：本次旧库为空数据 staging 备份，未验证旧应用流量切换、回滚或数据量性能；临时库、临时
   `meet` 角色、明文 dump 与临时二进制均已清理。
+
+## 9. 0003 换行差异与台账兼容（2026-10-29）
+
+2026-10-29 用新 `work-migrate` 对生产 `work` 库执行 `status`，发现历史资产差异：
+
+- 生产台账 `work.schema_migration` 的 0003 校验和为
+  `sha256:87ea354b…6b0636`，当前 manifest 为 `sha256:5207ab40…9d9c47`；
+  台账 0003 于 2026-10-28 15:25 应用，早于仓库把 0003/catalog 归一为 LF 的重钉提交。
+- 生产两个 0003 函数（`directory_watermark`、`mark_members_absent`）的 `prosrc` 含 CRLF；
+  当前 catalog 是 LF，故新 runner 既拒绝旧台账校验和，也会报 catalog 漂移。
+- 处置：先 `pg_dump -Fc` 备份到
+  `/root/work-backups/work-pre-0003-lf-20261029T131630.dump`，再以当前 LF 的
+  `0003_directory_absence.sql` 在 `work` 库重放（`CREATE OR REPLACE FUNCTION`，无数据变更）。
+  台账保持 `87ea…` 作为“当时实际应用”的审计事实；manifest 新增
+  `legacy_checksums: ["sha256:87ea…"]`，runner 只对该已声明值做兼容，当前文件仍必须匹配
+  `5207…`，catalog 仍按当前 LF 快照严格比对。
+- 验证：`work-migrate status` 返回 `up_to_date`；3 行台账；86 个函数；两个函数 `prosrc`
+  的 CR 位置均为 0。新 migrator 已部署到 `/home/johnshao/work-migrate`，旧二进制备份
+  `/home/johnshao/work-migrate.bak-20261029`。
+- 证据边界：本次只改函数文本换行，无表/数据/权限变化；未做整库恢复演练。若将来再次修改已发布
+  迁移正文，必须新增版本并重新签收，不能扩大 `legacy_checksums` 掩盖语义变化。

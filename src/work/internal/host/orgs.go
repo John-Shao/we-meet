@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -25,6 +26,8 @@ var (
 	memberRoles    = map[string]bool{"owner": true, "admin": true, "member": true, "viewer": true}
 	orgGaps        = map[string]bool{"name": true, "home_region": true, "revision": true}
 	memberGaps     = map[string]bool{"subject_id": true, "role": true, "revision": true}
+	homeRegionRE   = regexp.MustCompile(`^[a-z0-9-]{3,64}$`)
+	subjectIDRE    = regexp.MustCompile(`^[A-Za-z0-9_.:@-]{1,128}$`)
 )
 
 type Org struct {
@@ -203,32 +206,63 @@ func decodeOrg(raw json.RawMessage) (Org, error) {
 	if err := decodeStrict(raw, &wire); err != nil {
 		return Org{}, err
 	}
-	if wire.OrgID == nil || wire.Name == nil || wire.Status == nil ||
-		wire.HomeRegion == nil || wire.Revision == nil || wire.Gaps == nil {
+	if wire.OrgID == nil || wire.Status == nil || wire.Gaps == nil {
 		return Org{}, newError("host_field_gap", "Host organization row is missing a required field", nil)
 	}
 	if err := validatePathID("org_id", *wire.OrgID); err != nil {
 		return Org{}, err
 	}
-	if err := validateGaps(*wire.Gaps, orgGaps); err != nil {
+	gaps := *wire.Gaps
+	if err := validateGaps(gaps, orgGaps); err != nil {
 		return Org{}, err
 	}
 	if !orgStatuses[*wire.Status] {
 		return Org{}, newError("directory_protocol_invalid", "Host organization status is not allowed", nil)
 	}
-	if *wire.Revision < 0 {
-		return Org{}, newError("directory_protocol_invalid", "Host organization revision is negative", nil)
+
+	name := ""
+	if wire.Name == nil {
+		if !hasGap(gaps, "name") {
+			return Org{}, newError("host_field_gap", "Host organization name is missing without a gap", nil)
+		}
+	} else {
+		name = *wire.Name
+		if len(name) > 255 {
+			return Org{}, newError("directory_protocol_invalid", "Host organization name exceeds 255 bytes", nil)
+		}
 	}
-	if len(*wire.Name) > 255 {
-		return Org{}, newError("directory_protocol_invalid", "Host organization name exceeds 255 bytes", nil)
+	homeRegion := ""
+	if wire.HomeRegion == nil {
+		if !hasGap(gaps, "home_region") {
+			return Org{}, newError("host_field_gap", "Host organization home_region is missing without a gap", nil)
+		}
+	} else {
+		homeRegion = *wire.HomeRegion
+	}
+	revision := int64(0)
+	if wire.Revision == nil {
+		if !hasGap(gaps, "revision") {
+			return Org{}, newError("host_field_gap", "Host organization revision is missing without a gap", nil)
+		}
+	} else {
+		revision = *wire.Revision
+		if revision < 0 {
+			return Org{}, newError("directory_protocol_invalid", "Host organization revision is negative", nil)
+		}
+	}
+	if !hasGap(gaps, "name") && strings.TrimSpace(name) == "" {
+		return Org{}, newError("directory_protocol_invalid", "Host organization name is empty without a gap", nil)
+	}
+	if !hasGap(gaps, "home_region") && !homeRegionRE.MatchString(homeRegion) {
+		return Org{}, newError("directory_protocol_invalid", "Host organization home_region is not allowed", nil)
 	}
 	return Org{
 		OrgID:      *wire.OrgID,
-		Name:       *wire.Name,
+		Name:       name,
 		Status:     *wire.Status,
-		HomeRegion: *wire.HomeRegion,
-		Revision:   *wire.Revision,
-		Gaps:       *wire.Gaps,
+		HomeRegion: homeRegion,
+		Revision:   revision,
+		Gaps:       gaps,
 	}, nil
 }
 
@@ -244,30 +278,70 @@ func decodeMember(raw json.RawMessage) (Member, error) {
 	if err := decodeStrict(raw, &wire); err != nil {
 		return Member{}, err
 	}
-	if wire.SubjectID == nil || wire.Status == nil || wire.Role == nil ||
-		wire.WorkSeat == nil || wire.Revision == nil || wire.Gaps == nil {
+	if wire.Status == nil || wire.WorkSeat == nil || wire.Gaps == nil {
 		return Member{}, newError("host_field_gap", "Host member row is missing a required field", nil)
 	}
-	if err := validateGaps(*wire.Gaps, memberGaps); err != nil {
+	gaps := *wire.Gaps
+	if err := validateGaps(gaps, memberGaps); err != nil {
 		return Member{}, err
 	}
 	if !memberStatuses[*wire.Status] {
 		return Member{}, newError("directory_protocol_invalid", "Host member status is not allowed", nil)
 	}
-	if !memberRoles[*wire.Role] {
-		return Member{}, newError("directory_protocol_invalid", "Host member role is not allowed", nil)
+
+	subjectID := ""
+	if wire.SubjectID == nil {
+		if !hasGap(gaps, "subject_id") {
+			return Member{}, newError("host_field_gap", "Host member subject_id is missing without a gap", nil)
+		}
+	} else {
+		subjectID = *wire.SubjectID
+		if subjectID != "" && !subjectIDRE.MatchString(subjectID) {
+			return Member{}, newError("directory_protocol_invalid", "Host member subject_id is not allowed", nil)
+		}
 	}
-	if *wire.Revision < 0 {
-		return Member{}, newError("directory_protocol_invalid", "Host member revision is negative", nil)
+	if !hasGap(gaps, "subject_id") && subjectID == "" {
+		return Member{}, newError("directory_protocol_invalid", "Host member subject_id is empty without a gap", nil)
+	}
+	role := ""
+	if wire.Role == nil {
+		if !hasGap(gaps, "role") {
+			return Member{}, newError("host_field_gap", "Host member role is missing without a gap", nil)
+		}
+	} else {
+		role = *wire.Role
+		if !hasGap(gaps, "role") && !memberRoles[role] {
+			return Member{}, newError("directory_protocol_invalid", "Host member role is not allowed", nil)
+		}
+	}
+	revision := int64(0)
+	if wire.Revision == nil {
+		if !hasGap(gaps, "revision") {
+			return Member{}, newError("host_field_gap", "Host member revision is missing without a gap", nil)
+		}
+	} else {
+		revision = *wire.Revision
+		if revision < 0 {
+			return Member{}, newError("directory_protocol_invalid", "Host member revision is negative", nil)
+		}
 	}
 	return Member{
-		SubjectID: *wire.SubjectID,
+		SubjectID: subjectID,
 		Status:    *wire.Status,
-		Role:      *wire.Role,
+		Role:      role,
 		WorkSeat:  *wire.WorkSeat,
-		Revision:  *wire.Revision,
-		Gaps:      *wire.Gaps,
+		Revision:  revision,
+		Gaps:      gaps,
 	}, nil
+}
+
+func hasGap(gaps []string, name string) bool {
+	for _, gap := range gaps {
+		if gap == name {
+			return true
+		}
+	}
+	return false
 }
 
 func decodeStrict(raw json.RawMessage, target any) error {

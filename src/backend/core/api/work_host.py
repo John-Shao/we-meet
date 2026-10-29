@@ -21,6 +21,7 @@ from django.conf import settings
 from django.http import JsonResponse
 from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
@@ -114,7 +115,8 @@ def _signature_is_valid(ca, client) -> bool:
             )
         else:
             return False
-    except Exception:  # noqa: BLE001 - every verification failure is a denial
+    except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001
+        # Every signature-verification failure is a denial.
         return False
     return True
 
@@ -135,9 +137,13 @@ def _common_name_is_expected(client) -> bool:
 
 
 @method_decorator(csrf_exempt, name="dispatch")
+@method_decorator(never_cache, name="dispatch")
 @method_decorator(require_POST, name="dispatch")
 class WorkHostSessionVerifyView(View):
+    """Verify a Host session for the Work control plane over workload mTLS."""
+
     def post(self, request):
+        """Return the verified identity or a fail-closed error."""
         if not _verify_client_certificate(request):
             return JsonResponse({"code": "client_identity_invalid"}, status=403)
 
@@ -147,7 +153,11 @@ class WorkHostSessionVerifyView(View):
             return JsonResponse({"code": "session_invalid"}, status=401)
 
         user = getattr(request, "user", None)
-        if user is None or not getattr(user, "is_authenticated", False):
+        if (
+            user is None
+            or not getattr(user, "is_authenticated", False)
+            or not getattr(user, "is_active", False)
+        ):
             return JsonResponse({"code": "session_invalid"}, status=401)
 
         session_key = getattr(request.session, "session_key", None)
@@ -246,9 +256,13 @@ def _pagination_error():
     return JsonResponse({"code": "invalid_pagination"}, status=422)
 
 
+@method_decorator(never_cache, name="dispatch")
 @method_decorator(require_GET, name="dispatch")
 class WorkHostOrgListView(View):
+    """List organizations for authoritative Work directory discovery."""
+
     def get(self, request):
+        """Return one keyset page of organizations."""
         if not _verify_client_certificate(request):
             return JsonResponse({"code": "client_identity_invalid"}, status=403)
         try:
@@ -270,9 +284,13 @@ class WorkHostOrgListView(View):
         )
 
 
+@method_decorator(never_cache, name="dispatch")
 @method_decorator(require_GET, name="dispatch")
 class WorkHostMemberListView(View):
+    """List organization members for directory synchronization."""
+
     def get(self, request, org_id):
+        """Return one keyset page of members."""
         if not _verify_client_certificate(request):
             return JsonResponse({"code": "client_identity_invalid"}, status=403)
         if not Organization.objects.filter(id=org_id).exists():

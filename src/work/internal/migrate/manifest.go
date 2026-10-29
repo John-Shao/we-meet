@@ -22,16 +22,17 @@ type Manifest struct {
 }
 
 type Migration struct {
-	Version               int64  `json:"version"`
-	Name                  string `json:"name"`
-	Kind                  string `json:"kind"`
-	File                  string `json:"file"`
-	Checksum              string `json:"checksum"`
-	Catalog               string `json:"catalog,omitempty"`
-	CatalogChecksum       string `json:"catalog_checksum,omitempty"`
-	Transactional         bool   `json:"transactional"`
-	Executable            bool   `json:"executable"`
-	NamedRecoveryProtocol string `json:"named_recovery_protocol,omitempty"`
+	Version               int64    `json:"version"`
+	Name                  string   `json:"name"`
+	Kind                  string   `json:"kind"`
+	File                  string   `json:"file"`
+	Checksum              string   `json:"checksum"`
+	LegacyChecksums       []string `json:"legacy_checksums,omitempty"`
+	Catalog               string   `json:"catalog,omitempty"`
+	CatalogChecksum       string   `json:"catalog_checksum,omitempty"`
+	Transactional         bool     `json:"transactional"`
+	Executable            bool     `json:"executable"`
+	NamedRecoveryProtocol string   `json:"named_recovery_protocol,omitempty"`
 }
 
 func (m Migration) Key() string {
@@ -104,6 +105,11 @@ func (m *Manifest) validate() error {
 		}
 		if err := validateChecksum(migration.Checksum); err != nil {
 			return newError("manifest_invalid", "migration %q: %v", migration.Name, err)
+		}
+		for _, legacy := range migration.LegacyChecksums {
+			if err := validateChecksum(legacy); err != nil {
+				return newError("manifest_invalid", "migration %q legacy checksum: %v", migration.Name, err)
+			}
 		}
 		switch migration.Kind {
 		case "precondition":

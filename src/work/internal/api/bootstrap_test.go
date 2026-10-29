@@ -119,6 +119,9 @@ func TestBootstrapReturnsFrozenShape(t *testing.T) {
 	if cookie.HttpOnly || !cookie.Secure || cookie.Path != "/work" || cookie.SameSite != http.SameSiteStrictMode {
 		t.Fatalf("csrf cookie = %#v", cookie)
 	}
+	if got := response.Header.Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("cache-control = %q", got)
+	}
 	if got := response.Header.Get("X-Correlation-ID"); got != "corr-1" {
 		t.Fatalf("correlation = %q", got)
 	}

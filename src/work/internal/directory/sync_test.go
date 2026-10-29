@@ -435,9 +435,12 @@ func TestSyncFiltersToOneOrganization(t *testing.T) {
 		t.Fatalf("orgs = %#v", writer.orgs)
 	}
 
-	_, err = directory.Sync(context.Background(), discovery, writer, directory.Options{OrgID: "org_missing"})
+	missingReport, err := directory.Sync(context.Background(), discovery, writer, directory.Options{OrgID: "org_missing"})
 	if err == nil {
 		t.Fatal("missing organization was accepted")
+	}
+	if len(missingReport.Errors) == 0 || missingReport.Errors[0].Code != "org_not_found" {
+		t.Fatalf("missing organization was not reported: %#v", missingReport)
 	}
 }
 
@@ -451,6 +454,10 @@ func TestSyncFailsWhenOrganizationsCannotBeListed(t *testing.T) {
 	}
 	if report.OrgsTotal != 0 || report.Failed() {
 		t.Fatalf("report = %#v", report)
+	}
+	if len(report.Errors) != 1 || report.Errors[0].Scope != "host" ||
+		report.Errors[0].Code != "directory_sync_failed" {
+		t.Fatalf("listing failure was not reported: %#v", report)
 	}
 }
 
