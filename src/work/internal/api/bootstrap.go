@@ -107,6 +107,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET "+RunPath, s.getRun)
 	mux.HandleFunc("POST "+RunCancelPath, s.cancelRun)
 	mux.HandleFunc("POST "+InputsPath, s.createInput)
+	mux.HandleFunc("GET "+TemplatesPath, s.listTemplates)
+	mux.HandleFunc("POST "+TaskPreviewsPath, s.createPreview)
+	mux.HandleFunc("POST "+TasksPath, s.createTask)
 	return mux
 }
 
