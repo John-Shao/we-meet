@@ -128,3 +128,21 @@ meet 生产库只保留 Host 侧数据（`core.organization.home_region/director
 - 禁止在 meet 库重新启用 Work 迁移或手工创建 `work` schema；Work schema 的增量与回滚只在 Work ECS `work` 库执行。
 
 > 2026-10-28：meet 库旧 `public.work_*` 表（12 张）与 `django_migrations` 中 `app='work'` 记录已删除；`/work/v1` 后端路由已移除。
+
+## 8. 旧库接管演练（2026-10-29）
+
+用 jd-sjy 清理备份中的 `work_staging.dump` 在 Work ECS 临时库演练，不接触生产 `work` 库：
+
+- 旧库：28 张 `work` 表、84 个函数、`django_migrations` 中 `work` 0001/0002 两行；业务表为 0 行。
+- 第一次 `status` 因 `work_owner` 无 `public.django_migrations` SELECT 返回 `legacy_ledger_invalid`；补
+  `GRANT SELECT ON public.django_migrations TO work_owner` 后变为 `existing_unmanaged`、pending `[3]`。
+- 第一次 `apply` 返回 `drift`：`audit_export`、`provider_access_config`、`provider_credential`、`usage_daily`
+  四张表缺少 `work_owner` 的 7 项表权限。补 `GRANT ALL PRIVILEGES ON TABLE ... TO work_owner` 后，
+  runner 采用 0001/0002 并应用 0003，终态 `up_to_date`：3 行台账、29 张表、86 个函数。
+- **不能**用 `pg_restore --no-owner` 做接管演练：它把 `work` schema 属主改成执行用户，会触发
+  `permission denied for schema work`，不能代表旧库真实属主。恢复时需保留 `work_owner` 属主；缺少的
+  `meet` 角色可临时创建 NOLOGIN 角色，演练后连同临时库删除。
+- 真实旧库接管前，先在目标库补齐台账 SELECT 和所有 `work_owner` 表权限，再执行
+  `work-migrate apply -legacy-migrator-disabled`；不要手工改 `django_migrations` 或 `work.schema_migration`。
+- 证据边界：本次旧库为空数据 staging 备份，未验证旧应用流量切换、回滚或数据量性能；临时库、临时
+  `meet` 角色、明文 dump 与临时二进制均已清理。
