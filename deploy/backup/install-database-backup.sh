@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Install code and units; initial backup/restore acceptance precedes timer activation.
 set -euo pipefail
-service=${1:?Usage: install-database-backup.sh docs|im|keycloak}
-case "$service" in docs|im|keycloak) ;; *) exit 2 ;; esac
+service=${1:?Usage: install-database-backup.sh docs|im|keycloak|work}
+case "$service" in docs|im|keycloak|work) ;; *) exit 2 ;; esac
 test "$(id -u)" = 0
 source_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 config_dir=/etc/meet-db-backup/$service

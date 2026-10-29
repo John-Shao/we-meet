@@ -41,6 +41,14 @@ class DatabaseBackupTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 db.validate(self.config, "docs", {**self.storage, "prefix": prefix})
 
+    def test_work_service_keeps_local_socket_and_own_prefix(self):
+        config = {"service": "work", "databases": ["work", "temporal", "temporal_visibility"],
+                  "source": {"kind": "local", "os_user": "postgres", "user": "postgres"}}
+        storage = {"bucket": "private-backups", "prefix": "work/databases/work/"}
+        db.validate(config, "work", storage)
+        with self.assertRaises(ValueError):
+            db.validate(config, "work", {**storage, "prefix": "work/databases/docs/"})
+
     def test_source_cannot_point_to_remote_database(self):
         self.config["source"]["socket_dir"] = "production.example.com"
         with self.assertRaises(ValueError):

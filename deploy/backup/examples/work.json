@@ -1,0 +1,9 @@
+{
+  "service": "work",
+  "databases": ["work", "temporal", "temporal_visibility"],
+  "source": {"kind": "local", "os_user": "postgres", "user": "postgres"},
+  "config_dir": "/etc/meet-db-backup/work",
+  "state_dir": "/var/lib/meet-db-backup/work",
+  "work_dir": "/run/meet-db-backup-work",
+  "recipient_file": "/etc/meet-db-backup/work/recipient.txt"
+}

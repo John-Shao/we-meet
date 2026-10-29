@@ -7,7 +7,7 @@ import notify
 
 
 def units_for(service):
-    if service not in {"docs", "im", "keycloak"}:
+    if service not in {"docs", "im", "keycloak", "work"}:
         raise ValueError("Unsupported database service")
     return {f"meet-db-backup@{service}.service": "run",
             f"meet-db-backup-check@{service}.service": "check"}
@@ -15,7 +15,7 @@ def units_for(service):
 
 def main():
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("service", choices=["docs", "im", "keycloak"])
+    parser.add_argument("service", choices=["docs", "im", "keycloak", "work"])
     args, rest = parser.parse_known_args()
     sys.argv = [sys.argv[0], *rest]
     return notify.main(units_for(args.service),

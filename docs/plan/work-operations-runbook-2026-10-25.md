@@ -115,6 +115,154 @@ R0a 有六类不属于任何 Run 的常驻作业（见 [D3 §11](work-r0a-orches
 4. **停止语义**：只有"产生新工作"的动作可被 kill switch/组织停用挡住；投递、清理、投影同步、清扫属义务作业，必须在开关打开时继续运行（D3 §11.3）。演练要单独验证这一条。
 5. **升级**：后台作业 worker 与 Run worker 分队列（`r0a-relay`/`r0a-background`），drain 顺序是先停产生新工作的作业，再停义务作业的最后批次并确认租约交接完成。
 
+### 5.2 后台作业健康检查（值班用）
+
+```sql
+-- 每类作业最近成功时间与租约积压（在 work_worker 上下文逐组织执行）
+SELECT kind, max(last_success) FROM work_background_job_last_success GROUP BY kind;
+```
+
+值班三步：
+
+1. `WorkContentShredBacklog` / `WorkBackgroundJobStale` 触发 → 先确认 Content Store 与 DB 凭据，再确认是否有人把义务作业误停（kill switch 只应停新工作，见 D3 §11.3）。
+2. `WorkDirectoryProjectionStale` → 查 Host 端口与同步作业；管理页此时显示"数据陈旧"而不是假数据。撤权新鲜度与在途 Run 处理按 D-07 结论执行，方法定案前只手工取消。
+3. `WorkAuditExportBacklog` / `WorkAuditExportFailureRatio` / `WorkAuditExportSlow` → 看作业 `error_code` 与租约是否被卡住；租约过期可重领，不要手工改作业状态。
+
+`WorkAuditExportTokenFailureBurst` 属安全信号：按秘密疑似泄露处理（该管理员的一次性凭证可能被转发），不要只当性能问题。
+
+### 5.3 目录同步作业（work-directory-sync）
+
+- **增量**：`WORK_DIRECTORY_MODE=incremental`，按 5 分钟调度；以 Work 投影的 `work.org.revision` 为水位，只拉 `revision_after` 之后的成员变更；不判定缺席。
+- **全量**：`WORK_DIRECTORY_MODE=full`（默认），每日至少一次；拉完整成员快照后，把 Host 缺席成员收窄为 `left`、撤 `work_seat`、记 `entitlement_lost`，不取消 Run。快照最多 10,000 个 subject，超过直接失败。缺席数 ≥ max(10, 候选成员 20%) 时默认拦截（写 `directory.member_absence_blocked`，不写入）；候选成员少于 10 人的组织不触发闸门。确认 Host 数据后以 `WORK_DIRECTORY_ALLOW_MASS_ABSENCE=1` 重跑 full，放行会写 `directory.member_absence_applied`。
+- **首次部署**：先按 [Host wire §8 L1](work-r0a-host-wire-decision-2026-10-28.md) 提交控制面登录身份证据（仅成员于 `work_directory`、无表权限）；再跑一次 full 建立水位；新组织先以 revision 1 建行，成员全部成功后才推进到快照 revision。
+- **失败处置**：进程非零退出或报告 `orgs_failed/members_failed > 0` 时，**下一轮必须补跑 full**，不能只重跑增量——失败组织的低修订成员不会被增量窗口重新拉取。成员失败/gap 不推进水位，可安全重试。
+- **不要**为缺席成员手工执行 `ops_cancel_run` 以外的表写入；投影写入只经 `work_directory` 的领域函数。
+
+### 5.4 生产数据库备份与恢复（2026-10-29）
+
+Work ECS 复用仓库 `deploy/backup/` 的 `work` 实例，在本机 Unix socket 上逻辑备份
+`work`、`temporal`、`temporal_visibility`，不依赖 Docker/跨机 SSH：
+
+- 代码：`/opt/meet-db-backup/{backup,database_backup,database_notify,notify}.py`；恢复校验脚本
+  `/opt/meet-db-backup/work-db-restore-drill.py`。
+- 配置：`/etc/meet-db-backup/work/{config,storage,notification}.json` 与 `recipient.txt`（目录 0700、文件 0600，不入 Git）。
+- 目标：私有桶 `we-work-backup`，前缀 `work/databases/work/`；桶生命周期对该前缀保留 30 天。
+- 调度：`meet-db-backup@work.timer` 每 6 小时（00/06/12/18:35 + 最多 10 分钟随机延迟）；
+  `meet-db-backup-check@work.timer` 每小时校验最新成功记录、对象长度与 SHA-256；
+  `meet-db-backup-notify@work.timer` 每分钟重试未送达邮件。
+- 加密与密钥：`age` 公钥加密后上传，服务端完整读回校验；**私钥只在管理员本地受保护目录**
+  （`%USERPROFILE%\.we-meet-backup\work-offsite-20261029.agekey`），Work ECS 上无副本。
+- 告警：复用 Meet 已验证 SMTP 通道，收件人与 Meet 备份通知一致；失败、过期（>8 小时）和恢复
+  均发信，持续异常每 6 小时提醒。
+
+值班命令：
+
+```bash
+sudo systemctl list-timers 'meet-db-backup*'
+sudo systemctl status meet-db-backup@work.service meet-db-backup-check@work.service
+sudo cat /var/lib/meet-db-backup/work/last-success.json
+sudo cat /var/lib/meet-db-backup/work/last-check.json
+sudo python3 /opt/meet-db-backup/database_notify.py work status
+sudo systemctl start meet-db-backup@work.service
+sudo systemctl start meet-db-backup-check@work.service
+```
+
+恢复校验（需临时把私钥放回 Work ECS，校验完删除）：
+
+```bash
+sudo WORK_BACKUP_IDENTITY=/root/work-backups/work-offsite-20261029.agekey \
+  python3 /opt/meet-db-backup/work-db-restore-drill.py
+```
+
+脚本从 OSS 下载 `latest.json` 指向的对象，校验 SHA-256 与 manifest 后，在本机创建临时数据库
+（`work_drill_*`）执行 `pg_restore --no-owner --no-privileges`，逐表比对行数，结束时删除临时库；
+不启动应用、不恢复生产角色。首个真实对象（2026-10-29，146,821 字节）校验通过：
+`work` 29 表/103 行、`temporal` 36 表/228 行、`temporal_visibility` 3 表/15 行。
+
+真实灾难恢复仍需人工审批：先停 `work-api`、`work-directory-sync*`，确认冻结窗口，再把解密后的
+dump 恢复到目标库，恢复后重跑 `work-migrate status`、full 目录同步和 bootstrap 冒烟。备份只覆盖
+逻辑数据库，不覆盖主机配置、证书、Redis、OSS 对象或 Temporal 之外的外部依赖；RPO 为最近一次
+6 小时备份，不能把恢复校验当作区域 DR 演练。
+
+### 5.5 Work Host mTLS 证书轮换（2026-10-29）
+
+**现状与路径**
+
+| 对象 | 位置 | 当前参数 |
+|---|---|---|
+| Work Host CA 私钥/证书 | Work ECS `/root/work-host/ca.{key,crt}`（目录 700，key 600） | CN `WeMeet Work Host CA`，有效期至 **2036-10-25**，SHA-256 `72:16:9B:…:BC:A5` |
+| 客户端私钥/证书 | `/root/work-host/client.{key,crt}`；运行副本 `/etc/work/certs/`（root:work-control，640） | CN `work-control-plane`，EKU clientAuth，有效期至 **2028-10-27** |
+| meet 信任的 CA | Secret `meet/work-host-ca` 的 `ca.crt`；chart `workHost.caSecretName` | 只含 CA 证书，不含私钥 |
+| 客户端使用点 | `work-api`、`work-directory-sync*`、`work-healthcheck` | 从 `/etc/work/certs` 读取 |
+
+证书链是**单 CA、固定 CN**：Django `_verify_client_certificate` 只加载一张 CA，要求
+`client.issuer == ca.subject`、签名有效、`clientAuth` EKU、CN=`work-control-plane`；ingress
+`auth-tls-verify-client=optional` 只做前置校验，Django 才是强制校验点。
+
+**A. 客户端证书轮换（常规，无停机）**
+
+在 Work ECS 以 root 执行，旧 CA 不变：
+
+```bash
+cd /root/work-host
+umask 077
+cp -a client.crt client.crt.prev
+cp -a client.key client.key.prev
+openssl ecparam -name prime256v1 -genkey -noout -out client.key.new
+openssl req -new -key client.key.new -subj '/CN=work-control-plane' -out client.csr
+openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -days 730 -sha256 -out client.crt.new \
+  -extfile <(printf 'extendedKeyUsage=clientAuth\n')
+openssl verify -CAfile ca.crt client.crt.new
+openssl x509 -in client.crt.new -noout -subject -dates -ext extendedKeyUsage
+install -o root -g work-control -m 0640 client.crt.new /etc/work/certs/client.crt
+install -o root -g work-control -m 0640 client.key.new /etc/work/certs/client.key
+systemctl restart work-api
+systemctl start work-healthcheck.service
+cat /var/lib/work/health.json
+```
+
+验证（任选其一）：`work-healthcheck` 为 `ok`；或手工
+`curl --cert /etc/work/certs/client.crt --key /etc/work/certs/client.key https://meet.we-meet.online/work-host/v2/orgs`
+返回 200。失败时把 `.prev` 文件装回并重启 `work-api`。旧证书/私钥确认无用后
+`shred -u`，不要留在 `/root/work-host`。
+
+**B. CA 轮换（计划性硬切换）**
+
+当前 Host 只信任一张 CA，**没有双 CA 重叠期**；新旧客户端证书不能同时通过。轮换会影响
+Work 控制面到 Host 的请求（Work API bootstrap/同步短暂失败），不影响 meet 主站。建议在任何
+CA 轮换前先给 Host 增加“CA bundle”支持（解析多张 CA），否则必须按维护窗口执行：
+
+1. 生成新 CA 与新客户端证书（CN/EKU 同上），`openssl verify` 通过；新客户端证书先放
+   `/root/work-host/next/`，不要覆盖运行文件。
+2. 备份 `meet/work-host-ca` Secret 与旧 CA/客户端文件（离线加密保存）。
+3. 更新 Secret 并滚动后端，使 ingress 和 Django 同时切到新 CA：
+   ```bash
+   kubectl -n meet create secret generic work-host-ca \
+     --from-file=ca.crt=/root/work-host/next/ca.crt --dry-run=client -o yaml | kubectl apply -f -
+   kubectl -n meet rollout restart deployment/meet-backend
+   kubectl -n meet rollout status deployment/meet-backend --timeout=5m
+   ```
+   确认 ingress-nginx 已重载新 Secret（控制器日志出现 reload）后再执行下一步；否则新客户端证书可能仍被旧 CA 拒绝。
+4. 立即把新客户端证书装到 `/etc/work/certs`，`systemctl restart work-api`，运行 healthcheck。
+5. 验证矩阵：新证书 200；旧证书必须 400/403；无证书 403；自签 400；错误 CN 403。
+6. 失败回滚：恢复旧 Secret、滚动 `meet-backend`，装回旧客户端证书并重启 `work-api`；确认
+   healthcheck 恢复后再继续排查。
+
+CA 私钥轮换后，旧 CA 私钥和旧客户端私钥应离线留存到确认无回滚需求，再销毁；不要把新 CA
+私钥复制到 meet 或仓库。
+
+**C. 吊销与泄露处置**
+
+当前没有 CRL/OCSP/序列号拒绝列表：客户端私钥泄露后，攻击者持有的旧证书在到期前仍可通过
+Host 校验。处置顺序是**轮换 CA**（按 B 的硬切换），不是只换客户端证书；若不能接受该窗口，
+应先实现 CA bundle + 证书序列号拒绝列表，再补吊销演练。常规到期前 60 天检查：
+
+```bash
+openssl x509 -in /etc/work/certs/client.crt -noout -subject -enddate -checkend 5184000
+openssl x509 -in /etc/work/certs/ca.crt -noout -subject -enddate -checkend 5184000
+```
+
 ## 6. 容量证据
 
 ### 6.1 当前 DDL 烟雾（2026-10-25）
@@ -150,29 +298,6 @@ R0a 有六类不属于任何 Run 的常驻作业（见 [D3 §11](work-r0a-orches
 - 管理读与结算交错：900 次 `admin_overview` 读到的 `settled_cents` 全部落在已结算分录的前缀和上，无越账读数，终读与账本一致、`reserved_cents` 归零。
 
 原始输出：[admin-directory-concurrency.log](assets/work-r0a-design-2026-10-25/admin-directory-concurrency.log)。未覆盖：崩溃注入、连接池、多副本长跑、真实时钟偏差、生产数据量。
-
-### 5.2 后台作业健康检查（值班用）
-
-```sql
--- 每类作业最近成功时间与租约积压（在 work_worker 上下文逐组织执行）
-SELECT kind, max(last_success) FROM work_background_job_last_success GROUP BY kind;
-```
-
-值班三步：
-
-1. `WorkContentShredBacklog` / `WorkBackgroundJobStale` 触发 → 先确认 Content Store 与 DB 凭据，再确认是否有人把义务作业误停（kill switch 只应停新工作，见 D3 §11.3）。
-2. `WorkDirectoryProjectionStale` → 查 Host 端口与同步作业；管理页此时显示"数据陈旧"而不是假数据。撤权新鲜度与在途 Run 处理按 D-07 结论执行，方法定案前只手工取消。
-3. `WorkAuditExportBacklog` / `WorkAuditExportFailureRatio` / `WorkAuditExportSlow` → 看作业 `error_code` 与租约是否被卡住；租约过期可重领，不要手工改作业状态。
-
-`WorkAuditExportTokenFailureBurst` 属安全信号：按秘密疑似泄露处理（该管理员的一次性凭证可能被转发），不要只当性能问题。
-
-### 5.3 目录同步作业（work-directory-sync）
-
-- **增量**：`WORK_DIRECTORY_MODE=incremental`，按 5 分钟调度；以 Work 投影的 `work.org.revision` 为水位，只拉 `revision_after` 之后的成员变更；不判定缺席。
-- **全量**：`WORK_DIRECTORY_MODE=full`（默认），每日至少一次；拉完整成员快照后，把 Host 缺席成员收窄为 `left`、撤 `work_seat`、记 `entitlement_lost`，不取消 Run。快照最多 10,000 个 subject，超过直接失败。缺席数 ≥ max(10, 候选成员 20%) 时默认拦截（写 `directory.member_absence_blocked`，不写入）；候选成员少于 10 人的组织不触发闸门。确认 Host 数据后以 `WORK_DIRECTORY_ALLOW_MASS_ABSENCE=1` 重跑 full，放行会写 `directory.member_absence_applied`。
-- **首次部署**：先按 [Host wire §8 L1](work-r0a-host-wire-decision-2026-10-28.md) 提交控制面登录身份证据（仅成员于 `work_directory`、无表权限）；再跑一次 full 建立水位；新组织先以 revision 1 建行，成员全部成功后才推进到快照 revision。
-- **失败处置**：进程非零退出或报告 `orgs_failed/members_failed > 0` 时，**下一轮必须补跑 full**，不能只重跑增量——失败组织的低修订成员不会被增量窗口重新拉取。成员失败/gap 不推进水位，可安全重试。
-- **不要**为缺席成员手工执行 `ops_cancel_run` 以外的表写入；投影写入只经 `work_directory` 的领域函数。
 
 ## 7. 关闭条件
 

@@ -21,7 +21,7 @@ import uuid
 
 import backup
 
-SERVICES = {"docs", "im", "keycloak"}
+SERVICES = {"docs", "im", "keycloak", "work"}
 FORMAT = "we-meet-database-v1"
 
 
