@@ -266,8 +266,10 @@ openssl x509 -in /etc/work/certs/ca.crt -noout -subject -enddate -checkend 51840
 ### 5.6 Work 健康告警（2026-10-29）
 
 `work-healthcheck.timer` 每 2 分钟运行：检查 `work-api /healthz`、Host `/work-host/v2/orgs`
-（客户端证书）、30 分钟内目录同步报告，以及 `/etc/work/certs/{ca,client}.crt` 是否在 30 天内到期。
-状态写 `/var/lib/work/health.json`；异常同时写 `/var/log/work-health-alerts.log` 与 journal。
+（客户端证书）、`work-directory-sync.service` 与 `work-directory-sync-full.service` 的 systemd
+`Result`、30 分钟内两类同步报告（`errors` 必须为空），以及 `/etc/work/certs/{ca,client}.crt`
+是否在 30 天内到期。状态写 `/var/lib/work/health.json`；异常同时写 `/var/log/work-health-alerts.log`
+与 journal。
 
 `/usr/local/bin/work-health-alert.py` 在状态变化时发信，复用
 `/etc/meet-db-backup/work/notification.json` 的 SMTP 通道：

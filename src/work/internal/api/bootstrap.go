@@ -95,6 +95,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) bootstrap(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	correlationID := strings.TrimSpace(r.Header.Get("X-Correlation-ID"))
 	if correlationID == "" {
 		correlationID = newCorrelationID()

@@ -136,6 +136,20 @@ def test_rejects_user_without_organization(client):
 @override_settings(
     WORK_HOST_MTLS_CA_PEM=CA_PEM, WORK_HOST_MTLS_CLIENT_IDENTITY=IDENTITY
 )
+def test_rejects_inactive_user(client):
+    user = UserFactory(sub="subject-inactive", is_active=False)
+    MembershipFactory(user=user, organization=OrganizationFactory())
+    client.force_login(user)
+
+    response = client.post(URL, **cert_headers(CLIENT_PEM))
+
+    assert response.status_code == 401
+    assert response.json() == {"code": "session_invalid"}
+
+
+@override_settings(
+    WORK_HOST_MTLS_CA_PEM=CA_PEM, WORK_HOST_MTLS_CLIENT_IDENTITY=IDENTITY
+)
 def test_rejects_get(client):
     user = UserFactory(sub="subject-get")
     MembershipFactory(user=user, organization=OrganizationFactory())

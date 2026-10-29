@@ -96,8 +96,16 @@ func validateAdmission(admission *Admission) error {
 		return newError("role_missing", "Work roles missing: %s", strings.Join(missing, ", "))
 	}
 	for _, role := range workRoles {
-		if admission.Roles[role].CanLogin {
+		info := admission.Roles[role]
+		if info.CanLogin {
 			return newError("role_must_be_nologin", "Work role %q must be NOLOGIN", role)
+		}
+		if info.Superuser || info.CreateRole || info.BypassRLS {
+			return newError(
+				"role_attributes_unsafe",
+				"Work role %q must be NOSUPERUSER NOCREATEROLE NOBYPASSRLS",
+				role,
+			)
 		}
 	}
 	if !admission.RoleMembership {

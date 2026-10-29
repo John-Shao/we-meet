@@ -21,6 +21,7 @@ from django.conf import settings
 from django.http import JsonResponse
 from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
@@ -135,6 +136,7 @@ def _common_name_is_expected(client) -> bool:
 
 
 @method_decorator(csrf_exempt, name="dispatch")
+@method_decorator(never_cache, name="dispatch")
 @method_decorator(require_POST, name="dispatch")
 class WorkHostSessionVerifyView(View):
     def post(self, request):
@@ -147,7 +149,11 @@ class WorkHostSessionVerifyView(View):
             return JsonResponse({"code": "session_invalid"}, status=401)
 
         user = getattr(request, "user", None)
-        if user is None or not getattr(user, "is_authenticated", False):
+        if (
+            user is None
+            or not getattr(user, "is_authenticated", False)
+            or not getattr(user, "is_active", False)
+        ):
             return JsonResponse({"code": "session_invalid"}, status=401)
 
         session_key = getattr(request.session, "session_key", None)
@@ -246,6 +252,7 @@ def _pagination_error():
     return JsonResponse({"code": "invalid_pagination"}, status=422)
 
 
+@method_decorator(never_cache, name="dispatch")
 @method_decorator(require_GET, name="dispatch")
 class WorkHostOrgListView(View):
     def get(self, request):
@@ -270,6 +277,7 @@ class WorkHostOrgListView(View):
         )
 
 
+@method_decorator(never_cache, name="dispatch")
 @method_decorator(require_GET, name="dispatch")
 class WorkHostMemberListView(View):
     def get(self, request, org_id):

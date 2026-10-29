@@ -16,7 +16,15 @@ host=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
   https://meet.we-meet.online/work-host/v2/orgs || true)
 [ "$host" = "200" ] || { status="degraded"; issues+=("host_http=$host"); }
 
-last=$(journalctl -u work-directory-sync.service -o cat --since '-30 min' 2>/dev/null | grep '"mode"' | tail -1)
+for unit in work-directory-sync.service work-directory-sync-full.service; do
+  result=$(systemctl show -p Result --value "$unit" 2>/dev/null || true)
+  if [ "$result" = "failed" ]; then
+    status="degraded"
+    issues+=("${unit}_failed")
+  fi
+done
+
+last=$(journalctl -u work-directory-sync.service -u work-directory-sync-full.service   -o cat --since '-30 min' 2>/dev/null | grep '"mode"' | tail -1)
 if [ -z "$last" ]; then
   status="degraded"
   issues+=("sync_no_report_30m")

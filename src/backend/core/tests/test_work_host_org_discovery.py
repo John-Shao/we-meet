@@ -53,7 +53,10 @@ def test_org_list_projects_status_region_and_revision(client):
     archived = OrganizationFactory(name="Gamma", is_active=False)
     Organization.objects.filter(pk=archived.pk).update(archived_at=timezone.now())
 
-    payload = _get(client, ORGS_URL, limit=100)
+    response = client.get(ORGS_URL, data={"limit": 100}, **cert_headers(CLIENT_PEM))
+    assert response.status_code == 200, response.content
+    assert "no-store" in response["Cache-Control"]
+    payload = response.json()
 
     items = {item["org_id"]: item for item in payload["items"]}
     assert {str(active.id), str(suspended.id), str(archived.id)} <= set(items)

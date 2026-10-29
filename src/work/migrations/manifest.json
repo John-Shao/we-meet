@@ -33,7 +33,10 @@
       "catalog": "catalogs/0003_directory_absence.json",
       "catalog_checksum": "sha256:ef69dbd3a9dfe252ce84d4a4f3dcffe155831349d9595583f9f3faa6aff5ed51",
       "transactional": true,
-      "executable": true
+      "executable": true,
+      "legacy_checksums": [
+        "sha256:87ea354b2afd664d0c27c25410e1be1b78ef77884cddeb4dbe6087f1da6b0636"
+      ]
     }
   ]
 }

@@ -22,6 +22,26 @@ func TestValidateAdmissionRejectsLoginRole(t *testing.T) {
 	assertCode(t, validateAdmission(admission), "role_must_be_nologin")
 }
 
+func TestValidateAdmissionRejectsUnsafeRoleAttributes(t *testing.T) {
+	cases := []struct {
+		name string
+		set  func(*RoleInfo)
+	}{
+		{"superuser", func(r *RoleInfo) { r.Superuser = true }},
+		{"createrole", func(r *RoleInfo) { r.CreateRole = true }},
+		{"bypassrls", func(r *RoleInfo) { r.BypassRLS = true }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			admission := validAdmission()
+			role := admission.Roles["work_owner"]
+			tc.set(&role)
+			admission.Roles["work_owner"] = role
+			assertCode(t, validateAdmission(admission), "role_attributes_unsafe")
+		})
+	}
+}
+
 func TestValidateAdmissionRejectsMissingWorkOwnerMembership(t *testing.T) {
 	admission := validAdmission()
 	admission.RoleMembership = false
