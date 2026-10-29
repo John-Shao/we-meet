@@ -1,6 +1,9 @@
 {{- $networkPolicy := .Values.backend.networkPolicy | default dict -}}
 {{- if $networkPolicy.enabled }}
 {{- $allowedComponents := $networkPolicy.allowedComponents | default list -}}
+{{- if not $allowedComponents -}}
+{{- $allowedComponents = list "backend" "backend-ai" "agent-ai-assistant" "agent-capture-asr" "agent-capture-live-asr" "agent-capture-translation" "agent-interpretation" "agent-metadata" "agent-subtitles" "agent-translation" -}}
+{{- end -}}
 {{- if not (has "backend" $allowedComponents) -}}
 {{- fail "backend.networkPolicy.allowedComponents must include backend" -}}
 {{- end -}}
