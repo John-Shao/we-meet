@@ -1,0 +1,178 @@
+{
+  "title": "Work",
+  "loading": "Loading…",
+  "retry": "Retry",
+  "nav": {
+    "label": "Work navigation",
+    "home": "Home",
+    "items": "My work"
+  },
+  "unavailable": {
+    "title": "No Work access",
+    "description": "This account has no Work seat or the organization is not enabled. Contact an administrator."
+  },
+  "errors": {
+    "bootstrapTitle": "Work is unavailable",
+    "bootstrapDescription": "Could not verify the Work session or load configuration. Try again later."
+  },
+  "home": {
+    "eyebrow": "WORK",
+    "title": "Start with one sentence",
+    "subtitle": "Describe the goal; Work organizes the run and returns the result.",
+    "viewAll": "View all work",
+    "recent": "Recent work",
+    "emptyRecent": "Your first submitted task will appear here."
+  },
+  "composer": {
+    "title": "New work",
+    "goal": "Task description",
+    "goalPlaceholder": "For example: write a launch plan with risks and rollback",
+    "background": "Background",
+    "backgroundPlaceholder": "Optional: audience, existing context, constraints",
+    "counter": "{{count}} / {{max}} characters",
+    "template": "Method",
+    "permission": "Permission",
+    "mode": {
+      "ask_each": "Ask each time",
+      "auto_readonly": "Auto read-only"
+    },
+    "modeHint": {
+      "ask_each": "Confirm before writes or external actions.",
+      "auto_readonly": "Reads may run automatically; writes still need confirmation."
+    },
+    "boundaryTitle": "This run",
+    "boundary": "Cloud execution · no local access · Markdown result · up to {{max}} goal characters",
+    "preview": "Preview and send",
+    "confirmTitle": "Confirm send",
+    "confirmDescription": "The task enters the execution queue after submission; follow progress in the workspace.",
+    "tokenCap": "Token cap",
+    "inputBytes": "Input bytes",
+    "back": "Back",
+    "confirmSend": "Confirm send",
+    "templateVersion": "Version v{{version}}"
+  },
+  "items": {
+    "title": "My work",
+    "subtitle": "Only tasks you can access are shown.",
+    "views": "Work views",
+    "view": {
+      "pending": "Pending",
+      "running": "Running",
+      "awaiting_acceptance": "Awaiting acceptance",
+      "completed": "Completed",
+      "all": "All"
+    },
+    "errorTitle": "Could not load work",
+    "errorDescription": "Check your connection and try again.",
+    "empty": {
+      "pending": {
+        "title": "No pending work",
+        "description": "Describe a new goal from Home."
+      },
+      "running": {
+        "title": "No running work",
+        "description": "Tasks in progress appear here."
+      },
+      "awaiting_acceptance": {
+        "title": "Nothing to accept",
+        "description": "Completed runs wait here for confirmation."
+      },
+      "completed": {
+        "title": "No completed work",
+        "description": "Confirmed tasks appear here."
+      },
+      "all": {
+        "title": "No work yet",
+        "description": "Describe a new goal from Home."
+      }
+    },
+    "loadMore": "Load more",
+    "updatedAt": "Updated {{time}}",
+    "runState": "Run: {{state}}",
+    "artifact": "Result v{{version}}"
+  },
+  "status": {
+    "open": "Open",
+    "queued": "Queued",
+    "running": "Running",
+    "awaiting_acceptance": "Awaiting acceptance",
+    "completed": "Completed",
+    "failed": "Failed",
+    "run_canceled": "Run canceled",
+    "reconciling": "Reconciling",
+    "quota_exhausted": "Quota exhausted",
+    "canceling": "Canceling",
+    "canceled": "Canceled",
+    "archived": "Archived"
+  },
+  "run": {
+    "queued": "Queued",
+    "active": "Active",
+    "waiting": "Waiting",
+    "cancel_requested": "Cancel requested",
+    "succeeded": "Succeeded",
+    "failed": "Failed",
+    "canceled": "Canceled"
+  },
+  "task": {
+    "back": "Back to my work",
+    "loadErrorTitle": "Could not open this task",
+    "loadErrorDescription": "The task may not exist or you no longer have access.",
+    "titleLabel": "Task title",
+    "titleEmpty": "Title is required.",
+    "saveTitle": "Save title",
+    "cancelEdit": "Cancel edit",
+    "editTitle": "Edit title",
+    "revision": "Revision {{revision}}",
+    "attempt": "Attempt {{attempt}}",
+    "cancelRun": "Cancel run",
+    "goal": "Goal",
+    "background": "Background",
+    "timeline": "Run timeline",
+    "noLiveEvents": "No new live events; the server snapshot is authoritative.",
+    "seq": "Event #{{seq}}",
+    "eventState": "State: {{state}}",
+    "run": "Run",
+    "runState": "Run state",
+    "runtime": "Runtime",
+    "waitReason": "Wait reason",
+    "terminalReason": "Terminal reason",
+    "noRun": "No run created yet.",
+    "quota": "Token quota",
+    "quotaDetail": "Reserved {{reserved}} · settled {{settled}}",
+    "snapshot": "Capability snapshot",
+    "template": "Template",
+    "templateMissing": "Template unavailable",
+    "snapshotHash": "Snapshot hash",
+    "tools": "Tools",
+    "acceptTitle": "Confirm completion",
+    "acceptHint": "No displayable artifact version; confirming marks the task complete.",
+    "acceptReason": "Completion reason",
+    "acceptPlaceholder": "Briefly describe completion",
+    "confirmAccept": "Confirm completion",
+    "accepted": "Task completed.",
+    "acceptReasonRequired": "Enter a completion reason.",
+    "latestArtifact": "Latest result",
+    "artifactDetail": "Version v{{version}} · {{hash}}…",
+    "artifactNotViewable": "Artifact preview/editing is not available yet; this page shows version metadata only.",
+    "streamOpen": "Live",
+    "streamConnecting": "Connecting…",
+    "streamReconnecting": "Reconnecting…",
+    "streamError": "Live connection unavailable"
+  },
+  "event": {
+    "task.submitted": "Task submitted",
+    "task.updated": "Task updated",
+    "task.accepted": "Task accepted",
+    "task.owner_changed": "Owner changed",
+    "task.deleted": "Task deleted",
+    "run.queued": "Run queued",
+    "run.cancel_requested": "Cancel requested",
+    "operation.authorized": "Operation authorized",
+    "operation.finished": "Operation finished",
+    "operation.canceled": "Operation canceled",
+    "operation.unknown": "Operation unknown",
+    "artifact.published": "Artifact published",
+    "approval.decided": "Approval decided"
+  }
+}

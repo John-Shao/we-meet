@@ -12,6 +12,7 @@ import {
   RiApps2Line,
   RiFileTextLine,
   RiRobot2Line,
+  RiBriefcaseLine,
   RiLayoutLeftLine,
   RiMoreLine,
   RiSettings3Line,
@@ -57,6 +58,7 @@ const NAV: NavItem[] = [
   { to: '/im', labelKey: 'nav.messages', Icon: RiMessage3Line },
   { to: '/assistant', labelKey: 'nav.assistant', Icon: RiRobot2Line },
   { to: '/meeting', labelKey: 'nav.meeting', Icon: RiVidiconLine },
+  { to: '/work', labelKey: 'nav.work', Icon: RiBriefcaseLine },
   { to: '/docs', labelKey: 'nav.docs', Icon: RiFileTextLine },
   { to: '/apps', labelKey: 'nav.apps', Icon: RiApps2Line },
 ]

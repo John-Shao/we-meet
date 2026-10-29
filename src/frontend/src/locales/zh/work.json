@@ -1,0 +1,178 @@
+{
+  "title": "工作",
+  "loading": "正在加载…",
+  "retry": "重试",
+  "nav": {
+    "label": "工作导航",
+    "home": "首页",
+    "items": "我的工作"
+  },
+  "unavailable": {
+    "title": "暂无 Work 权限",
+    "description": "当前账号没有 Work 席位或组织未开通，请联系管理员。"
+  },
+  "errors": {
+    "bootstrapTitle": "工作空间暂时不可用",
+    "bootstrapDescription": "无法验证 Work 会话或加载配置，请稍后重试。"
+  },
+  "home": {
+    "eyebrow": "WORK",
+    "title": "让工作从一句话开始",
+    "subtitle": "描述目标，Work 会整理执行过程并把成果交还给你。",
+    "viewAll": "查看全部工作",
+    "recent": "最近工作",
+    "emptyRecent": "提交第一个任务后，它会出现在这里。"
+  },
+  "composer": {
+    "title": "新建工作",
+    "goal": "任务描述",
+    "goalPlaceholder": "例如：写一份上线计划，包含风险和回滚步骤",
+    "background": "补充背景",
+    "backgroundPlaceholder": "可选：受众、已有信息、约束条件",
+    "counter": "{{count}} / {{max}} 字符",
+    "template": "工作方法",
+    "permission": "执行权限",
+    "mode": {
+      "ask_each": "每次询问",
+      "auto_readonly": "自动执行只读操作"
+    },
+    "modeHint": {
+      "ask_each": "涉及写入或外部动作前先确认。",
+      "auto_readonly": "允许自动读取，写入仍需确认。"
+    },
+    "boundaryTitle": "本次使用",
+    "boundary": "云端执行 · 不访问本机 · Markdown 成果 · 单次最多 {{max}} 字符目标",
+    "preview": "预览并发送",
+    "confirmTitle": "确认发送",
+    "confirmDescription": "提交后任务会进入执行队列；你可以在任务工作区查看进展。",
+    "tokenCap": "Token 上限",
+    "inputBytes": "输入大小（字节）",
+    "back": "返回修改",
+    "confirmSend": "确认发送",
+    "templateVersion": "版本 v{{version}}"
+  },
+  "items": {
+    "title": "我的工作",
+    "subtitle": "只显示你有权访问的任务。",
+    "views": "工作视图",
+    "view": {
+      "pending": "待开始",
+      "running": "进行中",
+      "awaiting_acceptance": "待验收",
+      "completed": "已完成",
+      "all": "全部"
+    },
+    "errorTitle": "无法加载工作",
+    "errorDescription": "请检查网络后重试。",
+    "empty": {
+      "pending": {
+        "title": "没有待开始的工作",
+        "description": "从首页描述一个新目标开始。"
+      },
+      "running": {
+        "title": "没有进行中的工作",
+        "description": "执行中的任务会显示在这里。"
+      },
+      "awaiting_acceptance": {
+        "title": "没有待验收的工作",
+        "description": "执行完成后，成果会在这里等待确认。"
+      },
+      "completed": {
+        "title": "还没有完成的工作",
+        "description": "完成任务并确认后会进入这里。"
+      },
+      "all": {
+        "title": "还没有工作",
+        "description": "从首页描述一个新目标开始。"
+      }
+    },
+    "loadMore": "加载更多",
+    "updatedAt": "更新于 {{time}}",
+    "runState": "执行：{{state}}",
+    "artifact": "成果 v{{version}}"
+  },
+  "status": {
+    "open": "待开始",
+    "queued": "排队中",
+    "running": "进行中",
+    "awaiting_acceptance": "待验收",
+    "completed": "已完成",
+    "failed": "执行失败",
+    "run_canceled": "运行已取消",
+    "reconciling": "核对中",
+    "quota_exhausted": "配额不足",
+    "canceling": "取消中",
+    "canceled": "已取消",
+    "archived": "已归档"
+  },
+  "run": {
+    "queued": "排队中",
+    "active": "执行中",
+    "waiting": "等待中",
+    "cancel_requested": "取消请求中",
+    "succeeded": "已成功",
+    "failed": "已失败",
+    "canceled": "已取消"
+  },
+  "task": {
+    "back": "返回我的工作",
+    "loadErrorTitle": "无法打开这个任务",
+    "loadErrorDescription": "任务可能不存在，或你已没有访问权限。",
+    "titleLabel": "任务标题",
+    "titleEmpty": "标题不能为空。",
+    "saveTitle": "保存标题",
+    "cancelEdit": "取消编辑",
+    "editTitle": "编辑标题",
+    "revision": "修订 {{revision}}",
+    "attempt": "第 {{attempt}} 次执行",
+    "cancelRun": "取消执行",
+    "goal": "目标",
+    "background": "背景",
+    "timeline": "执行时间线",
+    "noLiveEvents": "暂无新的实时事件；任务详情以服务端状态为准。",
+    "seq": "事件 #{{seq}}",
+    "eventState": "状态：{{state}}",
+    "run": "执行",
+    "runState": "运行状态",
+    "runtime": "运行时",
+    "waitReason": "等待原因",
+    "terminalReason": "结束原因",
+    "noRun": "尚未创建运行。",
+    "quota": "Token 配额",
+    "quotaDetail": "预留 {{reserved}} · 已结算 {{settled}}",
+    "snapshot": "能力快照",
+    "template": "模板",
+    "templateMissing": "模板已不可用",
+    "snapshotHash": "快照哈希",
+    "tools": "工具",
+    "acceptTitle": "确认完成",
+    "acceptHint": "当前没有可展示的成果版本；确认后任务将标记为完成。",
+    "acceptReason": "完成理由",
+    "acceptPlaceholder": "简要说明完成情况",
+    "confirmAccept": "确认完成",
+    "accepted": "任务已完成。",
+    "acceptReasonRequired": "请填写完成理由。",
+    "latestArtifact": "最新成果",
+    "artifactDetail": "版本 v{{version}} · {{hash}}…",
+    "artifactNotViewable": "成果内容预览/编辑接口尚未开放，本页只显示版本信息。",
+    "streamOpen": "实时连接",
+    "streamConnecting": "正在连接…",
+    "streamReconnecting": "正在重新连接…",
+    "streamError": "实时连接不可用"
+  },
+  "event": {
+    "task.submitted": "任务已提交",
+    "task.updated": "任务已更新",
+    "task.accepted": "任务已采纳",
+    "task.owner_changed": "任务负责人已变更",
+    "task.deleted": "任务已删除",
+    "run.queued": "执行已排队",
+    "run.cancel_requested": "请求取消执行",
+    "operation.authorized": "操作已授权",
+    "operation.finished": "操作已完成",
+    "operation.canceled": "操作已取消",
+    "operation.unknown": "操作状态未知",
+    "artifact.published": "成果已发布",
+    "approval.decided": "审批已决定"
+  }
+}
