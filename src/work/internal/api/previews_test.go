@@ -69,6 +69,9 @@ func TestTemplatesPreviewAndSubmit(t *testing.T) {
 		t.Fatalf("task = %#v", task)
 	}
 	assertTaskRun(t, dbName, task.TaskID, task.RunID)
+	if kind := taskOutboxKind(t, dbName, task.TaskID); kind != "task_event" {
+		t.Fatalf("task outbox kind = %q", kind)
+	}
 
 	replay := postSubmit(t, server.URL, token, body)
 	if replay.StatusCode != http.StatusAccepted {
@@ -178,15 +181,21 @@ func assertTaskRun(t *testing.T, dbName, taskID, runID string) {
 		t.Fatal(err)
 	}
 	defer conn.Close(context.Background())
-	var taskState, runState, owner string
+	var taskState, runState, owner, workflowID, outboxWorkflowID string
 	if err := conn.QueryRow(context.Background(), `
-		SELECT t.state, r.state, t.owner_subject_id
-		FROM work.task t JOIN work.run r ON r.task_id = t.id AND r.org_id = t.org_id
+		SELECT t.state, r.state, t.owner_subject_id, r.workflow_id, o.payload->>'workflow_id'
+		FROM work.task t
+		JOIN work.run r ON r.task_id = t.id AND r.org_id = t.org_id
+		JOIN work.outbox o ON o.aggregate_type = 'run' AND o.aggregate_id = r.id
+		  AND o.payload->>'kind' = 'start_workflow'
 		WHERE t.id = $1 AND r.id = $2`, taskID, runID,
-	).Scan(&taskState, &runState, &owner); err != nil {
+	).Scan(&taskState, &runState, &owner, &workflowID, &outboxWorkflowID); err != nil {
 		t.Fatal(err)
 	}
 	if taskState != "open" || runState != "queued" || owner != "sub_a" {
 		t.Fatalf("task=%s run=%s owner=%s", taskState, runState, owner)
+	}
+	if workflowID != "run:"+runID || outboxWorkflowID != workflowID {
+		t.Fatalf("workflow_id=%q outbox=%q", workflowID, outboxWorkflowID)
 	}
 }

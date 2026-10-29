@@ -102,7 +102,7 @@ func TestApplyEmptyDatabase(t *testing.T) {
 	if result.State != "applied" {
 		t.Fatalf("state = %q", result.State)
 	}
-	if got := ledgerVersions(t, dbName); !equalInt64(got, []int64{1, 2, 3}) {
+	if got := ledgerVersions(t, dbName); !equalInt64(got, []int64{1, 2, 3, 4, 5, 6, 7}) {
 		t.Fatalf("ledger versions = %v", got)
 	}
 
@@ -113,7 +113,7 @@ func TestApplyEmptyDatabase(t *testing.T) {
 	if again.State != "up_to_date" {
 		t.Fatalf("second apply state = %q", again.State)
 	}
-	if got := ledgerVersions(t, dbName); !equalInt64(got, []int64{1, 2, 3}) {
+	if got := ledgerVersions(t, dbName); !equalInt64(got, []int64{1, 2, 3, 4, 5, 6, 7}) {
 		t.Fatalf("ledger versions after repeat = %v", got)
 	}
 }
@@ -140,7 +140,7 @@ func TestAdoptExistingDatabase(t *testing.T) {
 	if result.State != "applied" {
 		t.Fatalf("state = %q", result.State)
 	}
-	if got := ledgerVersions(t, dbName); !equalInt64(got, []int64{1, 2, 3}) {
+	if got := ledgerVersions(t, dbName); !equalInt64(got, []int64{1, 2, 3, 4, 5, 6, 7}) {
 		t.Fatalf("ledger versions = %v", got)
 	}
 	if got := scalarInt(t, dbName, `SELECT count(*) FROM work.schema_migration WHERE adopted`); got != 2 {
@@ -199,7 +199,7 @@ func assertRepresentativeData(t *testing.T, dbName string) {
 		`SELECT count(*) FROM work.run WHERE id = '44444444-4444-4444-4444-444444444444'`,
 		`SELECT count(*) FROM work.operation WHERE id = '55555555-5555-5555-5555-555555555555'`,
 		`SELECT count(*) FROM work.usage_daily WHERE org_id = 'org_adopt'`,
-		`SELECT count(*) FROM work.quota_account WHERE org_id = 'org_adopt'`,
+		`SELECT count(*) FROM work.quota_account WHERE org_id = 'org_adopt' AND account_key = 'run_cap' AND period_id = 'default'`,
 	} {
 		if got := scalarInt(t, dbName, query); got != 1 {
 			t.Fatalf("query %q = %d, want 1", query, got)
@@ -310,7 +310,7 @@ func TestConcurrentRunnersSerialize(t *testing.T) {
 			t.Fatalf("runner %d: %v", i, err)
 		}
 	}
-	if got := ledgerVersions(t, dbName); !equalInt64(got, []int64{1, 2, 3}) {
+	if got := ledgerVersions(t, dbName); !equalInt64(got, []int64{1, 2, 3, 4, 5, 6, 7}) {
 		t.Fatalf("ledger versions = %v", got)
 	}
 	initialized := 0
@@ -327,7 +327,7 @@ func TestConcurrentRunnersSerialize(t *testing.T) {
 func TestApplyIncrementAndRepeat(t *testing.T) {
 	dir := copyEmbeddedMigrations(t)
 	appendIncrement(t, dir, Migration{
-		Version: 4, Name: "0004_noop", Kind: "increment", File: "increments/0004_noop.sql",
+		Version: 8, Name: "0008_noop", Kind: "increment", File: "increments/0008_noop.sql",
 		Transactional: true, Executable: true,
 	}, "SELECT 1;", true)
 	dbName, migratorURL := newTestDB(t)
@@ -345,7 +345,7 @@ func TestApplyIncrementAndRepeat(t *testing.T) {
 	if result.State != "applied" {
 		t.Fatalf("state = %q", result.State)
 	}
-	if got := ledgerVersions(t, dbName); !equalInt64(got, []int64{1, 2, 3, 4}) {
+	if got := ledgerVersions(t, dbName); !equalInt64(got, []int64{1, 2, 3, 4, 5, 6, 7, 8}) {
 		t.Fatalf("ledger versions = %v", got)
 	}
 	again, err := runner.Apply(testContext(t))
@@ -360,7 +360,7 @@ func TestApplyIncrementAndRepeat(t *testing.T) {
 func TestNonTransactionalIncrementRejected(t *testing.T) {
 	dir := copyEmbeddedMigrations(t)
 	appendIncrement(t, dir, Migration{
-		Version: 4, Name: "0004_non_tx", Kind: "increment", File: "increments/0004_non_tx.sql",
+		Version: 8, Name: "0008_non_tx", Kind: "increment", File: "increments/0008_non_tx.sql",
 		Transactional: false, Executable: true, NamedRecoveryProtocol: "test-noop",
 	}, "SELECT 1;", true)
 	dbName, migratorURL := newTestDB(t)
@@ -373,7 +373,7 @@ func TestNonTransactionalIncrementRejected(t *testing.T) {
 	}
 	_, err = runner.Apply(testContext(t))
 	assertCode(t, err, "non_transactional_protocol_unimplemented")
-	if got := ledgerVersions(t, dbName); !equalInt64(got, []int64{1, 2, 3}) {
+	if got := ledgerVersions(t, dbName); !equalInt64(got, []int64{1, 2, 3, 4, 5, 6, 7}) {
 		t.Fatalf("ledger versions = %v", got)
 	}
 }
@@ -381,7 +381,7 @@ func TestNonTransactionalIncrementRejected(t *testing.T) {
 func TestFailedIncrementRollsBack(t *testing.T) {
 	dir := copyEmbeddedMigrations(t)
 	appendIncrement(t, dir, Migration{
-		Version: 4, Name: "0004_fails", Kind: "increment", File: "increments/0004_fails.sql",
+		Version: 8, Name: "0008_fails", Kind: "increment", File: "increments/0008_fails.sql",
 		Transactional: true, Executable: true,
 	}, "CREATE TABLE work.should_not_exist (id int); SELECT 1/0;", true)
 	dbName, migratorURL := newTestDB(t)
@@ -394,7 +394,7 @@ func TestFailedIncrementRollsBack(t *testing.T) {
 	}
 	_, err = runner.Apply(testContext(t))
 	assertCode(t, err, "increment_apply_failed")
-	if got := ledgerVersions(t, dbName); !equalInt64(got, []int64{1, 2, 3}) {
+	if got := ledgerVersions(t, dbName); !equalInt64(got, []int64{1, 2, 3, 4, 5, 6, 7}) {
 		t.Fatalf("ledger versions = %v", got)
 	}
 	if got := relationExists(t, dbName, "work.should_not_exist"); got {
@@ -405,7 +405,7 @@ func TestFailedIncrementRollsBack(t *testing.T) {
 func TestInterruptedIncrementRollsBack(t *testing.T) {
 	dir := copyEmbeddedMigrations(t)
 	appendIncrement(t, dir, Migration{
-		Version: 4, Name: "0004_interrupted", Kind: "increment", File: "increments/0004_interrupted.sql",
+		Version: 8, Name: "0008_interrupted", Kind: "increment", File: "increments/0008_interrupted.sql",
 		Transactional: true, Executable: true,
 	}, "CREATE TABLE work.interrupted_marker (id int); SELECT pg_sleep(30);", true)
 	dbName, migratorURL := newTestDB(t)
@@ -436,7 +436,7 @@ func TestInterruptedIncrementRollsBack(t *testing.T) {
 		t.Fatal("interrupted increment returned success")
 	}
 	assertCode(t, err, "increment_apply_failed")
-	if got := ledgerVersions(t, dbName); !equalInt64(got, []int64{1, 2, 3}) {
+	if got := ledgerVersions(t, dbName); !equalInt64(got, []int64{1, 2, 3, 4, 5, 6, 7}) {
 		t.Fatalf("ledger versions = %v", got)
 	}
 	if got := relationExists(t, dbName, "work.interrupted_marker"); got {

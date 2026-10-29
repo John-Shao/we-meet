@@ -37,6 +37,50 @@
       "legacy_checksums": [
         "sha256:87ea354b2afd664d0c27c25410e1be1b78ef77884cddeb4dbe6087f1da6b0636"
       ]
+    },
+    {
+      "version": 4,
+      "name": "0004_outbox_task_event_kind",
+      "kind": "increment",
+      "file": "increments/0004_outbox_task_event_kind.sql",
+      "checksum": "sha256:cfa6ef34c6450085a6a8858d11dc1b53ec28f4a333f1824d40413b6e6afd5fd0",
+      "catalog": "catalogs/0004_outbox_task_event_kind.json",
+      "catalog_checksum": "sha256:9384012f669f245e649138c6b44edaae8bf8b5529e90327288a10ea252966019",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 5,
+      "name": "0005_run_workflow_id",
+      "kind": "increment",
+      "file": "increments/0005_run_workflow_id.sql",
+      "checksum": "sha256:477f8f31f51a94b42b28d20b5d8e5cfabcc6d584093b4f6945cfd7de09c28d22",
+      "catalog": "catalogs/0005_run_workflow_id.json",
+      "catalog_checksum": "sha256:312c082799a9a7aa742318831e6b873c16144ea0d5b97f2478d80806a6e7241a",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 6,
+      "name": "0006_org_policy_quota_provision",
+      "kind": "increment",
+      "file": "increments/0006_org_policy_quota_provision.sql",
+      "checksum": "sha256:ca7dc30e378809554127c052269f9d2e0e64d8a5d5173fb7559ac2bb766a23a9",
+      "catalog": "catalogs/0006_org_policy_quota_provision.json",
+      "catalog_checksum": "sha256:02370e771a3e0fe65b362110dbb63ea606be24f730c37f85b532ac28e9e99244",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 7,
+      "name": "0007_org_provision_backfill",
+      "kind": "increment",
+      "file": "increments/0007_org_provision_backfill.sql",
+      "checksum": "sha256:3f527e9be0dcd91f7054c34cf52d3f4f59dc9835440c27c8456542f4ac3d8436",
+      "catalog": "catalogs/0006_org_policy_quota_provision.json",
+      "catalog_checksum": "sha256:02370e771a3e0fe65b362110dbb63ea606be24f730c37f85b532ac28e9e99244",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

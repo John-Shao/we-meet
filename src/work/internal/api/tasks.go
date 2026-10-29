@@ -19,24 +19,33 @@ import (
 )
 
 const (
-	TasksPath     = "/work/v1/tasks"
-	RunPath       = "/work/v1/runs/{runId}"
-	RunCancelPath = "/work/v1/runs/{runId}/cancel"
+	TasksPath           = "/work/v1/tasks"
+	TaskPath            = "/work/v1/tasks/{taskId}"
+	TaskAcceptancesPath = "/work/v1/tasks/{taskId}/acceptances"
+	RunPath             = "/work/v1/runs/{runId}"
+	RunCancelPath       = "/work/v1/runs/{runId}/cancel"
 
 	defaultTaskLimit = 50
 	maxTaskLimit     = 100
 )
 
-type RunSummary struct {
-	RunID          string  `json:"run_id"`
-	State          string  `json:"state"`
-	WaitReason     *string `json:"wait_reason"`
-	TerminalReason *string `json:"terminal_reason"`
+type Run struct {
+	ID              string    `json:"id"`
+	TaskID          string    `json:"task_id"`
+	AttemptNo       int       `json:"attempt_no"`
+	State           string    `json:"state"`
+	WaitReason      *string   `json:"wait_reason"`
+	TerminalReason  *string   `json:"terminal_reason"`
+	ControlRevision int64     `json:"control_revision"`
+	RuntimeVersion  string    `json:"runtime_version"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 type ArtifactSummary struct {
-	ArtifactID string `json:"artifact_id"`
-	VersionNo  int    `json:"version_no"`
+	ArtifactID  string `json:"artifact_id"`
+	VersionNo   int    `json:"version_no"`
+	ContentHash string `json:"content_hash"`
 }
 
 type TaskQuota struct {
@@ -46,28 +55,35 @@ type TaskQuota struct {
 
 type TaskSummary struct {
 	TaskID             string           `json:"task_id"`
+	Title              string           `json:"title"`
 	DisplayState       string           `json:"display_state"`
 	TaskState          string           `json:"task_state"`
-	Revision           int64            `json:"revision"`
-	Title              string           `json:"title"`
-	LatestRun          *RunSummary      `json:"latest_run"`
+	PermissionMode     string           `json:"permission_mode"`
+	ActiveRunID        *string          `json:"active_run_id"`
+	LatestRunID        *string          `json:"latest_run_id"`
+	LatestRun          *Run             `json:"latest_run"`
 	LatestArtifact     *ArtifactSummary `json:"latest_artifact"`
-	Quota              TaskQuota        `json:"quota"`
-	BlockingOperations int64            `json:"blocking_operations"`
+	Revision           int64            `json:"revision"`
 	PendingAcceptance  bool             `json:"pending_acceptance"`
+	BlockingOperations int64            `json:"blocking_operations"`
+	Quota              TaskQuota        `json:"quota"`
 	CreatedAt          time.Time        `json:"created_at"`
 	UpdatedAt          time.Time        `json:"updated_at"`
 }
 
-type RunView struct {
-	RunID          string    `json:"run_id"`
-	TaskID         string    `json:"task_id"`
-	State          string    `json:"state"`
-	WaitReason     *string   `json:"wait_reason"`
-	TerminalReason *string   `json:"terminal_reason"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-}
+const taskSummaryColumns = `
+	ts.task_id, ts.title, ts.display_state, ts.task_state, ts.permission_mode,
+	ts.active_run_id, ts.latest_run_id, ts.revision,
+	ts.pending_acceptance, ts.blocking_operations,
+	ts.reserved_tokens::bigint, ts.settled_tokens::bigint,
+	ts.latest_artifact_id, ts.latest_artifact_version, ts.latest_artifact_hash,
+	ts.created_at, ts.updated_at,
+	r.id, r.task_id, r.attempt_no, r.state, r.wait_reason, r.terminal_reason,
+	r.control_revision, r.runtime_version, r.created_at, r.updated_at`
+
+const taskSummaryFrom = `
+	FROM work.task_summary ts
+	LEFT JOIN work.run r ON r.id = ts.latest_run_id AND r.org_id = ts.org_id`
 
 type taskCursor struct {
 	updatedAt time.Time
@@ -132,24 +148,18 @@ func (s *Server) readTasks(ctx context.Context, claims host.Claims, predicate st
 		workdb.RoleAPI,
 		workdb.Options{ReadOnly: true},
 		func(tx pgx.Tx) error {
-			query := `
-				SELECT task_id, display_state, task_state, revision, title,
-				       latest_run_id, run_state, wait_reason, terminal_reason,
-				       latest_artifact_id, latest_artifact_version,
-				       reserved_tokens::bigint, settled_tokens::bigint,
-				       blocking_operations, pending_acceptance, created_at, updated_at
-				FROM work.task_summary
-				WHERE owner_subject_id = $1`
+			query := `SELECT ` + taskSummaryColumns + taskSummaryFrom + `
+				WHERE ts.owner_subject_id = $1`
 			args := []any{claims.SubjectID}
 			if predicate != "" {
 				query += " AND " + predicate
 			}
 			if cursor != nil {
-				query += " AND (updated_at, task_id) < ($2, $3)"
+				query += " AND (ts.updated_at, ts.task_id) < ($2, $3)"
 				args = append(args, cursor.updatedAt, cursor.taskID)
-				query += " ORDER BY updated_at DESC, task_id DESC LIMIT $4"
+				query += " ORDER BY ts.updated_at DESC, ts.task_id DESC LIMIT $4"
 			} else {
-				query += " ORDER BY updated_at DESC, task_id DESC LIMIT $2"
+				query += " ORDER BY ts.updated_at DESC, ts.task_id DESC LIMIT $2"
 			}
 			args = append(args, limit+1)
 			rows, err := tx.Query(ctx, query, args...)
@@ -160,34 +170,14 @@ func (s *Server) readTasks(ctx context.Context, claims host.Claims, predicate st
 			seen := 0
 			hasMore := false
 			for rows.Next() {
-				var item TaskSummary
-				var runID, runState, waitReason, terminalReason, artifactID *string
-				var artifactVersion *int
-				if err := rows.Scan(
-					&item.TaskID, &item.DisplayState, &item.TaskState, &item.Revision,
-					&item.Title, &runID, &runState, &waitReason, &terminalReason,
-					&artifactID, &artifactVersion,
-					&item.Quota.ReservedTokens, &item.Quota.SettledTokens,
-					&item.BlockingOperations, &item.PendingAcceptance,
-					&item.CreatedAt, &item.UpdatedAt,
-				); err != nil {
+				item, err := scanTaskSummary(rows)
+				if err != nil {
 					return err
 				}
 				seen++
 				if seen > limit {
 					hasMore = true
 					continue
-				}
-				if runID != nil && runState != nil {
-					item.LatestRun = &RunSummary{
-						RunID:          *runID,
-						State:          *runState,
-						WaitReason:     waitReason,
-						TerminalReason: terminalReason,
-					}
-				}
-				if artifactID != nil && artifactVersion != nil {
-					item.LatestArtifact = &ArtifactSummary{ArtifactID: *artifactID, VersionNo: *artifactVersion}
 				}
 				items = append(items, item)
 			}
@@ -203,6 +193,70 @@ func (s *Server) readTasks(ctx context.Context, claims host.Claims, predicate st
 		},
 	)
 	return items, next, err
+}
+
+func loadTaskSummary(ctx context.Context, tx pgx.Tx, taskID string, claims host.Claims) (TaskSummary, error) {
+	return scanTaskSummary(tx.QueryRow(ctx, `SELECT `+taskSummaryColumns+taskSummaryFrom+`
+		WHERE ts.task_id = $1 AND ts.org_id = $2 AND ts.owner_subject_id = $3`,
+		taskID, claims.OrgID, claims.SubjectID))
+}
+
+func scanTaskSummary(row pgx.Row) (TaskSummary, error) {
+	var item TaskSummary
+	var activeRunID, latestRunID, artifactID, artifactHash *string
+	var artifactVersion *int
+	var runID, runTaskID, runState, waitReason, terminalReason, runtimeVersion *string
+	var attemptNo *int
+	var controlRevision *int64
+	var runCreatedAt, runUpdatedAt *time.Time
+	if err := row.Scan(
+		&item.TaskID, &item.Title, &item.DisplayState, &item.TaskState, &item.PermissionMode,
+		&activeRunID, &latestRunID, &item.Revision,
+		&item.PendingAcceptance, &item.BlockingOperations,
+		&item.Quota.ReservedTokens, &item.Quota.SettledTokens,
+		&artifactID, &artifactVersion, &artifactHash,
+		&item.CreatedAt, &item.UpdatedAt,
+		&runID, &runTaskID, &attemptNo, &runState, &waitReason, &terminalReason,
+		&controlRevision, &runtimeVersion, &runCreatedAt, &runUpdatedAt,
+	); err != nil {
+		return TaskSummary{}, err
+	}
+	item.ActiveRunID = activeRunID
+	item.LatestRunID = latestRunID
+	if artifactID != nil && artifactVersion != nil && artifactHash != nil {
+		item.LatestArtifact = &ArtifactSummary{
+			ArtifactID: *artifactID, VersionNo: *artifactVersion, ContentHash: *artifactHash,
+		}
+	}
+	if runID != nil && runTaskID != nil && attemptNo != nil && runState != nil &&
+		controlRevision != nil && runtimeVersion != nil && runCreatedAt != nil && runUpdatedAt != nil {
+		item.LatestRun = &Run{
+			ID: *runID, TaskID: *runTaskID, AttemptNo: *attemptNo, State: *runState,
+			WaitReason: waitReason, TerminalReason: terminalReason,
+			ControlRevision: *controlRevision, RuntimeVersion: *runtimeVersion,
+			CreatedAt: *runCreatedAt, UpdatedAt: *runUpdatedAt,
+		}
+	}
+	return item, nil
+}
+
+func loadRun(ctx context.Context, tx pgx.Tx, runID string, claims host.Claims) (Run, error) {
+	var view Run
+	var waitReason, terminalReason *string
+	err := tx.QueryRow(ctx, `
+		SELECT r.id, r.task_id, r.attempt_no, r.state, r.wait_reason, r.terminal_reason,
+		       r.control_revision, r.runtime_version, r.created_at, r.updated_at
+		FROM work.run r
+		JOIN work.task t ON t.id = r.task_id AND t.org_id = r.org_id
+		WHERE r.id = $1 AND r.org_id = $2
+		  AND t.owner_subject_id = $3 AND t.deleted_at IS NULL`,
+		runID, claims.OrgID, claims.SubjectID,
+	).Scan(&view.ID, &view.TaskID, &view.AttemptNo, &view.State, &waitReason,
+		&terminalReason, &view.ControlRevision, &view.RuntimeVersion,
+		&view.CreatedAt, &view.UpdatedAt)
+	view.WaitReason = waitReason
+	view.TerminalReason = terminalReason
+	return view, err
 }
 
 func (s *Server) getRun(w http.ResponseWriter, r *http.Request) {
@@ -226,25 +280,14 @@ func (s *Server) getRun(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, correlationID, apiError)
 		return
 	}
-	var view RunView
+	var view Run
 	err := workdb.WithWorkContext(r.Context(), s.pool,
 		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
 		workdb.RoleAPI,
 		workdb.Options{ReadOnly: true},
 		func(tx pgx.Tx) error {
-			var waitReason, terminalReason *string
-			err := tx.QueryRow(r.Context(), `
-				SELECT r.id, r.task_id, r.state, r.wait_reason, r.terminal_reason,
-				       r.created_at, r.updated_at
-				FROM work.run r
-				JOIN work.task t ON t.id = r.task_id AND t.org_id = r.org_id
-				WHERE r.id = $1 AND r.org_id = $2
-				  AND t.owner_subject_id = $3 AND t.deleted_at IS NULL`,
-				runID, claims.OrgID, claims.SubjectID,
-			).Scan(&view.RunID, &view.TaskID, &view.State, &waitReason,
-				&terminalReason, &view.CreatedAt, &view.UpdatedAt)
-			view.WaitReason = waitReason
-			view.TerminalReason = terminalReason
+			var err error
+			view, err = loadRun(r.Context(), tx, runID, claims)
 			return err
 		},
 	)
@@ -274,7 +317,7 @@ func (s *Server) cancelRun(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, correlationID, apierr.New("run_not_found"))
 		return
 	}
-	var view RunView
+	var view Run
 	err := workdb.WithWorkContext(r.Context(), s.pool,
 		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
 		workdb.RoleAPI,
@@ -287,19 +330,8 @@ func (s *Server) cancelRun(w http.ResponseWriter, r *http.Request) {
 				claims.OrgID, runID, claims.SubjectID); err != nil {
 				return err
 			}
-			var waitReason, terminalReason *string
-			err := tx.QueryRow(r.Context(), `
-				SELECT r.id, r.task_id, r.state, r.wait_reason, r.terminal_reason,
-				       r.created_at, r.updated_at
-				FROM work.run r
-				JOIN work.task t ON t.id = r.task_id AND t.org_id = r.org_id
-				WHERE r.id = $1 AND r.org_id = $2
-				  AND t.owner_subject_id = $3 AND t.deleted_at IS NULL`,
-				runID, claims.OrgID, claims.SubjectID,
-			).Scan(&view.RunID, &view.TaskID, &view.State, &waitReason,
-				&terminalReason, &view.CreatedAt, &view.UpdatedAt)
-			view.WaitReason = waitReason
-			view.TerminalReason = terminalReason
+			var err error
+			view, err = loadRun(r.Context(), tx, runID, claims)
 			return err
 		},
 	)

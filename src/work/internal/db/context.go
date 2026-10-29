@@ -108,6 +108,26 @@ func WithDirectoryContext(
 	return withContext(ctx, pool, Identity{OrgID: orgID}, RoleDirectory, options, fn)
 }
 
+func WithRelayContext(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	fn func(pgx.Tx) error,
+) error {
+	return withRoleContext(ctx, pool, RoleWorker, "", "", Options{}, fn)
+}
+
+func WithWorkerOrgContext(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	orgID string,
+	fn func(pgx.Tx) error,
+) error {
+	if err := validateID("org_id", orgID); err != nil {
+		return err
+	}
+	return withRoleContext(ctx, pool, RoleWorker, orgID, "", Options{}, fn)
+}
+
 func withContext(
 	ctx context.Context,
 	pool *pgxpool.Pool,
@@ -116,11 +136,25 @@ func withContext(
 	options Options,
 	fn func(pgx.Tx) error,
 ) error {
+	return withRoleContext(ctx, pool, role, identity.OrgID, identity.SubjectID, options, fn)
+}
+
+func withRoleContext(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	role Role,
+	orgID, subjectID string,
+	options Options,
+	fn func(pgx.Tx) error,
+) error {
 	if pool == nil {
 		return Wrap("pool_required", "connection pool is required", nil)
 	}
 	if fn == nil {
 		return Wrap("callback_required", "transaction callback is required", nil)
+	}
+	if !role.valid() {
+		return Wrap("invalid_role", fmt.Sprintf("role %q is not allowed for request-path work", role), nil)
 	}
 
 	txOptions := pgx.TxOptions{IsoLevel: pgx.ReadCommitted}
@@ -142,7 +176,7 @@ func withContext(
 		`SELECT set_config('role', $1, true),
 		        set_config('app.org_id', $2, true),
 		        set_config('app.subject_id', $3, true)`,
-		string(role), identity.OrgID, identity.SubjectID,
+		string(role), orgID, subjectID,
 	); err != nil {
 		return Wrap("context_setup_failed", "set work RLS context", err)
 	}

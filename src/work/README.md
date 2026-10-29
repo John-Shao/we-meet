@@ -33,21 +33,78 @@ go run ./cmd/work-migrate snapshot -url "$WORK_DATABASE_URL" -output migrations/
 
 ## work-api
 
-`cmd/work-api` serves the frozen bootstrap slice at `GET /work/v1/bootstrap`.
-It reads the browser `sessionid` cookie, verifies it through the Host mTLS
-endpoint, opens a `work_api` RLS transaction, reads `work.member`/`work.org`/
-`work.org_policy`, and returns the `work-bootstrap-v1` body plus a Go-issued
-HMAC `work_csrf` cookie.
+`cmd/work-api` serves the Phase 2 task surface:
+
+- `GET /work/v1/bootstrap` — frozen bootstrap body plus a Go-issued HMAC
+  `work_csrf` cookie.
+- `GET /work/v1/tasks` / `GET /work/v1/runs/{runId}` — owner-scoped reads with
+  keyset pagination.
+- `GET /work/v1/tasks/{taskId}` — detail with goal/background decrypted from
+  the Content Store, template and capability snapshot.
+- `PATCH /work/v1/tasks/{taskId}` — optimistic-concurrency title edit.
+- `POST /work/v1/tasks/{taskId}/acceptances` — accept a published artifact
+  version or complete by reason.
+- `GET /work/v1/tasks/{taskId}/events` — owner-scoped SSE; `Last-Event-ID`
+  replays after a known event, unknown/foreign cursors return 409
+  `resync_required` with `X-Work-Event-Cursor`, and quiet streams get a
+  heartbeat every 15 seconds.
+- `POST /work/v1/inputs`, `POST /work/v1/task-previews`, `POST /work/v1/tasks`
+  — encrypted input creation, signed preview, idempotent submit.
+- `POST /work/v1/runs/{runId}/cancel` — cancel request (does not claim the
+  process stopped).
+
+Every route reads the browser `sessionid` cookie, verifies it through the Host
+mTLS endpoint, and opens a `work_api` RLS transaction. Mutations also require
+the `work_csrf` double-submit token.
 
 Required environment: `WORK_DATABASE_URL` (Work API login),
 `WORK_HOST_BASE_URL`, `WORK_HOST_CLIENT_CERT`, `WORK_HOST_CLIENT_KEY`,
-`WORK_HOST_CA`, `WORK_CSRF_SECRET` (32+ bytes), optional `WORK_LISTEN_ADDR`.
-The Host endpoint is reached through the ingress that terminates mTLS; this
-binary does not terminate client TLS itself.
+`WORK_HOST_CA`, `WORK_CSRF_SECRET` (32+ bytes), `WORK_CONTENT_MASTER_KEY`
+(32-byte hex or RawStd base64), optional `WORK_CONTENT_DIR`
+(`/var/lib/work/content` by default) and `WORK_LISTEN_ADDR`. The Host endpoint
+is reached through the ingress that terminates mTLS; this binary does not
+terminate client TLS itself.
 
 ```bash
 go run ./cmd/work-api
 ```
+
+## work-relay
+
+`cmd/work-relay` is the only process that consumes `work.outbox`:
+
+- `start_workflow` / `cancel_signal` → Temporal `work-r0a-run` queue,
+  workflow type `RunWorkflow`; the workflow receives `{run_id, org_id}` and
+  reads the rest from PostgreSQL.
+- `content_shred` → deletes encrypted objects from the local Content Store.
+- `task_event` → acknowledged without an external bus; the API SSE stream
+  reads `work.task_event` directly.
+
+It connects to PostgreSQL as `work_worker_login` (member of `work_worker`) and
+to Temporal with mTLS. Required environment: `WORK_DATABASE_URL`,
+`WORK_CONTENT_MASTER_KEY`, `WORK_TEMPORAL_ADDRESS`,
+`WORK_TEMPORAL_CERT`/`WORK_TEMPORAL_KEY`/`WORK_TEMPORAL_CA`, and optional
+namespace/task-queue/workflow-type/server-name/relay-id settings.
+
+## work-worker
+
+`cmd/work-worker` registers `RunWorkflow` on the same task queue and consumes
+workflows started by `work-relay`. The pilot activities:
+
+- `PrepareRun` reads the run/task/input/snapshot and decrypts the input.
+- `AcquireRun` executes `work.acquire_run`.
+- `ExecuteStep` creates/authorizes an operation, reserves quota, claims
+  dispatch, calls the configured runtime, stores the artifact, finishes the
+  operation, settles quota, and publishes the artifact.
+- `FinishRun` / `AbortRun` close or clean up the run.
+
+Runtime selection: `WORK_RUNTIME_MODE=reference` (deterministic non-model
+text for lifecycle drills) or `WORK_RUNTIME_MODE=openai_compatible` with
+`WORK_MODEL_BASE_URL`, `WORK_MODEL_API_KEY`, `WORK_MODEL_NAME` and
+`WORK_MODEL_PROVIDER` (`aliyun`, `volcengine` or `deepseek`). New
+organizations are auto-provisioned with an `org_policy` row and a soft
+1,000,000-token monthly account by migration 0006; the worker calls
+`work.ensure_quota_account` for later periods.
 
 ## Tests
 

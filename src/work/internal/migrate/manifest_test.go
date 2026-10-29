@@ -17,11 +17,23 @@ func TestEmbeddedManifestLoads(t *testing.T) {
 	if len(manifest.Baseline) != 2 {
 		t.Fatalf("baseline entries = %d, want 2", len(manifest.Baseline))
 	}
-	if len(manifest.Increments) != 1 {
-		t.Fatalf("increments = %d, want 1", len(manifest.Increments))
+	if len(manifest.Increments) != 5 {
+		t.Fatalf("increments = %d, want 5", len(manifest.Increments))
 	}
 	if manifest.Increments[0].Name != "0003_directory_absence" {
 		t.Fatalf("increment name = %q", manifest.Increments[0].Name)
+	}
+	if manifest.Increments[1].Name != "0004_outbox_task_event_kind" {
+		t.Fatalf("increment name = %q", manifest.Increments[1].Name)
+	}
+	if manifest.Increments[2].Name != "0005_run_workflow_id" {
+		t.Fatalf("increment name = %q", manifest.Increments[2].Name)
+	}
+	if manifest.Increments[3].Name != "0006_org_policy_quota_provision" {
+		t.Fatalf("increment name = %q", manifest.Increments[3].Name)
+	}
+	if manifest.Increments[4].Name != "0007_org_provision_backfill" {
+		t.Fatalf("increment name = %q", manifest.Increments[4].Name)
 	}
 	if manifest.Baseline[1].Name != "0002_initial_r0a_schema" {
 		t.Fatalf("baseline name = %q", manifest.Baseline[1].Name)

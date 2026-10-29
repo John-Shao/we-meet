@@ -13,6 +13,10 @@
 | `work.0001_create_work_roles` | 检查/创建 7 个 NOLOGIN 角色（work_owner/api/worker/ledger/migrator/ops/directory） | 不回滚角色（集群级，可能被其他库复用） |
 | `work.0002_initial_r0a_schema` | 执行 `src/backend/work/sql/r0a_schema.sql`：schema、表、SECURITY DEFINER 函数、RLS、授权 | `DROP SCHEMA work CASCADE` |
 | `work.0003_directory_absence` | 执行 `src/backend/work/sql/directory_absence.sql`：`directory_watermark`/`mark_members_absent`，仅授 `work_directory` | 删除这两个函数（Go runner 不提供破坏性回滚） |
+| `0004_outbox_task_event_kind` | `CREATE OR REPLACE work.append_task_event`，在 outbox payload 增加 `kind=task_event`；仅替换函数，无数据变更 | 用上一版函数体重放（Go runner 不提供破坏性回滚） |
+| `0005_run_workflow_id` | `CREATE OR REPLACE work.submit_task`/`work.retry_task`，workflow_id 由 DB 派生为 `run:<run_id>`；`p_workflow_id` 参数保留但忽略 | 用上一版函数体重放 |
+| `0006_org_policy_quota_provision` | 默认 org policy、`ensure_quota_account`、新 org 自动 provision；新 org 默认 soft 100 万 token/月 | 删除函数/trigger；已有 policy/account 不回滚 |
+| `0007_org_provision_backfill` | 对既有 org 回填 policy/quota（临时 `NO FORCE RLS` 读取 org） | 已有 policy/account 不回滚 |
 
 `0002` 的 SQL 第一条是 `CREATE SCHEMA ... AUTHORIZATION work_owner`，随后
 `GRANT ... TO work_api/work_worker/work_ledger/work_migrator/work_ops/work_directory`，
@@ -70,11 +74,11 @@ go run ./cmd/work-migrate status -url "$WORK_DATABASE_URL"
 go run ./cmd/work-migrate apply  -url "$WORK_DATABASE_URL"
 ```
 
-期望：`status` 在 apply 前显示 `0003_directory_absence` pending；apply 后台账 **3 行**
-（0001 precondition、0002 baseline、0003 increment），并校验 `catalogs/0003_directory_absence.json`。
-2026-10-28 新 ECS 已 apply 0003：`status=up_to_date`、台账 3 行、86 个函数、catalog checkpoint
-校验通过；schema 备份 `/root/work-backups/work-pre-0003-20261028.dump`，旧二进制
-`work-migrate.baseline-20261028`。部署目录同步前仍要先跑一次 `WORK_DIRECTORY_MODE=full`
+期望：`status` 在 apply 前显示最新 increment pending；当前最新为 `0007_org_provision_backfill`。
+apply 后台账 **7 行**（0001 precondition、0002 baseline、0003–0007 increment），并校验
+`catalogs/0006_org_policy_quota_provision.json`。
+2026-10-28 新 ECS 已 apply 0003；2026-10-29 已 apply 0004–0007：`status=up_to_date`、台账 7 行、
+catalog checkpoint 校验通过；0004/0005 仅替换函数，0006/0007 增加默认 policy/quota 与既有 org 回填。部署目录同步前仍要先跑一次 `WORK_DIRECTORY_MODE=full`
 初始化水位。Go runner 不执行破坏性回滚；回滚只在
 一次性库用 Django `migrate work zero` 验证。
 

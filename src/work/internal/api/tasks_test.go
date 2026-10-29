@@ -38,8 +38,12 @@ func TestListTasksProjectsOwnTasksAndViews(t *testing.T) {
 		byID[item.TaskID] = item
 	}
 	a, ok := byID[taskA]
-	if !ok || a.DisplayState != "running" || a.LatestRun == nil || a.LatestRun.RunID != runA {
+	if !ok || a.DisplayState != "running" || a.LatestRun == nil || a.LatestRun.ID != runA ||
+		a.PermissionMode != "ask_each" || a.ActiveRunID == nil || *a.ActiveRunID != runA {
 		t.Fatalf("task A = %#v", a)
+	}
+	if a.LatestRun.AttemptNo != 1 || a.LatestRun.RuntimeVersion != "test" || a.LatestRun.ControlRevision != 0 {
+		t.Fatalf("task A run = %#v", a.LatestRun)
 	}
 	b, ok := byID[taskB]
 	if !ok || b.DisplayState != "open" || b.LatestRun != nil {
@@ -120,7 +124,7 @@ func TestGetRunEnforcesOwnershipAndOrganization(t *testing.T) {
 	seedTaskGraph(t, dbName)
 	server := newHTTPServer(t, pool, &stubVerifier{claims: testClaims()}, testCSRF(t))
 
-	if got := getRun(t, server.URL, runA); got.RunID != runA || got.State != "active" || got.TaskID != taskA {
+	if got := getRun(t, server.URL, runA); got.ID != runA || got.State != "active" || got.TaskID != taskA {
 		t.Fatalf("run = %#v", got)
 	}
 	for _, hidden := range []string{runC, runD, "99999999-9999-4999-8999-999999999999"} {
@@ -167,7 +171,7 @@ func TestCancelRunRequiresCSRFAndIsIdempotent(t *testing.T) {
 	if response.StatusCode != http.StatusAccepted {
 		t.Fatalf("status = %d body=%s", response.StatusCode, response.Body)
 	}
-	var canceled api.RunView
+	var canceled api.Run
 	_ = json.NewDecoder(response.Body).Decode(&canceled)
 	response.Body.Close()
 	if canceled.State != "cancel_requested" {
@@ -220,7 +224,7 @@ func getTasks(t *testing.T, baseURL, query string) taskListBody {
 	return body
 }
 
-func getRun(t *testing.T, baseURL, runID string) api.RunView {
+func getRun(t *testing.T, baseURL, runID string) api.Run {
 	t.Helper()
 	request, _ := http.NewRequest(http.MethodGet, baseURL+fmt.Sprintf("/work/v1/runs/%s", runID), nil)
 	request.AddCookie(&http.Cookie{Name: "sessionid", Value: "session-value"})
@@ -232,7 +236,7 @@ func getRun(t *testing.T, baseURL, runID string) api.RunView {
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", response.StatusCode)
 	}
-	var view api.RunView
+	var view api.Run
 	if err := json.NewDecoder(response.Body).Decode(&view); err != nil {
 		t.Fatal(err)
 	}

@@ -193,7 +193,6 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 	}
 	manifestDigest := sha256.Sum256(manifest)
 	snapshotHash := "sha256:" + hex.EncodeToString(manifestDigest[:])
-	workflowID := "wf-" + newCorrelationID()
 	modelRoute := `{"provider":"deferred","model":"deferred"}`
 
 	var taskID, runID string
@@ -211,7 +210,7 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 				)`,
 				claims.OrgID, claims.SubjectID, body.ClientRequestID, body.InputRef,
 				title, preview.PermissionMode, snapshotHash, string(manifest),
-				[]string{"model_call"}, modelRoute, workflowID, "r0a",
+				[]string{"model_call"}, modelRoute, "", "r0a",
 			).Scan(&taskID, &runID, &revision)
 		},
 	)

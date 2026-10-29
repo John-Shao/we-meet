@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: work-api
+  namespace: work
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # SSE is long-lived; heartbeats reset the read timeout, but buffering would
+    # delay events and the default 60s read timeout would end quiet streams.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: meet.we-meet.online
+      http:
+        paths:
+          - path: /work/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: work-api
+                port:
+                  number: 80

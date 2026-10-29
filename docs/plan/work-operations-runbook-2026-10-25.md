@@ -316,16 +316,95 @@ mTLS 透传；同命名空间 agent 被攻破仍可伪造 `Ssl-Client-Cert`。
 `/etc/work/work-api.env` 的 `WORK_CONTENT_MASTER_KEY`（root:work-control 640），按 `org_id`
 经 HMAC-SHA256 派生；PG 只保存 `content_ref/content_hash/bytes`。当前是**本地 pilot**：
 
-- 未接 OSS 异地备份、对象生命周期、key_version 重加密或内容删除清扫；主密钥和该目录必须单独
-  纳入备份/恢复演练，丢失主密钥将使正文不可恢复。
+- 未接对象生命周期、key_version 重加密或内容删除清扫；主密钥和该目录必须单独纳入备份/恢复
+  演练，丢失主密钥将使正文不可恢复。OSS 打包备份已接入，但不是完整正文恢复证据（见下）。
 - 目录 `/var/lib/work/content` 应 `work-control:work-control 700`；`work-api.service` 使用
   `ProtectSystem=strict`，必须保留 `ReadWritePaths=/var/lib/work/content`，否则服务启动失败；对象文件名不含用户输入。
 - 输入 `POST /work/v1/inputs` 需要 CSRF、非 viewer 席位；正文上限 goal 2000 字符、background
   4000 字符，响应只含 `input_ref/content_hash/bytes/expires_at`。
-- 验证：`curl` 无会话 401；本地测试覆盖加密回读、幂等重放、冲突和 viewer。
+- 任务工作区：`GET /work/v1/tasks/{id}` 只对 owner 返回，goal/background 解密后返回并复核
+  `content_hash`；`PATCH /work/v1/tasks/{id}` 走 `work.update_task_title`（revision/幂等）；
+  `POST /work/v1/tasks/{id}/acceptances` 走 `work.accept_task`（成果版本或完成理由，需静止）。
+  三者都对无会话返回 401，跨 owner/组织按 404 处理。
+- 验证：`curl` 无会话 401；本地 PG16 覆盖加密回读、幂等重放、冲突、viewer、跨 owner 和采纳门槛。
 - 备份：`work-content-backup.timer` 每 6 小时打包、age 加密上传 OSS `we-work-backup/content/`，
   状态 `/var/lib/work/content-backup.json`，30 天清理；恢复需本地 age 私钥。
 - 首个备份是空内容目录的恢复烟雾，不是正文恢复证据；接入真实任务后必须重做下载/解密/目录恢复。
+
+### 5.9 Work Task SSE（2026-10-29）
+
+`GET /work/v1/tasks/{taskId}/events` 只对 owner 返回 `text/event-stream`；事件来自
+`work.task_event`（事实源），`id` 为 `event_id`，`event` 为事件类型，`data` 为
+`work-event-v1` TaskEvent JSON（不含正文）。行为：
+
+- 无 `Last-Event-ID`：从当前最新 `seq` 之后开始推，不回放历史；客户端先取 TaskDetail 快照。
+- 有 `Last-Event-ID`：必须是本 Task 的 event_id，补读其后的所有事件；未知/跨 Task 游标返回
+  **409 `resync_required`**，响应头 `X-Work-Event-Cursor` 带当前最新 event_id。
+- 空流每 15s 发 `: ping`；服务端每 1s 轮询一次，单批最多 100 条；客户端断开由请求 context 结束。
+- 无 CSRF（只读 GET）；无会话 401，非 owner/跨组织 404。
+- Ingress 资产：[work-api-ingress.yaml](../../src/work/deploy/k8s/work-api-ingress.yaml)，必须保留
+  `proxy-buffering=off`、`proxy-read-timeout=3600`、`proxy-send-timeout=3600`；生产已于
+  2026-10-29 应用。
+- 限制：单 API 实例 + DB 轮询；不覆盖多实例广播/背压/重连风暴。SSE 直接读 `work.task_event`，
+  不消费 outbox；`task_event`/`start_workflow` outbox 仍未投递，relay 未实现，上线前需补积压
+  监控。SSE 连接建立后不再重新验 session/席位；撤权新鲜度仍依赖目录同步和后续重连。
+  `task_event` 当前无留存清扫，游标不会因时间过期，只有“事件不存在/不属于本 Task”才 409。
+- 生产验证：无会话 401；本地 PG16 覆盖新事件、Last-Event-ID 补读、409 游标头、跨 owner 404。
+  生产尚无任务，未做真实流式正向验证。
+
+### 5.10 Work outbox relay（2026-10-29）
+
+`work-relay.service` 以 `work-control` 运行 `/usr/local/bin/work-relay`，是唯一消费
+`work.outbox` 的进程：
+
+- `start_workflow`/`cancel_signal` 调用 Temporal（mTLS、namespace `work-r0a`、队列
+  `work-r0a-run`、workflow type `RunWorkflow`，参数 `{run_id, org_id}`）；
+  `AlreadyExists` 视为已启动，cancel 的 NotFound 仅在 DB Run 已终态时视为成功。
+- `content_shred` 删除本地 Content Store 引用；`task_event` 直接 ACK，SSE 从
+  `work.task_event` 读取，不另建事件总线。
+- 失败走 `mark_outbox_failed` 的 2^n 退避/10 次死信；`task_event` 之外的同聚合后续行仍受
+  死信阻塞。relay 跨组织，不设置 `app.org_id`，由 DB 函数临时打开 `app.outbox_relay`。
+- 依赖：`work_worker_login`（`work_worker` 成员）只存 `/etc/work/work-relay.env`
+  （root:work-control 640）；Temporal 客户端证书在 `/etc/work/temporal`
+  （CA/client cert/key，root:work-control 640）。`work-healthcheck` 同时检查 relay active
+  与两套证书 30 天到期。
+- 部署：`work-relay.service` + `src/work/deploy/ecs/work-relay.service`；修改二进制或 env 后
+  `daemon-reload`/restart。
+- 验证（2026-10-29）：生产 relay active；合成 `content_shred` 行被领取并 ACK
+  （`delivered_at` 非空、attempts=1），随后删除该合成行，生产 outbox 归零；无真实
+  start/cancel 正向证据，因为没有任务/worker。
+- 边界：RunWorkflow worker 代码与 OpenAI-compatible/reference runtime 已实现但**未部署**；
+  生产已 provision policy/quota，但没有 Work 专属 provider key/runtime，workflow 仍会等待，
+  Run 仍是 `queued`，**不能宣称已执行**。0005 已把 `work.run.workflow_id` 统一为
+  `run:<run_id>`；无 Prometheus 指标/积压告警；多实例 relay 未验证。
+
+### 5.11 RunWorkflow worker（2026-10-29，pilot/reference）
+
+`cmd/work-worker` 已实现 legacy r0a-v1 单步 RunWorkflow：`PrepareRun` → `AcquireRun` →
+`ExecuteStep`（create/authorize/reserve/claim/runtime/Content Store/finish/settle/publish）→
+`FinishRun`；异常走 `AbortRun`（cancel/unknown/settle/release 的 best-effort 收尾）。活动和
+workflow 已在本地 Temporal test suite 与 PG16 上验证，覆盖成功、启动前取消、runtime 失败
+中止、缺 quota account。
+
+**provisioning（2026-10-29）**：0006/0007 已上线，新 org 自动创建 `org_policy` 与 soft
+100 万 token/月账户；生产现有 org 已回填（`run_cap_tokens=100000`，`default/2026-10/1000000/soft`）。
+worker 启动前会调用 `work.ensure_quota_account` 补齐后续月份。
+
+**provider 状态（2026-10-29）**：
+
+- 新增 `openai_compatible` runtime（OpenAI chat-completions 协议），支持 aliyun/volcengine/deepseek
+  供应商名；单测用本地 stub 验证请求、usage 与响应解析。
+- **尚未启用**：Work ECS 没有 Work 专属的 provider base URL/API key；meet 的 DashScope
+  key 属于 meet 边界，未复制复用。配置 `WORK_MODEL_*` 后才能启动 worker；否则会因启动校验失败
+  而不启动，避免 reference/空 provider 产生假执行。
+- 真实 provider/egress、Pi/Node runtime、operation 心跳与 unknown 对账仍未实现；`ExecuteStep`
+  一次活动完成单步，不是 F0-R1 的 plan/execute 片段协议。
+
+部署资产已安装：`/usr/local/bin/work-worker` 与 `work-worker.service` 已存在但
+**disabled/inactive**，尚无 `/etc/work/work-worker.env`。启用前需写入 Work 专属
+`WORK_MODEL_BASE_URL`/`WORK_MODEL_API_KEY`/`WORK_MODEL_NAME`/`WORK_MODEL_PROVIDER`
+及 DB/Content/Temporal/quota 配置，然后 `systemctl enable --now work-worker`。
+`work-healthcheck.sh` 已改为仅在 unit 被 enable 时检查 worker，避免未启用阶段误报。
 
 ## 6. 容量证据
 

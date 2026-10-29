@@ -278,7 +278,8 @@ func newBootstrapDB(t *testing.T, allowAuto bool, withOrg bool, memberSeat ...bo
 		INSERT INTO work.org (id, status, home_region, name)
 		VALUES ('%s', 'active', 'cn-north', 'Acme');
 		INSERT INTO work.org_policy (org_id, allow_auto_readonly)
-		VALUES ('%s', %t);
+		VALUES ('%s', %t)
+		ON CONFLICT (org_id) DO UPDATE SET allow_auto_readonly = EXCLUDED.allow_auto_readonly;
 	`, testOrg, testOrg, allowAuto)
 	if withOrg {
 		statement += fmt.Sprintf(`

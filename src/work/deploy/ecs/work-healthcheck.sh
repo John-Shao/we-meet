@@ -24,6 +24,14 @@ for unit in work-directory-sync.service work-directory-sync-full.service; do
   fi
 done
 
+relay_active=$(systemctl is-active work-relay.service 2>/dev/null || true)
+[ "$relay_active" = "active" ] || { status="degraded"; issues+=("work_relay=$relay_active"); }
+
+if systemctl is-enabled work-worker.service >/dev/null 2>&1; then
+  worker_active=$(systemctl is-active work-worker.service 2>/dev/null || true)
+  [ "$worker_active" = "active" ] || { status="degraded"; issues+=("work_worker=$worker_active"); }
+fi
+
 last=$(journalctl -u work-directory-sync.service -u work-directory-sync-full.service   -o cat --since '-30 min' 2>/dev/null | grep '"mode"' | tail -1)
 if [ -z "$last" ]; then
   status="degraded"
@@ -33,10 +41,11 @@ elif ! printf '%s' "$last" | grep -q '"errors":\[\]'; then
   issues+=("sync_errors")
 fi
 
-for name in ca client; do
-  if ! openssl x509 -in "/etc/work/certs/$name.crt" -noout -checkend 2592000 >/dev/null 2>&1; then
+for path in /etc/work/certs/ca.crt /etc/work/certs/client.crt \
+  /etc/work/temporal/ca.crt /etc/work/temporal/client.crt; do
+  if ! openssl x509 -in "$path" -noout -checkend 2592000 >/dev/null 2>&1; then
     status="degraded"
-    issues+=("${name}_cert_expiring_30d")
+    issues+=("$(basename "$(dirname "$path")")_$(basename "$path" .crt)_cert_expiring_30d")
   fi
 done
 

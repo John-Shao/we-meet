@@ -37,6 +37,9 @@ func EnsureFixtures(ctx context.Context, admin *pgx.Conn) error {
 	if err := ensureLogin(ctx, admin, "work_app_test_login", "work_api"); err != nil {
 		return err
 	}
+	if err := ensureLogin(ctx, admin, "work_worker_test_login", "work_worker"); err != nil {
+		return err
+	}
 	if err := ensureLogin(ctx, admin, "work_directory_test_login", "work_directory"); err != nil {
 		return err
 	}
@@ -88,6 +91,26 @@ func CreateBaselineDB(ctx context.Context, admin *pgx.Conn, prefix string) (stri
 		_ = DropDatabase(ctx, admin, name)
 		return "", err
 	}
+	if err := ApplyDirectoryAbsence(ctx, dbAdmin); err != nil {
+		_ = DropDatabase(ctx, admin, name)
+		return "", err
+	}
+	if err := ApplyOutboxTaskEventKind(ctx, dbAdmin); err != nil {
+		_ = DropDatabase(ctx, admin, name)
+		return "", err
+	}
+	if err := ApplyRunWorkflowID(ctx, dbAdmin); err != nil {
+		_ = DropDatabase(ctx, admin, name)
+		return "", err
+	}
+	if err := ApplyOrgProvision(ctx, dbAdmin); err != nil {
+		_ = DropDatabase(ctx, admin, name)
+		return "", err
+	}
+	if err := ApplyOrgProvisionBackfill(ctx, dbAdmin); err != nil {
+		_ = DropDatabase(ctx, admin, name)
+		return "", err
+	}
 	return name, nil
 }
 
@@ -107,6 +130,38 @@ func ApplyDirectoryAbsence(ctx context.Context, conn *pgx.Conn) error {
 	return ExecRaw(ctx, conn, string(body))
 }
 
+func ApplyOutboxTaskEventKind(ctx context.Context, conn *pgx.Conn) error {
+	body, err := fs.ReadFile(embedded.FS, "increments/0004_outbox_task_event_kind.sql")
+	if err != nil {
+		return err
+	}
+	return ExecRaw(ctx, conn, string(body))
+}
+
+func ApplyRunWorkflowID(ctx context.Context, conn *pgx.Conn) error {
+	body, err := fs.ReadFile(embedded.FS, "increments/0005_run_workflow_id.sql")
+	if err != nil {
+		return err
+	}
+	return ExecRaw(ctx, conn, string(body))
+}
+
+func ApplyOrgProvision(ctx context.Context, conn *pgx.Conn) error {
+	body, err := fs.ReadFile(embedded.FS, "increments/0006_org_policy_quota_provision.sql")
+	if err != nil {
+		return err
+	}
+	return ExecRaw(ctx, conn, string(body))
+}
+
+func ApplyOrgProvisionBackfill(ctx context.Context, conn *pgx.Conn) error {
+	body, err := fs.ReadFile(embedded.FS, "increments/0007_org_provision_backfill.sql")
+	if err != nil {
+		return err
+	}
+	return ExecRaw(ctx, conn, string(body))
+}
+
 func DropDatabase(ctx context.Context, admin *pgx.Conn, name string) error {
 	_, err := admin.Exec(ctx, "DROP DATABASE IF EXISTS "+pgx.Identifier{name}.Sanitize()+" WITH (FORCE)")
 	return err
@@ -118,6 +173,10 @@ func AdminURLFor(dbName string) string {
 
 func AppURL(dbName string) string {
 	return urlFor(AdminURL(), "work_app_test_login", testPassword, dbName)
+}
+
+func WorkerURL(dbName string) string {
+	return urlFor(AdminURL(), "work_worker_test_login", testPassword, dbName)
 }
 
 func MigratorURL(dbName string) string {
