@@ -87,6 +87,15 @@ func (r *Runtime) Execute(ctx context.Context, request workruntime.Request) (wor
 	system := "你是 Work 任务执行助手。根据给定目标、背景和模板输出简洁的 Markdown 正文；不要输出 JSON 包装或解释性前言。"
 	user := fmt.Sprintf("模板：%s v%d\n目标：\n%s\n\n背景：\n%s",
 		request.TemplateID, request.TemplateVersion, request.Goal, request.Background)
+	if request.StepCount > 1 {
+		user = fmt.Sprintf("%s\n\n当前步骤：%d/%d", user, request.Step, request.StepCount)
+		if request.Step > 1 {
+			user += "\n请在上一步检查点基础上完善，并输出完整正文（不是 diff）。"
+		}
+		if request.PreviousContent != "" {
+			user += "\n\n上一步检查点：\n" + request.PreviousContent
+		}
+	}
 	body, err := json.Marshal(chatRequest{
 		Model: r.config.Model,
 		Messages: []chatMessage{
@@ -110,7 +119,7 @@ func (r *Runtime) Execute(ctx context.Context, request workruntime.Request) (wor
 	httpRequest.Header.Set("Authorization", "Bearer "+r.config.APIKey)
 	response, err := r.client.Do(httpRequest)
 	if err != nil {
-		return workruntime.Result{}, fmt.Errorf("model request: %w", err)
+		return workruntime.Result{}, workruntime.Unknown(fmt.Errorf("model request: %w", err))
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
@@ -118,14 +127,14 @@ func (r *Runtime) Execute(ctx context.Context, request workruntime.Request) (wor
 	}
 	payload, err := io.ReadAll(io.LimitReader(response.Body, 2<<20))
 	if err != nil {
-		return workruntime.Result{}, fmt.Errorf("read model response: %w", err)
+		return workruntime.Result{}, workruntime.Unknown(fmt.Errorf("read model response: %w", err))
 	}
 	var parsed chatResponse
 	if err := json.Unmarshal(payload, &parsed); err != nil {
-		return workruntime.Result{}, fmt.Errorf("decode model response: %w", err)
+		return workruntime.Result{}, workruntime.Unknown(fmt.Errorf("decode model response: %w", err))
 	}
 	if len(parsed.Choices) == 0 || strings.TrimSpace(parsed.Choices[0].Message.Content) == "" {
-		return workruntime.Result{}, fmt.Errorf("model response has no content")
+		return workruntime.Result{}, workruntime.Unknown(fmt.Errorf("model response has no content"))
 	}
 	return workruntime.Result{
 		Content:           []byte(parsed.Choices[0].Message.Content),

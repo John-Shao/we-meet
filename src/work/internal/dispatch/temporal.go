@@ -123,6 +123,17 @@ func (t *Temporal) CancelWorkflow(ctx context.Context, workflowID string) error 
 	return err
 }
 
+func (t *Temporal) SignalWorkflow(ctx context.Context, workflowID, signalName string, payload any) error {
+	err := t.client.SignalWorkflow(ctx, workflowID, "", signalName, payload)
+	if err == nil {
+		return nil
+	}
+	if status.Code(err) == codes.NotFound {
+		return relay.ErrWorkflowNotFound
+	}
+	return err
+}
+
 func (t *Temporal) Client() client.Client { return t.client }
 
 func (t *Temporal) Close() { t.client.Close() }

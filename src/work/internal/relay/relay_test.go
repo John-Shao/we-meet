@@ -85,8 +85,9 @@ func TestRelayCancelsActiveRunAndSkipsTerminalRun(t *testing.T) {
 	if _, err := service.Once(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if len(dispatcher.cancels) != 1 || dispatcher.cancels[0] != "run:"+relayRun {
-		t.Fatalf("cancels = %#v", dispatcher.cancels)
+	if len(dispatcher.signals) != 1 || dispatcher.signals[0].workflowID != "run:"+relayRun ||
+		dispatcher.signals[0].name != "cancel" {
+		t.Fatalf("signals = %#v", dispatcher.signals)
 	}
 	assertDelivered(t, dbName, "bbbbbbbb-1111-4111-8111-111111111111")
 
@@ -105,8 +106,8 @@ func TestRelayCancelsActiveRunAndSkipsTerminalRun(t *testing.T) {
 	if _, err := service.Once(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if len(dispatcher.cancels) != 1 {
-		t.Fatalf("terminal run was canceled again: %#v", dispatcher.cancels)
+	if len(dispatcher.signals) != 1 {
+		t.Fatalf("terminal run was signaled again: %#v", dispatcher.signals)
 	}
 	assertDelivered(t, dbName, "bbbbbbbb-1111-4111-8111-222222222222")
 }
@@ -307,9 +308,15 @@ func newRelay(t *testing.T, pool *pgxpool.Pool, dispatcher relay.Dispatcher, sto
 
 type fakeDispatcher struct {
 	starts    []relay.StartWorkflowRequest
-	cancels   []string
+	signals   []fakeSignal
 	startErr  error
-	cancelErr error
+	signalErr error
+}
+
+type fakeSignal struct {
+	workflowID string
+	name       string
+	payload    any
 }
 
 func (f *fakeDispatcher) StartWorkflow(_ context.Context, request relay.StartWorkflowRequest) error {
@@ -317,9 +324,13 @@ func (f *fakeDispatcher) StartWorkflow(_ context.Context, request relay.StartWor
 	return f.startErr
 }
 
-func (f *fakeDispatcher) CancelWorkflow(_ context.Context, workflowID string) error {
-	f.cancels = append(f.cancels, workflowID)
-	return f.cancelErr
+func (f *fakeDispatcher) CancelWorkflow(context.Context, string) error {
+	return errors.New("hard cancel must not be used")
+}
+
+func (f *fakeDispatcher) SignalWorkflow(_ context.Context, workflowID, name string, payload any) error {
+	f.signals = append(f.signals, fakeSignal{workflowID: workflowID, name: name, payload: payload})
+	return f.signalErr
 }
 
 type fakeStore struct {

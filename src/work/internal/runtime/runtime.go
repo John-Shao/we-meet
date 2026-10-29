@@ -13,6 +13,31 @@ import (
 
 var ErrUnavailable = errors.New("runtime unavailable")
 
+// UnknownError marks a provider call whose outcome cannot be proven (timeout,
+// disconnect, truncated response). Callers must reconcile instead of retrying.
+type UnknownError struct {
+	Err error
+}
+
+func (e *UnknownError) Error() string { return "unknown outcome: " + e.Err.Error() }
+func (e *UnknownError) Unwrap() error { return e.Err }
+
+func Unknown(err error) error {
+	if err == nil {
+		return nil
+	}
+	var existing *UnknownError
+	if errors.As(err, &existing) {
+		return err
+	}
+	return &UnknownError{Err: err}
+}
+
+func IsUnknown(err error) bool {
+	var unknown *UnknownError
+	return errors.As(err, &unknown)
+}
+
 type Request struct {
 	RunID           string
 	TaskID          string
@@ -23,6 +48,9 @@ type Request struct {
 	Goal            string
 	Background      string
 	TokenUpperBound int64
+	Step            int
+	StepCount       int
+	PreviousContent string
 }
 
 type Result struct {

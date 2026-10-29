@@ -86,6 +86,7 @@ func run(ctx context.Context) error {
 		QuotaLimit:       int64(envInt("WORK_QUOTA_LIMIT_TOKENS", 1000000)),
 		QuotaEnforcement: envOrDefault("WORK_QUOTA_ENFORCEMENT", "soft"),
 		ConsumerID:       envOrDefault("WORK_WORKER_ID", "work-worker-1"),
+		StepCount:        envInt("WORK_MODEL_STEPS", 2),
 		Now:              time.Now,
 	}
 	temporalWorker := worker.New(dispatcher.Client(), envOrDefault("WORK_TEMPORAL_TASK_QUEUE", "work-r0a-run"), worker.Options{

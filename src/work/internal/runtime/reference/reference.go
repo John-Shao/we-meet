@@ -37,6 +37,9 @@ func (r *Runtime) Execute(ctx context.Context, request workruntime.Request) (wor
 	var body strings.Builder
 	fmt.Fprintf(&body, "# %s结果\n\n", title)
 	body.WriteString("> 参考运行时输出（非模型生成），用于验证任务生命周期。\n\n")
+	if request.StepCount > 1 {
+		fmt.Fprintf(&body, "> 步骤 %d/%d\n\n", request.Step, request.StepCount)
+	}
 	body.WriteString("## 目标\n\n")
 	body.WriteString(goal)
 	body.WriteString("\n\n## 背景\n\n")
@@ -45,11 +48,15 @@ func (r *Runtime) Execute(ctx context.Context, request workruntime.Request) (wor
 	} else {
 		body.WriteString(background)
 	}
+	if request.PreviousContent != "" {
+		body.WriteString("\n\n## 上一步检查点\n\n")
+		body.WriteString(request.PreviousContent)
+	}
 	body.WriteString("\n\n## 结果\n\n")
 	body.WriteString("已按模板整理目标与背景；接入真实运行时后将替换为本段生成内容。\n")
 
 	content := []byte(body.String())
-	input := estimateTokens(goal + "\n" + background)
+	input := estimateTokens(goal + "\n" + background + "\n" + request.PreviousContent)
 	output := estimateTokens(string(content))
 	return workruntime.Result{
 		Content:           content,

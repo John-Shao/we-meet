@@ -18,7 +18,9 @@ const (
 
 	ActivityPrepareRun  = "PrepareRun"
 	ActivityAcquireRun  = "AcquireRun"
+	ActivityCheckRun    = "CheckRun"
 	ActivityExecuteStep = "ExecuteStep"
+	ActivityWaitRun     = "WaitRun"
 	ActivityFinishRun   = "FinishRun"
 	ActivityAbortRun    = "AbortRun"
 )
@@ -43,6 +45,7 @@ type PreparedRun struct {
 	TokenUpperBound int64  `json:"token_upper_bound"`
 	PolicyRevision  int64  `json:"policy_revision"`
 	RequestHash     string `json:"request_hash"`
+	StepCount       int    `json:"step_count"`
 	Canceled        bool   `json:"canceled"`
 }
 
@@ -52,12 +55,29 @@ type AcquireRunOutput struct {
 	Canceled bool   `json:"canceled"`
 }
 
+type RunControl struct {
+	State    string `json:"state"`
+	Canceled bool   `json:"canceled"`
+}
+
+type WaitRunInput struct {
+	RunID  string `json:"run_id"`
+	OrgID  string `json:"org_id"`
+	Reason string `json:"reason"`
+}
+
 type ExecuteStepInput struct {
-	Prepared PreparedRun `json:"prepared"`
-	Fence    int64       `json:"fence"`
+	Prepared            PreparedRun `json:"prepared"`
+	Fence               int64       `json:"fence"`
+	Step                int         `json:"step"`
+	StepCount           int         `json:"step_count"`
+	PreviousContentRef  string      `json:"previous_content_ref,omitempty"`
+	PreviousContentHash string      `json:"previous_content_hash,omitempty"`
+	Final               bool        `json:"final"`
 }
 
 type ExecuteStepOutput struct {
+	Step           int    `json:"step,omitempty"`
 	OperationID    string `json:"operation_id,omitempty"`
 	ReservationID  string `json:"reservation_id,omitempty"`
 	ArtifactID     string `json:"artifact_id,omitempty"`
@@ -69,6 +89,8 @@ type ExecuteStepOutput struct {
 	Bytes          int64  `json:"bytes,omitempty"`
 	UsageTokens    int64  `json:"usage_tokens,omitempty"`
 	Settled        bool   `json:"settled,omitempty"`
+	Unknown        bool   `json:"unknown,omitempty"`
+	Canceled       bool   `json:"canceled,omitempty"`
 	ErrCode        string `json:"err_code,omitempty"`
 	ErrMessage     string `json:"err_message,omitempty"`
 }
@@ -99,6 +121,8 @@ func RunWorkflow(ctx workflow.Context, input Input) error {
 			MaximumInterval: 10 * time.Second, MaximumAttempts: 3,
 		},
 	})
+	cancelCh := workflow.GetSignalChannel(ctx, "cancel")
+	resumeCh := workflow.GetSignalChannel(ctx, "resume")
 
 	var prepared PreparedRun
 	if err := workflow.ExecuteActivity(ctx, ActivityPrepareRun, input).Get(ctx, &prepared); err != nil {
@@ -120,27 +144,98 @@ func RunWorkflow(ctx workflow.Context, input Input) error {
 		})
 	}
 
-	stepCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-		StartToCloseTimeout: 5 * time.Minute,
-		RetryPolicy:         &temporal.RetryPolicy{MaximumAttempts: 1},
-	})
-	var step ExecuteStepOutput
-	if err := workflow.ExecuteActivity(stepCtx, ActivityExecuteStep, ExecuteStepInput{
-		Prepared: prepared, Fence: acquired.Fence,
-	}).Get(stepCtx, &step); err != nil {
-		return abort(ctx, input, AbortRunInput{Outcome: "failed", Reason: "execute_failed"}, err)
+	steps := prepared.StepCount
+	if steps <= 0 {
+		steps = 2
 	}
-	if step.ErrCode != "" {
-		return abort(ctx, input, AbortRunInput{
-			OperationID: step.OperationID, ReservationID: step.ReservationID,
-			UsageTokens: step.UsageTokens, Settled: step.Settled,
-			Outcome: "failed", Reason: step.ErrCode,
-		}, nil)
+	if steps > 3 {
+		steps = 3
+	}
+	var checkpoint ExecuteStepOutput
+	for step := 1; step <= steps; step++ {
+		var control RunControl
+		if err := workflow.ExecuteActivity(ctx, ActivityCheckRun, input).Get(ctx, &control); err != nil {
+			return abort(ctx, input, AbortRunInput{Outcome: "failed", Reason: "run_state_read_failed"}, err)
+		}
+		if control.Canceled {
+			return finishRun(ctx, FinishRunInput{
+				RunID: input.RunID, OrgID: input.OrgID, Outcome: "canceled", Reason: "run_canceled",
+			})
+		}
+		stepCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+			StartToCloseTimeout: 5 * time.Minute,
+			RetryPolicy:         &temporal.RetryPolicy{MaximumAttempts: 1},
+		})
+		var stepOut ExecuteStepOutput
+		if err := workflow.ExecuteActivity(stepCtx, ActivityExecuteStep, ExecuteStepInput{
+			Prepared: prepared, Fence: acquired.Fence, Step: step, StepCount: steps,
+			PreviousContentRef:  checkpoint.ContentRef,
+			PreviousContentHash: checkpoint.ContentHash,
+			Final:               step == steps,
+		}).Get(stepCtx, &stepOut); err != nil {
+			return abort(ctx, input, AbortRunInput{Outcome: "failed", Reason: "execute_failed"}, err)
+		}
+		if stepOut.Canceled {
+			return finishRun(ctx, FinishRunInput{
+				RunID: input.RunID, OrgID: input.OrgID, Outcome: "canceled", Reason: "run_canceled",
+			})
+		}
+		if stepOut.Unknown {
+			if err := workflow.ExecuteActivity(ctx, ActivityWaitRun, WaitRunInput{
+				RunID: input.RunID, OrgID: input.OrgID, Reason: "reconcile",
+			}).Get(ctx, nil); err != nil {
+				return abort(ctx, input, AbortRunInput{
+					OperationID: stepOut.OperationID, ReservationID: stepOut.ReservationID,
+					UsageTokens: stepOut.UsageTokens, Settled: stepOut.Settled,
+					Outcome: "failed", Reason: "reconcile_wait_failed",
+				}, err)
+			}
+			switch awaitResumeOrCancel(ctx, cancelCh, resumeCh) {
+			case "cancel":
+				return finishRun(ctx, FinishRunInput{
+					RunID: input.RunID, OrgID: input.OrgID, Outcome: "canceled", Reason: "run_canceled",
+				})
+			default:
+				return finishRun(ctx, FinishRunInput{
+					RunID: input.RunID, OrgID: input.OrgID, Outcome: "failed", Reason: "reconcile_resolved",
+				})
+			}
+		}
+		if stepOut.ErrCode != "" {
+			return abort(ctx, input, AbortRunInput{
+				OperationID: stepOut.OperationID, ReservationID: stepOut.ReservationID,
+				UsageTokens: stepOut.UsageTokens, Settled: stepOut.Settled,
+				Outcome: "failed", Reason: stepOut.ErrCode,
+			}, nil)
+		}
+		checkpoint = stepOut
 	}
 
 	return finishRun(ctx, FinishRunInput{
 		RunID: input.RunID, OrgID: input.OrgID, Outcome: "succeeded",
 	})
+}
+
+func awaitResumeOrCancel(
+	ctx workflow.Context,
+	cancelCh, resumeCh workflow.ReceiveChannel,
+) string {
+	selector := workflow.NewSelector(ctx)
+	result := ""
+	selector.AddReceive(cancelCh, func(channel workflow.ReceiveChannel, more bool) {
+		var payload any
+		channel.Receive(ctx, &payload)
+		result = "cancel"
+	})
+	selector.AddReceive(resumeCh, func(channel workflow.ReceiveChannel, more bool) {
+		var payload any
+		channel.Receive(ctx, &payload)
+		result = "resume"
+	})
+	for result == "" {
+		selector.Select(ctx)
+	}
+	return result
 }
 
 func finishRun(ctx workflow.Context, input FinishRunInput) error {

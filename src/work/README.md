@@ -97,9 +97,14 @@ workflows started by `work-relay`. The pilot activities:
 
 - `PrepareRun` reads the run/task/input/snapshot and decrypts the input.
 - `AcquireRun` executes `work.acquire_run`.
-- `ExecuteStep` creates/authorizes an operation, reserves quota, claims
-  dispatch, calls the configured runtime, stores the artifact, finishes the
-  operation, settles quota, and publishes the artifact.
+- `CheckRun` observes the authoritative DB cancel state between steps.
+- `ExecuteStep` creates/authorizes an operation, reserves its share of the run
+  cap, checks cancellation, claims dispatch, calls the configured runtime,
+  stores a Content Store checkpoint, finishes the operation, and settles quota.
+  Only the final step publishes the artifact. A post-dispatch unknown outcome
+  marks the operation `unknown` instead of retrying.
+- `WaitRun` moves an unknown Run to `waiting(reconcile)`; the workflow waits for
+  a `resume` or `cancel` signal without re-sending the provider request.
 - `FinishRun` / `AbortRun` close or clean up the run.
 
 Runtime selection: `WORK_RUNTIME_MODE=reference` (deterministic non-model
@@ -107,10 +112,26 @@ text for lifecycle drills) or `WORK_RUNTIME_MODE=openai_compatible` with
 `WORK_MODEL_BASE_URL`, `WORK_MODEL_API_KEY`, `WORK_MODEL_NAME` and
 `WORK_MODEL_PROVIDER` (`aliyun`, `volcengine` or `deepseek`). The placeholder
 environment file is `deploy/ecs/work-worker.env.example`; real keys stay only
-in `/etc/work/work-worker.env` (root:work-control 640). New
+in `/etc/work/work-worker.env` (root:work-control 640). `WORK_MODEL_STEPS`
+selects 1-3 model steps per Run (default 2); intermediate bodies are Content
+Store checkpoints and only the final step publishes the artifact. New
 organizations are auto-provisioned with an `org_policy` row and a soft
 1,000,000-token monthly account by migration 0006; the worker calls
 `work.ensure_quota_account` for later periods.
+
+## work-reconcile
+
+`cmd/work-reconcile` is the operator path for an `unknown` operation. It calls
+`work.reconcile_operation` only (never re-sends the provider request), and
+optionally signals `resume` to the waiting workflow:
+
+```bash
+work-reconcile -org <org> -operation <uuid> -resolution not_sent \
+  -evidence-ref ticket:<id> -resume
+```
+
+`sent_succeeded` also needs `-settled-tokens`; `unresolved` cannot resume.
+The database URL and Temporal mTLS settings come from the worker environment.
 
 ## Tests
 

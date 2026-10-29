@@ -30,6 +30,7 @@ type StartWorkflowRequest struct {
 type Dispatcher interface {
 	StartWorkflow(ctx context.Context, request StartWorkflowRequest) error
 	CancelWorkflow(ctx context.Context, workflowID string) error
+	SignalWorkflow(ctx context.Context, workflowID, signalName string, payload any) error
 }
 
 type Config struct {
@@ -210,14 +211,17 @@ func (r *Relay) cancel(ctx context.Context, event Event, runID string) error {
 	if workflowID == "" {
 		return r.fail(ctx, event, "workflow_id_missing", false)
 	}
-	if err := r.dispatcher.CancelWorkflow(ctx, workflowID); err != nil {
+	if err := r.dispatcher.SignalWorkflow(ctx, workflowID, "cancel", map[string]any{
+		"run_id": runID, "reason": "user_requested",
+	}); err != nil {
 		if errors.Is(err, ErrWorkflowNotFound) {
-			if _, current, lookupErr := r.runState(ctx, event.OrgID, runID); lookupErr == nil && terminalRunState(current) {
+			_, current, lookupErr := r.runState(ctx, event.OrgID, runID)
+			if lookupErr == nil && (terminalRunState(current) || current == "queued" || current == "cancel_requested") {
 				return r.ack(ctx, event)
 			}
 			return r.fail(ctx, event, "workflow_missing", true)
 		}
-		return r.fail(ctx, event, "temporal_cancel_failed", true)
+		return r.fail(ctx, event, "temporal_signal_failed", true)
 	}
 	return r.ack(ctx, event)
 }

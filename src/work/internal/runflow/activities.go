@@ -27,6 +27,7 @@ type Activities struct {
 	QuotaLimit       int64
 	QuotaEnforcement string
 	ConsumerID       string
+	StepCount        int
 	Now              func() time.Time
 }
 
@@ -65,7 +66,7 @@ func (a *Activities) PrepareRun(ctx context.Context, input Input) (PreparedRun, 
 		RunID: input.RunID, OrgID: input.OrgID, TaskID: row.taskID,
 		SubjectID: row.subjectID, RunState: row.runState, Title: row.title,
 		InputHash: row.contentHash, TokenUpperBound: row.runCapTokens,
-		PolicyRevision: row.policyRevision,
+		PolicyRevision: row.policyRevision, StepCount: a.stepCount(),
 	}
 	if row.runState == "cancel_requested" || terminalRun(row.runState) {
 		prepared.Canceled = true
@@ -139,7 +140,7 @@ func (a *Activities) AcquireRun(ctx context.Context, input Input) (AcquireRunOut
 }
 
 func (a *Activities) ExecuteStep(ctx context.Context, input ExecuteStepInput) (ExecuteStepOutput, error) {
-	out := ExecuteStepOutput{}
+	out := ExecuteStepOutput{Step: input.Step}
 	fail := func(code string, err error) (ExecuteStepOutput, error) {
 		out.ErrCode = code
 		if err != nil {
@@ -147,14 +148,29 @@ func (a *Activities) ExecuteStep(ctx context.Context, input ExecuteStepInput) (E
 		}
 		return out, nil
 	}
+	if input.Step < 1 || input.StepCount < 1 || input.Step > input.StepCount {
+		return fail("step_invalid", nil)
+	}
+	if a.Content == nil {
+		return fail("content_store_unavailable", nil)
+	}
+	var previousContent string
+	if input.PreviousContentRef != "" {
+		body, err := a.Content.Get(ctx, input.Prepared.OrgID, input.PreviousContentRef)
+		if err != nil || !checkpointHashMatches(body, input.PreviousContentHash) {
+			return fail("checkpoint_read_failed", err)
+		}
+		previousContent = string(body)
+	}
+	requestHash := stepRequestHash(input.Prepared, input.Step, input.PreviousContentHash)
 	var operationID string
-	err := workdb.WithWorkerOrgContext(ctx, a.Pool, input.Prepared.OrgID, func(tx pgx.Tx) error {
+	if err := workdb.WithWorkerOrgContext(ctx, a.Pool, input.Prepared.OrgID, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
-			SELECT work.create_operation($1, $2, 'model:1', 'model', $3)`,
-			input.Prepared.RunID, input.Prepared.OrgID, input.Prepared.RequestHash,
+			SELECT work.create_operation($1, $2, $3, 'model', $4)`,
+			input.Prepared.RunID, input.Prepared.OrgID,
+			fmt.Sprintf("model:%d", input.Step), requestHash,
 		).Scan(&operationID)
-	})
-	if err != nil {
+	}); err != nil {
 		return fail("operation_create_failed", err)
 	}
 	out.OperationID = operationID
@@ -165,25 +181,33 @@ func (a *Activities) ExecuteStep(ctx context.Context, input ExecuteStepInput) (E
 	}); err != nil {
 		return fail("operation_authorize_failed", err)
 	}
+	canceled, err := a.runCanceled(ctx, input.Prepared.OrgID, input.Prepared.RunID)
+	if err != nil {
+		return fail("run_state_read_failed", err)
+	}
+	if canceled {
+		if err := a.cancelOperation(ctx, input.Prepared.OrgID, operationID, "user_requested"); err != nil {
+			return fail("operation_cancel_failed", err)
+		}
+		out.Canceled = true
+		return out, nil
+	}
 	var reservationID string
-	amount := input.Prepared.TokenUpperBound
+	amount := input.Prepared.TokenUpperBound / int64(input.StepCount)
 	if amount <= 0 {
 		amount = 1
 	}
-	var accountID string
 	if err := workdb.WithWorkerOrgContext(ctx, a.Pool, input.Prepared.OrgID, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, `SELECT work.ensure_quota_account($1, $2, $3, $4, $5)`,
+		var accountID string
+		if err := tx.QueryRow(ctx, `SELECT work.ensure_quota_account($1, $2, $3, $4, $5)`,
 			input.Prepared.OrgID, a.accountKey(), a.quotaPeriod(), a.quotaLimit(), a.quotaEnforcement(),
-		).Scan(&accountID)
-	}); err != nil {
-		return fail("quota_account_unavailable", err)
-	}
-	err = workdb.WithWorkerOrgContext(ctx, a.Pool, input.Prepared.OrgID, func(tx pgx.Tx) error {
+		).Scan(&accountID); err != nil {
+			return err
+		}
 		return tx.QueryRow(ctx, `SELECT work.reserve_quota($1, $2, $3, $4, $5)`,
 			input.Prepared.OrgID, a.accountKey(), a.quotaPeriod(), operationID, amount,
 		).Scan(&reservationID)
-	})
-	if err != nil {
+	}); err != nil {
 		if strings.Contains(err.Error(), "quota_account_not_found") {
 			return fail("quota_account_missing", err)
 		}
@@ -193,13 +217,23 @@ func (a *Activities) ExecuteStep(ctx context.Context, input ExecuteStepInput) (E
 		return fail("quota_reserve_failed", err)
 	}
 	out.ReservationID = reservationID
+	canceled, err = a.runCanceled(ctx, input.Prepared.OrgID, input.Prepared.RunID)
+	if err != nil {
+		return fail("run_state_read_failed", err)
+	}
+	if canceled {
+		if err := a.cancelOperation(ctx, input.Prepared.OrgID, operationID, "user_requested"); err != nil {
+			return fail("operation_cancel_failed", err)
+		}
+		out.Canceled = true
+		return out, nil
+	}
 	var attemptID *string
-	err = workdb.WithWorkerOrgContext(ctx, a.Pool, input.Prepared.OrgID, func(tx pgx.Tx) error {
+	if err := workdb.WithWorkerOrgContext(ctx, a.Pool, input.Prepared.OrgID, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `SELECT work.claim_dispatch($1, $2, $3, $4)`,
 			operationID, input.Prepared.OrgID, a.consumerID(), input.Fence,
 		).Scan(&attemptID)
-	})
-	if err != nil {
+	}); err != nil {
 		return fail("dispatch_failed", err)
 	}
 	if attemptID == nil || *attemptID == "" {
@@ -213,37 +247,31 @@ func (a *Activities) ExecuteStep(ctx context.Context, input ExecuteStepInput) (E
 		TemplateID: input.Prepared.TemplateID, TemplateName: input.Prepared.TemplateID,
 		TemplateVersion: input.Prepared.TemplateVersion, Goal: input.Prepared.Goal,
 		Background: input.Prepared.Background, TokenUpperBound: input.Prepared.TokenUpperBound,
+		Step: input.Step, StepCount: input.StepCount, PreviousContent: previousContent,
 	})
 	if err != nil {
-		return fail("runtime_failed", err)
+		if workruntime.IsUnknown(err) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			out.Unknown = true
+			out.ErrCode = "runtime_unknown"
+			out.ErrMessage = err.Error()
+			if markErr := a.markOperationUnknown(ctx, input.Prepared.OrgID, operationID, "runtime_unknown"); markErr != nil {
+				return fail("operation_unknown_failed", markErr)
+			}
+			canceled, _ = a.runCanceled(ctx, input.Prepared.OrgID, input.Prepared.RunID)
+			out.Canceled = canceled
+			return out, nil
+		}
+		out.ErrCode = "runtime_failed"
+		out.ErrMessage = err.Error()
+		if finishErr := a.finishOperation(ctx, input.Prepared.OrgID, operationID, "failed", "", ""); finishErr != nil {
+			return fail("operation_finish_failed", finishErr)
+		}
+		if releaseErr := a.releaseReservation(ctx, input.Prepared.OrgID, reservationID); releaseErr != nil {
+			return fail("quota_release_failed", releaseErr)
+		}
+		return out, nil
 	}
-	if a.Content == nil {
-		return fail("content_store_unavailable", nil)
-	}
-	ref, err := a.Content.Put(ctx, input.Prepared.OrgID, result.Content)
-	if err != nil {
-		return fail("content_write_failed", err)
-	}
-	out.ContentRef = ref.ContentRef
-	out.ContentHash = ref.Hash
-	out.Bytes = ref.Bytes
-	out.MediaType = result.MediaType
-	if out.MediaType == "" {
-		out.MediaType = "text/markdown"
-	}
-	out.RuntimeVersion = result.RuntimeVersion
 	out.UsageTokens = result.InputTokens + result.OutputTokens + result.CachedInputTokens
-	providerRequestID := result.ProviderRequestID
-	if providerRequestID == "" {
-		providerRequestID = "runtime:" + input.Prepared.RunID
-	}
-	if err := workdb.WithWorkerOrgContext(ctx, a.Pool, input.Prepared.OrgID, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `SELECT work.finish_operation($1, $2, 'succeeded', $3, $4)`,
-			input.Prepared.OrgID, operationID, providerRequestID, out.ContentRef)
-		return err
-	}); err != nil {
-		return fail("operation_finish_failed", err)
-	}
 	if result.Provider != "" && result.Model != "" && usageProviderAllowed(result.Provider) {
 		usageDate := a.now().UTC().Format("2006-01-02")
 		if err := workdb.WithWorkerOrgContext(ctx, a.Pool, input.Prepared.OrgID, func(tx pgx.Tx) error {
@@ -256,38 +284,168 @@ func (a *Activities) ExecuteStep(ctx context.Context, input ExecuteStepInput) (E
 			return fail("usage_record_failed", err)
 		}
 	}
-	usage, _ := json.Marshal(map[string]any{
-		"runtime_version": out.RuntimeVersion,
-		"input_tokens":    result.InputTokens,
-		"output_tokens":   result.OutputTokens,
-		"cached_tokens":   result.CachedInputTokens,
-	})
-	if err := workdb.WithWorkerOrgContext(ctx, a.Pool, input.Prepared.OrgID, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `SELECT work.settle_quota($1, $2, $3::jsonb, 1)`,
-			reservationID, out.UsageTokens, string(usage))
-		return err
-	}); err != nil {
+	ref, err := a.Content.Put(ctx, input.Prepared.OrgID, result.Content)
+	if err != nil {
+		out.ErrCode = "content_write_failed"
+		out.ErrMessage = err.Error()
+		if finishErr := a.finishOperation(ctx, input.Prepared.OrgID, operationID, "failed", "", ""); finishErr != nil {
+			return fail("operation_finish_failed", finishErr)
+		}
+		if settleErr := a.settleReservation(ctx, input.Prepared.OrgID, reservationID, out.UsageTokens); settleErr != nil {
+			return fail("quota_settle_failed", settleErr)
+		}
+		out.Settled = true
+		return out, nil
+	}
+	out.ContentRef = ref.ContentRef
+	out.ContentHash = ref.Hash
+	out.Bytes = ref.Bytes
+	out.MediaType = result.MediaType
+	if out.MediaType == "" {
+		out.MediaType = "text/markdown"
+	}
+	out.RuntimeVersion = result.RuntimeVersion
+	providerRequestID := result.ProviderRequestID
+	if providerRequestID == "" {
+		providerRequestID = fmt.Sprintf("runtime:%s:%d", input.Prepared.RunID, input.Step)
+	}
+	if err := a.finishOperation(ctx, input.Prepared.OrgID, operationID, "succeeded", providerRequestID, out.ContentRef); err != nil {
+		return fail("operation_finish_failed", err)
+	}
+	if err := a.settleReservation(ctx, input.Prepared.OrgID, reservationID, out.UsageTokens); err != nil {
 		return fail("quota_settle_failed", err)
 	}
 	out.Settled = true
+	canceled, err = a.runCanceled(ctx, input.Prepared.OrgID, input.Prepared.RunID)
+	if err != nil {
+		return fail("run_state_read_failed", err)
+	}
+	if canceled {
+		out.Canceled = true
+		return out, nil
+	}
+	if !input.Final {
+		return out, nil
+	}
 	provenance, _ := json.Marshal(map[string]any{
 		"runtime_version":  out.RuntimeVersion,
 		"template_id":      input.Prepared.TemplateID,
 		"template_version": input.Prepared.TemplateVersion,
-		"execution":        "reference",
+		"execution":        "runtime",
+		"step":             input.Step,
 	})
-	err = workdb.WithWorkerOrgContext(ctx, a.Pool, input.Prepared.OrgID, func(tx pgx.Tx) error {
+	if err := workdb.WithWorkerOrgContext(ctx, a.Pool, input.Prepared.OrgID, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
 			SELECT artifact_id, version_no FROM work.publish_artifact(
 				$1, $2, $3, 'result', $4, $5, $6, $7, $8::jsonb)`,
 			input.Prepared.OrgID, input.Prepared.TaskID, input.Prepared.RunID,
 			out.ContentRef, out.ContentHash, out.Bytes, out.MediaType, string(provenance),
 		).Scan(&out.ArtifactID, &out.VersionNo)
-	})
-	if err != nil {
+	}); err != nil {
 		return fail("artifact_publish_failed", err)
 	}
 	return out, nil
+}
+
+func checkpointHashMatches(body []byte, expected string) bool {
+	digest := sha256.Sum256(body)
+	return "sha256:"+hex.EncodeToString(digest[:]) == expected
+}
+
+func stepRequestHash(prepared PreparedRun, step int, previousHash string) string {
+	body := fmt.Sprintf("%s|step:%d|previous:%s", prepared.RequestHash, step, previousHash)
+	digest := sha256.Sum256([]byte(body))
+	return "sha256:" + hex.EncodeToString(digest[:])
+}
+
+func (a *Activities) runCanceled(ctx context.Context, orgID, runID string) (bool, error) {
+	var state string
+	if err := workdb.WithWorkerOrgContext(ctx, a.Pool, orgID, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT state FROM work.run WHERE id = $1 AND org_id = $2`,
+			runID, orgID).Scan(&state)
+	}); err != nil {
+		return false, err
+	}
+	return state == "cancel_requested", nil
+}
+
+func (a *Activities) cancelOperation(ctx context.Context, orgID, operationID, reason string) error {
+	return workdb.WithWorkerOrgContext(ctx, a.Pool, orgID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `SELECT work.cancel_operation($1, $2, $3, $4)`,
+			orgID, operationID, "system:work-worker", reason)
+		return err
+	})
+}
+
+func (a *Activities) markOperationUnknown(ctx context.Context, orgID, operationID, reason string) error {
+	return workdb.WithWorkerOrgContext(ctx, a.Pool, orgID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `SELECT work.mark_operation_unknown($1, $2, $3)`,
+			orgID, operationID, reason)
+		return err
+	})
+}
+
+func (a *Activities) finishOperation(
+	ctx context.Context,
+	orgID, operationID, outcome, providerRequestID, receiptRef string,
+) error {
+	var provider, receipt any
+	if providerRequestID != "" {
+		provider = providerRequestID
+	}
+	if receiptRef != "" {
+		receipt = receiptRef
+	}
+	return workdb.WithWorkerOrgContext(ctx, a.Pool, orgID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `SELECT work.finish_operation($1, $2, $3, $4, $5)`,
+			orgID, operationID, outcome, provider, receipt)
+		return err
+	})
+}
+
+func (a *Activities) releaseReservation(ctx context.Context, orgID, reservationID string) error {
+	return workdb.WithWorkerOrgContext(ctx, a.Pool, orgID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `SELECT work.release_quota($1)`, reservationID)
+		return err
+	})
+}
+
+func (a *Activities) settleReservation(ctx context.Context, orgID, reservationID string, usageTokens int64) error {
+	usage, _ := json.Marshal(map[string]any{"usage_tokens": usageTokens})
+	return workdb.WithWorkerOrgContext(ctx, a.Pool, orgID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `SELECT work.settle_quota($1, $2, $3::jsonb, 1)`,
+			reservationID, usageTokens, string(usage))
+		return err
+	})
+}
+
+func (a *Activities) CheckRun(ctx context.Context, input Input) (RunControl, error) {
+	var state string
+	if err := workdb.WithWorkerOrgContext(ctx, a.Pool, input.OrgID, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT state FROM work.run WHERE id = $1 AND org_id = $2`,
+			input.RunID, input.OrgID).Scan(&state)
+	}); err != nil {
+		return RunControl{}, err
+	}
+	return RunControl{State: state, Canceled: state == "cancel_requested"}, nil
+}
+
+func (a *Activities) WaitRun(ctx context.Context, input WaitRunInput) error {
+	var state string
+	if err := workdb.WithWorkerOrgContext(ctx, a.Pool, input.OrgID, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT state FROM work.run WHERE id = $1 AND org_id = $2`,
+			input.RunID, input.OrgID).Scan(&state)
+	}); err != nil {
+		return err
+	}
+	if state == "cancel_requested" || terminalRun(state) {
+		return nil
+	}
+	return workdb.WithWorkerOrgContext(ctx, a.Pool, input.OrgID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `SELECT work.wait_run($1, $2, $3)`,
+			input.OrgID, input.RunID, input.Reason)
+		return err
+	})
 }
 
 func (a *Activities) FinishRun(ctx context.Context, input FinishRunInput) error {
@@ -396,6 +554,16 @@ func (a *Activities) accountKey() string {
 		return "default"
 	}
 	return a.AccountKey
+}
+
+func (a *Activities) stepCount() int {
+	if a.StepCount <= 0 {
+		return 2
+	}
+	if a.StepCount > 3 {
+		return 3
+	}
+	return a.StepCount
 }
 
 func (a *Activities) quotaPeriod() string {

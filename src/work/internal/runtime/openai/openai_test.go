@@ -68,6 +68,53 @@ func TestOpenAICompatibleRuntimeSendsPromptAndParsesUsage(t *testing.T) {
 	}
 }
 
+func TestOpenAICompatibleRuntimeMarksTransportErrorsUnknown(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
+	baseURL := server.URL
+	server.Close()
+	runtime, err := openai.New(openai.Config{
+		BaseURL: baseURL, APIKey: "test-key", Model: "qwen-test", Provider: "aliyun",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = runtime.Execute(context.Background(), workruntime.Request{Goal: "目标"})
+	if err == nil || !workruntime.IsUnknown(err) {
+		t.Fatalf("error = %v, unknown=%v", err, workruntime.IsUnknown(err))
+	}
+}
+
+func TestOpenAICompatibleRuntimeSendsStepContext(t *testing.T) {
+	var gotUser string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Messages []struct {
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&request)
+		if len(request.Messages) > 1 {
+			gotUser = request.Messages[1].Content
+		}
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"ok"}}],"usage":{}}`))
+	}))
+	defer server.Close()
+	runtime, err := openai.New(openai.Config{
+		BaseURL: server.URL, APIKey: "test-key", Model: "qwen-test", Provider: "aliyun",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtime.Execute(context.Background(), workruntime.Request{
+		Goal: "目标", Step: 2, StepCount: 2, PreviousContent: "上一步正文",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !contains(gotUser, "当前步骤：2/2") || !contains(gotUser, "上一步正文") {
+		t.Fatalf("user prompt = %q", gotUser)
+	}
+}
+
 func TestOpenAICompatibleRuntimeRejectsMissingConfig(t *testing.T) {
 	if _, err := openai.New(openai.Config{}); err == nil {
 		t.Fatal("missing config accepted")

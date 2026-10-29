@@ -3,6 +3,7 @@ package runflow_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/we-meet/work/internal/content"
 	"github.com/we-meet/work/internal/runflow"
+	workruntime "github.com/we-meet/work/internal/runtime"
 	"github.com/we-meet/work/internal/runtime/reference"
 	"github.com/we-meet/work/internal/testpg"
 )
@@ -68,6 +70,7 @@ func TestRunWorkflowActivitiesCompleteReferenceRun(t *testing.T) {
 	}
 	step, err := activities.ExecuteStep(context.Background(), runflow.ExecuteStepInput{
 		Prepared: prepared, Fence: acquired.Fence,
+		Step: 1, StepCount: 1, Final: true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -138,6 +141,7 @@ func TestExecuteStepProvisionsMissingQuotaAccount(t *testing.T) {
 	}
 	step, err := activities.ExecuteStep(context.Background(), runflow.ExecuteStepInput{
 		Prepared: prepared, Fence: acquired.Fence,
+		Step: 1, StepCount: 1, Final: true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -169,6 +173,142 @@ func TestExecuteStepProvisionsMissingQuotaAccount(t *testing.T) {
 	}
 	if runState != "succeeded" || accountKey != "default" || limit != 1000000 || enforcement != "soft" {
 		t.Fatalf("run=%s account=%s limit=%d enforcement=%s", runState, accountKey, limit, enforcement)
+	}
+}
+
+func TestRunWorkflowActivitiesPublishOnlyFinalStep(t *testing.T) {
+	pool, dbName := newFlowDB(t)
+	store := newFlowContent(t)
+	seedTaskWithInput(t, dbName, store, 1000000)
+	activities := newActivities(pool, store)
+	prepared, err := activities.PrepareRun(context.Background(), runflow.Input{RunID: flowRun, OrgID: flowOrg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acquired, err := activities.AcquireRun(context.Background(), runflow.Input{RunID: flowRun, OrgID: flowOrg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := activities.ExecuteStep(context.Background(), runflow.ExecuteStepInput{
+		Prepared: prepared, Fence: acquired.Fence,
+		Step: 1, StepCount: 2, Final: false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ErrCode != "" || first.ContentRef == "" || first.ArtifactID != "" || !first.Settled {
+		t.Fatalf("first = %#v", first)
+	}
+	second, err := activities.ExecuteStep(context.Background(), runflow.ExecuteStepInput{
+		Prepared: prepared, Fence: acquired.Fence,
+		Step: 2, StepCount: 2, Final: true,
+		PreviousContentRef: first.ContentRef, PreviousContentHash: first.ContentHash,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.ErrCode != "" || second.ArtifactID == "" || second.VersionNo != 1 || !second.Settled {
+		t.Fatalf("second = %#v", second)
+	}
+	if first.ContentRef == second.ContentRef {
+		t.Fatal("steps must use distinct content checkpoints")
+	}
+	if err := activities.FinishRun(context.Background(), runflow.FinishRunInput{
+		RunID: flowRun, OrgID: flowOrg, Outcome: "succeeded",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(ctx)
+	var operations, artifacts int
+	var taskState string
+	if err := admin.QueryRow(ctx, `
+		SELECT (SELECT count(*) FROM work.operation WHERE run_id=$1),
+		       (SELECT count(*) FROM work.artifact WHERE task_id=$2),
+		       (SELECT state FROM work.task WHERE id=$2)`,
+		flowRun, flowTask).Scan(&operations, &artifacts, &taskState); err != nil {
+		t.Fatal(err)
+	}
+	if operations != 2 || artifacts != 1 || taskState != "awaiting_acceptance" {
+		t.Fatalf("operations=%d artifacts=%d task=%s", operations, artifacts, taskState)
+	}
+}
+
+type unknownRuntime struct{}
+
+func (unknownRuntime) Execute(context.Context, workruntime.Request) (workruntime.Result, error) {
+	return workruntime.Result{}, workruntime.Unknown(errors.New("provider timeout"))
+}
+
+func TestExecuteStepMarksUnknownAndWaitsForReconcile(t *testing.T) {
+	pool, dbName := newFlowDB(t)
+	store := newFlowContent(t)
+	seedTaskWithInput(t, dbName, store, 1000000)
+	activities := newActivities(pool, store)
+	activities.Runtime = unknownRuntime{}
+	prepared, err := activities.PrepareRun(context.Background(), runflow.Input{RunID: flowRun, OrgID: flowOrg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acquired, err := activities.AcquireRun(context.Background(), runflow.Input{RunID: flowRun, OrgID: flowOrg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	step, err := activities.ExecuteStep(context.Background(), runflow.ExecuteStepInput{
+		Prepared: prepared, Fence: acquired.Fence,
+		Step: 1, StepCount: 1, Final: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !step.Unknown || step.ErrCode != "runtime_unknown" || step.Settled || step.ArtifactID != "" {
+		t.Fatalf("step = %#v", step)
+	}
+	if err := activities.WaitRun(context.Background(), runflow.WaitRunInput{
+		RunID: flowRun, OrgID: flowOrg, Reason: "reconcile",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(ctx)
+	var runState, waitReason, opState, reservationState, storedOperationID string
+	if err := admin.QueryRow(ctx, `
+		SELECT r.state, r.wait_reason, o.state, qr.state, o.id::text
+		FROM work.run r
+		JOIN work.operation o ON o.run_id = r.id AND o.org_id = r.org_id
+		JOIN work.quota_reservation qr ON qr.operation_id = o.id AND qr.org_id = o.org_id
+		WHERE r.id = $1`, flowRun).Scan(&runState, &waitReason, &opState, &reservationState, &storedOperationID); err != nil {
+		t.Fatal(err)
+	}
+	if step.OperationID == "" || step.OperationID != storedOperationID {
+		t.Fatalf("step operation=%q stored=%q", step.OperationID, storedOperationID)
+	}
+	if runState != "waiting" || waitReason != "reconcile" || opState != "unknown" || reservationState != "held" {
+		t.Fatalf("run=%s wait=%s op=%s reservation=%s", runState, waitReason, opState, reservationState)
+	}
+	if _, err := admin.Exec(ctx, `SELECT set_config('app.org_id', $1, false)`, flowOrg); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `SELECT work.reconcile_operation($1::text, $2::uuid, 'not_sent', NULL::text, 0::bigint, 'evidence://test'::text)`,
+		flowOrg, storedOperationID); err != nil {
+		t.Fatal(err)
+	}
+	if err := admin.QueryRow(ctx, `
+		SELECT o.state, qr.state FROM work.operation o
+		JOIN work.quota_reservation qr ON qr.operation_id = o.id AND qr.org_id = o.org_id
+		WHERE o.id = $1`, step.OperationID).Scan(&opState, &reservationState); err != nil {
+		t.Fatal(err)
+	}
+	if opState != "reconciled" || reservationState != "released" {
+		t.Fatalf("op=%s reservation=%s", opState, reservationState)
 	}
 }
 
