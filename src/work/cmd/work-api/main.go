@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/we-meet/work/internal/api"
+	"github.com/we-meet/work/internal/content"
 	workdb "github.com/we-meet/work/internal/db"
 	"github.com/we-meet/work/internal/host"
 )
@@ -38,12 +39,20 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	contentKey, err := content.EncodeMasterKey(requiredEnv("WORK_CONTENT_MASTER_KEY"))
+	if err != nil {
+		return err
+	}
+	contentStore, err := content.NewLocal(contentKey, envOrDefault("WORK_CONTENT_DIR", "/var/lib/work/content"), 1)
+	if err != nil {
+		return err
+	}
 	pool, err := workdb.OpenPool(ctx, databaseURL, "work-api")
 	if err != nil {
 		return err
 	}
 	defer pool.Close()
-	server, err := api.NewServer(pool, hostClient, csrf, log.Default())
+	server, err := api.NewServerWithContent(pool, hostClient, csrf, contentStore, log.Default())
 	if err != nil {
 		return err
 	}
@@ -86,4 +95,11 @@ func requiredEnv(name string) string {
 		log.Fatalf("%s is required", name)
 	}
 	return value
+}
+
+func envOrDefault(name, fallback string) string {
+	if value := os.Getenv(name); value != "" {
+		return value
+	}
+	return fallback
 }

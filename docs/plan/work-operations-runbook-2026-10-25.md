@@ -310,6 +310,20 @@ kubectl -n meet exec deploy/meet-agent-metadata -- python -c 'import urllib.requ
 组件需加入 `backend.networkPolicy.allowedComponents`。该策略只挡直连，不替代 Host 的入口共享凭证/
 mTLS 透传；同命名空间 agent 被攻破仍可伪造 `Ssl-Client-Cert`。
 
+### 5.8 Work 本地 Content Store（2026-10-29，pilot）
+
+`work-api` 将输入正文用 AES-256-GCM 加密写入 `/var/lib/work/content`，主密钥只在
+`/etc/work/work-api.env` 的 `WORK_CONTENT_MASTER_KEY`（root:work-control 640），按 `org_id`
+经 HMAC-SHA256 派生；PG 只保存 `content_ref/content_hash/bytes`。当前是**本地 pilot**：
+
+- 未接 OSS 异地备份、对象生命周期、key_version 重加密或内容删除清扫；主密钥和该目录必须单独
+  纳入备份/恢复演练，丢失主密钥将使正文不可恢复。
+- 目录 `/var/lib/work/content` 应 `work-control:work-control 700`；对象文件名不含用户输入。
+- 输入 `POST /work/v1/inputs` 需要 CSRF、非 viewer 席位；正文上限 goal 2000 字符、background
+  4000 字符，响应只含 `input_ref/content_hash/bytes/expires_at`。
+- 验证：`curl` 无会话 401；本地测试覆盖加密回读、幂等重放、冲突和 viewer。接 OSS 前不要把
+  本地内容当作异地可恢复证据。
+
 ## 6. 容量证据
 
 ### 6.1 当前 DDL 烟雾（2026-10-25）
