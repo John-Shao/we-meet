@@ -263,6 +263,35 @@ openssl x509 -in /etc/work/certs/client.crt -noout -subject -enddate -checkend 5
 openssl x509 -in /etc/work/certs/ca.crt -noout -subject -enddate -checkend 5184000
 ```
 
+### 5.6 Work 健康告警（2026-10-29）
+
+`work-healthcheck.timer` 每 2 分钟运行：检查 `work-api /healthz`、Host `/work-host/v2/orgs`
+（客户端证书）、30 分钟内目录同步报告，以及 `/etc/work/certs/{ca,client}.crt` 是否在 30 天内到期。
+状态写 `/var/lib/work/health.json`；异常同时写 `/var/log/work-health-alerts.log` 与 journal。
+
+`/usr/local/bin/work-health-alert.py` 在状态变化时发信，复用
+`/etc/meet-db-backup/work/notification.json` 的 SMTP 通道：
+
+- `ok → degraded`：立即发送异常邮件（异常项只含固定检查码，不含响应正文）；
+- 持续 `degraded`：每 6 小时提醒一次；
+- `degraded → ok`：发送恢复邮件；
+- 状态与上次发送时间存 `/var/lib/work/health-alert-state.json`；SMTP 失败不更新状态，下一轮重试，
+  失败本身会写 journal。
+
+验证（`WORK_HEALTH_STATE` 指向临时状态文件，会真实发两封邮件）：
+
+```bash
+sudo WORK_HEALTH_STATE=/var/lib/work/health-alert-test.json \
+  python3 /usr/local/bin/work-health-alert.py degraded "host_http=000"
+sudo WORK_HEALTH_STATE=/var/lib/work/health-alert-test.json \
+  python3 /usr/local/bin/work-health-alert.py ok
+sudo rm -f /var/lib/work/health-alert-test.json
+```
+
+仍只有邮件通道，没有短信/电话/webhook；邮件发送失败不会升级为其它告警。`notification.json`
+缺失或 SMTP 凭据失效时，健康检查仍运行，但外部告警不可用，需在 journal 中搜索
+`health alert delivery failed`。
+
 ## 6. 容量证据
 
 ### 6.1 当前 DDL 烟雾（2026-10-25）
