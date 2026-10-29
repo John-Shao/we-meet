@@ -120,11 +120,8 @@ export const useCancelWorkRun = (taskId: string) => {
 export const useAcceptWorkTask = (taskId: string) => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (body: {
-      client_request_id: string
-      expected_revision: number
-      completion_reason: string
-    }) => acceptWorkTask(taskId, body),
+    mutationFn: (body: Parameters<typeof acceptWorkTask>[1]) =>
+      acceptWorkTask(taskId, body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: workKeys.task(taskId) })
       void queryClient.invalidateQueries({ queryKey: ['work', 'tasks'] })

@@ -178,11 +178,18 @@ export const cancelWorkRun = (runId: string) =>
 
 export const acceptWorkTask = (
   taskId: string,
-  body: {
-    client_request_id: string
-    expected_revision: number
-    completion_reason: string
-  }
+  body:
+    | {
+        client_request_id: string
+        expected_revision: number
+        completion_reason: string
+      }
+    | {
+        client_request_id: string
+        expected_revision: number
+        artifact_id: string
+        version_no: number
+      }
 ) =>
   request<WorkAcceptanceResult>(
     `/tasks/${encodeURIComponent(taskId)}/acceptances`,

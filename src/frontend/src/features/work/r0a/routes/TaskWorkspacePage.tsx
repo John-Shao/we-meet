@@ -67,6 +67,7 @@ export const TaskWorkspacePage = () => {
     void queryClient.invalidateQueries({ queryKey: ['work', 'tasks'] })
   }, [stream.events, queryClient, taskId])
 
+  const artifact = detail?.summary.latest_artifact
   const run = detail?.summary.latest_run
   const canCancel = !!run && ['queued', 'active', 'waiting'].includes(run.state)
   const canAccept = detail?.summary.task_state === 'awaiting_acceptance'
@@ -164,18 +165,27 @@ export const TaskWorkspacePage = () => {
   }
 
   const onAccept = async () => {
-    const value = reason.trim()
-    if (!value) {
-      setActionError(t('task.acceptReasonRequired'))
-      return
-    }
     setActionError(null)
     try {
-      await acceptMutation.mutateAsync({
-        client_request_id: acceptKey.key,
-        expected_revision: detail.summary.revision,
-        completion_reason: value,
-      })
+      if (artifact) {
+        await acceptMutation.mutateAsync({
+          client_request_id: acceptKey.key,
+          expected_revision: detail.summary.revision,
+          artifact_id: artifact.artifact_id,
+          version_no: artifact.version_no,
+        })
+      } else {
+        const value = reason.trim()
+        if (!value) {
+          setActionError(t('task.acceptReasonRequired'))
+          return
+        }
+        await acceptMutation.mutateAsync({
+          client_request_id: acceptKey.key,
+          expected_revision: detail.summary.revision,
+          completion_reason: value,
+        })
+      }
       setAccepted(true)
       acceptKey.rotate()
     } catch (cause) {
@@ -494,7 +504,11 @@ export const TaskWorkspacePage = () => {
           {canAccept || accepted ? (
             <section className={card}>
               <h2 className={sectionTitle}>{t('task.acceptTitle')}</h2>
-              {accepted ? null : <p className={muted}>{t('task.acceptHint')}</p>}
+              {accepted ? null : (
+                <p className={muted}>
+                  {artifact ? t('task.acceptArtifactHint') : t('task.acceptHint')}
+                </p>
+              )}
               {accepted ? (
                 <p
                   className={css({
@@ -504,6 +518,15 @@ export const TaskWorkspacePage = () => {
                 >
                   {t('task.accepted')}
                 </p>
+              ) : artifact ? (
+                <Button
+                  size="dense"
+                  loading={acceptMutation.isPending}
+                  onPress={() => void onAccept()}
+                  className={css({ marginTop: 'sm' })}
+                >
+                  {t('task.confirmAcceptArtifact')}
+                </Button>
               ) : (
                 <>
                   <TextArea
