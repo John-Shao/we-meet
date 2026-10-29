@@ -294,6 +294,22 @@ sudo rm -f /var/lib/work/health-alert-test.json
 缺失或 SMTP 凭据失效时，健康检查仍运行，但外部告警不可用，需在 journal 中搜索
 `health alert delivery failed`。
 
+### 5.7 Backend NetworkPolicy（2026-10-29）
+
+`meet-backend` 与 `meet-backend-ai` 由 Helm 管理两条 `NetworkPolicy`：只允许
+hostNetwork ingress-nginx 的节点 IP（生产 `172.16.0.4/32`）及 `agent-*`/`backend-ai`
+组件访问容器端口 8000。验证命令：
+
+```bash
+kubectl -n meet get networkpolicy meet-backend-ingress meet-backend-ai-ingress
+kubectl -n meet exec deploy/meet-frontend -- timeout 4 wget -qO- http://meet-backend/__lbheartbeat__  # 应失败
+kubectl -n meet exec deploy/meet-agent-metadata -- python -c 'import urllib.request; print(urllib.request.urlopen("http://meet-backend/__lbheartbeat__", timeout=4).status)'  # 200
+```
+
+节点 IP 变更时必须同步生产 `values.meet.yaml` 的 `backend.networkPolicy.nodeCIDR`；新增 agent
+组件需加入 `backend.networkPolicy.allowedComponents`。该策略只挡直连，不替代 Host 的入口共享凭证/
+mTLS 透传；同命名空间 agent 被攻破仍可伪造 `Ssl-Client-Cert`。
+
 ## 6. 容量证据
 
 ### 6.1 当前 DDL 烟雾（2026-10-25）
