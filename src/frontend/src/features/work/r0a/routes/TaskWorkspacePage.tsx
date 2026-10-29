@@ -24,6 +24,7 @@ import {
 } from '../api/queries'
 import { useIdempotencyKey } from '../hooks/useIdempotencyKey'
 import { useTaskEventStream } from '../hooks/useTaskEventStream'
+import { ArtifactPanel } from '../components/ArtifactPanel'
 import { TaskStatusBadge } from '../components/TaskStatusBadge'
 import { card, errorText, label, muted, page, row, sectionTitle } from '../ui'
 
@@ -529,19 +530,11 @@ export const TaskWorkspacePage = () => {
           ) : null}
 
           {detail.summary.latest_artifact ? (
-            <section className={card}>
-              <h2 className={sectionTitle}>{t('task.latestArtifact')}</h2>
-              <p className={muted}>
-                {t('task.artifactDetail', {
-                  version: detail.summary.latest_artifact.version_no,
-                  hash: detail.summary.latest_artifact.content_hash.slice(
-                    0,
-                    16
-                  ),
-                })}
-              </p>
-              <p className={muted}>{t('task.artifactNotViewable')}</p>
-            </section>
+            <ArtifactPanel
+              artifactId={detail.summary.latest_artifact.artifact_id}
+              versionNo={detail.summary.latest_artifact.version_no}
+              contentHash={detail.summary.latest_artifact.content_hash}
+            />
           ) : null}
         </aside>
       </div>

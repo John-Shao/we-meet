@@ -49,6 +49,11 @@ export interface WorkArtifactSummary {
   content_hash: string
 }
 
+export interface WorkArtifactContent {
+  text: string
+  mediaType: string
+}
+
 export interface WorkTaskSummary {
   task_id: string
   title: string

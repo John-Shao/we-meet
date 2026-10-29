@@ -1,5 +1,6 @@
 import type {
   WorkAcceptanceResult,
+  WorkArtifactContent,
   WorkBootstrap,
   WorkInputResponse,
   WorkPreviewResponse,
@@ -99,6 +100,33 @@ export const fetchWorkTasks = (view: string, cursor?: string | null) => {
 
 export const fetchWorkTask = (taskId: string) =>
   request<WorkTaskDetail>(`/tasks/${encodeURIComponent(taskId)}`)
+
+export const workArtifactContentUrl = (
+  artifactId: string,
+  versionNo: number,
+  disposition: 'inline' | 'attachment' = 'inline'
+) =>
+  `${BASE}/artifacts/${encodeURIComponent(artifactId)}/versions/${versionNo}/content?disposition=${disposition}`
+
+export const fetchWorkArtifactContent = async (
+  artifactId: string,
+  versionNo: number,
+  disposition: 'inline' | 'attachment' = 'inline'
+): Promise<WorkArtifactContent> => {
+  const response = await fetch(
+    workArtifactContentUrl(artifactId, versionNo, disposition),
+    {
+      credentials: 'same-origin',
+      headers: { Accept: 'text/markdown, text/plain' },
+    }
+  )
+  if (!response.ok) throw await parseError(response)
+  const contentType = response.headers.get('content-type') ?? ''
+  return {
+    text: await response.text(),
+    mediaType: contentType.split(';')[0].trim(),
+  }
+}
 
 export const createWorkInput = (body: {
   client_request_id: string

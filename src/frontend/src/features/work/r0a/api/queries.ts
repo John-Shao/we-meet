@@ -10,6 +10,7 @@ import {
   cancelWorkRun,
   createWorkInput,
   createWorkPreview,
+  fetchWorkArtifactContent,
   fetchWorkBootstrap,
   fetchWorkTask,
   fetchWorkTasks,
@@ -24,6 +25,8 @@ const workKeys = {
   templates: ['work', 'templates'] as const,
   tasks: (view: string) => ['work', 'tasks', view] as const,
   task: (taskId: string) => ['work', 'task', taskId] as const,
+  artifactContent: (artifactId: string, versionNo: number) =>
+    ['work', 'artifact-content', artifactId, versionNo] as const,
 }
 
 export const useWorkBootstrap = () =>
@@ -56,6 +59,19 @@ export const useWorkTask = (taskId: string | undefined) =>
     queryKey: workKeys.task(taskId ?? ''),
     queryFn: () => fetchWorkTask(taskId!),
     enabled: !!taskId,
+    retry: false,
+  })
+
+export const useWorkArtifactContent = (
+  artifactId: string,
+  versionNo: number,
+  enabled: boolean
+) =>
+  useQuery({
+    queryKey: workKeys.artifactContent(artifactId, versionNo),
+    queryFn: () => fetchWorkArtifactContent(artifactId, versionNo),
+    enabled,
+    staleTime: Infinity,
     retry: false,
   })
 

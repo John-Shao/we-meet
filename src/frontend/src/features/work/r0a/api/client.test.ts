@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   createWorkInput,
+  fetchWorkArtifactContent,
   fetchWorkBootstrap,
   setWorkCSRFToken,
   WorkApiError,
+  workArtifactContentUrl,
 } from './client'
 
 const jsonResponse = (status: number, body: unknown): Response =>
@@ -13,6 +15,14 @@ const jsonResponse = (status: number, body: unknown): Response =>
     ok: status >= 200 && status < 300,
     headers: { get: () => 'application/json' },
     json: vi.fn().mockResolvedValue(body),
+  }) as unknown as Response
+
+const textResponse = (body: string, contentType: string): Response =>
+  ({
+    status: 200,
+    ok: true,
+    headers: { get: () => contentType },
+    text: vi.fn().mockResolvedValue(body),
   }) as unknown as Response
 
 describe('Work API client', () => {
@@ -92,6 +102,43 @@ describe('Work API client', () => {
       status: 409,
       currentRevision: 7,
       correlationId: 'corr',
+    } satisfies Partial<WorkApiError>)
+  })
+
+  it('reads artifact content with disposition and media type', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        textResponse('# 成果\n\n正文', 'text/markdown; charset=utf-8')
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const content = await fetchWorkArtifactContent('artifact-1', 2)
+    expect(content).toEqual({ text: '# 成果\n\n正文', mediaType: 'text/markdown' })
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      '/work/v1/artifacts/artifact-1/versions/2/content?disposition=inline'
+    )
+    expect(fetchMock.mock.calls[0][1].credentials).toBe('same-origin')
+    expect(workArtifactContentUrl('artifact-1', 2, 'attachment')).toBe(
+      '/work/v1/artifacts/artifact-1/versions/2/content?disposition=attachment'
+    )
+  })
+
+  it('maps artifact content errors to WorkApiError', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse(404, {
+          code: 'artifact_not_found',
+          message: 'not found',
+          correlation_id: 'corr-2',
+        })
+      )
+    )
+    await expect(fetchWorkArtifactContent('artifact-1', 1)).rejects.toMatchObject({
+      code: 'artifact_not_found',
+      status: 404,
+      correlationId: 'corr-2',
     } satisfies Partial<WorkApiError>)
   })
 })
