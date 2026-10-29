@@ -25,10 +25,20 @@ elif ! printf '%s' "$last" | grep -q '"errors":\[\]'; then
   issues+=("sync_errors")
 fi
 
+for name in ca client; do
+  if ! openssl x509 -in "/etc/work/certs/$name.crt" -noout -checkend 2592000 >/dev/null 2>&1; then
+    status="degraded"
+    issues+=("${name}_cert_expiring_30d")
+  fi
+done
+
 ts=$(date -Is)
 issue_text=$(IFS=', '; echo "${issues[*]}")
 printf '{"status":"%s","checked_at":"%s","issues":"%s"}\n' "$status" "$ts" "$issue_text" > /var/lib/work/health.json.tmp
 mv /var/lib/work/health.json.tmp /var/lib/work/health.json
+
+/usr/bin/python3 /usr/local/bin/work-health-alert.py "$status" "$issue_text" \
+  || logger -p daemon.err -t work-healthcheck "health alert delivery failed"
 
 if [ "$status" != "ok" ]; then
   echo "$ts status=degraded issues=$issue_text" >> /var/log/work-health-alerts.log
