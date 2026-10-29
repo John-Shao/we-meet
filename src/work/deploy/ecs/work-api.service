@@ -1,0 +1,21 @@
+[Unit]
+Description=Work API control plane
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+User=work-control
+Group=work-control
+EnvironmentFile=/etc/work/work-api.env
+ExecStart=/usr/local/bin/work-api
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# The encrypted local Content Store is the only writable path for work-api.
+ReadWritePaths=/var/lib/work/content
+
+[Install]
+WantedBy=multi-user.target
