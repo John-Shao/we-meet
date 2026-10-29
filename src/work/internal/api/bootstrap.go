@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/we-meet/work/internal/apierr"
+	"github.com/we-meet/work/internal/content"
 	workdb "github.com/we-meet/work/internal/db"
 	"github.com/we-meet/work/internal/host"
 )
@@ -72,17 +73,28 @@ type Server struct {
 	pool     *pgxpool.Pool
 	verifier host.SessionVerifier
 	csrf     *CSRF
+	content  content.Store
 	logger   *log.Logger
 }
 
 func NewServer(pool *pgxpool.Pool, verifier host.SessionVerifier, csrf *CSRF, logger *log.Logger) (*Server, error) {
+	return NewServerWithContent(pool, verifier, csrf, nil, logger)
+}
+
+func NewServerWithContent(
+	pool *pgxpool.Pool,
+	verifier host.SessionVerifier,
+	csrf *CSRF,
+	store content.Store,
+	logger *log.Logger,
+) (*Server, error) {
 	if pool == nil || verifier == nil || csrf == nil {
 		return nil, errors.New("work api requires pool, Host verifier and CSRF")
 	}
 	if logger == nil {
 		logger = log.Default()
 	}
-	return &Server{pool: pool, verifier: verifier, csrf: csrf, logger: logger}, nil
+	return &Server{pool: pool, verifier: verifier, csrf: csrf, content: store, logger: logger}, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -94,6 +106,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET "+TasksPath, s.listTasks)
 	mux.HandleFunc("GET "+RunPath, s.getRun)
 	mux.HandleFunc("POST "+RunCancelPath, s.cancelRun)
+	mux.HandleFunc("POST "+InputsPath, s.createInput)
 	return mux
 }
 
