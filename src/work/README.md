@@ -44,6 +44,10 @@ go run ./cmd/work-migrate snapshot -url "$WORK_DATABASE_URL" -output migrations/
 - `PATCH /work/v1/tasks/{taskId}` — optimistic-concurrency title edit.
 - `POST /work/v1/tasks/{taskId}/acceptances` — accept a published artifact
   version or complete by reason.
+- `GET /work/v1/artifacts/{artifactId}/versions/{versionNo}` and
+  `GET .../content?disposition=inline|attachment` — owner-scoped published
+  version metadata and body. Content is hash-checked, `no-store`, and an
+  attachment export writes `artifact.exported` audit metadata without the body.
 - `GET /work/v1/tasks/{taskId}/events` — owner-scoped SSE; `Last-Event-ID`
   replays after a known event, unknown/foreign cursors return 409
   `resync_required` with `X-Work-Event-Cursor`, and quiet streams get a
@@ -101,7 +105,9 @@ workflows started by `work-relay`. The pilot activities:
 Runtime selection: `WORK_RUNTIME_MODE=reference` (deterministic non-model
 text for lifecycle drills) or `WORK_RUNTIME_MODE=openai_compatible` with
 `WORK_MODEL_BASE_URL`, `WORK_MODEL_API_KEY`, `WORK_MODEL_NAME` and
-`WORK_MODEL_PROVIDER` (`aliyun`, `volcengine` or `deepseek`). New
+`WORK_MODEL_PROVIDER` (`aliyun`, `volcengine` or `deepseek`). The placeholder
+environment file is `deploy/ecs/work-worker.env.example`; real keys stay only
+in `/etc/work/work-worker.env` (root:work-control 640). New
 organizations are auto-provisioned with an `org_policy` row and a soft
 1,000,000-token monthly account by migration 0006; the worker calls
 `work.ensure_quota_account` for later periods.
