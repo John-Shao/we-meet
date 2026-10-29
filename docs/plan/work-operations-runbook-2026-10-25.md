@@ -401,13 +401,18 @@ worker 启动前会调用 `work.ensure_quota_account` 补齐后续月份。
   527 tokens、`provider_request_id=chatcmpl-7c25…`，验收 200 后 completed。Work 专属 key
   下来后替换 `WORK_MODEL_API_KEY` 并 `systemctl restart work-worker`；该 key 只留在 640 env
   文件，不写入仓库。
-- 真实 provider/egress、Pi/Node runtime、operation 心跳与 unknown 对账仍未实现；`ExecuteStep`
-  一次活动完成单步，不是 F0-R1 的 plan/execute 片段协议。
+- 真实 provider/egress、Pi/Node runtime、operation 心跳仍未实现；worker 默认 2 步、每步一个
+  `ExecuteStep` 活动（`WORK_MODEL_STEPS` 1–3），不是 F0-R1 的 plan/execute 片段协议。
+- 2026-10-29 多步/取消验收：任务 `a3aab5de-4d7f-40ab-95cf-fc42d3dedfb0` 两个 `model:*`
+  operation 均 succeeded、各有检查点，最终只发布 1 个 artifact；任务
+  `8f8ecd5d-4a9d-4043-9085-618cb8ab1d44` 在 `model:1` 运行中取消，Run canceled、无 artifact，
+  Task 保持 open。unknown 路径仅在本地 PG16/Temporal stub 验证，生产未注入。
 
 部署资产已安装：`/usr/local/bin/work-worker`、`work-worker.service` 与
 `/etc/work/work-worker.env`（root:work-control 640）已就位，worker 已 enabled/active。
 env 结构见 `src/work/deploy/ecs/work-worker.env.example`（占位值，不含真实密钥）；
 替换 provider key 后执行 `systemctl restart work-worker`，不需要重新安装 unit。
+
 `work-healthcheck.sh` 已改为仅在 unit 被 enable 时检查 worker，避免未启用阶段误报。
 
 ### 5.12 Work 前端发布（2026-10-29）
@@ -417,6 +422,21 @@ Work 前端与 meet 同源，代码在 `src/frontend/src/features/work/r0a`，�
 浏览器真实登录两次跑通 `/work` 提交 → SSE → 成果 Markdown 预览 → 下载/按版本采纳验收（task
 `7347c43e-a9ff-4464-8a3f-e1bf62011d1a`、`ee497558-888f-4d1c-9196-4df36fb33c74`，无 console/page error）。回滚到上一版前端：
 `bash deploy/aliyun/release-meet.sh --tag b5049d451 frontend`。
+
+### 5.13 unknown 对账（2026-10-29）
+
+`unknown` Operation 会让 Run 停在 `waiting(reconcile)`；在确认供应商结果前不要发 resume。
+`/usr/local/bin/work-reconcile` 只调用 D1 命令、不重发外部请求：
+
+```bash
+sudo bash -c 'set -a; source /etc/work/work-worker.env; set +a; \
+  /usr/local/bin/work-reconcile -org <org_id> -operation <operation_id> \
+    -resolution not_sent -evidence-ref ticket:<id> -resume'
+```
+
+`sent_succeeded` 需另加 `-settled-tokens <n>`；`unresolved` 不允许 `-resume`。reconcile 成功后
+`-resume` 发 Temporal `resume`，workflow 以 failed/`reconcile_resolved` 结束、无 artifact，
+Task 保持 open 可重试。信号失败时 Run 留 waiting，可修复 Temporal 连接后重跑同一命令（幂等）。
 
 ## 6. 容量证据
 
