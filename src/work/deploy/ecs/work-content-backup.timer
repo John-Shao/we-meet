@@ -1,0 +1,11 @@
+[Unit]
+Description=Six-hour encrypted Work Content Store backup
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:45:00 Asia/Shanghai
+RandomizedDelaySec=10min
+Persistent=true
+Unit=work-content-backup.service
+
+[Install]
+WantedBy=timers.target
