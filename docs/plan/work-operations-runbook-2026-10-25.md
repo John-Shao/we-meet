@@ -322,8 +322,10 @@ mTLS 透传；同命名空间 agent 被攻破仍可伪造 `Ssl-Client-Cert`。
   `ProtectSystem=strict`，必须保留 `ReadWritePaths=/var/lib/work/content`，否则服务启动失败；对象文件名不含用户输入。
 - 输入 `POST /work/v1/inputs` 需要 CSRF、非 viewer 席位；正文上限 goal 2000 字符、background
   4000 字符，响应只含 `input_ref/content_hash/bytes/expires_at`。
-- 验证：`curl` 无会话 401；本地测试覆盖加密回读、幂等重放、冲突和 viewer。接 OSS 前不要把
-  本地内容当作异地可恢复证据。
+- 验证：`curl` 无会话 401；本地测试覆盖加密回读、幂等重放、冲突和 viewer。
+- 备份：`work-content-backup.timer` 每 6 小时打包、age 加密上传 OSS `we-work-backup/content/`，
+  状态 `/var/lib/work/content-backup.json`，30 天清理；恢复需本地 age 私钥。
+- 首个备份是空内容目录的恢复烟雾，不是正文恢复证据；接入真实任务后必须重做下载/解密/目录恢复。
 
 ## 6. 容量证据
 
