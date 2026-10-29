@@ -91,30 +91,15 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 	mux.HandleFunc("GET "+BootstrapPath, s.bootstrap)
+	mux.HandleFunc("GET "+TasksPath, s.listTasks)
+	mux.HandleFunc("GET "+RunPath, s.getRun)
+	mux.HandleFunc("POST "+RunCancelPath, s.cancelRun)
 	return mux
 }
 
 func (s *Server) bootstrap(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Cache-Control", "no-store")
-	correlationID := strings.TrimSpace(r.Header.Get("X-Correlation-ID"))
-	if correlationID == "" {
-		correlationID = newCorrelationID()
-	}
-	w.Header().Set("X-Correlation-ID", correlationID)
-
-	cookie, ok := sessionCookie(r)
+	claims, correlationID, ok := s.authenticate(w, r)
 	if !ok {
-		writeAPIError(w, correlationID, apierr.New("unauthorized"))
-		return
-	}
-
-	claims, err := s.verifier.VerifySession(r.Context(), cookie, correlationID)
-	if err != nil {
-		apiError := hostFailure(err)
-		if apiError.Code == "service_degraded" {
-			s.logInternal(correlationID, apiError)
-		}
-		writeAPIError(w, correlationID, apiError)
 		return
 	}
 
