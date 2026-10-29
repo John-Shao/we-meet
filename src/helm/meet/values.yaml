@@ -286,6 +286,24 @@ backend:
     targetPort: 8000
     annotations: {}
 
+  # Restrict direct access to the backend/AI Services. ingress-nginx is
+  # hostNetwork in production, so nodeCIDR is the node address, not a pod
+  # selector. Internal agents need the backend for transcript/control writes.
+  networkPolicy:
+    enabled: false
+    nodeCIDR: ""
+    allowedComponents:
+      - backend
+      - backend-ai
+      - agent-ai-assistant
+      - agent-capture-asr
+      - agent-capture-live-asr
+      - agent-capture-translation
+      - agent-interpretation
+      - agent-metadata
+      - agent-subtitles
+      - agent-translation
+
   ## @param backend.migrate.command backend migrate command
   ## @param backend.migrate.restartPolicy backend migrate job restart policy
   ## @param backend.migrate.envVars Override environment variables for the migrate job only

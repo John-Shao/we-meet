@@ -1,0 +1,64 @@
+{{- $networkPolicy := .Values.backend.networkPolicy | default dict -}}
+{{- if $networkPolicy.enabled }}
+{{- $allowedComponents := $networkPolicy.allowedComponents | default list -}}
+{{- if not (has "backend" $allowedComponents) -}}
+{{- fail "backend.networkPolicy.allowedComponents must include backend" -}}
+{{- end -}}
+{{- $pools := list (dict "component" "backend" "name" (include "meet.backend.fullname" .)) -}}
+{{- if .Values.aiBackend.enabled -}}
+{{- $pools = append $pools (dict "component" "backend-ai" "name" (printf "%s-ai" (include "meet.backend.fullname" .))) -}}
+{{- end -}}
+{{- range $pool := $pools }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $pool.name }}-ingress
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "meet.common.labels" (list $ $pool.component) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "meet.common.selectorLabels" (list $ $pool.component) | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    # ingress-nginx runs with hostNetwork on this cluster, so its source is the
+    # node IP rather than an ingress-nginx pod. Keep this CIDR aligned with the
+    # node address when the host moves.
+    {{- if $networkPolicy.nodeCIDR }}
+    - from:
+        - ipBlock:
+            cidr: {{ $networkPolicy.nodeCIDR | quote }}
+        {{- if $allowedComponents }}
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  {{- range $allowedComponents }}
+                  - {{ . | quote }}
+                  {{- end }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ $.Values.backend.service.targetPort }}
+    {{- else }}
+    - from:
+        {{- if $allowedComponents }}
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  {{- range $allowedComponents }}
+                  - {{ . | quote }}
+                  {{- end }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ $.Values.backend.service.targetPort }}
+    {{- end }}
+{{- end }}
+{{- end }}
