@@ -171,3 +171,10 @@ meet 生产库只保留 Host 侧数据（`core.organization.home_region/director
   `/home/johnshao/work-migrate.bak-20261029`。
 - 证据边界：本次只改函数文本换行，无表/数据/权限变化；未做整库恢复演练。若将来再次修改已发布
   迁移正文，必须新增版本并重新签收，不能扩大 `legacy_checksums` 掩盖语义变化。
+
+0005 增量存在同类差异（2026-10-29 发现）：初版以 CRLF 写入并应用到生产，台账 0005 为
+`sha256:477f8f31…9c28d22`；仓库按 `* text=auto eol=lf` 归一后，0005 正文与 0005/0006 catalog
+改为 LF，manifest 当前校验和为 `sha256:48433903…784408`，并把 477f… 列入 `legacy_checksums`。
+**生产尚未重放**：生产两个函数（`submit_task`、`retry_task`）的 `prosrc` 仍含 CRLF，因此新 runner
+对生产会报 v5 catalog 漂移。部署新 `work-migrate` 前，先备份并以 LF 版 0005 重放两个函数
+（`CREATE OR REPLACE FUNCTION`，无数据变更），再确认 `status=up_to_date`。

@@ -54,11 +54,14 @@
       "name": "0005_run_workflow_id",
       "kind": "increment",
       "file": "increments/0005_run_workflow_id.sql",
-      "checksum": "sha256:477f8f31f51a94b42b28d20b5d8e5cfabcc6d584093b4f6945cfd7de09c28d22",
+      "checksum": "sha256:48433903cd2869a8a793e02609a9f965b724e91dde64f4def82d9ab1e6784408",
       "catalog": "catalogs/0005_run_workflow_id.json",
-      "catalog_checksum": "sha256:312c082799a9a7aa742318831e6b873c16144ea0d5b97f2478d80806a6e7241a",
+      "catalog_checksum": "sha256:f4fda52f867e2d15e0a0c6c5d992903504a1822f0704e8ec1b199ed10edc903d",
       "transactional": true,
-      "executable": true
+      "executable": true,
+      "legacy_checksums": [
+        "sha256:477f8f31f51a94b42b28d20b5d8e5cfabcc6d584093b4f6945cfd7de09c28d22"
+      ]
     },
     {
       "version": 6,
@@ -67,7 +70,7 @@
       "file": "increments/0006_org_policy_quota_provision.sql",
       "checksum": "sha256:ca7dc30e378809554127c052269f9d2e0e64d8a5d5173fb7559ac2bb766a23a9",
       "catalog": "catalogs/0006_org_policy_quota_provision.json",
-      "catalog_checksum": "sha256:02370e771a3e0fe65b362110dbb63ea606be24f730c37f85b532ac28e9e99244",
+      "catalog_checksum": "sha256:1d00cb8a67dbd585cc52c1a050badf2e00b662f6ec28fa5ed7ee576d231024f0",
       "transactional": true,
       "executable": true
     },
@@ -78,7 +81,7 @@
       "file": "increments/0007_org_provision_backfill.sql",
       "checksum": "sha256:3f527e9be0dcd91f7054c34cf52d3f4f59dc9835440c27c8456542f4ac3d8436",
       "catalog": "catalogs/0006_org_policy_quota_provision.json",
-      "catalog_checksum": "sha256:02370e771a3e0fe65b362110dbb63ea606be24f730c37f85b532ac28e9e99244",
+      "catalog_checksum": "sha256:1d00cb8a67dbd585cc52c1a050badf2e00b662f6ec28fa5ed7ee576d231024f0",
       "transactional": true,
       "executable": true
     }
