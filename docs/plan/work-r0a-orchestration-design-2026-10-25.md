@@ -461,7 +461,7 @@ sequenceDiagram
 
 - `submit_task` 同事务写 TaskEvent 与 workflow_start outbox；`request_cancel` 写 cancel_signal outbox。
 - Outbox payload 带 `kind`：
-  - `task_event`：aggregate_type=`task`，投递 SSE；
+  - `task_event`：aggregate_type=`task`，基线经 relay 投递 SSE；单实例直读候选见 §10.1；
   - `start_workflow`：aggregate_type=`run`，启动 `run:<run_id>`；
   - `cancel_signal`：aggregate_type=`run`，发送 cancel signal。
 - Relay 跨组织运行（不设 `app.org_id`）：`claim_outbox(relay_id, limit, lease_seconds)` 以 `FOR UPDATE SKIP LOCKED` 领取并写租约（`claimed_by/claimed_until`），短事务提交后才调用 Temporal（不在持锁事务里做网络调用，Temporal 调用带 deadline）；逐行 `mark_outbox_delivered(event_id, relay_id)` / `mark_outbox_failed(event_id, relay_id, code, retryable)`，非租约持有者 ACK 得 `outbox_lease_lost`。至少一次。
@@ -471,6 +471,28 @@ sequenceDiagram
 - SSE 只投递公开 TaskEvent；每 Task `aggregate_seq` 单调；客户端按 event_id 去重；Last-Event-ID 补读；游标过期 409 `resync_required`。
 - Inbox 先轮询；跨 Task SSE 后置。
 - Outbox backlog 阈值触发新提交 503；不静默丢事件。
+
+### 10.1 EX-SSE：单实例 DB 直读 SSE（候选设计修订）
+
+本项只评估事件传输方式：以 API 轮询 `work.task_event` 替代上文 `task_event` 经 relay 转发 SSE。目标是在单实例演示环境减少一条投递链与故障环节；不是用现有实现反向证明设计已获豁免。候选授权、验收证据与采纳状态只在[项目文档 §4.5](work-project.md#45-候选设计修订与验收证据)维护；证据齐备并经 John 确认后才修订正式基线，涉及身份/留存边界变化须另经 Lily 复核。
+
+**适用范围与不变量**：
+
+- 仅单 API 实例、单区域演示环境；先申报并实测并发连接数、事件速率、轮询周期与 DB 资源预算，再称为可承载的低流量范围，不用“当前用户少”代替容量证据。
+- PostgreSQL 仍为唯一事件事实源；业务事务继续原子写 `task_event/outbox`，不删除 outbox，不修改领域幂等、单聚合顺序或死信规则。
+- 候选模式下 relay 对 `task_event` 的 ACK 只表示路由记录已处理，**不表示浏览器收到**；状态可见延迟按 DB commit → 浏览器观测计量，不得使用 outbox ACK 时间代替。
+- relay 仍负责 `start_workflow/cancel_signal/content_shred`；SSE 可见不证明这些义务已完成。积压告警及新提交 503 的原闸门保留。
+- 首次订阅和 409 恢复都必须将快照与事件游标组成无缺口协议；未知/跨 Task 游标不能跳过授权。只投递公开 DTO；身份撤销、正文保护与留存要求不因直读而放宽。
+
+| 验收 ID | 验证方法 | 通过条件 |
+|---|---|---|
+| EX-SSE-01 | 本地 PG + HTTP 测试：新事件、Last-Event-ID、未知/跨 Task 游标、无会话/跨 owner | 只见授权 Task 事件；补读有序，非法游标受控恢复，公开事件无正文/内部秘密 |
+| EX-SSE-02 | 浏览器在首次快照→建流、409 快照→重连两个窗口插入最终事件 | 最终状态与成果不漏；重复事件按 event_id 去重，恢复游标确实被客户端消费 |
+| EX-SSE-03 | 隔离环境停止 relay、继续写 TaskEvent，再恢复 relay；对比 DB 与浏览器 | SSE 可独立补读；outbox 留存且恢复处理；不把 ACK 当客户端送达，也不丢启动/取消/粉碎义务 |
+| EX-SSE-04 | 按申报峰值和重连突发压测，加入慢读客户端 | 状态可见 P95 满足现有 2s 目标；DB 连接/查询、API 内存、缓冲有界，超容量受控拒绝且不饿死业务请求 |
+| EX-SSE-05 | 长连接期间会话失效/席位撤销、API 重启及事件清扫 | 按已签撤权传播边界终止或重新验权；重启可恢复，清扫后游标失效能重新同步，正文不进入事件 |
+
+**退出条件**：引入多 API 实例、超出实测容量或持续不能满足状态可见 SLO 时，停止扩大该模式的准入范围，重新评估共享唤醒/独立 SSE 投递；候选方案不是自动扩容开关。迁移仍沿用 DB 事件与客户端游标，不双重生成事件；在替代方式通过前不宣称多实例就绪。游标、授权或资源边界负例失败时，先修复，不以改传输名义豁免。
 
 ## 11. 非 Run 后台作业编排
 
@@ -524,6 +546,29 @@ R0a 的编排不止"每个 Run 一个 workflow"。下面这些常驻/周期性�
 - **已接受风险**：撤权到人工取消之间的窗口内，在途 Run 继续消耗该组织 token 配额。写进风险登记与产品文案，不作为缺陷处理。
 - **B 方案（投影同步附带定向取消意图）推到 R0b**：`EntitlementNarrowingHint` 类型保留但 R0a 不消费；届时补取消策略（哪些状态取消、每轮上限、幂等键）与告警，不改 D1 命令语义。
 - **实现红线**：投影写入不直接改 Run 状态；`work_directory` 角色拿不到 Run 写权限。
+
+### 11.6 EX-DIR：单机 systemd 目录同步（候选设计修订）
+
+本项只评估用 systemd timer + oneshot service 承载目录投影同步，替代 §11.1 的 Temporal Schedule 及该作业的队列宿主；不将其推广到 RunWorkflow、对账器、审计导出或其他义务作业。收益是单机部署/排障更简单、目录同步不依赖 Temporal 可用性；代价是单机故障域与漏跑补偿、互斥、监控、切换责任必须显式补齐。候选的证据与采纳状态只在[项目文档 §4.5](work-project.md#45-候选设计修订与验收证据)维护。
+
+**适用范围与不变量**：
+
+- 仅单机演示环境，一个有效目录同步执行者；incremental、full 和人工补跑必须共用互斥域，不能以“同一 oneshot 不会重入”证明不同 service 之间互斥。
+- 正常增量周期仍为 300s，每日全量不变；日历 timer 应使用持久补跑或等价机制，增量需开机追补。错过触发不得被记为成功；单轮超时和连续失败要有有界重试/补跑责任，不无限占住下一轮。
+- 保留 `work_directory` 最小权限、逐 org 事务与故障隔离、权威组织发现、修订单调、缺席只收窄、不取消在途 Run。旧 full 与新同步交错不得用最新水位包装旧 present 集合；调度互斥不能替代数据层的快照绑定检查。
+- 保留 Host SessionVerifier 严格 fail closed；目录失败/积压/过期要阻断新工作。健康判断依据持久的完整成功记录与失败状态，不以 timer active、进程退出码或单个成功 org 代替整轮新鲜度。
+- kill switch/组织停用不停止同步；安全冻结/DR 按独立恢复程序处置，不构成日常停用例外。只在已签 D-07 范围内保留在途人工取消。
+- unit、启动参数和非秘密部署配置必须可重复部署；凭据正文不入仓。主备切换先停止并确认旧执行者失效，再启新执行者；不能双调度，也不能为恢复方便放宽数据库角色。
+
+| 验收 ID | 验证方法 | 通过条件 |
+|---|---|---|
+| EX-DIR-01 | 本地 Go + PG 测试：首次发现、增量/full、撤席位、gap/成员失败及单 org 失败 | 只经目录角色写投影；失败不推进水位，其他 org 继续，operator_suspended 不被覆盖 |
+| EX-DIR-02 | 目标主机检查版本化 unit 与实际 timer，并跨停机/开机验证补跑 | 300s 增量/每日 full 生效；漏跑可追补，成功与失败可核查，无秘密出现在取证材料 |
+| EX-DIR-03 | incremental/full/人工补跑并发，叠加超时、进程中断、旧 full 迟到 | 同一互斥域生效；无误撤新成员、修订回退或无限挂起；重跑可恢复，旧快照被数据层拒绝 |
+| EX-DIR-04 | Host 故障/投影过期、timer 停止、仅部分 org 成功 | 无假新鲜状态；新工作被阻断；按既有新鲜度阈值触发告警及恢复通知，补跑 full 可消除故障 |
+| EX-DIR-05 | kill switch/组织停用与主备切换 | 同步义务继续、在途不自动取消；切换不产生两个有效执行者，不提升数据库权限 |
+
+**退出条件**：要求目录同步多机高可用、单机恢复不能满足撤权/运维目标、组织规模超出实测批次预算时，停止扩大该模式的准入范围，重新评估 Temporal Schedule 或等价受控调度。变更前后共用领域命令、水位与互斥责任，先停止旧调度再启动新调度；不能凭“迁到 Temporal”认定投影新鲜度或快照竞态已修复。
 
 ## 12. 功能开关、停用与升级
 

@@ -132,11 +132,23 @@ SELECT kind, max(last_success) FROM work_background_job_last_success GROUP BY ki
 
 ### 5.3 目录同步作业（work-directory-sync）
 
-- **增量**：`WORK_DIRECTORY_MODE=incremental`，按 5 分钟调度；以 Work 投影的 `work.org.revision` 为水位，只拉 `revision_after` 之后的成员变更；不判定缺席。
+- **增量设计要求**：`WORK_DIRECTORY_MODE=incremental`，正常成功同步周期为 300s；以 Work 投影的 `work.org.revision` 为水位，只拉 `revision_after` 之后的成员变更；不判定缺席。实际 timer 周期须取证，不以本节要求代替部署状态。
 - **全量**：`WORK_DIRECTORY_MODE=full`（默认），每日至少一次；拉完整成员快照后，把 Host 缺席成员收窄为 `left`、撤 `work_seat`、记 `entitlement_lost`，不取消 Run。快照最多 10,000 个 subject，超过直接失败。缺席数 ≥ max(10, 候选成员 20%) 时默认拦截（写 `directory.member_absence_blocked`，不写入）；候选成员少于 10 人的组织不触发闸门。确认 Host 数据后以 `WORK_DIRECTORY_ALLOW_MASS_ABSENCE=1` 重跑 full，放行会写 `directory.member_absence_applied`。
 - **首次部署**：先按 [Host wire §8 L1](work-r0a-host-wire-decision-2026-10-28.md) 提交控制面登录身份证据（仅成员于 `work_directory`、无表权限）；再跑一次 full 建立水位；新组织先以 revision 1 建行，成员全部成功后才推进到快照 revision。
 - **失败处置**：进程非零退出或报告 `orgs_failed/members_failed > 0` 时，**下一轮必须补跑 full**，不能只重跑增量——失败组织的低修订成员不会被增量窗口重新拉取。成员失败/gap 不推进水位，可安全重试。
 - **不要**为缺席成员手工执行 `ops_cancel_run` 以外的表写入；投影写入只经 `work_directory` 的领域函数。
+
+#### systemd 候选宿主验收
+
+按 [D3 EX-DIR](work-r0a-orchestration-design-2026-10-25.md#116-ex-dir单机-systemd-目录同步候选设计修订) 验收，不把 systemd 的存在等同于正式采纳。授权运维人员在目标环境核对以下证据；本节不是重启/改配置授权，取数不输出 Environment、EnvironmentFile 正文或凭据。
+
+1. 核对增量/全量 timer 的有效周期、最近/下次触发时间及对应 service 的退出结果；周期按既有 300s/每日全量，不豁免为 10min。
+2. 保存不含密钥的版本化 unit/部署入口与校验和，核对服务身份仅有目录投影权限；环境文件只记录引用和权限，不归档正文。
+3. 在隔离环境同时触发 incremental/full/人工补跑，验证同一互斥域；测试超时、进程退出、开机补跑和主备切换，不允许两个有效同步执行者。
+4. 注入 Host 不可用、单 org 失败、成员 gap、旧 full 与新增量交错；核对水位/缺席收窄、不影响其他 org、失败后 full 补跑，以及过期投影确实阻断新工作。
+5. 验证失败、无最近成功记录、timer 停止均可告警；检查 kill switch/组织停用不停止投影同步，在途 Run 仍按 D-07 手工取消。
+
+结果只回写[项目文档 §4.5](work-project.md#45-候选设计修订与验收证据)；本地 Go 测试不验证 systemd timer、重启补跑、跨进程互斥或真实告警。
 
 ### 5.4 生产数据库备份与恢复（2026-10-29）
 
@@ -345,12 +357,12 @@ mTLS 透传；同命名空间 agent 被攻破仍可伪造 `Ssl-Client-Cert`。
 - Ingress 资产：[work-api-ingress.yaml](../../src/work/deploy/k8s/work-api-ingress.yaml)，必须保留
   `proxy-buffering=off`、`proxy-read-timeout=3600`、`proxy-send-timeout=3600`；生产已于
   2026-10-29 应用。
-- 限制：单 API 实例 + DB 轮询；不覆盖多实例广播/背压/重连风暴。SSE 直接读 `work.task_event`，
-  不消费 outbox；`task_event`/`start_workflow` outbox 仍未投递，relay 未实现，上线前需补积压
-  监控。SSE 连接建立后不再重新验 session/席位；撤权新鲜度仍依赖目录同步和后续重连。
-  `task_event` 当前无留存清扫，游标不会因时间过期，只有“事件不存在/不属于本 Task”才 409。
-- 生产验证：无会话 401；本地 PG16 覆盖新事件、Last-Event-ID 补读、409 游标头、跨 owner 404。
-  生产尚无任务，未做真实流式正向验证。
+- 直读模式不消费 outbox；relay 处理 `task_event` 路由 ACK 及其他副作用，ACK 不表示浏览器收到。
+  实现/发布状态与历史证据只看[项目文档](work-project.md)，不能由 SSE 可见推断启动/取消/粉碎投递成功。
+- 候选适用边界与验收按 [D3 EX-SSE](work-r0a-orchestration-design-2026-10-25.md#101-ex-sse单实例-db-直读-sse候选设计修订)；单实例直读不自动证明多实例、背压、重连风暴或长连接撤权符合要求。
+- 正向验收必须包含首次快照→建流和 409→补读期间发生最终状态变化的浏览器用例；记录恢复游标、事件 ID/顺序和最终状态，不记录正文。
+- 故障验收在隔离环境暂停/恢复 relay 与 API，确认从 DB 补读；outbox 积压和新提交保护独立验证，不拿 ACK 延迟代替 DB commit→浏览器可见延迟。
+- 容量验收记录连接/事件峰值、DB 查询与连接预算、慢客户端缓冲及重连突发；会话失效、撤席位和清扫游标必须单独验证。结果回写[项目文档 §4.5](work-project.md#45-候选设计修订与验收证据)，不能用后端单测替代浏览器与目标环境证据。
 
 ### 5.10 Work outbox relay（2026-10-29）
 
@@ -374,9 +386,9 @@ mTLS 透传；同命名空间 agent 被攻破仍可伪造 `Ssl-Client-Cert`。
   （`delivered_at` 非空、attempts=1），随后删除该合成行，生产 outbox 归零；当时无任务/worker，
   无真实 start/cancel 正向证据；后续 worker 已启用并完成一次真实 start→succeeded（见 §5.11），
   cancel 正向证据仍缺。
-- 边界：RunWorkflow worker 代码与 OpenAI-compatible/reference runtime 已实现并在 §5.11 启用
-  （临时百炼 key）；Work 专属 provider key 待替换；多步/unknown 对账未验证；0005 已把
-  `work.run.workflow_id` 统一为 `run:<run_id>`；无 Prometheus 指标/积压告警；多实例 relay 未验证。
+- 边界：本地 Go 直连 provider 路径已移除，只剩 reference；尚未发布，不能据此认为生产
+  真实模型执行已暂停。架构实现缺口和验证状态统一见 Work 项目文档 §4.6–4.7。
+  0005 已把 `work.run.workflow_id` 统一为 `run:<run_id>`；无 Prometheus 指标/积压告警。
 
 ### 5.11 RunWorkflow worker（2026-10-29，pilot/reference）
 
@@ -390,28 +402,31 @@ workflow 已在本地 Temporal test suite 与 PG16 上验证，覆盖成功、�
 100 万 token/月账户；生产现有 org 已回填（`run_cap_tokens=100000`，`default/2026-10/1000000/soft`）。
 worker 启动前会调用 `work.ensure_quota_account` 补齐后续月份。
 
-**provider 状态（2026-10-29）**：
+**provider 状态（2026-10-29 修复后）**：
 
-- 新增 `openai_compatible` runtime（OpenAI chat-completions 协议），支持 aliyun/volcengine/deepseek
-  供应商名；单测用本地 stub 验证请求、usage 与响应解析。
-- **临时启用（2026-10-29，用户授权）**：`/etc/work/work-worker.env` 复用 meet 的百炼
-  `DASHSCOPE_API_KEY`（`qwen3.8-flash`，`https://dashscope.aliyuncs.com/compatible-mode/v1`，
-  provider `aliyun`），worker 已 enabled/active。真实任务 `ed67eb84-8897-4d4d-9d20-c952ae33bad3`
-  走通 `queued → active → awaiting_acceptance`：artifact `sha256:9950…`（695 bytes）、settled
-  527 tokens、`provider_request_id=chatcmpl-7c25…`，验收 200 后 completed。Work 专属 key
-  下来后替换 `WORK_MODEL_API_KEY` 并 `systemctl restart work-worker`；该 key 只留在 640 env
-  文件，不写入仓库。
+- 本地 worker 仅保留 `WORK_RUNTIME_MODE=reference`，拒绝 `openai_compatible` 模式，
+  不读取 provider Key；`WORK_MODEL_STEPS` 仍有效。该改动未发布，Node/Pi + work-egress 仍待实现。
+- `PreparedRun`/`ExecuteStepOutput` 不再携带 goal/background/title 或自由错误文本；
+  `ExecuteStep` 在活动内按 Run 重新读取并校验输入。完整 history 无敏感信息尚未完成真实验证。
+- **既有生产记录（未在本轮停用）**：`/etc/work/work-worker.env` 曾临时复用 meet 的
+  百炼 key，真实任务 `ed67eb84-8897-4d4d-9d20-c952ae33bad3` 走通
+  `queued → active → awaiting_acceptance`；任务 `a3aab5de-4d7f-40ab-95cf-fc42d3dedfb0`
+  完成 2 步、任务 `8f8ecd5d-4a9d-4043-9085-618cb8ab1d44` 运行中取消。这些结果只说明旧路径
+  曾可用，不代表当前或合规能力。
 - 真实 provider/egress、Pi/Node runtime、operation 心跳仍未实现；worker 默认 2 步、每步一个
   `ExecuteStep` 活动（`WORK_MODEL_STEPS` 1–3），不是 F0-R1 的 plan/execute 片段协议。
-- 2026-10-29 多步/取消验收：任务 `a3aab5de-4d7f-40ab-95cf-fc42d3dedfb0` 两个 `model:*`
-  operation 均 succeeded、各有检查点，最终只发布 1 个 artifact；任务
-  `8f8ecd5d-4a9d-4043-9085-618cb8ab1d44` 在 `model:1` 运行中取消，Run canceled、无 artifact，
-  Task 保持 open。unknown 路径仅在本地 PG16/Temporal stub 验证，生产未注入。
+  unknown 路径仅在本地 PG16/Temporal stub 验证，生产未注入。
+- **生产尚未切换**：2026-10-29 只读核查仅确认 `work-worker` active，ExecStart 为
+  `/usr/local/bin/work-worker`；sudo 需口令，未核验当前二进制哈希、env 或在途 Run。
+  **不得直接用 reference-only 构建替换线上 worker**：默认仍消费业务队列，会把真实任务
+  变成演练产物。须先完成重做计划的暂停新执行、队列隔离、旧 workflow 排空/义务接管及
+  兼容性验收，并取得切换授权；仅检查无 active/waiting 不足以覆盖 queued/outbox。
+  既有 Temporal history 不会因切换删除，按 7 天保留与访问控制处置。
 
 部署资产已安装：`/usr/local/bin/work-worker`、`work-worker.service` 与
 `/etc/work/work-worker.env`（root:work-control 640）已就位，worker 已 enabled/active。
-env 结构见 `src/work/deploy/ecs/work-worker.env.example`（占位值，不含真实密钥）；
-替换 provider key 后执行 `systemctl restart work-worker`，不需要重新安装 unit。
+env 结构见 `src/work/deploy/ecs/work-worker.env.example`（占位值，不含真实密钥，也不再包含 provider key）；
+本地模板不能代替生产切换方案；不要直接按模板覆盖线上 env 或重启为 reference。
 
 `work-healthcheck.sh` 已改为仅在 unit 被 enable 时检查 worker，避免未启用阶段误报。
 
@@ -437,6 +452,33 @@ sudo bash -c 'set -a; source /etc/work/work-worker.env; set +a; \
 `sent_succeeded` 需另加 `-settled-tokens <n>`；`unresolved` 不允许 `-resume`。reconcile 成功后
 `-resume` 发 Temporal `resume`，workflow 以 failed/`reconcile_resolved` 结束、无 artifact，
 Task 保持 open 可重试。信号失败时 Run 留 waiting，可修复 Temporal 连接后重跑同一命令（幂等）。
+
+### 5.14 0008 数据加固与目录新鲜度（2026-10-29，未生产）
+
+0008 `0008_quota_directory_usage_hardening` 包含：
+
+- `work.operation.usage_recorded_at` 与 `record_usage` 独立去重；
+- `reserve_quota` 按 Task→Run→Operation 加锁，Run cap 不再被并发预留穿透；
+- `directory_sync_state` 与 `record_directory_sync`/`directory_sync_fresh`；
+- `mark_members_absent` 改为 4 参数（快照 revision），旧 3 参数函数被删除；
+- 撤销 0006 两个函数对 PUBLIC 的 EXECUTE，只保留 worker 入口。
+
+**发布前置**：0008 尚有历史 usage 去重和目录同步竞态缺口，新增写入口也未完成复核，
+当前不得发布；状态以 [Work 项目文档 §4.7](work-project.md#47-p1-修复与本地验证2026-10-29) 为准。
+下列仅为闭环后的顺序约束，不是执行授权。
+
+1. 停止旧目录调度并等待所有实例退出，备份后再以 `work_migrator_login` 应用 0008。
+2. 部署新版 `work-directory-sync` 并执行一次 `WORK_DIRECTORY_MODE=full`；确认
+   `work.directory_sync_state` 有该 org 的成功记录。旧 directory-sync 调 3 参数函数，
+   不能与新 schema 混跑。
+3. 部署新版 `work-api`。部署后输入、预览、提交会检查目录新鲜度：900s 内无成功记录或
+   `last_error` 非空即返回 503 `service_degraded`，直到成功同步清除错误。
+4. 部署新版 `work-relay`（配置标签后追加启动 UUID）；worker 按 §5.11 单独完成切换验收。
+5. 前端须与 TaskDetail 的快照游标契约配套发布，并验证首次建流/409 快照重同步。
+
+**验证要求**：用 API 角色并设置匹配的 `app.org_id` 后调用 `work.directory_sync_fresh`；
+缺少上下文或跨组织调用必须被拒。还需验证新工作 503、并发 Run cap、历史 usage 重放及
+不同计量版本冲突；不得仅因新 Operation 重复调用未增量就判定迁移安全。
 
 ## 6. 容量证据
 

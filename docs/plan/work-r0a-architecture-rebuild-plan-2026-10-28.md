@@ -75,6 +75,15 @@ D3'/D4' 在 Phase 0 联合签收以下边界与机器可读契约，再进入 Go
 
 不得在旧契约上先补 UI，否则补完即废。
 
+### 局部候选修订：事件传输与目录调度
+
+只允许评估两个有界简化：[D3 §10.1 EX-SSE](work-r0a-orchestration-design-2026-10-25.md#101-ex-sse单实例-db-直读-sse候选设计修订) 的单实例 DB 直读 SSE，以及 [D3 §11.6 EX-DIR](work-r0a-orchestration-design-2026-10-25.md#116-ex-dir单机-systemd-目录同步候选设计修订) 的 systemd 目录同步。它们分别影响 Phase 3/5/6 的事件链和 Phase 2/3/5 的目录作业宿主，不改变 RB-01/RB-02 的 Node/Pi、片段协议、受控出口、凭据隔离与恢复要求；Go 直接持 Key 调模型不在例外中。
+
+1. 核对现有运行入口与测试，将本地/替身/真实环境证据分开记录到[项目文档 §4.5](work-project.md#45-候选设计修订与验收证据)。
+2. 按 D3 的 EX-SSE/EX-DIR 验收矩阵补正确性、故障、容量和运维证据；未通过项保持开放，不以已部署替代验收。
+3. 涉及数据/公开接口行为变更先走对应 D1/D2 签收与版本化迁移。John 对适用环境、证据和残余风险逐项确认后才正式采纳；涉及安全边界变化另由 Lily 复核。采纳后同步 D3/D5/D6 及相关契约/部署资产，不保留相互矛盾的正式要求。
+4. 超出已验范围时重新评估；不自动切换传输/调度，不停留存与投递义务，也不把两个候选推广成全局架构降级。
+
 ### RB-06 的仓库与模块边界
 
 2026-10-28 决策：**不新建 Work 仓库，沿用 `we-meet` 单仓，但把新实现聚成可独立拆出的子树。** 语言不同（Go/Node vs Python/React）不构成拆仓理由；当前变更耦合在 D2' 契约、前端数据层与 Host 接入合同，拆仓会让同一次变更跨两仓。仓库边界也不提供运行隔离——隔离仍由独立 ECS、PG cluster、Temporal namespace 与 K8s namespace 提供。
@@ -188,6 +197,7 @@ Temporal Go SDK 承载唯一 RunWorkflow；领域活动只经 `work.*` 写入。
 ### Phase 4：Node/Pi Runtime
 
 - Pi 核心包只依赖 `agent-core` 及必要 pi-ai 消息/类型；Node Temporal worker 为独立宿主层。不引入 coding-agent、TUI、pi-mcp、codemode、pi-durable。
+- `reference` 仅用于隔离的生命周期演练，不是 Node/Pi + work-egress 的架构替代或生产切换方案；不得在业务队列中用演练产物替代真实任务结果。实施状态见 Work 项目文档。
 - 落实[跨语言执行契约](#跨语言执行契约)：Pi Agent + Driver + GatewayStreamAdapter + canonical state；使用受控提交屏障保存待请求/真实回执/检查点，禁止裸事件流或 `continue()` 充当防重放保证。端云共用核心契约，宿主传输不侵入模型循环。
 - 父进程监督每 Run 独占的短寿命子进程，验证 IPC 版本/大小/身份；设池并发、单 Run 时间与资源限额、子进程退出/强制回收及孤儿清理机制。不能声称进程 OOM 只影响本 Run，必须测池 Pod OOM/驱逐及多 Run 恢复。具体并发/预算、准入先于 claim、回收、drain 与滚动升级提案见 [D4 §6.5](work-r0a-runtime-egress-design-2026-10-25.md#65-f0-r6-池并发资源预算与回收设计已签)，真实负例见 [D4 §6.6](work-r0a-runtime-egress-design-2026-10-25.md#66-f0-r6-负例验收合同)；无委派 cgroup 子树时并发降为 1 或回到每 Run Pod，不得为资源隔离给池加特权。
 - WorkAdapter 保留七方法接口，但模型可调用能力由签收 profile 决定。降级只开放 `model_call`，模板装配、结果/检查点存储是受控基础设施职责，不能经工具名单绕开 D4-12；额外工具未签不启用。

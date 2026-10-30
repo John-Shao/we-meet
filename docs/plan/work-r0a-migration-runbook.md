@@ -18,6 +18,8 @@
 | `0006_org_policy_quota_provision` | 默认 org policy、`ensure_quota_account`、新 org 自动 provision；新 org 默认 soft 100 万 token/月 | 删除函数/trigger；已有 policy/account 不回滚 |
 | `0007_org_provision_backfill` | 对既有 org 回填 policy/quota（临时 `NO FORCE RLS` 读取 org） | 已有 policy/account 不回滚 |
 
+> Go 迁移运行器的 `0008_quota_directory_usage_hardening` 仍为未发布草稿，不能按本表直接执行。历史 usage 与目录并发缺口及复核状态见 [Work 项目文档 §4.7](work-project.md#47-p1-修复与本地验证2026-10-29)；切换前置见[运维手册 §5.14](work-operations-runbook-2026-10-25.md#514-0008-数据加固与目录新鲜度2026-10-29未生产)。
+
 `0002` 的 SQL 第一条是 `CREATE SCHEMA ... AUTHORIZATION work_owner`，随后
 `GRANT ... TO work_api/work_worker/work_ledger/work_migrator/work_ops/work_directory`，
 因此**必须先有 7 个角色**。迁移连接还必须是 `work_owner` 的成员（`SET ROLE`）。
