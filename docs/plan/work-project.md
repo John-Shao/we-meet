@@ -3,6 +3,8 @@
 > 性质：活文档，项目入口。快照日期 **2026-10-27**；分支 `aliyun-dev`，截至快照最近一次已推送提交 `89bc22c4a`。
 > 结论：Work R0a 于 **2026-10-27 获有条件开发准入**（E1–E3 先行，E4–E6 只做契约/mock；见[开发准入单](work-r0a-development-entry-2026-10-27.md)）；**D-01–D-06 已于 2026-10-27 正式签收，D-07 已正式签收 A（只拦新工作 + 运营手工取消 `work.ops_cancel_run`）**；DR0 11-03 仍需形成正式纪要，DR1–DR4 未签收；D6 go/no-go 为 **no-go**（30 个 blocking 项中 18 个未关闭）；设计未决项中 **U2 已定方案 B、待 DR1 签收**，**U3 已定自托管（A），九项承诺已于 2026-10-27 确认、资源已批**；U1、U4 仍开放。
 > 本文只做索引与状态汇总，细节以链接文档为准；测试数字均为设计/参考证据，不是生产证明。
+>
+> **R0b 设计增量（2026-10-30）**：本机与治理的架构/详细设计稿已写成，但第三轮复审发现 9 项 P1，**当前不可签收**；已修与未修项及验证证据见 §4.9。上方 2026-10-27 快照不代表 R0b 当前状态，也不覆盖 §4.8 后续运行证据。R0b 设计不自动关闭 R0a 遗留或批准试点。
 
 ## 目录
 
@@ -21,7 +23,7 @@
 
 | 问题 | 回答 |
 |---|---|
-| 当前阶段 | R0a（云端主场景）详细设计（D1–D6 设计包）可评审草案；无产品代码实现 |
+| 当前阶段 | R0a 已有 Go/Node 实现及运行证据（§4.8，仍有遗留）；R0b 架构/详细设计修订中（§4.9），未达签收条件，尚未实现 |
 | 能否开始开发 | **有条件是**。E1–E3 已获产品准入，D-01–D-07 已正式签收（含 D-04、D-07 A），E1 可接入真实迁移体系；E4–E6 只做契约/mock；正式开工与试点仍受 C03/C04/C05/C25 和 DR1–DR4 限制 |
 | 最早开工 | 2026-12-07（DR4 2026-12-04 之后） |
 | 关键路径 | E1→E2→E3→E7→E8，11–16 周；go/no-go 窗口 2027-02-26～2027-04-02（含春节顺延） |
@@ -141,10 +143,19 @@
 | ~~src/work-agent/~~ | 2026-10-27 随 clean-slate 清理删除，无代码存档 |
 | [早期 Work 产品计划](work-module-product-architecture-agent-plan-2026-09-21.md) | 历史材料上传/周报/表格分析能力已删除，仅存档 |
 
+### 2.10 R0b 架构与详细设计
+
+| 资产 | 职责 |
+|---|---|
+| [R0b 架构设计](work-r0b-architecture-2026-10-30.md) | B01–B10 范围、RB-A01–A18、信任边界、I1–I7 实施顺序 |
+| [R0b 本机执行详细设计](work-r0b-device-design-2026-10-30.md) | Windows Rust Broker、Node/Pi、设备 v2 协议、句柄工具、租约/journal、外发、成果/安装 |
+| [R0b 控制面与治理详细设计](work-r0b-control-design-2026-10-30.md) | API v2、Host v3、可委派权限、席位 saga、数据命令、审批、自动撤权、token 护栏 |
+| [R0b 体验与验收设计](work-r0b-experience-validation-2026-10-30.md) | 页面状态、首次使用、输入/桌面版本、旧任务过渡、需求追踪与验证 oracle |
+
 ## 3. 项目计划
 
 > 来源：[产品设计](work-product-design-2026-10-25.md) §6–§7、[系统架构](work-system-architecture-2026-10-25.md) §4.1、[R0a 就绪包](work-r0a-implementation-readiness-2026-10-26.md) §4。
-> 边界：R0a 有详细设计与参考资产；R0b–R5 只有产品/UX/架构方向，尚未做详细设计，不能按本文直接排期。
+> 边界：R0a 有详细设计与参考资产；R0b 已进入独立架构/详细设计（见 §2.10/§4.9），不等于实现或安全准入；R1–R5 仍只有产品/UX/架构方向。实施步骤不附工时或排期估算。
 
 ### 3.1 用户功能模块与阶段
 
@@ -191,9 +202,16 @@
 | R0a 产品代码 | **E1–E3 实现 + E4–E8 契约/资产（2026-10-27，已提交，PR #10）** | legacy `work` 已删；E1：迁移 0001/0002、7 个 NOLOGIN 角色、角色脚本、Runbook、冒烟/竞态执行器；E2：33 operation API、Cookie+CSRF、幂等、目录同步、凭证加密、`ops_cancel_run`、审计导出 worker；E3：SSE Last-Event-ID/409、outbox relay/死信；E4/E5：编排/六类作业契约、真实 SQL 本地纵切、到期清扫作业、Runtime/Content Store mock、凭证解析/解密；E6：API/SSE/状态 TS 契约、真实 `/work/v1` 客户端与 live 路由（`VITE_WORK_API_MODE=live`）、Mock UI（Composer/我的工作/任务工作区/Inbox/管理概览）；E7：请求指标/关联 ID 中间件、Prometheus/Grafana/OTel 资产、日志守卫与 log-scan CLI；E8：开通/黄金任务 runner（`--dry-run` 校验 6 任务/3 模板，create-org 与 assign-seats 本地验证）与 Runbook 增补。本地：Work pytest **39/39**、API 覆盖 **88%**、前端 **1713/1713**、148/148、9/9；真实 HTTP（Cookie+CSRF）走通 bootstrap → input → preview → submit → run → artifact → SSE → usage → acceptance；Playwright axe（含颜色对比）通过。已预置：jd-sjy 集群 7 个 NOLOGIN 角色 + `work_owner`→`meet`（2026-10-27，未创建 schema），并创建独立空库 `work_staging`（owner=`meet`）；已用 PR #10 镜像 `44c37dd75` 在 `work-staging` 命名空间完成 `0001/0002` 迁移（29 表、33 RLS、148/148 冒烟）；迁移身份仍以应用登录承载（D1 §6.1 未正式签收）。未完成：CI 远端、真实 Content Store/供应商、管理只读 UI 与试点；Temporal 已部署但端到端未通过；E7 未部署；生产/试点未放行 |
 | Work 独立环境（京东 ECS） | 底座已就绪（2026-10-28）；Work 控制面、目录同步、API 与备份已上线（2026-10-29）；R0a 0008–0014 与四个 runtime 服务已部署预发（2026-10-30）；旧 jd-sjy staging/review 已清理 | 新 ECS 8C16G/270GB，Ubuntu 24.04 + K3s v1.36.5 + PG16（`/data/pg16`）+ Temporal 1.25（frontend mTLS），命名空间 `work`/`work-runtime`；入口走 meet 同源 `/work`，未配置 `work.we-meet.online`；已接 OSS 备份并完成运行时验收；Work 前端已发布生产（meet-frontend `8abc7192a`，Helm revision 520）。旧 jd-sjy 的 `work-staging`、`meet-work-review`、`meet-work-review-tasks` 及 `work_staging`/`temporal`/`temporal_visibility` 库和 Work/Temporal 角色已于 2026-10-28 清理，备份 age 加密后迁至新 ECS:`/root/work-backups/work-cleanup-backup.tar.gz.age`（恢复测试 29 张 Work 表，jd-sjy 明文已删），OSS `we-work-backup` 保留；5 个 Deployment 与 2 个 CronJob 的 `WORK_REVIEW_*` 已全部移除，发布 overlay 同步裁剪且 preflight 7/7 通过；旧 Helm revision 507 仍含旧配置，禁止直接 rollback；2026-10-30 预发已应用 0008–0014 并启用 authz/content-proxy/egress/runtime 四服务（8443–8446，Node 22.20.0），`work-provider-setup` 已安装但 provider 未配置，`RunWorkflowAdvance` 仍关闭 |
 | P0 安全收口 | 完成（2026-10-28） | jd-sjy 与新 ECS 均已禁用 SSH 密码登录和 root 登录，仅保留 johnshao 公钥；jd-sjy 明文备份删除，age 加密副本在新 ECS `/root/work-backups/`；安全组 22 限源、账户密码轮换仍需控制台/用户执行 |
-| R0b+（本机/连接器/项目） | 未开始 | R1–R5 仅有产品/UX/架构方向 |
+| R0b（本机与治理） | 架构/详细设计修订中，未达签收条件 | 四份设计包、B01–B10追踪与复审/验证证据见§2.10/§4.9；实现未开始 |
+| R1–R5（方法/连接器/项目等） | 未开始 | 仅有产品/UX/架构方向 |
 | DR（设计评审）签收 | 0/5 | DR0–DR4 未形成正式会议纪要；D-01–D-07 已会前正式签收 |
 | go/no-go | no-go | 30 blocking 中 18 未关闭（11 done / 15 partial / 3 todo / 1 waived）；开发准入是产品例外，不改变计数 |
+
+### 3.4 R0b 设计后实施顺序
+
+按 [R0b 架构 §6](work-r0b-architecture-2026-10-30.md#6-实施顺序与代码集成点) 的 I1–I7：先冻结 Host/设备/权限合同，再做增量数据与句柄 Broker，接设备编排/审批/外发与成果，最后接前端/治理并验证安装恢复和试点。新功能留在 `src/work` 与既有前端，Host 只增加权威接口与必要权限边界，不拆仓。该顺序是实施输入，不是本轮开发授权。
+
+## 4. 项目进展
 
 ### 4.2 当前证据（设计/参考）
 
@@ -392,6 +410,37 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 | 外部依赖 | Work 专属 provider key 轮换、U1 可用性研究（11-27）、C22 DR 演练（11-06/15-16）、移动实机 | **未完成** |
 
 **CI 基线**：`Work R0a gates` 与 `Release guard` 在代码提交上通过；`meet Workflow` 的 `lint-front` 已修复（`client.test.ts` Prettier），`test-e2e` 仍因既有 `work-a11y.spec.ts` 在 CI 环境无真实 session 失败（该失败早于本批提交，基线 run 40890991545 同样失败），不属于 R0a 功能回归。
+
+### 4.9 R0b 架构与详细设计（2026-10-30）
+
+**当前交付状态**：架构、本机执行、控制面治理与体验验收四份设计稿已写成，**但第三轮复审后处于修订中，未达正式评审/签收条件**；本轮只写设计与索引，不写产品代码、不执行迁移/部署、不提交或推送。用户本轮已选择 **细分可委派治理权限**（不默认预置内置角色，owner 显式委派）和 **先完整覆盖必选闭环**（计划、复核、移动写操作后置）。
+
+| 维度 | 结论与证据 |
+|---|---|
+| 范围 | B01–B10 覆盖本机资料整理、逐次/同类只读审批、重启断线撤权、WeMeet成果/选择同步、组织治理、token 护栏/审计、输入与版本/旧任务；见 §2.10 四份设计 |
+| 继承约束 | Host 保持成员/席位权威；D-08 token 口径不改；D-07 B 自动定向取消在 R0b 设计，不借 R0a 签收放行新增写入口 |
+| 本机安全 | Rust 句柄级工具与 AppContainer+受限Node；H01/H06/H08/S2 历史证据仅模拟/部分，F13 安全失败不能当通过 |
+| 设计复审 | 前两轮共17项P1已修订（EV46–EV62）。第三轮复审新增9项P1：**已修订待复核** 7项（本机模型交给egress、本机Run收尾与checkpoint上报、Run结束后用户保存、重授权与logical_key冲突、本机正文进入renderer、多Membership归并、组织恢复后deny解除；RB-A12–A18，EV63–EV77）；**未修** 2项（初次打开目录竞态、loopback服务身份）。另有P2 2项（binding预览刷新、revision为0的兼容）和待澄清3项（多层配额预留、entitlement前序、撤权设备新回执）未处理。修订未经独立复审，不代替安全签收 |
+| 产品取舍 | **用户已在对话中确认（2026-10-30）**：回答送达失败不可补取，只能结束或人工重发并再次计量；模型只回复文字而无成果按失败；用户保存要求当前席位、仅限原设备；R0b 不开放云端任务的用户保存（前四项用户回复“没问题”）；重授权只允许同一目录，换目录须结束任务；同一步骤最多取代5次；本机正文只在独立的无网络窗口查看/编辑/审批，提交前用户输入的目标文本仍可在主窗口编辑（后三项用户明确同意）。**待确认**：成员离开组织时 Host 同事务清除其席位与 Work 委派；迁移时一人多行席位按“任一 active 行有席位即授予”并出报告 |
+| 结构验证 | 2026-10-30 P1-6/P1-7 修订后一次性Python复跑：四份R0b设计的28处本地链接/锚点、40张表格列数、代码围栏、尾空白均无错误；RB-A01–A18连续；EV01–EV77共77项无缺号/重号；`git diff --check -- docs/plan`通过。这些只是文档检查，不是功能测试通过 |
+| 实现与测试 | 本轮未实现、未跑UI/设备/PG/Temporal测试；历史R0a绿灯不证明R0b |
+| 放行 | **未放行实施/试点**；R0a退出门、Host新增写合同、安全签收、真实安装/隔离/恢复/模型与用户验证仍需逐项证据 |
+
+**目标到交付物审计**：本轮目标是完成 R0b 架构与详细设计，而非仅写路线图，也不是实现/上线。按产品 §19.2 的 Must、范围与退出门逐项对应如下；设计覆盖需通过复审，运行结果另行取证。
+
+| 原始要求 | 具体设计证据 | 验收规格证据 |
+|---|---|---|
+| 本机文件夹内执行并采纳，原始文件默认不上传 | 本机 §2/§4/§5/§7；控制 §1 local输入/§7成果 | EV01–EV05、EV19、EV41/EV47、EV54/EV55 |
+| 命令逐次审批、拒绝、审计 | 本机 §4 ApprovalDecisionProof；控制 §5，含同Run只读批准 | EV09–EV12、EV46/EV49；UV03 |
+| 断线/重启/撤销可恢复或明确终止 | 本机 §3/§6/§7.2；控制 §6 epoch定向取消 | EV13–EV18、EV51/EV52/EV57/EV58 |
+| 席位授撤、预算/审计、服务方开通组织 | 控制 §2可委派权限/§3 Host saga与entitlement/§8 token护栏 | EV23–EV32、EV50/EV53；UV07 |
+| WeMeet成果、选择性同步 | 本机 §7不可变版本/独立披露；控制 §7 chunk首字节授权 | EV19–EV22、EV56/EV58；UV04 |
+| 输入限制、桌面最低版本、执行器兼容 | 体验 §4；本机 §1/§8 manifest/profile与降级拒绝 | EV33–EV36、EV48 |
+| 旧任务过渡明确，无假入口 | 体验 §2/§5，区分R0a保留与已清理legacy，不伪造存档 | EV37/EV45；UV01/UV05/UV06 |
+| 架构及可实施详细合同 | 架构 B01–B10/RB-A01–A18/I1–I7；控制API/数据/角色/锁序；本机身份/帧/持久性 | 体验 §6–§9：EV01–EV77、UV01–UV07，安全与实施签收分开 |
+| 本轮产品选择 | 用户选择细分可委派权限、必选闭环优先；架构RB-A04/A11及控制§2 | EV23/EV24/EV45/EV53；可选项不进入依赖或假入口 |
+
+**签收入口（待实施前复核，非已签）**：John 主签范围/接口/产品取舍；新增安全边界提交 Lily 独立复核，具体责任与证据列表见 [体验 §9](work-r0b-experience-validation-2026-10-30.md#9-评审与准入证据)。本轮产品选择只覆盖权限方案与必选范围，不等于代签设备CA、密码学参数、Host新写者、持久水位或撤权时限。
 
 ## 5. 当前问题
 
