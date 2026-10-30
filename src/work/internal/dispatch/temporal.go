@@ -134,6 +134,26 @@ func (t *Temporal) SignalWorkflow(ctx context.Context, workflowID, signalName st
 	return err
 }
 
+// DescribeWorkflowStatus returns the Temporal workflow status name without
+// mutating anything. A missing workflow is reported as NotFound so a
+// reconciler can distinguish an orphaned DB Run from an unreachable server.
+func (t *Temporal) DescribeWorkflowStatus(ctx context.Context, workflowID string) (string, error) {
+	if strings.TrimSpace(workflowID) == "" {
+		return "Missing", nil
+	}
+	description, err := t.client.DescribeWorkflowExecution(ctx, workflowID, "")
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return "NotFound", nil
+		}
+		return "", err
+	}
+	if description == nil || description.WorkflowExecutionInfo == nil {
+		return "Unspecified", nil
+	}
+	return description.WorkflowExecutionInfo.Status.String(), nil
+}
+
 func (t *Temporal) Client() client.Client { return t.client }
 
 func (t *Temporal) Close() { t.client.Close() }

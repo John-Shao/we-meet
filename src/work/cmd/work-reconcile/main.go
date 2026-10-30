@@ -30,6 +30,7 @@ type config struct {
 	resume            bool
 	signalOnly        bool
 	finishFromReceipt bool
+	scan              bool
 }
 
 func main() {
@@ -41,7 +42,7 @@ func main() {
 func run() error {
 	var cfg config
 	flag.StringVar(&cfg.orgID, "org", "", "organization id (required)")
-	flag.StringVar(&cfg.operationID, "operation", "", "operation id (required)")
+	flag.StringVar(&cfg.operationID, "operation", "", "operation id (required unless -scan)")
 	flag.StringVar(&cfg.runID, "run", "", "run id (defaults to the operation's run)")
 	flag.StringVar(&cfg.resolution, "resolution", "", "sent_succeeded|not_sent|unresolved|rejected_not_executed (required)")
 	flag.StringVar(&cfg.providerRequestID, "provider-request-id", "", "provider request id, if known")
@@ -53,32 +54,25 @@ func run() error {
 			"so the worker's own close path decides the outcome from the dispatch gate")
 	flag.BoolVar(&cfg.finishFromReceipt, "finish-from-receipt", false,
 		"recover a confirmed success or an unknown operation's rejection from its trusted receipt")
+	flag.BoolVar(&cfg.scan, "scan", false,
+		"read-only: list open runs with their Temporal workflow status and orphan flag")
 	flag.Parse()
 
-	if cfg.orgID == "" || cfg.operationID == "" {
-		return errors.New("-org and -operation are required")
+	if cfg.orgID == "" {
+		return errors.New("-org is required")
 	}
-	if cfg.signalOnly {
-		if cfg.finishFromReceipt || cfg.resolution != "" {
-			return errors.New("-signal-only cannot be combined with -resolution or -finish-from-receipt")
+	if cfg.scan {
+		if cfg.operationID != "" || cfg.runID != "" || cfg.resolution != "" ||
+			cfg.signalOnly || cfg.finishFromReceipt || cfg.resume ||
+			cfg.providerRequestID != "" || cfg.evidenceRef != "" || cfg.settledTokens != 0 {
+			return errors.New("-scan cannot be combined with other actions")
 		}
-		cfg.resume = true
-	} else if !cfg.finishFromReceipt {
-		switch cfg.resolution {
-		case "sent_succeeded", "not_sent":
-			if cfg.evidenceRef == "" {
-				return errors.New("-evidence-ref is required for sent_succeeded/not_sent")
-			}
-		case "rejected_not_executed":
-			if cfg.evidenceRef == "" || cfg.settledTokens != 0 {
-				return errors.New("rejected_not_executed requires -evidence-ref and zero -settled-tokens")
-			}
-		case "unresolved":
-			if cfg.resume {
-				return errors.New("-resume is not allowed for unresolved")
-			}
-		default:
-			return errors.New("-resolution must be sent_succeeded, not_sent, unresolved or rejected_not_executed")
+	} else {
+		if cfg.operationID == "" {
+			return errors.New("-operation is required unless -scan is used")
+		}
+		if err := validateAction(&cfg); err != nil {
+			return err
 		}
 	}
 	databaseURL := os.Getenv("WORK_DATABASE_URL")
@@ -92,7 +86,9 @@ func run() error {
 		return err
 	}
 	defer pool.Close()
-
+	if cfg.scan {
+		return scanOpenRuns(ctx, pool, cfg.orgID)
+	}
 	runID := cfg.runID
 	if err := workdb.WithWorkerOrgContext(ctx, pool, cfg.orgID, func(tx pgx.Tx) error {
 		var actualRun string
@@ -176,6 +172,36 @@ func run() error {
 	}
 	body, _ := json.Marshal(output)
 	fmt.Println(string(body))
+	return nil
+}
+
+func validateAction(cfg *config) error {
+	if cfg.signalOnly {
+		if cfg.finishFromReceipt || cfg.resolution != "" {
+			return errors.New("-signal-only cannot be combined with -resolution or -finish-from-receipt")
+		}
+		cfg.resume = true
+		return nil
+	}
+	if cfg.finishFromReceipt {
+		return nil
+	}
+	switch cfg.resolution {
+	case "sent_succeeded", "not_sent":
+		if cfg.evidenceRef == "" {
+			return errors.New("-evidence-ref is required for sent_succeeded/not_sent")
+		}
+	case "rejected_not_executed":
+		if cfg.evidenceRef == "" || cfg.settledTokens != 0 {
+			return errors.New("rejected_not_executed requires -evidence-ref and zero -settled-tokens")
+		}
+	case "unresolved":
+		if cfg.resume {
+			return errors.New("-resume is not allowed for unresolved")
+		}
+	default:
+		return errors.New("-resolution must be sent_succeeded, not_sent, unresolved or rejected_not_executed")
+	}
 	return nil
 }
 
