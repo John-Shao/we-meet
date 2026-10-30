@@ -28,6 +28,7 @@ type config struct {
 	settledTokens     int64
 	evidenceRef       string
 	resume            bool
+	signalOnly        bool
 	finishFromReceipt bool
 }
 
@@ -47,6 +48,9 @@ func run() error {
 	flag.Int64Var(&cfg.settledTokens, "settled-tokens", 0, "tokens to settle for sent_succeeded")
 	flag.StringVar(&cfg.evidenceRef, "evidence-ref", "", "evidence reference; required unless unresolved")
 	flag.BoolVar(&cfg.resume, "resume", false, "signal the RunWorkflow to resume after reconciliation")
+	flag.BoolVar(&cfg.signalOnly, "signal-only", false,
+		"deliver the resume signal without reconciling: for an Operation no resolution accepts, "+
+			"so the worker's own close path decides the outcome from the dispatch gate")
 	flag.BoolVar(&cfg.finishFromReceipt, "finish-from-receipt", false,
 		"recover a confirmed model success from the trusted receipt instead of reconciling by resolution")
 	flag.Parse()
@@ -54,7 +58,12 @@ func run() error {
 	if cfg.orgID == "" || cfg.operationID == "" {
 		return errors.New("-org and -operation are required")
 	}
-	if !cfg.finishFromReceipt {
+	if cfg.signalOnly {
+		if cfg.finishFromReceipt || cfg.resolution != "" {
+			return errors.New("-signal-only cannot be combined with -resolution or -finish-from-receipt")
+		}
+		cfg.resume = true
+	} else if !cfg.finishFromReceipt {
 		switch cfg.resolution {
 		case "sent_succeeded", "not_sent":
 			if cfg.evidenceRef == "" {
@@ -98,7 +107,10 @@ func run() error {
 		return err
 	}
 	var recovered *finishing.Outcome
-	if cfg.finishFromReceipt {
+	if cfg.signalOnly {
+		// Nothing is written here: the workflow re-enters its own finish/abort
+		// path, which reads the dispatch gate as the authority.
+	} else if cfg.finishFromReceipt {
 		outcome, err := recoverFromReceipt(ctx, pool, cfg.orgID, cfg.operationID)
 		if err != nil {
 			return err
@@ -149,6 +161,7 @@ func run() error {
 		"operation_id": cfg.operationID,
 		"run_id":       runID,
 		"resolution":   cfg.resolution,
+		"signal_only":  cfg.signalOnly,
 		"resumed":      resumed,
 	}
 	if recovered != nil {

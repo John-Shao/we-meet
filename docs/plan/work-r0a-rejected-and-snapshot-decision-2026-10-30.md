@@ -27,7 +27,7 @@
 **签收**
 
 - [x] John：**选择 A1（2026-10-30）**——新增闭集 reason `provider_rejected`；操作 failed、释放预留、Run failed、不重试、不发布成果；不新增 DB 收尾命令。
-- [ ] Lily：复核所选方案是否改变 F0-R1 回执与 F0-R3 恢复边界
+- [x] Lily：**已复核通过（2026-10-30，经 John 转述）**——确认 A1 的“成功回执→收尾”与“拒绝回执→失败收尾”都不改变 F0-R1 回执语义；F0-R3 的恢复边界只在“闸门即权威”这一点上放宽，取消路径与成功回执路径不受影响。
 
 **A1 实现记录（2026-10-30，待 Lily 复核）**
 
@@ -61,7 +61,7 @@
 **签收**
 
 - [x] John：**选择 B1（2026-10-30）**——闭合对象 `{snapshot_id, snapshot_revision, template, limits, permission_mode, created_at}`，移除 `model_route`/`tool_allowlist`；新增未发布迁移 0015 增加 `revision bigint`（同一 Task 内单调），由 `submit_task` 写入下一个 revision。
-- [ ] Lily：若选 B1，复核 `snapshot_revision` 的单调性与迁移；若选 B2，复核内部字段暴露边界
+- [x] Lily：**已复核通过（2026-10-30，经 John 转述）**——接受 0015 的 `revision` 单调性、回填期间短暂 `NO FORCE RLS` 再恢复的写法，以及闭合 snapshot 不再回传内部路由/工具字段。
 
 **B1 实现记录（2026-10-30，待 Lily 复核）**
 
@@ -82,6 +82,8 @@
 - **9 个操作 `dispatching` 且没有 `dispatch_delivery` 行**（子进程从未消费派发槽位，因此没有任何“未执行”的书证）。`reconcile_operation` 只接受 `unknown|unresolved`（`operation_not_reconcilable`），`finish_operation('failed')` 又必须有已绑定的拒绝回执——**现有工具都无法合法收尾，预留只能继续 held**。这不是漏操作，是设计缺口。
 - **1 个操作 `dispatching`，闸门已绑 `receipt_recorded/rejected_not_executed`**（Run `26ec8787…`，旧子进程代码把它误报成 unknown → `waiting(reconcile)`）。书证齐备，但同样卡在状态：`reconcile_operation` 拒绝 `dispatching`，`finish_operation_from_receipt` 只认 `success`，A1 的收尾又要求运行时报 `provider_rejected`。**即“已证明未执行、却无收尾入口”在现有签收集合里仍然存在。**
 
-John 判定（2026-10-30）：**选 (a)**。落地方式：`abortOperation` 的 `dispatching` 分支不再看运行时报的 reason，只要 `input.Outcome=="failed"` 且闸门自身证明 `receipt_recorded/rejected_not_executed`，就 `finish_operation('failed')+release_quota`；`AbortRunInput.ProvenRejection` 字段已删除（避免把 DB 权威伪装成运行时的主张）。**取消路径明确排除在外**：`Outcome=="canceled"` 仍走 `mark_operation_unknown`，预留保留——已签规则不允许把派发中的调用改写成未发送，测试 `TestAbortRunCancelDoesNotUseRejectionClose` 固化这一点。同理，闸门绑的是 `success` 回执时绝不走失败收尾（`TestAbortRunKeepsUnknownWithoutRejectionProof`）。
+John 判定（2026-10-30）：**选 (a)**，Lily 已复核该判定。落地方式：`abortOperation` 的 `dispatching` 分支不再看运行时报的 reason，只要 `input.Outcome=="failed"` 且闸门自身证明 `receipt_recorded/rejected_not_executed`，就 `finish_operation('failed')+release_quota`；`AbortRunInput.ProvenRejection` 字段已删除（避免把 DB 权威伪装成运行时的主张）。**取消路径明确排除在外**：`Outcome=="canceled"` 仍走 `mark_operation_unknown`，预留保留——已签规则不允许把派发中的调用改写成未发送，测试 `TestAbortRunCancelDoesNotUseRejectionClose` 固化这一点。同理，闸门绑的是 `success` 回执时绝不走失败收尾（`TestAbortRunKeepsUnknownWithoutRejectionProof`）。
 
 原始选项记录（三选一或另给方案）：(a) 允许 worker 在闸门已绑拒绝回执时把 `dispatching` 直接按 A1 收尾（不再要求 reason 匹配，即去掉 `ProvenRejection` 门禁、只信 DB）；(b) 放宽 `reconcile_operation` 接受 `dispatching` 且必须以已绑拒绝回执为证据；(c) 维持现状，这类 Run 由配额超限告警人工处置。本会话按 (c) 保守执行，未对任何 held 预留动手。
+
+**预发实证（2026-10-30，(a) 生效后）**：为遗留 waiting Run 新增 `work-reconcile -signal-only`（只投递 `resume` 信号，不写任何业务状态，也不接受 `-resolution`/`-finish-from-receipt`）。Run `26ec8787-7a74-4ee9-b5f6-3654eb0b6647` 的信号投递后：`run=failed`、`terminal_reason=reconcile_resolved`、`operation=failed`、闸门 `receipt_recorded/rejected_not_executed`、预留 **released**；组织 held 预留由 10/1,000,000 降到 9/900,000（`quota_account.reserved_tokens=900000`）。**剩余 9 个仍 held 是设计结果**：它们的 `dispatching` 操作没有 `dispatch_delivery` 行，没有任何“未执行”书证，(a) 也不会替它们伪造。
