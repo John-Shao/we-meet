@@ -228,14 +228,7 @@ func TestFailedReasonsMatchContractAssets(t *testing.T) {
 		Definitions struct {
 			Result struct {
 				OneOf []struct {
-					Properties struct {
-						State struct {
-							Const string `json:"const"`
-						} `json:"state"`
-						Reason struct {
-							Enum []string `json:"enum"`
-						} `json:"reason"`
-					} `json:"properties"`
+					Properties map[string]json.RawMessage `json:"properties"`
 				} `json:"oneOf"`
 			} `json:"result"`
 		} `json:"definitions"`
@@ -245,9 +238,23 @@ func TestFailedReasonsMatchContractAssets(t *testing.T) {
 	}
 	var schemaReasons []string
 	for _, branch := range document.Definitions.Result.OneOf {
-		if branch.Properties.State.Const == fragment.StateFailed {
-			schemaReasons = branch.Properties.Reason.Enum
+		// A forbidden field is spelled as a boolean in this schema, so state and
+		// reason are decoded one branch at a time.
+		var state struct {
+			Const string `json:"const"`
 		}
+		if raw, ok := branch.Properties["state"]; !ok {
+			continue
+		} else if err := json.Unmarshal(raw, &state); err != nil || state.Const != fragment.StateFailed {
+			continue
+		}
+		var reason struct {
+			Enum []string `json:"enum"`
+		}
+		if err := json.Unmarshal(branch.Properties["reason"], &reason); err != nil {
+			t.Fatalf("FAILED branch reason is not an enum: %v", err)
+		}
+		schemaReasons = reason.Enum
 	}
 	if len(schemaReasons) == 0 {
 		t.Fatal("schema has no FAILED reason enum")
