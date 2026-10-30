@@ -114,7 +114,10 @@ describe('Work API client', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const content = await fetchWorkArtifactContent('artifact-1', 2)
-    expect(content).toEqual({ text: '# 成果\n\n正文', mediaType: 'text/markdown' })
+    expect(content).toEqual({
+      text: '# 成果\n\n正文',
+      mediaType: 'text/markdown',
+    })
     expect(fetchMock.mock.calls[0][0]).toBe(
       '/work/v1/artifacts/artifact-1/versions/2/content?disposition=inline'
     )
@@ -135,7 +138,9 @@ describe('Work API client', () => {
         })
       )
     )
-    await expect(fetchWorkArtifactContent('artifact-1', 1)).rejects.toMatchObject({
+    await expect(
+      fetchWorkArtifactContent('artifact-1', 1)
+    ).rejects.toMatchObject({
       code: 'artifact_not_found',
       status: 404,
       correlationId: 'corr-2',
