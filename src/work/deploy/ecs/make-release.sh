@@ -25,6 +25,7 @@ tar -czf "$OUT/work-runtime.tar.gz" -C "$ROOT/node" package.json package-lock.js
 
 echo "copying deploy assets"
 cp "$ROOT/deploy/ecs/rollout-r0a-0015.sh" "$OUT/"
+cp "$ROOT/deploy/ecs/verify-r0a-0015.sh" "$OUT/"
 cp "$ROOT/deploy/ecs/init-workload-pki.sh" "$OUT/"
 cp "$ROOT/deploy/ecs/work-authz.env.example" "$OUT/"
 cp "$ROOT/deploy/ecs/work-content-proxy.env.example" "$OUT/"
