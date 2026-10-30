@@ -173,7 +173,7 @@ Broker 是正文的可信持有者，负责保证新 Action 只在上表允许�
 
 ### 4.2 不可二次打开的路径算法
 
-1. root 由系统选择器结果在 Broker 内打开并固定 volume serial+file ID。拒绝远程/UNC、非 NTFS、设备命名空间和可疑根 reparse；本期只支持本地 NTFS 普通目录。
+1. root 由 Broker 按下文“根目录获取”打开并固定 volume serial+file ID。拒绝远程/UNC、非 NTFS、设备命名空间和可疑根 reparse；本期只支持本地 NTFS 普通目录。
 2. relative_path 拒绝绝对路径、盘符、`..`/`.`、空段、反斜杠混淆、ADS冒号、NUL、保留 DOS 名、尾空格/点、超深度；规范化仅为显示/hash，不作为授权依据。
 3. 逐级使用父目录 handle 的相对打开（Windows NT handle-relative 操作），先以 OPEN_REPARSE_POINT 检查每一分量属性；任意 junction/symlink/mount/reparse 直接拒绝，不能 resolve 后越出根再判断字符串前缀。
 4. 验证 volume/file ID，拒绝普通文件 hardlink count>1、特殊文件、ADS；持父链与最终 handle 至操作结束，并禁止共享 delete/rename，避免检查后替换祖先。输入打开只读，输出 create-new；同一已验证 handle 上读写，绝不按路径再打开。
@@ -181,6 +181,16 @@ Broker 是正文的可信持有者，负责保证新 Action 只在上表允许�
 6. 写入成果目录也验证所有祖先，冲突或被外部占用返回 `workspace_changed`。用户文件若不满足可证明边界就拒绝，不采用普通 fs fallback。
 
 F13 必须对 root/中间目录/最终文件逐一做 junction/hardlink/rename 竞争；单纯 realpath/字符串规范化测试不构成验收。当前用户 OS 已被完全控制不在防护承诺内，但恶意文件内容/模型依赖不能越权。
+
+**根目录获取**：系统选择器只返回路径字符串，从返回到 Broker 打开之间，选中目录的任一上级都可能被换成 junction，Broker 就会打开另一个目录。原算法只检查 root 本身的 reparse，挡不住这一步。在共享位置（例如其他本机用户也可写的 `C:\shared`）这不需要攻破当前用户，因此不能归入上面的免责。授权改为绑定 Broker 实际打开、并经用户确认的那个对象，而不是绑定路径：
+
+1. Broker 不跟随 root 本身的 reparse 打开选中路径，取得目录 handle（不共享 delete），再用 `GetFinalPathNameByHandle` 取实际位置，并读取 volume serial、file ID、卷类型和文件系统。
+2. 将实际位置与选择器返回的路径按卷 GUID 规范化后逐段比较，大小写不敏感。上级目录本来就是合法 junction 时（例如企业重定向的用户目录），两者也可能不同。
+3. Broker 在本机原生确认框中显示**实际位置**、卷标和分类选项。两者不同时额外显示“实际位置与所选不同”的警示，并要求再次确认；用户取消则关闭 handle，不产生 grant。
+4. 确认后才注册 grant，并持续持有该 handle；之后所有访问都从这个 handle 出发按 §4.2 第 3 步逐级打开，此后再替换上级目录不影响已授权对象。
+5. 若 root 本身或其上级允许其他非管理员本机用户写入（检查 DACL 中当前用户、SYSTEM、Administrators 以外主体的写/删除子项权限），确认框提示“其他本机用户可修改此目录”，同时把输出目录的 create-new 检查对这些主体视为不可信：`WeMeet成果` 及其子目录在创建时设置只允许当前用户写入的 DACL。
+
+改绑（§3.5）和 `inspectWorkspace` 都复用这一流程；§3.5 的 root_identity_hash 取自第 1 步实际打开的对象。
 
 ### 4.3 审批与提交前复验
 
@@ -193,7 +203,7 @@ F13 必须对 root/中间目录/最终文件逐一做 junction/hardlink/rename �
 ### 5.1 两种模型配置
 
 - `org_remote`：Broker → 组织绑定 Work egress 的设备专用入口（§5.3）→ 固定 provider/region。Runtime 无 Key。每次外发必须包含当前模型路由版本、完整请求 hash、来源分类、批准摘要和 `device-egress` 许可。egress 不能接受任意 URL 或自动回退 provider。
-- `device_local` / `org_private`：Broker 代理已登记并探测通过的 endpoint profile；本机只允许明确配置的 loopback 固定端口、固定 API 类型，私有端点由组织允许列表+TLS身份限制；禁重定向、DNS rebinding、link-local metadata、模型输出指定 URL。密钥用 OS 密钥库或既有组织凭据服务代持，不进入 Node。
+- `device_local` / `org_private`：Broker 代理已登记并探测通过的 endpoint profile；本机只允许明确配置的 loopback 固定端口、固定 API 类型，且每个新连接都要通过 §5.4 的监听进程身份校验；私有端点由组织允许列表+TLS身份限制；禁重定向、DNS rebinding、link-local metadata、模型输出指定 URL。密钥用 OS 密钥库或既有组织凭据服务代持，不进入 Node。
 
 模型profile的登记/探测/激活/轮换/撤销与ExecutionProfile获取统一见控制面§8.4；本机binding必须绑定组织已批准的device_local profile，当前设备真实探测verified后才可作为执行目标。模型 profile 包含 `endpoint_id, revision, content_hash, api_type, provider/model, residency, tool_support, max_request_bytes, context_tokens, max_output_tokens, tokenizer_id, usage_mode`。本期支持已验 Chat Completions/Responses 适配的工具调用，不因兼容名称就宣称所有模型可用。无正确 tokenizer 时使用经验证的保守上界，否则拒绝该 profile；无 usage 时按已预留上界记 estimated，不能记零。所有配置仍需要在线控制面许可和 Run token 硬上限。
 
@@ -237,6 +247,18 @@ F13 必须对 root/中间目录/最终文件逐一做 junction/hardlink/rename �
 回答不在云端留存，因此无法补取。重发按 §3.5 以 `resend_undelivered` 取代：新 logical_key、新预留和**逐次人工审批**（auto_readonly、提交预览都不覆盖），界面明确说明会再次消耗 token。入口是原设备上的 `resendUndeliveredModelRequest{run_id,operation_id}`，需用户手势；Broker 从 journal 取原加密 Action，request_hash 除 logical_key 外的内容不得变化。sidecar 已退出时先走 §3.2 resume offer，再由 Broker 发取代 prepare；Node 不参与也不能发起。后续迟到 receipt 只核账。
 
 **device_local / org_private**：Broker 直接代理已 verified 的 endpoint，无 gateway receipt 和 gate；单次发送由 `consume_device_permit` 的 CAS 与 journal jti 保证，`aud=device-model-proxy`。usage 由 Broker 适配器写入设备 receipt 并标 `source=device_adapter`（缺值用上界 estimated）。断流按 unknown，只有 endpoint 返回可证明未执行的响应才记 `rejected_not_executed`。
+
+### 5.4 本机模型服务的身份
+
+Windows 的 loopback 端口对整台机器共享。另一个已登录用户或低权限服务可以抢先监听 `127.0.0.1:<端口>`，Broker 只按地址和端口连接就会把 local_only 正文发给冒充者。常见的本机模型服务（Ollama、LM Studio、llama.cpp server）默认不提供 TLS，也不能改用命名管道，所以身份校验放在监听进程上：
+
+1. **只连字面地址**：只连 `127.0.0.1` 或 `::1`，不解析 `localhost`。
+2. **每条新 TCP 连接都校验对端**：连接建立后、发送任何请求字节之前，Broker 用 `GetExtendedTcpTable` 找到与本连接远端地址和端口对应的监听条目，取得监听进程 PID，再打开该进程，读取 token 用户 SID、映像路径、映像 SHA-256 和 Authenticode 签名者。查询前后两次对照 PID 与进程创建时间，不一致按失败处理，避免 PID 复用。keep-alive 连接只在建立时校验一次；连接断开后重新校验。
+3. **与 binding 记录比对**：`configureLocalModel` + 首次 `probeLocalModel` 时，Broker 记录 `listener_identity{owner_sid, image_path, signer_thumbprint?, image_sha256}`，由用户在原生确认框中看到“进程名、路径、签名者、运行账户”后确认，并计入 binding_hash 上报。每次连接要求：owner_sid 等于当前用户 SID，或等于组织 profile 允许的服务账户 SID（如某个 `NT SERVICE\…`）；签名者匹配 profile 允许的签名者，或在 profile 允许用户固定 hash 时 image_sha256 与记录一致。
+4. **不一致即停**：任何一项不符时不发送任何请求字节、关闭连接，binding 转 `identity_mismatch`，本次动作按 `rejected_not_executed` 结束（尚未发送）。只有用户重新探测并确认，binding 才能回到 verified；模型服务升级后签名者不变的可以直接通过，只按 hash 固定的需要重新确认。
+5. **组织 profile 的 endpoint_policy** 必须声明 `listener_requirement`：允许的签名者列表、是否允许用户固定 hash、允许的服务账户 SID。三者都为空的 device_local profile 不能发布。
+
+检查监听进程不能防御已控制当前用户的恶意进程（它可以注入合法进程），这仍属 §4.2 的免责范围；防住的是其他本机用户和其他账户运行的服务冒充模型端点。监听在 `0.0.0.0` 的服务也接受校验，但界面提示“该模型服务对局域网开放”。
 
 ## 6. 持久 journal、checkpoint 与恢复
 

@@ -388,7 +388,7 @@ ModelProfile按 `org_remote/org_private/device_local` 区分，字段为 `id,rev
 | POST /devices/{id}/model-bindings/{binding}/probes、GET /devices/{id}/model-probes/{probe} | 当前设备local_intent+request_id / probe状态 | 同设备owner；不能由其他桌面/网页派发，遵守R0b无远程执行 |
 | POST /devices/{id}/model-bindings/{binding}/rotate、POST /devices/{id}/model-bindings/{binding}/revoke | request_id+revision+本机确认proof | 只更新该设备密钥引用/失效binding；rotate须重新探测，未verified不可执行 |
 
-组织profile只允许审核后的endpoint_policy：device_local为固定loopback端口/API/model规则，端口变化超出规则需owner发布新profile；org_private为固定TLS目标/解析IP策略，禁redirect/metadata地址。设备本地binding经Broker原生`configureLocalModel`/`probeLocalModel`/`rotateLocalModelCredential`/`revokeLocalModelBinding`窄IPC创建；renderer不能传任意URL，Broker从签定profile获取候选，凭据在OS秘密存储，云端仅收binding hash/版本/指纹（不收本地密钥）。这些IPC只对真实当前设备用户手势开放，Node不可调用。设备binding不扩大组织允许的模型/目的地，是当前设备对已批准profile的实例绑定。
+组织profile只允许审核后的endpoint_policy：device_local为固定loopback端口/API/model规则加 `listener_requirement`（允许的签名者、是否允许用户固定 hash、允许的服务账户 SID，三者不能全空；校验见本机§5.4），端口变化超出规则需owner发布新profile；org_private为固定TLS目标/解析IP策略，禁redirect/metadata地址。设备本地binding经Broker原生`configureLocalModel`/`probeLocalModel`/`rotateLocalModelCredential`/`revokeLocalModelBinding`窄IPC创建；renderer不能传任意URL，Broker从签定profile获取候选，凭据在OS秘密存储，云端仅收binding hash/版本/指纹（不收本地密钥）。这些IPC只对真实当前设备用户手势开放，Node不可调用。设备binding不扩大组织允许的模型/目的地，是当前设备对已批准profile的实例绑定。
 
 探测本身走受控模型出口或Broker，不绕过计量。沿用Task/Run/Operation账本建立 `task_kind=configuration_probe` 的短Run，仅配置面显示，禁止普通任务API创建该kind；固定无用户正文的探测模板、无文件工具、最多一个模型请求、output≤16 tokens，总预留使用已验证tokenizer算固定模板+输出上界。组织配置探测按治理owner权限创建（不要求个人执行seat，但仍受组织开通/安全deny/配额约束）；设备binding探测必须执行seat+本机intent。两者都是明确用户点击的计量动作，不是后台预热；profile必须提供有限token/context/bytes上界才能开始probe，未verified候选只能用于此固定probe。
 
@@ -396,7 +396,7 @@ device_local的组织profile只做静态policy校验（schema、平台允许的e
 
 同probe_id/command重复查询不重发，候选版本已有unknown probe时禁止新probe，保持原Operation预留并等待核对；失败不生效、不回退其他账号。探测回执绑定profile/binding hash和revision，verified后修改任一参数都新建revision并重新probe。设备binding探测通过仅使该设备binding可用，不能把组织未批准profile变active。远程配置/凭据rotation沿用D-08写而不回读和旧凭据在途核账规则；旧snapshot继续绑定旧route revision但必须受当前revoke epoch约束。
 
-实现落表：Work `model_profile_revision`（org/id/revision唯一、hash不可变）、`device_model_binding`（org/device/id/revision、profile FK、status、local_ref/hash）、`model_profile_probe`（org/probe_id、task/run/operation、candidate_hash、state、receipt_ref唯一）。设备只将本机秘密存OS库；Host不持模型配置。此增量不把modelprofile注册表变成R1技能/套件Registry。
+实现落表：Work `model_profile_revision`（org/id/revision唯一、hash不可变）、`device_model_binding`（org/device/id/revision、profile FK、status=verified/identity_mismatch/revoked、local_ref/hash、listener_identity_hash）、`model_profile_probe`（org/probe_id、task/run/operation、candidate_hash、state、receipt_ref唯一）。设备只将本机秘密存OS库；Host不持模型配置。此增量不把modelprofile注册表变成R1技能/套件Registry。
 
 ## 9. 错误、冲突与安全重试合同
 
@@ -438,6 +438,6 @@ gRPC对应映射：身份失败UNAUTHENTICATED、权限PERMISSION_DENIED、版�
 
 ## 10. 安全与实施签收输入
 
-需独立复核的新入口：Host委派/席位写与幂等审计、Host WorkMemberState归并与Membership.work_seat迁移、deny来源分类与apply_directory_recovery、设备CA/证书轮换、设备签署local_intent和审批、consume_device_permit、设备专用egress入口与ExchangeLocal（公网暴露面、正文零落盘）、finish_local_run、create_local_user_artifact_version与UserVersionProof、动作取代校验与同目录改绑（GrantSuccessionProof）、本机内容窗口的无网络隔离、receipt验签/settlement、journal_release持久证明、实时deny/cancel、内容ticket/sync。旧R0a的worker/egress身份不能自动获得新设备授权函数；新增最小角色grant矩阵需PG负例验证。
+需独立复核的新入口：Host委派/席位写与幂等审计、Host WorkMemberState归并与Membership.work_seat迁移、deny来源分类与apply_directory_recovery、设备CA/证书轮换、设备签署local_intent和审批、consume_device_permit、设备专用egress入口与ExchangeLocal（公网暴露面、正文零落盘）、finish_local_run、create_local_user_artifact_version与UserVersionProof、动作取代校验与同目录改绑（GrantSuccessionProof）、本机内容窗口的无网络隔离、根目录获取与实际位置确认、本机模型监听进程身份校验、receipt验签/settlement、journal_release持久证明、实时deny/cancel、内容ticket/sync。旧R0a的worker/egress身份不能自动获得新设备授权函数；新增最小角色grant矩阵需PG负例验证。
 
 实施必须补R0b OpenAPI v2/Protobuf v2/JSON schema、客户端生成、migration目录漂移测试、固定签名向量、每状态正反例、并发CAS/跨租户/跨设备/重放测试；本设计表格给出了实现合同，不宣称已有可执行schema/代码生成或测试通过。实现前必须把所有本文领域命令映射到版本化schema与测试，不仅检查端点数。完整验收 oracle 见体验 §6–§9。

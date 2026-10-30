@@ -199,7 +199,7 @@ Unicode 标量不等于 UTF-16 code unit、字节或可见字形：代理对算 
 
 | 架构需求 | 本文实施规格 | 兄弟设计落点 | 必须关联的验收 |
 |---|---|---|---|
-| B01 Windows 本机资料整理 | §2、§3.1/§3.3 | device §2/§4/§7 | EV01–EV05、EV19、EV63、EV66；UV02/UV04 |
+| B01 Windows 本机资料整理 | §2、§3.1/§3.3 | device §2/§4/§7 | EV01–EV05、EV19、EV63、EV66、EV78；UV02/UV04 |
 | B02 审批及只读允许/撤销 | §3.2 | control §5；device §4 | EV09–EV12、EV70；UV03 |
 | B03 中断、撤权、未知不重放 | §3.1/§3.4 | device §3/§6；control §6 | EV06–EV08、EV13–EV18、EV26–EV28、EV64–EV67、EV70/EV71 |
 | B04 不可变成果/选择同步 | §3.3 | device §7；control §7 | EV19–EV22、EV68/EV69；UV04 |
@@ -207,8 +207,8 @@ Unicode 标量不等于 UTF-16 code unit、字节或可见字形：代理对算 
 | B06 token 护栏/用量/审计 | §3.4/§3.5 | control §8 | EV29–EV32、EV40；UV07 |
 | B07 首用/输入/版本/过渡 | §2.2、§4、§5 | control §1；device §2/§6 | EV33–EV37、EV45；UV01/UV06 |
 | B08 权限能力交集/正文隔离 | §2.1、§3 | control §1/§2；device §1.1 | EV04、EV21、EV23–EV25、EV38–EV39、EV72/EV73；UV05 |
-| B09 摘录/同步分授权及模型 | §2.2、§3.2/§3.3/§3.5 | device §5/§7；control §7/§8 | EV10、EV16、EV20–EV22、EV40–EV42、EV63–EV65、EV69 |
-| B10 可追踪验证与准入 | §6–§9 | 架构 §5–§7 | EV01–EV77、UV01–UV07 与证据清单；§7.4–§7.8 各行另列其 B01–B09 归属，须合并验收 |
+| B09 摘录/同步分授权及模型 | §2.2、§3.2/§3.3/§3.5 | device §5/§7；control §7/§8 | EV10、EV16、EV20–EV22、EV40–EV42、EV63–EV65、EV69、EV79 |
+| B10 可追踪验证与准入 | §6–§9 | 架构 §5–§7 | EV01–EV79、UV01–UV07 与证据清单；§7.4–§7.9 各行另列其 B01–B09 归属，须合并验收 |
 
 ## 7. 故障安全验收矩阵
 
@@ -333,6 +333,13 @@ Unicode 标量不等于 UTF-16 code unit、字节或可见字形：代理对算 
 | EV76 / B03/B05 | 组织有在途本机/云端 Run 时 Host 停用组织；停用期间成员甲离职、成员乙被 Work 撤座、operator 另设 operator_suspended；服务方先 activate，再解除 operator_suspended；另测 archive 后 restore | 停用即 deny 并定向取消；activate 只解除 host_org，operator_suspended 仍挡；两者都解除后其他人可新建，甲、乙仍被各自 deny 拦住；旧 Run 不复活，设备须新 session；restore 同理并提示已清理数据 | access_restriction 状态迁移与 source、Run 集、设备 session、各身份请求结果 |
 | EV77 / B05 | 重放停用前的旧组织快照、伪造低 revision 的 active 投影；组织 owner 与持全部 Work 治理权限者尝试解除 host_org deny；Host 原生页面在 Work 撤座后再授座，另测授座命令 revision 低于撤座回执 | 旧/低 revision 不解除任何 deny；owner 和治理权限都无法解除；高 revision 的原生授座解除 work_seat_change deny，低 revision 的不解除 | sync 拒绝记录、权限负例、outbox 命令事件与 revision 比较 |
 
+### 7.9 根目录获取与本机模型身份补充
+
+| ID / 需求 | 前置与注入 | 期望事实 | 必交证据 |
+|---|---|---|---|
+| EV78 / B01 | 第二个标准用户对 `C:\shared` 有写权；在选择器返回后、Broker 打开前把选中目录的上级换成指向哨兵目录的 junction；另测企业重定向的合法上级 junction、用户在确认框取消 | 竞态时确认框显示实际位置并警示不一致，取消则无 grant、哨兵零访问；合法重定向可确认后正常使用；共享目录有“其他本机用户可修改”提示，`WeMeet成果` 的 DACL 只允许当前用户写 | 竞态时序、`GetFinalPathNameByHandle` 结果、确认框截图、文件访问追踪、DACL 导出 |
+| EV79 / B09 | 第二个用户先监听 device_local 端口；同一用户下换成另一程序监听；模型服务升级（签名不变/未签名 hash 变化）；监听在 0.0.0.0；用 `localhost` 解析到其他地址 | 冒充者零请求字节且 binding 转 identity_mismatch；签名不变升级直接通过，hash 变化须重新确认；0.0.0.0 有提示；只连字面地址 | loopback 抓包、TCP 表与进程身份记录、binding 状态迁移、确认框截图 |
+
 ## 8. 实施验证步骤
 
 以下为获批实施后的执行顺序，不是本轮执行记录；每步不满足出口则停在该层，不以 mock 或旧版本数字替代真实证据。
@@ -341,7 +348,7 @@ Unicode 标量不等于 UTF-16 code unit、字节或可见字形：代理对算 
 |---|---|---|
 | I1 合同冻结 | 对齐架构 B01–B10、control 权限/状态/错误/命令字段、device 身份/工具/审批正文接口，冻结 profile 计数夹具 | 有逐字段映射与负例；委派规则、Host 写、正文隔离未审清不得进入真实数据 |
 | I2 领域与 Host | 在独立测试组织/数据库实现并发命令、Host 权威写/deny/outbox、token/RLS；执行 EV23–EV32/EV38/EV44/EV74–EV77 | 新权限不被 admin 通配继承；席位/取消/账本可交叉核对 |
-| I3 真安装/Broker | 构建固定签名发行组合，在干净 Windows 标准用户执行 EV01–EV08、EV72/EV73 | F13/F27、安装链、窄 IPC、本机内容窗口出网任一失败不做真实客户文件测试 |
+| I3 真安装/Broker | 构建固定签名发行组合，在干净 Windows 标准用户执行 EV01–EV08、EV72/EV73、EV78/EV79 | F13/F27、安装链、窄 IPC、本机内容窗口出网任一失败不做真实客户文件测试 |
 | I4 编排/恢复/模型 | 真实 PG+Temporal+Gateway+Broker+模型执行 EV09–EV18/EV40–EV42/EV63–EV67/EV70/EV71 | unknown 不重发、同步持久性与断网/重启结果证据完整；mock 只辅助定位 |
 | I5 前端/成果 | 接入现有组件并执行 EV19–EV22/EV33–EV37/EV43/EV45/EV68/EV69 | 本机数据分支不经过云端 input/content；按能力拒绝与可访问性通过 |
 | I6 云端回归 | 同一候选构建执行 EV38–EV44，并重复 EV26/EV29 的云端分支 | R0a 提交/模板/取消/成果/鉴权/计量/迁移不退化；不得仅跑本机 happy path |
