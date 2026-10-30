@@ -338,8 +338,9 @@ func advanceWithCancel(
 	advanceCtx, cancelAdvance := workflow.WithCancel(ctx)
 	defer cancelAdvance()
 	advanceCtx = workflow.WithActivityOptions(advanceCtx, workflow.ActivityOptions{
-		StartToCloseTimeout: 16 * time.Minute,
-		RetryPolicy:         &temporal.RetryPolicy{MaximumAttempts: 1},
+		StartToCloseTimeout:    16 * time.Minute,
+		ScheduleToCloseTimeout: 17 * time.Minute,
+		RetryPolicy:            &temporal.RetryPolicy{MaximumAttempts: 1},
 	})
 	future := workflow.ExecuteActivity(advanceCtx, ActivityAdvanceRuntime, request)
 	var out fragment.Result

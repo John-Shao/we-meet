@@ -20,6 +20,8 @@ const testCredentialID = "11111111-1111-4111-8111-111111111111"
 
 type fakeBackend struct {
 	create    func(context.Context, workdb.Identity, credentialPlan) (credentialResult, error)
+	rotate    func(context.Context, workdb.Identity, string, credentialPlan) (credentialResult, error)
+	revoke    func(context.Context, workdb.Identity, string, string) error
 	setConfig func(context.Context, workdb.Identity, configPlan, bool) (configResult, error)
 	resolve   func(context.Context, string) (providerctx.Context, error)
 	closed    bool
@@ -30,6 +32,20 @@ func (f *fakeBackend) CreateCredential(ctx context.Context, identity workdb.Iden
 		return credentialResult{}, errors.New("unexpected CreateCredential")
 	}
 	return f.create(ctx, identity, plan)
+}
+
+func (f *fakeBackend) RotateCredential(ctx context.Context, identity workdb.Identity, credentialID string, plan credentialPlan) (credentialResult, error) {
+	if f.rotate == nil {
+		return credentialResult{}, errors.New("unexpected RotateCredential")
+	}
+	return f.rotate(ctx, identity, credentialID, plan)
+}
+
+func (f *fakeBackend) RevokeCredential(ctx context.Context, identity workdb.Identity, credentialID, reason string) error {
+	if f.revoke == nil {
+		return errors.New("unexpected RevokeCredential")
+	}
+	return f.revoke(ctx, identity, credentialID, reason)
 }
 
 func (f *fakeBackend) SetConfig(ctx context.Context, identity workdb.Identity, plan configPlan, dryRun bool) (configResult, error) {
@@ -85,6 +101,26 @@ func credentialArgs(secretPath string) []string {
 		"-provider", "aliyun",
 		"-actor", "subject_owner",
 		"-secret-file", secretPath,
+	}
+}
+
+func rotateArgs(secretPath string) []string {
+	return []string{
+		"rotate",
+		"-org", "org_unit",
+		"-credential-id", testCredentialID,
+		"-actor", "subject_owner",
+		"-secret-file", secretPath,
+	}
+}
+
+func revokeArgs() []string {
+	return []string{
+		"revoke",
+		"-org", "org_unit",
+		"-credential-id", testCredentialID,
+		"-actor", "subject_owner",
+		"-reason", "operator rotation",
 	}
 }
 
@@ -296,6 +332,237 @@ func TestCredentialApplyPrintsOnlyIDAndFingerprint(t *testing.T) {
 	}
 	if strings.Contains(out, "secret") || strings.Contains(out, "ciphertext") {
 		t.Fatalf("apply output contains extra credential material: %q", out)
+	}
+}
+
+func TestRotateArgumentValidation(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "provider.key")
+	if err := os.WriteFile(secretPath, []byte(secretMarker+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	missingDB := validEnv()
+	delete(missingDB, "WORK_DATABASE_URL")
+	missingKey := validEnv()
+	delete(missingKey, "WORK_CONTENT_MASTER_KEY")
+
+	tests := []struct {
+		name     string
+		args     []string
+		env      map[string]string
+		readFile func(string) ([]byte, error)
+		want     string
+	}{
+		{name: "missing org", args: with(rotateArgs(secretPath), "-org", ""), want: "-org is required"},
+		{name: "missing actor", args: with(rotateArgs(secretPath), "-actor", ""), want: "-actor is required"},
+		{name: "missing credential id", args: with(rotateArgs(secretPath), "-credential-id", ""), want: "-credential-id is required"},
+		{name: "bad credential id", args: with(rotateArgs(secretPath), "-credential-id", "not-a-uuid"), want: "-credential-id must be a UUID"},
+		{name: "missing secret file", args: with(rotateArgs(secretPath), "-secret-file", ""), want: "-secret-file is required"},
+		{
+			name: "unreadable secret file",
+			args: rotateArgs(secretPath),
+			readFile: func(string) ([]byte, error) {
+				return nil, fmt.Errorf("disk error for %s", secretMarker)
+			},
+			want: "cannot read -secret-file",
+		},
+		{
+			name:     "empty secret file",
+			args:     rotateArgs(secretPath),
+			readFile: func(string) ([]byte, error) { return []byte(" \r\n\t"), nil },
+			want:     "contains no key material",
+		},
+		{name: "missing database url", args: rotateArgs(secretPath), env: missingDB, want: "WORK_DATABASE_URL is required"},
+		{name: "missing master key", args: rotateArgs(secretPath), env: missingKey, want: "WORK_CONTENT_MASTER_KEY is required"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			a, stdout, stderr := testApp(t, tc.env, tc.readFile, nil)
+			err := a.execute(context.Background(), tc.args)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want substring %q", err, tc.want)
+			}
+			if strings.Contains(err.Error()+stdout.String()+stderr.String(), secretMarker) {
+				t.Fatalf("secret marker leaked from validation: %q", err.Error())
+			}
+		})
+	}
+}
+
+func TestRotateDryRunNeverPrintsSecret(t *testing.T) {
+	fake := &fakeBackend{}
+	a, stdout, stderr := testApp(t, validEnv(), func(string) ([]byte, error) {
+		return []byte("  " + secretMarker + "\r\n"), nil
+	}, fake)
+
+	if err := a.execute(context.Background(), with(rotateArgs("ignored"), "-dry-run")); err != nil {
+		t.Fatalf("dry run: %v", err)
+	}
+	out := stdout.String()
+	if strings.Contains(out+stderr.String(), secretMarker) {
+		t.Fatalf("dry run leaked the secret: %q", out)
+	}
+	for _, want := range []string{"dry_run=true", "org=org_unit", "credential_id=" + testCredentialID, "actor=subject_owner"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("dry run output missing %q: %q", want, out)
+		}
+	}
+	if len(parseFields(t, out)["fingerprint"]) != 16 {
+		t.Fatalf("fingerprint = %q, want 16 hex characters", parseFields(t, out)["fingerprint"])
+	}
+	if fake.closed {
+		t.Fatal("dry run opened a backend")
+	}
+}
+
+func TestRotateApplyPrintsOnlyVersionAndFingerprint(t *testing.T) {
+	var captured credentialPlan
+	fake := &fakeBackend{rotate: func(_ context.Context, identity workdb.Identity, credentialID string, plan credentialPlan) (credentialResult, error) {
+		if identity.OrgID != "org_unit" || identity.SubjectID != "subject_owner" {
+			t.Fatalf("identity = %+v", identity)
+		}
+		if credentialID != testCredentialID {
+			t.Fatalf("credential id = %q", credentialID)
+		}
+		captured = plan
+		return credentialResult{CredentialID: credentialID, KeyVersion: 2, Fingerprint: plan.Fingerprint}, nil
+	}}
+	a, stdout, stderr := testApp(t, validEnv(), func(string) ([]byte, error) {
+		return []byte(secretMarker + "\n"), nil
+	}, fake)
+
+	if err := a.execute(context.Background(), rotateArgs("ignored")); err != nil {
+		t.Fatalf("rotate: %v", err)
+	}
+	if captured.Mode != "managed_key" || len(captured.Ciphertext) == 0 || captured.Fingerprint == "" {
+		t.Fatalf("captured plan = %+v", captured)
+	}
+	out := stdout.String()
+	if strings.Contains(out+stderr.String(), secretMarker) {
+		t.Fatalf("rotate leaked the secret: %q", out)
+	}
+	if !strings.Contains(out, "key_version=2") || !strings.Contains(out, "fingerprint="+captured.Fingerprint) {
+		t.Fatalf("rotate output = %q", out)
+	}
+	if strings.Contains(out, "secret") || strings.Contains(out, "ciphertext") {
+		t.Fatalf("rotate output contains extra credential material: %q", out)
+	}
+}
+
+func TestRotateBackendErrorIsSanitized(t *testing.T) {
+	fake := &fakeBackend{rotate: func(context.Context, workdb.Identity, string, credentialPlan) (credentialResult, error) {
+		return credentialResult{}, fmt.Errorf("database rejected plaintext %s", secretMarker)
+	}}
+	a, stdout, stderr := testApp(t, validEnv(), func(string) ([]byte, error) {
+		return []byte(secretMarker), nil
+	}, fake)
+
+	err := a.execute(context.Background(), rotateArgs("ignored"))
+	if err == nil || err.Error() != "provider setup backend failed" {
+		t.Fatalf("error = %v, want the static backend failure", err)
+	}
+	if strings.Contains(err.Error()+stdout.String()+stderr.String(), secretMarker) {
+		t.Fatalf("backend error leaked the secret")
+	}
+}
+
+func TestRevokeArgumentValidation(t *testing.T) {
+	missingDB := validEnv()
+	delete(missingDB, "WORK_DATABASE_URL")
+
+	tests := []struct {
+		name string
+		args []string
+		env  map[string]string
+		want string
+	}{
+		{name: "missing org", args: with(revokeArgs(), "-org", ""), want: "-org is required"},
+		{name: "missing actor", args: with(revokeArgs(), "-actor", ""), want: "-actor is required"},
+		{name: "missing credential id", args: with(revokeArgs(), "-credential-id", ""), want: "-credential-id is required"},
+		{name: "bad credential id", args: with(revokeArgs(), "-credential-id", "not-a-uuid"), want: "-credential-id must be a UUID"},
+		{name: "missing reason", args: with(revokeArgs(), "-reason", " "), want: "-reason is required"},
+		{name: "missing database url", args: revokeArgs(), env: missingDB, want: "WORK_DATABASE_URL is required"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			a, stdout, stderr := testApp(t, tc.env, nil, nil)
+			err := a.execute(context.Background(), tc.args)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want substring %q", err, tc.want)
+			}
+			if strings.Contains(err.Error()+stdout.String()+stderr.String(), secretMarker) {
+				t.Fatalf("secret marker leaked from validation")
+			}
+		})
+	}
+}
+
+func TestRevokeDryRunDoesNotWrite(t *testing.T) {
+	fake := &fakeBackend{}
+	a, stdout, stderr := testApp(t, validEnv(), nil, fake)
+
+	if err := a.execute(context.Background(), with(revokeArgs(), "-dry-run")); err != nil {
+		t.Fatalf("dry run: %v", err)
+	}
+	out := stdout.String()
+	if strings.Contains(out+stderr.String(), secretMarker) {
+		t.Fatalf("dry run leaked a secret: %q", out)
+	}
+	for _, want := range []string{"dry_run=true", "org=org_unit", "credential_id=" + testCredentialID, "reason=operator rotation"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("dry run output missing %q: %q", want, out)
+		}
+	}
+	if fake.closed {
+		t.Fatal("dry run opened a backend")
+	}
+}
+
+func TestRevokeApplyWithoutMasterKey(t *testing.T) {
+	env := validEnv()
+	delete(env, "WORK_CONTENT_MASTER_KEY")
+	var capturedReason string
+	fake := &fakeBackend{revoke: func(_ context.Context, identity workdb.Identity, credentialID, reason string) error {
+		if identity.OrgID != "org_unit" || identity.SubjectID != "subject_owner" {
+			t.Fatalf("identity = %+v", identity)
+		}
+		if credentialID != testCredentialID {
+			t.Fatalf("credential id = %q", credentialID)
+		}
+		capturedReason = reason
+		return nil
+	}}
+	a, stdout, stderr := testApp(t, env, nil, fake)
+
+	if err := a.execute(context.Background(), revokeArgs()); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	if capturedReason != "operator rotation" {
+		t.Fatalf("reason = %q", capturedReason)
+	}
+	out := stdout.String()
+	if strings.Contains(out+stderr.String(), secretMarker) {
+		t.Fatalf("revoke leaked a secret: %q", out)
+	}
+	if !strings.Contains(out, "revoked=true") || !strings.Contains(out, "credential_id="+testCredentialID) {
+		t.Fatalf("revoke output = %q", out)
+	}
+}
+
+func TestRevokeBackendErrorIsSanitized(t *testing.T) {
+	fake := &fakeBackend{revoke: func(context.Context, workdb.Identity, string, string) error {
+		return fmt.Errorf("database rejected plaintext %s", secretMarker)
+	}}
+	a, stdout, stderr := testApp(t, validEnv(), nil, fake)
+
+	err := a.execute(context.Background(), revokeArgs())
+	if err == nil || err.Error() != "provider setup backend failed" {
+		t.Fatalf("error = %v, want the static backend failure", err)
+	}
+	if strings.Contains(err.Error()+stdout.String()+stderr.String(), secretMarker) {
+		t.Fatalf("backend error leaked the secret")
 	}
 }
 

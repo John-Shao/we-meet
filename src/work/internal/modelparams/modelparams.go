@@ -2,8 +2,8 @@
 // capability snapshot manifest. The advance workflow reads them from the
 // manifest; a task without them fails closed before any provider call.
 //
-// The values are a product default pending a signed decision. Changing them
-// changes the snapshot hash of every new task.
+// John signed these R0a defaults on 2026-10-31; Lily's review remains open.
+// Changing them changes the snapshot hash of every new task.
 package modelparams
 
 import "github.com/we-meet/work/internal/canonical"

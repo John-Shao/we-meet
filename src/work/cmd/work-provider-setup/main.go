@@ -32,6 +32,10 @@ import (
 const usageText = `usage:
   work-provider-setup credential -org ORG -provider aliyun|volcengine|deepseek \
       -secret-file PATH -actor SUBJECT [-mode managed_key] [-key-version 1] [-dry-run]
+  work-provider-setup rotate -org ORG -credential-id UUID \
+      -secret-file PATH -actor SUBJECT [-dry-run]
+  work-provider-setup revoke -org ORG -credential-id UUID \
+      -actor SUBJECT -reason TEXT [-dry-run]
   work-provider-setup config -org ORG -credential-id UUID -provider PROVIDER \
       -model MODEL -region REGION -endpoint https://... -actor SUBJECT [-dry-run]
   work-provider-setup status -org ORG
@@ -86,11 +90,15 @@ func (a *app) execute(ctx context.Context, args []string) error {
 
 func (a *app) run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return errors.New("missing command (credential, config, or status)")
+		return errors.New("missing command (credential, rotate, revoke, config, or status)")
 	}
 	switch args[0] {
 	case "credential":
 		return a.runCredential(ctx, args[1:])
+	case "rotate":
+		return a.runRotate(ctx, args[1:])
+	case "revoke":
+		return a.runRevoke(ctx, args[1:])
 	case "config":
 		return a.runConfig(ctx, args[1:])
 	case "status":
@@ -215,6 +223,154 @@ func (a *app) runCredential(ctx context.Context, args []string) error {
 	}
 	// Only the id and fingerprint. The secret is never written anywhere.
 	fmt.Fprintf(a.stdout, "credential_id=%s\nfingerprint=%s\n", result.CredentialID, fingerprint)
+	return nil
+}
+
+func (a *app) runRotate(ctx context.Context, args []string) error {
+	fs := newFlagSet("rotate")
+	org := fs.String("org", "", "organization id")
+	credentialID := fs.String("credential-id", "", "provider credential id")
+	secretFile := fs.String("secret-file", "", "file containing the provider API key")
+	actor := fs.String("actor", "", "owner subject performing the change")
+	dryRun := fs.Bool("dry-run", false, "validate inputs and print the plan without writing")
+	if err := parseFlags(fs, args); err != nil {
+		if errors.Is(err, errHelp) {
+			fmt.Fprint(a.stdout, usageText)
+			return nil
+		}
+		return err
+	}
+
+	orgID, err := validateIdentity("org", *org)
+	if err != nil {
+		return err
+	}
+	subject, err := validateIdentity("actor", *actor)
+	if err != nil {
+		return err
+	}
+	credential := strings.TrimSpace(*credentialID)
+	if credential == "" {
+		return errors.New("-credential-id is required")
+	}
+	var parsedCredential pgtype.UUID
+	if err := parsedCredential.Scan(credential); err != nil {
+		return errors.New("-credential-id must be a UUID")
+	}
+	if strings.TrimSpace(*secretFile) == "" {
+		return errors.New("-secret-file is required")
+	}
+	master, err := a.masterKey()
+	if err != nil {
+		return err
+	}
+	databaseURL, err := a.databaseURL()
+	if err != nil {
+		return err
+	}
+
+	plaintext, err := a.readFile(*secretFile)
+	if err != nil {
+		// Do not echo the path or the underlying error.
+		return errors.New("cannot read -secret-file")
+	}
+	plaintext = bytes.TrimSpace(plaintext)
+	if len(plaintext) == 0 {
+		return errors.New("-secret-file contains no key material")
+	}
+	ciphertext, fingerprint, err := credentials.Seal(master, orgID, plaintext)
+	if err != nil {
+		return errors.New("seal provider credential failed")
+	}
+
+	if *dryRun {
+		fmt.Fprintln(a.stdout, "dry_run=true")
+		fmt.Fprintf(a.stdout, "org=%s\ncredential_id=%s\nactor=%s\nfingerprint=%s\n",
+			orgID, credential, subject, fingerprint)
+		return nil
+	}
+
+	b, err := a.newBackend(ctx, databaseURL, master)
+	if err != nil {
+		return mapBackendError(err)
+	}
+	defer b.Close()
+
+	result, err := b.RotateCredential(ctx,
+		workdb.Identity{OrgID: orgID, SubjectID: subject},
+		credential,
+		credentialPlan{Mode: "managed_key", Ciphertext: ciphertext, Fingerprint: fingerprint},
+	)
+	if err != nil {
+		return mapBackendError(err)
+	}
+	fmt.Fprintf(a.stdout, "credential_id=%s\nkey_version=%d\nfingerprint=%s\n",
+		result.CredentialID, result.KeyVersion, result.Fingerprint)
+	return nil
+}
+
+func (a *app) runRevoke(ctx context.Context, args []string) error {
+	fs := newFlagSet("revoke")
+	org := fs.String("org", "", "organization id")
+	credentialID := fs.String("credential-id", "", "provider credential id")
+	actor := fs.String("actor", "", "owner subject performing the change")
+	reason := fs.String("reason", "", "reason for revocation")
+	dryRun := fs.Bool("dry-run", false, "validate inputs and print the plan without writing")
+	if err := parseFlags(fs, args); err != nil {
+		if errors.Is(err, errHelp) {
+			fmt.Fprint(a.stdout, usageText)
+			return nil
+		}
+		return err
+	}
+
+	orgID, err := validateIdentity("org", *org)
+	if err != nil {
+		return err
+	}
+	subject, err := validateIdentity("actor", *actor)
+	if err != nil {
+		return err
+	}
+	credential := strings.TrimSpace(*credentialID)
+	if credential == "" {
+		return errors.New("-credential-id is required")
+	}
+	var parsedCredential pgtype.UUID
+	if err := parsedCredential.Scan(credential); err != nil {
+		return errors.New("-credential-id must be a UUID")
+	}
+	revocationReason := strings.TrimSpace(*reason)
+	if revocationReason == "" {
+		return errors.New("-reason is required")
+	}
+	databaseURL, err := a.databaseURL()
+	if err != nil {
+		return err
+	}
+
+	if *dryRun {
+		fmt.Fprintln(a.stdout, "dry_run=true")
+		fmt.Fprintf(a.stdout, "org=%s\ncredential_id=%s\nactor=%s\nreason=%s\n",
+			orgID, credential, subject, revocationReason)
+		return nil
+	}
+
+	// Revocation touches only state and audit, so no credential master key is
+	// required.
+	b, err := a.newBackend(ctx, databaseURL, nil)
+	if err != nil {
+		return mapBackendError(err)
+	}
+	defer b.Close()
+
+	if err := b.RevokeCredential(ctx,
+		workdb.Identity{OrgID: orgID, SubjectID: subject},
+		credential, revocationReason,
+	); err != nil {
+		return mapBackendError(err)
+	}
+	fmt.Fprintf(a.stdout, "revoked=true\ncredential_id=%s\n", credential)
 	return nil
 }
 

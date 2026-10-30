@@ -50,6 +50,8 @@ type configResult struct {
 // redaction can be tested without PostgreSQL.
 type backend interface {
 	CreateCredential(ctx context.Context, identity workdb.Identity, plan credentialPlan) (credentialResult, error)
+	RotateCredential(ctx context.Context, identity workdb.Identity, credentialID string, plan credentialPlan) (credentialResult, error)
+	RevokeCredential(ctx context.Context, identity workdb.Identity, credentialID, reason string) error
 	SetConfig(ctx context.Context, identity workdb.Identity, plan configPlan, dryRun bool) (configResult, error)
 	ResolveProvider(ctx context.Context, orgID string) (providerctx.Context, error)
 	Close()
@@ -110,6 +112,50 @@ func (b *pgBackend) CreateCredential(ctx context.Context, identity workdb.Identi
 		return credentialResult{}, mapDomainError(err)
 	}
 	return result, nil
+}
+
+// RotateCredential replaces the sealed secret of an active managed_key
+// credential. work.rotate_provider_credential owns the new key version; the
+// caller never supplies one. wrapped_dek/kms_key_ref stay NULL for the static
+// single-layer derivation used by R0a.
+func (b *pgBackend) RotateCredential(ctx context.Context, identity workdb.Identity, credentialID string, plan credentialPlan) (credentialResult, error) {
+	var keyVersion int
+	err := workdb.WithWorkContext(ctx, b.pool, identity, workdb.RoleAPI, workdb.Options{}, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT work.rotate_provider_credential($1, $2, $3::uuid, $4, $5, $6, $7)`,
+			identity.OrgID,
+			identity.SubjectID,
+			credentialID,
+			plan.Ciphertext,
+			[]byte(nil),    // p_wrapped_dek: NULL = static single layer
+			(*string)(nil), // p_kms_key_ref: NULL = static single layer
+			plan.Fingerprint,
+		).Scan(&keyVersion)
+	})
+	if err != nil {
+		return credentialResult{}, mapDomainError(err)
+	}
+	return credentialResult{
+		CredentialID: credentialID,
+		KeyVersion:   keyVersion,
+		Fingerprint:  plan.Fingerprint,
+	}, nil
+}
+
+// RevokeCredential makes an active credential unusable. It touches only state
+// and the audit trail, so it does not need the credential master key.
+func (b *pgBackend) RevokeCredential(ctx context.Context, identity workdb.Identity, credentialID, reason string) error {
+	err := workdb.WithWorkContext(ctx, b.pool, identity, workdb.RoleAPI, workdb.Options{}, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			SELECT work.revoke_provider_credential($1, $2, $3::uuid, $4)`,
+			identity.OrgID,
+			identity.SubjectID,
+			credentialID,
+			reason,
+		)
+		return err
+	})
+	return mapDomainError(err)
 }
 
 // SetConfig invokes work.get_provider_credential_view to obtain the credential

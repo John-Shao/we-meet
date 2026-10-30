@@ -275,6 +275,101 @@ func TestPGProviderSetupRoundTrip(t *testing.T) {
 		}
 	}
 	assertNoMarker(t, marker, statusOut.String(), statusErr.String())
+
+	rotatedMarker := "MARKER-work-provider-rotated-9c3e-never-echo"
+	rotated := []byte("sk-rotated-" + rotatedMarker)
+	rotatedPath := filepath.Join(t.TempDir(), "provider-rotated.key")
+	if err := os.WriteFile(rotatedPath, append(append([]byte{}, rotated...), '\n'), 0o600); err != nil {
+		t.Fatalf("write rotated secret file: %v", err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if err := writer.execute(ctx, []string{
+		"rotate",
+		"-org", org,
+		"-credential-id", credentialID,
+		"-actor", actor,
+		"-secret-file", rotatedPath,
+	}); err != nil {
+		t.Fatalf("rotate: %v", err)
+	}
+	rotatedFields := parseFields(t, stdout.String())
+	if rotatedFields["key_version"] != "2" {
+		t.Fatalf("rotated key_version = %q, want 2", rotatedFields["key_version"])
+	}
+	if got, want := rotatedFields["fingerprint"], credentials.Fingerprint(rotated); got != want {
+		t.Fatalf("rotated fingerprint = %q, want %q", got, want)
+	}
+	assertNoMarker(t, marker, stdout.String(), stderr.String())
+	assertNoMarker(t, rotatedMarker, stdout.String(), stderr.String())
+
+	resolved, err = resolver.Resolve(ctx, org)
+	if err != nil {
+		t.Fatalf("resolve after rotation: %v", err)
+	}
+	if !bytes.Equal(resolved.Secret, rotated) {
+		t.Fatalf("resolved secret after rotation does not match the new key")
+	}
+	if strings.Contains(string(resolved.Secret), marker) {
+		t.Fatal("old secret still resolves after rotation")
+	}
+
+	var rotations int
+	if err := pgAdmin.QueryRow(ctx,
+		`SELECT count(*) FROM work.audit_event WHERE org_id = $1 AND action = 'provider.credential_rotated'`,
+		org,
+	).Scan(&rotations); err != nil {
+		t.Fatalf("count rotation audits: %v", err)
+	}
+	if rotations != 1 {
+		t.Fatalf("rotation audits = %d, want 1", rotations)
+	}
+
+	revokeArgs := []string{
+		"revoke",
+		"-org", org,
+		"-credential-id", credentialID,
+		"-actor", actor,
+		"-reason", "rotation drill complete",
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if err := writer.execute(ctx, revokeArgs); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	if got := parseFields(t, stdout.String())["revoked"]; got != "true" {
+		t.Fatalf("revoke output revoked = %q, want true", got)
+	}
+	if _, err := resolver.Resolve(ctx, org); !errors.Is(err, &providerctx.Error{Code: providerctx.CodeProviderCredentialRevoked}) {
+		t.Fatalf("resolve after revoke error = %v, want provider_credential_revoked", err)
+	}
+
+	var revocations int
+	countRevocations := func() int {
+		t.Helper()
+		var count int
+		if err := pgAdmin.QueryRow(ctx,
+			`SELECT count(*) FROM work.audit_event WHERE org_id = $1 AND action = 'provider.credential_revoked'`,
+			org,
+		).Scan(&count); err != nil {
+			t.Fatalf("count revocation audits: %v", err)
+		}
+		return count
+	}
+	revocations = countRevocations()
+	if revocations != 1 {
+		t.Fatalf("revocation audits = %d, want 1", revocations)
+	}
+
+	// Revoking twice is idempotent: no second audit row and no error.
+	stdout.Reset()
+	stderr.Reset()
+	if err := writer.execute(ctx, revokeArgs); err != nil {
+		t.Fatalf("repeat revoke: %v", err)
+	}
+	if got := countRevocations(); got != 1 {
+		t.Fatalf("revocation audits after replay = %d, want 1", got)
+	}
 }
 
 func TestPGWrongOrgCiphertextFailsToResolve(t *testing.T) {
