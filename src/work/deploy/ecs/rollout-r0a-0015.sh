@@ -203,7 +203,10 @@ if [[ -n "$RUNTIME_BUNDLE" && -f "$RUNTIME_BUNDLE" ]]; then
     run install -m 0644 -o root -g root "$RELEASE/work-runtime.service" /etc/systemd/system/work-runtime.service
     run systemctl daemon-reload
     run systemctl enable work-runtime
-    run systemctl start work-runtime
+    # work-runtime is never stopped in step 3 (it holds no DB writers), so
+    # `start` would be a no-op and the freshly extracted child code would not
+    # load until the next reboot.
+    run systemctl restart work-runtime
   fi
 else
   echo "no runtime bundle provided; skipping work-runtime"
