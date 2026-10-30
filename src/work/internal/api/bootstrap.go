@@ -70,11 +70,29 @@ type domainError struct {
 func (e *domainError) Error() string { return e.code }
 
 type Server struct {
-	pool     *pgxpool.Pool
-	verifier host.SessionVerifier
-	csrf     *CSRF
-	content  content.Store
-	logger   *log.Logger
+	pool           *pgxpool.Pool
+	verifier       host.SessionVerifier
+	csrf           *CSRF
+	content        content.Store
+	logger         *log.Logger
+	runtimeVersion string
+}
+
+// SetRuntimeVersion records the deployment's real execution body on every
+// submitted Run. The submitted value is what the runtime parent compares with
+// its own WORK_RUNTIME_VERSION, so an unset value would make every execution
+// fail closed.
+func (s *Server) SetRuntimeVersion(version string) {
+	if value := strings.TrimSpace(version); value != "" {
+		s.runtimeVersion = value
+	}
+}
+
+func (s *Server) executionRuntimeVersion() string {
+	if s.runtimeVersion != "" {
+		return s.runtimeVersion
+	}
+	return "r0a"
 }
 
 func NewServer(pool *pgxpool.Pool, verifier host.SessionVerifier, csrf *CSRF, logger *log.Logger) (*Server, error) {

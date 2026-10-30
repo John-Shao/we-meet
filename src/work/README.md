@@ -9,7 +9,9 @@ It must not import `src/backend/work` (the legacy Django implementation) or
 
 `cmd/work-migrate` owns schema migration. It compiles the baseline SQL, manifest,
 and catalog checkpoint into the binary, so a published migration body cannot be
-edited without changing its pinned checksum.
+edited without changing its pinned checksum. Increments currently end at
+`0008_quota_directory_usage_hardening` (run-cap serialization, directory sync
+health, usage idempotency, and function-grant hardening).
 
 ```bash
 go run ./cmd/work-migrate status -url "$WORK_DATABASE_URL"
@@ -40,7 +42,8 @@ go run ./cmd/work-migrate snapshot -url "$WORK_DATABASE_URL" -output migrations/
 - `GET /work/v1/tasks` / `GET /work/v1/runs/{runId}` — owner-scoped reads with
   keyset pagination.
 - `GET /work/v1/tasks/{taskId}` — detail with goal/background decrypted from
-  the Content Store, template and capability snapshot.
+  the Content Store, template, capability snapshot, and `latest_event_id` for
+  gap-free SSE resume.
 - `PATCH /work/v1/tasks/{taskId}` — optimistic-concurrency title edit.
 - `POST /work/v1/tasks/{taskId}/acceptances` — accept a published artifact
   version or complete by reason.
@@ -53,7 +56,9 @@ go run ./cmd/work-migrate snapshot -url "$WORK_DATABASE_URL" -output migrations/
   `resync_required` with `X-Work-Event-Cursor`, and quiet streams get a
   heartbeat every 15 seconds.
 - `POST /work/v1/inputs`, `POST /work/v1/task-previews`, `POST /work/v1/tasks`
-  — encrypted input creation, signed preview, idempotent submit.
+  — encrypted input creation, signed preview, idempotent submit. All three
+  fail closed unless the organization's last directory sync succeeded within
+  900 seconds and has no recorded error.
 - `POST /work/v1/runs/{runId}/cancel` — cancel request (does not claim the
   process stopped).
 
@@ -64,7 +69,9 @@ the `work_csrf` double-submit token.
 Required environment: `WORK_DATABASE_URL` (Work API login),
 `WORK_HOST_BASE_URL`, `WORK_HOST_CLIENT_CERT`, `WORK_HOST_CLIENT_KEY`,
 `WORK_HOST_CA`, `WORK_CSRF_SECRET` (32+ bytes), `WORK_CONTENT_MASTER_KEY`
-(32-byte hex or RawStd base64), optional `WORK_CONTENT_DIR`
+(32-byte hex or RawStd base64), `WORK_RUNTIME_VERSION` (the real execution body
+recorded on each Run and matched by the runtime parent; use the same value as
+`work-runtime.env`), optional `WORK_CONTENT_DIR`
 (`/var/lib/work/content` by default) and `WORK_LISTEN_ADDR`. The Host endpoint
 is reached through the ingress that terminates mTLS; this binary does not
 terminate client TLS itself.
@@ -83,6 +90,8 @@ go run ./cmd/work-api
 - `content_shred` → deletes encrypted objects from the local Content Store.
 - `task_event` → acknowledged without an external bus; the API SSE stream
   reads `work.task_event` directly.
+- Without `WORK_RELAY_ID`, each process gets a unique `work-relay-<uuid>` id so
+  a lease taken over by a new process cannot be acknowledged by the old one.
 
 It connects to PostgreSQL as `work_worker_login` (member of `work_worker`) and
 to Temporal with mTLS. Required environment: `WORK_DATABASE_URL`,
@@ -95,29 +104,32 @@ namespace/task-queue/workflow-type/server-name/relay-id settings.
 `cmd/work-worker` registers `RunWorkflow` on the same task queue and consumes
 workflows started by `work-relay`. The pilot activities:
 
-- `PrepareRun` reads the run/task/input/snapshot and decrypts the input.
+- `PrepareRun` reads the run/task/input/snapshot and verifies the input hash;
+  the body is not returned in the activity result.
 - `AcquireRun` executes `work.acquire_run`.
 - `CheckRun` observes the authoritative DB cancel state between steps.
-- `ExecuteStep` creates/authorizes an operation, reserves its share of the run
-  cap, checks cancellation, claims dispatch, calls the configured runtime,
-  stores a Content Store checkpoint, finishes the operation, and settles quota.
-  Only the final step publishes the artifact. A post-dispatch unknown outcome
-  marks the operation `unknown` instead of retrying.
+- `ExecuteStep` re-reads and verifies the run input inside the activity,
+  creates/authorizes an operation, reserves its share of the run cap, checks
+  cancellation, claims dispatch, calls the configured runtime, stores a Content
+  Store checkpoint, finishes the operation, and settles quota. Only the final
+  step publishes the artifact. A post-dispatch unknown outcome marks the
+  operation `unknown` instead of retrying.
 - `WaitRun` moves an unknown Run to `waiting(reconcile)`; the workflow waits for
   a `resume` or `cancel` signal without re-sending the provider request.
 - `FinishRun` / `AbortRun` close or clean up the run.
 
-Runtime selection: `WORK_RUNTIME_MODE=reference` (deterministic non-model
-text for lifecycle drills) or `WORK_RUNTIME_MODE=openai_compatible` with
-`WORK_MODEL_BASE_URL`, `WORK_MODEL_API_KEY`, `WORK_MODEL_NAME` and
-`WORK_MODEL_PROVIDER` (`aliyun`, `volcengine` or `deepseek`). The placeholder
-environment file is `deploy/ecs/work-worker.env.example`; real keys stay only
-in `/etc/work/work-worker.env` (root:work-control 640). `WORK_MODEL_STEPS`
-selects 1-3 model steps per Run (default 2); intermediate bodies are Content
-Store checkpoints and only the final step publishes the artifact. New
-organizations are auto-provisioned with an `org_policy` row and a soft
-1,000,000-token monthly account by migration 0006; the worker calls
-`work.ensure_quota_account` for later periods.
+This source tree accepts only `WORK_RUNTIME_MODE=reference` (deterministic
+non-model text for lifecycle drills) and does not read provider credentials.
+Do not replace a production worker with this build on its business queue.
+Implementation gaps and release status are tracked in
+[the Work project](../../docs/plan/work-project.md#46-p0-核心边界修复2026-10-29),
+including confirmed-result recovery and the Node/Pi + `work-egress` boundary.
+The placeholder environment file is `deploy/ecs/work-worker.env.example`.
+`WORK_MODEL_STEPS` selects 1-3 reference steps per Run (default 2);
+intermediate bodies are Content Store checkpoints and only the final step
+publishes the artifact. New organizations are auto-provisioned with an
+`org_policy` row and a soft 1,000,000-token monthly account by migration 0006;
+the worker calls `work.ensure_quota_account` for later periods.
 
 ## work-reconcile
 

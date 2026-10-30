@@ -58,13 +58,18 @@ func (r *Runtime) Execute(ctx context.Context, request workruntime.Request) (wor
 	content := []byte(body.String())
 	input := estimateTokens(goal + "\n" + background + "\n" + request.PreviousContent)
 	output := estimateTokens(string(content))
+	cached := int64(0)
 	return workruntime.Result{
 		Content:           content,
 		MediaType:         "text/markdown",
 		RuntimeVersion:    Version,
 		ProviderRequestID: "reference:" + request.RunID,
-		InputTokens:       input,
-		OutputTokens:      output,
+		Usage: workruntime.Usage{
+			Source:            workruntime.UsageGatewayEstimate,
+			InputTokens:       &input,
+			OutputTokens:      &output,
+			CachedInputTokens: &cached,
+		},
 	}, nil
 }
 

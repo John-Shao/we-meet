@@ -1,0 +1,21 @@
+{
+  "name": "@we-meet/work-runtime-supervisor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Signed per-Run child-process supervisor for the Work runtime (F0-R6).",
+  "bin": {
+    "work-runtime-server": "bin/work-runtime-server.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node bin/work-runtime-server.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "1.4.0",
+    "@earendil-works/pi-ai": "1.4.0"
+  }
+}

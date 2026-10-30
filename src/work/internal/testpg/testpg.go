@@ -111,6 +111,34 @@ func CreateBaselineDB(ctx context.Context, admin *pgx.Conn, prefix string) (stri
 		_ = DropDatabase(ctx, admin, name)
 		return "", err
 	}
+	if err := ApplyQuotaDirectoryUsageHardening(ctx, dbAdmin); err != nil {
+		_ = DropDatabase(ctx, admin, name)
+		return "", err
+	}
+	if err := ApplyRuntimeExecutionDispatchGate(ctx, dbAdmin); err != nil {
+		_ = DropDatabase(ctx, admin, name)
+		return "", err
+	}
+	if err := ApplyRuntimeCapability(ctx, dbAdmin); err != nil {
+		_ = DropDatabase(ctx, admin, name)
+		return "", err
+	}
+	if err := ApplyContentReference(ctx, dbAdmin); err != nil {
+		_ = DropDatabase(ctx, admin, name)
+		return "", err
+	}
+	if err := ApplyContentSlot(ctx, dbAdmin); err != nil {
+		_ = DropDatabase(ctx, admin, name)
+		return "", err
+	}
+	if err := ApplyModelRequestDispatchConsume(ctx, dbAdmin); err != nil {
+		_ = DropDatabase(ctx, admin, name)
+		return "", err
+	}
+	if err := ApplyAdvanceBindingReads(ctx, dbAdmin); err != nil {
+		_ = DropDatabase(ctx, admin, name)
+		return "", err
+	}
 	return name, nil
 }
 
@@ -156,6 +184,62 @@ func ApplyOrgProvision(ctx context.Context, conn *pgx.Conn) error {
 
 func ApplyOrgProvisionBackfill(ctx context.Context, conn *pgx.Conn) error {
 	body, err := fs.ReadFile(embedded.FS, "increments/0007_org_provision_backfill.sql")
+	if err != nil {
+		return err
+	}
+	return ExecRaw(ctx, conn, string(body))
+}
+
+func ApplyQuotaDirectoryUsageHardening(ctx context.Context, conn *pgx.Conn) error {
+	body, err := fs.ReadFile(embedded.FS, "increments/0008_quota_directory_usage_hardening.sql")
+	if err != nil {
+		return err
+	}
+	return ExecRaw(ctx, conn, string(body))
+}
+
+func ApplyRuntimeExecutionDispatchGate(ctx context.Context, conn *pgx.Conn) error {
+	body, err := fs.ReadFile(embedded.FS, "increments/0009_runtime_execution_dispatch_gate.sql")
+	if err != nil {
+		return err
+	}
+	return ExecRaw(ctx, conn, string(body))
+}
+
+func ApplyRuntimeCapability(ctx context.Context, conn *pgx.Conn) error {
+	body, err := fs.ReadFile(embedded.FS, "increments/0010_runtime_capability.sql")
+	if err != nil {
+		return err
+	}
+	return ExecRaw(ctx, conn, string(body))
+}
+
+func ApplyContentReference(ctx context.Context, conn *pgx.Conn) error {
+	body, err := fs.ReadFile(embedded.FS, "increments/0011_content_reference.sql")
+	if err != nil {
+		return err
+	}
+	return ExecRaw(ctx, conn, string(body))
+}
+
+func ApplyContentSlot(ctx context.Context, conn *pgx.Conn) error {
+	body, err := fs.ReadFile(embedded.FS, "increments/0012_content_slot.sql")
+	if err != nil {
+		return err
+	}
+	return ExecRaw(ctx, conn, string(body))
+}
+
+func ApplyModelRequestDispatchConsume(ctx context.Context, conn *pgx.Conn) error {
+	body, err := fs.ReadFile(embedded.FS, "increments/0013_model_request_dispatch_consume.sql")
+	if err != nil {
+		return err
+	}
+	return ExecRaw(ctx, conn, string(body))
+}
+
+func ApplyAdvanceBindingReads(ctx context.Context, conn *pgx.Conn) error {
+	body, err := fs.ReadFile(embedded.FS, "increments/0014_advance_binding_reads.sql")
 	if err != nil {
 		return err
 	}

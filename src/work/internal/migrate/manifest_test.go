@@ -17,8 +17,8 @@ func TestEmbeddedManifestLoads(t *testing.T) {
 	if len(manifest.Baseline) != 2 {
 		t.Fatalf("baseline entries = %d, want 2", len(manifest.Baseline))
 	}
-	if len(manifest.Increments) != 5 {
-		t.Fatalf("increments = %d, want 5", len(manifest.Increments))
+	if len(manifest.Increments) != 12 {
+		t.Fatalf("increments = %d, want 12", len(manifest.Increments))
 	}
 	if manifest.Increments[0].Name != "0003_directory_absence" {
 		t.Fatalf("increment name = %q", manifest.Increments[0].Name)
@@ -34,6 +34,27 @@ func TestEmbeddedManifestLoads(t *testing.T) {
 	}
 	if manifest.Increments[4].Name != "0007_org_provision_backfill" {
 		t.Fatalf("increment name = %q", manifest.Increments[4].Name)
+	}
+	if manifest.Increments[5].Name != "0008_quota_directory_usage_hardening" {
+		t.Fatalf("increment name = %q", manifest.Increments[5].Name)
+	}
+	if manifest.Increments[6].Name != "0009_runtime_execution_dispatch_gate" {
+		t.Fatalf("increment name = %q", manifest.Increments[6].Name)
+	}
+	if manifest.Increments[7].Name != "0010_runtime_capability" {
+		t.Fatalf("increment name = %q", manifest.Increments[7].Name)
+	}
+	if manifest.Increments[8].Name != "0011_content_reference" {
+		t.Fatalf("increment name = %q", manifest.Increments[8].Name)
+	}
+	if manifest.Increments[9].Name != "0012_content_slot" {
+		t.Fatalf("increment name = %q", manifest.Increments[9].Name)
+	}
+	if manifest.Increments[10].Name != "0013_model_request_dispatch_consume" {
+		t.Fatalf("increment name = %q", manifest.Increments[10].Name)
+	}
+	if manifest.Increments[11].Name != "0014_advance_binding_reads" {
+		t.Fatalf("increment name = %q", manifest.Increments[11].Name)
 	}
 	if manifest.Baseline[1].Name != "0002_initial_r0a_schema" {
 		t.Fatalf("baseline name = %q", manifest.Baseline[1].Name)

@@ -1,6 +1,8 @@
 package runflow_test
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,7 +29,7 @@ func (s *WorkflowSuite) TestHappyPathRunsOneStepAndFinishesSucceeded() {
 	input := runflow.Input{RunID: flowRun, OrgID: flowOrg}
 	prepared := runflow.PreparedRun{
 		RunID: flowRun, OrgID: flowOrg, TaskID: flowTask, SubjectID: "sub_runflow",
-		RunState: "queued", Goal: "目标", TemplateID: "summary",
+		RunState: "queued", TemplateID: "summary",
 		TokenUpperBound: 100000, PolicyRevision: 1, RequestHash: "sha256:test",
 		StepCount: 2,
 	}
@@ -172,6 +174,52 @@ func (s *WorkflowSuite) TestUnknownWaitsForCancel() {
 	s.True(env.IsWorkflowCompleted())
 	s.NoError(env.GetWorkflowError())
 	env.AssertExpectations(s.T())
+}
+
+func (s *WorkflowSuite) TestSupersededStepEndsWithoutTouchingRun() {
+	env := s.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(runflow.RunWorkflow)
+	env.RegisterActivity(&runflow.Activities{})
+	input := runflow.Input{RunID: flowRun, OrgID: flowOrg}
+	env.OnActivity(runflow.ActivityPrepareRun, mock.Anything, input).
+		Return(runflow.PreparedRun{RunID: flowRun, OrgID: flowOrg, TaskID: flowTask, StepCount: 1}, nil)
+	env.OnActivity(runflow.ActivityAcquireRun, mock.Anything, input).
+		Return(runflow.AcquireRunOutput{State: "active", Fence: 2}, nil)
+	env.OnActivity(runflow.ActivityCheckRun, mock.Anything, input).
+		Return(runflow.RunControl{State: "active"}, nil).Once()
+	env.OnActivity(runflow.ActivityExecuteStep, mock.Anything, mock.Anything).
+		Return(runflow.ExecuteStepOutput{Step: 1, Superseded: true}, nil).Once()
+
+	env.ExecuteWorkflow(runflow.RunWorkflow, input)
+
+	s.True(env.IsWorkflowCompleted())
+	s.NoError(env.GetWorkflowError())
+	env.AssertExpectations(s.T())
+}
+
+func TestActivityPayloadsCarryNoUserText(t *testing.T) {
+	prepared := runflow.PreparedRun{
+		RunID: flowRun, OrgID: flowOrg, TaskID: flowTask, SubjectID: "sub_runflow",
+		RunState: "active", TemplateID: "summary", TemplateVersion: 1,
+		InputHash: "sha256:input", TokenUpperBound: 1000, PolicyRevision: 1,
+		RequestHash: "sha256:request", StepCount: 2,
+	}
+	step := runflow.ExecuteStepInput{
+		Prepared: prepared, Fence: 7, Step: 1, StepCount: 2,
+		PreviousContentRef: "content://checkpoint", PreviousContentHash: "sha256:checkpoint",
+	}
+	for name, value := range map[string]any{"prepared_run": prepared, "execute_step": step} {
+		raw, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		encoded := strings.ToLower(string(raw))
+		for _, forbidden := range []string{`"goal"`, `"background"`, `"title"`, "写一份"} {
+			if strings.Contains(encoded, forbidden) {
+				t.Fatalf("%s exposes user text %q: %s", name, forbidden, raw)
+			}
+		}
+	}
 }
 
 func (s *WorkflowSuite) TestExecuteFailureAbortsRun() {

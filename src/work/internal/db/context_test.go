@@ -101,6 +101,89 @@ func TestWithWorkContextScopesTenant(t *testing.T) {
 	}
 }
 
+func TestWithWorkContextIsolation(t *testing.T) {
+	pool := newRLSPool(t)
+	ctx := testContext(t)
+	writer, err := testpg.Open(ctx, testpg.AdminURLFor(pool.Config().ConnConfig.Database))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close(ctx)
+
+	cases := []struct {
+		name         string
+		options      workdb.Options
+		wantLevel    string
+		wantReadOnly string
+		wantRegion   string
+	}{
+		{"default", workdb.Options{}, "read committed", "off", "cn-east"},
+		{"read only default", workdb.Options{ReadOnly: true}, "read committed", "on", "cn-east"},
+		{"repeatable read", workdb.Options{ReadOnly: true, IsoLevel: pgx.RepeatableRead}, "repeatable read", "on", "cn-north"},
+		{"explicit read committed", workdb.Options{ReadOnly: true, IsoLevel: pgx.ReadCommitted}, "read committed", "on", "cn-east"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := writer.Exec(ctx, `UPDATE work.org SET home_region = 'cn-north' WHERE id = 'org_a'`); err != nil {
+				t.Fatal(err)
+			}
+			err := workdb.WithWorkContext(ctx, pool,
+				workdb.Identity{OrgID: "org_a", SubjectID: "sub_a"},
+				workdb.RoleAPI, tc.options,
+				func(tx pgx.Tx) error {
+					var level, readOnly, region string
+					if err := tx.QueryRow(ctx, `
+						SELECT current_setting('transaction_isolation'),
+						       current_setting('transaction_read_only'), home_region
+						FROM work.org WHERE id = 'org_a'`,
+					).Scan(&level, &readOnly, &region); err != nil {
+						return err
+					}
+					if level != tc.wantLevel || readOnly != tc.wantReadOnly || region != "cn-north" {
+						return fmt.Errorf("initial isolation/read-only/region = %q/%q/%q, want %q/%q/cn-north",
+							level, readOnly, region, tc.wantLevel, tc.wantReadOnly)
+					}
+
+					if _, err := writer.Exec(ctx, `UPDATE work.org SET home_region = 'cn-east' WHERE id = 'org_a'`); err != nil {
+						return err
+					}
+					if err := tx.QueryRow(ctx, `SELECT home_region FROM work.org WHERE id = 'org_a'`).Scan(&region); err != nil {
+						return err
+					}
+					if region != tc.wantRegion {
+						return fmt.Errorf("second read = %q, want %q", region, tc.wantRegion)
+					}
+					return nil
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			err = workdb.WithWorkContext(ctx, pool,
+				workdb.Identity{OrgID: "org_a", SubjectID: "sub_a"},
+				workdb.RoleAPI, workdb.Options{},
+				func(tx pgx.Tx) error {
+					var level, region string
+					if err := tx.QueryRow(ctx, `
+						SELECT current_setting('transaction_isolation'), home_region
+						FROM work.org WHERE id = 'org_a'`,
+					).Scan(&level, &region); err != nil {
+						return err
+					}
+					if level != "read committed" || region != "cn-east" {
+						return fmt.Errorf("new transaction isolation/region = %q/%q", level, region)
+					}
+					return nil
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestWithWorkContextCallbackErrorRollsBackContext(t *testing.T) {
 	pool := newRLSPool(t)
 	ctx := testContext(t)

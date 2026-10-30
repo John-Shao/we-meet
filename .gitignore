@@ -105,3 +105,16 @@ src/helm/env.d/aliyun-prod/values.work.yaml.tmp
 
 # Local scratch directories
 .tmp-*/
+
+# Work control-plane build outputs (produced in the release container)
+/src/work/work-api
+/src/work/work-authz
+/src/work/work-content-proxy
+/src/work/work-directory-sync
+/src/work/work-egress
+/src/work/work-e2e-seed
+/src/work/work-migrate
+/src/work/work-provider-setup
+/src/work/work-reconcile
+/src/work/work-relay
+/src/work/work-worker

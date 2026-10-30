@@ -6,11 +6,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/we-meet/work/internal/api"
+	workdb "github.com/we-meet/work/internal/db"
 	"github.com/we-meet/work/internal/testpg"
 )
 
@@ -34,7 +40,7 @@ func TestGetTaskReturnsOwnedDetail(t *testing.T) {
 	if err := json.Unmarshal(body, &raw); err != nil {
 		t.Fatal(err)
 	}
-	assertExactKeys(t, raw, "summary", "input_ref", "goal", "background", "template", "snapshot")
+	assertExactKeys(t, raw, "summary", "input_ref", "goal", "background", "template", "snapshot", "latest_event_id")
 	var rawSummary map[string]json.RawMessage
 	if err := json.Unmarshal(raw["summary"], &rawSummary); err != nil {
 		t.Fatal(err)
@@ -70,6 +76,9 @@ func TestGetTaskReturnsOwnedDetail(t *testing.T) {
 		!strings.Contains(string(detail.Snapshot.ModelRoute), "deferred") {
 		t.Fatalf("snapshot = %#v", detail.Snapshot)
 	}
+	if detail.LatestEventID == nil || *detail.LatestEventID == "" {
+		t.Fatal("latest_event_id is missing")
+	}
 
 	for _, hidden := range []string{taskC, taskD, "99999999-9999-4999-8999-999999999999"} {
 		hiddenResponse := taskRequest(t, http.MethodGet, server.URL+"/work/v1/tasks/"+hidden, "", "")
@@ -81,6 +90,173 @@ func TestGetTaskReturnsOwnedDetail(t *testing.T) {
 	}
 	missing.Body.Close()
 }
+
+func TestGetTaskKeepsSummaryAndCursorOnSameSnapshot(t *testing.T) {
+	pool, dbName := newBootstrapDB(t, true, true)
+	ctx, cancel := context.WithCancel(testContext(t))
+	defer cancel()
+	store := newTestContentStore(t)
+	server := newHTTPServerWithContent(t, pool, store)
+	token := bootstrapCSRF(t, server.URL)
+	created := createTaskForTest(t, server.URL, token, "snapshot-input-0001", "Snapshot goal", "")
+	url := server.URL + "/work/v1/tasks/" + created.TaskID
+	readDetail := func() api.TaskDetail {
+		t.Helper()
+		response := taskRequest(t, http.MethodGet, url, "", "")
+		defer response.Body.Close()
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("detail status = %d body=%s", response.StatusCode, readBody(response))
+		}
+		var detail api.TaskDetail
+		if err := json.NewDecoder(response.Body).Decode(&detail); err != nil {
+			t.Fatal(err)
+		}
+		return detail
+	}
+	before := readDetail()
+	if before.LatestEventID == nil || before.Summary.Revision != 1 ||
+		before.Summary.LatestRun == nil || before.Summary.LatestRun.State != "queued" {
+		t.Fatalf("initial detail = %#v", before)
+	}
+
+	// Commit state and events between the handler's summary and cursor reads.
+	pause := &taskDetailCursorPause{reached: make(chan struct{}), resume: make(chan struct{})}
+	config := pool.Config()
+	config.ConnConfig.Tracer = pause
+	readerPool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(readerPool.Close)
+	readerServer := newHTTPServerWithContent(t, readerPool, store)
+	writerPool, err := workdb.OpenPool(ctx, testpg.WorkerURL(dbName), "work-snapshot-writer-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(writerPool.Close)
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		readerServer.URL+"/work/v1/tasks/"+created.TaskID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.AddCookie(&http.Cookie{Name: "sessionid", Value: "session-value"})
+	type detailResult struct {
+		detail api.TaskDetail
+		err    error
+	}
+	result := make(chan detailResult, 1)
+	go func() {
+		response, err := http.DefaultClient.Do(request)
+		if err != nil {
+			result <- detailResult{err: err}
+			return
+		}
+		defer response.Body.Close()
+		if response.StatusCode != http.StatusOK {
+			result <- detailResult{err: fmt.Errorf("detail status = %d body=%s", response.StatusCode, readBody(response))}
+			return
+		}
+		var detail api.TaskDetail
+		err = json.NewDecoder(response.Body).Decode(&detail)
+		result <- detailResult{detail: detail, err: err}
+	}()
+	select {
+	case <-pause.reached:
+	case got := <-result:
+		t.Fatalf("detail returned before cursor barrier: %v", got.err)
+	case <-ctx.Done():
+		t.Fatalf("waiting for cursor barrier: %v", ctx.Err())
+	}
+
+	var committedEventID string
+	err = workdb.WithWorkerOrgContext(ctx, writerPool, testOrg, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT work.acquire_run($1, $2)`, created.RunID, testOrg); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `SELECT work.finish_run($1, $2, 'succeeded', NULL)`, created.RunID, testOrg); err != nil {
+			return err
+		}
+		return tx.QueryRow(ctx, `
+			SELECT id FROM work.task_event WHERE task_id = $1 AND org_id = $2
+			ORDER BY seq DESC LIMIT 1`, created.TaskID, testOrg).Scan(&committedEventID)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if committedEventID == *before.LatestEventID {
+		t.Fatal("writer did not append a new event")
+	}
+	close(pause.resume)
+
+	var during api.TaskDetail
+	select {
+	case got := <-result:
+		if got.err != nil {
+			t.Fatal(got.err)
+		}
+		during = got.detail
+	case <-ctx.Done():
+		t.Fatalf("waiting for paused detail: %v", ctx.Err())
+	}
+	if !reflect.DeepEqual(during.Summary, before.Summary) {
+		t.Fatalf("paused summary = %#v, want %#v", during.Summary, before.Summary)
+	}
+	if during.LatestEventID == nil || *during.LatestEventID != *before.LatestEventID {
+		t.Fatalf("cursor advanced beyond the snapshot: got %v, want %s (concurrent event %s)",
+			during.LatestEventID, *before.LatestEventID, committedEventID)
+	}
+
+	after := readDetail()
+	if after.Summary.TaskState != "awaiting_acceptance" || after.Summary.Revision != 2 ||
+		after.Summary.ActiveRunID != nil || after.Summary.LatestRun == nil ||
+		after.Summary.LatestRun.State != "succeeded" || after.LatestEventID == nil ||
+		*after.LatestEventID != committedEventID {
+		t.Fatalf("post-commit detail = %#v", after)
+	}
+	// Both events remain after the response's cursor and are available for replay.
+	err = workdb.WithWorkContext(ctx, pool,
+		workdb.Identity{OrgID: testOrg, SubjectID: testSubject}, workdb.RoleAPI,
+		workdb.Options{ReadOnly: true}, func(tx pgx.Tx) error {
+			var count int
+			if err := tx.QueryRow(ctx, `
+				SELECT count(*) FROM work.task_event
+				WHERE task_id = $1 AND org_id = $2
+				  AND seq > (SELECT seq FROM work.task_event WHERE id = $3 AND task_id = $1 AND org_id = $2)
+				  AND type IN ('run.succeeded', 'task.awaiting_acceptance')`,
+				created.TaskID, testOrg, *during.LatestEventID).Scan(&count); err != nil {
+				return err
+			}
+			if count != 2 {
+				return fmt.Errorf("replayable completion events = %d, want 2", count)
+			}
+			return nil
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+type taskDetailCursorPause struct {
+	once    sync.Once
+	reached chan struct{}
+	resume  chan struct{}
+}
+
+func (p *taskDetailCursorPause) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	if strings.Contains(strings.Join(strings.Fields(data.SQL), " "), "SELECT id FROM work.task_event") {
+		p.once.Do(func() {
+			close(p.reached)
+			select {
+			case <-p.resume:
+			case <-ctx.Done():
+			}
+		})
+	}
+	return ctx
+}
+
+func (*taskDetailCursorPause) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
 
 func TestUpdateTaskTitleIdempotencyAndConflicts(t *testing.T) {
 	pool, dbName := newBootstrapDB(t, true, true)

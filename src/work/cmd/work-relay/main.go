@@ -10,11 +10,17 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/we-meet/work/internal/content"
 	workdb "github.com/we-meet/work/internal/db"
 	"github.com/we-meet/work/internal/dispatch"
 	"github.com/we-meet/work/internal/relay"
 )
+
+func defaultRelayID() string {
+	return envOrDefault("WORK_RELAY_ID", "work-relay") + "-" + uuid.NewString()
+}
 
 func main() {
 	if err := run(context.Background()); err != nil {
@@ -53,8 +59,9 @@ func run(ctx context.Context) error {
 	}
 	defer dispatcher.Close()
 
+	relayID := defaultRelayID()
 	service, err := relay.New(pool, store, dispatcher, relay.Config{
-		RelayID:      envOrDefault("WORK_RELAY_ID", "work-relay"),
+		RelayID:      relayID,
 		BatchSize:    envInt("WORK_RELAY_BATCH_SIZE", 20),
 		LeaseSeconds: envInt("WORK_RELAY_LEASE_SECONDS", 60),
 		PollInterval: envDuration("WORK_RELAY_POLL_INTERVAL", time.Second),
@@ -65,7 +72,7 @@ func run(ctx context.Context) error {
 
 	shutdownCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	log.Printf("work relay started relay_id=%s", envOrDefault("WORK_RELAY_ID", "work-relay"))
+	log.Printf("work relay started relay_id=%s", relayID)
 	err = service.Run(shutdownCtx)
 	if errors.Is(err, context.Canceled) {
 		return nil

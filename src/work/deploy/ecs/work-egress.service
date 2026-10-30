@@ -1,0 +1,20 @@
+[Unit]
+Description=Work trusted model egress gateway
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+User=work-control
+Group=work-control
+EnvironmentFile=/etc/work/work-egress.env
+ExecStart=/usr/local/bin/work-egress
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/work/content
+
+[Install]
+WantedBy=multi-user.target

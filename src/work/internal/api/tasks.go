@@ -372,6 +372,30 @@ func (s *Server) requireMember(ctx context.Context, claims host.Claims, writer b
 	)
 }
 
+const directoryMaxStalenessSeconds = 900
+
+func (s *Server) requireFreshDirectory(ctx context.Context, claims host.Claims) error {
+	var fresh bool
+	err := workdb.WithWorkContext(ctx, s.pool,
+		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
+		workdb.RoleAPI,
+		workdb.Options{ReadOnly: true},
+		func(tx pgx.Tx) error {
+			return tx.QueryRow(ctx,
+				`SELECT work.directory_sync_fresh($1, $2)`,
+				claims.OrgID, directoryMaxStalenessSeconds,
+			).Scan(&fresh)
+		},
+	)
+	if err != nil {
+		return err
+	}
+	if !fresh {
+		return &domainError{code: "service_degraded"}
+	}
+	return nil
+}
+
 func memberAccess(ctx context.Context, tx pgx.Tx, claims host.Claims, writer bool) error {
 	var status, role string
 	var seat bool

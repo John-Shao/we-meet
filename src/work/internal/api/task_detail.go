@@ -26,21 +26,23 @@ type TaskSnapshot struct {
 }
 
 type TaskDetail struct {
-	Summary    TaskSummary   `json:"summary"`
-	InputRef   string        `json:"input_ref"`
-	Goal       string        `json:"goal"`
-	Background *string       `json:"background"`
-	Template   *Template     `json:"template"`
-	Snapshot   *TaskSnapshot `json:"snapshot"`
+	Summary       TaskSummary   `json:"summary"`
+	InputRef      string        `json:"input_ref"`
+	Goal          string        `json:"goal"`
+	Background    *string       `json:"background"`
+	Template      *Template     `json:"template"`
+	Snapshot      *TaskSnapshot `json:"snapshot"`
+	LatestEventID *string       `json:"latest_event_id"`
 }
 
 type taskDetailRecord struct {
-	inputRef     string
-	contentRef   string
-	contentHash  string
-	inputStatus  string
-	snapshot     TaskSnapshot
-	manifestJSON []byte
+	inputRef      string
+	contentRef    string
+	contentHash   string
+	inputStatus   string
+	snapshot      TaskSnapshot
+	manifestJSON  []byte
+	latestEventID *string
 }
 
 type taskTitleRequest struct {
@@ -91,10 +93,12 @@ func (s *Server) getTask(w http.ResponseWriter, r *http.Request) {
 	var summary TaskSummary
 	var record taskDetailRecord
 	summaryFound := false
+	// Keep the detail and replay cursor on one snapshot so concurrent events
+	// cannot advance the cursor past state this response has not observed.
 	err := workdb.WithWorkContext(r.Context(), s.pool,
 		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
 		workdb.RoleAPI,
-		workdb.Options{ReadOnly: true},
+		workdb.Options{ReadOnly: true, IsoLevel: pgx.RepeatableRead},
 		func(tx pgx.Tx) error {
 			var err error
 			summary, err = loadTaskSummary(r.Context(), tx, taskID, claims)
@@ -131,6 +135,14 @@ func (s *Server) getTask(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 			record.snapshot.ModelRoute = json.RawMessage(modelRoute)
+			if err := tx.QueryRow(r.Context(), `
+				SELECT id FROM work.task_event
+				WHERE task_id = $1 AND org_id = $2
+				ORDER BY seq DESC LIMIT 1`,
+				taskID, claims.OrgID,
+			).Scan(&record.latestEventID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return err
+			}
 			return nil
 		},
 	)
@@ -179,12 +191,13 @@ func (s *Server) getTask(w http.ResponseWriter, r *http.Request) {
 		record.snapshot.ModelRoute = json.RawMessage(`{}`)
 	}
 	writeJSON(w, http.StatusOK, TaskDetail{
-		Summary:    summary,
-		InputRef:   record.inputRef,
-		Goal:       input.Goal,
-		Background: background,
-		Template:   templateFromSnapshot(record.manifestJSON),
-		Snapshot:   &record.snapshot,
+		Summary:       summary,
+		InputRef:      record.inputRef,
+		Goal:          input.Goal,
+		Background:    background,
+		Template:      templateFromSnapshot(record.manifestJSON),
+		Snapshot:      &record.snapshot,
+		LatestEventID: record.latestEventID,
 	})
 }
 

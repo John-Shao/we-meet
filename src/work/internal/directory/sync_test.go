@@ -89,7 +89,11 @@ func (w *fakeWriter) SyncMember(_ context.Context, member host.Member) error {
 	return nil
 }
 
-func (w *fakeWriter) MarkAbsent(_ context.Context, orgID string, present []string, allowMass bool) (int, error) {
+func (w *fakeWriter) RecordSync(_ context.Context, _ string, _ string, _ bool, _ int64, _ string) error {
+	return nil
+}
+
+func (w *fakeWriter) MarkAbsent(_ context.Context, orgID string, present []string, allowMass bool, _ int64) (int, error) {
 	if w.markErr != nil {
 		return 0, w.markErr
 	}

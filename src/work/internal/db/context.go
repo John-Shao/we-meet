@@ -25,6 +25,8 @@ const (
 
 type Options struct {
 	ReadOnly bool
+	// IsoLevel defaults to pgx.ReadCommitted when unset.
+	IsoLevel pgx.TxIsoLevel
 }
 
 type Error struct {
@@ -157,7 +159,11 @@ func withRoleContext(
 		return Wrap("invalid_role", fmt.Sprintf("role %q is not allowed for request-path work", role), nil)
 	}
 
-	txOptions := pgx.TxOptions{IsoLevel: pgx.ReadCommitted}
+	isoLevel := options.IsoLevel
+	if isoLevel == "" {
+		isoLevel = pgx.ReadCommitted
+	}
+	txOptions := pgx.TxOptions{IsoLevel: isoLevel}
 	if options.ReadOnly {
 		txOptions.AccessMode = pgx.ReadOnly
 	}

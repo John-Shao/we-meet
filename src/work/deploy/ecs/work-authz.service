@@ -1,0 +1,19 @@
+[Unit]
+Description=Work internal execution authorization RPC
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+User=work-control
+Group=work-control
+EnvironmentFile=/etc/work/work-authz.env
+ExecStart=/usr/local/bin/work-authz
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

@@ -56,6 +56,7 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	server.SetRuntimeVersion(requiredEnv("WORK_RUNTIME_VERSION"))
 
 	listenAddr := os.Getenv("WORK_LISTEN_ADDR")
 	if listenAddr == "" {

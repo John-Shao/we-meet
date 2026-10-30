@@ -1,0 +1,22 @@
+[Unit]
+Description=Work Node/Pi advanceRuntime listener
+After=network-online.target work-authz.service work-content-proxy.service work-egress.service
+Wants=network-online.target
+
+[Service]
+User=work-control
+Group=work-control
+WorkingDirectory=/opt/work/runtime
+EnvironmentFile=/etc/work/work-runtime.env
+Environment=NODE_EXTRA_CA_CERTS=/etc/work/runtime-ca/ca.crt
+ExecStart=/usr/local/bin/node /opt/work/runtime/bin/work-runtime-server.mjs
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/work/runtime
+
+[Install]
+WantedBy=multi-user.target

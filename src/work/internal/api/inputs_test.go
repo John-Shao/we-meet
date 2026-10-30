@@ -73,6 +73,38 @@ func TestCreateInputStoresEncryptedTextAndDeduplicates(t *testing.T) {
 	assertAPICode(t, conflict, http.StatusConflict, "idempotency_key_conflict")
 }
 
+func TestCreateInputRejectsStaleOrFailedDirectory(t *testing.T) {
+	pool, dbName := newBootstrapDB(t, true, true)
+	server := newHTTPServerWithContent(t, pool, newTestContentStore(t))
+	token := bootstrapCSRF(t, server.URL)
+	admin, err := testpg.Open(context.Background(), testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(context.Background())
+	ctx := context.Background()
+
+	if _, err := admin.Exec(ctx,
+		`UPDATE work.directory_sync_state SET last_error = 'host_unavailable' WHERE org_id = 'org_a'`,
+	); err != nil {
+		t.Fatal(err)
+	}
+	failed := postInput(t, server.URL, token,
+		`{"client_request_id":"input-stale-0001","goal":"目标"}`)
+	assertAPICode(t, failed, http.StatusServiceUnavailable, "service_degraded")
+
+	if _, err := admin.Exec(ctx, `
+		UPDATE work.directory_sync_state
+		SET last_error = NULL, last_success_at = now() - interval '1 hour'
+		WHERE org_id = 'org_a'`,
+	); err != nil {
+		t.Fatal(err)
+	}
+	aged := postInput(t, server.URL, token,
+		`{"client_request_id":"input-stale-0002","goal":"目标"}`)
+	assertAPICode(t, aged, http.StatusServiceUnavailable, "service_degraded")
+}
+
 func TestCreateInputRequiresCSRFWriterAndLimits(t *testing.T) {
 	pool, dbName := newBootstrapDB(t, true, true)
 	store := newTestContentStore(t)

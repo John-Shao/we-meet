@@ -30,15 +30,14 @@ type Input struct {
 	OrgID string `json:"org_id"`
 }
 
+// Activity results and inputs are persisted in Temporal history. Keep them to
+// IDs, hashes and references; user text is read inside the activity that needs it.
 type PreparedRun struct {
 	RunID           string `json:"run_id"`
 	OrgID           string `json:"org_id"`
 	TaskID          string `json:"task_id"`
 	SubjectID       string `json:"subject_id"`
 	RunState        string `json:"run_state"`
-	Title           string `json:"title"`
-	Goal            string `json:"goal"`
-	Background      string `json:"background"`
 	TemplateID      string `json:"template_id"`
 	TemplateVersion int    `json:"template_version"`
 	InputHash       string `json:"input_hash"`
@@ -91,8 +90,8 @@ type ExecuteStepOutput struct {
 	Settled        bool   `json:"settled,omitempty"`
 	Unknown        bool   `json:"unknown,omitempty"`
 	Canceled       bool   `json:"canceled,omitempty"`
+	Superseded     bool   `json:"superseded,omitempty"`
 	ErrCode        string `json:"err_code,omitempty"`
-	ErrMessage     string `json:"err_message,omitempty"`
 }
 
 type FinishRunInput struct {
@@ -162,23 +161,27 @@ func RunWorkflow(ctx workflow.Context, input Input) error {
 				RunID: input.RunID, OrgID: input.OrgID, Outcome: "canceled", Reason: "run_canceled",
 			})
 		}
-		stepCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-			StartToCloseTimeout: 5 * time.Minute,
-			RetryPolicy:         &temporal.RetryPolicy{MaximumAttempts: 1},
-		})
-		var stepOut ExecuteStepOutput
-		if err := workflow.ExecuteActivity(stepCtx, ActivityExecuteStep, ExecuteStepInput{
+		stepOut, cancelConfirmed, err := executeStepWithCancel(ctx, cancelCh, ExecuteStepInput{
 			Prepared: prepared, Fence: acquired.Fence, Step: step, StepCount: steps,
 			PreviousContentRef:  checkpoint.ContentRef,
 			PreviousContentHash: checkpoint.ContentHash,
 			Final:               step == steps,
-		}).Get(stepCtx, &stepOut); err != nil {
+		})
+		if err != nil {
+			if cancelConfirmed || isCanceled(err) {
+				return finishRun(ctx, FinishRunInput{
+					RunID: input.RunID, OrgID: input.OrgID, Outcome: "canceled", Reason: "run_canceled",
+				})
+			}
 			return abort(ctx, input, AbortRunInput{Outcome: "failed", Reason: "execute_failed"}, err)
 		}
-		if stepOut.Canceled {
+		if cancelConfirmed || stepOut.Canceled {
 			return finishRun(ctx, FinishRunInput{
 				RunID: input.RunID, OrgID: input.OrgID, Outcome: "canceled", Reason: "run_canceled",
 			})
+		}
+		if stepOut.Superseded {
+			return nil
 		}
 		if stepOut.Unknown {
 			if err := workflow.ExecuteActivity(ctx, ActivityWaitRun, WaitRunInput{
@@ -214,6 +217,49 @@ func RunWorkflow(ctx workflow.Context, input Input) error {
 	return finishRun(ctx, FinishRunInput{
 		RunID: input.RunID, OrgID: input.OrgID, Outcome: "succeeded",
 	})
+}
+
+// executeStepWithCancel lets a cancel signal stop the in-flight step activity.
+// The signal is only a hint: an activity checks the DB before treating the run
+// as canceled. If the DB is not canceled, the step keeps running.
+func executeStepWithCancel(
+	ctx workflow.Context,
+	cancelCh workflow.ReceiveChannel,
+	input ExecuteStepInput,
+) (ExecuteStepOutput, bool, error) {
+	stepCtx, cancelStep := workflow.WithCancel(ctx)
+	defer cancelStep()
+	stepCtx = workflow.WithActivityOptions(stepCtx, workflow.ActivityOptions{
+		StartToCloseTimeout: 5 * time.Minute,
+		RetryPolicy:         &temporal.RetryPolicy{MaximumAttempts: 1},
+	})
+	future := workflow.ExecuteActivity(stepCtx, ActivityExecuteStep, input)
+	var out ExecuteStepOutput
+	cancelConfirmed := false
+	cancelSignaled := false
+	for !future.IsReady() {
+		selector := workflow.NewSelector(ctx)
+		selector.AddFuture(future, func(workflow.Future) {})
+		selector.AddReceive(cancelCh, func(ch workflow.ReceiveChannel, more bool) {
+			var payload any
+			ch.Receive(ctx, &payload)
+			cancelSignaled = true
+		})
+		selector.Select(ctx)
+		if cancelSignaled && !cancelConfirmed {
+			cancelSignaled = false
+			var control RunControl
+			checkErr := workflow.ExecuteActivity(ctx, ActivityCheckRun, Input{
+				RunID: input.Prepared.RunID, OrgID: input.Prepared.OrgID,
+			}).Get(ctx, &control)
+			if checkErr == nil && control.Canceled {
+				cancelConfirmed = true
+				cancelStep()
+			}
+		}
+	}
+	err := future.Get(stepCtx, &out)
+	return out, cancelConfirmed, err
 }
 
 func awaitResumeOrCancel(

@@ -364,6 +364,16 @@ func ReadCatalog(ctx context.Context, q Querier) (*Catalog, error) {
 			CROSS JOIN LATERAL aclexplode(c.relacl) a
 			WHERE n.nspname = 'work' AND c.relname <> 'schema_migration'
 			UNION ALL
+			SELECT 'column', n.nspname, c.relname || '.' || a.attname,
+			       CASE WHEN x.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(x.grantee) END,
+			       x.privilege_type, x.is_grantable
+			FROM pg_attribute a
+			JOIN pg_class c ON c.oid = a.attrelid
+			JOIN pg_namespace n ON n.oid = c.relnamespace
+			CROSS JOIN LATERAL aclexplode(a.attacl) x
+			WHERE n.nspname = 'work' AND c.relkind IN ('r', 'p')
+			  AND NOT a.attisdropped AND a.attacl IS NOT NULL
+			UNION ALL
 			SELECT 'function', n.nspname,
 			       p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')',
 			       CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END,

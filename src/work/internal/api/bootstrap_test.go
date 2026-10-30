@@ -280,11 +280,21 @@ func newBootstrapDB(t *testing.T, allowAuto bool, withOrg bool, memberSeat ...bo
 		INSERT INTO work.org_policy (org_id, allow_auto_readonly)
 		VALUES ('%s', %t)
 		ON CONFLICT (org_id) DO UPDATE SET allow_auto_readonly = EXCLUDED.allow_auto_readonly;
-	`, testOrg, testOrg, allowAuto)
+		INSERT INTO work.directory_sync_state
+		  (org_id, last_attempt_at, last_success_at, last_mode, last_revision, last_error)
+		VALUES ('%s', now(), now(), 'full', 1, NULL)
+		ON CONFLICT (org_id) DO UPDATE
+		SET last_attempt_at = now(), last_success_at = now(), last_error = NULL;
+	`, testOrg, testOrg, allowAuto, testOrg)
 	if withOrg {
 		statement += fmt.Sprintf(`
 		INSERT INTO work.org (id, status, home_region, name)
 		VALUES ('org_other', 'active', 'cn-east', 'Other');
+		INSERT INTO work.directory_sync_state
+		  (org_id, last_attempt_at, last_success_at, last_mode, last_revision, last_error)
+		VALUES ('org_other', now(), now(), 'full', 1, NULL)
+		ON CONFLICT (org_id) DO UPDATE
+		SET last_attempt_at = now(), last_success_at = now(), last_error = NULL;
 		`)
 	}
 	if member {

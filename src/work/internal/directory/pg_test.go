@@ -262,7 +262,7 @@ func TestMarkAbsentDoesNotOverrideNewerRevisions(t *testing.T) {
 		t.Fatalf("first sync = %#v, %v", report, err)
 	}
 
-	absent, err := writer.MarkAbsent(ctx, "org_e", []string{}, false)
+	absent, err := writer.MarkAbsent(ctx, "org_e", []string{}, false, 5)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +280,7 @@ func TestMarkAbsentDoesNotOverrideNewerRevisions(t *testing.T) {
 		t.Fatalf("second sync = %#v, %v", report, err)
 	}
 
-	absent, err = writer.MarkAbsent(ctx, "org_e", []string{}, false)
+	absent, err = writer.MarkAbsent(ctx, "org_e", []string{}, false, 5)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,6 +297,35 @@ func TestMarkAbsentDoesNotOverrideNewerRevisions(t *testing.T) {
 	}
 	if status != "active" || !seat || revision != 6 {
 		t.Fatalf("newer member was narrowed: %q/%t/%d", status, seat, revision)
+	}
+}
+
+func TestMarkAbsentUsesSnapshotRevision(t *testing.T) {
+	pool, admin, _ := newDirectoryDB(t)
+	ctx := testContext(t)
+	writer := &directory.PGWriter{Pool: pool}
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO work.org (id, status, home_region, name, revision)
+		VALUES ('org_snap', 'active', 'cn-north', 'Snapshot', 12);
+		INSERT INTO work.member (org_id, subject_id, status, role, work_seat, revision)
+		VALUES ('org_snap', 'sub_new', 'active', 'member', true, 11);
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	absent, err := writer.MarkAbsent(ctx, "org_snap", []string{}, false, 11)
+	if err != nil || absent != 0 {
+		t.Fatalf("snapshot absence = %d, %v", absent, err)
+	}
+	var status string
+	var revision int64
+	if err := admin.QueryRow(ctx,
+		`SELECT status, revision FROM work.member WHERE org_id = 'org_snap' AND subject_id = 'sub_new'`,
+	).Scan(&status, &revision); err != nil {
+		t.Fatal(err)
+	}
+	if status != "active" || revision != 11 {
+		t.Fatalf("snapshot absence changed member: %q/%d", status, revision)
 	}
 }
 
@@ -371,7 +400,7 @@ func TestDirectoryCommandsAreNotGrantedToApplicationRoles(t *testing.T) {
 
 	for _, statement := range []string{
 		`SELECT work.directory_watermark('org_a')`,
-		`SELECT work.mark_members_absent('org_a', ARRAY[]::text[], false)`,
+		`SELECT work.mark_members_absent('org_a', ARRAY[]::text[], false, 1)`,
 	} {
 		var value any
 		err := pool.QueryRow(ctx, statement).Scan(&value)
@@ -380,6 +409,136 @@ func TestDirectoryCommandsAreNotGrantedToApplicationRoles(t *testing.T) {
 			t.Fatalf("%s: error = %v, want insufficient_privilege", statement, err)
 		}
 	}
+}
+
+func TestDirectorySyncHealthGate(t *testing.T) {
+	pool, admin, dbName := newDirectoryDB(t)
+	ctx := testContext(t)
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO work.org (id, status, home_region, name)
+		VALUES ('org_health', 'active', 'cn-north', 'Health');
+	`); err != nil {
+		t.Fatal(err)
+	}
+	writer := &directory.PGWriter{Pool: pool}
+	if err := writer.RecordSync(ctx, "org_health", "full", true, 3, ""); err != nil {
+		t.Fatal(err)
+	}
+	appPool, err := workdb.OpenPool(ctx, testpg.AppURL(dbName), "work-api-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer appPool.Close()
+	fresh := func() bool {
+		var value bool
+		err := workdb.WithWorkContext(ctx, appPool,
+			workdb.Identity{OrgID: "org_health", SubjectID: "sub_owner"}, workdb.RoleAPI,
+			workdb.Options{ReadOnly: true}, func(tx pgx.Tx) error {
+				return tx.QueryRow(ctx, `SELECT work.directory_sync_fresh('org_health', 900)`).Scan(&value)
+			})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	if !fresh() {
+		t.Fatal("successful sync is not fresh")
+	}
+	if err := writer.RecordSync(ctx, "org_health", "incremental", false, 3, "host_unavailable"); err != nil {
+		t.Fatal(err)
+	}
+	if fresh() {
+		t.Fatal("failed sync is still fresh")
+	}
+	if err := writer.RecordSync(ctx, "org_health", "incremental", true, 4, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `
+		UPDATE work.directory_sync_state
+		SET last_success_at = now() - interval '1 hour'
+		WHERE org_id = 'org_health'`,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if fresh() {
+		t.Fatal("aged sync is still fresh")
+	}
+}
+
+func TestDirectoryHealthRequiresTenantContext(t *testing.T) {
+	pool, admin, dbName := newDirectoryDB(t)
+	ctx := testContext(t)
+	writer := &directory.PGWriter{Pool: pool}
+	if err := writer.RecordSync(ctx, "org_health", "full", true, 3, ""); err != nil {
+		t.Fatal(err)
+	}
+	appPool, err := workdb.OpenPool(ctx, testpg.AppURL(dbName), "work-api-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(appPool.Close)
+	var fresh bool
+	err = appPool.QueryRow(ctx, `SELECT work.directory_sync_fresh('org_health', 900)`).Scan(&fresh)
+	assertPgCode(t, err, "P0001", "directory_org_context_mismatch")
+	err = workdb.WithWorkContext(ctx, appPool,
+		workdb.Identity{OrgID: "org_other", SubjectID: "sub_owner"}, workdb.RoleAPI,
+		workdb.Options{ReadOnly: true}, func(tx pgx.Tx) error {
+			return tx.QueryRow(ctx, `SELECT work.directory_sync_fresh('org_health', 900)`).Scan(&fresh)
+		})
+	assertPgCode(t, err, "P0001", "directory_org_context_mismatch")
+	err = workdb.WithDirectoryContext(ctx, pool, "org_other", workdb.Options{}, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `SELECT work.record_directory_sync('org_health', 'full', false, 4, 'failed')`)
+		return err
+	})
+	assertPgCode(t, err, "P0001", "directory_org_context_mismatch")
+
+	tx, err := admin.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `SET LOCAL ROLE work_owner; SELECT set_config('app.org_id', 'org_other', true)`); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM work.directory_sync_state WHERE org_id = 'org_health'`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("owner read %d foreign health rows", count)
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO work.directory_sync_state (org_id, last_attempt_at, last_mode) VALUES ('org_foreign', now(), 'full')`)
+	assertPgCode(t, err, "42501", "row-level security")
+}
+
+func TestDirectoryAbsenceLegacySignatureRemoved(t *testing.T) {
+	_, admin, _ := newDirectoryDB(t)
+	ctx := testContext(t)
+	var removed bool
+	if err := admin.QueryRow(ctx, `SELECT to_regprocedure('work.mark_members_absent(text,text[],boolean)') IS NULL`).Scan(&removed); err != nil {
+		t.Fatal(err)
+	}
+	if !removed {
+		t.Fatal("legacy absence command remains callable")
+	}
+}
+
+func TestProvisionFunctionsAreNotPublic(t *testing.T) {
+	_, _, dbName := newDirectoryDB(t)
+	ctx := testContext(t)
+	pool, err := workdb.OpenPool(ctx, testpg.AppURL(dbName), "work-api-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+
+	var value any
+	err = pool.QueryRow(ctx, `SELECT work.provision_org_defaults('org_a')`).Scan(&value)
+	assertPgCode(t, err, "42501", "")
+	err = pool.QueryRow(ctx,
+		`SELECT work.ensure_quota_account('org_a', 'default', '2026-10', 1000000, 'soft')`,
+	).Scan(&value)
+	assertPgCode(t, err, "42501", "")
 }
 
 func TestSyncPreservesOperatorSuspended(t *testing.T) {
@@ -422,7 +581,7 @@ func TestDirectoryCommandsRejectCrossTenantContext(t *testing.T) {
 
 	err = workdb.WithDirectoryContext(ctx, pool, "org_a", workdb.Options{}, func(tx pgx.Tx) error {
 		var affected int
-		return tx.QueryRow(ctx, `SELECT work.mark_members_absent('org_b', ARRAY[]::text[], false)`).Scan(&affected)
+		return tx.QueryRow(ctx, `SELECT work.mark_members_absent('org_b', ARRAY[]::text[], false, 1)`).Scan(&affected)
 	})
 	assertPgCode(t, err, "P0001", "directory_org_context_mismatch")
 }
@@ -438,7 +597,7 @@ func TestMarkAbsentRejectsOversizedSnapshot(t *testing.T) {
 	err := workdb.WithDirectoryContext(ctx, pool, "org_cap", workdb.Options{}, func(tx pgx.Tx) error {
 		var affected int
 		return tx.QueryRow(ctx,
-			`SELECT work.mark_members_absent($1, $2, false)`, "org_cap", present,
+			`SELECT work.mark_members_absent($1, $2, false, 1)`, "org_cap", present,
 		).Scan(&affected)
 	})
 	assertPgCode(t, err, "22023", "invalid_request:present_subjects")
@@ -465,7 +624,7 @@ func TestMassAbsenceRequiresExplicitAllow(t *testing.T) {
 		t.Fatalf("initial sync = %#v, %v", report, err)
 	}
 
-	absent, err := writer.MarkAbsent(ctx, "org_mass", []string{}, false)
+	absent, err := writer.MarkAbsent(ctx, "org_mass", []string{}, false, 13)
 	if !errors.Is(err, directory.ErrMassAbsenceBlocked) || absent != 0 {
 		t.Fatalf("blocked absence = %d, %v", absent, err)
 	}
@@ -489,7 +648,7 @@ func TestMassAbsenceRequiresExplicitAllow(t *testing.T) {
 		t.Fatalf("blocked audits = %d", blocked)
 	}
 
-	absent, err = writer.MarkAbsent(ctx, "org_mass", []string{}, true)
+	absent, err = writer.MarkAbsent(ctx, "org_mass", []string{}, true, 13)
 	if err != nil || absent != 11 {
 		t.Fatalf("allowed absence = %d, %v", absent, err)
 	}
@@ -553,9 +712,6 @@ func newDirectoryDB(t *testing.T) (*pgxpool.Pool, *pgx.Conn, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = admin.Close(context.Background()) })
-	if err := testpg.ApplyDirectoryAbsence(ctx, admin); err != nil {
-		t.Fatal(err)
-	}
 
 	pool, err := workdb.OpenPool(ctx, testpg.DirectoryURL(dbName), "work-directory-test")
 	if err != nil {

@@ -53,6 +53,40 @@ type Request struct {
 	PreviousContent string
 }
 
+// UsageSource identifies where a token count came from.
+type UsageSource string
+
+const (
+	// UsageProvider means the provider reported the counts.
+	UsageProvider UsageSource = "provider"
+	// UsageGatewayEstimate means the gateway estimated the counts.
+	UsageGatewayEstimate UsageSource = "gateway_estimate"
+	// UsageUnavailable means usage is unknown; all token fields must be nil.
+	UsageUnavailable UsageSource = "unavailable"
+)
+
+// Usage carries token counts for one runtime result. Counts are pointers so a
+// provider-reported zero stays distinguishable from unknown usage; when Source
+// is UsageUnavailable every count is nil.
+type Usage struct {
+	Source            UsageSource
+	InputTokens       *int64
+	OutputTokens      *int64
+	CachedInputTokens *int64
+}
+
+// Total sums the token counts. It reports ok=false unless the source is not
+// UsageUnavailable and all three counts are present.
+func (u Usage) Total() (int64, bool) {
+	if u.Source == UsageUnavailable {
+		return 0, false
+	}
+	if u.InputTokens == nil || u.OutputTokens == nil || u.CachedInputTokens == nil {
+		return 0, false
+	}
+	return *u.InputTokens + *u.OutputTokens + *u.CachedInputTokens, true
+}
+
 type Result struct {
 	Content           []byte
 	MediaType         string
@@ -60,9 +94,7 @@ type Result struct {
 	Provider          string
 	Model             string
 	ProviderRequestID string
-	InputTokens       int64
-	OutputTokens      int64
-	CachedInputTokens int64
+	Usage             Usage
 }
 
 type Runtime interface {

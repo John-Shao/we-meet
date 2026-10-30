@@ -84,6 +84,83 @@
       "catalog_checksum": "sha256:1d00cb8a67dbd585cc52c1a050badf2e00b662f6ec28fa5ed7ee576d231024f0",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 8,
+      "name": "0008_quota_directory_usage_hardening",
+      "kind": "increment",
+      "file": "increments/0008_quota_directory_usage_hardening.sql",
+      "checksum": "sha256:ed70a9d6138d5e840dfcd70b09c6eca2ae28d0db6b9ea2bed819a30ed81684e3",
+      "catalog": "catalogs/0008_quota_directory_usage_hardening.json",
+      "catalog_checksum": "sha256:ea52739b1ceba4e2d2143220b4f283c6b48f89b8e81646f3a58d0caa3daf8715",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 9,
+      "name": "0009_runtime_execution_dispatch_gate",
+      "kind": "increment",
+      "file": "increments/0009_runtime_execution_dispatch_gate.sql",
+      "checksum": "sha256:0cf5bb40cc093fa878b99846cbc613c9a6c062bced32e585656b79435784049a",
+      "catalog": "catalogs/0009_runtime_execution_dispatch_gate.json",
+      "catalog_checksum": "sha256:30e327db416c1ce6e9ff9f97ad0bf3e6441da483e2f46586c9c4153b2dafc1ab",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 10,
+      "name": "0010_runtime_capability",
+      "kind": "increment",
+      "file": "increments/0010_runtime_capability.sql",
+      "checksum": "sha256:ea667fd28551813cfb1d09b379d1bd1b44d139eddd314158c9b8372602b288ad",
+      "catalog": "catalogs/0010_runtime_capability.json",
+      "catalog_checksum": "sha256:18effec1697f23fcf3dd55f34ced2fcf7239526fa6a0964818f884dbd090eb04",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 11,
+      "name": "0011_content_reference",
+      "kind": "increment",
+      "file": "increments/0011_content_reference.sql",
+      "checksum": "sha256:6d800ab779fd0ea9ae8593b6052bc08cc398ed71be5cf7b2f7158e23c8ca0065",
+      "catalog": "catalogs/0011_content_reference.json",
+      "catalog_checksum": "sha256:b76f60a1fab78b669e4951d1e19e9f7ca0619153723e2cf4aa82777e168fa8a5",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 12,
+      "name": "0012_content_slot",
+      "kind": "increment",
+      "file": "increments/0012_content_slot.sql",
+      "checksum": "sha256:244e22b5bdba43609c8cdb1ff631231b4325c324ee229a71f4aa613dbf2d7cb8",
+      "catalog": "catalogs/0012_content_slot.json",
+      "catalog_checksum": "sha256:688f4208c7b56ea6f8afc7f5d3143b84307025f38e946c8eab0bea309af55bb2",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 13,
+      "name": "0013_model_request_dispatch_consume",
+      "kind": "increment",
+      "file": "increments/0013_model_request_dispatch_consume.sql",
+      "checksum": "sha256:447f9d3e3712d87521c1e2a9c5e3f59d0e03c9192d0472e9ccc567069e052ef6",
+      "catalog": "catalogs/0013_model_request_dispatch_consume.json",
+      "catalog_checksum": "sha256:e829a3b90af661d5a388fe346cbe6b7b94551426268fd1fb7b940ad43a14ff13",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 14,
+      "name": "0014_advance_binding_reads",
+      "kind": "increment",
+      "file": "increments/0014_advance_binding_reads.sql",
+      "checksum": "sha256:650fa7724cbfa85f4f18aa41f309a129c9e0798ad7cf1939ae6dc49e983f5405",
+      "catalog": "catalogs/0014_advance_binding_reads.json",
+      "catalog_checksum": "sha256:1ff7b3d9aebe5395e84a06790d5df3f7a9f0c0487ea9397d6a50472549da16f0",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

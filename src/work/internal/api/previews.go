@@ -19,6 +19,7 @@ import (
 	"github.com/we-meet/work/internal/apierr"
 	workdb "github.com/we-meet/work/internal/db"
 	"github.com/we-meet/work/internal/host"
+	"github.com/we-meet/work/internal/modelparams"
 )
 
 const (
@@ -73,6 +74,10 @@ func (s *Server) createPreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.requireWriter(r.Context(), claims); err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
+	if err := s.requireFreshDirectory(r.Context(), claims); err != nil {
 		s.writeAccessError(w, correlationID, err)
 		return
 	}
@@ -131,6 +136,10 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 		s.writeAccessError(w, correlationID, err)
 		return
 	}
+	if err := s.requireFreshDirectory(r.Context(), claims); err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
 	var body submitRequest
 	if err := decodeStrictJSON(w, r, &body); err != nil {
 		writeAPIError(w, correlationID, apierr.New("invalid_request"))
@@ -186,6 +195,7 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 		},
 		"permission_mode":   preview.PermissionMode,
 		"token_upper_bound": preview.TokenUpperBound,
+		"parameters":        modelparams.Manifest(),
 	})
 	if err != nil {
 		writeAPIError(w, correlationID, apierr.New("service_degraded"))
@@ -210,7 +220,7 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 				)`,
 				claims.OrgID, claims.SubjectID, body.ClientRequestID, body.InputRef,
 				title, preview.PermissionMode, snapshotHash, string(manifest),
-				[]string{"model_call"}, modelRoute, "", "r0a",
+				[]string{"model_call"}, modelRoute, "", s.executionRuntimeVersion(),
 			).Scan(&taskID, &runID, &revision)
 		},
 	)

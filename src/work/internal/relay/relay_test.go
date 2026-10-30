@@ -3,6 +3,7 @@ package relay_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -10,9 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.temporal.io/api/serviceerror"
 
 	"github.com/we-meet/work/internal/content"
+	workdb "github.com/we-meet/work/internal/db"
 	"github.com/we-meet/work/internal/relay"
 	"github.com/we-meet/work/internal/testpg"
 )
@@ -110,6 +114,116 @@ func TestRelayCancelsActiveRunAndSkipsTerminalRun(t *testing.T) {
 		t.Fatalf("terminal run was signaled again: %#v", dispatcher.signals)
 	}
 	assertDelivered(t, dbName, "bbbbbbbb-1111-4111-8111-222222222222")
+}
+
+func TestRelayCancelNotFoundRetriesUntilTerminal(t *testing.T) {
+	for _, dispatchError := range []struct {
+		name string
+		err  error
+	}{
+		{"sentinel", relay.ErrWorkflowNotFound},
+		{"typed", serviceerror.NewNotFound("workflow missing")},
+		{"wrapped_typed", fmt.Errorf("signal: %w", serviceerror.NewNotFound("workflow missing"))},
+	} {
+		for _, state := range []string{"queued", "active", "cancel_requested", "succeeded", "failed", "canceled"} {
+			t.Run(dispatchError.name+"/"+state, func(t *testing.T) {
+				pool, dbName := newRelayDB(t)
+				seedRun(t, dbName)
+				const eventID = "eeeeeeee-1111-4111-8111-111111111111"
+				insertOutbox(t, dbName, eventID, relayOrg, "run", relayRun,
+					`{"kind":"cancel_signal","run_id":"`+relayRun+`"}`)
+				terminal := state == "succeeded" || state == "failed" || state == "canceled"
+				dispatcher := &fakeDispatcher{signalErr: dispatchError.err}
+				if terminal {
+					// Finish during the signal attempt to exercise the NotFound recheck.
+					dispatcher.onSignal = func() { setRunState(t, dbName, state) }
+				} else {
+					setRunState(t, dbName, state)
+				}
+				service := newRelay(t, pool, dispatcher, &fakeStore{})
+				if _, err := service.Once(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+				if len(dispatcher.signals) != 1 {
+					t.Fatalf("signals = %#v", dispatcher.signals)
+				}
+				if terminal {
+					assertDelivered(t, dbName, eventID)
+				} else {
+					assertOutboxFields(t, dbName, eventID, false, false, 1, "workflow_missing", true)
+				}
+			})
+		}
+	}
+}
+
+func TestRelayRejectsStaleHolderAfterTakeover(t *testing.T) {
+	for _, outcome := range []struct {
+		name string
+		err  error
+	}{
+		{"ack", nil},
+		{"retry", errors.New("temporal offline")},
+	} {
+		t.Run(outcome.name, func(t *testing.T) {
+			pool, dbName := newRelayDB(t)
+			seedRun(t, dbName)
+			const eventID = "ffffffff-1111-4111-8111-111111111111"
+			const newHolder = "relay-test-2"
+			insertOutbox(t, dbName, eventID, relayOrg, "run", relayRun,
+				`{"kind":"cancel_signal","run_id":"`+relayRun+`"}`)
+			ctx := context.Background()
+			admin, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer admin.Close(ctx)
+			expireLease := func() {
+				t.Helper()
+				if _, err := admin.Exec(ctx, `UPDATE work.outbox SET claimed_until = now() - interval '1 second' WHERE event_id = $1`, eventID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			dispatcher := &fakeDispatcher{signalErr: outcome.err, onSignal: func() {
+				expireLease()
+				if err := workdb.WithRelayContext(ctx, pool, func(tx pgx.Tx) error {
+					var claimed string
+					if err := tx.QueryRow(ctx, `SELECT event_id FROM work.claim_outbox($1, 1, 30)`, newHolder).Scan(&claimed); err != nil {
+						return err
+					}
+					if claimed != eventID {
+						return fmt.Errorf("takeover claimed %s, want %s", claimed, eventID)
+					}
+					return nil
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}}
+			if n, err := newRelay(t, pool, dispatcher, &fakeStore{}).Once(ctx); err != nil || n != 1 {
+				t.Fatalf("stale holder pass: events=%d err=%v", n, err)
+			}
+			// The old holder must neither acknowledge nor schedule a retry.
+			assertOutboxFields(t, dbName, eventID, false, false, 0, "", false)
+			var holder string
+			if err := admin.QueryRow(ctx, `SELECT claimed_by FROM work.outbox WHERE event_id = $1`, eventID).Scan(&holder); err != nil {
+				t.Fatal(err)
+			}
+			if holder != newHolder {
+				t.Fatalf("holder = %q, want %q", holder, newHolder)
+			}
+			expireLease()
+			service, err := relay.New(pool, &fakeStore{}, &fakeDispatcher{}, relay.Config{
+				RelayID: newHolder, BatchSize: 20, LeaseSeconds: 30,
+			}, log.New(io.Discard, "", 0))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if n, err := service.Once(ctx); err != nil || n != 1 {
+				t.Fatalf("new holder pass: events=%d err=%v", n, err)
+			}
+			assertDelivered(t, dbName, eventID)
+		})
+	}
 }
 
 func TestRelayShredsContent(t *testing.T) {
@@ -264,6 +378,9 @@ func assertOutboxFields(t *testing.T, dbName, eventID string, delivered, dead bo
 
 func setRunState(t *testing.T, dbName, state string) {
 	t.Helper()
+	if state == "queued" {
+		return
+	}
 	ctx := context.Background()
 	conn, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
 	if err != nil {
@@ -284,11 +401,15 @@ func setRunState(t *testing.T, dbName, state string) {
 	if _, err := tx.Exec(ctx, `SELECT work.acquire_run($1, $2)`, relayRun, relayOrg); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tx.Exec(ctx, `SELECT work.request_cancel($1, $2, 'sub_relay', NULL)`, relayOrg, relayRun); err != nil {
-		t.Fatal(err)
+	if state == "cancel_requested" || state == "canceled" {
+		if _, err := tx.Exec(ctx, `SELECT work.request_cancel($1, $2, 'sub_relay', NULL)`, relayOrg, relayRun); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if _, err := tx.Exec(ctx, `SELECT work.finish_run($1, $2, $3, NULL)`, relayRun, relayOrg, state); err != nil {
-		t.Fatal(err)
+	if state != "active" && state != "cancel_requested" {
+		if _, err := tx.Exec(ctx, `SELECT work.finish_run($1, $2, $3, NULL)`, relayRun, relayOrg, state); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
@@ -311,6 +432,7 @@ type fakeDispatcher struct {
 	signals   []fakeSignal
 	startErr  error
 	signalErr error
+	onSignal  func()
 }
 
 type fakeSignal struct {
@@ -330,6 +452,9 @@ func (f *fakeDispatcher) CancelWorkflow(context.Context, string) error {
 
 func (f *fakeDispatcher) SignalWorkflow(_ context.Context, workflowID, name string, payload any) error {
 	f.signals = append(f.signals, fakeSignal{workflowID: workflowID, name: name, payload: payload})
+	if f.onSignal != nil {
+		f.onSignal()
+	}
 	return f.signalErr
 }
 

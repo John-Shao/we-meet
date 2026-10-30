@@ -65,6 +65,7 @@ func (w *PGWriter) MarkAbsent(
 	orgID string,
 	present []string,
 	allowMassAbsence bool,
+	snapshotRevision int64,
 ) (int, error) {
 	if present == nil {
 		present = []string{}
@@ -72,8 +73,8 @@ func (w *PGWriter) MarkAbsent(
 	var affected int
 	err := workdb.WithDirectoryContext(ctx, w.Pool, orgID, workdb.Options{}, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx,
-			`SELECT work.mark_members_absent($1, $2, $3)`,
-			orgID, present, allowMassAbsence,
+			`SELECT work.mark_members_absent($1, $2, $3, $4)`,
+			orgID, present, allowMassAbsence, snapshotRevision,
 		).Scan(&affected)
 	})
 	if err != nil {
@@ -83,6 +84,22 @@ func (w *PGWriter) MarkAbsent(
 		return 0, ErrMassAbsenceBlocked
 	}
 	return affected, nil
+}
+
+func (w *PGWriter) RecordSync(
+	ctx context.Context,
+	orgID, mode string,
+	success bool,
+	revision int64,
+	errorText string,
+) error {
+	return workdb.WithDirectoryContext(ctx, w.Pool, orgID, workdb.Options{}, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx,
+			`SELECT work.record_directory_sync($1, $2, $3, $4, $5)`,
+			orgID, mode, success, revision, errorText,
+		)
+		return err
+	})
 }
 
 func projectionError(err error) error {

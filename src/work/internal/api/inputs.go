@@ -64,6 +64,10 @@ func (s *Server) createInput(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, correlationID, apiError)
 		return
 	}
+	if err := s.requireFreshDirectory(r.Context(), claims); err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
 	body, err := readInputBody(w, r)
 	if err != nil {
 		writeAPIError(w, correlationID, apierr.New("invalid_request"))
@@ -82,7 +86,7 @@ func (s *Server) createInput(w http.ResponseWriter, r *http.Request) {
 	}
 	response, err := s.persistInput(r.Context(), claims, body.ClientRequestID, ref)
 	if err != nil {
-		_ = s.content.Delete(r.Context(), claims.OrgID, ref.ContentRef)
+		// A lost commit ACK may leave a durable row referencing this object.
 		var domain *domainError
 		if errors.As(err, &domain) {
 			writeAPIError(w, correlationID, apierr.New(domain.code))
@@ -94,7 +98,7 @@ func (s *Server) createInput(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if response.storedRef != ref.ContentRef {
-		_ = s.content.Delete(r.Context(), claims.OrgID, ref.ContentRef)
+		s.logger.Printf("work api input replay left an unreferenced object correlation_id=%s", correlationID)
 	}
 	writeJSON(w, http.StatusCreated, response)
 }

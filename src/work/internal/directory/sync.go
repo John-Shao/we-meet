@@ -31,7 +31,8 @@ type ProjectionWriter interface {
 	SyncOrg(ctx context.Context, org host.Org) error
 	SyncMember(ctx context.Context, member host.Member) error
 	Watermark(ctx context.Context, orgID string) (int64, bool, error)
-	MarkAbsent(ctx context.Context, orgID string, present []string, allowMassAbsence bool) (int, error)
+	MarkAbsent(ctx context.Context, orgID string, present []string, allowMassAbsence bool, snapshotRevision int64) (int, error)
+	RecordSync(ctx context.Context, orgID, mode string, success bool, revision int64, errorText string) error
 }
 
 type Options struct {
@@ -104,10 +105,18 @@ func Sync(ctx context.Context, discovery Discovery, writer ProjectionWriter, opt
 		if reason := orgGap(org); reason != "" {
 			report.OrgsFailed++
 			record(ItemError{Scope: "org", OrgID: org.OrgID, Code: "host_field_gap", Message: reason})
+			if err := writer.RecordSync(ctx, org.OrgID, mode, false, org.Revision, "host_field_gap"); err != nil {
+				record(ItemError{Scope: "org", OrgID: org.OrgID, Code: errorCode(err), Message: err.Error()})
+			}
 			continue
 		}
-		if !syncOrganization(ctx, discovery, writer, org, options.Full, options.AllowMassAbsence, &report, record) {
+		ok := syncOrganization(ctx, discovery, writer, org, options.Full, options.AllowMassAbsence, &report, record)
+		if !ok {
 			report.OrgsFailed++
+		}
+		if err := writer.RecordSync(ctx, org.OrgID, mode, ok, org.Revision, ""); err != nil {
+			report.OrgsFailed++
+			record(ItemError{Scope: "org", OrgID: org.OrgID, Code: "sync_state_write_failed", Message: err.Error()})
 		}
 	}
 	if options.OrgID != "" && report.OrgsTotal == 0 {
@@ -256,7 +265,7 @@ func syncOrganization(
 	}
 
 	if full {
-		absent, err := writer.MarkAbsent(ctx, org.OrgID, present, allowMassAbsence)
+		absent, err := writer.MarkAbsent(ctx, org.OrgID, present, allowMassAbsence, org.Revision)
 		if err != nil {
 			record(ItemError{Scope: "absence", OrgID: org.OrgID, Code: errorCode(err), Message: err.Error()})
 			return false

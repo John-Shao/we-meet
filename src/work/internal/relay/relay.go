@@ -14,6 +14,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.temporal.io/api/serviceerror"
 
 	"github.com/we-meet/work/internal/content"
 	workdb "github.com/we-meet/work/internal/db"
@@ -214,9 +215,10 @@ func (r *Relay) cancel(ctx context.Context, event Event, runID string) error {
 	if err := r.dispatcher.SignalWorkflow(ctx, workflowID, "cancel", map[string]any{
 		"run_id": runID, "reason": "user_requested",
 	}); err != nil {
-		if errors.Is(err, ErrWorkflowNotFound) {
+		var notFound *serviceerror.NotFound
+		if errors.Is(err, ErrWorkflowNotFound) || errors.As(err, &notFound) {
 			_, current, lookupErr := r.runState(ctx, event.OrgID, runID)
-			if lookupErr == nil && (terminalRunState(current) || current == "queued" || current == "cancel_requested") {
+			if lookupErr == nil && terminalRunState(current) {
 				return r.ack(ctx, event)
 			}
 			return r.fail(ctx, event, "workflow_missing", true)
