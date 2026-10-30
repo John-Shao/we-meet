@@ -538,13 +538,15 @@ export const TaskWorkspacePage = () => {
                     ? t('task.templateMissing')
                     : '—'}
               </dd>
-              <dt className={label}>{t('task.snapshotHash')}</dt>
-              <dd className={css({ margin: 0, overflowWrap: 'anywhere' })}>
-                {detail.snapshot?.snapshot_hash ?? '—'}
-              </dd>
-              <dt className={label}>{t('task.tools')}</dt>
+              <dt className={label}>{t('task.snapshotRevision')}</dt>
               <dd className={css({ margin: 0 })}>
-                {detail.snapshot?.tool_allowlist.join(', ') || '—'}
+                {detail.snapshot
+                  ? `v${detail.snapshot.snapshot_revision}`
+                  : '—'}
+              </dd>
+              <dt className={label}>{t('task.permissionMode')}</dt>
+              <dd className={css({ margin: 0 })}>
+                {detail.snapshot?.permission_mode ?? '—'}
               </dd>
             </dl>
           </section>

@@ -75,11 +75,19 @@ export interface WorkTaskSummary {
   updated_at: string
 }
 
+export interface WorkSnapshotTemplate {
+  id: string
+  version: number
+  content_hash: string
+}
+
 export interface WorkSnapshot {
   snapshot_id: string
-  snapshot_hash: string
-  tool_allowlist: string[]
-  model_route: Record<string, unknown>
+  snapshot_revision: number
+  template: WorkSnapshotTemplate
+  limits: { token_upper_bound: number }
+  permission_mode: string
+  created_at: string
 }
 
 export interface WorkTaskDetail {

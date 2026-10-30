@@ -17,8 +17,8 @@ func TestEmbeddedManifestLoads(t *testing.T) {
 	if len(manifest.Baseline) != 2 {
 		t.Fatalf("baseline entries = %d, want 2", len(manifest.Baseline))
 	}
-	if len(manifest.Increments) != 12 {
-		t.Fatalf("increments = %d, want 12", len(manifest.Increments))
+	if len(manifest.Increments) != 13 {
+		t.Fatalf("increments = %d, want 13", len(manifest.Increments))
 	}
 	if manifest.Increments[0].Name != "0003_directory_absence" {
 		t.Fatalf("increment name = %q", manifest.Increments[0].Name)
@@ -55,6 +55,9 @@ func TestEmbeddedManifestLoads(t *testing.T) {
 	}
 	if manifest.Increments[11].Name != "0014_advance_binding_reads" {
 		t.Fatalf("increment name = %q", manifest.Increments[11].Name)
+	}
+	if manifest.Increments[12].Name != "0015_snapshot_revision" {
+		t.Fatalf("increment name = %q", manifest.Increments[12].Name)
 	}
 	if manifest.Baseline[1].Name != "0002_initial_r0a_schema" {
 		t.Fatalf("baseline name = %q", manifest.Baseline[1].Name)

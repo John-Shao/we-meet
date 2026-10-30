@@ -161,6 +161,17 @@
       "catalog_checksum": "sha256:1ff7b3d9aebe5395e84a06790d5df3f7a9f0c0487ea9397d6a50472549da16f0",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 15,
+      "name": "0015_snapshot_revision",
+      "kind": "increment",
+      "file": "increments/0015_snapshot_revision.sql",
+      "checksum": "sha256:391bf58708540bc7e2d6742b9ff62e2b854d8d97e027ed12d2bea61a150486c6",
+      "catalog": "catalogs/0015_snapshot_revision.json",
+      "catalog_checksum": "sha256:d271205bcdf31ee1005d399be9f78a258a88c8da9e86bab21cf1e661cd707b06",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

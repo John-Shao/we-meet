@@ -18,11 +18,25 @@ import (
 	workdb "github.com/we-meet/work/internal/db"
 )
 
+// TaskSnapshot is the closed snapshot object of D2 §8.2 (decision B1,
+// 2026-10-30). Internal routing and tool configuration are not part of it.
 type TaskSnapshot struct {
-	SnapshotID    string          `json:"snapshot_id"`
-	SnapshotHash  string          `json:"snapshot_hash"`
-	ToolAllowlist []string        `json:"tool_allowlist"`
-	ModelRoute    json.RawMessage `json:"model_route"`
+	SnapshotID       string           `json:"snapshot_id"`
+	SnapshotRevision int64            `json:"snapshot_revision"`
+	Template         SnapshotTemplate `json:"template"`
+	Limits           SnapshotLimits   `json:"limits"`
+	PermissionMode   string           `json:"permission_mode"`
+	CreatedAt        time.Time        `json:"created_at"`
+}
+
+type SnapshotTemplate struct {
+	ID          string `json:"id"`
+	Version     int    `json:"version"`
+	ContentHash string `json:"content_hash"`
+}
+
+type SnapshotLimits struct {
+	TokenUpperBound int64 `json:"token_upper_bound"`
 }
 
 type TaskDetail struct {
@@ -124,17 +138,15 @@ func (s *Server) getTask(w http.ResponseWriter, r *http.Request) {
 			).Scan(&record.contentRef, &record.contentHash, &record.inputStatus); err != nil {
 				return err
 			}
-			var modelRoute []byte
 			if err := tx.QueryRow(r.Context(), `
-				SELECT id, snapshot_hash, tool_allowlist, model_route, manifest
+				SELECT id, revision, manifest, created_at
 				FROM work.capability_snapshot
 				WHERE id = $1 AND org_id = $2 AND task_id = $3`,
 				snapshotID, claims.OrgID, taskID,
-			).Scan(&record.snapshot.SnapshotID, &record.snapshot.SnapshotHash,
-				&record.snapshot.ToolAllowlist, &modelRoute, &record.manifestJSON); err != nil {
+			).Scan(&record.snapshot.SnapshotID, &record.snapshot.SnapshotRevision,
+				&record.manifestJSON, &record.snapshot.CreatedAt); err != nil {
 				return err
 			}
-			record.snapshot.ModelRoute = json.RawMessage(modelRoute)
 			if err := tx.QueryRow(r.Context(), `
 				SELECT id FROM work.task_event
 				WHERE task_id = $1 AND org_id = $2
@@ -187,9 +199,28 @@ func (s *Server) getTask(w http.ResponseWriter, r *http.Request) {
 	if input.Background != "" {
 		background = &input.Background
 	}
-	if len(record.snapshot.ModelRoute) == 0 {
-		record.snapshot.ModelRoute = json.RawMessage(`{}`)
+	var snapshotManifest struct {
+		Template struct {
+			ID          string `json:"id"`
+			Version     int    `json:"version"`
+			ContentHash string `json:"content_hash"`
+		} `json:"template"`
+		PermissionMode  string `json:"permission_mode"`
+		TokenUpperBound int64  `json:"token_upper_bound"`
 	}
+	if err := json.Unmarshal(record.manifestJSON, &snapshotManifest); err != nil ||
+		snapshotManifest.Template.ID == "" || snapshotManifest.PermissionMode == "" {
+		s.logger.Printf("work api snapshot manifest is invalid correlation_id=%s", correlationID)
+		writeAPIError(w, correlationID, apierr.New("service_degraded"))
+		return
+	}
+	record.snapshot.Template = SnapshotTemplate{
+		ID:          snapshotManifest.Template.ID,
+		Version:     snapshotManifest.Template.Version,
+		ContentHash: snapshotManifest.Template.ContentHash,
+	}
+	record.snapshot.PermissionMode = snapshotManifest.PermissionMode
+	record.snapshot.Limits.TokenUpperBound = snapshotManifest.TokenUpperBound
 	writeJSON(w, http.StatusOK, TaskDetail{
 		Summary:       summary,
 		InputRef:      record.inputRef,

@@ -26,7 +26,7 @@
 
 **签收**
 
-- [ ] John：选择 A1 / A2 / A3
+- [x] John：**选择 A1（2026-10-30）**——新增闭集 reason `provider_rejected`；操作 failed、释放预留、Run failed、不重试、不发布成果；不新增 DB 收尾命令。
 - [ ] Lily：复核所选方案是否改变 F0-R1 回执与 F0-R3 恢复边界
 
 ## 决策 B：`TaskDetail.snapshot` 形状
@@ -45,7 +45,7 @@
 
 **签收**
 
-- [ ] John：选择 B1 / B2 / B3
+- [x] John：**选择 B1（2026-10-30）**——闭合对象 `{snapshot_id, snapshot_revision, template, limits, permission_mode, created_at}`，移除 `model_route`/`tool_allowlist`；新增未发布迁移 0015 增加 `revision bigint`（同一 Task 内单调），由 `submit_task` 写入下一个 revision。
 - [ ] Lily：若选 B1，复核 `snapshot_revision` 的单调性与迁移；若选 B2，复核内部字段暴露边界
 
 ## 不在本单范围

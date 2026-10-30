@@ -71,9 +71,11 @@ func TestGetTaskReturnsOwnedDetail(t *testing.T) {
 	if detail.Template == nil || detail.Template.ID != "summary" || detail.Template.ContentHash == "" {
 		t.Fatalf("template = %#v", detail.Template)
 	}
-	if detail.Snapshot == nil || detail.Snapshot.SnapshotID == "" || detail.Snapshot.SnapshotHash == "" ||
-		len(detail.Snapshot.ToolAllowlist) != 1 || detail.Snapshot.ToolAllowlist[0] != "model_call" ||
-		!strings.Contains(string(detail.Snapshot.ModelRoute), "deferred") {
+	if detail.Snapshot == nil || detail.Snapshot.SnapshotID == "" ||
+		detail.Snapshot.SnapshotRevision != 1 ||
+		detail.Snapshot.Template.ID != "summary" || detail.Snapshot.Template.ContentHash == "" ||
+		detail.Snapshot.Limits.TokenUpperBound <= 0 ||
+		detail.Snapshot.PermissionMode != "ask_each" || detail.Snapshot.CreatedAt.IsZero() {
 		t.Fatalf("snapshot = %#v", detail.Snapshot)
 	}
 	if detail.LatestEventID == nil || *detail.LatestEventID == "" {
