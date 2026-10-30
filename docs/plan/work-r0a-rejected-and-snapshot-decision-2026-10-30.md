@@ -89,11 +89,11 @@ John 判定（2026-10-30）：**选 (a)**，Lily 已复核该判定。落地方�
 
 **预发实证（2026-10-30，(a) 生效后）**：为遗留 waiting Run 新增 `work-reconcile -signal-only`（只投递 `resume` 信号，不写任何业务状态，也不接受 `-resolution`/`-finish-from-receipt`）。Run `26ec8787-7a74-4ee9-b5f6-3654eb0b6647` 的信号投递后：`run=failed`、`terminal_reason=reconcile_resolved`、`operation=failed`、闸门 `receipt_recorded/rejected_not_executed`、预留 **released**；组织 held 预留由 10/1,000,000 降到 9/900,000（`quota_account.reserved_tokens=900000`）。**剩余 9 个仍 held 是设计结果**：它们的 `dispatching` 操作没有 `dispatch_delivery` 行，没有任何“未执行”书证，(a) 也不会替它们伪造。
 
-## 增量 C：unknown/unresolved 的已绑拒绝回执恢复（待复核）
+## 增量 C：unknown/unresolved 的已绑拒绝回执恢复（已签收，2026-10-31）
 
-本节不沿用 A1/B1/(a) 的签收。John 已选择继续本地开发拒绝回执恢复，但尚未签收以下新增语义；不发布环境迁移。
+本节不沿用 A1/B1/(a) 的签收，单独签收以下新增语义；John 于 2026-10-31 主签、Lily 经 John 转述复核，并授权部署 0016。部署验收证据以 [项目状态源](work-project.md) 为准，本节不复制运行状态。
 
-**本地实现候选**
+**已签收的实现**
 
 - 新增未发布 `0016_reconcile_rejected_receipt`，扩展 `reconcile_operation` 的 resolution 为 `rejected_not_executed`，不修改已发布 0009，也不把拒绝伪装成 `not_sent` 或 `sent_succeeded`。
 - 定义域仍为 `unknown/unresolved → reconciled`；`dispatching` 不进入该域，由已签 (a) 的 `AbortRun` 关闭为 `failed`。`reconciled` 表示对账结束，不代表模型执行成功；Run 必须失败且原 canonical head 保持不变，不发布成果。
@@ -107,9 +107,9 @@ John 判定（2026-10-30）：**选 (a)**，Lily 已复核该判定。落地方�
 - `internal/finishing/finishing_test.go`：`TestRejectedReceiptReconcilesWithoutUsage`、`TestReconcileRejectionRejectsInvalidEvidence`、`TestRejectedReceiptValidatesSnapshotBindingBeforeReconcile`、`TestReconcileRejectionPreservesUsageAndChecksReplayEvidence`、`TestConcurrentRejectedReceiptReconcilesOnce`、`TestReconcileRejectionDoesNotReverseSettlement`、`TestReconcileRejectionRetainsDefinerAndMinimalPrivileges`。
 - `internal/runflow/advance_pg_test.go`：`TestAdvanceFinishReconcilesWaitingProviderRejectionAndReplays`；`advance_test.go`：`TestRunWorkflowAdvanceWaitingResume`。全量执行状态与命令只记在 [项目状态源](work-project.md)。
 
-**边界**：只能恢复已经 attach 的终态拒绝回执；attach 仍未完成、consumed 无回执、无闸门的遗留操作均不由本增量清账。取消不借用拒绝收尾。真实 Temporal Server history replay 与环境部署回归未执行。
+**边界**：只能恢复已经 attach 的终态拒绝回执；attach 仍未完成、consumed 无回执、无闸门的遗留操作均不由本增量清账。取消不借用拒绝收尾。真实 Temporal Server history replay 不在增量 C 的验收范围；环境部署与只读负例证据回写到项目状态源，部署成功不等于 Lily 对运行结果的复核。
 
-**签收（不得用本地测试代替）**
+**签收**
 
-- [ ] John：接受第四个 resolution、`reconciled` 不等于成功及零用量冲突拒绝规则。
-- [ ] Lily：复核新写入口、执行身份/租户隔离、重放与取消边界。
+- [x] John：**主签（2026-10-31）**——接受第四个 resolution `rejected_not_executed`、`reconciled` 不等于执行成功、零结算与非零/NULL 拒绝、既有用量或正数结算一律冲突拒绝；授权把 0016 部署到 Work 环境。
+- [x] Lily：**复核通过（2026-10-31，经 John 转述）**——同意增量 C 的新写入口、执行身份与租户隔离、重放证据校验及取消不借用拒绝清账的边界。本会话无 Lily 本人书面记录，不将其扩写为对部署结果的签收。
