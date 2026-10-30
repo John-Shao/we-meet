@@ -7,12 +7,14 @@ import { css } from '@/styled-system/css'
 import { useWorkBootstrap, useWorkTasks } from '../api/queries'
 import { Composer } from '../components/Composer'
 import { TaskCard } from '../components/TaskCard'
-import { card, muted, page, row, sectionTitle } from '../ui'
+import { useReadOnlyViewport } from '../hooks/useReadOnlyViewport'
+import { card, muted, notice, page, row, sectionTitle } from '../ui'
 
 export const WorkHomePage = () => {
   const { t } = useTranslation('work')
   const bootstrapQ = useWorkBootstrap()
   const tasksQ = useWorkTasks('all')
+  const readOnly = useReadOnlyViewport()
   const recent = tasksQ.data?.pages[0]?.items.slice(0, 3) ?? []
 
   if (!bootstrapQ.data) return null
@@ -50,7 +52,13 @@ export const WorkHomePage = () => {
         </div>
       </section>
 
-      <Composer bootstrap={bootstrapQ.data} />
+      {readOnly ? (
+        <p className={notice} role="status">
+          {t('readOnly.homeHint')}
+        </p>
+      ) : (
+        <Composer bootstrap={bootstrapQ.data} />
+      )}
 
       <section
         className={css({ display: 'flex', flexDirection: 'column', gap: 'sm' })}

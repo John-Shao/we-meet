@@ -18,6 +18,16 @@ export const card = css({
   padding: 'lg',
 })
 
+export const notice = css({
+  margin: 0,
+  padding: 'sm',
+  border: '1px solid token(colors.border.subtle)',
+  borderRadius: 'control',
+  backgroundColor: 'surface.canvas',
+  color: 'text.secondary',
+  textStyle: 'bodyMedium',
+})
+
 export const muted = css({
   color: 'text.secondary',
   textStyle: 'bodyMedium',

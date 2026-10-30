@@ -89,6 +89,7 @@ export interface WorkTaskDetail {
   background: string | null
   template: WorkTemplate | null
   snapshot: WorkSnapshot | null
+  latest_event_id: string | null
 }
 
 export interface WorkTaskList {

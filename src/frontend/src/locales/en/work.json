@@ -15,6 +15,10 @@
     "bootstrapTitle": "Work is unavailable",
     "bootstrapDescription": "Could not verify the Work session or load configuration. Try again later."
   },
+  "readOnly": {
+    "homeHint": "Creating work needs a wider screen. Open Work on a tablet or desktop to start a task.",
+    "taskNotice": "Mobile view is read-only. You can review the goal, timeline and results; creating, editing, accepting, canceling and retrying need a wider screen."
+  },
   "home": {
     "eyebrow": "WORK",
     "title": "Start with one sentence",

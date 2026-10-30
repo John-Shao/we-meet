@@ -79,9 +79,15 @@ type Props = {
   artifactId: string
   versionNo: number
   contentHash: string
+  readOnly?: boolean
 }
 
-export const ArtifactPanel = ({ artifactId, versionNo, contentHash }: Props) => {
+export const ArtifactPanel = ({
+  artifactId,
+  versionNo,
+  contentHash,
+  readOnly = false,
+}: Props) => {
   const { t } = useTranslation('work')
   const [open, setOpen] = useState(false)
   const contentQ = useWorkArtifactContent(artifactId, versionNo, open)
@@ -126,13 +132,15 @@ export const ArtifactPanel = ({ artifactId, versionNo, contentHash }: Props) => 
         ) : contentQ.isError ? (
           <div className={css({ marginTop: 'sm' })}>
             <p className={errorText}>{t('task.artifactLoadError')}</p>
-            <Button
-              size="dense"
-              variant="secondary"
-              onPress={() => void contentQ.refetch()}
-            >
-              {t('retry')}
-            </Button>
+            {readOnly ? null : (
+              <Button
+                size="dense"
+                variant="secondary"
+                onPress={() => void contentQ.refetch()}
+              >
+                {t('retry')}
+              </Button>
+            )}
           </div>
         ) : !contentQ.data ? (
           <p className={muted}>{t('task.artifactLoading')}</p>
@@ -140,7 +148,13 @@ export const ArtifactPanel = ({ artifactId, versionNo, contentHash }: Props) => 
           <pre className={plainBody}>{contentQ.data.text}</pre>
         ) : (
           <div className={markdownBody}>
-            <ReactMarkdown>{contentQ.data.text}</ReactMarkdown>
+            <ReactMarkdown
+              components={{
+                img: ({ alt }) => <span>{alt ?? ''}</span>,
+              }}
+            >
+              {contentQ.data.text}
+            </ReactMarkdown>
           </div>
         )
       ) : null}

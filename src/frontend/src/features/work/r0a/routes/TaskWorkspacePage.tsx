@@ -21,12 +21,24 @@ import {
   useCancelWorkRun,
   useUpdateWorkTitle,
   useWorkTask,
+  workQueryKeys,
 } from '../api/queries'
+import { fetchWorkTask } from '../api/client'
 import { useIdempotencyKey } from '../hooks/useIdempotencyKey'
+import { useReadOnlyViewport } from '../hooks/useReadOnlyViewport'
 import { useTaskEventStream } from '../hooks/useTaskEventStream'
 import { ArtifactPanel } from '../components/ArtifactPanel'
 import { TaskStatusBadge } from '../components/TaskStatusBadge'
-import { card, errorText, label, muted, page, row, sectionTitle } from '../ui'
+import {
+  card,
+  errorText,
+  label,
+  muted,
+  notice,
+  page,
+  row,
+  sectionTitle,
+} from '../ui'
 
 const terminalStates = new Set(['completed', 'canceled', 'archived'])
 
@@ -40,6 +52,7 @@ export const TaskWorkspacePage = () => {
   const updateMutation = useUpdateWorkTitle(taskId ?? '')
   const titleKey = useIdempotencyKey()
   const acceptKey = useIdempotencyKey()
+  const readOnly = useReadOnlyViewport()
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
   const [titleError, setTitleError] = useState<string | null>(null)
@@ -55,17 +68,39 @@ export const TaskWorkspacePage = () => {
     !!detail &&
     !terminalStates.has(taskState) &&
     taskState !== 'awaiting_acceptance'
-  const stream = useTaskEventStream(taskId, sseEnabled, () => {
-    void queryClient.invalidateQueries({ queryKey: ['work', 'task', taskId] })
-  })
+  const stream = useTaskEventStream(
+    taskId,
+    sseEnabled,
+    async () => {
+      const queryKey = workQueryKeys.task(taskId!)
+      // Do not reuse an in-flight fetch that began before the resync boundary.
+      await queryClient.cancelQueries({ queryKey, exact: true })
+      const fresh = await queryClient.fetchQuery({
+        queryKey,
+        queryFn: () => fetchWorkTask(taskId!),
+        staleTime: 0,
+        retry: false,
+      })
+      return fresh.latest_event_id
+    },
+    detail?.latest_event_id
+  )
 
   useEffect(() => {
     const last = stream.events.at(-1)
-    if (!last || last.event_id === lastEventIdRef.current) return
+    if (!last) {
+      lastEventIdRef.current = null
+      return
+    }
+    if (last.event_id === lastEventIdRef.current) return
     lastEventIdRef.current = last.event_id
     void queryClient.invalidateQueries({ queryKey: ['work', 'task', taskId] })
     void queryClient.invalidateQueries({ queryKey: ['work', 'tasks'] })
   }, [stream.events, queryClient, taskId])
+
+  useEffect(() => {
+    if (readOnly) setEditingTitle(false)
+  }, [readOnly])
 
   const artifact = detail?.summary.latest_artifact
   const run = detail?.summary.latest_run
@@ -115,13 +150,15 @@ export const TaskWorkspacePage = () => {
                   {t('task.back')}
                 </Button>
               </Link>
-              <Button
-                variant="secondary"
-                size="dense"
-                onPress={() => taskQ.refetch()}
-              >
-                {t('retry')}
-              </Button>
+              {readOnly ? null : (
+                <Button
+                  variant="secondary"
+                  size="dense"
+                  onPress={() => taskQ.refetch()}
+                >
+                  {t('retry')}
+                </Button>
+              )}
             </div>
           }
         />
@@ -213,6 +250,11 @@ export const TaskWorkspacePage = () => {
           <RiArrowLeftLine size={14} aria-hidden="true" />
           {t('task.back')}
         </Link>
+        {readOnly ? (
+          <p className={notice} role="status">
+            {t('readOnly.taskNotice')}
+          </p>
+        ) : null}
         <div
           className={css({
             display: 'flex',
@@ -230,7 +272,7 @@ export const TaskWorkspacePage = () => {
               gap: 'xs',
             })}
           >
-            {editingTitle ? (
+            {!readOnly && editingTitle ? (
               <div
                 className={css({
                   display: 'flex',
@@ -277,14 +319,16 @@ export const TaskWorkspacePage = () => {
                 <h1 className={css({ margin: 0, textStyle: 'titleLarge' })}>
                   {detail.summary.title}
                 </h1>
-                <Button
-                  size="icon28"
-                  variant="quaternaryText"
-                  aria-label={t('task.editTitle')}
-                  onPress={startEditing}
-                >
-                  <RiEditLine size={16} aria-hidden="true" />
-                </Button>
+                {readOnly ? null : (
+                  <Button
+                    size="icon28"
+                    variant="quaternaryText"
+                    aria-label={t('task.editTitle')}
+                    onPress={startEditing}
+                  >
+                    <RiEditLine size={16} aria-hidden="true" />
+                  </Button>
+                )}
               </div>
             )}
             <div className={row}>
@@ -298,10 +342,12 @@ export const TaskWorkspacePage = () => {
                 </span>
               ) : null}
             </div>
-            {titleError ? <p className={errorText}>{titleError}</p> : null}
+            {!readOnly && titleError ? (
+              <p className={errorText}>{titleError}</p>
+            ) : null}
           </div>
           <div className={row}>
-            {canCancel ? (
+            {!readOnly && canCancel ? (
               <Button
                 variant="secondary"
                 size="dense"
@@ -314,7 +360,9 @@ export const TaskWorkspacePage = () => {
             ) : null}
           </div>
         </div>
-        {actionError ? <p className={errorText}>{actionError}</p> : null}
+        {!readOnly && actionError ? (
+          <p className={errorText}>{actionError}</p>
+        ) : null}
       </div>
 
       <div
@@ -501,12 +549,14 @@ export const TaskWorkspacePage = () => {
             </dl>
           </section>
 
-          {canAccept || accepted ? (
+          {!readOnly && (canAccept || accepted) ? (
             <section className={card}>
               <h2 className={sectionTitle}>{t('task.acceptTitle')}</h2>
               {accepted ? null : (
                 <p className={muted}>
-                  {artifact ? t('task.acceptArtifactHint') : t('task.acceptHint')}
+                  {artifact
+                    ? t('task.acceptArtifactHint')
+                    : t('task.acceptHint')}
                 </p>
               )}
               {accepted ? (
@@ -557,6 +607,7 @@ export const TaskWorkspacePage = () => {
               artifactId={detail.summary.latest_artifact.artifact_id}
               versionNo={detail.summary.latest_artifact.version_no}
               contentHash={detail.summary.latest_artifact.content_hash}
+              readOnly={readOnly}
             />
           ) : null}
         </aside>

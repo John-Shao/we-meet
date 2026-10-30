@@ -15,6 +15,10 @@
     "bootstrapTitle": "工作空间暂时不可用",
     "bootstrapDescription": "无法验证 Work 会话或加载配置，请稍后重试。"
   },
+  "readOnly": {
+    "homeHint": "创建任务需要更宽的屏幕，请在平板或电脑上新建工作。",
+    "taskNotice": "移动端为只读模式：可查看目标、时间线和成果；创建、编辑、采纳、取消和重试请使用更宽的屏幕。"
+  },
   "home": {
     "eyebrow": "WORK",
     "title": "让工作从一句话开始",

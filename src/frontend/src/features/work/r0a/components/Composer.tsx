@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
 import {
@@ -57,6 +57,16 @@ export const Composer = ({ bootstrap }: Props) => {
   const submitTask = useSubmitWorkTask()
   const inputKey = useIdempotencyKey()
   const submitKey = useIdempotencyKey()
+  const previewGeneration = useRef(0)
+  const mounted = useRef(false)
+
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      previewGeneration.current += 1
+    }
+  }, [])
 
   const [goal, setGoal] = useState('')
   const [background, setBackground] = useState('')
@@ -86,6 +96,7 @@ export const Composer = ({ bootstrap }: Props) => {
     backgroundLength > bootstrap.limits.max_background_chars
 
   const resetPreview = (clearInput = false) => {
+    previewGeneration.current += 1
     setPreview(null)
     setError(null)
     if (clearInput) {
@@ -94,29 +105,39 @@ export const Composer = ({ bootstrap }: Props) => {
     }
   }
 
+  const invalidateInput = () => {
+    setPreview(null)
+    setError(null)
+    setInputRef(null)
+    previewGeneration.current += 1
+    inputKey.rotate()
+  }
+
   const onGoalChange = (value: string) => {
     setGoal(value)
-    if (inputRef || preview) resetPreview(true)
+    invalidateInput()
   }
 
   const onBackgroundChange = (value: string) => {
     setBackground(value)
-    if (inputRef || preview) resetPreview(true)
+    invalidateInput()
   }
 
   const onTemplateChange = (value: string) => {
     setTemplateId(value)
-    if (preview) resetPreview(false)
+    resetPreview(false)
   }
 
   const onModeChange = (value: PermissionMode) => {
     setPermissionMode(value)
-    if (preview) resetPreview(false)
+    resetPreview(false)
   }
 
   const requestPreview = async () => {
     setError(null)
     if (invalidGoal || invalidBackground) return
+    const generation = previewGeneration.current + 1
+    previewGeneration.current = generation
     try {
       let currentInput = inputRef
       if (!currentInput) {
@@ -125,6 +146,7 @@ export const Composer = ({ bootstrap }: Props) => {
           goal,
           background,
         })
+        if (generation !== previewGeneration.current) return
         currentInput = created.input_ref
         setInputRef(currentInput)
       }
@@ -133,10 +155,13 @@ export const Composer = ({ bootstrap }: Props) => {
         template_id: templateId,
         permission_mode: permissionMode,
       })
+      if (generation !== previewGeneration.current) return
       setPreview(previewResult)
       submitKey.rotate()
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause))
+      if (generation === previewGeneration.current) {
+        setError(cause instanceof Error ? cause.message : String(cause))
+      }
     }
   }
 
@@ -151,9 +176,12 @@ export const Composer = ({ bootstrap }: Props) => {
         permission_mode: permissionMode,
         preview_hash: preview.preview_hash,
       })
+      if (!mounted.current) return
       navigate(`/work/items/${encodeURIComponent(task.task_id)}`)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause))
+      if (mounted.current) {
+        setError(cause instanceof Error ? cause.message : String(cause))
+      }
     }
   }
 
