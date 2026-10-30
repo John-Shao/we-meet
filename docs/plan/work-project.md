@@ -365,6 +365,21 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 
 因此“完成 R0a 开发与测试、满足架构/详细设计”**尚未达成**；本表只记录已实现的组件与边界。
 
+**完成度审计（2026-10-30）**：
+
+| 设计/要求 | 证据 | 状态 |
+|---|---|---|
+| D1 数据/权限/迁移 0001–0014 | `go test -p 1 ./...` 全绿；预发台账 14、表/函数核验；备份 `work-pre-0014-20261030-100747.dump` | 达成 |
+| D2′ API 子集 | API/SSE/CSRF/RLS 测试；真实 session bootstrap 与浏览器黄金路径 | 达成，`TaskDetail.snapshot` 形状待决策 B |
+| D3 编排/恢复 | `RunWorkflowAdvance` + 并发绑定/回执收尾/未知等待；lease_lost、capability_refresh_failed 注入并从迟到回执恢复；`work-reconcile` | 达成（Node 独立队列与 `rejected_not_executed` 处置待评审/决策 A） |
+| D4 运行时/egress | Node 父进程/真实 Pi 子进程、capability、内容代理、egress、单次发送；真实 provider E2E 多次 succeeded；负例门禁 | 达成 pilot 证据；内核隔离/sandboxProof、多节点与 C22 破坏性演练未做 |
+| D5 前端 | Work 前端 55 项、tsc、i18n、E2E mock 一致性；生产浏览器黄金路径 | 达成；移动实机未验 |
+| D6 运维 | systemd 八服务、PKI、rollout/回滚脚本、备份/健康告警、Temporal mTLS | 达成 |
+| 签收 | 内容图 A、密钥派生 A、advance D-1–D-4 A 已签；modelparams 默认值、内容图更严规则、Node 队列待复核；rejected_not_executed 与 snapshot 待 John/Lily | **未完成** |
+| 外部依赖 | Work 专属 provider key 轮换、U1 可用性研究（11-27）、C22 DR 演练（11-06/15-16）、移动实机 | **未完成** |
+
+**CI 基线**：`Work R0a gates` 与 `Release guard` 在代码提交上通过；`meet Workflow` 的 `lint-front` 已修复（`client.test.ts` Prettier），`test-e2e` 仍因既有 `work-a11y.spec.ts` 在 CI 环境无真实 session 失败（该失败早于本批提交，基线 run 40890991545 同样失败），不属于 R0a 功能回归。
+
 ## 5. 当前问题
 
 ### 5.1 设计层未决项
