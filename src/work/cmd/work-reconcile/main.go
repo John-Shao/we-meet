@@ -43,7 +43,7 @@ func run() error {
 	flag.StringVar(&cfg.orgID, "org", "", "organization id (required)")
 	flag.StringVar(&cfg.operationID, "operation", "", "operation id (required)")
 	flag.StringVar(&cfg.runID, "run", "", "run id (defaults to the operation's run)")
-	flag.StringVar(&cfg.resolution, "resolution", "", "sent_succeeded|not_sent|unresolved (required)")
+	flag.StringVar(&cfg.resolution, "resolution", "", "sent_succeeded|not_sent|unresolved|rejected_not_executed (required)")
 	flag.StringVar(&cfg.providerRequestID, "provider-request-id", "", "provider request id, if known")
 	flag.Int64Var(&cfg.settledTokens, "settled-tokens", 0, "tokens to settle for sent_succeeded")
 	flag.StringVar(&cfg.evidenceRef, "evidence-ref", "", "evidence reference; required unless unresolved")
@@ -52,7 +52,7 @@ func run() error {
 		"deliver the resume signal without reconciling: for an Operation no resolution accepts, "+
 			"so the worker's own close path decides the outcome from the dispatch gate")
 	flag.BoolVar(&cfg.finishFromReceipt, "finish-from-receipt", false,
-		"recover a confirmed model success from the trusted receipt instead of reconciling by resolution")
+		"recover a confirmed success or an unknown operation's rejection from its trusted receipt")
 	flag.Parse()
 
 	if cfg.orgID == "" || cfg.operationID == "" {
@@ -69,12 +69,16 @@ func run() error {
 			if cfg.evidenceRef == "" {
 				return errors.New("-evidence-ref is required for sent_succeeded/not_sent")
 			}
+		case "rejected_not_executed":
+			if cfg.evidenceRef == "" || cfg.settledTokens != 0 {
+				return errors.New("rejected_not_executed requires -evidence-ref and zero -settled-tokens")
+			}
 		case "unresolved":
 			if cfg.resume {
 				return errors.New("-resume is not allowed for unresolved")
 			}
 		default:
-			return errors.New("-resolution must be sent_succeeded, not_sent or unresolved")
+			return errors.New("-resolution must be sent_succeeded, not_sent, unresolved or rejected_not_executed")
 		}
 	}
 	databaseURL := os.Getenv("WORK_DATABASE_URL")
@@ -175,9 +179,6 @@ func run() error {
 	return nil
 }
 
-// recoverFromReceipt finishes an operation from its trusted receipt. It is the
-// operator path for a confirmed model success whose activity died before it
-// could settle or publish; it never re-sends the provider request.
 func recoverFromReceipt(
 	ctx context.Context, pool *pgxpool.Pool, orgID, operationID string,
 ) (finishing.Outcome, error) {

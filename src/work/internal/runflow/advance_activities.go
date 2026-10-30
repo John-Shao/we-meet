@@ -19,6 +19,7 @@ import (
 	workdb "github.com/we-meet/work/internal/db"
 	"github.com/we-meet/work/internal/execbinding"
 	"github.com/we-meet/work/internal/finishing"
+	"github.com/we-meet/work/internal/fragment"
 	"github.com/we-meet/work/internal/intent"
 	"github.com/we-meet/work/internal/providerctx"
 	"github.com/we-meet/work/internal/receipt"
@@ -923,6 +924,9 @@ func (a *Activities) FinishAdvance(
 	if err != nil {
 		return AdvanceFinishOutput{Status: AdvanceStatusFailed, ErrCode: finishErrorCode(err)}, nil
 	}
+	if outcome.Status == finishing.StatusRejected {
+		return AdvanceFinishOutput{Status: AdvanceStatusFailed, ErrCode: fragment.ReasonProviderRejected}, nil
+	}
 	if outcome.Status == finishing.StatusUsageUnavailable {
 		return AdvanceFinishOutput{
 			Status: AdvanceStatusUsageUnavailable, HeadRef: head.Ref, HeadHash: head.Hash,
@@ -1236,8 +1240,8 @@ func finishErrorCode(err error) string {
 		return "finish_receipt_missing"
 	case errors.Is(err, finishing.ErrSealedNotSent):
 		return "finish_sealed_not_sent"
-	case errors.Is(err, finishing.ErrRejectedWithoutFinishingPath):
-		return "finish_rejected"
+	case errors.Is(err, finishing.ErrRejectedNotReconcilable):
+		return fragment.ReasonProviderRejected
 	case errors.Is(err, finishing.ErrExecutionBindingMismatch),
 		errors.Is(err, finishing.ErrOperationBindingMismatch):
 		return "finish_binding_mismatch"

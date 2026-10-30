@@ -355,3 +355,151 @@ func TestRunWorkflowAdvanceFailsRunOnProviderRejection(t *testing.T) {
 	env.AssertNotCalled(t, runflow.ActivityFinishAdvance, mock.Anything, mock.Anything)
 	env.AssertNotCalled(t, runflow.ActivityWaitRun, mock.Anything, mock.Anything)
 }
+
+func TestRunWorkflowAdvanceWaitingResume(t *testing.T) {
+	cases := []struct {
+		name     string
+		finishes []runflow.AdvanceFinishOutput
+		signals  []string
+		outcome  string
+		reason   string
+	}{
+		{
+			name: "provider_rejected",
+			finishes: []runflow.AdvanceFinishOutput{{
+				Status: runflow.AdvanceStatusFailed, ErrCode: fragment.ReasonProviderRejected,
+			}},
+			signals: []string{"resume"}, outcome: "failed", reason: fragment.ReasonProviderRejected,
+		},
+		{
+			name: "succeeded",
+			finishes: []runflow.AdvanceFinishOutput{{
+				Status: runflow.AdvanceStatusSucceeded, HeadRevision: 1,
+			}},
+			signals: []string{"resume"}, outcome: "succeeded",
+		},
+		{
+			name: "receipt_missing",
+			finishes: []runflow.AdvanceFinishOutput{{
+				Status: runflow.AdvanceStatusFailed, ErrCode: "finish_receipt_missing",
+			}},
+			signals: []string{"resume"}, outcome: "failed", reason: "finish_receipt_missing",
+		},
+		{
+			name: "usage_unavailable_two_resumes",
+			finishes: []runflow.AdvanceFinishOutput{
+				{Status: runflow.AdvanceStatusUsageUnavailable},
+				{Status: runflow.AdvanceStatusSucceeded, HeadRevision: 1},
+			},
+			signals: []string{"resume", "resume"}, outcome: "succeeded",
+		},
+		{
+			name:    "cancel_while_waiting",
+			signals: []string{"cancel"}, outcome: "canceled", reason: "run_canceled",
+		},
+		{
+			name:     "cancel_while_usage_unavailable",
+			finishes: []runflow.AdvanceFinishOutput{{Status: runflow.AdvanceStatusUsageUnavailable}},
+			signals:  []string{"resume", "cancel"}, outcome: "canceled", reason: "run_canceled",
+		},
+		{
+			name:     "finish_canceled_after_resume",
+			finishes: []runflow.AdvanceFinishOutput{{Status: runflow.AdvanceStatusCanceled}},
+			signals:  []string{"resume"}, outcome: "canceled", reason: "run_canceled",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var suite testsuite.WorkflowTestSuite
+			env := suite.NewTestWorkflowEnvironment()
+			env.RegisterWorkflow(runflow.RunWorkflowAdvance)
+			env.RegisterActivity(&runflow.Activities{})
+			input := runflow.Input{RunID: advanceRunID, OrgID: "org_advance"}
+			prepared := advancePreparedFixture()
+			head := advanceHeadFixture()
+			execution := runflow.AdvanceExecution{
+				ExecutionID: advanceExecutionID, OperationID: advanceOperationID,
+				AttemptID: advanceAttemptID, ReservationID: advanceReservationID,
+				RequestHash: advanceHash, IntentRef: advanceRefID, IntentHash: advanceHash,
+				DeadlineUnixMs: time.Now().Add(time.Minute).UnixMilli(),
+			}
+			env.OnActivity(runflow.ActivityPrepareAdvance, mock.Anything, input).
+				Return(prepared, nil).Once()
+			env.OnActivity(runflow.ActivityEnsureHead, mock.Anything, prepared).
+				Return(head, nil).Once()
+			env.OnActivity(runflow.ActivityPrepareExecution, mock.Anything, runflow.PrepareExecutionInput{
+				Prepared: prepared, Head: head,
+			}).Return(execution, nil).Once()
+			env.OnActivity(runflow.ActivityAdvanceRuntime, mock.Anything, mock.Anything).
+				Return(fragment.Result{
+					Kind: fragment.KindResult, Contract: fragment.ContractVersion,
+					ExecutionID: advanceExecutionID, State: fragment.StateWaitingReconcile,
+					Checkpoint:  &fragment.Reference{RefID: advanceRefID, Hash: advanceHash},
+					OperationID: advanceOperationID, Reason: "provider_unknown",
+				}, nil).Once()
+			waitCalls := 1
+			for _, finished := range tc.finishes {
+				env.OnActivity(runflow.ActivityFinishAdvance, mock.Anything, runflow.AdvanceFinishInput{
+					Prepared: prepared, Head: head, Execution: execution,
+				}).Return(finished, nil).Once()
+				if finished.Status == runflow.AdvanceStatusUsageUnavailable {
+					waitCalls++
+				}
+			}
+			env.OnActivity(runflow.ActivityWaitRun, mock.Anything, runflow.WaitRunInput{
+				RunID: input.RunID, OrgID: input.OrgID, Reason: "reconcile",
+			}).Return(nil).Times(waitCalls)
+			if tc.outcome == "succeeded" {
+				env.OnActivity(runflow.ActivityFinishRun, mock.Anything, runflow.FinishRunInput{
+					RunID: input.RunID, OrgID: input.OrgID, Outcome: "succeeded",
+				}).Return(nil).Once()
+			} else {
+				env.OnActivity(runflow.ActivityRevokeExecution, mock.Anything, runflow.RevokeExecutionInput{
+					RunID: input.RunID, OrgID: input.OrgID,
+					ExecutionID: execution.ExecutionID, Reason: tc.reason,
+				}).Return(nil).Once()
+				env.OnActivity(runflow.ActivityAbortRun, mock.Anything, runflow.AbortRunInput{
+					RunID: input.RunID, OrgID: input.OrgID,
+					OperationID: execution.OperationID, ReservationID: execution.ReservationID,
+					Outcome: tc.outcome, Reason: tc.reason,
+				}).Return(nil).Once()
+			}
+			for i, signal := range tc.signals {
+				i, signal := i, signal
+				env.RegisterDelayedCallback(func() {
+					if env.IsWorkflowCompleted() {
+						t.Error("workflow completed before waiting signal")
+					}
+					env.AssertNumberOfCalls(t, runflow.ActivityAdvanceRuntime, 1)
+					env.AssertNumberOfCalls(t, runflow.ActivityFinishAdvance, i)
+					env.AssertNumberOfCalls(t, runflow.ActivityWaitRun, i+1)
+					env.SignalWorkflow(signal, nil)
+				}, time.Duration(i+1)*time.Second)
+			}
+
+			env.ExecuteWorkflow(runflow.RunWorkflowAdvance, input)
+
+			if !env.IsWorkflowCompleted() {
+				t.Fatal("workflow did not complete")
+			}
+			err := env.GetWorkflowError()
+			if tc.outcome == "failed" {
+				if err == nil || !strings.Contains(err.Error(), tc.reason) {
+					t.Fatalf("workflow error = %v, want %s", err, tc.reason)
+				}
+			} else if err != nil {
+				t.Fatalf("workflow: %v", err)
+			}
+			env.AssertExpectations(t)
+			env.AssertNumberOfCalls(t, runflow.ActivityAdvanceRuntime, 1)
+			env.AssertNumberOfCalls(t, runflow.ActivityPrepareExecution, 1)
+			env.AssertNumberOfCalls(t, runflow.ActivityFinishAdvance, len(tc.finishes))
+			if tc.outcome == "succeeded" {
+				env.AssertNotCalled(t, runflow.ActivityAbortRun, mock.Anything, mock.Anything)
+				env.AssertNotCalled(t, runflow.ActivityRevokeExecution, mock.Anything, mock.Anything)
+			} else {
+				env.AssertNotCalled(t, runflow.ActivityFinishRun, mock.Anything, mock.Anything)
+			}
+		})
+	}
+}

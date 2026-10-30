@@ -1066,11 +1066,11 @@ func TestApplyThroughLatestAndManifestChecksums(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(manifest.Increments) != 13 {
-		t.Fatalf("increments = %d, want 13", len(manifest.Increments))
+	if len(manifest.Increments) != 14 {
+		t.Fatalf("increments = %d, want 14", len(manifest.Increments))
 	}
 	last := manifest.Increments[len(manifest.Increments)-1]
-	if last.Version != 15 || last.Name != "0015_snapshot_revision" {
+	if last.Version != 16 || last.Name != "0016_reconcile_rejected_receipt" {
 		t.Fatalf("last increment = %d/%s", last.Version, last.Name)
 	}
 	body, err := fs.ReadFile(embedded.FS, last.File)
@@ -1120,7 +1120,7 @@ func TestApplyThroughLatestAndManifestChecksums(t *testing.T) {
 	if result.State != "applied" {
 		t.Fatalf("apply state = %q", result.State)
 	}
-	if got := ledgerVersions(t, name); len(got) != 15 {
+	if got := ledgerVersions(t, name); len(got) != 16 {
 		t.Fatalf("ledger versions = %v", got)
 	} else {
 		for index, version := range got {

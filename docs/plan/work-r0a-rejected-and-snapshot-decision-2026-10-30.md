@@ -88,3 +88,28 @@ John 判定（2026-10-30）：**选 (a)**，Lily 已复核该判定。落地方�
 原始选项记录（三选一或另给方案）：(a) 允许 worker 在闸门已绑拒绝回执时把 `dispatching` 直接按 A1 收尾（不再要求 reason 匹配，即去掉 `ProvenRejection` 门禁、只信 DB）；(b) 放宽 `reconcile_operation` 接受 `dispatching` 且必须以已绑拒绝回执为证据；(c) 维持现状，这类 Run 由配额超限告警人工处置。本会话按 (c) 保守执行，未对任何 held 预留动手。
 
 **预发实证（2026-10-30，(a) 生效后）**：为遗留 waiting Run 新增 `work-reconcile -signal-only`（只投递 `resume` 信号，不写任何业务状态，也不接受 `-resolution`/`-finish-from-receipt`）。Run `26ec8787-7a74-4ee9-b5f6-3654eb0b6647` 的信号投递后：`run=failed`、`terminal_reason=reconcile_resolved`、`operation=failed`、闸门 `receipt_recorded/rejected_not_executed`、预留 **released**；组织 held 预留由 10/1,000,000 降到 9/900,000（`quota_account.reserved_tokens=900000`）。**剩余 9 个仍 held 是设计结果**：它们的 `dispatching` 操作没有 `dispatch_delivery` 行，没有任何“未执行”书证，(a) 也不会替它们伪造。
+
+## 增量 C：unknown/unresolved 的已绑拒绝回执恢复（待复核）
+
+本节不沿用 A1/B1/(a) 的签收。John 已选择继续本地开发拒绝回执恢复，但尚未签收以下新增语义；不发布环境迁移。
+
+**本地实现候选**
+
+- 新增未发布 `0016_reconcile_rejected_receipt`，扩展 `reconcile_operation` 的 resolution 为 `rejected_not_executed`，不修改已发布 0009，也不把拒绝伪装成 `not_sent` 或 `sent_succeeded`。
+- 定义域仍为 `unknown/unresolved → reconciled`；`dispatching` 不进入该域，由已签 (a) 的 `AbortRun` 关闭为 `failed`。`reconciled` 表示对账结束，不代表模型执行成功；Run 必须失败且原 canonical head 保持不变，不发布成果。
+- 命令保留原有 `work_owner` 的 `SECURITY DEFINER` 与固定 `search_path`、worker EXECUTE 和 FORCE RLS，不增加应用表 DML 权限。拒绝分支显式验证组织上下文；权威闸门必须是不可变的 `receipt_recorded/rejected_not_executed`，证据引用必须与其一致，provider request id 取闸门而非调用参数。
+- 结算参数必须显式为零（非零及 NULL 均拒绝）；held 释放、unknown 预留按零结算并记录真实 resolution。不写 usage fact/usage_daily；已有 usage marker、usage fact 或正数结算一律报冲突，不通过拒绝恢复逆转历史用量。拒绝重放仍校验证据，重复成功恢复不增加分录或审计。
+- `FinishFromReceipt` 在 receipt 哈希/绑定、冻结请求哈希、snapshot/runtime/logicalKey 全部验证后才调用拒绝对账，返回独立的 `rejected_not_executed` 状态。`work-reconcile -finish-from-receipt` 支持该恢复；直接 `-resolution rejected_not_executed` 走闸门证据检查，要求正确 `-evidence-ref` 与零结算，不替代 Content Store 文档校验。
+- waiting/resume 复用 receipt finishing 循环：成功继续发布，拒绝以 `provider_rejected` 失败，用量 unavailable 继续等待，取消走取消路径；所有分支均不再次调用供应商。参考 `RunWorkflow.contract.ts` 的 resolution 闭集同步扩展，随本增量一起待复核，不新增前端或 HTTP 写入口。
+
+**验收证据入口**
+
+- `internal/finishing/finishing_test.go`：`TestRejectedReceiptReconcilesWithoutUsage`、`TestReconcileRejectionRejectsInvalidEvidence`、`TestRejectedReceiptValidatesSnapshotBindingBeforeReconcile`、`TestReconcileRejectionPreservesUsageAndChecksReplayEvidence`、`TestConcurrentRejectedReceiptReconcilesOnce`、`TestReconcileRejectionDoesNotReverseSettlement`、`TestReconcileRejectionRetainsDefinerAndMinimalPrivileges`。
+- `internal/runflow/advance_pg_test.go`：`TestAdvanceFinishReconcilesWaitingProviderRejectionAndReplays`；`advance_test.go`：`TestRunWorkflowAdvanceWaitingResume`。全量执行状态与命令只记在 [项目状态源](work-project.md)。
+
+**边界**：只能恢复已经 attach 的终态拒绝回执；attach 仍未完成、consumed 无回执、无闸门的遗留操作均不由本增量清账。取消不借用拒绝收尾。真实 Temporal Server history replay 与环境部署回归未执行。
+
+**签收（不得用本地测试代替）**
+
+- [ ] John：接受第四个 resolution、`reconciled` 不等于成功及零用量冲突拒绝规则。
+- [ ] Lily：复核新写入口、执行身份/租户隔离、重放与取消边界。

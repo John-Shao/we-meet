@@ -127,7 +127,11 @@ export interface FinishRunRequest {
 
 export interface ReconcileResolution {
   operationId: string;
-  resolution: 'sent_succeeded' | 'not_sent' | 'unresolved';
+  resolution:
+    | 'sent_succeeded'
+    | 'not_sent'
+    | 'unresolved'
+    | 'rejected_not_executed';
   providerRequestId: string | null;
   billableTokens: bigint;
   evidenceRef: string | null;

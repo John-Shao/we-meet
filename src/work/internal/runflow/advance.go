@@ -219,20 +219,7 @@ func RunWorkflowAdvance(ctx workflow.Context, input Input) error {
 		case "cancel":
 			return abortAdvance(ctx, input, execution, "canceled", "run_canceled")
 		default:
-			// The operator reconciled the unknown operation (for example with
-			// work-reconcile -finish-from-receipt). Re-enter finishing so a
-			// trusted receipt can still commit the canonical successor; a run
-			// without a confirmed receipt fails closed.
-			var finished AdvanceFinishOutput
-			if err := workflow.ExecuteActivity(ctx, ActivityFinishAdvance, AdvanceFinishInput{
-				Prepared: prepared, Head: head, Execution: execution,
-			}).Get(ctx, &finished); err != nil {
-				return abortAdvance(ctx, input, execution, "failed", "reconcile_finish_failed")
-			}
-			if finished.Status == AdvanceStatusSucceeded {
-				return finishAdvanceRun(ctx, input, "succeeded", "")
-			}
-			return abortAdvance(ctx, input, execution, "failed", "reconcile_resolved")
+			return finishCheckpointed(ctx, input, prepared, head, execution, cancelCh, resumeCh)
 		}
 	case fragment.StateCanceled:
 		return abortAdvance(ctx, input, execution, "canceled", "run_canceled")

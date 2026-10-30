@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/we-meet/work/internal/canonical"
@@ -728,7 +729,7 @@ func TestReceiptBindingIsEnforced(t *testing.T) {
 	}
 }
 
-func TestRejectedReceiptHasNoFinishingPath(t *testing.T) {
+func TestDispatchingRejectedReceiptRequiresAbort(t *testing.T) {
 	fx := newFixture(t, "fin_rejected")
 	worker := fx.prepare(t)
 	fx.consume(t, worker)
@@ -750,8 +751,8 @@ func TestRejectedReceiptHasNoFinishingPath(t *testing.T) {
 	fx.attach(t, worker, document)
 
 	_, err := newFinisher().FinishFromReceipt(testContext(t), fx.org, fx.opID)
-	if !errors.Is(err, ErrRejectedWithoutFinishingPath) {
-		t.Fatalf("error = %v, want ErrRejectedWithoutFinishingPath", err)
+	if !errors.Is(err, ErrRejectedNotReconcilable) {
+		t.Fatalf("error = %v, want ErrRejectedNotReconcilable", err)
 	}
 	if got := queryString(t,
 		`SELECT gate_state || ':' || receipt_result FROM work.dispatch_delivery WHERE org_id = $1`,
@@ -769,6 +770,282 @@ func TestRejectedReceiptHasNoFinishingPath(t *testing.T) {
 		SELECT count(*) FROM work.audit_event
 		 WHERE org_id = $1 AND action = 'operation.finish_from_receipt'`, fx.org); got != 0 {
 		t.Fatalf("finish audits = %d, want 0", got)
+	}
+}
+
+func (fx *fixture) rejectedReceipt(t *testing.T) canonical.ModelReceipt {
+	document := fx.succeededReceipt(t)
+	document.Outcome = canonical.OutcomeRejectedNotExec
+	document.Content = nil
+	document.ContentBytes = 0
+	document.RejectionEvidence = canonical.Ref(canonical.Reference{RefID: newUUID(t), Hash: testHash("c")})
+	document.Usage = canonical.Usage{
+		Source: canonical.UsageProvider, InputTokens: canonical.Int64(0),
+		OutputTokens: canonical.Int64(0), CachedInputTokens: canonical.Int64(0),
+	}
+	return document
+}
+
+func TestRejectedReceiptReconcilesWithoutUsage(t *testing.T) {
+	for _, state := range []string{"unknown", "unresolved"} {
+		for _, reservation := range []string{"held", "unknown"} {
+			t.Run(state+"_"+reservation, func(t *testing.T) {
+				fx := newFixture(t, "fin_rej_"+state+"_"+reservation)
+				worker := fx.prepare(t)
+				fx.consume(t, worker)
+				fx.attach(t, worker, fx.rejectedReceipt(t))
+				ctx := testContext(t)
+				if _, err := worker.Exec(ctx, `SELECT work.mark_operation_unknown($1, $2, 'provider_unknown')`, fx.org, fx.opID); err != nil {
+					t.Fatal(err)
+				}
+				if state == "unresolved" {
+					if _, err := worker.Exec(ctx, `SELECT work.reconcile_operation($1, $2, 'unresolved')`, fx.org, fx.opID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if reservation == "unknown" {
+					if _, err := testAdmin.Exec(ctx, `UPDATE work.quota_reservation SET state = 'unknown' WHERE operation_id = $1`, fx.opID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				for replay := 0; replay < 2; replay++ {
+					out, err := newFinisher().FinishFromReceipt(ctx, fx.org, fx.opID)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if out.Status != StatusRejected || out.SettlementTokens == nil || *out.SettlementTokens != 0 || out.ReceiptHash == "" {
+						t.Fatalf("outcome = %+v", out)
+					}
+				}
+				if got := queryString(t, `SELECT state FROM work.operation WHERE id = $1`, fx.opID); got != "reconciled" {
+					t.Fatalf("operation = %s", got)
+				}
+				want := "released"
+				if reservation == "unknown" {
+					want = "settled"
+				}
+				if got := queryString(t, `SELECT state FROM work.quota_reservation WHERE operation_id = $1`, fx.opID); got != want {
+					t.Fatalf("reservation = %s, want %s", got, want)
+				}
+				for _, sql := range []string{
+					`SELECT reserved_tokens FROM work.quota_account WHERE org_id = $1`,
+					`SELECT settled_tokens FROM work.quota_account WHERE org_id = $1`,
+					`SELECT count(*) FROM work.operation_usage_fact WHERE org_id = $1`,
+					`SELECT count(*) FROM work.usage_daily WHERE org_id = $1`,
+					`SELECT count(*) FROM work.artifact WHERE org_id = $1`,
+				} {
+					if got := queryInt(t, sql, fx.org); got != 0 {
+						t.Fatalf("%s = %d, want 0", sql, got)
+					}
+				}
+				if got := queryInt(t, `SELECT count(*) FROM work.quota_entry WHERE org_id = $1 AND kind IN ('settle', 'release')`, fx.org); got != 1 {
+					t.Fatalf("close entries = %d", got)
+				}
+				if got := queryInt(t, `SELECT count(*) FROM work.audit_event WHERE org_id = $1 AND action = 'operation.reconcile' AND metadata->>'resolution' = 'rejected_not_executed'`, fx.org); got != 1 {
+					t.Fatalf("rejection audits = %d", got)
+				}
+			})
+		}
+	}
+}
+
+func TestReconcileRejectionRejectsInvalidEvidence(t *testing.T) {
+	cases := []struct {
+		name, gate, evidence, want string
+		tokens                     any
+	}{
+		{"missing_gate", "missing", "evidence", "dispatch_gate_not_found", int64(0)},
+		{"consumed", "consumed", "evidence", "dispatch_receipt_not_bound", int64(0)},
+		{"sealed", "sealed", "evidence", "dispatch_receipt_not_bound", int64(0)},
+		{"success", "success", "bound", "dispatch_receipt_not_rejection", int64(0)},
+		{"mismatch", "rejection", "wrong", "rejection_evidence_mismatch", int64(0)},
+		{"nonzero", "rejection", "bound", "rejected_receipt_requires_zero_settlement", int64(1)},
+		{"null_tokens", "rejection", "bound", "rejected_receipt_requires_zero_settlement", nil},
+		{"empty_evidence", "rejection", "", "reconciliation_evidence_required", int64(0)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fx := newFixture(t, "fin_rej_bad_"+tc.name)
+			worker := fx.prepare(t)
+			if tc.gate == "sealed" {
+				fx.seal(t, worker)
+			} else if tc.gate != "missing" {
+				fx.consume(t, worker)
+			}
+			if tc.gate == "success" {
+				fx.attach(t, worker, fx.succeededReceipt(t))
+			} else if tc.gate == "rejection" {
+				fx.attach(t, worker, fx.rejectedReceipt(t))
+			}
+			ctx := testContext(t)
+			if _, err := worker.Exec(ctx, `SELECT work.mark_operation_unknown($1, $2, 'provider_unknown')`, fx.org, fx.opID); err != nil {
+				t.Fatal(err)
+			}
+			evidence := tc.evidence
+			if evidence == "bound" {
+				evidence = queryString(t, `SELECT receipt_ref FROM work.dispatch_delivery WHERE operation_id = $1`, fx.opID)
+			}
+			_, err := worker.Exec(ctx, `SELECT work.reconcile_operation($1, $2, 'rejected_not_executed', NULL, $3, $4)`, fx.org, fx.opID, tc.tokens, evidence)
+			var pgErr interface{ SQLState() string }
+			if err == nil || !errors.As(err, &pgErr) || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want %s", err, tc.want)
+			}
+			if got := queryString(t, `SELECT state FROM work.operation WHERE id = $1`, fx.opID); got != "unknown" {
+				t.Fatalf("operation = %s", got)
+			}
+			if got := queryString(t, `SELECT state FROM work.quota_reservation WHERE operation_id = $1`, fx.opID); got != "held" {
+				t.Fatalf("reservation = %s", got)
+			}
+		})
+	}
+}
+
+func TestRejectedReceiptValidatesSnapshotBindingBeforeReconcile(t *testing.T) {
+	fx := newFixture(t, "fin_rej_binding")
+	worker := fx.prepare(t)
+	fx.consume(t, worker)
+	document := fx.rejectedReceipt(t)
+	document.Binding.SnapshotID = newUUID(t)
+	fx.attach(t, worker, document)
+	if _, err := worker.Exec(testContext(t), `SELECT work.mark_operation_unknown($1, $2, 'provider_unknown')`, fx.org, fx.opID); err != nil {
+		t.Fatal(err)
+	}
+	_, err := newFinisher().FinishFromReceipt(testContext(t), fx.org, fx.opID)
+	if !errors.Is(err, receipt.ErrBindingMismatch) {
+		t.Fatalf("error = %v, want binding mismatch", err)
+	}
+	if got := queryString(t, `SELECT state FROM work.operation WHERE id = $1`, fx.opID); got != "unknown" {
+		t.Fatalf("operation = %s", got)
+	}
+}
+
+func TestReconcileRejectionPreservesUsageAndChecksReplayEvidence(t *testing.T) {
+	fx := newFixture(t, "fin_rej_conflict")
+	worker := fx.prepare(t)
+	fx.consume(t, worker)
+	fx.attach(t, worker, fx.rejectedReceipt(t))
+	ctx := testContext(t)
+	if _, err := worker.Exec(ctx, `SELECT work.mark_operation_unknown($1, $2, 'provider_unknown')`, fx.org, fx.opID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := testAdmin.Exec(ctx, `INSERT INTO work.operation_usage_fact (org_id, operation_id, usage_revision, origin, counted_in_usage_daily) VALUES ($1, $2, 1, 'legacy_marker_backfill', true)`, fx.org, fx.opID); err != nil {
+		t.Fatal(err)
+	}
+	_, err := newFinisher().FinishFromReceipt(ctx, fx.org, fx.opID)
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Message != "rejection_usage_conflict" {
+		t.Fatalf("error = %v, want usage conflict", err)
+	}
+	if got := queryString(t, `SELECT state FROM work.operation WHERE id = $1`, fx.opID); got != "unknown" {
+		t.Fatalf("operation = %s", got)
+	}
+	if got := queryInt(t, `SELECT count(*) FROM work.operation_usage_fact WHERE operation_id = $1 AND counted_in_usage_daily`, fx.opID); got != 1 {
+		t.Fatalf("usage facts = %d", got)
+	}
+	if got := queryString(t, `SELECT state FROM work.quota_reservation WHERE operation_id = $1`, fx.opID); got != "held" {
+		t.Fatalf("reservation = %s", got)
+	}
+
+	clean := newFixture(t, "fin_rej_replay")
+	cleanWorker := clean.prepare(t)
+	clean.consume(t, cleanWorker)
+	clean.attach(t, cleanWorker, clean.rejectedReceipt(t))
+	if _, err := cleanWorker.Exec(ctx, `SELECT work.mark_operation_unknown($1, $2, 'provider_unknown')`, clean.org, clean.opID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := newFinisher().FinishFromReceipt(ctx, clean.org, clean.opID); err != nil {
+		t.Fatal(err)
+	}
+	_, err = cleanWorker.Exec(ctx, `SELECT work.reconcile_operation($1, $2, 'rejected_not_executed', NULL, 0, 'wrong')`, clean.org, clean.opID)
+	if err == nil || !strings.Contains(err.Error(), "rejection_evidence_mismatch") {
+		t.Fatalf("replay error = %v", err)
+	}
+	if _, err := cleanWorker.Exec(ctx, `SELECT set_config('app.org_id', 'other_tenant', false)`); err != nil {
+		t.Fatal(err)
+	}
+	_, err = cleanWorker.Exec(ctx, `SELECT work.reconcile_operation($1, $2, 'rejected_not_executed', NULL, 0, 'wrong')`, clean.org, clean.opID)
+	if err == nil || !strings.Contains(err.Error(), "runtime_org_context_mismatch") {
+		t.Fatalf("cross-org error = %v", err)
+	}
+}
+
+func TestReconcileRejectionRetainsDefinerAndMinimalPrivileges(t *testing.T) {
+	requireDB(t)
+	if got := queryInt(t, `SELECT count(*) FROM pg_proc p JOIN pg_roles r ON r.oid = p.proowner
+		WHERE p.oid = 'work.reconcile_operation(text,uuid,text,text,bigint,text)'::regprocedure
+		AND p.prosecdef AND r.rolname = 'work_owner' AND p.proconfig @> ARRAY['search_path=work, pg_catalog']`); got != 1 {
+		t.Fatal("reconcile command lost its execution identity")
+	}
+	if got := queryInt(t, `SELECT has_function_privilege('work_worker', 'work.reconcile_operation(text,uuid,text,text,bigint,text)', 'EXECUTE')::int`); got != 1 {
+		t.Fatal("worker cannot execute reconcile")
+	}
+	if got := queryInt(t, `SELECT has_function_privilege('work_api', 'work.reconcile_operation(text,uuid,text,text,bigint,text)', 'EXECUTE')::int`); got != 0 {
+		t.Fatal("API can execute reconcile")
+	}
+	if got := queryInt(t, `SELECT has_table_privilege('work_worker', 'work.dispatch_delivery', 'UPDATE')::int`); got != 0 {
+		t.Fatal("worker has direct gate update privilege")
+	}
+}
+
+func TestConcurrentRejectedReceiptReconcilesOnce(t *testing.T) {
+	fx := newFixture(t, "fin_rej_concurrent")
+	worker := fx.prepare(t)
+	fx.consume(t, worker)
+	fx.attach(t, worker, fx.rejectedReceipt(t))
+	ctx := testContext(t)
+	if _, err := worker.Exec(ctx, `SELECT work.mark_operation_unknown($1, $2, 'provider_unknown')`, fx.org, fx.opID); err != nil {
+		t.Fatal(err)
+	}
+	var wait sync.WaitGroup
+	errs := make(chan error, 4)
+	for i := 0; i < 4; i++ {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			out, err := newFinisher().FinishFromReceipt(ctx, fx.org, fx.opID)
+			if err == nil && out.Status != StatusRejected {
+				err = fmt.Errorf("unexpected status %s", out.Status)
+			}
+			errs <- err
+		}()
+	}
+	wait.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := queryInt(t, `SELECT count(*) FROM work.quota_entry WHERE org_id = $1 AND kind = 'release'`, fx.org); got != 1 {
+		t.Fatalf("release entries = %d", got)
+	}
+	if got := queryInt(t, `SELECT count(*) FROM work.audit_event WHERE org_id = $1 AND action = 'operation.reconcile'`, fx.org); got != 1 {
+		t.Fatalf("reconcile audits = %d", got)
+	}
+}
+
+func TestReconcileRejectionDoesNotReverseSettlement(t *testing.T) {
+	fx := newFixture(t, "fin_rej_settled")
+	worker := fx.prepare(t)
+	fx.consume(t, worker)
+	fx.attach(t, worker, fx.rejectedReceipt(t))
+	ctx := testContext(t)
+	if _, err := worker.Exec(ctx, `SELECT work.mark_operation_unknown($1, $2, 'provider_unknown')`, fx.org, fx.opID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := worker.Exec(ctx, `SELECT work.settle_quota(id, 3, '{}'::jsonb, 1) FROM work.quota_reservation WHERE operation_id = $1`, fx.opID); err != nil {
+		t.Fatal(err)
+	}
+	_, err := newFinisher().FinishFromReceipt(ctx, fx.org, fx.opID)
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Message != "rejection_usage_conflict" {
+		t.Fatalf("error = %v, want usage conflict", err)
+	}
+	if got := queryInt(t, `SELECT settled_tokens FROM work.quota_account WHERE org_id = $1`, fx.org); got != 3 {
+		t.Fatalf("settled tokens = %d", got)
+	}
+	if got := queryString(t, `SELECT state FROM work.operation WHERE id = $1`, fx.opID); got != "unknown" {
+		t.Fatalf("operation = %s", got)
 	}
 }
 

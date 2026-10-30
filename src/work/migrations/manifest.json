@@ -172,6 +172,17 @@
       "catalog_checksum": "sha256:d271205bcdf31ee1005d399be9f78a258a88c8da9e86bab21cf1e661cd707b06",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 16,
+      "name": "0016_reconcile_rejected_receipt",
+      "kind": "increment",
+      "file": "increments/0016_reconcile_rejected_receipt.sql",
+      "checksum": "sha256:127ac8a6c577d5ed7e1e2b3924c7901e201157ff151cf15872951b6ae2ac73d3",
+      "catalog": "catalogs/0016_reconcile_rejected_receipt.json",
+      "catalog_checksum": "sha256:212d89d9a46bed03130564746a34ac27773708e9ebc2bc596c9046a798188612",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

@@ -639,6 +639,21 @@ func TestAbortRunClosesProvenProviderRejection(t *testing.T) {
 	}
 	seedAdvanceRejection(t, pool, store, advanceEgressSeed(prepared, head, execution))
 
+	// Dispatching rejection still needs AbortRun; finishing must not reconcile it.
+	finished, err := activities.FinishAdvance(ctx, runflow.AdvanceFinishInput{
+		Prepared: prepared, Head: head, Execution: execution,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if finished.Status != runflow.AdvanceStatusFailed || finished.ErrCode != fragment.ReasonProviderRejected {
+		t.Fatalf("dispatching finish = %#v", finished)
+	}
+	operationState, reservations := readOperationAndReservation(t, dbName, execution.OperationID)
+	if operationState != "dispatching" || reservations != "held" {
+		t.Fatalf("before abort: operation=%s reservations=%s", operationState, reservations)
+	}
+
 	if err := activities.AbortRun(ctx, runflow.AbortRunInput{
 		RunID: flowRun, OrgID: flowOrg,
 		OperationID: execution.OperationID, ReservationID: execution.ReservationID,
@@ -647,7 +662,7 @@ func TestAbortRunClosesProvenProviderRejection(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	operationState, reservations := readOperationAndReservation(t, dbName, execution.OperationID)
+	operationState, reservations = readOperationAndReservation(t, dbName, execution.OperationID)
 	if operationState != "failed" || reservations != "released" {
 		t.Fatalf("operation=%s reservations=%s", operationState, reservations)
 	}
@@ -679,6 +694,129 @@ func TestAbortRunClosesProvenProviderRejection(t *testing.T) {
 	}
 	if usageFacts != 0 || artifacts != 0 {
 		t.Fatalf("usage facts = %d, artifacts = %d", usageFacts, artifacts)
+	}
+}
+
+func TestAdvanceFinishReconcilesWaitingProviderRejectionAndReplays(t *testing.T) {
+	pool, dbName := newFlowDB(t)
+	store := newFlowContent(t)
+	seedAdvanceTask(t, dbName, store)
+	activities := newAdvanceActivities(pool, store)
+	ctx := context.Background()
+	prepared, err := activities.PrepareAdvance(ctx, runflow.Input{RunID: flowRun, OrgID: flowOrg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, err := activities.EnsureAdvanceHead(ctx, prepared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	execution, err := activities.PrepareAdvanceExecution(ctx, runflow.PrepareExecutionInput{
+		Prepared: prepared, Head: head,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedAdvanceRejection(t, pool, store, advanceEgressSeed(prepared, head, execution))
+	if err := workdb.WithWorkerOrgContext(ctx, pool, flowOrg, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT work.mark_operation_unknown($1, $2, $3)`,
+			flowOrg, execution.OperationID, "provider_unknown"); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `SELECT work.wait_run($1, $2, $3)`, flowOrg, flowRun, "reconcile")
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	operationState, reservations := readOperationAndReservation(t, dbName, execution.OperationID)
+	if operationState != "unknown" || reservations != "held" {
+		t.Fatalf("before finish: operation=%s reservations=%s", operationState, reservations)
+	}
+
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(ctx)
+	assertRunState := func(want string) {
+		t.Helper()
+		var state string
+		if err := admin.QueryRow(ctx, `SELECT state FROM work.run WHERE id = $1`, flowRun).
+			Scan(&state); err != nil {
+			t.Fatal(err)
+		}
+		if state != want {
+			t.Fatalf("run state = %q, want %q", state, want)
+		}
+	}
+	assertUnpublished := func() {
+		t.Helper()
+		var usageFacts, artifacts, artifactVersions int
+		var settledTokens int64
+		if err := admin.QueryRow(ctx, `
+			SELECT
+			  (SELECT count(*) FROM work.operation_usage_fact WHERE operation_id = $1),
+			  (SELECT count(*) FROM work.artifact WHERE task_id = $2),
+			  (SELECT count(*) FROM work.artifact_version av
+			   JOIN work.artifact a ON a.id = av.artifact_id AND a.org_id = av.org_id WHERE a.task_id = $2),
+			  (SELECT COALESCE(sum(settled_tokens), 0) FROM work.quota_reservation WHERE operation_id = $1)`,
+			execution.OperationID, flowTask,
+		).Scan(&usageFacts, &artifacts, &artifactVersions, &settledTokens); err != nil {
+			t.Fatal(err)
+		}
+		if usageFacts != 0 || artifacts != 0 || artifactVersions != 0 || settledTokens != 0 {
+			t.Fatalf("usage=%d artifacts=%d versions=%d settled=%d",
+				usageFacts, artifacts, artifactVersions, settledTokens)
+		}
+		row := readAdvanceHeadRow(t, pool, flowOrg, flowRun)
+		if row.Revision != 0 || row.Ref != head.Ref || row.Hash != head.Hash {
+			t.Fatalf("rejection changed head: %#v", row)
+		}
+	}
+	assertRunState("waiting")
+	finishInput := runflow.AdvanceFinishInput{Prepared: prepared, Head: head, Execution: execution}
+	for i := 0; i < 2; i++ {
+		finished, err := activities.FinishAdvance(ctx, finishInput)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if finished.Status != runflow.AdvanceStatusFailed || finished.ErrCode != fragment.ReasonProviderRejected ||
+			finished.HeadRevision != 0 || finished.ArtifactID != "" {
+			t.Fatalf("rejected finish %d = %#v", i, finished)
+		}
+		operationState, reservations = readOperationAndReservation(t, dbName, execution.OperationID)
+		if operationState != "reconciled" || reservations != "released" {
+			t.Fatalf("after finish %d: operation=%s reservations=%s", i, operationState, reservations)
+		}
+		assertRunState("active")
+		assertUnpublished()
+	}
+	if err := activities.AbortRun(ctx, runflow.AbortRunInput{
+		RunID: flowRun, OrgID: flowOrg,
+		OperationID: execution.OperationID, ReservationID: execution.ReservationID,
+		Outcome: "failed", Reason: fragment.ReasonProviderRejected,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	assertRunState("failed")
+	assertUnpublished()
+
+	// Once AbortRun closes the Run, replay reports the terminal Run result.
+	for i := 0; i < 2; i++ {
+		replay, err := activities.FinishAdvance(ctx, finishInput)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if replay.Status != runflow.AdvanceStatusFailed || replay.ErrCode != "run_failed" ||
+			replay.HeadRevision != 0 || replay.ArtifactID != "" {
+			t.Fatalf("terminal replay %d = %#v", i, replay)
+		}
+		operationState, reservations = readOperationAndReservation(t, dbName, execution.OperationID)
+		if operationState != "reconciled" || reservations != "released" {
+			t.Fatalf("terminal replay: operation=%s reservations=%s", operationState, reservations)
+		}
+		assertRunState("failed")
+		assertUnpublished()
 	}
 }
 

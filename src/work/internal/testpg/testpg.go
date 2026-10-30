@@ -143,6 +143,10 @@ func CreateBaselineDB(ctx context.Context, admin *pgx.Conn, prefix string) (stri
 		_ = DropDatabase(ctx, admin, name)
 		return "", err
 	}
+	if err := ApplyReconcileRejectedReceipt(ctx, dbAdmin); err != nil {
+		_ = DropDatabase(ctx, admin, name)
+		return "", err
+	}
 	return name, nil
 }
 
@@ -252,6 +256,14 @@ func ApplyAdvanceBindingReads(ctx context.Context, conn *pgx.Conn) error {
 
 func ApplySnapshotRevision(ctx context.Context, conn *pgx.Conn) error {
 	body, err := fs.ReadFile(embedded.FS, "increments/0015_snapshot_revision.sql")
+	if err != nil {
+		return err
+	}
+	return ExecRaw(ctx, conn, string(body))
+}
+
+func ApplyReconcileRejectedReceipt(ctx context.Context, conn *pgx.Conn) error {
+	body, err := fs.ReadFile(embedded.FS, "increments/0016_reconcile_rejected_receipt.sql")
 	if err != nil {
 		return err
 	}

@@ -782,7 +782,7 @@ func TestManifestPinsLatestAndApplyIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	last := manifest.Increments[len(manifest.Increments)-1]
-	if last.Version != 15 || last.Name != "0015_snapshot_revision" {
+	if last.Version != 16 || last.Name != "0016_reconcile_rejected_receipt" {
 		t.Fatalf("last increment = %d/%s", last.Version, last.Name)
 	}
 	body, err := readEmbedded(last.File)
@@ -827,7 +827,7 @@ func TestManifestPinsLatestAndApplyIsIdempotent(t *testing.T) {
 		t.Fatalf("apply state = %q", result.State)
 	}
 	versions := ledgerVersions(t, name)
-	want := []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	want := []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	if len(versions) != len(want) {
 		t.Fatalf("ledger versions = %v", versions)
 	}

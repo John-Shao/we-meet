@@ -34,6 +34,7 @@ const (
 	StatusConfirmed        = "confirmed"
 	StatusAlreadyConfirmed = "already_confirmed"
 	StatusUsageUnavailable = "usage_unavailable"
+	StatusRejected         = "rejected_not_executed"
 )
 
 var (
@@ -45,12 +46,8 @@ var (
 	ErrReceiptNotAttached = errors.New("receipt_not_attached")
 	// ErrSealedNotSent means the database sealed this operation as not sent.
 	// There is no receipt to recover.
-	ErrSealedNotSent = errors.New("sealed_not_sent")
-	// ErrRejectedWithoutFinishingPath means the terminal receipt is a provable
-	// not-executed rejection. The signed reconcile-resolution enum has no
-	// rejection branch and 0009's finishing command refuses such a gate, so
-	// this resolver mutates nothing.
-	ErrRejectedWithoutFinishingPath = errors.New("rejected_without_finishing_path")
+	ErrSealedNotSent           = errors.New("sealed_not_sent")
+	ErrRejectedNotReconcilable = errors.New("rejected_not_reconcilable")
 	// ErrOperationNotFound means the gate references no readable operation.
 	ErrOperationNotFound = errors.New("operation_not_found")
 	// ErrExecutionNotFound means the gate references no readable execution.
@@ -209,10 +206,6 @@ func (f *Finisher) FinishFromReceipt(ctx context.Context, orgID, operationID str
 		if gate.receiptResult != "rejected_not_executed" {
 			return Outcome{}, fail("receipt_binding_mismatch", receipt.ErrBindingMismatch)
 		}
-		// 0009's finishing command only accepts successful gates and the
-		// signed reconcile-resolution enum has no rejection branch. Do not
-		// fake a failure through an unrelated command.
-		return Outcome{}, ErrRejectedWithoutFinishingPath
 	default:
 		return Outcome{}, fail("receipt_invalid", nil)
 	}
@@ -248,6 +241,24 @@ func (f *Finisher) FinishFromReceipt(ctx context.Context, orgID, operationID str
 	if string(request.LogicalKey) != operation.logicalKey ||
 		string(verified.Receipt.LogicalKey) != operation.logicalKey {
 		return Outcome{}, fail("request_binding_mismatch", receipt.ErrBindingMismatch)
+	}
+
+	if verified.Outcome == canonical.OutcomeRejectedNotExec {
+		if operation.state != "unknown" && operation.state != "unresolved" && operation.state != "reconciled" {
+			return Outcome{}, ErrRejectedNotReconcilable
+		}
+		err := workdb.WithWorkerOrgContext(ctx, f.Pool, orgID, func(tx pgx.Tx) error {
+			_, err := tx.Exec(ctx, `SELECT work.reconcile_operation($1, $2, 'rejected_not_executed', NULL, 0, $3)`,
+				orgID, operationID, gate.receiptRef)
+			return err
+		})
+		if err != nil {
+			return Outcome{}, fail("finish_command_failed", err)
+		}
+		return Outcome{
+			Status: StatusRejected, ReceiptHash: gate.receiptHash,
+			UsageSource: string(verified.UsageSource), SettlementTokens: canonical.Int64(0),
+		}, nil
 	}
 
 	// The usage day is the receipt's recorded time in UTC. A late recovery
