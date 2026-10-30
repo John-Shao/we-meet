@@ -185,7 +185,9 @@ for unit in work-authz work-content-proxy work-egress; do
 done
 run systemctl daemon-reload
 run systemctl enable work-authz work-content-proxy work-egress
-run systemctl start work-authz work-content-proxy work-egress
+# restart, not start: step 3 never stops these units, so `start` would be a
+# no-op and the freshly installed binaries would sit on disk unused.
+run systemctl restart work-authz work-content-proxy work-egress
 
 echo "== 8. Node runtime =="
 if [[ -n "$RUNTIME_BUNDLE" && -f "$RUNTIME_BUNDLE" ]]; then
@@ -218,7 +220,8 @@ run systemctl start work-directory-sync.service || true
 echo "new work stays 503 until directory_sync_state has a successful row"
 
 echo "== 9. restart API and relay, start worker =="
-run systemctl start work-api work-relay
+# work-api is not stopped in step 3, so only a restart loads the new binary.
+run systemctl restart work-api work-relay
 if [[ -f /etc/work/work-worker.env ]]; then
   if grep -qE '^WORK_MODEL_|^WORK_RUNTIME_MODE=(openai_compatible|stub|fake)' /etc/work/work-worker.env; then
     if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -250,6 +253,19 @@ fi
 run systemctl start work-worker
 
 echo "== 10. smoke =="
+# A unit that systemd never stopped keeps serving the pre-rollout inode: the new
+# binary is on disk, /proc/<pid>/exe points at the deleted one. Catch that here
+# instead of discovering it hours later from an API response shape.
+if [[ "$DRY_RUN" -eq 0 ]]; then
+  for unit in work-api work-relay work-worker work-authz work-content-proxy work-egress; do
+    pid="$(systemctl show "$unit" -p MainPID --value)"
+    [[ -n "$pid" && "$pid" != "0" ]] || continue
+    if readlink "/proc/$pid/exe" 2>/dev/null | grep -q ' (deleted)$'; then
+      echo "STALE: $unit (pid $pid) still runs the binary this rollout replaced" >&2
+      exit 1
+    fi
+  done
+fi
 systemctl is-active work-authz work-content-proxy work-egress work-api work-relay work-worker || true
 ss -ltnp 2>/dev/null | grep -E ':844[3-6]' || true
 journalctl -u work-authz -u work-content-proxy -u work-egress -n 20 --no-pager || true

@@ -49,6 +49,25 @@ for unit in work-api work-relay work-worker work-authz work-content-proxy \
 done
 
 echo
+echo "== running binary vs installed =="
+# `systemctl start` on an already-active unit is a no-op, so a rollout can leave
+# the new binary on disk while the old process keeps serving. A replaced
+# executable shows up as a deleted inode in /proc/<pid>/exe.
+for unit in work-api work-relay work-worker work-authz work-content-proxy work-egress; do
+  pid="$(systemctl show -p MainPID --value "$unit" 2>/dev/null)"
+  if [[ -z "$pid" || "$pid" == "0" ]]; then
+    printf '%-20s not running\n' "$unit"
+    continue
+  fi
+  exe="$(readlink "/proc/$pid/exe" 2>/dev/null)"
+  if [[ "$exe" == *"(deleted)" ]]; then
+    printf '%-20s STALE: pid %s runs a replaced binary\n' "$unit" "$pid"
+  else
+    printf '%-20s ok: pid %s -> %s\n' "$unit" "$pid" "${exe:-unknown}"
+  fi
+done
+
+echo
 echo "== listeners =="
 ss -ltnp 2>/dev/null | awk 'NR == 1 || $4 ~ /:(8443|8444|8445|8446)$/'
 
