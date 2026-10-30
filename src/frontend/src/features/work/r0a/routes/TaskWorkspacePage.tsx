@@ -546,7 +546,11 @@ export const TaskWorkspacePage = () => {
               </dd>
               <dt className={label}>{t('task.permissionMode')}</dt>
               <dd className={css({ margin: 0 })}>
-                {detail.snapshot?.permission_mode ?? '—'}
+                {detail.snapshot
+                  ? t(`composer.mode.${detail.snapshot.permission_mode}`, {
+                      defaultValue: detail.snapshot.permission_mode,
+                    })
+                  : '—'}
               </dd>
             </dl>
           </section>

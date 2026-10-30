@@ -400,4 +400,22 @@ describe('TaskWorkspacePage read-only viewport', () => {
     ).toBeInTheDocument()
     expect(screen.queryByText('readOnly.taskNotice')).not.toBeInTheDocument()
   })
+
+  it('renders the closed snapshot as a revision and a localized permission mode', async () => {
+    const withSnapshot = acceptanceDetail('snapshot-panel')
+    withSnapshot.snapshot = {
+      snapshot_id: 'snap-1',
+      snapshot_revision: 2,
+      template: { id: 'summary', version: 1, content_hash: 'hash' },
+      limits: { token_upper_bound: 100_000 },
+      permission_mode: 'ask_each',
+      created_at: '2026-10-30T00:00:00Z',
+    }
+    fetchTask.mockResolvedValueOnce(withSnapshot)
+    setup()
+    await tick()
+    expect(screen.getByText('v2')).toBeInTheDocument()
+    expect(screen.getByText('composer.mode.ask_each')).toBeInTheDocument()
+    expect(screen.queryByText('ask_each')).not.toBeInTheDocument()
+  })
 })
