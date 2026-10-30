@@ -772,8 +772,8 @@ func ledgerVersions(t *testing.T, dbName string) []int64 {
 }
 
 // TestManifestPinsLatestAndApplyIsIdempotent proves the published manifest
-// pins the exact 0013 bytes and catalog, and that a fresh database applies the
-// whole ledger through version 13 exactly once.
+// pins the exact bytes and catalog of the latest increment, and that a fresh
+// database applies the whole ledger through that version exactly once.
 func TestManifestPinsLatestAndApplyIsIdempotent(t *testing.T) {
 	requireDB(t)
 	ctx := testContext(t)
@@ -782,7 +782,7 @@ func TestManifestPinsLatestAndApplyIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	last := manifest.Increments[len(manifest.Increments)-1]
-	if last.Version != 14 || last.Name != "0014_advance_binding_reads" {
+	if last.Version != 15 || last.Name != "0015_snapshot_revision" {
 		t.Fatalf("last increment = %d/%s", last.Version, last.Name)
 	}
 	body, err := readEmbedded(last.File)
@@ -827,7 +827,7 @@ func TestManifestPinsLatestAndApplyIsIdempotent(t *testing.T) {
 		t.Fatalf("apply state = %q", result.State)
 	}
 	versions := ledgerVersions(t, name)
-	want := []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
+	want := []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
 	if len(versions) != len(want) {
 		t.Fatalf("ledger versions = %v", versions)
 	}

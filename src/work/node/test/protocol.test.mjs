@@ -171,6 +171,9 @@ test('accepts a valid signed outcome alongside the status', () => {
   assert.deepEqual(validateOutcome({ state: 'FAILED', reason: 'runtime_fault' }), {
     state: 'FAILED', checkpoint: null, reason: 'runtime_fault',
   });
+  assert.deepEqual(validateOutcome({ state: 'FAILED', reason: 'provider_rejected' }), {
+    state: 'FAILED', checkpoint: null, reason: 'provider_rejected',
+  });
   assert.deepEqual(validateOutcome({ state: 'FINISHED', checkpoint: CHECKPOINT, artifact: ARTIFACT }), {
     state: 'FINISHED', checkpoint: CHECKPOINT, artifact: ARTIFACT,
   });
@@ -215,6 +218,9 @@ test('rejects oversize, malformed and inconsistent outcomes', () => {
   rejectsCode(() => validateOutcome({ state: 'WAITING_RECONCILE', operationId: OPERATION }),
     'missing_field');
   rejectsCode(() => validateOutcome({ state: 'WAITING_RECONCILE', operationId: OPERATION, reason: 'runtime_fault' }), 'invalid_field');
+  // provider_rejected is a terminal failure only: an unknown outcome never
+  // becomes a proven non-execution.
+  rejectsCode(() => validateOutcome({ state: 'WAITING_RECONCILE', operationId: OPERATION, reason: 'provider_rejected' }), 'invalid_field');
   rejectsCode(() => validateOutcome({ state: 'CANCELED', reason: 'runtime_fault' }), 'invalid_field');
   assert.deepEqual(validateOutcome({ state: 'CANCELED', reason: 'cancel_requested' }), {
     state: 'CANCELED', checkpoint: null, reason: 'cancel_requested',

@@ -112,6 +112,52 @@ test('gateway client treats an actionable 4xx as provable rejection without retr
   }
 });
 
+test('gateway client reads a bound rejected receipt as a proven non-execution', async () => {
+  const server = await startServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      outcome: 'rejected_not_executed',
+      sent: true,
+      requestHash: 'sha256:aa',
+      gateState: 'receipt_recorded',
+      code: 'unprocessable',
+      receipt: { refId: RECEIPT_REF, hash: HASH },
+      usage: { source: 'provider', inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 },
+    }));
+  });
+  try {
+    const result = await client(server).call(PAYLOAD);
+    assert.equal(result.outcome, 'not_executed');
+    assert.equal(result.code, 'unprocessable');
+    assert.deepEqual(result.receipt, { refId: RECEIPT_REF, hash: HASH });
+    assert.equal(server.requests.length, 1);
+  } finally {
+    await server.close();
+  }
+});
+
+test('gateway client needs both the code and the receipt to call a non-execution', async () => {
+  const cases = [
+    { label: 'no code', body: { outcome: 'rejected_not_executed', sent: true, receipt: { refId: RECEIPT_REF, hash: HASH } } },
+    { label: 'no receipt', body: { outcome: 'rejected_not_executed', sent: true, code: 'unprocessable' } },
+    { label: 'not sent', body: { outcome: 'rejected_not_executed', sent: false, code: 'unprocessable', receipt: { refId: RECEIPT_REF, hash: HASH } } },
+    { label: 'unknown outcome', body: { outcome: 'aborted', sent: true, code: 'unprocessable', receipt: { refId: RECEIPT_REF, hash: HASH } } },
+  ];
+  for (const candidate of cases) {
+    const server = await startServer((req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(candidate.body));
+    });
+    try {
+      const result = await client(server).call(PAYLOAD);
+      assert.equal(result.outcome, 'unknown', candidate.label);
+      assert.equal(result.reason, 'response_invalid', candidate.label);
+    } finally {
+      await server.close();
+    }
+  }
+});
+
 test('gateway client treats 429 as unknown and does not retry', async () => {
   const server = await startServer((req, res) => {
     res.writeHead(429, { 'Content-Type': 'application/json' });

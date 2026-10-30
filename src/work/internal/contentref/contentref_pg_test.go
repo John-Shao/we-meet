@@ -1066,11 +1066,11 @@ func TestApplyThroughLatestAndManifestChecksums(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(manifest.Increments) != 12 {
-		t.Fatalf("increments = %d, want 12", len(manifest.Increments))
+	if len(manifest.Increments) != 13 {
+		t.Fatalf("increments = %d, want 13", len(manifest.Increments))
 	}
 	last := manifest.Increments[len(manifest.Increments)-1]
-	if last.Version != 14 || last.Name != "0014_advance_binding_reads" {
+	if last.Version != 15 || last.Name != "0015_snapshot_revision" {
 		t.Fatalf("last increment = %d/%s", last.Version, last.Name)
 	}
 	body, err := fs.ReadFile(embedded.FS, last.File)
@@ -1078,7 +1078,7 @@ func TestApplyThroughLatestAndManifestChecksums(t *testing.T) {
 		t.Fatal(err)
 	}
 	if sum := fmt.Sprintf("sha256:%x", sha256.Sum256(body)); sum != last.Checksum {
-		t.Fatalf("0013 checksum = %s, manifest pins %s", sum, last.Checksum)
+		t.Fatalf("latest checksum = %s, manifest pins %s", sum, last.Checksum)
 	}
 	catalogBody, err := fs.ReadFile(embedded.FS, last.Catalog)
 	if err != nil {
@@ -1120,7 +1120,7 @@ func TestApplyThroughLatestAndManifestChecksums(t *testing.T) {
 	if result.State != "applied" {
 		t.Fatalf("apply state = %q", result.State)
 	}
-	if got := ledgerVersions(t, name); len(got) != 14 {
+	if got := ledgerVersions(t, name); len(got) != 15 {
 		t.Fatalf("ledger versions = %v", got)
 	} else {
 		for index, version := range got {

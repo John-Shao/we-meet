@@ -618,6 +618,48 @@ func (a *Activities) releaseReservation(ctx context.Context, orgID, reservationI
 	})
 }
 
+// rejectionEvidence is the gate's own proof that the provider refused before
+// executing. Only a receipt already bound to the dispatch slot counts; the
+// runtime's claim alone never closes an Operation.
+type rejectionEvidence struct {
+	bound             bool
+	providerRequestID string
+	receiptRef        string
+}
+
+func (a *Activities) rejectionEvidence(
+	ctx context.Context, orgID, operationID string,
+) (rejectionEvidence, error) {
+	var gateState string
+	var receiptResult, providerRequestID, receiptRef *string
+	err := workdb.WithWorkerOrgContext(ctx, a.Pool, orgID, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT gate_state, receipt_result, provider_request_id, receipt_ref
+			FROM work.dispatch_delivery
+			WHERE org_id = $1 AND operation_id = $2`,
+			orgID, operationID,
+		).Scan(&gateState, &receiptResult, &providerRequestID, &receiptRef)
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return rejectionEvidence{}, nil
+	}
+	if err != nil {
+		return rejectionEvidence{}, err
+	}
+	if gateState != "receipt_recorded" || receiptResult == nil ||
+		*receiptResult != "rejected_not_executed" {
+		return rejectionEvidence{}, nil
+	}
+	evidence := rejectionEvidence{bound: true}
+	if providerRequestID != nil {
+		evidence.providerRequestID = *providerRequestID
+	}
+	if receiptRef != nil {
+		evidence.receiptRef = *receiptRef
+	}
+	return evidence, nil
+}
+
 func (a *Activities) settleReservation(ctx context.Context, orgID, reservationID string, usageTokens int64) error {
 	usage, _ := json.Marshal(map[string]any{"usage_tokens": usageTokens})
 	return workdb.WithWorkerOrgContext(ctx, a.Pool, orgID, func(tx pgx.Tx) error {
@@ -777,6 +819,26 @@ func (a *Activities) abortOperation(ctx context.Context, input AbortRunInput) er
 			return err
 		})
 	case "dispatching":
+		if input.ProvenRejection {
+			evidence, err := a.rejectionEvidence(ctx, input.OrgID, input.OperationID)
+			if err != nil {
+				return err
+			}
+			if evidence.bound {
+				// Decision A1: the gateway bound a rejected_not_executed
+				// receipt, which proves nothing executed. Close the Operation as
+				// failed and release the held reservation; usage stays absent
+				// because the receipt itself carries provider zeros.
+				if err := a.finishOperation(ctx, input.OrgID, input.OperationID,
+					"failed", evidence.providerRequestID, evidence.receiptRef); err != nil {
+					return err
+				}
+				if reservationID == nil {
+					return nil
+				}
+				return a.releaseReservation(ctx, input.OrgID, *reservationID)
+			}
+		}
 		return workdb.WithWorkerOrgContext(ctx, a.Pool, input.OrgID, func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, `SELECT work.mark_operation_unknown($1, $2, $3)`,
 				input.OrgID, input.OperationID, input.Reason)

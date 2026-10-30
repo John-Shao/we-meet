@@ -102,10 +102,28 @@ const (
 	ReasonCheckpointFailed   = "checkpoint_failed"
 	ReasonRuntimeFault       = "runtime_fault"
 	ReasonDeadlineExceeded   = "deadline_exceeded"
+	ReasonProviderRejected   = "provider_rejected"
 	ReasonProviderUnknown    = "provider_unknown"
 	ReasonReceiptUnavailable = "receipt_unavailable"
 	ReasonCancelRequested    = "cancel_requested"
 )
+
+// FailedReasons is the closed FAILED reason set. Go validation, the Node
+// protocol and the signed contract assets are expected to agree with it, so
+// the parity test compares all three against this list.
+var FailedReasons = []string{
+	ReasonInvalidContext, ReasonCheckpointFailed, ReasonRuntimeFault,
+	ReasonDeadlineExceeded, ReasonProviderRejected,
+}
+
+func isFailedReason(reason string) bool {
+	for _, allowed := range FailedReasons {
+		if reason == allowed {
+			return true
+		}
+	}
+	return false
+}
 
 func (r Request) Validate() error {
 	if r.Kind != KindRequest || r.Contract != ContractVersion {
@@ -240,9 +258,7 @@ func (r Result) Validate() error {
 		if r.Artifact != nil || r.Intent != nil || r.Receipt != nil {
 			return fmt.Errorf("%w: FAILED carries no intent, receipt or artifact", ErrContract)
 		}
-		switch r.Reason {
-		case ReasonInvalidContext, ReasonCheckpointFailed, ReasonRuntimeFault, ReasonDeadlineExceeded:
-		default:
+		if !isFailedReason(r.Reason) {
 			return fmt.Errorf("%w: unknown failure reason", ErrContract)
 		}
 	case StateCanceled:

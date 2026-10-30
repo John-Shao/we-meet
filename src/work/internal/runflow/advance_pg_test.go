@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/we-meet/work/internal/content"
 	"github.com/we-meet/work/internal/contentref"
 	workdb "github.com/we-meet/work/internal/db"
+	"github.com/we-meet/work/internal/fragment"
 	"github.com/we-meet/work/internal/providerctx"
 	"github.com/we-meet/work/internal/runflow"
 	"github.com/we-meet/work/internal/testpg"
@@ -459,5 +461,295 @@ func TestAdvanceFinishCommitsRevisionOneAndPublishesArtifact(t *testing.T) {
 	}
 	if replay.Status != runflow.AdvanceStatusSucceeded || replay.HeadRevision != 1 {
 		t.Fatalf("finish replay = %#v", replay)
+	}
+}
+
+// seedAdvanceRejection binds a rejected_not_executed receipt to the dispatch
+// gate through the signed commands, which is the only evidence that lets the
+// worker close a dispatched Operation as failed instead of unknown (A1).
+func seedAdvanceRejection(t *testing.T, pool *pgxpool.Pool, store content.Store, seed egressSeed) {
+	t.Helper()
+	ctx := context.Background()
+	if seed.HolderID == "" {
+		seed.HolderID = "work-fake-parent"
+	}
+	var state string
+	if err := workdb.WithWorkerOrgContext(ctx, pool, seed.OrgID, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT work.claim_runtime_execution($1, $2, $3)`,
+			seed.OrgID, seed.ExecutionID, seed.HolderID).Scan(&state)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if state != "claimed" && state != "already_claimed" {
+		t.Fatalf("claim state = %q", state)
+	}
+
+	registry := contentref.NewRegistry(pool)
+	evidenceObject, err := store.Put(ctx, seed.OrgID, []byte(`{"error":{"code":"invalid_request"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidenceRefID := newUUID(t)
+	if err := registry.Register(ctx, contentref.Reference{
+		RefID: evidenceRefID, OrgID: seed.OrgID, TaskID: seed.TaskID, RunID: seed.RunID,
+		ExecutionID: seed.ExecutionID, Kind: contentref.KindRejectionEvidence,
+		LogicalSlot: "evidence:" + seed.ExecutionID + ":model:1", ObjectVersion: "v1",
+		ContentRef: evidenceObject.ContentRef, ContentHash: evidenceObject.Hash,
+		Bytes: evidenceObject.Bytes, WriterKind: contentref.WriterEgress,
+		SlotState: contentref.SlotCommitted,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	document := canonical.ModelReceipt{
+		ReceiptID: newUUID(t),
+		Binding: canonical.Binding{
+			OrgID: seed.OrgID, TaskID: seed.TaskID, RunID: seed.RunID,
+			SnapshotID: seed.SnapshotID, RuntimeVersion: seed.RuntimeVersion,
+		},
+		LogicalKey:        canonical.LogicalKey1,
+		OperationID:       seed.OperationID,
+		DispatchAttemptID: seed.AttemptID,
+		ExecutionID:       seed.ExecutionID,
+		RequestHash:       seed.RequestHash,
+		WriterGatewayID:   newUUID(t),
+		RecordedAtUnixMs:  time.Now().UnixMilli(),
+		Outcome:           canonical.OutcomeRejectedNotExec,
+		ContentBytes:      0,
+		RejectionEvidence: &canonical.Reference{RefID: evidenceRefID, Hash: evidenceObject.Hash},
+		Usage: canonical.Usage{
+			Source: canonical.UsageProvider, InputTokens: canonical.Int64(0),
+			OutputTokens: canonical.Int64(0), CachedInputTokens: canonical.Int64(0),
+		},
+	}
+	receiptHash, err := document.Hash()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := document.Canonical()
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiptObject, err := store.Put(ctx, seed.OrgID, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiptSlotID := newUUID(t)
+	if err := registry.Register(ctx, contentref.Reference{
+		RefID: receiptSlotID, OrgID: seed.OrgID, TaskID: seed.TaskID, RunID: seed.RunID,
+		ExecutionID: seed.ExecutionID, Kind: contentref.KindReceipt,
+		LogicalSlot: "receipt:" + seed.ExecutionID + ":model:1", ObjectVersion: "v1",
+		ContentRef: receiptObject.ContentRef, ContentHash: receiptHash,
+		Bytes: receiptObject.Bytes, WriterKind: contentref.WriterEgress,
+		SlotState: contentref.SlotCommitted,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var consumed []byte
+	if err := workdb.WithWorkerOrgContext(ctx, pool, seed.OrgID, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT work.consume_dispatch_delivery($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			seed.OrgID, seed.OperationID, seed.ExecutionID, seed.HolderID, seed.AttemptID,
+			seed.RequestHash, seed.Fence, "fake-gateway:1", receiptSlotID,
+		).Scan(&consumed)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var decision struct {
+		Outcome string `json:"outcome"`
+	}
+	if err := json.Unmarshal(consumed, &decision); err != nil || decision.Outcome != "won" {
+		t.Fatalf("consume decision = %s, %v", consumed, err)
+	}
+	if err := workdb.WithWorkerOrgContext(ctx, pool, seed.OrgID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			SELECT work.attach_dispatch_receipt($1, $2, $3, $4, $5, 'rejected_not_executed')`,
+			seed.OrgID, seed.OperationID, receiptSlotID, receiptObject.ContentRef, receiptHash)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func advanceEgressSeed(
+	prepared runflow.AdvancePrepared, head runflow.AdvanceHead, execution runflow.AdvanceExecution,
+) egressSeed {
+	return egressSeed{
+		OrgID: prepared.OrgID, TaskID: prepared.TaskID, RunID: prepared.RunID,
+		SnapshotID: prepared.SnapshotID, RuntimeVersion: prepared.RuntimeVersion,
+		ExecutionID: execution.ExecutionID, OperationID: execution.OperationID,
+		AttemptID: execution.AttemptID, RequestHash: execution.RequestHash,
+		Fence: prepared.Fence,
+	}
+}
+
+func readOperationAndReservation(t *testing.T, dbName, operationID string) (string, string) {
+	t.Helper()
+	admin, err := testpg.Open(context.Background(), testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(context.Background())
+	var operationState string
+	if err := admin.QueryRow(context.Background(),
+		`SELECT state FROM work.operation WHERE id = $1`, operationID,
+	).Scan(&operationState); err != nil {
+		t.Fatal(err)
+	}
+	var reservationStates []string
+	rows, err := admin.Query(context.Background(),
+		`SELECT state FROM work.quota_reservation WHERE operation_id = $1`, operationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var state string
+		if err := rows.Scan(&state); err != nil {
+			t.Fatal(err)
+		}
+		reservationStates = append(reservationStates, state)
+	}
+	if len(reservationStates) == 0 {
+		t.Fatalf("no reservation for operation %s", operationID)
+	}
+	return operationState, strings.Join(reservationStates, ",")
+}
+
+func TestAbortRunClosesProvenProviderRejection(t *testing.T) {
+	pool, dbName := newFlowDB(t)
+	store := newFlowContent(t)
+	seedAdvanceTask(t, dbName, store)
+	activities := newAdvanceActivities(pool, store)
+	ctx := context.Background()
+	prepared, err := activities.PrepareAdvance(ctx, runflow.Input{RunID: flowRun, OrgID: flowOrg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, err := activities.EnsureAdvanceHead(ctx, prepared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	execution, err := activities.PrepareAdvanceExecution(ctx, runflow.PrepareExecutionInput{
+		Prepared: prepared, Head: head,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedAdvanceRejection(t, pool, store, advanceEgressSeed(prepared, head, execution))
+
+	if err := activities.AbortRun(ctx, runflow.AbortRunInput{
+		RunID: flowRun, OrgID: flowOrg,
+		OperationID: execution.OperationID, ReservationID: execution.ReservationID,
+		ProvenRejection: true, Outcome: "failed", Reason: fragment.ReasonProviderRejected,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	operationState, reservations := readOperationAndReservation(t, dbName, execution.OperationID)
+	if operationState != "failed" || reservations != "released" {
+		t.Fatalf("operation=%s reservations=%s", operationState, reservations)
+	}
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(ctx)
+	var runState string
+	if err := admin.QueryRow(ctx,
+		`SELECT state FROM work.run WHERE id = $1`, flowRun,
+	).Scan(&runState); err != nil {
+		t.Fatal(err)
+	}
+	if runState != "failed" {
+		t.Fatalf("run state = %q", runState)
+	}
+	var usageFacts, artifacts int
+	if err := admin.QueryRow(ctx,
+		`SELECT count(*) FROM work.operation_usage_fact WHERE operation_id = $1`,
+		execution.OperationID,
+	).Scan(&usageFacts); err != nil {
+		t.Fatal(err)
+	}
+	if err := admin.QueryRow(ctx,
+		`SELECT count(*) FROM work.artifact WHERE task_id = $1`, flowTask,
+	).Scan(&artifacts); err != nil {
+		t.Fatal(err)
+	}
+	if usageFacts != 0 || artifacts != 0 {
+		t.Fatalf("usage facts = %d, artifacts = %d", usageFacts, artifacts)
+	}
+}
+
+// A rejection claim without a bound rejected_not_executed receipt must stay
+// unknown: the gate, not the runtime, decides whether nothing executed.
+func TestAbortRunKeepsUnknownWithoutRejectionProof(t *testing.T) {
+	pool, dbName := newFlowDB(t)
+	store := newFlowContent(t)
+	seedAdvanceTask(t, dbName, store)
+	activities := newAdvanceActivities(pool, store)
+	ctx := context.Background()
+	prepared, err := activities.PrepareAdvance(ctx, runflow.Input{RunID: flowRun, OrgID: flowOrg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, err := activities.EnsureAdvanceHead(ctx, prepared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	execution, err := activities.PrepareAdvanceExecution(ctx, runflow.PrepareExecutionInput{
+		Prepared: prepared, Head: head,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedAdvanceEgress(t, pool, store, advanceEgressSeed(prepared, head, execution))
+
+	if err := activities.AbortRun(ctx, runflow.AbortRunInput{
+		RunID: flowRun, OrgID: flowOrg,
+		OperationID: execution.OperationID, ReservationID: execution.ReservationID,
+		ProvenRejection: true, Outcome: "failed", Reason: fragment.ReasonProviderRejected,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	operationState, reservations := readOperationAndReservation(t, dbName, execution.OperationID)
+	if operationState != "unknown" || reservations != "held" {
+		t.Fatalf("operation=%s reservations=%s", operationState, reservations)
+	}
+}
+
+func TestAbortRunKeepsUnknownWithoutRejectionClaim(t *testing.T) {
+	pool, dbName := newFlowDB(t)
+	store := newFlowContent(t)
+	seedAdvanceTask(t, dbName, store)
+	activities := newAdvanceActivities(pool, store)
+	ctx := context.Background()
+	prepared, err := activities.PrepareAdvance(ctx, runflow.Input{RunID: flowRun, OrgID: flowOrg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, err := activities.EnsureAdvanceHead(ctx, prepared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	execution, err := activities.PrepareAdvanceExecution(ctx, runflow.PrepareExecutionInput{
+		Prepared: prepared, Head: head,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedAdvanceRejection(t, pool, store, advanceEgressSeed(prepared, head, execution))
+
+	if err := activities.AbortRun(ctx, runflow.AbortRunInput{
+		RunID: flowRun, OrgID: flowOrg,
+		OperationID: execution.OperationID, ReservationID: execution.ReservationID,
+		Outcome: "failed", Reason: fragment.ReasonRuntimeFault,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	operationState, reservations := readOperationAndReservation(t, dbName, execution.OperationID)
+	if operationState != "unknown" || reservations != "held" {
+		t.Fatalf("operation=%s reservations=%s", operationState, reservations)
 	}
 }

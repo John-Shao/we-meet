@@ -320,7 +320,8 @@ func abortAdvance(
 	_ = workflow.ExecuteActivity(cleanupCtx, ActivityAbortRun, AbortRunInput{
 		RunID: input.RunID, OrgID: input.OrgID,
 		OperationID: execution.OperationID, ReservationID: execution.ReservationID,
-		Outcome: outcome, Reason: reason,
+		ProvenRejection: reason == fragment.ReasonProviderRejected,
+		Outcome:         outcome, Reason: reason,
 	}).Get(cleanupCtx, nil)
 	if outcome == "canceled" {
 		return nil

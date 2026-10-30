@@ -3,6 +3,7 @@ package runflow_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,14 +17,15 @@ import (
 )
 
 const (
-	advanceExecutionID = "11111111-1111-4111-8111-111111111111"
-	advanceRunID       = "22222222-2222-4222-8222-222222222222"
-	advanceTaskID      = "33333333-3333-4333-8333-333333333333"
-	advanceSnapshotID  = "44444444-4444-4444-8444-444444444444"
-	advanceOperationID = "55555555-5555-4555-8555-555555555555"
-	advanceAttemptID   = "66666666-6666-4666-8666-666666666666"
-	advanceRefID       = "77777777-7777-4777-8777-777777777777"
-	advanceHash        = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	advanceExecutionID   = "11111111-1111-4111-8111-111111111111"
+	advanceRunID         = "22222222-2222-4222-8222-222222222222"
+	advanceTaskID        = "33333333-3333-4333-8333-333333333333"
+	advanceSnapshotID    = "44444444-4444-4444-8444-444444444444"
+	advanceOperationID   = "55555555-5555-4555-8555-555555555555"
+	advanceAttemptID     = "66666666-6666-4666-8666-666666666666"
+	advanceRefID         = "77777777-7777-4777-8777-777777777777"
+	advanceReservationID = "88888888-8888-4888-8888-888888888888"
+	advanceHash          = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 )
 
 type fakeAdvanceClient struct {
@@ -298,4 +300,58 @@ func TestRunWorkflowAdvanceAlreadyAdvancedFinishesWithoutExecution(t *testing.T)
 		t.Fatalf("workflow: %v", err)
 	}
 	env.AssertExpectations(t)
+}
+
+// Decision A1: a provider rejection is terminal. The workflow revokes the
+// fragment and aborts the Run with the rejection flag; it never waits for
+// reconciliation, finishes the advance or publishes an artifact.
+func TestRunWorkflowAdvanceFailsRunOnProviderRejection(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(runflow.RunWorkflowAdvance)
+	env.RegisterActivity(&runflow.Activities{})
+	input := runflow.Input{RunID: advanceRunID, OrgID: "org_advance"}
+	prepared := advancePreparedFixture()
+	head := advanceHeadFixture()
+	execution := runflow.AdvanceExecution{
+		ExecutionID: advanceExecutionID, OperationID: advanceOperationID,
+		AttemptID: advanceAttemptID, ReservationID: advanceReservationID,
+		RequestHash:    advanceHash,
+		DeadlineUnixMs: time.Now().Add(time.Minute).UnixMilli(),
+	}
+	env.OnActivity(runflow.ActivityPrepareAdvance, mock.Anything, input).
+		Return(prepared, nil).Once()
+	env.OnActivity(runflow.ActivityEnsureHead, mock.Anything, prepared).
+		Return(head, nil).Once()
+	env.OnActivity(runflow.ActivityPrepareExecution, mock.Anything, mock.Anything).
+		Return(execution, nil).Once()
+	env.OnActivity(runflow.ActivityAdvanceRuntime, mock.Anything, mock.Anything).
+		Return(fragment.Result{
+			Kind: fragment.KindResult, Contract: fragment.ContractVersion,
+			ExecutionID: advanceExecutionID, State: fragment.StateFailed,
+			Checkpoint: &fragment.Reference{RefID: advanceRefID, Hash: advanceHash},
+			Reason:     fragment.ReasonProviderRejected,
+		}, nil).Once()
+	env.OnActivity(runflow.ActivityRevokeExecution, mock.Anything, runflow.RevokeExecutionInput{
+		RunID: advanceRunID, OrgID: "org_advance",
+		ExecutionID: advanceExecutionID, Reason: fragment.ReasonProviderRejected,
+	}).Return(nil).Once()
+	env.OnActivity(runflow.ActivityAbortRun, mock.Anything, runflow.AbortRunInput{
+		RunID: advanceRunID, OrgID: "org_advance",
+		OperationID: advanceOperationID, ReservationID: advanceReservationID,
+		ProvenRejection: true, Outcome: "failed", Reason: fragment.ReasonProviderRejected,
+	}).Return(nil).Once()
+
+	env.ExecuteWorkflow(runflow.RunWorkflowAdvance, input)
+
+	if !env.IsWorkflowCompleted() {
+		t.Fatal("workflow did not complete")
+	}
+	err := env.GetWorkflowError()
+	if err == nil || !strings.Contains(err.Error(), fragment.ReasonProviderRejected) {
+		t.Fatalf("workflow error = %v", err)
+	}
+	env.AssertExpectations(t)
+	env.AssertNotCalled(t, runflow.ActivityFinishAdvance, mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, runflow.ActivityWaitRun, mock.Anything, mock.Anything)
 }

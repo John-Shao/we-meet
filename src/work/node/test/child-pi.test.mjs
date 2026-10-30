@@ -452,6 +452,32 @@ test('a provable gateway rejection fails without a receipt', async () => {
   }
 });
 
+test('a bound rejected_not_executed receipt fails as provider_rejected', async () => {
+  const content = await contentServer();
+  const gateway = await gatewayServer({
+    body: {
+      outcome: 'rejected_not_executed',
+      sent: true,
+      gateState: 'receipt_recorded',
+      code: 'unprocessable',
+      receipt: { refId: RECEIPT_REF, hash: RECEIPT_HASH },
+      usage: { source: 'provider', inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 },
+    },
+  });
+  try {
+    const outcome = await runAdvance(executePayload(), clients(content, gateway));
+    assert.equal(outcome.state, 'FAILED');
+    assert.equal(outcome.reason, 'provider_rejected');
+    assert.equal(outcome.errorCode, 'unprocessable');
+    assert.equal(outcome.receipt, null);
+    assert.equal('artifact' in outcome, false);
+    assert.equal(gateway.requests.length, 1);
+  } finally {
+    await content.close();
+    await gateway.close();
+  }
+});
+
 test('execute rejects a request reference hash that differs from the intent hash', async () => {
   const payload = executePayload();
   payload.intent.request = { ...payload.intent.request, hash: `sha256:${'e'.repeat(64)}` };

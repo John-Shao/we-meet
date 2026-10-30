@@ -435,7 +435,9 @@ export function createGatewayStreamFn({
 
       const label = outcome.outcome === 'rejected'
         ? `rejected_${outcome.code}`
-        : `unknown_${outcome.reason}`;
+        : outcome.outcome === 'not_executed'
+          ? `provider_rejected_${outcome.code}`
+          : `unknown_${outcome.reason}`;
       const message = assistantMessage({
         stopReason: 'error',
         usage: ZERO_PI_USAGE,
@@ -549,6 +551,12 @@ async function runExecute(payload, { gatewayClient, runPiTurn: turnRunner }) {
   }
   if (outcome.outcome === 'rejected') {
     return failedOutcome(payload, 'runtime_fault', outcome.code);
+  }
+  if (outcome.outcome === 'not_executed') {
+    // The gateway both proved the send and bound a rejected_not_executed
+    // receipt, so nothing executed and the failure is terminal rather than an
+    // unknown to reconcile.
+    return failedOutcome(payload, 'provider_rejected', outcome.code);
   }
   return waitingOutcome(payload);
 }

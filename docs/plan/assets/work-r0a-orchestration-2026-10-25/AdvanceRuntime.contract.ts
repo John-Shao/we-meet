@@ -58,7 +58,7 @@ export type AdvanceRuntimeResult = FragmentResultBase & (
   | {
       state: 'FAILED';
       checkpoint: StoredReference | null;
-      reason: 'invalid_context' | 'checkpoint_failed' | 'runtime_fault' | 'deadline_exceeded';
+      reason: 'invalid_context' | 'checkpoint_failed' | 'runtime_fault' | 'deadline_exceeded' | 'provider_rejected';
     }
   | { state: 'CANCELED'; checkpoint: StoredReference | null; reason: 'cancel_requested' }
 );

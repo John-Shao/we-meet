@@ -29,6 +29,19 @@
 - [x] John：**选择 A1（2026-10-30）**——新增闭集 reason `provider_rejected`；操作 failed、释放预留、Run failed、不重试、不发布成果；不新增 DB 收尾命令。
 - [ ] Lily：复核所选方案是否改变 F0-R1 回执与 F0-R3 恢复边界
 
+**A1 实现记录（2026-10-30，待 Lily 复核）**
+
+代码已落地，落地时出现签收文本未覆盖的四处解释性决定：
+
+1. **`provider_rejected` 的唯一来源**：子进程只有在出口返回权威拒绝体（`outcome=rejected_not_executed` 且 `sent=true` 且带 code 与回执引用）时才报该 reason；任何字段缺失仍按 `unknown` 走 `WAITING_RECONCILE`，不改判失败。
+2. **出口 4xx 仍归 `runtime_fault`**：4xx 发生在派发之前（`invalid_request`/`request_hash_mismatch`），没有“供应商拒绝且未执行”的证明，不冒充 `provider_rejected`。
+3. **收尾以闸门为准，不以运行时报称为准**：worker 只有在 `work.dispatch_delivery` 自身为 `gate_state='receipt_recorded'` 且 `receipt_result='rejected_not_executed'` 时，才用已签的 `work.finish_operation(...,'failed')` + `work.release_quota(...)` 关闭操作并释放预留；无该证据仍走 `mark_operation_unknown`（预留保持 held）。因此 A1 未新增 DB 命令，但**新增了一条由控制面写操作状态的收尾路径**。
+4. **契约三处同步**：Go `fragment.FailedReasons`、Node `protocol.mjs` FAILED 集合、`advance-runtime.schema.json` + `AdvanceRuntime.contract.ts` 的 FAILED reason 枚举，由 `TestFailedReasonsMatchContractAssets` 做等值校验（资产缺失时跳过）。
+
+验收证据：`TestRunWorkflowAdvanceFailsRunOnProviderRejection`（不重试、不 FinishAdvance、不 WaitRun）；`TestAbortRunClosesProvenProviderRejection`（操作 failed、预留 released、Run failed、无 usage、无 artifact）；`TestAbortRunKeepsUnknownWithoutRejectionProof` 与 `TestAbortRunKeepsUnknownWithoutRejectionClaim`（两个负例仍 unknown + held）；Node 120/120。
+
+未闭合：拒绝回执 attach 失败仍是 unknown，`work-reconcile` 仍只恢复成功回执；真实 provider 侧的拒绝 E2E 证据尚未采集。
+
 ## 决策 B：`TaskDetail.snapshot` 形状
 
 **现状（证据）**
@@ -47,6 +60,13 @@
 
 - [x] John：**选择 B1（2026-10-30）**——闭合对象 `{snapshot_id, snapshot_revision, template, limits, permission_mode, created_at}`，移除 `model_route`/`tool_allowlist`；新增未发布迁移 0015 增加 `revision bigint`（同一 Task 内单调），由 `submit_task` 写入下一个 revision。
 - [ ] Lily：若选 B1，复核 `snapshot_revision` 的单调性与迁移；若选 B2，复核内部字段暴露边界
+
+**B1 实现记录（2026-10-30，待 Lily 复核）**
+
+- 迁移 `0015_snapshot_revision`：加列 → 按 `(org_id, task_id)` 的 `created_at, id` 序回填 → `NOT NULL` + `DEFAULT 1` + `CHECK (revision >= 1)` + 唯一索引 `(org_id, task_id, revision)`；`submit_task` 用 `COALESCE(MAX(revision),0)+1` 铸造下一个 revision。
+- **回填期间临时 `NO FORCE ROW LEVEL SECURITY`，随后立即恢复 `FORCE`**：否则 `work_owner` 自身也看不到既有行，回填会 0 行生效并被 `NOT NULL` 拒绝。这一点是本迁移最需要复核的地方。
+- `GET /tasks/{id}` 只读 `id, revision, manifest, created_at`，`template`/`limits`/`permission_mode` 全部来自 manifest；manifest 缺 `template.id` 或 `permission_mode` 时返回 `service_degraded`，不用空值凑shape。`token_upper_bound` 允许 0（表示未设上界），不是缺省伪造。
+- 前端 `WorkSnapshot` 类型与工作区版本行改用 `snapshot_revision`/`permission_mode`，五个语言包新增对应文案键。
 
 ## 不在本单范围
 

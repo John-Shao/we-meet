@@ -67,7 +67,7 @@ const OUTCOME_FORBIDDEN = {
 
 const OUTCOME_REASONS = {
   WAITING_RECONCILE: new Set(['provider_unknown', 'receipt_unavailable']),
-  FAILED: new Set(['invalid_context', 'checkpoint_failed', 'runtime_fault', 'deadline_exceeded']),
+  FAILED: new Set(['invalid_context', 'checkpoint_failed', 'runtime_fault', 'deadline_exceeded', 'provider_rejected']),
   CANCELED: new Set(['cancel_requested']),
 };
 

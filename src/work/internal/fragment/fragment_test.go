@@ -1,12 +1,18 @@
 package fragment_test
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/we-meet/work/internal/fragment"
 )
+
+// quotedReasonPattern matches the single-quoted literals of a TypeScript union.
+var quotedReasonPattern = regexp.MustCompile(`'([A-Za-z_]+)'`)
 
 const (
 	execID = "11111111-1111-4111-8111-111111111111"
@@ -136,6 +142,12 @@ func TestResultShapes(t *testing.T) {
 		t.Fatalf("FAILED: %v", err)
 	}
 
+	rejected := result(fragment.StateFailed)
+	rejected.Reason = fragment.ReasonProviderRejected
+	if err := rejected.Validate(); err != nil {
+		t.Fatalf("FAILED provider_rejected: %v", err)
+	}
+
 	canceled := result(fragment.StateCanceled)
 	canceled.Reason = fragment.ReasonCancelRequested
 	if err := canceled.Validate(); err != nil {
@@ -198,4 +210,90 @@ func TestResultRejectsAmbiguousOrIncompleteShapes(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestFailedReasonsMatchContractAssets keeps the Go validator, the JSON Schema
+// and the TypeScript contract in lockstep: a reason accepted by one but not by
+// another is a contract break, not a local detail.
+func TestFailedReasonsMatchContractAssets(t *testing.T) {
+	assetDir := "../../../../docs/plan/assets/work-r0a-orchestration-2026-10-25/"
+	schemaBody, err := os.ReadFile(assetDir + "advance-runtime.schema.json")
+	if os.IsNotExist(err) {
+		t.Skip("design asset is not in this checkout")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Definitions struct {
+			Result struct {
+				OneOf []struct {
+					Properties struct {
+						State struct {
+							Const string `json:"const"`
+						} `json:"state"`
+						Reason struct {
+							Enum []string `json:"enum"`
+						} `json:"reason"`
+					} `json:"properties"`
+				} `json:"oneOf"`
+			} `json:"result"`
+		} `json:"definitions"`
+	}
+	if err := json.Unmarshal(schemaBody, &document); err != nil {
+		t.Fatal(err)
+	}
+	var schemaReasons []string
+	for _, branch := range document.Definitions.Result.OneOf {
+		if branch.Properties.State.Const == fragment.StateFailed {
+			schemaReasons = branch.Properties.Reason.Enum
+		}
+	}
+	if len(schemaReasons) == 0 {
+		t.Fatal("schema has no FAILED reason enum")
+	}
+	if !sameSet(schemaReasons, fragment.FailedReasons) {
+		t.Fatalf("schema FAILED reasons = %v, Go = %v", schemaReasons, fragment.FailedReasons)
+	}
+
+	contractBody, err := os.ReadFile(assetDir + "AdvanceRuntime.contract.ts")
+	if os.IsNotExist(err) {
+		t.Skip("design asset is not in this checkout")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := strings.Index(string(contractBody), "state: 'FAILED'")
+	if index < 0 {
+		t.Fatal("TypeScript contract has no FAILED state")
+	}
+	block := string(contractBody[index:])
+	if end := strings.Index(block, "}"); end >= 0 {
+		block = block[:end]
+	}
+	var tsReasons []string
+	for _, match := range quotedReasonPattern.FindAllStringSubmatch(block, -1) {
+		if match[1] != "FAILED" {
+			tsReasons = append(tsReasons, match[1])
+		}
+	}
+	if !sameSet(tsReasons, fragment.FailedReasons) {
+		t.Fatalf("TypeScript FAILED reasons = %v, Go = %v", tsReasons, fragment.FailedReasons)
+	}
+}
+
+func sameSet(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, value := range a {
+		seen[value] = true
+	}
+	for _, value := range b {
+		if !seen[value] {
+			return false
+		}
+	}
+	return true
 }

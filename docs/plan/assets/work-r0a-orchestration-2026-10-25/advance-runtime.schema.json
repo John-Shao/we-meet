@@ -73,7 +73,7 @@
         "receipt": { "$ref": "#/definitions/reference" },
         "artifact": { "$ref": "#/definitions/reference" },
         "operationId": { "$ref": "#/definitions/uuid" },
-        "reason": { "enum": ["provider_unknown", "receipt_unavailable", "invalid_context", "checkpoint_failed", "runtime_fault", "deadline_exceeded", "cancel_requested"] }
+        "reason": { "enum": ["provider_unknown", "receipt_unavailable", "invalid_context", "checkpoint_failed", "runtime_fault", "deadline_exceeded", "provider_rejected", "cancel_requested"] }
       },
       "oneOf": [
         {
@@ -94,7 +94,7 @@
         },
         {
           "required": ["reason"],
-          "properties": { "state": { "const": "FAILED" }, "reason": { "enum": ["invalid_context", "checkpoint_failed", "runtime_fault", "deadline_exceeded"] }, "intent": false, "receipt": false, "artifact": false, "operationId": false }
+          "properties": { "state": { "const": "FAILED" }, "reason": { "enum": ["invalid_context", "checkpoint_failed", "runtime_fault", "deadline_exceeded", "provider_rejected"] }, "intent": false, "receipt": false, "artifact": false, "operationId": false }
         },
         {
           "required": ["reason"],

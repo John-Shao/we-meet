@@ -98,6 +98,24 @@ function readCode(value) {
   return value.code;
 }
 
+function readReceipt(value) {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const keys = Object.keys(value);
+  const expectedKeys = keys.filter((key) => key !== 'contentRef');
+  if (expectedKeys.length !== 2 || keys.length > 3 ||
+      !Object.hasOwn(value, 'refId') || !Object.hasOwn(value, 'hash')) {
+    return null;
+  }
+  if (Object.hasOwn(value, 'contentRef') &&
+      (typeof value.contentRef !== 'string' || value.contentRef.length === 0 ||
+       value.contentRef.length > 512)) {
+    return null;
+  }
+  if (typeof value.refId !== 'string' || !UUID_PATTERN.test(value.refId)) return null;
+  if (typeof value.hash !== 'string' || !HASH_PATTERN.test(value.hash)) return null;
+  return Object.freeze({ refId: value.refId, hash: value.hash });
+}
+
 function normalizeUsage(value) {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return unavailableUsage();
@@ -140,25 +158,38 @@ function readSuccessBody(buffer) {
   }
   if (Object.hasOwn(value, 'outcome') && value.outcome !== 'succeeded') return null;
   if (Object.hasOwn(value, 'sent') && value.sent !== true) return null;
-  const receipt = value.receipt;
-  if (typeof receipt !== 'object' || receipt === null || Array.isArray(receipt)) return null;
-  const receiptKeys = Object.keys(receipt);
-  const expectedKeys = receiptKeys.filter((key) => key !== 'contentRef');
-  if (expectedKeys.length !== 2 || receiptKeys.length > 3 ||
-      !Object.hasOwn(receipt, 'refId') || !Object.hasOwn(receipt, 'hash')) {
-    return null;
-  }
-  if (Object.hasOwn(receipt, 'contentRef') &&
-      (typeof receipt.contentRef !== 'string' || receipt.contentRef.length === 0 ||
-       receipt.contentRef.length > 512)) {
-    return null;
-  }
-  if (typeof receipt.refId !== 'string' || !UUID_PATTERN.test(receipt.refId)) return null;
-  if (typeof receipt.hash !== 'string' || !HASH_PATTERN.test(receipt.hash)) return null;
+  const receipt = readReceipt(value.receipt);
+  if (receipt === null) return null;
   return {
-    receipt: Object.freeze({ refId: receipt.refId, hash: receipt.hash }),
+    receipt,
     usage: normalizeUsage(value.usage),
   };
+}
+
+/**
+ * Read the gateway's proven "the provider refused and nothing executed" body
+ * (decision A1). Only the gateway can assert this, because it alone binds a
+ * rejected_not_executed receipt to the dispatch slot; a body that does not
+ * carry that outcome, a send flag, a code and a receipt reference stays an
+ * unknown outcome rather than becoming a rejection.
+ */
+function readRejectionBody(buffer) {
+  const value = parseJSON(buffer);
+  if (value === null) return null;
+  const allowed = new Set([
+    'outcome', 'sent', 'requestHash', 'gateState', 'code', 'providerRequestId',
+    'receipt', 'content', 'contentBytes', 'usage',
+    'answerRefId', 'rejectionEvidenceRefId',
+  ]);
+  for (const key of Object.keys(value)) {
+    if (!allowed.has(key)) return null;
+  }
+  if (value.outcome !== 'rejected_not_executed' || value.sent !== true) return null;
+  const code = readCode(value);
+  if (code === null) return null;
+  const receipt = readReceipt(value.receipt);
+  if (receipt === null) return null;
+  return { code, receipt };
 }
 
 /**
@@ -166,6 +197,7 @@ function readSuccessBody(buffer) {
  * /runtime/v1/model/invoke and classifies the result:
  *
  *   2xx with receipt            -> { outcome: 'success', receipt, usage }
+ *   2xx rejected_not_executed   -> { outcome: 'not_executed', code, receipt }
  *   4xx (except 408/429)        -> { outcome: 'rejected', status, code }
  *   3xx/408/429/5xx/timeout/net -> { outcome: 'unknown', reason }
  *
@@ -330,12 +362,17 @@ export function createGatewayClient({
         return Object.freeze({ outcome: 'unknown', reason: 'response_too_large', usage: unavailableUsage() });
       }
       const success = readSuccessBody(buffer);
-      if (success === null) {
-        // The request may have reached the provider; a 2xx without a usable
-        // receipt is unknown, never a failure or an invented success.
-        return Object.freeze({ outcome: 'unknown', reason: 'response_invalid', usage: unavailableUsage() });
+      if (success !== null) {
+        return Object.freeze({ outcome: 'success', ...success });
       }
-      return Object.freeze({ outcome: 'success', ...success });
+      const rejection = readRejectionBody(buffer);
+      if (rejection !== null) {
+        return Object.freeze({ outcome: 'not_executed', ...rejection });
+      }
+      // The request may have reached the provider; a 2xx without a usable
+      // receipt or an explicit rejection is unknown, never a failure and never
+      // an invented success.
+      return Object.freeze({ outcome: 'unknown', reason: 'response_invalid', usage: unavailableUsage() });
     }
 
     if (response.status === 429) {
