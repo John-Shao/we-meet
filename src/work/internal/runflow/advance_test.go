@@ -339,7 +339,7 @@ func TestRunWorkflowAdvanceFailsRunOnProviderRejection(t *testing.T) {
 	env.OnActivity(runflow.ActivityAbortRun, mock.Anything, runflow.AbortRunInput{
 		RunID: advanceRunID, OrgID: "org_advance",
 		OperationID: advanceOperationID, ReservationID: advanceReservationID,
-		ProvenRejection: true, Outcome: "failed", Reason: fragment.ReasonProviderRejected,
+		Outcome: "failed", Reason: fragment.ReasonProviderRejected,
 	}).Return(nil).Once()
 
 	env.ExecuteWorkflow(runflow.RunWorkflowAdvance, input)

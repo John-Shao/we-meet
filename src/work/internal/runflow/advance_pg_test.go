@@ -642,7 +642,7 @@ func TestAbortRunClosesProvenProviderRejection(t *testing.T) {
 	if err := activities.AbortRun(ctx, runflow.AbortRunInput{
 		RunID: flowRun, OrgID: flowOrg,
 		OperationID: execution.OperationID, ReservationID: execution.ReservationID,
-		ProvenRejection: true, Outcome: "failed", Reason: fragment.ReasonProviderRejected,
+		Outcome: "failed", Reason: fragment.ReasonProviderRejected,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -709,7 +709,7 @@ func TestAbortRunKeepsUnknownWithoutRejectionProof(t *testing.T) {
 	if err := activities.AbortRun(ctx, runflow.AbortRunInput{
 		RunID: flowRun, OrgID: flowOrg,
 		OperationID: execution.OperationID, ReservationID: execution.ReservationID,
-		ProvenRejection: true, Outcome: "failed", Reason: fragment.ReasonProviderRejected,
+		Outcome: "failed", Reason: fragment.ReasonProviderRejected,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -719,7 +719,7 @@ func TestAbortRunKeepsUnknownWithoutRejectionProof(t *testing.T) {
 	}
 }
 
-func TestAbortRunKeepsUnknownWithoutRejectionClaim(t *testing.T) {
+func TestAbortRunClosesRejectedReceiptWithoutRejectionReason(t *testing.T) {
 	pool, dbName := newFlowDB(t)
 	store := newFlowContent(t)
 	seedAdvanceTask(t, dbName, store)
@@ -745,6 +745,56 @@ func TestAbortRunKeepsUnknownWithoutRejectionClaim(t *testing.T) {
 		RunID: flowRun, OrgID: flowOrg,
 		OperationID: execution.OperationID, ReservationID: execution.ReservationID,
 		Outcome: "failed", Reason: fragment.ReasonRuntimeFault,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	operationState, reservations := readOperationAndReservation(t, dbName, execution.OperationID)
+	if operationState != "failed" || reservations != "released" {
+		t.Fatalf("operation=%s reservations=%s", operationState, reservations)
+	}
+}
+
+// A cancel never borrows the rejection close path: the signed rule is that a
+// dispatched call is not re-labelled, so it still becomes unknown with the
+// reservation retained.
+func TestAbortRunCancelDoesNotUseRejectionClose(t *testing.T) {
+	pool, dbName := newFlowDB(t)
+	store := newFlowContent(t)
+	seedAdvanceTask(t, dbName, store)
+	activities := newAdvanceActivities(pool, store)
+	ctx := context.Background()
+	prepared, err := activities.PrepareAdvance(ctx, runflow.Input{RunID: flowRun, OrgID: flowOrg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, err := activities.EnsureAdvanceHead(ctx, prepared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	execution, err := activities.PrepareAdvanceExecution(ctx, runflow.PrepareExecutionInput{
+		Prepared: prepared, Head: head,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedAdvanceRejection(t, pool, store, advanceEgressSeed(prepared, head, execution))
+
+	// A real cancel passes through cancel_requested first; active -> canceled is
+	// not a registered transition.
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(ctx)
+	if _, err := admin.Exec(ctx, `UPDATE work.run SET state = 'cancel_requested' WHERE id = $1`,
+		flowRun); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := activities.AbortRun(ctx, runflow.AbortRunInput{
+		RunID: flowRun, OrgID: flowOrg,
+		OperationID: execution.OperationID, ReservationID: execution.ReservationID,
+		Outcome: "canceled", Reason: fragment.ReasonCancelRequested,
 	}); err != nil {
 		t.Fatal(err)
 	}

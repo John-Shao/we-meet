@@ -819,16 +819,17 @@ func (a *Activities) abortOperation(ctx context.Context, input AbortRunInput) er
 			return err
 		})
 	case "dispatching":
-		if input.ProvenRejection {
+		if input.Outcome == "failed" {
 			evidence, err := a.rejectionEvidence(ctx, input.OrgID, input.OperationID)
 			if err != nil {
 				return err
 			}
 			if evidence.bound {
-				// Decision A1: the gateway bound a rejected_not_executed
-				// receipt, which proves nothing executed. Close the Operation as
-				// failed and release the held reservation; usage stays absent
-				// because the receipt itself carries provider zeros.
+				// Decision A1 + (a): the gate is the authority. A bound
+				// rejected_not_executed receipt proves nothing executed, so the
+				// Operation closes as failed and the held reservation is released
+				// whether or not the runtime named provider_rejected. Usage stays
+				// absent because the receipt itself carries provider zeros.
 				if err := a.finishOperation(ctx, input.OrgID, input.OperationID,
 					"failed", evidence.providerRequestID, evidence.receiptRef); err != nil {
 					return err

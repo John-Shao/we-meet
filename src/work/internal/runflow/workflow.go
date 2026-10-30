@@ -108,12 +108,8 @@ type AbortRunInput struct {
 	ReservationID string `json:"reservation_id,omitempty"`
 	UsageTokens   int64  `json:"usage_tokens,omitempty"`
 	Settled       bool   `json:"settled,omitempty"`
-	// ProvenRejection reports that the runtime claims a provider rejection
-	// with no execution. The activity still requires the bound
-	// rejected_not_executed receipt before it closes the operation.
-	ProvenRejection bool   `json:"proven_rejection,omitempty"`
-	Outcome         string `json:"outcome"`
-	Reason          string `json:"reason,omitempty"`
+	Outcome       string `json:"outcome"`
+	Reason        string `json:"reason,omitempty"`
 }
 
 func RunWorkflow(ctx workflow.Context, input Input) error {
