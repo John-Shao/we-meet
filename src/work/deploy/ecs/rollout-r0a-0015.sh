@@ -55,7 +55,9 @@ done
 
 run() {
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    printf 'DRY-RUN: %s\n' "$*"
+    # The migrator URL is passed in the environment; echoing it verbatim would
+    # write the password into CI logs and terminal scrollback.
+    printf 'DRY-RUN: %s\n' "${*//"$MIGRATOR_URL"/<redacted>}"
   else
     "$@"
   fi
