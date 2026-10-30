@@ -40,7 +40,9 @@
 
 验收证据：`TestRunWorkflowAdvanceFailsRunOnProviderRejection`（不重试、不 FinishAdvance、不 WaitRun）；`TestAbortRunClosesProvenProviderRejection`（操作 failed、预留 released、Run failed、无 usage、无 artifact）；`TestAbortRunKeepsUnknownWithoutRejectionProof` 与 `TestAbortRunKeepsUnknownWithoutRejectionClaim`（两个负例仍 unknown + held）；Node 120/120。
 
-未闭合：拒绝回执 attach 失败仍是 unknown，`work-reconcile` 仍只恢复成功回执；真实 provider 侧的拒绝 E2E 证据尚未采集。
+未闭合：拒绝回执 attach 失败仍是 unknown，`work-reconcile` 仍只恢复成功回执。
+
+**2026-10-30 预发取证（真实 provider）**：把演示组织模型临时指向不存在的 id 后，Run `b9fd7985-4df5-4844-98d0-2ca405283107` 为 **failed / `terminal_reason=provider_rejected`**；`model:1` **failed**、gate `receipt_recorded/rejected_not_executed`、预留 **released**（quota_entry：reserve 100000 → release 100000）、`operation_usage_fact` 0 行、artifact 0。模型已由 trap 恢复为 `qwen3.8-flash`（active revision 13），随后成功回归 Run `38958566-ac23-47d1-af26-05d5e3059f46` succeeded、用量 117/424。**部署副作用**：首次试验因 `systemctl start work-runtime` 对已 active 单位是空操作而跑了旧子进程代码，拒绝被降级成 `waiting(reconcile)`；rollout 已改 `restart`。actor 语义也需分清：改 provider 配置要求 `work.member` 中 `role=owner` 且 `status=active` 的主体，而任务提交要求持 Work 席位的主体，二者在演示组织里不是同一个人。B1 的闭合 snapshot 仍只有 Go 集成测试与 DB 取证，HTTP/浏览器回归待消费新字段的前端发布后补。
 
 ## 决策 B：`TaskDetail.snapshot` 形状
 

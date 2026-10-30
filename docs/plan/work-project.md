@@ -343,6 +343,12 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 
 **慢调用故障注入（2026-10-30）**：用本地 https mock provider（临时把 runtime CA 加入系统信任，测试后已移除）把模型调用拉长到 22s，验证长期运行的租约与能力刷新：authz 日志显示 `renew_runtime_execution` 在 +10s/+20s 成功、`issue_capability` 在 +20s 刷新、`consume_dispatch_by_execution`/`attach_dispatch_receipt` 正常，Run `b726c511…` succeeded、artifact 1、用量 40/20（mock）。随后恢复 DashScope endpoint、删除临时 CA 并重启 egress，真实 provider 回归 Run `8f059cac…` succeeded（115/206）。**lease_lost 与迟到回执恢复（2026-10-30，已跑通）**：发现 egress 把供应商调用绑定到子进程请求上下文，子进程被回收会取消调用，签名的“迟到回执”路径不可达；已改为 `context.WithoutCancel` + 15 分钟预算（D4 §6.2 第 7 条）。注入方式：mock 延迟 22s，+4s 停 authz、+12s 恢复；父进程在 +10s 续租失败 `lease_lost` 并回收子进程，Run 进入 `waiting(reconcile)`；egress 在 +22s 完成调用并 `attach_dispatch_receipt`（`receipt_recorded/success`）。随后 `work-reconcile -finish-from-receipt -resume` 确认 operation succeeded（结算 60 tokens），工作流 resume 后由新分支重新执行 `FinishAdvance`：Run `1d02341c…` succeeded、artifact 1、Task `awaiting_acceptance`。该分支原先 resume 后直接 abort（`reconcile_resolved`），已改为“先尝试从可信回执收尾，只有未确认才 fail-closed”。真实 provider 回归 Run `d6b2f0bc…` succeeded（115/265）。**capability_refresh_failed（2026-10-30，已跑通）**：用“临时 `REVOKE EXECUTE ON work.issue_runtime_capability(...) FROM work_worker`、测试后立即 `GRANT` 恢复”的方式只阻断刷新、不影响续租。Run `d0aa9627…` 在 +10s 续租成功、+20s 刷新 409 `issue_capability`，父进程 settlement=`capability_refresh_failed`、Run `waiting(reconcile)`；egress 的迟到回执在 +22s 挂接（`receipt_recorded/success`）。`work-reconcile -finish-from-receipt -resume` 后 Run succeeded、artifact 1；权限已恢复并核对 `has_function_privilege=true`，真实 provider 回归 Run `73515594…` succeeded（115/295）。
 
+**0015 与 A1 的预发部署（2026-10-30，已执行）**：以 root 运行 `rollout-r0a-0015.sh --runtime-bundle`，台账 14→15，备份 `work-pre-0015-20261030-163547.dump`，七个二进制以 `.bak-20261030-163547` 留存旧版；work-api/relay/worker/authz/content-proxy/egress/runtime 七服务 active，Node v22.20.0。部署后核对：`capability_snapshot` 28 行全部带 revision 且无 <1 的行（0015 回填在真实数据上成立）。**rollout 缺陷两处已修**：(1) `systemctl start work-runtime` 对已 active 的单位是空操作，导致第一次拒绝试验跑的是旧子进程代码（磁盘新、进程旧），拒绝被当成 unknown 落 `waiting`；已改 `restart` 并重启取证。(2) `--dry-run` 会原样回显 `env WORK_DATABASE_URL=<迁移连接串>`，把 `work_migrator_login` 口令打进终端；已改为 `<redacted>`。**该口令已在本会话终端明文出现一次，建议轮换 `PG_WORK_MIGRATOR_PASSWORD`（只在 `/root/work-secrets.env`，仓库与 env 备份无副本）。**
+
+**真实 provider 拒绝取证（2026-10-30，A1 已闭环）**：把演示组织的模型临时指向不存在的 `qwen-not-a-model-for-rejection-proof`（`work-provider-setup config`，actor 必须是 `work.member` 里 `role=owner` 且 `status=active` 的 `11661aed-…`；任务提交另用持席位的 `535bbd27-…`，因为 owner 无席位会 `work_seat_required`）。Run `b9fd7985-4df5-4844-98d0-2ca405283107`：**failed**、`terminal_reason=provider_rejected`、Task 仍 `open`、artifact 0；`model:1` **failed**、回执已绑、gate `receipt_recorded/rejected_not_executed`；预留 **released**（quota_entry：reserve 100000 → release 100000）；`operation_usage_fact` **0 行**（未执行不计量）。脚本 trap 已把模型恢复为 `qwen3.8-flash`（active revision 13），随后真实成功回归 Run `38958566-ac23-47d1-af26-05d5e3059f46` **succeeded**、用量 117/424、快照 revision 1。
+
+**本轮仍未闭合的证据（不得写成已完成）**：B1 的 `TaskDetail.snapshot` 只在 Go 集成测试与 DB 层取证，**没有真实 HTTP/浏览器回归**（消费新字段的前端构建尚未发布到任何环境）；A1 的拒绝回执若 attach 失败仍是 unknown，`work-reconcile` 仍只恢复成功回执；演示组织配额账户 `reserved_tokens` 已累积 1,000,000（10 个测试遗留 held 预留，含旧 runtime 下的 waiting Run `26ec8787…`），enforcement 为 `soft` 因此不阻断新工作，但切到 `hard` 前必须清理；Lily 对 A1/B1 实现细节的复核仍未开始。
+
 **新增入口（预发已部署）**：
 
 | 入口 | 作用 | 必需环境 |
@@ -360,9 +366,9 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 2. **workflow 切换**：`WORK_WORKFLOW_ADVANCE=1` 已启用（worker 注册 advance、relay `RunWorkflowAdvance`）；rollout 的 `--enable-advance` 已验证等价。剩余是长期运行观察，不是切换动作。
 3. **运行面残余**：能力引导/刷新帧已携带 authority 的有效 `expiresAt`（min(30s, lease, hard deadline)），子进程不再只按本地 30s 推断；lease_lost 与 capability_refresh_failed 均已注入并从迟到回执恢复（见上）；usage unavailable 且租约过期后恢复 fail-closed（`finish_head_conflict`）；活动仍挂 Go worker，签名要求 Node 独立队列，需评审；模型参数默认值（1024/0/markdown）待签收。
 4. **内容图边界**：已签 A 落地；未绑定 execution 的引用仍被拒绝（比签名更严，需评审）。
-5. **发布与证据**：0008–0014 已上预发且真实 E2E 通过；**0015（快照 revision）已进仓库但未在预发发布，预发台账停在 14**；无移动浏览器实机、无多节点/破坏性故障演练；预发即当前 pilot Work 实例。两项未签语义已由 John 选定 A1/B1 并落地代码，见 [决策单](work-r0a-rejected-and-snapshot-decision-2026-10-30.md)；Lily 复核与真实 provider 拒绝链路证据仍未做。
+5. **发布与证据**：0008–**0015 已上预发（台账 15）**，真实 E2E 与真实 provider 拒绝链路均已取证（见上两段）；无移动浏览器实机、无多节点/破坏性故障演练；预发即当前 pilot Work 实例。两项未签语义由 John 选定 A1/B1 并已落地/部署，见 [决策单](work-r0a-rejected-and-snapshot-decision-2026-10-30.md)；**Lily 对 A1/B1 实现细节的复核仍未开始**。
 6. **D2 `TaskDetail.snapshot` 形状**：已按 B1 闭合为 `{snapshot_id, snapshot_revision, template{id,version,content_hash}, limits{token_upper_bound}, permission_mode, created_at}`，不再回传 `model_route`/`tool_allowlist`/`snapshot_hash`；`snapshot_revision` 由未发布迁移 0015 铸造（同一 Task 单调，`submit_task` 取 `MAX+1`）。manifest 缺 `template.id` 或 `permission_mode` 时 API 返回 `service_degraded`，不用空值凑形状。待 Lily 复核单调性与迁移。
-7. **`rejected_not_executed` 收尾**：已按 A1 落地——出口返回权威拒绝体时子进程报 FAILED `provider_rejected`，worker 仅在闸门自身为 `receipt_recorded` + `receipt_result='rejected_not_executed'` 时用已签的 `finish_operation('failed')` + `release_quota` 关闭操作并释放预留（无新增 DB 命令）；无该证据仍落 `unknown`。未闭合：拒绝回执 attach 失败仍是 unknown，`work-reconcile` 仍只恢复成功回执，真实 provider 拒绝尚未取证。
+7. **`rejected_not_executed` 收尾**：已按 A1 落地——出口返回权威拒绝体时子进程报 FAILED `provider_rejected`，worker 仅在闸门自身为 `receipt_recorded` + `receipt_result='rejected_not_executed'` 时用已签的 `finish_operation('failed')` + `release_quota` 关闭操作并释放预留（无新增 DB 命令）；无该证据仍落 `unknown`。未闭合：拒绝回执 attach 失败仍是 unknown，`work-reconcile` 仍只恢复成功回执。真实 provider 拒绝链路已在预发取证（Run `b9fd7985…`），但闭集 reason 的 Go/Node/Schema/TS 四处一致性只有单测保证。
 
 因此“完成 R0a 开发与测试、满足架构/详细设计”**尚未达成**；本表只记录已实现的组件与边界。
 
@@ -370,9 +376,9 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 
 | 设计/要求 | 证据 | 状态 |
 |---|---|---|
-| D1 数据/权限/迁移 0001–0015 | `go test -p 1 ./...` 全绿；预发台账 14、表/函数核验、备份 `work-pre-0014-20261030-100747.dump`；0015 已在仓库但未发布 | 本地达成；预发停在 14 |
-| D2′ API 子集 | API/SSE/CSRF/RLS 测试；真实 session bootstrap 与浏览器黄金路径；`TaskDetail.snapshot` 已按 B1 闭合（决策单记录实现细节） | 达成，snapshot 闭合待 Lily 复核与预发回归 |
-| D3 编排/恢复 | `RunWorkflowAdvance` + 并发绑定/回执收尾/未知等待；lease_lost、capability_refresh_failed 注入并从迟到回执恢复；`work-reconcile`；A1：`provider_rejected` 收尾 + 两个“无证据仍 unknown”负例 | 达成 pilot 证据；Node 独立队列待评审，拒绝回执 attach 失败仍无收尾路径 |
+| D1 数据/权限/迁移 0001–0015 | `go test -p 1 ./...` 全绿；预发台账 **15**、备份 `work-pre-0015-20261030-163547.dump`、旧二进制 `.bak-20261030-163547`；0015 回填在真实数据上 28/28 有 revision | 预发达成；生产 Work 实例即预发 |
+| D2′ API 子集 | API/SSE/CSRF/RLS 测试；真实 session bootstrap 与浏览器黄金路径；`TaskDetail.snapshot` 已按 B1 闭合 | 达成集成测试与 DB 取证；**闭合形状的 HTTP/浏览器回归未做**（消费新字段的前端未发布） |
+| D3 编排/恢复 | `RunWorkflowAdvance` + 并发绑定/回执收尾/未知等待；lease_lost、capability_refresh_failed 注入并从迟到回执恢复；`work-reconcile`；A1 已在预发用真实 provider 拒绝取证（Run `b9fd7985…` failed/`provider_rejected`、operation failed、预留 released、无 usage/artifact） | 达成 pilot 证据；Node 独立队列待评审，拒绝回执 attach 失败仍无收尾路径 |
 | D4 运行时/egress | Node 父进程/真实 Pi 子进程、capability、内容代理、egress、单次发送；真实 provider E2E 多次 succeeded；负例门禁 | 达成 pilot 证据；内核隔离/sandboxProof、多节点与 C22 破坏性演练未做 |
 | D5 前端 | Work 前端 55 项、tsc、i18n、E2E mock 一致性；生产浏览器黄金路径 | 达成；移动实机未验 |
 | D6 运维 | systemd 八服务、PKI、rollout/回滚脚本、备份/健康告警、Temporal mTLS | 达成 |
