@@ -424,6 +424,7 @@ async function issueCapabilitiesForRequest(authzClient, request, endpoints) {
           baseUrl: endpoints.contentBaseUrl,
           token: issued.token,
           generation: issued.generation,
+          expiresAt: issued.expiresAt,
         },
       }
     : {
@@ -431,6 +432,7 @@ async function issueCapabilitiesForRequest(authzClient, request, endpoints) {
           baseUrl: endpoints.egressBaseUrl,
           token: issued.token,
           generation: issued.generation,
+          expiresAt: issued.expiresAt,
         },
       };
   return { capabilities, issued };

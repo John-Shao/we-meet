@@ -226,6 +226,7 @@ export function createContentClient({
   timeoutMs = 30_000,
   maxBytes = MAX_CONTENT_BYTES,
   capabilityTtlMs = CAPABILITY_TTL_MS,
+  expiresAt,
   now = Date.now,
 } = {}) {
   const base = normalizeBaseUrl(baseUrl);
@@ -246,13 +247,25 @@ export function createContentClient({
     throw new TypeError('capabilityTtlMs must be a positive integer');
   }
   if (typeof now !== 'function') throw new TypeError('now must be a function');
+  if (expiresAt !== undefined && (!Number.isFinite(expiresAt) || expiresAt <= 0)) {
+    throw new TypeError('expiresAt must be a positive epoch millisecond value');
+  }
+
+  // The authority's effective expiry (min(db TTL, lease, hard deadline)) caps
+  // the local ceiling; a missing value falls back to the 30s contract.
+  function expiryFor(provided) {
+    const ceiling = now() + capabilityTtlMs;
+    if (provided === undefined) return ceiling;
+    if (!Number.isFinite(provided) || provided <= 0) return null;
+    return Math.min(ceiling, provided);
+  }
 
   // The active credential is swapped as one immutable value. A request captures
   // the value it started with, so an in-flight read keeps its old token.
   let credential = Object.freeze({
     token,
     generation,
-    expiresAt: now() + capabilityTtlMs,
+    expiresAt: expiryFor(expiresAt),
   });
 
   function headersFor(snapshot, extra) {
@@ -280,7 +293,9 @@ export function createContentClient({
    * must be a bounded non-empty string and the generation must strictly
    * increase. Returns false and keeps the previous credential otherwise.
    */
-  function updateCapability({ baseUrl: nextBase, token: nextToken, generation: nextGeneration } = {}) {
+  function updateCapability({
+    baseUrl: nextBase, token: nextToken, generation: nextGeneration, expiresAt: nextExpiresAt,
+  } = {}) {
     if (nextBase !== base) return false;
     if (typeof nextToken !== 'string' || nextToken.length === 0 ||
         nextToken.length > MAX_TOKEN_LENGTH) {
@@ -289,10 +304,16 @@ export function createContentClient({
     if (!Number.isSafeInteger(nextGeneration) || nextGeneration <= credential.generation) {
       return false;
     }
+    if (nextExpiresAt !== undefined &&
+        (!Number.isFinite(nextExpiresAt) || nextExpiresAt <= 0)) {
+      return false;
+    }
+    const nextExpiry = expiryFor(nextExpiresAt);
+    if (nextExpiry === null || nextExpiry <= now()) return false;
     credential = Object.freeze({
       token: nextToken,
       generation: nextGeneration,
-      expiresAt: now() + capabilityTtlMs,
+      expiresAt: nextExpiry,
     });
     return true;
   }

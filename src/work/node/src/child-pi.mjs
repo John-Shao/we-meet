@@ -659,7 +659,8 @@ function parseBootstrap(buffer) {
   }
   if (!isRecord(value) || !hasOnlyKeys(value, new Set(['content', 'egress']))) return null;
   const readSide = (side) => {
-    if (!isRecord(side) || !hasOnlyKeys(side, new Set(['baseUrl', 'token', 'generation']))) {
+    if (!isRecord(side) ||
+        !hasOnlyKeys(side, new Set(['baseUrl', 'token', 'generation', 'expiresAt']))) {
       return null;
     }
     if (typeof side.baseUrl !== 'string' || side.baseUrl.length === 0 ||
@@ -667,7 +668,16 @@ function parseBootstrap(buffer) {
         !Number.isSafeInteger(side.generation) || side.generation <= 0) {
       return null;
     }
-    return { baseUrl: side.baseUrl, token: side.token, generation: side.generation };
+    const hasExpiry = Object.hasOwn(side, 'expiresAt');
+    if (hasExpiry && (!Number.isSafeInteger(side.expiresAt) || side.expiresAt <= 0)) {
+      return null;
+    }
+    return {
+      baseUrl: side.baseUrl,
+      token: side.token,
+      generation: side.generation,
+      ...(hasExpiry ? { expiresAt: side.expiresAt } : {}),
+    };
   };
   const content = value.content === undefined ? null : readSide(value.content);
   const egress = value.egress === undefined ? null : readSide(value.egress);
@@ -696,6 +706,9 @@ function clientsFromBootstrap(bootstrap, payload) {
         org: common.org,
         execution: common.execution,
         generation: bootstrap.content.generation,
+        ...(bootstrap.content.expiresAt === undefined
+          ? {}
+          : { expiresAt: bootstrap.content.expiresAt }),
       });
     }
     if (bootstrap.egress !== null) {
@@ -705,6 +718,9 @@ function clientsFromBootstrap(bootstrap, payload) {
         org: common.org,
         execution: common.execution,
         generation: bootstrap.egress.generation,
+        ...(bootstrap.egress.expiresAt === undefined
+          ? {}
+          : { expiresAt: bootstrap.egress.expiresAt }),
       });
     }
   } catch {

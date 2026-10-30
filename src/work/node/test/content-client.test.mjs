@@ -314,3 +314,36 @@ test('putCheckpoint refuses a response that does not match the declared binding'
     await server.close();
   }
 });
+
+test('expiresAt caps the local capability lifetime', async () => {
+  let clock = 1_000_000;
+  const client = createContentClient({
+    baseUrl: 'http://127.0.0.1:1',
+    token: TOKEN,
+    org: ORG,
+    execution: EXECUTION,
+    generation: 1,
+    expiresAt: clock + 50,
+    now: () => clock,
+  });
+  clock += 50;
+  await assert.rejects(
+    client.get(REF_ID, sha256(Buffer.from('never sent'))),
+    (error) => error.code === 'capability_expired',
+  );
+});
+
+test('updateCapability rejects an already expired effective expiry', async () => {
+  let clock = 1_000_000;
+  const client = createContentClient({
+    baseUrl: 'http://127.0.0.1:1',
+    token: TOKEN,
+    org: ORG,
+    execution: EXECUTION,
+    generation: 1,
+    now: () => clock,
+  });
+  assert.equal(client.updateCapability({
+    baseUrl: 'http://127.0.0.1:1', token: 'next', generation: 2, expiresAt: clock - 1,
+  }), false);
+});

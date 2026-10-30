@@ -257,3 +257,20 @@ test('accepts the trusted gateway success envelope with derived metadata', async
   assert.equal(result.receipt.refId, body.receipt.refId);
   assert.equal(result.usage.inputTokens, 1);
 });
+
+test('expiresAt caps the local capability lifetime', async () => {
+  let clock = 1_000_000;
+  const client = createGatewayClient({
+    baseUrl: 'http://127.0.0.1:1',
+    token: TOKEN,
+    org: ORG,
+    execution: EXECUTION,
+    generation: 1,
+    expiresAt: clock + 50,
+    now: () => clock,
+  });
+  clock += 50;
+  const result = await client.call(PAYLOAD);
+  assert.equal(result.outcome, 'rejected');
+  assert.equal(result.code, 'capability_expired');
+});

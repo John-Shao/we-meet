@@ -485,7 +485,9 @@ test('the parent refreshes the capability on fd 5 with strictly increasing gener
     let previousToken = initial.content.token;
     for (const frame of frames) {
       assert.deepEqual(Object.keys(frame), ['content']);
-      assert.deepEqual(Object.keys(frame.content).sort(), ['baseUrl', 'generation', 'token']);
+      assert.deepEqual(Object.keys(frame.content).sort(),
+        ['baseUrl', 'expiresAt', 'generation', 'token']);
+      assert.ok(Number.isSafeInteger(frame.content.expiresAt) && frame.content.expiresAt > 0);
       assert.equal(frame.content.baseUrl, 'http://127.0.0.1:8444');
       assert.ok(frame.content.generation > previousGeneration);
       assert.ok(frame.content.token.length > 0);
@@ -631,9 +633,12 @@ test('capability tokens never reach frames, env, argv, logs or the settle result
 
     const record = await readRecord(join(dir, 'child.json'));
     // Exactly one delivery path: the private fd 4 bootstrap.
-    assert.equal(record.bootstrapRaw, JSON.stringify({
-      content: { baseUrl: 'http://127.0.0.1:8444', token: TOKEN, generation: 1 },
-    }));
+    const bootstrap = JSON.parse(record.bootstrapRaw);
+    assert.deepEqual(Object.keys(bootstrap), ['content']);
+    assert.equal(bootstrap.content.baseUrl, 'http://127.0.0.1:8444');
+    assert.equal(bootstrap.content.token, TOKEN);
+    assert.equal(bootstrap.content.generation, 1);
+    assert.ok(Number.isSafeInteger(bootstrap.content.expiresAt));
     assert.equal(JSON.stringify(record.frames).includes(TOKEN), false);
     assert.equal(JSON.stringify(record.env).includes(TOKEN), false);
     assert.equal(JSON.stringify(record.argv).includes(TOKEN), false);

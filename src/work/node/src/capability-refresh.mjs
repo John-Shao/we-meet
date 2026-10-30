@@ -19,7 +19,7 @@ const MAX_TOKEN_LENGTH = 2048;
 // A refresh that arrives before the clients exist is queued. The bound only
 // protects memory: the real producer sends at most one frame every 20s.
 const MAX_PENDING_FRAMES = 8;
-const SIDE_FIELDS = new Set(['baseUrl', 'token', 'generation']);
+const SIDE_FIELDS = new Set(['baseUrl', 'token', 'generation', 'expiresAt']);
 const FRAME_SIDES = ['content', 'egress'];
 
 function isRecord(value) {
@@ -31,8 +31,7 @@ function hasOnlyKeys(value, allowed) {
 }
 
 function readSide(value) {
-  if (!isRecord(value) || !hasOnlyKeys(value, SIDE_FIELDS) ||
-      Object.keys(value).length !== SIDE_FIELDS.size) {
+  if (!isRecord(value) || !hasOnlyKeys(value, SIDE_FIELDS)) {
     return null;
   }
   if (typeof value.baseUrl !== 'string' || value.baseUrl.length === 0 ||
@@ -46,7 +45,16 @@ function readSide(value) {
   if (!Number.isSafeInteger(value.generation) || value.generation <= 0) {
     return null;
   }
-  return { baseUrl: value.baseUrl, token: value.token, generation: value.generation };
+  const hasExpiry = Object.hasOwn(value, 'expiresAt');
+  if (hasExpiry && (!Number.isSafeInteger(value.expiresAt) || value.expiresAt <= 0)) {
+    return null;
+  }
+  return {
+    baseUrl: value.baseUrl,
+    token: value.token,
+    generation: value.generation,
+    ...(hasExpiry ? { expiresAt: value.expiresAt } : {}),
+  };
 }
 
 /**

@@ -197,7 +197,13 @@ test('a plan run receives the work-content capability on fd 4', { timeout: 15000
 
     const record = await readRecord(recordFile);
     assert.equal(record.pid, controller.records[0].pid);
-    assert.equal(record.bootstrapRaw, JSON.stringify({ content: { baseUrl: 'http://127.0.0.1:8444', token, generation: 3 } }));
+    const bootstrap = JSON.parse(record.bootstrapRaw);
+    assert.deepEqual(Object.keys(bootstrap), ['content']);
+    assert.equal(bootstrap.content.baseUrl, 'http://127.0.0.1:8444');
+    assert.equal(bootstrap.content.token, token);
+    assert.equal(bootstrap.content.generation, 3);
+    assert.ok(Number.isSafeInteger(bootstrap.content.expiresAt) &&
+      bootstrap.content.expiresAt > Date.now());
     assert.equal(record.payloadRaw, JSON.stringify(fragment));
     assert.equal(JSON.stringify(record.frames).includes(token), false);
     assert.equal(JSON.stringify(record.env).includes(token), false);
@@ -254,7 +260,13 @@ test('an execute run receives only the work-egress capability on fd 4', { timeou
     assert.equal(JSON.parse(response.body).state, 'WAITING_RECONCILE');
 
     const record = await readRecord(recordFile);
-    assert.equal(record.bootstrapRaw, JSON.stringify({ egress: { baseUrl: 'http://127.0.0.1:8445', token: egressToken, generation: 1 } }));
+    const bootstrap = JSON.parse(record.bootstrapRaw);
+    assert.deepEqual(Object.keys(bootstrap), ['egress']);
+    assert.equal(bootstrap.egress.baseUrl, 'http://127.0.0.1:8445');
+    assert.equal(bootstrap.egress.token, egressToken);
+    assert.equal(bootstrap.egress.generation, 1);
+    assert.ok(Number.isSafeInteger(bootstrap.egress.expiresAt) &&
+      bootstrap.egress.expiresAt > Date.now());
     assert.equal(JSON.stringify(record.frames).includes(egressToken), false);
     assert.equal(JSON.stringify(record.env).includes(egressToken), false);
     assert.equal(JSON.stringify(record.argv).includes(egressToken), false);
