@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Build the R0a 0014 release directory on the workstation.
+# Build the R0a 0015 release directory on the workstation.
 #
-# Produces /tmp/work-release-0014 with Linux binaries, the runtime bundle,
+# Produces /tmp/work-release-0015 with Linux binaries, the runtime bundle,
 # env/unit templates, PKI and rollout scripts, and SHA256SUMS. The Go build
 # runs in the local work-go container; no dependency on the target host.
 set -euo pipefail
 export MSYS_NO_PATHCONV=1
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-OUT="${1:-/tmp/work-release-0014}"
+OUT="${1:-/tmp/work-release-0015}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 
 rm -rf "$OUT"
@@ -24,7 +24,7 @@ echo "packaging the Node runtime"
 tar -czf "$OUT/work-runtime.tar.gz" -C "$ROOT/node" package.json package-lock.json src bin
 
 echo "copying deploy assets"
-cp "$ROOT/deploy/ecs/rollout-r0a-0014.sh" "$OUT/"
+cp "$ROOT/deploy/ecs/rollout-r0a-0015.sh" "$OUT/"
 cp "$ROOT/deploy/ecs/init-workload-pki.sh" "$OUT/"
 cp "$ROOT/deploy/ecs/work-authz.env.example" "$OUT/"
 cp "$ROOT/deploy/ecs/work-content-proxy.env.example" "$OUT/"

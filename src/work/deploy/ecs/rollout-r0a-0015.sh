@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Roll out Work R0a schema 0008-0014 and the runtime services on the pilot host.
+# Roll out Work R0a schema 0008-0015 and the runtime services on the pilot host.
 #
 # Run as root. Every step is idempotent and every destructive step is preceded
 # by a database dump. Use --dry-run first: it prints the exact commands.
 #
-#   ./rollout-r0a-0014.sh --release /root/work-release-0014 \
+#   ./rollout-r0a-0015.sh --release /root/work-release-0015 \
 #     --migrator-url 'postgresql://work_migrator_login:...@127.0.0.1:5432/work' \
-#     [--enable-advance] [--runtime-bundle /root/work-runtime-0014.tar.gz] [--dry-run]
+#     [--enable-advance] [--runtime-bundle /root/work-runtime-0015.tar.gz] [--dry-run]
 #
 # Rollback: restore the dump taken in step 2 and reinstall the .bak-<stamp>
-# binaries. Schema 0008-0014 has no destructive down migration by design.
+# binaries. Schema 0008-0015 has no destructive down migration by design.
 set -euo pipefail
 
 RELEASE=""
@@ -126,7 +126,7 @@ install_env() {
 echo "== 1. preflight =="
 current="$(ledger_max)"
 echo "ledger currently at ${current:-0}"
-if [[ "${current:-0}" -gt 14 ]]; then
+if [[ "${current:-0}" -gt 15 ]]; then
   echo "database is ahead of this release (ledger $current); aborting" >&2
   exit 1
 fi
@@ -135,8 +135,8 @@ systemctl is-active work-api work-relay work-worker || true
 
 echo "== 2. database dump =="
 run mkdir -p "$BACKUP_DIR"
-DUMP="$BACKUP_DIR/work-pre-0014-$STAMP.dump"
-TMP_DUMP="/tmp/work-pre-0014-$STAMP.dump"
+DUMP="$BACKUP_DIR/work-pre-0015-$STAMP.dump"
+TMP_DUMP="/tmp/work-pre-0015-$STAMP.dump"
 run runuser -u postgres -- pg_dump -Fc -f "$TMP_DUMP" work
 run mv "$TMP_DUMP" "$DUMP"
 run chmod 600 "$DUMP"

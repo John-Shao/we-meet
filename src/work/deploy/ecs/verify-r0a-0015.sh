@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Read-only acceptance checks for rollout-r0a-0014.sh.
+# Read-only acceptance checks for rollout-r0a-0015.sh.
 #
-#   sudo ./verify-r0a-0014.sh
+#   sudo ./verify-r0a-0015.sh
 #
 # Prints the ledger, unit states, listeners, directory freshness, the workflow
 # switch settings, journal warnings since the rollout and leftover artifacts.
