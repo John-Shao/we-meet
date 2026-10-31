@@ -16,7 +16,7 @@ mkdir -p "$OUT"
 
 echo "building binaries in work-go"
 docker exec -w /src work-go sh -c "mkdir -p /tmp/work-release && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o /tmp/work-release/ ./cmd/..."
-for bin in work-api work-relay work-worker work-authz work-content-proxy work-egress work-migrate work-reconcile work-directory-sync work-provider-setup; do
+for bin in work-api work-relay work-worker work-export work-authz work-content-proxy work-egress work-migrate work-reconcile work-directory-sync work-provider-setup; do
   docker cp "work-go:/tmp/work-release/$bin" "$(cygpath -w "$OUT/$bin" 2>/dev/null || echo "$OUT/$bin")"
 done
 

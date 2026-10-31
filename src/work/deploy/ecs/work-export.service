@@ -1,0 +1,21 @@
+[Unit]
+Description=Work audit export worker
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+User=work-control
+Group=work-control
+EnvironmentFile=/etc/work/work-worker.env
+EnvironmentFile=-/etc/work/work-export.env
+ExecStart=/usr/local/bin/work-export
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/work/content
+
+[Install]
+WantedBy=multi-user.target
