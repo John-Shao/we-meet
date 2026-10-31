@@ -227,8 +227,9 @@ func (s *Server) handleInvoke(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// The code is a closed enumeration; never log the provider body.
-		log.Printf("work egress invoke execution=%s outcome=%s code=%s sent=%t",
-			presented.execution, result.Outcome, unknownReasonCode(executeErr), result.Sent)
+		log.Printf("work egress invoke execution=%s outcome=%s code=%s sent=%t max_output_tokens=%d",
+			presented.execution, result.Outcome, unknownReasonCode(executeErr),
+			result.Sent, document.Parameters.MaxOutputTokens)
 	}
 	stage("exchange_done")
 	writeExchangeResult(w, result, executeErr, answerRefID, evidenceRefID)

@@ -306,7 +306,14 @@ func decodeChatResponse(body []byte) (ProviderResponse, error) {
 		return ProviderResponse{}, &ProviderFailure{Code: "invalid_response"}
 	}
 	if parsed.Choices[0].FinishReason != "stop" {
-		return ProviderResponse{}, &ProviderFailure{Code: "partial_answer"}
+		code := "partial_answer"
+		switch parsed.Choices[0].FinishReason {
+		case "length":
+			code = "partial_answer_length"
+		case "content_filter":
+			code = "partial_answer_content_filter"
+		}
+		return ProviderResponse{}, &ProviderFailure{Code: code}
 	}
 	answer := []byte(parsed.Choices[0].Message.Content)
 	if len(answer) == 0 {

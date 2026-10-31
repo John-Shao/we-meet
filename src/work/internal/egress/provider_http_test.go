@@ -2,6 +2,7 @@ package egress_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,45 @@ import (
 
 	"github.com/we-meet/work/internal/egress"
 )
+
+func TestHTTPProviderClassifiesPartialAnswerReasons(t *testing.T) {
+	cases := []struct {
+		finishReason string
+		wantReason   string
+	}{
+		{finishReason: "length", wantReason: "partial_answer_length"},
+		{finishReason: "content_filter", wantReason: "partial_answer_content_filter"},
+		{finishReason: "tool_calls", wantReason: "partial_answer"},
+	}
+	for _, testCase := range cases {
+		testCase := testCase
+		t.Run(testCase.finishReason, func(t *testing.T) {
+			provider := newProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				body, err := json.Marshal(map[string]any{
+					"id": testProviderID,
+					"choices": []any{map[string]any{
+						"message":       map[string]any{"role": "assistant", "content": "partial"},
+						"finish_reason": testCase.finishReason,
+					}},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, _ = w.Write(body)
+			})
+			exchange := newExchange(newGate(), provider.provider, newMemoryStore())
+			_, err := exchange.Execute(context.Background(), newRequest(t))
+			if !errors.Is(err, egress.ErrUnknownOutcome) {
+				t.Fatalf("err = %v, want ErrUnknownOutcome", err)
+			}
+			var unknown *egress.UnknownError
+			if !errors.As(err, &unknown) || unknown.Reason != testCase.wantReason {
+				t.Fatalf("reason = %v, want %s", err, testCase.wantReason)
+			}
+		})
+	}
+}
 
 func TestHTTPProviderDoesNotFollowRedirects(t *testing.T) {
 	var targetHits atomic.Int32
