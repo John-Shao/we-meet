@@ -10,7 +10,12 @@ import { fileURLToPath } from 'node:url';
 import { createCapabilityRefresher, createLineReader } from '../src/capability-refresh.mjs';
 import { createContentClient } from '../src/content-client.mjs';
 import { createGatewayClient } from '../src/gateway-client.mjs';
-import { CONTRACT_VERSION, runAdvance, runPiTurn } from '../src/child-pi.mjs';
+import {
+  CONTRACT_VERSION,
+  gatewayTimeoutForDeadline,
+  runAdvance,
+  runPiTurn,
+} from '../src/child-pi.mjs';
 
 const CHILD = fileURLToPath(new URL('../src/child-pi.mjs', import.meta.url));
 const ORG = 'org_runtime';
@@ -222,6 +227,27 @@ function clients(content, gateway) {
     }),
   };
 }
+
+test('gateway timeout follows the remaining fragment deadline', () => {
+  const now = 1_000_000;
+  assert.equal(
+    gatewayTimeoutForDeadline({ deadlineUnixMs: now + 60_000 }, () => now),
+    60_000,
+  );
+  assert.equal(
+    gatewayTimeoutForDeadline({ deadlineUnixMs: now - 1 }, () => now),
+    1_000,
+  );
+  assert.equal(
+    gatewayTimeoutForDeadline({ deadlineUnixMs: now + 20 * 60_000 }, () => now),
+    10 * 60_000,
+  );
+  assert.equal(gatewayTimeoutForDeadline({}, () => now), undefined);
+  assert.equal(
+    gatewayTimeoutForDeadline({ deadlineUnixMs: 'soon' }, () => now),
+    undefined,
+  );
+});
 
 test('execute assembles system+user messages and runs one Pi turn through the gateway', async () => {
   const content = await contentServer();

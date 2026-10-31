@@ -694,6 +694,24 @@ function parseBootstrap(buffer) {
   return { content, egress };
 }
 
+const MAX_GATEWAY_TIMEOUT_MS = 10 * 60_000;
+
+/**
+ * The gateway call is one model turn, not a control-plane RPC. A fixed 30s
+ * timeout aborts larger tasks well inside the Run's 180s budget and turns a
+ * slow provider into an unknown outcome. Cap it by the fragment deadline and
+ * only fall back to the client default when the deadline is absent.
+ */
+export function gatewayTimeoutForDeadline(payload, now = Date.now) {
+  if (!Number.isSafeInteger(payload?.deadlineUnixMs) || payload.deadlineUnixMs <= 0) {
+    return undefined;
+  }
+  return Math.max(
+    1_000,
+    Math.min(MAX_GATEWAY_TIMEOUT_MS, payload.deadlineUnixMs - now()),
+  );
+}
+
 function clientsFromBootstrap(bootstrap, payload) {
   if (bootstrap === null) return { contentClient: null, gatewayClient: null };
   const common = {
@@ -720,6 +738,7 @@ function clientsFromBootstrap(bootstrap, payload) {
       });
     }
     if (bootstrap.egress !== null) {
+      const timeoutMs = gatewayTimeoutForDeadline(payload);
       gatewayClient = createGatewayClient({
         baseUrl: bootstrap.egress.baseUrl,
         token: bootstrap.egress.token,
@@ -729,6 +748,7 @@ function clientsFromBootstrap(bootstrap, payload) {
         ...(bootstrap.egress.expiresAt === undefined
           ? {}
           : { expiresAt: bootstrap.egress.expiresAt }),
+        ...(timeoutMs === undefined ? {} : { timeoutMs }),
       });
     }
   } catch {
