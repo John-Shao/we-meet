@@ -11,6 +11,9 @@
  * creating tasks; only a real run creates the 18 golden tasks. The live suite
  * paces submissions with WORK_PILOT_MIN_INTERVAL_MS (default 24000) so the
  * start rate stays at or below the pilot's 2.5 starts/minute assumption.
+ * A `waiting(reconcile)` run is recorded as a failed attempt immediately:
+ * the runner has no reconcile path, and the 2/3 per-task rule already permits
+ * a transient failure without forcing a 180s p95 miss.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -141,6 +144,12 @@ const pollTask = async (taskId, startedAt) => {
   while ((Date.now() - startedAt) / 1000 <= GOLDEN.pass_rule.max_end_to_end_seconds_p95) {
     const task = await jsonRequest('GET', `/tasks/${taskId}`)
     if (terminal.has(task.summary?.display_state)) return task
+    // The runner cannot reconcile a provider_unknown run; waiting the full
+    // p95 deadline would turn one transient failure into a suite-wide p95 miss.
+    const run = task.summary?.latest_run
+    if (run?.state === 'waiting' && run.wait_reason === 'reconcile') {
+      throw new Error('waiting_reconcile')
+    }
     await sleep(1000)
   }
   throw new Error(`task ${taskId} did not reach a terminal state in time`)
