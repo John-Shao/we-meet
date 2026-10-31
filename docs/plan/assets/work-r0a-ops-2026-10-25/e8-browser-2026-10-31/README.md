@@ -35,6 +35,12 @@ The first run left 4 additional `waiting(reconcile)` Runs (all `workflow_status=
 
 Together with the 7 pre-existing held Runs, the 05:17 UTC scan showed 11 open Runs. The four E8 Runs were canceled through `POST /work/v1/runs/{id}/cancel`; all four tasks moved to `run_canceled`/`canceled`, active_run_id null. A post-cancel scan returned to 7 held Runs, 0 orphan. The 7 pre-existing Runs were not touched.
 
+## Timeout probe (05:54 UTC)
+
+The production config had `WORK_ADVANCE_TIMEOUT_SECONDS` unset (default 30s) on the Go worker and `WORK_RUN_TIMEOUT_MS` unset (default 30000ms) on the Node runtime. Both were raised to 200s / 180000ms, with backups `/etc/work/work-worker.env.bak-20261031-135458` and `/etc/work/work-runtime.env.bak-20261031-135458`; both services restarted active.
+
+One G02 attempt with 1200-char background was then run. The runtime child started at 13:55:08 and failed at 13:55:31 with `WAITING_RECONCILE` / `provider_unknown`; egress logged `exchange_done` after 22.1s. This is **not** the previous 30s cutoff: the provider outcome itself is still unknown (likely provider 429/5xx or receipt unavailable). The timeout increase is retained, but it is not sufficient for E8. The validation Run was canceled; scan returned to 7 held Runs.
+
 ## Evidence files
 
 - `raw.json`: browser-side raw results from the first full 18-attempt run (task ids, markdown, timings, errors).
