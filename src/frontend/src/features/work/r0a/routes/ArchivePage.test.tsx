@@ -10,9 +10,7 @@ vi.mock('wouter', () => ({
   Link: ({ href, children }: { href: string; children: ReactNode }) => (
     <a href={href}>{children}</a>
   ),
-  useSearchParams: () => [
-    { get: () => legacyTask },
-  ],
+  useSearchParams: () => [{ get: () => legacyTask }],
 }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -23,8 +21,16 @@ vi.mock('../api/queries', () => ({
       pages: [
         {
           items: [
-            { task_id: 'task-1', title: 'Archived task', display_state: 'archived' },
-            { task_id: 'task-2', title: 'Active task', display_state: 'active' },
+            {
+              task_id: 'task-1',
+              title: 'Archived task',
+              display_state: 'archived',
+            },
+            {
+              task_id: 'task-2',
+              title: 'Active task',
+              display_state: 'active',
+            },
           ],
         },
       ],

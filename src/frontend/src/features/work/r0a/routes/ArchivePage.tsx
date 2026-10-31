@@ -22,7 +22,9 @@ export const ArchivePage = () => {
 
   return (
     <div className={page}>
-      <div className={css({ display: 'flex', flexDirection: 'column', gap: 'xs' })}>
+      <div
+        className={css({ display: 'flex', flexDirection: 'column', gap: 'xs' })}
+      >
         <h1 className={css({ margin: 0, textStyle: 'titleLarge' })}>
           {t('archive.title')}
         </h1>
