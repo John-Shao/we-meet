@@ -225,6 +225,10 @@ func (s *Server) handleInvoke(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusServiceUnavailable, codeContentRegistrationFailed)
 			return
 		}
+	} else {
+		// The code is a closed enumeration; never log the provider body.
+		log.Printf("work egress invoke execution=%s outcome=%s code=%s sent=%t",
+			presented.execution, result.Outcome, unknownReasonCode(executeErr), result.Sent)
 	}
 	stage("exchange_done")
 	writeExchangeResult(w, result, executeErr, answerRefID, evidenceRefID)
