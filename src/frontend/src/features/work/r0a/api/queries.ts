@@ -171,11 +171,8 @@ export const useAdminAuditExport = (exportId: string | undefined) =>
     queryFn: () => fetchAdminAuditExport(exportId!),
     enabled: !!exportId,
     retry: false,
-    refetchInterval: (query) =>
-      query.state.data?.status === 'queued' ||
-      query.state.data?.status === 'running'
-        ? 3000
-        : false,
+    refetchInterval: 3000,
+    refetchIntervalInBackground: true,
   })
 
 export const useDownloadAdminAuditExport = () =>

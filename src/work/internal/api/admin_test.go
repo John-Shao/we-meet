@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/we-meet/work/internal/api"
 	"github.com/we-meet/work/internal/host"
+	"github.com/we-meet/work/internal/testpg"
 )
 
 func TestAdminReadEndpoints(t *testing.T) {
@@ -123,4 +125,41 @@ func TestAdminReadEndpoints(t *testing.T) {
 		t.Fatalf("content without token status = %d", content.StatusCode)
 	}
 	content.Body.Close()
+}
+
+func TestAdminOverviewRejectsNonAdmin(t *testing.T) {
+	pool, dbName := newBootstrapDB(t, true, false)
+	admin, err := testpg.Open(context.Background(), testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(context.Background(),
+		`UPDATE work.member SET role = 'viewer' WHERE org_id = 'org_a' AND subject_id = 'sub_a'`); err != nil {
+		t.Fatal(err)
+	}
+	admin.Close(context.Background())
+
+	server := newHTTPServer(t, pool, &stubVerifier{claims: testClaims()}, testCSRF(t))
+	request, err := http.NewRequest(http.MethodGet, server.URL+api.AdminOverviewPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.AddCookie(&http.Cookie{Name: host.SessionCookieName, Value: "session-value"})
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d", response.StatusCode)
+	}
+	var payload struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Code != "admin_access_denied" {
+		t.Fatalf("code = %q", payload.Code)
+	}
 }
