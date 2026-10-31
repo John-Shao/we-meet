@@ -14,23 +14,32 @@
 
 - `scripts/golden-tasks/run-golden-tasks.mjs` now synthesizes deterministic, customer-free background text of exactly `background_chars` for every task.
 - Live submissions are paced at `WORK_PILOT_MIN_INTERVAL_MS` (default 24000ms, i.e. 2.5 starts/minute) to match the pilot assumption. Unit tests set it to 0.
-- Neither fix has been validated with a complete live 18-run rerun yet.
+- The background fix is covered by unit tests but not by a complete live 18-run rerun. The pacing fix was exercised in a partial live rerun and **did not eliminate the timeouts**.
+
+## Paced partial rerun (05:46–05:52 UTC)
+
+- Same browser transport, synthetic backgrounds, 24s minimum interval between submissions.
+- 6 of 18 attempts completed before the queue was stopped: G01 3/3 succeeded; G02 attempt 1 succeeded; G02 attempt 2 timed out after 181s in `waiting(reconcile)`; G02 attempt 3 was aborted after the suite was already guaranteed to fail on p95.
+- Because p95 is the maximum of 18 samples, any single 180s timeout makes `passed=false`. The paced rerun therefore cannot pass; it was stopped rather than generating 12 more tasks.
+- Conclusion: start rate is not the primary cause. Long provider calls still cross the runtime lease/finishing window and leave Runs `waiting(reconcile)`. This needs a runtime lease/receipt or runner-reconcile design fix before E8 can pass.
+- The two new waiting Runs from this rerun (`7ff316dd-46c6-4733-b63a-b9cba1f72105`, `f550e41f-cbee-4d5a-ae45-1dbde1bfd9a2`) were canceled; a post-cancel scan returned to 7 held Runs, all `orphan=false`.
 
 ## New open Runs created by this run
 
-The run left 4 additional `waiting(reconcile)` Runs (all `workflow_status=Running`, `reservation_state=held`, `orphan=false`):
+The first run left 4 additional `waiting(reconcile)` Runs (all `workflow_status=Running`, `reservation_state=held`, `orphan=false`):
 
 - `aef8e753-452f-4696-88b8-373cf656de4f`
 - `15b65b68-0d90-4463-b383-262e66b1e22a`
 - `14ccbfc8-d944-41a1-836a-c77149d1433a`
 - `5f493d75-4a0b-4cd0-818c-9a06bc16b933`
 
-Together with the 7 pre-existing held Runs, the 2026-10-31 05:17 UTC scan shows 11 open Runs, all `waiting`/`Running`/`held`/`orphan=false`. They need reconcile or a separate disposition decision; they were not cancelled or settled by this run.
+Together with the 7 pre-existing held Runs, the 05:17 UTC scan showed 11 open Runs. The four E8 Runs were canceled through `POST /work/v1/runs/{id}/cancel`; all four tasks moved to `run_canceled`/`canceled`, active_run_id null. A post-cancel scan returned to 7 held Runs, 0 orphan. The 7 pre-existing Runs were not touched.
 
 ## Evidence files
 
-- `raw.json`: browser-side raw results (task ids, markdown, timings, errors).
-- `pilot-run.json`: evaluation output from `pilot-ops.mjs`.
+- `raw.json`: browser-side raw results from the first full 18-attempt run (task ids, markdown, timings, errors).
+- `pilot-run.json`: evaluation output from `pilot-ops.mjs` for the first run.
+- `paced-partial.json`: raw results from the paced partial rerun (6 attempts).
 
 ## Boundary
 
