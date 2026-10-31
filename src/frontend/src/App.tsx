@@ -21,6 +21,7 @@ import { useUser } from '@/features/auth'
 import { HomeRoute } from '@/features/home'
 import { DesktopTitleBar } from '@/layout/DesktopTitleBar'
 import { AiCallFloatRoute } from '@/features/ai-call/AiCallFloatRoute'
+import { WorkAdminRoute } from '@/features/work/r0a/routes/WorkAdminRoute'
 
 // M 端(运营管理端)—— 独立 shell + org_role 守卫,懒加载,普通员工不加载其 bundle。
 const AdminApp = lazy(() => import('@/features/admin'))
@@ -68,6 +69,7 @@ function App() {
         <I18nProvider locale={i18n.language}>
           <ConfirmProvider>
             <Switch>
+              <Route path="/admin/work" component={WorkAdminRoute} />
               {/* M 端:独立 AdminShell,不套 C 端 Layout。nest 让子路由相对 /admin。 */}
               <Route path="/admin" nest>
                 <AdminApp />
