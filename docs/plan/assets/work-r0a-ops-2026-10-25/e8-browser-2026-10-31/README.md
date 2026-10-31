@@ -55,6 +55,17 @@ The live browser rerun was stopped after 7 attempts because the provider degrade
 
 This is a provider-side/quota failure, not a 30s local timeout or a background-length bug. The 6 new waiting Runs from this rerun were canceled; a post-cancel scan returned to 7 held Runs, 0 orphan. The suite still has not passed and E8 remains open.
 
+## Slow 60s probe (06:16–06:27 UTC)
+
+A final run used a 60s minimum interval (1 start/minute, below the pilot's 2.5/minute ceiling) and the early-abort poll:
+
+- G01: 3/3 succeeded (15s/28s/20s; 1172/891/1220 chars).
+- G02: only attempt 2 succeeded; attempts 1 and 3 `waiting_reconcile`.
+- G03: all 3 `waiting_reconcile`.
+- G04: attempt 1 `waiting_reconcile`; attempt 2 aborted when the queue was stopped.
+
+Even at 1 start/minute the provider degrades after roughly five calls. This rules out runner pacing as the fix and points to the provider key/quota. The 7 new waiting Runs were canceled; a post-cancel scan returned to 7 held Runs, 0 orphan. E8 remains unpassed.
+
 ## Evidence files
 
 - `raw.json`: browser-side raw results from the first full 18-attempt run (task ids, markdown, timings, errors).
