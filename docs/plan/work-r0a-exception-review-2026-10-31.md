@@ -57,7 +57,11 @@
 - 深链权限在 SQL 层同时校验组织、任务 owner、`artifact.task_id = taskId`、artifact/version 已发布；跨任务、非 owner、跨组织、staged 版本统一返回 404 `artifact_not_found`，正文仍校验 Content Store 的 hash 与字节数。
 - 前端新增独立页面 `/work/items/:taskId/artifacts/:artifactId`，支持 `?version=`、版本列表与采纳标记、Markdown/文本预览、下载、按版本采纳、移动端只读；任务工作区成果面板新增“打开成果工作区”入口。
 - 本地验证：Go `go test ./... -p 1 -count=1` 全绿（`internal/api` 48.977s，含跨任务/非 owner/跨组织/无席位负例）；前端 Work 测试 66/66、全量 1772/1772、`tsc -b` 与 `npm run build` 通过。
-- **尚未部署**：生产 Work API 与前端仍是旧构建；生产浏览器验收与真实深链负例待发布后执行。页面能力与内嵌面板对齐（预览、版本切换、下载、按版本采纳），本轮未新增成果正文编辑/保存入口。
+- **2026-10-31 已部署**：提交 `42e4736bd`；Work API 二进制 sha256 `8fe824b8…` 安装并 restart，`/proc/<pid>/exe` 未删除、`healthz=200`、未登录深链 401；前端镜像 `meet-frontend:42e4736bd`（digest `sha256:fdd76efc…`）发布为 Helm revision **527**。
+- **生产浏览器验收（真实登录）**：任务 `a6365a66…` / 成果 `f8a1a8b5…`，直接打开 `/work/items/…/artifacts/…?version=1` 渲染标题、待验收状态、版本列表与 4449 字节正文；任务工作区“打开成果工作区”链接指向同一深链；下载响应 `text/markdown`、`no-store`、`nosniff`、RFC 5987 附件名，正文与版本一致；`/work` 与 `/im` 正常，bundle `index-43bSDm7P.js`。
+- **生产深链负例**：同 owner 下错误 artifact、错误 task、错误 task 的 content 均返回 404 `artifact_not_found`；正确 task+artifact 返回 200 且恰好 1 个版本。
+- **证据边界**：当前 in-app browser 视口为 561px，页面按设计显示移动端只读，未在浏览器点击采纳；采纳按钮/版本切换由前端测试覆盖。生产该成果只有 1 个版本，跨版本切换由测试覆盖。页面能力与内嵌面板对齐（预览、版本切换、下载、按版本采纳），本轮未新增成果正文编辑/保存入口。
+- **CI**：`Work R0a gates` 与 `Release guard` 成功；`meet Workflow` 仅 `test-e2e` 的既有 `work-a11y` 无 session 用例失败，其余 14 个 job 成功，发布未依赖该失败 job。
 
 **请 Lily 复核**
 - [ ] 接受独立成果页与任务级深链权限
