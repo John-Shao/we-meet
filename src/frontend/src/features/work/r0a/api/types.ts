@@ -54,6 +54,33 @@ export interface WorkArtifactContent {
   mediaType: string
 }
 
+export interface WorkArtifactWorkspaceVersion {
+  version_no: number
+  media_type: string
+  bytes: number
+  content_hash: string
+  state: string
+  content_url: string
+  created_at: string
+  published_at: string | null
+}
+
+export interface WorkArtifactWorkspace {
+  artifact_id: string
+  logical_name: string
+  state: string
+  revision: number
+  created_at: string
+  updated_at: string
+  accepted_version_no: number | null
+  versions: WorkArtifactWorkspaceVersion[]
+}
+
+export interface WorkTaskArtifactWorkspace {
+  summary: WorkTaskSummary
+  artifact: WorkArtifactWorkspace
+}
+
 export interface WorkTaskSummary {
   task_id: string
   title: string

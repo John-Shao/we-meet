@@ -25,6 +25,7 @@ import { WorkApiError } from './api/client'
 import { useWorkBootstrap } from './api/queries'
 import { AdminPage } from './routes/AdminPage'
 import { ArchivePage } from './routes/ArchivePage'
+import { ArtifactWorkspacePage } from './routes/ArtifactWorkspacePage'
 import { MyWorkPage } from './routes/MyWorkPage'
 import { TaskWorkspacePage } from './routes/TaskWorkspacePage'
 import { WorkHomePage } from './routes/WorkHomePage'
@@ -122,6 +123,10 @@ const WorkApp = () => {
       <Switch>
         <Route path="/admin/work" component={AdminPage} />
         <Route path="/work/archive" component={ArchivePage} />
+        <Route
+          path="/work/items/:taskId/artifacts/:artifactId"
+          component={ArtifactWorkspacePage}
+        />
         <Route path="/work/items/:taskId" component={TaskWorkspacePage} />
         <Route path="/work/items" component={MyWorkPage} />
         <Route path="/work/new" component={NewWorkPage} />

@@ -3,10 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createWorkInput,
   fetchWorkArtifactContent,
+  fetchWorkArtifactWorkspace,
   fetchWorkBootstrap,
   setWorkCSRFToken,
   WorkApiError,
-  workArtifactContentUrl,
+  workTaskArtifactContentUrl,
 } from './client'
 
 const jsonResponse = (status: number, body: unknown): Response =>
@@ -113,17 +114,55 @@ describe('Work API client', () => {
       )
     vi.stubGlobal('fetch', fetchMock)
 
-    const content = await fetchWorkArtifactContent('artifact-1', 2)
+    const content = await fetchWorkArtifactContent('task-1', 'artifact-1', 2)
     expect(content).toEqual({
       text: '# 成果\n\n正文',
       mediaType: 'text/markdown',
     })
     expect(fetchMock.mock.calls[0][0]).toBe(
-      '/work/v1/artifacts/artifact-1/versions/2/content?disposition=inline'
+      '/work/v1/tasks/task-1/artifacts/artifact-1/versions/2/content?disposition=inline'
     )
     expect(fetchMock.mock.calls[0][1].credentials).toBe('same-origin')
-    expect(workArtifactContentUrl('artifact-1', 2, 'attachment')).toBe(
-      '/work/v1/artifacts/artifact-1/versions/2/content?disposition=attachment'
+    expect(
+      workTaskArtifactContentUrl('task-1', 'artifact-1', 2, 'attachment')
+    ).toBe(
+      '/work/v1/tasks/task-1/artifacts/artifact-1/versions/2/content?disposition=attachment'
+    )
+  })
+
+  it('reads the task-scoped artifact workspace with versions', async () => {
+    const payload = {
+      summary: { task_id: 'task-1', title: 'Task' },
+      artifact: {
+        artifact_id: 'artifact-1',
+        logical_name: 'result',
+        state: 'published',
+        revision: 0,
+        created_at: '2026-10-31T00:00:00Z',
+        updated_at: '2026-10-31T00:00:00Z',
+        accepted_version_no: 1,
+        versions: [
+          {
+            version_no: 1,
+            media_type: 'text/markdown',
+            bytes: 12,
+            content_hash: 'sha256:hash',
+            state: 'published',
+            content_url:
+              '/work/v1/tasks/task-1/artifacts/artifact-1/versions/1/content',
+            created_at: '2026-10-31T00:00:00Z',
+            published_at: '2026-10-31T00:00:00Z',
+          },
+        ],
+      },
+    }
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, payload))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const workspace = await fetchWorkArtifactWorkspace('task-1', 'artifact-1')
+    expect(workspace).toEqual(payload)
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      '/work/v1/tasks/task-1/artifacts/artifact-1'
     )
   })
 
@@ -139,7 +178,7 @@ describe('Work API client', () => {
       )
     )
     await expect(
-      fetchWorkArtifactContent('artifact-1', 1)
+      fetchWorkArtifactContent('task-1', 'artifact-1', 1)
     ).rejects.toMatchObject({
       code: 'artifact_not_found',
       status: 404,

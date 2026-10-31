@@ -8,6 +8,7 @@ import type {
   WorkInputResponse,
   WorkPreviewResponse,
   WorkSubmitResponse,
+  WorkTaskArtifactWorkspace,
   WorkTaskDetail,
   WorkTaskList,
   WorkTemplate,
@@ -104,20 +105,30 @@ export const fetchWorkTasks = (view: string, cursor?: string | null) => {
 export const fetchWorkTask = (taskId: string) =>
   request<WorkTaskDetail>(`/tasks/${encodeURIComponent(taskId)}`)
 
-export const workArtifactContentUrl = (
+export const fetchWorkArtifactWorkspace = (
+  taskId: string,
+  artifactId: string
+) =>
+  request<WorkTaskArtifactWorkspace>(
+    `/tasks/${encodeURIComponent(taskId)}/artifacts/${encodeURIComponent(artifactId)}`
+  )
+
+export const workTaskArtifactContentUrl = (
+  taskId: string,
   artifactId: string,
   versionNo: number,
   disposition: 'inline' | 'attachment' = 'inline'
 ) =>
-  `${BASE}/artifacts/${encodeURIComponent(artifactId)}/versions/${versionNo}/content?disposition=${disposition}`
+  `${BASE}/tasks/${encodeURIComponent(taskId)}/artifacts/${encodeURIComponent(artifactId)}/versions/${versionNo}/content?disposition=${disposition}`
 
 export const fetchWorkArtifactContent = async (
+  taskId: string,
   artifactId: string,
   versionNo: number,
   disposition: 'inline' | 'attachment' = 'inline'
 ): Promise<WorkArtifactContent> => {
   const response = await fetch(
-    workArtifactContentUrl(artifactId, versionNo, disposition),
+    workTaskArtifactContentUrl(taskId, artifactId, versionNo, disposition),
     {
       credentials: 'same-origin',
       headers: { Accept: 'text/markdown, text/plain' },

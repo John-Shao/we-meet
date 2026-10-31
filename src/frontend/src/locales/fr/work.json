@@ -184,6 +184,28 @@
     "streamReconnecting": "Reconnecting…",
     "streamError": "Live connection unavailable"
   },
+  "artifact": {
+    "backToTask": "Back to task",
+    "workspaceTitle": "Artifact workspace",
+    "loadErrorTitle": "Unable to open this artifact",
+    "loadErrorDescription": "The artifact may not exist, or it does not belong to this task.",
+    "versionBadge": "Version v{{version}}",
+    "versionMeta": "Version v{{version}} · {{hash}}… · {{bytes}} bytes",
+    "versionFallback": "The selected version does not exist; showing the latest version.",
+    "versionList": "Versions",
+    "selectVersion": "View version v{{version}}",
+    "preview": "Artifact preview",
+    "download": "Download Markdown",
+    "acceptedBadge": "Accepted",
+    "acceptedNotice": "Version v{{version}} accepted.",
+    "acceptTitle": "Accept this version",
+    "acceptHint": "Accepting marks the task as completed and fixes the current version.",
+    "confirmAccept": "Accept v{{version}}",
+    "readOnly": "Read-only on mobile: you can view and download artifacts; accept on a wider screen.",
+    "contentLoading": "Loading artifact…",
+    "contentLoadError": "Unable to load the artifact content. Please retry.",
+    "openWorkspace": "Open artifact workspace"
+  },
   "event": {
     "task.submitted": "Task submitted",
     "task.updated": "Task updated",

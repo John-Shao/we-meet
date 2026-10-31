@@ -152,6 +152,102 @@ func TestArtifactReadRejectsForeignUnpublishedAndCorrupt(t *testing.T) {
 	assertAPICode(t, response, http.StatusNotFound, "artifact_not_found")
 }
 
+func TestTaskArtifactWorkspaceDeepLinkAuthorization(t *testing.T) {
+	pool, dbName := newBootstrapDB(t, true, true)
+	seedTaskGraph(t, dbName)
+	store := newTestContentStore(t)
+	seedArtifact(t, dbName, store, artifactSeed{
+		artifactID: artifactA, orgID: "org_a", taskID: "11111111-1111-4111-8111-111111111111",
+		logicalName: "result", content: "version one", versionState: "published",
+	})
+	seedArtifactVersion(t, dbName, store, "org_a", artifactA, 2, "version two", "published")
+	seedAcceptance(t, dbName, "org_a", "11111111-1111-4111-8111-111111111111", artifactA, 1)
+	seedArtifact(t, dbName, store, artifactSeed{
+		artifactID: artifactC, orgID: "org_a", taskID: "11111111-1111-4111-8111-333333333333",
+		logicalName: "result", content: "other owner", versionState: "published",
+	})
+	seedArtifact(t, dbName, store, artifactSeed{
+		artifactID: artifactD, orgID: "org_other", taskID: "11111111-1111-4111-8111-444444444444",
+		logicalName: "result", content: "other org", versionState: "published",
+	})
+
+	server := newHTTPServerWithContent(t, pool, store)
+	workspaceURL := server.URL + "/work/v1/tasks/11111111-1111-4111-8111-111111111111/artifacts/" + artifactA
+	response := taskRequest(t, http.MethodGet, workspaceURL, "", "")
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("workspace status = %d body=%s", response.StatusCode, readBody(response))
+	}
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(body, &raw); err != nil {
+		t.Fatal(err)
+	}
+	assertExactKeys(t, raw, "summary", "artifact")
+	var artifactRaw map[string]json.RawMessage
+	if err := json.Unmarshal(raw["artifact"], &artifactRaw); err != nil {
+		t.Fatal(err)
+	}
+	assertExactKeys(t, artifactRaw, "artifact_id", "logical_name", "state", "revision",
+		"created_at", "updated_at", "accepted_version_no", "versions")
+	var workspace api.TaskArtifactWorkspace
+	if err := json.Unmarshal(body, &workspace); err != nil {
+		t.Fatal(err)
+	}
+	if workspace.Summary.Title != "Task A" || workspace.Artifact.ArtifactID != artifactA ||
+		workspace.Artifact.AcceptedVersionNo == nil || *workspace.Artifact.AcceptedVersionNo != 1 ||
+		len(workspace.Artifact.Versions) != 2 {
+		t.Fatalf("workspace = %#v", workspace)
+	}
+	latest := workspace.Artifact.Versions[0]
+	if latest.VersionNo != 2 || latest.ContentHash == "" ||
+		!strings.HasSuffix(latest.ContentURL,
+			"/work/v1/tasks/11111111-1111-4111-8111-111111111111/artifacts/"+artifactA+"/versions/2/content") {
+		t.Fatalf("latest version = %#v", latest)
+	}
+
+	versionURL := workspaceURL + "/versions/2"
+	versionResponse := taskRequest(t, http.MethodGet, versionURL, "", "")
+	if versionResponse.StatusCode != http.StatusOK {
+		t.Fatalf("version status = %d body=%s", versionResponse.StatusCode, readBody(versionResponse))
+	}
+	var version api.ArtifactVersion
+	if err := json.NewDecoder(versionResponse.Body).Decode(&version); err != nil {
+		t.Fatal(err)
+	}
+	versionResponse.Body.Close()
+	if version.VersionNo != 2 || !strings.HasSuffix(version.ContentURL,
+		"/work/v1/tasks/11111111-1111-4111-8111-111111111111/artifacts/"+artifactA+"/versions/2/content") {
+		t.Fatalf("version = %#v", version)
+	}
+	contentResponse := taskRequest(t, http.MethodGet, versionURL+"/content", "", "")
+	if contentResponse.StatusCode != http.StatusOK {
+		t.Fatalf("content status = %d body=%s", contentResponse.StatusCode, readBody(contentResponse))
+	}
+	contentBody, _ := io.ReadAll(contentResponse.Body)
+	contentResponse.Body.Close()
+	if string(contentBody) != "version two" {
+		t.Fatalf("content body = %q", contentBody)
+	}
+
+	for _, path := range []string{
+		"/work/v1/tasks/11111111-1111-4111-8111-222222222222/artifacts/" + artifactA,
+		"/work/v1/tasks/11111111-1111-4111-8111-333333333333/artifacts/" + artifactC,
+		"/work/v1/tasks/11111111-1111-4111-8111-444444444444/artifacts/" + artifactD,
+		"/work/v1/tasks/not-a-uuid/artifacts/" + artifactA,
+		"/work/v1/tasks/11111111-1111-4111-8111-111111111111/artifacts/not-a-uuid",
+	} {
+		response := taskRequest(t, http.MethodGet, server.URL+path, "", "")
+		assertAPICode(t, response, http.StatusNotFound, "artifact_not_found")
+	}
+	response = taskRequest(t, http.MethodGet,
+		server.URL+"/work/v1/tasks/11111111-1111-4111-8111-222222222222/artifacts/"+artifactA+"/versions/2/content", "", "")
+	assertAPICode(t, response, http.StatusNotFound, "artifact_not_found")
+}
+
 func TestArtifactContentRequiresStoreAndSeat(t *testing.T) {
 	pool, dbName := newBootstrapDB(t, true, true)
 	seedTaskGraph(t, dbName)
@@ -178,6 +274,12 @@ func TestArtifactContentRequiresStoreAndSeat(t *testing.T) {
 	assertAPICode(t, response, http.StatusForbidden, "work_seat_required")
 	response = taskRequest(t, http.MethodGet,
 		noSeat.URL+"/work/v1/artifacts/"+artifactA+"/versions/1/content", "", "")
+	assertAPICode(t, response, http.StatusForbidden, "work_seat_required")
+	response = taskRequest(t, http.MethodGet,
+		noSeat.URL+"/work/v1/tasks/11111111-1111-4111-8111-111111111111/artifacts/"+artifactA, "", "")
+	assertAPICode(t, response, http.StatusForbidden, "work_seat_required")
+	response = taskRequest(t, http.MethodGet,
+		noSeat.URL+"/work/v1/tasks/11111111-1111-4111-8111-111111111111/artifacts/"+artifactA+"/versions/1", "", "")
 	assertAPICode(t, response, http.StatusForbidden, "work_seat_required")
 }
 
@@ -216,6 +318,67 @@ func seedArtifact(t *testing.T, dbName string, store content.Store, seed artifac
 		VALUES ($1, $2, 1, $3, $4, $5, 'text/markdown', $6, '{}'::jsonb, $7)`,
 		seed.artifactID, seed.orgID, ref.ContentRef, ref.Hash, ref.Bytes,
 		seed.versionState, publishedAt); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedArtifactVersion(
+	t *testing.T,
+	dbName string,
+	store content.Store,
+	orgID, artifactID string,
+	versionNo int,
+	contentText, state string,
+) {
+	t.Helper()
+	ctx := context.Background()
+	ref, err := store.Put(ctx, orgID, []byte(contentText))
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+	if _, err := conn.Exec(ctx, `SELECT set_config('app.org_id', $1, false)`, orgID); err != nil {
+		t.Fatal(err)
+	}
+	var publishedAt any
+	if state == "published" {
+		publishedAt = time.Now()
+	}
+	if _, err := conn.Exec(ctx, `
+		INSERT INTO work.artifact_version
+		  (artifact_id, org_id, version_no, content_ref, content_hash, bytes,
+		   media_type, state, provenance, published_at)
+		VALUES ($1, $2, $3, $4, $5, $6, 'text/markdown', $7, '{}'::jsonb, $8)`,
+		artifactID, orgID, versionNo, ref.ContentRef, ref.Hash, ref.Bytes,
+		state, publishedAt); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedAcceptance(
+	t *testing.T,
+	dbName, orgID, taskID, artifactID string,
+	versionNo int,
+) {
+	t.Helper()
+	ctx := context.Background()
+	conn, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+	if _, err := conn.Exec(ctx, `SELECT set_config('app.org_id', $1, false)`, orgID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec(ctx, `
+		INSERT INTO work.acceptance
+		  (org_id, task_id, artifact_id, version_no, actor_subject_id, task_revision)
+		VALUES ($1, $2, $3, $4, 'sub_a', 2)`,
+		orgID, taskID, artifactID, versionNo); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -184,6 +184,28 @@
     "streamReconnecting": "正在重新连接…",
     "streamError": "实时连接不可用"
   },
+  "artifact": {
+    "backToTask": "返回任务",
+    "workspaceTitle": "成果工作区",
+    "loadErrorTitle": "无法打开这个成果",
+    "loadErrorDescription": "成果可能不存在，或它不属于这个任务。",
+    "versionBadge": "版本 v{{version}}",
+    "versionMeta": "版本 v{{version}} · {{hash}}… · {{bytes}} 字节",
+    "versionFallback": "所选版本不存在，已显示最新版本。",
+    "versionList": "版本列表",
+    "selectVersion": "查看版本 v{{version}}",
+    "preview": "成果预览",
+    "download": "下载 Markdown",
+    "acceptedBadge": "已采纳",
+    "acceptedNotice": "已采纳版本 v{{version}}。",
+    "acceptTitle": "采纳这个版本",
+    "acceptHint": "采纳后任务将标记为完成，并固定当前版本。",
+    "confirmAccept": "采纳 v{{version}}",
+    "readOnly": "移动端为只读模式：可查看与下载成果，采纳请在更宽的屏幕操作。",
+    "contentLoading": "正在加载成果正文…",
+    "contentLoadError": "无法加载成果正文，请重试。",
+    "openWorkspace": "打开成果工作区"
+  },
   "event": {
     "task.submitted": "任务已提交",
     "task.updated": "任务已更新",

@@ -608,8 +608,9 @@ export const TaskWorkspacePage = () => {
             </section>
           ) : null}
 
-          {detail.summary.latest_artifact ? (
+          {detail.summary.latest_artifact && taskId ? (
             <ArtifactPanel
+              taskId={taskId}
               artifactId={detail.summary.latest_artifact.artifact_id}
               versionNo={detail.summary.latest_artifact.version_no}
               contentHash={detail.summary.latest_artifact.content_hash}

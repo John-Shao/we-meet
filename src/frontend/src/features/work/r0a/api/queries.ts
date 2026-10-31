@@ -16,6 +16,7 @@ import {
   createWorkInput,
   createWorkPreview,
   fetchWorkArtifactContent,
+  fetchWorkArtifactWorkspace,
   fetchWorkBootstrap,
   fetchWorkTask,
   fetchWorkTasks,
@@ -33,8 +34,10 @@ const workKeys = {
   adminOverview: ['work', 'admin', 'overview'] as const,
   adminSeats: ['work', 'admin', 'seats'] as const,
   adminExport: (id: string) => ['work', 'admin', 'export', id] as const,
-  artifactContent: (artifactId: string, versionNo: number) =>
-    ['work', 'artifact-content', artifactId, versionNo] as const,
+  artifactWorkspace: (taskId: string, artifactId: string) =>
+    ['work', 'artifact-workspace', taskId, artifactId] as const,
+  artifactContent: (taskId: string, artifactId: string, versionNo: number) =>
+    ['work', 'artifact-content', taskId, artifactId, versionNo] as const,
 }
 
 export const useWorkBootstrap = () =>
@@ -70,15 +73,31 @@ export const useWorkTask = (taskId: string | undefined) =>
     retry: false,
   })
 
+export const useWorkArtifactWorkspace = (
+  taskId: string | undefined,
+  artifactId: string | undefined
+) =>
+  useQuery({
+    queryKey: workKeys.artifactWorkspace(taskId ?? '', artifactId ?? ''),
+    queryFn: () => fetchWorkArtifactWorkspace(taskId!, artifactId!),
+    enabled: !!taskId && !!artifactId,
+    retry: false,
+  })
+
 export const useWorkArtifactContent = (
-  artifactId: string,
-  versionNo: number,
+  taskId: string | undefined,
+  artifactId: string | undefined,
+  versionNo: number | undefined,
   enabled: boolean
 ) =>
   useQuery({
-    queryKey: workKeys.artifactContent(artifactId, versionNo),
-    queryFn: () => fetchWorkArtifactContent(artifactId, versionNo),
-    enabled,
+    queryKey: workKeys.artifactContent(
+      taskId ?? '',
+      artifactId ?? '',
+      versionNo ?? 0
+    ),
+    queryFn: () => fetchWorkArtifactContent(taskId!, artifactId!, versionNo!),
+    enabled: enabled && !!taskId && !!artifactId && !!versionNo,
     staleTime: Infinity,
     retry: false,
   })
@@ -133,6 +152,9 @@ export const useAcceptWorkTask = (taskId: string) => {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: workKeys.task(taskId) })
       void queryClient.invalidateQueries({ queryKey: ['work', 'tasks'] })
+      void queryClient.invalidateQueries({
+        queryKey: ['work', 'artifact-workspace'],
+      })
     },
   })
 }

@@ -1,65 +1,19 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown from 'react-markdown'
-import { RiDownloadLine, RiEyeLine, RiEyeOffLine } from '@remixicon/react'
+import { Link } from 'wouter'
+import {
+  RiArrowRightLine,
+  RiDownloadLine,
+  RiEyeLine,
+  RiEyeOffLine,
+} from '@remixicon/react'
 
 import { Button } from '@/primitives/Button'
 import { css } from '@/styled-system/css'
 import { useWorkArtifactContent } from '../api/queries'
-import { workArtifactContentUrl } from '../api/client'
+import { workTaskArtifactContentUrl } from '../api/client'
 import { card, errorText, muted, row, sectionTitle } from '../ui'
-
-const markdownBody = css({
-  marginTop: 'sm',
-  padding: 'md',
-  borderRadius: 'control',
-  backgroundColor: 'surface.canvas',
-  textStyle: 'bodyMedium',
-  lineHeight: 1.7,
-  overflowWrap: 'anywhere',
-  '& h1, & h2, & h3, & h4': {
-    marginTop: 'md',
-    marginBottom: 'xs',
-    fontWeight: 'bold',
-    lineHeight: 1.35,
-  },
-  '& h1': { textStyle: 'titleLarge' },
-  '& h2': { textStyle: 'titleMedium' },
-  '& p, & ul, & ol': { marginY: 'xs' },
-  '& ul, & ol': { paddingLeft: 'lg' },
-  '& li': { marginY: 'xxs' },
-  '& code': {
-    fontFamily: 'mono',
-    backgroundColor: 'surface.default',
-    paddingX: 'xxs',
-    borderRadius: 'control',
-  },
-  '& pre': {
-    backgroundColor: 'surface.default',
-    padding: 'sm',
-    borderRadius: 'control',
-    overflowX: 'auto',
-  },
-  '& pre code': { backgroundColor: 'transparent', padding: 0 },
-  '& blockquote': {
-    borderLeft: '3px solid token(colors.border.subtle)',
-    paddingLeft: 'sm',
-    color: 'text.secondary',
-    marginY: 'sm',
-  },
-  '& a': { color: 'text.link' },
-})
-
-const plainBody = css({
-  marginTop: 'sm',
-  padding: 'md',
-  borderRadius: 'control',
-  backgroundColor: 'surface.canvas',
-  whiteSpace: 'pre-wrap',
-  overflowWrap: 'anywhere',
-  fontFamily: 'mono',
-  textStyle: 'bodyMedium',
-})
+import { ArtifactPreview } from './ArtifactPreview'
 
 const downloadLink = css({
   display: 'inline-flex',
@@ -76,6 +30,7 @@ const downloadLink = css({
 })
 
 type Props = {
+  taskId: string
   artifactId: string
   versionNo: number
   contentHash: string
@@ -83,6 +38,7 @@ type Props = {
 }
 
 export const ArtifactPanel = ({
+  taskId,
   artifactId,
   versionNo,
   contentHash,
@@ -90,7 +46,7 @@ export const ArtifactPanel = ({
 }: Props) => {
   const { t } = useTranslation('work')
   const [open, setOpen] = useState(false)
-  const contentQ = useWorkArtifactContent(artifactId, versionNo, open)
+  const contentQ = useWorkArtifactContent(taskId, artifactId, versionNo, open)
 
   return (
     <section className={card}>
@@ -119,12 +75,24 @@ export const ArtifactPanel = ({
           </Button>
           <a
             className={downloadLink}
-            href={workArtifactContentUrl(artifactId, versionNo, 'attachment')}
+            href={workTaskArtifactContentUrl(
+              taskId,
+              artifactId,
+              versionNo,
+              'attachment'
+            )}
           >
             <RiDownloadLine size={16} aria-hidden="true" />
             {t('task.downloadArtifact')}
           </a>
         </div>
+        <Link
+          href={`/work/items/${encodeURIComponent(taskId)}/artifacts/${encodeURIComponent(artifactId)}?version=${versionNo}`}
+          className={downloadLink}
+        >
+          <RiArrowRightLine size={16} aria-hidden="true" />
+          {t('artifact.openWorkspace')}
+        </Link>
       </div>
       {open ? (
         contentQ.isLoading ? (
@@ -144,18 +112,11 @@ export const ArtifactPanel = ({
           </div>
         ) : !contentQ.data ? (
           <p className={muted}>{t('task.artifactLoading')}</p>
-        ) : contentQ.data.mediaType === 'text/plain' ? (
-          <pre className={plainBody}>{contentQ.data.text}</pre>
         ) : (
-          <div className={markdownBody}>
-            <ReactMarkdown
-              components={{
-                img: ({ alt }) => <span>{alt ?? ''}</span>,
-              }}
-            >
-              {contentQ.data.text}
-            </ReactMarkdown>
-          </div>
+          <ArtifactPreview
+            text={contentQ.data.text}
+            mediaType={contentQ.data.mediaType}
+          />
         )
       ) : null}
     </section>
