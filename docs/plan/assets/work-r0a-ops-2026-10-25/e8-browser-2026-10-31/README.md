@@ -43,6 +43,18 @@ One G02 attempt with 1200-char background was then run. The runtime child starte
 
 Controlled retries after that (06:00 UTC) then succeeded: G01/600-char background completed in 33s with a 1085-char artifact; G02/1200-char background completed in 21s with a 1376-char artifact. The earlier G02 `provider_unknown` is therefore intermittent, not deterministic. E8 still needs a retry/reconcile policy or a provider quota that avoids 429/5xx; the suite has not passed.
 
+## Full paced rerun with early-abort (06:02–06:05 UTC)
+
+The Node runner now records `waiting(reconcile)` as a failed attempt immediately instead of burning the 180s p95 deadline; the 2/3 per-task rule can then tolerate a transient failure.
+
+The live browser rerun was stopped after 7 attempts because the provider degraded persistently:
+
+- G01: attempt 1 and 2 `waiting_reconcile` (33s/34s), attempt 3 succeeded (30s, 1195 chars).
+- G02: attempts 1–3 all `waiting_reconcile` (20s/23s/20s).
+- G03 attempt 1 was aborted when the queue was stopped.
+
+This is a provider-side/quota failure, not a 30s local timeout or a background-length bug. The 6 new waiting Runs from this rerun were canceled; a post-cancel scan returned to 7 held Runs, 0 orphan. The suite still has not passed and E8 remains open.
+
 ## Evidence files
 
 - `raw.json`: browser-side raw results from the first full 18-attempt run (task ids, markdown, timings, errors).
