@@ -52,7 +52,11 @@ test('golden runner uses the current flat Work API contract', async () => {
       const body = JSON.parse(bodyText)
       assert.equal(typeof body.client_request_id, 'string')
       assert.equal(typeof body.goal, 'string')
-      assert.equal(body.background, '')
+      assert.equal(typeof body.background, 'string')
+      assert.ok(
+        GOLDEN.tasks.some((task) => task.background_chars === body.background.length),
+        `unexpected synthetic background length ${body.background.length}`,
+      )
       assert.match(body.goal, /^## /m)
       calls.inputs += 1
       return json(response, 201, { input_ref: UUID })
@@ -101,6 +105,7 @@ test('golden runner uses the current flat Work API contract', async () => {
         ...process.env,
         WORK_PILOT_BASE_URL: `http://127.0.0.1:${port}`,
         WORK_PILOT_SESSION_COOKIE: 'sessionid=test',
+        WORK_PILOT_MIN_INTERVAL_MS: '0',
         WORK_PILOT_OUT: outPath,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -150,6 +155,7 @@ test('golden runner preflight checks session and task reads without creating tas
         ...process.env,
         WORK_PILOT_BASE_URL: `http://127.0.0.1:${port}`,
         WORK_PILOT_SESSION_COOKIE: 'sessionid=test',
+        WORK_PILOT_MIN_INTERVAL_MS: '0',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     })

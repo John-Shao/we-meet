@@ -1,0 +1,392 @@
+{
+  "version": "work-r0a-golden-run-browser-v1",
+  "generatedAt": "2026-10-31T05:08:30.150Z",
+  "baseUrl": "https://meet.we-meet.online",
+  "transport": "browser-same-origin-fetch",
+  "suite": {
+    "perTask": [
+      {
+        "id": "G01",
+        "runs": 3,
+        "passing": 3,
+        "passed": true
+      },
+      {
+        "id": "G02",
+        "runs": 3,
+        "passing": 3,
+        "passed": true
+      },
+      {
+        "id": "G03",
+        "runs": 3,
+        "passing": 1,
+        "passed": false
+      },
+      {
+        "id": "G04",
+        "runs": 3,
+        "passing": 3,
+        "passed": true
+      },
+      {
+        "id": "G05",
+        "runs": 3,
+        "passing": 0,
+        "passed": false
+      },
+      {
+        "id": "G06",
+        "runs": 3,
+        "passing": 3,
+        "passed": true
+      }
+    ],
+    "passRatio": 0.6666666666666666,
+    "p95Seconds": 185.464,
+    "passed": false
+  },
+  "runs": [
+    {
+      "taskId": "G01",
+      "apiTaskId": "04280ab7-3336-478c-a845-eec92519ee99",
+      "attempt": 1,
+      "passed": true,
+      "failed": [],
+      "manual": [],
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 41.9,
+      "displayState": "awaiting_acceptance",
+      "artifact": {
+        "id": "9ba2b2d7-6f3d-4197-9041-a69175f84898",
+        "version": 1,
+        "hash": "sha256:0191665e228c80c1c2537ab46f280cfa42e0f3a35fbc5b02ebb2ef6aadbf044a"
+      },
+      "error": null
+    },
+    {
+      "taskId": "G01",
+      "apiTaskId": "0fca4807-fd5c-432f-9c8b-d1a887048073",
+      "attempt": 2,
+      "passed": true,
+      "failed": [],
+      "manual": [],
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 14.629,
+      "displayState": "awaiting_acceptance",
+      "artifact": {
+        "id": "434850d1-cdc5-4c31-95f0-ab6617e6ad72",
+        "version": 1,
+        "hash": "sha256:2a08ff378a900c5390ceeb3197667c1cd6d32553abb197b964fc2e7ef8dae749"
+      },
+      "error": null
+    },
+    {
+      "taskId": "G01",
+      "apiTaskId": "0fd6c58f-f4aa-4451-98eb-0192693e8680",
+      "attempt": 3,
+      "passed": true,
+      "failed": [],
+      "manual": [],
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 12.421,
+      "displayState": "awaiting_acceptance",
+      "artifact": {
+        "id": "8ab5cead-1b21-488f-aeec-64b3b8882c01",
+        "version": 1,
+        "hash": "sha256:9a62a247bbb2097f4c1891d77195c19b53f5929e8802dc219359b5f6ae01b65a"
+      },
+      "error": null
+    },
+    {
+      "taskId": "G02",
+      "apiTaskId": "67a67c48-d224-47f7-8540-5c623a205444",
+      "attempt": 1,
+      "passed": true,
+      "failed": [],
+      "manual": [],
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 16.853,
+      "displayState": "awaiting_acceptance",
+      "artifact": {
+        "id": "352863bf-7a14-4635-a906-9d1443298187",
+        "version": 1,
+        "hash": "sha256:866584fd520e0d223460d08860f934d2286e7997857c9cc4b7fb9deed43409c7"
+      },
+      "error": null
+    },
+    {
+      "taskId": "G02",
+      "apiTaskId": "fa9ec7ed-09a9-4b86-8a63-f2bbe2f16fae",
+      "attempt": 2,
+      "passed": true,
+      "failed": [],
+      "manual": [],
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 19.213,
+      "displayState": "awaiting_acceptance",
+      "artifact": {
+        "id": "9eb3a7b3-520d-4cdf-a431-e145e714bbe3",
+        "version": 1,
+        "hash": "sha256:faa4bb005a33854d02bc2c8fa927f7b4bcb78fe18b8000361a2d004f68357c87"
+      },
+      "error": null
+    },
+    {
+      "taskId": "G02",
+      "apiTaskId": "07615686-6330-4ff4-8c69-9232a087f10f",
+      "attempt": 3,
+      "passed": true,
+      "failed": [],
+      "manual": [],
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 17.888,
+      "displayState": "awaiting_acceptance",
+      "artifact": {
+        "id": "9b82b009-8711-4df2-8170-af4cbd07e42a",
+        "version": 1,
+        "hash": "sha256:c8d1b8a51b2d42bf7ea6f0cb4e9ccf810722162993e8afdb358621534bc70f4d"
+      },
+      "error": null
+    },
+    {
+      "taskId": "G03",
+      "apiTaskId": "0882633e-0f88-454e-a0f2-f956f190d35b",
+      "attempt": 1,
+      "passed": false,
+      "failed": [
+        "timeout_180s"
+      ],
+      "manual": [],
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 185.464,
+      "displayState": "timeout",
+      "error": "timeout_180s"
+    },
+    {
+      "taskId": "G03",
+      "apiTaskId": "1ba13f49-b75e-4e2a-8a9e-c5c3639168af",
+      "attempt": 2,
+      "passed": false,
+      "failed": [
+        "timeout_180s"
+      ],
+      "manual": [],
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 181.997,
+      "displayState": "timeout",
+      "error": "timeout_180s"
+    },
+    {
+      "taskId": "G03",
+      "apiTaskId": "e4ae0f87-0452-4496-8fb8-501d15a5b53b",
+      "attempt": 3,
+      "passed": true,
+      "failed": [],
+      "manual": [
+        "no_named_people"
+      ],
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 24.633,
+      "displayState": "awaiting_acceptance",
+      "artifact": {
+        "id": "895e8f29-8a4d-4cec-b572-a0c4e86ffef2",
+        "version": 1,
+        "hash": "sha256:f18ddf87eb3718587d3faf921059969de6a7251df3267b90dd16552c52c79943"
+      },
+      "error": null
+    },
+    {
+      "taskId": "G04",
+      "apiTaskId": "f0ac553e-c454-453c-91f9-a1b097918967",
+      "attempt": 1,
+      "passed": true,
+      "failed": [],
+      "manual": [],
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 24.587,
+      "displayState": "awaiting_acceptance",
+      "artifact": {
+        "id": "e0236593-8ec4-469d-9eb1-87f8d8251efd",
+        "version": 1,
+        "hash": "sha256:441adff9a59ca5ce3cdcdd7285d8ba6568e73003b578bf9d3333ff93785628aa"
+      },
+      "error": null
+    },
+    {
+      "taskId": "G04",
+      "apiTaskId": "a2756bd3-fc1c-4c4e-bf93-dcc3d52afd6d",
+      "attempt": 2,
+      "passed": true,
+      "failed": [],
+      "manual": [],
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 24.984,
+      "displayState": "awaiting_acceptance",
+      "artifact": {
+        "id": "509418aa-7313-4d87-bcb6-52bb54ce1bf1",
+        "version": 1,
+        "hash": "sha256:02e7b39c281ef17f1061f5b2078ddfa2cd462f1552e5c1acd134d441927e3107"
+      },
+      "error": null
+    },
+    {
+      "taskId": "G04",
+      "apiTaskId": "15f79f78-a60a-4629-9131-41c0dc03ac20",
+      "attempt": 3,
+      "passed": true,
+      "failed": [],
+      "manual": [],
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 17.831,
+      "displayState": "awaiting_acceptance",
+      "artifact": {
+        "id": "9c59f04a-d179-4eef-bf71-3c4a2808af35",
+        "version": 1,
+        "hash": "sha256:dcc927bb0ecfd399e5714ead465c55f2889be89d88a77ebf2360d6530a634c8c"
+      },
+      "error": null
+    },
+    {
+      "taskId": "G05",
+      "apiTaskId": "6053d3dc-ebcf-414b-a89e-449dc4034c99",
+      "attempt": 1,
+      "passed": false,
+      "failed": [
+        "length_in_range"
+      ],
+      "manual": [
+        "todos_have_owner_role",
+        "no_new_facts"
+      ],
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 9.142,
+      "displayState": "awaiting_acceptance",
+      "artifact": {
+        "id": "095e1c10-6abe-42a4-8598-c393834f4632",
+        "version": 1,
+        "hash": "sha256:590ddf666d9ba3cc8c2749e9d61cdf2936b1128115f0bd23fa2cda5f3a704b50"
+      },
+      "error": null
+    },
+    {
+      "taskId": "G05",
+      "apiTaskId": "e65df3fb-92e3-42ef-8459-6dc9cd8774d5",
+      "attempt": 2,
+      "passed": false,
+      "failed": [
+        "length_in_range"
+      ],
+      "manual": [
+        "todos_have_owner_role",
+        "no_new_facts"
+      ],
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 11.712,
+      "displayState": "awaiting_acceptance",
+      "artifact": {
+        "id": "6b232f55-9389-40ff-a87e-60bc042dcc6e",
+        "version": 1,
+        "hash": "sha256:52bf6b7cc5fb9b519f6030421225328d6e2f6a8783ab4012d7dbd0db32336785"
+      },
+      "error": null
+    },
+    {
+      "taskId": "G05",
+      "apiTaskId": "41161500-7ec3-4c65-8b9a-fccc921c3c88",
+      "attempt": 3,
+      "passed": false,
+      "failed": [
+        "length_in_range"
+      ],
+      "manual": [
+        "todos_have_owner_role",
+        "no_new_facts"
+      ],
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 10.46,
+      "displayState": "awaiting_acceptance",
+      "artifact": {
+        "id": "a9beddf7-7fc6-4cbb-b4cc-89875345dff9",
+        "version": 1,
+        "hash": "sha256:d9af47644183ccf195eb15d21497c4364af9af4283d50e97a8bfa05d8d317e14"
+      },
+      "error": null
+    },
+    {
+      "taskId": "G06",
+      "apiTaskId": "f65289d7-1a77-42c0-8fa1-3e39c70abd78",
+      "attempt": 1,
+      "passed": true,
+      "failed": [],
+      "manual": [
+        "no_new_facts"
+      ],
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 16.304,
+      "displayState": "awaiting_acceptance",
+      "artifact": {
+        "id": "c2a17106-dbeb-4f00-9cf6-c573111e8604",
+        "version": 1,
+        "hash": "sha256:f6baf3e6b4a96787856fe7a1fe97adc231d8233af4bb1f6c8a50b43bb938fef4"
+      },
+      "error": null
+    },
+    {
+      "taskId": "G06",
+      "apiTaskId": "4c3b0c37-a774-451a-a476-fc6dc448b967",
+      "attempt": 2,
+      "passed": true,
+      "failed": [],
+      "manual": [
+        "no_new_facts"
+      ],
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 12.536,
+      "displayState": "awaiting_acceptance",
+      "artifact": {
+        "id": "cf33068f-7936-432c-8d5f-030f1dd4fc86",
+        "version": 1,
+        "hash": "sha256:f27733c64f17efd76acf43d3a58ab2ef8f28593ca214ed8290a603423c36531b"
+      },
+      "error": null
+    },
+    {
+      "taskId": "G06",
+      "apiTaskId": "a346d0b2-9ad6-48c8-8686-962d8ed7cbfe",
+      "attempt": 3,
+      "passed": true,
+      "failed": [],
+      "manual": [
+        "no_new_facts"
+      ],
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 12.76,
+      "displayState": "awaiting_acceptance",
+      "artifact": {
+        "id": "1575b1dd-2c25-483d-b688-83fd3f5e54fa",
+        "version": 1,
+        "hash": "sha256:ce6201297c8c5a7b04e965dd6c3b08f12011d570664022d4f406f430f3520192"
+      },
+      "error": null
+    }
+  ]
+}
