@@ -5,7 +5,18 @@
   "nav": {
     "label": "Work navigation",
     "home": "Home",
-    "items": "My work"
+    "items": "My work",
+    "archive": "History"
+  },
+  "archive": {
+    "title": "History",
+    "subtitle": "Read-only archive of completed or legacy work.",
+    "legacyNotice": "This is a legacy task link ({{task}}). Legacy tasks are read-only and are not opened in the new task workspace.",
+    "readOnly": "Archive is read-only; no new work is created here.",
+    "errorTitle": "Unable to load history",
+    "errorDescription": "Check your connection and try again.",
+    "emptyTitle": "No archived work",
+    "emptyDescription": "Archived or legacy records will appear here."
   },
   "unavailable": {
     "title": "No Work access",

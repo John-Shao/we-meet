@@ -145,6 +145,19 @@ work-reconcile -org <org> -operation <uuid> -resolution not_sent \
 `sent_succeeded` also needs `-settled-tokens`; `unresolved` cannot resume.
 The database URL and Temporal mTLS settings come from the worker environment.
 
+## work-replay
+
+`cmd/work-replay` checks backward compatibility by replaying histories exported
+with `temporal workflow show --workflow-id <id> --output json`. It only loads
+the current workflow code; it does not connect to Temporal or the database.
+
+```bash
+go run ./cmd/work-replay /tmp/run-history.json
+```
+
+A non-deterministic history (for example one recorded before an activity was
+renamed) fails with `TMPRL1100`; do not resume that run with the current code.
+
 ## Tests
 
 Integration tests need an isolated PostgreSQL 16 instance. They create and drop

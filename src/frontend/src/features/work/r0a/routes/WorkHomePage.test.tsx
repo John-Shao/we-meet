@@ -73,7 +73,7 @@ describe('WorkHomePage read-only viewport', () => {
 
   it('shows the composer at 768px and above', () => {
     stubViewport(false)
-    render(<WorkHomePage />)
+    render(<WorkHomePage composerOpen />)
     expect(screen.getByText('composer')).toBeInTheDocument()
     expect(screen.queryByText('readOnly.homeHint')).not.toBeInTheDocument()
   })

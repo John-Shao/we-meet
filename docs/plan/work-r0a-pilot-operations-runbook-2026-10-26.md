@@ -123,7 +123,7 @@
 
 - **组织开通**（staging，需显式确认）：`scripts/onboarding/create-org.sh` 读取 `ORG_NAME`/`ORG_SLUG`，在 core 建组织并投影到 `work.org`；`scripts/onboarding/assign-seats.sh` 读取 `ORG_SLUG`/`SUBJECT_ID`/`ROLE`，更新成员角色并重投影席位。脚本要求 `WORK_ONBOARDING_CONFIRM=1`，不做生产批量开通。
 - **开通检查单**：组织投影存在且 `work.member` 有 owner；配额账户周期与 `run_cap_tokens` 已设；接入配置/凭证由 owner 在管理面创建（不预置）；演示组织单独使用百炼凭据；通知渠道与 C24/C27 联系人填列。
-- **黄金任务**：`scripts/golden-tasks/run-golden-tasks.sh` 读取 `WORK_PILOT_BASE_URL`/`WORK_PILOT_SESSION_COOKIE`，调用既有 [pilot-ops.mjs](assets/work-r0a-ops-2026-10-25/pilot-ops.mjs)；结果按 §10 判据人工复核。
+- **黄金任务**：`scripts/golden-tasks/run-golden-tasks.sh` 读取 `WORK_PILOT_BASE_URL`/`WORK_PILOT_SESSION_COOKIE`，调用既有 [pilot-ops.mjs](assets/work-r0a-ops-2026-10-25/pilot-ops.mjs)；结果按 §10 判据人工复核。正式跑 18 次前先执行 `--preflight`：它只用同一 session 校验 bootstrap、CSRF 和任务列表读取，不创建任务；当前扁平 API 把 `tpl-report/tpl-plan/tpl-summary` 映射为 `analysis/draft/summary`，`required_sections` 作为输入章节提示。
 - **切换/回滚**：仍以 [cutover-plan.json](assets/work-r0a-ops-2026-10-25/cutover-plan.json) 与 §9 为准；脚本不替代 4 项演练，也不改变 `canTransition` 结果。
 - **边界**：以上脚本是 E8 的本地/预发入口，不是生产证明；C24/C27/C30 与试点环境仍未关闭。
 

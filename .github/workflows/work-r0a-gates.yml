@@ -96,6 +96,9 @@ jobs:
       - name: Validate golden-task definitions
         working-directory: .
         run: node scripts/golden-tasks/run-golden-tasks.mjs --dry-run
+      - name: Test golden-task runner contract
+        working-directory: .
+        run: node --test scripts/golden-tasks/run-golden-tasks.test.mjs
 
   db-smoke:
     name: D1 schema, PostgreSQL smoke and concurrency races

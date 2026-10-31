@@ -480,6 +480,69 @@ Task 保持 open 可重试。信号失败时 Run 留 waiting，可修复 Tempora
 缺少上下文或跨组织调用必须被拒。还需验证新工作 503、并发 Run cap、历史 usage 重放及
 不同计量版本冲突；不得仅因新 Operation 重复调用未增量就判定迁移安全。
 
+### 5.15 Provider 凭据轮换/吊销（2026-10-31，pilot）
+
+适用 `work-provider-setup` 的静态 `managed_key` 凭据；不涉及 KMS/自动轮换，也不是
+供应商可用性演练。当前 `/usr/local/bin/work-provider-setup` 若仍是旧构建（帮助里没有
+`rotate`/`revoke`），先把发布目录中的目标二进制以 root 覆盖 `/usr/local/bin`
+（保留 `.bak-<stamp>` 备份）并核对 `SHA256SUMS` 与帮助；只换 CLI 不需要重启任何
+systemd 单位。密钥只从 `-secret-file` 读取，不得放进 argv、
+环境变量或 shell history。
+
+**轮换（先 dry-run，再执行）**：
+
+1. 以只读 `status -org <org>` 确认凭据 id、当前 `key_version` 与指纹；把新 Key 写入
+   root-only 临时文件（`0600`，如 `/root/work-secrets/provider-new.key`）。
+2. 在 root shell 中从既有 root-only env 文件注入 `WORK_DATABASE_URL` 与
+   `WORK_CONTENT_MASTER_KEY`（不要把值写进命令行），执行：
+   `work-provider-setup rotate -org <org> -credential-id <id> -secret-file <file> -actor <owner-subject> -dry-run`。
+3. 去掉 `-dry-run` 执行；输出只应含新 `key_version`/指纹，不得回显 Key。失败时旧版本
+   仍可用，先排查再重试，不要反复重建凭据。
+4. 再跑 `status` 并用真实任务做一次 provider 回归（成功/用量/结算）；测试已覆盖版本自增、
+   新 Key 可解析、旧 Key 失效与轮换审计，但**本地测试不等于生产回归**。
+5. 回归通过后删除新 Key 文件与旧 env 备份中的临时 Key；保留审计与指纹作为证据。
+
+**吊销**：先 `-dry-run` 确认目标，再执行
+`work-provider-setup revoke -org <org> -credential-id <id> -actor <owner-subject> -reason <text>`。
+吊销只改状态与审计、不读取主密钥，重复吊销幂等；不要在替换配置生效前吊销当前 active
+凭据，否则供应商调用会以 `provider_credential_revoked` 失败。吊销后核对 `status`、
+审计记录和下一次 provider 调用的失败码，不把“命令成功”写成“凭据已从供应商侧删除”。
+
+**边界**：主密钥轮换仍需按 D-03 B 离线重加密全部静态凭据并保留双版本读取窗口，本节的
+`key_version` 轮换不改变主密钥；无 KMS 自动轮换/CRL。
+
+**2026-10-31 已执行实例**：Work 专属 key 将 active 凭据 `5698826a…` 从 v1 轮换到 v2
+（fingerprint `9b3c03d25b217cc9`，`provider.credential_rotated` 审计 1 条）；`status`
+仍为 aliyun/qwen3.8-flash/managed_key/`secret_decrypts=true`；真实回归任务 `e7b130ac…`
+Run `3cd9c500…` succeeded（usage 112/194、结算 306、artifact 85B）。host 明文 key 文件
+已删除；这不改变“主密钥/证书无自动轮换”的残余风险。
+
+### 5.16 Workflow Failed 孤儿关闭（2026-10-31）
+
+只适用于 **DB Run 仍 waiting/active、Temporal workflow 已 Failed、Operation 已终态**的孤儿；
+不是 `unknown` 对账路径，也不能用于 7 个 workflow 仍 Running 的无闸门 Run。`-signal-only`
+对已结束 workflow 会报 already completed，不能当修复。
+
+1. 先用 `work-reconcile -scan -org <org>` 确认 `workflow_status=Failed`、`orphan=true`，
+   并确认该 Run 没有可发布成果（`artifact` 为空）、Operation 已 succeeded/failed 且 usage
+   已结算；保留扫描输出作为证据。
+2. 以 root 备份 `work` 库（示例 `pg_dump -Fc -d work` 到 root-only 备份目录），记录备份路径。
+3. 在**事务内**以 `work_owner` + 匹配的 `app.org_id` 调用
+   `work.finish_run(<run>, <org>, 'failed', 'workflow_failed')`；Task 会保持 open、
+   `active_run_id` 清空、`latest_run_id` 指向该 Run，已有结算不逆转。先用 `ROLLBACK`
+   验证状态变化，再提交。
+4. 同一事务补 `work.append_audit(..., 'run.orphan_closed_by_ops', 'run', <run>, ...)`
+   与 `work.append_task_event(..., 'run.failed', ...)`，记录 previous_state、ticket、reason；
+   不更新/删除既有 `task_event`，因此任务历史可能已有原 workflow 的 `run.failed`，关闭事件
+   是第二条带 operator 信息的失败事件。
+5. 提交后重新 `-scan`：该 Run 应不再出现在开放列表、无 orphan；确认 systemd 单位仍 active、
+   outbox 事件已投递。**不要**对关闭的 Run 再发 resume/cancel 信号，也不要借此改结算或
+   Artifact。
+
+2026-10-31 实例：备份 `/var/backups/work/work-pre-orphan-close-20261031.dump`；关闭
+`3a34a855…`（waiting）与 `a564dbcc…`（active）；审计 `6d5014d7…`、`bbf04996…`；
+关闭后 scan 仅剩 7 个 Running/no-gate。
+
 ## 6. 容量证据
 
 ### 6.1 当前 DDL 烟雾（2026-10-25）

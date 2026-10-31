@@ -126,3 +126,48 @@ test('golden runner uses the current flat Work API contract', async () => {
     fs.rmSync(directory, { recursive: true, force: true })
   }
 })
+
+test('golden runner preflight checks session and task reads without creating tasks', async () => {
+  const calls = { gets: [], posts: 0 }
+  const server = http.createServer(async (request, response) => {
+    const url = new URL(request.url, 'http://127.0.0.1')
+    if (request.method === 'POST') calls.posts += 1
+    calls.gets.push(`${url.pathname}${url.search}`)
+    if (request.method === 'GET' && url.pathname === '/work/v1/bootstrap') {
+      return json(response, 200, { csrf_token: 'csrf-token' })
+    }
+    if (request.method === 'GET' && url.pathname === '/work/v1/tasks') {
+      assert.equal(url.searchParams.get('limit'), '1')
+      return json(response, 200, { items: [], next_cursor: null })
+    }
+    json(response, 404, { error: { code: 'not_found' } })
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const { port } = server.address()
+    const child = spawn(process.execPath, [SCRIPT, '--preflight'], {
+      env: {
+        ...process.env,
+        WORK_PILOT_BASE_URL: `http://127.0.0.1:${port}`,
+        WORK_PILOT_SESSION_COOKIE: 'sessionid=test',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString('utf8')
+    })
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString('utf8')
+    })
+    const exitCode = await new Promise((resolve) => child.on('exit', resolve))
+    assert.equal(exitCode, 0, stderr)
+    assert.match(stdout, /golden preflight ok/)
+    assert.equal(calls.posts, 0)
+    assert.deepEqual(calls.gets, ['/work/v1/bootstrap', '/work/v1/tasks?limit=1'])
+  } finally {
+    if (typeof server.closeAllConnections === 'function') server.closeAllConnections()
+    await new Promise((resolve) => server.close(resolve))
+  }
+})

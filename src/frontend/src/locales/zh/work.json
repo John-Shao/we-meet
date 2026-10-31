@@ -5,7 +5,18 @@
   "nav": {
     "label": "工作导航",
     "home": "首页",
-    "items": "我的工作"
+    "items": "我的工作",
+    "archive": "历史"
+  },
+  "archive": {
+    "title": "历史工作",
+    "subtitle": "只读查看已归档或旧记录。",
+    "legacyNotice": "这是旧任务链接（{{task}}）；旧任务只读，不会打开新任务工作区。",
+    "readOnly": "历史页只读，不在这里创建新工作。",
+    "errorTitle": "无法加载历史",
+    "errorDescription": "请检查网络后重试。",
+    "emptyTitle": "暂无历史工作",
+    "emptyDescription": "已归档或旧记录会显示在这里。"
   },
   "unavailable": {
     "title": "暂无 Work 权限",

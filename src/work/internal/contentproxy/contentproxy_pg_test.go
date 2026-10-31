@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -359,6 +361,51 @@ func TestReadServesExactRegisteredBytes(t *testing.T) {
 	}
 	if got := response.header.Get("Cache-Control"); got != "no-store" {
 		t.Fatalf("cache-control = %q", got)
+	}
+}
+
+func TestCheckpointWriteThroughRealRegistry(t *testing.T) {
+	requireProxyDB(t)
+	tn := seedPlanTenant(t, "org_proxy_checkpoint")
+	body := []byte("child-checkpoint-candidate-" + newUUID(t))
+	sum := sha256.Sum256(body)
+	declared := "sha256:" + hex.EncodeToString(sum[:])
+	refID := newUUID(t)
+	token, generation := issueCapability(t, tn, capability.AudienceContent, 20*time.Second)
+	base := startProxyServer(t).URL
+
+	request, err := http.NewRequest(http.MethodPost, base+"/internal/v1/checkpoints", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set(HeaderAuthorization, "Bearer "+token)
+	request.Header.Set(HeaderOrg, tn.org)
+	request.Header.Set(HeaderExecution, tn.execID)
+	request.Header.Set(HeaderGeneration, fmt.Sprint(generation))
+	request.Header.Set(HeaderRefID, refID)
+	request.Header.Set(HeaderLogicalSlot, "checkpoint:model:9:candidate")
+	request.Header.Set(HeaderContentHash, declared)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("checkpoint request: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusCreated {
+		responseBody, _ := io.ReadAll(response.Body)
+		t.Fatalf("status = %d, want 201 (body %q)", response.StatusCode, responseBody)
+	}
+	var created checkpointResponse
+	if err := json.NewDecoder(response.Body).Decode(&created); err != nil {
+		t.Fatalf("decode checkpoint response: %v", err)
+	}
+	if created.RefID != refID || created.ContentHash != declared || created.Bytes != int64(len(body)) {
+		t.Fatalf("checkpoint response = %+v", created)
+	}
+
+	token, generation = issueCapability(t, tn, capability.AudienceContent, 20*time.Second)
+	read := getContent(t, base, refID, tn.org, tn.execID, token, generation)
+	if read.status != http.StatusOK || !bytes.Equal(read.body, body) {
+		t.Fatalf("committed candidate read = %d %q", read.status, read.body)
 	}
 }
 

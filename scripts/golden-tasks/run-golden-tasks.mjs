@@ -7,7 +7,8 @@
  * Work builtins, and required sections are put into the input goal because the
  * current flat API has no required_sections field. This does not create pilot
  * evidence by itself: target environment, reviewer and C24/C27 contacts remain
- * external.
+ * external. `--preflight` checks the session, CSRF and task read path without
+ * creating tasks; only a real run creates the 18 golden tasks.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -36,6 +37,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const requestId = () => crypto.randomUUID()
 
 const dryRun = process.argv.includes('--dry-run')
+const preflight = process.argv.includes('--preflight')
 const templates = [...new Map(
   GOLDEN.tasks.map((task) => [task.template, { id: task.template, sections: task.required_sections }]),
 ).values()]
@@ -111,7 +113,19 @@ if (!csrfToken) {
   console.error('bootstrap returned no csrf_token')
   process.exit(1)
 }
+if (preflight) {
+  const page = await jsonRequest('GET', '/tasks?limit=1')
+  if (!Array.isArray(page?.items)) {
+    console.error('task list returned no items array')
+    process.exit(1)
+  }
+  console.log(
+    `golden preflight ok: bootstrap, csrf and task list readable (${page.items.length} task(s) in first page)`,
+  )
+}
 
+// A preflight run stops after the read checks; the live suite below is skipped.
+if (!preflight) {
 const terminal = new Set(['awaiting_acceptance', 'completed', 'failed', 'run_canceled', 'canceled'])
 
 const pollTask = async (taskId, startedAt) => {
@@ -197,3 +211,4 @@ fs.writeFileSync(outPath, `${JSON.stringify(output, null, 2)}\n`, 'utf8')
 console.log(`golden suite passed=${suite.passed} ratio=${suite.passRatio} p95=${suite.p95Seconds}s`)
 console.log(`wrote ${outPath}`)
 if (!suite.passed) process.exit(1)
+}

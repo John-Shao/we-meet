@@ -1,6 +1,14 @@
 import { useTranslation } from 'react-i18next'
-import { Link, Redirect, Route, Switch, useLocation } from 'wouter'
 import {
+  Link,
+  Redirect,
+  Route,
+  Switch,
+  useLocation,
+  useSearchParams,
+} from 'wouter'
+import {
+  RiArchiveLine,
   RiBriefcaseLine,
   RiHome5Line,
   RiListCheck3,
@@ -14,6 +22,7 @@ import { Screen } from '@/layout/Screen'
 import { css, cx } from '@/styled-system/css'
 import { WorkApiError } from './api/client'
 import { useWorkBootstrap } from './api/queries'
+import { ArchivePage } from './routes/ArchivePage'
 import { MyWorkPage } from './routes/MyWorkPage'
 import { TaskWorkspacePage } from './routes/TaskWorkspacePage'
 import { WorkHomePage } from './routes/WorkHomePage'
@@ -27,9 +36,35 @@ export const WorkRoute = () => (
   </RequireAuth>
 )
 
+const HomePage = () => <WorkHomePage />
+const NewWorkPage = () => <WorkHomePage composerOpen />
+
 const WorkApp = () => {
   const { t } = useTranslation('work')
+  const [searchParams] = useSearchParams()
+  const [location] = useLocation()
+  const legacyTask = location === '/work' ? searchParams.get('task') : null
+  const legacyView = location === '/work' ? searchParams.get('view') : null
   const bootstrapQ = useWorkBootstrap()
+
+  if (legacyTask) {
+    return (
+      <Redirect
+        to={`/work/archive?legacyTask=${encodeURIComponent(legacyTask)}`}
+      />
+    )
+  }
+  if (legacyView === 'new') return <Redirect to="/work/new" />
+  if (legacyView === 'history') return <Redirect to="/work/archive" />
+  if (
+    legacyView &&
+    ['pending', 'running', 'awaiting_acceptance', 'completed', 'all'].includes(
+      legacyView
+    )
+  ) {
+    return <Redirect to={`/work/items?view=${legacyView}`} />
+  }
+  if (legacyView) return <Redirect to="/work/items" />
 
   if (bootstrapQ.isLoading) {
     return (
@@ -80,10 +115,11 @@ const WorkApp = () => {
     >
       <WorkHeader orgName={bootstrapQ.data.org.name} />
       <Switch>
+        <Route path="/work/archive" component={ArchivePage} />
         <Route path="/work/items/:taskId" component={TaskWorkspacePage} />
         <Route path="/work/items" component={MyWorkPage} />
-        <Route path="/work/new" component={WorkHomePage} />
-        <Route path="/work" component={WorkHomePage} />
+        <Route path="/work/new" component={NewWorkPage} />
+        <Route path="/work" component={HomePage} />
         <Route>
           <Redirect to="/work" />
         </Route>
@@ -127,6 +163,7 @@ const WorkHeader = ({ orgName }: { orgName: string }) => {
   const [location] = useLocation()
   const homeActive = location === '/work' || location === '/work/new'
   const itemsActive = location.startsWith('/work/items')
+  const archiveActive = location.startsWith('/work/archive')
   return (
     <header className={header}>
       <span
@@ -158,6 +195,13 @@ const WorkHeader = ({ orgName }: { orgName: string }) => {
         >
           <RiListCheck3 size={16} aria-hidden="true" />
           {t('nav.items')}
+        </Link>
+        <Link
+          href="/work/archive"
+          className={cx(navLink, archiveActive ? navLinkActive : '')}
+        >
+          <RiArchiveLine size={16} aria-hidden="true" />
+          {t('nav.archive')}
         </Link>
       </nav>
       <span

@@ -10,7 +10,11 @@ import { TaskCard } from '../components/TaskCard'
 import { useReadOnlyViewport } from '../hooks/useReadOnlyViewport'
 import { card, muted, notice, page, row, sectionTitle } from '../ui'
 
-export const WorkHomePage = () => {
+export const WorkHomePage = ({
+  composerOpen = false,
+}: {
+  composerOpen?: boolean
+}) => {
   const { t } = useTranslation('work')
   const bootstrapQ = useWorkBootstrap()
   const tasksQ = useWorkTasks('all')
@@ -56,8 +60,14 @@ export const WorkHomePage = () => {
         <p className={notice} role="status">
           {t('readOnly.homeHint')}
         </p>
-      ) : (
+      ) : composerOpen ? (
         <Composer bootstrap={bootstrapQ.data} />
+      ) : (
+        <div className={row}>
+          <Link href="/work/new">
+            <Button variant="primary">{t('composer.title')}</Button>
+          </Link>
+        </div>
       )}
 
       <section

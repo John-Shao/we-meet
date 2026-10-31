@@ -4,7 +4,11 @@
 # runner adds /work/v1 and maps tpl-* to the Work builtin templates.
 #
 # Live run creates 18 tasks (6 golden tasks x 3 runs) and consumes provider
-# quota:
+# quota. Run --preflight first: it checks bootstrap, CSRF and the task read
+# path without creating anything.
+#   WORK_PILOT_BASE_URL=https://meet.we-meet.online \
+#   WORK_PILOT_SESSION_COOKIE='sessionid=...' \
+#     ./run-golden-tasks.sh --preflight
 #   WORK_PILOT_BASE_URL=https://meet.we-meet.online \
 #   WORK_PILOT_SESSION_COOKIE='sessionid=...' \
 #   WORK_PILOT_OUT=/tmp/golden-run.json \
