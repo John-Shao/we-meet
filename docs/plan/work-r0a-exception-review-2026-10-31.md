@@ -25,11 +25,15 @@
 - 需补齐：6 个管理只读接口（overview、seats、audit-exports 创建/查询、download-ticket、content）与 `/admin/work` 管理只读页面；UT5 按补齐后的实现执行。
 - 追加约束：当前 `work.audit_export` 只有数据层，没有导出 worker；补齐 6 个接口时必须同时实现可用的导出作业（queued→ready、CSV 内容、一次性下载），否则 content 接口永远 not_ready，不能算补齐。
 
-**2026-10-31 补齐并部署（待 Lily 复核）**
+**2026-10-31 补齐并部署（Lily 已复核接受）**
 - 6 个接口已实现：`GET /work/v1/admin/overview`、`GET /admin/seats`、`POST /admin/audit-exports`、`GET /admin/audit-exports/{id}`、`POST .../download-ticket`、`GET .../content`。
 - 审计导出 worker 已实现并 systemd 常驻：queued→ready、CSV/JSON 写入 Content Store、一次性下载；真实导出 515 行 / 162,897 字节，ticket 200、content 200。
 - `/admin/work` 只读页面已发布（frontend `2bc81cab5`，Helm revision 526）；真实 owner 会话渲染组织概览、14 个席位、导出表单；非 admin 的 API 负例测试返回 403 `admin_access_denied`。
 - UT5 的完整管理只读验收仍待 Lily 按补齐后的实现复核；本单不再把 E1 视为已签例外。
+
+**Lily 复核结论（2026-10-31，补齐后）**
+- **接受** 6 个管理只读接口、`/admin/work` 页面和审计导出 worker 的当前实现；
+- 未提出附加条件，也未额外要求 UT5 场景；E1 关闭，不再作为范围例外。
 
 ## E2 成果独立路由简化
 
@@ -63,7 +67,7 @@
 
 | 项 | John（主签） | Lily（复核） | 日期 |
 |---|---|---|---|
-| E1 管理只读范围例外 | 已签 2026-10-31 | **不接受 2026-10-31；补齐已部署，待复核** | |
+| E1 管理只读范围例外 | 已签 2026-10-31 | **接受 2026-10-31（补齐后，无附加条件）** | |
 | E2 成果独立路由简化 | 已签 2026-10-31 | 待签：__________ | |
 
 建议在 C22 环境预检（2026-11-06）前完成复核。若未回复，状态保持“John 已签、Lily 未复核”，R0a 签收不完整，但不因此回滚现有试点功能。
