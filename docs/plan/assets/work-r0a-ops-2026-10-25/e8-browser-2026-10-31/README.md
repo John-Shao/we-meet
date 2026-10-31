@@ -41,6 +41,8 @@ The production config had `WORK_ADVANCE_TIMEOUT_SECONDS` unset (default 30s) on 
 
 One G02 attempt with 1200-char background was then run. The runtime child started at 13:55:08 and failed at 13:55:31 with `WAITING_RECONCILE` / `provider_unknown`; egress logged `exchange_done` after 22.1s. This is **not** the previous 30s cutoff: the provider outcome itself is still unknown (likely provider 429/5xx or receipt unavailable). The timeout increase is retained, but it is not sufficient for E8. The validation Run was canceled; scan returned to 7 held Runs.
 
+Controlled retries after that (06:00 UTC) then succeeded: G01/600-char background completed in 33s with a 1085-char artifact; G02/1200-char background completed in 21s with a 1376-char artifact. The earlier G02 `provider_unknown` is therefore intermittent, not deterministic. E8 still needs a retry/reconcile policy or a provider quota that avoids 429/5xx; the suite has not passed.
+
 ## Evidence files
 
 - `raw.json`: browser-side raw results from the first full 18-attempt run (task ids, markdown, timings, errors).
