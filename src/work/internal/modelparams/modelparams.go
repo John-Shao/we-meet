@@ -4,12 +4,16 @@
 //
 // John signed these R0a defaults on 2026-10-31; Lily's review remains open.
 // Changing them changes the snapshot hash of every new task.
+//
+// 2026-10-31: John approved raising maxOutputTokens from 1024 to 4096 after
+// E8 observed provider finish_reason != stop (partial_answer) on tasks whose
+// signed acceptance range is 600-2500 characters. Lily re-review is pending.
 package modelparams
 
 import "github.com/we-meet/work/internal/canonical"
 
 const (
-	DefaultMaxOutputTokens  int64 = 1024
+	DefaultMaxOutputTokens  int64 = 4096
 	DefaultTemperatureMilli int64 = 0
 )
 

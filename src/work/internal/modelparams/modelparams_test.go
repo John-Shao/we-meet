@@ -9,8 +9,8 @@ import (
 // TestSignedDefaults pins the values John signed on 2026-10-31. Changing them
 // changes the snapshot hash of every new task and needs a new decision.
 func TestSignedDefaults(t *testing.T) {
-	if DefaultMaxOutputTokens != 1024 {
-		t.Fatalf("maxOutputTokens = %d, signed decision is 1024", DefaultMaxOutputTokens)
+	if DefaultMaxOutputTokens != 4096 {
+		t.Fatalf("maxOutputTokens = %d, decision is 4096", DefaultMaxOutputTokens)
 	}
 	if DefaultTemperatureMilli != 0 {
 		t.Fatalf("temperatureMilli = %d, signed decision is 0", DefaultTemperatureMilli)
