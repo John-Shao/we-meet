@@ -134,6 +134,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET "+TemplatesPath, s.listTemplates)
 	mux.HandleFunc("POST "+TaskPreviewsPath, s.createPreview)
 	mux.HandleFunc("POST "+TasksPath, s.createTask)
+	mux.HandleFunc("GET "+AdminOverviewPath, s.adminOverview)
+	mux.HandleFunc("GET "+AdminSeatsPath, s.adminSeats)
+	mux.HandleFunc("POST "+AdminAuditExportsPath, s.createAdminAuditExport)
+	mux.HandleFunc("GET "+AdminAuditExportPath, s.getAdminAuditExport)
+	mux.HandleFunc("POST "+AdminAuditExportTicketPath, s.issueAdminAuditExportTicket)
+	mux.HandleFunc("GET "+AdminAuditExportContentPath, s.downloadAdminAuditExport)
 	return mux
 }
 

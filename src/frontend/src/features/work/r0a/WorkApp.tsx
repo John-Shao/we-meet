@@ -13,6 +13,7 @@ import {
   RiHome5Line,
   RiListCheck3,
   RiRefreshLine,
+  RiSettings3Line,
 } from '@remixicon/react'
 
 import { PageState } from '@/components/PageState'
@@ -22,6 +23,7 @@ import { Screen } from '@/layout/Screen'
 import { css, cx } from '@/styled-system/css'
 import { WorkApiError } from './api/client'
 import { useWorkBootstrap } from './api/queries'
+import { AdminPage } from './routes/AdminPage'
 import { ArchivePage } from './routes/ArchivePage'
 import { MyWorkPage } from './routes/MyWorkPage'
 import { TaskWorkspacePage } from './routes/TaskWorkspacePage'
@@ -113,8 +115,12 @@ const WorkApp = () => {
         minHeight: '100%',
       })}
     >
-      <WorkHeader orgName={bootstrapQ.data.org.name} />
+      <WorkHeader
+        orgName={bootstrapQ.data.org.name}
+        role={bootstrapQ.data.org.role}
+      />
       <Switch>
+        <Route path="/admin/work" component={AdminPage} />
         <Route path="/work/archive" component={ArchivePage} />
         <Route path="/work/items/:taskId" component={TaskWorkspacePage} />
         <Route path="/work/items" component={MyWorkPage} />
@@ -158,12 +164,13 @@ const navLinkActive = css({
   fontWeight: 'semibold',
 })
 
-const WorkHeader = ({ orgName }: { orgName: string }) => {
+const WorkHeader = ({ orgName, role }: { orgName: string; role: string }) => {
   const { t } = useTranslation('work')
   const [location] = useLocation()
   const homeActive = location === '/work' || location === '/work/new'
   const itemsActive = location.startsWith('/work/items')
   const archiveActive = location.startsWith('/work/archive')
+  const adminActive = location.startsWith('/admin/work')
   return (
     <header className={header}>
       <span
@@ -203,6 +210,15 @@ const WorkHeader = ({ orgName }: { orgName: string }) => {
           <RiArchiveLine size={16} aria-hidden="true" />
           {t('nav.archive')}
         </Link>
+        {role === 'owner' || role === 'admin' ? (
+          <Link
+            href="/admin/work"
+            className={cx(navLink, adminActive ? navLinkActive : '')}
+          >
+            <RiSettings3Line size={16} aria-hidden="true" />
+            {t('nav.admin')}
+          </Link>
+        ) : null}
       </nav>
       <span
         className={css({

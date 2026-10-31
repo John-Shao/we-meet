@@ -6,7 +6,8 @@
     "label": "工作导航",
     "home": "首页",
     "items": "我的工作",
-    "archive": "历史"
+    "archive": "历史",
+    "admin": "管理"
   },
   "archive": {
     "title": "历史工作",
@@ -202,5 +203,39 @@
     "operation.unknown": "操作状态未知",
     "artifact.published": "成果已发布",
     "approval.decided": "审批已决定"
+  },
+  "admin": {
+    "title": "管理工作",
+    "subtitle": "只读查看组织席位、配额与审计导出。",
+    "forbiddenTitle": "无管理权限",
+    "forbiddenDescription": "仅组织 owner 或 admin 可查看管理页。",
+    "overview": "组织概览",
+    "organization": "组织",
+    "seatsLabel": "席位",
+    "quota": "已结算 / 配额（Token）",
+    "reserved": "预留 Token",
+    "enforcement": "配额执行",
+    "retention": "审计留存",
+    "days": "天",
+    "seats": "席位列表",
+    "seatsError": "席位加载失败。",
+    "seat.subject": "成员",
+    "seat.role": "角色",
+    "seat.status": "状态",
+    "seat.workSeat": "Work 席位",
+    "yes": "是",
+    "no": "否",
+    "loadMore": "加载更多",
+    "exportTitle": "审计导出",
+    "exportDescription": "按时间范围导出审计元数据，文件生成后一次性下载。",
+    "from": "开始日期",
+    "to": "结束日期",
+    "format": "格式",
+    "createExport": "创建导出",
+    "exportError": "创建导出失败。",
+    "exportStatus": "状态",
+    "exportRows": "行数",
+    "download": "下载",
+    "overviewError": "概览加载失败。"
   }
 }

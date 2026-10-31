@@ -1,5 +1,8 @@
 import type {
   WorkAcceptanceResult,
+  WorkAdminOverview,
+  WorkAdminSeatList,
+  WorkAuditExport,
   WorkArtifactContent,
   WorkBootstrap,
   WorkInputResponse,
@@ -208,4 +211,56 @@ export const openWorkEventStream = (
     headers,
     signal,
   })
+}
+
+export const fetchAdminOverview = () =>
+  request<WorkAdminOverview>('/admin/overview')
+
+export const fetchAdminSeats = (cursor?: string | null) => {
+  const params = new URLSearchParams({ limit: '20' })
+  if (cursor) params.set('cursor', cursor)
+  return request<WorkAdminSeatList>(`/admin/seats?${params.toString()}`)
+}
+
+export const createAdminAuditExport = (body: {
+  client_request_id: string
+  range_from: string
+  range_to: string
+  format: 'csv' | 'json'
+}) =>
+  request<WorkAuditExport>('/admin/audit-exports', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const fetchAdminAuditExport = (exportId: string) =>
+  request<WorkAuditExport>(
+    `/admin/audit-exports/${encodeURIComponent(exportId)}`
+  )
+
+export const createAdminAuditExportTicket = (exportId: string) =>
+  request<{ token: string }>(
+    `/admin/audit-exports/${encodeURIComponent(exportId)}/download-ticket`,
+    { method: 'POST' }
+  )
+
+export const downloadAdminAuditExport = async (exportId: string) => {
+  const { token } = await createAdminAuditExportTicket(exportId)
+  const response = await fetch(
+    `${BASE}/admin/audit-exports/${encodeURIComponent(exportId)}/content`,
+    {
+      credentials: 'same-origin',
+      headers: { 'X-Download-Token': token },
+    }
+  )
+  if (!response.ok) throw await parseError(response)
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `audit-export-${exportId}`
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
 }

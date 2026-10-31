@@ -6,7 +6,8 @@
     "label": "Work navigation",
     "home": "Home",
     "items": "My work",
-    "archive": "History"
+    "archive": "History",
+    "admin": "Administration"
   },
   "archive": {
     "title": "History",
@@ -202,5 +203,39 @@
     "operation.unknown": "Operation unknown",
     "artifact.published": "Artifact published",
     "approval.decided": "Approval decided"
+  },
+  "admin": {
+    "title": "Administration",
+    "subtitle": "Read-only organization seats, quota and audit exports.",
+    "forbiddenTitle": "No administration access",
+    "forbiddenDescription": "Only an organization owner or admin can view this page.",
+    "overview": "Organization overview",
+    "organization": "Organization",
+    "seatsLabel": "Seats",
+    "quota": "Settled / quota (tokens)",
+    "reserved": "Reserved tokens",
+    "enforcement": "Quota enforcement",
+    "retention": "Audit retention",
+    "days": "days",
+    "seats": "Seats",
+    "seatsError": "Failed to load seats.",
+    "seat.subject": "Member",
+    "seat.role": "Role",
+    "seat.status": "Status",
+    "seat.workSeat": "Work seat",
+    "yes": "Yes",
+    "no": "No",
+    "loadMore": "Load more",
+    "exportTitle": "Audit export",
+    "exportDescription": "Export audit metadata for a date range; download once when ready.",
+    "from": "From",
+    "to": "To",
+    "format": "Format",
+    "createExport": "Create export",
+    "exportError": "Failed to create export.",
+    "exportStatus": "Status",
+    "exportRows": "Rows",
+    "download": "Download",
+    "overviewError": "Failed to load overview."
   }
 }

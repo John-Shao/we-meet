@@ -164,3 +164,51 @@ export type WorkTaskView =
   | 'running'
   | 'awaiting_acceptance'
   | 'completed'
+
+export interface WorkAdminOverview {
+  org_id: string
+  name: string | null
+  status: string
+  execution_enabled: boolean
+  seats: { total: number; active: number }
+  quota: {
+    limit_tokens: number
+    reserved_tokens: number
+    settled_tokens: number
+    enforcement: string
+  }
+  quota_period_id: string
+  run_cap_tokens: number
+  org_revision: number
+  audit_retention_days: number
+}
+
+export interface WorkAdminSeat {
+  subject_id: string
+  role: string
+  work_seat: boolean
+  status: string
+  revision: number
+}
+
+export interface WorkAdminSeatList {
+  items: WorkAdminSeat[]
+  next_cursor: string | null
+}
+
+export interface WorkAuditExport {
+  id: string
+  status: string
+  format: string
+  range_from: string
+  range_to: string
+  requested_by: string
+  requested_at: string
+  ready_at: string | null
+  expires_at: string | null
+  row_count: number | null
+  bytes: number | null
+  error_code: string | null
+  download_available: boolean
+  downloaded_at: string | null
+}

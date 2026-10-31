@@ -7,6 +7,11 @@ import {
 
 import {
   acceptWorkTask,
+  createAdminAuditExport,
+  downloadAdminAuditExport,
+  fetchAdminAuditExport,
+  fetchAdminOverview,
+  fetchAdminSeats,
   cancelWorkRun,
   createWorkInput,
   createWorkPreview,
@@ -25,6 +30,9 @@ const workKeys = {
   templates: ['work', 'templates'] as const,
   tasks: (view: string) => ['work', 'tasks', view] as const,
   task: (taskId: string) => ['work', 'task', taskId] as const,
+  adminOverview: ['work', 'admin', 'overview'] as const,
+  adminSeats: ['work', 'admin', 'seats'] as const,
+  adminExport: (id: string) => ['work', 'admin', 'export', id] as const,
   artifactContent: (artifactId: string, versionNo: number) =>
     ['work', 'artifact-content', artifactId, versionNo] as const,
 }
@@ -130,3 +138,45 @@ export const useAcceptWorkTask = (taskId: string) => {
 }
 
 export const workQueryKeys = workKeys
+
+export const useAdminOverview = () =>
+  useQuery({
+    queryKey: workKeys.adminOverview,
+    queryFn: fetchAdminOverview,
+    retry: false,
+  })
+
+export const useAdminSeats = () =>
+  useInfiniteQuery({
+    queryKey: workKeys.adminSeats,
+    queryFn: ({ pageParam }) => fetchAdminSeats(pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next_cursor,
+    retry: false,
+  })
+
+export const useCreateAdminAuditExport = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: createAdminAuditExport,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['work', 'admin'] })
+    },
+  })
+}
+
+export const useAdminAuditExport = (exportId: string | undefined) =>
+  useQuery({
+    queryKey: workKeys.adminExport(exportId ?? ''),
+    queryFn: () => fetchAdminAuditExport(exportId!),
+    enabled: !!exportId,
+    retry: false,
+    refetchInterval: (query) =>
+      query.state.data?.status === 'queued' ||
+      query.state.data?.status === 'running'
+        ? 3000
+        : false,
+  })
+
+export const useDownloadAdminAuditExport = () =>
+  useMutation({ mutationFn: downloadAdminAuditExport })
