@@ -1,0 +1,37 @@
+{
+  "generatedAt": "2026-11-01T09:51:04.425Z",
+  "release": {
+    "commit": "0fdd6bccd",
+    "image": "meet-frontend:0fdd6bccd",
+    "digest": "sha256:4dc8f11ca3051f92bee0237e00ad7be74d9866aa1f7763edb2e73d4eb310dd8d",
+    "helmRevision": 528,
+    "previousRevision": 527,
+    "pod": "meet-frontend-84cc874bdd-8cbkn",
+    "bundle": "/assets/index-ClRLKydd.js"
+  },
+  "transport": "adb forward tcp:9222 localabstract:chrome_devtools_remote -> Playwright connectOverCDP (HONOR AMM-AN00, Chrome 138)",
+  "sessionBootstrapStatus": 200,
+  "checks": {
+    "innerWidth": 369,
+    "readOnlyMedia": true,
+    "createExportButtons": 0,
+    "mobileNoticeShown": true,
+    "periodLabelShown": true,
+    "periodValue": "2026-11",
+    "seatRowCount": 14,
+    "firstRowCellTexts": [
+      "03a7c56e-91f4-4ab5-a809-2b9fde3cee30",
+      "member",
+      "active",
+      "否"
+    ],
+    "firstRowGaps": [
+      14.7,
+      12,
+      12
+    ],
+    "overflowX": 0
+  },
+  "exportCardTextTail": "审计导出 审计导出请在更宽的屏幕发起。",
+  "pass": true
+}
