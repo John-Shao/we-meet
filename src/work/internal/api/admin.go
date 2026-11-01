@@ -89,8 +89,12 @@ func (s *Server) adminSeats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cursor := strings.TrimSpace(r.URL.Query().Get("cursor"))
-	if cursor == "" {
-		cursor = ""
+	// list_seats caps p_limit at 100, so the "fetch one extra" probe is only
+	// available below the cap; at the cap the handler has no way to tell a full
+	// final page from a page followed by more rows.
+	probe := limit
+	if limit < maxAdminSeatLimit {
+		probe = limit + 1
 	}
 	var items []AdminSeat
 	err = workdb.WithWorkContext(r.Context(), s.pool,
@@ -100,7 +104,7 @@ func (s *Server) adminSeats(w http.ResponseWriter, r *http.Request) {
 			rows, err := tx.Query(r.Context(), `
 				SELECT subject_id, role, work_seat, status, revision
 				FROM work.list_seats($1, $2, NULLIF($3, ''), $4)`,
-				claims.OrgID, claims.SubjectID, cursor, limit,
+				claims.OrgID, claims.SubjectID, cursor, probe,
 			)
 			if err != nil {
 				return err
@@ -121,7 +125,11 @@ func (s *Server) adminSeats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var next *string
-	if len(items) == limit {
+	if len(items) > limit {
+		value := items[limit-1].SubjectID
+		items = items[:limit]
+		next = &value
+	} else if len(items) == limit && limit == maxAdminSeatLimit {
 		value := items[len(items)-1].SubjectID
 		next = &value
 	}
