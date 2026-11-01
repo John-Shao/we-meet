@@ -14,7 +14,6 @@ const OPENAPI = new URL('../r0a-openapi-v1.yaml', import.meta.url);
 // surface) is tracked in docs/plan/work-project.md; several overlap the
 // provider write surface that D-08b kept out of scope.
 const CONTRACT_ONLY = [
-  'DELETE /work/v1/tasks/{taskId}',
   'GET /work/v1/inbox',
   'GET /work/v1/runs/{runId}/operations',
   'POST /work/v1/admin/provider-config/revoke',

@@ -124,6 +124,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET "+TasksPath, s.listTasks)
 	mux.HandleFunc("GET "+TaskPath, s.getTask)
 	mux.HandleFunc("PATCH "+TaskPath, s.updateTask)
+	mux.HandleFunc("DELETE "+TaskPath, s.deleteTask)
 	mux.HandleFunc("POST "+TaskAcceptancesPath, s.createAcceptance)
 	mux.HandleFunc("GET "+TaskEventsPath, s.streamTaskEvents)
 	mux.HandleFunc("GET "+ArtifactVersionPath, s.getArtifactVersion)
