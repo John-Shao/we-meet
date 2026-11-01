@@ -198,6 +198,36 @@ func TestCancelRunRequiresCSRFAndIsIdempotent(t *testing.T) {
 	assertAPICode(t, other, http.StatusNotFound, "run_not_found")
 }
 
+func TestCancelRunEnforcesClientRequestIDLength(t *testing.T) {
+	pool, dbName := newBootstrapDB(t, true, true)
+	seedTaskGraph(t, dbName)
+	server := newHTTPServer(t, pool, &stubVerifier{claims: testClaims()}, testCSRF(t))
+	token := bootstrapCSRF(t, server.URL)
+
+	// CancelRequest declares client_request_id with minLength 8, and the floor has to
+	// hold before the domain call: a short id that slipped past validation would
+	// cancel a live run instead of being refused.
+	for _, id := range []string{"a", "abcdefg"} {
+		response := cancelRunWithBody(t, server.URL, runA, token,
+			`{"client_request_id":"`+id+`"}`, true)
+		assertAPICode(t, response, http.StatusBadRequest, "invalid_request")
+		if got := runState(t, dbName, runA); got != "active" {
+			t.Fatalf("client_request_id %q changed run state to %q", id, got)
+		}
+	}
+
+	accepted := cancelRunWithBody(t, server.URL, runA, token,
+		`{"client_request_id":"abcdefgh"}`, true)
+	if accepted.StatusCode != http.StatusAccepted {
+		accepted.Body.Close()
+		t.Fatalf("an eight-rune id is in contract range, status = %d", accepted.StatusCode)
+	}
+	accepted.Body.Close()
+	if got := runState(t, dbName, runA); got != "cancel_requested" {
+		t.Fatalf("db state = %q", got)
+	}
+}
+
 type taskListBody struct {
 	Items      []api.TaskSummary `json:"items"`
 	NextCursor *string           `json:"next_cursor"`
@@ -267,10 +297,16 @@ func bootstrapCSRF(t *testing.T, baseURL string) string {
 
 func cancelRun(t *testing.T, baseURL, runID, token string, withCookie bool) *http.Response {
 	t.Helper()
+	return cancelRunWithBody(t, baseURL, runID, token, `{"client_request_id":"cancel-crash-0001"}`,
+		withCookie && token != "")
+}
+
+func cancelRunWithBody(t *testing.T, baseURL, runID, token, body string, withCSRF bool) *http.Response {
+	t.Helper()
 	request, _ := http.NewRequest(http.MethodPost, baseURL+fmt.Sprintf("/work/v1/runs/%s/cancel", runID),
-		strings.NewReader(`{"client_request_id":"cancel-crash-0001"}`))
+		strings.NewReader(body))
 	request.AddCookie(&http.Cookie{Name: "sessionid", Value: "session-value"})
-	if withCookie && token != "" {
+	if withCSRF {
 		request.AddCookie(&http.Cookie{Name: api.CSRFCookieName, Value: token})
 		request.Header.Set(api.CSRFHeaderName, token)
 	}

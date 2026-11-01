@@ -324,10 +324,11 @@ func (s *Server) cancelRun(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, correlationID, apierr.New("run_not_found"))
 		return
 	}
-	// CancelRequest requires client_request_id and forbids extra keys. The reason
-	// is forwarded to the domain function unchanged: work.request_cancel accepts
-	// only enum codes, so an unsupported reason surfaces as invalid_request
-	// instead of being silently dropped on the floor.
+	// CancelRequest declares client_request_id with minLength 8 and maxLength 128,
+	// the same bounds inputs and previews enforce. The reason is forwarded to the
+	// domain function unchanged: work.request_cancel accepts only enum codes, so an
+	// unsupported reason surfaces as invalid_request instead of being silently
+	// dropped on the floor.
 	var cancel cancelRunRequest
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
@@ -336,7 +337,7 @@ func (s *Server) cancelRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	requestID := strings.TrimSpace(cancel.ClientRequestID)
-	if requestID == "" || utf8.RuneCountInString(requestID) > 128 {
+	if idRunes := utf8.RuneCountInString(requestID); idRunes < 8 || idRunes > 128 {
 		writeAPIError(w, correlationID, apierr.New("invalid_request"))
 		return
 	}
