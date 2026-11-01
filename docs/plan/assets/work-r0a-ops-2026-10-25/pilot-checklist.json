@@ -145,7 +145,7 @@
         "real provider E2E through egress: 18 golden runs on 2026-11-01, 45,549 tokens settled, artifacts published and hashed",
         "content-proxy checkpoint route covered by a real PG+HTTP end-to-end case (reserve -> Put -> commit -> read back, 2026-10-31)"
       ],
-      "note": "Integration now exists and runs in production, so the old \"no Content Store / no egress integration\" note is superseded. Two gaps keep this partial: (1) work-content-proxy has served zero production requests since 2026-10-31 00:09 (journal line count 5), i.e. the child-side candidate/checkpoint write has no caller — decision pending in docs/plan/work-r0a-checkpoint-writer-decision-2026-11-01.md; (2) storage is a local Content Store directory with a local master key, not a cloud KMS-backed store."
+      "note": "Integration now exists and runs in production, so the old \"no Content Store / no egress integration\" note is superseded. Two gaps keep this partial: (1) work-content-proxy has served zero production requests since 2026-10-31 00:09 (journal line count 5); the child-side candidate/checkpoint write has no caller by design, closed 2026-11-01 as a signed scope exception under C33 option B, so the route stays test-proven rather than production-proven; (2) storage is a local Content Store directory with a local master key, not a cloud KMS-backed store."
     },
     {
       "id": "C10",
@@ -487,18 +487,18 @@
     {
       "id": "C33",
       "category": "implementation",
-      "title": "Child-run checkpoint writes reach the content proxy (decision #280)",
+      "title": "Child-run checkpoint writes reach the content proxy (closed by signed scope exception, #280)",
       "owner": "runtime + platform",
-      "status": "todo",
+      "status": "waived",
       "blocking": true,
       "gate": "pilot",
       "evidence": [
-        "content-client.mjs putCheckpoint() implemented and unit-covered, but has no production caller (only content-client self-tests and the local proxy route exercise it)",
-        "work-content-proxy has zero production traffic since 2026-10-31 deployment, so the write path is unreachable rather than unobserved",
-        "decision memo with options A (implement child-side candidate/checkpoint writes, reopens the signed execute-no-content boundary) and B (signed scope exception with reopen triggers): docs/plan/work-r0a-checkpoint-writer-decision-2026-11-01.md"
+        "decision memo signed 2026-11-01 (option B), with the three conditions above recorded verbatim in the memo",
+        "server side is exercised without production traffic: contentproxy_pg_test.go covers reserve -> Put -> commit -> read back for checkpoint slots",
+        "production fact kept honest: journalctl -u work-content-proxy has 5 lines since 2026-10-31 00:09 (one restart + listening), so 8444 has served zero requests"
       ],
-      "note": "John ruled on 2026-11-01 that #280 is an R0a exit gate, so this item blocks pilot go/no-go. It closes either by A with a production checkpoint write observed end-to-end, or by B with a written scope-exception sign-off; silence keeps it open."
+      "note": "John 选了 B（2026-11-01）：R0a 范围内子进程不提交候选/checkpoint 写，`putCheckpoint` 与 `POST /internal/v1/checkpoints` 保留为受测能力。签收单 docs/plan/work-r0a-checkpoint-writer-decision-2026-11-01.md 随签三条：(1) 多步链路 / R0b 本机执行 / 池化恢复任一出现即把本项退回 todo，并在独立取证窗口内做首次真实流量；(2) R0a 期间不得把 checkpoint 持久性写成生产已验证，只能写\"路由与 PG+HTTP 用例齐备、生产零流量\"；(3) 2026-11-08 与其余自决判定同批复评。"
     }
   ],
-  "reviewNote": "Re-reviewed 2026-11-01 against production evidence (Helm revision 528, migration ledger 16, E8 golden run, real-device mobile check). Items not listed here keep their 2026-10-25 assessment; C03/C04 stay partial pending DR2 review and the C22 drills, C16/C17 stay partial pending a real trace/metrics pipeline."
+  "reviewNote": "Re-reviewed 2026-11-01 against production evidence (Helm revision 528, migration ledger 16, E8 golden run, real-device mobile check). C05/C10/C31 closed on shipped evidence, C13 note corrected against src/work/internal/content, C33 added for decision #280 and closed the same day as a signed scope exception (B). Items not listed keep their 2026-10-25 assessment; C03/C04 stay partial pending DR2 review and the C22 drills, C16/C17 stay partial pending a real trace/metrics pipeline."
 }

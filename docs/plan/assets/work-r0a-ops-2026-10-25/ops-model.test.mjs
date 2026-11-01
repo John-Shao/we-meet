@@ -49,23 +49,26 @@ test('blocking items split into a start gate and a pilot gate', () => {
   const result = goNoGo(checklist);
   // 2026-11-01 闸门复审：C05（D5 前端设计）、C10（React 页面/查询/SSE E2E）、C31（管理只读面）
   // 已按生产证据关闭，开工闸门只剩设计评审与可用性研究；
-  // C33（子进程 checkpoint 写入 content-proxy，决策单 #280）由 John 判定为 R0a 退出门，新增为 pilot 阻塞项。
+  // C33（子进程 checkpoint 写入 content-proxy，决策单 #280）按 John 勾选的 B 记为书面范围例外。
   assert.deepEqual(
     result.startBlockers.map((item) => item.id).sort(),
     ['C03', 'C04', 'C25'],
   );
   assert.ok(!result.startBlockers.some((item) => item.id === 'C15'));
   assert.equal(checklist.items.find((item) => item.id === 'C15').status, 'waived');
+  assert.ok(!result.pilotBlockers.some((item) => item.id === 'C33'));
+  const c33 = checklist.items.find((item) => item.id === 'C33');
+  assert.equal(c33.status, 'waived');
+  assert.ok(c33.blocking, '#280 stays declared as an exit gate, closed by exception not by omission');
   // C11 signs the S01-S18 mapping口径 only; control implementation evidence stays in the pilot gate.
   assert.equal(checklist.items.find((item) => item.id === 'C11').status, 'done');
   assert.equal(result.startBlockerCount, 3);
-  assert.equal(result.pilotBlockerCount, 13);
-  assert.ok(result.pilotBlockers.some((item) => item.id === 'C33'));
+  assert.equal(result.pilotBlockerCount, 12);
   assert.equal(result.scaleBlockerCount, 0);
   assert.equal(result.canStartWork, false);
   assert.equal(result.blockerCount, result.startBlockerCount + result.pilotBlockerCount + result.scaleBlockerCount);
 
-  // 关掉开工闸门只允许开工，不等于可以试点：13 个试点证据项仍必须由实施产生。
+  // 关掉开工闸门只允许开工，不等于可以试点：12 个试点证据项仍必须由实施产生。
   const started = structuredClone(checklist);
   for (const item of started.items) {
     if (item.gate === 'start' && item.blocking) {
@@ -76,7 +79,7 @@ test('blocking items split into a start gate and a pilot gate', () => {
   const afterStart = goNoGo(started);
   assert.equal(afterStart.canStartWork, true);
   assert.equal(afterStart.go, false);
-  assert.equal(afterStart.pilotBlockerCount, 13);
+  assert.equal(afterStart.pilotBlockerCount, 12);
 });
 
 test('checklist rejects a missing or unknown gate', () => {
