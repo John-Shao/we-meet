@@ -24,7 +24,7 @@
 
 ## 实现前必须先定的三件事（不是纯 handler 工作）
 
-1. **错误映射**：`set_provider_config` 在 `p_expected_revision` 不匹配时 `RAISE 'revision_conflict' USING ERRCODE = '40001'`（serialization_failure，:4264 附近），而契约要求 409 `version_conflict`。今天刚在 `task_delete.go` 处理过同类问题（`run_not_quiescent` 会被通用映射降级成 503）：**不补定向映射，这个端点会把并发冲突报成服务不可用**。
+1. **错误映射**：机制不是「ERRCODE 没映射」——`src/work/contracts/error-codes.json` 的 `db_exception_map` 已经把 `revision_conflict:356` 映射到 `version_conflict`。真正的原因是 `apierr.FromDB` 对 `conflictCodes` 一律要求数字 DETAIL，而 `set_provider_config` 的 `RAISE 'revision_conflict' USING ERRCODE='40001'`（:4265）**不带 DETAIL**，于是会降级成 503。核对时顺着这条线发现同一个缺陷早已存在于已上线的采纳路径（`accept_task` 抛 `run_not_quiescent_or_revision_conflict`、`delete_task_core`/`create_user_artifact_version` 抛 `run_not_quiescent`，都不带 DETAIL → 503 而不是 409），已于 2026-11-01 在共用路径修掉并补测试（见状态源「静止冲突的 503 缺陷」）。因此 `PUT /admin/provider-config` 落地时要么让 SQL 侧补 DETAIL（当前修订号），要么沿用 `run_not_quiescent` 那样"允许无 DETAIL 的 409"——**不能再各自打补丁式特例**。
 2. **连通探测**：契约 `setProviderConfig` 描述写明「保存前网关会发一次最小真实请求做连通探测，失败不生效」（yaml:527-529 的 description）。SQL 与 Go 都没有探测实现。要么实现（需要真实供应商网络出口与一次真实调用，属生产动作），要么把它显式记为范围例外并写清触发条件。当前 provider 网络出口策略见 [[meet-backend-network-policy]] 同级的 NetworkPolicy 文档。
 3. **密钥入库形态**：`create_provider_credential` / `rotate_provider_credential` 的入参是 `p_secret_ciphertext bytea` + `p_wrapped_dek bytea` + `p_kms_key_ref` + `p_secret_fingerprint`，即**服务端收到的是已经加密的字节**。但 D-08b 的「只写不回读」与管理面表单的实际可用性之间，取决于契约请求体到底让浏览器提交明文（服务端用 D-03 静态主密钥加密后再调函数）还是提交密文（浏览器侧加密）。这不是实现细节，是**安全边界**：浏览器侧加密需要额外的密钥下发通道，服务端加密则要求 API 进程能拿到主密钥。**必须先定，再写 handler。**
 
