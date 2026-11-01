@@ -20,6 +20,8 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 
 **结论**：R0a 子集已形成 22 个 path、25 个 operation、51 个 schema、67 个唯一本地 `$ref`，OpenAPI 3.1 校验通过；生成 TypeScript 类型通过 `tsc --noEmit`；生成运行时客户端覆盖 25 个 operation（含 `deleteTask`）；合同/客户端/Host 端口共 **31/31** 测试通过；错误码目录（`r0a-errors-v3`：49 个公开码、101 个 SQL 异常映射）冻结，CI 直接扫描 `r0a-schema-draft.sql` 做漂移门禁。它仍不是生产 API，也不证明真实 cookie/CSRF、Content Store、SSE 网关、P1-A 字段或供应商可用。
 
+> **2026-11-01 校正（本段的三处数字均为 D-08 修订前的旧值）**：契约资产 `assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml` 实测为 **29 path / 33 operation**（本文 :3 与 :159 已按此记），`error-codes.json` 的 `r0a-errors-v3` 实测为 **50 个公开码 / 105 个 `db_exception_map` 键**；此外 2026-10-28 的 RB-03 已决定不保 D2 契约，29/33 也不再是必须保留的约束。引用本段时以这三项实测值与 [work-project.md](work-project.md) 为准。
+
 ## 2. 契约决策
 
 ### 2.1 会话、CSRF 与 SSE

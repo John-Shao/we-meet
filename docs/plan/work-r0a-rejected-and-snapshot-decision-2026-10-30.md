@@ -100,7 +100,7 @@ John 判定（2026-10-30）：**选 (a)**，Lily 已复核该判定。落地方�
 - 命令保留原有 `work_owner` 的 `SECURITY DEFINER` 与固定 `search_path`、worker EXECUTE 和 FORCE RLS，不增加应用表 DML 权限。拒绝分支显式验证组织上下文；权威闸门必须是不可变的 `receipt_recorded/rejected_not_executed`，证据引用必须与其一致，provider request id 取闸门而非调用参数。
 - 结算参数必须显式为零（非零及 NULL 均拒绝）；held 释放、unknown 预留按零结算并记录真实 resolution。不写 usage fact/usage_daily；已有 usage marker、usage fact 或正数结算一律报冲突，不通过拒绝恢复逆转历史用量。拒绝重放仍校验证据，重复成功恢复不增加分录或审计。
 - `FinishFromReceipt` 在 receipt 哈希/绑定、冻结请求哈希、snapshot/runtime/logicalKey 全部验证后才调用拒绝对账，返回独立的 `rejected_not_executed` 状态。`work-reconcile -finish-from-receipt` 支持该恢复；直接 `-resolution rejected_not_executed` 走闸门证据检查，要求正确 `-evidence-ref` 与零结算，不替代 Content Store 文档校验。
-- waiting/resume 复用 receipt finishing 循环：成功继续发布，拒绝以 `provider_rejected` 失败，用量 unavailable 继续等待，取消走取消路径；所有分支均不再次调用供应商。参考 `RunWorkflow.contract.ts` 的 resolution 闭集同步扩展，随本增量一起待复核，不新增前端或 HTTP 写入口。
+- waiting/resume 复用 receipt finishing 循环：成功继续发布，拒绝以 `provider_rejected` 失败，用量 unavailable 继续等待，取消走取消路径；所有分支均不再次调用供应商。参考 `RunWorkflow.contract.ts` 的 resolution 闭集同步扩展（本节属已签收的增量 C，2026-10-31 John 主签、Lily 经转述复核；此前误写「随本增量一起待复核」，2026-11-01 校正），不新增前端或 HTTP 写入口。
 
 **验收证据入口**
 

@@ -1,6 +1,6 @@
 # Work R0a 前端体验详细设计（D5）
 
-> 状态：D5 设计草案；路由/状态矩阵/文案（174 条）/UI 模型与 14 组测试已产出，未实现 React 页面。
+> 状态：D5 设计草案；路由/状态矩阵/文案（174 条）/UI 模型与 14 组测试已产出，未实现 React 页面。**该「未实现」只描述 2026-10-25 的设计时点**：D5 路由表的 7 条路由（`/work`、`/work/new`、`/work/items`、`/work/items/:taskId`、`/work/items/:taskId/artifacts/:artifactId`、`/work/archive`、`/admin/work`）均已在 `src/frontend/src/features/work/r0a/` 实现并发布生产；现状见 [work-project.md](work-project.md) 完成度审计 D5 行。
 >
 > 日期：2026-10-25
 >

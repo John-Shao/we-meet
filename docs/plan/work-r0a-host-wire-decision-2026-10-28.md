@@ -1,6 +1,6 @@
 # Work Host v2 wire 决策与签收（2026-10-28）
 
-> 状态：**John 主签；Lily 对 HW-01–HW-04 安全复核通过（2026-10-28；mTLS、CSRF、fail-closed）；HW-05 细节待复核。** 本文只冻结 wire 与边界，不实现 HTTP/SQL/codegen，也不代表真实 Host 或 mTLS 已接通。
+> 状态：**John 主签；Lily 对 HW-01–HW-04 安全复核通过（2026-10-28；mTLS、CSRF、fail-closed）；HW-05 细节为 John 自决判定、未经外部复核**（2026-11-01 起无独立复核人，11-08 延迟复评）。 本文只冻结 wire 与边界，不实现 HTTP/SQL/codegen，也不代表真实 Host 或 mTLS 已接通。
 >
 > 上游：[Host 合同 v2](assets/work-r0a-rebuild-2026-10-28/host-contract.json)、[D2' 公开契约 §8.3](work-r0a-api-design-2026-10-25.md#83-host-接入合同增量work-host-contract-v2设计已签已复核)、[重做计划 Phase 2](work-r0a-architecture-rebuild-plan-2026-10-28.md#phase-2go-控制面)。
 
@@ -97,7 +97,7 @@ GET /work-host/v2/orgs/{org_id}/members?revision_after=<int>&cursor=<opaque>&lim
 |---|---|---|---|
 | HW-N1 | 缺失/错名/重复 session cookie、伪造 cookie | 拒绝；不读取 body 中的 org/subject | **通过（本机）**：Django 12/12 覆盖缺失/错名/重复/空/伪造 cookie 与 body org/subject 忽略；Go API 错名/重复/空 cookie 3 子例拒绝且不调用 Host |
 | HW-N2 | Host 不可用、超时、返回 5xx、缺字段、61s 过期、未来时间 | fail closed；不缓存正向结果；不降级放行 | **通过（本机）**：5xx/缺字段/61s/未来/超时 fail closed；两次调用两次 Host（不缓存） |
-| HW-N3 | CSRF 缺失、别名头、错 token、cookie/header 不一致、过期、session_revision 变化 | 403 `csrf_invalid`；不产生副作用；单次刷新重试 | **部分/未触发**：token 签发/校验/过期/cookie 属性测试通过；尚无写端点消费 CSRF，别名头/副作用/刷新未触发 |
+| HW-N3 | CSRF 缺失、别名头、错 token、cookie/header 不一致、过期、session_revision 变化 | 403 `csrf_invalid`；不产生副作用；单次刷新重试 | **部分/未触发**：token 签发/校验/过期/cookie 属性测试通过；尚无写端点消费 CSRF，别名头/副作用/刷新未触发。**2026-11-01 校正**：该句只描述 10-28 当时的实现状态；现在写端点已在处理链路消费 CSRF（`src/work/internal/api/` 的 `inputs.go:49`、`previews.go:73,132`、`task_detail.go:240`、`admin.go:136,196` 等均调用 `s.verifyCSRF(...)`），不要把本句读成当前存在 CSRF 覆盖缺口。 |
 | HW-N4 | 客户端选 org、跨组织 org_id、未知组织 | `org_not_found`/拒绝；org 只来自 Host 会话 | **部分**：bootstrap org 只来自 Host 会话、body org/subject 被忽略；跨组织/未知 org 的 `org_not_found` 未触发（无客户端 org 输入） |
 | HW-N5 | 低 revision、同 revision 异事实、全量缺席、operator_suspended | 单调推进、冲突拒绝、只收窄为 `left`、不取消 Run | **通过（本机 PG）**：低/同 revision、全量缺席、批量闸门、`operator_suspended` 保留；D1 smoke + directory tests |
 | HW-N6 | 无客户端证书、错误 CA、错误 SAN、公网访问 | 无证书/错误证书被拒绝；正常用户不受影响 | **生产通过（2026-10-28）**：ingress `optional`；无证书 403（Django）、自签 400（ingress）、错误 CN 403；有效 200；公网仅 `/work-host` mTLS 入口 |
@@ -126,7 +126,7 @@ GET /work-host/v2/orgs/{org_id}/members?revision_after=<int>&cursor=<opaque>&lim
 | HW-01–HW-04 | 通过（按推荐方案） | John Shao | 2026-10-28 | 仅 wire 与边界；不证明真实 Host/mTLS/CSRF 已实现 |
 | HW-05 | 通过（改用 `sessionid` + session key 63-bit 哈希） | John Shao | 2026-10-28 | cookie 名勘误；`session_revision` 不是权限变更版本 |
 | 安全复核（HW-01–HW-04） | 通过 | Lily Zhu | 2026-10-28 | mTLS、CSRF、fail-closed、cookie/日志脱敏 |
-| 安全复核（HW-05） | 待办 | Lily Zhu | — | cookie 名勘误、session key 哈希语义 |
+| 安全复核（HW-05） | **自决判定，未经外部复核**（2026-11-01 起无独立复核人，11-08 延迟复评；见[例外复核单](work-r0a-exception-review-2026-10-31.md)「复核承接」节） | ~~Lily Zhu~~ 已离队 | — | cookie 名勘误、session key 哈希语义 |
 | 安全复核（新目录写入口 L1–L8） | L1–L8 通过（L2–L8 条件已落实） | Lily Zhu | 2026-10-28 | 见 §8；L1 证据已提交 |
 
 ## 8. Lily 复核：新目录写入口（2026-10-28）
