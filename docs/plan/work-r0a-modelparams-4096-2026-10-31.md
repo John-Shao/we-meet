@@ -28,9 +28,10 @@ John 于 2026-10-31 决定：R0a 新任务的默认 `maxOutputTokens` 从 **1024
 - 其中一个 4096 任务 `10e23ed1…` 曾出现一次 `partial_answer`（疑 provider 瞬时），随后 3/3 成功。
 - E8 runner 补充 golden 长度指令（提交 `1b3dd2d7e`），受控任务 `3170cb90…` 输出 3,239B，Task `awaiting_acceptance`。
 - `work-egress` 进一步区分 `partial_answer_length` / `partial_answer_content_filter`（提交 `1b3ed9177`，二进制 sha256 `92b71943…`）。
-- 相关提交的 `Work R0a gates`、`Release guard` 通过；完整 E8 18 次仍未重跑。
+- 相关提交的 `Work R0a gates`、`Release guard` 通过。
+- **2026-11-01 更新**：完整 E8 18 次已在真实登录会话内跑完并通过（官方 `evaluateGoldenSuite`：`passRatio=1`、`p95=33.262s`、`passed=true`，G01–G06 各 3/3；输出字数全部落在 golden 区间内），证据见 [e8-golden-2026-11-01](assets/work-r0a-ops-2026-10-25/e8-golden-2026-11-01/README.md)。本文记录的 `maxOutputTokens=4096` 是该轮通过的前置条件之一。
 
 ## 边界
 
 - 完整 E8 suite 需要真实登录 session；本次浏览器登录态在后续操作中失效（401），未用测试 session 冒充真实登录。
-- 本文是参数决策记录，不是 E8 通过或 R0a 全部验收的证据。
+- 本文是参数决策记录，不是 E8 通过或 R0a 全部验收的证据；E8 通过本身也只覆盖黄金任务的内容与编排质量，人工三项检查尚待 reviewer 复核，成本口径（`costCents`）未参与判定。

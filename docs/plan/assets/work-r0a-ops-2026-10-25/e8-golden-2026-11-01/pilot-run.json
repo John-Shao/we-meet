@@ -1,0 +1,677 @@
+{
+  "version": "work-r0a-golden-run-browser-v2",
+  "generatedAt": "2026-11-01T00:20:00+08:00",
+  "baseUrl": "https://meet.we-meet.online",
+  "transport": "browser-same-origin-fetch",
+  "supersedes": "e8-browser-2026-10-31",
+  "evaluator": {
+    "path": "docs/plan/assets/work-r0a-ops-2026-10-25/pilot-ops.mjs",
+    "commit": "41f0bb289da3dea4a596f7ac10b7b9e747c83b63",
+    "sha256": "eda74ca1e794eefe7fd914f196471bb0327a299eac4acb116b7adebc118d02ee",
+    "note": "In-page import of the pinned raw.githubusercontent copy; the fetched bytes hash to the same value as the committed local file. Only the `node:fs` import was stubbed (readFileSync is not reached by evaluateGoldenRun/evaluateGoldenSuite)."
+  },
+  "goldenSource": {
+    "path": "docs/plan/assets/work-r0a-ops-2026-10-25/golden-tasks.json",
+    "sha256": "f714267fd775d86199b04375bc6dc6d2c67a285ffd14c4e4f573fb87ec33f5c4",
+    "note": "Same pinned commit; fetched bytes hash identical to the committed local file."
+  },
+  "runner": {
+    "path": "scripts/golden-tasks/run-golden-tasks.mjs",
+    "upstreamCommit": "1b3dd2d7e",
+    "upstreamSha256": "08fe05b73281c691cb14499cfa0984bd3f5e8d3325de420d06bda1d7fc5ba86b",
+    "localSha256": "d1493018604b4bfcffd0edada7ac1d2f2974acabdbce21f2e39f01890f354a27",
+    "note": "Local file differs from upstream by two uncommitted edits: (1) re-bootstrap once and replay on `csrf_invalid`; (2) inject the owner-role hint for tasks whose golden checks include `todos_have_owner_role`."
+  },
+  "suite": {
+    "perTask": [
+      { "id": "G01", "runs": 3, "passing": 3, "passed": true },
+      { "id": "G02", "runs": 3, "passing": 3, "passed": true },
+      { "id": "G03", "runs": 3, "passing": 3, "passed": true },
+      { "id": "G04", "runs": 3, "passing": 3, "passed": true },
+      { "id": "G05", "runs": 3, "passing": 3, "passed": true },
+      { "id": "G06", "runs": 3, "passing": 3, "passed": true }
+    ],
+    "passRatio": 1,
+    "p95Seconds": 33.262,
+    "passed": true
+  },
+  "totals": {
+    "attempts": 18,
+    "succeeded": 18,
+    "artifacts": 18,
+    "sumEndToEndSeconds": 423.589,
+    "settledTokens": 45549,
+    "reservedTokensAfterSuite": 0,
+    "submissionIntervalSeconds": 24
+  },
+  "runs": [
+    {
+      "taskId": "G01",
+      "attempt": 1,
+      "apiTaskId": "a4af8164-4239-4420-a40e-22ffa28a1a4e",
+      "runId": "605d9d23-92e8-4db6-8898-35b6386bd087",
+      "artifact": {
+        "id": "e9c077c2-cf74-4cac-a556-9be5cb3349c9",
+        "version": 1,
+        "hash": "sha256:65bd4839c400844b118114afeb3f5008708f84e92da0e30557e47034afa63c88",
+        "bytes": 2531,
+        "chars": 899
+      },
+      "createdAt": "2026-11-01T00:05:24.731134+08:00",
+      "passed": true,
+      "failed": [],
+      "manual": [],
+      "checks": {
+        "sections_present": "pass",
+        "length_in_range": "pass",
+        "no_fabricated_links": "pass",
+        "no_prompt_echo": "pass"
+      },
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 12.273,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 1303 },
+      "error": null
+    },
+    {
+      "taskId": "G01",
+      "attempt": 2,
+      "apiTaskId": "6ec6c921-9bfa-4af3-a90d-4239cd894a60",
+      "runId": "ca6708b5-3338-41ed-83dd-5a5772307969",
+      "artifact": {
+        "id": "be6979d0-8ea5-4564-98f9-b8f6f4a8b9c3",
+        "version": 1,
+        "hash": "sha256:d21c15ec3ef1656aac61f7bb5a6f3a441e495c39c4889cc7c243d0784a3a32cb",
+        "bytes": 2267,
+        "chars": 807
+      },
+      "createdAt": "2026-11-01T00:05:48.670626+08:00",
+      "passed": true,
+      "failed": [],
+      "manual": [],
+      "checks": {
+        "sections_present": "pass",
+        "length_in_range": "pass",
+        "no_fabricated_links": "pass",
+        "no_prompt_echo": "pass"
+      },
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 29.389,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 1884 },
+      "error": null
+    },
+    {
+      "taskId": "G01",
+      "attempt": 3,
+      "apiTaskId": "1b045b69-c120-4d92-b326-7e94498e006f",
+      "runId": "95dfc04d-84ae-43cf-8003-a20ef1b611dd",
+      "artifact": {
+        "id": "25c15d09-b46e-473e-930b-b07298080d05",
+        "version": 1,
+        "hash": "sha256:41866e326bed68f1ed9a44863c88cb99ed7ae4ff177995f00de5f75820f1a0bb",
+        "bytes": 2055,
+        "chars": 749
+      },
+      "createdAt": "2026-11-01T00:06:12.693253+08:00",
+      "passed": true,
+      "failed": [],
+      "manual": [],
+      "checks": {
+        "sections_present": "pass",
+        "length_in_range": "pass",
+        "no_fabricated_links": "pass",
+        "no_prompt_echo": "pass"
+      },
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 27.001,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 2694 },
+      "error": null
+    },
+    {
+      "taskId": "G02",
+      "attempt": 1,
+      "apiTaskId": "11d1b725-ac9a-4f16-ae34-402a8e217ef0",
+      "runId": "5d47a429-2196-48e2-a090-d0cff6896ffa",
+      "artifact": {
+        "id": "3ceff77a-1ca8-4437-b0fd-eb7f8351598b",
+        "version": 1,
+        "hash": "sha256:9081abad6c8b56f109cab9b9a0a6a41c5923e85021bb7e1ec1d9440fdac5d159",
+        "bytes": 1876,
+        "chars": 676
+      },
+      "createdAt": "2026-11-01T00:06:36.761756+08:00",
+      "passed": true,
+      "failed": [],
+      "manual": [],
+      "checks": {
+        "sections_present": "pass",
+        "length_in_range": "pass",
+        "has_recommendation": "pass",
+        "no_fabricated_links": "pass"
+      },
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 30.385,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 2574 },
+      "error": null
+    },
+    {
+      "taskId": "G02",
+      "attempt": 2,
+      "apiTaskId": "75510d08-a87a-4ee8-a6b4-2339d7bee636",
+      "runId": "dab11641-ce80-4354-aacd-ebfad5547518",
+      "artifact": {
+        "id": "ee5b11c7-bf65-4140-92b9-9d0ea35a8249",
+        "version": 1,
+        "hash": "sha256:c887b99198138435bc35d5bd190587149c38aca335d16d6bb0ee32e8119a321c",
+        "bytes": 1949,
+        "chars": 719
+      },
+      "createdAt": "2026-11-01T00:07:04.232461+08:00",
+      "passed": true,
+      "failed": [],
+      "manual": [],
+      "checks": {
+        "sections_present": "pass",
+        "length_in_range": "pass",
+        "has_recommendation": "pass",
+        "no_fabricated_links": "pass"
+      },
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 18.502,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 2216 },
+      "error": null
+    },
+    {
+      "taskId": "G02",
+      "attempt": 3,
+      "apiTaskId": "b4222949-c96b-4a00-9a6e-71e8f222c5e6",
+      "runId": "ed356ee1-7601-4bbc-be31-419ed9435f3e",
+      "artifact": {
+        "id": "e03709f3-fdb7-4e0f-bfa6-0d12a575cf56",
+        "version": 1,
+        "hash": "sha256:076e648062d8c3723d57746d085f535bdeac67d12236774b670d6f0645579ac9",
+        "bytes": 3113,
+        "chars": 1143
+      },
+      "createdAt": "2026-11-01T00:07:27.736399+08:00",
+      "passed": true,
+      "failed": [],
+      "manual": [],
+      "checks": {
+        "sections_present": "pass",
+        "length_in_range": "pass",
+        "has_recommendation": "pass",
+        "no_fabricated_links": "pass"
+      },
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 24.709,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 2008 },
+      "error": null
+    },
+    {
+      "taskId": "G03",
+      "attempt": 1,
+      "apiTaskId": "021d3ea6-0a1a-4a69-a59c-f37dffe9ba88",
+      "runId": "d350fc4c-c28d-4b8a-9529-738c08ce6ef1",
+      "artifact": {
+        "id": "f3203ff9-6cc7-4c48-939a-72da6cd98715",
+        "version": 1,
+        "hash": "sha256:390ef2f44e8b361327061d292c4d81a8c2d87b010f6020586daac40ed66a64b1",
+        "bytes": 2018,
+        "chars": 738
+      },
+      "createdAt": "2026-11-01T00:07:51.826899+08:00",
+      "passed": true,
+      "failed": [],
+      "manual": ["no_named_people"],
+      "checks": {
+        "sections_present": "pass",
+        "length_in_range": "pass",
+        "steps_numbered": "pass",
+        "no_named_people": "manual"
+      },
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 25.125,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 1700 },
+      "error": null
+    },
+    {
+      "taskId": "G03",
+      "attempt": 2,
+      "apiTaskId": "538f8891-f7f3-485e-9647-0e0a5b4e2f6f",
+      "runId": "7820d66b-a940-41e4-89ad-c4b1fe859de2",
+      "artifact": {
+        "id": "f3243f4e-2ee2-4f5e-98aa-9aa2963a5e7a",
+        "version": 1,
+        "hash": "sha256:2fe43457a73074d087a46d351b6b6df7c48dfe9cf989379941fcbadaa6211e95",
+        "bytes": 2527,
+        "chars": 905
+      },
+      "createdAt": "2026-11-01T00:08:15.805731+08:00",
+      "passed": true,
+      "failed": [],
+      "manual": ["no_named_people"],
+      "checks": {
+        "sections_present": "pass",
+        "length_in_range": "pass",
+        "steps_numbered": "pass",
+        "no_named_people": "manual"
+      },
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 32.728,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 1980 },
+      "error": null
+    },
+    {
+      "taskId": "G03",
+      "attempt": 3,
+      "apiTaskId": "d69753ed-85a1-426f-abad-da4fe45404f2",
+      "runId": "67951568-e720-4f76-b3db-d941dbc6da5d",
+      "artifact": {
+        "id": "53939ca9-38a2-4a2f-a622-0327520e6541",
+        "version": 1,
+        "hash": "sha256:87942823e9548f6bad94c4088b86e3b123b5865aef79f283fbbe822e1aefd6a7",
+        "bytes": 2015,
+        "chars": 729
+      },
+      "createdAt": "2026-11-01T00:08:45.174813+08:00",
+      "passed": true,
+      "failed": [],
+      "manual": ["no_named_people"],
+      "checks": {
+        "sections_present": "pass",
+        "length_in_range": "pass",
+        "steps_numbered": "pass",
+        "no_named_people": "manual"
+      },
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 23.916,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 1717 },
+      "error": null
+    },
+    {
+      "taskId": "G04",
+      "attempt": 1,
+      "apiTaskId": "3453a3ae-fb0d-4cdd-ad5f-fd09cdc0ef98",
+      "runId": "79d11820-8244-427a-b4d0-c523ff906de5",
+      "artifact": {
+        "id": "a27caa60-e4ed-4565-888d-ed732d9bd33d",
+        "version": 1,
+        "hash": "sha256:ea3fe21ed9074f9cccf65ea57e21a080c36e09c992b8feea348b13848d250a8a",
+        "bytes": 2510,
+        "chars": 938
+      },
+      "createdAt": "2026-11-01T00:09:08.890302+08:00",
+      "passed": true,
+      "failed": [],
+      "manual": [],
+      "checks": {
+        "sections_present": "pass",
+        "length_in_range": "pass",
+        "steps_numbered": "pass"
+      },
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 27.812,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 2045 },
+      "error": null
+    },
+    {
+      "taskId": "G04",
+      "attempt": 2,
+      "apiTaskId": "aca0f8ce-89ac-417d-a77d-e1631ce32694",
+      "runId": "ad6194c7-1b05-4664-9222-64d8e3e24dd2",
+      "artifact": {
+        "id": "e307f72f-0a5c-416d-b4ce-02b93d056a75",
+        "version": 1,
+        "hash": "sha256:6f4bda5df794db116f16b9f89ae70c0ec4bc9323f874af7aa70ba2a7d1b73417",
+        "bytes": 1790,
+        "chars": 672
+      },
+      "createdAt": "2026-11-01T00:09:36.509328+08:00",
+      "passed": true,
+      "failed": [],
+      "manual": [],
+      "checks": {
+        "sections_present": "pass",
+        "length_in_range": "pass",
+        "steps_numbered": "pass"
+      },
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 22.071,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 1633 },
+      "error": null
+    },
+    {
+      "taskId": "G04",
+      "attempt": 3,
+      "apiTaskId": "866a8188-e666-42f3-ac0c-b9f6f40dc1b0",
+      "runId": "5245afdd-0159-465a-baed-e24044490ab0",
+      "artifact": {
+        "id": "d2db79be-31d4-4135-bfad-33ebba976376",
+        "version": 1,
+        "hash": "sha256:6a0de8a5f3c85f8135fc491aa1107a42f251f62c621f11b52254a1c37e749468",
+        "bytes": 1847,
+        "chars": 685
+      },
+      "createdAt": "2026-11-01T00:10:00.805167+08:00",
+      "passed": true,
+      "failed": [],
+      "manual": [],
+      "checks": {
+        "sections_present": "pass",
+        "length_in_range": "pass",
+        "steps_numbered": "pass"
+      },
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 24.621,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 1443 },
+      "error": null
+    },
+    {
+      "taskId": "G05",
+      "attempt": 1,
+      "apiTaskId": "a0431b7d-e068-49df-b6bd-d3daf612aa65",
+      "runId": "39a58f68-fba6-41d1-a608-ab47ddedc8c1",
+      "artifact": {
+        "id": "c8bc73fe-1a59-4bfc-97cc-a07a4fe2cb85",
+        "version": 1,
+        "hash": "sha256:effe93bf3a7bf34f1370fbf2df144ba6a1934ab151af825d0084d76891adf101",
+        "bytes": 1160,
+        "chars": 428
+      },
+      "createdAt": "2026-11-01T00:16:35.637373+08:00",
+      "passed": true,
+      "failed": [],
+      "manual": ["todos_have_owner_role", "no_new_facts"],
+      "checks": {
+        "sections_present": "pass",
+        "length_in_range": "pass",
+        "todos_have_owner_role": "manual",
+        "no_new_facts": "manual"
+      },
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 16.708,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 3708 },
+      "error": null
+    },
+    {
+      "taskId": "G05",
+      "attempt": 2,
+      "apiTaskId": "3924b816-f5a8-44b1-8ba7-63df27f2487e",
+      "runId": "89773c99-e7aa-4b49-a108-7eb8d51d93d5",
+      "artifact": {
+        "id": "1094daa1-47ef-475e-99e4-d09bbaf23714",
+        "version": 1,
+        "hash": "sha256:24eb55b99d304d563710a16688f98c6369cf0fe3aa4ace73086654cfe21c15a8",
+        "bytes": 897,
+        "chars": 343
+      },
+      "createdAt": "2026-11-01T00:16:59.633465+08:00",
+      "passed": true,
+      "failed": [],
+      "manual": ["todos_have_owner_role", "no_new_facts"],
+      "checks": {
+        "sections_present": "pass",
+        "length_in_range": "pass",
+        "todos_have_owner_role": "manual",
+        "no_new_facts": "manual"
+      },
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 33.262,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 4505 },
+      "error": null
+    },
+    {
+      "taskId": "G05",
+      "attempt": 3,
+      "apiTaskId": "de7d87c8-70b6-405f-8591-97c1110be061",
+      "runId": "0c004719-d556-4292-af65-6e6347dff362",
+      "artifact": {
+        "id": "10fee3b1-b674-4711-87a6-21f1c62836b0",
+        "version": 1,
+        "hash": "sha256:6682c575c7bd56244fe3ba7b7e5876b49dc7153c2030535074f9017aeb39bacb",
+        "bytes": 1050,
+        "chars": 392
+      },
+      "createdAt": "2026-11-01T00:17:25.579913+08:00",
+      "passed": true,
+      "failed": [],
+      "manual": ["todos_have_owner_role", "no_new_facts"],
+      "checks": {
+        "sections_present": "pass",
+        "length_in_range": "pass",
+        "todos_have_owner_role": "manual",
+        "no_new_facts": "manual"
+      },
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 12.087,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 3334 },
+      "error": null
+    },
+    {
+      "taskId": "G06",
+      "attempt": 1,
+      "apiTaskId": "18c51e76-4d1b-4163-93a6-5b5f86be8930",
+      "runId": "ad0b27d8-885a-4fed-beae-748a69505fde",
+      "artifact": {
+        "id": "5fa43c8d-a1c4-47aa-b180-e0be8cd5d1f7",
+        "version": 1,
+        "hash": "sha256:ed608820e8c7b4c67298772f096c6059d3a45915939f7083099b5a9bf0b6369d",
+        "bytes": 945,
+        "chars": 339
+      },
+      "createdAt": "2026-11-01T00:11:36.542485+08:00",
+      "passed": true,
+      "failed": [],
+      "manual": ["no_new_facts"],
+      "checks": {
+        "sections_present": "pass",
+        "length_in_range": "pass",
+        "no_new_facts": "manual"
+      },
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 12.466,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 2607 },
+      "error": null
+    },
+    {
+      "taskId": "G06",
+      "attempt": 2,
+      "apiTaskId": "2150ea92-0899-4f66-861f-33d238aa8175",
+      "runId": "50e5ce8e-55dc-4f5f-81c0-0f9bc236fd17",
+      "artifact": {
+        "id": "aca17cb4-4a90-4e3c-a1de-2eb88b6aae83",
+        "version": 1,
+        "hash": "sha256:4bb1c479ed7b55ada54551017328b58f583a9db2b956dc7ea878e17c7d81a4e5",
+        "bytes": 936,
+        "chars": 336
+      },
+      "createdAt": "2026-11-01T00:12:00.634539+08:00",
+      "passed": true,
+      "failed": [],
+      "manual": ["no_new_facts"],
+      "checks": {
+        "sections_present": "pass",
+        "length_in_range": "pass",
+        "no_new_facts": "manual"
+      },
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 32.889,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 4358 },
+      "error": null
+    },
+    {
+      "taskId": "G06",
+      "attempt": 3,
+      "apiTaskId": "f0b8d7ca-8a29-43d5-9cc7-2f5550978139",
+      "runId": "d57d5fd8-2af6-4e5e-9de3-7eb481d95bd6",
+      "artifact": {
+        "id": "f8b28771-1a88-4696-a2ce-aa655580805d",
+        "version": 1,
+        "hash": "sha256:579d544b93f3989e98a8408b94c0297fa76b058c6baea85b2668f3d3212d1e39",
+        "bytes": 981,
+        "chars": 351
+      },
+      "createdAt": "2026-11-01T00:12:24.624756+08:00",
+      "passed": true,
+      "failed": [],
+      "manual": ["no_new_facts"],
+      "checks": {
+        "sections_present": "pass",
+        "length_in_range": "pass",
+        "no_new_facts": "manual"
+      },
+      "reviewerApproved": null,
+      "costCents": 0,
+      "endToEndSeconds": 17.645,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 3840 },
+      "error": null
+    }
+  ],
+  "manualAssessment": {
+    "note": "`no_named_people`, `todos_have_owner_role` and `no_new_facts` return 'manual' in pilot-ops.mjs and never fail automatically. The verdicts below are the operator's reading of the artifacts whose sha256 is recorded above.",
+    "no_named_people": {
+      "appliesTo": ["G03"],
+      "verdict": "pass",
+      "basis": "All three G03 artifacts use role labels only (培训负责人、课程经理、项目协调员、采购负责人、班主任、数据分析师、直线经理、预算负责人); no personal names."
+    },
+    "todos_have_owner_role": {
+      "appliesTo": ["G05"],
+      "verdict": "pass",
+      "basis": "Every todo in the three G05 artifacts carries a role prefix (研发负责人、测试负责人、项目经理、运营负责人). The first G05 pass (superseded, see below) had no owner role and failed this check on all three attempts."
+    },
+    "no_new_facts": {
+      "appliesTo": ["G05", "G06"],
+      "verdict": "pass",
+      "basis": "G06 artifacts restate only 客户A 登录步骤多与移动端加载慢 / 客户B 导出格式 / 客户C 权限与审计, and follow the ordering the background itself suggests. G05 artifacts restate the meeting record (core interfaces done, two high-priority defects, scope unchanged, training material, freeze this week, regression next week, supplier latency and data-migration window risks); the owner roles come from the background's participant list."
+    }
+  },
+  "supersededRuns": [
+    {
+      "taskId": "G05",
+      "attempt": 1,
+      "apiTaskId": "215035d0-836e-4126-942a-a8a3b5bf9c61",
+      "runId": "99fc39aa-3d5b-4ee7-94e8-dadbcb2059f9",
+      "artifact": {
+        "id": "cca599a3-5405-486c-badf-e68b1ed0edd6",
+        "version": 1,
+        "hash": "sha256:702aaf2e882ff94abf75c184f2a9c101eb814dc551040bcc8578b6c63ac7b75a",
+        "bytes": 918,
+        "chars": 342
+      },
+      "createdAt": "2026-11-01T00:10:24.538574+08:00",
+      "endToEndSeconds": 18.059,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 2767 },
+      "supersededReason": "G05 first pass had no owner role on the todos; manual check `todos_have_owner_role` failed on all three attempts. The three attempts were replaced by the owner-role run recorded in `runs`."
+    },
+    {
+      "taskId": "G05",
+      "attempt": 2,
+      "apiTaskId": "6a2d7da5-36e3-4f5e-9da6-85ebc06b589c",
+      "runId": "00183bea-388d-415f-a0bd-61e83841ecd6",
+      "artifact": {
+        "id": "40eaf2f6-5055-4590-bd5b-d16c4dcd726c",
+        "version": 1,
+        "hash": "sha256:686096c7005beed68ecd54f1eda0c62c6703ee15092d85cf09f215f5c9925911",
+        "bytes": 947,
+        "chars": 339
+      },
+      "createdAt": "2026-11-01T00:10:48.526302+08:00",
+      "endToEndSeconds": 24.55,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 3734 },
+      "supersededReason": "Same as G05 attempt 1."
+    },
+    {
+      "taskId": "G05",
+      "attempt": 3,
+      "apiTaskId": "de2ddb6d-e899-4255-800d-93de53b13eb1",
+      "runId": "171ef13f-503d-4c80-9f41-75ac17d05a7d",
+      "artifact": {
+        "id": "4c3930f9-c0f4-48a9-93d9-b736d0b93c43",
+        "version": 1,
+        "hash": "sha256:77bc48dbe3c109be79a05fc3a220012832e4f1fe72716fd03fb8d32581a5c352",
+        "bytes": 832,
+        "chars": 316
+      },
+      "createdAt": "2026-11-01T00:11:12.546976+08:00",
+      "endToEndSeconds": 28.683,
+      "displayState": "awaiting_acceptance",
+      "runState": "succeeded",
+      "quota": { "reservedTokens": 0, "settledTokens": 4318 },
+      "supersededReason": "Same as G05 attempt 1."
+    }
+  ],
+  "orgSideEffects": {
+    "note": "Task inventory read back from GET /work/v1/tasks (paged, 144 tasks total) after the suite.",
+    "evidenceTaskStates": "All 18 evidence tasks: display_state=awaiting_acceptance, latest_run.state=succeeded, quota.reserved_tokens=0, quota.settled_tokens recorded.",
+    "heldReservations": {
+      "count": 9,
+      "tokensEach": 100000,
+      "totalTokens": 900000,
+      "states": { "running": 7, "failed": 2 },
+      "createdAtRange": "2026-10-30T11:03:04+08:00 .. 2026-10-30T12:31:58+08:00",
+      "note": "All nine pre-date this suite and were left untouched. The two `failed` ones are the orphans closed on 2026-10-31 via finish_run(...,'failed',...): their task is closed and active_run_id is null, but the reservation was never released."
+    },
+    "additionalTasksCreatedDuringTheSession": {
+      "count": 45,
+      "breakdown": "18 (exploratory full pass with a generic background) + 6 (partial pass, G01/G02 only; the remaining 12 attempts were rejected by the API and created nothing) + 18 (the evidence pass, of which 3 are the superseded G05 runs) + 3 (the G05 owner-role rerun).",
+      "state": "All are ordinary user tasks with reserved_tokens=0; none was canceled or deleted."
+    }
+  }
+}

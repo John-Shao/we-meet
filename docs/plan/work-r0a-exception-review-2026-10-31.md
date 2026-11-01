@@ -52,7 +52,7 @@
 - 通知/外部链接不能直接打开某个成果版本；移动端也没有成果深链。
 - 若需要从通知跳转到成果、跨任务引用成果或对外分享，本简化失效。
 
-**2026-10-31 补齐（本地实现，待部署）**
+**2026-10-31 补齐（已实现并发布，部署证据见本节末尾）**
 - Go API 新增任务级只读路由：`GET /work/v1/tasks/{taskId}/artifacts/{artifactId}`（任务摘要 + 版本列表 + 已采纳版本）、`GET .../versions/{versionNo}`、`GET .../versions/{versionNo}/content`。
 - 深链权限在 SQL 层同时校验组织、任务 owner、`artifact.task_id = taskId`、artifact/version 已发布；跨任务、非 owner、跨组织、staged 版本统一返回 404 `artifact_not_found`，正文仍校验 Content Store 的 hash 与字节数。
 - 前端新增独立页面 `/work/items/:taskId/artifacts/:artifactId`，支持 `?version=`、版本列表与采纳标记、Markdown/文本预览、下载、按版本采纳、移动端只读；任务工作区成果面板新增“打开成果工作区”入口。

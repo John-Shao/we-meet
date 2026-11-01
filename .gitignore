@@ -113,6 +113,7 @@ src/helm/env.d/aliyun-prod/values.work.yaml.tmp
 /src/work/work-directory-sync
 /src/work/work-egress
 /src/work/work-e2e-seed
+/src/work/work-export
 /src/work/work-migrate
 /src/work/work-provider-setup
 /src/work/work-reconcile

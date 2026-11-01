@@ -86,7 +86,7 @@ if (!/^https?:\/\/[^/]+$/.test(baseUrl)) {
 const apiRoot = `${baseUrl}/work/v1`
 let csrfToken = process.env.WORK_PILOT_CSRF_TOKEN || ''
 
-const jsonRequest = async (method, route, body) => {
+const jsonRequest = async (method, route, body, retried = false) => {
   const headers = { Cookie: cookie, Accept: 'application/json' }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   if (method !== 'GET' && csrfToken) headers['X-CSRF-Token'] = csrfToken
@@ -106,6 +106,13 @@ const jsonRequest = async (method, route, body) => {
   }
   if (!response.ok) {
     const code = data?.error?.code ?? data?.code ?? `http_${response.status}`
+    // The signed token embeds the session revision, so a long suite can outlive
+    // it. Re-bootstrap once and replay the request with the fresh token.
+    if (method !== 'GET' && code === 'csrf_invalid' && !retried) {
+      const refreshed = await jsonRequest('GET', '/bootstrap')
+      csrfToken = refreshed.csrf_token
+      if (csrfToken) return jsonRequest(method, route, body, true)
+    }
     throw new Error(code)
   }
   return data
@@ -161,6 +168,13 @@ const sectionsInstruction = (sections) =>
 const lengthInstruction = ([min, max]) =>
   `\n\n正文（Markdown 源码）请控制在 ${min}–${max} 个字符之间，不要超过 ${max} 个字符。`
 
+// `todos_have_owner_role` is a golden check the flat Work API cannot express,
+// so the goal has to carry it, the same way sections and length do.
+const ownerRoleInstruction = (task) =>
+  task.checks.includes('todos_have_owner_role')
+    ? '\n\n待办每条请标注负责人角色（如项目经理、产品负责人），不要出现真实人名。'
+    : ''
+
 const BACKGROUNDS = {
   G01: '合成背景：公司目前使用一套内部报销工具，员工提交纸质或表格申请，财务人工核对发票和预算。常见问题包括重复录入、审批链不透明、移动端体验差、月末集中提交导致积压。部门负责人关注改版后能否减少财务工作量、缩短报销周期并保留审计记录。现有系统与考勤、采购和财务共享中心有接口，改造需要评估数据迁移、权限分离和培训成本。',
   G02: '合成背景：客服团队当前采用固定早中晚三班，每班人数按历史来电量估算。高峰期等待时长上升，夜间人力闲置；临时调班依赖主管手工协调。可选方案包括固定班、弹性班、按小时排班和外包峰值支援。约束包括劳动时长合规、培训周期、系统排班接口和员工公平感。管理层希望比较两种主要排班方式的优缺点，并给出可执行建议。',
@@ -186,7 +200,7 @@ for (const task of GOLDEN.tasks) {
       await paceSubmit()
       const input = await jsonRequest('POST', '/inputs', {
         client_request_id: requestId(),
-        goal: `${task.goal}${sectionsInstruction(task.required_sections)}${lengthInstruction(task.length_chars)}`,
+        goal: `${task.goal}${sectionsInstruction(task.required_sections)}${lengthInstruction(task.length_chars)}${ownerRoleInstruction(task)}`,
         background: backgroundFor(task),
       })
       const templateId = TEMPLATE_MAP[task.template]

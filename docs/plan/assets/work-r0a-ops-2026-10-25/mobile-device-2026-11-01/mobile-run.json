@@ -1,0 +1,548 @@
+{
+  "ok": true,
+  "generatedAt": "2026-11-01T07:57:03.694Z",
+  "device": {
+    "model": "AMM-AN00",
+    "os": "Android 16 (SDK 36)",
+    "physical": "1200x2664",
+    "density": 520
+  },
+  "transport": "adb forward tcp:9222 localabstract:chrome_devtools_remote -> Playwright connectOverCDP (real device Chrome 138)",
+  "session": {
+    "status": 200,
+    "member": null,
+    "org": {
+      "name": "Default Organization"
+    },
+    "hasCsrf": true
+  },
+  "sampledTasks": [
+    {
+      "id": "de7d87c8-70b6-405f-8591-97c1110be061",
+      "state": "awaiting_acceptance",
+      "runState": "succeeded",
+      "artifact": "10fee3b1-b674-4711-87a6-21f1c62836b0"
+    },
+    {
+      "id": "3924b816-f5a8-44b1-8ba7-63df27f2487e",
+      "state": "awaiting_acceptance",
+      "runState": "succeeded",
+      "artifact": "1094daa1-47ef-475e-99e4-d09bbaf23714"
+    },
+    {
+      "id": "a0431b7d-e068-49df-b6bd-d3daf612aa65",
+      "state": "awaiting_acceptance",
+      "runState": "succeeded",
+      "artifact": "c8bc73fe-1a59-4bfc-97cc-a07a4fe2cb85"
+    },
+    {
+      "id": "f0b8d7ca-8a29-43d5-9cc7-2f5550978139",
+      "state": "awaiting_acceptance",
+      "runState": "succeeded",
+      "artifact": "f8b28771-1a88-4696-a2ce-aa655580805d"
+    }
+  ],
+  "deepLink": {
+    "id": "de7d87c8-70b6-405f-8591-97c1110be061",
+    "state": "awaiting_acceptance",
+    "runState": "succeeded",
+    "artifact": "10fee3b1-b674-4711-87a6-21f1c62836b0"
+  },
+  "results": [
+    {
+      "name": "m-home",
+      "route": "/work",
+      "href": "https://meet.we-meet.online/work",
+      "innerWidth": 369,
+      "readOnlyMedia": true,
+      "textareaCount": 0,
+      "textareasVisible": 0,
+      "buttons": [
+        "查看全部工作"
+      ],
+      "links": [
+        {
+          "t": "跳到主内容",
+          "h": "#main-content"
+        },
+        {
+          "t": "日历",
+          "h": "/calendar"
+        },
+        {
+          "t": "任务",
+          "h": "/tasks"
+        },
+        {
+          "t": "审批",
+          "h": "/approval"
+        },
+        {
+          "t": "首页",
+          "h": "/work"
+        },
+        {
+          "t": "我的工作",
+          "h": "/work/items?view=all"
+        },
+        {
+          "t": "历史",
+          "h": "/work/archive"
+        },
+        {
+          "t": "管理",
+          "h": "/admin/work"
+        },
+        {
+          "t": "查看全部工作",
+          "h": "/work/items?view=all"
+        },
+        {
+          "t": "把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:17 执行：已成功 成果 v1",
+          "h": "/work/items/de7d87c8-70b6-405f-8591-97c1110be061"
+        },
+        {
+          "t": "把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:17 执行：已成功 成果 v1",
+          "h": "/work/items/3924b816-f5a8-44b1-8ba7-63df27f2487e"
+        },
+        {
+          "t": "把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:16 执行：已成功 成果 v1",
+          "h": "/work/items/a0431b7d-e068-49df-b6bd-d3daf612aa65"
+        },
+        {
+          "t": "查看全部工作",
+          "h": "/work/items?view=all"
+        }
+      ],
+      "headings": [
+        "让工作从一句话开始",
+        "最近工作"
+      ],
+      "body": "跳到主内容 日历 任务 审批 工作 首页 我的工作 历史 管理 Default Organization WORK 让工作从一句话开始 描述目标，Work 会整理执行过程并把成果交还给你。 查看全部工作 创建任务需要更宽的屏幕，请在平板或电脑上新建工作。 最近工作 把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:17 执行：已成功 成果 v1 把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:17 执行：已成功 成果 v1 把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:16 执行：",
+      "overflowX": 0,
+      "shotBytes": 287652
+    },
+    {
+      "name": "m-new",
+      "route": "/work/new",
+      "href": "https://meet.we-meet.online/work/new",
+      "innerWidth": 369,
+      "readOnlyMedia": true,
+      "textareaCount": 0,
+      "textareasVisible": 0,
+      "buttons": [
+        "查看全部工作"
+      ],
+      "links": [
+        {
+          "t": "跳到主内容",
+          "h": "#main-content"
+        },
+        {
+          "t": "日历",
+          "h": "/calendar"
+        },
+        {
+          "t": "任务",
+          "h": "/tasks"
+        },
+        {
+          "t": "审批",
+          "h": "/approval"
+        },
+        {
+          "t": "首页",
+          "h": "/work"
+        },
+        {
+          "t": "我的工作",
+          "h": "/work/items?view=all"
+        },
+        {
+          "t": "历史",
+          "h": "/work/archive"
+        },
+        {
+          "t": "管理",
+          "h": "/admin/work"
+        },
+        {
+          "t": "查看全部工作",
+          "h": "/work/items?view=all"
+        },
+        {
+          "t": "把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:17 执行：已成功 成果 v1",
+          "h": "/work/items/de7d87c8-70b6-405f-8591-97c1110be061"
+        },
+        {
+          "t": "把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:17 执行：已成功 成果 v1",
+          "h": "/work/items/3924b816-f5a8-44b1-8ba7-63df27f2487e"
+        },
+        {
+          "t": "把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:16 执行：已成功 成果 v1",
+          "h": "/work/items/a0431b7d-e068-49df-b6bd-d3daf612aa65"
+        },
+        {
+          "t": "查看全部工作",
+          "h": "/work/items?view=all"
+        }
+      ],
+      "headings": [
+        "让工作从一句话开始",
+        "最近工作"
+      ],
+      "body": "跳到主内容 日历 任务 审批 工作 首页 我的工作 历史 管理 Default Organization WORK 让工作从一句话开始 描述目标，Work 会整理执行过程并把成果交还给你。 查看全部工作 创建任务需要更宽的屏幕，请在平板或电脑上新建工作。 最近工作 把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:17 执行：已成功 成果 v1 把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:17 执行：已成功 成果 v1 把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:16 执行：",
+      "overflowX": 0,
+      "shotBytes": 286974
+    },
+    {
+      "name": "m-items",
+      "route": "/work/items",
+      "href": "https://meet.we-meet.online/work/items",
+      "innerWidth": 369,
+      "readOnlyMedia": true,
+      "textareaCount": 0,
+      "textareasVisible": 0,
+      "buttons": [
+        "加载更多"
+      ],
+      "links": [
+        {
+          "t": "跳到主内容",
+          "h": "#main-content"
+        },
+        {
+          "t": "日历",
+          "h": "/calendar"
+        },
+        {
+          "t": "任务",
+          "h": "/tasks"
+        },
+        {
+          "t": "审批",
+          "h": "/approval"
+        },
+        {
+          "t": "首页",
+          "h": "/work"
+        },
+        {
+          "t": "我的工作",
+          "h": "/work/items?view=all"
+        },
+        {
+          "t": "历史",
+          "h": "/work/archive"
+        },
+        {
+          "t": "管理",
+          "h": "/admin/work"
+        },
+        {
+          "t": "待开始",
+          "h": "/work/items?view=pending"
+        },
+        {
+          "t": "进行中",
+          "h": "/work/items?view=running"
+        },
+        {
+          "t": "待验收",
+          "h": "/work/items?view=awaiting_acceptance"
+        },
+        {
+          "t": "已完成",
+          "h": "/work/items?view=completed"
+        },
+        {
+          "t": "全部",
+          "h": "/work/items?view=all"
+        },
+        {
+          "t": "把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:17 执行：已成功 成果 v1",
+          "h": "/work/items/de7d87c8-70b6-405f-8591-97c1110be061"
+        },
+        {
+          "t": "把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:17 执行：已成功 成果 v1",
+          "h": "/work/items/3924b816-f5a8-44b1-8ba7-63df27f2487e"
+        },
+        {
+          "t": "把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:16 执行：已成功 成果 v1",
+          "h": "/work/items/a0431b7d-e068-49df-b6bd-d3daf612aa65"
+        },
+        {
+          "t": "把客户反馈汇总成三条主要问题和建议的处理 待验收 更新于 2026年11月1日 00:12 执行：已成功 成果 v1",
+          "h": "/work/items/f0b8d7ca-8a29-43d5-9cc7-2f5550978139"
+        },
+        {
+          "t": "把客户反馈汇总成三条主要问题和建议的处理 待验收 更新于 2026年11月1日 00:12 执行：已成功 成果 v1",
+          "h": "/work/items/2150ea92-0899-4f66-861f-33d238aa8175"
+        },
+        {
+          "t": "把客户反馈汇总成三条主要问题和建议的处理 待验收 更新于 2026年11月1日 00:11 执行：已成功 成果 v1",
+          "h": "/work/items/18c51e76-4d1b-4163-93a6-5b5f86be8930"
+        },
+        {
+          "t": "把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:11 执行：已成功 成果 v1",
+          "h": "/work/items/de2ddb6d-e899-4255-800d-93de53b13eb1"
+        },
+        {
+          "t": "把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:11 执行：已成功 成果 v1",
+          "h": "/work/items/6a2d7da5-36e3-4f5e-9da6-85ebc06b589c"
+        },
+        {
+          "t": "把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:10 执行：已成功 成果 v1",
+          "h": "/work/items/215035d0-836e-4126-942a-a8a3b5bf9c61"
+        },
+        {
+          "t": "为一次办公室搬迁列出两周内的准备清单。 待验收 更新于 2026年11月1日 00:10 执行：已成功 成果 v1",
+          "h": "/work/items/866a8188-e666-42f3-ac0c-b9f6f40dc1b0"
+        },
+        {
+          "t": "为一次办公室搬迁列出两周内的准备清单。 待验收 更新于 2026年11月1日 00:09 执行：已成功 成果 v1",
+          "h": "/work/items/aca0f8ce-89ac-417d-a77d-e1631ce32694"
+        },
+        {
+          "t": "为一次办公室搬迁列出两周内的准备清单。 待验收 更新于 2026年11月1日 00:09 执行：已成功 成果 v1",
+          "h": "/work/items/3453a3ae-fb0d-4cdd-ad5f-fd09cdc0ef98"
+        },
+        {
+          "t": "把季度培训计划拆成可执行步骤、负责人角色 待验收 更新于 2026年11月1日 00:09 执行：已成功 成果 v1",
+          "h": "/work/items/d69753ed-85a1-426f-abad-da4fe45404f2"
+        },
+        {
+          "t": "把季度培训计划拆成可执行步骤、负责人角色 待验收 更新于 2026年11月1日 00:08 执行：已成功 成果 v1",
+          "h": "/work/items/538f8891-f7f3-485e-9647-0e0a5b4e2f6f"
+        },
+        {
+          "t": "把季度培训计划拆成可执行步骤、负责人角色 待验收 更新于 2026年11月1日 00:08 执行：已成功 成果 v1",
+          "h": "/work/items/021d3ea6-0a1a-4a69-a59c-f37dffe9ba88"
+        },
+        {
+          "t": "比较两种客服排班方式的优缺点并给出建议。 待验收 更新于 2026年11月1日 00:07 执行：已成功 成果 v1",
+          "h": "/work/items/b4222949-c96b-4a00-9a6e-71e8f222c5e6"
+        },
+        {
+          "t": "比较两种客服排班方式的优缺点并给出建议。 待验收 更新于 2026年11月1日 00:07 执行：已成功 成果 v1",
+          "h": "/work/items/75510d08-a87a-4ee8-a6b4-2339d7bee636"
+        }
+      ],
+      "headings": [
+        "我的工作"
+      ],
+      "body": "跳到主内容 日历 任务 审批 工作 首页 我的工作 历史 管理 Default Organization 我的工作 只显示你有权访问的任务。 待开始 进行中 待验收 已完成 全部 把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:17 执行：已成功 成果 v1 把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:17 执行：已成功 成果 v1 把一段项目周会记录整理成结论、依据和待办 待验收 更新于 2026年11月1日 00:16 执行：已成功 成果 v1 把客户反馈汇总成三条主要问题和建议的处理 待验收 更新于 2026",
+      "overflowX": 0,
+      "shotBytes": 297721
+    },
+    {
+      "name": "m-archive",
+      "route": "/work/archive",
+      "href": "https://meet.we-meet.online/work/archive",
+      "innerWidth": 369,
+      "readOnlyMedia": true,
+      "textareaCount": 0,
+      "textareasVisible": 0,
+      "buttons": [],
+      "links": [
+        {
+          "t": "跳到主内容",
+          "h": "#main-content"
+        },
+        {
+          "t": "日历",
+          "h": "/calendar"
+        },
+        {
+          "t": "任务",
+          "h": "/tasks"
+        },
+        {
+          "t": "审批",
+          "h": "/approval"
+        },
+        {
+          "t": "首页",
+          "h": "/work"
+        },
+        {
+          "t": "我的工作",
+          "h": "/work/items?view=all"
+        },
+        {
+          "t": "历史",
+          "h": "/work/archive"
+        },
+        {
+          "t": "管理",
+          "h": "/admin/work"
+        }
+      ],
+      "headings": [
+        "历史工作",
+        "暂无历史工作"
+      ],
+      "body": "跳到主内容 日历 任务 审批 工作 首页 我的工作 历史 管理 Default Organization 历史工作 只读查看已归档或旧记录。 暂无历史工作 已归档或旧记录会显示在这里。 历史页只读，不在这里创建新工作。",
+      "overflowX": 0,
+      "shotBytes": 175489
+    },
+    {
+      "name": "m-task",
+      "route": "/work/items/de7d87c8-70b6-405f-8591-97c1110be061",
+      "href": "https://meet.we-meet.online/work/items/de7d87c8-70b6-405f-8591-97c1110be061",
+      "innerWidth": 369,
+      "readOnlyMedia": true,
+      "textareaCount": 0,
+      "textareasVisible": 0,
+      "buttons": [
+        "查看成果"
+      ],
+      "links": [
+        {
+          "t": "跳到主内容",
+          "h": "#main-content"
+        },
+        {
+          "t": "日历",
+          "h": "/calendar"
+        },
+        {
+          "t": "任务",
+          "h": "/tasks"
+        },
+        {
+          "t": "审批",
+          "h": "/approval"
+        },
+        {
+          "t": "首页",
+          "h": "/work"
+        },
+        {
+          "t": "我的工作",
+          "h": "/work/items?view=all"
+        },
+        {
+          "t": "历史",
+          "h": "/work/archive"
+        },
+        {
+          "t": "管理",
+          "h": "/admin/work"
+        },
+        {
+          "t": "返回我的工作",
+          "h": "/work/items?view=all"
+        },
+        {
+          "t": "下载 Markdown",
+          "h": "/work/v1/tasks/de7d87c8-70b6-405f-8591-97c1110be061/artifacts/10fee3b1-b674-4711-87a6-21f1c62836b0/versions/1/content?disposition=attachment"
+        },
+        {
+          "t": "打开成果工作区",
+          "h": "/work/items/de7d87c8-70b6-405f-8591-97c1110be061/artifacts/10fee3b1-b674-4711-87a6-21f1c62836b0?version=1"
+        }
+      ],
+      "headings": [
+        "把一段项目周会记录整理成结论、依据和待办",
+        "目标",
+        "背景",
+        "执行时间线",
+        "执行",
+        "Token 配额",
+        "能力快照",
+        "最新成果"
+      ],
+      "body": "跳到主内容 日历 任务 审批 工作 首页 我的工作 历史 管理 Default Organization 返回我的工作 移动端为只读模式：可查看目标、时间线和成果；创建、编辑、采纳、取消和重试请使用更宽的屏幕。 把一段项目周会记录整理成结论、依据和待办 待验收 修订 2 第 1 次执行 目标 把一段项目周会记录整理成结论、依据和待办。 请严格按以下 Markdown 章节输出： ## 结论 ## 依据 ## 待办 需要列举步骤时使用编号列表。 正文（Markdown 源码）请控制在 300–1500 个字符之间，不要超过 1500 个字符。 待办每条请标注负责人角色（如项目经理、产品负责人），",
+      "overflowX": 0,
+      "shotBytes": 334515
+    },
+    {
+      "name": "m-artifact",
+      "route": "/work/items/de7d87c8-70b6-405f-8591-97c1110be061/artifacts/10fee3b1-b674-4711-87a6-21f1c62836b0?version=1",
+      "href": "https://meet.we-meet.online/work/items/de7d87c8-70b6-405f-8591-97c1110be061/artifacts/10fee3b1-b674-4711-87a6-21f1c62836b0?version=1",
+      "innerWidth": 369,
+      "readOnlyMedia": true,
+      "textareaCount": 0,
+      "textareasVisible": 0,
+      "buttons": [
+        "版本 v1 版本 v1 · sha256:6682c… · 1050 字节 2026/11/1 00:17:36"
+      ],
+      "links": [
+        {
+          "t": "跳到主内容",
+          "h": "#main-content"
+        },
+        {
+          "t": "日历",
+          "h": "/calendar"
+        },
+        {
+          "t": "任务",
+          "h": "/tasks"
+        },
+        {
+          "t": "审批",
+          "h": "/approval"
+        },
+        {
+          "t": "首页",
+          "h": "/work"
+        },
+        {
+          "t": "我的工作",
+          "h": "/work/items?view=all"
+        },
+        {
+          "t": "历史",
+          "h": "/work/archive"
+        },
+        {
+          "t": "管理",
+          "h": "/admin/work"
+        },
+        {
+          "t": "返回任务",
+          "h": "/work/items/de7d87c8-70b6-405f-8591-97c1110be061"
+        },
+        {
+          "t": "下载 Markdown",
+          "h": "/work/v1/tasks/de7d87c8-70b6-405f-8591-97c1110be061/artifacts/10fee3b1-b674-4711-87a6-21f1c62836b0/versions/1/content?disposition=attachment"
+        }
+      ],
+      "headings": [
+        "把一段项目周会记录整理成结论、依据和待办",
+        "成果预览",
+        "结论",
+        "依据",
+        "待办",
+        "版本列表"
+      ],
+      "body": "跳到主内容 日历 任务 审批 工作 首页 我的工作 历史 管理 Default Organization 返回任务 移动端为只读模式：可查看与下载成果，采纳请在更宽的屏幕操作。 成果工作区 把一段项目周会记录整理成结论、依据和待办 待验收 版本 v1 成果预览 下载 Markdown 版本 v1 · sha256:6682c575c… · 1050 字节 结论 本周项目进入需求冻结与回归准备阶段，新流程本季度上线目标保持不变；核心接口已完成，但两个高优先级缺陷和供应商/数据迁移风险需在上线前闭环。 依据 研发报告核心接口已完成。 测试发现两个高优先级缺陷。 产品确认范围不变。 运营准备培训材料",
+      "overflowX": 0,
+      "shotBytes": 348824
+    },
+    {
+      "name": "m-admin",
+      "route": "/admin/work",
+      "href": "https://meet.we-meet.online/admin/work",
+      "innerWidth": 369,
+      "readOnlyMedia": true,
+      "textareaCount": 0,
+      "textareasVisible": 0,
+      "buttons": [
+        "创建导出"
+      ],
+      "links": [],
+      "headings": [
+        "管理工作",
+        "组织概览",
+        "席位列表",
+        "审计导出"
+      ],
+      "body": "管理工作 只读查看组织席位、配额与审计导出。 组织概览 组织 Default Organization 席位 1 / 14 已结算 / 配额（Token） 0 / 0 预留 Token 0 配额执行 soft 审计留存 365 天 席位列表 成员 角色 状态 Work 席位 03a7c56e-91f4-4ab5-a809-2b9fde3cee30 member active 否 0c80fe6a-11a7-4266-8b8c-38936d5160bf member active 否 10c1c272-ea8f-4ba9-992a-507b3fce7f27 member active 否 116",
+      "overflowX": 0,
+      "shotBytes": 239052
+    }
+  ]
+}

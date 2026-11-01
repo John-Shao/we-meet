@@ -36,7 +36,7 @@ const json = (response, status, value) => {
 }
 
 test('golden runner uses the current flat Work API contract', async () => {
-  const calls = { inputs: 0, previews: 0, submits: 0, polls: 0, contents: 0 }
+  const calls = { inputs: 0, previews: 0, submits: 0, polls: 0, contents: 0, goals: [] }
   const requests = []
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url, 'http://127.0.0.1')
@@ -59,6 +59,7 @@ test('golden runner uses the current flat Work API contract', async () => {
       )
       assert.match(body.goal, /^## /m)
       assert.match(body.goal, /个字符之间/)
+      calls.goals.push(body.goal)
       calls.inputs += 1
       return json(response, 201, { input_ref: UUID })
     }
@@ -126,6 +127,15 @@ test('golden runner uses the current flat Work API contract', async () => {
     assert.equal(calls.contents, calls.inputs)
     assert.ok(calls.polls >= calls.inputs)
     assert.ok(requests.every((request) => !request.path.includes('/v1/task-previews/intent')))
+    // `todos_have_owner_role` must reach the goal only for the tasks that check it.
+    for (const task of GOLDEN.tasks) {
+      const mine = calls.goals.filter((goal) => goal.startsWith(task.goal))
+      assert.equal(mine.length, GOLDEN.pass_rule.runs_per_task, `missing goals for ${task.id}`)
+      const expected = task.checks.includes('todos_have_owner_role')
+      for (const goal of mine) {
+        assert.equal(goal.includes('待办每条请标注负责人角色'), expected, `owner role hint mismatch for ${task.id}`)
+      }
+    }
   } finally {
     if (typeof server.closeAllConnections === 'function') server.closeAllConnections()
     await new Promise((resolve) => server.close(resolve))
