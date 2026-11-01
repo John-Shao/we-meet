@@ -1,7 +1,7 @@
 {
   "version": "r0a-v1",
   "scope": "R0a 3-org pilot",
-  "lastReview": "2026-10-25",
+  "lastReview": "2026-11-01",
   "categories": [
     "design",
     "implementation",
@@ -74,13 +74,16 @@
       "category": "design",
       "title": "D5 frontend design reviewed",
       "owner": "frontend + product",
-      "status": "partial",
+      "status": "done",
       "blocking": true,
       "gate": "start",
       "evidence": [
-        "D5 design + UI model 14/14, 174 copy keys"
+        "D5 design + UI model 14/14, 174 copy keys",
+        "seven routes implemented in src/frontend/src/features/work/r0a (WorkApp.tsx:124-133): /work, /work/new, /work/items, /work/items/:taskId, /work/items/:taskId/artifacts/:artifactId, /work/archive, /admin/work",
+        "Work unit suite 67/67 (2026-11-01); meet frontend suite 1773/1773",
+        "production browser acceptance for archive page (Helm 523), admin page (526) and artifact deep link (527)"
       ],
-      "note": "No React pages/E2E."
+      "note": "Design review plus shipped pages: C05 is closed. Mobile read-only contract additionally verified on a real HONOR AMM-AN00 (CSS 369px) on 2026-11-01."
     },
     {
       "id": "C06",
@@ -107,10 +110,10 @@
       "gate": "pilot",
       "evidence": [
         "generated runtime client 12/12: 25 operations, CSRF/SSE/error mapping",
-        "ci-contract.mjs 32 checks; design package 31/31",
-        "workflow .github/workflows/work-r0a-gates.yml defines 6 jobs incl. races + promtool"
+        "ci-contract.mjs checks; Work R0a gates and Release guard observed success on remote runs (e.g. 2026-11-01 runs 41290938793 / 41290938850)",
+        "hand-written frontend client src/features/work/r0a/api/client.ts covered by client.test.ts against the flat /work/v1 surface"
       ],
-      "note": "Remote CI run not observed (gates fire only on PR or aliyun-dev push); client not wired into a real frontend."
+      "note": "Remote CI is now observed green repeatedly, so the earlier \"no remote run\" gap is closed. Still partial: the generated client is not what the frontend ships (a hand-written client is), so generated-client drift is only covered by contract tests, not by real usage."
     },
     {
       "id": "C08",
@@ -136,22 +139,29 @@
       "blocking": true,
       "gate": "pilot",
       "evidence": [
-        "runc reduced-profile sandbox smoke",
-        "local KMS envelope 6/6",
-        "real Qwen smoke 200"
+        "runc reduced-profile sandbox smoke (C14 signed no-claim; sandboxProof stays false)",
+        "landed Go services in production: work-authz 8443, work-content-proxy 8444, work-egress 8445, work-runtime 8446 (loopback only, mTLS)",
+        "real provider E2E through egress: 18 golden runs on 2026-11-01, 45,549 tokens settled, artifacts published and hashed",
+        "content-proxy checkpoint route covered by a real PG+HTTP end-to-end case (reserve -> Put -> commit -> read back, 2026-10-31)"
       ],
-      "note": "No gVisor, real Content Store, cloud KMS or gateway/Temporal provider integration yet."
+      "note": "Integration now exists and runs in production, so the old \"no Content Store / no egress integration\" note is superseded. Two gaps keep this partial: (1) work-content-proxy has served zero production requests since 2026-10-31 00:09 (journal line count 5), i.e. the child-side candidate/checkpoint write has no caller — decision pending in docs/plan/work-r0a-checkpoint-writer-decision-2026-11-01.md; (2) storage is a local Content Store directory with a local master key, not a cloud KMS-backed store."
     },
     {
       "id": "C10",
       "category": "implementation",
       "title": "D5 React pages, React Query and SSE E2E",
       "owner": "frontend",
-      "status": "todo",
+      "status": "done",
       "blocking": true,
       "gate": "pilot",
-      "evidence": [],
-      "note": "No Playwright/visual/a11y run."
+      "evidence": [
+        "React pages + React Query for all seven D5 routes (routes/*.tsx with co-located tests)",
+        "SSE: production browser captured live incremental events on one page without reload (task 140fda90…, events #0/#2 growing to #3-#6, 2026-10-30)",
+        "Playwright: e2e/work-r0a-consistency.spec.ts (golden path incl. gap event, reconnect cursor, 409 stream rejection, delayed-request preview invalidation) and e2e/work-r0a-admin-mobile.spec.ts (369px and 1280px)",
+        "a11y: e2e/work-a11y.spec.ts fixed and meet Workflow green including test-e2e (run 41290938804, 2026-11-01)",
+        "real-device mobile verification 2026-11-01 with post-release re-check on Helm revision 528"
+      ],
+      "note": "Closed. Remaining frontend evidence limits are recorded elsewhere: visual snapshots cover meet task views rather than Work views, and iOS/Safari plus the 768-1023px tablet breakpoint are untested on device."
     },
     {
       "id": "C11",
@@ -193,9 +203,11 @@
       "gate": "pilot",
       "evidence": [
         "D1 static single-layer credential encryption (global master key + per-org derivation)",
-        "D-08b credential path signed 2026-10-27"
+        "D-08b credential path signed 2026-10-27",
+        "Content Store implemented: AES-256-GCM local backend with per-organization derived key, no host path exposed (src/work/internal/content/local.go)",
+        "Content Store tests: round-trip + tenant isolation, tampered-object rejection + delete, master-key encoding (src/work/internal/content/local_test.go, 3/3)"
       ],
-      "note": "D-03 B 定为静态单层加密，不使用云 KMS/HSM；Content Store 实现待 E5。"
+      "note": "D-03 B 定为静态单层加密，不使用云 KMS/HSM。Content Store 已实现并有单测（原「待 E5」过期，2026-11-01 按代码更正）。仍留 partial：主密钥是进程侧文件、无托管 KMS，密钥轮换未在真实环境演练，试点目录外没有对象存储后端与规模化擦除证据。"
     },
     {
       "id": "C14",
@@ -378,11 +390,11 @@
       "blocking": true,
       "gate": "pilot",
       "evidence": [
-        "golden-tasks.json (6 tasks)",
-        "pilot-metrics.json",
-        "pilot-ops.test.mjs"
+        "golden-tasks.json (6 tasks) + pilot-ops.mjs evaluator (sha256 pinned, fetched from commit 41f0bb28…)",
+        "E8 live run 2026-11-01: 18/18 succeeded, passRatio=1, p95=33.262s, passed=true, 45,549 tokens settled, zero held reservations left by the suite",
+        "evidence: docs/plan/assets/work-r0a-ops-2026-10-25/e8-golden-2026-11-01/ (README.md + pilot-run.json, per-run artifact hashes re-verified client-side)"
       ],
-      "note": "Definitions and evaluator done; no real pilot run or dashboard."
+      "note": "The technical-success half is now measured on production. Still partial because activation and acceptance metrics need real pilot users: the 18 evidence tasks sit at awaiting_acceptance (not accepted), the transport was same-origin browser fetch rather than the Node cookie runner, and the three manual checks are self-decided (no independent reviewer since 2026-11-01)."
     },
     {
       "id": "C27",
@@ -408,10 +420,11 @@
       "gate": "pilot",
       "evidence": [
         "D5 routes/legacy tests",
-        "D6 cutover plan",
-        "cutover-plan.json state machine + pilot-ops tests"
+        "cutover-plan.json state machine + pilot-ops tests",
+        "legacy notice shipped and browser-verified: old /work?task= redirects to /work/archive?legacyTask=… with a read-only notice (frontend 645460d5b, Helm 523)",
+        "rollback exercised in practice: partial frontend releases 521-528 with named rollback tags recorded in the status source"
       ],
-      "note": "No real old-link/flag/rollback drill."
+      "note": "Cutover and legacy notice are real. Still open: the tenant-access org flag is not enabled, so the flag path has not been flipped on production, and no single end-to-end cutover drill has been timed."
     },
     {
       "id": "C29",
@@ -423,10 +436,10 @@
       "gate": "pilot",
       "evidence": [
         "D-06 decision",
-        "D5 legacy redirects",
-        "cutover-plan.json legacy retention proposal (180d, pending legal)"
+        "old Work Django app, routes and production data removed (no dual-write, no migration path)",
+        "D5 legacy redirects show a read-only notice for old task links instead of resurrecting data"
       ],
-      "note": "Old task read-only ownership/retention still open."
+      "note": "No migration/dual-write holds. Kept partial rather than done: the retention question was resolved by deletion, so the 180-day legacy retention proposal is moot but unsigned, and old tasks are not readable at all — that needs an explicit sign-off instead of being inferred."
     },
     {
       "id": "C30",
@@ -447,16 +460,17 @@
       "category": "migration",
       "title": "Admin read-only P1-A field/permission mapping",
       "owner": "backend + platform",
-      "status": "partial",
+      "status": "done",
       "blocking": true,
       "gate": "pilot",
       "evidence": [
-        "admin-readonly mapping: P1-A is not a drop-in (role/revision/subject/seat absent)",
-        "option B stored in Work (D1 audit_export, sync_* projections, admin_overview)",
-        "host-ports 9/9: gaps throw instead of fabricating fields",
-        "projection ordering and duplicate delivery races measured (lost update fixed)"
+        "six /work/v1/admin/* read routes registered (bootstrap.go:140-145: overview, seats, audit-exports create/get, download-ticket, content)",
+        "work-export systemd worker: queued -> ready, CSV/JSON into the Content Store, one-time download (real export 515 rows / 162,897 bytes)",
+        "/admin/work read-only page shipped (frontend 2bc81cab5, Helm 526) and accepted after the scope exception was rejected",
+        "non-admin 403 admin_access_denied verified; owner session renders overview, 14 seats and the export form",
+        "2026-11-01: audit export button hidden below 768px and quota_period_id labelled on the page (Helm 528, re-checked on a real phone)"
       ],
-      "note": "Work side closed as far as design can go; still needs real P1-A/identity fields plus E2 read integration and E5 export worker."
+      "note": "Closed for R0a scope. Known limits recorded in the status source: the seats table shows raw subject UUIDs because the API returns no display name, and the overview reports only the current quota period (cross-period held reservations are checked via the task list or work-reconcile -scan, Runbook section 5.17)."
     },
     {
       "id": "C32",
@@ -468,6 +482,22 @@
       "gate": "scale",
       "evidence": [],
       "note": "R0a mobile is read-only by design; revisit R4b."
+    },
+    {
+      "id": "C33",
+      "category": "implementation",
+      "title": "Child-run checkpoint writes reach the content proxy (decision #280)",
+      "owner": "runtime + platform",
+      "status": "todo",
+      "blocking": true,
+      "gate": "pilot",
+      "evidence": [
+        "content-client.mjs putCheckpoint() implemented and unit-covered, but has no production caller (only content-client self-tests and the local proxy route exercise it)",
+        "work-content-proxy has zero production traffic since 2026-10-31 deployment, so the write path is unreachable rather than unobserved",
+        "decision memo with options A (implement child-side candidate/checkpoint writes, reopens the signed execute-no-content boundary) and B (signed scope exception with reopen triggers): docs/plan/work-r0a-checkpoint-writer-decision-2026-11-01.md"
+      ],
+      "note": "John ruled on 2026-11-01 that #280 is an R0a exit gate, so this item blocks pilot go/no-go. It closes either by A with a production checkpoint write observed end-to-end, or by B with a written scope-exception sign-off; silence keeps it open."
     }
-  ]
+  ],
+  "reviewNote": "Re-reviewed 2026-11-01 against production evidence (Helm revision 528, migration ledger 16, E8 golden run, real-device mobile check). Items not listed here keep their 2026-10-25 assessment; C03/C04 stay partial pending DR2 review and the C22 drills, C16/C17 stay partial pending a real trace/metrics pipeline."
 }

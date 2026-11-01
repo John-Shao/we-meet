@@ -47,21 +47,25 @@ test('pilot checklist is valid and currently blocked', () => {
 
 test('blocking items split into a start gate and a pilot gate', () => {
   const result = goNoGo(checklist);
+  // 2026-11-01 闸门复审：C05（D5 前端设计）、C10（React 页面/查询/SSE E2E）、C31（管理只读面）
+  // 已按生产证据关闭，开工闸门只剩设计评审与可用性研究；
+  // C33（子进程 checkpoint 写入 content-proxy，决策单 #280）由 John 判定为 R0a 退出门，新增为 pilot 阻塞项。
   assert.deepEqual(
     result.startBlockers.map((item) => item.id).sort(),
-    ['C03', 'C04', 'C05', 'C25'],
+    ['C03', 'C04', 'C25'],
   );
   assert.ok(!result.startBlockers.some((item) => item.id === 'C15'));
   assert.equal(checklist.items.find((item) => item.id === 'C15').status, 'waived');
   // C11 signs the S01-S18 mapping口径 only; control implementation evidence stays in the pilot gate.
   assert.equal(checklist.items.find((item) => item.id === 'C11').status, 'done');
-  assert.equal(result.startBlockerCount, 4);
-  assert.equal(result.pilotBlockerCount, 14);
+  assert.equal(result.startBlockerCount, 3);
+  assert.equal(result.pilotBlockerCount, 13);
+  assert.ok(result.pilotBlockers.some((item) => item.id === 'C33'));
   assert.equal(result.scaleBlockerCount, 0);
   assert.equal(result.canStartWork, false);
   assert.equal(result.blockerCount, result.startBlockerCount + result.pilotBlockerCount + result.scaleBlockerCount);
 
-  // 关掉开工闸门只允许开工，不等于可以试点：14 个试点证据项仍必须由实施产生。
+  // 关掉开工闸门只允许开工，不等于可以试点：13 个试点证据项仍必须由实施产生。
   const started = structuredClone(checklist);
   for (const item of started.items) {
     if (item.gate === 'start' && item.blocking) {
@@ -72,7 +76,7 @@ test('blocking items split into a start gate and a pilot gate', () => {
   const afterStart = goNoGo(started);
   assert.equal(afterStart.canStartWork, true);
   assert.equal(afterStart.go, false);
-  assert.equal(afterStart.pilotBlockerCount, 14);
+  assert.equal(afterStart.pilotBlockerCount, 13);
 });
 
 test('checklist rejects a missing or unknown gate', () => {
