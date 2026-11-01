@@ -132,14 +132,18 @@ describe('task workspace state gates', () => {
       fetchTask.mockResolvedValue(detailWith({ display }))
       renderPage()
       await settle()
-      expect(screen.getByRole('button', { name: 'task.cancelRun' })).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'task.cancelRun' })
+      ).toBeInTheDocument()
       cleanup()
     }
 
     fetchTask.mockResolvedValue(detailWith({ display: 'quota_exhausted' }))
     renderPage()
     await settle()
-    expect(screen.getByRole('button', { name: 'task.cancelRun' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'task.cancelRun' })
+    ).toBeInTheDocument()
     cleanup()
 
     for (const display of ['completed', 'awaiting_acceptance', 'failed']) {
@@ -152,5 +156,4 @@ describe('task workspace state gates', () => {
       cleanup()
     }
   })
-
 })
