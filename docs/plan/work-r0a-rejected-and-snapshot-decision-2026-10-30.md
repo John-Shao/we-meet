@@ -29,7 +29,7 @@
 - [x] John：**选择 A1（2026-10-30）**——新增闭集 reason `provider_rejected`；操作 failed、释放预留、Run failed、不重试、不发布成果；不新增 DB 收尾命令。
 - [x] Lily：**已复核通过（2026-10-30，经 John 转述）**——确认 A1 的“成功回执→收尾”与“拒绝回执→失败收尾”都不改变 F0-R1 回执语义；F0-R3 的恢复边界只在“闸门即权威”这一点上放宽，取消路径与成功回执路径不受影响。
 
-**A1 实现记录（2026-10-30，待 Lily 复核）**
+**A1 实现记录（2026-10-30，Lily 已复核通过——经 John 转述，非 firsthand；标题此前误写「待复核」，2026-11-01 校正）**
 
 代码已落地，落地时出现签收文本未覆盖的四处解释性决定：
 
@@ -64,7 +64,7 @@
 - [x] John：**选择 B1（2026-10-30）**——闭合对象 `{snapshot_id, snapshot_revision, template, limits, permission_mode, created_at}`，移除 `model_route`/`tool_allowlist`；新增未发布迁移 0015 增加 `revision bigint`（同一 Task 内单调），由 `submit_task` 写入下一个 revision。
 - [x] Lily：**已复核通过（2026-10-30，经 John 转述）**——接受 0015 的 `revision` 单调性、回填期间短暂 `NO FORCE RLS` 再恢复的写法，以及闭合 snapshot 不再回传内部路由/工具字段。
 
-**B1 实现记录（2026-10-30，待 Lily 复核）**
+**B1 实现记录（2026-10-30，Lily 已复核通过——经 John 转述，非 firsthand；标题此前误写「待复核」，2026-11-01 校正）**
 
 - 迁移 `0015_snapshot_revision`：加列 → 按 `(org_id, task_id)` 的 `created_at, id` 序回填 → `NOT NULL` + `DEFAULT 1` + `CHECK (revision >= 1)` + 唯一索引 `(org_id, task_id, revision)`；`submit_task` 用 `COALESCE(MAX(revision),0)+1` 铸造下一个 revision。
 - **回填期间临时 `NO FORCE ROW LEVEL SECURITY`，随后立即恢复 `FORCE`**：否则 `work_owner` 自身也看不到既有行，回填会 0 行生效并被 `NOT NULL` 拒绝。这一点是本迁移最需要复核的地方。
@@ -76,7 +76,7 @@
 - 租约丢失/刷新失败的故障注入（需要可控慢供应商或故障开关，另行安排）。
 - D-08b 之外的主密钥托管与轮换。
 
-## A1 落地后暴露的残留（2026-10-30 预发实测，需 Lily 判定）
+## A1 落地后暴露的残留（2026-10-30 预发实测；已由 John 判定选 (a)、Lily 经转述复核，2026-11-01 校正标题）
 
 预发有 10 个 held 预留（1,000,000 tokens）属于本会话早前的注入/回归测试 Run，逐个查闸门后分两类：
 

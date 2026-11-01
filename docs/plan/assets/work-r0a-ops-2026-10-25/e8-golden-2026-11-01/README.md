@@ -91,5 +91,5 @@ passRatio = 1        p95Seconds = 33.262        passed = true
 
 - 本轮验证的是黄金任务的**内容与编排质量**（章节、字数、无编造链接、无提示词回显、步骤编号、建议给出、人工三项），不覆盖成本判定（`costCents` 恒为 0）、多浏览器/弱网/大文件、并发提交下的配额争抢。
 - 传输通道是浏览器同源 `fetch` 而非 Node cookie runner；官方 runner 的 Node 路径仍只有 `--dry-run` + 本地 mock 自测覆盖。
-- 人工三项检查的判定由执行者作出，**尚未经 reviewer 复核**；`reviewerApproved` 保持 `null`。
+- 人工三项检查的判定由执行者（John）作出，**未经外部复核**：2026-11-01 起独立复核人离队，该项按「自决日志 + 11-08 延迟复评」承接，判定依据逐条记在 `pilot-run.json` 的 `manualAssessment`；`reviewerApproved` 保持 `null`，不追认外部签名。。
 - 移动端实机、U1 可用性研究、C22 DR 演练仍按原排期在外，不能因本轮通过而视为关闭。
