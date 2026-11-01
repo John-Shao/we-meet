@@ -211,7 +211,13 @@ export const retryWorkTask = (
   })
 
 export const cancelWorkRun = (runId: string) =>
-  request(`/runs/${encodeURIComponent(runId)}/cancel`, { method: 'POST' })
+  request(`/runs/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
+    // CancelRequest requires client_request_id (8-128). The control plane does
+    // not dedupe cancellation yet, so a per-attempt id satisfies the wire
+    // contract; the gap is recorded in docs/plan/work-project.md.
+    body: JSON.stringify({ client_request_id: crypto.randomUUID() }),
+  })
 
 export const acceptWorkTask = (
   taskId: string,

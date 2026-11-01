@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"net/http"
 	"testing"
 
@@ -266,7 +267,8 @@ func bootstrapCSRF(t *testing.T, baseURL string) string {
 
 func cancelRun(t *testing.T, baseURL, runID, token string, withCookie bool) *http.Response {
 	t.Helper()
-	request, _ := http.NewRequest(http.MethodPost, baseURL+fmt.Sprintf("/work/v1/runs/%s/cancel", runID), nil)
+	request, _ := http.NewRequest(http.MethodPost, baseURL+fmt.Sprintf("/work/v1/runs/%s/cancel", runID),
+		strings.NewReader(`{"client_request_id":"cancel-crash-0001"}`))
 	request.AddCookie(&http.Cookie{Name: "sessionid", Value: "session-value"})
 	if withCookie && token != "" {
 		request.AddCookie(&http.Cookie{Name: api.CSRFCookieName, Value: token})

@@ -3,12 +3,14 @@ package api
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -17,6 +19,11 @@ import (
 	workdb "github.com/we-meet/work/internal/db"
 	"github.com/we-meet/work/internal/host"
 )
+
+type cancelRunRequest struct {
+	ClientRequestID string  `json:"client_request_id"`
+	Reason          *string `json:"reason"`
+}
 
 const (
 	TasksPath           = "/work/v1/tasks"
@@ -317,6 +324,22 @@ func (s *Server) cancelRun(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, correlationID, apierr.New("run_not_found"))
 		return
 	}
+	// CancelRequest requires client_request_id and forbids extra keys. The reason
+	// is forwarded to the domain function unchanged: work.request_cancel accepts
+	// only enum codes, so an unsupported reason surfaces as invalid_request
+	// instead of being silently dropped on the floor.
+	var cancel cancelRunRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&cancel); err != nil {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	requestID := strings.TrimSpace(cancel.ClientRequestID)
+	if requestID == "" || utf8.RuneCountInString(requestID) > 128 {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
 	var view Run
 	err := workdb.WithWorkContext(r.Context(), s.pool,
 		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
@@ -326,8 +349,8 @@ func (s *Server) cancelRun(w http.ResponseWriter, r *http.Request) {
 			if err := memberAccess(r.Context(), tx, claims, true); err != nil {
 				return err
 			}
-			if _, err := tx.Exec(r.Context(), `SELECT work.request_cancel($1, $2, $3, NULL)`,
-				claims.OrgID, runID, claims.SubjectID); err != nil {
+			if _, err := tx.Exec(r.Context(), `SELECT work.request_cancel($1, $2, $3, $4)`,
+				claims.OrgID, runID, claims.SubjectID, cancel.Reason); err != nil {
 				return err
 			}
 			var err error
