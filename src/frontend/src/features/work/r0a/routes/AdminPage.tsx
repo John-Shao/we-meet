@@ -7,7 +7,9 @@ import { css } from '@/styled-system/css'
 import {
   useAdminAuditExport,
   useAdminOverview,
+  useAdminProviderConfig,
   useAdminSeats,
+  useAdminUsage,
   useCreateAdminAuditExport,
   useDownloadAdminAuditExport,
   useWorkBootstrap,
@@ -33,6 +35,7 @@ export const AdminPage = () => {
   const bootstrapQ = useWorkBootstrap()
   const overviewQ = useAdminOverview()
   const seatsQ = useAdminSeats()
+  const providerQ = useAdminProviderConfig()
   const createExport = useCreateAdminAuditExport()
   const downloadExport = useDownloadAdminAuditExport()
   const [rangeFrom, setRangeFrom] = useState(dateInput(7))
@@ -40,6 +43,7 @@ export const AdminPage = () => {
   const [format, setFormat] = useState<'csv' | 'json'>('csv')
   const [exportId, setExportId] = useState<string>()
   const exportQ = useAdminAuditExport(exportId)
+  const usageQ = useAdminUsage(rangeFrom, rangeTo)
 
   if (bootstrapQ.isLoading) return <p className={muted}>{t('loading')}</p>
   if (bootstrapQ.isError) {
@@ -287,9 +291,152 @@ export const AdminPage = () => {
           </>
         )}
       </section>
+
+      <section className={card}>
+        <h2 className={css({ margin: 0, textStyle: 'titleMedium' })}>
+          {t('admin.providerTitle')}
+        </h2>
+        {providerQ.isPending ? (
+          <p className={muted}>{t('loading')}</p>
+        ) : providerQ.isError ? (
+          <p className={muted}>
+            {isNotConfigured(providerQ.error)
+              ? t('admin.providerEmpty')
+              : t('admin.providerError')}
+          </p>
+        ) : (
+          <dl
+            className={css({
+              display: 'grid',
+              gridTemplateColumns: { base: '1fr', md: 'repeat(3, 1fr)' },
+              gap: 'md',
+              margin: 0,
+            })}
+          >
+            {(
+              [
+                [t('admin.providerField'), providerQ.data.provider],
+                [t('admin.modelField'), providerQ.data.model],
+                [t('admin.regionField'), providerQ.data.region || '—'],
+                [t('admin.endpointField'), providerQ.data.endpoint || '—'],
+                [t('admin.credentialMode'), providerQ.data.credential_mode],
+                [t('admin.fingerprint'), providerQ.data.credential.fingerprint],
+                [t('admin.state'), providerQ.data.state],
+                [t('admin.revision'), String(providerQ.data.revision)],
+              ] as [string, string][]
+            ).map(([label, value]) => (
+              <div key={label}>
+                <dt className={muted}>{label}</dt>
+                <dd className={css({ margin: 0, wordBreak: 'break-all' })}>
+                  {value || '—'}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </section>
+
+      <section className={card}>
+        <h2 className={css({ margin: 0, textStyle: 'titleMedium' })}>
+          {t('admin.usageTitle')}
+        </h2>
+        <p className={muted}>
+          {rangeFrom} – {rangeTo}
+        </p>
+        <p className={notice}>{t('admin.usageNote')}</p>
+        {usageQ.isPending ? (
+          <p className={muted}>{t('loading')}</p>
+        ) : usageQ.isError ? (
+          <p className={muted}>{t('admin.usageError')}</p>
+        ) : usageQ.data.items.length === 0 ? (
+          <p className={muted}>{t('admin.usageEmpty')}</p>
+        ) : readOnly ? (
+          // 六列表格在 369px 真机宽度下会撑出横向滚动，窄屏改为逐行堆叠的只读列表。
+          <ul className={css({ listStyle: 'none', margin: 0, padding: 0 })}>
+            {usageQ.data.items.map((row) => (
+              <li key={`${row.provider}:${row.model}`} className={rowLine}>
+                <p className={css({ margin: 0 })}>{row.model}</p>
+                <dl
+                  className={css({
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(2, 1fr)',
+                    gap: 'xs',
+                    margin: 0,
+                  })}
+                >
+                  {[
+                    [t('admin.usage.provider'), row.provider],
+                    [t('admin.usage.input'), row.input_tokens.toLocaleString()],
+                    [
+                      t('admin.usage.output'),
+                      row.output_tokens.toLocaleString(),
+                    ],
+                    [
+                      t('admin.usage.cached'),
+                      row.cached_input_tokens.toLocaleString(),
+                    ],
+                    [t('admin.usage.runs'), row.run_count.toLocaleString()],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <dt className={muted}>{label}</dt>
+                      <dd className={css({ margin: 0 })}>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <table className={css({ width: '100%', borderCollapse: 'collapse' })}>
+            <thead>
+              <tr className={muted}>
+                <th scope="col" className={headCell}>
+                  {t('admin.usage.provider')}
+                </th>
+                <th scope="col" className={headCell}>
+                  {t('admin.usage.model')}
+                </th>
+                <th scope="col" className={headCell}>
+                  {t('admin.usage.input')}
+                </th>
+                <th scope="col" className={headCell}>
+                  {t('admin.usage.output')}
+                </th>
+                <th scope="col" className={headCell}>
+                  {t('admin.usage.cached')}
+                </th>
+                <th scope="col" className={headCell}>
+                  {t('admin.usage.runs')}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {usageQ.data.items.map((row) => (
+                <tr key={`${row.provider}:${row.model}`} className={rowLine}>
+                  <td className={bodyCell}>{row.provider}</td>
+                  <td className={subjectCell}>{row.model}</td>
+                  <td className={bodyCell}>
+                    {row.input_tokens.toLocaleString()}
+                  </td>
+                  <td className={bodyCell}>
+                    {row.output_tokens.toLocaleString()}
+                  </td>
+                  <td className={bodyCell}>
+                    {row.cached_input_tokens.toLocaleString()}
+                  </td>
+                  <td className={bodyCell}>{row.run_count.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
     </div>
   )
 }
+
+const isNotConfigured = (error: unknown) =>
+  (error as { code?: string } | null)?.code === 'not_found'
 
 // 席位表在 369px 真机视口下曾把四列挤成 `memberactive否`：单元格无内边距。
 const cellBase = {

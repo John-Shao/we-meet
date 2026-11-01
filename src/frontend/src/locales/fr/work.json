@@ -260,6 +260,29 @@
     "exportStatus": "Status",
     "exportRows": "Rows",
     "download": "Download",
-    "overviewError": "Failed to load overview."
+    "overviewError": "Failed to load overview.",
+    "providerTitle": "Configuration du fournisseur de modèles",
+    "providerField": "Fournisseur",
+    "modelField": "Modèle",
+    "regionField": "Région",
+    "endpointField": "Point d’accès",
+    "credentialMode": "Mode de credential",
+    "fingerprint": "Empreinte du credential",
+    "state": "État",
+    "revision": "Révision",
+    "providerEmpty": "Aucun fournisseur de modèles n’est configuré.",
+    "providerError": "Impossible de charger la configuration.",
+    "usageTitle": "Consommation de tokens",
+    "usageNote": "À titre indicatif : Work compte des tokens ; la facturation suit la facture de votre fournisseur cloud.",
+    "usageError": "Impossible de charger la consommation.",
+    "usageEmpty": "Aucune consommation sur la période choisie.",
+    "usage": {
+      "provider": "Fournisseur",
+      "model": "Modèle",
+      "input": "Tokens d’entrée",
+      "output": "Tokens de sortie",
+      "cached": "Tokens d’entrée en cache",
+      "runs": "Exécutions"
+    }
   }
 }

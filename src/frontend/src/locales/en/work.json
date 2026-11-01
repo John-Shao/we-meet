@@ -260,6 +260,29 @@
     "exportStatus": "Status",
     "exportRows": "Rows",
     "download": "Download",
-    "overviewError": "Failed to load overview."
+    "overviewError": "Failed to load overview.",
+    "providerTitle": "Model provider configuration",
+    "providerField": "Provider",
+    "modelField": "Model",
+    "regionField": "Region",
+    "endpointField": "Endpoint",
+    "credentialMode": "Credential mode",
+    "fingerprint": "Credential fingerprint",
+    "state": "State",
+    "revision": "Revision",
+    "providerEmpty": "No model provider has been configured yet.",
+    "providerError": "Could not load the provider configuration.",
+    "usageTitle": "Token usage",
+    "usageNote": "Reference only: Work counts tokens; billing follows your cloud provider invoice.",
+    "usageError": "Could not load usage.",
+    "usageEmpty": "No usage recorded in the selected range.",
+    "usage": {
+      "provider": "Provider",
+      "model": "Model",
+      "input": "Input tokens",
+      "output": "Output tokens",
+      "cached": "Cached input tokens",
+      "runs": "Runs"
+    }
   }
 }

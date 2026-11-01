@@ -260,6 +260,29 @@
     "exportStatus": "状态",
     "exportRows": "行数",
     "download": "下载",
-    "overviewError": "概览加载失败。"
+    "overviewError": "概览加载失败。",
+    "providerTitle": "大模型接入配置",
+    "providerField": "服务商",
+    "modelField": "模型",
+    "regionField": "区域",
+    "endpointField": "接入点",
+    "credentialMode": "凭证模式",
+    "fingerprint": "凭据指纹",
+    "state": "状态",
+    "revision": "版本",
+    "providerEmpty": "尚未配置大模型接入。",
+    "providerError": "接入配置读取失败。",
+    "usageTitle": "用量统计",
+    "usageNote": "仅供参考：Work 只统计 token 事实，费用以客户云厂商账单为准。",
+    "usageError": "用量读取失败。",
+    "usageEmpty": "所选区间内没有用量。",
+    "usage": {
+      "provider": "服务商",
+      "model": "模型",
+      "input": "输入 token",
+      "output": "输出 token",
+      "cached": "缓存输入 token",
+      "runs": "Run 数"
+    }
   }
 }

@@ -260,6 +260,29 @@
     "exportStatus": "Status",
     "exportRows": "Rows",
     "download": "Download",
-    "overviewError": "Failed to load overview."
+    "overviewError": "Failed to load overview.",
+    "providerTitle": "Configuratie van modelprovider",
+    "providerField": "Provider",
+    "modelField": "Model",
+    "regionField": "Regio",
+    "endpointField": "Eindpunt",
+    "credentialMode": "Credentialmodus",
+    "fingerprint": "Credential-vingerafdruk",
+    "state": "Status",
+    "revision": "Revisie",
+    "providerEmpty": "Er is nog geen modelprovider ingesteld.",
+    "providerError": "De providerconfiguratie kon niet worden geladen.",
+    "usageTitle": "Tokenverbruik",
+    "usageNote": "Ter referentie: Work telt alleen tokens; facturering volgt de factuur van uw cloudprovider.",
+    "usageError": "Verbruik kon niet worden geladen.",
+    "usageEmpty": "Geen verbruik in de gekozen periode.",
+    "usage": {
+      "provider": "Provider",
+      "model": "Model",
+      "input": "Invoertokens",
+      "output": "Uitvoertokens",
+      "cached": "Cached invoertokens",
+      "runs": "Runs"
+    }
   }
 }

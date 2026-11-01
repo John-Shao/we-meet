@@ -106,6 +106,45 @@ const mockAdmin = async (page: Page) => {
       })
     }
     if (path.endsWith('/admin/overview')) return fulfill(route, overview)
+    if (path.endsWith('/admin/usage')) {
+      return fulfill(route, {
+        from: '2026-10-25',
+        to: '2026-11-01',
+        note: '仅供参考',
+        items: [
+          {
+            provider: 'aliyun',
+            model: 'qwen3.8-flash',
+            input_tokens: 107,
+            output_tokens: 43,
+            cached_input_tokens: 10,
+            run_count: 3,
+          },
+        ],
+      })
+    }
+    if (path.endsWith('/admin/provider-config')) {
+      return fulfill(route, {
+        config_id: 'cfg-1',
+        revision: 2,
+        provider: 'aliyun',
+        model: 'qwen3.8-flash',
+        region: 'cn-beijing',
+        endpoint: 'https://dashscope.example.test/v1',
+        credential_mode: 'managed_key',
+        credential: {
+          credential_id: 'cred-1',
+          provider: 'aliyun',
+          mode: 'managed_key',
+          fingerprint: '9b3c03d25b217cc9',
+          key_version: 2,
+          state: 'active',
+          created_at: '2026-10-31T00:00:00Z',
+        },
+        state: 'active',
+        created_at: '2026-10-31T00:00:00Z',
+      })
+    }
     if (path.includes('/admin/seats')) {
       return fulfill(route, { items: seats, next_cursor: null })
     }
@@ -120,6 +159,11 @@ test('admin seats table keeps its columns apart at a phone viewport', async ({
   const errors = await mockAdmin(page)
   await page.goto('/admin/work')
   await expect(page.getByRole('heading', { name: '席位列表' })).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: '大模型接入配置' })
+  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: '用量统计' })).toBeVisible()
+  await expect(page.getByText('9b3c03d25b217cc9')).toBeVisible()
 
   const cells = await page
     .locator('tbody tr')

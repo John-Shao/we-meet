@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AdminPage } from './AdminPage'
 
 let role = 'owner'
+let providerConfigured = true
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -64,6 +65,58 @@ vi.mock('../api/queries', () => ({
     mutateAsync: vi.fn(),
     isPending: false,
   }),
+  useAdminProviderConfig: () =>
+    providerConfigured
+      ? {
+          data: {
+            config_id: 'cfg-1',
+            revision: 2,
+            provider: 'aliyun',
+            model: 'qwen3.8-flash',
+            region: '',
+            endpoint: 'https://dashscope.example/v1',
+            credential_mode: 'managed_key',
+            credential: {
+              credential_id: 'cred-1',
+              provider: 'aliyun',
+              mode: 'managed_key',
+              fingerprint: '9b3c03d25b217cc9',
+              key_version: 2,
+              state: 'active',
+              created_at: '2026-10-31T00:00:00Z',
+            },
+            state: 'active',
+            created_at: '2026-10-31T00:00:00Z',
+          },
+          isPending: false,
+          isError: false,
+          error: null,
+        }
+      : {
+          data: undefined,
+          isPending: false,
+          isError: true,
+          error: { code: 'not_found' },
+        },
+  useAdminUsage: () => ({
+    data: {
+      from: '2026-10-25',
+      to: '2026-11-01',
+      note: '服务端固定文案',
+      items: [
+        {
+          provider: 'aliyun',
+          model: 'qwen3.8-flash',
+          input_tokens: 107,
+          output_tokens: 43,
+          cached_input_tokens: 10,
+          run_count: 3,
+        },
+      ],
+    },
+    isPending: false,
+    isError: false,
+  }),
 }))
 
 const stubViewport = (readOnly: boolean) => {
@@ -82,6 +135,7 @@ const stubViewport = (readOnly: boolean) => {
 afterEach(() => {
   cleanup()
   role = 'owner'
+  providerConfigured = true
   vi.unstubAllGlobals()
 })
 
@@ -94,6 +148,22 @@ describe('AdminPage', () => {
     expect(screen.getByText('sub_a')).toBeInTheDocument()
     expect(screen.getByText('2026-11')).toBeInTheDocument()
     expect(screen.getByText('admin.createExport')).toBeInTheDocument()
+    expect(screen.getByText('admin.providerTitle')).toBeInTheDocument()
+    expect(screen.getByText('9b3c03d25b217cc9')).toBeInTheDocument()
+    expect(screen.getByText('admin.usageTitle')).toBeInTheDocument()
+    expect(screen.getAllByText('qwen3.8-flash')).toHaveLength(2)
+    expect(screen.getByText('107')).toBeInTheDocument()
+    // 服务端的固定 note 不直接上屏，文案走本地化 key。
+    expect(screen.getByText('admin.usageNote')).toBeInTheDocument()
+    expect(screen.queryByText('服务端固定文案')).not.toBeInTheDocument()
+  })
+
+  it('shows a not-configured notice instead of an error when the provider read 404s', () => {
+    providerConfigured = false
+    stubViewport(false)
+    render(<AdminPage />)
+    expect(screen.getByText('admin.providerEmpty')).toBeInTheDocument()
+    expect(screen.queryByText('admin.providerError')).not.toBeInTheDocument()
   })
 
   it('hides the audit export form on a read-only phone viewport', () => {

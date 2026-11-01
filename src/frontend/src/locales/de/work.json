@@ -260,6 +260,29 @@
     "exportStatus": "Status",
     "exportRows": "Rows",
     "download": "Download",
-    "overviewError": "Failed to load overview."
+    "overviewError": "Failed to load overview.",
+    "providerTitle": "Modellprovider-Konfiguration",
+    "providerField": "Provider",
+    "modelField": "Modell",
+    "regionField": "Region",
+    "endpointField": "Endpunkt",
+    "credentialMode": "Credential-Modus",
+    "fingerprint": "Credential-Fingerabdruck",
+    "state": "Status",
+    "revision": "Revision",
+    "providerEmpty": "Noch kein Modellprovider konfiguriert.",
+    "providerError": "Die Provider-Konfiguration konnte nicht geladen werden.",
+    "usageTitle": "Token-Nutzung",
+    "usageNote": "Nur als Referenz: Work zählt Tokens; die Abrechnung erfolgt über die Rechnung Ihres Cloud-Providers.",
+    "usageError": "Die Nutzung konnte nicht geladen werden.",
+    "usageEmpty": "Keine Nutzung im gewählten Zeitraum.",
+    "usage": {
+      "provider": "Provider",
+      "model": "Modell",
+      "input": "Input-Tokens",
+      "output": "Output-Tokens",
+      "cached": "Cached Input-Tokens",
+      "runs": "Runs"
+    }
   }
 }

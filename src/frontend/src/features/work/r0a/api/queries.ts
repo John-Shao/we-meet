@@ -11,7 +11,9 @@ import {
   downloadAdminAuditExport,
   fetchAdminAuditExport,
   fetchAdminOverview,
+  fetchAdminProviderConfig,
   fetchAdminSeats,
+  fetchAdminUsage,
   cancelWorkRun,
   createWorkInput,
   createWorkPreview,
@@ -33,6 +35,9 @@ const workKeys = {
   task: (taskId: string) => ['work', 'task', taskId] as const,
   adminOverview: ['work', 'admin', 'overview'] as const,
   adminSeats: ['work', 'admin', 'seats'] as const,
+  adminUsage: (from: string, to: string) =>
+    ['work', 'admin', 'usage', from, to] as const,
+  adminProviderConfig: ['work', 'admin', 'provider-config'] as const,
   adminExport: (id: string) => ['work', 'admin', 'export', id] as const,
   artifactWorkspace: (taskId: string, artifactId: string) =>
     ['work', 'artifact-workspace', taskId, artifactId] as const,
@@ -174,6 +179,21 @@ export const useAdminSeats = () =>
     queryFn: ({ pageParam }) => fetchAdminSeats(pageParam),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next_cursor,
+    retry: false,
+  })
+
+export const useAdminUsage = (from: string, to: string) =>
+  useQuery({
+    queryKey: workKeys.adminUsage(from, to),
+    queryFn: () => fetchAdminUsage(from, to),
+    enabled: !!from && !!to,
+    retry: false,
+  })
+
+export const useAdminProviderConfig = () =>
+  useQuery({
+    queryKey: workKeys.adminProviderConfig,
+    queryFn: fetchAdminProviderConfig,
     retry: false,
   })
 

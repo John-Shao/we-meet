@@ -239,3 +239,59 @@ export interface WorkAuditExport {
   download_available: boolean
   downloaded_at: string | null
 }
+
+export interface WorkUsageRow {
+  provider: string
+  model: string
+  usage_date: string
+  input_tokens: number
+  output_tokens: number
+  cached_input_tokens: number
+  run_count: number
+}
+
+export interface WorkOrgUsageRow {
+  provider: string
+  model: string
+  input_tokens: number
+  output_tokens: number
+  cached_input_tokens: number
+  run_count: number
+}
+
+export interface WorkMeUsage {
+  from: string
+  to: string
+  note: string
+  items: WorkUsageRow[]
+}
+
+export interface WorkOrgUsage {
+  from: string
+  to: string
+  note: string
+  items: WorkOrgUsageRow[]
+}
+
+export interface WorkProviderCredential {
+  credential_id: string
+  provider: string
+  mode: string
+  fingerprint: string
+  key_version: number
+  state: string
+  created_at: string
+}
+
+export interface WorkProviderConfig {
+  config_id: string
+  revision: number
+  provider: string
+  model: string
+  region: string
+  endpoint: string
+  credential_mode: string
+  credential: WorkProviderCredential
+  state: string
+  created_at: string
+}

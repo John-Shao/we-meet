@@ -6,7 +6,9 @@ import type {
   WorkArtifactContent,
   WorkBootstrap,
   WorkInputResponse,
+  WorkOrgUsage,
   WorkPreviewResponse,
+  WorkProviderConfig,
   WorkSubmitResponse,
   WorkTaskArtifactWorkspace,
   WorkTaskDetail,
@@ -232,6 +234,17 @@ export const fetchAdminSeats = (cursor?: string | null) => {
   if (cursor) params.set('cursor', cursor)
   return request<WorkAdminSeatList>(`/admin/seats?${params.toString()}`)
 }
+
+const usageParams = (from: string, to: string) => {
+  const params = new URLSearchParams({ from, to })
+  return params.toString()
+}
+
+export const fetchAdminUsage = (from: string, to: string) =>
+  request<WorkOrgUsage>(`/admin/usage?${usageParams(from, to)}`)
+
+export const fetchAdminProviderConfig = () =>
+  request<WorkProviderConfig>('/admin/provider-config')
 
 export const createAdminAuditExport = (body: {
   client_request_id: string
