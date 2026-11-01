@@ -125,8 +125,18 @@ export const TaskWorkspacePage = () => {
 
   const artifact = detail?.summary.latest_artifact
   const run = detail?.summary.latest_run
-  const canCancel = !!run && ['queued', 'active', 'waiting'].includes(run.state)
-  const canAccept = detail?.summary.task_state === 'awaiting_acceptance'
+  // D5: the server's display_state is the only state machine the UI may read;
+  // cancelling is offered in the four non-terminal display states, and accepting
+  // requires the task to actually be awaiting acceptance with no blocking
+  // operations, otherwise a busy task would advertise an action that 409s.
+  const display = detail?.summary.display_state
+  const canCancel =
+    !!display &&
+    ['queued', 'running', 'quota_exhausted', 'reconciling'].includes(display)
+  const canAccept =
+    display === 'awaiting_acceptance' &&
+    !!detail?.summary.pending_acceptance &&
+    detail?.summary.blocking_operations === 0
 
   const timeline = useMemo(() => {
     if (!detail) return []

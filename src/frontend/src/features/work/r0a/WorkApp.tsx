@@ -108,6 +108,24 @@ const WorkApp = () => {
     )
   }
 
+  // D5 requires the workspace to render only when the org is actually in the
+  // R0a phase and holds a work seat; a successful bootstrap alone is not enough,
+  // and an unseated account must not see a fake entry point.
+  if (
+    !bootstrapQ.data.phases.includes('R0a') ||
+    !bootstrapQ.data.org.work_seat
+  ) {
+    return (
+      <div className={page}>
+        <PageState
+          state="empty"
+          title={t('unavailable.title')}
+          description={t('unavailable.description')}
+        />
+      </div>
+    )
+  }
+
   return (
     <div
       className={css({

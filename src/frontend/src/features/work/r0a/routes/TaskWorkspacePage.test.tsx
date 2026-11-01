@@ -79,7 +79,8 @@ const acceptanceDetail = (
 ): WorkTaskDetail => {
   const value = detail(cursor)
   value.summary.task_state = 'awaiting_acceptance'
-  value.summary.display_state = 'awaiting_acceptance'
+value.summary.display_state = 'awaiting_acceptance'
+  value.summary.pending_acceptance = true
   if (withArtifact) {
     value.summary.latest_artifact = {
       artifact_id: 'final-artifact',
@@ -142,7 +143,8 @@ describe('TaskWorkspacePage snapshot/stream integration', () => {
     const expired = deferred<Response>()
     const completed = detail('final-cursor')
     completed.summary.task_state = 'awaiting_acceptance'
-    completed.summary.display_state = 'awaiting_acceptance'
+completed.summary.display_state = 'awaiting_acceptance'
+    completed.summary.pending_acceptance = true
     completed.summary.latest_artifact = {
       artifact_id: 'final-artifact',
       version_no: 1,
