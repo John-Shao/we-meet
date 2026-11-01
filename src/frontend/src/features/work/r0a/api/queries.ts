@@ -9,6 +9,7 @@ import {
   acceptWorkTask,
   createAdminAuditExport,
   downloadAdminAuditExport,
+  retryWorkTask,
   fetchAdminAuditExport,
   fetchAdminOverview,
   fetchAdminProviderConfig,
@@ -146,6 +147,21 @@ export const useDeleteWorkTask = (taskId: string) => {
       deleteWorkTask(taskId, expectedRevision),
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: workKeys.task(taskId) })
+      void queryClient.invalidateQueries({ queryKey: ['work', 'tasks'] })
+    },
+  })
+}
+
+export const useRetryWorkTask = (taskId: string) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (body: {
+      client_request_id: string
+      expected_revision: number
+      target: { kind: string; profile: string }
+    }) => retryWorkTask(taskId, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: workKeys.task(taskId) })
       void queryClient.invalidateQueries({ queryKey: ['work', 'tasks'] })
     },
   })

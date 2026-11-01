@@ -20,6 +20,7 @@ import {
   useAcceptWorkTask,
   useCancelWorkRun,
   useDeleteWorkTask,
+  useRetryWorkTask,
   useUpdateWorkTitle,
   useWorkTask,
   workQueryKeys,
@@ -44,6 +45,9 @@ import {
 const terminalStates = new Set(['completed', 'canceled', 'archived'])
 
 // D5 state-matrix.json management.delete：只有这些显示状态可删，且需静止（服务端 409）。
+// D5 state-matrix: retry is the primary action for these two terminal views.
+const retryableStates = new Set(['failed', 'run_canceled'])
+
 const deletableStates = new Set([
   'open',
   'awaiting_acceptance',
@@ -61,6 +65,9 @@ export const TaskWorkspacePage = () => {
   const acceptMutation = useAcceptWorkTask(taskId ?? '')
   const updateMutation = useUpdateWorkTitle(taskId ?? '')
   const deleteMutation = useDeleteWorkTask(taskId ?? '')
+  const retryMutation = useRetryWorkTask(taskId ?? '')
+  const retryKey = useIdempotencyKey()
+  const [retryError, setRetryError] = useState<string | null>(null)
   const [, setLocation] = useLocation()
   const titleKey = useIdempotencyKey()
   const acceptKey = useIdempotencyKey()
@@ -631,6 +638,41 @@ export const TaskWorkspacePage = () => {
               readOnly={readOnly}
             />
           ) : null}
+
+          {readOnly ||
+          !retryableStates.has(detail.summary.display_state) ? null : (
+            <section className={card}>
+              <h2 className={sectionTitle}>{t('task.retryTitle')}</h2>
+              <p className={muted}>{t('task.retryHint')}</p>
+              {retryError ? <p className={notice}>{retryError}</p> : null}
+              <Button
+                variant="primary"
+                size="dense"
+                loading={retryMutation.isPending}
+                onPress={async () => {
+                  setRetryError(null)
+                  try {
+                    await retryMutation.mutateAsync({
+                      client_request_id: retryKey.key,
+                      expected_revision: detail.summary.revision,
+                      target: { kind: 'cloud', profile: 'text-v1' },
+                    })
+                  } catch (error) {
+                    const code = (error as { code?: string })?.code
+                    setRetryError(
+                      code === 'task_has_active_run' ||
+                        code === 'run_not_quiescent' ||
+                        code === 'version_conflict'
+                        ? t('task.retryStale')
+                        : t('task.retryError')
+                    )
+                  }
+                }}
+              >
+                {t('task.retryButton')}
+              </Button>
+            </section>
+          )}
 
           {readOnly ||
           !deletableStates.has(detail.summary.display_state) ? null : (

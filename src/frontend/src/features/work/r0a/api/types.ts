@@ -240,6 +240,14 @@ export interface WorkAuditExport {
   downloaded_at: string | null
 }
 
+export interface WorkRunAccepted {
+  task_id: string
+  run_id: string
+  revision: number
+  task_state: string
+  display_state: string
+}
+
 export interface WorkTaskDeletion {
   task_id: string
   deleted_at: string

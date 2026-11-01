@@ -190,7 +190,12 @@
     "deleteConfirmButton": "确认删除",
     "deleteCancelButton": "取消",
     "deleteBlocked": "请先取消并等待运行结束后再删除。",
-    "deleteError": "删除失败，请稍后重试。"
+    "deleteError": "删除失败，请稍后重试。",
+    "retryTitle": "重试运行",
+    "retryHint": "沿用当前快照新建一次运行；配额仍按任务上限校验。",
+    "retryButton": "重试",
+    "retryStale": "任务状态已变化，请刷新后重试。",
+    "retryError": "重试失败，请稍后再试。"
   },
   "artifact": {
     "backToTask": "返回任务",

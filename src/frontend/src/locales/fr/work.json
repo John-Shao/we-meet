@@ -190,7 +190,12 @@
     "deleteConfirmButton": "Supprimer définitivement",
     "deleteCancelButton": "Annuler",
     "deleteBlocked": "Annulez l’exécution en cours et attendez sa fin.",
-    "deleteError": "Suppression impossible. Réessayez plus tard."
+    "deleteError": "Suppression impossible. Réessayez plus tard.",
+    "retryTitle": "Relancer l’exécution",
+    "retryHint": "Crée une nouvelle exécution depuis l’instantané courant ; le quota reste vérifié contre le plafond de la tâche.",
+    "retryButton": "Relancer",
+    "retryStale": "La tâche a changé. Rechargez et réessayez.",
+    "retryError": "Relance impossible. Réessayez plus tard."
   },
   "artifact": {
     "backToTask": "Back to task",

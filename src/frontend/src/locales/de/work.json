@@ -190,7 +190,12 @@
     "deleteConfirmButton": "Endgültig löschen",
     "deleteCancelButton": "Abbrechen",
     "deleteBlocked": "Brechen Sie den laufenden Durchgang ab und warten Sie das Ende ab.",
-    "deleteError": "Löschen fehlgeschlagen. Bitte später erneut versuchen."
+    "deleteError": "Löschen fehlgeschlagen. Bitte später erneut versuchen.",
+    "retryTitle": "Durchlauf erneut versuchen",
+    "retryHint": "Startet einen neuen Durchlauf aus dem aktuellen Snapshot; das Kontingent bleibt gegen die Aufgabenobergrenze geprüft.",
+    "retryButton": "Erneut versuchen",
+    "retryStale": "Die Aufgabe hat sich geändert. Bitte neu laden und erneut versuchen.",
+    "retryError": "Erneuter Versuch fehlgeschlagen. Bitte später erneut versuchen."
   },
   "artifact": {
     "backToTask": "Back to task",

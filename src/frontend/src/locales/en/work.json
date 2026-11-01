@@ -190,7 +190,12 @@
     "deleteConfirmButton": "Delete permanently",
     "deleteCancelButton": "Cancel",
     "deleteBlocked": "Cancel the running job and wait for it to finish first.",
-    "deleteError": "Could not delete the task. Try again later."
+    "deleteError": "Could not delete the task. Try again later.",
+    "retryTitle": "Retry the run",
+    "retryHint": "Starts a new run from the current snapshot; quota is still checked against the task limit.",
+    "retryButton": "Retry",
+    "retryStale": "The task changed. Refresh and try again.",
+    "retryError": "Could not retry the task. Try again later."
   },
   "artifact": {
     "backToTask": "Back to task",

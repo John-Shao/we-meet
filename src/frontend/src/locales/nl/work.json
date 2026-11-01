@@ -190,7 +190,12 @@
     "deleteConfirmButton": "Definitief verwijderen",
     "deleteCancelButton": "Annuleren",
     "deleteBlocked": "Breek de actieve run af en wacht tot die eindigt.",
-    "deleteError": "Verwijderen mislukt. Probeer het later opnieuw."
+    "deleteError": "Verwijderen mislukt. Probeer het later opnieuw.",
+    "retryTitle": "Uitvoering opnieuw proberen",
+    "retryHint": "Start een nieuwe run vanuit de huidige snapshot; quota wordt nog steeds tegen de taaklimiet gecontroleerd.",
+    "retryButton": "Opnieuw proberen",
+    "retryStale": "De taak is gewijzigd. Vernieuw en probeer het opnieuw.",
+    "retryError": "Opnieuw proberen mislukt. Probeer het later opnieuw."
   },
   "artifact": {
     "backToTask": "Back to task",

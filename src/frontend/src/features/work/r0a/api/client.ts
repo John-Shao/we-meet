@@ -8,6 +8,7 @@ import type {
   WorkInputResponse,
   WorkOrgUsage,
   WorkPreviewResponse,
+  WorkRunAccepted,
   WorkProviderConfig,
   WorkSubmitResponse,
   WorkTaskDeletion,
@@ -195,6 +196,19 @@ export const deleteWorkTask = (taskId: string, expectedRevision: number) =>
     `/tasks/${encodeURIComponent(taskId)}?expected_revision=${expectedRevision}`,
     { method: 'DELETE' }
   )
+
+export const retryWorkTask = (
+  taskId: string,
+  body: {
+    client_request_id: string
+    expected_revision: number
+    target: { kind: string; profile: string }
+  }
+) =>
+  request<WorkRunAccepted>(`/tasks/${encodeURIComponent(taskId)}/runs`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 
 export const cancelWorkRun = (runId: string) =>
   request(`/runs/${encodeURIComponent(runId)}/cancel`, { method: 'POST' })
