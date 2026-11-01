@@ -152,7 +152,7 @@
       "category": "implementation",
       "title": "D5 React pages, React Query and SSE E2E",
       "owner": "frontend",
-      "status": "partial",
+      "status": "done",
       "blocking": true,
       "gate": "pilot",
       "evidence": [
@@ -163,9 +163,10 @@
         "real-device mobile verification 2026-11-01 with post-release re-check on Helm revision 528",
         "D5 §5.6 admin panels shipped 2026-11-01: 接入配置（脱敏，含凭据指纹/模式/版本）与 用量统计（按 provider+model 聚合）render from the new GET endpoints; unit coverage in AdminPage.test.tsx (not-configured 404 shows the empty notice, server note is never printed because copy is localised) and e2e coverage at both 369px and 1280px in e2e/work-r0a-admin-mobile.spec.ts",
         "the usage table overflowed horizontally at 369px, which the e2e caught; narrow viewports now render a stacked read-only list instead of the six-column table (observed failing, then passing)",
-        "still open 2026-11-01: the DELETE action D5 requires (state-matrix management.delete + ui-model canDelete, endpoint now implemented in Go) has no task-workspace affordance, so the action is unreachable for users"
+        "still open 2026-11-01: the DELETE action D5 requires (state-matrix management.delete + ui-model canDelete, endpoint now implemented in Go) has no task-workspace affordance, so the action is unreachable for users",
+        "delete affordance covered by tests 2026-11-01: src/frontend/src/features/work/r0a/routes/TaskWorkspaceDelete.test.tsx asserts the section renders for a deletable state, the two-step confirm calls DELETE with the session revision and leaves for /work/items, the section is absent while the task runs, a run_not_quiescent rejection shows the blocked notice without navigating, and the read-only phone viewport hides it (Work suite 72/72)"
       ],
-      "note": "Partial again: the admin panels for D5 §5.6 shipped, but the task-workspace 删除 action (二次确认、成功回到 /work/items、409 run_not_quiescent 提示) does not exist in the UI. Closes with that affordance plus client/e2e coverage. Other limits: visual snapshots cover meet views, iOS/Safari and the tablet breakpoint remain untested on device, and none of this is deployed yet."
+      "note": "Closed. Recorded limits, not gaps in D5 coverage: visual snapshots still cover meet views rather than Work views; iOS/Safari and the 768-1023px tablet breakpoint are untested on device; the new endpoints, admin panels and delete action are not deployed to production yet (tracked with the release step)."
     },
     {
       "id": "C11",
