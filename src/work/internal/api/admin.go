@@ -130,10 +130,39 @@ func (s *Server) adminSeats(w http.ResponseWriter, r *http.Request) {
 		items = items[:limit]
 		next = &value
 	} else if len(items) == limit && limit == maxAdminSeatLimit {
-		value := items[len(items)-1].SubjectID
-		next = &value
+		// At the SQL cap there is no room for a +1 probe, so ask whether the next
+		// page has any row at all instead of assuming it does.
+		value := items[limit-1].SubjectID
+		more, err := s.seatsRemain(r, claims.OrgID, claims.SubjectID, value)
+		if err != nil {
+			s.writeAdminError(w, correlationID, err)
+			return
+		}
+		if more {
+			next = &value
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items, "next_cursor": next})
+}
+
+// seatsRemain reports whether any seat sorts after the given cursor, used only
+// for the capped page where the handler cannot probe with limit+1.
+func (s *Server) seatsRemain(r *http.Request, orgID, subjectID, cursor string) (bool, error) {
+	var remaining int
+	err := workdb.WithWorkContext(r.Context(), s.pool,
+		workdb.Identity{OrgID: orgID, SubjectID: subjectID},
+		workdb.RoleAPI, workdb.Options{},
+		func(tx pgx.Tx) error {
+			return tx.QueryRow(r.Context(), `
+				SELECT count(1) FROM (
+				  SELECT 1 FROM work.list_seats($1, $2, $3, 1) LIMIT 1
+				) probe`, orgID, subjectID, cursor).Scan(&remaining)
+		},
+	)
+	if err != nil {
+		return false, err
+	}
+	return remaining > 0, nil
 }
 
 func (s *Server) createAdminAuditExport(w http.ResponseWriter, r *http.Request) {
