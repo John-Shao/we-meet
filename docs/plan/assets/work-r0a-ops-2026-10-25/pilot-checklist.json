@@ -109,11 +109,12 @@
       "blocking": true,
       "gate": "pilot",
       "evidence": [
-        "generated runtime client 12/12: 25 operations, CSRF/SSE/error mapping",
-        "ci-contract.mjs checks; Work R0a gates and Release guard observed success on remote runs (e.g. 2026-11-01 runs 41290938793 / 41290938850)",
-        "hand-written frontend client src/features/work/r0a/api/client.ts covered by client.test.ts against the flat /work/v1 surface"
+        "contract-to-router drift gate: test/go-surface-drift.test.mjs resolves the Go HandleFunc route table (23 routes) and compares it with the 33 operations declared in r0a-openapi-v1.yaml; the 13 declared-but-unimplemented and 3 implemented-but-undeclared divergences are pinned, and any new drift fails the gate (2026-11-01)",
+        "negative control observed: removing one allowlisted operation fails the test (1 pass / 1 fail)",
+        "scripts/ci-contract.mjs auto-discovers the new test and now reports 36/36 passing; Work R0a gates observed green on remote runs (e.g. 2026-11-01 runs 41290938793 / 41290938850)",
+        "hand-written frontend client src/features/work/r0a/api/client.ts covered by client.test.ts against the flat /work/v1 surface; it calls none of the 13 contract-only operations, so the divergence is not a live defect"
       ],
-      "note": "Remote CI is now observed green repeatedly, so the earlier \"no remote run\" gap is closed. Still partial: the generated client is not what the frontend ships (a hand-written client is), so generated-client drift is only covered by contract tests, not by real usage."
+      "note": "Kept partial, and the evidence basis corrected: the former \"generated runtime client 12/12\" citation is retired evidence under RB-03 (api-design §8: the old mock server, generated client and drift gate stop counting; surfaceFrozen stays false). C07 closes only when the 13 contract-only operations are dispositioned (implement, or trim from the surface at D2-prime re-sign) and the frontend call layer ships from a regenerated client."
     },
     {
       "id": "C08",
