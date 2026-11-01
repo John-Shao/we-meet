@@ -240,6 +240,12 @@ export interface WorkAuditExport {
   downloaded_at: string | null
 }
 
+export interface WorkTaskDeletion {
+  task_id: string
+  deleted_at: string
+  content_purge: string
+}
+
 export interface WorkUsageRow {
   provider: string
   model: string

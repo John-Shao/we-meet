@@ -182,7 +182,15 @@
     "streamOpen": "Live",
     "streamConnecting": "Connecting…",
     "streamReconnecting": "Reconnecting…",
-    "streamError": "Live connection unavailable"
+    "streamError": "Live connection unavailable",
+    "deleteTitle": "Taak verwijderen",
+    "deleteWarning": "Verwijderen kan niet ongedaan worden: inhoud en invoer worden binnen 24 uur gewist; verbruik- en auditrecords blijven.",
+    "deleteConfirm": "Deze taak verwijderen? Dit kan niet ongedaan worden.",
+    "deleteButton": "Taak verwijderen",
+    "deleteConfirmButton": "Definitief verwijderen",
+    "deleteCancelButton": "Annuleren",
+    "deleteBlocked": "Breek de actieve run af en wacht tot die eindigt.",
+    "deleteError": "Verwijderen mislukt. Probeer het later opnieuw."
   },
   "artifact": {
     "backToTask": "Back to task",

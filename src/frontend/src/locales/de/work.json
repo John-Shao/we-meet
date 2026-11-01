@@ -182,7 +182,15 @@
     "streamOpen": "Live",
     "streamConnecting": "Connecting…",
     "streamReconnecting": "Reconnecting…",
-    "streamError": "Live connection unavailable"
+    "streamError": "Live connection unavailable",
+    "deleteTitle": "Aufgabe löschen",
+    "deleteWarning": "Löschen ist endgültig: Inhalt und Eingaben werden innerhalb von 24 Stunden gelöscht, Nutzungs- und Audit-Daten bleiben erhalten.",
+    "deleteConfirm": "Diese Aufgabe löschen? Das lässt sich nicht rückgängig machen.",
+    "deleteButton": "Aufgabe löschen",
+    "deleteConfirmButton": "Endgültig löschen",
+    "deleteCancelButton": "Abbrechen",
+    "deleteBlocked": "Brechen Sie den laufenden Durchgang ab und warten Sie das Ende ab.",
+    "deleteError": "Löschen fehlgeschlagen. Bitte später erneut versuchen."
   },
   "artifact": {
     "backToTask": "Back to task",

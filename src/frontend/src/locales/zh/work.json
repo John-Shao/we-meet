@@ -182,7 +182,15 @@
     "streamOpen": "实时连接",
     "streamConnecting": "正在连接…",
     "streamReconnecting": "正在重新连接…",
-    "streamError": "实时连接不可用"
+    "streamError": "实时连接不可用",
+    "deleteTitle": "删除任务",
+    "deleteWarning": "删除后不可撤销：正文与输入会在 24 小时内清除，用量与审计记录保留。",
+    "deleteConfirm": "确认删除这个任务？此操作不可撤销。",
+    "deleteButton": "删除任务",
+    "deleteConfirmButton": "确认删除",
+    "deleteCancelButton": "取消",
+    "deleteBlocked": "请先取消并等待运行结束后再删除。",
+    "deleteError": "删除失败，请稍后重试。"
   },
   "artifact": {
     "backToTask": "返回任务",

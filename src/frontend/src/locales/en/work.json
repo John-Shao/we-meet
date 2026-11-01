@@ -182,7 +182,15 @@
     "streamOpen": "Live",
     "streamConnecting": "Connecting…",
     "streamReconnecting": "Reconnecting…",
-    "streamError": "Live connection unavailable"
+    "streamError": "Live connection unavailable",
+    "deleteTitle": "Delete task",
+    "deleteWarning": "Deleting cannot be undone: the body and inputs are erased within 24 hours, while usage and audit records stay.",
+    "deleteConfirm": "Delete this task? This cannot be undone.",
+    "deleteButton": "Delete task",
+    "deleteConfirmButton": "Delete permanently",
+    "deleteCancelButton": "Cancel",
+    "deleteBlocked": "Cancel the running job and wait for it to finish first.",
+    "deleteError": "Could not delete the task. Try again later."
   },
   "artifact": {
     "backToTask": "Back to task",

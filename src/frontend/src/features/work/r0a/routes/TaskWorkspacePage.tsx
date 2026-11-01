@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useParams } from 'wouter'
+import { Link, useLocation, useParams } from 'wouter'
 import {
   RiArrowLeftLine,
   RiCheckLine,
@@ -19,6 +19,7 @@ import { css, cx } from '@/styled-system/css'
 import {
   useAcceptWorkTask,
   useCancelWorkRun,
+  useDeleteWorkTask,
   useUpdateWorkTitle,
   useWorkTask,
   workQueryKeys,
@@ -42,6 +43,15 @@ import {
 
 const terminalStates = new Set(['completed', 'canceled', 'archived'])
 
+// D5 state-matrix.json management.delete：只有这些显示状态可删，且需静止（服务端 409）。
+const deletableStates = new Set([
+  'open',
+  'awaiting_acceptance',
+  'completed',
+  'failed',
+  'run_canceled',
+])
+
 export const TaskWorkspacePage = () => {
   const { t } = useTranslation('work')
   const { taskId } = useParams<{ taskId: string }>()
@@ -50,6 +60,8 @@ export const TaskWorkspacePage = () => {
   const cancelMutation = useCancelWorkRun(taskId ?? '')
   const acceptMutation = useAcceptWorkTask(taskId ?? '')
   const updateMutation = useUpdateWorkTitle(taskId ?? '')
+  const deleteMutation = useDeleteWorkTask(taskId ?? '')
+  const [, setLocation] = useLocation()
   const titleKey = useIdempotencyKey()
   const acceptKey = useIdempotencyKey()
   const readOnly = useReadOnlyViewport()
@@ -58,6 +70,8 @@ export const TaskWorkspacePage = () => {
   const [titleError, setTitleError] = useState<string | null>(null)
   const [reason, setReason] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [accepted, setAccepted] = useState(false)
   const lastEventIdRef = useRef<string | null>(null)
 
@@ -617,6 +631,68 @@ export const TaskWorkspacePage = () => {
               readOnly={readOnly}
             />
           ) : null}
+
+          {readOnly ||
+          !deletableStates.has(detail.summary.display_state) ? null : (
+            <section className={card}>
+              <h2 className={sectionTitle}>{t('task.deleteTitle')}</h2>
+              <p className={muted}>{t('task.deleteWarning')}</p>
+              {deleteError ? <p className={notice}>{deleteError}</p> : null}
+              {confirmingDelete ? (
+                <>
+                  <p className={notice}>{t('task.deleteConfirm')}</p>
+                  <div
+                    className={css({
+                      display: 'flex',
+                      gap: 'sm',
+                      flexWrap: 'wrap',
+                    })}
+                  >
+                    <Button
+                      variant="primary"
+                      size="dense"
+                      loading={deleteMutation.isPending}
+                      onPress={async () => {
+                        try {
+                          await deleteMutation.mutateAsync(
+                            detail.summary.revision
+                          )
+                          setLocation('/work/items')
+                        } catch (error) {
+                          const code = (error as { code?: string })?.code
+                          setDeleteError(
+                            code === 'run_not_quiescent'
+                              ? t('task.deleteBlocked')
+                              : t('task.deleteError')
+                          )
+                        }
+                      }}
+                    >
+                      {t('task.deleteConfirmButton')}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="dense"
+                      onPress={() => {
+                        setConfirmingDelete(false)
+                        setDeleteError(null)
+                      }}
+                    >
+                      {t('task.deleteCancelButton')}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <Button
+                  variant="secondary"
+                  size="dense"
+                  onPress={() => setConfirmingDelete(true)}
+                >
+                  {t('task.deleteButton')}
+                </Button>
+              )}
+            </section>
+          )}
         </aside>
       </div>
     </div>

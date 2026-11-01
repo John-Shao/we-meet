@@ -15,6 +15,7 @@ import {
   fetchAdminSeats,
   fetchAdminUsage,
   cancelWorkRun,
+  deleteWorkTask,
   createWorkInput,
   createWorkPreview,
   fetchWorkArtifactContent,
@@ -133,6 +134,18 @@ export const useUpdateWorkTitle = (taskId: string) => {
     }) => updateWorkTaskTitle(taskId, body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: workKeys.task(taskId) })
+      void queryClient.invalidateQueries({ queryKey: ['work', 'tasks'] })
+    },
+  })
+}
+
+export const useDeleteWorkTask = (taskId: string) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (expectedRevision: number) =>
+      deleteWorkTask(taskId, expectedRevision),
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: workKeys.task(taskId) })
       void queryClient.invalidateQueries({ queryKey: ['work', 'tasks'] })
     },
   })

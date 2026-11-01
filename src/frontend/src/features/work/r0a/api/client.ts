@@ -10,6 +10,7 @@ import type {
   WorkPreviewResponse,
   WorkProviderConfig,
   WorkSubmitResponse,
+  WorkTaskDeletion,
   WorkTaskArtifactWorkspace,
   WorkTaskDetail,
   WorkTaskList,
@@ -188,6 +189,12 @@ export const updateWorkTaskTitle = (
     method: 'PATCH',
     body: JSON.stringify(body),
   })
+
+export const deleteWorkTask = (taskId: string, expectedRevision: number) =>
+  request<WorkTaskDeletion>(
+    `/tasks/${encodeURIComponent(taskId)}?expected_revision=${expectedRevision}`,
+    { method: 'DELETE' }
+  )
 
 export const cancelWorkRun = (runId: string) =>
   request(`/runs/${encodeURIComponent(runId)}/cancel`, { method: 'POST' })

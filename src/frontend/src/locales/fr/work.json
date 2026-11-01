@@ -182,7 +182,15 @@
     "streamOpen": "Live",
     "streamConnecting": "Connecting…",
     "streamReconnecting": "Reconnecting…",
-    "streamError": "Live connection unavailable"
+    "streamError": "Live connection unavailable",
+    "deleteTitle": "Supprimer la tâche",
+    "deleteWarning": "La suppression est définitive : le contenu et les entrées sont effacés sous 24 h ; la consommation et les journaux d’audit sont conservés.",
+    "deleteConfirm": "Supprimer cette tâche ? Action irréversible.",
+    "deleteButton": "Supprimer la tâche",
+    "deleteConfirmButton": "Supprimer définitivement",
+    "deleteCancelButton": "Annuler",
+    "deleteBlocked": "Annulez l’exécution en cours et attendez sa fin.",
+    "deleteError": "Suppression impossible. Réessayez plus tard."
   },
   "artifact": {
     "backToTask": "Back to task",
