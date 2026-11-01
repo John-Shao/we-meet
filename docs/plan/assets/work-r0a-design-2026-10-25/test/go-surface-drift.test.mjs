@@ -11,8 +11,11 @@ const OPENAPI = new URL('../r0a-openapi-v1.yaml', import.meta.url);
 // Declared in the contract, no Go handler. Pinned so that adding a route or
 // retiring an operation has to be a deliberate edit here as well. Their R0a
 // disposition (implement, or trim from the contract when D2' re-signs the
-// surface) is tracked in docs/plan/work-project.md; several overlap the
-// provider write surface that D-08b kept out of scope.
+// surface) is tracked in docs/plan/work-project.md. Note: the five provider
+// write operations here are IN R0a scope (D-08a signed "org owners may write
+// the access config"), not out of scope -- see
+// docs/plan/work-r0a-provider-write-surface-2026-11-01.md. The two read
+// projections (inbox, run operations) additionally lack SQL read functions.
 const CONTRACT_ONLY = [
   'GET /work/v1/inbox',
   'GET /work/v1/runs/{runId}/operations',
