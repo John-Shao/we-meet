@@ -54,7 +54,7 @@
         "D3 design + fault-matrix.yaml 18 cases (F, D3-R, D3-N)",
         "Temporal dev slice 10/10; D3-N02-N05 database-side interleavings measured"
       ],
-      "note": "U3 nine commitments answered yes on 2026-10-27; resources approved; drills staffed by 5 dev/test people. Remaining: four C22 drills and D3-N01/N06 crash/kill-switch cases. D3-N03 was drafted as a database test and passed locally (takeover only after lease expiry, stale worker refused complete/fail, one completed audit row, zero tickets), but it turned the required 'Work R0a gates' check red in CI, so the file was reverted on 2026-11-02 and N03 stays unexecuted until the gate failure is diagnosed in CI."
+      "note": "U3 nine commitments answered yes on 2026-10-27; resources approved; drills staffed by 5 dev/test people. Remaining: four C22 drills and D3-N01/N06 crash/kill-switch cases. D3-N03 is covered by cmd/work-export/lease_crash_test.go (2026-11-02): takeover only after the lease ages out, the stale worker is refused by complete and fail, exactly one completed audit row, zero download tickets. The first version failed the required Work R0a gates because the package lacked the TestMain that calls testpg.EnsureFixtures, so the roles existed on a developer machine but not on a fresh CI Postgres; the harness was fixed the same way as internal/api and cmd/work-provider-setup, and this note only counts as evidence once the gates run for that commit is green."
     },
     {
       "id": "C04",
