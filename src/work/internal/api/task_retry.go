@@ -39,7 +39,9 @@ func (s *Server) retryTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body retryTaskRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&body); err != nil {
 		writeAPIError(w, correlationID, apierr.New("invalid_json"))
 		return
 	}

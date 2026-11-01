@@ -28,17 +28,33 @@ const (
 )
 
 type inputRequest struct {
-	ClientRequestID string `json:"client_request_id"`
-	Goal            string `json:"goal"`
-	Background      string `json:"background"`
+	ClientRequestID string  `json:"client_request_id"`
+	Goal            string  `json:"goal"`
+	Background      string  `json:"background"`
+	MediaType       *string `json:"media_type"`
 }
 
 type inputResponse struct {
 	InputRef    string    `json:"input_ref"`
 	ContentHash string    `json:"content_hash"`
 	Bytes       int64     `json:"bytes"`
+	MediaType   string    `json:"media_type"`
 	ExpiresAt   time.Time `json:"expires_at"`
 	storedRef   string
+}
+
+// inputMediaType is the only media type the contract's InputCreateRequest
+// enumerates, and InputObject marks media_type required on the response.
+const inputMediaType = "text/markdown"
+
+func (b inputRequest) resolvedMediaType() (string, bool) {
+	if b.MediaType == nil {
+		return inputMediaType, true
+	}
+	if *b.MediaType != inputMediaType {
+		return "", false
+	}
+	return inputMediaType, true
 }
 
 func (s *Server) createInput(w http.ResponseWriter, r *http.Request) {
@@ -100,6 +116,8 @@ func (s *Server) createInput(w http.ResponseWriter, r *http.Request) {
 	if response.storedRef != ref.ContentRef {
 		s.logger.Printf("work api input replay left an unreferenced object correlation_id=%s", correlationID)
 	}
+	// InputObject marks media_type required; the enum has one legal value.
+	response.MediaType, _ = body.resolvedMediaType()
 	writeJSON(w, http.StatusCreated, response)
 }
 
@@ -123,6 +141,11 @@ func readInputBody(w http.ResponseWriter, r *http.Request) (inputRequest, error)
 		utf8.RuneCountInString(body.Background) > maxBgRunes ||
 		strings.ContainsRune(body.Goal, '\x00') || strings.ContainsRune(body.Background, '\x00') {
 		return inputRequest{}, fmt.Errorf("invalid input text")
+	}
+	// Reject a wrong media_type before storing anything: the enum has a single
+	// legal value and the response must carry it.
+	if _, ok := body.resolvedMediaType(); !ok {
+		return inputRequest{}, fmt.Errorf("invalid media_type")
 	}
 	return body, nil
 }
