@@ -152,7 +152,7 @@
       "category": "implementation",
       "title": "D5 React pages, React Query and SSE E2E",
       "owner": "frontend",
-      "status": "done",
+      "status": "partial",
       "blocking": true,
       "gate": "pilot",
       "evidence": [
@@ -160,9 +160,10 @@
         "SSE: production browser captured live incremental events on one page without reload (task 140fda90…, events #0/#2 growing to #3-#6, 2026-10-30)",
         "Playwright: e2e/work-r0a-consistency.spec.ts (golden path incl. gap event, reconnect cursor, 409 stream rejection, delayed-request preview invalidation) and e2e/work-r0a-admin-mobile.spec.ts (369px and 1280px)",
         "a11y: e2e/work-a11y.spec.ts fixed and meet Workflow green including test-e2e (run 41290938804, 2026-11-01)",
-        "real-device mobile verification 2026-11-01 with post-release re-check on Helm revision 528"
+        "real-device mobile verification 2026-11-01 with post-release re-check on Helm revision 528",
+        "gap found 2026-11-01: D5 §5.6 requires the admin page to show 接入配置（脱敏）and 用量统计 and C-side own-usage; the API side now exists (GET /work/v1/me/usage, /admin/usage, /admin/provider-config with Go tests) but the panels are not built"
       ],
-      "note": "Closed. Remaining frontend evidence limits are recorded elsewhere: visual snapshots cover meet task views rather than Work views, and iOS/Safari plus the 768-1023px tablet breakpoint are untested on device."
+      "note": "Reopened the same day it was closed: the seven routes, React Query, SSE, Playwright and the real-device pass all hold, but the admin page is missing two read panels required by D5 §5.6 (provider config desensitised, usage stats) plus the own-usage view. Closes when the panels render those endpoints and the 369px/1280px e2e covers them."
     },
     {
       "id": "C11",

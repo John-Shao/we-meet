@@ -15,10 +15,7 @@ const OPENAPI = new URL('../r0a-openapi-v1.yaml', import.meta.url);
 // provider write surface that D-08b kept out of scope.
 const CONTRACT_ONLY = [
   'DELETE /work/v1/tasks/{taskId}',
-  'GET /work/v1/admin/provider-config',
-  'GET /work/v1/admin/usage',
   'GET /work/v1/inbox',
-  'GET /work/v1/me/usage',
   'GET /work/v1/runs/{runId}/operations',
   'POST /work/v1/admin/provider-config/revoke',
   'POST /work/v1/admin/provider-credentials',
