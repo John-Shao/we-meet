@@ -143,6 +143,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET "+AdminSeatsPath, s.adminSeats)
 	mux.HandleFunc("GET "+AdminUsagePath, s.adminUsage)
 	mux.HandleFunc("GET "+AdminProviderConfigPath, s.adminProviderConfig)
+	mux.HandleFunc("POST "+AdminProviderConfigRevokePath, s.adminRevokeProviderConfig)
 	mux.HandleFunc("GET "+MeUsagePath, s.meUsage)
 	mux.HandleFunc("POST "+AdminAuditExportsPath, s.createAdminAuditExport)
 	mux.HandleFunc("GET "+AdminAuditExportPath, s.getAdminAuditExport)

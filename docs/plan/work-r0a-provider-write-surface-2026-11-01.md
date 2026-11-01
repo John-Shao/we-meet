@@ -15,7 +15,7 @@
 | 操作 | 契约位置（`r0a-openapi-v1.yaml`） | SQL 已具备（`baseline/0002_initial_r0a_schema.sql`） |
 | --- | --- | --- |
 | `PUT /work/v1/admin/provider-config`（`setProviderConfig`） | :523-525 | `work.set_provider_config(...)` :4217 |
-| `POST /work/v1/admin/provider-config/revoke`（`revokeProviderConfig`） | :549-552 | `work.revoke_provider_config(org,subject,reason)` :4286 |
+| `POST /work/v1/admin/provider-config/revoke`（`revokeProviderConfig`） | :549-552 | `work.revoke_provider_config(org,subject,reason)` :4286 — **已于 2026-11-01 落地** |
 | `POST /work/v1/admin/provider-credentials`（`createProviderCredential`） | :571-574 | `work.create_provider_credential(...)` :4074 |
 | `POST .../provider-credentials/{credentialId}/rotate` | :598-601 | `work.rotate_provider_credential(...)` :4133 |
 | `POST .../provider-credentials/{credentialId}/revoke` | :623-626 | `work.revoke_provider_credential(...)` :4184 |
