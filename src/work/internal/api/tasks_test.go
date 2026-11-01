@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/we-meet/work/internal/api"
