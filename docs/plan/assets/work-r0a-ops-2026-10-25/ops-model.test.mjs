@@ -57,19 +57,19 @@ test('blocking items split into a start gate and a pilot gate', () => {
   assert.ok(!result.startBlockers.some((item) => item.id === 'C15'));
   assert.equal(checklist.items.find((item) => item.id === 'C15').status, 'waived');
   assert.ok(!result.pilotBlockers.some((item) => item.id === 'C33'));
-  assert.ok(!result.pilotBlockers.some((item) => item.id === 'C10'), 'C10 closed with the delete affordance under test');
+  assert.ok(result.pilotBlockers.some((item) => item.id === 'C10'), 'the missing retry affordance keeps C10 open');
   const c33 = checklist.items.find((item) => item.id === 'C33');
   assert.equal(c33.status, 'waived');
   assert.ok(c33.blocking, '#280 stays declared as an exit gate, closed by exception not by omission');
   // C11 signs the S01-S18 mapping口径 only; control implementation evidence stays in the pilot gate.
   assert.equal(checklist.items.find((item) => item.id === 'C11').status, 'done');
   assert.equal(result.startBlockerCount, 3);
-  assert.equal(result.pilotBlockerCount, 12);
+  assert.equal(result.pilotBlockerCount, 13);
   assert.equal(result.scaleBlockerCount, 0);
   assert.equal(result.canStartWork, false);
   assert.equal(result.blockerCount, result.startBlockerCount + result.pilotBlockerCount + result.scaleBlockerCount);
 
-  // 关掉开工闸门只允许开工，不等于可以试点：12 个试点证据项仍必须由实施产生。
+  // 关掉开工闸门只允许开工，不等于可以试点：13 个试点证据项仍必须由实施产生。
   const started = structuredClone(checklist);
   for (const item of started.items) {
     if (item.gate === 'start' && item.blocking) {
@@ -80,7 +80,7 @@ test('blocking items split into a start gate and a pilot gate', () => {
   const afterStart = goNoGo(started);
   assert.equal(afterStart.canStartWork, true);
   assert.equal(afterStart.go, false);
-  assert.equal(afterStart.pilotBlockerCount, 12);
+  assert.equal(afterStart.pilotBlockerCount, 13);
 });
 
 test('checklist rejects a missing or unknown gate', () => {

@@ -21,7 +21,6 @@ const CONTRACT_ONLY = [
   'POST /work/v1/admin/provider-credentials/{credentialId}/revoke',
   'POST /work/v1/admin/provider-credentials/{credentialId}/rotate',
   'POST /work/v1/artifacts/{artifactId}/versions',
-  'POST /work/v1/tasks/{taskId}/runs',
   'PUT /work/v1/admin/provider-config',
 ];
 
