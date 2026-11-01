@@ -26,6 +26,7 @@ vi.mock('../api/queries', () => ({
         enforcement: 'soft',
       },
       audit_retention_days: 365,
+      quota_period_id: '2026-11',
     },
     isLoading: false,
     isError: false,
@@ -65,21 +66,47 @@ vi.mock('../api/queries', () => ({
   }),
 }))
 
+const stubViewport = (readOnly: boolean) => {
+  vi.stubGlobal('matchMedia', () => ({
+    matches: readOnly,
+    media: '(max-width: 767px)',
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  }))
+}
+
 afterEach(() => {
   cleanup()
   role = 'owner'
+  vi.unstubAllGlobals()
 })
 
 describe('AdminPage', () => {
   it('renders overview and seats for an owner', () => {
+    stubViewport(false)
     render(<AdminPage />)
     expect(screen.getByText('admin.title')).toBeInTheDocument()
     expect(screen.getByText('Acme')).toBeInTheDocument()
     expect(screen.getByText('sub_a')).toBeInTheDocument()
+    expect(screen.getByText('2026-11')).toBeInTheDocument()
     expect(screen.getByText('admin.createExport')).toBeInTheDocument()
   })
 
+  it('hides the audit export form on a read-only phone viewport', () => {
+    stubViewport(true)
+    render(<AdminPage />)
+    expect(screen.getByText('admin.exportTitle')).toBeInTheDocument()
+    expect(screen.getByText('admin.exportMobileNotice')).toBeInTheDocument()
+    expect(screen.queryByText('admin.createExport')).not.toBeInTheDocument()
+    expect(screen.getByText('sub_a')).toBeInTheDocument()
+  })
+
   it('does not render the admin surface for a member', () => {
+    stubViewport(false)
     role = 'member'
     render(<AdminPage />)
     expect(screen.getByText('admin.forbiddenTitle')).toBeInTheDocument()

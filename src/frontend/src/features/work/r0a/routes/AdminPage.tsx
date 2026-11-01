@@ -12,7 +12,8 @@ import {
   useDownloadAdminAuditExport,
   useWorkBootstrap,
 } from '../api/queries'
-import { card, muted, page } from '../ui'
+import { useReadOnlyViewport } from '../hooks/useReadOnlyViewport'
+import { card, muted, notice, page } from '../ui'
 
 const dateInput = (daysAgo: number) => {
   const date = new Date()
@@ -28,6 +29,7 @@ const asRange = (value: string, end: boolean) => {
 
 export const AdminPage = () => {
   const { t } = useTranslation('work')
+  const readOnly = useReadOnlyViewport()
   const bootstrapQ = useWorkBootstrap()
   const overviewQ = useAdminOverview()
   const seatsQ = useAdminSeats()
@@ -135,6 +137,10 @@ export const AdminPage = () => {
               </dd>
             </div>
             <div>
+              <dt className={muted}>{t('admin.period')}</dt>
+              <dd className={css({ margin: 0 })}>{overview.quota_period_id}</dd>
+            </div>
+            <div>
               <dt className={muted}>{t('admin.retention')}</dt>
               <dd className={css({ margin: 0 })}>
                 {overview.audit_retention_days} {t('admin.days')}
@@ -156,19 +162,29 @@ export const AdminPage = () => {
           <table className={css({ width: '100%', borderCollapse: 'collapse' })}>
             <thead>
               <tr className={muted}>
-                <th align="left">{t('admin.seat.subject')}</th>
-                <th align="left">{t('admin.seat.role')}</th>
-                <th align="left">{t('admin.seat.status')}</th>
-                <th align="left">{t('admin.seat.workSeat')}</th>
+                <th scope="col" className={headCell}>
+                  {t('admin.seat.subject')}
+                </th>
+                <th scope="col" className={headCell}>
+                  {t('admin.seat.role')}
+                </th>
+                <th scope="col" className={headCell}>
+                  {t('admin.seat.status')}
+                </th>
+                <th scope="col" className={headCell}>
+                  {t('admin.seat.workSeat')}
+                </th>
               </tr>
             </thead>
             <tbody>
               {seats.map((seat) => (
-                <tr key={seat.subject_id}>
-                  <td>{seat.subject_id}</td>
-                  <td>{seat.role}</td>
-                  <td>{seat.status}</td>
-                  <td>{seat.work_seat ? t('admin.yes') : t('admin.no')}</td>
+                <tr key={seat.subject_id} className={rowLine}>
+                  <td className={subjectCell}>{seat.subject_id}</td>
+                  <td className={bodyCell}>{seat.role}</td>
+                  <td className={bodyCell}>{seat.status}</td>
+                  <td className={bodyCell}>
+                    {seat.work_seat ? t('admin.yes') : t('admin.no')}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -190,81 +206,102 @@ export const AdminPage = () => {
         <h2 className={css({ margin: 0, textStyle: 'titleMedium' })}>
           {t('admin.exportTitle')}
         </h2>
-        <p className={muted}>{t('admin.exportDescription')}</p>
-        <div
-          className={css({
-            display: 'flex',
-            gap: 'sm',
-            flexWrap: 'wrap',
-            alignItems: 'end',
-          })}
-        >
-          <label>
-            <span className={muted}>{t('admin.from')}</span>
-            <input
-              type="date"
-              value={rangeFrom}
-              onChange={(e) => setRangeFrom(e.target.value)}
-            />
-          </label>
-          <label>
-            <span className={muted}>{t('admin.to')}</span>
-            <input
-              type="date"
-              value={rangeTo}
-              onChange={(e) => setRangeTo(e.target.value)}
-            />
-          </label>
-          <label>
-            <span className={muted}>{t('admin.format')}</span>
-            <select
-              value={format}
-              onChange={(e) => setFormat(e.target.value as 'csv' | 'json')}
+        {readOnly ? (
+          <p className={notice}>{t('admin.exportMobileNotice')}</p>
+        ) : (
+          <>
+            <p className={muted}>{t('admin.exportDescription')}</p>
+            <div
+              className={css({
+                display: 'flex',
+                gap: 'sm',
+                flexWrap: 'wrap',
+                alignItems: 'end',
+              })}
             >
-              <option value="csv">CSV</option>
-              <option value="json">JSON</option>
-            </select>
-          </label>
-          <Button
-            variant="primary"
-            size="dense"
-            loading={createExport.isPending}
-            onPress={async () => {
-              const created = await createExport.mutateAsync({
-                client_request_id: crypto.randomUUID(),
-                range_from: asRange(rangeFrom, false),
-                range_to: asRange(rangeTo, true),
-                format,
-              })
-              setExportId(created.id)
-            }}
-          >
-            {t('admin.createExport')}
-          </Button>
-        </div>
-        {createExport.isError ? (
-          <p className={muted}>{t('admin.exportError')}</p>
-        ) : null}
-        {exportQ.data ? (
-          <p className={muted}>
-            {t('admin.exportStatus')}: {exportQ.data.status}
-            {' · '}
-            {t('admin.exportRows')}: {exportQ.data.row_count ?? '—'}
-            {exportQ.data.download_available ? (
+              <label>
+                <span className={muted}>{t('admin.from')}</span>
+                <input
+                  type="date"
+                  value={rangeFrom}
+                  onChange={(e) => setRangeFrom(e.target.value)}
+                />
+              </label>
+              <label>
+                <span className={muted}>{t('admin.to')}</span>
+                <input
+                  type="date"
+                  value={rangeTo}
+                  onChange={(e) => setRangeTo(e.target.value)}
+                />
+              </label>
+              <label>
+                <span className={muted}>{t('admin.format')}</span>
+                <select
+                  value={format}
+                  onChange={(e) => setFormat(e.target.value as 'csv' | 'json')}
+                >
+                  <option value="csv">CSV</option>
+                  <option value="json">JSON</option>
+                </select>
+              </label>
               <Button
-                variant="secondary"
+                variant="primary"
                 size="dense"
-                loading={downloadExport.isPending}
-                onPress={() =>
-                  void downloadExport.mutateAsync(exportQ.data!.id)
-                }
+                loading={createExport.isPending}
+                onPress={async () => {
+                  const created = await createExport.mutateAsync({
+                    client_request_id: crypto.randomUUID(),
+                    range_from: asRange(rangeFrom, false),
+                    range_to: asRange(rangeTo, true),
+                    format,
+                  })
+                  setExportId(created.id)
+                }}
               >
-                {t('admin.download')}
+                {t('admin.createExport')}
               </Button>
+            </div>
+            {createExport.isError ? (
+              <p className={muted}>{t('admin.exportError')}</p>
             ) : null}
-          </p>
-        ) : null}
+            {exportQ.data ? (
+              <p className={muted}>
+                {t('admin.exportStatus')}: {exportQ.data.status}
+                {' · '}
+                {t('admin.exportRows')}: {exportQ.data.row_count ?? '—'}
+                {exportQ.data.download_available ? (
+                  <Button
+                    variant="secondary"
+                    size="dense"
+                    loading={downloadExport.isPending}
+                    onPress={() =>
+                      void downloadExport.mutateAsync(exportQ.data!.id)
+                    }
+                  >
+                    {t('admin.download')}
+                  </Button>
+                ) : null}
+              </p>
+            ) : null}
+          </>
+        )}
       </section>
     </div>
   )
 }
+
+// 席位表在 369px 真机视口下曾把四列挤成 `memberactive否`：单元格无内边距。
+const cellBase = {
+  paddingY: 'xs',
+  paddingInlineEnd: 'md',
+  textAlign: 'left' as const,
+  verticalAlign: 'top' as const,
+}
+
+const headCell = css({ ...cellBase, whiteSpace: 'nowrap' })
+const bodyCell = css(cellBase)
+const subjectCell = css({ ...cellBase, wordBreak: 'break-all' })
+const rowLine = css({
+  borderTop: '1px solid token(colors.border.subtle)',
+})

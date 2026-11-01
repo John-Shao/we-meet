@@ -543,6 +543,26 @@ Run `3cd9c500…` succeeded（usage 112/194、结算 306、artifact 85B）。hos
 `3a34a855…`（waiting）与 `a564dbcc…`（active）；审计 `6d5014d7…`、`bbf04996…`；
 关闭后 scan 仅剩 7 个 Running/no-gate。
 
+### 5.17 配额按期间记账与跨期未释放预留（2026-11-01）
+
+`work.quota_account` 以 `(org_id, account_key, period_id)` 唯一，预留与结算都记在**当时期间**的账户行上。因此
+`GET /work/v1/admin/overview` 只反映当前期间（响应字段 `quota_period_id`，管理页已把它标注为「配额期间」）：
+跨期仍未释放的预留不会出现在概览里，**「预留 0」不等于组织没有 held 预留**。
+
+只读核对二选一：
+
+1. 任务面：`GET /work/v1/tasks?limit=100` 沿 `next_cursor` 逐页读回，累加 `summary.quota.reserved_tokens > 0`
+   的任务。`limit` 上限 100，超过返回 400。
+2. 主机侧：`work-reconcile -scan`（需 `WORK_DATABASE_URL` 与 `WORK_TEMPORAL_*`）列出开放 Run 与
+   `reservation_state=held`。
+
+2026-11-01 实测：概览为 `2026-11` 期间、预留 0 / 已结算 0，而任务面读回 144 个任务中 **9 个各持 100,000
+（合计 900,000）**，全部创建于 2026-10-30、落在 `2026-10` 期间；其中 7 个仍 `running`，2 个是 2026-10-31
+按 §5.16 关闭的孤儿（任务已终态但预留未释放）。
+
+释放只能走 `release_quota`（`SECURITY DEFINER` 且受 RLS 约束，必须先 `set_config('app.org_id', …)`）；
+是否对已终态任务释放预留属运维决策，按 §5.16 的备份与审计要求执行，**不得为「清库存」放宽**。
+
 ## 6. 容量证据
 
 ### 6.1 当前 DDL 烟雾（2026-10-25）
