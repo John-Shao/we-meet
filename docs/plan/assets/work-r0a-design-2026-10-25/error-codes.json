@@ -278,6 +278,18 @@
       "recovery_action": null,
       "ui": "form_error"
     },
+    "provider_credential_exists": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "duplicate_request"
+    },
+    "provider_credential_revoked": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": "refresh",
+      "ui": "state_changed"
+    },
     "content_expired": {
       "status": 410,
       "retryable": false,
@@ -337,8 +349,8 @@
     "owner_access_denied": "admin_access_denied",
     "invalid_settlement_amount": "service_degraded",
     "provider_credential_mismatch": "invalid_request",
-    "provider_credential_exists": "version_conflict",
-    "provider_credential_revoked": "provider_not_configured",
+    "provider_credential_exists": "provider_credential_exists",
+    "provider_credential_revoked": "provider_credential_revoked",
     "provider_not_configured": "provider_not_configured",
     "revision_conflict": "version_conflict",
     "canceled_task_cannot_succeed": "run_not_active",
