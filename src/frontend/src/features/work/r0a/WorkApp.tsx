@@ -28,6 +28,7 @@ import { ArchivePage } from './routes/ArchivePage'
 import { ArtifactWorkspacePage } from './routes/ArtifactWorkspacePage'
 import { MyWorkPage } from './routes/MyWorkPage'
 import { TaskWorkspacePage } from './routes/TaskWorkspacePage'
+import { legacyWorkRedirect } from './legacyRedirect'
 import { WorkHomePage } from './routes/WorkHomePage'
 import { page } from './ui'
 
@@ -46,28 +47,12 @@ const WorkApp = () => {
   const { t } = useTranslation('work')
   const [searchParams] = useSearchParams()
   const [location] = useLocation()
-  const legacyTask = location === '/work' ? searchParams.get('task') : null
-  const legacyView = location === '/work' ? searchParams.get('view') : null
+  const redirect = legacyWorkRedirect(location, searchParams)
   const bootstrapQ = useWorkBootstrap()
 
-  if (legacyTask) {
-    return (
-      <Redirect
-        to={`/work/archive?legacyTask=${encodeURIComponent(legacyTask)}`}
-      />
-    )
+  if (redirect) {
+    return <Redirect to={redirect} />
   }
-  if (legacyView === 'new') return <Redirect to="/work/new" />
-  if (legacyView === 'history') return <Redirect to="/work/archive" />
-  if (
-    legacyView &&
-    ['pending', 'running', 'awaiting_acceptance', 'completed', 'all'].includes(
-      legacyView
-    )
-  ) {
-    return <Redirect to={`/work/items?view=${legacyView}`} />
-  }
-  if (legacyView) return <Redirect to="/work/items" />
 
   if (bootstrapQ.isLoading) {
     return (

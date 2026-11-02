@@ -3,7 +3,6 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { WorkHeader } from './WorkApp'
-
 const inbox = vi.hoisted(() => ({
   pages: [] as { items: unknown[]; next_cursor: string | null }[],
 }))

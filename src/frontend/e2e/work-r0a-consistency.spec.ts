@@ -490,3 +490,29 @@ test('artifact editing survives a version conflict and publishes with the same i
   await expect(page.getByRole('button', { name: '编辑此版本' })).toBeVisible()
   expect(errors).toEqual([])
 })
+
+// D5 §13.10 asks for a new-versus-old route isolation check and §14 requires that an
+// old task link never creates or maps a new task. The unit tests in
+// legacyRedirect.test.ts pin the mapping; this drives it through the real router.
+test('old /work links reach the read-only history view without a create surface', async ({
+  page,
+}) => {
+  const errors = await mockBackend(page)
+
+  await page.goto('/work?task=old-browser-task')
+  await expect(page).toHaveURL(/\/work\/archive\?legacyTask=old-browser-task/)
+  // The notice interpolates the task id, so this assertion does not depend on copy.
+  await expect(page.getByText(/old-browser-task/)).toBeVisible()
+  // Nothing on the history view may offer creation, and the composer must not mount.
+  await expect(page.getByLabel('任务描述')).toHaveCount(0)
+
+  await page.goto('/work?view=history')
+  await expect(page).toHaveURL(/\/work\/archive$/)
+
+  // The isolation half: the same parameter on a newer route is that route's own
+  // query string, so /work/items must stay on the list.
+  await page.goto('/work/items?view=all')
+  await expect(page).toHaveURL(/\/work\/items\?view=all$/)
+
+  expect(errors).toEqual([])
+})
