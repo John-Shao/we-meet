@@ -257,10 +257,13 @@
       "blocking": true,
       "gate": "pilot",
       "evidence": [
-        "log scanner 8/8; R0a evidence logs incl. the concurrency race log: 0 fail",
-        "synthetic secret/canary redaction tests"
+        "log scanner 10/10; R0a evidence logs incl. the concurrency race log: 0 fail",
+        "synthetic secret/canary redaction tests",
+        "2026-11-02 runtime scan of the pilot Work instance: 12 work-* units, 16,613 journal lines over 14 days, canaries = 46 live task titles read from the database plus a sentinel; fail=0 warn=0",
+        "positive control in the same run: appending one live title to a copy of the log yields fail=1 and 'log-scan: FAIL', so the clean verdict is not a vacuous pass",
+        "harness src/work/scripts/work-c16-log-scan.sh: credentials move through the environment only, real content enters the scanner through --canary-file rather than argv, and every temp file is 0600 and deleted on exit"
       ],
-      "note": "Local evidence logs and scanner only; no staging/prod OTel trace pipeline."
+      "note": "Runtime log surface is now verified on the pilot instance, but only for deployed code: 0017-0026 and the endpoints landing after them are not yet released, so their log lines are unscanned. The remaining gap for C16 is the trace half: there is no staging/prod OTel pipeline, so span attributes have never been put through the scanner."
     },
     {
       "id": "C17",

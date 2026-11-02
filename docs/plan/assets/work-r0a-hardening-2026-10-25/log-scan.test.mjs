@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { scanPaths, scanText } from './log-scan.mjs';
+import { readCanaryFile, scanPaths, scanText } from './log-scan.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -113,4 +113,42 @@ test('current R0a evidence logs contain no secret or content leaks', () => {
   assert.ok(result.files >= 8, `expected the evidence logs to be scanned, got ${result.files}`);
   assert.equal(result.bySeverity.fail, 0, JSON.stringify(result.findings, null, 2));
   assert.equal(result.failed, false);
+});
+
+// Runtime verification needs real user content as the canary - a task title read
+// out of the database is the only thing that proves the running services do not
+// log what D5 forbids. Passing that through --canary would write it into argv,
+// visible to `ps`, a shell history file and journald's exec record: the scanner
+// exists to keep content out of logs, so it cannot put content into a process
+// listing. This is the reason --canary-file exists rather than being a convenience.
+test('canary file feeds the scan without putting content in argv', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'work-canary-'));
+  const file = path.join(directory, 'canaries.txt');
+  const title = '上线计划：第三季度复盘会议';
+  fs.writeFileSync(file, `${title}\n\n   \nCANARY-9d41-77aa\n`, 'utf8');
+  try {
+    const canaries = readCanaryFile(file);
+    assert.deepEqual(canaries, [title, 'CANARY-9d41-77aa']);
+
+    const result = scanText(`task state=open title="${title}"`, { canaries });
+    assert.equal(result.failed, true);
+    assert.ok(
+      result.findings.some((finding) => finding.rule === 'content.canary'),
+      JSON.stringify(result.findings, null, 2)
+    );
+    // The report carries a redacted preview only.
+    assert.ok(!JSON.stringify(result).includes(title));
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('a missing canary file is reported by path, never by content', () => {
+  const target = path.join(os.tmpdir(), 'work-canary-missing', 'canaries.txt');
+  assert.throws(
+    () => readCanaryFile(target),
+    (error) =>
+      error.message.includes('cannot read canary file') &&
+      error.message.includes('work-canary-missing')
+  );
 });

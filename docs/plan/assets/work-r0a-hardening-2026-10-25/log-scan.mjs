@@ -167,8 +167,30 @@ export function scanText(text, options = {}) {
   };
 }
 
-function collectFiles(target) {
-  const stat = fs.statSync(target);
+/**
+ * Reads one canary per line from a file.
+ *
+ * Runtime verification needs *real* user content as the canary - a task title or
+ * a goal snippet taken from the database - and a scanner whose job is to keep
+ * content out of logs must not put that content into argv, where `ps`, a shell
+ * history file or a journald exec record would surface it. Blank lines are
+ * dropped so a trailing newline is not read as an empty canary matching every
+ * line. The error names the file, never its contents.
+ */
+export function readCanaryFile(target) {
+  let text;
+  try {
+    text = fs.readFileSync(target, 'utf8');
+  } catch (error) {
+    throw new Error(`cannot read canary file ${target}: ${error.code || error.message}`);
+  }
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+function collectFiles(target) {  const stat = fs.statSync(target);
   if (stat.isFile()) return [target];
   if (!stat.isDirectory()) return [];
   const files = [];
@@ -229,6 +251,8 @@ function main() {
       canaries.push(arg.slice('--canary='.length));
     } else if (arg === '--canary') {
       throw new Error('use --canary=TOKEN so the value is not confused with a path');
+    } else if (arg.startsWith('--canary-file=')) {
+      canaries.push(...readCanaryFile(arg.slice('--canary-file='.length)));
     } else if (arg.startsWith('--')) {
       throw new Error(`unknown option ${arg}`);
     } else {
@@ -236,7 +260,9 @@ function main() {
     }
   }
   if (paths.length === 0) {
-    console.error('usage: node log-scan.mjs [--json] [--strict] [--canary=TOKEN] <file-or-dir>...');
+    console.error(
+      'usage: node log-scan.mjs [--json] [--strict] [--canary=TOKEN] [--canary-file=PATH] <file-or-dir>...',
+    );
     process.exit(2);
   }
 
