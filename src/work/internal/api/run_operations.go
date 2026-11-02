@@ -28,17 +28,17 @@ const (
 // ("不含正文"); the provider answer, the model request bytes and the tool
 // arguments live in tables this query never names.
 type Operation struct {
-	ID                string     `json:"id"`
-	RunID             string     `json:"run_id"`
-	LogicalKey        string     `json:"logical_key"`
-	Kind              string     `json:"kind"`
-	State             string     `json:"state"`
-	RequestHash       string     `json:"request_hash"`
-	ProviderRequestID *string    `json:"provider_request_id"`
-	ReceiptRef        *string    `json:"receipt_ref"`
-	Revision          int64      `json:"revision"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
+	ID                string    `json:"id"`
+	RunID             string    `json:"run_id"`
+	LogicalKey        string    `json:"logical_key"`
+	Kind              string    `json:"kind"`
+	State             string    `json:"state"`
+	RequestHash       string    `json:"request_hash"`
+	ProviderRequestID *string   `json:"provider_request_id"`
+	ReceiptRef        *string   `json:"receipt_ref"`
+	Revision          int64     `json:"revision"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 type OperationPage struct {

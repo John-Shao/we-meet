@@ -36,6 +36,7 @@ var publishedIncrements = []string{
 	"0023_operator_entitlement_and_intents",
 	"0024_provider_probe_grant",
 	"0025_provider_config_conflict_detail",
+	"0026_audit_export_org_gate",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

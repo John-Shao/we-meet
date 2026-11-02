@@ -24,7 +24,7 @@ type ibxSeed struct {
 	taskState  string
 	runState   string // "" keeps the task run-less
 	waitReason string
-	openRun    bool // also sets task.active_run_id, not only latest_run_id
+	openRun    bool   // also sets task.active_run_id, not only latest_run_id
 	operation  string // "" writes no operation row
 }
 

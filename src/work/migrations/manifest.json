@@ -282,6 +282,17 @@
       "catalog_checksum": "sha256:00f4bfc8b193fe76d471623f5a5bd0c97be277f4f447840df3e7323d26294ac0",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 26,
+      "name": "0026_audit_export_org_gate",
+      "kind": "increment",
+      "file": "increments/0026_audit_export_org_gate.sql",
+      "checksum": "sha256:b53ef4051d8ba5e2ee5e0acf1053965c24c372febc6f4808fda1a0298ecc446c",
+      "catalog": "catalogs/0026_audit_export_org_gate.json",
+      "catalog_checksum": "sha256:cde01f8e5c3c92dc86745b8db89597cbfefb0da41672249d789284824267019e",
+      "transactional": true,
+      "executable": true
     }
   ]
 }
