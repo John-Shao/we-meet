@@ -32,6 +32,7 @@
   "provider_not_configured": "组织尚未配置大模型接入。",
   "provider_credential_exists": "该供应商已有一条生效中的凭证，请先吊销或轮换它。",
   "provider_credential_revoked": "该凭证已吊销，请改用生效中的凭证。",
+  "probe_grant_invalid": "连通探测授权无效或已被使用。",
   "quota_exhausted": "token 配额不足。",
   "rate_limited": "请求过于频繁，请稍后重试。",
   "resync_required": "事件游标已过期，请重新同步。",

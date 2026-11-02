@@ -300,6 +300,12 @@
       "recovery_action": "refresh",
       "ui": "state_changed"
     },
+    "probe_grant_invalid": {
+      "status": 403,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "permission_denied"
+    },
     "content_expired": {
       "status": 410,
       "retryable": false,
@@ -480,6 +486,9 @@
     "provider_credential_exists": "provider_credential_exists",
     "provider_credential_mismatch": "invalid_request",
     "provider_credential_revoked": "provider_credential_revoked",
+    "provider_probe_grant_binding_immutable": "invalid_request",
+    "provider_probe_grant_consumed_immutable": "invalid_request",
+    "probe_grant_invalid": "probe_grant_invalid",
     "provider_not_configured": "provider_not_configured",
     "quota_account_not_found": "service_degraded",
     "quota_exhausted": "quota_exhausted",

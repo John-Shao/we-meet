@@ -260,6 +260,17 @@
       "catalog_checksum": "sha256:4f6228ae8fe7c290f88fa5ac0b5ad6027f8fff7953bbd72b2200560033cc4b9f",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 24,
+      "name": "0024_provider_probe_grant",
+      "kind": "increment",
+      "file": "increments/0024_provider_probe_grant.sql",
+      "checksum": "sha256:ea67a4de0d9f0b7abcd7339e3345389dfe1654de536758d888d39250429958d6",
+      "catalog": "catalogs/0024_provider_probe_grant.json",
+      "catalog_checksum": "sha256:c237ed986a0c83c92db76c929e35f7a7104220d79eb29d38474e7a21acda22c7",
+      "transactional": true,
+      "executable": true
     }
   ]
 }
