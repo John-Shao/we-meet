@@ -301,7 +301,7 @@
       "file": "increments/0027_governance_receipt_payload_binding.sql",
       "checksum": "sha256:2dc841c7a5bb74ec2a2c35f2952a1feec11cb21d63fcea998f9e70b48235a343",
       "catalog": "catalogs/0027_governance_receipt_payload_binding.json",
-      "catalog_checksum": "sha256:6230ebe0ac9150b28eef7fc25d8c59ea0b5b6c40469e094cac063f47d00d26d3",
+      "catalog_checksum": "sha256:6823f8939273f56fb36b9fc69953741d7f4f20b97c20888590804320f0b683eb",
       "transactional": true,
       "executable": true
     }
