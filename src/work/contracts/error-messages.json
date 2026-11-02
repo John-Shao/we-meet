@@ -50,5 +50,11 @@
   "unauthorized": "登录状态已失效。",
   "version_conflict": "版本已变化，请刷新后重试。",
   "version_not_found": "成果版本不存在。",
-  "work_seat_required": "当前账号没有 Work 席位。"
+  "work_seat_required": "当前账号没有 Work 席位。",
+  "cursor_advance_not_allowed": "治理事件游标不能按这次请求推进，请核对缺口证明与工单。",
+  "governance_revision_conflict": "治理操作的版本已变化，请查询原变更结果后再决定。",
+  "acceptance_blocked_unresolvable": "该任务有一个被判为“证据已穷尽、无法定论”的动作，暂时不能采纳；成果仍可在本机查看与导出。",
+  "idempotency_conflict": "同一请求编号已对应另一个结论，请查询原结果，不要改写已签发的结论。",
+  "content_on_original_device": "这个成果版本只存放在原设备上，云端不代理正文；请在原设备上查看，或重新连接该设备。",
+  "org_operator_suspended": "该组织被运维刻意停用，需由运维恢复后才能继续；这不是暂时故障，重试也不会通过。"
 }

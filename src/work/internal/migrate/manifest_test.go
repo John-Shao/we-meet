@@ -9,6 +9,33 @@ import (
 	embedded "github.com/we-meet/work/migrations"
 )
 
+// publishedIncrements is the chain as published. The list is the assertion: a
+// new increment adds exactly one line here, instead of leaving a count and a
+// per-index name list that drift apart the moment either side is forgotten.
+var publishedIncrements = []string{
+	"0003_directory_absence",
+	"0004_outbox_task_event_kind",
+	"0005_run_workflow_id",
+	"0006_org_policy_quota_provision",
+	"0007_org_provision_backfill",
+	"0008_quota_directory_usage_hardening",
+	"0009_runtime_execution_dispatch_gate",
+	"0010_runtime_capability",
+	"0011_content_reference",
+	"0012_content_slot",
+	"0013_model_request_dispatch_consume",
+	"0014_advance_binding_reads",
+	"0015_snapshot_revision",
+	"0016_reconcile_rejected_receipt",
+	"0017_r0b_transition_authority",
+	"0018_r0b_governance_authority",
+	"0019_r0b_deny_lifecycle",
+	"0020_r0b_local_execution_policy",
+	"0021_r0b_operation_resolution",
+	"0022_org_execution_reason_split",
+	"0023_operator_entitlement_and_intents",
+}
+
 func TestEmbeddedManifestLoads(t *testing.T) {
 	manifest, err := LoadManifest(embedded.FS, ".")
 	if err != nil {
@@ -17,53 +44,21 @@ func TestEmbeddedManifestLoads(t *testing.T) {
 	if len(manifest.Baseline) != 2 {
 		t.Fatalf("baseline entries = %d, want 2", len(manifest.Baseline))
 	}
-	if len(manifest.Increments) != 14 {
-		t.Fatalf("increments = %d, want 14", len(manifest.Increments))
-	}
-	if manifest.Increments[0].Name != "0003_directory_absence" {
-		t.Fatalf("increment name = %q", manifest.Increments[0].Name)
-	}
-	if manifest.Increments[1].Name != "0004_outbox_task_event_kind" {
-		t.Fatalf("increment name = %q", manifest.Increments[1].Name)
-	}
-	if manifest.Increments[2].Name != "0005_run_workflow_id" {
-		t.Fatalf("increment name = %q", manifest.Increments[2].Name)
-	}
-	if manifest.Increments[3].Name != "0006_org_policy_quota_provision" {
-		t.Fatalf("increment name = %q", manifest.Increments[3].Name)
-	}
-	if manifest.Increments[4].Name != "0007_org_provision_backfill" {
-		t.Fatalf("increment name = %q", manifest.Increments[4].Name)
-	}
-	if manifest.Increments[5].Name != "0008_quota_directory_usage_hardening" {
-		t.Fatalf("increment name = %q", manifest.Increments[5].Name)
-	}
-	if manifest.Increments[6].Name != "0009_runtime_execution_dispatch_gate" {
-		t.Fatalf("increment name = %q", manifest.Increments[6].Name)
-	}
-	if manifest.Increments[7].Name != "0010_runtime_capability" {
-		t.Fatalf("increment name = %q", manifest.Increments[7].Name)
-	}
-	if manifest.Increments[8].Name != "0011_content_reference" {
-		t.Fatalf("increment name = %q", manifest.Increments[8].Name)
-	}
-	if manifest.Increments[9].Name != "0012_content_slot" {
-		t.Fatalf("increment name = %q", manifest.Increments[9].Name)
-	}
-	if manifest.Increments[10].Name != "0013_model_request_dispatch_consume" {
-		t.Fatalf("increment name = %q", manifest.Increments[10].Name)
-	}
-	if manifest.Increments[11].Name != "0014_advance_binding_reads" {
-		t.Fatalf("increment name = %q", manifest.Increments[11].Name)
-	}
-	if manifest.Increments[12].Name != "0015_snapshot_revision" {
-		t.Fatalf("increment name = %q", manifest.Increments[12].Name)
-	}
-	if manifest.Increments[13].Name != "0016_reconcile_rejected_receipt" {
-		t.Fatalf("increment name = %q", manifest.Increments[13].Name)
-	}
 	if manifest.Baseline[1].Name != "0002_initial_r0a_schema" {
 		t.Fatalf("baseline name = %q", manifest.Baseline[1].Name)
+	}
+	if len(manifest.Increments) != len(publishedIncrements) {
+		var names []string
+		for _, migration := range manifest.Increments {
+			names = append(names, migration.Name)
+		}
+		t.Fatalf("increments = %d, want %d: %v", len(manifest.Increments),
+			len(publishedIncrements), names)
+	}
+	for i, name := range publishedIncrements {
+		if manifest.Increments[i].Name != name {
+			t.Fatalf("increment %d name = %q, want %q", i, manifest.Increments[i].Name, name)
+		}
 	}
 }
 

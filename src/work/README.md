@@ -9,9 +9,10 @@ It must not import `src/backend/work` (the legacy Django implementation) or
 
 `cmd/work-migrate` owns schema migration. It compiles the baseline SQL, manifest,
 and catalog checkpoint into the binary, so a published migration body cannot be
-edited without changing its pinned checksum. Increments currently end at
-`0008_quota_directory_usage_hardening` (run-cap serialization, directory sync
-health, usage idempotency, and function-grant hardening).
+edited without changing its pinned checksum. `migrations/manifest.json` is the
+only place that lists the published chain and its catalog checkpoints; this file
+does not repeat the last version number, because a stale copy of it is worse
+than none.
 
 ```bash
 go run ./cmd/work-migrate status -url "$WORK_DATABASE_URL"
@@ -22,7 +23,11 @@ go run ./cmd/work-migrate snapshot -url "$WORK_DATABASE_URL" -output migrations/
 
 `apply` refuses to run without `-legacy-migrator-disabled`. The runner:
 
-- requires the seven Work roles to exist and stay `NOLOGIN`;
+- requires the Work service roles to exist and stay `NOLOGIN` (the list lives in
+  `internal/migrate/preflight.go`; R0b adds `work_governance_events` and
+  `work_operator`, which `deploy/ecs/provision-r0b-roles.sh` creates before this
+  binary is deployed, because an increment can only grant to a role that already
+  exists);
 - requires the migration login to be a member of `work_owner`;
 - serializes writers with a session advisory lock; a second runner waits and
   becomes a no-op;

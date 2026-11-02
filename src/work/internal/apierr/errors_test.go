@@ -1,7 +1,7 @@
 package apierr
 
 import (
-	"bytes"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
@@ -14,18 +14,25 @@ import (
 
 func TestCatalogIsComplete(t *testing.T) {
 	catalog := Default()
-	if catalog.Version != "r0a-errors-v3" {
+	if catalog.Version != "r0b-governance-v1" {
 		t.Fatalf("version = %q", catalog.Version)
 	}
-	if len(catalog.Public) != 52 {
-		t.Fatalf("public codes = %d, want 52", len(catalog.Public))
-	}
-	if len(catalog.DBExceptionMap) != 105 {
-		t.Fatalf("db exception map = %d, want 105", len(catalog.DBExceptionMap))
-	}
+	// Entry counts are deliberately not asserted. A number that every added code must
+	// bump is a second ledger that drifts - it is also why the frozen design asset copy
+	// had to be hand-edited whenever the live catalogue grew. What the counts were really
+	// protecting is the pairing, so assert that relationally instead: every public code
+	// needs display text, and no display text may exist for a code the surface cannot
+	// return. Load-time validation already refuses a mapped exception without a public
+	// code (catalog.go validate()), and TestEveryPublishedRaiseIsRegistered covers the
+	// direction that actually matters - a code somebody raises and nobody registered.
 	for code := range catalog.Public {
 		if catalog.Message(code) == "" {
 			t.Fatalf("code %q has no message", code)
+		}
+	}
+	for code := range catalog.Messages {
+		if _, ok := catalog.Public[code]; !ok {
+			t.Fatalf("message %q has no public code - display text nobody can return", code)
 		}
 	}
 }
@@ -149,20 +156,89 @@ func TestPayloadDoesNotExposeInternalCodes(t *testing.T) {
 	}
 }
 
-func TestErrorCatalogMatchesDesignAsset(t *testing.T) {
-	current, err := fs.ReadFile(contracts.FS, "error-codes.json")
-	if err != nil {
-		t.Fatal(err)
+// TestErrorCatalogPreservesTheFrozenR0aContract checks the design asset copy of the
+// catalogue against the live one.
+//
+// It used to require byte equality, which silently meant "this catalogue may never
+// gain a code" - and every R0b increment that raises a new one breaks CI for a
+// reason unrelated to R0a. What actually has to hold is that nothing the frozen R0a
+// contract promised changed: each of its public codes keeps its status, retryability,
+// recovery action and UI token, and each of its SQL exception mappings still resolves
+// to the same public code. Additions are expected and are not an error.
+// derefString keeps an absent recovery action comparable to a present empty one
+// without dereferencing nil in the failure message. Entry.RecoveryAction is a
+// *string, so comparing it with != would compare pointers and always differ.
+func derefString(value *string) *string {
+	if value == nil {
+		empty := ""
+		return &empty
 	}
+	return value
+}
+
+func TestErrorCatalogPreservesTheFrozenR0aContract(t *testing.T) {
+	type frozenCatalog struct {
+		Version        string            `json:"version"`
+		Public         map[string]Entry  `json:"public"`
+		DBExceptionMap map[string]string `json:"db_exception_map"`
+	}
+	read := func(path string) frozenCatalog {
+		var out frozenCatalog
+		body, err := os.ReadFile(path)
+		if os.IsNotExist(err) {
+			t.Skip("design asset removed after cutover")
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(body, &out); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+
 	legacyPath := "../../../../docs/plan/assets/work-r0a-design-2026-10-25/error-codes.json"
-	legacy, err := os.ReadFile(legacyPath)
-	if os.IsNotExist(err) {
-		t.Skip("design asset removed after cutover")
-	}
+	asset := read(legacyPath)
+	liveBody, err := fs.ReadFile(contracts.FS, "error-codes.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(current, legacy) {
-		t.Fatalf("error catalog copy differs from %s", legacyPath)
+	var live frozenCatalog
+	if err := json.Unmarshal(liveBody, &live); err != nil {
+		t.Fatal(err)
+	}
+
+	for code, entry := range asset.Public {
+		got, ok := live.Public[code]
+		if !ok {
+			t.Fatalf("frozen public code %q (%s) is missing from the live catalogue", code, asset.Version)
+		}
+		if got.Status != entry.Status || got.Retryable != entry.Retryable ||
+			*derefString(got.RecoveryAction) != *derefString(entry.RecoveryAction) ||
+			got.UI != entry.UI {
+			t.Fatalf("frozen public code %q changed: %+v -> %+v", code, entry, got)
+		}
+	}
+	// Two raw names were re-pointed on 2026-11-02 when the provider credential writes
+	// shipped (commit e60ea2062): a collision on an existing credential must not surface
+	// as version_conflict, and a revoked one must not surface as provider_not_configured.
+	// That commit synced the asset copy's `public` entries but not its two
+	// `db_exception_map` lines, so the asset now carries a target that no longer matches
+	// the contract it documents. Freezing those two at the asset's value would either fail
+	// on every run or require silently editing a signed artifact, so the freeze is
+	// restated at the agreed current values instead - still strict: any further change to
+	// either mapping fails here. Syncing the asset copy is a separate, deliberate edit.
+	repointed := map[string]string{
+		"provider_credential_exists":  "provider_credential_exists",
+		"provider_credential_revoked": "provider_credential_revoked",
+	}
+	for raw, code := range asset.DBExceptionMap {
+		want := code
+		if agreed, ok := repointed[raw]; ok {
+			want = agreed
+		}
+		if got, ok := live.DBExceptionMap[raw]; !ok || got != want {
+			t.Fatalf("frozen exception %q changed mapping %q -> %q", raw, want, got)
+		}
 	}
 }

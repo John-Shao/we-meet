@@ -179,6 +179,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST "+AdminProviderCredentialsPath, s.createProviderCredential)
 	mux.HandleFunc("POST "+AdminProviderCredentialRotatePath, s.rotateProviderCredential)
 	mux.HandleFunc("POST "+AdminProviderCredentialRevokePath, s.revokeProviderCredential)
+	mux.HandleFunc("GET "+AdminLocalPolicyPath, s.adminGetLocalPolicy)
+	mux.HandleFunc("PATCH "+AdminLocalPolicyPath, s.adminSetLocalPolicy)
+	mux.HandleFunc("POST "+AdminGovernanceEventCursorPath, s.adminAdvanceGovernanceCursor)
+	// The /work/v2 group starts here: §1.4 declares every relative path in its table under
+	// that prefix, so R0b's registered faces are added beneath it even though the shipped
+	// R0a surface they sit beside lives under /work/v1.
+	mux.HandleFunc("GET "+RunReconciliationsPath, s.getRunReconciliations)
 	mux.HandleFunc("GET "+MeUsagePath, s.meUsage)
 	mux.HandleFunc("POST "+AdminAuditExportsPath, s.createAdminAuditExport)
 	mux.HandleFunc("GET "+AdminAuditExportPath, s.getAdminAuditExport)

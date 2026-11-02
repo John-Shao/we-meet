@@ -1066,13 +1066,11 @@ func TestApplyThroughLatestAndManifestChecksums(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(manifest.Increments) != 14 {
-		t.Fatalf("increments = %d, want 14", len(manifest.Increments))
-	}
+	// Both the length and the identity of the chain head come from the manifest.
+	// Asserting "14 increments, last one is 0016" turns every new migration into a
+	// test failure without checking anything the manifest loader has not already
+	// checked; the checksum comparison below is the assertion worth keeping.
 	last := manifest.Increments[len(manifest.Increments)-1]
-	if last.Version != 16 || last.Name != "0016_reconcile_rejected_receipt" {
-		t.Fatalf("last increment = %d/%s", last.Version, last.Name)
-	}
 	body, err := fs.ReadFile(embedded.FS, last.File)
 	if err != nil {
 		t.Fatal(err)
@@ -1120,7 +1118,10 @@ func TestApplyThroughLatestAndManifestChecksums(t *testing.T) {
 	if result.State != "applied" {
 		t.Fatalf("apply state = %q", result.State)
 	}
-	if got := ledgerVersions(t, name); len(got) != 16 {
+	// The expected length comes from the manifest, not a literal 16: the contiguity
+	// check below is the part that proves the ledger, while the length only has to
+	// say "every published migration was stamped".
+	if got := ledgerVersions(t, name); len(got) != len(manifest.All()) {
 		t.Fatalf("ledger versions = %v", got)
 	} else {
 		for index, version := range got {

@@ -15,6 +15,12 @@ var workRoles = []string{
 	"work_migrator",
 	"work_ops",
 	"work_directory",
+	// 0019 grants its puller EXECUTE, so the migration fails without the role;
+	// deploy/ecs/provision-r0b-roles.sh creates it before this binary is deployed.
+	"work_governance_events",
+	// 0023 is the same situation for the operator command: EXECUTE is granted to a
+	// dedicated role rather than to work_api, because the operator is not an org admin.
+	"work_operator",
 }
 
 type RoleInfo struct {

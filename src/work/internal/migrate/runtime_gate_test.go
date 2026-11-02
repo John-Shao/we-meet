@@ -103,18 +103,11 @@ func newPreGateDB(t *testing.T) (string, *pgx.Conn) {
 	})
 	admin := connect(t, adminURL(name))
 	t.Cleanup(func() { _ = admin.Close(context.Background()) })
-	for _, apply := range []func(context.Context, *pgx.Conn) error{
-		testpg.ApplyBaseline,
-		testpg.ApplyDirectoryAbsence,
-		testpg.ApplyOutboxTaskEventKind,
-		testpg.ApplyRunWorkflowID,
-		testpg.ApplyOrgProvision,
-		testpg.ApplyOrgProvisionBackfill,
-		testpg.ApplyQuotaDirectoryUsageHardening,
-	} {
-		if err := apply(ctx, admin); err != nil {
-			t.Fatal(err)
-		}
+	// The pre-0009 database is the published chain truncated at 0008, not a
+	// hand-kept list of versions: the chain itself comes from the manifest.
+	if err := testpg.ApplyChainThrough(ctx, admin,
+		"0008_quota_directory_usage_hardening"); err != nil {
+		t.Fatal(err)
 	}
 	return name, admin
 }
@@ -949,7 +942,8 @@ func TestLegacyUsageReplayDoesNotDoubleCount(t *testing.T) {
 		t.Fatalf("pre-migration input tokens = %d", got)
 	}
 
-	if err := testpg.ApplyRuntimeExecutionDispatchGate(testContext(t), admin); err != nil {
+	if err := testpg.ApplyIncrement(testContext(t), admin,
+		"0009_runtime_execution_dispatch_gate"); err != nil {
 		t.Fatal(err)
 	}
 	if got := scalarCount(t, admin,

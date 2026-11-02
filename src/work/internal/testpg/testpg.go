@@ -2,6 +2,7 @@ package testpg
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net/url"
@@ -43,7 +44,39 @@ func EnsureFixtures(ctx context.Context, admin *pgx.Conn) error {
 	if err := ensureLogin(ctx, admin, "work_directory_test_login", "work_directory"); err != nil {
 		return err
 	}
+	// baseline/0001_roles_precondition.sql is published and checksum-pinned, so it
+	// cannot grow the seven-role list it creates; the R0b group roles and their logins
+	// come from here instead, which mirrors deploy/ecs/provision-r0b-roles.sh.
+	//
+	// work_operator exists because 0023 grants the operator command EXECUTE to that role
+	// and nothing else. There is no operator service yet - the transport is task #27 -
+	// which is exactly why a dedicated role, rather than a shared one, is the boundary.
+	for _, pair := range [][2]string{
+		{"work_governance_events", "work_governance_test_login"},
+		{"work_operator", "work_operator_test_login"},
+	} {
+		if err := ensureGroupRole(ctx, admin, pair[0]); err != nil {
+			return err
+		}
+		if err := ensureLogin(ctx, admin, pair[1], pair[0]); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func ensureGroupRole(ctx context.Context, admin *pgx.Conn, name string) error {
+	var exists bool
+	if err := admin.QueryRow(ctx,
+		"SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $1)", name).Scan(&exists); err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	_, err := admin.Exec(ctx, "CREATE ROLE "+pgx.Identifier{name}.Sanitize()+
+		" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS")
+	return err
 }
 
 func ensureLogin(ctx context.Context, admin *pgx.Conn, name, member string) error {
@@ -87,187 +120,117 @@ func CreateBaselineDB(ctx context.Context, admin *pgx.Conn, prefix string) (stri
 		return "", err
 	}
 	defer dbAdmin.Close(ctx)
-	if err := ApplyBaseline(ctx, dbAdmin); err != nil {
-		_ = DropDatabase(ctx, admin, name)
-		return "", err
-	}
-	if err := ApplyDirectoryAbsence(ctx, dbAdmin); err != nil {
-		_ = DropDatabase(ctx, admin, name)
-		return "", err
-	}
-	if err := ApplyOutboxTaskEventKind(ctx, dbAdmin); err != nil {
-		_ = DropDatabase(ctx, admin, name)
-		return "", err
-	}
-	if err := ApplyRunWorkflowID(ctx, dbAdmin); err != nil {
-		_ = DropDatabase(ctx, admin, name)
-		return "", err
-	}
-	if err := ApplyOrgProvision(ctx, dbAdmin); err != nil {
-		_ = DropDatabase(ctx, admin, name)
-		return "", err
-	}
-	if err := ApplyOrgProvisionBackfill(ctx, dbAdmin); err != nil {
-		_ = DropDatabase(ctx, admin, name)
-		return "", err
-	}
-	if err := ApplyQuotaDirectoryUsageHardening(ctx, dbAdmin); err != nil {
-		_ = DropDatabase(ctx, admin, name)
-		return "", err
-	}
-	if err := ApplyRuntimeExecutionDispatchGate(ctx, dbAdmin); err != nil {
-		_ = DropDatabase(ctx, admin, name)
-		return "", err
-	}
-	if err := ApplyRuntimeCapability(ctx, dbAdmin); err != nil {
-		_ = DropDatabase(ctx, admin, name)
-		return "", err
-	}
-	if err := ApplyContentReference(ctx, dbAdmin); err != nil {
-		_ = DropDatabase(ctx, admin, name)
-		return "", err
-	}
-	if err := ApplyContentSlot(ctx, dbAdmin); err != nil {
-		_ = DropDatabase(ctx, admin, name)
-		return "", err
-	}
-	if err := ApplyModelRequestDispatchConsume(ctx, dbAdmin); err != nil {
-		_ = DropDatabase(ctx, admin, name)
-		return "", err
-	}
-	if err := ApplyAdvanceBindingReads(ctx, dbAdmin); err != nil {
-		_ = DropDatabase(ctx, admin, name)
-		return "", err
-	}
-	if err := ApplySnapshotRevision(ctx, dbAdmin); err != nil {
-		_ = DropDatabase(ctx, admin, name)
-		return "", err
-	}
-	if err := ApplyReconcileRejectedReceipt(ctx, dbAdmin); err != nil {
+	if err := ApplyChain(ctx, dbAdmin); err != nil {
 		_ = DropDatabase(ctx, admin, name)
 		return "", err
 	}
 	return name, nil
 }
 
-func ApplyBaseline(ctx context.Context, conn *pgx.Conn) error {
-	body, err := fs.ReadFile(embedded.FS, "baseline/0002_initial_r0a_schema.sql")
+// ApplyChain applies every published migration in manifest order.
+//
+// The chain comes from manifest.json rather than a hand-kept list of helpers: an
+// increment missing from a test-only list leaves every test running against the
+// previous schema and still reports green, which is the worst possible failure
+// for a schema test harness. Loading the manifest also verifies every published
+// file's checksum before anything is executed.
+func ApplyChain(ctx context.Context, conn *pgx.Conn) error {
+	files, err := migrationFiles("", "")
 	if err != nil {
 		return err
 	}
-	return ExecRaw(ctx, conn, string(body))
+	return applyFiles(ctx, conn, files)
 }
 
-func ApplyDirectoryAbsence(ctx context.Context, conn *pgx.Conn) error {
-	body, err := fs.ReadFile(embedded.FS, "increments/0003_directory_absence.sql")
+// ApplyChainThrough applies the baseline and every increment up to and including
+// the named one. Tests that need a pre-migration database use this instead of a
+// private list of versions.
+func ApplyChainThrough(ctx context.Context, conn *pgx.Conn, throughName string) error {
+	files, err := migrationFiles(throughName, "")
 	if err != nil {
 		return err
 	}
-	return ExecRaw(ctx, conn, string(body))
+	return applyFiles(ctx, conn, files)
 }
 
-func ApplyOutboxTaskEventKind(ctx context.Context, conn *pgx.Conn) error {
-	body, err := fs.ReadFile(embedded.FS, "increments/0004_outbox_task_event_kind.sql")
+// ApplyIncrement applies exactly one named increment on top of whatever the
+// database already holds.
+func ApplyIncrement(ctx context.Context, conn *pgx.Conn, name string) error {
+	files, err := migrationFiles("", name)
 	if err != nil {
 		return err
 	}
-	return ExecRaw(ctx, conn, string(body))
+	return applyFiles(ctx, conn, files)
 }
 
-func ApplyRunWorkflowID(ctx context.Context, conn *pgx.Conn) error {
-	body, err := fs.ReadFile(embedded.FS, "increments/0005_run_workflow_id.sql")
-	if err != nil {
-		return err
-	}
-	return ExecRaw(ctx, conn, string(body))
+// publishedFile mirrors the manifest fields that decide what runs and in which
+// order. The runner's own manifest loader is not reused here: internal/testpg is
+// imported by internal/migrate's tests, so importing it back would close a cycle.
+// What is deliberately kept is the single source of ordering - manifest.json -
+// because a hand-copied list drifts into a harness that tests an older schema.
+type publishedFile struct {
+	Name       string `json:"name"`
+	File       string `json:"file"`
+	Executable bool   `json:"executable"`
 }
 
-func ApplyOrgProvision(ctx context.Context, conn *pgx.Conn) error {
-	body, err := fs.ReadFile(embedded.FS, "increments/0006_org_policy_quota_provision.sql")
-	if err != nil {
-		return err
-	}
-	return ExecRaw(ctx, conn, string(body))
+type publishedManifest struct {
+	Baseline   []publishedFile `json:"baseline"`
+	Increments []publishedFile `json:"increments"`
 }
 
-func ApplyOrgProvisionBackfill(ctx context.Context, conn *pgx.Conn) error {
-	body, err := fs.ReadFile(embedded.FS, "increments/0007_org_provision_backfill.sql")
+func migrationFiles(throughName, onlyName string) ([]string, error) {
+	body, err := fs.ReadFile(embedded.FS, "manifest.json")
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return ExecRaw(ctx, conn, string(body))
+	var manifest publishedManifest
+	if err := json.Unmarshal(body, &manifest); err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, migration := range manifest.Baseline {
+		if migration.Executable {
+			out = append(out, migration.File)
+		}
+	}
+	if onlyName != "" {
+		for _, migration := range manifest.Increments {
+			if migration.Name == onlyName {
+				return []string{migration.File}, nil
+			}
+		}
+		return nil, fmt.Errorf("unknown increment %q", onlyName)
+	}
+	if throughName == "" {
+		for _, migration := range manifest.Increments {
+			out = append(out, migration.File)
+		}
+		return out, nil
+	}
+	for _, migration := range manifest.Increments {
+		out = append(out, migration.File)
+		if migration.Name == throughName {
+			return out, nil
+		}
+	}
+	return nil, fmt.Errorf("unknown increment %q", throughName)
 }
 
-func ApplyQuotaDirectoryUsageHardening(ctx context.Context, conn *pgx.Conn) error {
-	body, err := fs.ReadFile(embedded.FS, "increments/0008_quota_directory_usage_hardening.sql")
-	if err != nil {
-		return err
+func applyFiles(ctx context.Context, conn *pgx.Conn, files []string) error {
+	if len(files) == 0 {
+		return fmt.Errorf("no published migration files selected")
 	}
-	return ExecRaw(ctx, conn, string(body))
-}
-
-func ApplyRuntimeExecutionDispatchGate(ctx context.Context, conn *pgx.Conn) error {
-	body, err := fs.ReadFile(embedded.FS, "increments/0009_runtime_execution_dispatch_gate.sql")
-	if err != nil {
-		return err
+	for _, file := range files {
+		body, err := fs.ReadFile(embedded.FS, file)
+		if err != nil {
+			return err
+		}
+		if err := ExecRaw(ctx, conn, string(body)); err != nil {
+			return fmt.Errorf("apply %s: %w", file, err)
+		}
 	}
-	return ExecRaw(ctx, conn, string(body))
-}
-
-func ApplyRuntimeCapability(ctx context.Context, conn *pgx.Conn) error {
-	body, err := fs.ReadFile(embedded.FS, "increments/0010_runtime_capability.sql")
-	if err != nil {
-		return err
-	}
-	return ExecRaw(ctx, conn, string(body))
-}
-
-func ApplyContentReference(ctx context.Context, conn *pgx.Conn) error {
-	body, err := fs.ReadFile(embedded.FS, "increments/0011_content_reference.sql")
-	if err != nil {
-		return err
-	}
-	return ExecRaw(ctx, conn, string(body))
-}
-
-func ApplyContentSlot(ctx context.Context, conn *pgx.Conn) error {
-	body, err := fs.ReadFile(embedded.FS, "increments/0012_content_slot.sql")
-	if err != nil {
-		return err
-	}
-	return ExecRaw(ctx, conn, string(body))
-}
-
-func ApplyModelRequestDispatchConsume(ctx context.Context, conn *pgx.Conn) error {
-	body, err := fs.ReadFile(embedded.FS, "increments/0013_model_request_dispatch_consume.sql")
-	if err != nil {
-		return err
-	}
-	return ExecRaw(ctx, conn, string(body))
-}
-
-func ApplyAdvanceBindingReads(ctx context.Context, conn *pgx.Conn) error {
-	body, err := fs.ReadFile(embedded.FS, "increments/0014_advance_binding_reads.sql")
-	if err != nil {
-		return err
-	}
-	return ExecRaw(ctx, conn, string(body))
-}
-
-func ApplySnapshotRevision(ctx context.Context, conn *pgx.Conn) error {
-	body, err := fs.ReadFile(embedded.FS, "increments/0015_snapshot_revision.sql")
-	if err != nil {
-		return err
-	}
-	return ExecRaw(ctx, conn, string(body))
-}
-
-func ApplyReconcileRejectedReceipt(ctx context.Context, conn *pgx.Conn) error {
-	body, err := fs.ReadFile(embedded.FS, "increments/0016_reconcile_rejected_receipt.sql")
-	if err != nil {
-		return err
-	}
-	return ExecRaw(ctx, conn, string(body))
+	return nil
 }
 
 func DropDatabase(ctx context.Context, admin *pgx.Conn, name string) error {
@@ -293,6 +256,18 @@ func MigratorURL(dbName string) string {
 
 func DirectoryURL(dbName string) string {
 	return urlFor(AdminURL(), "work_directory_test_login", testPassword, dbName)
+}
+
+func GovernanceURL(dbName string) string {
+	return urlFor(AdminURL(), "work_governance_test_login", testPassword, dbName)
+}
+
+// OperatorURL connects as the operator workload. 0023 grants the entitlement command
+// EXECUTE to work_operator only, so tests that exercise the operator face must connect
+// here rather than through the app role - and a test that expects a refusal has to use
+// AppURL to prove it.
+func OperatorURL(dbName string) string {
+	return urlFor(AdminURL(), "work_operator_test_login", testPassword, dbName)
 }
 
 func urlFor(base, user, password, dbName string) string {

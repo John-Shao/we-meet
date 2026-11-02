@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/we-meet/work/internal/api"
+	"github.com/we-meet/work/internal/apierr"
 	"github.com/we-meet/work/internal/content"
 	"github.com/we-meet/work/internal/testpg"
 )
@@ -104,6 +105,77 @@ func TestArtifactVersionMetadataAndContent(t *testing.T) {
 	}
 	if got := auditExportMetadataContains(t, dbName, artifactA, "第一行"); got {
 		t.Fatal("export audit contains artifact body")
+	}
+}
+
+// TestArtifactVersionLocalOnlyContentIsNotProxied is control §4.1's read-path half:
+// "R0a 读取路径（readArtifactVersion 等）必须先判 location，对 local_only 返回
+// content_on_original_device，不能把空 content_ref 交给 Content Store". A local_only row
+// is minted only by I5's local publish path, so the row is seeded directly here - which
+// is also the point: the guard has to be in place before the writer arrives, not
+// discovered by it. The cloud row of the same artifact still serves, so the refusal is
+// about where a version's body lives and not about the artifact being readable.
+func TestArtifactVersionLocalOnlyContentIsNotProxied(t *testing.T) {
+	pool, dbName := newBootstrapDB(t, true, true)
+	seedTaskGraph(t, dbName)
+	store := newTestContentStore(t)
+	seedArtifact(t, dbName, store, artifactSeed{
+		artifactID: artifactA, orgID: "org_a", taskID: "11111111-1111-4111-8111-111111111111",
+		logicalName: "result", content: "# 上线计划", versionState: "published",
+	})
+
+	ctx := context.Background()
+	conn, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+	if _, err := conn.Exec(ctx, `SELECT set_config('app.org_id', $1, false)`, "org_a"); err != nil {
+		t.Fatal(err)
+	}
+	// §4.1's local_only shape: content_ref NULL, and device_id / local_ref /
+	// classification all present.
+	if _, err := conn.Exec(ctx, `
+		INSERT INTO work.artifact_version
+		  (artifact_id, org_id, version_no, content_ref, content_hash, bytes, media_type,
+		   state, provenance, published_at, location, local_ref, device_id, classification)
+		VALUES ($1, $2, 2, NULL, $3, 24, 'text/markdown', 'published', '{}'::jsonb, now(),
+		        'local_only', 'device/ref/local-2',
+		        '22222222-2222-4222-8222-222222222222', 'local_only')`,
+		artifactA, "org_a", strings.Repeat("a", 64)); err != nil {
+		t.Fatalf("seeding a local_only version failed: %v", err)
+	}
+
+	server := newHTTPServerWithContent(t, pool, store)
+	for _, path := range []string{
+		"/work/v1/artifacts/" + artifactA + "/versions/2",
+		"/work/v1/artifacts/" + artifactA + "/versions/2/content",
+		"/work/v1/tasks/11111111-1111-4111-8111-111111111111/artifacts/" + artifactA + "/versions/2/content",
+	} {
+		response := taskRequest(t, http.MethodGet, server.URL+path, "", "")
+		body, _ := io.ReadAll(response.Body)
+		response.Body.Close()
+		if response.StatusCode != http.StatusConflict {
+			t.Fatalf("%s status = %d body=%s", path, response.StatusCode, body)
+		}
+		var payload apierr.Payload
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("%s payload: %v", path, err)
+		}
+		if payload.Code != "content_on_original_device" {
+			t.Fatalf("%s code = %q, want content_on_original_device", path, payload.Code)
+		}
+	}
+
+	inline := taskRequest(t, http.MethodGet,
+		server.URL+"/work/v1/artifacts/"+artifactA+"/versions/1/content", "", "")
+	if inline.StatusCode != http.StatusOK {
+		t.Fatalf("cloud version status = %d body=%s", inline.StatusCode, readBody(inline))
+	}
+	body, _ := io.ReadAll(inline.Body)
+	inline.Body.Close()
+	if string(body) != "# 上线计划" {
+		t.Fatalf("cloud version body = %q", body)
 	}
 }
 

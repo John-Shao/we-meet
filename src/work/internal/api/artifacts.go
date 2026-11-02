@@ -74,10 +74,23 @@ type artifactVersionRecord struct {
 	Bytes       int64
 	ContentHash string
 	ContentRef  string
+	Location    string
 	CreatedAt   time.Time
 	PublishedAt pgtype.Timestamptz
 	TaskTitle   string
 }
+
+// errLocalOnlyVersion marks a version whose body is not in the Content Store. Control
+// §4.1 requires the read path to test `location`, and §9's content_on_original_device
+// exists precisely so an empty reference never reaches the store. The row is readable
+// metadata - the version exists, is published and belongs to this owner; only the body
+// lives on the original device.
+//
+// content_ref is nullable exactly for those rows, so the read below selects it through
+// COALESCE: a NULL would fail the scan into the record before any location check could
+// answer, and from outside that failure looks identical to a store outage. A cloud row
+// can never have a NULL reference, and a local_only row never reaches the store call.
+var errLocalOnlyVersion = errors.New("work api: artifact version content is on the original device")
 
 func (s *Server) getArtifactVersion(w http.ResponseWriter, r *http.Request) {
 	s.serveArtifactVersion(w, r, false)
@@ -112,6 +125,10 @@ func (s *Server) serveArtifactVersion(w http.ResponseWriter, r *http.Request, ta
 	record, err := s.readArtifactVersion(r.Context(), claims, taskID, artifactID, versionNo)
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeAPIError(w, correlationID, apierr.New("artifact_not_found"))
+		return
+	}
+	if errors.Is(err, errLocalOnlyVersion) {
+		writeAPIError(w, correlationID, apierr.New("content_on_original_device"))
 		return
 	}
 	if err != nil {
@@ -185,6 +202,13 @@ func (s *Server) serveArtifactContent(w http.ResponseWriter, r *http.Request, ta
 	record, err := s.readArtifactVersion(r.Context(), claims, taskID, artifactID, versionNo)
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeAPIError(w, correlationID, apierr.New("artifact_not_found"))
+		return
+	}
+	// The body of a local_only version is not in the Content Store, and §9's
+	// content_on_original_device exists precisely so that this path never asks for it
+	// with an empty reference.
+	if errors.Is(err, errLocalOnlyVersion) {
+		writeAPIError(w, correlationID, apierr.New("content_on_original_device"))
 		return
 	}
 	if err != nil {
@@ -341,9 +365,10 @@ func (s *Server) readArtifactVersion(
 		workdb.RoleAPI,
 		workdb.Options{ReadOnly: true},
 		func(tx pgx.Tx) error {
-			return tx.QueryRow(ctx, `
+			err := tx.QueryRow(ctx, `
 				SELECT a.id, a.logical_name, v.version_no, v.media_type, v.bytes,
-				       v.content_hash, v.content_ref, v.created_at, v.published_at, t.title
+				       v.content_hash, COALESCE(v.content_ref, ''), v.created_at,
+				       v.published_at, t.title, v.location
 				FROM work.artifact a
 				JOIN work.artifact_version v
 				  ON v.artifact_id = a.id AND v.org_id = a.org_id
@@ -358,7 +383,14 @@ func (s *Server) readArtifactVersion(
 			).Scan(&record.ArtifactID, &record.LogicalName, &record.VersionNo,
 				&record.MediaType, &record.Bytes, &record.ContentHash,
 				&record.ContentRef, &record.CreatedAt, &record.PublishedAt,
-				&record.TaskTitle)
+				&record.TaskTitle, &record.Location)
+			if err != nil {
+				return err
+			}
+			if record.Location != "cloud" {
+				return errLocalOnlyVersion
+			}
+			return nil
 		},
 	)
 	return record, err
