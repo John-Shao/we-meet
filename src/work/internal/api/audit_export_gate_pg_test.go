@@ -27,7 +27,9 @@ func adminExportBody(clientRequestID string) string {
 		now.Add(-time.Hour).Format(time.RFC3339) + `","format":"csv"}`
 }
 
-func adminExportHarness(t *testing.T) (func(string, string, string) *http.Response, string) {
+func adminExportHarness(
+	t *testing.T,
+) (func(string, string, string, ...string) *http.Response, string) {
 	t.Helper()
 	pool, dbName := newBootstrapDB(t, true, false)
 	server := newHTTPServer(t, pool, &stubVerifier{claims: testClaims()}, testCSRF(t))
@@ -41,7 +43,7 @@ func adminExportHarness(t *testing.T) (func(string, string, string) *http.Respon
 	}
 	bootstrap.Body.Close()
 	csrfCookie := findCookie(t, bootstrap, api.CSRFCookieName)
-	request := func(method, path, body string) *http.Response {
+	request := func(method, path, body string, headers ...string) *http.Response {
 		t.Helper()
 		req, err := http.NewRequest(method, server.URL+path, strings.NewReader(body))
 		if err != nil {
@@ -51,7 +53,16 @@ func adminExportHarness(t *testing.T) (func(string, string, string) *http.Respon
 		req.AddCookie(csrfCookie)
 		if body != "" {
 			req.Header.Set("Content-Type", "application/json")
+		}
+		// The double-submit pair is required by the method, not by the presence of a
+		// body: issuing a download ticket is a POST that carries no payload.
+		if method != http.MethodGet {
 			req.Header.Set("X-CSRF-Token", boot.CSRFToken)
+		}
+		// Download tokens ride on a header, not on the session, so the shared
+		// request helper has to carry them without every caller re-implementing it.
+		for index := 0; index+1 < len(headers); index += 2 {
+			req.Header.Set(headers[index], headers[index+1])
 		}
 		response, err := http.DefaultClient.Do(req)
 		if err != nil {
