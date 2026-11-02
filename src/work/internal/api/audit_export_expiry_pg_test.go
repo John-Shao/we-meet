@@ -64,6 +64,66 @@ func backdateDownloadExpiry(t *testing.T, dbName, exportID string) {
 	}
 }
 
+// shredExpiredExports runs the body-shredding sweep as the scheduled job does, after the
+// retention sweep has already moved the row to expired.
+func shredExpiredExports(t *testing.T, dbName string) int {
+	t.Helper()
+	ctx := context.Background()
+	pool, err := workdb.OpenPool(ctx, testpg.WorkerURL(dbName), "work-export-shred-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	swept := -1
+	err = workdb.WithWorkerOrgContext(ctx, pool, testOrg, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT work.shred_due_audit_exports()`).Scan(&swept)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return swept
+}
+
+// exportShredFacts reads the two halves of the rule in one line: the hand-off the shredder
+// consumes, and what is left of the job row. The row is supposed to survive - its metadata
+// is an audit fact - with only the content reference withdrawn (baseline/0002:5061).
+func exportShredFacts(t *testing.T, dbName, exportID string) string {
+	t.Helper()
+	ctx := context.Background()
+	conn, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+	var handoff, row string
+	if err := conn.QueryRow(ctx, `
+		SELECT count(*)::text || '/' ||
+		       coalesce(max(payload->>'content_refs'), '-') || '/' ||
+		       coalesce(max(payload->>'audit_export_id'), '-')
+		FROM work.outbox
+		WHERE payload->>'kind' = 'content_shred' AND aggregate_type = 'content'
+		  AND aggregate_id = $1::uuid`, exportID,
+	).Scan(&handoff); err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.QueryRow(ctx, `
+		SELECT status || '/' ||
+		       coalesce(content_ref, 'NULL') || '/' ||
+		       coalesce(content_hash, 'NULL') || '/' ||
+		       bytes::text || '/' || row_count::text
+		FROM work.audit_export WHERE id = $1 AND org_id = $2`, exportID, testOrg,
+	).Scan(&row); err != nil {
+		t.Fatal(err)
+	}
+	var audit string
+	if err := conn.QueryRow(ctx, `
+		SELECT count(*)::text || '/' || coalesce(max(metadata->>'count'), '-')
+		FROM work.audit_event WHERE action = 'audit_export.shredded'`).Scan(&audit); err != nil {
+		t.Fatal(err)
+	}
+	return handoff + " | " + row + " | " + audit
+}
+
 func issuedToken(t *testing.T, request func(string, string, string, ...string) *http.Response, exportID string) string {
 	t.Helper()
 	response := request(http.MethodPost,
@@ -134,4 +194,30 @@ func TestAuditExportTokenAndFileExpiry(t *testing.T) {
 	lateRedeem := request(http.MethodGet, api.AdminAuditExportsPath+"/"+exportID+"/content",
 		"", "X-Download-Token", fresh)
 	assertAPICode(t, lateRedeem, http.StatusGone, "audit_export_expired")
+
+	// Phase three: retention has passed, so the shredder's sweep owes the next step - and
+	// the two sweeps have never been run in sequence anywhere. The relay test hand-seeds an
+	// already-expired row (suspended_obligations_test.go:105), so nothing connected
+	// expire_due_audit_exports to shred_due_audit_exports. The rule is asymmetric on
+	// purpose: the reference goes, the job row stays, because the row's metadata is itself
+	// an audit fact (baseline/0002:5061).
+	if swept := shredExpiredExports(t, dbName); swept != 1 {
+		t.Fatalf("shred sweep swept %d, want the one expired row", swept)
+	}
+	want := "1/[\"content://work/audit/gate-1\"]/" + exportID +
+		" | expired/NULL/NULL/120/3 | 1/1"
+	if got := exportShredFacts(t, dbName, exportID); got != want {
+		t.Fatalf("shred facts = %q, want one hand-off carrying only the export's own ref, "+
+			"the row kept at expired with 120 bytes / 3 rows withdrawn only by reference, "+
+			"and one audit count of 1 (%s)", got, want)
+	}
+
+	// A second sweep must not re-deliver a reference the row no longer carries, and a
+	// repeat must not double-count the audit either.
+	if again := shredExpiredExports(t, dbName); again != 0 {
+		t.Fatalf("second shred sweep swept %d, want 0", again)
+	}
+	if got := exportShredFacts(t, dbName, exportID); got != want {
+		t.Fatalf("shred facts after a repeat sweep = %q, want unchanged (%s)", got, want)
+	}
 }
