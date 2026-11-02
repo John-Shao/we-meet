@@ -2,7 +2,7 @@
 
 > 状态：**U3 已答复（全部"是"），C03 待演练**。2026-10-27 平台/SRE 确认九项、资源已批、演练由开发与测试团队 5 人执行；**11-06 环境/档期已确认（五席与 SRE/DBA 角色占位，真名 11-06 补）**；**同日决定不提前签 C03**（缺的是实测，不是签字动作）；C03 仍按 DR2 **2026-11-17** 签，前置只剩四项演练与崩溃/开关用例。
 >
-> 当前证据：D3 设计 + 故障矩阵 18 例；Temporal dev 切片 10/10（F01/F02/F04/F07/F21/F23 + D3-R06–R09）；D3-N02/N04/N05 只做了数据库侧交错；**D3-N01/N03 的进程被杀、D3-N06 的开关演练、S1 多节点/在途 server 重启均未执行**。
+> 当前证据：D3 设计 + 故障矩阵 18 例；Temporal dev 切片 10/10（F01/F02/F04/F07/F21/F23 + D3-R06–R09）；D3-N02/N04/N05 只做了数据库侧交错；**D3-N01 已于 2026-11-02 做成进程级可执行用例（真实 content_shred + 真实 Content Store，含删除失败重试的一半），D3-N03 有库侧用例但 `duplicate_objects` 仍需真实对象存储；D3-N06 的开关演练与 S1 多节点/在途 server 重启仍未执行**。
 > 相关：[U3 决策征询单](work-r0a-temporal-hosting-decision-request-2026-10-26.md)、[D3 设计](work-r0a-orchestration-design-2026-10-25.md)、[故障矩阵](assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)、[C03 签收行](work-r0a-dr0-dr1-signoff-2026-10-26.md)。
 
 ## 1. U3 九项承诺（平台/SRE 已答复 2026-10-27，全部"是"）
@@ -75,7 +75,7 @@
 
 | 用例 | 现状 | 要补什么 | 负责人 | 目标日 | 证据 |
 |---|---|---|---|---|---|
-| D3-N01 shredder 领取后被杀 | 只有 outbox 租约的数据库侧断言 | **进程级 kill**：claim → kill → 租约过期 → 另一副本重领；不重复粉碎/不复活任务 | 后端 | 11-15 | 事件只投递一次、任务未复活 |
+| D3-N01 shredder 领取后被杀 | **已在测试层执行（2026-11-02）**：`src/work/internal/relay/lease_crash_test.go` 用真实 `content_shred` 事件 + 真实 `content.Local` 存储把同一测试二进制作为子进程 SIGKILL 在两笔删除之间，租约活着时副本接管拿 0 事件、`claimed_until` 到期后重领并一次投递、重投递容忍已消失的对象、任务 `deleted_at` 全程不变；同文件另有"每笔删除都失败"的一半（释放租约、`content_delete_failed` 退避、不删内容、任务不复活、退避到点后重试成功）。幂等承重已用变异核对：摘掉 `content/local.go:161` 的 `ErrNotExist` 容忍会让用例红 | 演练现场在真实部署与真实对象存储桶复跑这两条断言，并补 N06 的停用期间变体 | 后端 | 11-15 | 事件只投递一次、任务未复活 |
 | D3-N03 导出 worker 写完文件后被杀 | 数据库侧领取/租约已测；`duplicate_objects` 需真实 Content Store | 真实对象存储：固定 key 覆盖重放；旧持有者 `audit_export_lease_lost`；无第二份文件 | 后端 + 平台 | 11-16 | 单 content_ref、无重复对象 |
 | D3-N06 kill switch/组织停用 | **未执行** | 开关打开时：新提交/导出 0；relay/shredder/投影同步/到期清扫继续；已有 Run 可取消可读 | 后端 + SRE | 11-16 | 事件投递与粉碎记录、拒绝错误码 |
 | S1 多节点/在途 server 重启 | 只有 file-backed dev server 的"已完成 workflow"（R06，未复跑） | 多节点 + 在途 workflow 的真实重启；补跑 R06 | 后端 + SRE | 11-15 | 重启前后 Run/Operation 状态 |
