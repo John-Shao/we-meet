@@ -3,6 +3,8 @@ package migrate
 import (
 	"encoding/json"
 	"errors"
+	"io/fs"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -37,6 +39,7 @@ var publishedIncrements = []string{
 	"0024_provider_probe_grant",
 	"0025_provider_config_conflict_detail",
 	"0026_audit_export_org_gate",
+	"0027_governance_receipt_payload_binding",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {
@@ -62,6 +65,40 @@ func TestEmbeddedManifestLoads(t *testing.T) {
 		if manifest.Increments[i].Name != name {
 			t.Fatalf("increment %d name = %q, want %q", i, manifest.Increments[i].Name, name)
 		}
+	}
+}
+
+// TestManifestCoversEveryIncrementFile closes the direction the list above cannot see.
+// publishedIncrements asserts the manifest carries what it names; it says nothing about a
+// .sql file that was dropped into increments/ and never registered. Such a file is not
+// "not yet applied" - nothing applies it, because both the runner and testpg take their
+// order of operations from manifest.json, so the schema it describes exists only in the
+// head of whoever wrote it.
+func TestManifestCoversEveryIncrementFile(t *testing.T) {
+	manifest, err := LoadManifest(embedded.FS, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	listed := map[string]bool{}
+	for _, migration := range manifest.Increments {
+		listed[migration.File] = true
+	}
+	entries, err := fs.ReadDir(embedded.FS, "increments")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var unlisted []string
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+			continue
+		}
+		if path := "increments/" + entry.Name(); !listed[path] {
+			unlisted = append(unlisted, path)
+		}
+	}
+	if len(unlisted) > 0 {
+		t.Fatalf("increment files with no manifest entry, so nothing would ever apply them: %s",
+			strings.Join(unlisted, ", "))
 	}
 }
 

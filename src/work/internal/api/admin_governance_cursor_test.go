@@ -112,6 +112,18 @@ func TestAdminGovernanceEventCursorAdvance(t *testing.T) {
 		AND action = 'governance_gap_skipped'`); got != 1 {
 		t.Fatalf("gap skip audit rows after a replay = %d, want still 1", got)
 	}
+	// Same request id, different citation. The receipt is keyed by request id alone, so
+	// before 0027 bound it to the command's payload this was answered with the first
+	// command's recorded result: a 200 saying the cursor jumped, for a command the
+	// database never ran. §1.4's contract row and EV106 both call this a 409.
+	reused := `{"to_seq": 5, "gap_report_id": "` + reportID +
+		`", "ticket_id": "TICKET-9", "client_request_id": "req-cursor-1"}`
+	assertAPICode(t, taskRequest(t, http.MethodPost, path, csrf, reused),
+		http.StatusConflict, "idempotency_key_conflict")
+	if got := countRows(t, `SELECT count(*) FROM work.audit_event WHERE org_id = $1
+		AND action = 'governance_gap_skipped'`); got != 1 {
+		t.Fatalf("gap skip audit rows after a payload-divergent retry = %d, want still 1", got)
+	}
 	assertAPICode(t, taskRequest(t, http.MethodPost, path, csrf, body("TICKET-2", "req-cursor-2")),
 		http.StatusConflict, "cursor_advance_not_allowed")
 

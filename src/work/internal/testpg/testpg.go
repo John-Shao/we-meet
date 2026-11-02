@@ -137,8 +137,13 @@ func CreateBaselineDB(ctx context.Context, admin *pgx.Conn, prefix string) (stri
 // The chain comes from manifest.json rather than a hand-kept list of helpers: an
 // increment missing from a test-only list leaves every test running against the
 // previous schema and still reports green, which is the worst possible failure
-// for a schema test harness. Loading the manifest also verifies every published
-// file's checksum before anything is executed.
+// for a schema test harness.
+//
+// What this path guarantees is order and file set, not integrity: it reads the SQL
+// straight from disk, so a tampered body is caught by the runner's checksum and
+// catalog verification (internal/migrate Apply/verifyCatalogAtVersion), which these
+// fixtures deliberately do not reimplement. TestEmbeddedManifestLoads is what ties the
+// manifest's file list to the published chain.
 func ApplyChain(ctx context.Context, conn *pgx.Conn) error {
 	files, err := migrationFiles("", "")
 	if err != nil {

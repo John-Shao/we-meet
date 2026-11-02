@@ -62,9 +62,9 @@ func (s *Server) adminAdvanceGovernanceCursor(w http.ResponseWriter, r *http.Req
 		return
 	}
 	var body governanceCursorRequest
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&body); err != nil {
+	// Transport cap, not a domain rule (see the same note in admin_local_policy.go).
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	if err := decodeStrictJSONBody(r.Body, &body); err != nil {
 		writeAPIError(w, correlationID, apierr.New("invalid_request"))
 		return
 	}
@@ -79,14 +79,16 @@ func (s *Server) adminAdvanceGovernanceCursor(w http.ResponseWriter, r *http.Req
 	}
 	// The request id is the key the idempotent receipt is found by, so it is taken exactly
 	// as sent: surrounding whitespace would make a retry look like a different request and
-	// jump a second interval. §1.4 sets no minimum length here (unlike R0a's
-	// client_request_id checks), so the floor is only "not blank after trimming".
+	// jump a second interval. The 8-character floor is R0a's published convention for
+	// `client_request_id` (commit b66d0e4df gave the cancel endpoint the same minLength 8 for
+	// the same reason: a receipt key that collides by accident is worse than a rejected
+	// request), and §1.4 line 88 now says so instead of "not blank".
 	rawRequestID := ""
 	if body.ClientRequestID != nil {
 		rawRequestID = *body.ClientRequestID
 	}
 	requestID := strings.TrimSpace(rawRequestID)
-	if requestID == "" || requestID != rawRequestID || len(requestID) > 128 {
+	if len(requestID) < 8 || requestID != rawRequestID || len(requestID) > 128 {
 		writeAPIError(w, correlationID, apierr.New("invalid_request"))
 		return
 	}

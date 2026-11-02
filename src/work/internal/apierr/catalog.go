@@ -20,7 +20,13 @@ type Catalog struct {
 	Version        string            `json:"version"`
 	Public         map[string]Entry  `json:"public"`
 	DBExceptionMap map[string]string `json:"db_exception_map"`
-	Messages       map[string]string `json:"-"`
+	// Rules is the contract's own record of the decisions behind the map. It is read by
+	// TestIncrementGuardsKeepTheirFallbackStatus, which allows a raise to be mapped to a
+	// status other than the one its SQLSTATE would have produced only when a rule names
+	// that code - so a divergence cannot be smuggled into the map without being said out
+	// loud in the file clients and reviewers read.
+	Rules    []string          `json:"rules"`
+	Messages map[string]string `json:"-"`
 }
 
 var defaultCatalog = sync.OnceValue(func() *Catalog {

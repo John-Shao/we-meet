@@ -460,6 +460,23 @@ func TestR0bEntitlementReceiptIsIdempotent(t *testing.T) {
 		WHERE org_id = $1 AND action = 'execution_entitlement.applied'`, org); got != 1 {
 		t.Fatalf("receipts after a replay = %d, want 1", got)
 	}
+	// Same key, different body. The receipt is keyed by request id alone, so without a
+	// payload comparison this third call was answered with the first one's result and the
+	// seat limit it carried was never written - EV106's 异 payload 409, and the same rule
+	// 0005:48 already applies to submissions.
+	if err := entitlementError(t, ops, entitlementCall{
+		org: org, actor: "ops_root", ref: "TICKET-1",
+		enabled: false, suspended: false, seatLimit: int64(7),
+		revision: 1, requestID: "req-once",
+	}); err == nil {
+		t.Fatal("a reused request id with a different body returned the earlier success")
+	} else {
+		assertPgMessage(t, err, "idempotency_key_conflict")
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.audit_event
+		WHERE org_id = $1 AND action = 'execution_entitlement.applied'`, org); got != 1 {
+		t.Fatalf("receipts after a payload-divergent retry = %d, want 1", got)
+	}
 	// A different request id is a different command, and restating an already recorded
 	// revision without an acknowledgement is refused rather than silently re-run.
 	if err := entitlementError(t, ops, entitlementCall{
@@ -469,6 +486,55 @@ func TestR0bEntitlementReceiptIsIdempotent(t *testing.T) {
 		t.Fatal("restating a recorded revision without an acknowledgement succeeded")
 	} else {
 		assertPgMessage(t, err, "governance_revision_conflict")
+	}
+}
+
+// TestR0bEntitlementAckWithNothingToReleaseIsStillRecorded walks the one outcome the
+// shipped tests never reached. `restored` and `ack_recorded` share the acknowledgement
+// branch, and the release audit is the only difference between them, so a branch with no
+// assertion is a branch where a wrong outcome code would go unnoticed.
+func TestR0bEntitlementAckWithNothingToReleaseIsStillRecorded(t *testing.T) {
+	dbName, admin := newGateDB(t)
+	ctx := testContext(t)
+	org := "org_r0b_ops_ack_only"
+	seedRun(t, admin, org)
+	r0bAdmin(t, admin, org)
+
+	ops := operatorSession(t, dbName, org, "ops_root")
+	defer ops.Close(ctx)
+
+	// Enabling an organization that was never denied is the Apply that has nothing to
+	// narrow: it waits for the Host acknowledgement, and when that lands it has nothing to
+	// release either.
+	pending := applyEntitlement(t, ops, entitlementCall{
+		org: org, actor: "ops_root", ref: "TICKET-1",
+		enabled: true, suspended: false, revision: 1, requestID: "req-enable",
+	})
+	wantStr(t, pending, "outcome", "pending_ack")
+	acked := applyEntitlement(t, ops, entitlementCall{
+		org: org, actor: "ops_root", ref: "TICKET-1",
+		enabled: true, suspended: false, revision: 1, ack: int64(1), requestID: "req-ack",
+	})
+	wantStr(t, acked, "outcome", "ack_recorded")
+	wantInt(t, acked, "released_denials", 0)
+
+	// The acknowledgement still settles the revision and still opens the mirror - that is
+	// what the admission guard reads - it just produces no release and no release audit.
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.org
+		WHERE id = $1 AND execution_enabled AND NOT operator_suspended`, org); got != 1 {
+		t.Fatalf("mirror rows after an ack with nothing to release = %d, want the org enabled", got)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.access_restriction
+		WHERE org_id = $1 AND source = 'operator'`, org); got != 0 {
+		t.Fatalf("operator denys for an organization that was never denied = %d, want 0", got)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.audit_event
+		WHERE org_id = $1 AND action = 'access_restriction.released'`, org); got != 0 {
+		t.Fatalf("release audits without a released denial = %d, want 0", got)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.audit_event
+		WHERE org_id = $1 AND action = 'execution_entitlement.applied'`, org); got != 2 {
+		t.Fatalf("receipts for two distinct request ids = %d, want 2", got)
 	}
 }
 

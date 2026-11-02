@@ -53,6 +53,10 @@ func TestR0bAdmissionEpochIsStamped(t *testing.T) {
 		VALUES ('%s', '%s', '%s', 3, 'queued', '%s', 'run:%s', 'pi-1')
 	`, newUUID(t), "org_without_context", run.taskID, snapshotID, newUUID(t))); err == nil {
 		t.Fatal("a run was admitted for an org that has no row")
+	} else {
+		// The execution gate, not the missing org's foreign key: pinning which one fired
+		// is the whole point of the case.
+		assertPgMessage(t, err, "org_execution_unavailable")
 	}
 }
 
@@ -69,16 +73,27 @@ func TestR0bAccessRestrictionShapeAndTerminalRelease(t *testing.T) {
 
 	// A member deny that names no member, and a seat deny with no observed Host
 	// revision, are both refused: neither can be released correctly later.
-	for _, insert := range []string{
-		deny("scope, subject_id, source, reason, epoch, release_floor_revision",
-			"'member', NULL, 'host_member', 'member_left', 1, 4"),
-		deny("scope, subject_id, source, reason, epoch, release_floor_revision",
+	for _, rejected := range []struct{ insert, want string }{
+		// A 'policy' source on purpose: with a host_* source the same row also breaks
+		// the host-revision rule, and that one fires first - the row would then never
+		// have tested the target shape it was written for.
+		{deny("scope, subject_id, source, reason, epoch, release_floor_revision",
+			"'member', NULL, 'policy', 'policy_narrowed', 1, 4"),
+			"access_restriction_target_shape"},
+		{deny("scope, subject_id, source, reason, epoch, release_floor_revision",
 			"'member', 'sub_a', 'host_seat', 'seat_dropped', 1, 4"),
-		deny("scope, subject_id, source, reason, epoch, host_revision, release_floor_revision",
+			"access_restriction_host_revision_shape"},
+		{deny("scope, subject_id, source, reason, epoch, host_revision, release_floor_revision",
 			"'member', 'sub_a', 'work_seat_change', 'work_revoked_seat', 1, 9, 4"),
+			"access_restriction_host_revision_shape"},
 	} {
-		if _, err := admin.Exec(testContext(t), insert); err == nil {
-			t.Fatalf("access_restriction accepted a malformed row: %s", insert)
+		if _, err := admin.Exec(testContext(t), rejected.insert); err == nil {
+			t.Fatalf("access_restriction accepted a malformed row: %s", rejected.insert)
+		} else {
+			// Each row is refused by the shape rule it breaks. "Some error came back"
+			// would also be satisfied by an unrelated constraint, which is how a missing
+			// one gets mistaken for a working one.
+			assertPgMessage(t, err, rejected.want)
 		}
 	}
 
@@ -119,6 +134,8 @@ func TestR0bAccessRestrictionShapeAndTerminalRelease(t *testing.T) {
 		"UPDATE work.access_restriction SET release_floor_revision = 12 WHERE org_id = '%s' AND subject_id = 'sub_b'",
 		org)); err == nil {
 		t.Fatal("release_floor_revision was rewritten after creation")
+	} else {
+		assertPgMessage(t, err, "access_restriction_content_immutable")
 	}
 
 	// reconcile_required is the alert tier, not a second block tier: it must be
@@ -161,6 +178,8 @@ func TestR0bGovernanceCursorAdvancesOnlyForward(t *testing.T) {
 	if _, err := admin.Exec(testContext(t), fmt.Sprintf(
 		"DELETE FROM work.governance_event_cursor WHERE org_id = '%s'", org)); err == nil {
 		t.Fatal("the cursor row was deletable")
+	} else {
+		assertPgMessage(t, err, "append_only_table:governance_event_cursor")
 	}
 }
 
@@ -178,6 +197,8 @@ func TestR0bGapReportIsAForgeryProof(t *testing.T) {
 		VALUES ('%s', '%s', 10, 14, '[{"command_id": "AAAAAAAA-0000-0000-0000-000000000001"}]'::jsonb, 3, 20)
 	`, org, gapID)); err == nil {
 		t.Fatal("a gap report whose count disagrees with its list was accepted")
+	} else {
+		assertPgMessage(t, err, "governance_gap_report_count_shape")
 	}
 
 	r0bExec(t, dbName, org, fmt.Sprintf(`
@@ -192,11 +213,15 @@ func TestR0bGapReportIsAForgeryProof(t *testing.T) {
 	if _, err := admin.Exec(testContext(t), fmt.Sprintf(
 		"UPDATE work.governance_gap_report SET state = 'pending' WHERE gap_report_id = '%s'", gapID)); err == nil {
 		t.Fatal("a consumed gap report returned to pending")
+	} else {
+		assertPgMessage(t, err, "invalid_transition:governance_gap_report:consumed->pending")
 	}
 	// Nor can its interval be widened after the fact.
 	if _, err := admin.Exec(testContext(t), fmt.Sprintf(
 		"UPDATE work.governance_gap_report SET to_seq_exclusive = 99 WHERE gap_report_id = '%s'", gapID)); err == nil {
 		t.Fatal("a gap report's interval was rewritten")
+	} else {
+		assertPgMessage(t, err, "governance_gap_report_content_immutable")
 	}
 }
 
@@ -453,6 +478,8 @@ func TestR0bMemberProjectionTakesTheOrgLockFirst(t *testing.T) {
 		`SELECT work.sync_member_projection($1, $2, $3, $4, $5, $6)`,
 		org, run.subject, "left", "member", seated, int64(revision)+3); err == nil {
 		t.Fatal("work_directory can still call the unwrapped projection command")
+	} else {
+		assertPgMessage(t, err, "permission denied for function")
 	}
 }
 
@@ -545,6 +572,8 @@ func TestR0bConsumeAcceptsEventsWithoutMemberCoordinates(t *testing.T) {
 		VALUES ('%s', '%s', 'seat', NULL, true, 99, 5, 'sha256:%s', now())`,
 		org, newUUID(t), repeatHex(t, 64))); err == nil {
 		t.Fatal("a seat command row without a subject was written around the command")
+	} else {
+		assertPgMessage(t, err, "consumed_governance_command_kind_shape")
 	}
 }
 
@@ -788,6 +817,15 @@ func TestR0bGovernanceTablesAreTenantScoped(t *testing.T) {
 		}
 		if _, err := admin.Exec(ctx, insert); err == nil {
 			t.Fatalf("work.%s accepted another tenant's org_id under WITH CHECK", table)
+		} else if !strings.Contains(err.Error(), "SQLSTATE 42501") {
+			// The seeded statement is reused, so a unique or FK conflict would also make
+			// this call fail - and would prove nothing about the policy. Only a row-level
+			// security violation is evidence that WITH CHECK is what stopped the write.
+			// Four of these tables (cursor, consumed command, intent, resolution) collide
+			// on their primary key before any policy could be consulted, which is exactly
+			// the false green this assertion had.
+			t.Fatalf("work.%s refused the cross-tenant insert with %v, want a row-level "+
+				"security violation (42501)", table, err)
 		}
 		// Right tenant sees the row, which is what makes the two refusals above about
 		// tenancy rather than about an empty table.
@@ -852,6 +890,8 @@ func TestR0bEntitlementAndChangeRevisionsMoveForward(t *testing.T) {
 	if _, err := admin.Exec(testContext(t), fmt.Sprintf(
 		"UPDATE work.execution_entitlement SET revision = 2 WHERE org_id = '%s'", org)); err == nil {
 		t.Fatal("an entitlement revision decrease was accepted")
+	} else {
+		assertPgMessage(t, err, "governance_revision_conflict")
 	}
 	// host_ack_revision records the ceiling the Host confirmed; a higher
 	// acknowledgement than the local revision would read as confirmed authority
@@ -860,12 +900,16 @@ func TestR0bEntitlementAndChangeRevisionsMoveForward(t *testing.T) {
 		"UPDATE work.execution_entitlement SET revision = 4, host_ack_revision = 9 WHERE org_id = '%s'",
 		org)); err == nil {
 		t.Fatal("host_ack_revision above revision was accepted")
+	} else {
+		assertPgMessage(t, err, "execution_entitlement_ack_shape")
 	}
 	r0bExec(t, dbName, org, fmt.Sprintf(
 		"UPDATE work.execution_entitlement SET revision = 4, host_ack_revision = 4 WHERE org_id = '%s'", org))
 	if _, err := admin.Exec(testContext(t), fmt.Sprintf(
 		"UPDATE work.execution_entitlement SET seat_limit = -1 WHERE org_id = '%s'", org)); err == nil {
 		t.Fatal("a negative seat_limit was accepted")
+	} else {
+		assertPgMessage(t, err, "execution_entitlement_seat_limit_nonneg")
 	}
 
 	// The saga rows are dedup keys, not ledgers a caller can rewrite. The retry
@@ -892,6 +936,11 @@ func TestR0bEntitlementAndChangeRevisionsMoveForward(t *testing.T) {
 	// One command id may not be replayed under a different request either.
 	if _, err := admin.Exec(testContext(t), insert("req-2", command)); err == nil {
 		t.Fatal("a governance command id was used twice")
+	} else {
+		// One command id may not be replayed under a different request either, and the
+		// key that stops it is the (org, command_id) uniqueness, not the dedup tuple
+		// asserted just above.
+		assertPgMessage(t, err, "governance_change_org_id_command_id_key")
 	}
 	changeID := scalarString(t, admin,
 		`SELECT id FROM work.governance_change WHERE org_id = $1 AND client_request_id = 'req-1'`, org)
@@ -902,5 +951,7 @@ func TestR0bEntitlementAndChangeRevisionsMoveForward(t *testing.T) {
 	if _, err := admin.Exec(testContext(t), fmt.Sprintf(
 		"UPDATE work.governance_change SET state = 'pending' WHERE id = '%s'", changeID)); err == nil {
 		t.Fatal("an applied governance change returned to pending")
+	} else {
+		assertPgMessage(t, err, "invalid_transition:governance_change:applied->pending")
 	}
 }

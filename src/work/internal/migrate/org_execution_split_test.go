@@ -31,15 +31,20 @@ func TestOrgExecutionGuardSplitsByTriggerCondition(t *testing.T) {
 	guardCode := func(want string) {
 		t.Helper()
 		_, err := admin.Exec(ctx, `SELECT work.assert_org_execution_enabled($1)`, org)
-		if err == nil {
-			if want == "" {
-				return
+		if want == "" {
+			// "The guard must pass" is only evidence if a failure is fatal here. Without
+			// this branch the baseline call could pass by the guard raising for every
+			// organization - e.g. treating a missing row as suspended - and the three
+			// assertions below would still be green.
+			if err != nil {
+				t.Fatalf("guard refused a runnable organization: %v", err)
 			}
+			return
+		}
+		if err == nil {
 			t.Fatalf("guard passed, want %q", want)
 		}
-		if want != "" {
-			assertPgMessage(t, err, want)
-		}
+		assertPgMessage(t, err, want)
 	}
 
 	// The runnable baseline, so the test below cannot be passing because the org row is

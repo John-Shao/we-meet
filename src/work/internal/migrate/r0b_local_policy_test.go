@@ -181,6 +181,8 @@ func TestR0bSetLocalPolicyClosesTheRoundTrips(t *testing.T) {
 		policyDoc(map[string]any{"classification_default_confirmed": false}),
 		r0bAdminSubject(org), "req-unconfirm"); err == nil {
 		t.Fatal("an explicit confirmation was revoked")
+	} else {
+		assertPgMessage(t, err, "invalid_request:classification_default_confirmed")
 	}
 
 	// Closed sets are enforced at the row, not only in the command: the same values

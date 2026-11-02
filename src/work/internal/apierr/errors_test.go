@@ -200,7 +200,12 @@ func TestErrorCatalogPreservesTheFrozenR0aContract(t *testing.T) {
 		var out frozenCatalog
 		body, err := os.ReadFile(path)
 		if os.IsNotExist(err) {
-			t.Skip("design asset removed after cutover")
+			// A silent skip here would let the frozen R0a contract stop being checked the
+			// moment the asset path moves or the directory is trimmed - the same failure
+			// as deleting a test. The asset is part of the shipped design record, so its
+			// absence is a defect, not a condition to tolerate.
+			t.Fatalf("frozen R0a contract asset missing at %s: the published surface "+
+				"would stop being checked without anyone noticing", path)
 		}
 		if err != nil {
 			t.Fatal(err)

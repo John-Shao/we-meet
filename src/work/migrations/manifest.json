@@ -293,6 +293,17 @@
       "catalog_checksum": "sha256:cde01f8e5c3c92dc86745b8db89597cbfefb0da41672249d789284824267019e",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 27,
+      "name": "0027_governance_receipt_payload_binding",
+      "kind": "increment",
+      "file": "increments/0027_governance_receipt_payload_binding.sql",
+      "checksum": "sha256:2dc841c7a5bb74ec2a2c35f2952a1feec11cb21d63fcea998f9e70b48235a343",
+      "catalog": "catalogs/0027_governance_receipt_payload_binding.json",
+      "catalog_checksum": "sha256:6230ebe0ac9150b28eef7fc25d8c59ea0b5b6c40469e094cac063f47d00d26d3",
+      "transactional": true,
+      "executable": true
     }
   ]
 }
