@@ -170,12 +170,16 @@ func TestTenantTablesAreEmptyToEveryLoginWhenTheOrgGUCIsUnset(t *testing.T) {
 			unread = append(unread, table)
 		}
 	}
-	// Nineteen tenant tables are not readable by any of the six workload logins, because their
-	// SELECT grant belongs to a role the harness has no login for - relay, export and egress -
-	// or to the owning role alone. They are named, not quietly skipped: this sweep says what it
-	// covers. The owning connection cannot stand in for them, because testpg.AdminURLFor is the
-	// maintenance superuser (WORK_TEST_PG_URL with only the database swapped) and a superuser is
-	// never stopped by a row policy, so a zero from it would prove nothing either way.
+	// Nineteen tenant tables are not readable by any of the six workload logins because their
+	// only SELECT grant is work_owner's: no workload role holds direct SELECT there, and the
+	// access path is a SECURITY DEFINER command instead. That is the design, not a gap - checked
+	// against the migration sources at this head (0002 plus every increment; 186 function bodies
+	// parsed, 83 of them definers), where each of the nineteen is referenced by at least one
+	// definer function, from one (audit_export via create_audit_export) to ten
+	// (access_restriction). They are named rather than quietly skipped, so this sweep says what
+	// it covers. The owning connection cannot stand in for them either: testpg.AdminURLFor is the
+	// maintenance superuser (WORK_TEST_PG_URL with only the database swapped), and a superuser is
+	// never stopped by a row policy, so a zero read from it would prove nothing either way.
 	wantUncovered := "access_restriction,audit_export,cancellation_intent,consumed_governance_command," +
 		"content_reference,directory_sync_state,execution_entitlement,governance_change," +
 		"governance_event_cursor,governance_gap_report,local_execution_policy,operation_resolution," +
