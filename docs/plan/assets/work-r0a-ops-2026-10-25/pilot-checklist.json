@@ -280,7 +280,7 @@
         "telemetry 11/11; promtool check rules SUCCESS + 14 alert unit tests",
         "runbook/severity/track-only/forbidden-label checks"
       ],
-      "note": "Rules validated by promtool and wired into CI, but no Prometheus scrape, dashboards or Alertmanager delivery on real series."
+      "note": "Rules validated by promtool and wired into CI, but no Prometheus scrape, dashboards or Alertmanager delivery on real series. Related frontend fact recorded 2026-11-02: D5 §10's nine Work events now have a transport-neutral layer in src/frontend/src/features/work/r0a/telemetry.ts with an executable payload allow list (ids, state, duration, error code only), eight of the nine are wired to call sites and artifact_save waits for the artifact-save UI, but no sink is configured, so these events contribute no series to the rules above and §10's four funnel metrics still need a consumer."
     },
     {
       "id": "C18",

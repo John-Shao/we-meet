@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { openWorkEventStream, WorkApiError } from '../api/client'
 import type { WorkTaskEvent } from '../api/types'
+import { trackWorkEvent } from '../telemetry'
 
 export type SseFrame = {
   id?: string
@@ -95,6 +96,7 @@ export const useTaskEventStream = (
 
     const resync = async () => {
       setStatus('reconnecting')
+      const startedAt = Date.now()
       const freshCursor = await refreshSnapshot()
       if (stopped) return
       // Never fall back to the 409 header or an unanchored stream: neither
@@ -104,6 +106,12 @@ export const useTaskEventStream = (
       seen.clear()
       needsResync = false
       setError(null)
+      // D5 §10:308 counts a resync as recovery, not as a failure, so the event is
+      // emitted only on the path that actually re-anchored the cursor.
+      trackWorkEvent('sse_resync', {
+        taskId,
+        durationMs: Date.now() - startedAt,
+      })
     }
 
     const schedule = () => {

@@ -32,6 +32,7 @@ import {
   updateWorkTaskTitle,
 } from './client'
 import type { WorkTaskView } from './types'
+import { trackWorkEvent, workErrorCode } from '../telemetry'
 
 const workKeys = {
   bootstrap: ['work', 'bootstrap'] as const,
@@ -159,8 +160,16 @@ export const useSubmitWorkTask = () => {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: submitWorkTask,
-    onSuccess: () => {
+    onSuccess: (result) => {
       invalidateWorkTaskLists(queryClient)
+      trackWorkEvent('task_submit', {
+        taskId: result.task_id,
+        runId: result.run_id,
+        displayState: result.display_state,
+      })
+    },
+    onError: (error) => {
+      trackWorkEvent('task_submit', { errorCode: workErrorCode(error) })
     },
   })
 }
@@ -200,9 +209,20 @@ export const useRetryWorkTask = (taskId: string) => {
       expected_revision: number
       target: { kind: string; profile: string }
     }) => retryWorkTask(taskId, body),
-    onSuccess: () => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: workKeys.task(taskId) })
       invalidateWorkTaskLists(queryClient)
+      trackWorkEvent('task_retry', {
+        taskId: result.task_id ?? taskId,
+        runId: result.run_id,
+        displayState: result.display_state,
+      })
+    },
+    onError: (error) => {
+      trackWorkEvent('task_retry', {
+        taskId,
+        errorCode: workErrorCode(error),
+      })
     },
   })
 }
@@ -211,9 +231,17 @@ export const useCancelWorkRun = (taskId: string) => {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (runId: string) => cancelWorkRun(runId),
-    onSuccess: () => {
+    onSuccess: (_result, runId) => {
       void queryClient.invalidateQueries({ queryKey: workKeys.task(taskId) })
       invalidateWorkTaskLists(queryClient)
+      trackWorkEvent('task_cancel', { taskId, runId })
+    },
+    onError: (error, runId) => {
+      trackWorkEvent('task_cancel', {
+        taskId,
+        runId,
+        errorCode: workErrorCode(error),
+      })
     },
   })
 }
@@ -223,11 +251,22 @@ export const useAcceptWorkTask = (taskId: string) => {
   return useMutation({
     mutationFn: (body: Parameters<typeof acceptWorkTask>[1]) =>
       acceptWorkTask(taskId, body),
-    onSuccess: () => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: workKeys.task(taskId) })
       invalidateWorkTaskLists(queryClient)
       void queryClient.invalidateQueries({
         queryKey: ['work', 'artifact-workspace'],
+      })
+      trackWorkEvent('task_accept', {
+        taskId,
+        displayState: result.task.display_state,
+        state: result.task.task_state,
+      })
+    },
+    onError: (error) => {
+      trackWorkEvent('task_accept', {
+        taskId,
+        errorCode: workErrorCode(error),
       })
     },
   })

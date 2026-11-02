@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { WorkHomePage } from './WorkHomePage'
+import { setWorkTelemetrySink } from '../telemetry'
 
 type InboxPageFixture = {
   pages: {
@@ -166,5 +167,41 @@ describe('WorkHomePage needs-you projection', () => {
     expect(screen.getByText('home.inboxUnavailable')).toBeInTheDocument()
     expect(screen.getByText('composer')).toBeInTheDocument()
     expect(screen.getByText('First task')).toBeInTheDocument()
+  })
+})
+
+describe('WorkHomePage telemetry', () => {
+  afterEach(() => {
+    setWorkTelemetrySink(null)
+  })
+
+  it('reports a home view and one inbox open, with no prose', () => {
+    const sink = vi.fn()
+    setWorkTelemetrySink(sink)
+    stubViewport(false)
+    render(<WorkHomePage composerOpen />)
+
+    expect(sink.mock.calls.map((call) => call[0])).toEqual([
+      'work_r0a_home_view',
+      'inbox_open',
+    ])
+    // D5 §10:306 forbids titles and body text in telemetry. The fixture holds both,
+    // so this is the assertion that would catch a payload copy-paste.
+    const wire = JSON.stringify(sink.mock.calls)
+    expect(wire).not.toContain('Needs you task')
+    expect(wire).not.toContain('task-9')
+    expect(wire).not.toContain('First task')
+  })
+
+  it('stays quiet about the inbox when nothing needs the owner', () => {
+    const sink = vi.fn()
+    setWorkTelemetrySink(sink)
+    stubViewport(false)
+    mocks.inbox.data = { pages: [{ items: [] }] }
+    render(<WorkHomePage composerOpen />)
+
+    expect(sink.mock.calls.map((call) => call[0])).toEqual([
+      'work_r0a_home_view',
+    ])
   })
 })

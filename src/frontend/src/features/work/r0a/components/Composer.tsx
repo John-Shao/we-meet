@@ -23,6 +23,7 @@ import {
   useWorkTemplates,
 } from '../api/queries'
 import { useIdempotencyKey } from '../hooks/useIdempotencyKey'
+import { trackWorkEvent, workErrorCode } from '../telemetry'
 import { card, errorText, inputError, label, muted, row } from '../ui'
 
 type Props = { bootstrap: WorkBootstrap }
@@ -138,6 +139,7 @@ export const Composer = ({ bootstrap }: Props) => {
     if (invalidGoal || invalidBackground) return
     const generation = previewGeneration.current + 1
     previewGeneration.current = generation
+    const startedAt = Date.now()
     try {
       let currentInput = inputRef
       if (!currentInput) {
@@ -158,9 +160,16 @@ export const Composer = ({ bootstrap }: Props) => {
       if (generation !== previewGeneration.current) return
       setPreview(previewResult)
       submitKey.rotate()
+      trackWorkEvent('composer_preview', {
+        durationMs: Date.now() - startedAt,
+      })
     } catch (cause) {
       if (generation === previewGeneration.current) {
         setError(cause instanceof Error ? cause.message : String(cause))
+        trackWorkEvent('composer_preview', {
+          durationMs: Date.now() - startedAt,
+          errorCode: workErrorCode(cause),
+        })
       }
     }
   }

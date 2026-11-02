@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'wouter'
 import {
@@ -13,6 +14,7 @@ import { Composer } from '../components/Composer'
 import { InboxCard } from '../components/InboxCard'
 import { TaskCard } from '../components/TaskCard'
 import { useReadOnlyViewport } from '../hooks/useReadOnlyViewport'
+import { trackWorkEvent } from '../telemetry'
 import { card, muted, notice, page, row, sectionTitle } from '../ui'
 
 export const WorkHomePage = ({
@@ -27,6 +29,20 @@ export const WorkHomePage = ({
   const readOnly = useReadOnlyViewport()
   const recent = tasksQ.data?.pages[0]?.items.slice(0, 3) ?? []
   const inboxItems = inboxQ.data?.pages[0]?.items ?? []
+  const inboxOpened = useRef(false)
+
+  useEffect(() => {
+    trackWorkEvent('work_r0a_home_view')
+  }, [])
+
+  // R0a has no inbox page: the 「需要你」 section on this page is the inbox, so
+  // "opened" is the first render that actually has something to act on. The ref keeps
+  // the 30s poll from turning one view into one event per refresh.
+  useEffect(() => {
+    if (inboxOpened.current || inboxItems.length === 0) return
+    inboxOpened.current = true
+    trackWorkEvent('inbox_open')
+  }, [inboxItems.length])
 
   if (!bootstrapQ.data) return null
 
