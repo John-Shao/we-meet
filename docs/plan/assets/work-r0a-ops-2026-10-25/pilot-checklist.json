@@ -418,7 +418,7 @@
       "gate": "pilot",
       "evidence": [
         "work-r0a-pilot-operations-runbook-2026-10-26.md §2-4",
-        "D1 delete_task/ops_delete_task smoke"
+        "D1 delete_task/ops_delete_task smoke, now asserted: internal/api/ops_delete_pg_test.go runs the duty delete as work_ops and pins the tombstone, the redacted title, the revision bump, the input going deleted, exactly one content_shred hand-off carrying only that task's own reference, the ticket-bearing audit row, the repeat-call no-op, plus 6 refusal cases and the work_api grant boundary (2026-11-02)"
       ],
       "note": "Support tiers and deletion procedure drafted; contacts, legal/DPA sign-off pending."
     },
@@ -463,7 +463,7 @@
       "gate": "pilot",
       "evidence": [
         "runbook §3-5",
-        "D1 transfer_task_ownership/ops_delete_task (work_ops, ticket audit) smoke"
+        "D1 transfer_task_ownership/ops_delete_task (work_ops, ticket audit) smoke, now asserted: internal/api/transfer_ownership_pg_test.go proves the hand-over copies no grants by reading both projections (the former owner's list loses the task and its detail answers 404 task_not_found, the new owner's list gains it), pins the owner_changed event's fields=[\"owner\"], the from/to/ticket audit row, the idempotent re-run, 8 refusals including viewer / no seat / suspended / unknown subject and the deleted-task order, and the work_api grant boundary; internal/api/quota_adjust_pg_test.go additionally pins the ledger's append-only corrections and revision monotonicity (2026-11-02)"
       ],
       "note": "Procedure and commands exist; ops/legal sign-off and drill pending."
     },
