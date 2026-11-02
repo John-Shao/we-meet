@@ -225,6 +225,15 @@ test('work UI passes WCAG A/AA axe scan including color contrast', async ({
       {
         path: '/work/items/browser-task/artifacts/browser-artifact?version=1',
         ready: page.getByRole('heading', { name: '无障碍成果', exact: true }),
+        // The editor is the newest interactive surface here, so the scan has to see it
+        // open: a textarea and two buttons that no scan ever covered would otherwise
+        // let the workspace stay "accessible" on paper only.
+        extra: async () => {
+          await page.getByRole('button', { name: '编辑此版本' }).click()
+          await expect(
+            page.getByRole('textbox', { name: '成果正文' })
+          ).toBeVisible()
+        },
       },
     ]
 
