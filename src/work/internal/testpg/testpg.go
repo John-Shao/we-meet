@@ -54,6 +54,11 @@ func EnsureFixtures(ctx context.Context, admin *pgx.Conn) error {
 	for _, pair := range [][2]string{
 		{"work_governance_events", "work_governance_test_login"},
 		{"work_operator", "work_operator_test_login"},
+		// Every workload role, work_ops included, is created NOLOGIN in 0001:6-8 and gets
+		// its real login only through D-04 provisioning. A test still has to reach the duty
+		// commands through the role itself rather than SET ROLE, or the grant boundary
+		// that separates work_api from work_ops goes untested.
+		{"work_ops", "work_ops_test_login"},
 	} {
 		if err := ensureGroupRole(ctx, admin, pair[0]); err != nil {
 			return err
@@ -268,6 +273,14 @@ func GovernanceURL(dbName string) string {
 // AppURL to prove it.
 func OperatorURL(dbName string) string {
 	return urlFor(AdminURL(), "work_operator_test_login", testPassword, dbName)
+}
+
+// OpsURL connects through the work_ops workload role itself. The duty commands
+// (work.ops_cancel_run, work.ops_delete_task) are EXECUTE-granted to work_ops only
+// (baseline/0002:5228-5229), so reaching them needs that role; AppURL is the one that
+// proves the boundary refuses.
+func OpsURL(dbName string) string {
+	return urlFor(AdminURL(), "work_ops_test_login", testPassword, dbName)
 }
 
 func urlFor(base, user, password, dbName string) string {
