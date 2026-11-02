@@ -57,7 +57,7 @@ psql_ro "select 'content slots: ' || coalesce(string_agg(slot_state || '=' || n,
 echo
 echo "== units =="
 for unit in work-api work-relay work-worker work-authz work-content-proxy \
-  work-egress work-runtime work-directory-sync.timer work-directory-sync-full.timer; do
+  work-egress work-export work-runtime work-directory-sync.timer work-directory-sync-full.timer; do
   printf '%-30s %-10s restarts=%s\n' "$unit" \
     "$(systemctl is-active "$unit" 2>/dev/null || true)" \
     "$(systemctl show -p NRestarts --value "$unit" 2>/dev/null || true)"
@@ -68,7 +68,7 @@ echo "== running binary vs installed =="
 # `systemctl start` on an already-active unit is a no-op, so a rollout can leave
 # the new binary on disk while the old process keeps serving. A replaced
 # executable shows up as a deleted inode in /proc/<pid>/exe.
-for unit in work-api work-relay work-worker work-authz work-content-proxy work-egress; do
+for unit in work-api work-relay work-worker work-authz work-content-proxy work-egress work-export; do
   pid="$(systemctl show -p MainPID --value "$unit" 2>/dev/null)"
   if [[ -z "$pid" || "$pid" == "0" ]]; then
     printf '%-20s not running\n' "$unit"
@@ -85,7 +85,7 @@ done
 echo
 echo "== installed binary hashes =="
 sha256sum /usr/local/bin/work-worker /usr/local/bin/work-reconcile \
-  /usr/local/bin/work-migrate /usr/local/bin/work-api 2>/dev/null
+  /usr/local/bin/work-migrate /usr/local/bin/work-api /usr/local/bin/work-export 2>/dev/null
 
 echo
 echo "== listeners =="

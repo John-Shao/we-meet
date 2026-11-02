@@ -50,7 +50,7 @@ if [[ -z "$MIGRATOR_URL" ]]; then
   echo "--migrator-url (or MIGRATOR_DATABASE_URL) is required" >&2
   exit 1
 fi
-for bin in work-migrate work-api work-relay work-worker work-authz work-content-proxy work-egress work-directory-sync work-reconcile; do
+for bin in work-migrate work-api work-relay work-worker work-authz work-content-proxy work-egress work-directory-sync work-reconcile work-export; do
   [[ -f "$RELEASE/$bin" ]] || { echo "missing $RELEASE/$bin" >&2; exit 1; }
 done
 
@@ -150,7 +150,7 @@ runuser -u postgres -- psql -d work -Atc "select state, count(*) from work.run w
 echo "the new worker cannot resume legacy in-flight runs; drain or accept their loss before --enable-advance"
 
 echo "== 3. stop writers =="
-for unit in work-directory-sync.timer work-directory-sync-full.timer work-directory-sync.service work-worker work-relay; do
+for unit in work-directory-sync.timer work-directory-sync-full.timer work-directory-sync.service work-worker work-relay work-export; do
   run systemctl stop "$unit" 2>/dev/null || true
 done
 
@@ -160,7 +160,7 @@ run env WORK_DATABASE_URL="$MIGRATOR_URL" /usr/local/bin/work-migrate apply --le
 run env WORK_DATABASE_URL="$MIGRATOR_URL" /usr/local/bin/work-migrate status
 
 echo "== 5. binaries =="
-for bin in work-api work-relay work-worker work-authz work-content-proxy work-egress work-directory-sync work-reconcile; do
+for bin in work-api work-relay work-worker work-authz work-content-proxy work-egress work-directory-sync work-reconcile work-export; do
   install_binary "$bin"
 done
 
@@ -220,9 +220,10 @@ run systemctl start work-directory-sync.timer work-directory-sync-full.timer
 run systemctl start work-directory-sync.service || true
 echo "new work stays 503 until directory_sync_state has a successful row"
 
-echo "== 9. restart API and relay, start worker =="
+echo "== 9. restart API, relay and export worker, start worker =="
 # work-api is not stopped in step 3, so only a restart loads the new binary.
-run systemctl restart work-api work-relay
+# work-export is stopped there, and restart brings it back either way.
+run systemctl restart work-api work-relay work-export
 if [[ -f /etc/work/work-worker.env ]]; then
   if grep -qE '^WORK_MODEL_|^WORK_RUNTIME_MODE=(openai_compatible|stub|fake)' /etc/work/work-worker.env; then
     if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -260,7 +261,7 @@ echo "== 10. smoke =="
 # binary is on disk, /proc/<pid>/exe points at the deleted one. Catch that here
 # instead of discovering it hours later from an API response shape.
 if [[ "$DRY_RUN" -eq 0 ]]; then
-  for unit in work-api work-relay work-worker work-authz work-content-proxy work-egress; do
+  for unit in work-api work-relay work-worker work-authz work-content-proxy work-egress work-export; do
     pid="$(systemctl show "$unit" -p MainPID --value)"
     [[ -n "$pid" && "$pid" != "0" ]] || continue
     if readlink "/proc/$pid/exe" 2>/dev/null | grep -q ' (deleted)$'; then
