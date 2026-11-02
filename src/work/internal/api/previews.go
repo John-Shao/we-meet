@@ -82,7 +82,7 @@ func (s *Server) createPreview(w http.ResponseWriter, r *http.Request) {
 	}
 	var body previewRequest
 	if err := decodeStrictJSON(w, r, &body); err != nil {
-		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		writeAPIError(w, correlationID, decodeError(err))
 		return
 	}
 	if !validUUID(body.InputRef) {
@@ -141,7 +141,7 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 	}
 	var body submitRequest
 	if err := decodeStrictJSON(w, r, &body); err != nil {
-		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		writeAPIError(w, correlationID, decodeError(err))
 		return
 	}
 	if len(body.ClientRequestID) < 8 || len(body.ClientRequestID) > 128 ||

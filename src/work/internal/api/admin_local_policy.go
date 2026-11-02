@@ -139,7 +139,7 @@ func (s *Server) adminSetLocalPolicy(w http.ResponseWriter, r *http.Request) {
 	// first object while a proxy or a log sees two - the exact defect decode.go:11-16
 	// records for previews.go.
 	if err := decodeStrictJSONBody(r.Body, &body); err != nil {
-		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		writeAPIError(w, correlationID, decodeError(err))
 		return
 	}
 	if body.Revision == nil || *body.Revision < 0 {

@@ -229,6 +229,12 @@
       "recovery_action": null,
       "ui": "too_long"
     },
+    "request_too_large": {
+      "status": 413,
+      "retryable": false,
+      "recovery_action": "reduce_input",
+      "ui": "too_long"
+    },
     "media_type_unsupported": {
       "status": 422,
       "retryable": false,

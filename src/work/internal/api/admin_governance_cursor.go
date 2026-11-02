@@ -65,7 +65,7 @@ func (s *Server) adminAdvanceGovernanceCursor(w http.ResponseWriter, r *http.Req
 	// Transport cap, not a domain rule (see the same note in admin_local_policy.go).
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	if err := decodeStrictJSONBody(r.Body, &body); err != nil {
-		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		writeAPIError(w, correlationID, decodeError(err))
 		return
 	}
 	if body.ToSeq == nil || *body.ToSeq < 0 {

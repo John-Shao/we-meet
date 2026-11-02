@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
+
+	"github.com/we-meet/work/internal/apierr"
 )
 
 // decodeStrictJSONBody reads exactly one JSON object and nothing after it.
@@ -25,4 +28,20 @@ func decodeStrictJSONBody(body io.Reader, target any) error {
 		return errors.New("trailing JSON")
 	}
 	return nil
+}
+
+// decodeError maps a strict-decode failure onto the code a client can act on.
+//
+// An oversized body is not a malformed one. 400 invalid_request tells the client to fix
+// its JSON, which no edit can achieve once the body is over the cap; 413
+// request_too_large tells it to send less. net/http reports the cap as *http.MaxBytesError
+// and json.Decoder passes that error through unchanged, so the two are still separable
+// here - every face that used to fold both into invalid_request answered 400 for a body
+// it had refused to read to the end.
+func decodeError(err error) *apierr.Error {
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		return apierr.New("request_too_large")
+	}
+	return apierr.New("invalid_request")
 }

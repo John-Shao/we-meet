@@ -80,9 +80,9 @@ func (s *Server) createArtifactVersion(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, correlationID, apierr.New("service_degraded"))
 		return
 	}
-	body, mediaType, ok := readArtifactVersionBody(w, r)
-	if !ok {
-		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+	body, mediaType, refusal := readArtifactVersionBody(w, r)
+	if refusal != nil {
+		writeAPIError(w, correlationID, refusal)
 		return
 	}
 
@@ -141,41 +141,45 @@ func (s *Server) createArtifactVersion(w http.ResponseWriter, r *http.Request) {
 
 // readArtifactVersionBody decodes and validates the request, and resolves the
 // media type so the caller cannot act on a value the enum rejected. Every
-// refusal is an invalid_request: these are shape rules, and the state rules -
-// task open, run quiescent, base version current - belong to the command.
-func readArtifactVersionBody(w http.ResponseWriter, r *http.Request) (artifactVersionCreateRequest, string, bool) {
-	refuse := func() (artifactVersionCreateRequest, string, bool) {
-		return artifactVersionCreateRequest{}, "", false
+// refusal is a shape rule and the state rules - task open, run quiescent, base
+// version current - belong to the command; the returned *apierr.Error is nil
+// when the body is acceptable, and carries the code the caller must write.
+// Only the transport cap answers 413 request_too_large, the rest are 400
+// invalid_request, because a body the server refused to read to the end is not
+// a body the client can fix by editing it.
+func readArtifactVersionBody(w http.ResponseWriter, r *http.Request) (artifactVersionCreateRequest, string, *apierr.Error) {
+	refuse := func(err *apierr.Error) (artifactVersionCreateRequest, string, *apierr.Error) {
+		return artifactVersionCreateRequest{}, "", err
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxArtifactVersionBody)
 	var body artifactVersionCreateRequest
 	if err := decodeStrictJSONBody(r.Body, &body); err != nil {
-		return refuse()
+		return refuse(decodeError(err))
 	}
 	// p_base_version_no is a PostgreSQL int, so a value that fits in Go's 64-bit
 	// int but not in int4 must be refused here rather than surfacing as a
 	// transport error after the body is already stored.
 	if !validClientRequestID(body.ClientRequestID) || body.BaseVersionNo < 1 ||
 		body.BaseVersionNo > math.MaxInt32 {
-		return refuse()
+		return refuse(apierr.New("invalid_request"))
 	}
 	if body.Content == "" || strings.ContainsRune(body.Content, '\x00') ||
 		utf8.RuneCountInString(body.Content) > maxArtifactVersionContent {
-		return refuse()
+		return refuse(apierr.New("invalid_request"))
 	}
 	mediaType, ok := artifactVersionMediaType(body.MediaType)
 	if !ok {
-		return refuse()
+		return refuse(apierr.New("invalid_request"))
 	}
 	if body.LogicalName != nil {
 		name := *body.LogicalName
 		if strings.TrimSpace(name) != name || name == "" ||
 			utf8.RuneCountInString(name) > maxArtifactVersionName ||
 			strings.IndexFunc(name, unicode.IsControl) >= 0 {
-			return refuse()
+			return refuse(apierr.New("invalid_request"))
 		}
 	}
-	return body, mediaType, true
+	return body, mediaType, nil
 }
 
 func artifactVersionMediaType(value *string) (string, bool) {

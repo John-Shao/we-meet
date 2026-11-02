@@ -251,7 +251,7 @@ func (s *Server) updateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	var body taskTitleRequest
 	if err := decodeStrictJSON(w, r, &body); err != nil {
-		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		writeAPIError(w, correlationID, decodeError(err))
 		return
 	}
 	if !validClientRequestID(body.ClientRequestID) || body.ExpectedRevision == nil || *body.ExpectedRevision < 0 {
@@ -311,7 +311,7 @@ func (s *Server) createAcceptance(w http.ResponseWriter, r *http.Request) {
 	}
 	var body acceptanceRequest
 	if err := decodeStrictJSON(w, r, &body); err != nil {
-		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		writeAPIError(w, correlationID, decodeError(err))
 		return
 	}
 	if !validClientRequestID(body.ClientRequestID) || body.ExpectedRevision == nil || *body.ExpectedRevision < 0 {

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -52,13 +53,26 @@ func TestDecodeStrictJSONRejectsTrailingContent(t *testing.T) {
 }
 
 // TestDecodeStrictJSONKeepsSizeCap pins that the previews entry point still bounds the
-// body, which the shared helper deliberately does not impose on other endpoints.
+// body, which the shared helper deliberately does not impose on other endpoints, and that
+// hitting the bound is reported as a size refusal rather than a malformed body.
 func TestDecodeStrictJSONKeepsSizeCap(t *testing.T) {
 	oversized := `{"reason":"` + strings.Repeat("a", (64<<10)+1) + `"}`
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/work/v1/task-previews", strings.NewReader(oversized))
-	if err := decodeStrictJSON(recorder, request, &strictTarget{}); err == nil {
+	err := decodeStrictJSON(recorder, request, &strictTarget{})
+	if err == nil {
 		t.Fatal("the 64 KiB body cap no longer rejects an oversized preview request")
+	}
+	// 413 says "send less", 400 says "fix the JSON", and only the first is honest about a
+	// body the server refused to read to the end. decodeError is what keeps them apart at
+	// every call site, so both directions are asserted here.
+	if got := decodeError(err); got.Status != http.StatusRequestEntityTooLarge ||
+		got.Code != "request_too_large" {
+		t.Fatalf("oversized body mapped to %d %s, want 413 request_too_large", got.Status, got.Code)
+	}
+	if got := decodeError(errors.New("trailing JSON")); got.Status != http.StatusBadRequest ||
+		got.Code != "invalid_request" {
+		t.Fatalf("trailing content mapped to %d %s, want 400 invalid_request", got.Status, got.Code)
 	}
 
 	var target strictTarget

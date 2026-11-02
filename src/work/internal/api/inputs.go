@@ -86,7 +86,7 @@ func (s *Server) createInput(w http.ResponseWriter, r *http.Request) {
 	}
 	body, err := readInputBody(w, r)
 	if err != nil {
-		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		writeAPIError(w, correlationID, decodeError(err))
 		return
 	}
 	plaintext, err := json.Marshal(map[string]string{"goal": body.Goal, "background": body.Background})
