@@ -132,18 +132,31 @@ func TestDownloadTokenWrongValueIsRefusedWithoutBurningTheGrant(t *testing.T) {
 	// grant must survive the failed guesses, which is the same fail-closed property the probe
 	// nonce has (provider_probe_grant_guard) and here it is the admin's own download.
 	token := issuedToken(t, request, exportID)
+	// The mutated token has to differ from the real one by construction. Splicing a fixed
+	// character in is not enough: whenever the genuine token happened to start with that
+	// character the "guess" was the real credential, which downloads the file and spends it - a
+	// one-in-sixteen flake that only shows up when the run is unlucky. Flipping the last digit is
+	// always a different string.
+	flipped := token[:len(token)-1] + "0"
+	if token[len(token)-1] == '0' {
+		flipped = token[:len(token)-1] + "1"
+	}
 	guesses := []struct {
 		tag    string
 		header []string
 	}{
 		{"absent", nil},
 		{"empty", []string{"X-Download-Token", "   "}},
-		{"wrong-value", []string{"X-Download-Token", "f" + token[1:]}},
+		{"wrong-value", []string{"X-Download-Token", flipped}},
+		{"short", []string{"X-Download-Token", token[:len(token)-4]}},
 	}
 	for _, guess := range guesses {
 		response := request(http.MethodGet,
 			api.AdminAuditExportsPath+"/"+exportID+"/content", "", guess.header...)
 		assertAPICode(t, response, http.StatusForbidden, "download_token_invalid")
+	}
+	if flipped == token {
+		t.Fatal("the mutated token fixture produced the genuine value")
 	}
 
 	if _, spent := exportStatus(t, dbName, exportID); spent {
