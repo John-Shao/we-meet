@@ -84,6 +84,10 @@ func run(ctx context.Context) error {
 	}, egressservice.Dependencies{
 		Authorizer: capability.NewIssuer(pool),
 		Providers:  &providerctx.Resolver{Pool: pool, Master: masterKey},
+		// The administration probe shares the resolver's pool and master key: it must
+		// reach the same credential form, and a second key path would let a probe
+		// succeed against a secret the real call could not decrypt.
+		Prober:     &providerctx.Probe{Pool: pool, Master: masterKey},
 		Commands:   gate,
 		References: contentref.NewRegistry(pool),
 		Executions: &egressservice.PGBindings{Pool: pool},

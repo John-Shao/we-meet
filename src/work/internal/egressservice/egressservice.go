@@ -232,6 +232,11 @@ type Dependencies struct {
 	Executions ExecutionBindings
 	Content    content.Store
 	Factory    ProviderFactory
+	// Prober is optional: without it the administration probe route is not registered at
+	// all, so a deployment that has not provisioned the grant path cannot be reached
+	// through it. It is deliberately not in the required set above, because invoke must
+	// keep working on hosts that predate 0024.
+	Prober ProbeGrants
 }
 
 // Server is one work-egress listener. It holds no tokens, no provider secret
@@ -245,6 +250,7 @@ type Server struct {
 	executions ExecutionBindings
 	store      content.Store
 	factory    ProviderFactory
+	prober     ProbeGrants
 }
 
 // New validates the dependencies and returns a listener-bound server. TLS
@@ -270,6 +276,7 @@ func New(config Config, deps Dependencies) (*Server, error) {
 		executions: deps.Executions,
 		store:      deps.Content,
 		factory:    deps.Factory,
+		prober:     deps.Prober,
 	}, nil
 }
 

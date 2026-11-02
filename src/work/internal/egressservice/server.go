@@ -23,12 +23,18 @@ const (
 	maxHeaderBytes  = 32 << 10
 )
 
-// Handler returns the 8445 route table. Only the signed bound model invoke
-// route exists on this listener; issuance and administration routes live on
-// 8443.
+// Handler returns the 8445 route table. Two routes exist and no more: the signed bound
+// model invoke, and - only where a prober is wired - the administration connectivity
+// probe that 0024 and D-08b require before a provider config may take effect. The probe
+// is bound to a one-shot grant instead of a dispatch gate and writes no content, receipt
+// or usage. Issuance and administration routes still live on 8443; this is not a general
+// administration listener.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST "+InvokePath, s.handleInvoke)
+	if s.prober != nil {
+		mux.HandleFunc("POST "+ProbePath, s.handleProbe)
+	}
 	return s.limitBody(mux)
 }
 
