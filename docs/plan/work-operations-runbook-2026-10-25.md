@@ -606,3 +606,18 @@ Run `3cd9c500…` succeeded（usage 112/194、结算 306、artifact 85B）。hos
 - §19 三档容量、模型配额/供应商限流、SSE/设备连接、PG 生产争用产生决策输出；S6 签收。
 - SLO 指标接入生产并经过一个完整发布周期；告警有 runbook 链接和负责人。
 - 本文件不能替代真实演练、供应商条款或安全评审。
+
+## R0b 本机执行运维（第十四轮 J16/J38 补，2026-11-01）
+
+**适用范围与状态**：本机 Run 的 unknown 核账、`evidence_exhausted` 签署、治理事件游标推进。本包未上线、未演练——**本节是「照做即可执行」的运维合同，不是已发生记录**；任何步骤演练过后要在第 10 条改状态，不得默认视为已验证。
+
+1. **操作者**：主签一人（原设计写的「后端轮值 on-call」在单人团队下不存在）。**职责分离缺口的三条补偿**：①工单必须外部可见（Issue/工单系统），不得当场自造；②每次运维动作写强审计并保留 ≥365 天；③运维动作样本纳入 7 日延迟复评的抽查范围。
+2. **凭据**：`work-reconcile` 用一次性专用身份，运维身份不直接写业务表（与 R0a 口径一致）；发放/撤销/告警归属＝主签在自有云环境配置，依赖云厂商的部分记为「供应商操作＋主签核验」。用完即撤。
+3. **可接受的 evidence（服务端权威事实）**：egress receipt、provider request id、gate 事实（`dispatch_delivery`）、`device_run_seal` 记录、`consumed_governance_command`。**不接受**设备自报回执或「设备说没发出去」作为终态依据（不变量 2 与 RB-A21）。
+4. **SLA**：首响 1 个工作日、终响 3 个工作日。单人条件下超时不是「继续无声等待」，而是进入第 6 步的 `evidence_exhausted` 判定。
+5. **流程 A｜unknown 核账**：`work-reconcile -scan -org <org>` 列开放项 → 逐项按第 3 条取证 → 有证据则按既有 `settle_quota`/`release_quota` 收口；无证据则区分动作类别（只读类走 `evidence_unavailable`，副作用类进流程 B）。**不得为跑绿放宽预留释放或终态白名单。**
+6. **流程 B｜`evidence_exhausted` 签署（J38）**：五个前置全部成立才可签——①Operation 属 `artifact.write`／模型调用／外发；②第 3 条列举的权威证据源**逐项查过且无结论**（记录查了哪些、各返回什么）；③原设备无法经正常 session 交回历史且 recovery-only 无可用 receipt；④引用外部工单号；⑤强审计已写。签发效果：`operation.state=reconciled`（已登记边）、`wait_reason: reconcile→input`、预留保持 `unknown`、**新 Run 放开、采纳被 `acceptance_blocked_unresolvable` 拒绝**。
+7. **流程 C｜游标推进（J7 两步，顺序固定）**：先 `advance_governance_event_cursor(org_id, to_seq, gap_report_id, ticket_id, request_id)`，其中区间证明来自 `governance_gap_report`（由 `work_governance_events` 写入，申请人只能引用不能自证）；**再由持 `org.work.seat.write` 者重做一次显式授座**。只做第二步无效（游标仍停在缺口）；不得凭投影值或 Host 现状推断解除任何 deny。
+8. **对外表述**：`evidence_exhausted` 既不是「已确认失败」也不是「已完成」，界面与回复一律写「证据已穷尽·无法定论」；治理与用量报表把该 Operation 及其未释放预留**单列**，不得混入正常结算。
+9. **禁止事项**：不得用 `evidence_unavailable` 顶替副作用类；不得释放 unknown 预留来「解锁」任务；不得新增常驻作业或绕过 §1.4 端点表把 reconcile 暴露成 HTTP 口。
+10. **演练状态**：`not_run` —— 上述流程均未经真实环境演练，对应验收规格是 EV113/EV115/EV120；演练通过后在此逐条记录日期与证据位置。
