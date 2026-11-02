@@ -20,11 +20,20 @@ import (
 // more than "it returns an error" are the replay that must still succeed and the
 // row count that must not move.
 
+// exportWindow is computed once for the whole test binary, not once per call. 0026 binds an
+// export's receipt to a hash of its payload, and TestCreateAuditExportGateKeepsReadsAndReplaysAlive
+// exists to prove that a replay under the same key returns the original job - so the replay must
+// carry the *same* payload. Deriving the window from a fresh time.Now() at each call made the two
+// bodies differ whenever the calls straddled a boundary, and the replay then correctly answered
+// idempotency_key_conflict: an intermittent red that looks exactly like a product defect. Truncating
+// to the minute only lowers the odds; one shared value removes the race, and an hour-old range
+// still satisfies both the retention floor and the range_to <= now rule.
+var exportWindow = time.Now().UTC().Truncate(time.Minute)
+
 func adminExportBody(clientRequestID string) string {
-	now := time.Now().UTC()
 	return `{"client_request_id":"` + clientRequestID + `","range_from":"` +
-		now.Add(-2*time.Hour).Format(time.RFC3339) + `","range_to":"` +
-		now.Add(-time.Hour).Format(time.RFC3339) + `","format":"csv"}`
+		exportWindow.Add(-2*time.Hour).Format(time.RFC3339) + `","range_to":"` +
+		exportWindow.Add(-time.Hour).Format(time.RFC3339) + `","format":"csv"}`
 }
 
 func adminExportHarness(
