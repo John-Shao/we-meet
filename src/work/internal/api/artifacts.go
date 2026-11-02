@@ -139,6 +139,13 @@ func (s *Server) serveArtifactVersion(w http.ResponseWriter, r *http.Request, ta
 	if taskScoped {
 		contentURL = taskArtifactContentURL(r, taskID, record.ArtifactID, record.VersionNo)
 	}
+	writeJSON(w, http.StatusOK, artifactVersionPayload(record, contentURL))
+}
+
+// artifactVersionPayload is the single place an ArtifactVersion is assembled, so
+// the POST that publishes a user edit cannot answer with a body the later GET of
+// the same version would not produce.
+func artifactVersionPayload(record artifactVersionRecord, contentURL string) ArtifactVersion {
 	version := ArtifactVersion{
 		ArtifactID:  record.ArtifactID,
 		VersionNo:   record.VersionNo,
@@ -154,7 +161,7 @@ func (s *Server) serveArtifactVersion(w http.ResponseWriter, r *http.Request, ta
 		publishedAt := record.PublishedAt.Time
 		version.PublishedAt = &publishedAt
 	}
-	writeJSON(w, http.StatusOK, version)
+	return version
 }
 
 func (s *Server) getArtifactContent(w http.ResponseWriter, r *http.Request) {

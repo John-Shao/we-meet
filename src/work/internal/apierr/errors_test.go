@@ -92,9 +92,23 @@ func TestFromDBMapsCatalogSQLStateAndConflicts(t *testing.T) {
 			code: "provider_credential_revoked", status: 409, internal: "provider_credential_revoked",
 		},
 		{
+			// The only raisers of these two are state gates, not optimistic-locking
+			// checks, so they arrive without a DETAIL. Accepting a detail when one is
+			// supplied keeps the read-only case future-proof; requiring one is what
+			// used to make a contracted 409 read as a 503.
+			name: "artifact read only without detail",
+			err:  &pgconn.PgError{Code: "P0001", Message: "artifact_read_only"},
+			code: "artifact_read_only", status: 409, internal: "artifact_read_only",
+		},
+		{
 			name: "artifact read only",
 			err:  &pgconn.PgError{Code: "P0001", Message: "artifact_read_only", Detail: "9"},
 			code: "artifact_read_only", status: 409, revision: revision(9), internal: "artifact_read_only",
+		},
+		{
+			name: "run not quiescent without detail",
+			err:  &pgconn.PgError{Code: "P0001", Message: "run_not_quiescent"},
+			code: "run_not_quiescent", status: 409, internal: "run_not_quiescent",
 		},
 		{
 			name: "mapped raw code",

@@ -21,6 +21,13 @@ var conflictCodes = map[string]bool{
 	"artifact_read_only": true,
 }
 
+// detailOptionalConflicts are the conflictCodes whose raisers carry no numeric
+// DETAIL. A missing detail is expected for them, not a contract break.
+var detailOptionalConflicts = map[string]bool{
+	"run_not_quiescent":  true,
+	"artifact_read_only": true,
+}
+
 type Error struct {
 	Code            string
 	Message         string
@@ -94,14 +101,18 @@ func FromDB(err error) *Error {
 	if conflictCodes[code] {
 		revision, err := strconv.ParseInt(strings.TrimSpace(pgErr.Detail), 10, 64)
 		if err != nil || revision < 0 {
-			// run_not_quiescent reports "the task is still busy", not a revision
-			// mismatch: accept_task, delete_task_core and create_user_artifact_version
-			// all raise it without a DETAIL, and several aliases
+			// Some conflicts report a state, not a revision, and no SQL site ever
+			// gives them a DETAIL: run_not_quiescent is raised by accept_task,
+			// delete_task_core and create_user_artifact_version, and artifact_read_only
+			// only by create_user_artifact_version - which is exactly the "the task is
+			// finished or its last Run failed" case the contract promises as a 409,
+			// with nothing to reload against. Several aliases
 			// (run_not_quiescent_or_revision_conflict, task_has_unresolved_operation,
-			// latest_run_not_terminal) map to it. Requiring a numeric revision here
-			// turned those legitimate 409s into 503 service_degraded. Optimistic
-			// version_conflict still needs its detail, so it stays refused.
-			if code == "run_not_quiescent" {
+			// latest_run_not_terminal) also map to run_not_quiescent. Requiring a
+			// numeric revision here turned those legitimate 409s into 503
+			// service_degraded. Optimistic version_conflict still needs its detail,
+			// so it stays refused.
+			if detailOptionalConflicts[code] {
 				return out
 			}
 			return serviceDegraded("conflict_detail_missing", pgErr.Code)

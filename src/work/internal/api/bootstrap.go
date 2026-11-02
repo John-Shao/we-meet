@@ -162,6 +162,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST "+TaskRunsPath, s.retryTask)
 	mux.HandleFunc("GET "+TaskEventsPath, s.streamTaskEvents)
 	mux.HandleFunc("GET "+ArtifactVersionPath, s.getArtifactVersion)
+	mux.HandleFunc("POST "+ArtifactVersionsPath, s.createArtifactVersion)
 	mux.HandleFunc("GET "+ArtifactContentPath, s.getArtifactContent)
 	mux.HandleFunc("GET "+TaskArtifactPath, s.getTaskArtifact)
 	mux.HandleFunc("GET "+TaskArtifactVersionPath, s.getTaskArtifactVersion)

@@ -17,12 +17,13 @@ const OPENAPI = new URL('../r0a-openapi-v1.yaml', import.meta.url);
 // writes shipped on 2026-11-02 and setProviderConfig landed with them on 2026-11-02
 // (0024 mints the pre-save connectivity grant, 0025 supplies the conflict detail and
 // makes the function reachable through work_api at all), so all five are gone from this
-// list -- see docs/plan/work-r0a-provider-write-surface-2026-11-01.md. The two read
-// projections (inbox, run operations) additionally lack SQL read functions.
+// list -- see docs/plan/work-r0a-provider-write-surface-2026-11-01.md. createArtifactVersion
+// shipped the same day over the baseline's work.create_user_artifact_version, so it left
+// too. The two read projections (inbox, run operations) additionally lack SQL read
+// functions.
 const CONTRACT_ONLY = [
   'GET /work/v1/inbox',
   'GET /work/v1/runs/{runId}/operations',
-  'POST /work/v1/artifacts/{artifactId}/versions',
 ];
 
 // Served by the Go control plane but absent from the contract: the task-scoped
