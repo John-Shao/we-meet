@@ -315,7 +315,25 @@
       "output": "Tokens de sortie",
       "cached": "Tokens d’entrée en cache",
       "runs": "Exécutions"
-    }
+    },
+    "credentialVersion": "Version de clé",
+    "providerConflict": "La configuration a changé ailleurs ; rechargez puis réessayez.",
+    "providerFailed": "Action non aboutie : {{code}}",
+    "providerSaved": "Configuration effective (révision {{revision}})",
+    "providerSave": "Enregistrer la configuration",
+    "providerRevoke": "Révoquer la configuration",
+    "providerRevoked": "Configuration révoquée ; les nouveaux appels échouent.",
+    "roleRef": "Référence de rôle (STS)",
+    "apiKey": "Clé API (écriture seule)",
+    "reason": "Motif (journalisé)",
+    "credentialId": "Identifiant de credential",
+    "credentialCreated": "Credential créé ; empreinte {{fingerprint}}",
+    "credentialCreate": "Créer un credential",
+    "credentialRotated": "Clé tournée à la version {{version}}",
+    "credentialRotate": "Tourner la clé",
+    "credentialRevoke": "Révoquer le credential",
+    "credentialRevoked": "Credential révoqué.",
+    "providerHint": "L’enregistrement envoie une requête réelle minimale de contrôle ; en cas d’échec la configuration précédente reste en vigueur."
   },
   "operationState": {
     "prepared": "Prepared",

@@ -315,7 +315,25 @@
       "output": "Output tokens",
       "cached": "Cached input tokens",
       "runs": "Runs"
-    }
+    },
+    "credentialVersion": "Key version",
+    "providerConflict": "The configuration changed elsewhere; reload and try again.",
+    "providerFailed": "Action did not complete: {{code}}",
+    "providerSaved": "Access configuration is in effect (revision {{revision}})",
+    "providerSave": "Save configuration",
+    "providerRevoke": "Revoke configuration",
+    "providerRevoked": "The configuration is revoked; new calls fail immediately.",
+    "roleRef": "Role reference (STS)",
+    "apiKey": "API key (write-only)",
+    "reason": "Reason (recorded in the audit trail)",
+    "credentialId": "Credential id",
+    "credentialCreated": "Credential created; fingerprint {{fingerprint}}",
+    "credentialCreate": "Create credential",
+    "credentialRotated": "Key rotated to version {{version}}",
+    "credentialRotate": "Rotate key",
+    "credentialRevoke": "Revoke credential",
+    "credentialRevoked": "The credential is revoked.",
+    "providerHint": "Saving sends one minimal real request as a connectivity probe; a failed probe leaves the previous configuration in effect."
   },
   "operationState": {
     "prepared": "Prepared",

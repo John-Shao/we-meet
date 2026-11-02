@@ -315,7 +315,25 @@
       "output": "Output-Tokens",
       "cached": "Cached Input-Tokens",
       "runs": "Runs"
-    }
+    },
+    "credentialVersion": "Schlüsselversion",
+    "providerConflict": "Die Konfiguration wurde anderweitig geändert; bitte neu laden.",
+    "providerFailed": "Aktion nicht abgeschlossen: {{code}}",
+    "providerSaved": "Zugangskonfiguration aktiv (Revision {{revision}})",
+    "providerSave": "Konfiguration speichern",
+    "providerRevoke": "Konfiguration widerrufen",
+    "providerRevoked": "Konfiguration widerrufen; neue Aufrufe scheitern sofort.",
+    "roleRef": "Rollenreferenz (STS)",
+    "apiKey": "API-Schlüssel (nur Schreibzugriff)",
+    "reason": "Grund (wird protokolliert)",
+    "credentialId": "Nachweis-ID",
+    "credentialCreated": "Nachweis erstellt; Fingerabdruck {{fingerprint}}",
+    "credentialCreate": "Nachweis erstellen",
+    "credentialRotated": "Schlüssel auf Version {{version}} gedreht",
+    "credentialRotate": "Schlüssel rotieren",
+    "credentialRevoke": "Nachweis widerrufen",
+    "credentialRevoked": "Nachweis widerrufen.",
+    "providerHint": "Beim Speichern wird ein minimaler echter Request als Prüfung gesendet; bei Fehler bleibt die bisherige Konfiguration bestehen."
   },
   "operationState": {
     "prepared": "Prepared",

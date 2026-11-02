@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/primitives/Button'
 import { PageState } from '@/components/PageState'
 import { css } from '@/styled-system/css'
+import { AdminProviderPanel } from '../components/AdminProviderPanel'
 import {
   useAdminAuditExport,
   useAdminOverview,
@@ -292,49 +293,56 @@ export const AdminPage = () => {
         )}
       </section>
 
-      <section className={card}>
-        <h2 className={css({ margin: 0, textStyle: 'titleMedium' })}>
-          {t('admin.providerTitle')}
-        </h2>
-        {providerQ.isPending ? (
-          <p className={muted}>{t('loading')}</p>
-        ) : providerQ.isError ? (
-          <p className={muted}>
-            {isNotConfigured(providerQ.error)
-              ? t('admin.providerEmpty')
-              : t('admin.providerError')}
-          </p>
-        ) : (
-          <dl
-            className={css({
-              display: 'grid',
-              gridTemplateColumns: { base: '1fr', md: 'repeat(3, 1fr)' },
-              gap: 'md',
-              margin: 0,
-            })}
-          >
-            {(
-              [
-                [t('admin.providerField'), providerQ.data.provider],
-                [t('admin.modelField'), providerQ.data.model],
-                [t('admin.regionField'), providerQ.data.region || '—'],
-                [t('admin.endpointField'), providerQ.data.endpoint || '—'],
-                [t('admin.credentialMode'), providerQ.data.credential_mode],
-                [t('admin.fingerprint'), providerQ.data.credential.fingerprint],
-                [t('admin.state'), providerQ.data.state],
-                [t('admin.revision'), String(providerQ.data.revision)],
-              ] as [string, string][]
-            ).map(([label, value]) => (
-              <div key={label}>
-                <dt className={muted}>{label}</dt>
-                <dd className={css({ margin: 0, wordBreak: 'break-all' })}>
-                  {value || '—'}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        )}
-      </section>
+      {role === 'owner' ? (
+        <AdminProviderPanel />
+      ) : (
+        <section className={card}>
+          <h2 className={css({ margin: 0, textStyle: 'titleMedium' })}>
+            {t('admin.providerTitle')}
+          </h2>
+          {providerQ.isPending ? (
+            <p className={muted}>{t('loading')}</p>
+          ) : providerQ.isError ? (
+            <p className={muted}>
+              {isNotConfigured(providerQ.error)
+                ? t('admin.providerEmpty')
+                : t('admin.providerError')}
+            </p>
+          ) : (
+            <dl
+              className={css({
+                display: 'grid',
+                gridTemplateColumns: { base: '1fr', md: 'repeat(3, 1fr)' },
+                gap: 'md',
+                margin: 0,
+              })}
+            >
+              {(
+                [
+                  [t('admin.providerField'), providerQ.data.provider],
+                  [t('admin.modelField'), providerQ.data.model],
+                  [t('admin.regionField'), providerQ.data.region || '—'],
+                  [t('admin.endpointField'), providerQ.data.endpoint || '—'],
+                  [t('admin.credentialMode'), providerQ.data.credential_mode],
+                  [
+                    t('admin.fingerprint'),
+                    providerQ.data.credential.fingerprint,
+                  ],
+                  [t('admin.state'), providerQ.data.state],
+                  [t('admin.revision'), String(providerQ.data.revision)],
+                ] as [string, string][]
+              ).map(([label, value]) => (
+                <div key={label}>
+                  <dt className={muted}>{label}</dt>
+                  <dd className={css({ margin: 0, wordBreak: 'break-all' })}>
+                    {value || '—'}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </section>
+      )}
 
       <section className={card}>
         <h2 className={css({ margin: 0, textStyle: 'titleMedium' })}>

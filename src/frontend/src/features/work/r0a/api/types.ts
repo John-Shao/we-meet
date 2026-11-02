@@ -359,3 +359,41 @@ export interface WorkProviderConfig {
   state: string
   created_at: string
 }
+
+export type WorkProviderName = 'aliyun' | 'volcengine' | 'deepseek'
+export type WorkCredentialMode = 'sts_role' | 'managed_key'
+
+export interface WorkProviderConfigInput {
+  provider: WorkProviderName
+  model: string
+  region: string
+  endpoint: string
+  credential_mode: WorkCredentialMode
+  credential_id: string
+  expected_revision: number
+}
+
+export interface WorkProviderRevokeInput {
+  reason: string
+}
+
+export interface WorkProviderCredentialInput {
+  provider: WorkProviderName
+  mode: WorkCredentialMode
+  role_ref?: string
+  api_key?: string
+}
+
+export interface WorkProviderCredentialRotateInput {
+  api_key: string
+}
+
+export interface WorkProviderRevoked {
+  org_id: string
+  state: 'revoked'
+}
+
+export interface WorkCredentialRevoked {
+  credential_id: string
+  state: 'revoked'
+}

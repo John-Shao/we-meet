@@ -372,3 +372,84 @@ export const useAdminAuditExport = (exportId: string | undefined) =>
 
 export const useDownloadAdminAuditExport = () =>
   useMutation({ mutationFn: downloadAdminAuditExport })
+
+import {
+  createAdminProviderCredential,
+  revokeAdminProviderConfig,
+  revokeAdminProviderCredential,
+  rotateAdminProviderCredential,
+  setAdminProviderConfig,
+} from './client'
+
+export const useSetAdminProviderConfig = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: setAdminProviderConfig,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: workKeys.adminProviderConfig,
+      })
+      void queryClient.invalidateQueries({ queryKey: ['work', 'admin'] })
+    },
+  })
+}
+
+export const useRevokeAdminProviderConfig = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: revokeAdminProviderConfig,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: workKeys.adminProviderConfig,
+      })
+    },
+  })
+}
+
+export const useCreateAdminProviderCredential = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: createAdminProviderCredential,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: workKeys.adminProviderConfig,
+      })
+    },
+  })
+}
+
+export const useRotateAdminProviderCredential = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      credentialId,
+      body,
+    }: {
+      credentialId: string
+      body: { api_key: string }
+    }) => rotateAdminProviderCredential(credentialId, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: workKeys.adminProviderConfig,
+      })
+    },
+  })
+}
+
+export const useRevokeAdminProviderCredential = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      credentialId,
+      body,
+    }: {
+      credentialId: string
+      body: { reason: string }
+    }) => revokeAdminProviderCredential(credentialId, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: workKeys.adminProviderConfig,
+      })
+    },
+  })
+}

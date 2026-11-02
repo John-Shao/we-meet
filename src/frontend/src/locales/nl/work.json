@@ -315,7 +315,25 @@
       "output": "Uitvoertokens",
       "cached": "Cached invoertokens",
       "runs": "Runs"
-    }
+    },
+    "credentialVersion": "Sleutelversie",
+    "providerConflict": "De configuratie is elders gewijzigd; laad opnieuw en probeer het.",
+    "providerFailed": "Actie niet voltooid: {{code}}",
+    "providerSaved": "Toegangsconfiguratie actief (revisie {{revision}})",
+    "providerSave": "Configuratie opslaan",
+    "providerRevoke": "Configuratie intrekken",
+    "providerRevoked": "Configuratie ingetrokken; nieuwe aanroepen falen direct.",
+    "roleRef": "Rolreferentie (STS)",
+    "apiKey": "API-sleutel (alleen schrijven)",
+    "reason": "Reden (wordt gelogd)",
+    "credentialId": "Credentiële-id",
+    "credentialCreated": "Credentieel aangemaakt; vingerafdruk {{fingerprint}}",
+    "credentialCreate": "Credentieel aanmaken",
+    "credentialRotated": "Sleutel geroteerd naar versie {{version}}",
+    "credentialRotate": "Sleutel roteren",
+    "credentialRevoke": "Credentieel intrekken",
+    "credentialRevoked": "Credentieel ingetrokken.",
+    "providerHint": "Bij opslaan wordt één minimale echte controle-aanroep gedaan; bij falen blijft de vorige configuratie geldig."
   },
   "operationState": {
     "prepared": "Prepared",

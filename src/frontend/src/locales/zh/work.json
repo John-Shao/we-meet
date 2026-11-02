@@ -315,7 +315,25 @@
       "output": "输出 token",
       "cached": "缓存输入 token",
       "runs": "Run 数"
-    }
+    },
+    "credentialVersion": "密钥版本",
+    "providerConflict": "配置已被其他改动更新，请刷新后重试。",
+    "providerFailed": "操作未完成：{{code}}",
+    "providerSaved": "接入配置已生效（版本 {{revision}}）",
+    "providerSave": "保存配置",
+    "providerRevoke": "吊销配置",
+    "providerRevoked": "接入配置已吊销，新调用会立即失败。",
+    "roleRef": "角色标识（STS）",
+    "apiKey": "API Key（只写不回读）",
+    "reason": "原因（写入审计）",
+    "credentialId": "凭证 ID",
+    "credentialCreated": "凭证已创建，指纹 {{fingerprint}}",
+    "credentialCreate": "创建凭证",
+    "credentialRotated": "密钥已轮换到版本 {{version}}",
+    "credentialRotate": "轮换密钥",
+    "credentialRevoke": "吊销凭证",
+    "credentialRevoked": "凭证已吊销。",
+    "providerHint": "保存前服务端会发一次最小真实请求做连通探测，失败不生效。"
   },
   "operationState": {
     "prepared": "已准备",

@@ -98,6 +98,25 @@ vi.mock('../api/queries', () => ({
           isError: true,
           error: { code: 'not_found' },
         },
+  // AdminPage now renders the owner write panel, so the page mock has to answer the five
+  // mutation hooks it consumes or the owner cases fail on an undefined hook.
+  useSetAdminProviderConfig: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useRevokeAdminProviderConfig: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useCreateAdminProviderCredential: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useRotateAdminProviderCredential: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useRevokeAdminProviderCredential: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
   useAdminUsage: () => ({
     data: {
       from: '2026-10-25',
@@ -151,7 +170,11 @@ describe('AdminPage', () => {
     expect(screen.getByText('admin.providerTitle')).toBeInTheDocument()
     expect(screen.getByText('9b3c03d25b217cc9')).toBeInTheDocument()
     expect(screen.getByText('admin.usageTitle')).toBeInTheDocument()
-    expect(screen.getAllByText('qwen3.8-flash')).toHaveLength(2)
+    // Owners get the editable write panel, where the model lives in a field rather than a
+    // second text row, so the usage table is the only text occurrence and the configuration
+    // itself is read back through the form control.
+    expect(screen.getAllByText('qwen3.8-flash')).toHaveLength(1)
+    expect(screen.getByDisplayValue('qwen3.8-flash')).toBeTruthy()
     expect(screen.getByText('107')).toBeInTheDocument()
     // 服务端的固定 note 不直接上屏，文案走本地化 key。
     expect(screen.getByText('admin.usageNote')).toBeInTheDocument()

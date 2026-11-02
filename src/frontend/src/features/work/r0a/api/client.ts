@@ -353,3 +353,51 @@ export const downloadAdminAuditExport = async (exportId: string) => {
   anchor.remove()
   URL.revokeObjectURL(url)
 }
+
+import type {
+  WorkCredentialRevoked,
+  WorkProviderConfigInput,
+  WorkProviderCredential,
+  WorkProviderCredentialInput,
+  WorkProviderCredentialRotateInput,
+  WorkProviderRevoked,
+  WorkProviderRevokeInput,
+} from './types'
+
+export const setAdminProviderConfig = (body: WorkProviderConfigInput) =>
+  request<WorkProviderConfig>('/admin/provider-config', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+
+export const revokeAdminProviderConfig = (body: WorkProviderRevokeInput) =>
+  request<WorkProviderRevoked>('/admin/provider-config/revoke', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const createAdminProviderCredential = (
+  body: WorkProviderCredentialInput
+) =>
+  request<WorkProviderCredential>('/admin/provider-credentials', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const rotateAdminProviderCredential = (
+  credentialId: string,
+  body: WorkProviderCredentialRotateInput
+) =>
+  request<WorkProviderCredential>(
+    `/admin/provider-credentials/${encodeURIComponent(credentialId)}/rotate`,
+    { method: 'POST', body: JSON.stringify(body) }
+  )
+
+export const revokeAdminProviderCredential = (
+  credentialId: string,
+  body: WorkProviderRevokeInput
+) =>
+  request<WorkCredentialRevoked>(
+    `/admin/provider-credentials/${encodeURIComponent(credentialId)}/revoke`,
+    { method: 'POST', body: JSON.stringify(body) }
+  )
