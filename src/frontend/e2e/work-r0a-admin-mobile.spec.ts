@@ -27,6 +27,55 @@ const seats = [
   },
 ]
 
+// The artifact workspace at a phone viewport: the task is deliberately in a state the
+// desktop page would offer editing and acceptance for, so the only thing that may hide
+// those affordances is the read-only viewport rule (D5 §9 / §14).
+const artifactWorkspace = {
+  summary: {
+    task_id: 'browser-task',
+    title: '移动端成果任务',
+    task_state: 'awaiting_acceptance',
+    display_state: 'awaiting_acceptance',
+    permission_mode: 'ask_each',
+    active_run_id: null,
+    latest_run_id: null,
+    latest_run: null,
+    latest_artifact: {
+      artifact_id: 'browser-artifact',
+      version_no: 1,
+      content_hash: 'sha256:browser-hash',
+    },
+    revision: 4,
+    pending_acceptance: true,
+    blocking_operations: 0,
+    quota: { reserved_tokens: 0, settled_tokens: 0 },
+    created_at: '2026-10-31T00:00:00Z',
+    updated_at: '2026-10-31T00:00:00Z',
+  },
+  artifact: {
+    artifact_id: 'browser-artifact',
+    logical_name: 'result',
+    state: 'published',
+    revision: 0,
+    created_at: '2026-10-31T00:00:00Z',
+    updated_at: '2026-10-31T00:00:00Z',
+    accepted_version_no: null,
+    versions: [
+      {
+        version_no: 1,
+        media_type: 'text/markdown',
+        bytes: 24,
+        content_hash: 'sha256:browser-hash',
+        state: 'published',
+        content_url:
+          '/work/v1/tasks/browser-task/artifacts/browser-artifact/versions/1/content',
+        created_at: '2026-10-31T00:00:00Z',
+        published_at: '2026-10-31T00:00:00Z',
+      },
+    ],
+  },
+}
+
 const overview = {
   org_id: 'browser-org',
   name: 'Mock browser organization',
@@ -148,6 +197,16 @@ const mockAdmin = async (page: Page) => {
     if (path.includes('/admin/seats')) {
       return fulfill(route, { items: seats, next_cursor: null })
     }
+    if (path.endsWith('/artifacts/browser-artifact')) {
+      return fulfill(route, artifactWorkspace)
+    }
+    if (path.endsWith('/content')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'text/markdown; charset=utf-8',
+        body: '# 移动端成果\n\n正文只在桌面可编辑。',
+      })
+    }
     return fulfill(route, { items: [], next_cursor: null })
   })
   return errors
@@ -216,5 +275,29 @@ test('audit export stays available, and the quota period is labelled, on a wide 
   ).toBeVisible()
   await expect(page.getByText('配额期间', { exact: true })).toBeVisible()
   await expect(page.getByText('2026-11', { exact: true })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test('the artifact workspace stays read-only on a phone even for an editable task', async ({
+  page,
+}) => {
+  const errors = await mockAdmin(page)
+
+  await page.goto('/work/items/browser-task/artifacts/browser-artifact')
+  // exact: the task title contains the same words, and a substring match would let a
+  // missing preview pass.
+  await expect(
+    page.getByRole('heading', { name: '移动端成果', exact: true })
+  ).toBeVisible()
+
+  // D5 §9: below 768px the work views must not create, edit, accept, cancel or retry.
+  // The fixture is deliberately an awaiting_acceptance task, so the only thing that
+  // can hide these affordances is the viewport rule - not an empty or failed read.
+  await expect(page.getByRole('button', { name: '编辑此版本' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '保存为新版本' })).toHaveCount(
+    0
+  )
+  await expect(page.getByRole('textbox', { name: '成果正文' })).toHaveCount(0)
+
   expect(errors).toEqual([])
 })
