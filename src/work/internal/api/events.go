@@ -106,6 +106,8 @@ func (s *Server) streamTaskEvents(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
+		case <-s.shutdown:
+			return
 		case <-poll.C:
 			if err := s.drainTaskEvents(r.Context(), w, controller, claims, taskID, &cursor); err != nil {
 				s.logger.Printf("work api task event stream stopped correlation_id=%s", correlationID)

@@ -84,10 +84,26 @@ func run(ctx context.Context) error {
 		}
 		return err
 	case <-shutdownCtx.Done():
-		timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		return httpServer.Shutdown(timeout)
+		server.BeginShutdown()
+		return drainUntil(httpServer, shutdownGrace)
 	}
+}
+
+// shutdownGrace bounds how long an orderly drain waits for in-flight requests.
+const shutdownGrace = 10 * time.Second
+
+// drainUntil closes the listener and lets in-flight requests finish within the grace
+// window, then force-closes whatever is still attached. Outliving the window means a
+// handler that only ends when the client hangs up, which is an expected restart
+// outcome rather than a failure: returning Shutdown's error here would make main exit
+// non-zero and leave a Failed unit record for every such restart.
+func drainUntil(httpServer *http.Server, grace time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), grace)
+	defer cancel()
+	if err := httpServer.Shutdown(ctx); err != nil {
+		return httpServer.Close()
+	}
+	return nil
 }
 
 func requiredEnv(name string) string {

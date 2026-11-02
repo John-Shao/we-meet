@@ -76,6 +76,19 @@ type Server struct {
 	content        content.Store
 	logger         *log.Logger
 	runtimeVersion string
+	shutdown       chan struct{}
+}
+
+// BeginShutdown ends every task event stream. Those handlers only return when the
+// client hangs up, and http.Server.Shutdown waits on active requests, so without
+// this signal a single open EventSource turns a restart into a full drain window
+// with the listener already closed.
+func (s *Server) BeginShutdown() {
+	select {
+	case <-s.shutdown:
+	default:
+		close(s.shutdown)
+	}
 }
 
 // SetRuntimeVersion records the deployment's real execution body on every
@@ -112,7 +125,14 @@ func NewServerWithContent(
 	if logger == nil {
 		logger = log.Default()
 	}
-	return &Server{pool: pool, verifier: verifier, csrf: csrf, content: store, logger: logger}, nil
+	return &Server{
+		pool:     pool,
+		verifier: verifier,
+		csrf:     csrf,
+		content:  store,
+		logger:   logger,
+		shutdown: make(chan struct{}),
+	}, nil
 }
 
 func (s *Server) Handler() http.Handler {
