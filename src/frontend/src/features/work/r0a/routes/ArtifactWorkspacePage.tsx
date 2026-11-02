@@ -10,10 +10,12 @@ import {
 
 import { PageState } from '@/components/PageState'
 import { Button } from '@/primitives/Button'
+import { TextArea } from '@/primitives/TextArea'
 import { css, cx } from '@/styled-system/css'
-import { workTaskArtifactContentUrl } from '../api/client'
+import { workTaskArtifactContentUrl, WorkApiError } from '../api/client'
 import {
   useAcceptWorkTask,
+  useCreateWorkArtifactVersion,
   useWorkArtifactContent,
   useWorkArtifactWorkspace,
 } from '../api/queries'
@@ -90,6 +92,19 @@ export const ArtifactWorkspacePage = () => {
   const acceptMutation = useAcceptWorkTask(taskId ?? '')
   const acceptKey = useIdempotencyKey()
   const [actionError, setActionError] = useState<string | null>(null)
+  const saveMutation = useCreateWorkArtifactVersion(taskId, artifactId)
+  const saveKey = useIdempotencyKey()
+  // A draft remembers the version it was cut from, because that is the token the
+  // server checks. Switching the preview keeps the dirty text (D5:210) but must not
+  // silently re-point an in-progress edit at another base version.
+  const [draft, setDraft] = useState<{
+    baseVersionNo: number
+    text: string
+  } | null>(null)
+  const [saveError, setSaveError] = useState<{
+    code: string
+    message: string
+  } | null>(null)
 
   const versions = workspaceQ.data?.artifact.versions ?? []
   const requestedVersion = Number(searchParams.get('version'))
@@ -151,8 +166,16 @@ export const ArtifactWorkspacePage = () => {
 
   const { summary, artifact } = workspaceQ.data
   const acceptedVersionNo = artifact.accepted_version_no
+  // The server owns this rule - the contract allows a publish only while the task is
+  // open or awaiting acceptance - and the UI mirrors it so the affordance is absent
+  // rather than present-and-rejected.
+  const canEdit =
+    !readOnly &&
+    (summary.task_state === 'open' ||
+      summary.task_state === 'awaiting_acceptance')
   const canAccept =
     !readOnly &&
+    !draft &&
     summary.task_state === 'awaiting_acceptance' &&
     acceptedVersionNo !== selected.version_no
 
@@ -179,6 +202,43 @@ export const ArtifactWorkspacePage = () => {
       acceptKey.rotate()
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  const startEdit = () => {
+    if (!contentQ.data) return
+    setSaveError(null)
+    setDraft({ baseVersionNo: selected.version_no, text: contentQ.data.text })
+  }
+
+  const discardDraft = () => {
+    setDraft(null)
+    setSaveError(null)
+  }
+
+  // D5:209. A refusal never clears the draft: the whole point of the optimistic check
+  // is that the user's edits survive someone else publishing first.
+  const saveDraft = async () => {
+    if (!draft) return
+    setSaveError(null)
+    try {
+      const created = await saveMutation.mutateAsync({
+        client_request_id: saveKey.key,
+        base_version_no: draft.baseVersionNo,
+        content: draft.text,
+      })
+      saveKey.rotate()
+      setDraft(null)
+      selectVersion(created.version_no)
+    } catch (cause) {
+      const code = cause instanceof WorkApiError ? cause.code : 'unknown'
+      setSaveError({
+        code,
+        message: cause instanceof Error ? cause.message : String(cause),
+      })
+      // A read-only artifact is a fact the page got wrong, not the edit: re-read the
+      // workspace so the version list and badges describe the current truth.
+      if (code === 'artifact_read_only') void workspaceQ.refetch()
     }
   }
 
@@ -310,6 +370,93 @@ export const ArtifactWorkspacePage = () => {
               mediaType={contentQ.data.mediaType}
             />
           ) : null}
+
+          {canEdit && !draft ? (
+            <div className={row}>
+              <Button
+                size="dense"
+                variant="secondary"
+                isDisabled={!contentQ.data}
+                onPress={startEdit}
+              >
+                {t('artifact.edit')}
+              </Button>
+            </div>
+          ) : null}
+
+          {draft ? (
+            <div
+              className={css({
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'xs',
+                marginTop: 'sm',
+              })}
+            >
+              <TextArea
+                id="work-artifact-draft"
+                aria-label={t('artifact.editorLabel')}
+                value={draft.text}
+                rows={12}
+                onChange={(event) =>
+                  setDraft({ ...draft, text: event.target.value })
+                }
+              />
+              <p className={muted}>
+                {t('artifact.draftBased', { version: draft.baseVersionNo })}
+              </p>
+              {draft.baseVersionNo !== selected.version_no ? (
+                <p className={notice} role="status">
+                  {t('artifact.draftOtherVersion')}
+                </p>
+              ) : null}
+              <div className={row}>
+                <Button
+                  size="dense"
+                  variant="primary"
+                  loading={saveMutation.isPending}
+                  onPress={() => void saveDraft()}
+                >
+                  {t('artifact.save')}
+                </Button>
+                <Button size="dense" variant="secondary" onPress={discardDraft}>
+                  {t('artifact.discard')}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {saveError?.code === 'version_conflict' ? (
+            <div className={css({ marginTop: 'sm' })}>
+              <p className={notice} role="status">
+                {t('artifact.conflictHint')}
+              </p>
+              <div className={row}>
+                <Button
+                  size="dense"
+                  variant="secondary"
+                  onPress={() => void workspaceQ.refetch()}
+                >
+                  {t('artifact.reloadLatest')}
+                </Button>
+                <Button
+                  size="dense"
+                  variant="secondaryText"
+                  onPress={() => setSaveError(null)}
+                >
+                  {t('artifact.keepEditing')}
+                </Button>
+              </div>
+            </div>
+          ) : saveError ? (
+            <p className={errorText}>{saveError.message}</p>
+          ) : null}
+
+          {saveError?.code === 'artifact_read_only' ? (
+            <p className={notice} role="status">
+              {t('artifact.readOnlyRefreshed')}
+            </p>
+          ) : null}
         </section>
 
         <aside
@@ -375,6 +522,17 @@ export const ArtifactWorkspacePage = () => {
               ))}
             </ul>
           </section>
+
+          {/* D5:211 - acceptance pins a published version, so an unsaved edit has to be
+              resolved first. The affordance is replaced by the reason, not hidden. */}
+          {draft && summary.task_state === 'awaiting_acceptance' ? (
+            <section className={card}>
+              <h2 className={sectionTitle}>{t('artifact.acceptTitle')}</h2>
+              <p className={notice} role="status">
+                {t('artifact.acceptNeedsSave')}
+              </p>
+            </section>
+          ) : null}
 
           {canAccept ? (
             <section className={card}>

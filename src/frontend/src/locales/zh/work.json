@@ -225,7 +225,18 @@
     "readOnly": "移动端为只读模式：可查看与下载成果，采纳请在更宽的屏幕操作。",
     "contentLoading": "正在加载成果正文…",
     "contentLoadError": "无法加载成果正文，请重试。",
-    "openWorkspace": "打开成果工作区"
+    "openWorkspace": "打开成果工作区",
+    "edit": "编辑此版本",
+    "editorLabel": "成果正文",
+    "draftBased": "基于第 {{version}} 版编辑。保存会发布新版本，不会覆盖当前版本。",
+    "draftOtherVersion": "你正在预览其他版本。未保存的正文仍归属于它编辑时的那个版本。",
+    "save": "保存为新版本",
+    "discard": "放弃修改",
+    "conflictHint": "已有人先发布了更新的版本。你的修改已保留；请读取最新版本后再应用。",
+    "reloadLatest": "读取最新版本",
+    "keepEditing": "继续编辑",
+    "readOnlyRefreshed": "该成果已变为只读，无法再接受新版本，工作区已重新读取。",
+    "acceptNeedsSave": "请先保存或放弃当前修改，再采纳某个版本。"
   },
   "event": {
     "task.submitted": "任务已提交",

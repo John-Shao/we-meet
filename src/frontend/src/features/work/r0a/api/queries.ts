@@ -20,6 +20,7 @@ import {
   deleteWorkTask,
   createWorkInput,
   createWorkPreview,
+  createWorkArtifactVersion,
   fetchWorkArtifactContent,
   fetchWorkArtifactWorkspace,
   fetchWorkBootstrap,
@@ -266,6 +267,50 @@ export const useAcceptWorkTask = (taskId: string) => {
     onError: (error) => {
       trackWorkEvent('task_accept', {
         taskId,
+        errorCode: workErrorCode(error),
+      })
+    },
+  })
+}
+
+// D5:209 saves publish a new version instead of touching the one on screen. The
+// caller keeps one client_request_id until the call succeeds, because that key is the
+// retry dedup: resending after a timeout must not publish a second version.
+export const useCreateWorkArtifactVersion = (
+  taskId: string | undefined,
+  artifactId: string | undefined
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (body: {
+      client_request_id: string
+      base_version_no: number
+      media_type?: string
+      content: string
+    }) => createWorkArtifactVersion(artifactId ?? '', body),
+    onSuccess: (result) => {
+      if (taskId && artifactId) {
+        void queryClient.invalidateQueries({
+          queryKey: workKeys.artifactWorkspace(taskId, artifactId),
+        })
+        void queryClient.invalidateQueries({
+          queryKey: ['work', 'artifact-content', taskId, artifactId],
+        })
+      }
+      if (taskId) {
+        void queryClient.invalidateQueries({ queryKey: workKeys.task(taskId) })
+      }
+      invalidateWorkTaskLists(queryClient)
+      trackWorkEvent('artifact_save', {
+        taskId,
+        artifactId,
+        state: result.state,
+      })
+    },
+    onError: (error) => {
+      trackWorkEvent('artifact_save', {
+        taskId,
+        artifactId,
         errorCode: workErrorCode(error),
       })
     },

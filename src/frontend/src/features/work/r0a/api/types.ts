@@ -65,6 +65,22 @@ export interface WorkArtifactWorkspaceVersion {
   published_at: string | null
 }
 
+// The 201 body of POST /artifacts/{artifactId}/versions - the same shape the version
+// list rows use, so the caller can select the new version straight away. The task
+// revision is deliberately not in it: the page re-reads the workspace after a publish.
+export interface WorkArtifactVersionCreated {
+  artifact_id: string
+  version_no: number
+  logical_name: string
+  media_type: string
+  bytes: number
+  content_hash: string
+  state: string
+  content_url: string
+  created_at: string
+  published_at?: string | null
+}
+
 export interface WorkArtifactWorkspace {
   artifact_id: string
   logical_name: string

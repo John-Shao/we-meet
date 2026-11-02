@@ -367,3 +367,126 @@ test('mocked 409: failed/delayed snapshot blocks streams; fresh cursor recovers 
   expect(cursors).toEqual(['expired-snapshot', 'fresh-snapshot'])
   expect(errors).toEqual([])
 })
+
+const artifactWorkspaceJson = (versionCount: number) => ({
+  summary: {
+    task_id: 'browser-task',
+    title: '浏览器测试任务',
+    task_state: 'awaiting_acceptance',
+    display_state: 'awaiting_acceptance',
+    permission_mode: 'ask_each',
+    active_run_id: null,
+    latest_run_id: null,
+    latest_run: null,
+    latest_artifact: {
+      artifact_id: 'browser-artifact',
+      version_no: versionCount,
+      content_hash: 'artifact-hash',
+    },
+    revision: 4,
+    pending_acceptance: true,
+    blocking_operations: 0,
+    quota: { reserved_tokens: 1000, settled_tokens: 0 },
+    created_at: '2026-10-31T00:00:00Z',
+    updated_at: '2026-10-31T00:00:00Z',
+  },
+  artifact: {
+    artifact_id: 'browser-artifact',
+    logical_name: 'result',
+    state: 'published',
+    revision: 0,
+    created_at: '2026-10-31T00:00:00Z',
+    updated_at: '2026-10-31T00:00:00Z',
+    accepted_version_no: 1,
+    versions: Array.from({ length: versionCount }, (_unused, index) => {
+      const versionNo = versionCount - index
+      return {
+        version_no: versionNo,
+        media_type: 'text/markdown',
+        bytes: 42,
+        content_hash: `artifact-hash-${versionNo}`,
+        state: 'published',
+        content_url: `/work/v1/tasks/browser-task/artifacts/browser-artifact/versions/${versionNo}/content`,
+        created_at: '2026-10-31T00:00:00Z',
+        published_at: '2026-10-31T00:00:00Z',
+      }
+    }),
+  },
+})
+
+test('artifact editing survives a version conflict and publishes with the same idempotency key', async ({
+  page,
+}) => {
+  const errors = await mockBackend(page)
+  let versionCount = 2
+  const published: {
+    client_request_id: string
+    base_version_no: number
+    content: string
+  }[] = []
+
+  await page.route(
+    '**/work/v1/tasks/browser-task/artifacts/browser-artifact',
+    (route) => fulfill(route, artifactWorkspaceJson(versionCount))
+  )
+  await page.route(
+    '**/work/v1/artifacts/browser-artifact/versions',
+    (route) => {
+      const body = route.request().postDataJSON() as {
+        client_request_id: string
+        base_version_no: number
+        content: string
+      }
+      published.push(body)
+      if (published.length === 1)
+        return fulfill(route, { code: 'version_conflict' }, 409)
+      versionCount = 3
+      return fulfill(
+        route,
+        {
+          artifact_id: 'browser-artifact',
+          version_no: 3,
+          logical_name: 'result',
+          media_type: 'text/markdown',
+          bytes: 40,
+          content_hash: 'artifact-hash-3',
+          state: 'published',
+          content_url:
+            '/work/v1/tasks/browser-task/artifacts/browser-artifact/versions/3/content',
+          created_at: '2026-10-31T02:00:00Z',
+          published_at: '2026-10-31T02:00:00Z',
+        },
+        201
+      )
+    }
+  )
+
+  await page.goto('/work/items/browser-task/artifacts/browser-artifact')
+  await expect(
+    page.getByRole('heading', { name: 'Mock final artifact' })
+  ).toBeVisible({ timeout: 10_000 })
+
+  await page.getByRole('button', { name: '编辑此版本' }).click()
+  const editor = page.getByRole('textbox', { name: '成果正文' })
+  await editor.fill('浏览器里改过的正文')
+  await page.getByRole('button', { name: '保存为新版本' }).click()
+
+  // D5:209 in a real browser: the refusal keeps the text and names both exits.
+  await expect(page.getByText(/已有人先发布了更新的版本/)).toBeVisible()
+  await expect(editor).toHaveValue('浏览器里改过的正文')
+  await page.getByRole('button', { name: '继续编辑' }).click()
+  await expect(page.getByText(/已有人先发布了更新的版本/)).toBeHidden()
+  await expect(editor).toHaveValue('浏览器里改过的正文')
+
+  await page.getByRole('button', { name: '保存为新版本' }).click()
+  await expect.poll(() => published.length).toBe(2)
+  // The retry reuses the key, which is what stops a timed-out publish from becoming
+  // two versions.
+  expect(published[0].client_request_id).toBe(published[1].client_request_id)
+  expect(published[1].base_version_no).toBe(2)
+  expect(published[1].content).toBe('浏览器里改过的正文')
+
+  await expect(page).toHaveURL(/version=3/)
+  await expect(page.getByRole('button', { name: '编辑此版本' })).toBeVisible()
+  expect(errors).toEqual([])
+})

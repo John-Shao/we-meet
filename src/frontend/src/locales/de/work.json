@@ -225,7 +225,18 @@
     "readOnly": "Read-only on mobile: you can view and download artifacts; accept on a wider screen.",
     "contentLoading": "Loading artifact…",
     "contentLoadError": "Unable to load the artifact content. Please retry.",
-    "openWorkspace": "Open artifact workspace"
+    "openWorkspace": "Open artifact workspace",
+    "edit": "Edit this version",
+    "editorLabel": "Artifact text",
+    "draftBased": "Editing on top of version {{version}}. Saving publishes a new version and never overwrites the current one.",
+    "draftOtherVersion": "You are previewing another version. The unsaved text stays attached to the version it was cut from.",
+    "save": "Save as new version",
+    "discard": "Discard changes",
+    "conflictHint": "Someone published a newer version first. Your text is kept; reload to re-apply it on top of the latest version.",
+    "reloadLatest": "Reload latest version",
+    "keepEditing": "Keep editing",
+    "readOnlyRefreshed": "This artifact is read-only now, so it cannot accept a new version. The workspace was reloaded.",
+    "acceptNeedsSave": "Save or discard your edits before accepting a version."
   },
   "event": {
     "task.submitted": "Task submitted",

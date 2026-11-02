@@ -4,6 +4,7 @@ import type {
   WorkAdminSeatList,
   WorkAuditExport,
   WorkArtifactContent,
+  WorkArtifactVersionCreated,
   WorkBootstrap,
   WorkInboxList,
   WorkInputResponse,
@@ -255,6 +256,24 @@ export const acceptWorkTask = (
 ) =>
   request<WorkAcceptanceResult>(
     `/tasks/${encodeURIComponent(taskId)}/acceptances`,
+    { method: 'POST', body: JSON.stringify(body) }
+  )
+
+// D5:209. base_version_no is the optimistic-concurrency token: it must equal the
+// newest published version or the server answers 409 version_conflict rather than
+// overwriting. client_request_id is the retry dedup, so a timeout resend publishes
+// nothing new - the same key must be reused until the call succeeds.
+export const createWorkArtifactVersion = (
+  artifactId: string,
+  body: {
+    client_request_id: string
+    base_version_no: number
+    media_type?: string
+    content: string
+  }
+) =>
+  request<WorkArtifactVersionCreated>(
+    `/artifacts/${encodeURIComponent(artifactId)}/versions`,
     { method: 'POST', body: JSON.stringify(body) }
   )
 
