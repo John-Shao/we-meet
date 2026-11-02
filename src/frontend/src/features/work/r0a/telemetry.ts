@@ -92,8 +92,6 @@ export const setWorkTelemetrySink = (next: WorkTelemetrySink | null): void => {
   sink = next
 }
 
-export const getWorkTelemetrySink = (): WorkTelemetrySink | null => sink
-
 /**
  * Returns whether the event reached a sink. With no sink configured the call is a
  * no-op by design: the absence of an adjudicated destination must not silently
