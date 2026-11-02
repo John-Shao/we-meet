@@ -32,6 +32,15 @@ const IMPLEMENTED_ONLY = [
   'GET /work/v1/tasks/{taskId}/artifacts/{artifactId}',
   'GET /work/v1/tasks/{taskId}/artifacts/{artifactId}/versions/{versionNo}',
   'GET /work/v1/tasks/{taskId}/artifacts/{artifactId}/versions/{versionNo}/content',
+  // R0b's registered faces live under /work/v2: §1.4 declares every relative path in
+  // its table beneath that prefix, and this asset is the R0a v1 contract, so v2 routes
+  // are "implemented but not in this contract" by construction. They are listed here
+  // rather than filtered out of the comparison, so a future v2 route still has to be a
+  // deliberate edit - and when the v2 contract is published, these entries leave.
+  'GET /work/v2/admin/local-policy',
+  'PATCH /work/v2/admin/local-policy',
+  'POST /work/v2/admin/governance-event-cursor',
+  'GET /work/v2/runs/{runId}/reconciliations',
 ];
 
 function readGoSurface() {
