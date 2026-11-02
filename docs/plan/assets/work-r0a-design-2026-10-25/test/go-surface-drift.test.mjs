@@ -8,23 +8,19 @@ import { readFileSync, readdirSync } from 'node:fs';
 const API_DIR = new URL('../../../../../src/work/internal/api/', import.meta.url);
 const OPENAPI = new URL('../r0a-openapi-v1.yaml', import.meta.url);
 
-// Declared in the contract, no Go handler. Pinned so that adding a route or
-// retiring an operation has to be a deliberate edit here as well. Their R0a
-// disposition (implement, or trim from the contract when D2' re-signs the
-// surface) is tracked in docs/plan/work-project.md. Note: the provider write
-// operations here are IN R0a scope (D-08a signed "org owners may write the
-// access config"); revokeProviderConfig shipped on 2026-11-01, the three credential
-// writes shipped on 2026-11-02 and setProviderConfig landed with them on 2026-11-02
-// (0024 mints the pre-save connectivity grant, 0025 supplies the conflict detail and
-// makes the function reachable through work_api at all), so all five are gone from this
-// list -- see docs/plan/work-r0a-provider-write-surface-2026-11-01.md. createArtifactVersion
-// shipped the same day over the baseline's work.create_user_artifact_version, so it left
-// too. The two read projections (inbox, run operations) additionally lack SQL read
-// functions.
-const CONTRACT_ONLY = [
-  'GET /work/v1/inbox',
-  'GET /work/v1/runs/{runId}/operations',
-];
+// Declared in the contract, no Go handler. The list is empty as of 2026-11-02: the
+// provider write operations here were IN R0a scope (D-08a signed "org owners may write
+// the access config") and shipped across 2026-11-01/02 - revokeProviderConfig, the three
+// credential writes, and setProviderConfig with its pre-save connectivity probe (0024
+// mints the grant, 0025 makes the function reachable through work_api at all and supplies
+// the conflict detail), see docs/plan/work-r0a-provider-write-surface-2026-11-01.md.
+// createArtifactVersion shipped over the baseline's work.create_user_artifact_version,
+// and the two read projections (inbox, run operations) ship as view/table reads under the
+// same RLS and owner scoping the task list uses - neither needed a migration, contrary to
+// the estimate in docs/plan/work-r0a-inbox-operations-decision-2026-11-01.md.
+// The pin stays an explicit list: a new contract operation has to be added here on
+// purpose, and their R0a disposition is tracked in docs/plan/work-project.md.
+const CONTRACT_ONLY = [];
 
 // Served by the Go control plane but absent from the contract: the task-scoped
 // artifact deep-link routes shipped for the standalone artifact workspace.

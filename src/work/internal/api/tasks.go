@@ -455,8 +455,16 @@ func taskViewPredicate(view string) (string, bool) {
 }
 
 func parseTaskLimit(raw string) (int, error) {
+	return parsePageLimit(raw, defaultTaskLimit)
+}
+
+// parsePageLimit applies the shared Limit bounds (1..100) with the default the
+// calling surface promises. The task list deviates from the contract's default of
+// 20 and that offset is tracked for adjudication; the list endpoints added after
+// it use the declared default instead of inheriting the deviation.
+func parsePageLimit(raw string, fallback int) (int, error) {
 	if raw == "" {
-		return defaultTaskLimit, nil
+		return fallback, nil
 	}
 	value, err := strconv.Atoi(raw)
 	if err != nil || value < 1 || value > maxTaskLimit {

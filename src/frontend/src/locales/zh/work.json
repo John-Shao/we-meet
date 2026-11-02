@@ -37,7 +37,10 @@
     "subtitle": "描述目标，Work 会整理执行过程并把成果交还给你。",
     "viewAll": "查看全部工作",
     "recent": "最近工作",
-    "emptyRecent": "提交第一个任务后，它会出现在这里。"
+    "emptyRecent": "提交第一个任务后，它会出现在这里。",
+    "needsYou": "需要你",
+    "emptyInbox": "现在没有需要你处理的任务。",
+    "inboxUnavailable": "暂时读不到需要你处理的任务，其余内容不受影响。"
   },
   "composer": {
     "title": "新建工作",

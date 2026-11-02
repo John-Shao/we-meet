@@ -37,7 +37,10 @@
     "subtitle": "Describe the goal; Work organizes the run and returns the result.",
     "viewAll": "View all work",
     "recent": "Recent work",
-    "emptyRecent": "Your first submitted task will appear here."
+    "emptyRecent": "Your first submitted task will appear here.",
+    "needsYou": "Needs you",
+    "emptyInbox": "Nothing needs your attention right now.",
+    "inboxUnavailable": "The list of tasks waiting on you is unavailable."
   },
   "composer": {
     "title": "New work",

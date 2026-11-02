@@ -5,8 +5,10 @@ import type {
   WorkAuditExport,
   WorkArtifactContent,
   WorkBootstrap,
+  WorkInboxList,
   WorkInputResponse,
   WorkOrgUsage,
+  WorkOperationList,
   WorkPreviewResponse,
   WorkRunAccepted,
   WorkProviderConfig,
@@ -104,6 +106,23 @@ export const fetchWorkTasks = (view: string, cursor?: string | null) => {
   const params = new URLSearchParams({ view, limit: '20' })
   if (cursor) params.set('cursor', cursor)
   return request<WorkTaskList>(`/tasks?${params.toString()}`)
+}
+
+export const fetchWorkInbox = (cursor?: string | null) => {
+  const params = new URLSearchParams({ limit: '20' })
+  if (cursor) params.set('cursor', cursor)
+  return request<WorkInboxList>(`/inbox?${params.toString()}`)
+}
+
+export const fetchWorkRunOperations = (
+  runId: string,
+  cursor?: string | null
+) => {
+  const params = new URLSearchParams({ limit: '20' })
+  if (cursor) params.set('cursor', cursor)
+  return request<WorkOperationList>(
+    `/runs/${encodeURIComponent(runId)}/operations?${params.toString()}`
+  )
 }
 
 export const fetchWorkTask = (taskId: string) =>

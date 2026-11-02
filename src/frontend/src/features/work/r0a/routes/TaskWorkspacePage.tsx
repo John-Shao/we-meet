@@ -117,6 +117,11 @@ export const TaskWorkspacePage = () => {
     lastEventIdRef.current = last.event_id
     void queryClient.invalidateQueries({ queryKey: ['work', 'task', taskId] })
     void queryClient.invalidateQueries({ queryKey: ['work', 'tasks'] })
+    // D5 §4.2: an arriving event invalidates the projections that read the same
+    // rows - the cross-task inbox (this task may have just become actionable or
+    // stopped being so) and the run's operation ledger.
+    void queryClient.invalidateQueries({ queryKey: ['work', 'inbox'] })
+    void queryClient.invalidateQueries({ queryKey: ['work', 'operations'] })
   }, [stream.events, queryClient, taskId])
 
   useEffect(() => {

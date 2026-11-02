@@ -132,6 +132,40 @@ export interface WorkTaskList {
   next_cursor: string | null
 }
 
+export type WorkInboxType = 'acceptance_required' | 'failed' | 'reconciling'
+
+export interface WorkInboxItem {
+  task_id: string
+  type: WorkInboxType
+  title: string
+  display_state: string
+  updated_at: string
+}
+
+export interface WorkInboxList {
+  items: WorkInboxItem[]
+  next_cursor: string | null
+}
+
+export interface WorkOperation {
+  id: string
+  run_id: string
+  logical_key: string
+  kind: string
+  state: string
+  request_hash: string
+  provider_request_id: string | null
+  receipt_ref: string | null
+  revision: number
+  created_at: string
+  updated_at: string
+}
+
+export interface WorkOperationList {
+  items: WorkOperation[]
+  next_cursor: string | null
+}
+
 export interface WorkInputResponse {
   input_ref: string
   content_hash: string

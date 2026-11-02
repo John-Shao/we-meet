@@ -150,6 +150,9 @@ const mockBackend = async (page: Page) => {
         input_bytes: 100,
       })
     }
+    if (path.endsWith('/inbox')) {
+      return fulfill(route, { items: [], next_cursor: null })
+    }
     if (path.endsWith('/tasks')) {
       if (route.request().method() === 'POST')
         return fulfill(

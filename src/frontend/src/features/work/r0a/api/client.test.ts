@@ -5,6 +5,8 @@ import {
   fetchWorkArtifactContent,
   fetchWorkArtifactWorkspace,
   fetchWorkBootstrap,
+  fetchWorkInbox,
+  fetchWorkRunOperations,
   setWorkCSRFToken,
   WorkApiError,
   workTaskArtifactContentUrl,
@@ -127,6 +129,60 @@ describe('Work API client', () => {
       workTaskArtifactContentUrl('task-1', 'artifact-1', 2, 'attachment')
     ).toBe(
       '/work/v1/tasks/task-1/artifacts/artifact-1/versions/2/content?disposition=attachment'
+    )
+  })
+
+  it('reads the inbox and the run operation ledger', async () => {
+    const inboxPayload = {
+      items: [
+        {
+          task_id: 'task-1',
+          type: 'acceptance_required',
+          title: 'Task',
+          display_state: 'awaiting_acceptance',
+          updated_at: '2026-11-02T10:00:00Z',
+        },
+      ],
+      next_cursor: 'cursor-2',
+    }
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, inboxPayload))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(fetchWorkInbox()).resolves.toEqual(inboxPayload)
+    expect(fetchMock.mock.calls[0][0]).toBe('/work/v1/inbox?limit=20')
+    expect(fetchMock.mock.calls[0][1].credentials).toBe('same-origin')
+    // A GET must never carry the CSRF header.
+    expect(fetchMock.mock.calls[0][1].headers.get('X-CSRF-Token')).toBeNull()
+
+    await fetchWorkInbox('cursor-2')
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      '/work/v1/inbox?limit=20&cursor=cursor-2'
+    )
+
+    const operationsPayload = {
+      items: [
+        {
+          id: 'op-1',
+          run_id: 'run-1',
+          logical_key: 'model:1',
+          kind: 'model',
+          state: 'dispatching',
+          request_hash: 'sha256:req',
+          provider_request_id: null,
+          receipt_ref: null,
+          revision: 0,
+          created_at: '2026-11-02T10:00:00Z',
+          updated_at: '2026-11-02T10:00:05Z',
+        },
+      ],
+      next_cursor: null,
+    }
+    fetchMock.mockResolvedValue(jsonResponse(200, operationsPayload))
+    await expect(fetchWorkRunOperations('run-1')).resolves.toEqual(
+      operationsPayload
+    )
+    expect(fetchMock.mock.calls[2][0]).toBe(
+      '/work/v1/runs/run-1/operations?limit=20'
     )
   })
 

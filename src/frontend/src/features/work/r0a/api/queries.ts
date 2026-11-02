@@ -3,6 +3,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type QueryClient,
 } from '@tanstack/react-query'
 
 import {
@@ -22,6 +23,8 @@ import {
   fetchWorkArtifactContent,
   fetchWorkArtifactWorkspace,
   fetchWorkBootstrap,
+  fetchWorkInbox,
+  fetchWorkRunOperations,
   fetchWorkTask,
   fetchWorkTasks,
   fetchWorkTemplates,
@@ -34,6 +37,9 @@ const workKeys = {
   bootstrap: ['work', 'bootstrap'] as const,
   templates: ['work', 'templates'] as const,
   tasks: (view: string) => ['work', 'tasks', view] as const,
+  tasksAll: ['work', 'tasks'] as const,
+  inbox: ['work', 'inbox'] as const,
+  operations: (runId: string) => ['work', 'operations', runId] as const,
   task: (taskId: string) => ['work', 'task', taskId] as const,
   adminOverview: ['work', 'admin', 'overview'] as const,
   adminSeats: ['work', 'admin', 'seats'] as const,
@@ -45,6 +51,15 @@ const workKeys = {
     ['work', 'artifact-workspace', taskId, artifactId] as const,
   artifactContent: (taskId: string, artifactId: string, versionNo: number) =>
     ['work', 'artifact-content', taskId, artifactId, versionNo] as const,
+}
+
+// invalidateWorkTaskLists covers both task projections at once. The inbox is the
+// same tasks seen from "what needs you", so any mutation that changes a task's
+// state changes that list too - and a page that refreshed only the task list
+// would keep offering a task the owner has already accepted.
+const invalidateWorkTaskLists = (queryClient: QueryClient) => {
+  void queryClient.invalidateQueries({ queryKey: workKeys.tasksAll })
+  void queryClient.invalidateQueries({ queryKey: workKeys.inbox })
 }
 
 export const useWorkBootstrap = () =>
@@ -70,6 +85,31 @@ export const useWorkTasks = (view: WorkTaskView) =>
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next_cursor,
     staleTime: 15_000,
+  })
+
+// The inbox is the cross-task "需要你" projection, and R0a polls it: the task
+// list's own SSE stream only covers the task the workspace is showing, so an
+// acceptance that became due on another task has no other way to surface. 30s is
+// what D5 fixes; the mutations invalidate the same key, so an action on the
+// visible task does not have to wait for the next tick.
+export const useWorkInbox = () =>
+  useInfiniteQuery({
+    queryKey: workKeys.inbox,
+    queryFn: ({ pageParam }) => fetchWorkInbox(pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next_cursor,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  })
+
+export const useWorkRunOperations = (runId: string | undefined) =>
+  useInfiniteQuery({
+    queryKey: workKeys.operations(runId ?? ''),
+    queryFn: ({ pageParam }) => fetchWorkRunOperations(runId!, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next_cursor,
+    enabled: !!runId,
+    retry: false,
   })
 
 export const useWorkTask = (taskId: string | undefined) =>
@@ -120,7 +160,7 @@ export const useSubmitWorkTask = () => {
   return useMutation({
     mutationFn: submitWorkTask,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['work', 'tasks'] })
+      invalidateWorkTaskLists(queryClient)
     },
   })
 }
@@ -135,7 +175,7 @@ export const useUpdateWorkTitle = (taskId: string) => {
     }) => updateWorkTaskTitle(taskId, body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: workKeys.task(taskId) })
-      void queryClient.invalidateQueries({ queryKey: ['work', 'tasks'] })
+      invalidateWorkTaskLists(queryClient)
     },
   })
 }
@@ -147,7 +187,7 @@ export const useDeleteWorkTask = (taskId: string) => {
       deleteWorkTask(taskId, expectedRevision),
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: workKeys.task(taskId) })
-      void queryClient.invalidateQueries({ queryKey: ['work', 'tasks'] })
+      invalidateWorkTaskLists(queryClient)
     },
   })
 }
@@ -162,7 +202,7 @@ export const useRetryWorkTask = (taskId: string) => {
     }) => retryWorkTask(taskId, body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: workKeys.task(taskId) })
-      void queryClient.invalidateQueries({ queryKey: ['work', 'tasks'] })
+      invalidateWorkTaskLists(queryClient)
     },
   })
 }
@@ -173,7 +213,7 @@ export const useCancelWorkRun = (taskId: string) => {
     mutationFn: (runId: string) => cancelWorkRun(runId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: workKeys.task(taskId) })
-      void queryClient.invalidateQueries({ queryKey: ['work', 'tasks'] })
+      invalidateWorkTaskLists(queryClient)
     },
   })
 }
@@ -185,7 +225,7 @@ export const useAcceptWorkTask = (taskId: string) => {
       acceptWorkTask(taskId, body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: workKeys.task(taskId) })
-      void queryClient.invalidateQueries({ queryKey: ['work', 'tasks'] })
+      invalidateWorkTaskLists(queryClient)
       void queryClient.invalidateQueries({
         queryKey: ['work', 'artifact-workspace'],
       })

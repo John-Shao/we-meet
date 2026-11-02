@@ -1,11 +1,16 @@
 import { useTranslation } from 'react-i18next'
 import { Link } from 'wouter'
-import { RiArrowRightLine, RiBriefcaseLine } from '@remixicon/react'
+import {
+  RiArrowRightLine,
+  RiBriefcaseLine,
+  RiInboxLine,
+} from '@remixicon/react'
 
 import { Button } from '@/primitives/Button'
 import { css } from '@/styled-system/css'
-import { useWorkBootstrap, useWorkTasks } from '../api/queries'
+import { useWorkBootstrap, useWorkInbox, useWorkTasks } from '../api/queries'
 import { Composer } from '../components/Composer'
+import { InboxCard } from '../components/InboxCard'
 import { TaskCard } from '../components/TaskCard'
 import { useReadOnlyViewport } from '../hooks/useReadOnlyViewport'
 import { card, muted, notice, page, row, sectionTitle } from '../ui'
@@ -18,8 +23,10 @@ export const WorkHomePage = ({
   const { t } = useTranslation('work')
   const bootstrapQ = useWorkBootstrap()
   const tasksQ = useWorkTasks('all')
+  const inboxQ = useWorkInbox()
   const readOnly = useReadOnlyViewport()
   const recent = tasksQ.data?.pages[0]?.items.slice(0, 3) ?? []
+  const inboxItems = inboxQ.data?.pages[0]?.items ?? []
 
   if (!bootstrapQ.data) return null
 
@@ -69,6 +76,35 @@ export const WorkHomePage = ({
           </Link>
         </div>
       )}
+
+      <section
+        className={css({ display: 'flex', flexDirection: 'column', gap: 'sm' })}
+        aria-labelledby="work-needs-you"
+      >
+        <div
+          className={css({ display: 'flex', alignItems: 'center', gap: 'xs' })}
+        >
+          <RiInboxLine size={16} aria-hidden="true" />
+          <h2 id="work-needs-you" className={sectionTitle}>
+            {t('home.needsYou')}
+          </h2>
+        </div>
+        <div className={card}>
+          {inboxQ.isLoading ? (
+            <p className={muted}>{t('loading')}</p>
+          ) : inboxQ.isError ? (
+            <p className={muted}>{t('home.inboxUnavailable')}</p>
+          ) : inboxItems.length === 0 ? (
+            <p className={muted}>{t('home.emptyInbox')}</p>
+          ) : (
+            <div className={css({ marginX: '-1rem' })}>
+              {inboxItems.map((item) => (
+                <InboxCard key={item.task_id} item={item} />
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
       <section
         className={css({ display: 'flex', flexDirection: 'column', gap: 'sm' })}

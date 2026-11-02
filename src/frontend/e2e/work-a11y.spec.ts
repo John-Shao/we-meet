@@ -1,7 +1,13 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
-import { expect, test, type Page, type Route } from '@playwright/test'
+import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+  type Route,
+} from '@playwright/test'
 
 const axeSource = readFileSync(
   path.join(process.cwd(), 'node_modules', 'axe-core', 'axe.min.js'),
@@ -127,6 +133,20 @@ const mockBackend = async (page: Page) => {
         ],
       })
     }
+    if (path.endsWith('/inbox')) {
+      return fulfill(route, {
+        items: [
+          {
+            task_id: 'browser-task',
+            type: 'acceptance_required',
+            title: '需要你处理的成果',
+            display_state: 'awaiting_acceptance',
+            updated_at: '2026-10-31T00:00:00Z',
+          },
+        ],
+        next_cursor: null,
+      })
+    }
     if (path.endsWith('/tasks')) {
       return fulfill(route, { items: [], next_cursor: null })
     }
@@ -174,31 +194,44 @@ test('work UI passes WCAG A/AA axe scan including color contrast', async ({
 }) => {
   await mockBackend(page)
 
-  const views = [
-    {
-      path: '/work',
-      ready: page.getByRole('heading', {
-        name: '让工作从一句话开始',
-        exact: true,
-      }),
-    },
-    {
-      path: '/work/items?view=all',
-      ready: page.getByRole('heading', { name: '我的工作', exact: true }),
-    },
-    {
-      path: '/work/new',
-      ready: page.getByLabel('任务描述', { exact: true }),
-    },
-    {
-      path: '/work/items/browser-task/artifacts/browser-artifact?version=1',
-      ready: page.getByRole('heading', { name: '无障碍成果', exact: true }),
-    },
-  ]
+  const views: { path: string; ready: Locator; extra?: () => Promise<void> }[] =
+    [
+      {
+        path: '/work',
+        ready: page.getByRole('heading', {
+          name: '让工作从一句话开始',
+          exact: true,
+        }),
+        // D5 puts the cross-task "需要你" projection on this page; it is only
+        // real evidence if the row renders and links to its workspace, instead
+        // of the page quietly falling back to the empty or unavailable line.
+        extra: async () => {
+          await expect(
+            page.getByRole('heading', { name: '需要你', exact: true })
+          ).toBeVisible()
+          await expect(
+            page.getByRole('link', { name: /需要你处理的成果/ })
+          ).toHaveAttribute('href', '/work/items/browser-task')
+        },
+      },
+      {
+        path: '/work/items?view=all',
+        ready: page.getByRole('heading', { name: '我的工作', exact: true }),
+      },
+      {
+        path: '/work/new',
+        ready: page.getByLabel('任务描述', { exact: true }),
+      },
+      {
+        path: '/work/items/browser-task/artifacts/browser-artifact?version=1',
+        ready: page.getByRole('heading', { name: '无障碍成果', exact: true }),
+      },
+    ]
 
   for (const view of views) {
     await page.goto(view.path)
     await expect(view.ready).toBeVisible()
+    if (view.extra) await view.extra()
     await page.evaluate(axeSource)
     const results = await scanMain(page)
     expect(
