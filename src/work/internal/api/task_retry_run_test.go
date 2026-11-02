@@ -9,8 +9,9 @@ import (
 )
 
 // TestRetryTaskCreatesSecondAttempt covers the successful 202 path: a new run row
-// with the next attempt number, the bumped task revision, and an idempotent replay
-// of the same client_request_id that must not start a third run.
+// with the next attempt number, the bumped task revision, exactly one start_workflow
+// outbox row for that run, and an idempotent replay of the same client_request_id
+// that must start neither a third run nor a second dispatch.
 func TestRetryTaskCreatesSecondAttempt(t *testing.T) {
 	pool, dbName := newBootstrapDB(t, true, true)
 	seedTaskGraph(t, dbName)
@@ -70,6 +71,12 @@ func TestRetryTaskCreatesSecondAttempt(t *testing.T) {
 		t.Fatalf("new run = attempt %d state %s snapshot %q", attempt, runState, snapshotID)
 	}
 
+	// The hand-off the relay consumes. Without this the retry would be a run row that
+	// nothing ever starts, and the 202 would still look correct from the client.
+	if dispatched := countStartWorkflow(t, dbName, runID); dispatched != 1 {
+		t.Fatalf("start_workflow rows for the retried run = %d, want 1", dispatched)
+	}
+
 	secondStatus, second := retryCall(t, server.URL, csrf, activeTaskID, body)
 	if secondStatus != http.StatusAccepted || second["run_id"] != runID {
 		t.Fatalf("idempotent replay = %d %#v", secondStatus, second)
@@ -83,4 +90,29 @@ func TestRetryTaskCreatesSecondAttempt(t *testing.T) {
 	if runs != 2 {
 		t.Fatalf("runs after replay = %d, want 2", runs)
 	}
+	// The replay returns the same run, so it must not queue a second dispatch either:
+	// two start_workflow rows for one run is a double Temporal start.
+	if dispatched := countStartWorkflow(t, dbName, runID); dispatched != 1 {
+		t.Fatalf("start_workflow rows after replay = %d, want the replay to queue nothing",
+			dispatched)
+	}
+}
+
+func countStartWorkflow(t *testing.T, dbName, runID string) int {
+	t.Helper()
+	ctx := context.Background()
+	conn, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+	var count int
+	if err := conn.QueryRow(ctx, `
+		SELECT count(*) FROM work.outbox
+		WHERE aggregate_type = 'run' AND aggregate_id = $1
+		  AND payload->>'kind' = 'start_workflow'`, runID,
+	).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	return count
 }
