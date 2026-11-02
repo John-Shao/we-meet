@@ -198,7 +198,12 @@
     "retryHint": "Crée une nouvelle exécution depuis l’instantané courant ; le quota reste vérifié contre le plafond de la tâche.",
     "retryButton": "Relancer",
     "retryStale": "La tâche a changé. Rechargez et réessayez.",
-    "retryError": "Relance impossible. Réessayez plus tard."
+    "retryError": "Relance impossible. Réessayez plus tard.",
+    "operations": "Run operations",
+    "operationsEmpty": "No operations for this run yet.",
+    "operationsUnavailable": "Run operations are unavailable right now.",
+    "operations.toolSteps": "Tool steps ({{count}})",
+    "operations.provider": "Request {{id}}"
   },
   "artifact": {
     "backToTask": "Back to task",
@@ -300,5 +305,17 @@
       "cached": "Tokens d’entrée en cache",
       "runs": "Exécutions"
     }
+  },
+  "operationState": {
+    "prepared": "Prepared",
+    "waiting_approval": "Waiting approval",
+    "authorized": "Authorized",
+    "dispatching": "Dispatching",
+    "unknown": "Unknown",
+    "succeeded": "Succeeded",
+    "failed": "Failed",
+    "canceled": "Canceled",
+    "reconciled": "Reconciled",
+    "unresolved": "Unresolved"
   }
 }

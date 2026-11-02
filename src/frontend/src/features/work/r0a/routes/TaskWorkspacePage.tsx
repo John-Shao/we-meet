@@ -30,6 +30,7 @@ import { useIdempotencyKey } from '../hooks/useIdempotencyKey'
 import { useReadOnlyViewport } from '../hooks/useReadOnlyViewport'
 import { useTaskEventStream } from '../hooks/useTaskEventStream'
 import { ArtifactPanel } from '../components/ArtifactPanel'
+import { RunOperations } from '../components/RunOperations'
 import { TaskStatusBadge } from '../components/TaskStatusBadge'
 import {
   card,
@@ -500,6 +501,7 @@ export const TaskWorkspacePage = () => {
               <p className={muted}>{t('task.noLiveEvents')}</p>
             ) : null}
           </section>
+          <RunOperations runId={detail.summary.latest_run_id} />
         </div>
 
         <aside

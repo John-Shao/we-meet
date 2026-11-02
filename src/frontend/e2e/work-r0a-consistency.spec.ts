@@ -150,6 +150,39 @@ const mockBackend = async (page: Page) => {
         input_bytes: 100,
       })
     }
+    if (path.endsWith('/operations')) {
+      return fulfill(route, {
+        items: [
+          {
+            id: 'browser-operation-model',
+            run_id: 'browser-run',
+            logical_key: 'model:1',
+            kind: 'model',
+            state: 'authorized',
+            request_hash: 'sha256:browser-model',
+            provider_request_id: 'browser-req-1',
+            receipt_ref: null,
+            revision: 2,
+            created_at: '2026-10-31T00:00:00Z',
+            updated_at: '2026-10-31T00:00:05Z',
+          },
+          {
+            id: 'browser-operation-tool',
+            run_id: 'browser-run',
+            logical_key: 'tool:1',
+            kind: 'tool',
+            state: 'unresolved',
+            request_hash: 'sha256:browser-tool',
+            provider_request_id: null,
+            receipt_ref: null,
+            revision: 0,
+            created_at: '2026-10-31T00:00:01Z',
+            updated_at: '2026-10-31T00:00:01Z',
+          },
+        ],
+        next_cursor: null,
+      })
+    }
     if (path.endsWith('/inbox')) {
       return fulfill(route, { items: [], next_cursor: null })
     }
@@ -184,6 +217,10 @@ test('mocked golden path: preview, submit, gap event, artifact, acceptance', asy
 }) => {
   const errors = await mockBackend(page)
   let task = snapshot('snapshot-before-stream')
+  // The mocked detail has no run, and the operations panel needs one to render:
+  // the folded tool group is precisely the behaviour worth checking in a real
+  // browser rather than only in a component test.
+  task.summary.latest_run_id = 'browser-run'
   const cursors: (string | undefined)[] = []
   await page.route('**/work/v1/tasks/browser-task', (route) =>
     fulfill(route, task)
@@ -191,6 +228,7 @@ test('mocked golden path: preview, submit, gap event, artifact, acceptance', asy
   await page.route('**/work/v1/tasks/browser-task/events', async (route) => {
     cursors.push(route.request().headers()['last-event-id'])
     task = artifactReady('after-gap-event')
+    task.summary.latest_run_id = 'browser-run'
     await route.fulfill({
       contentType: 'text/event-stream',
       body: event('after-gap-event'),
@@ -216,6 +254,19 @@ test('mocked golden path: preview, submit, gap event, artifact, acceptance', asy
   await expect(page.getByText('Token 上限', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '确认发送', exact: true }).click()
   await expect(page).toHaveURL(/\/work\/items\/browser-task$/)
+  // D5 §5.3: model and artifact steps stay visible, tool calls fold. The state
+  // label is localized, so the raw enum must not appear anywhere.
+  await expect(
+    page.getByRole('heading', { name: '运行步骤', exact: true })
+  ).toBeVisible()
+  await expect(page.getByText('model:1', { exact: true })).toBeVisible()
+  await expect(page.getByText('已授权', { exact: true })).toBeVisible()
+  const toolToggle = page.getByText('工具步骤（1）', { exact: true })
+  await expect(toolToggle).toBeVisible()
+  await expect(page.getByText('tool:1', { exact: true })).toBeHidden()
+  await toolToggle.click()
+  await expect(page.getByText('tool:1', { exact: true })).toBeVisible()
+  await expect(page.getByText('unresolved', { exact: true })).toBeHidden()
   await page.getByRole('button', { name: '查看成果', exact: true }).click()
   await expect(
     page.getByRole('heading', { name: 'Mock final artifact' })

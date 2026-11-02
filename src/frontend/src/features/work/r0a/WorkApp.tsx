@@ -22,7 +22,7 @@ import { Button } from '@/primitives/Button'
 import { Screen } from '@/layout/Screen'
 import { css, cx } from '@/styled-system/css'
 import { WorkApiError } from './api/client'
-import { useWorkBootstrap } from './api/queries'
+import { useWorkBootstrap, useWorkInbox } from './api/queries'
 import { AdminPage } from './routes/AdminPage'
 import { ArchivePage } from './routes/ArchivePage'
 import { ArtifactWorkspacePage } from './routes/ArtifactWorkspacePage'
@@ -187,13 +187,39 @@ const navLinkActive = css({
   fontWeight: 'semibold',
 })
 
-const WorkHeader = ({ orgName, role }: { orgName: string; role: string }) => {
+// D5 §5.2 keeps the inbox on a poll (home page plus the nav badge) and explicitly
+// rules out a cross-task SSE. The badge is decorative: the same count is stated
+// by the "需要你" heading on the home page, so an assistive reader gets it once,
+// from the content, rather than twice with a stale number in the chrome.
+const navBadge = css({
+  minWidth: '1.25rem',
+  paddingX: 'xxs',
+  borderRadius: 'pill',
+  backgroundColor: 'surface.brandDim',
+  color: 'text.inverted',
+  textStyle: 'labelSmall',
+  fontWeight: 'semibold',
+  textAlign: 'center',
+})
+
+export const WorkHeader = ({
+  orgName,
+  role,
+}: {
+  orgName: string
+  role: string
+}) => {
   const { t } = useTranslation('work')
   const [location] = useLocation()
   const homeActive = location === '/work' || location === '/work/new'
   const itemsActive = location.startsWith('/work/items')
   const archiveActive = location.startsWith('/work/archive')
   const adminActive = location.startsWith('/admin/work')
+  const inboxQ = useWorkInbox()
+  const firstPage = inboxQ.data?.pages[0]
+  const needsYou = firstPage?.items.length ?? 0
+  const needsYouLabel =
+    needsYou > 0 && firstPage?.next_cursor ? `${needsYou}+` : `${needsYou}`
   return (
     <header className={header}>
       <span
@@ -218,6 +244,11 @@ const WorkHeader = ({ orgName, role }: { orgName: string; role: string }) => {
         >
           <RiHome5Line size={16} aria-hidden="true" />
           {t('nav.home')}
+          {needsYou > 0 ? (
+            <span aria-hidden="true" className={navBadge}>
+              {needsYouLabel}
+            </span>
+          ) : null}
         </Link>
         <Link
           href="/work/items?view=all"

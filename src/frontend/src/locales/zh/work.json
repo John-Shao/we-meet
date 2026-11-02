@@ -198,7 +198,12 @@
     "retryHint": "沿用当前快照新建一次运行；配额仍按任务上限校验。",
     "retryButton": "重试",
     "retryStale": "任务状态已变化，请刷新后重试。",
-    "retryError": "重试失败，请稍后再试。"
+    "retryError": "重试失败，请稍后再试。",
+    "operations": "运行步骤",
+    "operationsEmpty": "本次运行还没有步骤。",
+    "operationsUnavailable": "暂时读不到运行步骤，其余内容不受影响。",
+    "operations.toolSteps": "工具步骤（{{count}}）",
+    "operations.provider": "请求号 {{id}}"
   },
   "artifact": {
     "backToTask": "返回任务",
@@ -300,5 +305,17 @@
       "cached": "缓存输入 token",
       "runs": "Run 数"
     }
+  },
+  "operationState": {
+    "prepared": "已准备",
+    "waiting_approval": "等待审批",
+    "authorized": "已授权",
+    "dispatching": "派发中",
+    "unknown": "状态未知",
+    "succeeded": "已完成",
+    "failed": "已失败",
+    "canceled": "已取消",
+    "reconciled": "已核对",
+    "unresolved": "待核对"
   }
 }
