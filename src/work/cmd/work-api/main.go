@@ -7,12 +7,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/we-meet/work/internal/api"
 	"github.com/we-meet/work/internal/content"
 	workdb "github.com/we-meet/work/internal/db"
+	"github.com/we-meet/work/internal/egressclient"
 	"github.com/we-meet/work/internal/host"
 )
 
@@ -58,6 +60,21 @@ func run(ctx context.Context) error {
 	}
 	server.SetRuntimeVersion(requiredEnv("WORK_RUNTIME_VERSION"))
 	server.SetProviderMasterKey(contentKey)
+	// Optional on purpose: an unconfigured gateway must not stop the whole control plane
+	// at boot. The write endpoint fails closed as 503 until it is wired, so a missing
+	// configuration can never produce an unprobed provider config.
+	egressURL := strings.TrimSpace(os.Getenv("WORK_EGRESS_URL"))
+	if egressURL != "" {
+		prober, err := egressclient.NewClient(egressclient.Config{
+			BaseURL:    egressURL,
+			CAFile:     requiredEnv("WORK_EGRESS_CA"),
+			ServerName: envOrDefault("WORK_EGRESS_SERVER_NAME", "work-egress"),
+		})
+		if err != nil {
+			return err
+		}
+		server.SetProviderProber(prober)
+	}
 
 	listenAddr := os.Getenv("WORK_LISTEN_ADDR")
 	if listenAddr == "" {

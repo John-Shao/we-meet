@@ -13,9 +13,10 @@
 -- changes behaviour. This is a prerequisite for landing PUT /admin/provider-config,
 -- whose contract entry (r0a-openapi-v1.yaml:546) declares 409 and nothing else.
 --
--- Everything outside the one raise is restated verbatim from 0002:4217-4284, including
--- the org row lock order, the supersede-then-max+1 revision sequence and the audit
--- payload; CREATE OR REPLACE means the signature and grants are unchanged.
+-- Everything else is restated from 0002:4217-4284 unchanged: the org row lock order, the
+-- supersede-then-max+1 revision sequence, the signature and the audit payload. The two
+-- changes are the DETAIL above and the execution attributes below, so this entry is a
+-- deliberate 3-diff: probe detail, SECURITY DEFINER, and an explicit privilege restatement.
 SET ROLE work_owner;
 
 CREATE OR REPLACE FUNCTION work.set_provider_config(
@@ -29,7 +30,10 @@ CREATE OR REPLACE FUNCTION work.set_provider_config(
   p_credential_id uuid,
   p_expected_revision bigint DEFAULT NULL
 ) RETURNS TABLE (config_id uuid, revision bigint)
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = work, pg_catalog
+AS $$
 DECLARE
   credential work.provider_credential%ROWTYPE;
   current_revision bigint;
@@ -91,5 +95,21 @@ BEGIN
   RETURN QUERY SELECT new_id, next_revision;
 END;
 $$;
+
+-- The second defect this increment has to fix to make the route implementable at all:
+-- 0002 declared set_provider_config without SECURITY DEFINER while granting it to
+-- work_api, and work.assert_org_owner is only executable by work_owner. So work_api
+-- calling the function reached the owner assertion and died on 42501 permission denied -
+-- the function was unreachable through its only granted role, which is why the missing
+-- probe and the missing conflict detail were never observed. Its siblings
+-- (create_provider_credential, issue_provider_probe_grant) are all SECURITY DEFINER; the
+-- attribute above matches them. Privileges are restated because a definer body must not
+-- be callable by PUBLIC.
+REVOKE ALL ON FUNCTION work.set_provider_config(
+  text, text, text, text, text, text, text, uuid, bigint
+) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION work.set_provider_config(
+  text, text, text, text, text, text, text, uuid, bigint
+) TO work_api;
 
 RESET ROLE;

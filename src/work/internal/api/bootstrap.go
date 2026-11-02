@@ -77,6 +77,7 @@ type Server struct {
 	logger         *log.Logger
 	runtimeVersion string
 	providerMaster []byte
+	prober         ProviderProber
 	shutdown       chan struct{}
 }
 
@@ -175,6 +176,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET "+AdminSeatsPath, s.adminSeats)
 	mux.HandleFunc("GET "+AdminUsagePath, s.adminUsage)
 	mux.HandleFunc("GET "+AdminProviderConfigPath, s.adminProviderConfig)
+	mux.HandleFunc("PUT "+AdminProviderConfigPath, s.adminSetProviderConfig)
 	mux.HandleFunc("POST "+AdminProviderConfigRevokePath, s.adminRevokeProviderConfig)
 	mux.HandleFunc("POST "+AdminProviderCredentialsPath, s.createProviderCredential)
 	mux.HandleFunc("POST "+AdminProviderCredentialRotatePath, s.rotateProviderCredential)

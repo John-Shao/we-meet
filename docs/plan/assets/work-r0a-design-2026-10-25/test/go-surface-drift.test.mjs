@@ -12,18 +12,17 @@ const OPENAPI = new URL('../r0a-openapi-v1.yaml', import.meta.url);
 // retiring an operation has to be a deliberate edit here as well. Their R0a
 // disposition (implement, or trim from the contract when D2' re-signs the
 // surface) is tracked in docs/plan/work-project.md. Note: the provider write
-// operations left here are IN R0a scope (D-08a signed "org owners may write the
-// access config"); revokeProviderConfig shipped on 2026-11-01 and the three
-// credential writes -- create, rotate and revoke -- shipped on 2026-11-02, so all
-// four were removed from this list. Only setProviderConfig remains, blocked on the
-// connectivity probe the contract requires before a config takes effect -- see
-// docs/plan/work-r0a-provider-write-surface-2026-11-01.md. The two read
+// operations here are IN R0a scope (D-08a signed "org owners may write the
+// access config"); revokeProviderConfig shipped on 2026-11-01, the three credential
+// writes shipped on 2026-11-02 and setProviderConfig landed with them on 2026-11-02
+// (0024 mints the pre-save connectivity grant, 0025 supplies the conflict detail and
+// makes the function reachable through work_api at all), so all five are gone from this
+// list -- see docs/plan/work-r0a-provider-write-surface-2026-11-01.md. The two read
 // projections (inbox, run operations) additionally lack SQL read functions.
 const CONTRACT_ONLY = [
   'GET /work/v1/inbox',
   'GET /work/v1/runs/{runId}/operations',
   'POST /work/v1/artifacts/{artifactId}/versions',
-  'PUT /work/v1/admin/provider-config',
 ];
 
 // Served by the Go control plane but absent from the contract: the task-scoped
