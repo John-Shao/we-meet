@@ -76,7 +76,19 @@ type Server struct {
 	content        content.Store
 	logger         *log.Logger
 	runtimeVersion string
+	providerMaster []byte
 	shutdown       chan struct{}
+}
+
+// SetProviderMasterKey supplies the 32-byte key that seals a submitted provider API
+// key before it reaches work.create_provider_credential. The same environment
+// variable already feeds the content store and work-provider-setup, so the API and
+// the CLI write one form. Without it the credential write endpoints fail closed as
+// service_degraded rather than storing a plaintext-derived value they cannot decrypt.
+func (s *Server) SetProviderMasterKey(key []byte) {
+	if len(key) == 32 {
+		s.providerMaster = key
+	}
 }
 
 // BeginShutdown ends every task event stream. Those handlers only return when the
@@ -164,6 +176,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET "+AdminUsagePath, s.adminUsage)
 	mux.HandleFunc("GET "+AdminProviderConfigPath, s.adminProviderConfig)
 	mux.HandleFunc("POST "+AdminProviderConfigRevokePath, s.adminRevokeProviderConfig)
+	mux.HandleFunc("POST "+AdminProviderCredentialsPath, s.createProviderCredential)
+	mux.HandleFunc("POST "+AdminProviderCredentialRotatePath, s.rotateProviderCredential)
+	mux.HandleFunc("POST "+AdminProviderCredentialRevokePath, s.revokeProviderCredential)
 	mux.HandleFunc("GET "+MeUsagePath, s.meUsage)
 	mux.HandleFunc("POST "+AdminAuditExportsPath, s.createAdminAuditExport)
 	mux.HandleFunc("GET "+AdminAuditExportPath, s.getAdminAuditExport)

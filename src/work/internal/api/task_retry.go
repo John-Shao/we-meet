@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/jackc/pgx/v5"
@@ -39,9 +38,7 @@ func (s *Server) retryTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body retryTaskRequest
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&body); err != nil {
+	if err := decodeStrictJSONBody(r.Body, &body); err != nil {
 		writeAPIError(w, correlationID, apierr.New("invalid_json"))
 		return
 	}

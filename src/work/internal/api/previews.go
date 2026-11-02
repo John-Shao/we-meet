@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -334,16 +333,7 @@ func (s *Server) writeAccessError(w http.ResponseWriter, correlationID string, e
 
 func decodeStrictJSON(w http.ResponseWriter, r *http.Request, target any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		return err
-	}
-	var extra any
-	if err := decoder.Decode(&extra); err != nil && !errors.Is(err, io.EOF) {
-		return err
-	}
-	return nil
+	return decodeStrictJSONBody(r.Body, target)
 }
 
 func truncateRunes(value string, limit int) string {

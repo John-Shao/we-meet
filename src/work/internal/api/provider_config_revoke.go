@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 	"unicode/utf8"
@@ -30,9 +29,7 @@ func (s *Server) adminRevokeProviderConfig(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	var body providerRevokeRequest
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&body); err != nil {
+	if err := decodeStrictJSONBody(r.Body, &body); err != nil {
 		writeAPIError(w, correlationID, apierr.New("invalid_request"))
 		return
 	}

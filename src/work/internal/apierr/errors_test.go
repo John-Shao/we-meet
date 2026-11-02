@@ -17,8 +17,8 @@ func TestCatalogIsComplete(t *testing.T) {
 	if catalog.Version != "r0a-errors-v3" {
 		t.Fatalf("version = %q", catalog.Version)
 	}
-	if len(catalog.Public) != 50 {
-		t.Fatalf("public codes = %d, want 50", len(catalog.Public))
+	if len(catalog.Public) != 52 {
+		t.Fatalf("public codes = %d, want 52", len(catalog.Public))
 	}
 	if len(catalog.DBExceptionMap) != 105 {
 		t.Fatalf("db exception map = %d, want 105", len(catalog.DBExceptionMap))
@@ -70,6 +70,19 @@ func TestFromDBMapsCatalogSQLStateAndConflicts(t *testing.T) {
 			name: "run not quiescent",
 			err:  &pgconn.PgError{Code: "P0001", Message: "run_not_quiescent", Detail: "3"},
 			code: "run_not_quiescent", status: 409, revision: revision(3), internal: "run_not_quiescent",
+		},
+		{
+			// Provider credential conflicts raise without a numeric DETAIL, the same
+			// shape that used to turn these into 503: they keep their own codes rather
+			// than riding on version_conflict, whose detail requirement is deliberate.
+			name: "provider credential exists",
+			err:  &pgconn.PgError{Code: "P0001", Message: "provider_credential_exists"},
+			code: "provider_credential_exists", status: 409, internal: "provider_credential_exists",
+		},
+		{
+			name: "provider credential revoked",
+			err:  &pgconn.PgError{Code: "P0001", Message: "provider_credential_revoked"},
+			code: "provider_credential_revoked", status: 409, internal: "provider_credential_revoked",
 		},
 		{
 			name: "artifact read only",

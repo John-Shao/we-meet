@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -330,9 +329,7 @@ func (s *Server) cancelRun(w http.ResponseWriter, r *http.Request) {
 	// unsupported reason surfaces as invalid_request instead of being silently
 	// dropped on the floor.
 	var cancel cancelRunRequest
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&cancel); err != nil {
+	if err := decodeStrictJSONBody(r.Body, &cancel); err != nil {
 		writeAPIError(w, correlationID, apierr.New("invalid_request"))
 		return
 	}
