@@ -111,12 +111,12 @@
       "blocking": true,
       "gate": "pilot",
       "evidence": [
-        "contract-to-router drift gate: test/go-surface-drift.test.mjs resolves the Go HandleFunc route table (23 routes) and compares it with the 33 operations declared in r0a-openapi-v1.yaml; the 13 declared-but-unimplemented and 3 implemented-but-undeclared divergences are pinned, and any new drift fails the gate (2026-11-01)",
+        "contract-to-router drift gate: test/go-surface-drift.test.mjs resolves the Go HandleFunc route table and compares it with the 33 operations declared in r0a-openapi-v1.yaml, requiring both divergences to equal the explicit allowlists; CONTRACT_ONLY is now empty (all 33 declared operations have routes) and IMPLEMENTED_ONLY lists the three task-scoped artifact deep-link routes plus R0b's /work/v2 faces by construction; re-run 2026-11-02: 2 pass / 0 fail",
         "negative control observed: removing one allowlisted operation fails the test (1 pass / 1 fail)",
         "scripts/ci-contract.mjs auto-discovers the new test and now reports 36/36 passing; Work R0a gates observed green on remote runs (e.g. 2026-11-01 runs 41290938793 / 41290938850)",
-        "hand-written frontend client src/features/work/r0a/api/client.ts covered by client.test.ts against the flat /work/v1 surface; it calls none of the 13 contract-only operations, so the divergence is not a live defect"
+        "hand-written frontend client src/features/work/r0a/api/client.ts covered by client.test.ts against the flat /work/v1 surface; the contract-only set is now empty, so no client call can target an undeclared operation, while the asset-side generated inventory test (test/client.test.mjs) pins 33 operations over 29 paths (2026-11-02)"
       ],
-      "note": "Kept partial, and the evidence basis corrected: the former \"generated runtime client 12/12\" citation is retired evidence under RB-03 (api-design §8: the old mock server, generated client and drift gate stop counting; surfaceFrozen stays false). C07 closes only when the 13 contract-only operations are dispositioned (implement, or trim from the surface at D2-prime re-sign) and the frontend call layer ships from a regenerated client."
+      "note": "Kept partial, and the evidence basis corrected: the former \"generated runtime client 12/12\" citation is retired evidence under RB-03 (api-design §8: the old mock server, generated client and drift gate stop counting; surfaceFrozen stays false). C07's remaining condition, restated 2026-11-02 now that CONTRACT_ONLY is empty: all 33 declared operations are routed, so what still blocks closing is (a) the D2-prime re-sign that freezes the surface against the shipped routes - the three artifact deep-link faces and R0b's /work/v2 routes sit outside this contract by construction and have to be ruled on there - and (b) the frontend call layer shipping from a regenerated client rather than by hand."
     },
     {
       "id": "C08",
