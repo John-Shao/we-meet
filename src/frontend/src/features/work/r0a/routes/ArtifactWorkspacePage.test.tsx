@@ -300,9 +300,14 @@ describe('ArtifactWorkspacePage', () => {
 
 describe('ArtifactWorkspacePage editing', () => {
   const openEditor = async () => {
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'artifact.edit' })
-    )
+    // The edit control stays disabled until the selected version's body has arrived,
+    // so clicking it straight away is a silent no-op on a slower runner - which is how
+    // these cases failed in CI while passing in a local subset run. Wait for the
+    // content, then for the control to be enabled, before driving it.
+    await screen.findByText(/^content v/)
+    const edit = screen.getByRole('button', { name: 'artifact.edit' })
+    await waitFor(() => expect(edit).toBeEnabled())
+    fireEvent.click(edit)
     const editor = await screen.findByRole('textbox', {
       name: 'artifact.editorLabel',
     })
