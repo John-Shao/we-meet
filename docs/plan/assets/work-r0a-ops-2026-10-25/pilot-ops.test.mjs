@@ -114,3 +114,63 @@ test('cutover plan is consistent with the checklist and forbids dual-write', () 
   assert.ok(errors.includes('enable transition misses blocking migration item C30'));
   assert.ok(errors.includes('dual-write must be forbidden'));
 });
+
+const metricsSql = fs.readFileSync(
+  new URL('../../../../src/work/scripts/pilot-metrics.sql', import.meta.url),
+  'utf8',
+);
+
+test('continued_after_acceptance counts only activity after the acceptance row itself', () => {
+  const t0 = Date.UTC(2026, 10, 1);
+  // seq is what the database orders by (unique per task, strictly increasing); at is the fallback.
+  const ev = (type, taskId, seq, seconds, extra = {}) => ({
+    org_id: 'org1',
+    task_id: taskId,
+    type,
+    seq,
+    at: t0 + seconds * 1000,
+    ...extra,
+  });
+  const events = [
+    // a: accepted, then renamed -> continuation.
+    ev('task.submitted', 'a', 1, 10, { subject_id: 'u1' }),
+    ev('artifact.published', 'a', 2, 60),
+    ev('task.awaiting_acceptance', 'a', 3, 61),
+    ev('task.completed', 'a', 4, 70, { payload: { basis: 'version' } }),
+    ev('task.title_update', 'a', 5, 80),
+    // b: renamed BEFORE accepting -> not continuation, however busy the task looks.
+    ev('task.submitted', 'b', 1, 10, { subject_id: 'u2' }),
+    ev('task.title_update', 'b', 2, 20),
+    ev('artifact.published', 'b', 3, 60),
+    ev('task.completed', 'b', 4, 70, { payload: { basis: 'version' } }),
+    // c: accepted with nothing afterwards -> the denominator only.
+    ev('task.submitted', 'c', 1, 10, { subject_id: 'u3' }),
+    ev('task.awaiting_acceptance', 'c', 2, 40),
+    ev('task.completed', 'c', 3, 50, { payload: { basis: 'version' } }),
+  ];
+  const m = computeMetrics(events, { enabledAt: t0 });
+  assert.equal(m.continuedAfterAcceptanceCount, 1, 'only task a continues after its acceptance');
+  assert.equal(m.continuedAfterAcceptance, 1 / 3);
+  assert.equal(m.artifactSuccessRate, 2 / 3, 'a and b published a result, c did not');
+
+  // Without the seq comparison the pre-acceptance edit would be counted, so the metric would read
+  // 2/3 instead of 1/3. Dropping seq from the events exercises that fallback path.
+  const timestampedOnly = events.map(({ seq, ...rest }) => rest);
+  assert.equal(
+    computeMetrics(timestampedOnly, { enabledAt: t0 }).continuedAfterAcceptanceCount,
+    1,
+    'the at-based fallback must agree with seq for this fixture',
+  );
+});
+
+test('the SQL producer and pilot-metrics.json name the same metrics', () => {
+  const sqlNames = [...metricsSql.matchAll(/^\s*SELECT '([a-z0-9_]+)'/gm)].map((match) => match[1]).sort();
+  // golden_suite_pass_ratio comes from golden-tasks.json, not from events, so the SQL does not emit it.
+  const jsonNames = Object.keys(pilot.metrics.metrics)
+    .filter((name) => name !== 'golden_suite_pass_ratio')
+    .sort();
+  assert.deepEqual(sqlNames, jsonNames, 'a metric defined in one place and not the other drifts silently');
+  for (const name of ['activation', 'continued_after_acceptance', 'acceptance_rate']) {
+    assert.ok(sqlNames.includes(name), name);
+  }
+});

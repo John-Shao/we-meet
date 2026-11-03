@@ -2,6 +2,7 @@
   "version": "r0a-pilot-metrics-v1",
   "window_days": 28,
   "source": "work.task_event (content-free) + work.member seats; computed per org_id, never per user in dashboards",
+  "producer": "src/work/scripts/pilot-metrics.sql (read-only SQL, executed by internal/api/pilot_metrics_sql_pg_test.go)",
   "event_types": [
     "task.submitted",
     "run.succeeded",
@@ -10,7 +11,7 @@
     "task.awaiting_acceptance",
     "task.completed",
     "artifact.published",
-    "task.deleted"
+    "task.deleted", "task.title_update", "run.queued"
   ],
   "metrics": {
     "activation": {
@@ -29,6 +30,17 @@
       "definition": "tasks with task.completed basis=version / tasks that reached task.awaiting_acceptance",
       "target": 0.6,
       "go_gate": true
+    },
+    "artifact_success_rate": {
+      "definition": "tasks submitted in the window that have at least one artifact.published / tasks submitted in the window; this is D5 §10's own wording for technical success ('有发布成果'), kept beside technical_success_rate rather than replacing it because the run-outcome form is the signed go_gate",
+      "target": null,
+      "go_gate": false
+    },
+    "continued_after_acceptance": {
+      "definition": "accepted tasks (task.completed basis=version) that show further work on the same task AFTER their own acceptance event - artifact.published, task.title_update or another run - over accepted tasks; D5 §10's '采纳后继续'",
+      "target": null,
+      "go_gate": false,
+      "ordering": "work.task_event.seq, not created_at: seq is unique per task and strictly increasing, so an edit made before the acceptance can never be read as continuation"
     },
     "reason_completion_share": {
       "definition": "task.completed basis=reason / all task.completed; high values mean outputs are not used",

@@ -118,6 +118,32 @@ export function computeMetrics(events, { enabledAt, activationThreshold = 3 }) {
   for (const e of ofType('artifact.published')) {
     if (!firstArtifact.has(e.task_id) || e.at < firstArtifact.get(e.task_id)) firstArtifact.set(e.task_id, e.at);
   }
+  // D5 §10's "采纳后继续". work.task_event.seq is what orders these facts in the database
+  // (unique per task, strictly increasing), so events that carry a seq are compared by seq and only
+  // fall back to the timestamp when they do not. An edit made before the acceptance must not count as
+  // continuation, and comparing "is there any later row at all" instead of "later than the
+  // acceptance row" is exactly the mistake this ordering forbids.
+  const orderKey = (event) => (typeof event.seq === 'number' ? event.seq : event.at);
+  const acceptedAt = new Map();
+  for (const e of completed.filter((e) => e.payload?.basis === 'version')) {
+    const previous = acceptedAt.get(e.task_id);
+    if (previous === undefined || orderKey(e) < previous) acceptedAt.set(e.task_id, orderKey(e));
+  }
+  const CONTINUATION = new Set(['artifact.published', 'task.title_update', 'run.queued', 'run.succeeded']);
+  const continued = new Set(
+    [...acceptedAt]
+      .filter(([taskId, at]) =>
+        events.some(
+          (e) => e.task_id === taskId && CONTINUATION.has(e.type) && orderKey(e) > at
+        ))
+      .map(([taskId]) => taskId),
+  );
+  const submittedInWindow = new Set(
+    ofType('task.submitted').filter((e) => e.at >= enabledAt && e.at <= fortnight).map((e) => e.task_id),
+  );
+  const publishedInWindow = new Set(
+    [...firstArtifact.keys()].filter((taskId) => submittedInWindow.has(taskId)),
+  );
   const ttfa = [...firstArtifact]
     .filter(([taskId]) => submittedAt.has(taskId))
     .map(([taskId, at]) => (at - submittedAt.get(taskId)) / 1000)
@@ -132,6 +158,12 @@ export function computeMetrics(events, { enabledAt, activationThreshold = 3 }) {
     activators: activators.size,
     technicalSuccessRate: succeeded + failed ? succeeded / (succeeded + failed) : null,
     acceptanceRate: awaiting.size ? acceptedByVersion.size / awaiting.size : null,
+    // §10's own wording for technical success is "the task has a published result", which is not the
+    // same measurement as technicalSuccessRate above (run outcomes). Both are reported; the run-outcome
+    // form is the signed go_gate, so it is not redefined here.
+    artifactSuccessRate: submittedInWindow.size ? publishedInWindow.size / submittedInWindow.size : null,
+    continuedAfterAcceptance: acceptedAt.size ? continued.size / acceptedAt.size : null,
+    continuedAfterAcceptanceCount: continued.size,
     reasonCompletionShare: completed.length
       ? completed.filter((e) => e.payload?.basis === 'reason').length / completed.length
       : null,
