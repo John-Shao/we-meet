@@ -110,18 +110,27 @@
 
 | 步 | 动作 | 通过判据 | 证据 |
 |---|---|---|---|
-| C13-1 | 记录当前 `WORK_CONTENT_MASTER_KEY` 指纹（SHA-256 前 8 字节） | 不输出密钥本身 | `sha256sum` 前 8 hex |
-| C13-2 | 生成新主密钥，注入为 `WORK_CONTENT_MASTER_KEY_NEXT`（进程 env） | 新密钥格式校验通过（32 字节 base64） | 环境变量操作日志（不含值） |
-| C13-3 | 以新主密钥重加密 `work.provider_credential`（逐 org） | 每行 `key_version` 自增；`secret_decrypts=true`（用新密钥解密成功） | `work-provider-setup status` + SQL |
-| C13-4 | 双版本读取窗口：验证 `WORK_CONTENT_MASTER_KEY`（旧）仍可解密未轮换的 Content Store 对象 | Content Store 读历史 artifact 成功 | Go 用例 / CLI |
-| C13-5 | 切换 `WORK_CONTENT_MASTER_KEY` → 新密钥 | `systemctl restart work-api` + `work-directory-sync`；healthcheck ok | `journalctl` |
-| C13-6 | 验证旧密钥已无法解密新凭据（安全边界） | 用旧密钥尝试解密已轮换行 → 失败（GCM auth tag mismatch） | 预期错误日志 |
-| C13-7 | 回归任务：提交一次 provider call 成功 + usage 结算 + artifact 发布 | Run succeeded、token settled、artifact hash 一致 | `work-provider-setup status` + 真实任务 |
-| C13-8 | 销毁旧密钥临时文件 | `shred -u` 完成、`stat` 无残留 | 命令输出 |
+> **按代码取证修正（2026-11-03，勿照旧步骤空跑）**：`internal/content/local.go` 的 `deriveKey(l.master, orgID)` **只用当前主密钥**解密；ref 里的 `?v=<keyVersion>` 只是元数据（`Get` 对版本不符也照常返回明文，不尝试另一把 master），且 `content.NewLocal(..., 1)` 固定 keyVersion、全仓无 bump 驱动。`credentials.go` 亦为"单 master + 离线重加密"。**结论：不存在在线双 master 读取窗口**——先在配置里换成新 `WORK_CONTENT_MASTER_KEY` 再重加密，会让所有既有 Content Store 对象 GCM auth-tag 失败。因此 C13 主密钥轮换是**维护窗口内的离线重加密**，不是注入 `WORK_CONTENT_MASTER_KEY_NEXT` 的热切换（旧步骤里这个 env 名代码根本不读，已删）。
+>
+> **前置判定（已按代码取证，非推测）**：主密钥轮换驱动**未实现**。证据：① 8 个 `content.NewLocal(key, dir, 1)` 调用方（work-api/content-proxy/e2e-seed/egress/export/reconcile/relay/worker）全部硬编码 keyVersion=1，无一处传不同版本；② `cmd/` 内无任何 content 重加密命令；③ `local.go:144` 的 `if version != l.keyVersion` 两条分支都 `return plaintext, nil`，且解密恒用 `deriveKey(l.master, orgID)`——所谓"双版本读取窗口"既不是跨 master 读、也没有驱动它换版本的入口。结论：不存在安全的主密钥轮换路径；先换新 `WORK_CONTENT_MASTER_KEY` 会让全部既有对象 GCM 解密失败。
+>
+> **因此 C13 演练应记为 blocked**，并按下方更正回写。C13-2..C13-8 保留为"驱动补齐后"的目标流程，本次不空跑。
 
-**边界说明**：本演练覆盖 D-03 B 的静态单层加密主密钥。云 KMS/HSM 自动轮换不在此范围（C13 note 已确认 D-03 B 不用 KMS）。provider credential 的 `key_version` 轮换在 2026-10-31 已单独执行过（Runbook §5.15），本次是主密钥层面的首次真实演练。
+| 步 | 动作 | 通过判据 | 证据 |
+|---|---|---|---|
+| C13-0 | 前置判定：是否存在主密钥离线重加密驱动（命令/工具），若无则本演练记 blocked | 有可执行的旧读→新写重加密入口 / 无 | 代码检索结论 + `verdict.md` |
+| C13-1 | 记录当前 `WORK_CONTENT_MASTER_KEY` 指纹（SHA-256 前 8 字节），不输出密钥本身 | 指纹稳定、不落值 | `sha256sum` 前 8 hex |
+| C13-2 | 生成新主密钥（32 字节），暂存 root-only 文件，**不改运行配置** | 格式校验通过；与旧 key 并存于离线介质 | 操作日志（不含值） |
+| C13-3 | 在旧 key 仍生效时，逐 org 把 Content Store 对象旧读→以新 key 重加密落盘；逐 org `work-provider-setup rotate` 重加密 `work.provider_credential` | 每对象/每凭据用新 key 可解、旧对象计数守恒 | 重加密工具输出 + SQL `secret_decrypts=true` |
+| C13-4 | 切换 `WORK_CONTENT_MASTER_KEY` → 新密钥；`systemctl restart work-api`、`work-directory-sync`、`work-relay` | healthcheck ok；无 decrypt 失败告警 | `journalctl` |
+| C13-5 | 全量读校验：所有在册 Content Store 对象与凭据在**新 key 下**可解（证明重加密完整、无孤儿对象） | 抽样 + 遍历解密 0 失败 | Go 用例/CLI 遍历 |
+| C13-6 | 安全边界：确认旧 key 已无法解密新写入对象（GCM tag mismatch） | 用旧 key 尝试解密新对象 → 失败 | 预期错误日志 |
+| C13-7 | 回归：一次 provider call 成功 + usage 结算 + artifact 发布读回哈希一致 | Run succeeded、settled、artifact hash 对齐 | `work-provider-setup status` + 真实任务 |
+| C13-8 | 销毁旧 key 离线文件 | `shred -u` 完成、`stat` 无残留 | 命令输出 |
 
-**关联控制**：C13 关闭条件「密钥轮换未在真实环境演练」→ 本步完成后 C13 残余仅「试点目录外无对象存储后端与规模化擦除证据」（属 scale 闸）。
+**边界说明**：D-03 B 定为静态单层加密、不用云 KMS/HSM；本演练覆盖其**主密钥离线重加密**流程（先账本/内容重加密、后换运行 key），非热切换。provider credential 的 `key_version` 是同一 master 下的重加密标签，2026-10-31 已单独演过（Runbook §5.15），本步是 master 层面。
+
+**关联控制**：若 C13-0 判定无重加密驱动 → C13 演练 blocked，note 从"密钥轮换未在真实环境演练"更正为"主密钥轮换驱动未实现（仅单 key 读写）"，残余不止"对象存储后端/规模化擦除"。
 
 ## 7. 11-16 下午 16:30–17:00 · C28 租户开关切换演练
 
