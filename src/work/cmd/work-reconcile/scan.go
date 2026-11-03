@@ -52,8 +52,40 @@ func scanOpenRuns(ctx context.Context, pool *pgxpool.Pool, orgID string) error {
 	}
 	defer temporal.Close()
 
+	runs, err := queryOpenRuns(ctx, pool, orgID)
+	if err != nil {
+		return err
+	}
+
+	for index := range runs {
+		status, err := temporal.DescribeWorkflowStatus(ctx, runs[index].WorkflowID)
+		if err != nil {
+			runs[index].WorkflowStatus = "Unavailable"
+			runs[index].WorkflowError = "describe_failed"
+			continue
+		}
+		runs[index].WorkflowStatus = status
+		runs[index].Orphan = isOrphan(status)
+	}
+
+	body, err := json.MarshalIndent(map[string]any{
+		"org_id": orgID,
+		"runs":   runs,
+	}, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(body))
+	return nil
+}
+
+// queryOpenRuns reads the org's non-terminal Runs and their latest operation,
+// dispatch gate and reservation state. It is DB-only (no Temporal) so the selection
+// logic — which runs count as "open", org scoping, the latest-reservation LATERAL —
+// can be tested without a workflow engine. scanOpenRuns layers Temporal status on top.
+func queryOpenRuns(ctx context.Context, pool *pgxpool.Pool, orgID string) ([]scanRun, error) {
 	var runs []scanRun
-	err = workdb.WithWorkerOrgContext(ctx, pool, orgID, func(tx pgx.Tx) error {
+	err := workdb.WithWorkerOrgContext(ctx, pool, orgID, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `
 			SELECT r.id::text, COALESCE(r.workflow_id, ''), r.state, t.state,
 			       COALESCE(o.id::text, ''), COALESCE(o.state, ''),
@@ -94,30 +126,7 @@ func scanOpenRuns(ctx context.Context, pool *pgxpool.Pool, orgID string) error {
 		}
 		return rows.Err()
 	})
-	if err != nil {
-		return err
-	}
-
-	for index := range runs {
-		status, err := temporal.DescribeWorkflowStatus(ctx, runs[index].WorkflowID)
-		if err != nil {
-			runs[index].WorkflowStatus = "Unavailable"
-			runs[index].WorkflowError = "describe_failed"
-			continue
-		}
-		runs[index].WorkflowStatus = status
-		runs[index].Orphan = isOrphan(status)
-	}
-
-	body, err := json.MarshalIndent(map[string]any{
-		"org_id": orgID,
-		"runs":   runs,
-	}, "", "  ")
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(body))
-	return nil
+	return runs, err
 }
 
 func isOrphan(workflowStatus string) bool {
