@@ -9,7 +9,15 @@ module.exports = {
     'plugin:jsx-a11y/recommended',
     'prettier'
   ],
-  ignorePatterns: ['dist', '.eslintrc.cjs', 'styled-system'],
+  // The Work API client under api/generated/ is rendered from r0a-openapi-v1.yaml by
+  // scripts/gen-work-api.mjs; check:work-api compares it to the contract, so linting
+  // generated output would only ever constrain the generator.
+  ignorePatterns: [
+    'dist',
+    '.eslintrc.cjs',
+    'styled-system',
+    'src/features/work/r0a/api/generated',
+  ],
   parser: '@typescript-eslint/parser',
   plugins: ['react-refresh'],
   rules: {

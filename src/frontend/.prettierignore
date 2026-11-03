@@ -1,0 +1,6 @@
+# Generated code: formatting is owned by the generators, not by hand.
+# r0a-client.mjs / r0a-api-types.d.ts / r0a-client.d.mts come from
+# r0a-openapi-v1.yaml via scripts/gen-work-api.mjs; npm run check:work-api
+# compares them against the contract byte-for-byte, so reformatting them
+# here would only create drift.
+src/features/work/r0a/api/generated/
