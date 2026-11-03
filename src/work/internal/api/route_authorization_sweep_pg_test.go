@@ -95,10 +95,20 @@ func TestMemberAndSeatlessSessionsAreRefusedAcrossTheRouteTable(t *testing.T) {
 		"POST /work/v1/admin/provider-credentials/{credentialId}/rotate": `{"api_key":"an-enough-length-key"}`,
 		"POST /work/v1/admin/provider-credentials/{credentialId}/revoke": `{"reason":"seat_revoked"}`,
 		"POST /work/v1/admin/provider-credentials":                       `{"provider":"deepseek","mode":"managed_key","api_key":"an-enough-length-key"}`,
-		"POST /work/v1/inputs":                                           `{"client_request_id":"sweep-seat-input","goal":"sweep","background":""}`,
-		"DELETE /work/v1/tasks/{taskId}":                                 `{"client_request_id":"sweep-seat-delete","expected_revision":0}`,
-		"POST /work/v1/tasks/{taskId}/runs":                              `{"client_request_id":"sweep-seat-retry","expected_revision":0,"target":{"kind":"cloud","profile":"text-v1"}}`,
-		"POST /work/v1/runs/{runId}/cancel":                              `{"client_request_id":"sweep-seat-cancel","reason":"operator_request"}`,
+		// The two /work/v2 admin faces also validate their payloads before the role check, so
+		// they need their required fields: the cursor command takes a compare-and-set target, a
+		// gap report id and a receipt key, the local-policy patch a revision and a receipt key.
+		// gap_report_id must be a UUID: the handler checks only that it is non-empty and forwards
+		// it into `advance_governance_event_cursor($1, $2, $3::uuid, ...)`, so anything else is
+		// refused by the cast as a generic 400 rather than reaching the role guard.
+		"POST /work/v2/admin/governance-event-cursor": `{"to_seq":5,"gap_report_id":"` +
+			guardFixtureUUID + `","ticket_id":"OPS-1042",` +
+			`"client_request_id":"sweep-admin-cursor-1"}`,
+		"PATCH /work/v2/admin/local-policy": `{"revision":0,"client_request_id":"sweep-admin-policy-1"}`,
+		"POST /work/v1/inputs":              `{"client_request_id":"sweep-seat-input","goal":"sweep","background":""}`,
+		"DELETE /work/v1/tasks/{taskId}":    `{"client_request_id":"sweep-seat-delete","expected_revision":0}`,
+		"POST /work/v1/tasks/{taskId}/runs": `{"client_request_id":"sweep-seat-retry","expected_revision":0,"target":{"kind":"cloud","profile":"text-v1"}}`,
+		"POST /work/v1/runs/{runId}/cancel": `{"client_request_id":"sweep-seat-cancel","reason":"operator_request"}`,
 		"PUT /work/v1/admin/provider-config": `{"provider":"deepseek","model":"m","region":"r",` +
 			`"endpoint":"https://x.example/v1","credential_mode":"managed_key","credential_id":"` +
 			guardFixtureUUID + `","expected_revision":0}`,
@@ -141,11 +151,11 @@ func TestMemberAndSeatlessSessionsAreRefusedAcrossTheRouteTable(t *testing.T) {
 	}
 	t.Logf("admin surface as a member: %d of %d answered admin_access_denied; the rest refused for "+
 		"another reason: %s", exact, len(adminOps), strings.Join(gated, ", "))
-	// 13 of 16 once the egress prober and the KMS master key are wired: the three provider write
+	// 15 of 16 with the egress prober and the KMS master key are wired: the three provider write
 	// routes then reach the role guard instead of stopping at service_degraded. The remaining
 	// three are accounted for in the line above - the download route keys on the token, and the
 	// two /work/v2 faces validate their payloads first.
-	if exact < 13 {
+	if exact < 15 {
 		t.Fatalf("only %d admin operations reached work.assert_org_admin; want at least 6, or this "+
 			"sweep is not testing the role guard", exact)
 	}
