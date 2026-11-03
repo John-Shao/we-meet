@@ -1,5 +1,12 @@
 // Pilot operations model: golden-task checks, pilot metrics from content-free
 // events, and cutover plan validation. Deterministic; no network.
+//
+// #33 (adjudicated A, 2026-11-03): the authoritative go/no-go report path is the
+// DB-side src/work/scripts/pilot-metrics.sql, executed and asserted in CI by
+// internal/api/pilot_metrics_sql_pg_test.go; ops run `psql -f` it. This module's
+// computeMetrics/validateMetrics and pilot-metrics.json are a REFERENCE model + its
+// unit tests only - nothing exports live work.task_event into computeMetrics, so this
+// JS evaluator is not the production numbers path and must not be treated as such.
 
 import fs from 'node:fs';
 

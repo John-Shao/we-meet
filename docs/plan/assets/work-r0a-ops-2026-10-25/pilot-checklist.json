@@ -216,7 +216,7 @@
         "Content Store implemented: AES-256-GCM local backend with per-organization derived key, no host path exposed (src/work/internal/content/local.go)",
         "Content Store tests: round-trip + tenant isolation, tampered-object rejection + delete, master-key encoding (src/work/internal/content/local_test.go, 3/3)"
       ],
-      "note": "D-03 B 定为静态单层加密，不使用云 KMS/HSM。Content Store 已实现并有单测（原「待 E5」过期，2026-11-01 按代码更正）。仍留 partial：主密钥是进程侧文件、无托管 KMS，密钥轮换未在真实环境演练，试点目录外没有对象存储后端与规模化擦除证据。"
+      "note": "D-03 B 定为静态单层加密，不使用云 KMS/HSM。Content Store 已实现并有单测（原「待 E5」过期，2026-11-01 按代码更正）。仍留 partial：主密钥是进程侧文件、无托管 KMS，密钥轮换未在真实环境演练，试点目录外没有对象存储后端与规模化擦除证据。2026-11-03 裁定（#40）A：R0a 试点期用单主密钥、不轮换——Content Store 的 ?v= 为预留且未接线（读恒由单一 master 现算密钥，version!=keyVersion 分支与相等分支返回一致），换 master 会使旧对象 gcm.Open 失败，故把'密钥轮换/重加密驱动'移出 R0a 退出门、记为带重开条件的范围例外。重开条件：>3 组织/规模化前、疑似主密钥泄露需轮换、或接入对象存储后端时（届时落多密钥读+轮换/重加密驱动+真实演练）。静态加密本体已实现并有单测（round-trip 与篡改拒绝，src/work/internal/content/local_test.go）。C13 status 仍 partial（对象存储后端/规模化擦除证据亦未具备）。"
     },
     {
       "id": "C14",

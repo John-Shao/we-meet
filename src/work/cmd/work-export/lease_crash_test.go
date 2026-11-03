@@ -21,6 +21,9 @@ import (
 // The crash is modelled by letting the lease age out, which is what a killed
 // process produces on the server side; no check is shortened to make this pass.
 func TestExportLeaseSurvivesWorkerCrash(t *testing.T) {
+	if testpg.AdminURL() == "" {
+		t.Skip("WORK_TEST_PG_URL is not set")
+	}
 	ctx := context.Background()
 	conn, err := pgx.Connect(ctx, testpg.AdminURLFor(pgDBName))
 	if err != nil {
