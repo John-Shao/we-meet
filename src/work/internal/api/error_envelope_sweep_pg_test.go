@@ -351,15 +351,20 @@ func TestServiceDegradedEnvelopeFromAFailingDatabaseStillMatchesTheCatalog(t *te
 
 	hint, _ := entry["recovery_action"].(string)
 	if hint == "" {
-		t.Fatal("the catalog no longer declares a recovery_action for service_degraded; this test is " +
-			"the divergence record and has nothing to diverge from - fold it into the sweep above")
+		t.Fatal("the catalog no longer declares a recovery_action for service_degraded; fold this " +
+			"equality check into the sweep above")
 	}
+	// #29 is adjudicated: the serviceDegraded fallback now copies recovery_action from the
+	// catalog, so a failing-database 503 must send the declared hint, not null. Assert equality
+	// (a wrong/absent hint here means the client told to "retry" got no actionable field).
 	gotHint, hasHint := payload["recovery_action"].(string)
-	if hasHint {
-		t.Fatalf("service_degraded now sends recovery_action=%q (catalog: %q). If it matches, the gap "+
-			"this test records is closed: replace the divergence check with equality against the "+
-			"catalog. If it does not, the response invented a hint", gotHint, hint)
+	if !hasHint {
+		t.Fatalf("service_degraded sent no recovery_action, but the catalog declares %q for it - "+
+			"the FromDB fallback must surface the declared hint", hint)
 	}
-	t.Logf("confirmed divergence: catalog declares recovery_action=%q for service_degraded, the "+
-		"FromDB path sends null (task #29, pending adjudication)", hint)
+	if gotHint != hint {
+		t.Fatalf("service_degraded sent recovery_action=%q, catalog declares %q - the response "+
+			"invented or mismatched the hint", gotHint, hint)
+	}
+	t.Logf("recovery_action=%q matches the catalog for service_degraded (#29 closed)", hint)
 }
