@@ -47,6 +47,47 @@ func TestNewFallsBackToServiceDegraded(t *testing.T) {
 	}
 }
 
+// TestServiceDegradedFallbackCarriesRecoveryAction pins #29: the internal fallback
+// constructor serviceDegraded() must copy recovery_action from the catalog ("retry"),
+// not leave it nil. Before the fix every 503 response carried recovery_action:null even
+// though the frozen contract declares retry, so a client told to retry had no action to
+// follow. It is the fallback path (New of an unknown code, FromDB of a non-Postgres
+// error) — not the catalog-lookup path — that this guards.
+func TestServiceDegradedFallbackCarriesRecoveryAction(t *testing.T) {
+	entry, _ := Default().Lookup("service_degraded")
+	if entry.RecoveryAction == nil || *entry.RecoveryAction != "retry" {
+		t.Fatalf("catalog service_degraded recovery_action = %#v, want \"retry\"", entry.RecoveryAction)
+	}
+
+	for _, got := range []*Error{
+		New("not_a_public_code"),        // New fallback → serviceDegraded
+		FromDB(errors.New("boom")),      // non-Postgres → serviceDegraded("database_error")
+	} {
+		if got.Code != "service_degraded" {
+			t.Fatalf("code = %q, want service_degraded", got.Code)
+		}
+		if got.RecoveryAction == nil || *got.RecoveryAction != "retry" {
+			t.Fatalf("fallback recovery_action = %v, want \"retry\" (the #29 regression)",
+				(*string)(nil))
+		}
+	}
+
+	// The wire payload is what the client actually reads: recovery_action must serialize
+	// as "retry", not null, on a service_degraded response.
+	payload := New("not_a_public_code").Payload("corr-x")
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded["recovery_action"] != "retry" {
+		t.Fatalf("payload recovery_action = %#v, want \"retry\"; body=%s", decoded["recovery_action"], body)
+	}
+}
+
 func TestFromDBMapsCatalogSQLStateAndConflicts(t *testing.T) {
 	revision := func(value int64) *int64 { return &value }
 	cases := []struct {
