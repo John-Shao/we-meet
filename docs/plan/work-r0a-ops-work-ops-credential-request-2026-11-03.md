@@ -12,7 +12,7 @@
 
 ## 2. 签收项（每项独立，勾上才计）
 
-- [ ] **①** 角色 `work_ops` 已建：`CREATE ROLE work_ops LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT PASSWORD '<via secret>'`；仅 `GRANT USAGE, EXECUTE` 到既有 definer 中介入口，不给任何 `SELECT/UPDATE/DELETE` on 业务表。
+- [ ] **①** 角色 `work_ops` 已建并可登陆：迁移基线 `0002` 已把 `work_ops` 作为**组角色**创建并 `GRANT` 了 `USAGE ON SCHEMA work` + `EXECUTE`（`requeue_outbox_dead_letter`/`skip_outbox_dead_letter`/`ops_delete_task`/`ops_cancel_run`/`transfer_task_ownership`）。因此 #35 只需 `ALTER ROLE work_ops PASSWORD '<via secret>' LOGIN`，**不要** `CREATE ROLE`（已存在，重复会报错且可能诱导 DROP 重建丢授权）。
 - [ ] **②** 口令走秘密通道注入 ECS 上 `we-meet-work-api`/`work-reconcile` 的运行环境（`systemd` drop-in 的 `EnvironmentFile=` 指向 root-only 文件；**不入 repo、不入 CI secret**，与 `meet-production-release` 的 image.credentials 隔离）。
 - [ ] **③** 值班侧接入就绪：运维机 `~/.pgpass` 或等价的 600 权限注入；写入本单 §8 的"值班入口"里。
 - [ ] **④** 只读巡检跑通：`work-reconcile -scan -org <试点 org>` 在真库返一次非零返回码集合（可空集），日志含 `Temporal DescribeWorkflowStatus` 结论行。
@@ -58,3 +58,41 @@
 ## 9. 关闭判据
 
 §2 六项全勾 + §5 三条真跑产物附本目录 → 把 `pilot-checklist.json` C35 状态从 `partial` 改 `done`，并回写 `work-project.md` §3.3。若 §6 第三档触发，另开例外单并把 C35 记 `waived`。
+
+## 10. 执行 runbook（在发布机 JD ECS 上逐条执行；**运维身份/生产库操作由 John 亲自做，不由代理执行**）
+
+口令只经进程环境/root-only 文件注入，**不落 repo、不进 shell history**（用 `read -s` 或 `~/.pgpass`）。
+
+```bash
+# 0) 预备：以维护身份连生产库（D-04 provisioning，仅这一步用 migrator/superuser）
+export PGHOST=<prod-host> PGPORT=5432 PGDATABASE=work PGUSER=work_migrator_login
+read -sp 'work_ops password: ' WOPS_PW; echo
+
+# ① 让既有组角色可登陆（角色与 EXECUTE 授权已由迁移 0002 建好，只补 LOGIN+PASSWORD）
+psql -c "ALTER ROLE work_ops LOGIN PASSWORD :'wops_pw';" --set wops_pw="$WOPS_PW"
+unset WOPS_PW
+
+# ②③ 把 work_ops DSN 注入运行时（systemd drop-in, root-only 0600，非 repo）
+#   /etc/we-meet/work-ops.env:  WORK_DATABASE_URL=postgres://work_ops@<host>:5432/work?sslmode=require
+#   用 systemctl edit 或写文件后 chmod 600；work-reconcile 读 WORK_DATABASE_URL（cmd/work-reconcile/main.go:64）
+
+# ④ 只读孤儿巡检（不写）：
+WORK_DATABASE_URL="$(cat /etc/we-meet/work-ops.env | cut -d= -f2-)" \
+  /usr/local/bin/work-reconcile -scan -org <org_id>            # 期望：列出 Temporal 有、库内已终态的孤儿；退出码/日志留证
+
+# ⑤ 运维写路径（严格一条）：先人为造/取一个在途 run_id，再
+psql "postgres://work_ops@<host>:5432/work?sslmode=require" <<'SQL'
+  SELECT set_config('app.org_id','<org_id>',false);
+  SELECT set_config('app.subject_id','<ops_subject>',false);   -- assert_session_subject 需真实主体
+  SELECT work.ops_cancel_run('<org_id>'::text, '<run_id>'::uuid,
+                             '<ops_subject>'::text, 'OPS-1234'::text, 'drill cancel'::text);
+SQL
+-- 签名：ops_cancel_run(p_org_id, p_run_id, p_actor_subject_id, p_ticket_ref, p_reason)
+-- p_ticket_ref 须匹配 ^[A-Z][A-Z0-9]+-[0-9]+$；p_reason >=4 字（0002:3122）
+
+# ⑥ 审计核对（两条 work_ops 动作都应落 audit_event，含 client_request_id）
+psql "$DSN" -c "SELECT actor_subject_id, action, created_at FROM work.audit_event
+                WHERE org_id='<org_id>' ORDER BY created_at DESC LIMIT 10;"
+```
+
+产物按 `drill`/审计目录约定留存，勾满 §2 六项即按 §9 回写。若你希望**我**代跑任何一条，需要你显式授权并确认该步非生产写（尤其 ⑤ 会真取消一条 run）；默认我不代执行生产操作。
