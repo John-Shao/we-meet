@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# Read-only acceptance checks for rollout-r0a-0027.sh.
+#
+#   sudo ./verify-r0a-0027.sh "2026-11-03 00:00:00"
+#
+# Prints the ledger, the rejection-reconcile command identity and privileges,
+# unit states, listeners, directory freshness, workflow switches, journal
+# warnings since the rollout and leftover artifacts. It never writes to the
+# database, env files or systemd units.
+set -uo pipefail
+
+if [[ "$(id -u)" -ne 0 ]]; then
+  echo "run as root" >&2
+  exit 1
+fi
+
+SINCE="${1:-2026-11-03 00:00:00}"
+
+psql_ro() {
+  runuser -u postgres -- psql -d work -Atc "$1"
+}
+
+echo "== host =="
+hostname
+date -u +%FT%TZ
+
+echo
+echo "== ledger =="
+psql_ro "select version || ' ' || name from work.schema_migration order by version"
+psql_ro "select 'rows=' || count(*) || ' max=' || coalesce(max(version), 0) from work.schema_migration"
+psql_ro "select '0027=' || coalesce((select name from work.schema_migration where version = 27), 'MISSING')"
+# Every increment in the range has to be recorded by name as well as by number: a
+# database that reached 27 through some other chain would otherwise look fine.
+psql_ro "select 'missing in 17..27: ' || coalesce(string_agg(expected, ', '), 'none') from (values
+  (17, '0017_r0b_transition_authority'), (18, '0018_r0b_governance_authority'),
+  (19, '0019_r0b_deny_lifecycle'), (20, '0020_r0b_local_execution_policy'),
+  (21, '0021_r0b_operation_resolution'), (22, '0022_org_execution_reason_split'),
+  (23, '0023_operator_entitlement_and_intents'), (24, '0024_provider_probe_grant'),
+  (25, '0025_provider_config_conflict_detail'), (26, '0026_audit_export_org_gate'),
+  (27, '0027_governance_receipt_payload_binding')) expected(version, name)
+  left join work.schema_migration m on m.version = expected.version and m.name = expected.name
+  where m.version is null"
+psql_ro "select 'gap_skip_index_unique=' || coalesce(i.indisunique::text, 'MISSING')
+  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+  left join pg_index i on i.indexrelid = c.oid
+  where n.nspname = 'work' and c.relname = 'work_audit_event_gap_skip_request'"
+psql_ro "select 'artifact_version.content_ref nullable=' || is_nullable
+  from information_schema.columns where table_schema = 'work'
+   and table_name = 'artifact_version' and column_name = 'content_ref'"
+
+echo
+echo "== rejection-reconcile command =="
+psql_ro "select 'security_definer=' || prosecdef
+  || ' owner=' || (select rolname from pg_roles where oid = proowner)
+  || ' search_path=' || coalesce(array_to_string(proconfig, ','), '-')
+  || ' body_has_resolution=' || (prosrc like '%rejected_not_executed%')
+ from pg_proc where oid = 'work.reconcile_operation(text,uuid,text,text,bigint,text)'::regprocedure"
+psql_ro "select 'worker_execute=' || has_function_privilege('work_worker',
+    'work.reconcile_operation(text,uuid,text,text,bigint,text)', 'EXECUTE')
+  || ' api_execute=' || has_function_privilege('work_api',
+    'work.reconcile_operation(text,uuid,text,text,bigint,text)', 'EXECUTE')
+  || ' worker_gate_update=' || has_table_privilege('work_worker', 'work.dispatch_delivery', 'UPDATE')"
+
+echo
+echo "== schema objects =="
+psql_ro "select coalesce(string_agg(name, ', '), 'none') from (values
+  ('work.runtime_execution'), ('work.dispatch_delivery'),
+  ('work.runtime_checkpoint_head'), ('work.operation_usage_fact'),
+  ('work.runtime_capability'), ('work.content_reference'),
+  ('work.directory_sync_state'), ('work.resolution_state_map'),
+  ('work.execution_entitlement'), ('work.local_execution_policy'),
+  ('work.operation_resolution'), ('work.provider_probe_grant')) v(name)
+ where to_regclass(name) is null" | sed 's/^/missing: /'
+# The commands this range replaces keep their SECURITY DEFINER identity, and the new
+# guard triggers are what make the append-only tables hold. Both are matched by name
+# rather than by signature, so a parameter change cannot silently disable the check.
+psql_ro "select proname || ' | definer=' || prosecdef
+  || ' | owner=' || (select rolname from pg_roles where oid = proowner)
+  || ' | search_path=' || coalesce(array_to_string(proconfig, ','), '-')
+ from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'work' and proname in (
+   'set_provider_config', 'create_audit_export', 'consume_governance_events',
+   'advance_governance_event_cursor', 'apply_execution_entitlement',
+   'issue_provider_probe_grant') order by proname"
+psql_ro "select tgrelid::regclass || ' -> ' || tgname from pg_trigger
+ where not tgisinternal and tgname in (
+   'provider_probe_grant_guard', 'operation_resolution_guard',
+   'operation_resolution_no_delete', 'execution_entitlement_guard',
+   'run_admission_access_epoch', 'operation_reconcile_clock') order by 1"
+psql_ro "select 'content slots: ' || coalesce(string_agg(slot_state || '=' || n, ', '), 'none')
+ from (select slot_state, count(*) n from work.content_reference group by slot_state) s"
+
+echo
+echo "== units =="
+for unit in work-api work-relay work-worker work-authz work-content-proxy \
+  work-egress work-export work-runtime work-directory-sync.timer work-directory-sync-full.timer; do
+  printf '%-30s %-10s restarts=%s\n' "$unit" \
+    "$(systemctl is-active "$unit" 2>/dev/null || true)" \
+    "$(systemctl show -p NRestarts --value "$unit" 2>/dev/null || true)"
+done
+
+echo
+echo "== running binary vs installed =="
+# `systemctl start` on an already-active unit is a no-op, so a rollout can leave
+# the new binary on disk while the old process keeps serving. A replaced
+# executable shows up as a deleted inode in /proc/<pid>/exe.
+for unit in work-api work-relay work-worker work-authz work-content-proxy work-egress work-export; do
+  pid="$(systemctl show -p MainPID --value "$unit" 2>/dev/null)"
+  if [[ -z "$pid" || "$pid" == "0" ]]; then
+    printf '%-20s not running\n' "$unit"
+    continue
+  fi
+  exe="$(readlink "/proc/$pid/exe" 2>/dev/null)"
+  if [[ "$exe" == *"(deleted)" ]]; then
+    printf '%-20s STALE: pid %s runs a replaced binary\n' "$unit" "$pid"
+  else
+    printf '%-20s ok: pid %s -> %s\n' "$unit" "$pid" "${exe:-unknown}"
+  fi
+done
+
+echo
+echo "== installed binary hashes =="
+sha256sum /usr/local/bin/work-worker /usr/local/bin/work-reconcile \
+  /usr/local/bin/work-migrate /usr/local/bin/work-api /usr/local/bin/work-export \
+  /usr/local/bin/work-provider-setup 2>/dev/null
+
+echo
+echo "== listeners =="
+ss -ltnp 2>/dev/null | awk 'NR == 1 || $4 ~ /:(8443|8444|8445|8446)$/'
+
+echo
+echo "== directory sync =="
+psql_ro "select org_id || ' | ' || last_mode
+  || ' | last_success=' || coalesce(last_success_at::text, '-')
+  || ' | age=' || coalesce(round(extract(epoch from now() - last_success_at))::text, '-') || 's'
+  || ' | error=' || coalesce(last_error, '-')
+ from work.directory_sync_state order by org_id"
+
+echo
+echo "== in-flight runs =="
+psql_ro "select coalesce(string_agg(state || '=' || n, ', '), 'none')
+ from (select state, count(*) n from work.run
+        where state in ('queued', 'active', 'waiting', 'cancel_requested')
+        group by state) s"
+
+echo
+echo "== workflow switch =="
+grep -hE '^(WORK_WORKFLOW_ADVANCE|WORK_TEMPORAL_WORKFLOW_TYPE)=' \
+  /etc/work/work-worker.env /etc/work/work-relay.env 2>/dev/null \
+  || echo "advance not enabled"
+
+echo
+echo "== journal warnings since $SINCE =="
+journalctl --since "$SINCE" -p warning --no-pager \
+  -u work-api -u work-relay -u work-worker -u work-authz \
+  -u work-content-proxy -u work-egress -u work-runtime -u work-directory-sync \
+  2>/dev/null | tail -40
+
+echo
+echo "== runtime listeners in journal =="
+journalctl --since "$SINCE" --no-pager \
+  -u work-authz -u work-content-proxy -u work-egress -u work-runtime \
+  2>/dev/null | grep -iE 'listen' | tail -8
+
+echo
+echo "== leftover rollout artifacts =="
+psql_ro "select coalesce((select 'role work_rollout_r0a present'
+ from pg_roles where rolname = 'work_rollout_r0a'), 'temporary role absent')"
+ls -1 /usr/local/bin/*.bak-* 2>/dev/null | tail -12 | sed 's/^/backup: /' || true
