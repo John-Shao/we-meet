@@ -36,6 +36,11 @@ var errorEnvelopeKeys = []string{
 	"code", "correlation_id", "current_revision", "message", "recovery_action", "retryable",
 }
 
+// newCorrelationID mints 16 crypto/rand bytes as hex; "correlation-unavailable" is the only other
+// value the server can produce, and it means rand.Read failed, which is not a state a response is
+// allowed to sit in.
+var correlationIDPattern = regexp.MustCompile(`^[0-9a-f]{32}$`)
+
 // readContract walks upwards from the test's working directory, which is the package directory
 // under the module root, and falls back to the container's /repo layout.
 func readContract(t *testing.T, relative string) map[string]any {
@@ -124,6 +129,7 @@ func TestEveryEmittedErrorMatchesTheCatalogAndEchoesNothing(t *testing.T) {
 
 	var errors, successes, codesHit []string
 	seenCodes := map[string]int{}
+	correlations := map[string]string{}
 	for _, route := range registeredRoutes(t) {
 		stream := strings.HasSuffix(route.path, "/events")
 		parameterised := strings.Contains(route.path, "{")
@@ -206,6 +212,35 @@ func TestEveryEmittedErrorMatchesTheCatalogAndEchoesNothing(t *testing.T) {
 					"message is exactly how request content leaks", route.method, route.path,
 					probe.label, code, payload["message"], text)
 			}
+
+			// The hint the client is supposed to act on. 28 of the 60 public codes declare one and
+			// the other 32 declare null, so this compares against the entry rather than against a
+			// list kept here.
+			hint, _ := entry["recovery_action"].(string)
+			gotHint, hasHint := payload["recovery_action"].(string)
+			if hint == "" && hasHint {
+				t.Fatalf("%s %s (%s): %s sends recovery_action=%q but the catalog declares none, so "+
+					"the client would act on a hint that is not documented",
+					route.method, route.path, probe.label, code, gotHint)
+			}
+			if hint != "" && (!hasHint || gotHint != hint) {
+				t.Fatalf("%s %s (%s): %s recovery_action = %q, the catalog declares %q",
+					route.method, route.path, probe.label, code, gotHint, hint)
+			}
+
+			// The id a support ticket is traced by: per request, opaque, never reused.
+			correlation, _ := payload["correlation_id"].(string)
+			if !correlationIDPattern.MatchString(correlation) {
+				t.Fatalf("%s %s (%s): correlation_id = %q is not the 32 hex characters the server "+
+					"mints, so nothing downstream can trace the request",
+					route.method, route.path, probe.label, correlation)
+			}
+			if owner, dup := correlations[correlation]; dup {
+				t.Fatalf("correlation_id %s was issued for both %s and %s %s (%s); one id per "+
+					"request is what makes the server log and the client error the same event",
+					correlation, owner, route.method, route.path, probe.label)
+			}
+			correlations[correlation] = route.method + " " + route.path + "/" + probe.label
 			errors = append(errors, route.method+" "+route.path)
 			codesHit = append(codesHit, code)
 			seenCodes[code]++
@@ -242,10 +277,89 @@ func TestEveryEmittedErrorMatchesTheCatalogAndEchoesNothing(t *testing.T) {
 			"past the session and CSRF guards, so the request-shape checks below the guards are not "+
 			"being swept", reached, distinct)
 	}
+	if len(correlations) != len(errors) {
+		t.Fatalf("only %d correlation ids recorded for %d error responses; the per-response checks "+
+			"are being skipped somewhere", len(correlations), len(errors))
+	}
 	counts := make([]string, 0, len(seenCodes))
 	for _, code := range distinct {
 		counts = append(counts, fmt.Sprintf("%s=%d", code, seenCodes[code]))
 	}
-	t.Logf("inspected %d error responses (%d non-error probes), %d distinct codes: %s",
-		len(errors), len(successes), len(distinct), strings.Join(counts, ", "))
+	t.Logf("inspected %d error responses (%d non-error probes), %d distinct codes, %d unique "+
+		"correlation ids: %s", len(errors), len(successes), len(distinct), len(correlations),
+		strings.Join(counts, ", "))
+}
+
+// service_degraded is the one public code the server can emit without going through apierr.New:
+// apierr.FromDB builds the struct itself when the database answers with something it cannot map,
+// and that hand-built value never carries a recovery_action, while the catalog declares "retry" for
+// the code (28 of the 60 codes declare a hint; this is one of them). The sweep above cannot reach
+// this branch because nothing in it makes the database fail, so the pool is closed here on purpose.
+//
+// This test pins the divergence rather than asserting the fix. If it goes red because the response
+// now does say "retry", the gap was closed and the assertion should become equality with the
+// catalog; if it goes red because the catalog stopped declaring a hint for service_degraded, that is
+// a contract change and needs its own sign-off. Either way the field, the status, the retry flag
+// and the message stay checked here.
+func TestServiceDegradedEnvelopeFromAFailingDatabaseStillMatchesTheCatalog(t *testing.T) {
+	pool, _ := newBootstrapDB(t, true, true)
+	server := newHTTPServerWithContent(t, pool, newTestContentStore(t))
+	pool.Close()
+
+	status, payload, _ := envelopeProbe(t, server.URL, http.MethodGet, api.BootstrapPath, "",
+		"session", "")
+	entry := map[string]any{}
+	catalog := readContract(t, "contracts/error-codes.json")
+	public, _ := catalog["public"].(map[string]any)
+	if raw, ok := public["service_degraded"].(map[string]any); ok {
+		entry = raw
+	} else {
+		t.Fatal("service_degraded is not in the public catalog")
+	}
+
+	if status != http.StatusServiceUnavailable {
+		t.Fatalf("a request whose database call cannot be served answered %d (code %v), want 503 - "+
+			"a pool that is closed must not become a 200 or a 4xx", status, payload["code"])
+	}
+	if payload["code"] != "service_degraded" {
+		t.Fatalf("code = %v, want service_degraded: %v", payload["code"], payload)
+	}
+	keys := make([]string, 0, len(payload))
+	for key := range payload {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	if strings.Join(keys, ",") != strings.Join(errorEnvelopeKeys, ",") {
+		t.Fatalf("envelope keys = [%s], want [%s]", strings.Join(keys, ","),
+			strings.Join(errorEnvelopeKeys, ","))
+	}
+	if declared, _ := entry["status"].(float64); int(declared) != status {
+		t.Fatalf("answered %d, the catalog declares %d for service_degraded", status, int(declared))
+	}
+	retryable, _ := entry["retryable"].(bool)
+	if payload["retryable"] != retryable {
+		t.Fatalf("sent retryable=%v, the catalog says %v - this is the code a client is supposed to "+
+			"back off on", payload["retryable"], retryable)
+	}
+	text, ok := readContract(t, "contracts/error-messages.json")["service_degraded"].(string)
+	if !ok || payload["message"] != text {
+		t.Fatalf("message = %v, want the catalog's fixed text %q", payload["message"], text)
+	}
+	if id, _ := payload["correlation_id"].(string); !correlationIDPattern.MatchString(id) {
+		t.Fatalf("correlation_id = %q: a 503 is exactly the response someone forwards to support", id)
+	}
+
+	hint, _ := entry["recovery_action"].(string)
+	if hint == "" {
+		t.Fatal("the catalog no longer declares a recovery_action for service_degraded; this test is " +
+			"the divergence record and has nothing to diverge from - fold it into the sweep above")
+	}
+	gotHint, hasHint := payload["recovery_action"].(string)
+	if hasHint {
+		t.Fatalf("service_degraded now sends recovery_action=%q (catalog: %q). If it matches, the gap "+
+			"this test records is closed: replace the divergence check with equality against the "+
+			"catalog. If it does not, the response invented a hint", gotHint, hint)
+	}
+	t.Logf("confirmed divergence: catalog declares recovery_action=%q for service_degraded, the "+
+		"FromDB path sends null (task #29, pending adjudication)", hint)
 }
