@@ -18,7 +18,7 @@ import { OPERATIONS } from './generated/r0a-client.mjs'
  */
 
 // Not call-layer members: the module's error type and two helpers the components use directly.
-const NON_TRANSPORT_EXPORTS = ['WorkApiError', 'setWorkCSRFToken']
+const NON_TRANSPORT_EXPORTS = ['WorkApiError', 'setWorkCSRFToken', 'workErrorMessage']
 
 // Deep links the contract does not declare. go-surface-drift.test.mjs keeps them visible as
 // IMPLEMENTED_ONLY, so they are hand-owned here on purpose rather than missing from the map below.
