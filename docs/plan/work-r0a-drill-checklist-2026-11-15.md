@@ -19,7 +19,7 @@
 | P6 | Kill switch 运行时开关可操作（D3-N06） | `work.apply_execution_entitlement --dry-run` 成功 | 后端 | 11-06 |
 | P7 | 两个 Worker 版本镜像（D2） | registry tag `worker:v1-s2` / `worker:v2-s2` 存在 | 平台 | 11-06 |
 | P8 | `WORK_CONTENT_MASTER_KEY` 环境变量注入通道就绪（C13） | 进程 env 可读，文件不入库 | 后端 | 11-06 |
-| P9 | 租户开关 feature flag 路径已部署但值为 off（C28） | `GET /work/v1/admin/overview` 返回 `tenant_access_enabled: false` | 前端+后端 | 11-10 |
+| P9 | 租户开通/停用的**已接线**闸门可操作（C28） | `work.org` 的 `status/execution_enabled/operator_suspended` 三列可读可改（`tenant_access` 列无代码消费者，不作判据） | SQL 读值 | 后端 | 11-10 |
 | P10 | 在途 Run 种子：1 个 waiting + 1 个 running | `SELECT run_id, state FROM work.run WHERE ...` ≥2 | 后端 | 11-10 彩排后 |
 | P11 | 五席 + SRE/DBA 真名确认 | 填 §附录 A 表 | 平台 | 11-06 |
 
@@ -95,7 +95,7 @@
 |---|---|---|---|
 | D4-1 | 记录当前 namespace 配额值 | `temporal operator namespace describe` 输出 | CLI 截图 |
 | D4-2 | 降低配额（rate limit / concurrent workflows）至种子 Run 数 -1 | 配额调低成功 | CLI |
-| D4-3 | 提交新 Run → 应受控失败 | 返回错误码属于 `outbox_backlog` 类；不产生 `work.run` 新行 | API 响应 + SQL |
+| D4-3 | 提交新 Run → 应受控失败 | 返回错误码为已定义的 `quota_exhausted`（`run_cap_exceeded`→`quota_exhausted` 映射）或 `rate_limited`；不产生 `work.run` 新行。**注：`outbox_backlog` 不是错误码目录里的码（取证：contracts/error-codes.json 无此码），勿写进判据** | API 响应 + SQL |
 | D4-4 | 已有 Run 不被误杀 | 种子 Run 仍 running/succeeded | `work.run.state` |
 | D4-5 | 恢复配额 | namespace describe 恢复原值 | CLI |
 | D4-6a | 执行 kill switch（`work.apply_execution_entitlement --suspend`） | `work.org_policy.operator_suspended = true`；新导出请求 409 `org_operator_suspended`；管理读面仍 200 | SQL + API |
@@ -138,15 +138,19 @@
 
 | 步 | 动作 | 通过判据 | 证据 |
 |---|---|---|---|
-| C28-1 | 记录 flag 当前值（off） | `SELECT * FROM work.org_policy WHERE ...` → `tenant_access = false` | SQL |
-| C28-2 | 切换 `tenant_access = true`（feature flag / org_policy） | 变更后 API 路由对新租户可访问 `/work/` 路径 | HTTP 响应 |
-| C28-3 | 旧链接验证 legacy notice | `GET /work?task=<old-id>` → 302 到 `/work/archive?legacyTask=...` → 只读 notice 页 | 浏览器截图 |
-| C28-4 | 新租户正常访问验证 | 登录 → bootstrap → list → detail → submit 完整路径成功 | 浏览器 + API 响应 |
-| C28-5 | 计时 cutover 端到端 | 从 flag=true 到全部功能可用 ≤ 15 min | 时间戳记录 |
-| C28-6 | Rollback：切回 `tenant_access = false` | 新租户入口关闭、已存在 Run 不受影响；旧链接继续走 legacy notice | SQL + HTTP |
-| C28-7 | 恢复 flag 值（演练后复原） | 与 C28-1 相同 | SQL |
+> **取证更正**：`tenant_access` 在 schema 里有列，但**无任何 Go 代码读取**（`internal/`/`cmd/` grep 零命中），切换它对访问控制无效果——原 C28 步骤凭它判"新租户可访问"是空跑。R0a 真正的租户开通/停用闸门是 `work.org.status` + `execution_enabled` + `operator_suspended`，且已被 `audit_export_gate_pg_test.go` 钉死（execution_enabled=false→403 `org_execution_unavailable`；operator_suspended=true→409 `org_operator_suspended`；status≠active→403）。C28 演练据此改造。
 
-**关联控制**：C28 关闭条件「flag 未在生产启用、无端到端切换计时」。本演练完成后 C28 残余 = 真实设计伙伴试点时验证（C24）。
+| 步 | 动作 | 通过判据 | 证据 |
+|---|---|---|---|
+| C28-1 | 记录目标 org 的 `status / execution_enabled / operator_suspended` 现值 | 三列值明确（演练后须复原） | SQL `SELECT ... FROM work.org WHERE id=...` |
+| C28-2 | 开通：置 `status='active' AND execution_enabled=true AND operator_suspended=false` | bootstrap 200、`/work/` 路由可用、可 submit 得 202 | HTTP + `work.run` |
+| C28-3 | 旧链接验证 legacy notice | `GET /work?task=<old-id>` → 302 到 `/work/archive?legacyTask=...` → 只读 notice 页 | 浏览器截图 |
+| C28-4 | 停用：置 `execution_enabled=false` | 新写路径 403 `org_execution_unavailable`；已有 Run 可读取 | HTTP + SQL |
+| C28-5 | 计时 cutover 端到端（开通→可用；停用→拒） | 单向往返 ≤ 15 min（含 systemd/缓存生效） | 时间戳记录 |
+| C28-6 | Rollback：恢复 C28-1 记录的原值 | 行为回到演练前；旧链接仍走 legacy notice | SQL + HTTP |
+| C28-7 | 复原并核对三列与 C28-1 一致 | 与初始值相同 | SQL |
+
+**关联控制**：C28 关闭条件「flag 未在生产启用、无端到端切换计时」。本演练改用**已接线的** org 执行开关验证翻转与回滚（`tenant_access` 若将来要做租户准入，须先补代码消费者，另记）。
 
 ## 8. 11-16 下午 17:00–17:30 · #31 双形状过渡验证（条件项）
 
