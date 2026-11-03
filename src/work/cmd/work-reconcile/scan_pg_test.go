@@ -150,3 +150,89 @@ func TestQueryOpenRunsSelectionAndOrgIsolation(t *testing.T) {
 		t.Fatalf("org_b scan = %#v, want exactly wf-b1", gotB)
 	}
 }
+
+// TestQueryOpenRunsJoinsLatestReservation pins the LEFT JOIN to operation and the
+// quota_reservation LATERAL's `ORDER BY reservation_seq DESC LIMIT 1` — the join that
+// shows an operator the operation state and the reservation actually governing the run.
+// Two reservations differ so "latest seq wins" is observable.
+//
+// Note: seeding an org's runs auto-provisions that org's default quota_account (a run/task
+// trigger), so the account is referenced by subselect rather than inserted — a manual
+// INSERT collides with the provisioned ('default','<current period>') row.
+func TestQueryOpenRunsJoinsLatestReservation(t *testing.T) {
+	if pgDBName == "" {
+		t.Skip("WORK_TEST_PG_URL not set")
+	}
+	ctx := context.Background()
+
+	runs := []seedRun{
+		{suffix: "c1", org: "org_c", state: "active"},
+		{suffix: "c2", org: "org_c", state: "waiting"},
+	}
+
+	admin, err := pgx.Connect(ctx, testpg.AdminURLFor(pgDBName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(ctx)
+
+	opID := "55555555-5555-4555-8555-0000000000c1"
+	runC1 := uuidFor('r', "c1")
+	taskC1 := uuidFor('t', "c1")
+	accountSub := `(SELECT id FROM work.quota_account
+	                    WHERE org_id='org_c' AND account_key='default'
+	                      AND period_id=to_char(now(),'YYYY-MM') LIMIT 1)`
+	// The operation-insert guard requires its run to be the task's active, non-terminal run,
+	// so point task c1 at run c1 first (state 'active' already qualifies it).
+	extra := fmt.Sprintf(`
+		SELECT set_config('app.org_id', 'org_c', false);
+		UPDATE work.task SET active_run_id = '%s' WHERE id = '%s' AND org_id = 'org_c';
+		INSERT INTO work.operation (id, org_id, run_id, logical_key, kind, request_hash, state)
+		  VALUES ('%s', 'org_c', '%s', 'model:1', 'model', 'sha256:req', 'dispatching');
+		INSERT INTO work.quota_reservation (org_id, account_id, operation_id, reservation_seq, amount_tokens, settled_tokens, state)
+		  VALUES ('org_c', %s, '%s', 1, 100, 10, 'settled');
+		INSERT INTO work.quota_reservation (org_id, account_id, operation_id, reservation_seq, amount_tokens, settled_tokens, state)
+		  VALUES ('org_c', %s, '%s', 2, 100, 30, 'held');
+	`, runC1, taskC1, opID, runC1, accountSub, opID, accountSub, opID)
+
+	if err := testpg.ExecRaw(ctx, admin, seedSQL(runs)+extra); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	_ = admin.Close(ctx)
+
+	pool, err := db.OpenPool(ctx, testpg.WorkerURL(pgDBName), "work-reconcile-join-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+
+	got, err := queryOpenRuns(ctx, pool, "org_c")
+	if err != nil {
+		t.Fatalf("queryOpenRuns: %v", err)
+	}
+	byWf := map[string]scanRun{}
+	for _, r := range got {
+		byWf[r.WorkflowID] = r
+	}
+
+	c1, ok := byWf["wf-c1"]
+	if !ok {
+		t.Fatalf("wf-c1 missing from scan: %#v", got)
+	}
+	if c1.OperationID != opID || c1.OperationState != "dispatching" {
+		t.Errorf("wf-c1 operation = (%q,%q), want (%q,dispatching)", c1.OperationID, c1.OperationState, opID)
+	}
+	// reservation_seq DESC must pick seq 2 (held, settled 30), not seq 1 (settled, 10).
+	if c1.ReservationState != "held" || c1.SettledTokens != 30 {
+		t.Errorf("wf-c1 latest reservation = (%q,%d), want (held,30) — seq DESC pick regressed",
+			c1.ReservationState, c1.SettledTokens)
+	}
+
+	c2, ok := byWf["wf-c2"]
+	if !ok {
+		t.Fatalf("wf-c2 missing from scan: %#v", got)
+	}
+	if c2.OperationID != "" || c2.ReservationState != "" || c2.SettledTokens != 0 {
+		t.Errorf("wf-c2 (no operation) must join empty, got %#v", c2)
+	}
+}
