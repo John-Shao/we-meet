@@ -125,6 +125,22 @@ sha256sum /usr/local/bin/work-worker /usr/local/bin/work-reconcile \
   /usr/local/bin/work-provider-setup 2>/dev/null
 
 echo
+echo "== reconcile wiring =="
+# rollout-r0a-0016 shipped work-reconcile as a binary, and on the pilot host nothing ever
+# referenced it: no unit file, no timer, so the rejection-reconcile path was "deployed" while
+# never running. A binary with no scheduler is reported here rather than assumed present.
+reconcile_state="$(systemctl is-enabled work-reconcile.service 2>/dev/null || true)"
+reconcile_timer="$(systemctl is-enabled work-reconcile.timer 2>/dev/null || true)"
+if [[ -f /usr/local/bin/work-reconcile ]] && [[ -z "$reconcile_state" && -z "$reconcile_timer" ]]; then
+  echo "WARN: /usr/local/bin/work-reconcile exists but no unit or timer references it;"
+  echo "      rejection-reconcile only runs if someone invokes it by hand."
+else
+  printf 'work-reconcile  service=%s timer=%s active=%s
+'     "${reconcile_state:-none}" "${reconcile_timer:-none}"     "$(systemctl is-active work-reconcile 2>/dev/null || true)"
+fi
+grep -rl work-reconcile /etc/systemd/system 2>/dev/null | sed 's/^/  referenced by: /'
+
+echo
 echo "== listeners =="
 ss -ltnp 2>/dev/null | awk 'NR == 1 || $4 ~ /:(8443|8444|8445|8446)$/'
 
