@@ -23,16 +23,14 @@ import {
 // Walks a dotted i18n key into the loaded resource object, mirroring what t() resolves.
 // A key that is not present in the catalog yields undefined, which is the false-green
 // this guard exists to catch: workErrorMessage must return a key the locales define.
-const resolveKey = (key: string): string | undefined =>
-  key
-    .split('.')
-    .reduce<Record<string, unknown> | string | undefined>(
-      (node, part) =>
-        typeof node === 'object' && node !== null
-          ? (node as Record<string, unknown>)[part]
-          : undefined,
-      enWork as unknown as Record<string, unknown>
-    ) as string | undefined
+const resolveKey = (key: string): unknown =>
+  key.split('.').reduce<unknown>(
+    (node, part) =>
+      typeof node === 'object' && node !== null
+        ? (node as Record<string, unknown>)[part]
+        : undefined,
+    enWork as unknown
+  )
 
 const jsonResponse = (status: number, body: unknown): Response =>
   ({
