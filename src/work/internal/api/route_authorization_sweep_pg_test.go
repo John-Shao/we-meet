@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/we-meet/work/internal/api"
+	"github.com/we-meet/work/internal/egressclient"
 	"github.com/we-meet/work/internal/host"
 )
 
@@ -72,6 +73,14 @@ func TestMemberAndSeatlessSessionsAreRefusedAcrossTheRouteTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The three admin routes that previously stopped at service_degraded need the two real
+	// dependencies of the provider write path: the KMS master key that seals a submitted api_key,
+	// and the egress prober that work.set_provider_config consults before it commits. Both exist
+	// for the provider tests already, so wiring them here turns "never served" into the exact
+	// role-guard assertion.
+	httpAPIServer.SetProviderMasterKey(providerTestMaster)
+	httpAPIServer.SetProviderProber(&fakeProber{
+		result: egressclient.Result{Verdict: egressclient.VerdictOK}})
 	server := httptest.NewServer(httpAPIServer.Handler())
 	t.Cleanup(server.Close)
 	memberToken := mustIssue(t, csrf, transferTarget)
@@ -132,7 +141,11 @@ func TestMemberAndSeatlessSessionsAreRefusedAcrossTheRouteTable(t *testing.T) {
 	}
 	t.Logf("admin surface as a member: %d of %d answered admin_access_denied; the rest refused for "+
 		"another reason: %s", exact, len(adminOps), strings.Join(gated, ", "))
-	if exact < 6 {
+	// 13 of 16 once the egress prober and the KMS master key are wired: the three provider write
+	// routes then reach the role guard instead of stopping at service_degraded. The remaining
+	// three are accounted for in the line above - the download route keys on the token, and the
+	// two /work/v2 faces validate their payloads first.
+	if exact < 13 {
 		t.Fatalf("only %d admin operations reached work.assert_org_admin; want at least 6, or this "+
 			"sweep is not testing the role guard", exact)
 	}
