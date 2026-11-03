@@ -52,6 +52,60 @@ func TestValidateAction(t *testing.T) {
 	}
 }
 
+// TestValidateArgs covers the reconcile CLI's flag contract, including the -scan guards
+// the periodic orphan-check timer relies on: a scan must be read-only and must name an org.
+func TestValidateArgs(t *testing.T) {
+	cases := []struct {
+		name string
+		cfg  config
+		want string
+	}{
+		{name: "org required", cfg: config{scan: true}, want: "-org is required"},
+		{name: "scan alone is valid", cfg: config{orgID: "org_a", scan: true}},
+		{
+			name: "scan cannot combine with resolution",
+			cfg:  config{orgID: "org_a", scan: true, resolution: "not_sent", evidenceRef: "r"},
+			want: "-scan cannot be combined",
+		},
+		{
+			name: "scan cannot combine with resume",
+			cfg:  config{orgID: "org_a", scan: true, resume: true},
+			want: "-scan cannot be combined",
+		},
+		{
+			name: "scan cannot combine with settled tokens",
+			cfg:  config{orgID: "org_a", scan: true, settledTokens: 5},
+			want: "-scan cannot be combined",
+		},
+		{
+			name: "write needs operation",
+			cfg:  config{orgID: "org_a", resolution: "not_sent", evidenceRef: "r"},
+			want: "-operation is required",
+		},
+		{
+			name: "write delegates to validateAction",
+			cfg:  config{orgID: "org_a", operationID: "op-1", resolution: "not_sent"},
+			want: "-evidence-ref is required",
+		},
+		{name: "valid write", cfg: config{orgID: "org_a", operationID: "op-1", resolution: "not_sent", evidenceRef: "r"}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := testCase.cfg
+			err := validateArgs(&cfg)
+			if testCase.want == "" {
+				if err != nil {
+					t.Fatalf("validateArgs() = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !contains(err.Error(), testCase.want) {
+				t.Fatalf("validateArgs() = %v, want %q", err, testCase.want)
+			}
+		})
+	}
+}
+
 func contains(value, part string) bool {
 	if len(part) > len(value) {
 		return false

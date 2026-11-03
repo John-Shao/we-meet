@@ -58,22 +58,8 @@ func run() error {
 		"read-only: list open runs with their Temporal workflow status and orphan flag")
 	flag.Parse()
 
-	if cfg.orgID == "" {
-		return errors.New("-org is required")
-	}
-	if cfg.scan {
-		if cfg.operationID != "" || cfg.runID != "" || cfg.resolution != "" ||
-			cfg.signalOnly || cfg.finishFromReceipt || cfg.resume ||
-			cfg.providerRequestID != "" || cfg.evidenceRef != "" || cfg.settledTokens != 0 {
-			return errors.New("-scan cannot be combined with other actions")
-		}
-	} else {
-		if cfg.operationID == "" {
-			return errors.New("-operation is required unless -scan is used")
-		}
-		if err := validateAction(&cfg); err != nil {
-			return err
-		}
+	if err := validateArgs(&cfg); err != nil {
+		return err
 	}
 	databaseURL := os.Getenv("WORK_DATABASE_URL")
 	if databaseURL == "" {
@@ -173,6 +159,28 @@ func run() error {
 	body, _ := json.Marshal(output)
 	fmt.Println(string(body))
 	return nil
+}
+
+// validateArgs enforces the reconcile CLI's flag contract: -org always, then either a
+// read-only -scan (no write flags) or a write action that names an operation. The -scan
+// path is what the periodic orphan-check timer invokes, so a wrong flag combination must
+// be refused before touching the database, not silently scanned as a write.
+func validateArgs(cfg *config) error {
+	if cfg.orgID == "" {
+		return errors.New("-org is required")
+	}
+	if cfg.scan {
+		if cfg.operationID != "" || cfg.runID != "" || cfg.resolution != "" ||
+			cfg.signalOnly || cfg.finishFromReceipt || cfg.resume ||
+			cfg.providerRequestID != "" || cfg.evidenceRef != "" || cfg.settledTokens != 0 {
+			return errors.New("-scan cannot be combined with other actions")
+		}
+		return nil
+	}
+	if cfg.operationID == "" {
+		return errors.New("-operation is required unless -scan is used")
+	}
+	return validateAction(cfg)
 }
 
 func validateAction(cfg *config) error {
