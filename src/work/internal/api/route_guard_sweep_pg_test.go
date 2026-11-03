@@ -3,9 +3,6 @@ package api_test
 import (
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -31,67 +28,8 @@ import (
 
 const guardFixtureUUID = "11111111-1111-4111-8111-111111111111"
 
-func contractOperations(t *testing.T) []struct {
-	method string
-	path   string
-} {
-	t.Helper()
-	candidates := []string{
-		filepath.Join("..", "..", "docs", "plan", "assets", "work-r0a-design-2026-10-25", "r0a-openapi-v1.yaml"),
-		filepath.Join("/repo", "docs", "plan", "assets", "work-r0a-design-2026-10-25", "r0a-openapi-v1.yaml"),
-		filepath.Join("..", "..", "..", "docs", "plan", "assets", "work-r0a-design-2026-10-25", "r0a-openapi-v1.yaml"),
-	}
-	var body []byte
-	var used string
-	for _, path := range candidates {
-		read, err := os.ReadFile(path)
-		if err == nil {
-			body, used = read, path
-			break
-		}
-	}
-	if body == nil {
-		// A skip here would delete the guard while still reporting green, which is the failure
-		// mode this whole sweep exists to prevent, so a missing contract path is fatal.
-		t.Fatalf("the frozen R0a contract is not reachable from this working directory; tried %s",
-			strings.Join(candidates, ", "))
-	}
-	var ops []struct {
-		method string
-		path   string
-	}
-	current := ""
-	for _, line := range strings.Split(string(body), "\n") {
-		if match := regexp.MustCompile(`^  (/work/v1[^:]*):\s*$`).FindStringSubmatch(line); match != nil {
-			current = match[1]
-			continue
-		}
-		if current == "" {
-			continue
-		}
-		if match := regexp.MustCompile(`^    (get|post|patch|put|delete):\s*$`).FindStringSubmatch(line); match != nil {
-			ops = append(ops, struct {
-				method string
-				path   string
-			}{strings.ToUpper(match[1]), current})
-		}
-	}
-	if len(ops) != 33 {
-		t.Fatalf("contract %s produced %d operations, want the 33 the drift gate pins", used, len(ops))
-	}
-	return ops
-}
-
 func guardURL(path string) string {
-	out := regexp.MustCompile(`\{[^}]+\}`).ReplaceAllStringFunc(path, func(name string) string {
-		switch name {
-		case "{versionNo}", "{version}", "{no}":
-			return "1"
-		default:
-			return guardFixtureUUID
-		}
-	})
-	return out
+	return guardURLFor(path)
 }
 
 func guardRequest(t *testing.T, serverURL, method, path, cookie string, header string) *http.Response {
@@ -124,7 +62,7 @@ func TestEveryContractOperationEnforcesSessionAndCSRF(t *testing.T) {
 	pool, _ := newBootstrapDB(t, true, false)
 	server := newHTTPServer(t, pool, &stubVerifier{claims: testClaims()}, testCSRF(t))
 	csrf := bootstrapCSRF(t, server.URL)
-	ops := contractOperations(t)
+	ops := registeredRoutes(t)
 
 	var noSession, noCSRF, checked []string
 	mutating := 0

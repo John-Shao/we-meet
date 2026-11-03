@@ -50,7 +50,7 @@ func TestMemberAndSeatlessSessionsAreRefusedAcrossTheRouteTable(t *testing.T) {
 		body   string
 	}
 	var adminOps, memberWrites []route
-	for _, entry := range contractOperations(t) {
+	for _, entry := range registeredRoutes(t) {
 		op := route{entry.method, entry.path, ""}
 		if strings.Contains(op.path, "/admin/") {
 			adminOps = append(adminOps, op)
