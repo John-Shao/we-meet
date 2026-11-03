@@ -24,13 +24,15 @@ import {
 // A key that is not present in the catalog yields undefined, which is the false-green
 // this guard exists to catch: workErrorMessage must return a key the locales define.
 const resolveKey = (key: string): unknown =>
-  key.split('.').reduce<unknown>(
-    (node, part) =>
-      typeof node === 'object' && node !== null
-        ? (node as Record<string, unknown>)[part]
-        : undefined,
-    enWork as unknown
-  )
+  key
+    .split('.')
+    .reduce<unknown>(
+      (node, part) =>
+        typeof node === 'object' && node !== null
+          ? (node as Record<string, unknown>)[part]
+          : undefined,
+      enWork as unknown
+    )
 
 const jsonResponse = (status: number, body: unknown): Response =>
   ({
