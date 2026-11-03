@@ -16,7 +16,7 @@
 | P3 | mTLS 7233 仅内网可达 | `openssl s_client -connect :7233` 成功；外网 22.22 不通 | SRE | 11-06 |
 | P4 | 配额可调（D4 用） | `temporal operator namespace update -rd` 能改 retention/rate | SRE | 11-06 |
 | P5 | Content Store 独立演练桶 + 最小权限凭证 | `ls` 桶内演练前缀可写、其他前缀拒绝 | 后端 | 11-06 |
-| P6 | Kill switch 运行时开关可操作（D3-N06） | `work.apply_execution_entitlement --dry-run` 成功 | 后端 | 11-06 |
+| P6 | Kill switch 可操作（D3-N06） | 以授权角色 psql 调 `SELECT work.apply_execution_entitlement(...)`（SQL 函数，非 CLI）可改 `work.org.operator_suspended`；先按签名试算确认可执行 | 后端 | 11-06 |
 | P7 | 两个 Worker 版本镜像（D2） | registry tag `worker:v1-s2` / `worker:v2-s2` 存在 | 平台 | 11-06 |
 | P8 | `WORK_CONTENT_MASTER_KEY` 环境变量注入通道就绪（C13） | 进程 env 可读，文件不入库 | 后端 | 11-06 |
 | P9 | 租户开通/停用的**已接线**闸门可操作（C28） | `work.org` 的 `status/execution_enabled/operator_suspended` 三列可读可改（`tenant_access` 列无代码消费者，不作判据） | SQL 读值 | 后端 | 11-10 |
@@ -98,7 +98,7 @@
 | D4-3 | 提交新 Run → 应受控失败 | 返回错误码为已定义的 `quota_exhausted`（`run_cap_exceeded`→`quota_exhausted` 映射）或 `rate_limited`；不产生 `work.run` 新行。**注：`outbox_backlog` 不是错误码目录里的码（取证：contracts/error-codes.json 无此码），勿写进判据** | API 响应 + SQL |
 | D4-4 | 已有 Run 不被误杀 | 种子 Run 仍 running/succeeded | `work.run.state` |
 | D4-5 | 恢复配额 | namespace describe 恢复原值 | CLI |
-| D4-6a | 执行 kill switch（`work.apply_execution_entitlement --suspend`） | `work.org_policy.operator_suspended = true`；新导出请求 409 `org_operator_suspended`；管理读面仍 200 | SQL + API |
+| D4-6a | 执行 kill switch：以授权角色经 **psql SQL** 调 `SELECT work.apply_execution_entitlement(...)`（0023/0027 定义的 SQL 函数，非 CLI、无 `--suspend` 标志；R0a 无对应 admin 端点，演练按签名直接 SQL 调用） | `work.org.operator_suspended = true`（列在 **org** 表，非 org_policy）；新导出请求 409 `org_operator_suspended`；管理读面仍 200 | psql SQL + API |
 | D4-6b | 验证义务不停：到期清扫仍运行，relay 仍投递 `content_shred` | 日志显示 `expire_due_inputs` / `shred_due_audit_exports` 各处理 1；relay 投递 | relay 日志 |
 | D4-6c | 解除开关，验证恢复 | `operator_suspended = false`；后续导出恢复 | SQL + API |
 
