@@ -1,0 +1,12 @@
+[Unit]
+Description=Every-15-minute Work reconcile orphan scan
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+RandomizedDelaySec=60s
+Persistent=true
+Unit=work-reconcile-scan.service
+
+[Install]
+WantedBy=timers.target

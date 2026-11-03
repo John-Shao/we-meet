@@ -1,0 +1,21 @@
+[Unit]
+Description=Work reconcile read-only orphan scan (no writes)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=work-control
+Group=work-control
+# DB + Temporal 复用 worker 环境;org 清单单独放在 work-reconcile-scan.env。
+EnvironmentFile=/etc/work/work-worker.env
+EnvironmentFile=/etc/work/work-reconcile-scan.env
+ExecStart=/usr/local/bin/work-reconcile-scan.sh
+TimeoutStartSec=5min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

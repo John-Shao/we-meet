@@ -57,11 +57,26 @@ psql_ro "select 'content slots: ' || coalesce(string_agg(slot_state || '=' || n,
 echo
 echo "== units =="
 for unit in work-api work-relay work-worker work-authz work-content-proxy \
-  work-egress work-export work-runtime work-directory-sync.timer work-directory-sync-full.timer; do
+  work-egress work-export work-runtime work-directory-sync.timer work-directory-sync-full.timer \
+  work-reconcile-scan.timer; do
   printf '%-30s %-10s restarts=%s\n' "$unit" \
     "$(systemctl is-active "$unit" 2>/dev/null || true)" \
     "$(systemctl show -p NRestarts --value "$unit" 2>/dev/null || true)"
 done
+
+echo
+echo "== reconcile orphan scan =="
+# The binary shipped since 0016 but had no scheduler; this unit is the "observable" proof.
+printf 'timer enabled=%s last=%s next=%s\n' \
+  "$(systemctl is-enabled work-reconcile-scan.timer 2>/dev/null || true)" \
+  "$(systemctl show -p LastTriggerUSec --value work-reconcile-scan.timer 2>/dev/null || true)" \
+  "$(systemctl show -p NextElapsedRealtimeUSec --value work-reconcile-scan.timer 2>/dev/null || true)"
+printf 'last service result=%s\n' \
+  "$(systemctl show -p Result --value work-reconcile-scan.service 2>/dev/null || true)"
+journalctl -u work-reconcile-scan --no-pager -n 5 2>/dev/null \
+  | grep -oE 'work-reconcile-scan summary: .*' | tail -1 || true
+journalctl -u work-reconcile-scan --no-pager -n 20 2>/dev/null \
+  | grep -iE 'ORPHAN|scan FAILED' | tail -5 || true
 
 echo
 echo "== running binary vs installed =="
@@ -117,6 +132,7 @@ echo "== journal warnings since $SINCE =="
 journalctl --since "$SINCE" -p warning --no-pager \
   -u work-api -u work-relay -u work-worker -u work-authz \
   -u work-content-proxy -u work-egress -u work-runtime -u work-directory-sync \
+  -u work-reconcile-scan \
   2>/dev/null | tail -40
 
 echo

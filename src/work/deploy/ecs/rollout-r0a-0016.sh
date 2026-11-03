@@ -220,6 +220,23 @@ run systemctl start work-directory-sync.timer work-directory-sync-full.timer
 run systemctl start work-directory-sync.service || true
 echo "new work stays 503 until directory_sync_state has a successful row"
 
+echo "== 8c. reconcile orphan scan =="
+# work-reconcile 二进制自 0016 就随包安装却无人调度;这里补一条只读 -scan 的 oneshot+timer,
+# 把"装了但从不跑"变成周期巡检。只读,不触发 reconcile_operation 写动作。
+run install -m 0755 -o root -g root "$RELEASE/work-reconcile-scan.sh" /usr/local/bin/work-reconcile-scan.sh
+run install -m 0644 -o root -g root "$RELEASE/work-reconcile-scan.service" /etc/systemd/system/work-reconcile-scan.service
+run install -m 0644 -o root -g root "$RELEASE/work-reconcile-scan.timer" /etc/systemd/system/work-reconcile-scan.timer
+# DB 与 Temporal 复用 work-worker.env;org 清单落在 work-reconcile-scan.env(模板无密钥)。
+if [[ ! -f /etc/work/work-reconcile-scan.env ]]; then
+  install_env work-reconcile-scan
+fi
+run systemctl daemon-reload
+run systemctl enable work-reconcile-scan.timer
+run systemctl restart work-reconcile-scan.timer
+# 首跑一次:org 清单仍是模板值、或 DB/Temporal 未就绪时可能非零退出,不阻断发布。
+run systemctl start work-reconcile-scan.service \
+  || echo "first scan returned non-zero (pending orphans or env not yet reviewed); journalctl -u work-reconcile-scan"
+
 echo "== 9. restart API, relay and export worker, start worker =="
 # work-api is not stopped in step 3, so only a restart loads the new binary.
 # work-export is stopped there, and restart brings it back either way.
