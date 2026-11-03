@@ -243,6 +243,38 @@ describe('Composer preview generations', () => {
     expect(screen.queryByText('stale preview error')).not.toBeInTheDocument()
   })
 
+  // The live (non-stale) path is the one #30 changed: a preview failure must render the
+  // i18n KEY resolved through t() (identity here), never the server's Chinese message.
+  // This is the integration assertion that would have caught a wrong key namespace
+  // (error.* vs errors.*) end-to-end, which the negative stale case above cannot.
+  it('renders the localized error key, not the server message, on a live preview failure', async () => {
+    vi.mocked(api.createWorkPreview).mockRejectedValueOnce(
+      new api.WorkApiError(500, {
+        code: 'service_degraded',
+        message: '服务器内部错误正文',
+      })
+    )
+    await setup()
+    clickPreview()
+    expect(await screen.findByText('errors.generic')).toBeInTheDocument()
+    expect(screen.queryByText('服务器内部错误正文')).not.toBeInTheDocument()
+  })
+
+  it('routes a resync_required failure to its own key', async () => {
+    vi.mocked(api.createWorkPreview).mockRejectedValueOnce(
+      new api.WorkApiError(410, {
+        code: 'resync_required',
+        message: '事件游标已过期，请重新同步。',
+      })
+    )
+    await setup()
+    clickPreview()
+    expect(await screen.findByText('errors.resyncRequired')).toBeInTheDocument()
+    expect(
+      screen.queryByText('事件游标已过期，请重新同步。')
+    ).not.toBeInTheDocument()
+  })
+
   it.each(['input', 'preview', 'submit'] as const)(
     'ignores late %s success after unmount',
     async (stage) => {
