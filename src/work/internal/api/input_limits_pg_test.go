@@ -24,7 +24,7 @@ import (
 // each one is crossed in both directions with three-byte runes. The NUL refusal in the same clause
 // had no test either, so it is checked for both fields.
 
-func advertisedInputLimits(t *testing.T, serverURL string) (int, int) {
+func advertisedInputLimits(t *testing.T, serverURL string) (int, int, int) {
 	t.Helper()
 	request, err := http.NewRequest(http.MethodGet, serverURL+"/work/v1/bootstrap", nil)
 	if err != nil {
@@ -47,17 +47,19 @@ func advertisedInputLimits(t *testing.T, serverURL string) (int, int) {
 		Limits struct {
 			MaxGoalChars       int `json:"max_goal_chars"`
 			MaxBackgroundChars int `json:"max_background_chars"`
+			MaxArtifactBytes   int `json:"max_artifact_bytes"`
 		} `json:"limits"`
 	}
 	if err := json.Unmarshal(raw, &view); err != nil {
 		t.Fatal(err)
 	}
-	if view.Limits.MaxGoalChars <= 0 || view.Limits.MaxBackgroundChars <= 0 {
-		t.Fatalf("bootstrap advertised goal=%d background=%d; a limit of zero would make every "+
-			"boundary probe below meaningless", view.Limits.MaxGoalChars,
-			view.Limits.MaxBackgroundChars)
+	if view.Limits.MaxGoalChars <= 0 || view.Limits.MaxBackgroundChars <= 0 ||
+		view.Limits.MaxArtifactBytes <= 0 {
+		t.Fatalf("bootstrap advertised goal=%d background=%d artifact=%d; a limit of zero would "+
+			"make every boundary probe below meaningless", view.Limits.MaxGoalChars,
+			view.Limits.MaxBackgroundChars, view.Limits.MaxArtifactBytes)
 	}
-	return view.Limits.MaxGoalChars, view.Limits.MaxBackgroundChars
+	return view.Limits.MaxGoalChars, view.Limits.MaxBackgroundChars, view.Limits.MaxArtifactBytes
 }
 
 func jsonString(t *testing.T, value string) string {
@@ -76,7 +78,7 @@ func TestInputLimitsCountRunesNotBytesAndRefuseNUL(t *testing.T) {
 	pool, _ := newBootstrapDB(t, true, true)
 	server := newHTTPServerWithContent(t, pool, newTestContentStore(t))
 	token := bootstrapCSRF(t, server.URL)
-	maxGoal, maxBackground := advertisedInputLimits(t, server.URL)
+	maxGoal, maxBackground, _ := advertisedInputLimits(t, server.URL)
 
 	// "目" is three bytes in UTF-8, so a rune count of N here is a byte count of 3N.
 	threeByte := "目"
