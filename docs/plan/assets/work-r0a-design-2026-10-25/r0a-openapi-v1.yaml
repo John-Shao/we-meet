@@ -1055,31 +1055,15 @@ components:
         connection_id: { type: string, format: uuid }
         grant_id: { type: string, format: uuid }
 
-    R0aIntent:
-      type: object
-      additionalProperties: false
-      required: [input_ref, target, permission_mode, output]
-      properties:
-        input_ref: { type: string, format: uuid }
-        target: { $ref: "#/components/schemas/Target" }
-        template: { anyOf: [{ $ref: "#/components/schemas/TemplateSelection" }, { type: "null" }] }
-        permission_mode: { $ref: "#/components/schemas/PermissionMode" }
-        output: { $ref: "#/components/schemas/OutputSpec" }
-        suite:
-          anyOf: [{ $ref: "#/components/schemas/SuiteSelection" }, { type: "null" }]
-          description: R0a 收到非空 suite 必须返回 422 scope_unavailable。
-        connectors:
-          type: array
-          maxItems: 0
-          items: { $ref: "#/components/schemas/ConnectorSelection" }
-          description: R0a 收到非空 connectors 必须返回 422 scope_unavailable。
-
     TaskPreviewRequest:
       type: object
       additionalProperties: false
-      required: [intent]
+      required: [input_ref, template_id, permission_mode]
+      description: 与 internal/api/previews.go 的 previewRequest 一致（扁平、严格解码，未知字段拒）。2026-11-03 按 #31 A 案由嵌套 intent 改齐；intent 是编排层内部结构，不是 R0a 的线格式。
       properties:
-        intent: { $ref: "#/components/schemas/R0aIntent" }
+        input_ref: { type: string, format: uuid }
+        template_id: { type: string }
+        permission_mode: { $ref: "#/components/schemas/PermissionMode" }
 
     TokenUpperBound:
       type: object
@@ -1116,11 +1100,14 @@ components:
     TaskSubmitRequest:
       type: object
       additionalProperties: false
-      required: [client_request_id, preview_hash, intent]
+      required: [client_request_id, input_ref, template_id, permission_mode, preview_hash]
+      description: 与 internal/api/previews.go 的 submitRequest 一致。服务端从 preview_hash 对应的预留意图恢复 target/output 等编排字段，客户端不在线上传它们。
       properties:
         client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        input_ref: { type: string, format: uuid }
+        template_id: { type: string }
+        permission_mode: { $ref: "#/components/schemas/PermissionMode" }
         preview_hash: { type: string }
-        intent: { $ref: "#/components/schemas/R0aIntent" }
 
     TaskState:
       type: string

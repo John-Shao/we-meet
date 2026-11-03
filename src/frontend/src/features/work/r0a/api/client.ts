@@ -19,16 +19,9 @@ import type {
   WorkTaskDetail,
   WorkTaskList,
   WorkTemplate,
+  PermissionMode,
 } from './types'
-import type { components } from './generated/r0a-api-types'
 import type { WorkClient } from './generated/r0a-client.mjs'
-
-// The contract still describes createTaskPreview and submitTask as a nested R0aIntent, while the
-// shipped handlers take the flat body (internal/api/previews.go:43 previewRequest and :59
-// submitRequest) and decode it strictly, so sending the contract shape would be refused as an
-// unknown field. The flat shape is what production accepts today and what the E8 run exercised, so
-// these two bodies pass through unchanged and the divergence is filed rather than hidden: fixing it
-// means correcting the contract, not the client.
 import {
   OPERATIONS,
   WorkApiError as ContractApiError,
@@ -234,9 +227,9 @@ export const fetchWorkArtifactContent = async (
   }
 }
 
-// media_type is required by the contract and defaulted by the handler (inputs.go
-// resolvedMediaType), so stating it here makes the request conformant without changing what the
-// server stores.
+// The contract leaves media_type optional with a default and the handler applies it (inputs.go
+// resolvedMediaType), but the derived types treat a defaulted property as always present, so the
+// only legal value is stated here. The server stores the same thing either way.
 export const createWorkInput = (body: {
   client_request_id: string
   goal: string
@@ -249,26 +242,16 @@ export const createWorkInput = (body: {
 export const createWorkPreview = (body: {
   input_ref: string
   template_id: string
-  permission_mode: string
-}) =>
-  unwrap<WorkPreviewResponse>(
-    api().createTaskPreview({
-      body: body as unknown as components['schemas']['TaskPreviewRequest'],
-    })
-  )
+  permission_mode: PermissionMode
+}) => unwrap<WorkPreviewResponse>(api().createTaskPreview({ body }))
 
 export const submitWorkTask = (body: {
   client_request_id: string
   input_ref: string
   template_id: string
-  permission_mode: string
+  permission_mode: PermissionMode
   preview_hash: string
-}) =>
-  unwrap<WorkSubmitResponse>(
-    api().submitTask({
-      body: body as unknown as components['schemas']['TaskSubmitRequest'],
-    })
-  )
+}) => unwrap<WorkSubmitResponse>(api().submitTask({ body }))
 
 export const updateWorkTaskTitle = (
   taskId: string,

@@ -641,20 +641,11 @@ export interface components {
             /** Format: uuid */
             grant_id: string;
         };
-        R0aIntent: {
+        TaskPreviewRequest: {
             /** Format: uuid */
             input_ref: string;
-            target: components["schemas"]["Target"];
-            template?: components["schemas"]["TemplateSelection"] | null;
+            template_id: string;
             permission_mode: components["schemas"]["PermissionMode"];
-            output: components["schemas"]["OutputSpec"];
-            /** @description R0a 收到非空 suite 必须返回 422 scope_unavailable。 */
-            suite?: components["schemas"]["SuiteSelection"] | null;
-            /** @description R0a 收到非空 connectors 必须返回 422 scope_unavailable。 */
-            connectors?: components["schemas"]["ConnectorSelection"][];
-        };
-        TaskPreviewRequest: {
-            intent: components["schemas"]["R0aIntent"];
         };
         TokenUpperBound: {
             /** @description 本次 Run 的 token 硬上限；派发前按该值预留，超限受控失败 */
@@ -674,8 +665,11 @@ export interface components {
         };
         TaskSubmitRequest: {
             client_request_id: string;
+            /** Format: uuid */
+            input_ref: string;
+            template_id: string;
+            permission_mode: components["schemas"]["PermissionMode"];
             preview_hash: string;
-            intent: components["schemas"]["R0aIntent"];
         };
         /**
          * @description canceled/archived 为 R0b 预留；R0a 没有产生这两个状态的接口，客户端按只读渲染。
