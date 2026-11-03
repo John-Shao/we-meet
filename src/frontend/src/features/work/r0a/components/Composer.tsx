@@ -23,6 +23,7 @@ import {
   useWorkTemplates,
 } from '../api/queries'
 import { useIdempotencyKey } from '../hooks/useIdempotencyKey'
+import { workErrorMessage } from '../api/client'
 import { trackWorkEvent, workErrorCode } from '../telemetry'
 import { card, errorText, inputError, label, muted, row } from '../ui'
 
@@ -165,7 +166,7 @@ export const Composer = ({ bootstrap }: Props) => {
       })
     } catch (cause) {
       if (generation === previewGeneration.current) {
-        setError(cause instanceof Error ? cause.message : String(cause))
+        setError(t(workErrorMessage(cause)))
         trackWorkEvent('composer_preview', {
           durationMs: Date.now() - startedAt,
           errorCode: workErrorCode(cause),
@@ -189,7 +190,7 @@ export const Composer = ({ bootstrap }: Props) => {
       navigate(`/work/items/${encodeURIComponent(task.task_id)}`)
     } catch (cause) {
       if (mounted.current) {
-        setError(cause instanceof Error ? cause.message : String(cause))
+        setError(t(workErrorMessage(cause)))
       }
     }
   }

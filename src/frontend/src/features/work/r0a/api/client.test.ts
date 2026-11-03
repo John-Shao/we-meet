@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import enWork from '@/locales/en/work.json'
 import {
   createWorkInput,
   fetchWorkArtifactContent,
@@ -9,6 +10,7 @@ import {
   fetchWorkRunOperations,
   setWorkCSRFToken,
   WorkApiError,
+  workErrorMessage,
   workTaskArtifactContentUrl,
 } from './client'
 
@@ -17,6 +19,21 @@ import {
 // makes the fixture answer the same way the browser does.
 // A real Response answers both text() and json(), and the generated client reads the body once as
 // text and parses it when the content type says JSON, so the stubs have to carry both.
+
+// Walks a dotted i18n key into the loaded resource object, mirroring what t() resolves.
+// A key that is not present in the catalog yields undefined, which is the false-green
+// this guard exists to catch: workErrorMessage must return a key the locales define.
+const resolveKey = (key: string): string | undefined =>
+  key
+    .split('.')
+    .reduce<Record<string, unknown> | string | undefined>(
+      (node, part) =>
+        typeof node === 'object' && node !== null
+          ? (node as Record<string, unknown>)[part]
+          : undefined,
+      enWork as unknown as Record<string, unknown>
+    ) as string | undefined
+
 const jsonResponse = (status: number, body: unknown): Response =>
   ({
     status,
@@ -259,5 +276,24 @@ describe('Work API client', () => {
       status: 404,
       correlationId: 'corr-2',
     } satisfies Partial<WorkApiError>)
+  })
+
+  it('returns i18n keys for errors, and every key resolves in the locale catalog', () => {
+    const resync = new WorkApiError(410, {
+      code: 'resync_required',
+      message: '事件游标已过期，请重新同步。',
+    })
+    const conflict = new WorkApiError(409, {
+      code: 'version_conflict',
+      message: '版本已变更',
+    })
+    expect(workErrorMessage(resync)).toBe('errors.resyncRequired')
+    expect(workErrorMessage(conflict)).toBe('errors.generic')
+    expect(workErrorMessage(new Error('network'))).toBe('errors.generic')
+    expect(workErrorMessage('a string')).toBe('errors.generic')
+    // Regression guard: the returned keys must exist in en/work.json, otherwise t()
+    // silently renders the raw key and the server's Chinese text never reaches the UI.
+    expect(resolveKey(workErrorMessage(resync))).toBeTypeOf('string')
+    expect(resolveKey(workErrorMessage(conflict))).toBeTypeOf('string')
   })
 })

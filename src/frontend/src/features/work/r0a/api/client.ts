@@ -84,6 +84,15 @@ export class WorkApiError extends Error {
   }
 }
 
+// Returns an i18n key for the caught error. The server's `message` field is Chinese;
+// callers must pass the key through `t()` rather than displaying it verbatim.
+export const workErrorMessage = (cause: unknown): string => {
+  if (cause instanceof WorkApiError) {
+    if (cause.code === 'resync_required') return 'errors.resyncRequired'
+  }
+  return 'errors.generic'
+}
+
 export const setWorkCSRFToken = (token: string | null) => {
   csrfToken = token
 }

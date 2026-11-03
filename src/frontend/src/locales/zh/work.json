@@ -25,7 +25,9 @@
   },
   "errors": {
     "bootstrapTitle": "工作空间暂时不可用",
-    "bootstrapDescription": "无法验证 Work 会话或加载配置，请稍后重试。"
+    "bootstrapDescription": "无法验证 Work 会话或加载配置，请稍后重试。",
+    "generic": "操作遇到问题，请重试。",
+    "resyncRequired": "会话数据已变更，正在重新加载。"
   },
   "readOnly": {
     "homeHint": "创建任务需要更宽的屏幕，请在平板或电脑上新建工作。",
@@ -318,7 +320,7 @@
     },
     "credentialVersion": "密钥版本",
     "providerConflict": "配置已被其他改动更新，请刷新后重试。",
-    "providerFailed": "操作未完成：{{code}}",
+    "providerFailed": "操作未完成，请重试。",
     "providerSaved": "接入配置已生效（版本 {{revision}}）",
     "providerSave": "保存配置",
     "providerRevoke": "吊销配置",

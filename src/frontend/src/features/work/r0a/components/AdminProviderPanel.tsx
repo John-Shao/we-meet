@@ -83,9 +83,7 @@ export const AdminProviderPanel = () => {
   const failure = (error: unknown) => {
     const code = readCode(error, 'code')
     if (code === 'version_conflict') return t('admin.providerConflict')
-    return typeof code === 'string'
-      ? t('admin.providerFailed', { code })
-      : t('admin.providerFailed', { code: 'unknown' })
+    return t('admin.providerFailed')
   }
 
   return (

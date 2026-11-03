@@ -12,7 +12,7 @@ import { PageState } from '@/components/PageState'
 import { Button } from '@/primitives/Button'
 import { TextArea } from '@/primitives/TextArea'
 import { css, cx } from '@/styled-system/css'
-import { workTaskArtifactContentUrl, WorkApiError } from '../api/client'
+import { workTaskArtifactContentUrl, WorkApiError, workErrorMessage } from '../api/client'
 import {
   useAcceptWorkTask,
   useCreateWorkArtifactVersion,
@@ -201,7 +201,7 @@ export const ArtifactWorkspacePage = () => {
       })
       acceptKey.rotate()
     } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : String(cause))
+      setActionError(t(workErrorMessage(cause)))
     }
   }
 
@@ -234,7 +234,7 @@ export const ArtifactWorkspacePage = () => {
       const code = cause instanceof WorkApiError ? cause.code : 'unknown'
       setSaveError({
         code,
-        message: cause instanceof Error ? cause.message : String(cause),
+        message: t(workErrorMessage(cause)),
       })
       // A read-only artifact is a fact the page got wrong, not the edit: re-read the
       // workspace so the version list and badges describe the current truth.

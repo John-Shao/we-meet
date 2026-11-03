@@ -25,7 +25,9 @@
   },
   "errors": {
     "bootstrapTitle": "Work is unavailable",
-    "bootstrapDescription": "Could not verify the Work session or load configuration. Try again later."
+    "bootstrapDescription": "Could not verify the Work session or load configuration. Try again later.",
+    "generic": "Something went wrong. Please try again.",
+    "resyncRequired": "Session data has changed; reloading."
   },
   "readOnly": {
     "homeHint": "Creating work needs a wider screen. Open Work on a tablet or desktop to start a task.",
@@ -318,7 +320,7 @@
     },
     "credentialVersion": "Key version",
     "providerConflict": "The configuration changed elsewhere; reload and try again.",
-    "providerFailed": "Action did not complete: {{code}}",
+    "providerFailed": "Action did not complete. Please try again.",
     "providerSaved": "Access configuration is in effect (revision {{revision}})",
     "providerSave": "Save configuration",
     "providerRevoke": "Revoke configuration",

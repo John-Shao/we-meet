@@ -125,12 +125,13 @@ func FromDB(err error) *Error {
 func serviceDegraded(internalCode, sqlState string) *Error {
 	entry, _ := Default().Lookup("service_degraded")
 	return &Error{
-		Code:         "service_degraded",
-		Message:      Default().Message("service_degraded"),
-		Status:       entry.Status,
-		Retryable:    entry.Retryable,
-		InternalCode: internalCode,
-		SQLState:     sqlState,
+		Code:           "service_degraded",
+		Message:        Default().Message("service_degraded"),
+		Status:         entry.Status,
+		Retryable:      entry.Retryable,
+		RecoveryAction: entry.RecoveryAction,
+		InternalCode:   internalCode,
+		SQLState:       sqlState,
 	}
 }
 

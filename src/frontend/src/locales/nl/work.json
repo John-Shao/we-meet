@@ -25,7 +25,9 @@
   },
   "errors": {
     "bootstrapTitle": "Work is unavailable",
-    "bootstrapDescription": "Could not verify the Work session or load configuration. Try again later."
+    "bootstrapDescription": "Could not verify the Work session or load configuration. Try again later.",
+    "generic": "Er is iets misgegaan. Probeer het opnieuw.",
+    "resyncRequired": "Sessiegegevens zijn gewijzigd; opnieuw laden."
   },
   "readOnly": {
     "homeHint": "Creating work needs a wider screen. Open Work on a tablet or desktop to start a task.",
@@ -318,7 +320,7 @@
     },
     "credentialVersion": "Sleutelversie",
     "providerConflict": "De configuratie is elders gewijzigd; laad opnieuw en probeer het.",
-    "providerFailed": "Actie niet voltooid: {{code}}",
+    "providerFailed": "Actie niet voltooid. Probeer het opnieuw.",
     "providerSaved": "Toegangsconfiguratie actief (revisie {{revision}})",
     "providerSave": "Configuratie opslaan",
     "providerRevoke": "Configuratie intrekken",

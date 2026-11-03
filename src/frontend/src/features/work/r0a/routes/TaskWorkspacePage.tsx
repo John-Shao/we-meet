@@ -25,7 +25,7 @@ import {
   useWorkTask,
   workQueryKeys,
 } from '../api/queries'
-import { fetchWorkTask } from '../api/client'
+import { fetchWorkTask, workErrorMessage } from '../api/client'
 import { useIdempotencyKey } from '../hooks/useIdempotencyKey'
 import { useReadOnlyViewport } from '../hooks/useReadOnlyViewport'
 import { useTaskEventStream } from '../hooks/useTaskEventStream'
@@ -224,7 +224,7 @@ export const TaskWorkspacePage = () => {
       setEditingTitle(false)
       titleKey.rotate()
     } catch (cause) {
-      setTitleError(cause instanceof Error ? cause.message : String(cause))
+      setTitleError(t(workErrorMessage(cause)))
     }
   }
 
@@ -234,7 +234,7 @@ export const TaskWorkspacePage = () => {
     try {
       await cancelMutation.mutateAsync(run.id)
     } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : String(cause))
+      setActionError(t(workErrorMessage(cause)))
     }
   }
 
@@ -263,7 +263,7 @@ export const TaskWorkspacePage = () => {
       setAccepted(true)
       acceptKey.rotate()
     } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : String(cause))
+      setActionError(t(workErrorMessage(cause)))
     }
   }
 

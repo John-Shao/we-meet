@@ -1,0 +1,252 @@
+# 11-15/16 演练清单（C03+C22 四项 + C13 轮换 + C28 开关 + #31 双形状条件项）
+
+> 状态：**待执行**。U3 九项已于 2026-10-27 全部确认；本清单把原 `work-r0a-c03-u3-drills-2026-10-27.md` §2–§3 展开为可逐步执行的步骤，并挂入 C13 主密钥轮换、C28 租户开关、#31 契约扁平后的双形状过渡。
+>
+> **RB-05 边界**：本轮只验数据层与基础设施（PG、Temporal、Content Store、角色/密钥、配额、开关）；经 API/编排/Runtime 的端到端项移出本轮。
+>
+> 关联控制：C03 (start, blocking) / C22 (pilot, blocking) / C13 (pilot, blocking) / C28 (pilot, blocking)。  
+> 关联文档：[D3 设计](work-r0a-orchestration-design-2026-10-25.md)、[运维 Runbook](work-operations-runbook-2026-10-25.md)、[U3 原清单](work-r0a-c03-u3-drills-2026-10-27.md)、[C03 签收条件](work-r0a-start-gate-disposition-2026-10-27.md) §C03。
+
+## 0. 前置条件（11-06 环境预检通过 + 11-10 彩排）
+
+| # | 条件 | 验证方式 | 负责人 | 截止 |
+|---|---|---|---|---|
+| P1 | Temporal ≥2 副本、namespace `work-r0a` 隔离 | `kubectl get pods -n temporal` 显示 ≥2 Ready | SRE | 11-06 |
+| P2 | Temporal 独立 PG + 专用角色，与 Work 业务库分离 | 连接串 `host` 不同、角色名不含 `work_api` | DBA | 11-06 |
+| P3 | mTLS 7233 仅内网可达 | `openssl s_client -connect :7233` 成功；外网 22.22 不通 | SRE | 11-06 |
+| P4 | 配额可调（D4 用） | `temporal operator namespace update -rd` 能改 retention/rate | SRE | 11-06 |
+| P5 | Content Store 独立演练桶 + 最小权限凭证 | `ls` 桶内演练前缀可写、其他前缀拒绝 | 后端 | 11-06 |
+| P6 | Kill switch 运行时开关可操作（D3-N06） | `work.apply_execution_entitlement --dry-run` 成功 | 后端 | 11-06 |
+| P7 | 两个 Worker 版本镜像（D2） | registry tag `worker:v1-s2` / `worker:v2-s2` 存在 | 平台 | 11-06 |
+| P8 | `WORK_CONTENT_MASTER_KEY` 环境变量注入通道就绪（C13） | 进程 env 可读，文件不入库 | 后端 | 11-06 |
+| P9 | 租户开关 feature flag 路径已部署但值为 off（C28） | `GET /work/v1/admin/overview` 返回 `tenant_access_enabled: false` | 前端+后端 | 11-10 |
+| P10 | 在途 Run 种子：1 个 waiting + 1 个 running | `SELECT run_id, state FROM work.run WHERE ...` ≥2 | 后端 | 11-10 彩排后 |
+| P11 | 五席 + SRE/DBA 真名确认 | 填 §附录 A 表 | 平台 | 11-06 |
+
+任一 P 未通过 → 改期并通知 DR2。
+
+## 1. 11-15 上午 09:30–12:00 · D1 多节点拓扑滚动重启 server
+
+**目标**：Temporal server ≥2 副本下滚动重启，验证在途 workflow 无重复派发、无第二个 Run。
+
+| 步 | 动作 | 通过判据 | 证据 |
+|---|---|---|---|
+| D1-1 | 确认 Temporal 2 副本 `Running`，记录 pod name/IP | 两副本 Ready，namespace=work-r0a | `kubectl get pods -o wide` 截图 |
+| D1-2 | 提交种子 Run（模板 A），状态转 `running` | `work.run.state='running'`，Temporal history 有 WorkflowExecutionStarted | psql + temporal CLI |
+| D1-3 | 滚动重启 replica-1（delete pod → 等重建 → Ready） | pod 重建后 `temporal operator cluster health` 绿 | `kubectl logs --previous` |
+| D1-4 | 观察 `work.run` 状态变化 | 无新 Run 被创建、原 Run `running` 不跳 `failed`；`work.operation` 无重复行 | `SELECT count(*) FROM work.run WHERE ...` 不变 |
+| D1-5 | 滚动重启 replica-2 | 同 D1-3 | logs 截图 |
+| D1-6 | 等待种子 Run 自然结束或 cancel | Run 终态 `succeeded`/`cancelled` 可读可取消 | Run detail 查询 |
+| D1-7 | 核对 dispatching 计数 | `work.outbox` 内该 Run 事件不重复、`claimed_by` 最多一次 `completed` | SQL + 时间戳 |
+
+**失败处理**：若出现重复派发 → 记录到 `verdict.md` 为 **D1 FAIL**；不阻塞下午 D2，但 C03 不签。
+
+**关联控制**：C22 S1 多节点 / C03 A1 承诺验证。
+
+## 2. 11-15 下午 14:00–17:00 · D2 Worker drain → 版本切换 → 恢复
+
+**目标**：drain 旧 worker → 部署新版本 → 验证旧 workflow 行为不变、新 Run 走新版本、无丢活动。
+
+| 步 | 动作 | 通过判据 | 证据 |
+|---|---|---|---|
+| D2-1 | 确认当前 worker 版本 tag（v1），在途 Run 种子正在执行 activity | Run state=running，activity 进度可读 | worker 日志 |
+| D2-2 | Drain worker v1：停止领取新 task，等已领取 activity 完成（窗口 ≥15 min） | `temporal taskqueue describe` pending=0；无新 activity 被 v1 领取 | drain 日志 + taskqueue describe 截图 |
+| D2-3 | 部署 worker v2（同 namespace、同 task queue） | v2 pod Ready，日志显示 polling | `kubectl logs` |
+| D2-4 | 验证在途 Run（v1 启动的 workflow）继续完成 | 该 Run 使用 v1 版本行为完成（对比 workflow type/version pinning）；activity 不丢失 | Run history + `work.operation` 逐条核对 |
+| D2-5 | 提交新种子 Run B | 被 v2 worker 领取，日志含 v2 tag | worker 日志 + Run state |
+| D2-6 | 恢复 drain 关闭（v1 若仍存在需确认不领取新任务） | v1 不再领取新 workflow | taskqueue describe |
+| D2-7 | 核对 v1→v2 切换期间无 lost activity | `work.operation` 中无 `unknown` 状态超过 15 min；无 orphan dispatch | SQL + 时间戳 |
+
+**关联控制**：C22 worker drain/版本切换 / C03 A5 维护窗口。
+
+## 3. 11-15 17:00–18:00 · S1-R06 多节点在途 server 重启（补跑）
+
+**目标**：复用 D1 环境，验证 `systemctl restart` 级别（单进程崩溃）的 Temporal server 重启，在途 workflow 正确恢复。
+
+| 步 | 动作 | 通过判据 | 证据 |
+|---|---|---|---|
+| S1-1 | 提交种子 Run C，确认 Temporal history 有 WorkflowExecutionStarted + activity started | 同 D1-2 | temporal CLI |
+| S1-2 | `kill -9` 一个 Temporal server 进程（模拟 crash） | 进程消失、systemd restart 拉起 | `journalctl -u temporal` |
+| S1-3 | 等待 Run C 恢复或完成 | Run C 终态正确（succeeded / cancelled）；无第二个 Run | `work.run` 查询 |
+| S1-4 | 对比 file-backed dev 的 R06 结论 | 行为一致：已完成 workflow 不重放 | 记录差异 |
+
+**关联控制**：C22 S1-R06 / C03 关闭条件 §4(4)。
+
+## 4. 11-16 上午 09:30–12:00 · D3 Temporal PG 故障/恢复
+
+**目标**：杀死 Temporal 的 PG → 观察 relay 积压 → 恢复 PG → 按租约继续 → 业务账本不变。
+
+| 步 | 动作 | 通过判据 | 证据 |
+|---|---|---|---|
+| D3-1 | 记录当前 `work.outbox` 未投递计数 | `SELECT count(*) WHERE delivered_at IS NULL` → 基线值 N | SQL |
+| D3-2 | `systemctl stop temporal-postgresql`（或 kill PG） | Temporal 开始报错（frontend health 变红） | PG 日志 + Temporal 日志 |
+| D3-3 | 等待 2–5 min，观察 Work outbox 积压增长 | 积压 > N 但 `work.run.state` 不变（无新派发成功也无丢失） | relay 日志 + outbox 曲线 |
+| D3-4 | `systemctl start temporal-postgresql` | Temporal 恢复 health 绿 | PG 日志 |
+| D3-5 | 等待 relay 追赶积压 | outbox 未投递数回到 ≤N 或继续正常投递 | SQL + 时间戳 |
+| D3-6 | 核对业务账本 | `work.run` / `work.operation` / `work.task_event` 无新增异常行；`work.quota_account` held 值不变 | 逐表 count + checksum |
+
+**关联控制**：C22 Temporal PG 故障 / C03 A2/A4。
+
+## 5. 11-16 下午 14:00–15:30 · D4 配额打满 + D3-N06 开关
+
+**目标**：namespace 配额饱和 → 新提交受控失败 → 已有 Run 不被误杀 → kill switch 操作 → 义务不停。
+
+| 步 | 动作 | 通过判据 | 证据 |
+|---|---|---|---|
+| D4-1 | 记录当前 namespace 配额值 | `temporal operator namespace describe` 输出 | CLI 截图 |
+| D4-2 | 降低配额（rate limit / concurrent workflows）至种子 Run 数 -1 | 配额调低成功 | CLI |
+| D4-3 | 提交新 Run → 应受控失败 | 返回错误码属于 `outbox_backlog` 类；不产生 `work.run` 新行 | API 响应 + SQL |
+| D4-4 | 已有 Run 不被误杀 | 种子 Run 仍 running/succeeded | `work.run.state` |
+| D4-5 | 恢复配额 | namespace describe 恢复原值 | CLI |
+| D4-6a | 执行 kill switch（`work.apply_execution_entitlement --suspend`） | `work.org_policy.operator_suspended = true`；新导出请求 409 `org_operator_suspended`；管理读面仍 200 | SQL + API |
+| D4-6b | 验证义务不停：到期清扫仍运行，relay 仍投递 `content_shred` | 日志显示 `expire_due_inputs` / `shred_due_audit_exports` 各处理 1；relay 投递 | relay 日志 |
+| D4-6c | 解除开关，验证恢复 | `operator_suspended = false`；后续导出恢复 | SQL + API |
+
+**关联控制**：C22 / C03 §3 D3-N06 / D4 配额承诺。
+
+## 6. 11-16 下午 15:30–16:30 · C13 主密钥轮换演练
+
+**目标**：在真实环境执行 Content Store 主密钥轮换，验证双版本读取窗口与全量重加密。
+
+| 步 | 动作 | 通过判据 | 证据 |
+|---|---|---|---|
+| C13-1 | 记录当前 `WORK_CONTENT_MASTER_KEY` 指纹（SHA-256 前 8 字节） | 不输出密钥本身 | `sha256sum` 前 8 hex |
+| C13-2 | 生成新主密钥，注入为 `WORK_CONTENT_MASTER_KEY_NEXT`（进程 env） | 新密钥格式校验通过（32 字节 base64） | 环境变量操作日志（不含值） |
+| C13-3 | 以新主密钥重加密 `work.provider_credential`（逐 org） | 每行 `key_version` 自增；`secret_decrypts=true`（用新密钥解密成功） | `work-provider-setup status` + SQL |
+| C13-4 | 双版本读取窗口：验证 `WORK_CONTENT_MASTER_KEY`（旧）仍可解密未轮换的 Content Store 对象 | Content Store 读历史 artifact 成功 | Go 用例 / CLI |
+| C13-5 | 切换 `WORK_CONTENT_MASTER_KEY` → 新密钥 | `systemctl restart work-api` + `work-directory-sync`；healthcheck ok | `journalctl` |
+| C13-6 | 验证旧密钥已无法解密新凭据（安全边界） | 用旧密钥尝试解密已轮换行 → 失败（GCM auth tag mismatch） | 预期错误日志 |
+| C13-7 | 回归任务：提交一次 provider call 成功 + usage 结算 + artifact 发布 | Run succeeded、token settled、artifact hash 一致 | `work-provider-setup status` + 真实任务 |
+| C13-8 | 销毁旧密钥临时文件 | `shred -u` 完成、`stat` 无残留 | 命令输出 |
+
+**边界说明**：本演练覆盖 D-03 B 的静态单层加密主密钥。云 KMS/HSM 自动轮换不在此范围（C13 note 已确认 D-03 B 不用 KMS）。provider credential 的 `key_version` 轮换在 2026-10-31 已单独执行过（Runbook §5.15），本次是主密钥层面的首次真实演练。
+
+**关联控制**：C13 关闭条件「密钥轮换未在真实环境演练」→ 本步完成后 C13 残余仅「试点目录外无对象存储后端与规模化擦除证据」（属 scale 闸）。
+
+## 7. 11-16 下午 16:30–17:00 · C28 租户开关切换演练
+
+**目标**：在生产环境启用 tenant-access org flag → 验证 cutover → 验证 legacy notice → 验证 rollback。
+
+| 步 | 动作 | 通过判据 | 证据 |
+|---|---|---|---|
+| C28-1 | 记录 flag 当前值（off） | `SELECT * FROM work.org_policy WHERE ...` → `tenant_access = false` | SQL |
+| C28-2 | 切换 `tenant_access = true`（feature flag / org_policy） | 变更后 API 路由对新租户可访问 `/work/` 路径 | HTTP 响应 |
+| C28-3 | 旧链接验证 legacy notice | `GET /work?task=<old-id>` → 302 到 `/work/archive?legacyTask=...` → 只读 notice 页 | 浏览器截图 |
+| C28-4 | 新租户正常访问验证 | 登录 → bootstrap → list → detail → submit 完整路径成功 | 浏览器 + API 响应 |
+| C28-5 | 计时 cutover 端到端 | 从 flag=true 到全部功能可用 ≤ 15 min | 时间戳记录 |
+| C28-6 | Rollback：切回 `tenant_access = false` | 新租户入口关闭、已存在 Run 不受影响；旧链接继续走 legacy notice | SQL + HTTP |
+| C28-7 | 恢复 flag 值（演练后复原） | 与 C28-1 相同 | SQL |
+
+**关联控制**：C28 关闭条件「flag 未在生产启用、无端到端切换计时」。本演练完成后 C28 残余 = 真实设计伙伴试点时验证（C24）。
+
+## 8. 11-16 下午 17:00–17:30 · #31 双形状过渡验证（条件项）
+
+**触发条件**：仅当 #31（preview/submit 请求体扁平化）在 11-15/16 前有未发布到生产的新版本时执行；若生产已是扁平形状则跳过并记录「不适用」。
+
+**目标**：滚动部署期间新旧形状共存不导致请求失败或数据不一致。
+
+| 步 | 动作 | 通过判据 | 证据 |
+|---|---|---|---|
+| T-31-1 | 确认生产 `work-api` 已部署 #31 后的扁平 schema（或待部署的 staging 版本） | `GET /openapi.json` 的 input/preview schema 无 `intent` 嵌套 | curl + jq |
+| T-31-2 | 用旧形状（嵌套 intent）提交 preview | 应 400 拒绝（不产生脏数据）或兼容层正常解析 — 取决于 #31 的 A 案决定：已删 R0aIntent → 400 | HTTP 响应码 |
+| T-31-3 | 用新扁平形状提交 preview → submit | 202 + Run 正常创建 | HTTP 响应 + `work.run` |
+| T-31-4 | 滚动重启一个 API 实例 | 无 in-flight 请求 5xx | API 日志 |
+| T-31-5 | 若 T-31-2 返回 400 → 记录为「预期拒绝，客户端已对齐」；若返回 202 → 记录为「兼容窗口仍开放」 | 判定写入 `verdict.md` | — |
+
+**RB-05 边界**：本步只验数据层（请求是否能正确入库），不验经编排/Runtime 的端到端路径。API 层的 OpenAPI 契约测试（字段级门禁 `ops-model.test.mjs`）已在 CI 覆盖。
+
+**关联控制**：#31 已执行，无 C 编号；挂本清单为过渡安全网。若生产已完全对齐则本步跳过。
+
+## 9. 11-16 17:30–18:00 · D3-N01/N03 进程级 kill 复跑
+
+**目标**：在真实 Content Store 桶环境复跑已在测试层验证的崩溃用例，补上「部署环境」维度。
+
+| 步 | 动作 | 通过判据 | 证据 |
+|---|---|---|---|
+| N01-1 | 启动 relay 进程，投递 `content_shred` 事件 | relay 正常处理 1 笔后 SIGKILL（两笔之间） | `kill -9` + 时间戳 |
+| N01-2 | 验证副本接管 | 租约活着时副本拿 0 事件；`claimed_until` 到期后重领并一次投递 | relay 日志 + SQL |
+| N01-3 | 验证重投递容忍已消失的对象 | `ErrNotExist` 不产生 `content_delete_failed` | 日志 |
+| N03-1 | 启动 export worker，写完文件后 SIGKILL | 旧持有者 `audit_export_lease_lost`；单 content_ref、无重复对象 | 桶内文件数 + audit 表 |
+
+**与测试层的关系**：测试层已在 2026-11-02 验证通过（`lease_crash_test.go`、`cmd/work-export/lease_crash_test.go`），本步是在**真实 systemd/容器进程 + 真实 Content Store 桶**下复跑同等断言，补的是「部署形态」证据。
+
+**关联控制**：C03 §4(3) D3-N01/N03 真实环境注入。
+
+## 10. 证据落盘
+
+每场演练目录结构（按已有约定）：
+
+```
+docs/plan/assets/work-r0a-ops-2026-10-25/drills/
+├── 2026-11-15-d1/
+│   ├── timeline.md        # 时间线（精确到秒）
+│   ├── commands.log       # 执行的命令（脱敏）
+│   ├── metrics/           # 截图 / SQL 输出 / 日志片段
+│   └── verdict.md         # PASS / FAIL / GAP 判定
+├── 2026-11-15-d2/
+├── 2026-11-15-s1r06/
+├── 2026-11-16-d3/
+├── 2026-11-16-d4-n06/
+├── 2026-11-16-c13/
+├── 2026-11-16-c28/
+├── 2026-11-16-dual-shape/  # 若执行
+└── 2026-11-16-n01n03/
+```
+
+脱敏规则（S18）：不含密钥正文、不含客户数据、不含 `WORK_CONTENT_MASTER_KEY` 值本身；只允许指纹前 8 字节。
+
+## 11. 关闭条件与回写
+
+| 条件 | 满足后操作 |
+|---|---|
+| D1 + D2 + S1-R06 全 PASS | C22 evidence 添加「多节点拓扑、在途重启、worker drain 实测 2026-11-15」 |
+| D3 + D4 全 PASS | C22 evidence 添加「Temporal PG 故障恢复、配额饱和实测 2026-11-16」；C22 status → `done` |
+| D3-N01/N03/N06 真实环境 PASS | C03 §4(3) 满足 |
+| C13-1 至 C13-8 全 PASS | C13 note 更新：「主密钥轮换已于 2026-11-16 真实环境演练通过」；残余改为对象存储后端 |
+| C28-1 至 C28-7 全 PASS 且 ≤15 min | C28 evidence 添加计时记录；note 改为「flag 已验证翻转与回滚」 |
+| §4 全部满足（U3 + D1–D4 + N01/N03 + S1） | C03 status → `done`，DR2 签收 |
+
+签收后回写：[U3 单](work-r0a-temporal-hosting-decision-request-2026-10-26.md) §9、[D3 §4.1](work-r0a-orchestration-design-2026-10-25.md)、[work-project](work-project.md) §3.3、`pilot-checklist.json`。
+
+## 附录 A：五席 + 到场角色
+
+| 日期 | 时段 | 场景 | 指挥 | 驱动 A | 驱动 B | 记录员 | 证据员 | SRE | DBA |
+|---|---|---|---|---|---|---|---|---|---|
+| 11-15 | 09:30–12:00 | D1 | | | | | | ✓ | |
+| 11-15 | 14:00–17:00 | D2 | | | | | | ✓ | |
+| 11-15 | 17:00–18:00 | S1-R06 | | | | | | ✓ | |
+| 11-16 | 09:30–12:00 | D3 | | | | | | | ✓ |
+| 11-16 | 14:00–15:30 | D4+N06 | | | | | | ✓ | |
+| 11-16 | 15:30–16:30 | C13 | | | | | | | |
+| 11-16 | 16:30–17:00 | C28 | | | | | | | |
+| 11-16 | 17:00–17:30 | #31 双形状（条件） | | | | | | | |
+| 11-16 | 17:30–18:00 | N01/N03 | | | | | | | |
+
+## 附录 B：失败影响矩阵
+
+| 场景 | 失败后果 | 是否阻塞 C03 | 补救路径 |
+|---|---|---|---|
+| D1 重复派发 | 故障矩阵 §4.2 假设不成立 | **是** | 排查 Temporal sticky cache / outbox 去重逻辑；改期重跑 |
+| D2 丢活动 | Activity 在 drain 窗口丢失 | **是** | 排查 worker graceful shutdown 顺序；改期重跑 |
+| S1-R06 重启失败 | 单节点恢复不成立 | **是** | C03 延到 DR4 前补签 |
+| D3 账本变化 | 业务数据完整性受损 | **是** | 紧急回滚 + DBA 核对；记录事件 |
+| D4 已有 Run 被杀 | 配额实现有误杀 bug | **是** | 修 namespace 配置 / Temporal bug；改期重跑 |
+| C13 轮换后解密失败 | 凭据/Content Store 不可用 | 否（只影响 C13） | 恢复旧密钥文件；排查派生逻辑 |
+| C28 切换超时 >15 min | 试点 SLA 无依据 | 否（只影响 C28） | 记录实际耗时为约束基线 |
+| N01/N03 与测试层结果不一致 | 部署环境有额外因素 | **是**（C03 §4(3)） | 对比测试层与部署层配置差异 |
+
+## 附录 C：生产 DB/Temporal 升级步骤（作为 D2 版本切换的框架参考）
+
+Runbook §2.1–§2.3 的滚动升级流程在演练中的映射：
+
+| Runbook 步骤 | 演练映射 |
+|---|---|
+| §2.1 发布前 golden tasks | D2-1 的 Run 种子即简化版 golden task |
+| §2.1 DB expand/contract | D3 恢复后核对 schema 不变（§2.1 禁止破坏性迁移） |
+| §2.2 步骤 1 暂停新 Run 调度 | D2-2 drain 期间的入口暂停 |
+| §2.2 步骤 2 排空旧 Worker | D2-2 核心 |
+| §2.2 步骤 3 部署新镜像 canary | D2-3 部署 v2 |
+| §2.2 步骤 4 恢复调度 + 锁定旧队列 | D2-5 + D2-6 |
+| §2.3 回滚 | C28-6 rollback 路径 |
+
+生产 Temporal 升级（如 1.25→1.26）作为独立窗口安排，不在本轮演练范围；D2 的 worker 版本切换已验证「不迁移半轮状态」的原则。
