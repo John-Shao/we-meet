@@ -211,7 +211,8 @@ docs/plan/assets/work-r0a-ops-2026-10-25/drills/
 | D1 + D2 + S1-R06 全 PASS | C22 evidence 添加「多节点拓扑、在途重启、worker drain 实测 2026-11-15」 |
 | D3 + D4 全 PASS | C22 evidence 添加「Temporal PG 故障恢复、配额饱和实测 2026-11-16」；C22 status → `done` |
 | D3-N01/N03/N06 真实环境 PASS | C03 §4(3) 满足 |
-| C13-1 至 C13-8 全 PASS | C13 note 更新：「主密钥轮换已于 2026-11-16 真实环境演练通过」；残余改为对象存储后端 |
+| C13-0 判定驱动存在 → C13-1..8 全 PASS | C13 note 更新：「主密钥轮换已于真实环境演练通过」；残余改为对象存储后端 |
+| C13-0 判定驱动不存在（当前证据） | C13 演 **blocked**，不签"演练通过"；按 #40 走 A/B/C 决策后再定 C13 定性 |
 | C28-1 至 C28-7 全 PASS 且 ≤15 min | C28 evidence 添加计时记录；note 改为「flag 已验证翻转与回滚」 |
 | §4 全部满足（U3 + D1–D4 + N01/N03 + S1） | C03 status → `done`，DR2 签收 |
 
