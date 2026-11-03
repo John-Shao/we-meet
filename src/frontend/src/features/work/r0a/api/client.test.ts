@@ -12,19 +12,26 @@ import {
   workTaskArtifactContentUrl,
 } from './client'
 
+// A real Response carries a Headers object, and the generated client reads the response headers
+// into a plain record; a stub with only get() would fail on that. Keeping the real Headers here
+// makes the fixture answer the same way the browser does.
+// A real Response answers both text() and json(), and the generated client reads the body once as
+// text and parses it when the content type says JSON, so the stubs have to carry both.
 const jsonResponse = (status: number, body: unknown): Response =>
   ({
     status,
     ok: status >= 200 && status < 300,
-    headers: { get: () => 'application/json' },
+    headers: new Headers({ 'content-type': 'application/json' }),
     json: vi.fn().mockResolvedValue(body),
+    text: vi.fn().mockResolvedValue(JSON.stringify(body)),
   }) as unknown as Response
 
 const textResponse = (body: string, contentType: string): Response =>
   ({
     status: 200,
     ok: true,
-    headers: { get: () => contentType },
+    headers: new Headers({ 'content-type': contentType }),
+    json: vi.fn().mockRejectedValue(new TypeError('not json')),
     text: vi.fn().mockResolvedValue(body),
   }) as unknown as Response
 
@@ -83,16 +90,21 @@ describe('Work API client', () => {
   })
 
   it('exposes the public error code and current revision', async () => {
+    // Bootstrap first, then the refused mutation: the assertion below is about how a server refusal
+    // reaches the app, so the 409 has to come from the mutation rather than from the session read.
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
-        jsonResponse(409, {
-          code: 'version_conflict',
-          message: 'version changed',
-          current_revision: 7,
-          correlation_id: 'corr',
-        })
-      )
+      vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(200, { csrf_token: 'csrf-err' }))
+        .mockResolvedValueOnce(
+          jsonResponse(409, {
+            code: 'version_conflict',
+            message: 'version changed',
+            current_revision: 7,
+            correlation_id: 'corr',
+          })
+        )
     )
     await expect(
       createWorkInput({
@@ -152,11 +164,18 @@ describe('Work API client', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('/work/v1/inbox?limit=20')
     expect(fetchMock.mock.calls[0][1].credentials).toBe('same-origin')
     // A GET must never carry the CSRF header.
-    expect(fetchMock.mock.calls[0][1].headers.get('X-CSRF-Token')).toBeNull()
+    // The generated client hands fetch a plain header record, so read it through Headers - the
+    // same idiom the CSRF assertion above already uses.
+    expect(
+      new Headers(fetchMock.mock.calls[0][1].headers).get('X-CSRF-Token')
+    ).toBeNull()
 
     await fetchWorkInbox('cursor-2')
+    // The order is the contract's: the generated client appends query params in the order
+    // r0a-openapi-v1.yaml declares them (listInbox is [cursor, limit]), where the hand-written
+    // client had put limit first. The server reads them by name, so only the string changes.
     expect(fetchMock.mock.calls[1][0]).toBe(
-      '/work/v1/inbox?limit=20&cursor=cursor-2'
+      '/work/v1/inbox?cursor=cursor-2&limit=20'
     )
 
     const operationsPayload = {

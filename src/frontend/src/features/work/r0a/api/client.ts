@@ -20,9 +20,50 @@ import type {
   WorkTaskList,
   WorkTemplate,
 } from './types'
+import type { components } from './generated/r0a-api-types'
+import type { WorkClient } from './generated/r0a-client.mjs'
 
-const BASE = '/work/v1'
+// The contract still describes createTaskPreview and submitTask as a nested R0aIntent, while the
+// shipped handlers take the flat body (internal/api/previews.go:43 previewRequest and :59
+// submitRequest) and decode it strictly, so sending the contract shape would be refused as an
+// unknown field. The flat shape is what production accepts today and what the E8 run exercised, so
+// these two bodies pass through unchanged and the divergence is filed rather than hidden: fixing it
+// means correcting the contract, not the client.
+import {
+  OPERATIONS,
+  WorkApiError as ContractApiError,
+  createWorkClient,
+} from './generated/r0a-client.mjs'
+
+/**
+ * The call layer is generated. Paths, HTTP methods, which operations require the double-submit
+ * token, the stream flag, the success status and the request/response schema names all come from
+ * r0a-openapi-v1.yaml through ./generated/r0a-client.mjs, and `npm run check:work-api` (wired into
+ * `npm test`, which CI runs) fails if that file drifts from the contract. What stays here is only
+ * the app-facing surface: the exported function names and argument shapes every query, mutation and
+ * component already speaks, the WorkApiError the app branches on, and the three transports the
+ * generated client cannot serve verbatim (marked below).
+ */
 let csrfToken: string | null = null
+
+// Built per call, and that is not a cache miss waiting to be fixed: the generated client keeps the
+// token it refreshed during one request, and a long-lived instance would then carry it past a
+// re-bootstrap (a different session, or a test that resets the module token). The single-call
+// lifetime is also exactly the retry-once window the transport is meant to have.
+const api = (): WorkClient =>
+  createWorkClient({
+    // Resolved per call so a test that stubs the global after import still drives the real path,
+    // and so this module never captures a stale reference.
+    fetchImpl: (input, init) => fetch(input, init),
+    // A cold start has no token yet. Fetching bootstrap here keeps the recovery path the previous
+    // hand-written client had by accident - it sent the mutation, took the 403 csrf_invalid and
+    // refreshed - without relying on a round trip that the server must first refuse.
+    getCsrfToken: async () =>
+      csrfToken ?? (await fetchWorkBootstrap()).csrf_token,
+    // The server refuses a stale token before any side effect, so one refresh-and-retry is safe;
+    // bootstrap is a GET and needs no token, so this cannot recurse further.
+    refreshCsrfToken: async () => (await fetchWorkBootstrap()).csrf_token,
+  })
 
 export class WorkApiError extends Error {
   status: number
@@ -54,6 +95,52 @@ export const setWorkCSRFToken = (token: string | null) => {
   csrfToken = token
 }
 
+const envelopeOf = (error: unknown): Record<string, unknown> => {
+  const data =
+    error instanceof ContractApiError
+      ? error.data
+      : (error as Record<string, unknown>)
+  return (data ?? {}) as Record<string, unknown>
+}
+
+/** Unwraps a generated response and rethrows refusals as the app's own error shape. */
+const unwrap = async <T>(pending: Promise<{ data: unknown }>): Promise<T> => {
+  try {
+    const response = await pending
+    return response.data as T
+  } catch (error) {
+    if (error instanceof ContractApiError) {
+      throw new WorkApiError(error.status, envelopeOf(error))
+    }
+    throw error
+  }
+}
+
+/**
+ * Contract path templates still carry their `/work/v1` prefix and `{placeholders}`, which is what
+ * the three transports below need before handing the URL to fetch.
+ */
+const contractPath = (operationId: string): string => {
+  const operation = OPERATIONS.find(
+    (entry) => entry.operationId === operationId
+  )
+  if (!operation) {
+    throw new Error(
+      `r0a-openapi-v1.yaml no longer declares ${operationId}; this transport is not generated ` +
+        `because its consumer is typed on a raw Response, so fix the call site instead`
+    )
+  }
+  return operation.path
+}
+
+const fillPath = (
+  template: string,
+  values: Record<string, string | number>
+): string =>
+  template.replace(/{(\w+)}/g, (match, name: string) =>
+    name in values ? encodeURIComponent(String(values[name])) : match
+  )
+
 const parseError = async (response: Response): Promise<WorkApiError> => {
   let body: Record<string, unknown> = {}
   try {
@@ -64,77 +151,54 @@ const parseError = async (response: Response): Promise<WorkApiError> => {
   return new WorkApiError(response.status, body)
 }
 
-const request = async <T>(
-  path: string,
-  options: RequestInit = {},
-  retryCSRF = true
-): Promise<T> => {
-  const method = (options.method ?? 'GET').toUpperCase()
-  const headers = new Headers(options.headers)
-  if (options.body && typeof options.body === 'string') {
-    headers.set('Content-Type', 'application/json')
-  }
-  if (method !== 'GET' && csrfToken) {
-    headers.set('X-CSRF-Token', csrfToken)
-  }
-  const response = await fetch(`${BASE}${path}`, {
-    credentials: 'same-origin',
-    ...options,
-    headers,
-  })
-  if (!response.ok) {
-    const error = await parseError(response)
-    if (retryCSRF && method !== 'GET' && error.code === 'csrf_invalid') {
-      await fetchWorkBootstrap()
-      return request<T>(path, options, false)
-    }
-    throw error
-  }
-  if (response.status === 204) return undefined as T
-  return (await response.json()) as T
-}
-
 export const fetchWorkBootstrap = async (): Promise<WorkBootstrap> => {
-  const data = await request<WorkBootstrap>('/bootstrap')
+  const data = await unwrap<WorkBootstrap>(api().getBootstrap())
   setWorkCSRFToken(data.csrf_token)
   return data
 }
 
 export const fetchWorkTemplates = () =>
-  request<{ items: WorkTemplate[] }>('/templates')
+  unwrap<{ items: WorkTemplate[] }>(api().listTemplates())
 
-export const fetchWorkTasks = (view: string, cursor?: string | null) => {
-  const params = new URLSearchParams({ view, limit: '20' })
-  if (cursor) params.set('cursor', cursor)
-  return request<WorkTaskList>(`/tasks?${params.toString()}`)
-}
-
-export const fetchWorkInbox = (cursor?: string | null) => {
-  const params = new URLSearchParams({ limit: '20' })
-  if (cursor) params.set('cursor', cursor)
-  return request<WorkInboxList>(`/inbox?${params.toString()}`)
-}
-
-export const fetchWorkRunOperations = (
-  runId: string,
-  cursor?: string | null
-) => {
-  const params = new URLSearchParams({ limit: '20' })
-  if (cursor) params.set('cursor', cursor)
-  return request<WorkOperationList>(
-    `/runs/${encodeURIComponent(runId)}/operations?${params.toString()}`
+export const fetchWorkTasks = (view: string, cursor?: string | null) =>
+  unwrap<WorkTaskList>(
+    api().listTasks({
+      query: { view, limit: 20, ...(cursor ? { cursor } : {}) },
+    })
   )
-}
+
+export const fetchWorkInbox = (cursor?: string | null) =>
+  unwrap<WorkInboxList>(
+    api().listInbox({ query: { limit: 20, ...(cursor ? { cursor } : {}) } })
+  )
+
+export const fetchWorkRunOperations = (runId: string, cursor?: string | null) =>
+  unwrap<WorkOperationList>(
+    api().listOperations({
+      path: { runId },
+      query: { limit: 20, ...(cursor ? { cursor } : {}) },
+    })
+  )
 
 export const fetchWorkTask = (taskId: string) =>
-  request<WorkTaskDetail>(`/tasks/${encodeURIComponent(taskId)}`)
+  unwrap<WorkTaskDetail>(api().getTask({ path: { taskId } }))
 
+/**
+ * Task-scoped artifact deep link. Not a contract operation: the drift gate keeps it visible as
+ * IMPLEMENTED_ONLY (test/go-surface-drift.test.mjs), so the path is genuinely hand-owned here and
+ * is the reason this file cannot be fully generated.
+ */
 export const fetchWorkArtifactWorkspace = (
   taskId: string,
   artifactId: string
 ) =>
-  request<WorkTaskArtifactWorkspace>(
-    `/tasks/${encodeURIComponent(taskId)}/artifacts/${encodeURIComponent(artifactId)}`
+  unwrap<WorkTaskArtifactWorkspace>(
+    fetchWithEnvelope(
+      fillPath('/work/v1/tasks/{taskId}/artifacts/{artifactId}', {
+        artifactId,
+        taskId,
+      })
+    )
   )
 
 export const workTaskArtifactContentUrl = (
@@ -143,8 +207,12 @@ export const workTaskArtifactContentUrl = (
   versionNo: number,
   disposition: 'inline' | 'attachment' = 'inline'
 ) =>
-  `${BASE}/tasks/${encodeURIComponent(taskId)}/artifacts/${encodeURIComponent(artifactId)}/versions/${versionNo}/content?disposition=${disposition}`
+  fillPath(
+    '/work/v1/tasks/{taskId}/artifacts/{artifactId}/versions/{versionNo}/content',
+    { artifactId, taskId, versionNo }
+  ) + `?disposition=${disposition}`
 
+/** Same deep link, and the body is text with a content type the caller shows, so it stays raw. */
 export const fetchWorkArtifactContent = async (
   taskId: string,
   artifactId: string,
@@ -166,25 +234,28 @@ export const fetchWorkArtifactContent = async (
   }
 }
 
+// media_type is required by the contract and defaulted by the handler (inputs.go
+// resolvedMediaType), so stating it here makes the request conformant without changing what the
+// server stores.
 export const createWorkInput = (body: {
   client_request_id: string
   goal: string
   background: string
 }) =>
-  request<WorkInputResponse>('/inputs', {
-    method: 'POST',
-    body: JSON.stringify(body),
-  })
+  unwrap<WorkInputResponse>(
+    api().createInput({ body: { ...body, media_type: 'text/markdown' } })
+  )
 
 export const createWorkPreview = (body: {
   input_ref: string
   template_id: string
   permission_mode: string
 }) =>
-  request<WorkPreviewResponse>('/task-previews', {
-    method: 'POST',
-    body: JSON.stringify(body),
-  })
+  unwrap<WorkPreviewResponse>(
+    api().createTaskPreview({
+      body: body as unknown as components['schemas']['TaskPreviewRequest'],
+    })
+  )
 
 export const submitWorkTask = (body: {
   client_request_id: string
@@ -193,10 +264,11 @@ export const submitWorkTask = (body: {
   permission_mode: string
   preview_hash: string
 }) =>
-  request<WorkSubmitResponse>('/tasks', {
-    method: 'POST',
-    body: JSON.stringify(body),
-  })
+  unwrap<WorkSubmitResponse>(
+    api().submitTask({
+      body: body as unknown as components['schemas']['TaskSubmitRequest'],
+    })
+  )
 
 export const updateWorkTaskTitle = (
   taskId: string,
@@ -205,16 +277,14 @@ export const updateWorkTaskTitle = (
     expected_revision: number
     title: string
   }
-) =>
-  request(`/tasks/${encodeURIComponent(taskId)}`, {
-    method: 'PATCH',
-    body: JSON.stringify(body),
-  })
+) => unwrap<unknown>(api().updateTask({ path: { taskId }, body }))
 
 export const deleteWorkTask = (taskId: string, expectedRevision: number) =>
-  request<WorkTaskDeletion>(
-    `/tasks/${encodeURIComponent(taskId)}?expected_revision=${expectedRevision}`,
-    { method: 'DELETE' }
+  unwrap<WorkTaskDeletion>(
+    api().deleteTask({
+      path: { taskId },
+      query: { expected_revision: expectedRevision },
+    })
   )
 
 export const retryWorkTask = (
@@ -225,19 +295,29 @@ export const retryWorkTask = (
     target: { kind: string; profile: string }
   }
 ) =>
-  request<WorkRunAccepted>(`/tasks/${encodeURIComponent(taskId)}/runs`, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  })
+  // R0a advertises exactly one execution target (bootstrap.go returns
+  // [{kind: "cloud", profile: "text-v1"}]), which is what the contract narrows to; the app's own
+  // body type stays loose because it is built from the bootstrap response.
+  unwrap<WorkRunAccepted>(
+    api().retryTask({
+      path: { taskId },
+      body: {
+        ...body,
+        target: body.target as { kind: 'cloud'; profile: 'text-v1' },
+      },
+    })
+  )
 
 export const cancelWorkRun = (runId: string) =>
-  request(`/runs/${encodeURIComponent(runId)}/cancel`, {
-    method: 'POST',
-    // CancelRequest requires client_request_id (8-128). The control plane does
-    // not dedupe cancellation yet, so a per-attempt id satisfies the wire
-    // contract; the gap is recorded in docs/plan/work-project.md.
-    body: JSON.stringify({ client_request_id: crypto.randomUUID() }),
-  })
+  unwrap<unknown>(
+    api().cancelRun({
+      path: { runId },
+      // CancelRequest requires client_request_id (8-128). The control plane does
+      // not dedupe cancellation yet, so a per-attempt id satisfies the wire
+      // contract; the gap is recorded in docs/plan/work-project.md.
+      body: { client_request_id: crypto.randomUUID() },
+    })
+  )
 
 export const acceptWorkTask = (
   taskId: string,
@@ -253,11 +333,7 @@ export const acceptWorkTask = (
         artifact_id: string
         version_no: number
       }
-) =>
-  request<WorkAcceptanceResult>(
-    `/tasks/${encodeURIComponent(taskId)}/acceptances`,
-    { method: 'POST', body: JSON.stringify(body) }
-  )
+) => unwrap<WorkAcceptanceResult>(api().acceptTask({ path: { taskId }, body }))
 
 // D5:209. base_version_no is the optimistic-concurrency token: it must equal the
 // newest published version or the server answers 409 version_conflict rather than
@@ -272,11 +348,24 @@ export const createWorkArtifactVersion = (
     content: string
   }
 ) =>
-  request<WorkArtifactVersionCreated>(
-    `/artifacts/${encodeURIComponent(artifactId)}/versions`,
-    { method: 'POST', body: JSON.stringify(body) }
+  unwrap<WorkArtifactVersionCreated>(
+    api().createArtifactVersion({
+      path: { artifactId },
+      body: {
+        ...body,
+        media_type: (body.media_type ?? 'text/markdown') as
+          | 'text/markdown'
+          | 'text/plain',
+      },
+    })
   )
 
+/**
+ * The contract declares this operation (streamTaskEvents, with Last-Event-ID), but its consumer is
+ * typed on a Response whose body the hook reads itself, so the stream stays a raw fetch. The path
+ * and the header name come from the table; the generated client's own stream support is what would
+ * replace this once useTaskEventStream is retyped onto the frame iterator.
+ */
 export const openWorkEventStream = (
   taskId: string,
   signal: AbortSignal,
@@ -284,7 +373,7 @@ export const openWorkEventStream = (
 ) => {
   const headers = new Headers({ Accept: 'text/event-stream' })
   if (lastEventId) headers.set('Last-Event-ID', lastEventId)
-  return fetch(`${BASE}/tasks/${encodeURIComponent(taskId)}/events`, {
+  return fetch(fillPath(contractPath('streamTaskEvents'), { taskId }), {
     credentials: 'same-origin',
     headers,
     signal,
@@ -292,51 +381,43 @@ export const openWorkEventStream = (
 }
 
 export const fetchAdminOverview = () =>
-  request<WorkAdminOverview>('/admin/overview')
+  unwrap<WorkAdminOverview>(api().getAdminOverview())
 
-export const fetchAdminSeats = (cursor?: string | null) => {
-  const params = new URLSearchParams({ limit: '20' })
-  if (cursor) params.set('cursor', cursor)
-  return request<WorkAdminSeatList>(`/admin/seats?${params.toString()}`)
-}
-
-const usageParams = (from: string, to: string) => {
-  const params = new URLSearchParams({ from, to })
-  return params.toString()
-}
+export const fetchAdminSeats = (cursor?: string | null) =>
+  unwrap<WorkAdminSeatList>(
+    api().listSeats({ query: { limit: 20, ...(cursor ? { cursor } : {}) } })
+  )
 
 export const fetchAdminUsage = (from: string, to: string) =>
-  request<WorkOrgUsage>(`/admin/usage?${usageParams(from, to)}`)
+  unwrap<WorkOrgUsage>(api().getAdminUsage({ query: { from, to } }))
 
 export const fetchAdminProviderConfig = () =>
-  request<WorkProviderConfig>('/admin/provider-config')
+  unwrap<WorkProviderConfig>(api().getProviderConfig())
 
 export const createAdminAuditExport = (body: {
   client_request_id: string
   range_from: string
   range_to: string
   format: 'csv' | 'json'
-}) =>
-  request<WorkAuditExport>('/admin/audit-exports', {
-    method: 'POST',
-    body: JSON.stringify(body),
-  })
+}) => unwrap<WorkAuditExport>(api().createAuditExport({ body }))
 
 export const fetchAdminAuditExport = (exportId: string) =>
-  request<WorkAuditExport>(
-    `/admin/audit-exports/${encodeURIComponent(exportId)}`
-  )
+  unwrap<WorkAuditExport>(api().getAuditExport({ path: { exportId } }))
 
 export const createAdminAuditExportTicket = (exportId: string) =>
-  request<{ token: string }>(
-    `/admin/audit-exports/${encodeURIComponent(exportId)}/download-ticket`,
-    { method: 'POST' }
+  unwrap<{ token: string }>(
+    api().createAuditExportTicket({ path: { exportId } })
   )
 
+/**
+ * The ticket comes from the generated operation; the download itself must stay a raw fetch because
+ * the caller turns the body into a Blob for the browser's save dialog - reading it as text through
+ * the generated parser would re-encode the bytes the export worker wrote.
+ */
 export const downloadAdminAuditExport = async (exportId: string) => {
   const { token } = await createAdminAuditExportTicket(exportId)
   const response = await fetch(
-    `${BASE}/admin/audit-exports/${encodeURIComponent(exportId)}/content`,
+    fillPath(contractPath('getAuditExportContent'), { exportId }),
     {
       credentials: 'same-origin',
       headers: { 'X-Download-Token': token },
@@ -365,39 +446,37 @@ import type {
 } from './types'
 
 export const setAdminProviderConfig = (body: WorkProviderConfigInput) =>
-  request<WorkProviderConfig>('/admin/provider-config', {
-    method: 'PUT',
-    body: JSON.stringify(body),
-  })
+  unwrap<WorkProviderConfig>(api().setProviderConfig({ body }))
 
 export const revokeAdminProviderConfig = (body: WorkProviderRevokeInput) =>
-  request<WorkProviderRevoked>('/admin/provider-config/revoke', {
-    method: 'POST',
-    body: JSON.stringify(body),
-  })
+  unwrap<WorkProviderRevoked>(api().revokeProviderConfig({ body }))
 
 export const createAdminProviderCredential = (
   body: WorkProviderCredentialInput
-) =>
-  request<WorkProviderCredential>('/admin/provider-credentials', {
-    method: 'POST',
-    body: JSON.stringify(body),
-  })
+) => unwrap<WorkProviderCredential>(api().createProviderCredential({ body }))
 
 export const rotateAdminProviderCredential = (
   credentialId: string,
   body: WorkProviderCredentialRotateInput
 ) =>
-  request<WorkProviderCredential>(
-    `/admin/provider-credentials/${encodeURIComponent(credentialId)}/rotate`,
-    { method: 'POST', body: JSON.stringify(body) }
+  unwrap<WorkProviderCredential>(
+    api().rotateProviderCredential({ path: { credentialId }, body })
   )
 
 export const revokeAdminProviderCredential = (
   credentialId: string,
   body: WorkProviderRevokeInput
 ) =>
-  request<WorkCredentialRevoked>(
-    `/admin/provider-credentials/${encodeURIComponent(credentialId)}/revoke`,
-    { method: 'POST', body: JSON.stringify(body) }
+  unwrap<WorkCredentialRevoked>(
+    api().revokeProviderCredential({ path: { credentialId }, body })
   )
+
+/** Raw-JSON fetch for the deep link above; refusals keep the app's error shape. */
+async function fetchWithEnvelope(path: string): Promise<{ data: unknown }> {
+  const response = await fetch(path, {
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json' },
+  })
+  if (!response.ok) throw await parseError(response)
+  return { data: await response.json() }
+}

@@ -89,39 +89,39 @@ export type WorkClient = {
   /** POST /work/v1/task-previews - 解析输入/模板/权限/token 配额，返回执行边界与 preview_hash */
   createTaskPreview(params: { body: Schemas["TaskPreviewRequest"]; signal?: AbortSignal }): Promise<WorkResponse<Schemas["TaskPreview"]>>;
   /** GET /work/v1/tasks - 本人可见的任务摘要 */
-  listTasks(params: { "view"?: string; "cursor"?: string; "limit"?: number; signal?: AbortSignal }): Promise<WorkResponse<Schemas["TaskPage"]>>;
+  listTasks(params?: { query?: { "view"?: string; "cursor"?: string; "limit"?: number }; signal?: AbortSignal }): Promise<WorkResponse<Schemas["TaskPage"]>>;
   /** POST /work/v1/tasks - 幂等提交 Task 与首个 Run */
   submitTask(params: { body: Schemas["TaskSubmitRequest"]; signal?: AbortSignal }): Promise<WorkResponse<Schemas["TaskRun"]>>;
   /** GET /work/v1/tasks/{taskId} - 任务详情（摘要、输入、模板） */
-  getTask(params: { "taskId": string; signal?: AbortSignal }): Promise<WorkResponse<Schemas["TaskDetail"]>>;
+  getTask(params: { path: { "taskId": string }; signal?: AbortSignal }): Promise<WorkResponse<Schemas["TaskDetail"]>>;
   /** PATCH /work/v1/tasks/{taskId} - 编辑任务标题（乐观并发）；只改元数据，不影响 Run/快照/成果 */
-  updateTask(params: { "taskId": string; body: Schemas["TaskUpdateRequest"]; signal?: AbortSignal }): Promise<WorkResponse<Schemas["TaskSummary"]>>;
+  updateTask(params: { path: { "taskId": string }; body: Schemas["TaskUpdateRequest"]; signal?: AbortSignal }): Promise<WorkResponse<Schemas["TaskSummary"]>>;
   /** DELETE /work/v1/tasks/{taskId} - 删除本人任务（需静止）；成果/输入不可再读，正文异步粉碎，账本与审计保留 */
-  deleteTask(params: { "taskId": string; "expected_revision"?: string; signal?: AbortSignal }): Promise<WorkResponse<Schemas["TaskDeletion"]>>;
+  deleteTask(params: { path: { "taskId": string }; query?: { "expected_revision"?: number }; signal?: AbortSignal }): Promise<WorkResponse<Schemas["TaskDeletion"]>>;
   /** POST /work/v1/tasks/{taskId}/runs - 创建新 Run；沿用 Task 当前快照 */
-  retryTask(params: { "taskId": string; body: Schemas["TaskRunRequest"]; signal?: AbortSignal }): Promise<WorkResponse<Schemas["TaskRun"]>>;
+  retryTask(params: { path: { "taskId": string }; body: Schemas["TaskRunRequest"]; signal?: AbortSignal }): Promise<WorkResponse<Schemas["TaskRun"]>>;
   /** GET /work/v1/runs/{runId} - 运行状态与等待/终态原因 */
-  getRun(params: { "runId": string; signal?: AbortSignal }): Promise<WorkResponse<Schemas["Run"]>>;
+  getRun(params: { path: { "runId": string }; signal?: AbortSignal }): Promise<WorkResponse<Schemas["Run"]>>;
   /** GET /work/v1/runs/{runId}/operations - 运行中的 Operation（不含正文） */
-  listOperations(params: { "runId": string; "cursor"?: string; "limit"?: number; signal?: AbortSignal }): Promise<WorkResponse<Schemas["OperationPage"]>>;
+  listOperations(params: { path: { "runId": string }; query?: { "cursor"?: string; "limit"?: number }; signal?: AbortSignal }): Promise<WorkResponse<Schemas["OperationPage"]>>;
   /** POST /work/v1/runs/{runId}/cancel - 幂等请求取消；不谎报进程已停止 */
-  cancelRun(params: { "runId": string; body: Schemas["CancelRequest"]; signal?: AbortSignal }): Promise<WorkResponse<Schemas["Run"]>>;
+  cancelRun(params: { path: { "runId": string }; body: Schemas["CancelRequest"]; signal?: AbortSignal }): Promise<WorkResponse<Schemas["Run"]>>;
   /** GET /work/v1/tasks/{taskId}/events - Task SSE；Last-Event-ID 恢复 */
-  streamTaskEvents(params: { "taskId": string; "Last-Event-ID"?: string; signal?: AbortSignal }): Promise<WorkStreamResponse>;
+  streamTaskEvents(params: { path: { "taskId": string }; headers?: { "Last-Event-ID"?: string }; signal?: AbortSignal }): Promise<WorkStreamResponse>;
   /** GET /work/v1/inbox - 跨 Task“需要你”只读投影；R0a 轮询 */
-  listInbox(params: { "cursor"?: string; "limit"?: number; signal?: AbortSignal }): Promise<WorkResponse<Schemas["InboxPage"]>>;
+  listInbox(params?: { query?: { "cursor"?: string; "limit"?: number }; signal?: AbortSignal }): Promise<WorkResponse<Schemas["InboxPage"]>>;
   /** POST /work/v1/artifacts/{artifactId}/versions - 用户保存文本新版本；不覆盖旧版本 */
-  createArtifactVersion(params: { "artifactId": string; body: Schemas["ArtifactVersionCreateRequest"]; signal?: AbortSignal }): Promise<WorkResponse<Schemas["ArtifactVersion"]>>;
+  createArtifactVersion(params: { path: { "artifactId": string }; body: Schemas["ArtifactVersionCreateRequest"]; signal?: AbortSignal }): Promise<WorkResponse<Schemas["ArtifactVersion"]>>;
   /** GET /work/v1/artifacts/{artifactId}/versions/{versionNo} - 版本元数据与受控内容入口 */
-  getArtifactVersion(params: { "artifactId": string; "versionNo": number; signal?: AbortSignal }): Promise<WorkResponse<Schemas["ArtifactVersion"]>>;
+  getArtifactVersion(params: { path: { "artifactId": string; "versionNo": number }; signal?: AbortSignal }): Promise<WorkResponse<Schemas["ArtifactVersion"]>>;
   /** GET /work/v1/artifacts/{artifactId}/versions/{versionNo}/content - 受控正文读取/下载；不缓存、不写日志；attachment 记审计 */
-  getArtifactContent(params: { "artifactId": string; "versionNo": number; "disposition"?: string; signal?: AbortSignal }): Promise<WorkResponse<string>>;
+  getArtifactContent(params: { path: { "artifactId": string; "versionNo": number }; query?: { "disposition"?: string }; signal?: AbortSignal }): Promise<WorkResponse<string>>;
   /** POST /work/v1/tasks/{taskId}/acceptances - 采纳固定版本或记录完成理由 */
-  acceptTask(params: { "taskId": string; body: Schemas["AcceptanceRequest"]; signal?: AbortSignal }): Promise<WorkResponse<Schemas["AcceptanceResult"]>>;
+  acceptTask(params: { path: { "taskId": string }; body: Schemas["AcceptanceRequest"]; signal?: AbortSignal }): Promise<WorkResponse<Schemas["AcceptanceResult"]>>;
   /** GET /work/v1/me/usage - 当前用户自己的 token 用量（只读本人，跨用户返回 403） */
-  getUserUsage(params: { "from"?: string; "to"?: string; signal?: AbortSignal }): Promise<WorkResponse<Schemas["UserUsage"]>>;
+  getUserUsage(params?: { query?: { "from"?: string; "to"?: string }; signal?: AbortSignal }): Promise<WorkResponse<Schemas["UserUsage"]>>;
   /** GET /work/v1/admin/usage - 组织按模型分列的 token 用量（owner/admin） */
-  getAdminUsage(params: { "from"?: string; "to"?: string; signal?: AbortSignal }): Promise<WorkResponse<Schemas["OrgUsage"]>>;
+  getAdminUsage(params?: { query?: { "from"?: string; "to"?: string }; signal?: AbortSignal }): Promise<WorkResponse<Schemas["OrgUsage"]>>;
   /** GET /work/v1/admin/provider-config - 本组织当前生效的大模型接入配置（仅 owner） */
   getProviderConfig(params?: { signal?: AbortSignal }): Promise<WorkResponse<Schemas["ProviderConfigView"]>>;
   /** PUT /work/v1/admin/provider-config - 切换本组织的大模型接入配置（仅 owner，版本化） */
@@ -131,21 +131,21 @@ export type WorkClient = {
   /** POST /work/v1/admin/provider-credentials - 为本组织创建大模型凭证（仅 owner；只写不回读） */
   createProviderCredential(params: { body: Schemas["ProviderCredentialCreateRequest"]; signal?: AbortSignal }): Promise<WorkResponse<Schemas["ProviderCredentialView"]>>;
   /** POST /work/v1/admin/provider-credentials/{credentialId}/rotate - 轮换托管 Key（仅 owner；新版本立即生效） */
-  rotateProviderCredential(params: { "credentialId": string; body: Schemas["ProviderCredentialRotateRequest"]; signal?: AbortSignal }): Promise<WorkResponse<Schemas["ProviderCredentialView"]>>;
+  rotateProviderCredential(params: { path: { "credentialId": string }; body: Schemas["ProviderCredentialRotateRequest"]; signal?: AbortSignal }): Promise<WorkResponse<Schemas["ProviderCredentialView"]>>;
   /** POST /work/v1/admin/provider-credentials/{credentialId}/revoke - 即时吊销凭证（仅 owner；在途调用以受控错误结束） */
-  revokeProviderCredential(params: { "credentialId": string; body: Schemas["ProviderRevokeRequest"]; signal?: AbortSignal }): Promise<WorkResponse<Schemas["ProviderCredentialRevoked"]>>;
+  revokeProviderCredential(params: { path: { "credentialId": string }; body: Schemas["ProviderRevokeRequest"]; signal?: AbortSignal }): Promise<WorkResponse<Schemas["ProviderCredentialRevoked"]>>;
   /** GET /work/v1/admin/overview - 当前主组织的治理元数据，不返回成员正文 */
   getAdminOverview(params?: { signal?: AbortSignal }): Promise<WorkResponse<Schemas["AdminOverview"]>>;
   /** GET /work/v1/admin/seats - 只读席位列表 */
-  listSeats(params: { "cursor"?: string; "limit"?: number; signal?: AbortSignal }): Promise<WorkResponse<Schemas["SeatPage"]>>;
+  listSeats(params?: { query?: { "cursor"?: string; "limit"?: number }; signal?: AbortSignal }): Promise<WorkResponse<Schemas["SeatPage"]>>;
   /** POST /work/v1/admin/audit-exports - 创建异步审计导出作业（202 受理，正文由 worker 写入 Content Store） */
   createAuditExport(params: { body: Schemas["AuditExportRequest"]; signal?: AbortSignal }): Promise<WorkResponse<Schemas["AuditExport"]>>;
   /** GET /work/v1/admin/audit-exports/{exportId} - 查询审计导出作业状态 */
-  getAuditExport(params: { "exportId": string; signal?: AbortSignal }): Promise<WorkResponse<Schemas["AuditExport"]>>;
+  getAuditExport(params: { path: { "exportId": string }; signal?: AbortSignal }): Promise<WorkResponse<Schemas["AuditExport"]>>;
   /** POST /work/v1/admin/audit-exports/{exportId}/download-ticket - 为已就绪作业发放一次性下载凭证 */
-  createAuditExportTicket(params: { "exportId": string; signal?: AbortSignal }): Promise<WorkResponse<Schemas["AuditExportTicket"]>>;
+  createAuditExportTicket(params: { path: { "exportId": string }; signal?: AbortSignal }): Promise<WorkResponse<Schemas["AuditExportTicket"]>>;
   /** GET /work/v1/admin/audit-exports/{exportId}/content - 用一次性凭证兑换导出文件 */
-  getAuditExportContent(params: { "exportId": string; "X-Download-Token"?: string; signal?: AbortSignal }): Promise<WorkResponse<string>>;
+  getAuditExportContent(params: { path: { "exportId": string }; headers?: { "X-Download-Token"?: string }; signal?: AbortSignal }): Promise<WorkResponse<string>>;
 }
 
 /** The operation table the client is built from, in contract order. */
