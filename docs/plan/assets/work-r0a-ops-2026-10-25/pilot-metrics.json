@@ -1,6 +1,6 @@
 {
   "version": "r0a-pilot-metrics-v1",
-  "window_days": 28,
+  "window_days": 14,
   "source": "work.task_event (content-free) + work.member seats; computed per org_id, never per user in dashboards",
   "producer": "src/work/scripts/pilot-metrics.sql (read-only SQL, executed by internal/api/pilot_metrics_sql_pg_test.go)",
   "event_types": [
@@ -22,12 +22,12 @@
       "go_gate": true
     },
     "technical_success_rate": {
-      "definition": "run.succeeded / (run.succeeded + run.failed); user-canceled runs are excluded",
+      "definition": "run.succeeded / (run.succeeded + run.failed) for tasks submitted in the 14-day pilot window; user-canceled runs are excluded (#32 A - window-scoped like activation)",
       "target": 0.95,
       "go_gate": true
     },
     "acceptance_rate": {
-      "definition": "tasks with task.completed basis=version / tasks that reached task.awaiting_acceptance",
+      "definition": "tasks with task.completed basis=version / tasks that reached task.awaiting_acceptance, both scoped to tasks submitted in the 14-day pilot window (#32 A - window-scoped like activation)",
       "target": 0.6,
       "go_gate": true
     },

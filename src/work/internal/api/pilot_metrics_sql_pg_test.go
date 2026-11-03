@@ -249,20 +249,18 @@ func TestPilotMetricsSQLCountsTheFunnelAndHonoursEventOrder(t *testing.T) {
 	if v := value(later, "artifact_success_rate"); v != nil {
 		t.Fatalf("artifact_success_rate with an empty submit window = %v, want NULL", *v)
 	}
-	// The two assertions below are deliberately the *opposite* of window-sensitive: pilot-metrics.json
-	// scopes only activation ("within 14 days of the org flag turning on") and defines
-	// technical_success_rate and acceptance_rate over recorded history with no window. So emptying the
-	// submit window must leave them at their previous values, which is what this file is signed to
-	// measure. That asymmetry is a real question - a go_gate ratio computed over all history next to a
-	// 14-day activation window - but changing it changes gate semantics, so it is reported rather than
-	// quietly redefined here (see docs/plan/work-project.md, 2026-11-03).
-	if v := value(later, "acceptance_rate"); v == nil || *v != 0.6667 {
-		t.Fatalf("acceptance_rate with an empty submit window = %v, want 0.6667 unchanged: "+
-			"pilot-metrics.json does not window this ratio, so the SQL must not either", v)
+	// #32 (adjudicated A, 2026-11-03): the two ratio go_gates are now window-scoped on the same basis
+	// as activation and artifact_success_rate. Emptying the submit window must therefore empty their
+	// denominators too - the opposite of the previous full-history behaviour, which this assertion
+	// used to pin. A NULL here is a live proof the window governs the gates: if the SQL regressed to
+	// full history, these would return their in-window values (0.6667 / 0.5) instead of NULL.
+	if v := value(later, "acceptance_rate"); v != nil {
+		t.Fatalf("acceptance_rate with an empty submit window = %v, want NULL: #32 A windows this gate to "+
+			"tasks submitted in the pilot window, so an empty window must empty the denominator", *v)
 	}
-	if v := value(later, "technical_success_rate"); v == nil || *v != 0.5 {
-		t.Fatalf("technical_success_rate with an empty submit window = %v, want 0.5 unchanged (same "+
-			"reason as acceptance_rate)", *v)
+	if v := value(later, "technical_success_rate"); v != nil {
+		t.Fatalf("technical_success_rate with an empty submit window = %v, want NULL (same windowed basis "+
+			"as acceptance_rate)", *v)
 	}
 
 	// Same file, other organization: task D's full life cycle must be the only thing visible, and
@@ -300,6 +298,112 @@ func TestPilotMetricsSQLCountsTheFunnelAndHonoursEventOrder(t *testing.T) {
 		"reason=%v continued=%v", num(orgA, "activation"), *value(orgA, "technical_success_rate"),
 		*value(orgA, "artifact_success_rate"), *value(orgA, "acceptance_rate"),
 		*value(orgA, "reason_completion_share"), *value(orgA, "continued_after_acceptance"))
+}
+
+// #32 (adjudicated A, 2026-11-03): independent proof that the windowed go_gates exclude out-of-window
+// tasks SELECTIVELY, not just when the whole window is empty. The main test checks all-in and all-out;
+// here an in-window task and an out-of-window task coexist in the same org, so the exclusion has to be
+// per-task. It also pins that continued_after_acceptance (go_gate=false) still sees the out-of-window
+// task's acceptance on full history - the contrast with acceptance_rate, which drops it.
+func TestPilotMetricsSQLWindowSelectivelyExcludesOutOfWindowTasks(t *testing.T) {
+	if testpg.AdminURL() == "" {
+		t.Skip("WORK_TEST_PG_URL is not set")
+	}
+	_, dbName := newBootstrapDB(t, true, true)
+	seedTaskGraph(t, dbName)
+	ctx := context.Background()
+	conn, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+
+	const (
+		taskA = "11111111-1111-4111-8111-111111111111" // stays in window (created now)
+		taskB = "11111111-1111-4111-8111-222222222222" // pushed before the window
+	)
+
+	// taskA: a succeeded run, awaiting acceptance, never accepted - in window.
+	appendEvent(t, conn, "org_a", taskA, "run.succeeded", `{"run_id":"21111111-1111-4111-8111-111111111111"}`)
+	appendEvent(t, conn, "org_a", taskA, "task.awaiting_acceptance", `{}`)
+	// taskB: a failed run, awaiting, accepted by version - all its events exist, but the task row is
+	// then pushed out of the window, so the windowed gates must drop it while a full-history metric
+	// keeps counting it.
+	appendEvent(t, conn, "org_a", taskB, "run.failed", `{"terminal_reason":"model_error"}`)
+	appendEvent(t, conn, "org_a", taskB, "task.awaiting_acceptance", `{}`)
+	appendEvent(t, conn, "org_a", taskB, "task.completed", `{"basis":"version","version_no":1}`)
+
+	useAppOrg(t, conn, "org_a")
+	if _, err := conn.Exec(ctx,
+		`UPDATE work.task SET created_at = now() - interval '30 days' WHERE id = $1`, taskB); err != nil {
+		t.Fatalf("pushing taskB out of window: %v", err)
+	}
+	if _, err := conn.Exec(ctx, `SELECT set_config('work.org_id', 'org_a', false)`); err != nil {
+		t.Fatal(err)
+	}
+	enabledAt := time.Now().UTC().Add(-time.Hour)
+	if _, err := conn.Exec(ctx, `SELECT set_config('work.pilot_enabled_at', $1, false)`,
+		enabledAt.Format(time.RFC3339)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec(ctx, `SELECT set_config('work.activation_threshold', '3', false)`); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := conn.Query(ctx, readMetricsSQL(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	got := map[string][3]*float64{}
+	for rows.Next() {
+		var metric string
+		var n, d, v *float64
+		if err := rows.Scan(&metric, &n, &d, &v); err != nil {
+			t.Fatal(err)
+		}
+		got[metric] = [3]*float64{n, d, v}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	den := func(m string) float64 {
+		t.Helper()
+		row, ok := got[m]
+		if !ok || row[1] == nil {
+			t.Fatalf("%s has no denominator (got %v)", m, keys(got))
+		}
+		return *row[1]
+	}
+	val := func(m string) *float64 {
+		t.Helper()
+		row, ok := got[m]
+		if !ok {
+			t.Fatalf("%s missing from result (got %v)", m, keys(got))
+		}
+		return row[2]
+	}
+
+	// Only the in-window taskA succeeded survives -> 1/1 = 1.0; full history would be 0.5.
+	if v := val("technical_success_rate"); v == nil || *v != 1 {
+		t.Fatalf("technical_success_rate = %v, want 1.0: the out-of-window taskB failed run must drop "+
+			"out of the gate (full history would give 0.5)", v)
+	}
+	// taskB's acceptance is out of window (numerator 0) but taskA still awaits (denominator 1) -> 0.0;
+	// full history would be 0.5 (accepted 1 / awaiting 2).
+	if v := val("acceptance_rate"); v == nil || *v != 0 {
+		t.Fatalf("acceptance_rate = %v, want 0.0: out-of-window taskB is excluded from the numerator "+
+			"while in-window taskA holds the denominator", v)
+	}
+	if d := den("acceptance_rate"); d != 1 {
+		t.Fatalf("acceptance_rate denominator = %v, want 1 (only in-window taskA awaits)", d)
+	}
+	// The full-history metric still counts taskB's acceptance, proving the gate/window separation
+	// is per-metric, not a blanket event filter.
+	if d := den("continued_after_acceptance"); d != 1 {
+		t.Fatalf("continued_after_acceptance denominator = %v, want 1: it counts the full-history "+
+			"accepted set, so it must still see out-of-window taskB unlike acceptance_rate", d)
+	}
 }
 
 func keys(m map[string][3]*float64) []string {

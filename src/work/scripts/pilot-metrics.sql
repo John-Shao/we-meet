@@ -27,9 +27,9 @@
 --
 -- metric                            numerator                          denominator            value
 -- activation                        distinct submitters in window       threshold              1 when reached, else 0
--- technical_success_rate            runs that ended succeeded            succeeded + failed     ratio (run-outcome form)
+-- technical_success_rate            runs that ended succeeded (task in window)  succeeded + failed   ratio (run-outcome form)
 -- artifact_success_rate             submitted tasks with a published version   tasks submitted in window   ratio (D5 §10 form)
--- acceptance_rate                   tasks accepted by version            tasks that awaited acceptance   ratio
+-- acceptance_rate                   tasks accepted by version (in window)        tasks that awaited acceptance (in window)   ratio
 -- reason_completion_share           completions without a version        all completions        ratio (high = output unused)
 -- continued_after_acceptance        accepted tasks with later activity   accepted tasks         ratio
 -- time_to_first_artifact_p50_seconds  -                                  -                      median seconds, submit to first publish
@@ -80,6 +80,7 @@ run_terms AS (
     count(*) FILTER (WHERE type = 'run.succeeded') AS succeeded,
     count(*) FILTER (WHERE type = 'run.failed') AS failed
   FROM ev
+  WHERE task_id IN (SELECT task_id FROM submitted)
 ),
 awaiting AS (
   SELECT DISTINCT task_id FROM ev WHERE type = 'task.awaiting_acceptance'
@@ -88,6 +89,21 @@ accepted AS (
   SELECT task_id, min(seq) AS accepted_seq
   FROM ev
   WHERE type = 'task.completed' AND payload ->> 'basis' = 'version'
+  GROUP BY task_id
+),
+-- #32 (adjudicated A, 2026-11-03): the ratio go_gates are scoped to the pilot window on the same
+-- basis as activation and artifact_success_rate - a run outcome or acceptance for a task submitted
+-- outside the window must not dilute the gate. continued_after_acceptance below still uses the full
+-- accepted set, since it is a go_gate=false observational metric, not one of the four window-scoped
+-- gates. awaiting_w/accepted_w exist for exactly that separation.
+awaiting_w AS (
+  SELECT DISTINCT task_id FROM ev
+  WHERE type = 'task.awaiting_acceptance' AND task_id IN (SELECT task_id FROM submitted)
+),
+accepted_w AS (
+  SELECT task_id FROM ev
+  WHERE type = 'task.completed' AND payload ->> 'basis' = 'version'
+    AND task_id IN (SELECT task_id FROM submitted)
   GROUP BY task_id
 ),
 completions AS (
@@ -144,10 +160,10 @@ SELECT 'artifact_success_rate',
          / (SELECT count(*) FROM submitted), 4) END
 UNION ALL
 SELECT 'acceptance_rate',
-  (SELECT count(*) FROM accepted), (SELECT count(*) FROM awaiting),
-  CASE WHEN (SELECT count(*) FROM awaiting) = 0 THEN NULL
-       ELSE round((SELECT count(*) FROM accepted)::numeric
-         / (SELECT count(*) FROM awaiting), 4) END
+  (SELECT count(*) FROM accepted_w), (SELECT count(*) FROM awaiting_w),
+  CASE WHEN (SELECT count(*) FROM awaiting_w) = 0 THEN NULL
+       ELSE round((SELECT count(*) FROM accepted_w)::numeric
+         / (SELECT count(*) FROM awaiting_w), 4) END
 UNION ALL
 SELECT 'reason_completion_share', c.by_reason, c.all_completions,
   CASE WHEN c.all_completions = 0 THEN NULL
