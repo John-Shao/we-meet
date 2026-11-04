@@ -1,0 +1,85 @@
+### D1-alt start 2026-11-04T19:36:09+08:00
+== quota period of the currently held reservation (record only) ==
+res=1c1e565b-719e-4456-9f67-2456e827a532 state=held period=2026-11 limit=1000000 reserved=100000
+== temporal pod before ==
+temporal-server-787478d8c8-6dj5r   1/1   Running   0     7d9h   10.42.0.46   lavm-t7fmveau9b   <none>   <none>
+before: temporal-server-787478d8c8-6dj5r 10.42.0.46 2026-10-28T01:55:22Z
+== seed an in-flight run ==
+seed pid=1689325 binary=/usr/local/bin/work-e2e-seed-max4096 boundary=2026-11-04 19:36:09.583929+08
+INFLIGHT run=156506b6-5025-48f7-8d77-8c5bf6370006 state=queued poll=1
+run=156506b6-5025-48f7-8d77-8c5bf6370006
+claimed (state=active) at poll=4
+pre-inject run_state=active attempt=1 fence=2 ctrl_rev=1 updated=19:36:10.543
+pre-inject runs_for_task=1
+pre-inject ops=1 states=dispatching
+pre-inject deliveries=0 gates=-
+pre-inject exec=plan=completed , execute=active
+== inject: delete the single temporal-server pod (2026-11-04T19:36:10+08:00) ==
+pod "temporal-server-787478d8c8-6dj5r" deleted from work namespace
+delete issued rc=0 at 2026-11-04T19:36:11+08:00
+-- pods at +3s --
+temporal-server-787478d8c8-2h95v   0/1   Running   0     3s    10.42.0.47   lavm-t7fmveau9b   <none>   <none>
+t+3s run_state=active attempt=1 fence=2 ctrl_rev=1 updated=19:36:10.543
+t+3s runs_for_task=1
+t+3s ops=1 states=dispatching
+t+3s deliveries=1 gates=consumed
+t+3s exec=plan=completed , execute=active
+-- pods at +15s --
+temporal-server-787478d8c8-2h95v   0/1   Running   0     15s   10.42.0.47   lavm-t7fmveau9b   <none>   <none>
+t+15s run_state=active attempt=1 fence=2 ctrl_rev=1 updated=19:36:10.543
+t+15s runs_for_task=1
+t+15s ops=1 states=dispatching
+t+15s deliveries=1 gates=consumed
+t+15s exec=plan=completed , execute=active
+== wait for the replacement pod to be Ready ==
+pod/temporal-server-787478d8c8-2h95v condition met
+after: temporal-server-787478d8c8-2h95v 10.42.0.47 2026-11-04T11:36:11Z
+post-ready run_state=active attempt=1 fence=2 ctrl_rev=1 updated=19:36:10.543
+post-ready runs_for_task=1
+post-ready ops=1 states=dispatching
+post-ready deliveries=1 gates=receipt_recorded
+post-ready exec=plan=completed , execute=active
+== observe recovery for 120s ==
+--- watch 1 2026-11-04T19:36:42+08:00 ---
+w1 run_state=active attempt=1 fence=2 ctrl_rev=1 updated=19:36:10.543
+w1 runs_for_task=1
+w1 ops=1 states=dispatching
+w1 deliveries=1 gates=receipt_recorded
+w1 exec=plan=completed , execute=active
+--- watch 2 2026-11-04T19:37:02+08:00 ---
+w2 run_state=active attempt=1 fence=2 ctrl_rev=1 updated=19:36:10.543
+w2 runs_for_task=1
+w2 ops=1 states=dispatching
+w2 deliveries=1 gates=receipt_recorded
+w2 exec=plan=completed , execute=active
+--- watch 3 2026-11-04T19:37:22+08:00 ---
+w3 run_state=active attempt=1 fence=2 ctrl_rev=1 updated=19:36:10.543
+w3 runs_for_task=1
+w3 ops=1 states=dispatching
+w3 deliveries=1 gates=receipt_recorded
+w3 exec=plan=completed , execute=active
+--- watch 4 2026-11-04T19:37:42+08:00 ---
+w4 run_state=active attempt=1 fence=2 ctrl_rev=1 updated=19:36:10.543
+w4 runs_for_task=1
+w4 ops=1 states=dispatching
+w4 deliveries=1 gates=receipt_recorded
+w4 exec=plan=completed , execute=active
+--- watch 5 2026-11-04T19:38:03+08:00 ---
+w5 run_state=active attempt=1 fence=2 ctrl_rev=1 updated=19:36:10.543
+w5 runs_for_task=1
+w5 ops=1 states=dispatching
+w5 deliveries=1 gates=receipt_recorded
+w5 exec=plan=completed , execute=active
+--- watch 6 2026-11-04T19:38:23+08:00 ---
+w6 run_state=active attempt=1 fence=2 ctrl_rev=1 updated=19:36:10.543
+w6 runs_for_task=1
+w6 ops=1 states=dispatching
+w6 deliveries=1 gates=receipt_recorded
+w6 exec=plan=completed , execute=active
+-- worker journal during outage/recovery (last 14) --
+Nov 04 19:36:12 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 19:36:12 WARN  Failed to poll for task. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 
+Nov 04 19:36:12 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 19:36:12 WARN  Failed to poll for task. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 
+Nov 04 19:36:12 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 19:36:12 WARN  Failed to poll for task. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 
+Nov 04 19:36:12 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 19:36:12 WARN  Failed to poll for task. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 
+Nov 04 19:36:36 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 19:36:36 INFO  Task processing failed with error Namespace work-r0a TaskQueue work-r0a-run WorkerID work-
+### D1-alt end 2026-11-04T19:38:43+08:00 RUN=156506b6-5025-48f7-8d77-8c5bf6370006

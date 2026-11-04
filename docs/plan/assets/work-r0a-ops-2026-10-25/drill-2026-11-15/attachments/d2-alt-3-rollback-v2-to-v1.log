@@ -1,0 +1,75 @@
+### D2-alt stage D (rollback v2->v1) start 2026-11-04T19:25:22+08:00
+before: installed=33a6c7dfdd175c93 backup=9ae58c067b4a5103
+== temporal env (paths only, no credentials) ==
+WORK_TEMPORAL_ADDRESS=10.43.147.249:7233
+WORK_TEMPORAL_NAMESPACE=work-r0a
+WORK_TEMPORAL_SERVER_NAME=temporal-server
+WORK_ADVANCE_SERVER_NAME=work-runtime
+/usr/local/bin/temporal
+== temporal view of the parked workflow (read-only) ==
+{
+  "executionConfig": {
+    "taskQueue": {
+      "name": "work-r0a-run",
+      "kind": "TASK_QUEUE_KIND_NORMAL"
+    },
+    "workflowExecutionTimeout": "0s",
+    "workflowRunTimeout": "0s",
+    "defaultWorkflowTaskTimeout": "10s"
+  },
+  "workflowExecutionInfo": {
+    "execution": {
+      "workflowId": "run:3233ef74-0453-407c-bf32-51d5b0d0f333",
+      "runId": "3a2910af-3685-4dbc-a929-01e24b05a663"
+    },
+    "type": {
+      "name": "RunWorkflowAdvance"
+    },
+    "startTime": "2026-11-04T11:22:05.483638190Z",
+    "status": "WORKFLOW_EXECUTION_STATUS_RUNNING",
+    "historyLength": "23",
+    "executionTime": "2026-11-04T11:22:05.483638190Z",
+    "memo": {},
+    "searchAttributes": {
+      "indexedFields": {
+        "BuildIds": {
+          "metadata": {
+            "encoding": "anNvbi9wbGFpbg==",
+            "type": "S2V5d29yZExpc3Q="
+          },
+          "data": "WyJ1bnZlcnNpb25lZCIsInVu
+== swap binary back to v1 ==
+installed sha256=9ae58c067b4a5103c951a3f932bf400a3c27915fc00787df6a8c3427c1846435
+pid=1687359 active=active exe=9ae58c067b4a5103
+Nov 04 19:25:22 lavm-t7fmveau9b systemd[1]: Started work-worker.service - Work RunWorkflow worker (pilot runtime).
+Nov 04 19:25:22 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 19:25:22 work worker started mode=reference queue=work-r0a-run
+Nov 04 19:25:22 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 19:25:22 DEBUG Worker heartbeating configured, but server version does not support it
+Nov 04 19:25:22 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 19:25:22 INFO  Started Worker Namespace work-r0a TaskQueue work-r0a-run WorkerID work
+== seeded run under v1 ==
+seed pid=1687399 binary=/usr/local/bin/work-e2e-seed boundary=2026-11-04 19:25:25.680101+08
+INFLIGHT run=e33a08b8-ae22-4dd2-9741-64ecfaa65377 state=queued poll=1
+R4=e33a08b8-ae22-4dd2-9741-64ecfaa65377
+== did v1 re-claim the parked execution? ==
+ERROR:  syntax error at or near "1"
+LINE 1: select 'poll='1' '||'parked state='||r.state||' updated='||t...
+                      ^
+ERROR:  syntax error at or near "2"
+LINE 1: select 'poll='2' '||'parked state='||r.state||' updated='||t...
+                      ^
+ERROR:  syntax error at or near "3"
+LINE 1: select 'poll='3' '||'parked state='||r.state||' updated='||t...
+                      ^
+ERROR:  syntax error at or near "4"
+LINE 1: select 'poll='4' '||'parked state='||r.state||' updated='||t...
+                      ^
+ERROR:  syntax error at or near "5"
+LINE 1: select 'poll='5' '||'parked state='||r.state||' updated='||t...
+                      ^
+ERROR:  syntax error at or near "6"
+LINE 1: select 'poll='6' '||'parked state='||r.state||' updated='||t...
+                      ^
+== R4 terminal check ==
+R4 terminal=succeeded poll=1
+R4=e33a08b8-ae22-4dd2-9741-64ecfaa65377 state=succeeded attempt=1 fence=2 v=pi-1.4.0-r0a
+R4 exec modes/holders=plan:work-worker-plan:e55480c4-5a9d-4a73-babd-93a0c3d35ca2 | execute:work-parent-1:9e0164ca6401f78401c22fe14e0b66fc
+### stage D end 2026-11-04T19:26:26+08:00

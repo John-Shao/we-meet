@@ -26,6 +26,71 @@
 
 任一 P 未通过 → 改期并通知 DR2。
 
+## 0A. 日期不是约束：2026-11-04 重排与四处前提更正（实测）
+
+主签 2026-11-04 明确「不要卡在日期上，可以提前收，日期可以改」。当日在试点主机做的只读测量给出结论：
+**这套清单的问题不是日历，是四行前提写错了**——照原文执行会得到假通过或造成事故，所以先改前提、再改日期。
+
+| 项 | 原文前提 | 2026-11-04 实测 | 重排 |
+|---|---|---|---|
+| D1 多节点拓扑滚动重启 | Temporal ≥2 副本、可跨节点 | k3s `work` 命名空间里**只有 1 个 pod**：`temporal-server-787478d8c8-6dj5r`（AGE 7d8h，单副本 Deployment，镜像 `docker.io/temporalio/auto-setup:1.25.0`，ClusterIP `10.43.147.249:7233`）；这台机就是那个唯一节点 | **不能按原文演**。要么先 `kubectl scale deployment/temporal-server -n work --replicas=2`（生产变更，需逐次授权）——但那是**同节点两 pod**，只能算「多副本」不算「多节点」，写结论时必须区分；要么把 D1 改为「单副本重启＋在途 workflow 不丢」（这是现在真能演的），并把「多节点」记为规模化前的重开条件 |
+| D2 Worker drain → 版本切换 | registry 里有 `worker:v1-s2` / `worker:v2-s2` 两个镜像（P7） | **没有任何 worker 镜像**：`crictl images` 里匹配 worker 的镜像数 0、主机无 docker；worker 是 systemd 单元 `work-worker.service`（enabled+active，二进制 `/usr/local/bin/work-worker`，sha16 `9ae58c067b4a5103`） | 前提改成与形态一致：**二进制级版本切换**（v1=现装 sha → v2=从 tip 构建、`sha256sum` 记入 verdict，按 #54=B 的可重放做法）；drain＝停 `work-worker`/相关 timer 让在途 Run 收尾、换二进制、`Restart=always` 拉起、验证不重复派发且不迁移半轮状态。P7 那一行按此重述，不再索要镜像 tag |
+| D3 Temporal PG 故障 | 单独停 Temporal 的 PG 即可 | **一个 PG 实例同时承载 `work`(48 表)、`temporal`、`temporal_visibility`**（`127.0.0.1:5432` 与 `172.16.0.7:5432` 同一集群，`pg_database` 实测三库同实例） | 按原文停 PG＝**同时打掉 Work 自己的数据面**，不是故障注入而是自伤停机。改为两条可安全执行的等价注入：(a) `kubectl delete pod temporal-server-…`（server 层失联，Work 的 PG 不动）；(b) 用 `src/work/deploy/ecs/work-db-restore-drill.py` 走**恢复演练**（S1-R02 的 DB 偏移证据本来就要求的是恢复能力，不是停库）。若仍要真停 PG，必须先约定窗口并逐次授权 |
+| D4 namespace 配额饱和 | 「降低 namespace 配额（rate limit / concurrent workflows）至种子 Run 数 −1」 | 基线现值已取：namespace `work-r0a`（Id `5d81da27-481d-4501-875b-0438b9583f9d`）、`WorkflowExecutionRetentionTtl=168h0m0s`、`Clusters=[{"clusterName":"active"}]` 单集群、History/Visibility 归档 `Disabled`。注意 `-rd` 改的是 **retention**（保留期），不是并发或限流；OSS Temporal 的 namespace 级限流是 actions-per-second 一类 `--global-setting`，而「每 namespace 并发上限」是 Cloud 特性，本部署（Server 1.24.2/镜像 1.25.0）没有它 | 拆成三件，各自可判定：**D4-a kill switch 与义务不停**（SQL `work.apply_execution_entitlement`，今天就能演，见 §5.19/§5.20 与 P6）；**D4-b 配额饱和**改为「用 Work 侧组织额度把 `quota_account` 打到上限→新提交受控失败」（这是 D-08 后真正的饱和闸门，且 §5.17 已记跨期口径），Temporal 侧只保留 retention 调整＋恢复（168h 现值已记）；**D4-c 归档 Disabled** 作为现状记录，不假装验过 |
+| C13 主密钥轮换 | 演练 8 步 | 已按 #40=A／#48=B 移出 R0a 退出门（就地标注仍在） | 保持不执行；关闭条件回到「规模化前／疑似泄露／接对象存储」三重开 |
+| S1/T-31-* 与 11-08 复评 | 等日期 | 复评不依赖外部人，已提前到 **2026-11-04** 当场做 | 见台账「11-08 复评提前」段 |
+
+**新日期建议（不再写「等 11-15」）**：D2 与 D4-a 于 **2026-11-05**（同一台机、单人可执行、需要的是授权不是人手）；D1 的「单副本重启」等价项同日跟做，多副本项等 `--replicas=2` 的裁定；D3 以 (a) pod 删除＋(b) 恢复演练两条替代，排 **2026-11-06**；D4-b/D4-c 与配额跨期核对排 **2026-11-06 下午**。**任一项都需要主签对具体生产写逐次点头**，本表只列动作与代价，不代表已授权。
+
+
+
+## 0B. 重排后的可执行步骤（新 id 与 `verdict.json` 槽位一一对应）
+
+这些 id 来自 §0A 的前提更正，**不是**原文 D1-D4 的替代编号：原行保留供追溯，实际执行与取证落在本表。
+日期为建议窗口，真正的门槛是主签对具体生产写逐次授权。
+
+| 步 | 动作 | 通过判据 | 证据 |
+|---|---|---|---|
+| D4-a | 重排 11-05｜kill switch 与义务不停：以 `work_operator` 经 psql 调 `work.apply_execution_entitlement(p_operator_suspended => true)`，再恢复 | 新提交/新导出停止；relay、到期清扫、目录同步对**已停用 org**仍继续（journal 可见）；恢复后再提交成功 | SQL 回显 + `journalctl -u work-relay -u work-directory-sync` 片段 + `work-reconcile-scan` 一次 summary |
+| D4-b | 重排 11-06｜配额饱和改用 Work 侧组织额度：把该 org 当期 `quota_account.limit_tokens` 调到略高于已预留量，再提交 | 新提交被受控拒绝并给出配额错误码；已有 Run 不被误杀；预留不重复扣减 | `pilot-metrics.sql`/`quota_account` 只读读数 + 被拒响应码（按 §5.2 的特权读或已设 `app.org_id`） |
+| D4-c | 重排 11-06｜现状记录：Temporal namespace `work-r0a` 归档为 Disabled、retention 现值 168h | 只记录不声称验证；若做过 `-rd` 调整必须恢复原值并留下前后 describe | 前后两次 `temporal operator namespace describe` 输出（Id 5d81da27-481d-4501-875b-0438b9583f9d） |
+| D2-alt | 重排 11-05｜版本切换按实际形态做：二进制级（v1=`/usr/local/bin/work-worker` sha16 9ae58c067b4a5103 → v2 从 tip 构建并记 sha），drain 后换装、`Restart=always` 拉起 | 在途 Run 不迁移半轮状态、无重复派发；新 Run 走新版本；无「镜像」前置（本部署无 worker 镜像） | 两版 sha256 + drain 前后 journal + 一条新 Run 的派发记录 |
+| D1-alt | 重排 11-05｜单副本重启等价项：`kubectl delete pod temporal-server-…`（同节点单副本），观察在途 workflow 恢复 | server 重建后在途 Run 不产生第二个 Run、无重复 activity 派发；本行**不得**被写成多节点证据 | `kubectl get pods -o wide` 前后 + temporal history 片段 + D1-4 的特权读数 |
+| D3-a | 重排 11-06｜故障注入改在 server 层：删 pod / 断 ClusterIP 端口，**不停 Postgres** | Work 自身数据面不受影响（同实例承载 work 48 表 + temporal + temporal_visibility，停库即自伤）；Temporal 失联期间义务与告警行为符合 §5.18 | 注入起止时间戳 + 失联期间的错误码计数 + 恢复后 reconcile 结果 |
+| D3-b | 重排 11-06｜DB 偏移证据改走恢复演练：`src/work/deploy/ecs/work-db-restore-drill.py` 在隔离实例回放 | 台账偏移与终态可读回；恢复步骤可重放、有 sha256 与耗时记录 | 演练输出 + 恢复后计数对比 |
+
+
+## 0C. 2026-11-04 夜间执行结果（D4-a／D2-alt／D1-alt 三项已演，其余四项未演）
+
+主签 2026-11-04 当晚授权「今晚全演 D4-a＋D1-alt＋D2-alt」，三项都在试点机 `lavm-t7fmveau9b` 上真做过。逐格判定写在
+[verdict.json](assets/work-r0a-ops-2026-10-25/drill-2026-11-15/verdict.json)（`summary` 现为 pass 15／fail 3／na 9／总 76），
+原始日志在同目录 `attachments/`。这一节只记**对清单本身的反向更正**——演练最大的产出不是绿灯，而是原文有九处前提与代码事实不符。
+
+| 步 | 判定 | 本轮实测与对原文的更正 | 证据 |
+|---|---|---|---|
+| P6 | pass（带范围） | kill switch 可操作已实测，但**主机上没有 operator 登录通道**：`work_operator` 无 `_login` 变体、`/etc/work` 无 operator env 文件，本次以 superuser `SET ROLE work_operator` 进入。判据里「以授权角色经 psql 调」成立，「值班手上有 operator DSN」不成立 → 待裁 #56-B | `d4-a-1-suspend-obligations-restore.log` |
+| P7 | na | 本部署无 worker 镜像（`crictl` 匹配 0 条、无 docker），镜像前提作废，改二进制级切换（v1 sha256 `9ae58c06…`／v2 sha256 `33a6c7df…`，tip `8a0036c93` 构建并逐字节核对） | `d2-alt-1-worker-drain-stageB.log` |
+| P10 | pass（前提重写） | 原文 `-actor <active owner subject>` **不可执行**：唯一 `work_seat=true` 的主体是 admin `535bbd27…`，owner `11661aed…` seat=false。另外三条硬前提：source `/etc/work/work-api.env`（缺 `WORK_RUNTIME_VERSION` 直接拒）、**以 work-control 跑**（以 root 跑会把 content 对象落成 root:root 600，advance 读不回）、`-client-request-id` 有 8–128 字节下限 | `seed-DRILL1104-*.log` |
+| D4-a | pass | 停用对新提交是**当场拒绝**（`submit_task` → `org_execution_unavailable`，不落新 run 行），不是「提交成功但派不出去」；新导出 `create_audit_export` → `org_operator_suspended`（函数第 60 行）；`cancellation_intents=2` 落库但**全仓无消费者**（只有 0018 状态机与测试引用），恢复后仍 pending；queued 的 Run 4 秒内转 `failed／prepare_failed`（闸门拦死），不是 canceled | `d4-a-1-suspend-obligations-restore.log` |
+| D4-6c | pass（原文一步写法作废） | 解除不是「改回标志」，是**四步 ack 协议**：未确认时提 rev2 → `governance_revision_conflict`（第 96 行，P5 第一次拿到活体证据）；rev1＋ack1 → already_suspended；rev2（susp=false、ack=NULL）→ pending_ack，此时 entitlement 已写 susp=false 而 `work.org` 仍 exec=false（未确认的解除不重开服务）；rev2＋ack2 → restored、released_denials=1。`access_epoch` 0→1 **不回退**，是永久的账本事实 | 同上 |
+| D4-6b | fail | 判据要「两个清扫各处理 1」，实测 `expire_due_inputs=1`／`shred_due_audit_exports=0`——库里没有到期作业可扫，不是控制失效；控制本身在停用态执行成功且义务事件被 relay 投完（outbox 未投递 1→0）。两条更正：① 本主机**没有任何单元调度这两个清扫**（`deploy/ecs` 无对应 timer，Go 侧也不调），今晚是手工单次调用；② 目录同步在停用期间跑成功（`result=success`、`orgs_stale=1`）且没清掉 operator 标志 | 同上 |
+| D2-alt | pass | v1→v2→v1 双向都换过：换装由 `install`＋`systemctl` 完成，进程 `/proc/PID/exe` 与备份件 sha 对得上；在途 Run 不迁移半轮状态（fence／attempt 不动、`runtime_execution` 不多出行、plan 轮已 `checkpoint_committed`）、无重复派发（1 op／1 delivery）。**`run.runtime_version` 取自 env、不随二进制变**，版本归属只能靠 exe sha＋journal 认定 | `d2-alt-1…5` 五个日志 |
+| D2-4 | fail | 中断后**不会自动续跑**：worker 停 20 秒再拉起（同一份 v2），该 Run 自 19:22:06 停在 active／dispatching，lease 19:23:05 过期后无人重取，观察约 7 分钟无进展 | `d2-alt-2`／`d2-alt-4` |
+| D1-alt | pass（不构成多节点证据） | 同节点单副本重建（pod `6dj5r／10.42.0.46` → `2h95v／10.42.0.47`）：无第二个 Run、无重复 activity、fence／attempt 不动，delivery gate 在恢复后从 consumed 走到 receipt_recorded | `d1-alt-1`／`d1-alt-2` |
+| D1-6 | fail | 同 D2-4 形态且拿到了原因：`temporal workflow describe` 显示 `pendingActivities=1`、`AdvanceRuntime` 停在 `PENDING_ACTIVITY_STATE_STARTED`、`nextRetry=None`——Temporal 仍认为 activity 在被执行，故既不重试也不判孤儿；约 9 分钟后靠运维 `request_cancel` 收口。这也是 §5.17 那批 stale 预留**第一次拿到产生过程** | `d1-alt-2-aftermath-scan.log` |
+| D1-7 | 未取证 | 原文判据引用 `work.outbox.claimed_by`，该列不存在（表只有 `available_at／delivered_at／attempts／aggregate_*`）→ 先改判据再演，本轮不写结论 | 无 |
+
+**演练残留（收尾读数，2026-11-04 19:45）**：open run=0；`runs=155`（succeeded 109／failed 13／canceled 33）；
+**2 笔 held 预留、各 100,000，期间 2026-11（限额 1,000,000，剩 800,000 可用）**；2 条 pending cancellation_intent；
+org 三列回到 `status=active／execution_enabled=true／operator_suspended=false`、`access_epoch=1`；worker 二进制回到 v1，
+9 个 systemd 单元全部 `active+enabled`。这两笔预留**没有自动释放**，且释放语义（有 `receipt_result=success` 回执时该
+`settle_quota` 还是 `release_quota`）未裁——见待裁 #56-A，本轮按 §5.16/§5.17 的「不得为清库存放宽」原样留给主签。
+
+**下一步（未演的四项各自要什么）**：D4-b 要先裁「饱和闸门用 Work 侧组织额度」的判据形状；D4-c 只是现状记录，可随手补；
+D3-a 的注入面今晚已被 D1-alt 覆盖同一动作（是否算同一证据由主签定）；D3-b 需要一个隔离实例与 `work-db-restore-drill.py`
+的逐次授权。
+
+
 ## 1. 11-15 上午 09:30–12:00 · D1 多节点拓扑滚动重启 server
 
 **目标**：Temporal server ≥2 副本下滚动重启，验证在途 workflow 无重复派发、无第二个 Run。

@@ -13,7 +13,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const CHECKLIST = fileURLToPath(new URL('../../../work-r0a-drill-checklist-2026-11-15.md', import.meta.url));
@@ -93,17 +94,66 @@ test('the drill README names every step family that the checklist uses', () => {
   assert.deepEqual(missing, [], `drill README step-family line does not mention: ${missing.join(', ')}`);
 });
 
-test('verdict.json is self-consistent and every step keeps its recording slots', () => {
+test('verdict.json is self-consistent and a recorded step carries the whole record', () => {
+  // 2026-11-04: this used to assert "no step may hold a verdict yet", which was the right
+  // purity rule while the template waited for 11-15. Three steps have now been executed for
+  // real, so purity would have to be broken to satisfy it. The replacement is stricter in the
+  // direction that matters: a verdict is only accepted together with its timestamp and
+  // evidence, so a filled row can never be a bare word, and an "na" row must say why.
   assert.equal(verdict.summary.total, verdict.steps.length, 'summary.total drifted from the number of step fields');
   const required = ['step', 'section', 'verdict', 'ts', 'evidence', 'notes'];
+  const RECORDED = ['pass', 'fail', 'na'];
+  for (const kind of RECORDED) {
+    assert.equal(
+      verdict.summary[kind],
+      verdict.steps.filter((row) => row.verdict === kind).length,
+      `summary.${kind} drifted from the number of rows carrying "${kind}"`,
+    );
+  }
   for (const row of verdict.steps) {
     assert.deepEqual(Object.keys(row).sort(), [...required].sort(), `step ${row.step} has the wrong recording slots`);
     assert.ok(
-      row.verdict === null || row.verdict === EXCLUDED,
-      `step ${row.step} carries verdict "${row.verdict}" before the drill ran - only null (to fill) or ${EXCLUDED} (ruled out) are allowed`,
+      row.verdict === null || row.verdict === EXCLUDED || RECORDED.includes(row.verdict),
+      `step ${row.step} carries verdict "${row.verdict}" - allowed are null (未记录), ${EXCLUDED} (ruled out) or ${RECORDED.join('/')}`,
     );
+    if (row.verdict === 'pass' || row.verdict === 'fail') {
+      assert.ok(row.ts, `step ${row.step} is ${row.verdict} but has no timestamp`);
+      assert.ok(row.evidence.length >= 1, `step ${row.step} is ${row.verdict} but names no evidence file`);
+    }
+    if (row.verdict === 'na') {
+      assert.ok(row.notes.trim().length > 0, `step ${row.step} is na but notes carry no reason`);
+    }
     assert.ok(Array.isArray(row.evidence), `step ${row.step}.evidence must be an array of paths`);
     assert.equal(typeof row.notes, 'string', `step ${row.step}.notes must be a string`);
+  }
+});
+
+test('a recorded step names evidence that exists and that git is allowed to store', () => {
+  // Found the same night the drill ran (2026-11-04): the README prescribes the carrier as
+  // attachments/<step-id>-<kind>.<ext> with kind=log, while .gitignore holds a blanket `*.log`.
+  // Eleven raw logs therefore sat in a directory git refuses to track, and verdict.json rows
+  // pointed at paths no reviewer would ever receive. The negation for drill attachments is the
+  // fix; this is what stops the carrier and the ignore rule from drifting apart again.
+  const RECORDED = ['pass', 'fail', 'na'];
+  const withEvidence = verdict.steps.filter((row) => RECORDED.includes(row.verdict) && row.evidence.length > 0);
+  assert.ok(
+    withEvidence.length >= 3,
+    `only ${withEvidence.length} recorded rows carry evidence - with nothing recorded this check proves nothing, so name the missing rows instead`,
+  );
+  for (const row of withEvidence) {
+    for (const rel of row.evidence) {
+      const abs = join(dirname(VERDICT), rel);
+      assert.ok(existsSync(abs), `step ${row.step} cites ${rel}, which is not in the drill directory`);
+      const probe = spawnSync('git', ['check-ignore', '-q', abs], { encoding: 'utf8' });
+      if (probe.error) {
+        assert.fail(`cannot check whether ${rel} is ignored: git could not run (${probe.error.message}) - a silent pass here is exactly how uncommittable evidence ships`);
+      }
+      assert.ok(
+        probe.status === 0 || probe.status === 1,
+        `git check-ignore failed for ${rel} (exit ${probe.status}): ${(probe.stderr || '').trim().slice(0, 120)}`,
+      );
+      assert.equal(probe.status, 1, `step ${row.step} cites ${rel}, but .gitignore refuses to store it - the evidence would never reach a reviewer`);
+    }
   }
 });
 

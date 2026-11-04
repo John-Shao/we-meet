@@ -66,12 +66,18 @@ test('blocking items split into a start gate and a pilot gate', () => {
   assert.equal(result.startBlockerCount, 3);
   // 2026-11-04：C07 关闭（D2′ 重签完成，#45 八项签署、surfaceFrozen=true 在远端 blob 核到），
   // 试点闸门由 12 降到 11。名单仍逐项钉死，不是放宽。
-  assert.equal(result.pilotBlockerCount, 11);
+  // 2026-11-04 深夜：C29 关闭——**不是自评**，而是旧 Work 冻结面签收单 §4 那句由主签逐字确认、
+  // §6 预先写明「签了 → C29 done、未闭合从 14 降到 13」，署名记录在 work-r0a-legacy-freeze-signoff-2026-11-04.md。
+  // 计数因此 11 → 10；被关的那一项点名如下，防止下次有人对着数字改状态。
+  assert.equal(result.pilotBlockerCount, 10);
+  assert.ok(!result.pilotBlockers.some((item) => item.id === 'C29'), 'C29 closed by the signed freeze sheet');
+  assert.equal(checklist.items.find((item) => item.id === 'C29').status, 'done');
   assert.equal(result.scaleBlockerCount, 0);
   assert.equal(result.canStartWork, false);
   assert.equal(result.blockerCount, result.startBlockerCount + result.pilotBlockerCount + result.scaleBlockerCount);
 
-  // 关掉开工闸门只允许开工，不等于可以试点：11 个试点证据项仍必须由实施产生。
+  // 关掉开工闸门只允许开工，不等于可以试点：10 个试点证据项仍必须由实施产生。
+  // （2026-11-04 深夜由 11 改 10：C29 经签署的冻结面签收单关闭，与上面 pilotBlockerCount 同一事实。）
   const started = structuredClone(checklist);
   for (const item of started.items) {
     if (item.gate === 'start' && item.blocking) {
@@ -82,7 +88,7 @@ test('blocking items split into a start gate and a pilot gate', () => {
   const afterStart = goNoGo(started);
   assert.equal(afterStart.canStartWork, true);
   assert.equal(afterStart.go, false);
-  assert.equal(afterStart.pilotBlockerCount, 11);
+  assert.equal(afterStart.pilotBlockerCount, 10);
 });
 
 test('checklist rejects a missing or unknown gate', () => {

@@ -1,0 +1,55 @@
+### D2-alt stage B start 2026-11-04T19:20:57+08:00
+== column reference (operation / dispatch_delivery / cancellation_intent) ==
+cancellation_intent -> org_id,source_event_id,run_id,reason,state,next_attempt,attempts,created_at,updated_at
+dispatch_delivery -> org_id,operation_id,gate_state,execution_id,holder_id,attempt_id,request_hash,gateway_invocation_id,receipt_slot_id,receipt_ref,receipt_hash,receipt_result,provider_request_id,seal_reason,sealed_at,consumed_at,receipt_recorded_at,revision,created_at,updated_at
+operation -> id,org_id,run_id,logical_key,kind,request_hash,state,dispatch_attempt_id,consumer_id,provider_request_id,receipt_ref,revision,created_at,updated_at,usage_recorded_at,step_key,supersede_no,reconcile_requested_at,supersedes_operation_id,supersede_reason,supersede_assertion_hash
+runtime_execution -> execution_id,org_id,task_id,run_id,mode,run_fence,runtime_version,input_checkpoint_ref,input_checkpoint_hash,intent_ref,intent_hash,request_hash,operation_id,dispatch_attempt_id,state,holder_id,lease_until,hard_deadline,heartbeat_seq,revision,terminal_reason,created_at,updated_at
+== run before drain ==
+run=97f3d485-6fc4-4a26-a5d7-fac515e856ce state=succeeded attempt=1 fence=2 ctrl_rev=2 updated=2026-11-04 19:20:21.435239+08
+runs_for_same_task=1
+runs_total_before=150
+== drain: systemctl stop work-worker ==
+stop rc=0 duration=0s at 2026-11-04T19:20:57+08:00
+-- worker journal during stop (last 12) --
+Nov 04 19:20:06 lavm-t7fmveau9b work-worker[1410235]: 2026/11/04 19:20:06 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkflowT
+Nov 04 19:20:06 lavm-t7fmveau9b work-worker[1410235]: 2026/11/04 19:20:06 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkflowT
+Nov 04 19:20:06 lavm-t7fmveau9b work-worker[1410235]: 2026/11/04 19:20:06 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkflowT
+Nov 04 19:20:06 lavm-t7fmveau9b work-worker[1410235]: 2026/11/04 19:20:06 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkflowT
+Nov 04 19:20:21 lavm-t7fmveau9b work-worker[1410235]: 2026/11/04 19:20:21 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkflowT
+Nov 04 19:20:21 lavm-t7fmveau9b work-worker[1410235]: 2026/11/04 19:20:21 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkflowT
+Nov 04 19:20:57 lavm-t7fmveau9b work-worker[1410235]: 2026/11/04 19:20:57 INFO  Worker has been stopped. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 
+Nov 04 19:20:57 lavm-t7fmveau9b systemd[1]: Stopping work-worker.service - Work RunWorkflow worker (pilot runtime)...
+Nov 04 19:20:57 lavm-t7fmveau9b work-worker[1410235]: 2026/11/04 19:20:57 INFO  Stopped Worker Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1
+Nov 04 19:20:57 lavm-t7fmveau9b systemd[1]: work-worker.service: Deactivated successfully.
+Nov 04 19:20:57 lavm-t7fmveau9b systemd[1]: Stopped work-worker.service - Work RunWorkflow worker (pilot runtime).
+Nov 04 19:20:57 lavm-t7fmveau9b systemd[1]: work-worker.service: Consumed 14.224s CPU time, 20.5M memory peak, 0B memory swap peak.
+== run immediately after stop ==
+run=97f3d485-6fc4-4a26-a5d7-fac515e856ce state=succeeded attempt=1 updated=2026-11-04 19:20:21.435239+08
+== run 20s into the no-worker window ==
+run=97f3d485-6fc4-4a26-a5d7-fac515e856ce state=succeeded attempt=1 wait=- updated=2026-11-04 19:20:21.435239+08
+runs_total_after=150
+operations_for_run=1
+worker unit state=inactive
+== backup v1 and install v2 ==
+backup=/usr/local/bin/work-worker.bak-20261104-192117 sha256=9ae58c067b4a5103c951a3f932bf400a3c27915fc00787df6a8c3427c1846435
+installed now sha256=33a6c7dfdd175c935a9d4823544e96d8de5e620e4352d16f4915f03f3d4b93f8
+== start worker (Restart=always / manual start) ==
+start rc=0 at 2026-11-04T19:21:17+08:00
+MainPID=1686196 active=active
+running exe sha256=33a6c7dfdd175c935a9d4823544e96d8de5e620e4352d16f4915f03f3d4b93f8
+-- worker journal after start (last 12) --
+Nov 04 19:20:21 lavm-t7fmveau9b work-worker[1410235]: 2026/11/04 19:20:21 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkflowT
+Nov 04 19:20:21 lavm-t7fmveau9b work-worker[1410235]: 2026/11/04 19:20:21 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkflowT
+Nov 04 19:20:57 lavm-t7fmveau9b work-worker[1410235]: 2026/11/04 19:20:57 INFO  Worker has been stopped. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 
+Nov 04 19:20:57 lavm-t7fmveau9b systemd[1]: Stopping work-worker.service - Work RunWorkflow worker (pilot runtime)...
+Nov 04 19:20:57 lavm-t7fmveau9b work-worker[1410235]: 2026/11/04 19:20:57 INFO  Stopped Worker Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1
+Nov 04 19:20:57 lavm-t7fmveau9b systemd[1]: work-worker.service: Deactivated successfully.
+Nov 04 19:20:57 lavm-t7fmveau9b systemd[1]: Stopped work-worker.service - Work RunWorkflow worker (pilot runtime).
+Nov 04 19:20:57 lavm-t7fmveau9b systemd[1]: work-worker.service: Consumed 14.224s CPU time, 20.5M memory peak, 0B memory swap peak.
+Nov 04 19:21:17 lavm-t7fmveau9b systemd[1]: Started work-worker.service - Work RunWorkflow worker (pilot runtime).
+Nov 04 19:21:18 lavm-t7fmveau9b work-worker[1686196]: 2026/11/04 19:21:18 work worker started mode=reference queue=work-r0a-run
+Nov 04 19:21:18 lavm-t7fmveau9b work-worker[1686196]: 2026/11/04 19:21:18 DEBUG Worker heartbeating configured, but server version does not support it.
+Nov 04 19:21:18 lavm-t7fmveau9b work-worker[1686196]: 2026/11/04 19:21:18 INFO  Started Worker Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1
+== run under v2 after restart ==
+run=97f3d485-6fc4-4a26-a5d7-fac515e856ce state=succeeded attempt=1 updated=2026-11-04 19:20:21.435239+08
+### stage B end 2026-11-04T19:21:22+08:00

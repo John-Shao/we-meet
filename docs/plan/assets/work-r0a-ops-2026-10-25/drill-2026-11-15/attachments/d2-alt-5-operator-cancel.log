@@ -1,0 +1,77 @@
+### cancel via request_cancel(org, run_id, actor, reason) 2026-11-04T19:34:22+08:00
+== raw scan row for the parked run (read-only) ==
+{
+  "org_id": "4a2d3f28-38b9-4d6c-8614-70ef9a83960d",
+  "runs": [
+    {
+      "run_id": "3233ef74-0453-407c-bf32-51d5b0d0f333",
+      "workflow_id": "run:3233ef74-0453-407c-bf32-51d5b0d0f333",
+      "run_state": "active",
+      "task_state": "open",
+      "operation_id": "5de2f3d9-feff-497a-9ca6-d767d17a962e",
+      "operation_state": "dispatching",
+      "gate_state": "receipt_recorded",
+      "receipt_result": "success",
+      "reservation_state": "held",
+      "settled_tokens": 0,
+      "workflow_status": "Running",
+      "orphan": false
+    }
+  ]
+}
+
+== request_cancel with the RUN id ==
+rc=0
+4a2d3f28-38b9-4d6c-8614-70ef9a83960d
+535bbd27-62a0-4a95-91be-892182520d9e
+--- t+8s 2026-11-04T19:34:22+08:00 ---
+run=cancel_requested wait=- terminal=- updated=19:34:22
+exec=plan=completed, execute=active
+op=model=dispatching
+intent=- count=0
+held_reservations=1
+--- t+16s 2026-11-04T19:34:30+08:00 ---
+run=canceled wait=- terminal=run_canceled updated=19:34:22
+exec=plan=completed, execute=revoked
+op=model=unknown
+intent=- count=0
+held_reservations=1
+--- t+24s 2026-11-04T19:34:38+08:00 ---
+run=canceled wait=- terminal=run_canceled updated=19:34:22
+exec=plan=completed, execute=revoked
+op=model=unknown
+intent=- count=0
+held_reservations=1
+--- t+32s 2026-11-04T19:34:46+08:00 ---
+run=canceled wait=- terminal=run_canceled updated=19:34:22
+exec=plan=completed, execute=revoked
+op=model=unknown
+intent=- count=0
+held_reservations=1
+--- t+40s 2026-11-04T19:34:55+08:00 ---
+run=canceled wait=- terminal=run_canceled updated=19:34:22
+exec=plan=completed, execute=revoked
+op=model=unknown
+intent=- count=0
+held_reservations=1
+--- t+48s 2026-11-04T19:35:03+08:00 ---
+run=canceled wait=- terminal=run_canceled updated=19:34:22
+exec=plan=completed, execute=revoked
+op=model=unknown
+intent=- count=0
+held_reservations=1
+-- worker journal last 8 --
+Nov 04 19:25:25 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 19:25:25 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1
+Nov 04 19:25:25 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 19:25:25 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1
+Nov 04 19:25:51 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 19:25:51 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1
+Nov 04 19:25:51 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 19:25:51 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1
+Nov 04 19:34:22 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 19:34:22 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1
+Nov 04 19:34:22 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 19:34:22 DEBUG RequestCancelActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-wo
+Nov 04 19:34:22 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 19:34:22 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1
+Nov 04 19:34:22 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 19:34:22 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1
+-- relay journal last 4 --
+Nov 03 14:52:05 lavm-t7fmveau9b systemd[1]: Stopped work-relay.service - Work outbox relay.
+Nov 03 14:52:05 lavm-t7fmveau9b systemd[1]: work-relay.service: Consumed 1min 21.820s CPU time, 6.5M memory peak, 0B memory swap peak.
+Nov 03 15:03:55 lavm-t7fmveau9b systemd[1]: Started work-relay.service - Work outbox relay.
+Nov 03 15:03:55 lavm-t7fmveau9b work-relay[1410226]: 2026/11/03 15:03:55 work relay started relay_id=work-relay-1-fcc7aff2-504f-4c8e-99ca-76090b7e0f68
+### end 2026-11-04T19:35:11+08:00

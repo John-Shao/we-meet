@@ -1,0 +1,46 @@
+### parked-run watch start 2026-11-04T19:26:57+08:00
+== temporal status of the parked workflow ==
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+KeyError: 'workflowType'
+--- poll 1 2026-11-04T19:26:57+08:00 ---
+run state=active updated=19:22:05 wait=- terminal=-
+exec: plan=completed(lease=no,hb=0) | execute=active(lease=19:23:05,hb=3)
+op: model=dispatching
+held_reservations=1 tokens=100000
+--- poll 2 2026-11-04T19:27:22+08:00 ---
+run state=active updated=19:22:05 wait=- terminal=-
+exec: plan=completed(lease=no,hb=0) | execute=active(lease=19:23:05,hb=3)
+op: model=dispatching
+held_reservations=1 tokens=100000
+--- poll 3 2026-11-04T19:27:48+08:00 ---
+run state=active updated=19:22:05 wait=- terminal=-
+exec: plan=completed(lease=no,hb=0) | execute=active(lease=19:23:05,hb=3)
+op: model=dispatching
+held_reservations=1 tokens=100000
+--- poll 4 2026-11-04T19:28:13+08:00 ---
+run state=active updated=19:22:05 wait=- terminal=-
+exec: plan=completed(lease=no,hb=0) | execute=active(lease=19:23:05,hb=3)
+op: model=dispatching
+held_reservations=1 tokens=100000
+--- poll 5 2026-11-04T19:28:38+08:00 ---
+run state=active updated=19:22:05 wait=- terminal=-
+exec: plan=completed(lease=no,hb=0) | execute=active(lease=19:23:05,hb=3)
+op: model=dispatching
+held_reservations=1 tokens=100000
+--- poll 6 2026-11-04T19:29:03+08:00 ---
+run state=active updated=19:22:05 wait=- terminal=-
+exec: plan=completed(lease=no,hb=0) | execute=active(lease=19:23:05,hb=3)
+op: model=dispatching
+held_reservations=1 tokens=100000
+== wait for the 19:32 reconcile scan ==
+Nov 04 19:01:25 lavm-t7fmveau9b systemd[1]: Starting work-reconcile-scan.service - Work reconcile read-only orphan scan (no writes)...
+Nov 04 19:01:25 lavm-t7fmveau9b work-reconcile-scan.sh[1678584]: work-reconcile-scan summary: orgs=1 orphans=0 scan_errors=0
+Nov 04 19:01:25 lavm-t7fmveau9b systemd[1]: work-reconcile-scan.service: Deactivated successfully.
+Nov 04 19:01:25 lavm-t7fmveau9b systemd[1]: Finished work-reconcile-scan.service - Work reconcile read-only orphan scan (no writes).
+Nov 04 19:17:02 lavm-t7fmveau9b systemd[1]: Starting work-reconcile-scan.service - Work reconcile read-only orphan scan (no writes)...
+Nov 04 19:17:02 lavm-t7fmveau9b work-reconcile-scan.sh[1684955]: work-reconcile-scan summary: orgs=1 orphans=0 scan_errors=0
+Nov 04 19:17:02 lavm-t7fmveau9b systemd[1]: work-reconcile-scan.service: Deactivated successfully.
+Nov 04 19:17:02 lavm-t7fmveau9b systemd[1]: Finished work-reconcile-scan.service - Work reconcile read-only orphan scan (no writes).
+final held=1
+### watch end 2026-11-04T19:31:58+08:00

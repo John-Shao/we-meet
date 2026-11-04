@@ -48,7 +48,7 @@ python -c "import json; [json.load(open(f, encoding='utf-8')) for f in ['securit
 
 D3 §11 的六类非 Run 作业现在有指标与告警：
 
-> **2026-11-04 更正（上面这句只对了一半，值班请按此理解）**：规则与告警**定义**确实齐了（两份 `prometheus-rules.yaml` 逐字节一致、promtool `check rules` 48 条＋`test rules` SUCCESS），但按 `telemetry-contract.json` 声明的 28 个 `work_*` 指标名逐个扫 `src/`，**产生者为 0**——序列不存在时，任何阈值都永远不会触发。这一条现在是可执行门禁：`../work-r0a-design-2026-10-25/test/telemetry-producers.test.mjs`（清单具名、只减不增的棘轮），C17 的 note 也已按实测改写。埋点落地属于 C16/C17 闸门，需要真实 Prometheus/OTel/Alertmanager 序列证据，不在本目录自决范围。运行手册 §5.2 原先那条打向不存在表 `work_background_job_last_success` 的值班 SQL 已同批作废并就地更正。
+> **2026-11-04 更正（上面这句只对了一半，值班请按此理解）**：规则与告警**定义**确实齐了（两份 `prometheus-rules.yaml` 逐字节一致、promtool `check rules` 48 条＋`test rules` SUCCESS），但按 `telemetry-contract.json` 声明的 28 个 `work_*` 指标名逐个扫 `src/`，**产生者为 0**——序列不存在时，任何阈值都永远不会触发。这一条现在是可执行门禁：`../work-r0a-design-2026-10-25/test/telemetry-producers.test.mjs`（清单具名、只减不增的棘轮），C17 的 note 也已按实测改写。埋点落地属于 C16/C17 闸门，需要真实 Prometheus/OTel/Alertmanager 序列证据，不在本目录自决范围。**2026-11-04 主签单选 C（最小集）**：本目录的规则与面板**保留但正式标注为未生效**（不删、不假装在跑），替代观测是主机侧的只读运行流巡检 `work-runstream-scan`，判据、阈值、当日正向对照与四条负例见运维手册 §5.21。运行手册 §5.2 原先那条打向不存在表 `work_background_job_last_success` 的值班 SQL 已同批作废并就地更正。
 
 | 类别 | 数量 | 关键项 |
 |---|---|---|

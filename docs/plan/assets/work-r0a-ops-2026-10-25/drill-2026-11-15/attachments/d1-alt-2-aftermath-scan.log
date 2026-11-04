@@ -1,0 +1,39 @@
+### aftermath check 2026-11-04T19:39:22+08:00
+--- run 156506b6-5025-48f7-8d77-8c5bf6370006 ---
+db: state=active attempt=1 fence=2 terminal=- updated=19:36:10
+temporal: status= WORKFLOW_EXECUTION_STATUS_RUNNING pendingActivities= 1 closeTime= None
+--- run 3233ef74-0453-407c-bf32-51d5b0d0f333 ---
+db: state=canceled attempt=1 fence=2 terminal=run_canceled updated=19:34:22
+temporal: status= WORKFLOW_EXECUTION_STATUS_COMPLETED pendingActivities= 1 closeTime= 2026-11-04T11:34:22.496054631Z
+== read-only reconcile scan rows ==
+{
+  "org_id": "4a2d3f28-38b9-4d6c-8614-70ef9a83960d",
+  "runs": [
+    {
+      "run_id": "156506b6-5025-48f7-8d77-8c5bf6370006",
+      "workflow_id": "run:156506b6-5025-48f7-8d77-8c5bf6370006",
+      "run_state": "active",
+      "task_state": "open",
+      "operation_id": "8422ff5d-7b0e-4b27-8c3a-ae0738a155c2",
+      "operation_state": "dispatching",
+      "gate_state": "receipt_recorded",
+      "receipt_result": "success",
+      "reservation_state": "held",
+      "settled_tokens": 0,
+      "workflow_status": "Running",
+      "orphan": false
+    }
+  ]
+}
+
+== held reservations + accounts by period ==
+quota_account_cols=id,org_id,account_key,period_id,limit_tokens,reserved_tokens,settled_tokens,enforcement,version,revision,created_at,updated_at
+account period=2026-10 reserved=0 settled=203047 limit=1000000
+account period=2026-11 reserved=200000 settled=4880 limit=1000000
+held=2 tokens=200000
+== last scan unit result ==
+success 0 
+Nov 04 19:32:09 lavm-t7fmveau9b work-reconcile-scan.sh[1688447]: work-reconcile-scan summary: orgs=1 orphans=0 scan_errors=0
+Nov 04 19:32:09 lavm-t7fmveau9b systemd[1]: work-reconcile-scan.service: Deactivated successfully.
+Nov 04 19:32:09 lavm-t7fmveau9b systemd[1]: Finished work-reconcile-scan.service - Work reconcile read-only orphan scan (no writes).
+### end 2026-11-04T19:39:22+08:00

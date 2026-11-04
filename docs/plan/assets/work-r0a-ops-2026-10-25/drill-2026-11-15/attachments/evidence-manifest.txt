@@ -1,0 +1,18 @@
+drill 2026-11-04 evidence bundle
+73def5e22d2c5176 D1-alt-aftermath.log
+dc5ef3b66b71119c D1-alt.log
+45a15a73c66136cb D2-alt-cancel.log
+ce511790690f2238 D2-alt-inflight.log
+02dd50ab6124b314 D2-alt-orphan-and-cleanup.log
+76016c4cf73e1c4e D2-alt-parked-watch.log
+a30e6d84fbf4e0ac D2-alt-rollback.log
+f7ee4b82ae75fb50 D2-alt-stageB.log
+6873c62253a6b180 D4-a.log
+d14330bb0320be9f seed-D2A.log
+28fa5900604ee37a seed-DRILL1104-D1A-R5.log
+0e70f1929ed7bf24 seed-DRILL1104-D2A-R1.log
+4bd4e09cc0130ae2 seed-DRILL1104-D2C-R3.log
+2d022ec00f9bb50f seed-DRILL1104-D2D-R4.log
+cc0783429d1a61cc seed-DRILL1104-D4A-R6.log
+379c7070ed9a7be4 seed-DRILL1104-D4A-R7.log
+fdc6c63a39651a5a seed-DRILL1104-D4A-R8.log

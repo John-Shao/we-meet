@@ -1,0 +1,120 @@
+### D4-a start 2026-11-04T19:41:51+08:00
+== baseline ==
+org: exec=true susp=false status=active rev=2 epoch=0
+entitlement: NO_ROW
+restriction: NONE
+audit_entitlement_rows_before=0
+outbox_undelivered_before=0
+directory_sync_state_row={"org_id": "4a2d3f28-38b9-4d6c-8614-70ef9a83960d", "last_mode": "incremental", "last_error": null, "updated_at": "2026-11-04T19:34:25.641903+08:00", "last_revision": 2, "last_attempt_at": "2026-11-04T19:34:25.641903+08:00", "last_success_at": "2026-11-04T19:34:25.641903+08:00"}
+== 1. seed an in-flight run so the suspension has something to cancel ==
+seed pid=1691286 binary=/usr/local/bin/work-e2e-seed-max4096 boundary=2026-11-04 19:41:51.436968+08
+INFLIGHT run=0059b3e3-cb59-40db-93a7-9a1b10c734c4 state=queued poll=1
+in-flight run=0059b3e3-cb59-40db-93a7-9a1b10c734c4 state=queued
+== 2. kill switch ON (rev 1, unacknowledged) ==
+--- ent_call suspend rc=0 ---
+4a2d3f28-38b9-4d6c-8614-70ef9a83960d
+drill-2026-11-04-work-operator
+{"org_id": "4a2d3f28-38b9-4d6c-8614-70ef9a83960d", "enabled": true, "outcome": "suspended", "revision": 1, "seat_limit": null, "denial_active": true, "released_denials": 0, "execution_enabled": false, "host_ack_revision": null, "operator_suspended": true, "cancellation_intents": 2}
+org: exec=false susp=true status=active rev=2 epoch=1
+entitlement: enabled=true susp=true seat=NULL rev=1 ack=-
+restriction: active(operator_suspended,floor=1,ack=-)
+intents_now=2 states=pending
+ERROR:  column "audit_event.created_at" must appear in the GROUP BY clause or be used in an aggregate function
+LINE 1: ...t.applied','access_restriction.created') order by created_at...
+                                                             ^
+ticket_ref_seen=2
+run_after_suspend=queued terminal=-
+run_after_12s=failed terminal=prepare_failed updated=19:41:55
+== 3a. new submission while suspended ==
+seed pid=1691349 binary=/usr/local/bin/work-e2e-seed boundary=2026-11-04 19:42:04.020245+08
+NO_INFLIGHT last_row='none' polls=8
+--- seed log ---
+work-e2e-seed: submit task: ERROR: org_execution_unavailable (SQLSTATE P0001)
+R7 seed did not reach a non-terminal state (rc=1)
+R7=none
+== 3b. audit export while suspended (expects org_operator_suspended) ==
+create_audit_export rc=3
+psql:/tmp/drill-1104/export.sql:5: ERROR:  org_operator_suspended
+CONTEXT:  PL/pgSQL function create_audit_export(text,text,text,timestamp with time zone,timestamp with time zone,text) line 60 at RAISE
+== 3c. obligation sweeps still run for a suspended org (manual single invocation; no timer on this host) ==
+sweep rc=0
+4a2d3f28-38b9-4d6c-8614-70ef9a83960d
+expire_due_inputs=1
+shred_due_audit_exports=0
+outbox_kinds: content=2, run=186, task=897
+outbox_undelivered_now=1
+== 3d. directory sync during suspension (must keep syncing, must not clear the flag) ==
+dir-sync start rc=0 result=success
+Nov 04 19:42:08 lavm-t7fmveau9b systemd[1]: Starting work-directory-sync.service - Work directory sync (incremental)...
+Nov 04 19:42:08 lavm-t7fmveau9b work-directory-sync[1691419]: {"mode":"incremental","orgs_total":1,"orgs_applied":0,"orgs_stale":1,"orgs_failed":0,"members_total":0,"memb
+Nov 04 19:42:08 lavm-t7fmveau9b systemd[1]: work-directory-sync.service: Deactivated successfully.
+Nov 04 19:42:08 lavm-t7fmveau9b systemd[1]: Finished work-directory-sync.service - Work directory sync (incremental).
+org: exec=false susp=true status=active rev=2 epoch=1
+entitlement: enabled=true susp=true seat=NULL rev=1 ack=-
+restriction: active(operator_suspended,floor=1,ack=-)
+== 3e. read-only reconcile scan during suspension ==
+scan rc=0
+{
+  "org_id": "4a2d3f28-38b9-4d6c-8614-70ef9a83960d",
+  "runs": [
+    {
+      "run_id": "156506b6-5025-48f7-8d77-8c5bf6370006",
+      "workflow_id": "run:156506b6-5025-48f7-8d77-8c5bf6370006",
+      "run_state": "active",
+      "task_state": "open",
+      "operation_id": "8422ff5d-7b0e-4b27-8c3a-ae0738a155c2",
+      "operation_state": "dispatching",
+      "gate_state": "receipt_recorded",
+      "receipt_result": "success",
+      "reservation_state": "held",
+      "settled_tokens": 0,
+      "workflow_status": "Running",
+      "orphan": false
+    }
+  ]
+}
+
+== 4. P5: restore attempted without the Host ack (expects governance_revision_conflict) ==
+--- ent_call premature-restore rc=3 ---
+4a2d3f28-38b9-4d6c-8614-70ef9a83960d
+drill-2026-11-04-work-operator
+psql:/tmp/drill-1104/ent-premature-restore.sql:15: ERROR:  governance_revision_conflict
+CONTEXT:  PL/pgSQL function apply_execution_entitlement(text,text,text,boolean,boolean,bigint,bigint,bigint,text) line 96 at RAISE
+== 5. ack revision 1 ==
+--- ent_call ack-rev1 rc=0 ---
+4a2d3f28-38b9-4d6c-8614-70ef9a83960d
+drill-2026-11-04-work-operator
+{"org_id": "4a2d3f28-38b9-4d6c-8614-70ef9a83960d", "enabled": true, "outcome": "already_suspended", "revision": 1, "seat_limit": null, "denial_active": true, "released_denials": 0, "execution_enabled": false, "host_ack_revision": 1, "operator_suspended": true, "cancellation_intents": 0}
+org: exec=false susp=true status=active rev=2 epoch=1
+entitlement: enabled=true susp=true seat=NULL rev=1 ack=1
+restriction: active(operator_suspended,floor=1,ack=-)
+== 6. restore recorded (rev 2) -> must stay closed until acked ==
+--- ent_call restore-rev2 rc=0 ---
+4a2d3f28-38b9-4d6c-8614-70ef9a83960d
+drill-2026-11-04-work-operator
+{"org_id": "4a2d3f28-38b9-4d6c-8614-70ef9a83960d", "enabled": true, "outcome": "pending_ack", "revision": 2, "seat_limit": null, "denial_active": true, "released_denials": 0, "execution_enabled": false, "host_ack_revision": 1, "operator_suspended": false, "cancellation_intents": 0}
+org: exec=false susp=true status=active rev=2 epoch=1
+entitlement: enabled=true susp=false seat=NULL rev=2 ack=1
+restriction: active(operator_suspended,floor=1,ack=-)
+== 7. ack revision 2 -> restored ==
+--- ent_call ack-rev2 rc=0 ---
+4a2d3f28-38b9-4d6c-8614-70ef9a83960d
+drill-2026-11-04-work-operator
+{"org_id": "4a2d3f28-38b9-4d6c-8614-70ef9a83960d", "enabled": true, "outcome": "restored", "revision": 2, "seat_limit": null, "denial_active": false, "released_denials": 1, "execution_enabled": true, "host_ack_revision": 2, "operator_suspended": false, "cancellation_intents": 0}
+org: exec=true susp=false status=active rev=2 epoch=1
+entitlement: enabled=true susp=false seat=NULL rev=2 ack=2
+restriction: released(operator_suspended,floor=1,ack=-)
+== 8. new submission after restore ==
+seed pid=1691522 binary=/usr/local/bin/work-e2e-seed boundary=2026-11-04 19:42:09.572419+08
+INFLIGHT run=19e8b6b4-5e02-4db3-a1dd-4875dfc4e024 state=queued poll=1
+R8 terminal=succeeded poll=5
+R8=succeeded v=pi-1.4.0-r0a
+== 9. final verification: flags back to baseline ==
+org: exec=true susp=false status=active rev=2 epoch=1
+entitlement: enabled=true susp=false seat=NULL rev=2 ack=2
+restriction: released(operator_suspended,floor=1,ack=-)
+audit_actions: access_restriction.created=1, access_restriction.released=1, execution_entitlement.applied=4
+held_reservations=2
+GUARD: execution_enabled=t operator_suspended=f
+GUARD_OK org is serving again
+### D4-a end 2026-11-04T19:42:30+08:00

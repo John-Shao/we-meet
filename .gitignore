@@ -60,6 +60,10 @@ src/backend/core/templates/mail/
 
 # Logs
 *.log
+# Drill evidence is prescribed as attachments/<step>-<kind>.<ext> with kind=log
+# (drill-2026-11-15/README.md), so the carrier directory is excluded from the rule
+# above - otherwise verdict.json rows would name files git refuses to store.
+!docs/plan/assets/**/drill-*/attachments/*.log
 
 # Terraform
 .terraform

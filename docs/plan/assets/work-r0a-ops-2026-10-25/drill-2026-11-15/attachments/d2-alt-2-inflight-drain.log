@@ -1,0 +1,46 @@
+### D2-alt in-flight phase start 2026-11-04T19:22:04+08:00
+installed sha256=33a6c7dfdd175c93
+seed pid=1686317 binary=/usr/local/bin/work-e2e-seed-max4096 boundary=2026-11-04 19:22:04.467772+08
+INFLIGHT run=3233ef74-0453-407c-bf32-51d5b0d0f333 state=queued poll=1
+watching run=3233ef74-0453-407c-bf32-51d5b0d0f333
+left pre-run state early: active
+pre-stop run=3233ef74-0453-407c-bf32-51d5b0d0f333 state=active attempt=1 fence=2 updated=19:22:05.510
+pre-stop exec_rows=2 holders=work-parent-1:54e7d1746efa83ae4c08fa65aef73f03,work-worker-plan:0ca52edd-9e9c-4f02-83ca-6d632f1a708e leases=active,completed
+pre-stop operations=1 states=dispatching
+pre-stop runs_for_task=1
+worker pid=1686196 exe_sha256=33a6c7dfdd175c93
+== stop worker while the run is in flight (2026-11-04T19:22:06+08:00) ==
+stop rc=0 active=inactive
+t+2s run=3233ef74-0453-407c-bf32-51d5b0d0f333 state=active attempt=1 fence=2 updated=19:22:05.510
+t+2s exec_rows=2 holders=work-parent-1:54e7d1746efa83ae4c08fa65aef73f03,work-worker-plan:0ca52edd-9e9c-4f02-83ca-6d632f1a708e leases=active,completed
+t+2s operations=1 states=dispatching
+t+2s runs_for_task=1
+t+10s run=3233ef74-0453-407c-bf32-51d5b0d0f333 state=active attempt=1 fence=2 updated=19:22:05.510
+t+10s exec_rows=2 holders=work-parent-1:54e7d1746efa83ae4c08fa65aef73f03,work-worker-plan:0ca52edd-9e9c-4f02-83ca-6d632f1a708e leases=active,completed
+t+10s operations=1 states=dispatching
+t+10s runs_for_task=1
+-- journal tail during outage --
+Nov 04 19:22:06 lavm-t7fmveau9b work-worker[1686196]: 2026/11/04 19:22:06 INFO  Stopped Worker Namespace work-r0a TaskQueue work-r0a-run WorkerID work
+Nov 04 19:22:06 lavm-t7fmveau9b work-worker[1686196]: 2026/11/04 19:22:06 ERROR Activity error. Namespace work-r0a TaskQueue work-r0a-run WorkerID wor
+Nov 04 19:22:06 lavm-t7fmveau9b systemd[1]: work-worker.service: Deactivated successfully.
+Nov 04 19:22:06 lavm-t7fmveau9b systemd[1]: Stopped work-worker.service - Work RunWorkflow worker (pilot runtime).
+== start worker again (2026-11-04T19:22:16+08:00) ==
+new pid=1686442 exe_sha256=33a6c7dfdd175c93
+post-restart run=3233ef74-0453-407c-bf32-51d5b0d0f333 state=active attempt=1 fence=2 updated=19:22:05.510
+post-restart exec_rows=2 holders=work-parent-1:54e7d1746efa83ae4c08fa65aef73f03,work-worker-plan:0ca52edd-9e9c-4f02-83ca-6d632f1a708e leases=active,completed
+post-restart operations=1 states=dispatching
+post-restart runs_for_task=1
+-- journal after restart (last 8) --
+Nov 04 19:22:06 lavm-t7fmveau9b work-worker[1686196]: 2026/11/04 19:22:06 INFO  Stopped Worker Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1
+Nov 04 19:22:06 lavm-t7fmveau9b work-worker[1686196]: 2026/11/04 19:22:06 ERROR Activity error. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkflowI
+Nov 04 19:22:06 lavm-t7fmveau9b systemd[1]: work-worker.service: Deactivated successfully.
+Nov 04 19:22:06 lavm-t7fmveau9b systemd[1]: Stopped work-worker.service - Work RunWorkflow worker (pilot runtime).
+Nov 04 19:22:16 lavm-t7fmveau9b systemd[1]: Started work-worker.service - Work RunWorkflow worker (pilot runtime).
+Nov 04 19:22:16 lavm-t7fmveau9b work-worker[1686442]: 2026/11/04 19:22:16 work worker started mode=reference queue=work-r0a-run
+Nov 04 19:22:16 lavm-t7fmveau9b work-worker[1686442]: 2026/11/04 19:22:16 DEBUG Worker heartbeating configured, but server version does not support it.
+Nov 04 19:22:16 lavm-t7fmveau9b work-worker[1686442]: 2026/11/04 19:22:16 INFO  Started Worker Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1
+== duplicate-dispatch checks ==
+dispatch_delivery_for_run=1
+cancellation_intents_for_run=0
+task_event_for_task=2
+### phase end 2026-11-04T19:23:22+08:00  RUN=3233ef74-0453-407c-bf32-51d5b0d0f333

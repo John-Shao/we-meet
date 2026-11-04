@@ -610,6 +610,7 @@ Run `3cd9c500…` succeeded（usage 112/194、结算 306、artifact 85B）。hos
 org 清单单独放在 `/etc/work/work-reconcile-scan.env`（640 `root:work-control`）。
 
 - 退出码：`0` 干净；`1` 有 org 扫描失败；**`2` 发现孤儿** → 单元进入 failed。
+- **2026-11-04 演练证出的可见性边界（务必先读这条再信 `orphans=0`）**：`isOrphan()` 的判据是「Temporal workflow 状态既不是 Running 也不是 Unavailable」，而当天 D1-alt／D2-alt 造出的那一类——**workflow 仍Running、`pendingActivities=1`、`AdvanceRuntime` 停在 STARTED 且 `nextRetry=None`，库侧 `runtime_execution.lease_until` 早已过期无人重取**——巡检按定义看不见它，19:32 那轮确实报 `orphans=0`。所以 `orphans=0` 只排除「workflow 已结束而 DB 仍开放」这一类，**不等于没有停放 Run**。自动发现这条盲区的是 §5.21 的运行流读数巡检（2026-11-04 同日接线）；手工现读法是：`select id,state,updated_at from work.run where state not in ('succeeded','failed','canceled')` 拿开放 Run，再用 `temporal workflow describe --workflow-id run:<id>` 对上 `pendingActivities` 的 state，最后核 `work.quota_reservation` 的 held 笔数；处置走 §5.16/§5.17 与流程 A，收口语义（settle 还是 release）见待裁 #56。
 - 值班读法：`journalctl -u work-reconcile-scan.service -o cat | tail`，summary 行形如
   `orgs=1 orphans=0 scan_errors=0`。发现孤儿后仍按 §5.16 人工处置，本单元不代替判定。
 - 告警：`work-healthcheck.sh` 的观察名单已含 `work-reconcile-scan.service`，red 会把健康
@@ -664,6 +665,47 @@ org 清单单独放在 `/etc/work/work-reconcile-scan.env`（640 `root:work-cont
 的 TRUNCATE 收掉，但那是一条 0028 迁移＋生产写，并且要**把现有那条「owner TRUNCATE 会成功、行数归零」的
 断言翻成拒绝**（改被测物同时改它自己的断言，需要单独取证）。#24 A 裁定 R0a 保持现状，复评条件是「真客户
 数据进场／多租户规模化之前」，与 S03/S14 的主密钥条件同批看（#48）。
+
+### 5.21 运行流读数巡检（2026-11-04，C17 单选 C＝最小集）
+
+主签 2026-11-04 就 C17 埋点范围单选 **C＝库侧 SQL 读数＋现有邮件告警**，不给 10 个 workload 二进制加 Prometheus 客户端；
+已入库的 48 条 Prometheus 规则与 Grafana 面板**保留、就地标注为未生效**（清单见本节末，不删）。
+
+新增只读单元 `work-runstream-scan.{service,timer}`（每 10 分钟，`Persistent=true`），跑
+`/usr/local/bin/run-runstream-gauges.sh` ＋ `runstream-gauges.sql`。两文件必须同目录（脚本按 `dirname $0`
+找 SQL），`rollout-r0a-0027.sh` 成对安装，`verify-r0a-0027.sh` 的 "runstream gauges wiring" 块核这对文件是否齐、
+timer 是否 enable、org 清单是否与目录 org 数一致、以及容差现值。身份＝`work-control` 用户配 `work_worker` DSN
+（复用 `/etc/work/work-worker.env`，不造第二份密钥副本），逐 org 显式 `set_config('app.org_id', …)` 后再读，
+符合 §5.2 与 #53 的租户上下文纪律（不设就直接数到 0）。
+
+读数与判定：
+
+- `parked_runs`（>0 即退出码 2）：开放态、超过 `WORK_RUNSTREAM_STALE_MINUTES`（默认 5）没动过、且没有任何还活着的
+  执行租约。**这条补的正是 §5.18 那个盲区**——当晚 D1-alt／D2-alt 各造一个停放 Run，Temporal 侧两轮巡检都报 `orphans=0`。
+  口径要说清：它判的是「库在等一个不会再回来的执行」，因此长时间没被领取的 queued Run 也算在内，这是想要的信号而不是误报。
+- `held_on_terminal`（超过 `WORK_RUNSTREAM_MAX_HELD_ON_TERMINAL` 才退出码 2）：挂在已终态 Run 上的未释放预留，§5.17 口径。
+  **现值 2 是 2026-11-04 演练残留的临时容差**，有日期、有归属（#56-B 收口语义）、有回收条件：预留归零后必须改回 0，
+  改回那一轮会立刻转红并发信，那是预期行为，不是新故障。
+- `unknown_operations`／`suspended_orgs`／`open_runs`／`held_tokens`：**只报不判**。前者历史存量 34 条（最老约 5.4 天），
+  只有与 `held_on_terminal>0` 同时出现才是要动作的信号；`suspended_orgs` 是有意的运维状态，把它当故障告警会诱导值班
+  去解除停用，语义相反。
+- 失败口径独立于越限：psql 非零，或六条读数里少任何一条（**退出码 0 但输出不完整**）→ `scan_errors` → 退出码 1。
+  这条专门防"空输出＝没问题"的假绿。
+
+接线当天的验证（试点机 20:15，全程只读）：单元首跑 `Result=success`、summary `orgs=1 breaches=0 scan_errors=0`；
+**正向对照**——把阈值临时降到 `stale_minutes=0` 对一个刚入库的 queued Run 读出 `parked_runs=1` 并以 rc=2 越限，
+同一时刻用默认 5 分钟则 `parked_runs=0`，证明"新鲜度"与"活租约"两个条件都真在生效；
+**四条负例**——移走 SQL 兄弟件→rc=1 并点名"必须成对交付"、org 清单为空→rc=1、容差降为 0→在真实那 2 笔残留上 rc=2、
+DSN 指向不可达端口→`scan_errors=1` rc=1。对照 Run 随后自然 `succeeded`，没留下新残留（`open_runs=0`，held 仍是那 2 笔）。
+
+**未生效清单（值班不得把它当告警能力）**：`docs/plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml`
+（21 record＋27 alert＝48 条）、同目录 `prometheus-rules.test.yml`、部署副本 `deploy/observability/prometheus-rules.yaml`
+与 `deploy/observability/grafana-dashboards/work-overview.json`。它们的形式正确性由 `promtool check rules`／`test rules`
+和 `telemetry-producers.test.mjs`（具名清单、只减不增的棘轮）在 CI 守住，但两台试点机上 prometheus／alertmanager／
+grafana／node_exporter 单元全部 not-found、10 个 workload 二进制里 prometheus 客户端字符串为 0，
+所以**任何一条 alert 今天都不会自己响**。当前真实的投递链只有两条：`work-healthcheck.timer` → `work-health-alert.py`
+（观察名单里的单元转红才发信，本单元已加入名单）与本页各节的值班手工 SQL。规模化前的接线代价记在
+pilot-checklist C17 的 note，不由本节自决。
 
 ## 6. 容量证据
 

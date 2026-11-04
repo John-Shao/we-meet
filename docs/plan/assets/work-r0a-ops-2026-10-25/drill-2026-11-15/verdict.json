@@ -1,13 +1,13 @@
 {
   "schema_version": "1",
   "drill_window": {
-    "start": null,
-    "end": null,
+    "start": "2026-11-04T19:19:04+08:00",
+    "end": "2026-11-04T19:46:30+08:00",
     "tz": "+08:00"
   },
-  "host": null,
+  "host": "lavm-t7fmveau9b（Work 试点机 36.151.147.217，k3s v1.36.5+k3s1 单节点）",
   "helm_revision": null,
-  "migration_ledger": null,
+  "migration_ledger": "27 行 ledger，尾项 0027_governance_receipt_payload_binding（applied 2026-11-03 15:03）",
   "steps": [
     {
       "step": "P1",
@@ -52,18 +52,22 @@
     {
       "step": "P6",
       "section": "preflight",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T19:42:30+08:00",
+      "evidence": [
+        "attachments/d4-a-1-suspend-obligations-restore.log"
+      ],
+      "notes": "kill switch 可操作已实测：以 work_operator 身份调 work.apply_execution_entitlement，org 的 execution_enabled 由 true→false→true、operator_suspended 由 false→true→false，access_epoch 0→1。范围收清：主机上 work_operator 没有登录角色（无 work_operator_login）、/etc/work 里也没有 operator 用的 env 文件，本次是 superuser + SET ROLE work_operator 进入的，因此「值班手上有一条 operator DSN」这一条仍未成立，已另记待裁 #56-B。EXECUTE ACL 实测只有 work_owner 与 work_operator 两项。"
     },
     {
       "step": "P7",
       "section": "preflight",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "na",
+      "ts": "2026-11-04T19:21:17+08:00",
+      "evidence": [
+        "attachments/d2-alt-1-worker-drain-stageB.log"
+      ],
+      "notes": "「两个 Worker 版本镜像」在本部署不成立：crictl 里匹配 worker 的镜像数 0、主机无 docker，worker 是 systemd 单元 + 裸二进制。已按 §0A 改为二进制级版本切换（v1 sha256 9ae58c067b4a5103c951a3f932bf400a3c27915fc00787df6a8c3427c1846435，v2 sha256 33a6c7dfdd175c935a9d4823544e96d8de5e620e4352d16f4915f03f3d4b93f8，tip 8a0036c93 构建、上传后逐字节核对一致）。"
     },
     {
       "step": "P8",
@@ -84,10 +88,13 @@
     {
       "step": "P10",
       "section": "preflight",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T19:22:05+08:00",
+      "evidence": [
+        "attachments/seed-DRILL1104-D2C-R3.log",
+        "attachments/seed-DRILL1104-D4A-R7.log"
+      ],
+      "notes": "种子机制可用，但清单原文的四条前提当场纠正：① 必须 source /etc/work/work-api.env（缺 WORK_RUNTIME_VERSION 直接拒绝）；② 必须以 work-control 身份跑，以 root 跑会让 content 对象落成 root:root 600、advance 读不回（advance_input_read_failed）；③ 唯一有 work_seat 的主体是 535bbd27…（role=admin），owner 11661aed… 的 seat=false，原文「-actor <active owner subject>」在本库不可执行；④ client-request-id 有 8–128 字节下限。另：quota 期间行按 #51 结论首笔预留懒建，2026-11 行已由今晚预留自动建出。"
     },
     {
       "step": "P11",
@@ -100,50 +107,63 @@
     {
       "step": "D1-1",
       "section": "C03-D1",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "na",
+      "ts": "2026-11-04T19:36:09+08:00",
+      "evidence": [
+        "attachments/d1-alt-1-pod-delete.log"
+      ],
+      "notes": "原文要求两副本 Ready。实测 k3s work 命名空间只有 1 个 temporal-server pod（单副本 Deployment，镜像 auto-setup:1.25.0，ClusterIP 10.43.147.249:7233），这台机就是唯一节点 → 本行不可按原文执行，等价项见 D1-alt。"
     },
     {
       "step": "D1-2",
       "section": "C03-D1",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T19:36:11+08:00",
+      "evidence": [
+        "attachments/d1-alt-1-pod-delete.log",
+        "attachments/seed-DRILL1104-D1A-R5.log"
+      ],
+      "notes": "种子 run 156506b6-5025-48f7-8d77-8c5bf6370006 提交后转 active，Temporal 侧 workflow_id=run:<uuid>、类型 RunWorkflowAdvance，history 有 WorkflowExecutionStarted 且注入时仍在 Running。"
     },
     {
       "step": "D1-3",
       "section": "C03-D1",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T19:36:12+08:00",
+      "evidence": [
+        "attachments/d1-alt-1-pod-delete.log"
+      ],
+      "notes": "delete pod → 重建 → Ready 已实测（旧 pod 6dj5r/10.42.0.46 → 新 pod 2h95v/10.42.0.47，creation 2026-11-04T11:36:11Z，kubectl wait condition met）。但这是**同节点单副本重建**，不得当作 replica-1 滚动重启的证据。"
     },
     {
       "step": "D1-4",
       "section": "C03-D1",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T19:38:23+08:00",
+      "evidence": [
+        "attachments/d1-alt-1-pod-delete.log",
+        "attachments/d1-alt-2-aftermath-scan.log"
+      ],
+      "notes": "失联与重建全程 work.run 没有新增行（runs_for_task=1）、原 Run 不跳 failed，attempt=1／fence=2 未动，work.operation 恒 1 行、dispatch_delivery 恒 1 行；读数按 #53 用 superuser 会话（runuser -u postgres），不设 app.org_id 在 FORCE RLS 表上会数到 0。"
     },
     {
       "step": "D1-5",
       "section": "C03-D1",
-      "verdict": null,
-      "ts": null,
+      "verdict": "na",
+      "ts": "2026-11-04T19:36:12+08:00",
       "evidence": [],
-      "notes": ""
+      "notes": "没有 replica-2 可滚。多副本/多节点项的重开条件：先裁 kubectl scale --replicas=2（那是同节点两 pod，只算多副本不算多节点）。"
     },
     {
       "step": "D1-6",
       "section": "C03-D1",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "fail",
+      "ts": "2026-11-04T19:45:08+08:00",
+      "evidence": [
+        "attachments/d1-alt-2-aftermath-scan.log",
+        "attachments/d1-alt-1-pod-delete.log"
+      ],
+      "notes": "判据「等待种子 Run 自然结束或 cancel」的后半只在人为介入后成立：server 恢复、pod Ready 之后该 Run 仍停在 active／operation=dispatching，观察 19:36→19:45 约 9 分钟无任何再驱动；temporal workflow describe 显示 pendingActivities=1、AdvanceRuntime 状态 PENDING_ACTIVITY_STATE_STARTED、attempt=1、nextRetry=None —— Temporal 仍认为 activity 在被执行，因此既不重试也不判孤儿。最终由运维 request_cancel 关闭（19:45:08 run=canceled／terminal=run_canceled）。后果分档：阻断 C22 的「在途不丢」承诺，非阻断（试点期手工可处置）；重开条件＝给 activity 配 start-to-close／heartbeat 超时并让恢复路径能重驱动，见待裁 #56-A。"
     },
     {
       "step": "D1-7",
@@ -151,63 +171,75 @@
       "verdict": null,
       "ts": null,
       "evidence": [],
-      "notes": ""
+      "notes": "本行判据的 claimed_by 列在 work.outbox 不存在（表只有 available_at/delivered_at/attempts/aggregate_*），需先改判据再取证，今晚不写结论。已测到的相邻事实：outbox 未投递数在清扫后由 1 回到 0（relay 把义务事件投完了）。"
     },
     {
       "step": "D2-1",
       "section": "C22-D2",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T19:22:06+08:00",
+      "evidence": [
+        "attachments/d2-alt-2-inflight-drain.log"
+      ],
+      "notes": "v1 在途：run 3233ef74 active、operation=dispatching、runtime_execution 两行（plan=completed/checkpoint_committed、execute=active 且 holder=work-parent-1、lease 60s、heartbeat_seq=3），停机前已核对运行中进程的 exe sha 等于已装 v1。"
     },
     {
       "step": "D2-2",
       "section": "C22-D2",
-      "verdict": null,
-      "ts": null,
+      "verdict": "na",
+      "ts": "2026-11-04T19:22:06+08:00",
       "evidence": [],
-      "notes": ""
+      "notes": "原文的 drain（停领新 task＋等已领取 activity 完成≥15 分钟＋taskqueue pending=0）在本部署没有对应控制：worker 无 drain 开关，也没有 pod 可 cordon。等价注入＝systemctl stop work-worker（journal 显示 Worker has been stopped 后进程退出），落在 D2-alt 取证。"
     },
     {
       "step": "D2-3",
       "section": "C22-D2",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T19:21:18+08:00",
+      "evidence": [
+        "attachments/d2-alt-1-worker-drain-stageB.log"
+      ],
+      "notes": "换装 v2 并拉起：install 后 /usr/local/bin/work-worker sha256=33a6c7df…，新进程 /proc/PID/exe 同值，journal「Started Worker … TaskQueue work-r0a-run WorkerID work-worker-1」。回滚方向同法验证（备份件 work-worker.bak-20261104-192117 sha=9ae58c06…，装回后 exe sha 一致）。"
     },
     {
       "step": "D2-4",
       "section": "C22-D2",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "fail",
+      "ts": "2026-11-04T19:22:06+08:00",
+      "evidence": [
+        "attachments/d2-alt-2-inflight-drain.log",
+        "attachments/d2-alt-4-parked-watch.log"
+      ],
+      "notes": "v1 启动的 workflow 没有在换版本后继续完成：worker 停 20 秒后重启（仍是同一 v2 二进制），该 Run 自 19:22:06 起停在 active／dispatching，lease 于 19:23:05 过期后无人重取，观察到 19:29+ 共约 7 分钟无进展；随后运维 request_cancel → run=canceled、operation=unknown。与 D1-6 同一形态，属重驱动缺口而非重复派发。"
     },
     {
       "step": "D2-5",
       "section": "C22-D2",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T19:25:25+08:00",
+      "evidence": [
+        "attachments/d2-alt-3-rollback-v2-to-v1.log"
+      ],
+      "notes": "换版本后的新种子确实由**新装的那份二进制**领取：R4=e33a08b8 在 v1 回滚后 25 秒内 succeeded，runtime_execution 的 holder 分别是 work-worker-plan:…与 work-parent-1:…；同窗内 R3 是在 v2（exe sha 33a6c7df…、pid 1686196）上被领取并执行的。注意 run.runtime_version 取自 env（pi-1.4.0-r0a），不随二进制变化，故版本归属只能由 /proc/PID/exe 的 sha 与 journal 认定——别把该列当证据。"
     },
     {
       "step": "D2-6",
       "section": "C22-D2",
-      "verdict": null,
-      "ts": null,
+      "verdict": "na",
+      "ts": "2026-11-04T19:25:25+08:00",
       "evidence": [],
-      "notes": ""
+      "notes": "无 drain 开关可关回（同 D2-2）。今晚的真实形态是：同一时刻只有一份二进制在跑，换装即全量切换，不存在 v1/v2 并存领取。"
     },
     {
       "step": "D2-7",
       "section": "C22-D2",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T19:29:03+08:00",
+      "evidence": [
+        "attachments/d2-alt-4-parked-watch.log",
+        "attachments/d2-alt-5-operator-cancel.log"
+      ],
+      "notes": "切换期间没有 lost activity，也没有 orphan dispatch：operation 恒 1 行、dispatch_delivery 恒 1 行（gate 由 consumed 走到 receipt_recorded、receipt_result=success），runtime_execution 未出现第二行，fence/attempt 不动。operation 变 unknown 只发生在运维 cancel 之后（19:34:22），不是切换过程本身——但 unknown＋预留 held 这一步同样要人收，见 D4-a 注与 #56-A。"
     },
     {
       "step": "D3-1",
@@ -260,66 +292,74 @@
     {
       "step": "D4-1",
       "section": "C22-D4",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T19:00:00+08:00",
+      "evidence": [
+        "attachments/d4-a-1-suspend-obligations-restore.log"
+      ],
+      "notes": "namespace work-r0a 基线已取（Id 5d81da27-481d-4501-875b-0438b9583f9d、retention 168h0m0s、单集群 active、History/Visibility 归档 Disabled）。本部署没有 namespace 级限流/并发上限可降（那是 Cloud 特性），故 D4-2..D4-5 的原文动作不成立。"
     },
     {
       "step": "D4-2",
       "section": "C22-D4",
-      "verdict": null,
+      "verdict": "na",
       "ts": null,
       "evidence": [],
-      "notes": ""
+      "notes": "见 §0A D4 行：-rd 改的是 retention 不是并发/限流；OSS 1.25.0 无 namespace 并发上限。配额饱和改由 D4-b 承接，今晚未演。"
     },
     {
       "step": "D4-3",
       "section": "C22-D4",
-      "verdict": null,
+      "verdict": "na",
       "ts": null,
       "evidence": [],
-      "notes": ""
+      "notes": "同上。已另测到提交侧的真实拒绝码：停用时 submit_task 报 org_execution_unavailable（不是 rate_limited/quota_exhausted），见 D4-a 注。"
     },
     {
       "step": "D4-4",
       "section": "C22-D4",
-      "verdict": null,
+      "verdict": "na",
       "ts": null,
       "evidence": [],
-      "notes": ""
+      "notes": "无 Temporal 侧限流可打，谈不上误杀；停用侧的在途 Run 处置见 D4-a（intents=2、queued Run 转 failed/prepare_failed）。"
     },
     {
       "step": "D4-5",
       "section": "C22-D4",
-      "verdict": null,
+      "verdict": "na",
       "ts": null,
       "evidence": [],
-      "notes": ""
+      "notes": "未改 retention，无需恢复；基线值已记录在 D4-1。"
     },
     {
       "step": "D4-6a",
       "section": "C22-D4",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": "apply_execution_entitlement SQL 函数形式"
+      "verdict": "pass",
+      "ts": "2026-11-04T19:41:51+08:00",
+      "evidence": [
+        "attachments/d4-a-1-suspend-obligations-restore.log"
+      ],
+      "notes": "apply_execution_entitlement SQL 函数形式 ｜ SQL 入口实测：rev=1、enabled=true、operator_suspended=true、host_ack=NULL → outcome=suspended；org.execution_enabled=false、operator_suspended=true、access_epoch 0→1、access_restriction(active, reason=operator_suspended, release_floor_revision=1)、cancellation_intents=2；audit_event 里 operator_authorization_ref=DRILL-2026-11-04-D4a 命中 2 行（工单号随账本落库）。新导出请求 work.create_audit_export → ERROR org_operator_suspended（函数第 60 行），HTTP 409 那一层由既有用例 audit_export_gate_pg_test.go:145 钉住；管理读面本次未走 HTTP。"
     },
     {
       "step": "D4-6b",
       "section": "C22-D4",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "fail",
+      "ts": "2026-11-04T19:42:08+08:00",
+      "evidence": [
+        "attachments/d4-a-1-suspend-obligations-restore.log"
+      ],
+      "notes": "判据要「expire_due_inputs / shred_due_audit_exports 各处理 1」，实测 expire_due_inputs=1、shred_due_audit_exports=0——不是控制失效，是库里没有到期的审计导出作业可扫。控制本身在停用状态下确实执行（以 work_worker + app.org_id 单事务调用，rc=0），并且新产生的义务事件被 relay 投完（outbox 未投递数 1→0）。两条附带更正：① 本主机没有任何单元调度这两个清扫（deploy/ecs 里没有对应 timer，全仓 Go 也不调它们），今晚是手工单次调用；② 目录同步在停用期间跑成功（result=success、orgs_stale=1）且没有把 operator 标志清掉。后果分档：不阻断，但判据形状要在下次演练前预置一个 status=expired 的 audit_export 再演；重开条件＝把清扫的调度形态（timer 或明确「人工」）先定下来。"
     },
     {
       "step": "D4-6c",
       "section": "C22-D4",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T19:42:16+08:00",
+      "evidence": [
+        "attachments/d4-a-1-suspend-obligations-restore.log"
+      ],
+      "notes": "恢复已实测，但原文「解除开关」写成一步不成立：真正的路径是四步 ack 协议——(1) rev1 未确认时直接提 rev2 解除会被拒（ERROR governance_revision_conflict，函数第 96 行，这是 P5 的第一次活体证据）；(2) rev1+ack=1（同一 payload）→ already_suspended，host_ack 落到 1；(3) rev2、operator_suspended=false、ack=NULL → pending_ack，此刻 execution_entitlement 已写 susp=false 但 work.org 仍是 exec=false/susp=true（未确认的解除不重开服务）；(4) rev2+ack=2 → restored，released_denials=1、denial_active=false，org 回到 exec=true/susp=false。之后新种子 R8=19e8b6b4 succeeded。access_epoch 不回退（0→1 是永久账本事实），恢复后仍是 1。"
     },
     {
       "step": "S1-R06",
@@ -560,13 +600,80 @@
       "ts": null,
       "evidence": [],
       "notes": "条件步：仅当 #31（preview/submit 请求体扁平化）在 11-15/16 前有尚未发布到生产的新版本时执行；生产已是扁平形状则填 na 并在 notes 记「不适用」。2026-11-04 补入——清单第 8 节（#31 双形状过渡验证，条件项）有这 5 步而本模板没有，执行当天会无处记录。判定 T-31-2 结果（400＝预期拒绝、客户端已对齐；202＝兼容窗口仍开放）写入本文件与 verdict.md"
+    },
+    {
+      "step": "D4-a",
+      "section": "rescheduled-2026-11-04",
+      "verdict": "pass",
+      "ts": "2026-11-04T19:42:30+08:00",
+      "evidence": [
+        "attachments/d4-a-1-suspend-obligations-restore.log"
+      ],
+      "notes": "kill switch 与义务不停：见 D4-6a/6b/6c 三格。补三条对清单的反向更正：① 停用对新提交是**当场拒绝**（submit_task → org_execution_unavailable，不落新 run 行），不是「提交成功但派不出去」；② 停用对在途/排队 Run 的即时效果是 2 条 cancellation_intent(pending, attempts=0)，其中 queued 的 0059b3e3 在 4 秒内转 failed／terminal=prepare_failed（由派发闸门拦死，不是 canceled），而那 2 条 intent 全仓没有任何消费者（只有 0018 的状态机与测试引用），恢复后仍 pending；③ 停/解都要工单号且工单号进账本，无工单号直接 invalid_request:operator_authorization_ref。"
+    },
+    {
+      "step": "D4-b",
+      "section": "rescheduled-2026-11-04",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D4-c",
+      "section": "rescheduled-2026-11-04",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D2-alt",
+      "section": "rescheduled-2026-11-04",
+      "verdict": "pass",
+      "ts": "2026-11-04T19:25:25+08:00",
+      "evidence": [
+        "attachments/d2-alt-1-worker-drain-stageB.log",
+        "attachments/d2-alt-2-inflight-drain.log",
+        "attachments/d2-alt-3-rollback-v2-to-v1.log",
+        "attachments/d2-alt-4-parked-watch.log",
+        "attachments/d2-alt-5-operator-cancel.log"
+      ],
+      "notes": "按实际形态演完 v1→v2→v1：两版 sha256 均记录并在主机逐字节核对；换装由 install+systemctl 重启完成，进程 exe 与备份件 sha 对得上；在途 Run 未迁移半轮状态（fence=2／attempt=1 不动、runtime_execution 不多出行、plan 轮已 checkpoint_committed）、无重复派发（1 op／1 delivery，gate 走满 receipt_recorded）；新 Run 走新装版本。本行无「镜像」前置。残余风险记在 D2-4：中断后不会自动续跑，且运维 cancel 之后预留不自动释放（本次 2 笔×100,000，落在 2026-11 期间，限额 1,000,000）——这是 §5.17 那批 stale 预留的同一条产生路径，今晚是第一次拿到产生过程。"
+    },
+    {
+      "step": "D1-alt",
+      "section": "rescheduled-2026-11-04",
+      "verdict": "pass",
+      "ts": "2026-11-04T19:38:23+08:00",
+      "evidence": [
+        "attachments/d1-alt-1-pod-delete.log",
+        "attachments/d1-alt-2-aftermath-scan.log"
+      ],
+      "notes": "单副本重启等价项：在途有 run 时删掉唯一的 temporal-server pod，同节点重建（pod 名与 IP 变、Ready 恢复），期间 work 侧无第二个 Run、无重复 activity 派发、fence/attempt 不动，delivery gate 在 server 恢复后从 consumed 走到 receipt_recorded。**本行不构成多节点证据**（§0A 已写：同节点单副本；多副本需先裁 --replicas=2，且那也只算多副本）。同 D2-alt 的停放现象在这里复现：workflow 仍 Running／AdvanceRuntime 停在 STARTED，靠人手 cancel 收口。"
+    },
+    {
+      "step": "D3-a",
+      "section": "rescheduled-2026-11-04",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D3-b",
+      "section": "rescheduled-2026-11-04",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
     }
   ],
   "summary": {
-    "pass": 0,
-    "fail": 0,
-    "na": 0,
-    "total": 69
+    "pass": 15,
+    "fail": 3,
+    "na": 9,
+    "total": 76
   },
   "writeback_targets": {
     "pilot_checklist": "docs/plan/assets/work-r0a-ops-2026-10-25/pilot-checklist.json",
@@ -580,13 +687,22 @@
     "verdict_extra_steps": [
       "S1-R06"
     ],
-    "note": "2026-11-04 第二次对齐：第一次的 `md_steps_missing_from_verdict: []` 是**按节局部取号**算出来的，改成整文件正则后发现漏集非空——清单第 8 节（#31 双形状过渡验证，条件项）的 T-31-1..T-31-5 五条条件步在本模板里没有落点，已补入（见 steps 里 section=RB-05-T31），total 由 64 变 69。另：C13 的裁定与表格矛盾已在清单侧就地标注解决，行不删以保住与 drill 目录的步号对齐。",
+    "note": "2026-11-04 第二次对齐：第一次的 `md_steps_missing_from_verdict: []` 是**按节局部取号**算出来的，改成整文件正则后发现漏集非空——清单第 8 节（#31 双形状过渡验证，条件项）的 T-31-1..T-31-5 五条条件步在本模板里没有落点，已补入（见 steps 里 section=RB-05-T31），total 由 64 变 69。另：C13 的裁定与表格矛盾已在清单侧就地标注解决，行不删以保住与 drill 目录的步号对齐。；2026-11-04 §0A/§0B 重排新增 7 个可执行步骤 id（D4-a/b/c、D2-alt、D1-alt、D3-a/b）并同步补进本页 steps，summary.total 随之更新——否则演练当天执行了却没有落点，正是 C03 当初「T-31-* 只存在于 markdown」的同一类缺陷。",
     "open_contradiction": null,
     "aligned_with": "drill-2026-11-15/README.md 第 37 行（不空跑 C13-1..8）；pilot-checklist.json C13（status 仍 partial）",
     "scope_exclusions": [
       "日期表（11-15 / 11-16 两行）不是步骤，正则命中后排除",
       "S1-R06 是本模板自有的恢复步骤（清单里写作一行说明而非表格首列格式）"
     ],
-    "contradiction_resolved": "work-r0a-drill-checklist-2026-11-15.md 第 6 节：裁定文字（原 118 行）与表格（原 123-130 行）矛盾，2026-11-04 处理为——表格逐行加「不执行（按 A 移出）」标注、C13-1 的归属歧义在裁定段下补消歧段、第 134 行 blocked 预判加更正、节首孤儿表头删除。未删任何行。"
+    "contradiction_resolved": "work-r0a-drill-checklist-2026-11-15.md 第 6 节：裁定文字（原 118 行）与表格（原 123-130 行）矛盾，2026-11-04 处理为——表格逐行加「不执行（按 A 移出）」标注、C13-1 的归属歧义在裁定段下补消歧段、第 134 行 blocked 预判加更正、节首孤儿表头删除。未删任何行。",
+    "executed_2026_11_04": {
+      "ids": [
+        "D4-a",
+        "D2-alt",
+        "D1-alt"
+      ],
+      "note": "§0B 的 7 个新 id 里今晚执行了 3 个；D4-b／D4-c／D3-a／D3-b 未演。原文 D1-x／D2-x／D4-x 各行只填真核过的格，未填的仍为 null（不等于未通过，等于本轮未取证）。",
+      "residual": "演练残留：2 笔 held 预留（各 100,000，期间 2026-11）、2 条 pending cancellation_intent（无消费者）、org access_epoch 由 0 永久升到 1；open run=0，所有 systemd 单元 active+enabled，worker 二进制回到 v1。"
+    }
   }
 }
