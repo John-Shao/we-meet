@@ -460,10 +460,10 @@
     {
       "step": "C13-1",
       "section": "C13",
-      "verdict": null,
+      "verdict": "excluded_by_ruling_A",
       "ts": null,
       "evidence": [],
-      "notes": "可选：仅记录现有主密钥指纹（SHA-256 前 8 hex，不落值）。与裁定 A 不冲突（不做轮换），是否执行由执行人在备注里判定。"
+      "notes": "与 C13-2..8 同批不空跑：drill README 第 37 行的签收栏写「C13-0 判定驱动不存在 → 不空跑 C13-1..8」，本字段此前留 null 与该指示不一致，现统一为排除占位。若要执行仅指纹记录（不落值），由执行人把 verdict 改成 na/pass 并在 notes 说明理由。"
     },
     {
       "step": "C13-2",
@@ -541,6 +541,7 @@
       "S1-R06"
     ],
     "note": "verdict 覆盖清单全部步骤号；S1-R06 是本模板自有的恢复步骤（清单里写作「S1-R06 重启失败」一行，不是同样的表格首列格式，故不计为缺失）。C13-2..8 以 excluded_by_ruling_A 占位：2026-11-03 裁定 A（task #40）把主密钥轮换/重加密驱动移出 R0a 退出门，清单第 118 行写「C13-2..8 移出」，但 123-130 行的表格仍列着它们——两处矛盾，删行属语义决定，留给执行人/John；占位只为演练当天既不漏记也不与裁定相悖。",
-    "open_contradiction": "work-r0a-drill-checklist-2026-11-15.md 第 118 行裁定 vs 第 123-130 行表格"
+    "open_contradiction": "work-r0a-drill-checklist-2026-11-15.md 第 118 行裁定 vs 第 123-130 行表格",
+    "aligned_with": "drill-2026-11-15/README.md 第 37 行（不空跑 C13-1..8）"
   }
 }
