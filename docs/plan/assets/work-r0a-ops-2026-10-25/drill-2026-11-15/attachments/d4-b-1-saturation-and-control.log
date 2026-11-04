@@ -1,0 +1,47 @@
+### D4-b start 2026-11-04T21:50:04+08:00
+== current 2026-11 account row (record verbatim for restore) ==
+id=c109fce1-9f61-4ce7-961d-ed1736f488be period=2026-11 key=default limit=1000000 reserved=200000 settled=8526 enforcement=soft version=14
+recorded LIMIT_NOW=1000000 ENF_NOW=soft
+== backup the account + reservation tables (single-table dump, root-only) ==
+backup=/root/backups/work-pre-d4b-20261104T215004.dump rc=0 size=64709 sha16=a8a4465231e03f68
+== saturate: limit=250000, enforcement=hard (reserved is 200000, so a 100000 reservation cannot fit) ==
+saturate rc=0 4a2d3f28-38b9-4d6c-8614-70ef9a83960d
+after saturate: limit=250000 reserved=200000 enforcement=hard
+== submit while saturated (the point: refusal happens in the Run, not at submit) ==
+seed pid=1711635 binary=/usr/local/bin/work-e2e-seed boundary=2026-11-04 21:50:04.982427+08
+INFLIGHT run=e148ea6b-d644-44f8-8293-188bae67525e state=queued poll=1
+seed_watch_rc=0
+R9=e148ea6b-d644-44f8-8293-188bae67525e
+t+10s run=queued terminal=- wait=-
+t+20s run=failed terminal=execution_prepare_failed wait=-
+t+30s run=failed terminal=execution_prepare_failed wait=-
+t+40s run=failed terminal=execution_prepare_failed wait=-
+t+50s run=failed terminal=execution_prepare_failed wait=-
+t+60s run=failed terminal=execution_prepare_failed wait=-
+-- what the worker saw --
+Nov 04 21:50:06 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 21:50:06 ERROR Activity error. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkflowI
+Nov 04 21:50:07 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 21:50:07 ERROR Activity error. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkflowI
+Nov 04 21:50:09 lavm-t7fmveau9b work-worker[1687359]: 2026/11/04 21:50:09 ERROR Activity error. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkflowI
+-- ledger: no double deduction, no new held row --
+account now: limit=250000 reserved=200000 settled=8526
+held=2 tokens=200000
+ERROR:  column reference "state" is ambiguous
+LINE 1: ...ount(*)||' states='||coalesce(string_agg(distinct state,',')...
+                                                             ^
+quota_entry kinds: settle=114, release=35, reserve=151
+-- other runs untouched? (terminal counts by state) --
+canceled:33, failed:14, succeeded:110
+== restore and run the control submission ==
+restored limit=1000000 enforcement=soft rc=0 at 2026-11-04T21:51:05+08:00
+now: limit=1000000 reserved=200000 settled=8526 enforcement=soft
+seed pid=1711827 binary=/usr/local/bin/work-e2e-seed boundary=2026-11-04 21:51:05.745199+08
+INFLIGHT run=091fd84e-91a5-420a-92ed-bb7afb21ece3 state=queued poll=1
+control_watch_rc=0
+control terminal=succeeded poll=8
+control run=succeeded ops=1
+final account: limit=1000000 reserved=200000 settled=11201 enforcement=soft
+final held=2 tokens=200000
+### D4-b end 2026-11-04T21:51:41+08:00
+### TRAP fired, restoring
+restored limit=1000000 enforcement=soft rc=0 at 2026-11-04T21:51:41+08:00
+now: limit=1000000 reserved=200000 settled=11201 enforcement=soft

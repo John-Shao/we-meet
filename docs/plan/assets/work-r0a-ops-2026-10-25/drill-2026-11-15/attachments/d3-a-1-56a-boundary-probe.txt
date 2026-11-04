@@ -1,0 +1,36 @@
+56-A 边界复测记录（停放 Run 到底会不会自己结束）
+运行方式：与 D2-alt 同一注入形态——在途 Run 处于 active 时 systemctl stop/start work-worker，
+使 activity 的完成回执丢失；这次不人为取消，一直等到 Temporal 自己的判定边界。
+主机 lavm-t7fmveau9b；run f5f4fc26-e650-4808-b81e-a3c48e5b5deb；workflow run:f5f4fc26…
+
+  21:59:28  种子入库，worker 领取（`op=dispatching`，`execute` 租约 22:00:28，heartbeat_seq=3）
+  21:59:28  worker journal：ERROR Activity error … / INFO Task processing failed with error
+            Error grpc: the client is closed（停机导致完成回执丢失）
+  21:59:30  INFO Started Worker（v1 二进制，pid 1713777）
+  22:00:28  库侧租约到期，无人重取（此后至 22:15 一直如此）
+  22:10:17  读数：run=active、attempt=1、fence=2、op=model=dispatching、reservation=held 100000
+  22:15:28  **Temporal 自行判终态**：run=failed／terminal_reason=advance_failed、
+            exec: execute=revoked(terminal=advance_failed)＋plan=completed(checkpoint_committed)、
+            op=model=unknown、reservation 仍 held amount=100000 settled=0、account reserved=100000
+  22:17:44  §5.21 巡检读数：parked_runs=0 held_on_terminal=1 unknown_operations=35 open_runs=0
+  22:19:25  按 #56-B 裁定 settle 该笔（dispatch gate=receipt_recorded／receipt_result=success）：
+            account reserved 100000→0、settled 不变（reported_tokens=0，依据写进 quota_entry.usage）、
+            audit 一行带 ticket=DRILL-2026-11-04-56A；随后单元以容差 0 跑一次 result=success（breaches=0）
+
+配置事实（决定上面这个时间点）：internal/runflow/advance.go:340-343
+  StartToCloseTimeout = 16 * time.Minute
+  ScheduleToCloseTimeout = 17 * time.Minute
+  RetryPolicy = &temporal.RetryPolicy{MaximumAttempts: 1}
+另有 runtime_execution.hard_deadline 为提交后 30 分钟（本次 22:29 前后），租约 heartbeat 为 60 秒。
+
+结论更正：
+1) 我此前在 D1-6／D2-4／§5.18 写的「既不重试也不判失败」「永远停在 STARTED」是把 7／9 分钟的观测窗口外推，
+   超出证据范围——**超时机制一直存在，16 分钟后 Temporal 会自己把 Run 判成 failed／advance_failed**。
+2) 仍然成立的两点：a) 不会"重驱动到完成"（MaximumAttempts=1，超时即失败）；
+   b) 终态化**不结算预留**：该 Run 的 receipt 早已 success，终态后仍留 operation=unknown＋held 100,000，
+   必须靠 §5.21 巡检发现＋#56-B 的人工 settle。
+3) 因此 #56-A（主签裁「补超时」）的前提部分失效：超时不缺，缺的是**时长与收口**——
+   16 分钟相对 15–25 秒的正常活动过长；且终态时没有把预留一并结算。
+   这一条我不自行动代码，已回给主签在更正后的前提上重裁（缩短 StartToClose／允许一次重驱动／终态即收预留是三件不同的事）。
+4) D3-a 未取证的那半条（失联期间告警行为）仍是未取证：22:20:04 那次巡检前 35 秒我已把残留 settle 归零，
+   单元没有转红，也就没有触发邮件。要拿这条证据需要一次不复用的注入（含允许发信）。

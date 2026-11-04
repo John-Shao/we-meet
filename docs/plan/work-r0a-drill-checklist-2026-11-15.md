@@ -20,7 +20,7 @@
 | P6 | Kill switch 可操作（D3-N06） | 以授权角色 psql 调 `SELECT work.apply_execution_entitlement(...)`（SQL 函数，非 CLI）可改 `work.org.operator_suspended`；先按签名试算确认可执行 | 后端 | 11-06 |
 | P7 | 两个 Worker 版本镜像（D2） | registry tag `worker:v1-s2` / `worker:v2-s2` 存在 | 平台 | 11-06 |
 | P8 | `WORK_CONTENT_MASTER_KEY` 环境变量注入通道就绪（C13）——**2026-11-04：按 A，本项不再是演练前置**，主密钥不换、不注入新 key；保留本行只作 11-06 预检时的现状确认（当前 key 可读、文件不入库） | 进程 env 可读，文件不入库 | 后端 | 11-06 |
-| P9 | 租户开通/停用的**已接线**闸门可操作（C28）——**2026-11-04 #46=A 裁定**：目录同步按 Host 报的 `status=active` 自动置 `execution_enabled=true` **即设计**，不加 Work 侧独立开关；试点期以「首批组织开通时人工确认 `status` 三列现值」作过渡控制（本行判据含此项） | `work.org` 的 `status/execution_enabled/operator_suspended` 三列可读可改（`tenant_access` 列无代码消费者，不作判据），证据＝SQL 读值【2026-11-04 修：本行原来多了第 6 个单元格，把「后端／11-10」整体挤到错误的列上——负责与时限读起来会串位；本表只有 5 列，现并回判据格】 | 后端 | 11-10 |
+| P9 | 租户开通/停用的**已接线**闸门可操作（C28）——**2026-11-04 #46=A 裁定**：目录同步按 Host 报的 `status=active` 自动置 `execution_enabled=true` **即设计**——**（22:35 实测证伪：`record_directory_sync` 只写 `directory_sync_state`，全仓无生产代码写这三列；停用态真跑一次同步 result=success 而标志仍 false。已开在 C28 note 与 #56 同批待裁）**，不加 Work 侧独立开关；试点期以「首批组织开通时人工确认 `status` 三列现值」作过渡控制（本行判据含此项） | `work.org` 的 `status/execution_enabled/operator_suspended` 三列可读可改（`tenant_access` 列无代码消费者，不作判据），证据＝SQL 读值【2026-11-04 修：本行原来多了第 6 个单元格，把「后端／11-10」整体挤到错误的列上——负责与时限读起来会串位；本表只有 5 列，现并回判据格】 | 后端 | 11-10 |
 | P10 | 在途 Run 种子：1 个 waiting + 1 个 running（**2026-11-04 #51 已裁 A：机制与时点定如下**——用主机上的 `work-e2e-seed -org <org> -actor <active owner subject> -goal <文本>` 造，它走与 `POST /work/v1/tasks` 相同的领域函数、不绕过授权；**在演练当天上午现造现演现清**，不在 11-10 彩排后把 held 预留挂多日，#11 那类 stale run 正是这样积起来的。两条实测前提：该二进制只在 `/usr/local/bin`、**不在发布包内**（任务 #54）；`quota_account` 目前只有 `2026-10` 周期行，当天要确认新周期行是首笔预留时懒建还是缺建——**该问句 2026-11-04 已按源码答毕（#51）**：worker 在 `reserve_quota` 之前的**同一事务**里调 `work.ensure_quota_account(org, key, period, limit, enforcement)`（`src/work/internal/runflow/activities.go:263-272`，另一处 `advance_activities.go:494`），函数体是 `INSERT … ON CONFLICT (org_id, account_key, period_id) DO NOTHING`（`src/work/migrations/increments/0006_org_policy_quota_provision.sql:6`），所以 `2026-11` 行由当天第一笔预留**懒建**、不缺建，额度取 worker 配置、`QuotaLimit` 未设时代码缺省 **1,000,000**（`activities.go:915-919`）。**同时撤回我此前挂在同一行的错连**：我把这条写成了「决定 D4『配额打满』能否演」——D4 打的是 **Temporal namespace 配额**（D4-1/D4-2 用 `temporal operator namespace describe/update -rd` 调 rate limit / concurrent workflows），与 `work.quota_account` 的 token 额度是两套东西；本条懒建结论影响的是**当天种子预留会记进哪个期间、以及 §5.17 的跨期可见性**，不是 D4 的可演性） | `SELECT run_id, state FROM work.run WHERE ...` ≥2 | 后端 | 11-10 彩排后；造 Run 在 11-15 上午。**#54=B（2026-11-04）seed 的可重放步骤**：演练前一天在仓库根构建`(cd src/work && go build -o /tmp/work-e2e-seed ./cmd/work-e2e-seed)`，`sha256sum` 记入 `verdict.json` 的 `P10.evidence`，经 meet 侧跳板上传到 Work 机 `/usr/local/bin/work-e2e-seed`（主机那份是历史手工件、**不在发布包内**，见 #54），演练后**保留**并在 `notes` 记明保留理由；不接受「主机上有一个来路不明的二进制」作为演练前置通过。
 | P11 | 五席 + SRE/DBA 真名确认 | 填 §附录 A 表 | 平台 | 11-06 |
 
@@ -51,13 +51,13 @@
 
 | 步 | 动作 | 通过判据 | 证据 |
 |---|---|---|---|
-| D4-a | 重排 11-05｜kill switch 与义务不停：以 `work_operator` 经 psql 调 `work.apply_execution_entitlement(p_operator_suspended => true)`，再恢复 | 新提交/新导出停止；relay、到期清扫、目录同步对**已停用 org**仍继续（journal 可见）；恢复后再提交成功 | SQL 回显 + `journalctl -u work-relay -u work-directory-sync` 片段 + `work-reconcile-scan` 一次 summary |
-| D4-b | 重排 11-06｜配额饱和改用 Work 侧组织额度：把该 org 当期 `quota_account.limit_tokens` 调到略高于已预留量，再提交 | 新提交被受控拒绝并给出配额错误码；已有 Run 不被误杀；预留不重复扣减 | `pilot-metrics.sql`/`quota_account` 只读读数 + 被拒响应码（按 §5.2 的特权读或已设 `app.org_id`） |
-| D4-c | 重排 11-06｜现状记录：Temporal namespace `work-r0a` 归档为 Disabled、retention 现值 168h | 只记录不声称验证；若做过 `-rd` 调整必须恢复原值并留下前后 describe | 前后两次 `temporal operator namespace describe` 输出（Id 5d81da27-481d-4501-875b-0438b9583f9d） |
-| D2-alt | 重排 11-05｜版本切换按实际形态做：二进制级（v1=`/usr/local/bin/work-worker` sha16 9ae58c067b4a5103 → v2 从 tip 构建并记 sha），drain 后换装、`Restart=always` 拉起 | 在途 Run 不迁移半轮状态、无重复派发；新 Run 走新版本；无「镜像」前置（本部署无 worker 镜像） | 两版 sha256 + drain 前后 journal + 一条新 Run 的派发记录 |
-| D1-alt | 重排 11-05｜单副本重启等价项：`kubectl delete pod temporal-server-…`（同节点单副本），观察在途 workflow 恢复 | server 重建后在途 Run 不产生第二个 Run、无重复 activity 派发；本行**不得**被写成多节点证据 | `kubectl get pods -o wide` 前后 + temporal history 片段 + D1-4 的特权读数 |
-| D3-a | 重排 11-06｜故障注入改在 server 层：删 pod / 断 ClusterIP 端口，**不停 Postgres** | Work 自身数据面不受影响（同实例承载 work 48 表 + temporal + temporal_visibility，停库即自伤）；Temporal 失联期间义务与告警行为符合 §5.18 | 注入起止时间戳 + 失联期间的错误码计数 + 恢复后 reconcile 结果 |
-| D3-b | 重排 11-06｜DB 偏移证据改走恢复演练：`src/work/deploy/ecs/work-db-restore-drill.py` 在隔离实例回放 | 台账偏移与终态可读回；恢复步骤可重放、有 sha256 与耗时记录 | 演练输出 + 恢复后计数对比 |
+| D4-a | 重排 11-05｜kill switch 与义务不停：以 `work_operator` 经 psql 调 `work.apply_execution_entitlement(p_operator_suspended => true)`，再恢复→ **11-04 已演 pass **| 新提交/新导出停止；relay、到期清扫、目录同步对**已停用 org**仍继续（journal 可见）；恢复后再提交成功 | SQL 回显 + `journalctl -u work-relay -u work-directory-sync` 片段 + `work-reconcile-scan` 一次 summary |
+| D4-b | 重排 11-06｜配额饱和改用 Work 侧组织额度：把该 org 当期 `quota_account.limit_tokens` 调到略高于已预留量，再提交→ **11-04 已演 pass（判据按主签改写） **| 新提交被受控拒绝并给出配额错误码；已有 Run 不被误杀；预留不重复扣减 | `pilot-metrics.sql`/`quota_account` 只读读数 + 被拒响应码（按 §5.2 的特权读或已设 `app.org_id`） |
+| D4-c | 重排 11-06｜现状记录：Temporal namespace `work-r0a` 归档为 Disabled、retention 现值 168h→ **11-04 已记 pass（纯记录） **| 只记录不声称验证；若做过 `-rd` 调整必须恢复原值并留下前后 describe | 前后两次 `temporal operator namespace describe` 输出（Id 5d81da27-481d-4501-875b-0438b9583f9d） |
+| D2-alt | 重排 11-05｜版本切换按实际形态做：二进制级（v1=`/usr/local/bin/work-worker` sha16 9ae58c067b4a5103 → v2 从 tip 构建并记 sha），drain 后换装、`Restart=always` 拉起→ **11-04 已演 pass **| 在途 Run 不迁移半轮状态、无重复派发；新 Run 走新版本；无「镜像」前置（本部署无 worker 镜像） | 两版 sha256 + drain 前后 journal + 一条新 Run 的派发记录 |
+| D1-alt | 重排 11-05｜单副本重启等价项：`kubectl delete pod temporal-server-…`（同节点单副本），观察在途 workflow 恢复→ **11-04 已演 pass **| server 重建后在途 Run 不产生第二个 Run、无重复 activity 派发；本行**不得**被写成多节点证据 | `kubectl get pods -o wide` 前后 + temporal history 片段 + D1-4 的特权读数 |
+| D3-a | 重排 11-06｜故障注入改在 server 层：删 pod / 断 ClusterIP 端口，**不停 Postgres**→ **11-04 与 D1-alt 同一次注入，pass（半条未取证见 §0C） **| Work 自身数据面不受影响（同实例承载 work 48 表 + temporal + temporal_visibility，停库即自伤）；Temporal 失联期间义务与告警行为符合 §5.18 | 注入起止时间戳 + 失联期间的错误码计数 + 恢复后 reconcile 结果 |
+| D3-b | 重排 11-06｜DB 偏移证据改走恢复演练：`src/work/deploy/ecs/work-db-restore-drill.py` 在隔离实例回放→ **11-04 演过 **fail**（见 §0C 与 #57） **| 台账偏移与终态可读回；恢复步骤可重放、有 sha256 与耗时记录 | 演练输出 + 恢复后计数对比 |
 
 
 ## 0C. 2026-11-04 夜间执行结果（D4-a／D2-alt／D1-alt 三项已演，其余四项未演）
@@ -79,12 +79,18 @@
 | D1-alt | pass（不构成多节点证据） | 同节点单副本重建（pod `6dj5r／10.42.0.46` → `2h95v／10.42.0.47`）：无第二个 Run、无重复 activity、fence／attempt 不动，delivery gate 在恢复后从 consumed 走到 receipt_recorded | `d1-alt-1`／`d1-alt-2` |
 | D1-6 | fail | 同 D2-4 形态且拿到了原因：`temporal workflow describe` 显示 `pendingActivities=1`、`AdvanceRuntime` 停在 `PENDING_ACTIVITY_STATE_STARTED`、`nextRetry=None`——Temporal 仍认为 activity 在被执行，故既不重试也不判孤儿；约 9 分钟后靠运维 `request_cancel` 收口。这也是 §5.17 那批 stale 预留**第一次拿到产生过程** | `d1-alt-2-aftermath-scan.log` |
 | D1-7 | 未取证 | 原文判据引用 `work.outbox.claimed_by`，该列不存在（表只有 `available_at／delivered_at／attempts／aggregate_*`）→ 先改判据再演，本轮不写结论 | 无 |
+| D4-b | pass（判据由主签改写） | 原文「新提交被受控拒绝并给出配额错误码」**在本接线里不成立**：`reserve_quota` 只在 worker 活动里被调（`activities.go:270`／`advance_activities.go:502`，EXECUTE 只授 `work_worker`），提交侧从不预留，客户永远先拿到 202。实测改为：2026-11 账户行 `limit=250000`＋`enforcement='hard'` → 同一提交路径三次 `PrepareAdvanceExecution … Error quota_exhausted` → Run 转 `failed／execution_prepare_failed`；`reserved_tokens` 全程 200,000（无半笔扣减）、无新增 held 预留、其它 Run 未动；恢复 `limit=1,000,000／soft` 后再提交同一路径 **succeeded**（因果对照）。**第二条更正：光改 limit 不打人——只有 `enforcement='hard'` 才判上限，账户默认 soft，原文与 §0A 都没写** | `d4-b-1-saturation-and-control.log`（改前有 quota_* 三表 pg_dump，sha16 `a8a465…`；两条写都走 work_owner＋`app.org_id`，脚本带 trap 兜底） |
+| D4-c | pass（纯记录） | 两次 describe 完全一致（18:59 预检／21:16 收尾）：`work-r0a`、Id `5d81da27-…`、retention `168h`、单集群 active、History／Visibility 归档 Disabled。**未做过 `-rd` 调整**，所以「调整后须恢复原值」一支不适用 | `d4-c-1-namespace-describe.txt` |
+| D3-a | pass（主签定：与 D1-alt 同一次注入算同一证据） | 已核两条：注入后 `pg_postmaster_start_time()` 仍是 2026-10-28 09:30:05、`postgresql.service` NRestarts=0（同实例三库都在，run／task 行数不变）；失联窗口内 worker journal `Failed to poll for task` ×4＋`Task processing failed with error` ×1，恢复后 outbox 未投递回到 0。**未取证的半条＝「告警行为符合 §5.18」**：注入在 19:36，而 runstream 巡检 20:15 才装，当晚刻意没手跑 healthcheck（它会发信）——这半条留给 #56-A 的边界复测 | `d1-alt-1`／`d1-alt-2` |
+| D3-b | **fail**（今晚演练最重要的产出） | 下载与 sha256 都过，**卡在 age 解密**：机上唯一身份 `work-backup.agekey` 的收件人是 `age1z43zrq…`，而 `recipient.txt`（mtime 10-29 12:22:30）是 `age1jyazk…`——**不是同一把钥匙**；同一把钥匙能解出 10-28 的本地归档，所以不是钥匙坏，是收件人换过而私钥没跟上。10-29 12:23:56 那次 passed 用的是当时存在、现全盘搜不到的 `work-offsite-20261029.agekey`。失败很干净：库表仍是六个、无 scratch 库无临时目录。**两条附带更正**：① §0B 原文「隔离实例回放」错——脚本在生产集群内 `createdb work_drill_<hex>` 再 `dropdb`；② 脚本不在发布包内且机上副本已漂移（缺 `WORK_BACKUP_IDENTITY` 覆盖、写死不存在的 key 路径）。**C19 现为 done，与此冲突，状态我没动 → 开 #57 请主签裁** | `d3-b-1-restore-drill-fail.log`／`d3-b-2-key-custody-diagnosis.txt` |
+
+> **【22:15 边界实测更正】停放不是永久：`AdvanceRuntime` 一直带着 `StartToCloseTimeout=16min／ScheduleToCloseTimeout=17min／MaximumAttempts=1`（`internal/runflow/advance.go:340-343`）。第三次注入（21:59:33 停启 worker，run f5f4fc26）在 **22:15:28 由 Temporal 自己判成终态**：`run=failed／terminal_reason=advance_failed／execute=revoked`。准确说法是「**不会重驱动到完成（无重试），但会在 16 分钟边界判失败**」；我之前写的「既不重试也不判失败／永远停在 STARTED」是从 7／9 分钟窗口外推的，超出证据范围。真实缺口改成两条：① 16 分钟对一次 15–25 秒的活动太长，值班看到的是「卡住」而不是「失败」；② 终态化**不结算预留**——该 Run 的 dispatch gate 早已 `receipt_recorded／success`，终态后仍是 `operation=unknown`＋`held 100,000`，仍需 §5.21 发现＋#56-B 人工 settle（22:19:25 已归零）。**
 
 **演练残留（收尾读数，2026-11-04 19:45）**：open run=0；`runs=155`（succeeded 109／failed 13／canceled 33）；
-**2 笔 held 预留、各 100,000，期间 2026-11（限额 1,000,000，剩 800,000 可用）**；2 条 pending cancellation_intent；
+**2 笔 held 预留、各 100,000，期间 2026-11（限额 1,000,000，剩 800,000 可用）→ 11-04 21:58 已按主签裁定 settle 归零**（`held=0`、`reserved_tokens 200,000→0`、`settled_tokens` 未增、`WORK_RUNSTREAM_MAX_HELD_ON_TERMINAL` 已改回 0）；2 条 pending cancellation_intent；
 org 三列回到 `status=active／execution_enabled=true／operator_suspended=false`、`access_epoch=1`；worker 二进制回到 v1，
 9 个 systemd 单元全部 `active+enabled`。这两笔预留**没有自动释放**，且释放语义（有 `receipt_result=success` 回执时该
-`settle_quota` 还是 `release_quota`）未裁——见待裁 #56-A，本轮按 §5.16/§5.17 的「不得为清库存放宽」原样留给主签。
+`settle_quota` 还是 `release_quota`）未裁——见待裁 #56-A，本轮按 §5.16/§5.17 的「不得为清库存放宽」原样留给主签。**（11-04 深夜更正：这一句里我把预留语义错引成 #56-A，正确编号是 #56-B；主签随后裁定「有 success 回执 → settle_quota」，已按该裁定收口，过程见 §5.21 与 `d4-b-2-56b-settle.log`——因两条 parked Run 的 usage 从未被 `record_usage` 记下、egress 也不留每笔用量，所以按 `reported_tokens=0` 结算并把依据写进 `quota_entry.usage`，不编造 token 数。）
 
 **下一步（未演的四项各自要什么）**：D4-b 要先裁「饱和闸门用 Work 侧组织额度」的判据形状；D4-c 只是现状记录，可随手补；
 D3-a 的注入面今晚已被 D1-alt 覆盖同一动作（是否算同一证据由主签定）；D3-b 需要一个隔离实例与 `work-db-restore-drill.py`
@@ -157,11 +163,13 @@ D3-a 的注入面今晚已被 D1-alt 覆盖同一动作（是否算同一证据�
 
 **目标**：namespace 配额饱和 → 新提交受控失败 → 已有 Run 不被误杀 → kill switch 操作 → 义务不停。
 
+**"新提交受控失败"的含义（#58 裁定 2026-11-04）**：指饱和以 `quota_exhausted` 在 Run 内暴露、Run 进终态，**不是**提交 API 同步返回 429/409；实现侧提交永远先 202。逐条判据见 D4-3。
+
 | 步 | 动作 | 通过判据 | 证据 |
 |---|---|---|---|
 | D4-1 | 记录当前 namespace 配额值 | `temporal operator namespace describe` 输出 | CLI 截图 |
 | D4-2 | 降低配额（rate limit / concurrent workflows）至种子 Run 数 -1 | 配额调低成功 | CLI |
-| D4-3 | 提交新 Run → 应受控失败 | 返回错误码为已定义的 `quota_exhausted`（`run_cap_exceeded`→`quota_exhausted` 映射）或 `rate_limited`；不产生 `work.run` 新行。**注：`outbox_backlog` 不是错误码目录里的码（取证：contracts/error-codes.json 无此码），勿写进判据** | API 响应 + SQL |
+| D4-3 | 提交新 Run → 应受控失败 | **承诺改写（#58 裁定 2026-11-04：改承诺、不改实现）**：本接线里"提交侧同步拒绝"不成立——`reserve_quota` 只由 worker 活动调用（`internal/runflow/activities.go:270`／`advance_activities.go:502`，EXECUTE 仅授 `work_worker`），提交恒先返回 202 并产生 `work.run` 行，饱和在 Run 内暴露。判据按 D4-b 实测改为：PrepareAdvanceExecution 报 `quota_exhausted`、Run 进 failed 终态、`reserved_tokens` 不被半笔扣减、其它 Run 不受影响。**原判据保留供对照**：返回错误码为已定义的 `quota_exhausted`（`run_cap_exceeded`→`quota_exhausted` 映射）或 `rate_limited`；不产生 `work.run` 新行。**注：`outbox_backlog` 不是错误码目录里的码（取证：contracts/error-codes.json 无此码），勿写进判据**。**遗留（不在本裁定范围）**：终态 reason 现为 `execution_prepare_failed`，不区分配额与其它 prepare 失败；要让用户侧区分需新增枚举＋迁移，按 #56-C 同样记入 R0b。另有一条同类偏移：D2 编排设计 §8.3 与故障矩阵 D3-R03 承诺 `quota_exhausted` → `waitRun(quota)`（等配额补充、最长 24h、超时 `quota_wait_timeout`），而现网 runflow 只接了 `Reason: "reconcile"` 一种等待（`internal/runflow/advance.go:214`、`:261`），饱和直接进 failed 终态——登记为待裁 #60，本单不改实现也不改 §8.3 | API 响应 + SQL |
 | D4-4 | 已有 Run 不被误杀 | 种子 Run 仍 running/succeeded | `work.run.state` |
 | D4-5 | 恢复配额 | namespace describe 恢复原值 | CLI |
 | D4-6a | 执行 kill switch：以授权角色经 **psql SQL** 调 `SELECT work.apply_execution_entitlement(...)`（0023/0027 定义的 SQL 函数，非 CLI、无 `--suspend` 标志；R0a 无对应 admin 端点，演练按签名直接 SQL 调用） | `work.org.operator_suspended = true`（列在 **org** 表，非 org_policy）；新导出请求 409 `org_operator_suspended`；管理读面仍 200 | psql SQL + API |

@@ -30,7 +30,7 @@
 | D1 | 多节点拓扑下滚动重启 server，在途 workflow | 无重复派发、无第二个 Run；Run 最终可读/可取消 | 开发测试 5 人 + SRE | 11-15（待确认） | 演练记录 + 事件时序 |
 | D2 | worker drain → 版本切换 → 恢复 | 旧 workflow 保持旧行为；新 Run 用新版本；无丢活动 | 开发测试 5 人 + SRE | 11-15（待确认） | drain 日志、version patch 记录 |
 | D3 | Temporal PG 故障/恢复 | relay 积压可见；恢复后按租约继续；业务账本不变 | 开发测试 5 人 + DBA | 11-16（待确认） | PG 日志、outbox 积压曲线、账本核对 |
-| D4 | namespace 配额打满 | 新提交受控失败（`outbox_backlog` 类）；已有 Run 不被误杀 | 开发测试 5 人 + SRE | 11-16（待确认） | 错误码/指标、Run 状态 |
+| D4 | namespace 配额打满 | 新提交受控失败（`outbox_backlog` 类）；已有 Run 不被误杀。**2026-11-04 #58 裁定更正**：`outbox_backlog` 不在错误码目录里，且"受控失败"按实现是 **Run 内**以 `quota_exhausted` 进终态（提交恒先 202），不是提交 API 同步拒绝；判据以 `work-r0a-drill-checklist-2026-11-15.md` D4-3 为准 | 开发测试 5 人 + SRE | 11-16（待确认） | 错误码/指标、Run 状态 |
 
 四项任一项未完成 → C03 不在 DR2 签；可在 DR2 只签 D3 设计，C03 延到 DR4 前补签（代价：E4 部署排期后移）。
 

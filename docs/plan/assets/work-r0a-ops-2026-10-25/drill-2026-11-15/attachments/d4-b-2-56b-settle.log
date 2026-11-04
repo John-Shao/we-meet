@@ -1,0 +1,48 @@
+### #56-B settle start 2026-11-04T21:58:32+08:00
+== fresh backup of the quota ledger (S1-R02/\u00a75.16 discipline) ==
+backup=/root/backups/work-pre-56b-settle-20261104T215832.dump size=64952 sha16=822dfe41aab05887
+account: limit=1000000 reserved=200000 settled=11201 version=16 enf=soft
+held=2 tokens=200000
+entries kinds: settle=115, release=35, reserve=152
+
+== DRY RUN (ROLLBACK): confirm the state change and that both calls are accepted ==
+dry rc=0
+4a2d3f28-38b9-4d6c-8614-70ef9a83960d
+res1 state before=held amount=100000 rev=0
+
+res2 state before=held amount=100000 rev=0
+
+4a2d3f28-38b9-4d6c-8614-70ef9a83960d
+40fa4a18-1045-4f0b-95e3-80f0b780540f
+a5eca668-3dd1-4f30-a16e-0d670a45f451
+account: limit=1000000 reserved=200000 settled=11201 version=16 enf=soft
+held=2 tokens=200000
+entries kinds: settle=115, release=35, reserve=152
+
+== COMMIT ==
+commit rc=0
+
+4a2d3f28-38b9-4d6c-8614-70ef9a83960d
+8040f185-e874-4c2d-a6be-d4feb05939ea
+8bd3cc70-9c3e-4397-b496-442d57ea6b14
+account: limit=1000000 reserved=0 settled=11201 version=18 enf=soft
+held=0 tokens=0
+entries kinds: settle=117, release=35, reserve=152
+
+== idempotency check: replaying the same revision/amount must be a no-op ==
+replay rc=0 out=4a2d3f28-38b9-4d6c-8614-70ef9a83960d 
+
+== the settle entries as written ==
+entry kind=settle amount=0 usage={"basis": "dispatch gate=receipt_recorded receipt_result=success, but record_usage never ran (operation.usage_recorded_at IS NULL) and no per-call usage exists in egress logs or content_reference; settling 0 rather than inventing a token count", "ticket": "DRILL-2026-11-04-56B", "overrun": false, "resolution": "ops_settle_receipt_confirmed_no_usage_fact", "receipt_ref": "content://work/4a2d3f28-38b9-4d6c-8614-70ef9a83960d/94d747bd26e4f18959b7a8c4b5469568?v=1", "usage_source": "none", "reported_tokens": 0, "reserved_tokens": 100000, "provider_request_id": "chatcmpl-4f6a2c1e-7c9b-924d-854f-a24b20c7210f"}
+entry kind=settle amount=0 usage={"basis": "same as res1", "ticket": "DRILL-2026-11-04-56B", "overrun": false, "resolution": "ops_settle_receipt_confirmed_no_usage_fact", "receipt_ref": "content://work/4a2d3f28-38b9-4d6c-8614-70ef9a83960d/2f7a0e4e65a0a67693fe71530f2bc490?v=1", "usage_source": "none", "reported_tokens": 0, "reserved_tokens": 100000, "provider_request_id": "chatcmpl-a4a339e4-c1c9-9d02-b7cb-7196011ba862"}
+audit rows for ticket=2
+
+== §5.21 acceptance step: tolerance back to 0, then run the unit ==
+WORK_RUNSTREAM_ORGS=4a2d3f28-38b9-4d6c-8614-70ef9a83960d
+WORK_RUNSTREAM_STALE_MINUTES=5
+WORK_RUNSTREAM_MAX_HELD_ON_TERMINAL=0
+unit start rc=0 result=success active=inactive
+Nov 04 21:58:32 lavm-t7fmveau9b run-runstream-gauges.sh[1713368]: run-runstream-gauges summary: orgs=1 stale_minutes=5 max_held_on_terminal=0 breaches=0 scan_errors=0
+Nov 04 21:58:32 lavm-t7fmveau9b systemd[1]: work-runstream-scan.service: Deactivated successfully.
+Nov 04 21:58:32 lavm-t7fmveau9b systemd[1]: Finished work-runstream-scan.service - Work run-stream read-only gauges (parked Runs, unreleased reservations).
+### #56-B end 2026-11-04T21:58:32+08:00

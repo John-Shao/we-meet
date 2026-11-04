@@ -1,0 +1,9 @@
+{
+  "status": "failed",
+  "service": "work",
+  "archive_sha256": "df7c1d34c4ae02bca19669df8a1f74209d8b07b521f37643793bfac7a0a1c5d3",
+  "key": "work/databases/work/2026/11/04/20261104T104425Z-622b1bbdfdec.tar.gz.age",
+  "verified_at": "2026-11-04T13:54:00.462763+00:00",
+  "error_type": "RuntimeError",
+  "error": "age failed (exit 1): age: report unexpected or unhelpful errors at https://filippo.io/age/report"
+}

@@ -1,0 +1,40 @@
+### C28 tenant flag drill start 2026-11-04T22:35:23+08:00
+== C28-1 record the three columns (must be restored) ==
+exec=true susp=false status=active revision=2 epoch=1 updated=19:42:09
+baseline status=active execution_enabled=t operator_suspended=f
+== C28-2 serving state: domain-function submit + unauthenticated HTTP observables ==
+  submit(open) watch_rc=0 runs_before=159 after=160  seed_msg=
+  GET /work/ -> 200 redirect=
+  GET /work/archive -> 200 redirect=
+== C28-3 legacy notice (old task id) ==
+  GET /work?task=legacy-00000000 -> 200 redirect=
+  GET /work/archive?legacyTask=legacy-00000000 -> 200 redirect=
+== C28-4 close the tenant 2026-11-04T22:35:23+08:00 ==
+  set execution_enabled=false (C28-4) rc=0 4a2d3f28-38b9-4d6c-8614-70ef9a83960d
+exec=false susp=false status=active revision=2 epoch=1 updated=22:35:24
+  submit(closed) watch_rc=1 runs_before=160 after=160  seed_msg=submit task: ERROR org_execution_unavailable 
+  refusal observed at 5s after the write
+  already-existing terminal Runs still readable by the privileged read path:
+    runs readable=160
+    admin read: org row still visible=1
+== C28-4b does anything re-open it behind our back? (this is #46=A's premise) ==
+  directory-sync result=success
+exec=false susp=false status=active revision=2 epoch=1 updated=22:35:24
+  sync state row: {"org_id": "4a2d3f28-38b9-4d6c-8614-70ef9a83960d", "last_mode": "incremental", "last_error": null, "updated_at": "2026-11-04T22:35:29.020917+08:00", "last_revision": 2, "last_attempt_at": "2026-11-04T22:35:29.020917+08:00", "last_success_at": "2026-11-04T22:35:29.020917+08:00"}
+  after 20s:
+exec=false susp=false status=active revision=2 epoch=1 updated=22:35:24
+== C28-5 reopen (rollback) 2026-11-04T22:35:49+08:00 ==
+  set execution_enabled=true (C28-6) rc=0 4a2d3f28-38b9-4d6c-8614-70ef9a83960d
+exec=true susp=false status=active revision=2 epoch=1 updated=22:35:49
+  submit(reopened) watch_rc=0 runs_before=160 after=161  seed_msg=
+  serving restored at 3s after the write
+== C28-7 verify restored == baseline ==
+exec=true susp=false status=active revision=2 epoch=1 updated=22:35:49
+GUARD_OK three columns identical to C28-1 (status=active exec=t susp=f)
+== timings: close->refused and open->served ==
+  close@22:35:23  open@22:35:49
+== residual ==
+held=0
+open_runs=1
+  gauge result=success
+### C28 drill end 2026-11-04T22:35:52+08:00

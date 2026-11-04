@@ -1,0 +1,20 @@
+D4-c  Temporal namespace work-r0a 现状记录（只读，未做任何调整）
+采集：2026-11-04T21:16:06+08:00，试点机 lavm-t7fmveau9b，temporal CLI over mTLS
+对照读数：同日 18:59:17 预检（见 drill checklist §0A 与 D4-1 注）两次完全一致
+
+  NamespaceInfo.Name                    work-r0a
+  NamespaceInfo.Id                      5d81da27-481d-4501-875b-0438b9583f9d
+  NamespaceInfo.Description             Default namespace for Temporal Server.
+  NamespaceInfo.OwnerEmail
+  NamespaceInfo.State                   Registered
+  NamespaceInfo.Data                    map[]
+  Config.WorkflowExecutionRetentionTtl  168h0m0s
+  ReplicationConfig.ActiveClusterName   active
+  ReplicationConfig.Clusters            [{"clusterName":"active"}]
+  Config.HistoryArchivalState           Disabled
+  Config.VisibilityArchivalState        Disabled
+  IsGlobalNamespace                     false
+
+未执行项：没有调用 `temporal operator namespace update -rd`，因此判据里「若做过 -rd 调整必须恢复原值」一支不适用。
+前提更正（§0A 已记）：-rd 改的是保留期，不是并发或限流；本部署（镜像 1.25.0）没有 namespace 级并发上限，
+「每 namespace 并发/限流」属 Cloud 特性，故清单 D4-2..D4-5 的原文动作在本环境不可执行。

@@ -1,0 +1,45 @@
+D3-b 失败根因：备份收件人与机上解密身份不是同一把钥匙
+采集：2026-11-04T21:54:00 → 21:55:17+08:00，试点机 lavm-t7fmveau9b（全程只读，除演练本身失败在建库之前）
+
+1) 演练做到哪一步失败
+   下载成功 → sha256 校验通过 → `age -d` 失败：
+   {"status":"failed","service":"work","archive_sha256":"df7c1d34c4ae02bca19669df8a1f74209d8b07b521f37643793bfac7a0a1c5d3",
+    "key":"work/databases/work/2026-11-04/20261104T104425Z-622b1bbdfdec.tar.gz.age",
+    "error_type":"RuntimeError","error":"age failed (exit 1): age: report unexpected or unhelpful errors ..."}
+   报告落盘 /var/lib/meet-db-backup/work/restore-drill-20261104T215401.json
+
+2) 钥匙不匹配的直接证据
+   机上唯一身份文件 /root/work-backups/work-backup.agekey（mtime 2026-10-28 10:21:17）
+     age-keygen -y → age1z43zrqvneftmrjjgr20g9gr0pf70faxhkccyudxy5hqzrc3et9fqzm4s4a
+   备份配置实际加密收件人 /etc/meet-db-backup/work/recipient.txt（mtime 2026-10-29 12:22:30）
+     age1jyazk2petru3c0f56s2ll2uuvjtx7rrsndjh3zezjr5a2h58zs9qmnvzul
+   两个 recipient 不同 ⇒ 机上没有可解今日 bundle 的私钥。
+
+3) 钥匙本身没坏（旁证）
+   同一把 work-backup.agekey 能解出 10-28 的本地归档 /root/work-backups/work-cleanup-backup.tar.gz.age（age -d 出明文）。
+   所以失败不是 age 版本/文件损坏，而是收件人换了、私钥没跟上。
+
+4) 为什么 10-29 曾经过
+   /var/lib/meet-db-backup/work/ 里有 4 份历史报告：12:23:11／12:23:24／12:23:33 failed（pg_restore 打不开输入文件），
+   12:23:56 **passed（3 个库、12 个文件校验）**。而 recipient.txt 的 mtime 是 10-29 12:22:30 —— 收件人轮换就发生在演练前 1 分钟。
+   当时脚本写死的路径 /root/work-backups/work-offsite-20261029.agekey 显然存在过；全盘 find -xdev 现已搜不到任何
+   *offsite*agekey*，/root/work-backups 里只剩 work-backup.agekey 一个身份文件。
+   ⇒ 两种可能，主机上无法区分：私钥按设计存在机外（那演练就不可能在这台机上验恢复，脚本形态要改）；
+     或私钥随那个文件一起丢了（那 10-29 之后所有 DB bundle 都解不开＝数据丢失级）。
+
+5) 失败很干净（无残留）
+   pg_database 仍是 postgres, template0, template1, temporal, temporal_visibility, work 六个；
+   无 work_drill_*／work_restore_* 库，无 /var/lib/postgresql/work-drill-* 与 work-restore-* 临时目录
+   （解密在建库之前失败，finally 的 dropdb --if-exists 也没有东西可删）。
+
+6) 交付面缺口（与 #47 同类）
+   - work-db-restore-drill.py **不在发布包内**：make-release.sh 无 cp、rollout 无 install，只有 runbook :186/:213 指向
+     /opt/meet-db-backup/work-db-restore-drill.py。
+   - 机上那份已漂移：sha256 f069f8fcce8c2f3f（7,004 字节，mtime 10-29 12:24）
+     vs 仓库 cf3724636df26167；差异是仓库版有 `IDENTITY = os.environ.get("WORK_BACKUP_IDENTITY", ...)` 覆盖，
+     机上版把路径写死成已不存在的 work-offsite-20261029.agekey，且多两个未用的 import。
+     今晚是以仓库副本＋`WORK_BACKUP_IDENTITY=/root/work-backups/work-backup.agekey` 跑的（上传后 sha 与仓库 blob 一致）。
+
+7) 与 C19 的冲突
+   pilot-checklist C19「Backup/restore drill with ledger and tombstone checks」现为 **done**，其成立依赖 10-29 那次 passed。
+   今晚的事实不是"当时没验"，而是"现在验不了"。C19 状态未由我改动，已开任务 #57 请主签裁钥匙保管与恢复验证通道。

@@ -98,6 +98,7 @@
 2. worker drain：排空 → 版本切换 → 恢复，断言旧 workflow 保持旧行为。
 3. Temporal PG 故障与恢复：断言 relay 积压可见、恢复后按租约继续、业务账本不变。
 4. namespace 配额打满：断言新提交受控失败（`outbox_backlog` 一类信号）且已有 Run 不被误杀。
+   - **【2026-11-04 更正，#58 裁定＝改承诺不改实现】**：`outbox_backlog` 不在错误码目录（取证 `contracts/error-codes.json`），Work 侧饱和信号是 `quota_exhausted`；且它出现在 **Run 内**的 PrepareAdvanceExecution 活动与 Run 终态上，提交 API 恒先返回 202 —— 本条不按"提交侧同步拒绝"验收。Temporal namespace 层面的并发/速率上限仍在服务端拒绝 workflow 派发，那部分不受此更正影响。
 
 ## 9. 签收
 

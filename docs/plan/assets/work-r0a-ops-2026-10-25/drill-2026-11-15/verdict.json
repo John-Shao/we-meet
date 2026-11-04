@@ -163,7 +163,7 @@
         "attachments/d1-alt-2-aftermath-scan.log",
         "attachments/d1-alt-1-pod-delete.log"
       ],
-      "notes": "判据「等待种子 Run 自然结束或 cancel」的后半只在人为介入后成立：server 恢复、pod Ready 之后该 Run 仍停在 active／operation=dispatching，观察 19:36→19:45 约 9 分钟无任何再驱动；temporal workflow describe 显示 pendingActivities=1、AdvanceRuntime 状态 PENDING_ACTIVITY_STATE_STARTED、attempt=1、nextRetry=None —— Temporal 仍认为 activity 在被执行，因此既不重试也不判孤儿。最终由运维 request_cancel 关闭（19:45:08 run=canceled／terminal=run_canceled）。后果分档：阻断 C22 的「在途不丢」承诺，非阻断（试点期手工可处置）；重开条件＝给 activity 配 start-to-close／heartbeat 超时并让恢复路径能重驱动，见待裁 #56-A。"
+      "notes": "判据「等待种子 Run 自然结束或 cancel」的后半只在人为介入后成立：server 恢复、pod Ready 之后该 Run 仍停在 active／operation=dispatching，观察 19:36→19:45 约 9 分钟无任何再驱动；temporal workflow describe 显示 pendingActivities=1、AdvanceRuntime 状态 PENDING_ACTIVITY_STATE_STARTED、attempt=1、nextRetry=None —— Temporal 仍认为 activity 在被执行，因此既不重试也不判孤儿。最终由运维 request_cancel 关闭（19:45:08 run=canceled／terminal=run_canceled）。后果分档：阻断 C22 的「在途不丢」承诺，非阻断（试点期手工可处置）；重开条件＝给 activity 配 start-to-close／heartbeat 超时并让恢复路径能重驱动，见待裁 #56-A。 ｜ 【22:15 边界实测更正】停放不是永久：`AdvanceRuntime` 一直带着 `StartToCloseTimeout=16min／ScheduleToCloseTimeout=17min／MaximumAttempts=1`（`internal/runflow/advance.go:340-343`）。第三次注入（21:59:33 停启 worker，run f5f4fc26）在 **22:15:28 由 Temporal 自己判成终态**：`run=failed／terminal_reason=advance_failed／execute=revoked`。准确说法是「**不会重驱动到完成（无重试），但会在 16 分钟边界判失败**」；我之前写的「既不重试也不判失败／永远停在 STARTED」是从 7／9 分钟窗口外推的，超出证据范围。真实缺口改成两条：① 16 分钟对一次 15–25 秒的活动太长，值班看到的是「卡住」而不是「失败」；② 终态化**不结算预留**——该 Run 的 dispatch gate 早已 `receipt_recorded／success`，终态后仍是 `operation=unknown`＋`held 100,000`，仍需 §5.21 发现＋#56-B 人工 settle（22:19:25 已归零）。 23:55 追加：#56-A 已把这条边界改为「StartToClose 4 分钟＋允许一次重驱动」（代码层，见 internal/runflow/advance.go:349-356），**试点机二进制未换、现网仍是 16m/1 次**，所以本格 fail 不翻；换新 worker 后必须重演 D1-6／D2-4 才允许改判。"
     },
     {
       "step": "D1-7",
@@ -210,7 +210,7 @@
         "attachments/d2-alt-2-inflight-drain.log",
         "attachments/d2-alt-4-parked-watch.log"
       ],
-      "notes": "v1 启动的 workflow 没有在换版本后继续完成：worker 停 20 秒后重启（仍是同一 v2 二进制），该 Run 自 19:22:06 起停在 active／dispatching，lease 于 19:23:05 过期后无人重取，观察到 19:29+ 共约 7 分钟无进展；随后运维 request_cancel → run=canceled、operation=unknown。与 D1-6 同一形态，属重驱动缺口而非重复派发。"
+      "notes": "v1 启动的 workflow 没有在换版本后继续完成：worker 停 20 秒后重启（仍是同一 v2 二进制），该 Run 自 19:22:06 起停在 active／dispatching，lease 于 19:23:05 过期后无人重取，观察到 19:29+ 共约 7 分钟无进展；随后运维 request_cancel → run=canceled、operation=unknown。与 D1-6 同一形态，属重驱动缺口而非重复派发。 ｜ 【22:15 边界实测更正】停放不是永久：`AdvanceRuntime` 一直带着 `StartToCloseTimeout=16min／ScheduleToCloseTimeout=17min／MaximumAttempts=1`（`internal/runflow/advance.go:340-343`）。第三次注入（21:59:33 停启 worker，run f5f4fc26）在 **22:15:28 由 Temporal 自己判成终态**：`run=failed／terminal_reason=advance_failed／execute=revoked`。准确说法是「**不会重驱动到完成（无重试），但会在 16 分钟边界判失败**」；我之前写的「既不重试也不判失败／永远停在 STARTED」是从 7／9 分钟窗口外推的，超出证据范围。真实缺口改成两条：① 16 分钟对一次 15–25 秒的活动太长，值班看到的是「卡住」而不是「失败」；② 终态化**不结算预留**——该 Run 的 dispatch gate 早已 `receipt_recorded／success`，终态后仍是 `operation=unknown`＋`held 100,000`，仍需 §5.21 发现＋#56-B 人工 settle（22:19:25 已归零）。 23:55 追加：#56-A 已把这条边界改为「StartToClose 4 分钟＋允许一次重驱动」（代码层，见 internal/runflow/advance.go:349-356），**试点机二进制未换、现网仍是 16m/1 次**，所以本格 fail 不翻；换新 worker 后必须重演 D1-6／D2-4 才允许改判。"
     },
     {
       "step": "D2-5",
@@ -313,7 +313,7 @@
       "verdict": "na",
       "ts": null,
       "evidence": [],
-      "notes": "同上。已另测到提交侧的真实拒绝码：停用时 submit_task 报 org_execution_unavailable（不是 rate_limited/quota_exhausted），见 D4-a 注。"
+      "notes": "同上。已另测到提交侧的真实拒绝码：停用时 submit_task 报 org_execution_unavailable（不是 rate_limited/quota_exhausted），见 D4-a 注。 2026-11-04 #58 裁定＝改承诺、不改实现：原文的「提交侧同步拒绝＋不产生 work.run 新行」在本接线不可达——reserve_quota 只由 worker 活动调用（internal/runflow/activities.go:270、advance_activities.go:502，EXECUTE 仅授 work_worker），提交恒先 202。判据已按 D4-b 实测改写进 checklist §5 的 D4-3 行，本步 verdict 仍留 na（不重复计 D4-b 的证据，与 D3-a「算同一证据、就地注明」同一处理）。11-16 正式演练按改写后的判据取 API＋Run 终态＋SQL 三类证据。附带登记 #60：§8.3／故障矩阵 D3-R03 的 waitRun(quota) 语义现网未实装。"
     },
     {
       "step": "D4-4",
@@ -380,58 +380,70 @@
     {
       "step": "C28-1",
       "section": "C28",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T22:35:52+08:00",
+      "evidence": [
+        "attachments/c28-1-tenant-flag-drill.log"
+      ],
+      "notes": "基线三列现值：`status=active／execution_enabled=true／operator_suspended=false`，revision=2、access_epoch=1（收尾后与基线逐列相同，见 C28-7）。"
     },
     {
       "step": "C28-2",
       "section": "C28",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T22:35:52+08:00",
+      "evidence": [
+        "attachments/c28-1-tenant-flag-drill.log"
+      ],
+      "notes": "服务态下同一领域函数提交成功（run 计数 159→160）；`GET /work/`、`GET /work/archive` 未登录均 200（SPA 外壳总是 200，鉴权在 API 层）。**HTTP 层的 202 与 bootstrap 200 不在本轮取证**（RB-05：本轮只验数据层与基础设施），登录态证据沿用 E2／C26 那批。"
     },
     {
       "step": "C28-3",
       "section": "C28",
-      "verdict": null,
-      "ts": null,
+      "verdict": "na",
+      "ts": "2026-11-04T22:35:52+08:00",
       "evidence": [],
-      "notes": ""
+      "notes": "旧链接 notice 这一步**本轮没有取证**：SPA 对 `/work?task=<old-id>` 与 `/work/archive?legacyTask=…` 一律回 200，跳转与只读通知都发生在客户端，用 HTTP 状态码判它必然假通过。已有的生产证据在别处（`/work/archive` 发布与深链 404 负例、`ArchivePage.tsx` 强制空列表、`task_detail.go` 对旧 id 回 404），要补这条得跑一次浏览器会话。"
     },
     {
       "step": "C28-4",
       "section": "C28",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T22:35:52+08:00",
+      "evidence": [
+        "attachments/c28-1-tenant-flag-drill.log"
+      ],
+      "notes": "以 work_owner＋`app.org_id` 置 `execution_enabled=false` 后 **5 秒内**同一提交路径被拒：`submit task: ERROR org_execution_unavailable`，且 **run 计数不变（160→160，不产生新行）**；已终态的 160 个 Run 以特权读路径仍可读（160）。具名一条读法坑：拒的是 `enforce_org_execution` **触发器**（`baseline:1551`）报 `org_execution_unavailable`，而 0022 那个 guard 函数在派发／导出门上报 `org_execution_disabled`／`org_operator_suspended`——两扇门两个码，别拿其中一个去断言另一个。"
     },
     {
       "step": "C28-5",
       "section": "C28",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T22:35:52+08:00",
+      "evidence": [
+        "attachments/c28-1-tenant-flag-drill.log"
+      ],
+      "notes": "单向耗时都远低于判据的 15 分钟：**关→拒 5 秒、开→可提交 3 秒**（写库即生效，无缓存层：`directory_sync_fresh` 只看同步新鲜度，不看这两列）。"
     },
     {
       "step": "C28-6",
       "section": "C28",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T22:35:52+08:00",
+      "evidence": [
+        "attachments/c28-1-tenant-flag-drill.log"
+      ],
+      "notes": "回滚：置回 `execution_enabled=true` 后再提交即成功（run 160→161，该 Run 随后 `succeeded`）。"
     },
     {
       "step": "C28-7",
       "section": "C28",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T22:35:52+08:00",
+      "evidence": [
+        "attachments/c28-1-tenant-flag-drill.log"
+      ],
+      "notes": "三列与 C28-1 逐列相同（`status=active／exec=t／susp=f`），脚本自带 GUARD 断言 `GUARD_OK`；收尾 held 预留=0、开放 Run=0、巡检单元 `result=success`。"
     },
     {
       "step": "S1-1",
@@ -564,42 +576,42 @@
     {
       "step": "T-31-1",
       "section": "RB-05-T31",
-      "verdict": null,
-      "ts": null,
+      "verdict": "na",
+      "ts": "2026-11-04T22:40:00+08:00",
       "evidence": [],
-      "notes": "条件步：仅当 #31（preview/submit 请求体扁平化）在 11-15/16 前有尚未发布到生产的新版本时执行；生产已是扁平形状则填 na 并在 notes 记「不适用」。2026-11-04 补入——清单第 8 节（#31 双形状过渡验证，条件项）有这 5 步而本模板没有，执行当天会无处记录。确认生产 work-api 已部署 #31 后的扁平 schema（GET /openapi.json 的 input/preview 无 intent 嵌套）"
+      "notes": "条件步：仅当 #31（preview/submit 请求体扁平化）在 11-15/16 前有尚未发布到生产的新版本时执行；生产已是扁平形状则填 na 并在 notes 记「不适用」。2026-11-04 补入——清单第 8 节（#31 双形状过渡验证，条件项）有这 5 步而本模板没有，执行当天会无处记录。确认生产 work-api 已部署 #31 后的扁平 schema（GET /openapi.json 的 input/preview 无 intent 嵌套） ｜ 同上：契约资产无 `intent` 嵌套，preview/submit 请求体扁平。"
     },
     {
       "step": "T-31-2",
       "section": "RB-05-T31",
-      "verdict": null,
-      "ts": null,
+      "verdict": "na",
+      "ts": "2026-11-04T22:40:00+08:00",
       "evidence": [],
-      "notes": "条件步：仅当 #31（preview/submit 请求体扁平化）在 11-15/16 前有尚未发布到生产的新版本时执行；生产已是扁平形状则填 na 并在 notes 记「不适用」。2026-11-04 补入——清单第 8 节（#31 双形状过渡验证，条件项）有这 5 步而本模板没有，执行当天会无处记录。用旧形状（嵌套 intent）提交 preview，预期 400 拒绝且不产生脏数据"
+      "notes": "条件步：仅当 #31（preview/submit 请求体扁平化）在 11-15/16 前有尚未发布到生产的新版本时执行；生产已是扁平形状则填 na 并在 notes 记「不适用」。2026-11-04 补入——清单第 8 节（#31 双形状过渡验证，条件项）有这 5 步而本模板没有，执行当天会无处记录。用旧形状（嵌套 intent）提交 preview，预期 400 拒绝且不产生脏数据 ｜ 旧形状（嵌套 intent）没有可观测的生产入口，本行不适用；字段级门禁由 `ops-model.test.mjs` 在 CI 盯住。（触发条件见 生产契约已是扁平形状，本家族…）"
     },
     {
       "step": "T-31-3",
       "section": "RB-05-T31",
-      "verdict": null,
-      "ts": null,
+      "verdict": "na",
+      "ts": "2026-11-04T22:40:00+08:00",
       "evidence": [],
-      "notes": "条件步：仅当 #31（preview/submit 请求体扁平化）在 11-15/16 前有尚未发布到生产的新版本时执行；生产已是扁平形状则填 na 并在 notes 记「不适用」。2026-11-04 补入——清单第 8 节（#31 双形状过渡验证，条件项）有这 5 步而本模板没有，执行当天会无处记录。用新扁平形状 preview → submit，预期 202 且 Run 正常创建"
+      "notes": "条件步：仅当 #31（preview/submit 请求体扁平化）在 11-15/16 前有尚未发布到生产的新版本时执行；生产已是扁平形状则填 na 并在 notes 记「不适用」。2026-11-04 补入——清单第 8 节（#31 双形状过渡验证，条件项）有这 5 步而本模板没有，执行当天会无处记录。用新扁平形状 preview → submit，预期 202 且 Run 正常创建 ｜ 新扁平形状的提交今晚多次成功（见 C28-2／C28-6／D4-b 控制提交），无需在滚动部署窗口内演。（触发条件见 生产契约已是扁平形状，本家族…）"
     },
     {
       "step": "T-31-4",
       "section": "RB-05-T31",
-      "verdict": null,
-      "ts": null,
+      "verdict": "na",
+      "ts": "2026-11-04T22:40:00+08:00",
       "evidence": [],
-      "notes": "条件步：仅当 #31（preview/submit 请求体扁平化）在 11-15/16 前有尚未发布到生产的新版本时执行；生产已是扁平形状则填 na 并在 notes 记「不适用」。2026-11-04 补入——清单第 8 节（#31 双形状过渡验证，条件项）有这 5 步而本模板没有，执行当天会无处记录。滚动重启一个 API 实例，预期无 in-flight 请求 5xx"
+      "notes": "条件步：仅当 #31（preview/submit 请求体扁平化）在 11-15/16 前有尚未发布到生产的新版本时执行；生产已是扁平形状则填 na 并在 notes 记「不适用」。2026-11-04 补入——清单第 8 节（#31 双形状过渡验证，条件项）有这 5 步而本模板没有，执行当天会无处记录。滚动重启一个 API 实例，预期无 in-flight 请求 5xx ｜ 本轮未重启 API 实例（无滚动部署），不适用。（触发条件见 生产契约已是扁平形状，本家族…）"
     },
     {
       "step": "T-31-5",
       "section": "RB-05-T31",
-      "verdict": null,
-      "ts": null,
+      "verdict": "na",
+      "ts": "2026-11-04T22:40:00+08:00",
       "evidence": [],
-      "notes": "条件步：仅当 #31（preview/submit 请求体扁平化）在 11-15/16 前有尚未发布到生产的新版本时执行；生产已是扁平形状则填 na 并在 notes 记「不适用」。2026-11-04 补入——清单第 8 节（#31 双形状过渡验证，条件项）有这 5 步而本模板没有，执行当天会无处记录。判定 T-31-2 结果（400＝预期拒绝、客户端已对齐；202＝兼容窗口仍开放）写入本文件与 verdict.md"
+      "notes": "条件步：仅当 #31（preview/submit 请求体扁平化）在 11-15/16 前有尚未发布到生产的新版本时执行；生产已是扁平形状则填 na 并在 notes 记「不适用」。2026-11-04 补入——清单第 8 节（#31 双形状过渡验证，条件项）有这 5 步而本模板没有，执行当天会无处记录。判定 T-31-2 结果（400＝预期拒绝、客户端已对齐；202＝兼容窗口仍开放）写入本文件与 verdict.md ｜ 判定＝不适用（既非 400 也非 202 的兼容窗口问题——生产只有扁平形状，无兼容窗口开放）。（触发条件见 生产契约已是扁平形状，本家族…）"
     },
     {
       "step": "D4-a",
@@ -614,18 +626,23 @@
     {
       "step": "D4-b",
       "section": "rescheduled-2026-11-04",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T21:51:41+08:00",
+      "evidence": [
+        "attachments/d4-b-1-saturation-and-control.log",
+        "attachments/d4-b-2-56b-settle.log"
+      ],
+      "notes": "按主签改写的判据演：**「新提交被受控拒绝」这句原文在本接线里不成立**——`reserve_quota` 只在 worker 活动里被调（`internal/runflow/activities.go:270`／`advance_activities.go:502`，EXECUTE 只授 `work_worker`），提交侧从不预留，所以客户端永远先拿到 202，饱和在 Run 里暴露。实测：把 2026-11 期账户行改为 `limit_tokens=250000`＋`enforcement='hard'`（改前 limit=1,000,000／reserved=200,000／settled=8,526／enforcement=**soft**／version=14），提交 e148ea6b → 21:50:06/07/09 三次 `ActivityType PrepareAdvanceExecution ... Error **quota_exhausted**`，21:50:2x 转 failed／terminal=`execution_prepare_failed`。**账本完整性**：`reserved_tokens` 全程停在 200,000（没有半笔预留被扣）、没有新增 held 预留（仍 2 笔）、其它 Run 未动（canceled 33／failed 13→14 只多这一笔／succeeded 110）。**第二条前提更正：光改 limit 不打人——`reserve_quota` 只在 `account.enforcement='hard'` 时才判上限**，账户默认是 soft，所以演练必须同时翻 enforcement（原文与 §0A 都没写这条）。恢复 limit=1,000,000／soft 后同一路径再提交（091fd84e）**succeeded**，settled 8,526→11,201，这就是因果对照：拒绝确实是那两列造成的。改前做过 quota_* 三表 pg_dump（sha16 `a8a4465231e03f68`），两条写都以 work_owner＋`app.org_id` 在事务内做，脚本带 trap 兜底恢复（退出时又幂等恢复了一次）。"
     },
     {
       "step": "D4-c",
       "section": "rescheduled-2026-11-04",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T21:16:06+08:00",
+      "evidence": [
+        "attachments/d4-c-1-namespace-describe.txt"
+      ],
+      "notes": "只记录、未改任何值（本行判据本身就是「只记录不声称验证」）。两次 describe 完全一致：18:59:17 预检与 21:16:06 收尾——Name=work-r0a、Id=5d81da27-481d-4501-875b-0438b9583f9d、State=Registered、WorkflowExecutionRetentionTtl=168h0m0s、ActiveClusterName=active、Clusters=[{active}] 单集群、IsGlobalNamespace=false、History/Visibility 归档均 Disabled（预检读数）。**没有做过 -rd 调整，因此「调整后须恢复原值」这一支不适用**；§0A 记的那条前提更正仍在：-rd 改的是保留期而不是并发/限流，OSS Temporal 1.25.0 没有 namespace 级并发上限（那是 Cloud 特性），所以 D4-2..D4-5 原文动作在本部署不可执行，配额饱和的等价路径见 D4-b 的待裁问题。"
     },
     {
       "step": "D2-alt",
@@ -655,24 +672,31 @@
     {
       "step": "D3-a",
       "section": "rescheduled-2026-11-04",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-04T19:38:23+08:00",
+      "evidence": [
+        "attachments/d1-alt-1-pod-delete.log",
+        "attachments/d1-alt-2-aftermath-scan.log",
+        "attachments/d3-a-1-56a-boundary-probe.txt"
+      ],
+      "notes": "主签 2026-11-04 定：与 D1-alt 是**同一个注入动作**（删唯一的 temporal-server pod），按同一证据记账，并把未取证的半条就地注明。已核的两条：① **Work 数据面确实没被动**——注入后实测 `pg_postmaster_start_time()=2026-10-28 09:30:05`、`postgresql.service` NRestarts=0、连续在线 10,786 分钟，同实例的 work/temporal/temporal_visibility 三库都在；run/task 行数不变（当时 155／155）；② 失联期间的错误面有计数：worker journal 在 19:35:50–19:40 窗口内`Failed to poll for task` ×4、`Task processing failed with error` ×1，恢复后 outbox 未投递数回到 0（总 1,103 全投）。**未取证的半条＝「失联期间告警行为符合 §5.18」**：注入发生在 19:36，而 `work-runstream-scan` 单元 20:15 才装，当晚也刻意没有手跑 `work-healthcheck.sh`（它会在状态翻转时发信）。所以 D3-a 的告警侧留待下一次注入，不写成已验。"
     },
     {
       "step": "D3-b",
       "section": "rescheduled-2026-11-04",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "fail",
+      "ts": "2026-11-04T21:54:01+08:00",
+      "evidence": [
+        "attachments/d3-b-1-restore-drill-fail.log",
+        "attachments/d3-b-2-key-custody-diagnosis.txt"
+      ],
+      "notes": "主签选「就在共享集群演（脚本原样）」。实测走到 age 解密就停了：`{\"status\":\"failed\", ..., \"error_type\":\"RuntimeError\", \"error\":\"age failed (exit 1)\"}` — **下载与 sha256 校验都过了**（bundle key `work/databases/work/2026-11-04/20261104T104425Z-622b1bbdfdec.tar.gz.age`、1,602,597 字节、sha `df7c1d34…`），失败在解密：**机上唯一身份文件 `/root/work-backups/work-backup.agekey` 的收件人是 `age1z43zrq…`，而备份配置 `recipient.txt` 写的是 `age1jyazk…`**（mtime 2026-10-29 12:22:30），两者不是同一把钥匙；全盘搜索没有任何 `*offsite*agekey`，而 10-29 那次 passed 的演练（`restore-drill-20261029T122356.json`，3 库／12 文件）正是用当时存在、现已消失的 `work-offsite-20261029.agekey` 跑的。旁证钥匙本身没坏：同一把 `work-backup.agekey` 能解出 10-28 的本地 cleanup 归档。三条附带结论：① **§0B「在隔离实例回放」是错的**——脚本用 `runuser -u postgres createdb work_drill_<hex>` 在**生产集群内**建 scratch 库再 dropdb（清单原文要改）；② 失败是干净的：集群库表现在仍是 postgres/template0/template1/temporal/temporal_visibility/work 六个，没留 scratch 库也没留临时目录（解密发生在建库之前）；③ 脚本**不在发布包内**，只由 runbook 指向 `/opt/meet-db-backup/`，且机上那份已漂移（缺 `WORK_BACKUP_IDENTITY` 覆盖、写死了不存在的 key 路径）——与 #47 同一类通道缺口。后果分档：**这条比演练本身重**——每日备份上传成功、sha 校验成功，但从今天起没有任何在机钥匙能解开它，C19（Backup/restore drill）的 done 与今晚事实冲突，已单开 #57 待主签裁钥匙保管位置。"
     }
   ],
   "summary": {
-    "pass": 15,
-    "fail": 3,
-    "na": 9,
+    "pass": 24,
+    "fail": 4,
+    "na": 15,
     "total": 76
   },
   "writeback_targets": {
@@ -699,7 +723,11 @@
       "ids": [
         "D4-a",
         "D2-alt",
-        "D1-alt"
+        "D1-alt",
+        "D4-c",
+        "D4-b",
+        "D3-a",
+        "D3-b"
       ],
       "note": "§0B 的 7 个新 id 里今晚执行了 3 个；D4-b／D4-c／D3-a／D3-b 未演。原文 D1-x／D2-x／D4-x 各行只填真核过的格，未填的仍为 null（不等于未通过，等于本轮未取证）。",
       "residual": "演练残留：2 笔 held 预留（各 100,000，期间 2026-11）、2 条 pending cancellation_intent（无消费者）、org access_epoch 由 0 永久升到 1；open run=0，所有 systemd 单元 active+enabled，worker 二进制回到 v1。"

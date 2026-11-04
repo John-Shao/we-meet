@@ -610,7 +610,7 @@ Run `3cd9c500…` succeeded（usage 112/194、结算 306、artifact 85B）。hos
 org 清单单独放在 `/etc/work/work-reconcile-scan.env`（640 `root:work-control`）。
 
 - 退出码：`0` 干净；`1` 有 org 扫描失败；**`2` 发现孤儿** → 单元进入 failed。
-- **2026-11-04 演练证出的可见性边界（务必先读这条再信 `orphans=0`）**：`isOrphan()` 的判据是「Temporal workflow 状态既不是 Running 也不是 Unavailable」，而当天 D1-alt／D2-alt 造出的那一类——**workflow 仍Running、`pendingActivities=1`、`AdvanceRuntime` 停在 STARTED 且 `nextRetry=None`，库侧 `runtime_execution.lease_until` 早已过期无人重取**——巡检按定义看不见它，19:32 那轮确实报 `orphans=0`。所以 `orphans=0` 只排除「workflow 已结束而 DB 仍开放」这一类，**不等于没有停放 Run**。自动发现这条盲区的是 §5.21 的运行流读数巡检（2026-11-04 同日接线）；手工现读法是：`select id,state,updated_at from work.run where state not in ('succeeded','failed','canceled')` 拿开放 Run，再用 `temporal workflow describe --workflow-id run:<id>` 对上 `pendingActivities` 的 state，最后核 `work.quota_reservation` 的 held 笔数；处置走 §5.16/§5.17 与流程 A，收口语义（settle 还是 release）见待裁 #56。
+- **2026-11-04 演练证出的可见性边界（务必先读这条再信 `orphans=0`）**：`isOrphan()` 的判据是「Temporal workflow 状态既不是 Running 也不是 Unavailable」，而当天 D1-alt／D2-alt 造出的那一类——**workflow 仍Running、`pendingActivities=1`、`AdvanceRuntime` 停在 STARTED 且 `nextRetry=None`，库侧 `runtime_execution.lease_until` 早已过期无人重取**——巡检按定义看不见它，19:32 那轮确实报 `orphans=0`。所以 `orphans=0` 只排除「workflow 已结束而 DB 仍开放」这一类，**不等于没有停放 Run**。 **（22:15 实测更正）**「不等于没有停放 Run」仍对，但「看不见」要限定在**停放期间**：`AdvanceRuntime` 有 `StartToCloseTimeout=16min／MaximumAttempts=1`（`internal/runflow/advance.go:340-343`），超时后 Temporal 会自己把 Run 判成 `failed／advance_failed`——不是永久停摆。真正要记的是两点：**最长 16 分钟才见终态**（正常一次活动 15–25 秒），以及**终态不结算预留**（`operation=unknown`＋`held` 仍在，靠 §5.21 发现、按 #56-B 人工收）。自动发现这条盲区的是 §5.21 的运行流读数巡检（2026-11-04 同日接线）；手工现读法是：`select id,state,updated_at from work.run where state not in ('succeeded','failed','canceled')` 拿开放 Run，再用 `temporal workflow describe --workflow-id run:<id>` 对上 `pendingActivities` 的 state，最后核 `work.quota_reservation` 的 held 笔数；处置走 §5.16/§5.17 与流程 A，收口语义（settle 还是 release）见待裁 #56。
 - 值班读法：`journalctl -u work-reconcile-scan.service -o cat | tail`，summary 行形如
   `orgs=1 orphans=0 scan_errors=0`。发现孤儿后仍按 §5.16 人工处置，本单元不代替判定。
 - 告警：`work-healthcheck.sh` 的观察名单已含 `work-reconcile-scan.service`，red 会把健康
@@ -706,6 +706,77 @@ grafana／node_exporter 单元全部 not-found、10 个 workload 二进制里 pr
 所以**任何一条 alert 今天都不会自己响**。当前真实的投递链只有两条：`work-healthcheck.timer` → `work-health-alert.py`
 （观察名单里的单元转红才发信，本单元已加入名单）与本页各节的值班手工 SQL。规模化前的接线代价记在
 pilot-checklist C17 的 note，不由本节自决。
+
+### 5.22 租户开通／停用的运维入口（2026-11-04，#59 裁定＝照 kill switch 先例写进 runbook）
+
+本节补的是一个真实缺口：**R0a 没有任何租户开关的 HTTP 端点、CLI 或管理台写面**，能写 `work.org` 那三列
+（`status`／`execution_enabled`／`operator_suspended`）的产生者只有一条 SQL 命令，与 §5.2b 的 `ops_*`、
+D3-N06 同属"只有 SQL 的运维入口"。命令与角色闸：
+
+```sql
+-- 会话必须先绑到目标 org 与合法 actor，否则前两道门直接拒
+SET app.org_id = '<org>';
+SET app.subject_id = '<被授权的运维主体>';   -- assert_session_subject 只比对 GUC，见 §5.2b / #52
+SELECT work.apply_execution_entitlement(
+  '<org>', '<actor-subject>', '<工单号>',      -- ref 与 client_request_id 去空格后非空
+  true, true, NULL,                            -- p_enabled, p_operator_suspended, p_seat_limit
+  1, NULL, 'DRILL-2026-11-04-D4a');            -- p_target_revision, p_host_ack_revision, request id
+```
+
+- 函数体：`increments/0027_governance_receipt_payload_binding.sql:470`（取代 0023 同名体）；
+  `SECURITY DEFINER`，**EXECUTE 仅授 `work_operator`**（0027:744-749），PUBLIC 先 REVOKE——
+  0023 与 0027 各写一遍 REVOKE，是因为 `CREATE OR REPLACE` 不重置旧 ACL。
+- 期望态＝`p_enabled AND NOT p_operator_suspended`（0027:572）。`p_host_ack_revision` 若非空必须等于
+  `p_target_entitlement_revision`，否则 `invalid_request:entitlement`（0027:521-523）。
+- `work.execution_entitlement` 行是**懒建**的：首次 Apply 会以 `enabled=false／revision=0` 插入（0027:534-537），
+  所以新租户不需要预先播种 entitlement，但第一次停用只能从 revision 0 往上提。
+- 复用同一个 `p_client_request_id` 携带**不同决策**（seat_limit、target revision、工单号任一不同）→
+  `idempotency_key_conflict`（0027:560-567）；同 id 同载荷才是回放。
+
+**停用（收窄）一步生效**，实测于 2026-11-04 D4-6a：`work.org.execution_enabled=false`、
+`operator_suspended=true`、`access_epoch` 0→1、写一行 `work.access_restriction(source='operator',
+state='active', reason='operator_suspended', release_floor_revision=<rev>)`、按 epoch 入队 Run 取消 intent
+（当晚 2 笔）、`append_audit` 落 `access_restriction.created` 且载荷含工单号（audit 里命中 2 行）。
+**重复表达同一停用态不会造第二个 deny**：outcome 转 `already_suspended`，`access_epoch` 不重复推进——
+epoch 每次收窄只动一次，否则 cutoff 不再表示"本次收窄退役的那批访问"。
+
+**恢复不是"把标志改回来"，是四步 ack**（同晚 D4-6c 实测，一步写法在 checklist 里已作废）：
+
+| 步 | 载荷 | 返回 outcome | 库里此刻 |
+|---|---|---|---|
+| 1 | 上一个 rev 尚未确认，直接提 rev+1 | `governance_revision_conflict` | 不变（这是 P5 的第一条活体证据） |
+| 2 | 同 rev＋同载荷＋`ack=rev` | `already_suspended` | `host_ack_revision` 落到 rev |
+| 3 | rev+1、`operator_suspended=false`、`ack=NULL` | `pending_ack` | entitlement 已写 `susp=false`，**但 `work.org` 仍 exec=false／susp=true**——未确认的解除不重开服务 |
+| 4 | rev+1＋`ack=rev+1` | `restored` | org 回 exec=true／susp=false，`released_denials`≥1；`access_epoch` **不回退**（0→1 是永久账本事实） |
+
+P6 的边界要写进交接：**本命令只释放 `source='operator'` 的 restriction**，`host_org`／`host_member`／
+`seat`／`policy` 的 deny 不因它解除（`release_restriction` 也明确拒绝在这里动它们）。
+
+效果怎么读（只读，写库即生效、无缓存层；当晚实测关→拒 5 秒、开→可提交 3 秒）：
+
+```sql
+SELECT status, execution_enabled, operator_suspended, access_epoch
+  FROM work.org WHERE id = '<org>';
+SELECT revision, enabled, operator_suspended, host_ack_revision
+  FROM work.execution_entitlement WHERE org_id = '<org>';   -- 待确认的解除＝host_ack_revision <> revision
+SELECT id, reason, state, epoch, release_floor_revision
+  FROM work.access_restriction WHERE org_id = '<org>' AND state <> 'released';
+```
+
+两扇门两个码，别拿其中一个去断言另一个：提交路径被 `enforce_org_execution` **触发器**拒
+（`baseline/0002:1551`）报 `org_execution_unavailable`；派发／导出门由 0022 的 guard 函数报
+`org_execution_disabled`／`org_operator_suspended`。
+
+**不要用裸 `UPDATE work.org` 做运维停用**（演练那么用是刻意的例外）：C28-4／C28-6 以 `work_owner` 直接改单列，
+目的是隔离"这一列"的因果（run 计数 160→160 拒、160→161 放行）。裸改只动 `work.org` 一行——
+不写 `access_restriction`、不动 entitlement 的 `revision`／`host_ack_revision`、不推 `access_epoch`、不留 audit 行，
+所以用它"恢复"之后 restriction 仍是 `active`、工单线索为零。真停用走命令；已经裸改过的，
+收尾必须像 C28-7 那样逐列比对基线并留 GUARD 断言。
+
+**目录同步不写这三列（#46=A 的措辞已被实测证伪，原文保留不删）**：`record_directory_sync` 只写
+`directory_sync_state`；2026-11-04 22:35 把 org 置 `status='disabled'` 后跑一次 full 同步，`result=success`
+而 `execution_enabled` 仍 `false`。因此"Host 报 active 就自动重开服务"不是现网行为，试点期的过渡控制是
+P9／C28-1 的人工记录三列现值；`sync_org` 亦被 `baseline/0002:3882` 明确禁止覆盖 `operator_suspended`，方向一致。
 
 ## 6. 容量证据
 
