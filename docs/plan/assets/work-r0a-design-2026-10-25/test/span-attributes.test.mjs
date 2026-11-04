@@ -15,8 +15,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const WORK_DIR = new URL('../../../../../src/work/', import.meta.url);
+// POSIX stat() rejects a trailing slash on a regular file, so building child paths by
+// appending "/" to a URL silently skipped every file on the Linux runner while working on
+// the Windows host. Resolve to a filesystem path instead.
+const WORK_DIR = fileURLToPath(new URL('../../../../../src/work/', import.meta.url));
 
 // Files permitted to set span attributes, relative to src/work. Empty on purpose: R0a
 // publishes no spans. A new entry is a decision about what may appear in a trace, and the
@@ -30,7 +35,7 @@ const OTEL_TRACE_IMPORT = /"[^"]*go\.opentelemetry\.io\/otel[^"]*"/;
 
 function goFiles(dir, out = []) {
   for (const entry of readdirSync(dir)) {
-    const full = new URL(entry + (entry.endsWith('/') ? '' : '/'), dir);
+    const full = join(dir, entry);
     let st;
     try {
       st = statSync(full);
@@ -48,6 +53,8 @@ function goFiles(dir, out = []) {
   return out;
 }
 
+const relPath = (file) => relative(WORK_DIR, file).replace(/\\/g, '/');
+
 test('the scan sees the production tree, so an empty result is not a vacuous pass', () => {
   const files = goFiles(WORK_DIR);
   // The path is resolved from this asset's location, exactly like go-surface-drift.test.mjs.
@@ -63,9 +70,9 @@ test('the scan sees the production tree, so an empty result is not a vacuous pas
 test('no production Go file sets a span attribute outside the allow list', () => {
   const offenders = [];
   for (const file of goFiles(WORK_DIR)) {
-    const relative = decodeURIComponent(file.pathname).split('src/work/')[1];
-    if (SPAN_WRITE_ALLOW.some((allowed) => relative.endsWith(allowed))) continue;
-    if (SPAN_WRITE.test(readFileSync(file, 'utf8'))) offenders.push(relative);
+    const rel = relPath(file);
+    if (SPAN_WRITE_ALLOW.some((allowed) => rel.endsWith(allowed))) continue;
+    if (SPAN_WRITE.test(readFileSync(file, 'utf8'))) offenders.push(rel);
   }
   assert.deepEqual(
     offenders,
@@ -78,8 +85,8 @@ test('no production Go file sets a span attribute outside the allow list', () =>
 test('no production Go file imports the OTel trace API', () => {
   const importers = [];
   for (const file of goFiles(WORK_DIR)) {
-    const relative = decodeURIComponent(file.pathname).split('src/work/')[1];
-    if (OTEL_TRACE_IMPORT.test(readFileSync(file, 'utf8'))) importers.push(relative);
+    const rel = relPath(file);
+    if (OTEL_TRACE_IMPORT.test(readFileSync(file, 'utf8'))) importers.push(rel);
   }
   assert.deepEqual(
     importers,
