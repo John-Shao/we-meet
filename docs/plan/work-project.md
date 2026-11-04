@@ -758,6 +758,10 @@ D5:185"Inbox 只在首页/导航角标轮询；不做跨 Task SSE"的角标一�
 
 **注释与 schema 相反的一处**：`cmd/work-reconcile/scan_pg_test.go` 原写「`execution_enabled` 在当前 schema 里默认 OFF（tenant-access 开关未预置），所以给每个种子组织打开」——按原文回读不成立，`baseline/0002:12` 是 `DEFAULT true` 且无增量改过它，测试里的 INSERT 显式写 true 只是把意图写明。这句话会让人以为新建组织天然惰性，而默认是**可执行**。catalog 只记权限与函数、不记列默认，所以该默认此前无守卫：新增 `internal/migrate/org_execution_default_test.go` 钉住基线默认仍为 true，并拒绝任何增量 `ALTER COLUMN execution_enabled SET/DROP DEFAULT` 悄悄改它（要改必须同时改这条断言），另含「找得到 `CREATE TABLE work.org` 与列定义」「增量 glob ≥16 个文件」两条防空集下限。验证：基线 PASS；变异把默认改 false → 红在 `:42` 并回显 `DEFAULT = false`（断言红），还原后 baseline `git status` 为空；无库时 `./internal/migrate` 与 `./cmd/work-reconcile` 分别 ok（2.712s / 2.654s），`gofmt` 无输出。**边界**：这条只钉住「列默认」，不改变 C28 的判定——生产上 `work.org` 行的实际值、Host 侧 tenant-access 开关与端到端切换演练仍未做，C28 仍 partial。
 
+**#46 的实际规则已由用例钉住（2026-11-04，提交 `0f81e5e6e`）**：`host.Org` 没有执行字段（`internal/host/orgs.go:33-40`），`PGWriter.SyncOrg` 自己把第 4 个参数算成 `org.Status == "active"`（`internal/directory/writer.go:28-35`），交给 `work.sync_org_projection` 的必填 `p_execution_enabled`（NULL 即拒，`baseline/0002:3850`）直接写入 `work.org`（`:3867`）。所以列默认不参与这条路径，且 **Host 报 `active` 的组织会被目录同步自动置为可执行**，suspended/archived 回落——这与「tenant-access 开关还没开」的说法不在同一层，是否符合意图转 #46 待判（A 现状即设计／B Work 侧再加独立开关，属安全边界改动／C 首批组织人工确认 status）。第一版用例（`8780b54d5`）把读回写在 api pool 上，`work.org` 对 workload 角色无 SELECT → 42501、带库整包 FAIL，**却被我提交了**；已在 `9be671167` 撤销并在重做版改用 `testpg.AdminURLFor(dbName)` 特权连接。重做版验证顺序摆正：单用例 PASS(1.41s)、带库整包 ok(26.642s)、无库整包 ok(2.021s)；变异把推导硬编码成 `true` → 恰好 suspended/archived 两行红，还原后 `writer.go` 状态为空、复跑 ok(3.562s)。
+
+**推前复跑抓到的一次红，归因为并行负载而非代码（2026-11-04）**：`go test ./... -count=1`（不带 `-p 1`，活库）在 `internal/relay` 的 `TestRelayCrashAfterClaimIsReclaimedExactlyOnce` 上 FAIL(14.62s)、整包 110.141s。隔离判据：单独跑该用例 **PASS(6.61s)**；按 CI 的 `-p 1` 序列化跑整包 **ok(50.815s)**——即包并行时该用例耗时翻倍（SIGKILL 子进程＋租约到期依赖墙钟），CPU 竞争下超时。结论写清楚：**这条用例在并行 `go test ./...` 下不稳定，CI 的 `-p 1` 是它成立的前提**，不是我这轮改动的回归（我没动 relay）；同样地，任何本机用并行方式跑出的 relay 红都不能直接当代码红。一次性容器（`postgres:16@55439/440/441/442/443/444`）全部 `docker rm -f`，无残留。
+
 ## 5. 当前问题
 
 ### 5.1 设计层未决项
