@@ -99,14 +99,14 @@ D2′ `:87-92` 把 `request_hash` 与 `receipt_ref` 列为**禁止公开**。现
 
 | # | 偏移 | 选择（A/B/C） | 备注 |
 |---|---|---|---|
-| 1 | 四个声明码不存在 | ☐ | |
+| 1 | 四个声明码不存在 | **A 已签（2026-11-04，John）** | 记例外并具名，落点 `d2-prime-surface.json` → `rulings2026_11_04.offset1_declaredCodesWithZeroProducers`；不写「已实现」断言 |
 | 2 | `rejectedBodyFields` 无专属断言 | **A 已执行** | `identity_body_test.go` 两条（15 个 DTO，正向对照＋四字段注入＋不回显），基线 PASS＋变异核对；命名裁定仍随偏移 1 |
-| 3 | `offset` 声明拒绝、实际无视 | ☐ | 选 B 需另起一批 |
-| 4 | 415 条款会拒现网前端 | ☐ | 选 B 须与部署同批 |
-| 5 | `currentRevisionRequired` 与实现相反 | ☐ | |
-| 6 | `request_hash`/`receipt_ref` 公开 | ☐ | 取证已完成（预镜像＋读者范围），建议 A＋两个条件 |
-| 7 | `csrf_header_single_source` 声明无产生者 | ☐ | 平价闸已落（`gen-work-api.mjs`，零可观测变化＋变异核对）；余 Go 常量第二处，建议 B（承认第二处） |
-| 8 | 席位游标形状与畸形游标差异 | ☐ | 见 §4，建议 A（改文字＋记差异）；B/C 都动用户可见应答，非我自决 |
+| 3 | `offset` 声明拒绝、实际无视 | **A 已签** | 声明改为承认忽略（`pagination.offsetAccepted=true`＋note）；选 B（真拒绝）属用户可见应答变更，需另起一批 |
+| 4 | 415 条款会拒现网前端 | **A 已签** | 加 `mediaType.transportMismatchScope`：仅对显式声明不兼容且带请求体者判 415，缺省不判 |
+| 5 | `currentRevisionRequired` 与实现相反 | **A 已签** | 置 `false`，与已上线的 `detailOptionalConflicts`/`sql_detail` 对齐 |
+| 6 | `request_hash`/`receipt_ref` 公开 | **A 已签（含两条件）** | 从 `forbiddenPublicFields` 移除，两条件写进 `requestHashReceiptRefRuling`：禁入日志/trace/埋点/标签；`submission_dedup` 那族摘要无公开出口，不得混同 |
+| 7 | `csrf_header_single_source` 声明无产生者 | **A 已签（B 案落法）** | 平价闸已落（`gen-work-api.mjs`，零可观测变化＋变异核对）；Go 第二处常量本轮补机器断言 `test/csrf-header-parity.test.mjs`（契约／Go／生成客户端三处同值），建议 B（承认第二处） |
+| 8 | 席位游标形状与畸形游标差异 | **A 已签** | 新增 `pagination.cursorTypeExceptions.admin_seats` 记明明文 `subject_id` keyset，通用 `cursorType` 不变 |
 
 签完后要一起翻的东西（缺任一项就别说「已重签」）：`d2-prime-surface.json` 的 `surfaceFrozen` 与 `evidence`（现值 `design_model_only`）、`gates.openQuestionsResolvedAtSignoff` 五项落位、C07 状态与证据文字、台账一段结论。另需在同一批处置既有两项未闭合：三条成果深链路由与 R0b `/work/v2` 面的归属，以及 `R0aIntent` 上随别名一起消失的 `scope_unavailable` 规则是否在 D2′ 重新落位（台账 2026-11-03 段已记）。
 

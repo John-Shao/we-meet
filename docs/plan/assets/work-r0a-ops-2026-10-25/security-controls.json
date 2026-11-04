@@ -39,7 +39,8 @@
       ],
       "status": "partial",
       "owner": "security + platform",
-      "closeCondition": "Static master-key custody/rotation implemented; runtime secret-leak test and log scan."
+      "closeCondition": "Static master-key custody/rotation implemented; runtime secret-leak test and log scan.",
+      "note": "2026-11-04 按 #48=B 加注：closeCondition 文本**保持原样不降级**——主密钥保管/轮换仍是本控制的要求。但 2026-11-03 裁定 A（#40）已把「轮换/重加密驱动」移出 R0a 退出门，故 R0a 试点期**不以此项作为放行条件**，S03/S14 的 status 仍按其余证据评定；重开条件见 pilot-checklist C13 note（>3 组织/规模化前、疑似主密钥泄露、接入对象存储后端）。"
     },
     {
       "id": "S04",
@@ -183,7 +184,8 @@
       ],
       "status": "partial",
       "owner": "backend + runtime + security",
-      "closeCondition": "Runtime log/trace scan with synthetic secrets (E5 probe), error payload review and provider adapter audit; the master-key custody/rotation drill is an E5 gate because R0a uses a static single-layer key, not cloud KMS."
+      "closeCondition": "Runtime log/trace scan with synthetic secrets (E5 probe), error payload review and provider adapter audit; the master-key custody/rotation drill is an E5 gate because R0a uses a static single-layer key, not cloud KMS.",
+      "note": "2026-11-04 按 #48=B 加注：closeCondition 文本**保持原样不降级**——主密钥保管/轮换仍是本控制的要求。但 2026-11-03 裁定 A（#40）已把「轮换/重加密驱动」移出 R0a 退出门，故 R0a 试点期**不以此项作为放行条件**，S03/S14 的 status 仍按其余证据评定；重开条件见 pilot-checklist C13 note（>3 组织/规模化前、疑似主密钥泄露、接入对象存储后端）。"
     },
     {
       "id": "S15",

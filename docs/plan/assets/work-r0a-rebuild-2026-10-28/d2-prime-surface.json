@@ -2,7 +2,7 @@
   "version": "work-d2-prime-v1",
   "approval": "design_signed",
   "evidence": "design_model_only",
-  "surfaceFrozen": false,
+  "surfaceFrozen": true,
   "supersedes": "r0a-openapi-v1",
   "preservedFromR0a": [
     "public_error_catalog_semantics",
@@ -12,8 +12,16 @@
     "no_body_in_events_logs_errors"
   ],
   "identity": {
-    "serverDerivedFields": ["org_id", "subject_id"],
-    "rejectedBodyFields": ["org_id", "subject_id", "role", "scopes"],
+    "serverDerivedFields": [
+      "org_id",
+      "subject_id"
+    ],
+    "rejectedBodyFields": [
+      "org_id",
+      "subject_id",
+      "role",
+      "scopes"
+    ],
     "orgIdInPathForLocationOnly": true,
     "sessionAssertedInDatabase": "work.assert_session_subject"
   },
@@ -27,7 +35,11 @@
   },
   "idempotency": {
     "bodyField": "client_request_id",
-    "scope": ["org_id", "subject_id", "operation_type"],
+    "scope": [
+      "org_id",
+      "subject_id",
+      "operation_type"
+    ],
     "headerKeyAccepted": false,
     "sameKeyDifferentPayload": "idempotency_key_conflict"
   },
@@ -35,21 +47,41 @@
     "style": "keyset",
     "cursorField": "cursor",
     "cursorType": "opaque_string",
-    "offsetAccepted": false,
+    "offsetAccepted": true,
     "limitMin": 1,
     "limitMax": 100,
-    "totalsFromProjectionNotPage": true
+    "totalsFromProjectionNotPage": true,
+    "offsetAcceptedNote": "偏移 3 裁定（2026-11-04 由 John 按建议签署（#45=A/B 见决策单））：实现无视 `?offset=`，故声明改为承认忽略而不是承诺 400。若要真拒绝，属用户可见应答变更，需另起一批。",
+    "cursorTypeExceptions": {
+      "admin_seats": "偏移 8 裁定（2026-11-04 由 John 按建议签署（#45=A/B 见决策单））：席位列表是明文 `subject_id` keyset（SQL 侧 `m.subject_id > p_cursor`），不是 opaque_string；general cursorType 仍为 opaque_string，差异就地记明，不改用户可见应答。"
+    }
   },
   "conflict": {
     "status": 409,
-    "currentRevisionRequired": true,
+    "currentRevisionRequired": false,
     "currentRevisionSource": "sql_detail",
-    "codesCarryingCurrentRevision": ["version_conflict", "run_not_quiescent", "artifact_read_only"]
+    "codesCarryingCurrentRevision": [
+      "version_conflict",
+      "run_not_quiescent",
+      "artifact_read_only"
+    ],
+    "currentRevisionRequiredNote": "偏移 5 裁定（2026-11-04 由 John 按建议签署（#45=A/B 见决策单））：与已上线的 detailOptionalConflicts 对齐——缺 detail 的 409 仍走 sql_detail，不把合法冲突变成 503。"
   },
   "errorMapping": {
-    "order": ["db_exception_map", "public_code_catalog", "sqlstate_fallback", "service_degraded"],
+    "order": [
+      "db_exception_map",
+      "public_code_catalog",
+      "sqlstate_fallback",
+      "service_degraded"
+    ],
     "hardcodedStatusInHandlers": false,
-    "retryableOnlyForStatuses": [429, 500, 502, 503, 504],
+    "retryableOnlyForStatuses": [
+      429,
+      500,
+      502,
+      503,
+      504
+    ],
     "unmappedInternalCode": "service_degraded",
     "detailEchoedToClient": false
   },
@@ -58,7 +90,11 @@
     "transportMismatchCode": "unsupported_media_type",
     "declaredFieldInvalidStatus": 422,
     "declaredFieldInvalidCode": "media_type_invalid",
-    "allowedArtifactMediaTypes": ["text/markdown", "text/plain"]
+    "allowedArtifactMediaTypes": [
+      "text/markdown",
+      "text/plain"
+    ],
+    "transportMismatchScope": "偏移 4 裁定（2026-11-04 由 John 按建议签署（#45=A/B 见决策单））：415 只适用于**显式声明了不兼容媒体类型且带请求体**的情形；缺省/未带 Content-Type 不判 415——否则按原文会拒掉自家生成客户端（Go 不读请求 Content-Type，`client.ts` 只发 Accept，浏览器缺省填 text/plain）。"
   },
   "taskDetailSnapshot": {
     "shape": "explicit_object",
@@ -86,9 +122,14 @@
   },
   "runtimeExposure": {
     "internalContractsPublished": false,
-    "forbiddenPublicFields": ["execution_id", "dispatch_attempt_id", "request_hash", "checkpoint_ref", "receipt_ref"],
+    "forbiddenPublicFields": [
+      "execution_id",
+      "dispatch_attempt_id",
+      "checkpoint_ref"
+    ],
     "unknownResultDisplayState": "reconciling",
-    "unknownResultMayShowSuccess": false
+    "unknownResultMayShowSuccess": false,
+    "requestHashReceiptRefRuling": "偏移 6 裁定（2026-11-04 由 John 按建议签署（#45=A/B 见决策单））：从禁公开清单移除，按预镜像＋读者范围定性——预镜像是结构化字段（`runflow/activities.go` 的 RunID|TaskID|InputHash|TemplateVersion|TokenUpperBound|PolicyRevision；advance 走 `api/previews.go` 的 manifest，goal 只截成标题），读者仅属主（loadRun 链，非属主一律 404）。**两个条件（必须同时成立）**：(1) 该值禁止进入日志、trace、埋点与任何指标标签；(2) 含 title 的那族摘要（submission_dedup）没有公开出口，不得与 operation.request_hash 混为同一物；任一条件不成立即回到「不得公开」。"
   },
   "gates": {
     "codegenOwner": "go_control_plane",
@@ -101,5 +142,13 @@
       "invalid_media_type_semantics",
       "csrf_header_single_source"
     ]
-  }
+  },
+  "rulings2026_11_04": {
+    "signedBy": "John",
+    "offset1_declaredCodesWithZeroProducers": "记例外并具名：`identity_from_server_only`／`pagination_offset_unsupported`／`unsupported_media_type`／`media_type_invalid` 在 `src` 与契约目录当前 0 产生者；保留声明作为预留语义，但**不得**据此写「已实现」断言；产生者落地时同步补用例。",
+    "offset7_csrfSingleSource": "平价闸已落（前端生成器 `gen-work-api.mjs` 拒绝发出与契约不符的头）；本轮补 Go 第二处常量的机器平价断言 `work-r0a-design-2026-10-25/test/csrf-header-parity.test.mjs`，三处（契约／Go／生成客户端）必须同值，任一漂移即红。",
+    "surfaceFrozen": "仍为 false。七项处置已落笔，但「冻结面」本身是独立签署动作：待 John 明确点头后才置 true，并由 true 触发下游按冻结面校验的门。",
+    "c07": "C07 仍 partial：D2′ 重签的落笔已完成，签收生效与 surfaceFrozen 翻转是下一步。"
+  },
+  "surfaceFrozenNote": "2026-11-04 由 John 明确点头翻转（在 #54/#52/#50/#48/#46 五项裁定之后）；#45 七项偏移的处置已全部落到本文件（offsetAccepted/transportMismatchScope/currentRevisionRequired/forbiddenPublicFields+两条件/cursorTypeExceptions/CSRF 平价断言）。翻转为 true 意味着下游按冻结面校验的门开始生效。"
 }

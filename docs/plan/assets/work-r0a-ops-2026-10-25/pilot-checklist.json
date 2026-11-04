@@ -436,7 +436,7 @@
         "legacy notice shipped and browser-verified: old /work?task= redirects to /work/archive?legacyTask=… with a read-only notice (frontend 645460d5b, Helm 523)",
         "rollback exercised in practice: partial frontend releases 521-528 with named rollback tags recorded in the status source"
       ],
-      "note": "Cutover and legacy notice are real. Still open: the tenant-access org flag is not enabled, so the flag path has not been flipped on production, and no single end-to-end cutover drill has been timed."
+      "note": "Cutover and legacy notice are real. Still open: the tenant-access org flag is not enabled, so the flag path has not been flipped on production, and no single end-to-end cutover drill has been timed. 2026-11-04 #46=A 裁定：同步按 Host `status=active` 自动置 `execution_enabled=true` 属设计意图，不加 Work 侧独立开关；试点期由 P9 的人工确认三列现值作过渡控制。实测补充：`work-directory-sync` 的 `.timer`（10min）与 `.timer-full`（每日 03:15）均 enabled+active，`work.org.revision=2` 说明链路早已生效。status 维持 partial。"
     },
     {
       "id": "C29",

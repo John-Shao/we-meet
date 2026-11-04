@@ -146,6 +146,16 @@ R0a 有六类不属于任何 Run 的常驻作业（见 [D3 §11](work-r0a-orches
 
 `WorkAuditExportTokenFailureBurst` 属安全信号：按秘密疑似泄露处理（该管理员的一次性凭证可能被转发），不要只当性能问题。
 
+### 5.2b 值班直连执行 `ops_*` 命令的边界与程序约束（2026-11-04，#52=A 裁定）
+
+本节只处理一个事实：`work.ops_cancel_run` 与 `work.ops_delete_*` 是**给值班在 SQL 里执行的命令**（D-07 A 的定位），实测它们**没有 HTTP 路由、Go 侧除测试与 `testpg` 外无调用方**，且 `work.assert_session_subject` 只比对 `app.subject_id` GUC。因此：
+
+1. **主体由操作者自负**：直连会话里 `SET app.subject_id = <被授权主体>` 是「以谁的名义记账」，库不会替你核实。执行前先确认该主体确实是这条命令的合法 actor（工单里写明），执行后核对 `work.audit_event` 落下的行。
+2. **`p_ticket_ref` 必须可回查**：函数强制 `^[A-Z][A-Z0-9]+-[0-9]+$` 且 `p_reason` 去空格后 ≥4 字符，并要经 `work.reason_code` 白名单——这不是形式主义：它是事后唯一能把「库里的动作」对回「工单」的线索。禁止填写 `OPS-0`、`TICKET-1` 之类的占位值。
+3. **只读先行**：执行前用 §5.2 第 1、2 类信号（或 superuser 的 `sudo -u postgres psql -d work`）看清对象与影响面。2026-11-04 的教训：以 owner/工作负载身份不 `SET app.org_id` 就 `count(*)` 会得到全零，我曾据此误判「生产库已被重置」并差点下发取消——见 #53。
+4. **不做批量**：一条一命令、一条一证据（run id、释放额度、结算为零、`task_event` 前后对照）。
+5. 该边界是「接受现状＋程序约束」，不是收紧：把 `ops_*` 改造成校验应用签发令牌（#52 的 B 案）或改走管理台路由（C 案，需先新建写面）都属未采纳备选，重开条件＝值班直连出现无法回查工单的审计主体。
+
 ### 5.3 目录同步作业（work-directory-sync）
 
 - **增量设计要求**：`WORK_DIRECTORY_MODE=incremental`，正常成功同步周期为 300s；以 Work 投影的 `work.org.revision` 为水位，只拉 `revision_after` 之后的成员变更；不判定缺席。实际 timer 周期须取证，不以本节要求代替部署状态。

@@ -260,7 +260,7 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 | 公开错误码目录语义、`retryable` 只给 429/5xx、未映射内部码降级为 `service_degraded` | 资源/操作切分、路径与 schema 名称、生成链路由 Go 控制面承载 |
 | `client_request_id` 幂等且作用域 `(org_id, subject_id, operation_type)`，不接受 `Idempotency-Key` 头 | 旧 mock server、旧生成客户端与旧漂移门禁退役，不再作为合格证据 |
 | keyset 分页、`expected_revision` 乐观并发、事件/错误/日志无正文 | Runtime 内部标识（execution/attempt/hash/ref）一律不进公开响应 |
-| org/subject 只由服务端解析，DB 侧 `work.assert_session_subject` 二次比对 | `WAITING_RECONCILE` 等内部状态到 `DisplayState` 的映射随 D3' 重核 |
+| org/subject 只由服务端解析，DB 侧 `work.assert_session_subject` 二次比对（**2026-11-04 按 #52=A 补记真实强度**：该函数体只比对 `nullif(current_setting('app.subject_id', true), '')`，因此库侧这道门**等于「谁能连上库」**——任何持有 `work_ops_login` 的会话 `SET app.subject_id=<任意主体>` 即可通过。身份的真实签发面仍在应用层；运维直连属受控例外，程序约束见[运维手册 §5.2b](work-operations-runbook-2026-10-25.md)） | `WAITING_RECONCILE` 等内部状态到 `DisplayState` 的映射随 D3' 重核 |
 
 ### 8.2 五个必解项的拟定结论
 
