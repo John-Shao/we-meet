@@ -64,6 +64,69 @@ test('an operator wrapper is packaged together with the report it runs', () => {
   assert.deepEqual(problems, []);
 });
 
+// A packaged script that reads a repo file which the package does not deliver is the same
+// bug in a quieter form: it works on a checkout and fails on the host. #47 found exactly one
+// (work-c16-log-scan.sh wants /tmp/work-log-scan.mjs, which nothing copies). Rather than
+// decide the packaging question here, this makes the class countable: every such reference has
+// to appear below with a reason, and fixing it means deleting an entry.
+const REFERENCED_NOT_PACKAGED = [
+  {
+    script: 'scripts/work-c16-log-scan.sh',
+    file: 'log-scan.mjs',
+    reason: '#47: 扫描器未随包交付，脚本按 /tmp/work-log-scan.mjs 找；C16 的运行时证据因此不能从发布包自助复跑。' +
+      '选 A（打包 + SCAN 候选序列）后此条目必须删除，同时补一条成对断言。',
+  },
+];
+
+test('packaged scripts only reference repo files that ship, or are listed with a reason', () => {
+  const assetDirs = [
+    new URL('../../', import.meta.url), // sibling asset dirs (hardening, runtime, ...)
+  ];
+  const findRepoFile = (basename) => {
+    for (const dir of assetDirs) {
+      for (const sub of readdirSync(dir)) {
+        const candidate = new URL(`${sub}/${basename}`, dir);
+        if (existsSync(fileURLToPath(candidate))) return fileURLToPath(candidate);
+      }
+    }
+    const inWork = [join(WORK_DIR, 'scripts'), join(WORK_DIR, 'deploy/ecs')];
+    for (const dir of inWork) {
+      const candidate = join(dir, basename);
+      if (existsSync(candidate)) return candidate;
+    }
+    return null;
+  };
+
+  const problems = [];
+  let inspected = 0;
+  let resolved = 0;
+  for (const rel of copySources.filter((p) => p.endsWith('.sh'))) {
+    const abs = join(WORK_DIR, rel);
+    if (!existsSync(abs)) continue;
+    inspected++;
+    const text = readFileSync(abs, 'utf8');
+    for (const match of text.matchAll(/([A-Za-z0-9_./-]+)\.(mjs|sql|json)\b/g)) {
+      const basename = match[1].split('/').pop() + '.' + match[2];
+      const repoFile = findRepoFile(basename);
+      if (!repoFile) continue; // not a repo file (path is host-local by design)
+      resolved++;
+      const shipped = copySources.some((p) => p.endsWith('/' + basename));
+      const allowed = REFERENCED_NOT_PACKAGED.some(
+        (entry) => entry.script === rel && entry.file === basename,
+      );
+      if (!shipped && !allowed) {
+        problems.push(`${rel} reads ${basename}, which ships in neither the package nor the allow list`);
+      }
+    }
+  }
+  assert.ok(
+    inspected >= 5 && resolved >= 1,
+    `expected to inspect several packaged scripts and resolve at least one repo reference, ` +
+      `got inspected=${inspected} resolved=${resolved} - the scan is looking at nothing`,
+  );
+  assert.deepEqual(problems, [], 'unaccounted host dependency in a packaged script');
+});
+
 test('packaged shell scripts parse', () => {
   const failures = [];
   for (const rel of copySources.filter((p) => p.endsWith('.sh'))) {
