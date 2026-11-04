@@ -949,6 +949,12 @@ func TestExecuteStepMarksUnknownAndWaitsForReconcile(t *testing.T) {
 }
 
 func newFlowDB(t *testing.T) (*pgxpool.Pool, string) {
+	// TestMain still has to run the package's non-database tests when no server is
+	// configured, so the guard belongs at the single point where a test asks for one.
+	// Without it, `go test ./...` on a laptop reports environment failures as red.
+	if testpg.AdminURL() == "" {
+		t.Skip("WORK_TEST_PG_URL is not set")
+	}
 	t.Helper()
 	ctx := context.Background()
 	admin, err := testpg.Open(ctx, testpg.AdminURL())
