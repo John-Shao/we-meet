@@ -766,6 +766,8 @@ D5:185"Inbox 只在首页/导航角标轮询；不做跨 Task SSE"的角标一�
 
 **台账锚点复核（2026-11-04，随 `e8ec99b7c` 对决策单做同类检查后顺手扩到本页）**：本页 163 处 `file:line` 引用按当前工作树解析，**161 命中**；两处存疑，都记不改成：① `lease_crash_test.go:213` 指的是 `internal/relay` 那份（633 行），我的校验脚本按文件名首匹配撞到了 `cmd/work-export` 那份（194 行）才报「超出文件长度」——是脚本缺陷不是文档错；② 第 395 行（2026-11-01 的一致性排查段）里 `inputs.go:49` 因该文件后续编辑已漂到空行，现内容在 47-50（`inputMediaType` 常量与 `resolvedMediaType`）。这条**不追溯改写**：按既有纪律，带时间戳的历史段保留原文，漂了就在此处记账，避免用今天的行号去冒充昨天的观察。另一次同类自错也记在这里：校验远端有哪些测试文件时我把 grep 写成 `*_test`，漏掉 `*_pg_test`，差点得出「两个用例不在远端」的假结论——`git ls-tree` 逐个精确匹配后才确认四个都在 `95cc9e4b8`。
 
+**发布包门禁与 #47（2026-11-04，提交 `95b3fb29e`）**：本轮我自己踩到的坑升级为 CI 断言——`run-pilot-metrics.sh` 写好也验过，但 `make-release.sh` 是逐个 `cp` 的名单，漏一行不会让构建失败，只会让包里少一个文件、运维当天才发现。新增 `work-r0a-design-2026-10-25/test/release-assets.test.mjs` 四条：cp 名单可解析（下限 15，防空集假过）、名单内路径真实存在、`run-x.sh` 与其 `x.sql` 必须成对打包、名单内每个 `.sh` 过 `bash -n`。基线 4/4，两处变异各自报出**具名**断言（删掉 wrapper 那行 → 「pairs with scripts/pilot-metrics.sql but only one of them…」；给 `work-reconcile-scan.sh` 加坏语法 → `line 53: syntax error`），夹具还原后 `git status` 只剩新文件；`ci-contract.mjs` **49/49 pass、gate passed**。**顺带查出一处真实缺口，转 #47**：`work-c16-log-scan.sh:15` 把扫描器写死为 `/tmp/work-log-scan.mjs`，而发布包从不交付 `log-scan.mjs`（全仓只有脚本自身引用该路径，无任何拷贝步骤），所以 **C16 的运行时证据无法从发布包自助复跑**——而 C16 的 evidence 已把 11-02 主机实扫记为已完成证据。新门禁管不到这一类（它只核对被 cp 名单收录的文件），修法二选一待定：A 打包 `log-scan.mjs` 并把脚本的 SCAN 解析改成候选序列（保持现有 `/tmp` 用法优先，不改运行时行为），同时给 release-assets 补一条「被引用的仓库文件必须打包」；B 只把该手工步骤写进运维手册/#36。A 触及部署面，故未自行执行。
+
 ## 5. 当前问题
 
 ### 5.1 设计层未决项
