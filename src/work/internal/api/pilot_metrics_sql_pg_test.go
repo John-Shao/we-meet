@@ -278,9 +278,11 @@ func TestPilotMetricsSQLCountsTheFunnelAndHonoursEventOrder(t *testing.T) {
 			"event, so the ratio must be 0 and not borrowed from org_a", got)
 	}
 
-	// The time-to-first-artifact column is deliberately not asserted numerically here: every seeded
-	// event shares one transaction clock, so its median is 0 in this fixture and 0 would also be the
-	// answer for a broken percentile clause. It has to exist and be non-NULL.
+	// Only existence is asserted here, and deliberately so: every seeded event shares one
+	// transaction clock, so the median in this fixture is 0 - which is also exactly what a broken
+	// percentile clause would report. The numeric claim lives in
+	// TestPilotMetricsSQLTimeToFirstArtifactIsTheMedian, which inserts its own timestamps so the
+	// submit-to-publish gaps are non-zero and the median is a specific number.
 	if v := value(orgA, "time_to_first_artifact_p50_seconds"); v == nil {
 		t.Fatalf("time_to_first_artifact_p50_seconds = NULL, want a number for two published tasks")
 	}
@@ -412,6 +414,143 @@ func keys(m map[string][3]*float64) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+// TestPilotMetricsSQLTimeToFirstArtifactIsTheMedian pins the one column this file
+// deliberately left unasserted. percentile_cont(0.5) runs over
+// publish.created_at - submit.created_at, and every event appended through
+// work.append_task_event shares one transaction clock, so the median in the funnel fixture is
+// 0 - and 0 is exactly what a broken percentile clause (wrong fraction, swapped ORDER BY, a
+// join that pairs a publish with the wrong submit) would also report. "It exists and is not
+// NULL" was therefore not evidence.
+//
+// The gaps are created at insert time instead: work.task_event.created_at is a plain
+// NOT NULL DEFAULT now() column, and the append-only guard is BEFORE UPDATE OR DELETE, so an
+// INSERT carrying its own timestamp is not what that guard forbids. Three published tasks
+// with 10s, 50s and 90s gaps give a median of 50 - a number no neighbouring value would
+// satisfy.
+func TestPilotMetricsSQLTimeToFirstArtifactIsTheMedian(t *testing.T) {
+	if testpg.AdminURL() == "" {
+		t.Skip("WORK_TEST_PG_URL is not set")
+	}
+	_, dbName := newBootstrapDB(t, true, true)
+	seedTaskGraph(t, dbName)
+
+	ctx := context.Background()
+	conn, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+
+	const (
+		taskA = "11111111-1111-4111-8111-111111111111"
+		taskB = "11111111-1111-4111-8111-222222222222"
+		taskC = "11111111-1111-4111-8111-333333333333"
+		// Every publish sits 600s before now(); the submit is pushed further back by the gap,
+		// so the difference is the gap itself regardless of when the test runs.
+		publishAge = 600
+	)
+	gaps := []struct {
+		task   string
+		org    string
+		gapSec int
+	}{
+		{taskA, "org_a", 10},
+		{taskB, "org_a", 50},
+		{taskC, "org_a", 90},
+	}
+	for _, item := range gaps {
+		_, err := conn.Exec(ctx, `
+			INSERT INTO work.task_event (org_id, task_id, seq, type, payload, created_at)
+			VALUES ($1, $2::uuid, 1, 'task.submitted', '{}'::jsonb,
+			        now() - make_interval(secs => $3::int)),
+			       ($1, $2::uuid, 2, 'artifact.published', '{"version_no":1}'::jsonb,
+			        now() - make_interval(secs => $4::int))`,
+			item.org, item.task, publishAge+item.gapSec, publishAge)
+		if err != nil {
+			t.Fatalf("seed %s with a %ds gap: %v", item.task, item.gapSec, err)
+		}
+	}
+
+	sqlText := readMetricsSQL(t)
+	query := func(org string) map[string][3]*float64 {
+		t.Helper()
+		useAppOrg(t, conn, org)
+		if _, err := conn.Exec(ctx, `SELECT set_config('work.org_id', $1, false)`, org); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := conn.Exec(ctx,
+			`SELECT set_config('work.pilot_enabled_at', $1, false)`,
+			time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := conn.Exec(ctx, `SELECT set_config('work.activation_threshold', $1, false)`,
+			"1"); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := conn.Query(ctx, sqlText)
+		if err != nil {
+			t.Fatalf("pilot-metrics.sql for %s: %v", org, err)
+		}
+		defer rows.Close()
+		out := map[string][3]*float64{}
+		for rows.Next() {
+			var metric string
+			var numerator, denominator, value *float64
+			if err := rows.Scan(&metric, &numerator, &denominator, &value); err != nil {
+				t.Fatal(err)
+			}
+			out[metric] = [3]*float64{numerator, denominator, value}
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+
+	num := func(m map[string][3]*float64, metric string) float64 {
+		t.Helper()
+		row, ok := m[metric]
+		if !ok {
+			t.Fatalf("pilot-metrics.sql returned no row for %q, only %v", metric, keys(m))
+		}
+		if row[0] == nil {
+			t.Fatalf("%s numerator is NULL", metric)
+		}
+		return *row[0]
+	}
+	value := func(m map[string][3]*float64, metric string) *float64 {
+		t.Helper()
+		row, ok := m[metric]
+		if !ok {
+			t.Fatalf("pilot-metrics.sql returned no row for %q, only %v", metric, keys(m))
+		}
+		return row[2]
+	}
+
+	orgA := query("org_a")
+	// The funnel fixture's tasks also appear here, so first prove the three seeded pairs are
+	// the rows being measured: three submits inside the window.
+	if got := num(orgA, "artifact_success_rate"); got != 3 {
+		t.Fatalf("artifact_success_rate numerator = %v, want 3 (the three seeded publishes)", got)
+	}
+	v := value(orgA, "time_to_first_artifact_p50_seconds")
+	if v == nil {
+		t.Fatal("time_to_first_artifact_p50_seconds = NULL, want the median of 10/50/90")
+	}
+	if *v != 50 {
+		t.Fatalf("time_to_first_artifact_p50_seconds = %v, want exactly 50 - the median of the "+
+			"seeded 10s/50s/90s gaps; anything else means the percentile clause or the submit-to-"+
+			"publish pairing is wrong", *v)
+	}
+
+	// The other organization must not borrow this number: org_other has no seeded publish in
+	// this test's window, so its median stays NULL rather than picking up org_a's 50.
+	if v := value(query("org_other"), "time_to_first_artifact_p50_seconds"); v != nil {
+		t.Fatalf("org_other time_to_first_artifact_p50_seconds = %v, want NULL: no published "+
+			"task of its own was seeded", *v)
+	}
 }
 
 func deref(v *float64) any {
