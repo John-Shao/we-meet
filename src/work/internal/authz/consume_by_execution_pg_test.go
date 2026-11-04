@@ -67,6 +67,9 @@ func newAuthzExecDB(t *testing.T) (string, *pgx.Conn, *pgxpool.Pool) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := testpg.EnsureFixtures(ctx, root); err != nil {
+		t.Fatal(err)
+	}
 	dbName, err := testpg.CreateBaselineDB(ctx, root, "work_authz_exec_test")
 	_ = root.Close(ctx)
 	if err != nil {

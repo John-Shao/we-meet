@@ -332,15 +332,27 @@ func cancelRequested(ctx workflow.Context, cancelCh workflow.ReceiveChannel) boo
 // The signal is only a hint: the activity never rewrites a dispatched call as
 // not sent, and the workflow revokes the registered fragment before closing the
 // Run.
+//
+// The start-to-close window is 4 minutes because that is what a lost completion
+// costs: measured on the pilot host 2026-11-04, a model step takes 15-25s and
+// the slowest provider exchange seen was 49.9s, while the previous 16-minute
+// window meant an interrupted Run sat open until Temporal gave up on it. One
+// retry is safe because consume_dispatch_delivery returns the recorded gate row
+// instead of authorising a second provider call (authz/consume_by_execution_pg_test.go
+// pins "exactly one winner"), so the retry finishes the receipt rather than
+// re-sending it. Schedule-to-close leaves room for both attempts plus backoff.
 func advanceWithCancel(
 	ctx workflow.Context, cancelCh workflow.ReceiveChannel, request fragment.Request,
 ) (fragment.Result, bool, error) {
 	advanceCtx, cancelAdvance := workflow.WithCancel(ctx)
 	defer cancelAdvance()
 	advanceCtx = workflow.WithActivityOptions(advanceCtx, workflow.ActivityOptions{
-		StartToCloseTimeout:    16 * time.Minute,
-		ScheduleToCloseTimeout: 17 * time.Minute,
-		RetryPolicy:            &temporal.RetryPolicy{MaximumAttempts: 1},
+		StartToCloseTimeout:    4 * time.Minute,
+		ScheduleToCloseTimeout: 10 * time.Minute,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval: 10 * time.Second, BackoffCoefficient: 2,
+			MaximumInterval: 60 * time.Second, MaximumAttempts: 2,
+		},
 	})
 	future := workflow.ExecuteActivity(advanceCtx, ActivityAdvanceRuntime, request)
 	var out fragment.Result

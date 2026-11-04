@@ -276,6 +276,55 @@ func TestRunWorkflowAdvanceRunsOneStepAndFinishesSucceeded(t *testing.T) {
 	env.AssertExpectations(t)
 }
 
+// The advance activity is retried once (#56-A) so an interrupted Run is re-driven
+// instead of parking until start-to-close ends it. The retry must reuse the
+// execution it already dispatched: re-running PrepareExecution would mint a second
+// operation and the dispatch gate's "exactly one winner" would be moot.
+func TestRunWorkflowAdvanceRetriesLostAdvanceWithoutRedispatching(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(runflow.RunWorkflowAdvance)
+	env.RegisterActivity(&runflow.Activities{})
+	input := runflow.Input{RunID: advanceRunID, OrgID: "org_advance"}
+	prepared := advancePreparedFixture()
+	head := advanceHeadFixture()
+	execution := runflow.AdvanceExecution{
+		ExecutionID: advanceExecutionID, OperationID: advanceOperationID,
+		AttemptID: advanceAttemptID, ReservationID: advanceReservationID,
+		RequestHash:    advanceHash,
+		DeadlineUnixMs: time.Now().Add(time.Minute).UnixMilli(),
+	}
+	env.OnActivity(runflow.ActivityPrepareAdvance, mock.Anything, input).
+		Return(prepared, nil).Once()
+	env.OnActivity(runflow.ActivityEnsureHead, mock.Anything, prepared).
+		Return(head, nil).Once()
+	env.OnActivity(runflow.ActivityPrepareExecution, mock.Anything, mock.Anything).
+		Return(execution, nil).Once()
+	env.OnActivity(runflow.ActivityAdvanceRuntime, mock.Anything, mock.Anything).
+		Return(fragment.Result{}, errors.New("worker vanished before completion")).Once()
+	env.OnActivity(runflow.ActivityAdvanceRuntime, mock.Anything, mock.Anything).
+		Return(checkpointedResult(), nil).Once()
+	env.OnActivity(runflow.ActivityFinishAdvance, mock.Anything, mock.Anything).
+		Return(runflow.AdvanceFinishOutput{Status: runflow.AdvanceStatusSucceeded}, nil).Once()
+	env.OnActivity(runflow.ActivityFinishRun, mock.Anything, runflow.FinishRunInput{
+		RunID: advanceRunID, OrgID: "org_advance", Outcome: "succeeded",
+	}).Return(nil).Once()
+
+	env.ExecuteWorkflow(runflow.RunWorkflowAdvance, input)
+
+	if !env.IsWorkflowCompleted() {
+		t.Fatal("workflow did not complete")
+	}
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow: %v", err)
+	}
+	env.AssertExpectations(t)
+	env.AssertNumberOfCalls(t, runflow.ActivityAdvanceRuntime, 2)
+	env.AssertNumberOfCalls(t, runflow.ActivityPrepareExecution, 1)
+	env.AssertNotCalled(t, runflow.ActivityRevokeExecution, mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, runflow.ActivityAbortRun, mock.Anything, mock.Anything)
+}
+
 func TestRunWorkflowAdvanceAlreadyAdvancedFinishesWithoutExecution(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()

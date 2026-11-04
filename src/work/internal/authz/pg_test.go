@@ -135,6 +135,12 @@ func newAuthzDB(t *testing.T) (*pgxpool.Pool, content.Store) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Roles are cluster-wide, so this package only worked when an earlier one in
+	// the CI order had created them; `go test ./internal/authz/` alone failed on
+	// a clean instance.
+	if err := testpg.EnsureFixtures(ctx, root); err != nil {
+		t.Fatal(err)
+	}
 	dbName, err := testpg.CreateBaselineDB(ctx, root, "work_authz_test")
 	_ = root.Close(ctx)
 	if err != nil {
