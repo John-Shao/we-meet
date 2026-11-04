@@ -25,6 +25,24 @@ const copySources = (() => {
   return list;
 })();
 
+// #47 A delivered the C16 scanner from a second source root (the hardening asset dir), so the
+// packager now has two lists. Both count as shipped, and both have to point at real files.
+const ASSETS_DIR = fileURLToPath(new URL('../../work-r0a-hardening-2026-10-25/', import.meta.url));
+const assetCopySources = (() => {
+  const text = readFileSync(RELEASE, 'utf8');
+  return [...text.matchAll(/^cp "\$ASSETS\/([^"]+)" "\$OUT\/"/gm)].map((m) => m[1]);
+})();
+const shippedNames = new Set([...copySources, ...assetCopySources].map((p) => p.split('/').pop()));
+
+test('the second source root ships real files, not just a line in the list', () => {
+  const missing = assetCopySources.filter((p) => !existsSync(join(ASSETS_DIR, p)));
+  assert.deepEqual(missing, [], `make-release.sh copies ${assetCopySources.join(', ')} but these are absent from the assets dir: ${missing.join(', ')}`);
+  assert.ok(
+    assetCopySources.length >= 1,
+    'the packager is expected to ship the C16 scanner from the assets dir (#47 A)',
+  );
+});
+
 test('the packager copy list was parsed, so an empty list is not a pass', () => {
   assert.ok(
     copySources.length >= 15,
@@ -66,17 +84,10 @@ test('an operator wrapper is packaged together with the report it runs', () => {
 
 // A packaged script that reads a repo file which the package does not deliver is the same
 // bug in a quieter form: it works on a checkout and fails on the host. #47 found exactly one
-// (work-c16-log-scan.sh wants /tmp/work-log-scan.mjs, which nothing copies). Rather than
-// decide the packaging question here, this makes the class countable: every such reference has
-// to appear below with a reason, and fixing it means deleting an entry.
-const REFERENCED_NOT_PACKAGED = [
-  {
-    script: 'scripts/work-c16-log-scan.sh',
-    file: 'log-scan.mjs',
-    reason: '#47: 扫描器未随包交付，脚本按 /tmp/work-log-scan.mjs 找；C16 的运行时证据因此不能从发布包自助复跑。' +
-      '选 A（打包 + SCAN 候选序列）后此条目必须删除，同时补一条成对断言。',
-  },
-];
+// (work-c16-log-scan.sh wanted /tmp/work-log-scan.mjs, which nothing copied). Ruling A (2026-11-04,
+// John) shipped that scanner and gave the script a candidate sequence, so this list is empty:
+// any new referenced-but-unpackaged file now goes red instead of being explainable away.
+const REFERENCED_NOT_PACKAGED = [];
 
 test('packaged scripts only reference repo files that ship, or are listed with a reason', () => {
   const assetDirs = [
@@ -110,7 +121,7 @@ test('packaged scripts only reference repo files that ship, or are listed with a
       const repoFile = findRepoFile(basename);
       if (!repoFile) continue; // not a repo file (path is host-local by design)
       resolved++;
-      const shipped = copySources.some((p) => p.endsWith('/' + basename));
+      const shipped = shippedNames.has(basename);
       const allowed = REFERENCED_NOT_PACKAGED.some(
         (entry) => entry.script === rel && entry.file === basename,
       );

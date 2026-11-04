@@ -12,7 +12,12 @@ set -uo pipefail
 WORK=/work-c16
 LOG="$WORK/runtime.log"
 CAN="$WORK/canaries.txt"
-SCAN=/tmp/work-log-scan.mjs
+SCAN=""
+# 候选序列（#47 A）：先沿用 /tmp 的临时放置——既有 runbook 与演练记录都按这个路径写；
+# 再取发布包内与本脚本同目录交付的那份。两处都没有才算 preflight 失败。
+for scan_candidate in /tmp/work-log-scan.mjs "$(dirname "$0")/log-scan.mjs"; do
+  if [ -f "$scan_candidate" ]; then SCAN="$scan_candidate"; break; fi
+done
 KEEP="${1:-clean}"
 
 cleanup() {
@@ -110,6 +115,9 @@ if [ "$KEEP" = "keep" ]; then
   echo "kept: $LOG $SCAN $CAN"
 else
   cleanup
-  rm -f "$SCAN"
+  # 只删临时放置的那份；发布包里的 log-scan.mjs 是交付物，删了它下一次复跑就没东西可用。
+  case "$SCAN" in
+    /tmp/*) rm -f "$SCAN" ;;
+  esac
   echo "cleaned"
 fi

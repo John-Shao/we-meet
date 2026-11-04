@@ -8,6 +8,8 @@ set -euo pipefail
 export MSYS_NO_PATHCONV=1
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# #47 A：C16 的日志扫描器住在资产目录，运行时证据要能从发布包自助复跑就必须把它带上。
+ASSETS="$ROOT/../../docs/plan/assets/work-r0a-hardening-2026-10-25"
 OUT="${1:-/tmp/work-release-0016}"
 # Which container builds this matters: work-go mounts the main checkout, while the R0a
 # worktree is mounted in work-go-r0a. Building from the wrong one yields binaries without
@@ -39,6 +41,7 @@ cp "$ROOT/deploy/ecs/verify-r0a-0027.sh" "$OUT/"
 cp "$ROOT/deploy/ecs/init-workload-pki.sh" "$OUT/"
 cp "$ROOT/scripts/pilot-metrics.sql" "$OUT/"
 cp "$ROOT/scripts/run-pilot-metrics.sh" "$OUT/"
+cp "$ASSETS/log-scan.mjs" "$OUT/"
 cp "$ROOT/deploy/ecs/work-authz.env.example" "$OUT/"
 cp "$ROOT/deploy/ecs/work-content-proxy.env.example" "$OUT/"
 cp "$ROOT/deploy/ecs/work-egress.env.example" "$OUT/"
