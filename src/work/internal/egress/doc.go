@@ -70,8 +70,14 @@
 //     AnswerRefID / RejectionEvidenceRefID uuids to the stored objects. Execute
 //     writes the object and returns the content locator; the registry owner must
 //     record the mapping (kind, object version, writer).
-//   - Source-label checks, secret scanning, quota and price_version bookkeeping
-//     (§7.2-§7.4) happen before Execute, in the egress request validation path.
+//   - Source-label checks and secret scanning (§7.2-§7.4 of the D4 design) are design-asset rules
+//     only: docs/plan/assets/work-r0a-runtime-2026-10-25/policy/evaluator.mjs checks them and no
+//     shipped path in this package does (corrected 2026-11-04 after the DR2 review, which found this
+//     comment claiming a control that does not exist). Quota is reserved and settled by the control
+//     plane through work.reserve_quota / work.settle_quota, not here; price_version bookkeeping was
+//     dropped with D-08 (customer-held accounts, token counts only). What this package does enforce
+//     is the frozen request-document hash, the provider/model match against that document, and the
+//     single-send rule below - nothing more.
 //   - Provider-specific usage normalisation: HTTPProvider reads the
 //     openai-compatible fields only. A provider that omits cached tokens yields
 //     source=unavailable (all counts null), never a fabricated zero.

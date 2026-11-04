@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -68,6 +69,8 @@ test('the bin entrypoint leaves no orphan when its parent process is terminated'
       ...process.env,
       WORK_STUB_BEHAVIOR: 'hang',
       WORK_STUB_PID_FILE: pidFile,
+      // The bin refuses stub wiring unless a harness opts in (DR2 finding 12, ruled S5=A).
+      WORK_RUNTIME_ALLOW_STUB: '1',
       WORK_RUN_ID: 'bin-run',
       WORK_RUNTIME_VERSION: 'runtime-v1',
       WORK_START_TIMEOUT_MS: '5000',
@@ -103,4 +106,38 @@ test('the bin entrypoint leaves no orphan when its parent process is terminated'
 
   await waitFor(() => !isAlive(stubPid), { timeout: 10000 });
   assert.equal(isAlive(stubPid), false);
+});
+
+test('the bin refuses stub wiring unless a harness opts in', { timeout: 20000 }, async (t) => {
+  // DR2 finding 12 (ruled S5=A on 2026-11-04). Before this guard, one stray WORK_STUB_* in the deployed
+  // environment swapped the real Pi child for the test stub while the pool kept reporting healthy runs.
+  const dir = await mkdtemp(join(tmpdir(), 'work-runtime-guard-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const pidFile = join(dir, 'child.pid');
+
+  const bin = spawn(process.execPath, [BIN_ENTRY], {
+    env: {
+      ...process.env,
+      WORK_STUB_BEHAVIOR: 'hang',
+      WORK_STUB_PID_FILE: pidFile,
+      WORK_RUN_ID: 'guard-run',
+      WORK_RUNTIME_VERSION: 'runtime-v1',
+      WORK_PAYLOAD_JSON: '{}',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let stderr = '';
+  bin.stderr.on('data', (chunk) => {
+    stderr += chunk;
+  });
+  bin.stdout.resume();
+  // A bounded wait, so a missing guard fails on the assertion below rather than on the test timeout:
+  // the refusal must be immediate, and a killed-by-deadline run (code null) is itself the wrong answer.
+  const deadline = setTimeout(() => bin.kill('SIGKILL'), 5000);
+  const [code] = await once(bin, 'exit');
+  clearTimeout(deadline);
+
+  assert.equal(code, 1, `expected an immediate refusal with exit 1, got ${code}; stderr=${stderr.slice(0, 160)}`);
+  assert.match(stderr, /stub_wiring_not_allowed/);
+  assert.equal(existsSync(pidFile), false, 'the stub must never have been spawned');
 });

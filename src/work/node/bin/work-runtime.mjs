@@ -46,7 +46,24 @@ export function installSignalHandlers(supervisor, { exit = process.exit, log = c
 
 const STUB_CHILD = fileURLToPath(new URL('../src/child-stub.mjs', import.meta.url));
 
+// A stray WORK_STUB_* or WORK_CHILD_SCRIPT in a deployed environment silently swaps the real Pi child
+// for the test stub, and the run still reports success. Harnesses opt in with WORK_RUNTIME_ALLOW_STUB=1;
+// nothing in the systemd unit or /etc/work/work-runtime.env sets it, so production fails closed at boot
+// instead of executing a fake agent.
+export function refuseUnoptedStubWiring() {
+  const stubbed =
+    process.env.WORK_CHILD_SCRIPT !== undefined ||
+    Object.entries(process.env).some(([key]) => key.startsWith('WORK_STUB_'));
+  if (!stubbed || process.env.WORK_RUNTIME_ALLOW_STUB === '1') return;
+  const error = new Error(
+    'work-runtime: refusing to start with test stub wiring; set WORK_RUNTIME_ALLOW_STUB=1 only in a harness',
+  );
+  error.code = 'stub_wiring_not_allowed';
+  throw error;
+}
+
 export async function main() {
+  refuseUnoptedStubWiring();
   const childScript = process.env.WORK_CHILD_SCRIPT;
   const stubEnv = Object.fromEntries(
     Object.entries(process.env).filter(([key]) => key.startsWith('WORK_STUB_')),

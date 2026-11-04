@@ -25,6 +25,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { createAdvanceServer } from '../src/server.mjs';
 import { Supervisor } from '../src/supervisor.mjs';
+import { refuseUnoptedStubWiring } from './work-runtime.mjs';
 
 function envNumber(name, fallback) {
   const raw = process.env[name];
@@ -64,6 +65,10 @@ function parseListenAddress(value) {
 const STUB_CHILD = fileURLToPath(new URL('../src/child-stub.mjs', import.meta.url));
 
 function childSpawnWrapper() {
+  // Same fail-closed rule as bin/work-runtime.mjs (DR2 finding 12, ruled S5=A on 2026-11-04): test stub
+  // wiring requires an explicit opt-in, so a stray WORK_STUB_* in the deployed env cannot replace the
+  // real Pi child while the pool reports healthy runs.
+  refuseUnoptedStubWiring();
   const childScript = process.env.WORK_CHILD_SCRIPT;
   const stubEnv = Object.fromEntries(
     Object.entries(process.env).filter(([key]) => key.startsWith('WORK_STUB_')),
