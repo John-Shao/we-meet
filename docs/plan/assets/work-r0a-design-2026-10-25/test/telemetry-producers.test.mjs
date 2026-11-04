@@ -135,3 +135,29 @@ test('the unproduced list shrinks as emitters land', () => {
       'stays a count, not prose',
   );
 });
+
+// Two copies of the same rule file exist: the asset above, which promtool and the checks here
+// validate, and deploy/observability/prometheus-rules.yaml, which is what actually gets loaded
+// by a Prometheus install. They are byte-identical today (recorded as 逐字节一致 back on
+// 2026-10-27), and docs/plan/work-temporal-deployment-plan-2026-10-27.md §6.3 tells the reader to
+// append temporal alerts to the deploy copy - which would leave the validated file no longer
+// describing what ships, silently. This makes that edit fail instead of drift.
+test('the deployed rule file is the same bytes the gate validates', () => {
+  const deployedPath = fileURLToPath(
+    new URL('deploy/observability/prometheus-rules.yaml', new URL('../../../../../', import.meta.url)),
+  );
+  const deployed = readFileSync(deployedPath, 'utf8');
+  assert.ok(
+    deployed.length > 10_000,
+    `expected the deployed rule file to be substantial, read ${deployed.length} bytes - the ` +
+      'comparison below would otherwise pass on an empty read',
+  );
+  assert.equal(
+    deployed,
+    RULES_TEXT,
+    'deploy/observability/prometheus-rules.yaml differs from the design asset the gate ' +
+      'validates: alerts would run that were never checked by promtool or the producer ' +
+      'ratchet above. Copy the intended change into both, or retire one file and point the ' +
+      'deployment at the survivor.',
+  );
+});
