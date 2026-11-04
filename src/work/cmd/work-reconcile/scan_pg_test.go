@@ -34,8 +34,10 @@ func seedSQL(runs []seedRun) string {
 	// function owned by work_owner, so its read of work.org is subject to FORCE RLS
 	// and only sees the row matching the session's app.org_id. Set that per org block
 	// (as the api tests' seedTaskGraph does) or the gate sees no org and refuses every
-	// run. execution_enabled defaults OFF in the current schema (tenant-access switch
-	// not pre-provisioned), so opt each seeded org in.
+	// run. The org seed states execution_enabled explicitly because this test's whole
+	// subject is the enabled branch; the schema default is already true
+	// (baseline/0002:12, and no increment changes it), so this is intent made
+	// legible rather than a workaround for a default-off switch.
 	orgOrder := make([]string, 0)
 	for _, r := range runs {
 		seen := false
