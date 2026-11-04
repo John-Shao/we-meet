@@ -748,6 +748,8 @@ D5:185"Inbox 只在首页/导航角标轮询；不做跨 Task SSE"的角标一�
 
 **验证（各取自身退出码；最后一次编辑之后复跑）**：活库 `postgres:16` 一次性容器下 `go test ./internal/api` 全量 **ok 199.573s**、无库复跑 **ok 2.461s**（`_pg` 按 `WORK_TEST_PG_URL` skip 守卫跳过）；`go build ./...` 0；`gofmt -l`/`go vet` 无输出；`ci-contract.mjs`「R0a contract gate passed」0；资产 `node --test` **38 pass / 0 fail**（本页别处写的 36 已过期，计数口径是 `node --test` 的 `ℹ tests` 行）。远端 tip `ae4146645` 上 **Work R0a gates success**、**Release guard success**、meet Workflow 的 `test-front`/`lint-front`/`test-agents`/`lint-*`/`build-mails` success（`test-e2e` 与 `test-back` 当时仍 in_progress，具名不判完结）。容器全部 `docker rm -f`，共享主树未被触碰。**四处自己的过程错误留字**：按猜的文件名 grep 造出两个假缺口（`json:"total"` 命中 0 却不知真值在 `jsonb_build_object` 里；`generate-client.mjs` 按错相对路径搜空，使我一度写「未定位」）；`&&` 链里 `ls` 失败把「路径没找到」报成门禁红（`CONTRACT=2`/`NODETEST=1` 都不是门禁结论）；新用例先写成 `package api` 而夹具 `newBootstrapDB` 住在 `package api_test`，build failed 才暴露；决策单初稿曾落在共享主树。
 
+**#44 关闭（2026-11-04，提交 `09f07195a`）**：`internal/runflow` 的库侧用例在没有 `WORK_TEST_PG_URL` 时硬失败，是本机 `go test ./...` 最后一处「环境失败被读成代码红」（`#43` 同族）。守卫不能放在 `TestMain`——那里必须继续跑本包的非库用例——所以放在八条库侧用例唯一取库的入口 `newFlowDB` 上，一处覆盖全部且不会把 skip 变成 CI 状态。**两个方向都验**：不设变量时该包由 FAIL 变 `ok 2.695s`（22 条 SKIP），**全仓 `go test ./...` 无库为 35 个包 ok、0 条 FAIL**；活库 `postgres:16` 下同一包 `ok 37.619s`、79 条实际执行（不是 skip），本轮新增的四条 api 用例仍 `ok 5.178s`。顺带纠正我自己一个前提：我原以为 #24（append-only 表能否被 `TRUNCATE` 绕过行触发器）仍待查，按当前状态读文件才发现它早已做成可执行用例 `internal/api/truncate_privilege_pg_test.go`——结论是 `work` schema 内 TRUNCATE 只由 owner 与迁移登录持有（catalog 实测 29 条 TRUNCATE 授权的 grantee 全是 `work_owner`），owner 的 TRUNCATE 无法撤销、故补偿控制是 D-04 的凭据配给而不是再加触发器；差点重复造一条已有测试。
+
 ## 5. 当前问题
 
 ### 5.1 设计层未决项
