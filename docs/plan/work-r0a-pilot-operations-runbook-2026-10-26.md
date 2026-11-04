@@ -38,6 +38,14 @@
 - **代删**（法务请求/离职清理/组织退出）：`work_ops` 执行 `work.ops_delete_task(org, task, actor, ticket_ref, reason)`；审计 `task.deleted_by_ops`，理由含工单号。
 - **组织退出**：
   1. 组织停用（epoch 提升）→ 停止新提交/派发；等待在途 Run 终态，unknown 对账。
+     **入口只有 SQL（2026-11-04 按 D3-N06 取证补）**：以授权角色 `work_operator` 经 psql 执行
+     `SELECT work.apply_execution_entitlement(p_org_id => '<org>', …, p_operator_suspended => true)`
+     （函数定义 `src/work/migrations/increments/0023_operator_entitlement_and_intents.sql:263`，
+     参数 `:268`，`REVOKE ALL … FROM PUBLIC` ＋ `GRANT EXECUTE … TO work_operator` 在 `:505-510`，
+     角色由 `deploy/ecs/provision-r0b-roles.sh:138` 建）。**R0a 没有对应的 HTTP 端点、CLI 或管理页
+     按钮**（`internal/api/bootstrap.go:153-198` 的路由表里没有 suspend 面；`AdminPage.tsx` 无此控件），
+     所以这一步必然是一次人工 SQL 操作，按 §5.2b 的运维直连纪律带工单号执行；演练里的同一动作见
+     演练清单 P6 与 D4-6a。恢复＝同函数把 `p_operator_suspended` 置回 false。
   2. 管理员导出所需成果（`disposition=attachment`，有审计）。
   3. 对组织全部任务逐个 `ops_delete_task`；核对 `content_shred` outbox 全部 delivered、无死信。
   4. 租户 DEK crypto-shred（参考 [kms-envelope.mjs](assets/work-r0a-hardening-2026-10-25/kms-envelope.mjs) 的 shred 语义；生产需云 KMS，C13 未关闭）。
@@ -98,7 +106,13 @@
 ## 8. 旧 Work 数据留存
 
 - 旧 `office_agent` 任务不迁入、不双写（D-06）。
-- **提案（待法务签收）**：组织开启 `pilot_on` 后旧数据只读 180 天；到期向组织管理员提供归档导出，再按组织数据协议删除；见 [cutover-plan.json](assets/work-r0a-ops-2026-10-25/cutover-plan.json) `legacy_retention`。
+- **提案（待法务签收）**〔2026-11-04：本行已无对象，见下行更正〕：组织开启 `pilot_on` 后旧数据只读 180 天；到期向组织管理员提供归档导出，再按组织数据协议删除；见 [cutover-plan.json](assets/work-r0a-ops-2026-10-25/cutover-plan.json) `legacy_retention`。
+  **【本提案已无对象，2026-11-04 记；不是"待法务确认后再定"】**：旧 Work 数据与代码在 2026-10-28 就被删除了
+  （`docs/plan/work-r0a-host-wire-decision-2026-10-28.md:188`：Django work app、`/work/v1`、`/work/metrics`、
+  前端 `/work` 与旧依赖已删除，meet 库 12 张 `public.work_*` 表与 11 条 work 台账已 drop），
+  所以"pilot_on 后只读 180 天"没有可留的东西。原句保留不删，但**法务要签的不再是留存期**，
+  而是 C29 那条事实：旧任务根本读不到。签收单见
+  [work-r0a-legacy-freeze-signoff-2026-11-04.md](work-r0a-legacy-freeze-signoff-2026-11-04.md)。
 - 旧链接：`/work?task=` → `/work/archive?legacyTask=:id` 只读通知（D5 routes）。
 
 ## 9. 切换与回滚
@@ -134,5 +148,5 @@
 | 支持/法务签收本 runbook | 未签 | 支持负责人 + 法务 + 安全签字 |
 | 试点联系人/渠道 | 未填 | C24 开通时填写 |
 | Content Store 粉碎与备份留存 | 设计 | 平台对象存储/KMS 落地（C13） |
-| 旧数据留存期 | 提案 | 法务确认 180 天方案或替代 |
+| 旧数据留存期 | 提案（**2026-11-04 记：已无对象**，旧库 12 张 `public.work_*` 表与 11 条台账在 2026-10-28 已 drop，见 §8） | 法务改签 C29「旧任务根本读不到」，签收单 [work-r0a-legacy-freeze-signoff](work-r0a-legacy-freeze-signoff-2026-11-04.md) |
 | 演练 | 未执行 | 删除、所有权转移、死信重放、回滚各演练一次并留记录 |

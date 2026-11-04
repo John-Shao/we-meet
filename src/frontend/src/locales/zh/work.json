@@ -12,7 +12,7 @@
   "archive": {
     "title": "历史工作",
     "subtitle": "只读查看已归档或旧记录。",
-    "legacyNotice": "这是旧任务链接（{{task}}）；旧任务只读，不会打开新任务工作区。",
+    "legacyNotice": "这是旧 Work 任务链接（{{task}}）。旧任务未迁移，无法打开，这里也不显示任何旧任务数据。",
     "readOnly": "历史页只读，不在这里创建新工作。",
     "errorTitle": "无法加载历史",
     "errorDescription": "请检查网络后重试。",

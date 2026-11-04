@@ -4,20 +4,20 @@
   "scope": "per org_id; no global switch in R0a",
   "states": {
     "off": {
-      "new_routes": "hidden (404 for /work/items, /work/new; /work shows legacy page)",
-      "legacy_routes": "unchanged",
+      "new_routes": "hidden (404 for /work/items, /work/new; /work shows legacy page)  【2026-11-04 注】句末「/work shows legacy page」同样过期——legacy 页已删，不存在可显示的旧页。",
+      "legacy_routes": "unchanged  【2026-11-04 更正】无 legacy 路由可「unchanged」：旧 Django work app、/work/v1 与前端 /work 已在 2026-10-28 删除（work-r0a-host-wire-decision-2026-10-28.md:188），本状态的实际表现是旧入口 404。",
       "new_submissions": false,
       "kill_switch_compatible": true
     },
     "pilot_on": {
       "new_routes": "enabled",
-      "legacy_routes": "read-only notice; /work?task= -> /work/archive?legacyTask=:id",
+      "legacy_routes": "read-only notice; /work?task= -> /work/archive?legacyTask=:id  【2026-11-04 注】这里的「read-only notice」是\"旧链接只显示一条通知\"，不是\"旧任务仍可读\"；旧任务根本读不到。",
       "new_submissions": true,
       "kill_switch_compatible": true
     },
     "rolled_back": {
       "new_routes": "read-only (list/detail/content/export/delete allowed; submit/retry/edit rejected 403 org_execution_unavailable)",
-      "legacy_routes": "unchanged legacy behaviour restored",
+      "legacy_routes": "unchanged legacy behaviour restored  【2026-11-04 更正】\"unchanged legacy behaviour restored\" 不可能兑现：旧代码与旧表都已 drop，回滚只能是\"新路由转只读＋关 flag\"。值班若按本句等旧路由回来，会等一个不存在的状态；见 pilot-operations runbook §8 与 C29 签收单 work-r0a-legacy-freeze-signoff-2026-11-04.md。",
       "new_submissions": false,
       "kill_switch_compatible": true
     }
@@ -103,9 +103,11 @@
     "automatic re-enable after rollback"
   ],
   "legacy_retention": {
-    "status": "proposal_pending_legal",
+    "status": "moot_no_legacy_data_after_2026_10_28_drop",
     "read_only_days_after_pilot_on": 180,
     "then": "archive export for org admins, then delete per org data agreement",
-    "owner": "product + legal"
+    "owner": "product + legal",
+    "status_before_2026_11_04": "proposal_pending_legal",
+    "correction": "原状态 proposal_pending_legal 保留在 status_before_2026_11_04。旧数据与旧表在 2026-10-28 已删除，所以\"pilot_on 后只读 180 天\"没有对象；法务与产品要签的改成 C29 的事实陈述——旧任务不可读。签收单 docs/plan/work-r0a-legacy-freeze-signoff-2026-11-04.md。"
   }
 }

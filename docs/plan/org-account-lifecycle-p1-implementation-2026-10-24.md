@@ -28,7 +28,7 @@ P1 拆成三块可独立发布的能力，依赖外部条件的部分必须等�
 |---|---|---|
 | A1 | 新增权限码 `org.work_grant.read` / `org.work_grant.write`（分组 `operations`；沿用注册表的 `org.<subject>.<verb>` 约定） | [core/permissions_registry.py](../../src/backend/core/permissions_registry.py) |
 | A2 | 内置角色「并集追加」`read` 给 `hr / it / admin_office`，`write` 不给任何内置角色 | 数据迁移 `core/00XX_builtin_work_grant_permissions.py` + `core/permissions_registry.py` 的 `BUILTIN_ROLES`（播种与迁移必须同源） |
-| A3 | `GET /work/admin/grants/`：授权列表，`?q=` / `?status=active|revoked|disabled|expired`，按部门 scope 过滤 | 新增 `work/api_admin.py`、[work/urls.py](../../src/backend/work/urls.py) |
+| A3 | `GET /work/admin/grants/`：授权列表，`?q=` 与 `?status=`（active／revoked／disabled／expired），按部门 scope 过滤 | 新增 `work/api_admin.py`、[work/urls.py](../../src/backend/work/urls.py) |
 | A4 | `POST /work/admin/grants/`：授予 / 重新启用（upsert），超限 `409 member_limit_reached`，唯一冲突 `409 grant_conflict` | `grants.grant_member` |
 | A5 | `DELETE /work/admin/grants/{user_id}/`：软撤销 → `204`，重复调用保留首次撤销时间 | `grants.revoke_member_grant` |
 | A6 | `POST /work/admin/grants/{user_id}/restore/`：恢复并重做席位校验 | `grants.restore_member_grant` |

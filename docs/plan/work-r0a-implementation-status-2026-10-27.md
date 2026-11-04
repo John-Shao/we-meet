@@ -127,7 +127,7 @@
 | **管理只读 UI** | **未实现**（后端 6 接口齐备，前端无对应页面） |
 | 旧链接只读 | 未验证 |
 | 文案定稿 | 未实现（等 U1 报告与 C05） |
-| a11y (axe) | 已验证 | `e2e/work-a11y.spec.ts`、`WorkRoute.a11y.test.tsx` |
+| a11y (axe) | 已验证（`e2e/work-a11y.spec.ts`、`WorkRoute.a11y.test.tsx`） |
 
 ### E7 可观测与供应链 — 实现已验证；部署未验证
 

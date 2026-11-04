@@ -120,6 +120,18 @@ Go RunWorkflow（唯一业务编排）
 - 只能 `runc` + 纯文本 + 仅 `model_call`，不开放文件/模板草稿等额外工具；
 - `sandboxProof=false`，必须在安全评审与产品说明中明确“不宣称沙箱证明”；
 - 需要额外审批；不得用“容器”冒充隔离证明。
+  - **2026-11-04（DR2 评审发现 1／10，S1=A、S3=A）实测比上面的降级分支还要低一档**：试点 Work ECS 上
+    `runc / runsc / containerd / dockerd / podman / bubblewrap` **全部不存在**，部署副本对
+    `runc|runsc|seccomp|cgroup|unshare|bwrap` 命中 0 文件，子进程是同一 node 解释器的裸 `spawn`
+    （`src/work/node/src/supervisor.mjs:249`），单元还是 `PrivateUsers=no`、`RestrictNamespaces=no`、
+    能力集未裁剪。也就是说本节的“runc 降级”在 R0a 生产里同样不成立。
+    实质缓解只有进程级与凭据作用域那几条（子 env 白名单＋哨兵测试、无工具面、loopback、每 run nonce＋
+    scoped capability）。本节文字保留不删，但 **R0a 的实际形态以
+    [运行时隔离例外单](work-r0a-runtime-isolation-exception-2026-11-04.md) 为准**；
+    `policy/sandbox-profile.json` 已改为自述降级（`profile=process_only`、`sandboxProof=false`、
+    `degradation.measurement` 记录当天主机测量），且 `policy/evaluator.test.mjs:126` 的断言已从
+    「enforces gVisor」改成「声明必须如实、声称证明即红」——把资产改回 `sandboxProof=true` 会让该测试红
+    （已用变异核对：9/10 fail；还原后 10/10、md5 与备份一致）。
 
 **池 profile 的额外签收**：Pod 网络白名单需包含父进程所需 Temporal、必要 DNS 与经签收的身份/内容端点，不能仍写“整 Pod 唯一出站 egress”。该并集对子进程同样网络可达；服务鉴权只能证明无权访问被拒绝，不能声称网络不可达。须验证父子与不同 Run 的 UID、挂载/文件权限、`/proc`、环境/句柄、IPC、临时目录、短期授权回收，以及并发/资源限额和池 OOM/驱逐的影响。最低凭据/内容隔离不成立时阻断池上线，不能靠风险措辞替代控制。
 

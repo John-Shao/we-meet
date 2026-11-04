@@ -59,7 +59,7 @@
 
 | # | 步骤 | 文件/工具 | 验证 |
 |---|---|---|---|
-| 3.1 | 构建 worker 镜像 | `deploy/aliyun/temporal/build-worker.sh` (Docker) | `docker images | grep meet-temporal-worker` |
+| 3.1 | 构建 worker 镜像 | `deploy/aliyun/temporal/build-worker.sh` (Docker) | `docker images` 再筛 `meet-temporal-worker` |
 | 3.2 | 推送镜像到 Volcano CR | `docker push jusi-cn-guangzhou.cr.volces.com/we-meet/meet-temporal-worker:<sha>` | 检查 registry |
 | 3.3 | 部署 worker Deployment | `deploy/aliyun/temporal/worker-deployment.yaml` | `kubectl get pods -n work-staging -l app=temporal-worker` |
 | 3.4 | 验证 worker 注册 | Temporal Web UI 或 `temporal task-queue describe --name work-r0a-run` | 看到 2 个 poller |

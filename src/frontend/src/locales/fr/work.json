@@ -12,7 +12,7 @@
   "archive": {
     "title": "History",
     "subtitle": "Read-only archive of completed or legacy work.",
-    "legacyNotice": "This is a legacy task link ({{task}}). Legacy tasks are read-only and are not opened in the new task workspace.",
+    "legacyNotice": "Ceci est un lien vers une ancienne tâche Work ({{task}}). Les anciennes tâches n'ont pas été migrées ; elles ne peuvent être ni ouvertes ni affichées.",
     "readOnly": "Archive is read-only; no new work is created here.",
     "errorTitle": "Unable to load history",
     "errorDescription": "Check your connection and try again.",

@@ -46,7 +46,7 @@
 
 | 请求 | 返回 |
 | --- | --- |
-| `GET /` | `{results: MeetingRecord[], next_cursor: string|null}`，每页 30 条 |
+| `GET /` | `{results: MeetingRecord[], next_cursor: string 或 null}`，每页 30 条 |
 | `GET /{record_id}/` | 身份、来源、标题、origin_at、retention_mode、revision、source_available、capabilities |
 | `GET /{record_id}/transcripts/` | `{results: Transcript[], next_cursor}`，按原文 started_at/id 排序 |
 | `GET /{record_id}/summaries/` | `{results: Summary[]}`；最多一条旧纪要，标记 `legacy: true` |
