@@ -129,6 +129,7 @@ R0a 有六类不属于任何 Run 的常驻作业（见 [D3 §11](work-r0a-orches
 > 1. **目录同步**：`work.directory_sync_state`（`increments/0008_quota_directory_usage_hardening.sql:9-12`
 >    建表，含 `last_attempt_at`/`last_success_at`/`last_mode`/`last_revision`），该表 `ENABLE`＋`FORCE ROW LEVEL SECURITY`
 >    （同文件 `:18-19`），须用维护/owner 连接并按组织设 `app.org_id` 后读取。
+>    ⚠️ **零行不等于无数据（2026-11-04 的实测教训）**：`work` schema 里 44 张表是 `ENABLE`＋`FORCE ROW LEVEL SECURITY`，`FORCE` 对**表 owner 同样生效**——以 `work_owner`/工作负载身份不 `SET app.org_id` 就 `count(*)`，策略会把可见行收成 0，读起来像空库。当天我就据此误判「生产库已被重置」，而真值是 `org=1 / member=14 / task=145 / run=145`。两种正确做法：① 用 superuser 只读连接（`runuser -u postgres -- psql -d work`，隐式绕过 RLS）；② 或先 `SET app.org_id` 再读。要**快速判断库里到底有没有行**，用不被策略过滤的目录视图交叉核对：`pg_class.reltuples` 或 `pg_stat_user_tables.n_live_tup`（近似值，但 0 与非 0 分得清）。
 > 2. **管理页与审计**：`/admin/work` 概览与 `work.audit_event`（只经领域函数出入）。
 > 3. **日志**：`work-*` 服务的结构化日志（发布包内的只读扫描入口见 #47）。
 >

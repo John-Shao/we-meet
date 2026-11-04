@@ -35,7 +35,7 @@
 | D1-1 | 确认 Temporal 2 副本 `Running`，记录 pod name/IP | 两副本 Ready，namespace=work-r0a | `kubectl get pods -o wide` 截图 |
 | D1-2 | 提交种子 Run（模板 A），状态转 `running` | `work.run.state='running'`，Temporal history 有 WorkflowExecutionStarted | psql + temporal CLI |
 | D1-3 | 滚动重启 replica-1（delete pod → 等重建 → Ready） | pod 重建后 `temporal operator cluster health` 绿 | `kubectl logs --previous` |
-| D1-4 | 观察 `work.run` 状态变化 | 无新 Run 被创建、原 Run `running` 不跳 `failed`；`work.operation` 无重复行 | `SELECT count(*) FROM work.run WHERE ...` 不变 |
+| D1-4 | 观察 `work.run` 状态变化 | 无新 Run 被创建、原 Run `running` 不跳 `failed`；`work.operation` 无重复行 | 以 superuser（`runuser -u postgres -- psql -d work`）**或已 `SET app.org_id` 的会话**执行 `SELECT count(*) FROM work.run WHERE ...` 不变——`work.run` 是 FORCE RLS 表，不设租户就直接数到 0 |
 | D1-5 | 滚动重启 replica-2 | 同 D1-3 | logs 截图 |
 | D1-6 | 等待种子 Run 自然结束或 cancel | Run 终态 `succeeded`/`cancelled` 可读可取消 | Run detail 查询 |
 | D1-7 | 核对 dispatching 计数 | `work.outbox` 内该 Run 事件不重复、`claimed_by` 最多一次 `completed` | SQL + 时间戳 |
