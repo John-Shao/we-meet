@@ -21,7 +21,7 @@
 | P7 | 两个 Worker 版本镜像（D2） | registry tag `worker:v1-s2` / `worker:v2-s2` 存在 | 平台 | 11-06 |
 | P8 | `WORK_CONTENT_MASTER_KEY` 环境变量注入通道就绪（C13）——**2026-11-04：按 A，本项不再是演练前置**，主密钥不换、不注入新 key；保留本行只作 11-06 预检时的现状确认（当前 key 可读、文件不入库） | 进程 env 可读，文件不入库 | 后端 | 11-06 |
 | P9 | 租户开通/停用的**已接线**闸门可操作（C28） | `work.org` 的 `status/execution_enabled/operator_suspended` 三列可读可改（`tenant_access` 列无代码消费者，不作判据） | SQL 读值 | 后端 | 11-10 |
-| P10 | 在途 Run 种子：1 个 waiting + 1 个 running | `SELECT run_id, state FROM work.run WHERE ...` ≥2 | 后端 | 11-10 彩排后 |
+| P10 | 在途 Run 种子：1 个 waiting + 1 个 running（**2026-11-04 #51 已裁 A：机制与时点定如下**——用主机上的 `work-e2e-seed -org <org> -actor <active owner subject> -goal <文本>` 造，它走与 `POST /work/v1/tasks` 相同的领域函数、不绕过授权；**在演练当天上午现造现演现清**，不在 11-10 彩排后把 held 预留挂多日，#11 那类 stale run 正是这样积起来的。两条实测前提：该二进制只在 `/usr/local/bin`、**不在发布包内**（任务 #54）；`quota_account` 目前只有 `2026-10` 周期行，当天要确认新周期行是首笔预留时懒建还是缺建） | `SELECT run_id, state FROM work.run WHERE ...` ≥2 | 后端 | 11-10 彩排后；造 Run 在 11-15 上午 |
 | P11 | 五席 + SRE/DBA 真名确认 | 填 §附录 A 表 | 平台 | 11-06 |
 
 任一 P 未通过 → 改期并通知 DR2。
