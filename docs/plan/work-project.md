@@ -750,6 +750,8 @@ D5:185"Inbox 只在首页/导航角标轮询；不做跨 Task SSE"的角标一�
 
 **#44 关闭（2026-11-04，提交 `09f07195a`）**：`internal/runflow` 的库侧用例在没有 `WORK_TEST_PG_URL` 时硬失败，是本机 `go test ./...` 最后一处「环境失败被读成代码红」（`#43` 同族）。守卫不能放在 `TestMain`——那里必须继续跑本包的非库用例——所以放在八条库侧用例唯一取库的入口 `newFlowDB` 上，一处覆盖全部且不会把 skip 变成 CI 状态。**两个方向都验**：不设变量时该包由 FAIL 变 `ok 2.695s`（22 条 SKIP），**全仓 `go test ./...` 无库为 35 个包 ok、0 条 FAIL**；活库 `postgres:16` 下同一包 `ok 37.619s`、79 条实际执行（不是 skip），本轮新增的四条 api 用例仍 `ok 5.178s`。顺带纠正我自己一个前提：我原以为 #24（append-only 表能否被 `TRUNCATE` 绕过行触发器）仍待查，按当前状态读文件才发现它早已做成可执行用例 `internal/api/truncate_privilege_pg_test.go`——结论是 `work` schema 内 TRUNCATE 只由 owner 与迁移登录持有（catalog 实测 29 条 TRUNCATE 授权的 grantee 全是 `work_owner`），owner 的 TRUNCATE 无法撤销、故补偿控制是 D-04 的凭据配给而不是再加触发器；差点重复造一条已有测试。
 
+**把 pilot-metrics.sql 最后一处自我声明的弱断言钉成具体值（2026-11-04，提交 `d5a2271c3`）**：该文件的用例原先明写「time_to_first_artifact 这一列刻意不核数值」，理由是夹具里所有事件共用一个事务时钟、中位数必为 0——而 0 恰恰也是分位数子句写错时会报的数，所以「存在且非 NULL」不构成证据。新用例改为在 INSERT 时自带 `created_at`（`work.task_event.created_at` 只是 `NOT NULL DEFAULT now()`，append-only 守卫是 `BEFORE UPDATE OR DELETE`，不覆盖 INSERT），三对 10s/50s/90s 间隔使中位数必须是 **50**；先核 `artifact_success_rate` 分子＝3 证明被测的确实是这三行，再核 `org_other` 仍为 NULL 证明不借别组织的数。活库 PASS(1.45s)；变异把 `percentile_cont(0.5)` 改 `0.9` → 断言红在 `:541` 并报出 82（断言红、非 build failed），还原后脚本 `git status` 为空、三条 metrics 用例整包 `ok 8.119s`；同批改掉那条会误导下一个读者的旧注释。至此该测试文件里唯一自我声明「不核数值」的列已补成具体值断言（其余六项按原用例的 `num()`/`value()` 等值核，未在本轮改动）。
+
 ## 5. 当前问题
 
 ### 5.1 设计层未决项
