@@ -624,6 +624,47 @@ org 清单单独放在 `/etc/work/work-reconcile-scan.env`（640 `root:work-cont
   enable）。主机健康探针脚本更新前的原件备份在
   `/usr/local/bin/work-healthcheck.sh.bak-20261104-50a`。
 
+### 5.19 值班（`work_ops`）的只读可见性现状（2026-11-04，#35 A）
+
+按 `migrations/catalogs/0027_governance_receipt_payload_binding.json` 实测：`work_ops` 一共 **6 条授权**
+＝ schema `USAGE` ×1 ＋ `EXECUTE` ×5（`work.requeue_outbox_dead_letter`、`work.skip_outbox_dead_letter`、
+`work.ops_delete_task`、`work.ops_cancel_run`、`work.transfer_task_ownership`），对 48 张表 **0 条 SELECT**。
+这是 D-04 的刻意边界：**值班能按工单动作，不能任意读业务数据**，所以「work_ops 连不上／没有身份」是误读，
+缺的一直是可见性。
+
+值班取数只有两条已验路径：
+
+1. 管理 API：`/work/v1/admin/*`（C31，登录态；只读页 `/admin/work`）。这是唯一带租户语义的读面。
+2. 主机特权读：`runuser -u postgres -- psql -d work`。按 §5.2 的「零行不等于无数据」用；若要按 owner
+   视角读，就显式 `SET app.org_id`，否则数到的是策略筛完的 0 行（#53）。
+
+另注一条容易混的：`app.subject_id` 这个 GUC 约束的是**命令**（`work.assert_session_subject`，#52 已裁：
+直连会话可由执行者指定主体，所以命令必须带工单号并写审计），**不约束 SELECT**。也就是说改账本只能走上面
+5 条 definer 命令，读账本只能走上面两条路径——没有第三条「既能读又能改」的运维登录。
+
+如果将来需要「无浏览器场景的受控只读」，对应做法是给值班加一条 `SECURITY DEFINER` 只读函数（沿用 #25 那
+17 张表的中介模式，每次读留审计），代价是一条迁移＋用例＋catalog 重采；#35 A 裁定**现在不建**，触发条件
+是试点组织数 >1 或值班流程真的需要离机读数。
+
+### 5.20 append-only 表的 TRUNCATE 防护层次（2026-11-04，#24 A）
+
+别把「append-only」读成「不可被清空」，两层防护各自管一件事：
+
+- **层次一＝权限（真正拦 TRUNCATE 的是它）**。`work` 里 48 张表的 owner 都是 `work_owner`，TRUNCATE 是
+  属主固有权，catalog 里 TRUNCATE 的 grantee 集合也只有 `work_owner`；可登录角色中只有
+  `work_migrator_login` 因 `work_owner` 成员身份继承到它。用例把这条钉成断言：持有者集合
+  `== "work_migrator_login,work_owner"`、六个工作登录逐个尝试 TRUNCATE 得 `42501 permission denied`、
+  且**拒绝后行数不变**（`src/work/internal/api/truncate_privilege_pg_test.go:71/95/101/108/121`，
+  提交 `e515aa376`；活库跑法见 `src/work` README 的 `WORK_TEST_PG_URL`）。
+- **层次二＝触发器（只管 UPDATE/DELETE）**。`work.prevent_mutation()` 对 21 张 append-only 表挂的是
+  `BEFORE UPDATE OR DELETE`（行级），**没有 TRUNCATE 事件**，所以它对清空无能为力。
+
+残留风险，明写不假装：以 `work_owner`／`work_migrator_login` 身份执行的任何代码路径都能清空 append-only
+表，同一条凭据还能 `DISABLE TRIGGER`。收这层的技术手段是 `BEFORE TRUNCATE` 语句触发器（PG 支持）＋把属主
+的 TRUNCATE 收掉，但那是一条 0028 迁移＋生产写，并且要**把现有那条「owner TRUNCATE 会成功、行数归零」的
+断言翻成拒绝**（改被测物同时改它自己的断言，需要单独取证）。#24 A 裁定 R0a 保持现状，复评条件是「真客户
+数据进场／多租户规模化之前」，与 S03/S14 的主密钥条件同批看（#48）。
+
 ## 6. 容量证据
 
 ### 6.1 当前 DDL 烟雾（2026-10-25）

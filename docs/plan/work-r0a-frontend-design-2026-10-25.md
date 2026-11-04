@@ -264,6 +264,7 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 - 不出现“全部允许”“永久允许”“跳过审批”。
 - 不显示套件/技能/连接器/项目/计划/分享入口；未实现即不出现。
 - 错误文案按 D2 错误码与 `ui` token；`artifact_read_only` 与 8 个管理/导出码（`admin_access_denied`、`audit_export_*`、`download_token_*`）已补专属文案，未列专属文案的码回退 `work.r0a.error.generic`；`resync_required` 显示“已重新读取任务快照”，不显示失败。
+  - **2026-11-04 更正＋落地（#30 A，John 裁）**：本行当时写的「已补专属文案」是**假陈述**——那九个码在整个 `src/frontend` 里 0 命中，全部落到通用回退；回退键的真实名字是 `work` 命名空间下的 `errors.generic`，不是本行的 `work.r0a.error.generic`。**锚点也已改**：`ui` 不能当文案锚点——契约用 `ui` 把 60 码分 23 类，但 Error 响应体只有 `code / message / retryable / correlation_id / current_revision / recovery_action`（`additionalProperties: false`），`ui` 不在线上、前端零消费者；现按「错误码＋（可选）`recovery_action`」选文案，`ui` 保留为契约侧作者分类、要上线再走 D2′ 重签。落地内容：九个码各有专属文案（五语言各 13 个 `errors` 键）；`resync_required` 的文案对齐本行与 :140 的意思（原「会话数据已变更，正在重新加载」把原因说成会话变更，与「已重新读取任务快照」不是一回事）。守卫 `src/frontend/src/features/work/r0a/error-copy.test.ts` 把契约 60 码逐个喂进 `workErrorMessage`，断言「拿到专属键的码集合」**恰等于** D5 点名的九个＋`resync_required`，并断言每个产出的键在五语言里都解析得到（**单向**：需要用的键必须存在；本仓库故意容忍其它键的翻译滞后，这正是 #42 的双向平价门在 `eb4d5b03c` 被回退的原因，不在这里重造）。
 - 旧任务提示明确“不迁移”，不假装旧任务已在新工作空间。
 
 ## 8. SSE、轮询与刷新

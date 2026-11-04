@@ -125,3 +125,50 @@ test('the drill evidence carrier exists and no instruction still points at the n
     `instructions still name verdict.md with no landing-spot alignment note (${unaligned.length} lines): an executor would write evidence where nothing reads it back`,
   );
 });
+
+test('every step table row carries as many cells as its own header', () => {
+  // 2026-11-04: P9 held a sixth cell - an "evidence" column this table does not have - which
+  // silently shifted 负责 and 时限 one column right. On drill day that reads as "someone else
+  // owns this step, due at the wrong time". Cell count is the one structural property of these
+  // tables that prose editing never shows you, so it has to be an assertion.
+  const splitCells = (line) => {
+    const parts = line.trim().split(/(?<!\\)\|/);
+    if (parts[0] === '') parts.shift();
+    if (parts.length && parts[parts.length - 1] === '') parts.pop();
+    return parts;
+  };
+  const isDivider = (cells) =>
+    cells.length > 0 && cells.every((cell) => /^[\s:|-]+$/.test(cell.replace(/\\\|/g, '')));
+
+  const lines = readFileSync(CHECKLIST, 'utf8').split(/\r?\n/);
+  const mismatches = [];
+  let tables = 0;
+  let table = null;
+  let inFence = false;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      if (inFence) table = null;
+      continue;
+    }
+    if (inFence) continue;
+    if (/^\s*\|/.test(line)) {
+      if (table === null) {
+        table = { cols: null, start: index + 1 };
+        tables += 1;
+      }
+      const cells = splitCells(line);
+      if (isDivider(cells)) continue;
+      if (table.cols === null) table.cols = cells.length;
+      else if (cells.length !== table.cols) {
+        mismatches.push(`table@${table.start} line ${index + 1}: ${cells.length} cells vs header ${table.cols}`);
+      }
+      continue;
+    }
+    table = null;
+  }
+  // Floor: if the parser ever stops seeing tables, the assertion above would pass over nothing.
+  assert.ok(tables >= 12, `parsed only ${tables} tables in the checklist - the shape check is looking at the wrong file or the wrong syntax`);
+  assert.deepEqual(mismatches, [], `rows that shift the 负责/时限 columns for whoever runs the drill:\n${mismatches.join('\n')}`);
+});
