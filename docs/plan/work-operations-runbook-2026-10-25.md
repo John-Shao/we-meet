@@ -117,12 +117,28 @@ R0a 有六类不属于任何 Run 的常驻作业（见 [D3 §11](work-r0a-orches
 
 ### 5.2 后台作业健康检查（值班用）
 
-```sql
--- 每类作业最近成功时间与租约积压（在 work_worker 上下文逐组织执行）
-SELECT kind, max(last_success) FROM work_background_job_last_success GROUP BY kind;
-```
+> **2026-11-04 更正（原查询作废，勿照抄）**：本节原先给的
+> `SELECT kind, max(last_success) FROM work_background_job_last_success GROUP BY kind;` <!-- schema-ref-exempt: 引用已作废查询的原文，不是可执行指令 -->
+> **打向一张不存在的表**。取证范围：`src/work/migrations/baseline/**` 与 `increments/**` 全部
+> `CREATE TABLE` 枚举里没有 `*job*` 表；`work_background_job_last_success` 这一串在全仓只作为
+> **Prometheus 指标名**出现（`telemetry-contract.json`、两份 `prometheus-rules.yaml`、
+> `background-jobs.contract.ts`），没有任何 SQL 侧对象。所以"每类作业最近成功时间"目前
+> **没有数据库入口**，不要把它当作值班第一步。
+>
+> 现有可用信号只有三类：
+> 1. **目录同步**：`work.directory_sync_state`（`increments/0008_quota_directory_usage_hardening.sql:9-12`
+>    建表，含 `last_attempt_at`/`last_success_at`/`last_mode`/`last_revision`），该表 `ENABLE`＋`FORCE ROW LEVEL SECURITY`
+>    （同文件 `:18-19`），须用维护/owner 连接并按组织设 `app.org_id` 后读取。
+> 2. **管理页与审计**：`/admin/work` 概览与 `work.audit_event`（只经领域函数出入）。
+> 3. **日志**：`work-*` 服务的结构化日志（发布包内的只读扫描入口见 #47）。
+>
+> 其余五类非 Run 后台作业（Content Store 清扫、审计导出、投影修订等）在库里没有健康表，
+> 且其指标名当前在 `src/` **零产生者**（`pilot-checklist.json` C17 的 28 项清单，棘轮门
+> `work-r0a-design-2026-10-25/test/telemetry-producers.test.mjs`）。因此下面这些告警今天
+> **不会因为条件成立而触发**——规则本身由 promtool 校验通过，但序列没有产生者；
+> 埋点落地（C16/C17）之前，值班对后台作业的唯一真相是第 1、2 类信号与日志，不是告警。
 
-值班三步：
+值班三步（改按上面的信号顺序执行）：
 
 1. `WorkContentShredBacklog` / `WorkBackgroundJobStale` 触发 → 先确认 Content Store 与 DB 凭据，再确认是否有人把义务作业误停（kill switch 只应停新工作，见 D3 §11.3）。
 2. `WorkDirectoryProjectionStale` → 查 Host 端口与同步作业；管理页此时显示"数据陈旧"而不是假数据。撤权新鲜度与在途 Run 处理按 D-07 结论执行，方法定案前只手工取消。
@@ -510,6 +526,15 @@ systemd 单位。密钥只从 `-secret-file` 读取，不得放进 argv、
 
 **边界**：主密钥轮换仍需按 D-03 B 离线重加密全部静态凭据并保留双版本读取窗口，本节的
 `key_version` 轮换不改变主密钥；无 KMS 自动轮换/CRL。
+
+> **2026-11-04 更正（上面这句按当前代码不成立，勿据此安排轮换）**：「双版本读取窗口」在
+> `internal/content/local.go` 里不存在——`deriveKey(l.master, orgID)` 只用**当前**主密钥解密，
+> ref 中的 `?v=<keyVersion>` 只是元数据，`content.NewLocal(..., 1)` 固定 keyVersion 且全仓没有
+> bump 驱动（逐条取证见 [演练清单第 6 节](work-r0a-drill-checklist-2026-11-15.md) 的 2026-11-03 裁定段）。
+> 先换 `WORK_CONTENT_MASTER_KEY` 再重加密会让所有既有 Content Store 对象 GCM 校验失败。
+> 2026-11-03 裁定 A（#40）已把主密钥轮换/重加密驱动移出 R0a 退出门（`pilot-checklist.json` C13
+> 记带重开条件的范围例外、`status` 保持 `partial`）。本节小字里 `key_version` 的**凭据层**轮换
+> 仍然有效，2026-10-31 已在真实环境演过；被移出的只是 master 层。
 
 **2026-10-31 已执行实例**：Work 专属 key 将 active 凭据 `5698826a…` 从 v1 轮换到 v2
 （fingerprint `9b3c03d25b217cc9`，`provider.credential_rotated` 审计 1 条）；`status`

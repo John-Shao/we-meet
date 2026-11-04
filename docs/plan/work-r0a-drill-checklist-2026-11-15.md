@@ -19,7 +19,7 @@
 | P5 | Content Store 独立演练桶 + 最小权限凭证 | `ls` 桶内演练前缀可写、其他前缀拒绝 | 后端 | 11-06 |
 | P6 | Kill switch 可操作（D3-N06） | 以授权角色 psql 调 `SELECT work.apply_execution_entitlement(...)`（SQL 函数，非 CLI）可改 `work.org.operator_suspended`；先按签名试算确认可执行 | 后端 | 11-06 |
 | P7 | 两个 Worker 版本镜像（D2） | registry tag `worker:v1-s2` / `worker:v2-s2` 存在 | 平台 | 11-06 |
-| P8 | `WORK_CONTENT_MASTER_KEY` 环境变量注入通道就绪（C13） | 进程 env 可读，文件不入库 | 后端 | 11-06 |
+| P8 | `WORK_CONTENT_MASTER_KEY` 环境变量注入通道就绪（C13）——**2026-11-04：按 A，本项不再是演练前置**，主密钥不换、不注入新 key；保留本行只作 11-06 预检时的现状确认（当前 key 可读、文件不入库） | 进程 env 可读，文件不入库 | 后端 | 11-06 |
 | P9 | 租户开通/停用的**已接线**闸门可操作（C28） | `work.org` 的 `status/execution_enabled/operator_suspended` 三列可读可改（`tenant_access` 列无代码消费者，不作判据） | SQL 读值 | 后端 | 11-10 |
 | P10 | 在途 Run 种子：1 个 waiting + 1 个 running | `SELECT run_id, state FROM work.run WHERE ...` ≥2 | 后端 | 11-10 彩排后 |
 | P11 | 五席 + SRE/DBA 真名确认 | 填 §附录 A 表 | 平台 | 11-06 |
@@ -40,7 +40,7 @@
 | D1-6 | 等待种子 Run 自然结束或 cancel | Run 终态 `succeeded`/`cancelled` 可读可取消 | Run detail 查询 |
 | D1-7 | 核对 dispatching 计数 | `work.outbox` 内该 Run 事件不重复、`claimed_by` 最多一次 `completed` | SQL + 时间戳 |
 
-**失败处理**：若出现重复派发 → 记录到 `verdict.md` 为 **D1 FAIL**；不阻塞下午 D2，但 C03 不签。
+**失败处理**：若出现重复派发 → 记录到 `verdict.md`【落点已对齐：模板实际落点是本目录 `verdict.json` 的对应步行（`verdict`/`ts`/`evidence`/`notes`）加 `attachments/<step-id>-<kind>.<ext>`；§10 里 `drills/2026-11-15-*/verdict.md` 那棵树从未创建】 为 **D1 FAIL**；不阻塞下午 D2，但 C03 不签。
 
 **关联控制**：C22 S1 多节点 / C03 A1 承诺验证。
 
@@ -107,35 +107,35 @@
 
 ## 6. 11-16 下午 15:30–16:30 · C13 主密钥（按 A：只跑 C13-0 前置审计，其余移出本次演练）
 
-**目标**：在真实环境执行 Content Store 主密钥轮换，验证双版本读取窗口与全量重加密。
+**目标**：在真实环境执行 Content Store 主密钥轮换，验证双版本读取窗口与全量重加密。（2026-11-03 裁定 A 后本节实际只执行 C13-0 审计；原目标保留不删，供重开时恢复。）
 
-| 步 | 动作 | 通过判据 | 证据 |
-|---|---|---|---|
 > **按代码取证修正（2026-11-03，勿照旧步骤空跑）**：`internal/content/local.go` 的 `deriveKey(l.master, orgID)` **只用当前主密钥**解密；ref 里的 `?v=<keyVersion>` 只是元数据（`Get` 对版本不符也照常返回明文，不尝试另一把 master），且 `content.NewLocal(..., 1)` 固定 keyVersion、全仓无 bump 驱动。`credentials.go` 亦为"单 master + 离线重加密"。**结论：不存在在线双 master 读取窗口**——先在配置里换成新 `WORK_CONTENT_MASTER_KEY` 再重加密，会让所有既有 Content Store 对象 GCM auth-tag 失败。因此 C13 主密钥轮换是**维护窗口内的离线重加密**，不是注入 `WORK_CONTENT_MASTER_KEY_NEXT` 的热切换（旧步骤里这个 env 名代码根本不读，已删）。
 >
 > **前置判定（已按代码取证，非推测）**：主密钥轮换驱动**未实现**。证据：① 8 个 `content.NewLocal(key, dir, 1)` 调用方（work-api/content-proxy/e2e-seed/egress/export/reconcile/relay/worker）全部硬编码 keyVersion=1，无一处传不同版本；② `cmd/` 内无任何 content 重加密命令；③ `local.go:144` 的 `if version != l.keyVersion` 两条分支都 `return plaintext, nil`，且解密恒用 `deriveKey(l.master, orgID)`——所谓"双版本读取窗口"既不是跨 master 读、也没有驱动它换版本的入口。结论：不存在安全的主密钥轮换路径；先换新 `WORK_CONTENT_MASTER_KEY` 会让全部既有对象 GCM 解密失败。
 >
 > **裁定 A（2026-11-03，John）：R0a 试点期不执行主密钥轮换。** 权威记录在 `pilot-checklist.json` C13 note 与 task #40：试点期用单主密钥，"密钥轮换/重加密驱动"移出 R0a 退出门、记为带重开条件的范围例外；重开条件＝>3 组织/规模化前、疑似主密钥泄露需轮换、接入对象存储后端时。因此本次 11-16 下午不演练 C13：C13-2..C13-8 移出清单（不"记 blocked"、也不空跑），只保留 C13-0 作为审计确认（"驱动不存在"→ 与 A 一致：不需要）。
+>
+> **2026-11-04 消歧（不改上面原文）**：上面点名 `C13-2..C13-8`，本节标题与 [drill README:37](assets/work-r0a-ops-2026-10-25/drill-2026-11-15/README.md) 取 `C13-1..C13-8`——差的 C13-1 是轮换流程的指纹步，A 下同样没有执行理由。**以「只执行 C13-0、其余不执行」为准**，下表逐行标注；`verdict.json` 的 `excluded_by_ruling_A` 已按这一读法记账，删行不做是为了保住与 drill 目录的步号对齐（README:3 承诺）。
 
 | 步 | 动作 | 通过判据 | 证据 |
 |---|---|---|---|
-| C13-0 | 前置判定：是否存在主密钥离线重加密驱动（命令/工具），若无则本演练记 blocked | 有可执行的旧读→新写重加密入口 / 无 | 代码检索结论 + `verdict.md` |
-| C13-1 | 记录当前 `WORK_CONTENT_MASTER_KEY` 指纹（SHA-256 前 8 字节），不输出密钥本身 | 指纹稳定、不落值 | `sha256sum` 前 8 hex |
-| C13-2 | 生成新主密钥（32 字节），暂存 root-only 文件，**不改运行配置** | 格式校验通过；与旧 key 并存于离线介质 | 操作日志（不含值） |
-| C13-3 | 在旧 key 仍生效时，逐 org 把 Content Store 对象旧读→以新 key 重加密落盘；逐 org `work-provider-setup rotate` 重加密 `work.provider_credential` | 每对象/每凭据用新 key 可解、旧对象计数守恒 | 重加密工具输出 + SQL `secret_decrypts=true` |
-| C13-4 | 切换 `WORK_CONTENT_MASTER_KEY` → 新密钥；`systemctl restart work-api`、`work-directory-sync`、`work-relay` | healthcheck ok；无 decrypt 失败告警 | `journalctl` |
-| C13-5 | 全量读校验：所有在册 Content Store 对象与凭据在**新 key 下**可解（证明重加密完整、无孤儿对象） | 抽样 + 遍历解密 0 失败 | Go 用例/CLI 遍历 |
-| C13-6 | 安全边界：确认旧 key 已无法解密新写入对象（GCM tag mismatch） | 用旧 key 尝试解密新对象 → 失败 | 预期错误日志 |
-| C13-7 | 回归：一次 provider call 成功 + usage 结算 + artifact 发布读回哈希一致 | Run succeeded、settled、artifact hash 对齐 | `work-provider-setup status` + 真实任务 |
-| C13-8 | 销毁旧 key 离线文件 | `shred -u` 完成、`stat` 无残留 | 命令输出 |
+| C13-0 | 前置判定：是否存在主密钥离线重加密驱动（命令/工具），若无则本演练记 blocked（**2026-11-04 按 A 修正**：判定取「无」即与裁定一致，**不记 blocked**，改记带重开条件的范围例外——见上面裁定段与 `pilot-checklist.json` C13 note、drill README:37） | 有可执行的旧读→新写重加密入口 / 无（当前代码事实：无） | 代码检索结论 + `verdict.md`【落点已对齐：模板实际落点是本目录 `verdict.json` 的对应步行（`verdict`/`ts`/`evidence`/`notes`）加 `attachments/<step-id>-<kind>.<ext>`；§10 里 `drills/2026-11-15-*/verdict.md` 那棵树从未创建】 |
+| C13-1 | **不执行（按 A 移出）**——记录当前 `WORK_CONTENT_MASTER_KEY` 指纹（SHA-256 前 8 字节），不输出密钥本身 | 不跑，无判据 | `verdict.json` 的 `excluded_by_ruling_A` |
+| C13-2 | **不执行（按 A 移出）**——生成新主密钥（32 字节），暂存 root-only 文件，**不改运行配置** | 不跑，无判据 | `verdict.json` 的 `excluded_by_ruling_A` |
+| C13-3 | **不执行（按 A 移出）**——在旧 key 仍生效时，逐 org 把 Content Store 对象旧读→以新 key 重加密落盘；逐 org `work-provider-setup rotate` 重加密 `work.provider_credential` | 不跑，无判据（且无驱动可跑，见上面取证段） | `verdict.json` 的 `excluded_by_ruling_A` |
+| C13-4 | **不执行（按 A 移出）**——切换 `WORK_CONTENT_MASTER_KEY` → 新密钥；`systemctl restart work-api`、`work-directory-sync`、`work-relay` | 不跑，无判据（先换 key 会让既有对象 GCM 解密失败） | `verdict.json` 的 `excluded_by_ruling_A` |
+| C13-5 | **不执行（按 A 移出）**——全量读校验：所有在册 Content Store 对象与凭据在**新 key 下**可解（证明重加密完整、无孤儿对象） | 不跑，无判据 | `verdict.json` 的 `excluded_by_ruling_A` |
+| C13-6 | **不执行（按 A 移出）**——安全边界：确认旧 key 已无法解密新写入对象（GCM tag mismatch） | 不跑，无判据 | `verdict.json` 的 `excluded_by_ruling_A` |
+| C13-7 | **不执行（按 A 移出）**——回归：一次 provider call 成功 + usage 结算 + artifact 发布读回哈希一致 | 不跑，无判据（日常 Run 回归由 D1/D2 段覆盖） | `verdict.json` 的 `excluded_by_ruling_A` |
+| C13-8 | **不执行（按 A 移出）**——销毁旧 key 离线文件 | 不跑，无判据（无新 key 产生，无旧 key 文件待销毁） | `verdict.json` 的 `excluded_by_ruling_A` |
 
 **边界说明**：D-03 B 定为静态单层加密、不用云 KMS/HSM；本演练覆盖其**主密钥离线重加密**流程（先账本/内容重加密、后换运行 key），非热切换。provider credential 的 `key_version` 是同一 master 下的重加密标签，2026-10-31 已单独演过（Runbook §5.15），本步是 master 层面。
 
-**关联控制**：若 C13-0 判定无重加密驱动 → C13 演练 blocked，note 从"密钥轮换未在真实环境演练"更正为"主密钥轮换驱动未实现（仅单 key 读写）"，残余不止"对象存储后端/规模化擦除"。
+**关联控制**：若 C13-0 判定无重加密驱动 → C13 演练 blocked，note 从"密钥轮换未在真实环境演练"更正为"主密钥轮换驱动未实现（仅单 key 读写）"，残余不止"对象存储后端/规模化擦除"。**（2026-11-04：这一分支已经落地，但走向不是本段写的 blocked——2026-11-03 取证判定「无驱动」，John 随即裁 A 把轮换移出 R0a 退出门，note 记的是带重开条件的范围例外、`C13.status` 保持 `partial`；本段原句保留供追溯，执行当天按上面裁定段与 drill README:37 办。）**
 
 ## 7. 11-16 下午 16:30–17:00 · C28 租户开关切换演练
 
-**目标**：在生产环境启用 tenant-access org flag → 验证 cutover → 验证 legacy notice → 验证 rollback。
+**目标**：在生产环境启用 tenant-access org flag → 验证 cutover → 验证 legacy notice → 验证 rollback。（**2026-11-04 就地提示，勿只读这行**：下面 2026-11-03 的取证更正才是当前事实——`tenant_access` 有列但 `internal/`/`cmd/` 无任何 Go 代码读取，拿它判「新租户可访问」是空跑。本节实际执行的是 C28-1..7：按 `work.org.status` + `execution_enabled` + `operator_suspended` 三列演开通/停用/计时/回滚，legacy notice 那一步仍按原样验。「按 status 自动置 `execution_enabled` 是否符合 tenant-access 的意图」正是 #46 待裁的问题，裁前不改变本节动作。）
 
 | 步 | 动作 | 通过判据 | 证据 |
 |---|---|---|---|
@@ -165,7 +165,7 @@
 | T-31-2 | 用旧形状（嵌套 intent）提交 preview | 应 400 拒绝（不产生脏数据）或兼容层正常解析 — 取决于 #31 的 A 案决定：已删 R0aIntent → 400 | HTTP 响应码 |
 | T-31-3 | 用新扁平形状提交 preview → submit | 202 + Run 正常创建 | HTTP 响应 + `work.run` |
 | T-31-4 | 滚动重启一个 API 实例 | 无 in-flight 请求 5xx | API 日志 |
-| T-31-5 | 若 T-31-2 返回 400 → 记录为「预期拒绝，客户端已对齐」；若返回 202 → 记录为「兼容窗口仍开放」 | 判定写入 `verdict.md` | — |
+| T-31-5 | 若 T-31-2 返回 400 → 记录为「预期拒绝，客户端已对齐」；若返回 202 → 记录为「兼容窗口仍开放」 | 判定写入 `verdict.md`【落点已对齐：模板实际落点是本目录 `verdict.json` 的对应步行（`verdict`/`ts`/`evidence`/`notes`）加 `attachments/<step-id>-<kind>.<ext>`；§10 里 `drills/2026-11-15-*/verdict.md` 那棵树从未创建】 | — |
 
 **RB-05 边界**：本步只验数据层（请求是否能正确入库），不验经编排/Runtime 的端到端路径。API 层的 OpenAPI 契约测试（字段级门禁 `ops-model.test.mjs`）已在 CI 覆盖。
 
@@ -207,6 +207,8 @@ docs/plan/assets/work-r0a-ops-2026-10-25/drills/
 └── 2026-11-16-n01n03/
 ```
 
+> 【落点已对齐：§10 落点与交付模板对齐（2026-11-04）】上面这棵 `drills/2026-11-15-*`／`verdict.md` 的树是 2026-10-27 定的旧约定，**从未创建**。本次演练的实际载体是 [drill-2026-11-15](assets/work-r0a-ops-2026-10-25/drill-2026-11-15/README.md)：结果填 `verdict.json` 的 69 个步行（含本轮补入的 `T-31-1..5`），截图/日志/SQL 片段按 `attachments/<step-id>-<kind>.<ext>` 命名放 `attachments/`，`evidence` 里只写相对路径；环境快照与结论写在该 README 的两节里。时间线、命令与脱敏要求照旧适用于这些附件（下面的 S18 规则不变）。若演练当天仍要另建 `drills/` 树，先把它加进 `verdict.json` 的 `evidence` 路径，别让两处证据各写一半。
+
 脱敏规则（S18）：不含密钥正文、不含客户数据、不含 `WORK_CONTENT_MASTER_KEY` 值本身；只允许指纹前 8 字节。
 
 ## 11. 关闭条件与回写
@@ -216,9 +218,10 @@ docs/plan/assets/work-r0a-ops-2026-10-25/drills/
 | D1 + D2 + S1-R06 全 PASS | C22 evidence 添加「多节点拓扑、在途重启、worker drain 实测 2026-11-15」 |
 | D3 + D4 全 PASS | C22 evidence 添加「Temporal PG 故障恢复、配额饱和实测 2026-11-16」；C22 status → `done` |
 | D3-N01/N03/N06 真实环境 PASS | C03 §4(3) 满足 |
-| C13-0 判定驱动存在 → C13-1..8 全 PASS | C13 note 更新：「主密钥轮换已于真实环境演练通过」；残余改为对象存储后端 |
-| C13-0 判定驱动不存在（当前证据） | C13 演 **blocked**，不签"演练通过"；按 #40 走 A/B/C 决策后再定 C13 定性 |
+| C13-0 判定驱动存在 → C13-1..8 全 PASS | **（2026-11-04 按 A 标为不适用）**本行原为「C13 note 更新：『主密钥轮换已于真实环境演练通过』；残余改为对象存储后端」——2026-11-03 取证判定驱动不存在且不存在安全轮换路径，裁定 A 又把轮换移出 R0a 退出门，故这一支路本次演练不可能走到 |
+| C13-0 判定驱动不存在（当前证据） | **（2026-11-04 更正）**本行原文写「C13 演 **blocked**，不签『演练通过』；按 #40 走 A/B/C 决策后再定 C13 定性」。#40 已于 2026-11-03 裁 A 定案：不跑 C13-1..8、**不记 blocked**，`pilot-checklist.json` C13 记带重开条件的范围例外、`status` 保持 `partial`；演练当天只把 C13-0 的审计结论落进 `verdict.json` |
 | C28-1 至 C28-7 全 PASS 且 ≤15 min | C28 evidence 添加计时记录；note 改为「flag 已验证翻转与回滚」 |
+| 第 8 节 `T-31-*` 触发且 T-31-2 判定完成（条件项：仅当 #31 有未发布到生产的新版本） | 判定写入 `verdict.json` 的 `T-31-5.notes`；不触发则五格全填 `na` 并记「生产已是扁平形状，不适用」——**2026-11-04 补**：这五行原本不存在，`T-31-1..5` 只在第 8 节有步骤表、回写映射与模板都没有落点 |
 | §4 全部满足（U3 + D1–D4 + N01/N03 + S1） | C03 status → `done`，DR2 签收 |
 
 签收后回写：[U3 单](work-r0a-temporal-hosting-decision-request-2026-10-26.md) §9、[D3 §4.1](work-r0a-orchestration-design-2026-10-25.md)、[work-project](work-project.md) §3.3、`pilot-checklist.json`。
@@ -232,7 +235,7 @@ docs/plan/assets/work-r0a-ops-2026-10-25/drills/
 | 11-15 | 17:00–18:00 | S1-R06 | | | | | | ✓ | |
 | 11-16 | 09:30–12:00 | D3 | | | | | | | ✓ |
 | 11-16 | 14:00–15:30 | D4+N06 | | | | | | ✓ | |
-| 11-16 | 15:30–16:30 | C13 | | | | | | | |
+| 11-16 | 15:30–16:30 | C13（按 A：只做 C13-0 审计，其余时段还给 D4/N 复跑） | | | | | | | |
 | 11-16 | 16:30–17:00 | C28 | | | | | | | |
 | 11-16 | 17:00–17:30 | #31 双形状（条件） | | | | | | | |
 | 11-16 | 17:30–18:00 | N01/N03 | | | | | | | |
@@ -246,7 +249,7 @@ docs/plan/assets/work-r0a-ops-2026-10-25/drills/
 | S1-R06 重启失败 | 单节点恢复不成立 | **是** | C03 延到 DR4 前补签 |
 | D3 账本变化 | 业务数据完整性受损 | **是** | 紧急回滚 + DBA 核对；记录事件 |
 | D4 已有 Run 被杀 | 配额实现有误杀 bug | **是** | 修 namespace 配置 / Temporal bug；改期重跑 |
-| C13 轮换后解密失败 | 凭据/Content Store 不可用 | 否（只影响 C13） | 恢复旧密钥文件；排查派生逻辑 |
+| C13 轮换后解密失败 | 凭据/Content Store 不可用 | 否（只影响 C13） | **2026-11-04：本行已不可触发**——按 A 不执行轮换，这一失败模式不在本次演练路径内（原补救「恢复旧密钥文件；排查派生逻辑」保留，供重开轮换时参考；重开条件见 `pilot-checklist.json` C13 note） |
 | C28 切换超时 >15 min | 试点 SLA 无依据 | 否（只影响 C28） | 记录实际耗时为约束基线 |
 | N01/N03 与测试层结果不一致 | 部署环境有额外因素 | **是**（C03 §4(3)） | 对比测试层与部署层配置差异 |
 

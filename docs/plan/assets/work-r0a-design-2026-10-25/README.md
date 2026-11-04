@@ -59,6 +59,7 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 
 - PostgreSQL 16。
 - 一次性数据库；脚本会 `DROP SCHEMA work` 与相关角色。D-08 起 schema 含 `provider_credential` 的密文列，冒烟用假密文（`decode(...,'hex')`），不接真实 KMS。
+- 「一次性」要落到**整个实例**，不只是库：`r0a-schema-draft.sql:14-16` 的 `DROP ROLE IF EXISTS work_api/work_worker/work_ledger` 是集群级对象，同一实例若还有别的库（例如 Go 测试留下的 `work_api_test_*`、`work_catalog_*`、`r0bcat`）会报 `role "work_api" cannot be dropped because some objects depend on it`，`DETAIL` 逐个点名库名，psql 以退出码 3 结束。2026-11-04 复用 Go 侧那个 `work-r0a-pg`（宿主 55435）时实测到这条；换一个新容器（本页端口 55433，Go 配方用 55435，**别共用容器名**）后同一条 apply 与冒烟都是退出码 0。
 - 不要在生产库或共享开发库执行。
 
 ## 运行
@@ -76,12 +77,16 @@ docker exec -i work-r0a-pg psql -U postgres -d work_r0a \
 
 # 多连接竞态（同一容器；需 python3 + psycopg 3）
 pip install 'psycopg[binary]==3.3.3'
-python r0a-concurrency-smoke.py        # 默认 127.0.0.1:55433，可用 R0A_DATABASE_URL 覆盖
+# 默认 127.0.0.1:55433，可用 R0A_DATABASE_URL 覆盖。
+# 复跑证据时把输出指到仓库外，否则会覆写已提交的 admin-directory-concurrency.log。
+R0A_LOG_FILE=/tmp/r0a-concurrency-rerun.log python r0a-concurrency-smoke.py
 ```
 
 预期冒烟最后输出 148 行 `ok = t` 并 `ROLLBACK`；竞态脚本输出 JSON 报告（9 组），`gate.violations` 为空时退出 0。
 
 `admin-directory-concurrency.log` 命中仓库根 `.gitignore` 的 `*.log`：作为证据提交时需 `git add -f`（与 [work-temporal-slice](../work-temporal-slice-2026-10-25/README.md) 里的 `*-result.log` 同一做法）。
+
+仓库里那份是 CI `db-smoke` 一次运行的快照，[runbook](../../work-operations-runbook-2026-10-25.md) 与数据设计 §6.1 都按名引用它的计数。脚本默认就地写这个路径（`r0a-concurrency-smoke.py:38`，`R0A_LOG_FILE` 未设时取仓库内文件名），所以本机复跑会覆写被引用的证据：竞态结果本身随交错而变（本机一次复跑把 `projection_revision_race` 的 `applied` 从 `[3, 6, 8, 9]` 变成 `[9]`、`projection_revision_stale` 从 4 变成 7，两组都是同一个不变量的合法读数），覆写后的数字与被引用处对不上。该文件虽命中 `*.log` 仍是被跟踪文件（`git add -f` 纳管），覆写会在 `git status` 里显示为 ` M`，但只看门禁结论的人容易漏掉。复跑请带上例中的 `R0A_LOG_FILE`；若已经覆写，用 `git checkout -- admin-directory-concurrency.log` 还原，别把本机快照当签收证据提交。
 
 ## 已验证
 
