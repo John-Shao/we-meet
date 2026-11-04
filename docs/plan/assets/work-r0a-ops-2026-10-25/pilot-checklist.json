@@ -20,11 +20,11 @@
       "blocking": true,
       "gate": "start",
       "evidence": [
-        "D1 design + PG16 139/139 smoke (2026-10-26 D-08 revision; D-08 unsigned)",
+        "D1 design + PG16 139/139 smoke (2026-10-26 D-08 revision; D-08a-d signed 2026-10-27 per decision memo sign-off section)",
         "r0a-concurrency-smoke.py: 9 multi-connection races, invariant gate 9/9",
         "early written design sign-off 2026-10-27: John Shao (backend + DBA/security roles, (b) self-attestation); DR1 2026-11-10 acknowledgment pending"
       ],
-      "note": "提前签收（2026-10-27）：冻结 D1 设计（schema/函数/RLS/迁移草案）；D-08c/D-08d 的决策签收仍待 DR1，不因本项关闭而视为已签。"
+      "note": "提前签收（2026-10-27）：冻结 D1 设计（schema/函数/RLS/迁移草案）；D-08c/D-08d 已按 2026-10-27 书面签收（权威源＝决策单 §签收状态，2026-11-04 #49-A 认定，勾选栏同日回补）；本项关闭不替 DR1 的 C01 冻结包复验，也不把 D-08 之外的任何项视为已签。"
     },
     {
       "id": "C02",
@@ -35,12 +35,12 @@
       "blocking": true,
       "gate": "start",
       "evidence": [
-        "D2 OpenAPI 3.1: 29 path / 33 operation (D-08 adds 8 provider/usage operations; D-08d unsigned)",
+        "D2 OpenAPI 3.1: 29 path / 33 operation (D-08 adds 8 provider/usage operations; D-08d signed 2026-10-27)",
         "contract 12/12 + generated client 13/13 + host ports 9/9 (34/34)",
         "error catalogue r0a-errors-v3: 50 public codes over 104 SQL codes",
         "early written design sign-off 2026-10-27: John Shao (backend + frontend roles, (b) self-attestation); DR1 2026-11-10 acknowledgment pending"
       ],
-      "note": "提前签收（2026-10-27）：冻结 29 path/33 operation 与错误码 v3；D-08d 未签，若退回则冻结集回到 25 operation。"
+      "note": "提前签收（2026-10-27）：冻结 29 path/33 operation 与错误码 v3；D-08d 已签（2026-10-27 书面签收，#49-A 认定决策单 §签收状态为权威）；**冻结集维持 29 path/33 operation**，原「退回则回 25 operation」的降级条款不再参与口径，退回一旦发生需另开裁定而不是自动适用。"
     },
     {
       "id": "C03",
