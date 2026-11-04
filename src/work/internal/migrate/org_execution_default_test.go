@@ -11,6 +11,14 @@ package migrate_test
 //
 // This asserts the current fact and refuses a quiet change. Flipping the default is allowed -
 // it is a decision with pilot-wide consequences - but it has to edit this file, not only SQL.
+//
+// Scope, so this is not read as the tenant enablement control: the production path never
+// consults the default. PGWriter.SyncOrg passes work.sync_org_projection an explicit
+// p_execution_enabled derived from status (internal/directory/writer.go:28-35), and that
+// function refuses NULL (baseline/0002:3850), so a synced organization's flag comes from
+// internal/directory's rule - pinned by TestSyncOrgDerivesExecutionEnabledFromStatus and
+// tracked as task #46 - not from this column default. What this guard covers is rows created
+// without the column (ops/manual INSERTs and test fixtures), which inherit it.
 
 import (
 	"io/fs"
