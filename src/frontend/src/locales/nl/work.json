@@ -27,7 +27,16 @@
     "bootstrapTitle": "Work is unavailable",
     "bootstrapDescription": "Could not verify the Work session or load configuration. Try again later.",
     "generic": "Er is iets misgegaan. Probeer het opnieuw.",
-    "resyncRequired": "Sessiegegevens zijn gewijzigd; opnieuw laden."
+    "resyncRequired": "Taakmomentopname opnieuw ingelezen.",
+    "artifactReadOnly": "Dit resultaat is gearchiveerd en alleen-lezen. Maak een nieuwe versie om te bewerken.",
+    "adminAccessDenied": "U heeft geen toegang tot het Work-beheer.",
+    "auditExportNotFound": "Die export bestaat niet. Start een nieuwe export op de auditpagina.",
+    "auditExportNotReady": "De export wordt nog voorbereid. Kom over een moment terug.",
+    "auditExportAlreadyDownloaded": "Deze downloadlink is al gebruikt. Start een nieuwe export.",
+    "auditExportRangeInvalid": "Het datumbereik is ongeldig. De einddatum moet na de startdatum liggen.",
+    "auditExportExpired": "Deze export is verlopen. Start een nieuwe export.",
+    "downloadTokenInvalid": "Deze downloadlink is ongeldig. Vraag een nieuwe aan.",
+    "downloadTokenExpired": "Deze downloadlink is verlopen. Vraag een nieuwe aan."
   },
   "readOnly": {
     "homeHint": "Creating work needs a wider screen. Open Work on a tablet or desktop to start a task.",

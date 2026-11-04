@@ -27,7 +27,16 @@
     "bootstrapTitle": "工作空间暂时不可用",
     "bootstrapDescription": "无法验证 Work 会话或加载配置，请稍后重试。",
     "generic": "操作遇到问题，请重试。",
-    "resyncRequired": "会话数据已变更，正在重新加载。"
+    "resyncRequired": "已重新读取任务快照。",
+    "artifactReadOnly": "该成果已归档为只读，如需修改请创建新版本。",
+    "adminAccessDenied": "你没有 Work 管理面的访问权限。",
+    "auditExportNotFound": "该导出记录不存在，请在审计页重新发起导出。",
+    "auditExportNotReady": "导出仍在准备中，请稍后再来查看。",
+    "auditExportAlreadyDownloaded": "该下载链接已被使用，请重新发起导出。",
+    "auditExportRangeInvalid": "时间范围无效，结束日期需晚于开始日期。",
+    "auditExportExpired": "该导出已过期，请重新发起导出。",
+    "downloadTokenInvalid": "下载链接无效，请重新申请下载。",
+    "downloadTokenExpired": "下载链接已过期，请重新申请下载。"
   },
   "readOnly": {
     "homeHint": "创建任务需要更宽的屏幕，请在平板或电脑上新建工作。",

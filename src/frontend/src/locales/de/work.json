@@ -27,7 +27,16 @@
     "bootstrapTitle": "Work is unavailable",
     "bootstrapDescription": "Could not verify the Work session or load configuration. Try again later.",
     "generic": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
-    "resyncRequired": "Sitzungsdaten wurden geändert; wird neu geladen."
+    "resyncRequired": "Task-Snapshot wurde erneut eingelesen.",
+    "artifactReadOnly": "Dieses Ergebnis ist archiviert und schreibgeschützt. Bitte erstellen Sie eine neue Version zum Bearbeiten.",
+    "adminAccessDenied": "Sie haben keinen Zugriff auf den Work-Admin-Bereich.",
+    "auditExportNotFound": "Dieser Export existiert nicht. Starten Sie auf der Audit-Seite einen neuen Export.",
+    "auditExportNotReady": "Der Export wird noch vorbereitet. Sehen Sie in einem Moment erneut nach.",
+    "auditExportAlreadyDownloaded": "Dieser Download-Link wurde bereits verwendet. Starten Sie einen neuen Export.",
+    "auditExportRangeInvalid": "Der Zeitraum ist ungültig. Das Enddatum muss nach dem Startdatum liegen.",
+    "auditExportExpired": "Dieser Export ist abgelaufen. Starten Sie einen neuen Export.",
+    "downloadTokenInvalid": "Dieser Download-Link ist ungültig. Fordern Sie einen neuen an.",
+    "downloadTokenExpired": "Dieser Download-Link ist abgelaufen. Fordern Sie einen neuen an."
   },
   "readOnly": {
     "homeHint": "Creating work needs a wider screen. Open Work on a tablet or desktop to start a task.",

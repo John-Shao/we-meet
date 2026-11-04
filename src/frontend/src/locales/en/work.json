@@ -27,7 +27,16 @@
     "bootstrapTitle": "Work is unavailable",
     "bootstrapDescription": "Could not verify the Work session or load configuration. Try again later.",
     "generic": "Something went wrong. Please try again.",
-    "resyncRequired": "Session data has changed; reloading."
+    "resyncRequired": "Task snapshot re-read.",
+    "artifactReadOnly": "This artifact is archived and read-only. Start a new version to edit it.",
+    "adminAccessDenied": "You don't have access to the Work admin area.",
+    "auditExportNotFound": "That export record doesn't exist. Start a new export from the audit page.",
+    "auditExportNotReady": "The export is still being prepared. Check back in a moment.",
+    "auditExportAlreadyDownloaded": "This download link has already been used. Start a new export.",
+    "auditExportRangeInvalid": "The date range isn't valid. The end date must be after the start date.",
+    "auditExportExpired": "This export has expired. Start a new export.",
+    "downloadTokenInvalid": "This download link isn't valid. Request a new one.",
+    "downloadTokenExpired": "This download link has expired. Request a new one."
   },
   "readOnly": {
     "homeHint": "Creating work needs a wider screen. Open Work on a tablet or desktop to start a task.",

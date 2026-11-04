@@ -84,11 +84,29 @@ export class WorkApiError extends Error {
   }
 }
 
+// D5 §7 names the codes that must carry dedicated copy (#30 A, 2026-11-04). The contract's
+// `ui` column classifies 60 codes into 23 families but is not part of the Error payload
+// (code/message/retryable/correlation_id/current_revision/recovery_action, additionalProperties
+// false), so the copy keys off the code itself; `ui` stays a contract-side authoring aid.
+const WORK_ERROR_KEYS: Record<string, string> = {
+  artifact_read_only: 'errors.artifactReadOnly',
+  admin_access_denied: 'errors.adminAccessDenied',
+  audit_export_not_found: 'errors.auditExportNotFound',
+  audit_export_not_ready: 'errors.auditExportNotReady',
+  audit_export_already_downloaded: 'errors.auditExportAlreadyDownloaded',
+  audit_export_range_invalid: 'errors.auditExportRangeInvalid',
+  audit_export_expired: 'errors.auditExportExpired',
+  download_token_invalid: 'errors.downloadTokenInvalid',
+  download_token_expired: 'errors.downloadTokenExpired',
+}
+
 // Returns an i18n key for the caught error. The server's `message` field is Chinese;
 // callers must pass the key through `t()` rather than displaying it verbatim.
 export const workErrorMessage = (cause: unknown): string => {
   if (cause instanceof WorkApiError) {
     if (cause.code === 'resync_required') return 'errors.resyncRequired'
+    const dedicated = WORK_ERROR_KEYS[cause.code]
+    if (dedicated) return dedicated
   }
   return 'errors.generic'
 }
