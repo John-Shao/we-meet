@@ -89,7 +89,7 @@ D2′ `:87-92` 把 `request_hash` 与 `receipt_ref` 列为**禁止公开**。现
 `run_operations.go:26-29` 还写了一段设计理由：这两列是内容*定位符*，摘要「不含正文」承诺成立，因为供应商回答、模型请求字节、工具参数所在表这条查询从不点名。
 
 - **取证已完成（2026-11-04，本轮）**，按预镜像与读者两问定性：
-  - **公开的那枚 `request_hash` 到底是什么的摘要**：`work.operation.request_hash` 由 `work.create_operation(5 参数)` 写入且只授给 `work_worker`（`baseline/0002:5212`），两条产生路径都是**结构化摘要**——`runflow/activities.go:228,232` 走 `stepRequestHash`（`activities.go:549-550`：`prepared.RequestHash|step:N|previous:hash`），底层 `requestHash()`（`:936-942`）的预镜像恰是 `RunID|TaskID|InputHash|TemplateVersion|TokenUpperBound|PolicyRevision`，**不含 goal/background/prompt/title**；`runflow/advance_activities.go:357,362-364` 用 `preview.Hash`，其预镜像是 `api/previews.go:188-204` 那段 JSON（模板 id/version/content_hash、input ref/content_hash/bytes、permission_mode、token_upper_bound、modelparams 清单），同样不含自由文本——`input.Goal` 只在 `:186` 被截成任务标题，不进摘要。
+  - **公开的那枚 `request_hash` 到底是什么的摘要**：`work.operation.request_hash` 由 `work.create_operation(5 参数)` 写入且只授给 `work_worker`（`baseline/0002:5212`），两条产生路径都是**结构化摘要**——`runflow/activities.go:228,232` 走 `stepRequestHash`（`activities.go:549-550`：`prepared.RequestHash|step:N|previous:hash`），底层 `requestHash()`（`:936-942`）的预镜像恰是 `RunID|TaskID|InputHash|TemplateVersion|TokenUpperBound|PolicyRevision`，**不含 goal/background/prompt/title**；`runflow/advance_activities.go:358,362-364` 用 `preview.Hash`，其预镜像是 `api/previews.go:188-204` 那段 JSON（模板 id/version/content_hash、input ref/content_hash/bytes、permission_mode、token_upper_bound、modelparams 清单），同样不含自由文本——`input.Goal` 只在 `:186` 被截成任务标题，不进摘要。
   - **谁能读到它**：`GET /work/v1/runs/{runId}/operations` 先过 `loadRun` 的 run→task→owner 链（`run_operations.go:110-121`，非属主/跨组织/不存在一律 404），所以读者只有该任务属主本人——他本来就知道自己的 goal 与正文。
   - **残留风险（要说准，别说满）**：摘要链里嵌着 `content_hash`，即 `sha256(正文)`。所以「用摘要反查小正文」在数学上成立，只是**这条路由把它只交给属主**，风险面因此从「公开面」挪到「别把它写进日志/trace/事件载荷」。另注意 `submission_dedup` 那一族摘要（`0002:1493`、`0015:62`）预镜像**确实含 `title`**，但它没有任何公开出口（`grep 'json:"request_hash"'` 在非测试 Go 里只命中 `run_operations.go`），不要把两者混为一谈。
 - **建议改为 A**（从 D2′ `forbiddenPublicFields` 移除这两个，保留 `execution_id`/`dispatch_attempt_id`/`checkpoint_ref`），并附两个条件：①条款文字写明「仅限属主范围投影」；②补一条 C16 侧要求——`request_hash`/`content_hash` 不得进日志、trace 属性或埋点载荷（前端 `telemetry.ts` 的载荷白名单已经不含它们，Go 侧日志红线归 C16 管）。
@@ -142,5 +142,11 @@ D2′ 声明 `pagination.cursorType="opaque_string"`，并把 `admin_seats_keyse
   - **B 的依据本轮已由推断改为实测（2026-11-04）**：把 `csrf.go:17` 的值改成 `X-CSRF-Token-RENAMED` 后，活库 `go test ./internal/api -run 'RouteGuardSweep|ErrorEnvelope|CSRF|AuditExportGate'` **两条用例红**（`TestEveryContractOperationEnforcesSessionAndCSRF`、`TestCreateAuditExportGateKeepsReadsAndReplaysAlive`），还原后同命令 `ok 8.030s`；容器为一次性 `postgres:16@55438`，跑完已删，还原后 `git status` 对该文件为空。**要紧的一条限定**：同一变异在**不设 `WORK_TEST_PG_URL` 时全绿**（`ok 2.279s`，非库子集不触及这条线），所以「服务端字面量被钉住」只在带库的 `Work R0a gates`  job 里成立——日后谁要用「本机跑个子集」来证明这条覆盖，会得出相反结论。测试里 5 处用字面量、9 处用导出常量；正因为扫面用例发的是字面量，服务端改名才会被抓到（若两边都改用常量，改名就不会有信号——不要顺手把它们统一成常量）。
 - `csrfSingleSourceOfTruth="contract"`：契约（`r0a-openapi-v1.yaml:799`）与本仓常量（`csrf.go:17`）各有一份 `X-CSRF-Token` 字面量，两者是否由同一处生成、有无漂移守卫覆盖该字符串，未核。
 
-全部结论来自静态读取与本地无库测试；活 PG 与生产应答未验证，生产迁移台账仍停在 `0016`。本轮新增的两个测试文件（`identity_body_test.go`、`task_snapshot_shape_test.go`）**未提交**，推送前需按惯例过一遍 `Work R0a gates`。
+全部结论来自静态读取与本地无库测试；活 PG 与生产应答未验证，生产迁移台账仍停在 `0016`。**计数与提交状态以命令为准**：`identity_body_test.go`、`task_snapshot_shape_test.go`、`unknown_operation_display_pg_test.go`、`admin_overview_seats_pg_test.go` 已随 `95cc9e4b8` 推到 `origin/aliyun-dev`；`run-pilot-metrics.sh`、CSRF 平价闸、span/产生者/规则一致性/列默认/#46 五类守卫与两份回填文字仍在本地待推，用 `git log --oneline origin/aliyun-dev..HEAD` 看当下心实。
+
+## 7. 引用完整性复核（2026-11-04）
+
+本单全部 `file:line` 锚点已按当前工作树逐条回读：**56 个不同锚点全部命中且内容与断言一致**，只修正一处 off-by-one——`runflow/advance_activities.go` 的 `requestHash := preview.Hash` 实在 **358 行**（原文写 357，那里是上一个 `if` 的右花括号）。
+
+方法上留一句防误读，也是我这轮自己踩的：第一次跑这个复核时，路径解析只试了 `src/work/<file>`、`src/<file>` 等几种拼法，于是 **50 个锚点被报成「文件找不到」**。那全是解析器缺陷造成的假缺口——本单的写法是 `run_operations.go:36` 这种**只给文件名**的相对引用，必须按文件名递归建索引再匹配。改成索引法后 0 问题。**结论：引用是否成立要以能解析到真实文件的脚本为准，一次 grep 不中不构成证据**（与本单 §4、§5 里两处同类教训同源）。
 
