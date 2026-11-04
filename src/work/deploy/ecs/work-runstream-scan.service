@@ -1,0 +1,22 @@
+[Unit]
+Description=Work run-stream read-only gauges (parked Runs, unreleased reservations)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=work-control
+Group=work-control
+# DSN 复用 worker 环境（与 work-reconcile-scan.service 同一做法，不造第二份密钥副本）；
+# 巡检对象与阈值放在自己的 env 里（模板 work-runstream-scan.env.example，无密钥）。
+EnvironmentFile=/etc/work/work-worker.env
+EnvironmentFile=/etc/work/work-runstream-scan.env
+ExecStart=/usr/local/bin/run-runstream-gauges.sh
+TimeoutStartSec=3min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

@@ -21,12 +21,12 @@
 // verifies the stored byte count and SHA-256 digest before writing any byte to
 // the caller.
 //
-// The checkpoint-candidate write route (POST /internal/v1/checkpoints) is
-// deliberately absent. Migration 0012 added the runtime_child writer and the
-// reserved -> committed slot state, but the write route also needs a defined
-// reference-graph authorisation (which template/input refs a child may bind)
-// before it can accept bytes; without it the proxy fails closed rather than
-// letting a child choose its own slots. Only bound reads are served today.
+// The checkpoint-candidate write route (POST /internal/v1/checkpoints) is served.
+// Migration 0012's runtime_child writer plus the reserved -> committed slot state
+// are what make it safe: the contentref registry, not the caller, decides which
+// execution owns which logical slot, and a declared digest that does not match the
+// stored bytes leaves the slot reserved instead of publishing a different object.
+// handleCheckpoint in write.go is the authority for that order.
 //
 // Errors are written as {"code":"..."} only. The proxy never echoes the
 // reference id, content bytes, bearer token or database text, and never logs a

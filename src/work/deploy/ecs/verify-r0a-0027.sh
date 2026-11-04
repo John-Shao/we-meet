@@ -156,6 +156,34 @@ fi
 grep -rl work-reconcile /etc/systemd/system 2>/dev/null | sed 's/^/  referenced by: /'
 
 echo
+echo "== runstream gauges wiring (C17 minimal set) =="
+# 2026-11-04: main signing chose C (no per-binary Prometheus). The compensation is this read-only
+# gauge scan, whose whole reason to exist is that work-reconcile -scan cannot see a parked Run -
+# its workflow is still Running, so isOrphan() returns false and the summary prints orphans=0.
+# The wrapper resolves runstream-gauges.sql next to itself, so a host with only one of the two
+# files is an empty run: both are checked, and the org count is compared with the directory.
+rs_timer="$(systemctl is-enabled work-runstream-scan.timer 2>/dev/null || true)"
+rs_result="$(systemctl show -p Result --value work-runstream-scan.service 2>/dev/null || true)"
+rs_last="$(systemctl show -p ExecMainStartTimestamp --value work-runstream-scan.service 2>/dev/null || true)"
+printf 'work-runstream-scan  timer=%s last_result=%s last_start=%s wrapper=%s sql=%s env=%s\n' \
+  "${rs_timer:-none}" "${rs_result:-none}" "${rs_last:-none}" \
+  "$(test -x /usr/local/bin/run-runstream-gauges.sh && echo present || echo MISSING)" \
+  "$(test -e /usr/local/bin/runstream-gauges.sql && echo present || echo MISSING)" \
+  "$(test -e /etc/work/work-runstream-scan.env && echo present || echo MISSING)"
+if [[ ! -x /usr/local/bin/run-runstream-gauges.sh || ! -e /usr/local/bin/runstream-gauges.sql ]]; then
+  echo "  WARN: wrapper and SQL must be installed side by side - the scan silently cannot run with only one"
+fi
+if [[ -n "$rs_timer" ]]; then
+  rs_configured="$(set -o posix; . /etc/work/work-runstream-scan.env 2>/dev/null; echo ${WORK_RUNSTREAM_ORGS:-} | wc -w)"
+  rs_synced="$(runuser -u postgres -- psql -d work -Atc 'select count(*) from work.org' 2>/dev/null || echo '?')"
+  echo "  orgs configured for gauges=${rs_configured:-0} orgs in directory=${rs_synced}"
+  [[ "${rs_configured:-0}" == "$rs_synced" ]] || echo "  WARN: gauge org list (${rs_configured:-0}) != directory orgs ($rs_synced); new tenants may be unscanned"
+  # 容差是临时值，必须能被读出来；#56 收口后应回到 0。
+  rs_tolerance="$(set -o posix; . /etc/work/work-runstream-scan.env 2>/dev/null; echo ${WORK_RUNSTREAM_MAX_HELD_ON_TERMINAL:-})"
+  echo "  max_held_on_terminal tolerance=${rs_tolerance:-unit default} (2026-11-04 演练残留 2 笔，待裁 #56-A／B 后改回 0)"
+fi
+
+echo
 echo "== listeners =="
 ss -ltnp 2>/dev/null | awk 'NR == 1 || $4 ~ /:(8443|8444|8445|8446)$/'
 

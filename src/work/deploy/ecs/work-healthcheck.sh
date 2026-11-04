@@ -21,7 +21,10 @@ host=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
 # `systemctl show -p Result --value` on a unit that does not exist prints "success", so an
 # unwired host never false-alerts - and equally, this probe cannot tell "ran clean" from
 # "never ran". Whether the scan is actually wired is verify-r0a-0027.sh's reconcile block.
-for unit in work-directory-sync.service work-directory-sync-full.service work-reconcile-scan.service; do
+# work-runstream-scan.service (C17 minimal set, 2026-11-04) joins the same list for the same
+# reason: it exits 2 on a parked Run or an unreleased reservation, which are exactly the states
+# the Temporal-side orphan rule cannot see (its workflow is still Running).
+for unit in work-directory-sync.service work-directory-sync-full.service work-reconcile-scan.service work-runstream-scan.service; do
   result=$(systemctl show -p Result --value "$unit" 2>/dev/null || true)
   if [ "$result" = "failed" ]; then
     status="degraded"

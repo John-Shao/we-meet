@@ -233,6 +233,19 @@ run systemctl enable work-reconcile-scan.timer work-healthcheck.timer
 run systemctl start work-reconcile-scan.timer
 run systemctl start work-healthcheck.timer
 
+# C17 最小集（2026-11-04 主签选 C）：库侧只读巡检补上 Temporal 侧孤儿规则看不见的那一类
+# ——workflow 仍 Running、activity 停在 STARTED、库侧租约已过期的「停放 Run」，以及挂在已终态
+# Run 上未释放的预留。包装件与 SQL 必须同目录（脚本按 dirname $0 找 SQL），少一个就是空跑。
+run install -m 0755 -o root -g root "$RELEASE/run-runstream-gauges.sh" /usr/local/bin/run-runstream-gauges.sh
+run install -m 0644 -o root -g root "$RELEASE/runstream-gauges.sql" /usr/local/bin/runstream-gauges.sql
+for unit in work-runstream-scan.service work-runstream-scan.timer; do
+  run install -m 0644 -o root -g root "$RELEASE/$unit" "/etc/systemd/system/$unit"
+done
+install_env work-runstream-scan
+run systemctl daemon-reload
+run systemctl enable work-runstream-scan.timer
+run systemctl start work-runstream-scan.timer
+
 echo "== 8. Node runtime =="
 if [[ -n "$RUNTIME_BUNDLE" && -f "$RUNTIME_BUNDLE" ]]; then
   node_version="$(node -v 2>/dev/null || true)"

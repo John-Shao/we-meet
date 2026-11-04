@@ -1,0 +1,12 @@
+[Unit]
+Description=Every-10-minute Work run-stream gauges
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=10min
+RandomizedDelaySec=45s
+Persistent=true
+Unit=work-runstream-scan.service
+
+[Install]
+WantedBy=timers.target
