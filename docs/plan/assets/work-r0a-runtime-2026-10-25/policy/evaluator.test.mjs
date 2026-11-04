@@ -123,8 +123,39 @@ test('response filter exposes public content only', () => {
   );
 });
 
-test('sandbox profile enforces gVisor, read-only, no host mounts and egress-only network', () => {
+test('sandbox profile declares the R0a degradation and refuses to claim proof', () => {
+  // Rewritten on 2026-11-04 (DR2 finding 10, ruled S3=A). The previous name of this test was
+  // "sandbox profile enforces gVisor, read-only, no host mounts and egress-only network", and it passed -
+  // while the pilot host has no runc/runsc/containerd at all. The test enforced the claim, not the control.
   assert.equal(assertSandboxProfile(sandbox), true);
+
+  const claimsProof = structuredClone(sandbox);
+  claimsProof.sandboxProof = true;
+  assert.throws(
+    () => assertSandboxProfile(claimsProof),
+    (error) => error.code === 'sandbox_violation' && error.message.includes('may not claim sandbox proof'),
+  );
+
+  const unmeasured = structuredClone(sandbox);
+  unmeasured.degradation.measuredOn = '';
+  assert.throws(
+    () => assertSandboxProfile(unmeasured),
+    (error) => error.message.includes('dated measurement'),
+  );
+
+  const thinControls = structuredClone(sandbox);
+  thinControls.degradation.compensatingControls = ['listeners are loopback-only'];
+  assert.throws(
+    () => assertSandboxProfile(thinControls),
+    (error) => error.message.includes('under-enumerated'),
+  );
+
+  const fakePinned = structuredClone(sandbox);
+  fakePinned.image.digestStatus = 'pinned';
+  assert.throws(
+    () => assertSandboxProfile(fakePinned),
+    (error) => error.message.includes('not pinned to a real build'),
+  );
 
   const writableRoot = structuredClone(sandbox);
   writableRoot.filesystem.readOnlyRootFilesystem = false;

@@ -8,7 +8,7 @@
 |---|---|
 | `WorkAdapter.contract.ts` | RunContext、ModelCall、模板读取、草稿/检查点、usage、cancel 与错误码 |
 | `policy/tool-manifest.json` | R0a 三个工具的白名单、副作用、预算、网络、内容与调用上限 |
-| `policy/sandbox-profile.json` | gVisor/非 root/只读/无宿主挂载/egress-only/资源/降级 profile |
+| `policy/sandbox-profile.json` | 逐 Run Pod 的强化要求（非 root/只读/无宿主挂载/egress-only/资源/降级 profile）。**2026-11-04 起为自述降级**：`profile=process_only`、`sandboxProof=false`，`degradation` 记录当天主机测量（试点机无 runc/runsc/containerd），gVisor 仅作为 `degradation.targetProfile` 保留 |
 | `policy/egress-policy.json` | 供应商、请求绑定、来源标签、秘密模式、响应过滤、usage、日志、回退 |
 | `policy/evaluator.mjs` | 设计级策略评估器（不是生产网关） |
 | `policy/evaluator.test.mjs` | 10 组策略测试 |

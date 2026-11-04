@@ -119,10 +119,40 @@ export function filterModelOutput(egress, raw) {
 
 export function assertSandboxProfile(sandbox) {
   const violations = [];
-  if (sandbox.runtimeClass !== 'gvisor' || sandbox.sandboxProof !== true) {
-    violations.push('gvisor profile/proof missing');
+  // 2026-11-04 (DR2 finding 10, ruled S3=A). This validator used to require runtimeClass === 'gvisor' &&
+  // sandboxProof === true, and CI was green on that - while the pilot host has no runc, runsc, containerd,
+  // dockerd, podman or bubblewrap and the agent runs as a plain node child. A green test that maintains an
+  // untrue claim is worse than no test, so the proof demand is replaced by honesty demands: the asset must
+  // name what is deployed, admit the degradation, and carry a dated measurement plus the compensating
+  // controls. The structural checks below still describe the hardened target and stay mandatory, so a future
+  // gVisor build has to satisfy them rather than merely rename a field.
+  const degradation = sandbox.degradation || {};
+  if (sandbox.sandboxProof !== false) violations.push('R0a may not claim sandbox proof');
+  if (sandbox.profile !== 'process_only' || sandbox.runtimeClass !== null) {
+    violations.push('profile must name what is actually deployed');
   }
-  if (!/^sha256:[a-f0-9]{64}$/.test(sandbox.image.digest)) violations.push('image digest not pinned');
+  if (degradation.claim !== 'no_container_isolation') violations.push('degradation claim missing');
+  if (!degradation.measuredOn || !degradation.measurement) {
+    violations.push('degradation asserted without a dated measurement');
+  }
+  if (!Array.isArray(degradation.compensatingControls) || degradation.compensatingControls.length < 3) {
+    violations.push('compensating controls under-enumerated');
+  }
+  if (!Array.isArray(degradation.reopenConditions) || degradation.reopenConditions.length < 1) {
+    violations.push('no reopen condition recorded');
+  }
+  if (!degradation.residualRisk) violations.push('residual risk not stated');
+  if (degradation.targetProfile !== 'gvisor') violations.push('hardened target dropped from the record');
+  // The old regex accepted sha256:1111...1111 as "pinned". A placeholder may only ride along while the
+  // asset explicitly says it is a placeholder and claims no proof.
+  if (sandbox.image.digestStatus === 'placeholder') {
+    if (sandbox.sandboxProof !== false) violations.push('a placeholder digest cannot back a proof claim');
+  } else if (
+    !/^sha256:[a-f0-9]{64}$/.test(sandbox.image.digest) ||
+    /^sha256:(.)\1{63}$/.test(sandbox.image.digest)
+  ) {
+    violations.push('image digest not pinned to a real build');
+  }
   if (sandbox.image.node !== '24') violations.push('node version not 24');
   if (!sandbox.image.piVersion) violations.push('pi version missing');
   if (sandbox.image.immutable !== true) violations.push('image not immutable');

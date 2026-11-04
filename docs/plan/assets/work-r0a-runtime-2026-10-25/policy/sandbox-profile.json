@@ -1,8 +1,30 @@
 {
   "version": "r0a-v1",
-  "profile": "gvisor",
-  "runtimeClass": "gvisor",
-  "sandboxProof": true,
+  "profile": "process_only",
+  "runtimeClass": null,
+  "sandboxProof": false,
+  "declaredOn": "2026-11-04",
+  "degradation": {
+    "claim": "no_container_isolation",
+    "measuredOn": "2026-11-04",
+    "measuredOnHost": "pilot Work ECS (36.151.147.217), read-only systemd/proc/filesystem probe",
+    "measurement": "runc, runsc, containerd, dockerd, podman and bubblewrap are all absent on the host; the deployed runtime copy mentions none of them (0 files matching runc|runsc|seccomp|cgroup|unshare|bwrap) and spawns the agent as a plain node child of the same interpreter (src/work/node/src/supervisor.mjs:249); the unit runs with PrivateUsers=no, RestrictNamespaces=no and an untrimmed CapabilityBoundingSet",
+    "compensatingControls": [
+      "child environment is an allowlist, so no database, Temporal, provider or master-key variable reaches the child (src/work/node/src/supervisor.mjs:22,80-86), asserted by a sentinel test (src/work/node/test/supervisor-handshake.test.mjs:61,72)",
+      "the agent has no tool surface and no getApiKey (src/work/node/src/child-pi.mjs:373)",
+      "every internal listener binds 127.0.0.1 only",
+      "per-run nonce plus short-lived scoped capability over fd 4/5 instead of inherited credentials"
+    ],
+    "residualRisk": "a prompt-influenced child can send the content of its own run to any public address and can read whatever its scoped capability already fetched; there is no mount, syscall, pid or network namespace boundary around it, so a compromised interpreter is not contained",
+    "reopenConditions": [
+      "real customer data enters the pilot",
+      "pooled concurrency beyond maxConcurrent is relied on for correctness",
+      "R0b local execution or pooled resume is enabled"
+    ],
+    "targetProfile": "gvisor",
+    "targetRuntimeClass": "gvisor",
+    "targetEvidenceRequired": "an executed escape/resource report plus a pinned image digest; a runtimeClass string alone is not evidence"
+  },
   "image": {
     "repository": "work-r0a-runner",
     "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
@@ -11,7 +33,8 @@
     "immutable": true,
     "packageInstall": false,
     "userExtensions": false,
-    "digestNote": "Placeholder digest; replace with the reviewed build digest before any runtime test."
+    "digestNote": "Placeholder digest; replace with the reviewed build digest before any runtime test.",
+    "digestStatus": "placeholder"
   },
   "identity": {
     "runAsNonRoot": true,
