@@ -129,14 +129,29 @@ echo "== reconcile wiring =="
 # rollout-r0a-0016 shipped work-reconcile as a binary, and on the pilot host nothing ever
 # referenced it: no unit file, no timer, so the rejection-reconcile path was "deployed" while
 # never running. A binary with no scheduler is reported here rather than assumed present.
-reconcile_state="$(systemctl is-enabled work-reconcile.service 2>/dev/null || true)"
-reconcile_timer="$(systemctl is-enabled work-reconcile.timer 2>/dev/null || true)"
-if [[ -f /usr/local/bin/work-reconcile ]] && [[ -z "$reconcile_state" && -z "$reconcile_timer" ]]; then
-  echo "WARN: /usr/local/bin/work-reconcile exists but no unit or timer references it;"
-  echo "      rejection-reconcile only runs if someone invokes it by hand."
-else
-  printf 'work-reconcile  service=%s timer=%s active=%s
-'     "${reconcile_state:-none}" "${reconcile_timer:-none}"     "$(systemctl is-active work-reconcile 2>/dev/null || true)"
+# 2026-11-04 (#50 A): the units the repo actually ships are work-reconcile-scan.{service,timer}
+# — this used to ask systemd about work-reconcile.service/.timer, names that never existed, so
+# the check could only ever print WARN even after a correct install. The reconcile *write*
+# path stays hand-invoked by design (#34 A); only the read-only scan is scheduled.
+scan_state="$(systemctl is-enabled work-reconcile-scan.service 2>/dev/null || true)"
+scan_timer="$(systemctl is-enabled work-reconcile-scan.timer 2>/dev/null || true)"
+scan_script_state="$(systemctl is-active work-reconcile-scan.service 2>/dev/null || true)"
+scan_script_result="$(systemctl show -p Result --value work-reconcile-scan.service 2>/dev/null || true)"
+printf 'work-reconcile-scan  service=%s timer=%s last_active=%s last_result=%s script=%s env=%s\n' \
+  "${scan_state:-none}" "${scan_timer:-none}" "${scan_script_state:-none}" "${scan_script_result:-none}" \
+  "$(test -x /usr/local/bin/work-reconcile-scan.sh && echo present || echo MISSING)" \
+  "$(test -e /etc/work/work-reconcile-scan.env && echo present || echo MISSING)"
+if [[ -f /usr/local/bin/work-reconcile ]] && [[ -z "$scan_timer" ]]; then
+  echo "WARN: /usr/local/bin/work-reconcile exists but work-reconcile-scan.timer is not enabled;"
+  echo "      orphan Runs are only found if someone invokes the scan by hand."
+fi
+if [[ -n "$scan_timer" ]]; then
+  # The scan lists its orgs explicitly; a pilot org added without appending its id is silently
+  # never scanned, so the configured count is reported next to the directory-sync row count.
+  configured="$(set -o posix; . /etc/work/work-reconcile-scan.env 2>/dev/null; echo ${WORK_RECONCILE_ORGS:-} | wc -w)"
+  synced="$(runuser -u postgres -- psql -d work -Atc 'select count(*) from work.org' 2>/dev/null || echo '?')"
+  echo "  orgs configured for scan=${configured:-0} orgs in directory=${synced}"
+  [[ "${configured:-0}" == "$synced" ]] || echo "  WARN: scan org list ($configured) != directory orgs ($synced); new tenants may be unscanned"
 fi
 grep -rl work-reconcile /etc/systemd/system 2>/dev/null | sed 's/^/  referenced by: /'
 

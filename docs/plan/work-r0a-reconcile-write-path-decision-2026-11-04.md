@@ -6,6 +6,7 @@
 
 - **写路径存在但人工**：`work-reconcile` 支持 `-operation <id> -resolution <sent_succeeded|not_sent|unresolved|rejected_not_executed>`，可选 `-resume`/`-signal-only`/`-finish-from-receipt`，并要求 `evidence-ref`（除非 unresolved）——`cmd/work-reconcile/main.go:44-57`。语义：按工单人工核对 provider/outbox 真实结果后再改账本。
 - **部署的定时单元刻意只读**：`work-reconcile-scan.{sh,service,timer}` 只跑 `-scan`（`Read-only orphan scan (no writes)`，`work-reconcile-scan.service:2`），命中或扫描失败以非零退出把单元标红，on-call 再按 runbook §5.13/§5.16 **人工**执行写路径（`work-reconcile-scan.sh:5` 明示"不做任何 reconcile_operation 写动作"）。
+  - **2026-11-04 更正＋接线（#50 A）**：本节写作"部署的"时，试点主机上这三个单元其实**从未安装**（`/etc/systemd/system` 无 reconcile 文件、`work-reconcile-scan.sh` 与 `/etc/work/work-reconcile-scan.env` 都不存在），`rollout-r0a-0027.sh` 也只装 authz/content-proxy/egress/runtime；而 `verify-r0a-0027.sh` 查的是 `work-reconcile.service/.timer` 这两个仓库从没 ship 过的名字，因此那条检查既看不见缺失也看不见修好。同日按 A 装好 unit＋timer＋env 并 enable timer，首跑 `orgs=1 orphans=0 scan_errors=0`、`Result=success`；同时把 `work-reconcile-scan.service` 加进 `work-healthcheck.sh` 观察名单（此前"标红"没有任何读者），并把安装步骤纳入 rollout、把 verify 的单位名改为真实名字。取证与值班读法见 runbook §5.18。
 - 因此**今天没有自动写路径**；#34 的"待裁"是：是否要新增一个"发现孤儿→自动套用 resolution"的调度写路径。
 
 ## 2. 为什么这是运营安全问题，需裁定

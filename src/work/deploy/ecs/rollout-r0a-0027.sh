@@ -216,6 +216,23 @@ run systemctl enable work-authz work-content-proxy work-egress
 # no-op and the freshly installed binaries would sit on disk unused.
 run systemctl restart work-authz work-content-proxy work-egress
 
+# #50 A (2026-11-04): the read-only orphan scan ships in the release payload but was never
+# wired on any host, so reconcile visibility depended on someone remembering to run it.
+# Install and schedule it here so a rebuild of the host does not lose it again. The scan
+# unit is read-only (-scan cannot be combined with write actions, cmd/work-reconcile).
+run install -m 0755 -o root -g root "$RELEASE/work-reconcile-scan.sh" /usr/local/bin/work-reconcile-scan.sh
+for unit in work-reconcile-scan.service work-reconcile-scan.timer; do
+  run install -m 0644 -o root -g root "$RELEASE/$unit" "/etc/systemd/system/$unit"
+done
+install_env work-reconcile-scan
+run install -m 0755 -o root -g root "$RELEASE/work-healthcheck.sh" /usr/local/bin/work-healthcheck.sh
+run install -m 0644 -o root -g root "$RELEASE/work-healthcheck.service" /etc/systemd/system/work-healthcheck.service
+run install -m 0644 -o root -g root "$RELEASE/work-healthcheck.timer" /etc/systemd/system/work-healthcheck.timer
+run systemctl daemon-reload
+run systemctl enable work-reconcile-scan.timer work-healthcheck.timer
+run systemctl start work-reconcile-scan.timer
+run systemctl start work-healthcheck.timer
+
 echo "== 8. Node runtime =="
 if [[ -n "$RUNTIME_BUNDLE" && -f "$RUNTIME_BUNDLE" ]]; then
   node_version="$(node -v 2>/dev/null || true)"

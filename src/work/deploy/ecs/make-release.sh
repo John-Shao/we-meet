@@ -50,6 +50,11 @@ cp "$ROOT/deploy/ecs/work-reconcile-scan.sh" "$OUT/"
 cp "$ROOT/deploy/ecs/work-reconcile-scan.service" "$OUT/"
 cp "$ROOT/deploy/ecs/work-reconcile-scan.timer" "$OUT/"
 cp "$ROOT/deploy/ecs/work-reconcile-scan.env.example" "$OUT/"
+# #50 A (2026-11-04): the health probe is the consumer of the scan's red result, and until now
+# it existed only as a hand-placed file on the pilot host.
+cp "$ROOT/deploy/ecs/work-healthcheck.sh" "$OUT/"
+cp "$ROOT/deploy/ecs/work-healthcheck.service" "$OUT/"
+cp "$ROOT/deploy/ecs/work-healthcheck.timer" "$OUT/"
 cp "$ROOT/deploy/ecs/work-authz.service" "$OUT/"
 cp "$ROOT/deploy/ecs/work-content-proxy.service" "$OUT/"
 cp "$ROOT/deploy/ecs/work-egress.service" "$OUT/"

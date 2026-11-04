@@ -561,7 +561,8 @@ Run `3cd9c500…` succeeded（usage 112/194、结算 306、artifact 85B）。hos
 
 1. 先用 `work-reconcile -scan -org <org>` 确认 `workflow_status=Failed`、`orphan=true`，
    并确认该 Run 没有可发布成果（`artifact` 为空）、Operation 已 succeeded/failed 且 usage
-   已结算；保留扫描输出作为证据。
+   已结算；保留扫描输出作为证据。（2026-11-04 起孤儿由 §5.18 的定时巡检自动发现并把单元
+   标红；这里的手工 `-scan` 仍用于关闭前后的复核与取证。）
 2. 以 root 备份 `work` 库（示例 `pg_dump -Fc -d work` 到 root-only 备份目录），记录备份路径。
 3. 在**事务内**以 `work_owner` + 匹配的 `app.org_id` 调用
    `work.finish_run(<run>, <org>, 'failed', 'workflow_failed')`；Task 会保持 open、
@@ -598,6 +599,30 @@ Run `3cd9c500…` succeeded（usage 112/194、结算 306、artifact 85B）。hos
 
 释放只能走 `release_quota`（`SECURITY DEFINER` 且受 RLS 约束，必须先 `set_config('app.org_id', …)`）；
 是否对已终态任务释放预留属运维决策，按 §5.16 的备份与审计要求执行，**不得为「清库存」放宽**。
+
+### 5.18 reconcile 只读巡检单元（2026-11-04，#50 A 已接线）
+
+试点主机上 `work-reconcile-scan.timer` 每 15 分钟触发一次 `work-reconcile-scan.sh`，它对
+`WORK_RECONCILE_ORGS` 里的每个 org 调用 `work-reconcile -scan -org <id>`。只读：`-scan` 与
+写参数互斥，且 `cmd/work-reconcile` 在连库之前就拒绝组合；查询走
+`workdb.WithWorkerOrgContext`，即自己设了 `app.org_id`（不是 §5.2 那条裸计数）。
+单元以 `work-control` 身份运行，DB 与 Temporal 凭据复用 `/etc/work/work-worker.env`，
+org 清单单独放在 `/etc/work/work-reconcile-scan.env`（640 `root:work-control`）。
+
+- 退出码：`0` 干净；`1` 有 org 扫描失败；**`2` 发现孤儿** → 单元进入 failed。
+- 值班读法：`journalctl -u work-reconcile-scan.service -o cat | tail`，summary 行形如
+  `orgs=1 orphans=0 scan_errors=0`。发现孤儿后仍按 §5.16 人工处置，本单元不代替判定。
+- 告警：`work-healthcheck.sh` 的观察名单已含 `work-reconcile-scan.service`，red 会把健康
+  状态转 degraded 并由 `work-health-alert.py` 发信。**实测边界**：不存在的单元同样返回
+  `Result=success`，所以这个探针分不清「跑过且干净」与「从没跑过」——接线本身是否存在，
+  看 `verify-r0a-0027.sh` 的 `== reconcile wiring ==` 块。
+- **新增试点组织必须同时追加 `WORK_RECONCILE_ORGS`**，否则该 org 静默不在巡检范围内；
+  verify 同一块会比较「配置条数 vs 目录 org 行数」并打 WARN。
+- 定时巡检只落 orphan 计数；`held` 预留明细仍需 §5.17 的手工 `-scan`。
+- 2026-11-04 首跑证据：`orgs=1 orphans=0 scan_errors=0`、`Result=success`；timer
+  `enabled+active`，而 service 自身 `disabled` 是正常形态（timer 驱动的 oneshot 不需要
+  enable）。主机健康探针脚本更新前的原件备份在
+  `/usr/local/bin/work-healthcheck.sh.bak-20261104-50a`。
 
 ## 6. 容量证据
 

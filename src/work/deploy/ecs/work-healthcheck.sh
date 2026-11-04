@@ -16,7 +16,12 @@ host=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
   https://meet.we-meet.online/work-host/v2/orgs || true)
 [ "$host" = "200" ] || { status="degraded"; issues+=("host_http=$host"); }
 
-for unit in work-directory-sync.service work-directory-sync-full.service; do
+# work-reconcile-scan exits 2 when it finds an orphan Run, so a failed result here is a
+# finding for the on-call, not an infrastructure fault (#50 A). Measured on the pilot host:
+# `systemctl show -p Result --value` on a unit that does not exist prints "success", so an
+# unwired host never false-alerts - and equally, this probe cannot tell "ran clean" from
+# "never ran". Whether the scan is actually wired is verify-r0a-0027.sh's reconcile block.
+for unit in work-directory-sync.service work-directory-sync-full.service work-reconcile-scan.service; do
   result=$(systemctl show -p Result --value "$unit" 2>/dev/null || true)
   if [ "$result" = "failed" ]; then
     status="degraded"
