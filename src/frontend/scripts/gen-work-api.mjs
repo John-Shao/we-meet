@@ -234,8 +234,21 @@ export declare function readSse(
 function outputs() {
   const yamlText = fs.readFileSync(SPEC_PATH, 'utf8')
   const operations = parseOperations(yamlText)
+  const runtime = renderClient(yamlText, operations)
+  // D2' names the contract as the single source of truth for the CSRF header. The renderer
+  // emits one literal, so refuse to produce any artifact when that literal is not the name
+  // the contract's CsrfToken parameter declares - a renamed header in the spec would
+  // otherwise ship a client still sending the old one, with only the server having moved.
+  const contractHeader = /CsrfToken:\s*\r?\n\s*name:\s*(\S+)/.exec(yamlText)?.[1]
+  const rendered = [...runtime.matchAll(/headers\['([^']+)'\] = csrf;/g)].map((match) => match[1])
+  if (!contractHeader || rendered.length !== 1 || rendered[0] !== contractHeader) {
+    throw new Error(
+      `CSRF header is not single-sourced: contract declares ${contractHeader ?? 'nothing'}, ` +
+        `client renders [${rendered.join(', ')}]`,
+    )
+  }
   return [
-    { file: RUNTIME_FILE, text: renderClient(yamlText, operations) },
+    { file: RUNTIME_FILE, text: runtime },
     { file: TYPES_FILE, text: fs.readFileSync(TYPES_SOURCE, 'utf8') },
     { file: DECLARATION_FILE, text: renderDeclarations(operations) },
   ]
@@ -243,7 +256,15 @@ function outputs() {
 
 function main() {
   const check = process.argv.includes('--check')
-  const files = outputs()
+  let files
+  try {
+    files = outputs()
+  } catch (error) {
+    // The CSRF parity guard refuses to emit an artifact it cannot vouch for. Report it the
+    // way drift is reported - one line the operator acts on - rather than a stack trace.
+    console.error(String(error?.message ?? error))
+    process.exit(1)
+  }
   if (check) {
     for (const { file, text } of files) {
       const current = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : ''
