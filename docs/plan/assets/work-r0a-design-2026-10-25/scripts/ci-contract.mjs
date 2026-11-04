@@ -279,6 +279,25 @@ const tests = spawnSync(process.execPath, ['--test', ...testFiles], {
 });
 if (tests.status !== 0) fail('contract tests failed');
 
+// L-C04-04 (DR2 finding 6/13, closed 2026-11-04): the runtime package ships policy evaluators that
+// no job ever executed - 38 assertions with a green repo behind them. They are pure node with sibling
+// imports only, so this gate is the cheapest place that already runs in CI.
+// The two orchestration suites (advance-runtime, runtime-recovery) are deliberately NOT here: they
+// require 'ajv', which is installed nowhere in this repo, and a missing dependency must surface as a
+// named gap rather than as a step that quietly reports nothing.
+const POLICY_DIR = path.join(HERE, '..', 'work-r0a-runtime-2026-10-25', 'policy');
+const policyTests = fs
+  .readdirSync(POLICY_DIR)
+  .filter((file) => file.endsWith('.test.mjs'))
+  .sort()
+  .map((file) => path.join(POLICY_DIR, file));
+check(policyTests.length >= 3, `runtime policy suites discovered (${policyTests.length})`);
+const policy = spawnSync(process.execPath, ['--test', ...policyTests], {
+  cwd: POLICY_DIR,
+  stdio: 'inherit',
+});
+if (policy.status !== 0) fail('runtime policy tests failed');
+
 if (failures > 0) {
   console.error(`\n${failures} contract gate check(s) failed`);
   process.exit(1);
