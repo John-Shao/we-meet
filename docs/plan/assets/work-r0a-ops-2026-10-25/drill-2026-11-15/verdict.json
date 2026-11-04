@@ -1,63 +1,546 @@
 {
   "schema_version": "1",
-  "drill_window": {"start": null, "end": null, "tz": "+08:00"},
+  "drill_window": {
+    "start": null,
+    "end": null,
+    "tz": "+08:00"
+  },
   "host": null,
   "helm_revision": null,
   "migration_ledger": null,
   "steps": [
-    {"step": "P1",  "section": "preflight", "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "P2",  "section": "preflight", "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "P3",  "section": "preflight", "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "P4",  "section": "preflight", "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "P5",  "section": "preflight", "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "P6",  "section": "preflight", "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "P7",  "section": "preflight", "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "P8",  "section": "preflight", "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "P9",  "section": "preflight", "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "P10", "section": "preflight", "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "P11", "section": "preflight", "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D1-1","section": "C03-D1",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D1-2","section": "C03-D1",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D1-3","section": "C03-D1",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D1-4","section": "C03-D1",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D1-5","section": "C03-D1",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D1-6","section": "C03-D1",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D1-7","section": "C03-D1",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D2-1","section": "C22-D2",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D2-2","section": "C22-D2",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D2-3","section": "C22-D2",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D2-4","section": "C22-D2",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D2-5","section": "C22-D2",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D2-6","section": "C22-D2",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D2-7","section": "C22-D2",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D3-1","section": "C22-D3",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D3-2","section": "C22-D3",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D3-3","section": "C22-D3",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D3-4","section": "C22-D3",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D3-5","section": "C22-D3",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D3-6","section": "C22-D3",   "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D4-1", "section": "C22-D4",  "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D4-2", "section": "C22-D4",  "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D4-3", "section": "C22-D4",  "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D4-4", "section": "C22-D4",  "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D4-5", "section": "C22-D4",  "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D4-6a","section": "C22-D4",  "verdict": null, "ts": null, "evidence": [], "notes": "apply_execution_entitlement SQL 函数形式"},
-    {"step": "D4-6b","section": "C22-D4",  "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "D4-6c","section": "C22-D4",  "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "S1-R06","section":"C03-S1",   "verdict": null, "ts": null, "evidence": [], "notes": "多节点在途 server 重启补跑"},
-    {"step": "C13-0","section": "C13",     "verdict": null, "ts": null, "evidence": [], "notes": "只跑前置审计：驱动不存在=与 #40-A 一致；C13-1..8 移出本次演练（A 裁定）"},
-    {"step": "C28-1","section": "C28",     "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "C28-2","section": "C28",     "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "C28-3","section": "C28",     "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "C28-4","section": "C28",     "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "C28-5","section": "C28",     "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "C28-6","section": "C28",     "verdict": null, "ts": null, "evidence": [], "notes": ""},
-    {"step": "C28-7","section": "C28",     "verdict": null, "ts": null, "evidence": [], "notes": ""}
+    {
+      "step": "P1",
+      "section": "preflight",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "P2",
+      "section": "preflight",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "P3",
+      "section": "preflight",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "P4",
+      "section": "preflight",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "P5",
+      "section": "preflight",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "P6",
+      "section": "preflight",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "P7",
+      "section": "preflight",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "P8",
+      "section": "preflight",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "P9",
+      "section": "preflight",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "P10",
+      "section": "preflight",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "P11",
+      "section": "preflight",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D1-1",
+      "section": "C03-D1",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D1-2",
+      "section": "C03-D1",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D1-3",
+      "section": "C03-D1",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D1-4",
+      "section": "C03-D1",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D1-5",
+      "section": "C03-D1",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D1-6",
+      "section": "C03-D1",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D1-7",
+      "section": "C03-D1",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D2-1",
+      "section": "C22-D2",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D2-2",
+      "section": "C22-D2",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D2-3",
+      "section": "C22-D2",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D2-4",
+      "section": "C22-D2",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D2-5",
+      "section": "C22-D2",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D2-6",
+      "section": "C22-D2",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D2-7",
+      "section": "C22-D2",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D3-1",
+      "section": "C22-D3",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D3-2",
+      "section": "C22-D3",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D3-3",
+      "section": "C22-D3",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D3-4",
+      "section": "C22-D3",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D3-5",
+      "section": "C22-D3",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D3-6",
+      "section": "C22-D3",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D4-1",
+      "section": "C22-D4",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D4-2",
+      "section": "C22-D4",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D4-3",
+      "section": "C22-D4",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D4-4",
+      "section": "C22-D4",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D4-5",
+      "section": "C22-D4",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D4-6a",
+      "section": "C22-D4",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": "apply_execution_entitlement SQL 函数形式"
+    },
+    {
+      "step": "D4-6b",
+      "section": "C22-D4",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "D4-6c",
+      "section": "C22-D4",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "S1-R06",
+      "section": "C03-S1",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": "多节点在途 server 重启补跑"
+    },
+    {
+      "step": "C13-0",
+      "section": "C13",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": "只跑前置审计：驱动不存在=与 #40-A 一致；C13-1..8 移出本次演练（A 裁定）"
+    },
+    {
+      "step": "C28-1",
+      "section": "C28",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "C28-2",
+      "section": "C28",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "C28-3",
+      "section": "C28",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "C28-4",
+      "section": "C28",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "C28-5",
+      "section": "C28",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "C28-6",
+      "section": "C28",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "C28-7",
+      "section": "C28",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "S1-1",
+      "section": "C22-S1",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "S1-2",
+      "section": "C22-S1",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "S1-3",
+      "section": "C22-S1",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "S1-4",
+      "section": "C22-S1",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "N01-1",
+      "section": "C03-N",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "N01-2",
+      "section": "C03-N",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "N01-3",
+      "section": "C03-N",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "N03-1",
+      "section": "C03-N",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": ""
+    },
+    {
+      "step": "C13-1",
+      "section": "C13",
+      "verdict": null,
+      "ts": null,
+      "evidence": [],
+      "notes": "可选：仅记录现有主密钥指纹（SHA-256 前 8 hex，不落值）。与裁定 A 不冲突（不做轮换），是否执行由执行人在备注里判定。"
+    },
+    {
+      "step": "C13-2",
+      "section": "C13",
+      "verdict": "excluded_by_ruling_A",
+      "ts": null,
+      "evidence": [],
+      "notes": "不演练：2026-11-03 裁定 A（#40）把主密钥轮换/重加密驱动移出 R0a 退出门；清单第 118 行已写「C13-2..8 移出」，但表格 123-130 行仍列着这些步骤——本字段是占位，防止演练当天既漏记又与裁定相悖。重开条件见 pilot-checklist C13 note。"
+    },
+    {
+      "step": "C13-3",
+      "section": "C13",
+      "verdict": "excluded_by_ruling_A",
+      "ts": null,
+      "evidence": [],
+      "notes": "不演练：2026-11-03 裁定 A（#40）把主密钥轮换/重加密驱动移出 R0a 退出门；清单第 118 行已写「C13-2..8 移出」，但表格 123-130 行仍列着这些步骤——本字段是占位，防止演练当天既漏记又与裁定相悖。重开条件见 pilot-checklist C13 note。"
+    },
+    {
+      "step": "C13-4",
+      "section": "C13",
+      "verdict": "excluded_by_ruling_A",
+      "ts": null,
+      "evidence": [],
+      "notes": "不演练：2026-11-03 裁定 A（#40）把主密钥轮换/重加密驱动移出 R0a 退出门；清单第 118 行已写「C13-2..8 移出」，但表格 123-130 行仍列着这些步骤——本字段是占位，防止演练当天既漏记又与裁定相悖。重开条件见 pilot-checklist C13 note。"
+    },
+    {
+      "step": "C13-5",
+      "section": "C13",
+      "verdict": "excluded_by_ruling_A",
+      "ts": null,
+      "evidence": [],
+      "notes": "不演练：2026-11-03 裁定 A（#40）把主密钥轮换/重加密驱动移出 R0a 退出门；清单第 118 行已写「C13-2..8 移出」，但表格 123-130 行仍列着这些步骤——本字段是占位，防止演练当天既漏记又与裁定相悖。重开条件见 pilot-checklist C13 note。"
+    },
+    {
+      "step": "C13-6",
+      "section": "C13",
+      "verdict": "excluded_by_ruling_A",
+      "ts": null,
+      "evidence": [],
+      "notes": "不演练：2026-11-03 裁定 A（#40）把主密钥轮换/重加密驱动移出 R0a 退出门；清单第 118 行已写「C13-2..8 移出」，但表格 123-130 行仍列着这些步骤——本字段是占位，防止演练当天既漏记又与裁定相悖。重开条件见 pilot-checklist C13 note。"
+    },
+    {
+      "step": "C13-7",
+      "section": "C13",
+      "verdict": "excluded_by_ruling_A",
+      "ts": null,
+      "evidence": [],
+      "notes": "不演练：2026-11-03 裁定 A（#40）把主密钥轮换/重加密驱动移出 R0a 退出门；清单第 118 行已写「C13-2..8 移出」，但表格 123-130 行仍列着这些步骤——本字段是占位，防止演练当天既漏记又与裁定相悖。重开条件见 pilot-checklist C13 note。"
+    },
+    {
+      "step": "C13-8",
+      "section": "C13",
+      "verdict": "excluded_by_ruling_A",
+      "ts": null,
+      "evidence": [],
+      "notes": "不演练：2026-11-03 裁定 A（#40）把主密钥轮换/重加密驱动移出 R0a 退出门；清单第 118 行已写「C13-2..8 移出」，但表格 123-130 行仍列着这些步骤——本字段是占位，防止演练当天既漏记又与裁定相悖。重开条件见 pilot-checklist C13 note。"
+    }
   ],
-  "summary": {"pass": 0, "fail": 0, "na": 0, "total": null},
+  "summary": {
+    "pass": 0,
+    "fail": 0,
+    "na": 0,
+    "total": 64
+  },
   "writeback_targets": {
     "pilot_checklist": "docs/plan/assets/work-r0a-ops-2026-10-25/pilot-checklist.json",
     "work_project_section": "docs/plan/work-project.md#3.3",
     "drill_checklist": "docs/plan/work-r0a-drill-checklist-2026-11-15.md"
+  },
+  "checklist_reconciliation": {
+    "as_of": "2026-11-04",
+    "method": "双向集合比对：从清单表格第一列取步骤号，与本文件 steps[].step 求差集",
+    "md_steps_missing_from_verdict": [],
+    "verdict_extra_steps": [
+      "S1-R06"
+    ],
+    "note": "verdict 覆盖清单全部步骤号；S1-R06 是本模板自有的恢复步骤（清单里写作「S1-R06 重启失败」一行，不是同样的表格首列格式，故不计为缺失）。C13-2..8 以 excluded_by_ruling_A 占位：2026-11-03 裁定 A（task #40）把主密钥轮换/重加密驱动移出 R0a 退出门，清单第 118 行写「C13-2..8 移出」，但 123-130 行的表格仍列着它们——两处矛盾，删行属语义决定，留给执行人/John；占位只为演练当天既不漏记也不与裁定相悖。",
+    "open_contradiction": "work-r0a-drill-checklist-2026-11-15.md 第 118 行裁定 vs 第 123-130 行表格"
   }
 }
