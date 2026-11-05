@@ -1156,9 +1156,55 @@ C＝归 R0b 控制面、R0a 只留库测）。三个选项的代价写在 `work-
 **变异核对**：把 `AND o.state = 'unknown'` 摘掉 ⇒ 红在 `operation=dispatching: reservation=released reserved=0, want still held/1000 (only 'unknown' releases)`；
 还原后增量文件 sha 与变异前记录逐字节相同（`dc06a340…`），再跑 authz 仍 ok。⇒ 这条谓词不是装饰，红因是断言文本。
 门禁（这次文档编辑之后复跑）：design 82/82、`ci-contract` exit 0、ops 30/30。**0029 仍未部署**：现网 ledger 28，§5.21 那条人工收口口径继续有效。
+
+**【11-05 23:1x 补一条 CI 侧的存续体】**上面那个范围是活库用例在管的，而那批用例没有 `WORK_TEST_PG_URL` 就整组 skip ——
+**CI 上没人盯着"有人把谓词摘掉＝退回 blanket release"**。所以在 `release-assets.test.mjs` 里加了一条静态镜像守卫：
+读增量原文（先剥掉注释行再比，注释喂不饱断言），要求 helper 里同时有 `r.state = 'held'`、`o.state = 'unknown'`、
+`receipt_recorded` 豁免，且**不许**出现状态集合写法（放宽成集合＝要重裁 #79）；再核 PUBLIC 撤权行数必须等于 2
+（少一行就是活库穷举守卫 `function_privilege_sweep` 会红的那件事），最后把触发器的 WHEN 集合与"从 `work.run` 的 CHECK 枚举
+现读推出的非终态补集"逐项比对——终态集合以后随枚举漂移也红在这里。**三条变异各自验过**：摘谓词／删一行撤权／WHEN 里塞 `waiting`
+⇒ 三条分别红在自己的断言文本上；还原后增量 sha 与变异前逐字节相同。门禁：design **83/83**（这条守卫被自动发现）、`ci-contract` exit 0。
+
+**【11-05 23:2x 更正上面那条"CI 上没人看"——它是错的，原句不删】** `work-r0a-gates.yml:198-226` 的 `go-migrate` job
+（working-directory `src/work`、postgres:16 service）**就设了** `WORK_TEST_PG_URL`，并跑 `go test ./... -p 1 -count=1`
+⇒ 活库用例在 CI 确实跑。守卫仍然保留，但理由换成真的两个：**无库的 `ci-contract` 路径上几十毫秒就红**，不必等一次带 PG 的 job；
+并且"范围只到 unknown"这条规则要有一句可引用的断言，而不是只留在增量文件的注释里（注释会被改写，断言不会）。
+**这是我连着第二次把没取证的定性写进文档**（同一天前一次是 `held` 那句）——读到"CI 不管这个"这类句子，先去 workflow 找那行 env，别信我。
+下方那行"design 82/82"是加守卫之前的读数，现算 **83/83**。
 部署它要走 `work-migrate apply` 的真实半径（迁移＋二进制＋重启），要另一次授权；
 授权之前 §5.21 那段"手工 SQL 收口"的口径**仍然有效**，runstream gauges 的 `held_on_terminal` 仍是发现手段。
 门禁（最后一次编辑之后）：design 82/82、`ci-contract` 82＋38＋24＝144／exit 0、ops 30/30、`bash -n` 过。
+
+### 5.28 发布链现在自己声明带哪些二进制（#54 根因，2026-11-05 23:1x，**主机未动**）
+
+值班口径里有一条隐含假设："包里有的东西＝rollout 会装的东西"。查 #79 影响面时枚举 `cmd/` 才发现这个假设早就不成立：
+树里有 **13 个二进制**，打包名单是手抄的 **11 个** ——`work-e2e-seed`（注入批次的前置）与 `work-replay` 从来没进过包，
+`deploy/` 与 runbook 也零引用。于是主机上那份 seed 是 Oct 30 手工放的：没有源提交、没有 checksum、没有安装路径。
+**#54 当时"完成"的是取证与裁定，根因没修**，现在把它改回未完成并修在这里。
+
+改法与 §5.26 同一条思路（别让脚本抄结论）：`make-release.sh` 构建期把清单**推自 `cmd/` 目录**并写成包内 `BINARIES`
+（推不出至少 12 条就拒绝出一个短包）；`rollout` 读它——**包里没这份声明就直接中止**，并按声明逐件核文件是否存在；
+常驻服务那条安装循环不变，另加一条只装演练二进制的循环。`verify` 新增一段报这两个名字在场与 sha，
+**`MISSING` 的含义是"这台机还没跑过带它们的 rollout"，是部署状态，不是缺陷**，别照它报警。
+
+**部署时要注意的行为变化（第一次跑带这段的 rollout 会看到）**：演练那条循环会把 `/usr/local/bin/work-e2e-seed`
+**换成仓库构建的那一份**（旧文件按既有规则留 `.bak-<stamp>`）。替换现网二进制属生产写，仍按项授权；
+`work-e2e-seed` 与 `work-replay` 都没有 unit，装上不等于有东西在跑它们。
+
+**半径要读脚本自己报的那一行，不要读本文或任何单子里的数字。** 值班与授权文档里"装 10 个二进制"这句活了很久，
+而 #54 之后 `install_binary` 有三处调用（`work-migrate`＋常驻 10＋演练 2）＝**13**；现在 `rollout` 在收尾时自己打印
+`binaries this rollout will replace (dry-run plan) = 13 -> …`（由 `install_binary` 里的计数数组累加，不是抄的常数）。
+**同一次现读还翻出一个对授权有决定意义的事实**：`work-migrate` 内嵌迁移链，0029 落地后它与主机/上一份包**字节不同**
+（包内清单当场报 `./work-migrate: FAILED`；传真件后 55/55 OK）——也就是说"这一包只动脚本、没有功能 delta"这类话
+**以后必须现读比对，不能再按上一包的结论说**。取证见 §5.26 的 dry-run 记录：ledger 前后 28、无新 `.bak`／dump、worker 进程未动。
+
+**机器看守**：`release-assets.test.mjs` 新增一条穷举——`cmd/` 里每个二进制必须**恰好**被一条安装循环覆盖一次
+（`work-migrate` 由 migrate 那一步按名单独装），漏一个就报"进不了现网"，重复一个就报"安装有两处说法"；
+同一条测试还要求打包侧确是从树里推、包内确有 `BINARIES`、rollout 确读它、verify 确点名 seed。
+**取证**：三包 `bash -n` 过；包 `work-release-0034` 印出 `packaging 13 binaries`、`BINARIES` 13 行、`sha256sum -c` 55/55 OK；
+`release-assets` 13/13、design 84/84、`ci-contract` exit 0、ops 30/30。
+两次我自己造的错也记在这：变异红在空集下限而不是等值那条（下限先说话）；abort 提示里一句英文 "derives the list from cmd/"
+被 §5.26 那条同一个守卫读成表名——改措辞，**没有挂豁免**。
 
 ## 6. 容量证据
 

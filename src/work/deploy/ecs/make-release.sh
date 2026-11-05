@@ -38,7 +38,17 @@ echo "release chain ends at increment $(cat "$OUT/MIGRATION_TAIL")"
 
 echo "building binaries in $GO_CONTAINER ($GO_WORKDIR)"
 docker exec -w "$GO_WORKDIR" "$GO_CONTAINER" sh -c "mkdir -p /tmp/work-release && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o /tmp/work-release/ ./cmd/..."
-for bin in work-api work-relay work-worker work-export work-authz work-content-proxy work-egress work-migrate work-reconcile work-directory-sync work-provider-setup; do
+# 打包哪些二进制，从树里推，不手抄。手抄那份名单停在 11 个，而 cmd/ 下有 13 个：
+# work-e2e-seed 因此从来不在包里（#54 的根因——演练前置依赖它，主机上只有 Oct 30 那份手工件，
+# 发布链连它的名字都不认），work-replay 同理。以后加第 14 个，这里自动跟上。
+mapfile -t PACK_BINS < <(ls "$ROOT/cmd")
+if (( ${#PACK_BINS[@]} < 12 )); then
+  echo "FATAL: derived only ${#PACK_BINS[@]} entries from $ROOT/cmd - the list is unreadable, refusing to ship a short package" >&2
+  exit 1
+fi
+printf '%s\n' "${PACK_BINS[@]}" > "$OUT/BINARIES"
+echo "packaging ${#PACK_BINS[@]} binaries: ${PACK_BINS[*]}"
+for bin in "${PACK_BINS[@]}"; do
   docker cp "$GO_CONTAINER:/tmp/work-release/$bin" "$(cygpath -w "$OUT/$bin" 2>/dev/null || echo "$OUT/$bin")"
 done
 

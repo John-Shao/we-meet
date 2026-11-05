@@ -721,6 +721,30 @@ I-3 单独一次，且做之前先确认当时那份内容备份的覆盖时刻�
 暂存发布目录里 `seed_in_staged_release_count=0`。三件注入都用得上它；照 #54=B 该"从仓库构建＋记 sha＋上传"，
 那是**第四件生产写**（换 `/usr/local/bin` 里的一个二进制），我没有顺手做，也没有把主机那份说成包内件。
 
+**【11-06 07:3x 更新本段：根因已修，但"换二进制"这件事仍需你点头，且有一条边界要先知道】**
+`make-release` 现在从 `cmd/` 推清单并写进包内 `BINARIES`（包 `work-release-0035` 报 `packaging 13 binaries`），
+`rollout` 会按声明逐件核并在收尾自报半径（`binaries this rollout will replace (dry-run plan) = 13 -> …`），
+`verify` 报这两个演练二进制在场与 sha——所以"发布链不认 seed"这个根因闭合了（任务 #54 因此不是重开，是等部署）。
+**先取证的对比（两边都只跑 `--help`，不碰库、不带凭据）**：仓库构建版与主机 Oct 30 版**字节数相同（10,010,784）、命令行选项逐条一致**
+（`-actor -background -client-request-id -content-dir -goal -org -permission-mode -template`），但 **sha 不同**
+（包内 `582fcf5c…` 对主机 `ef3b44b9…`，`cmp` 判 NOT identical）⇒ 不是同一个构建，只是接口没变。
+【07:4x 现读更正下面那句"没写入等价的证据"，并加一条三件注入都必须知道的凭据要求】
+下面这句写的时候只做到 CLI 对照；现在包内那件二进制我在容器里对**装了含 0029 全链的临时库**真跑过：superuser 连接下 `SEED_RC=0`，
+写出 `tasks=1／runs=1（queued）／inputs=1／outbox=2／内容对象=1`，且它自带的"input 重放必须与存储内容一致"自检通过。
+**但换成继承 `work_worker` 的探针登录，第一步就失败**：`context_setup_failed: set work RLS context: ERROR: permission denied to set role "work_api"（SQLSTATE 42501）`
+⇒ seed 是用 `SET ROLE work_api` 建租户上下文的，**它要求的凭据是能进入 `work_api` 的那个登录，不是 worker DSN**；
+`cmd/work-e2e-seed/main.go` 里 `app.org_id`／`app.subject_id` 零命中也印证它走 SET ROLE 而不是 GUC。
+**这条要求此前任何文档都没写**（`deploy/` 与 runbook 对 seed 零引用，本轮现读）——所以 I-2／I-3 的种子步骤**必须用 api 侧 DSN**，拿错 DSN 会在 `context_setup_failed` 上撞 42501，而那不是 schema 或二进制的问题。
+**【07:4x 已验，这句不再是推断】**换一个**继承 `work_api` 的非超用户登录**跑同一件包内二进制 ⇒ `SEED_API_RC=0`，写出 `tasks=1／runs=1(queued)／inputs=1／outbox=2／内容对象=1`；换 `work_worker` 登录则 42501 失败。⇒ 种子步骤的正确 DSN 是 **api 侧**，这一条现在有正反两面证据。清理现读：`role_left=0／db_left=0`（`DROP OWNED BY`／`DROP DATABASE`／`DROP ROLE` 分三步各 rc=0），判别用的 `snap0029c`／`snap0029e` 保留。
+两个副产物：① 我上一轮说"没覆盖角色面与 RLS"方向对，机制比我猜的更具体——不是 RLS 挡写入，是 `SET ROLE` 权限挡执行；
+② 收尾时把 `DROP OWNED BY`＋`DROP ROLE`＋`DROP DATABASE` 塞进同一条 `-c` 批量里整体失败（rc=1），分开执行才成，
+并且我**现读确认** `role_present=0／db_present=0` 才算清理完成——容器里留一个已知口令的登录角色不是可接受的残留。
+
+**这条边界必须说清**：我只验到 CLI 形状，**没验**它对现网 schema 的写入是否等价（那要真跑一次播种＝生产写）。
+因此建议的顺序是：**先 rollout（旧件按规则留 `.bak-<stamp>`，可回滚），再跑 I-2／I-3 的种子**——
+让"新 seed 第一次真跑"发生在有回滚点的时刻，而不是反过来。若你反过来先跑注入，用的是主机那件旧构建，
+#54 的追溯缺口就还在那条证据链上（现网跑的 SHA 找不到出处）。
+
 ## 16. #78 落地后的现场取证：三次 `--dry-run`，零生产写（2026-11-05 23:2x–23:4x）
 
 **这一节没有换过任何服务、没装过任何 `/usr/local/bin` 文件、没跑迁移**。主机侧动作只有三类：
@@ -751,6 +775,13 @@ C 段那批进程没被重启；跑完 `ts_end=23:38:16`。
 
 **待你点头的下一件生产写（不在本节范围内）**：把修好的 `rollout-r0a-0027.sh`（sha 前缀 `caccdd301d742fa9`）与随包脚本装进
 `/usr/local/bin`——最小半径＝只 `install` 脚本件，不停服务、不迁移、不换二进制；完整 rollout 的半径是停 6 单元／重装 10 二进制／重启 7 单元，
+**【11-06 07:3x 更正，且这条更正改变授权时该看的数字：那个"10"是 #54 之前的读数。现读 `rollout-r0a-0027.sh` 的 `install_binary` 出现在三处
+（`work-migrate`、常驻 10 件循环、演练 2 件循环）⇒ 半径是 13 个二进制。我没有在文档里留一个新数字去等它再次过期：脚本现在自己数并报出来——
+包 `work-release-0035` 的 `--dry-run` 原文印出 `binaries this rollout will replace (dry-run plan) = 13 -> …` 与 `package declares 13 binaries`、
+`package chain ends at increment 29`。授权时以那一行为准。另一个决定性的新事实：**`work-migrate` 与主机/0030 那份不再逐字节相同**
+（它内嵌迁移链，0029 落地后字节变了；包内清单对 0030 硬链件报 `./work-migrate: FAILED`，传真件后 55/55 OK）
+⇒ **"这次只是脚本变化、没有功能 delta"这句话已经不适用**，下一次 rollout 会真替换二进制。
+那次 dry-run 同样零副作用：ledger 前后都 28、17:00 之后无新 `.bak` 无新 dump、`work-worker` 仍是 pid 1875248／14:10:52。】**
 本轮**没有任何功能变化需要它**。**#77 一行没动**，收口路径的修复仍未开始。
 **【11-06 00:1x 更正，原文不删】**：这后半句在本节写完约半小时后已被推翻——#77 实装为增量 **0029**
 （`work.run` 终态触发器调 `release_unreceipted_reservations`，闸上已 `receipt_recorded` 的不撤、`unknown` 不撤），

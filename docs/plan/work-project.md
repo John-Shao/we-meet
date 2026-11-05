@@ -413,6 +413,7 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 **误提交披露（2026-11-01）**：`62d3f8dd6` 用整文件 `git add` 暂存本文件，把并行会话当时未提交的 13 行 R0a/R0b 状态行（R0b 设计增量横幅、`src/backend/work/README.md` 链接校正、席位归并拆分行、第四～七轮复审台账等）一起带进了 `aliyun-dev`。内容未被破坏、他们仍可继续改，但这批文字在未经其作者确认的情况下进了共享分支，属我的暂存失误；此后本文件仍按 hunk 过滤暂存。历史不改写（那需要 force-push，且会与并行会话互相覆盖）。
 
 **D3-N03 导出作业崩溃接管（2026-11-01，已执行）**：故障矩阵里标 `partial` 的三条崩溃/接管用例（D3-N01/N03/N06）此前只有 N02/N04/N05 的库侧交错测量，本轮把 **N03（导出 worker 写完文件后在 `complete_audit_export` 之前崩溃）** 做成可重复执行的数据库层测试 `src/work/cmd/work-export/lease_crash_test.go`（一次一次性 PG 库，走真实领域函数，不模拟、不缩短任何检查）：worker A 领取 30 秒租约后， Lease 未到期时 B 领取必须 `audit_export_not_claimable`；让租约自然过期（这就是进程被杀后服务端的真实状态）后 B 接管成功；**A 的迟到 `complete` 与 `fail` 都被 `audit_export_lease_lost` 拒绝**，库里 `lease_owner` 仍是 B、状态仍 `running`（死 worker 不能覆盖在任 worker，等价于矩阵要求的 `duplicate_objects: 0`）；B 完成一次后重复完成同样被拒（不会写第二个对象）；审计侧 `audit_export.claimed` 恰 2 行、`audit_export.completed` 恰 1 行、下载票据 0 行（崩溃那一轮不得发出可下载凭证，对应 `download_tickets_issued: 0`）。`gofmt`/`go vet` 干净，`go test ./cmd/work-export` PASS(1.6s)。排查过程留下的两条实现事实：`create_audit_export`/`claim_audit_export` 经 `assert_session_subject` 要求会话 `app.subject_id` 与操作者一致（缺省报 `actor_mismatch` 42501），投影视图 `work.audit_export_view` 的键是 `id` 不是 `export_id`。**仍未关闭**：D3-N01（内容粉碎租约接管）与 D3-N06（急停开关/组织停服期间的后台作业）还没做成可执行用例，C03/C09 因此仍保持 `partial`，本轮不把它们改口成 done。
+**【07:4x 这条已从推断变证据】**换一个继承 `work_api` 的非超用户登录跑同一件包内二进制 ⇒ `SEED_API_RC=0`、写出 `tasks=1／runs=1(queued)／inputs=1／outbox=2／内容对象=1`；换 `work_worker` 登录仍 42501 ⇒ 种子的正确 DSN 是 **api 侧**，正反两面都取到了。清理分三步各 rc=0，现读 `role_left=0／db_left=0`；判别用的 `snap0029c`／`snap0029e` 保留。
 
 **`POST /work/v1/admin/provider-config/revoke` 落地（2026-11-01）**：provider 写面五条里唯一一条「不依赖任何未定语义」的——契约只要求 CSRF + `{reason:1..200}`（`additionalProperties:false`）、200 返回 `{org_id,state:"revoked"}`，SQL 侧 `work.revoke_provider_config` 已存在且天然幂等（无 active 配置就直接返回），因此可在连通探测与密钥入库形态有结论之前先交付，满足 D-08b「可即时吊销 + 强审计」。新增 `src/work/internal/api/provider_config_revoke.go` 并注册：先 CSRF 守卫，再按契约拒绝缺 `reason`／空白／超过 200 **字符**（用 `utf8.RuneCountInString`，中文理由不能被字节数误拒）／任何多余字段，然后调领域函数，响应严格只有 `org_id` 与 `state` 两个键。**测试是 DB 支撑的**（`provider_config_revoke_test.go`，自建 `provider_credential`(sts_role) + `provider_access_config` 种子）：五个非法体 400、无 CSRF 头 403（实测真实码是 `csrf_invalid`，守卫先于领域函数，不是 `admin_access_denied`；断言按实际行为写）、200 且 `len(body)==2`、库内配置 `state='revoked'` 且 `revoked_at` 非空、`active` 计数归零、`work.audit_event` 里 `provider.config_revoked` 恰 1 行、重复吊销仍 200 且不追加第二行审计、随后 `GET /admin/provider-config` 转 404 `not_found`、非 owner 成员带合法 CSRF 仍 403 `admin_access_denied`（`assert_org_owner` 抛 `owner_access_denied`→`42501`→目录映射）。漂移门禁白名单 **8→7**，注释同步改为「四条 provider 写面属范围内未实现」；`internal/api` 全包在 `git archive HEAD` 干净副本＋本改动上 ok（59s），`gofmt`/`go vet` 干净。**未做**：管理面的「吊销」按钮（契约只约束 API，UI 动作不在本轮范围内自造），以及 #282 的部署——本端点同样只到「代码 + CI 绿」。
 
@@ -959,6 +960,58 @@ D5:185"Inbox 只在首页/导航角标轮询；不做跨 Task SSE"的角标一�
 **0029 的影响面跑完了，并且备出一个"待授权即可部署"的包（2026-11-06 00:1x，仓库＋本机活库，现网仍未动）**：#77 那半边补三件事。**（一）影响面**：触发器改的是"任何把 Run 写成终态的动作"，所以按暴露面同步跑了 `./internal/api/ ./internal/runflow/`（**ok 333s／ok 81s**）与后台那轮的 `finishing`／`authz`（**ok 16s／ok 60s**，同一 tip 的复跑，两条来源都留）——**没有回归**。这条必须说：先前单跑 authz 包绿过，但红出现在 api 包的穷举守卫里，"子集绿＝全绿"在这轮第二次被推翻。**（二）可部署件**：`make-release.sh` 重打包 **work-release-0032**，构建期读数 `release chain ends at increment 29`、包内 `MIGRATION_TAIL=29`、53 件；包里 rollout／verify 的 sha 与仓库件逐字节相同（`caccdd301d742fa9`／`cf751ea93a704436`），包内 verify 含那条 `terminal_release_guard` 探针。**这正是 #78 的端到端正证**：加了一个增量（0029），发布脚本一行没改就能说清"这包带到 29"。**（三）一条必须摆在部署前面的追溯性缺口**：这个包的 `RELEASE_COMMIT` 仍是 `8879f5691`，而 0029 与两处脚本改动**还没 commit**——也就是包里那批文件对应的源码在任何远端提交里都不存在。**部署之前应先 commit＋push（push 每批单独点头）**，否则现网跑的又是一份"SHA 找不到出处"的东西，这与我们这几天一直在消的"手工装、包内 sha 与现网不一致"是同一个病根。**（四）过期标签按实清掉**：授权单 §7 那句"＝待裁 #52 那条缝"改成"#52 已裁 A"（你选的"修旧标签"），任务卡 #45 的旧标题"余 7 项待裁"也已改成"8 项已全部签收"；授权单 §16 那句"#77 一行没动"就地加带日期更正（原文不删，因为它记的是 23:4x 的事实）；runbook §5.21 的"待修 #77（未动代码）"就地标注 0029 已实装**但现网未部署 ⇒ 那条人工 release 的值班口径在部署之前仍然有效**——这条不加，值班就会照着 §5.27 等一个还没上线的自动行为。**门禁（本段这次编辑之后）**：design 82/82、`ci-contract` 144／exit 0、ops 30/30。**未 commit、未 push；0029 未部署。**
 
 **#79 裁＝B 并落回 0029：自动释放只覆盖 `operation.state='unknown'` 且闸上无回执（2026-11-05 23:0x，仓库＋本机活库，现网未动）**：起因不是新需求，而是我按"传播到账本之外的活文本"去扫 0029 的语义影响面，读到两句**更早已签**的文本与它相冲——数据设计 :279（用量缺失时"保留预留并进入用量核对"）与 runbook §5.17:651（"是否对已终态任务释放预留属运维决策，不得为清库存放宽"）。第一版 0029 对所有终态 Run blanket release，比 #76 那句更宽，等于用一个自动动作替掉了"核对期间保留"和"运维判断"两件事。**登记为待裁 #79（不自决改），主签选 B**：谓词加 `AND o.state = 'unknown'`，A 案明确未采用。**重做证据**：整链重灌 rc=0、catalog 重采、增量与 catalog 两个 checksum 回钉 manifest、`go test ./internal/authz/` ok 36s（4 条→5 条，新增"非 unknown 不撤"）。**两条自己造的错，形状各不同**：① 新控制组我原想造 `unresolved`，被 Operation 状态机当场拒（`invalid_transition:operation:dispatching->unresolved`，23514）——那状态只能由 `reconcile_operation` 产出，伪造它＝测一个生产拿不到的形状；改用夹具自然落在的 `dispatching`，验的还是同一条谓词。② 更要紧的是**B 之后回执那条对照会静默变成空跑**：两个条件同时护着同一行，不逼出 `unknown` 它就只证明状态条件、不再证明回执——用例里显式置 `unknown`，让"只有回执"这一件事负责。**变异核对**：摘掉新谓词 ⇒ 红在 `operation=dispatching: reservation=released reserved=0, want still held/1000 (only 'unknown' releases)`；还原后增量 sha 与变异前逐字节相同（`dc06a340…`）⇒ 谓词是存续体不是装饰。**同一轮的主签第二个点头＝"先提交这批文件再谈部署"**：push 按老规矩单独等点头，`RELEASE_COMMIT` 与包（`work-release-0032`，链尾读数 29）的追溯性缺口就此进入闭合队列。**0029 仍未部署**，现网 ledger 28 ⇒ §5.21 的人工 release 口径继续有效、runstream 的 `held_on_terminal` 仍是发现手段；细节在 runbook §5.27。
+**提交与包（同轮次续做）**：主签点头"先提交这批文件再谈部署"⇒ 12 个文件已 commit 为 **`dff95937b`**（工作树干净；**push 未做，按规矩单独等点头**）。
+提交后重打包 **work-release-0033**：`RELEASE_COMMIT=dff95937b`（＝这一包终于有可对证的源提交，追溯性缺口就此闭合）、链尾读数 29、
+包内 rollout／verify 与仓库件 sha 相同、52/52 逐字节核对 OK。**顺手消掉一个会被误用的东西**：先前那个 `work-release-0032` 是在 B 收窄**之前**打的包，
+已改名为 `work-release-0032.STALE-pre-B-do-not-deploy` ——它装上去会是 blanket release 那版，与刚裁的 B 相反。
+本段文档改动**未 commit**（点头只覆盖那 12 个文件）。
+
+**#79=B 补上 CI 侧的存续体（2026-11-05 23:1x，纯仓库侧）**：B 的真语义由活库用例管，但那批用例没有 `WORK_TEST_PG_URL` 就整组 skip ⇒ **CI 上没人看守"谓词被摘掉＝退回 blanket release"**，而这正是刚裁掉的那个形状。于是在 `release-assets.test.mjs` 加一条静态镜像守卫：读增量原文时**先剥注释行再比**（上一轮我被"中文注释里有那个路径"骗过一次，注释不能喂饱断言），要求 helper 同时含 `r.state = 'held'`／`o.state = 'unknown'`／`receipt_recorded` 豁免，并**拒绝**状态集合写法（放宽成集合＝需重裁）；再核 PUBLIC 撤权行数恰为 2（少一行就是活库穷举守卫 `function_privilege_sweep` 会红的那件事）；最后把触发器的 WHEN 集合与"从 `work.run` 的 CHECK 枚举现读推出的非终态补集"逐项比对，让终态集合日后随枚举漂移也红在这里。**三条变异各自验过**（摘谓词／删一行撤权／WHEN 里塞 `waiting`）⇒ 三条分别红在自己的断言文本上，还原后增量 sha 与变异前逐字节相同（`dc06a340…`）。
+**但我给这条守卫写的理由是错的，已按原文更正**：我断言"活库用例没有 `WORK_TEST_PG_URL` 就整组 skip ⇒ CI 上没人看守"，
+而 `.github/workflows/work-r0a-gates.yml:198-226` 的 `go-migrate` job（working-directory `src/work`、postgres:16 service）**明确设了**
+`WORK_TEST_PG_URL` 并跑 `go test ./... -p 1 -count=1` ⇒ 0029 那五条活库用例在 CI 是跑的。守卫留着，理由换成真的两点
+（无库路径几十毫秒就红；把范围写成可引用的断言而不只留在增量注释里）。**这是我今天第二次把没取证的定性写进文档**——
+前一次是"held 只是派生说法"，同一条纪律：先去找那个旋钮真在不在、谁在读，再下结论。
+
+**#54 的根修：发布链不再靠手抄二进制名单（2026-11-05 23:1x，纯仓库侧，主机未动）**：查 #79 影响面时顺手枚举了 `cmd/`，结果是 **13 个二进制对上一份手抄的 11 个名单**——`work-e2e-seed`（注入批次的前置）与 `work-replay` 从来没进过包，而且 `deploy/` 与 runbook 里**零引用**。所以"seed 只在主机上"不是谁忘了上传，是**发布链不认它**：没有源提交、没有 checksum、没有安装路径。这与 #47／#57／#62 同一条病（打包／安装／校验三段缺一段），也与 #78 同源（把结论抄成一个数字或一份名单，就一定会过期）。
+做法照 #78 的形状让包自己说：`make-release.sh` 构建期把清单**推自 `cmd/` 目录**并写进包内 `BINARIES`（推不出至少 12 条就拒绝出一个短包）；`rollout` 没有该声明就中止、并按声明逐件核文件存在，另给演练二进制一条独立安装路径（替换主机那份 Oct 30 手工件发生在 rollout 里、sha 进日志，而不是在构建时被悄悄换掉）；`verify` 报两者在场与 sha，`MISSING` 只代表"还没跑过带它的 rollout"，是部署状态不是缺陷。
+**新增守卫把这条钉成穷举**：`cmd/` 每个二进制必须**恰好**被一条安装循环覆盖一次（`work-migrate` 由第 4 步按名单独装）——漏一个＝它进不了现网，重复一个＝安装有两处说法；同一测试还断言打包侧确是从树里推、包内确有 `BINARIES`、rollout 确读它、verify 确点名 seed。
+**取证**：三包 `bash -n` 过；重打包 **work-release-0034** ⇒ `packaging 13 binaries`、`BINARIES` 13 行、`sha256sum -c` **55/55 OK**；`release-assets` 13/13；**design 84/84**、`ci-contract` exit 0、ops 30/30。
+**两条自己的错，按实记**：① 变异（把演练循环里的名字清空）确实红了，但红在**空集下限**那条而不是集合相等那条——下限先触发，说明这类变异下等值断言更晚说话，写守卫时两条都得留；② 我给 rollout 写的 abort 提示里那句英文 "derives the list **from** cmd/" 被 `doc-schema-refs` 按 SQL 的 `FROM <name>` 读成不存在的表 ⇒ **同一条守卫今天第二次抓我**（上一次是 #78 那句提示文字），照旧改措辞、**不挂豁免**。
+**主机一行没动**：现网那份手工 seed 仍在 `/usr/local/bin`，替换它属于下一次 rollout（生产写，按项授权）。**任务 #54 从"已闭环"改回 `in_progress`**——先前那次完成的是取证与裁定，根因当时没修。本批 7 个文件**未 commit、未 push**。
+
+**活库全量覆盖补齐了，并且是把"被截断的那次"当未跑处理的（2026-11-05 23:2x，纯验证，主机未动）**：后台那次 CI 等价全量跑先前只到字母序 `intent` 就断，我**没有**把它的 26 个 ok 当成全量绿——先用 `go list ./...` 算出 46 个包、与日志里的并集做差，得到 **11 个从未被报告的包**（其中正是与 0029 最相关的 `runflow` 与 `migrate`，还有 `relay`／`receipt`／`runtime`／`testpg`／`migrations`），按 #79=B 之后的树单独补跑：**11 个全 ok、RC=0**（migrate 159s、relay 74s、runflow 40s）。随后后台那次自己跑完并回报，于是把两份日志取并集现算：**46/46 包全部有结论，两份日志里 `FAIL`／`--- FAIL`／`panic` 行数都为 0**；关键包点名核对过绿名单：`api` 213s／`authz` 35s／`runflow` 60s／`migrate` 136s／`finishing` 6s／`relay` 75s。**判据按现读而不是按通知**：`go test ./...` 这类批量运行只在退出码、行数下限与"差集为空"三件同时成立时才算覆盖完成——上一轮我差点把 35 行的截断日志当成全量绿。
+这条覆盖意味着：0029（B 范围）＋ PUBLIC 撤权＋发布链自声明这三件事，在**与 CI 相同的命令形状**下（串行 `-p 1`、活 PG、`WORK_TEST_PG_URL`）没有回归；`_pg` 用例在 CI 也确实跑（`work-r0a-gates.yml:198-226`），所以这份本地证据与远端门禁是同一条路径，不是替代它。
+**仍然没有的那半**：以上全是"树内＋本机活库"的证据，**现网一行没动**——ledger 28、手工 seed 原位、`dff95937b` 未 push、这 7 个文件未 commit。R0a 的完成条件里剩下的都是**要你点头或属外部动作**的事：部署（0029＋发布链这段）、push、注入批次 I-2／I-3 共 9 格，以及 13 项 blocking 中的商务／法务／真实用户指标那几项。
+**推送状态的现读（别按 ahead 数误判）**：本分支跟踪的 `origin/fix-r0a-envelope-29` 报 12 ahead／0 behind，
+但那是**分支自己的陈旧远端 ref**；按集成目标算 `origin/aliyun-dev..HEAD` = **1**，就是 `dff95937b` 这一笔（先前那 11 笔已在 `aliyun-dev` 上，
+`git branch -r --contains` 逐笔核过：8879f5691／3745527ff／552f26309 都含）。**另一件必须点名**：`--branches --not --remotes` 列出 13 笔任何远端都没有的提交，
+其中 12 笔不属于这次工作（含一笔"更新文档"），它们挂在别的本地分支上——**谁推这条分支都会把它们一起带上去**，
+所以 push 之前要以 `git log --branches --not --remotes` 现读清单，不能只信 ahead 计数。
+
+**半径这件事从文档数字搬进了脚本自报（2026-11-06 07:3x，含一次只读 dry-run，主机状态未变）**：#54 那段落地后我回头核授权用的说法，发现"停 6 单元／重装 10 二进制"这句还在四处被引用，而 `install_binary` 现在有三处调用＝**13 个二进制**——那串数字当时正被我拿去请部署点头，属于"用过期句子要授权"。修法不是把 13 再抄一遍：`install_binary` 里累加计数数组、收尾自报 `binaries this rollout … = N -> 名单`，守卫改成要这两个动作都在（不比数值），变异删掉那行 echo ⇒ 红在"值班就只剩一个会过期的文档数字"，还原后 sha 与备份逐字节相同（`ec6454d2…`）。
+**现网侧证据来自包 `work-release-0035` 的 `--dry-run`**（机上文件 sha＝仓库件，先按包内清单核对到 55/55 OK 才跑）：印出 `package declares 13 binaries`、`package chain ends at increment 29`、`binaries this rollout will replace (dry-run plan) = 13 -> …`、`duplicate governance receipts: 0`，RC=0；前后读数不动——ledger 28／28、17:00 后新 `.bak` 0、新 dump 0、`work-worker` 仍是 pid 1875248／14:10:52。
+**一次推翻我旧结论的发现，对授权是决定性的**：清单核对时 `./work-migrate: FAILED` —— 它内嵌迁移链，0029 落地后字节就变了，与主机/上一包**不再逐字节相同**（传真件后 OK）。所以"这一包只是脚本变化、零功能 delta"这句对 0035 **不成立**，下一次 rollout 会真替换二进制；今后这类话必须现读比对，不能沿用上一包的结论。
+门禁（最后一次编辑之后）：design 84/84、`ci-contract` exit 0、ops 30/30。**未 commit／未 push 现为 8 个文件**；0029、发布链这段、演练二进制安装都仍未部署。
+
+**verify 的 0029 探针补上了判别力（2026-11-06 07:3x，只读，主机未动）**：我先前那条 `terminal_release_guard` 只核"触发器在不在＋body 里有没有 `receipt_recorded`"，**分不清 #79=B 前后两版**——也就是说现网校验会给一个未裁的 blanket-release 构建报绿，而那一版在本仓库真存在过（0029 第一版）。收紧做法：探针改核**谓词原文** `o.state = ''unknown''` 与 `gate_state = ''receipt_recorded''`，并显式禁止 `like '%unknown%'` 这种模糊匹配（**prosrc 含注释**，注释里出现过 `'unknown'` 就会误判成已收窄——这正是模糊匹配的失效方式）。
+**正反证据是拿两个真库做的**：装过 B 前一版的 `snap0029c` ⇒ `terminal_release_guard=FALSE`；装过 B 版的 `snap0029e` ⇒ `true`；再用直接读谓词独立对照一次（`f`／`t`）。守卫侧也加了静态断言（探针必须核谓词原文、必须不许模糊匹配），**变异做实**：第一次我用字面串去 replace，needle 没命中、脚本报 `MUT_NOT_APPLIED` 而 `MUT_RC=0` —— 那是一次"看起来验证过其实什么都没改"的假验证，按纪律不采信；改成先从文件里现取 needle 再替换，红因正是"verify 的 0029 探针不再核 #79=B 的谓词"，还原后 sha 与备份逐字节相同。design 84/84、`ci-contract` exit 0、ops 30/30（最后一次代码/文档编辑之后复跑）。
+
+**给注入批次去风险：换 seed 之前先核接口，核出来是"接口没变、构建变了"（2026-11-06 07:3x，两边只跑 `--help`，无库无凭据）**：#54 修好后第一次 rollout 会替换主机那份 Oct 30 手工 `work-e2e-seed`，所以先去比两侧命令行：仓库构建版与主机版**字节数相同 10,010,784、七个选项逐条一致**（`-actor -background -client-request-id -content-dir -goal -org -permission-mode -template`），但 sha 不同（`582fcf5c…` 对 `ef3b44b9…`，`cmp` 判 NOT identical）⇒ 不是同一个构建，只是接口没变。**边界要说清**：这**只**证明演练命令的形状不变，**没**证明它对现网 schema 的写入等价——那要真跑一次播种，属生产写。因此我给的建议顺序是**先 rollout（旧件留 `.bak-<stamp>`，可回滚）再跑 I-2／I-3 的种子**，让"新 seed 第一次真跑"发生在有回滚点的时刻；反过来先跑注入的话，用的仍是追溯不到的旧构建，#54 那个缺口还挂在那条证据链上。写在授权单 §15 末段。
+**同轮把上一条"边界"里我错的那句纠正了**：我说"对现网 schema 的写入等价要真跑播种＝生产写才能验"——不对，容器里就能验。
+把包内 Linux 二进制对装了**含 0029 全链**的临时库（模板取自 `snap0029e`）真跑一次：`SEED_RC=0`，
+写出 `tasks=1／runs=1(queued)／inputs=1／outbox=2／内容对象=1`，seed 自带的"重放必须与存储内容一致"自检通过；
+两次前置失败（缺 `WORK_RUNTIME_VERSION`、缺 `work_seat` 成员 ⇒ `work_seat_required`）都是夹具缺前提，不是二进制缺陷。
+**改后真正的边界**：以 superuser 跑的 ⇒ 没覆盖 `work_worker` 角色面与 RLS；不经过 Temporal／API；临时库非现网。
+**【07:4x 又往前推了一步，方向对、机制猜错】**换个**继承 `work_worker` 的探针登录**再跑同一件二进制：
+第一步就失败 —— `context_setup_failed: set work RLS context: ERROR: permission denied to set role "work_api"（SQLSTATE 42501）`。
+⇒ seed 靠 `SET ROLE work_api` 建租户上下文（`main.go` 里 `app.org_id`／`app.subject_id` 零命中，不走 GUC），
+所以**它要的是能进 `work_api` 的登录，不是 worker DSN**；我原先说"RLS 会挡写入"是错的方向——挡的是执行前的 SET ROLE。
+**这条凭据要求以前任何文档都没写**（`deploy/` 与 runbook 对 seed 零引用），已补进授权单 §15：I-2／I-3 的种子步骤必须用 api 侧 DSN，
+拿错 DSN 会在 `context_setup_failed` 上撞 42501，那不是 schema 或二进制的问题，别把它当失败去放宽判据。
+清理也现读确认：`DROP OWNED BY`＋`DROP ROLE`＋`DROP DATABASE` 写进同一条 `-c` 批量会整体失败（rc=1），分开执行才成，
+最终 `role_present=0／db_present=0`、临时库已删——留一个已知口令的登录角色在容器里不能算收尾。
+顺带记一次老坑复发：`SEED_RC=$?` 接在管道后取到的是 `head` 的退出码（显示 0 而实际 1）——**判退出码必须让它自己落到不被管道改写的变量里**，这条我今天第二次犯。**门禁（本次编辑之后）**：design **83/83**（新守卫被自动发现）、`ci-contract` exit 0、ops 30/30。**这批 3 个文件未 commit、未 push**（点头只覆盖那 12 个文件；push 仍单独等点头），**0029 仍未部署**。
 
 ## 5. 当前问题
 

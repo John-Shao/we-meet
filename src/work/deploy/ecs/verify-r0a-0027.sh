@@ -48,7 +48,11 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   where m.version is null"
 # Same reason as the 0028 probe below: a ledger row only proves a file ran. 0029 is the
 # increment that stops a terminal Run from keeping a reservation held, and its whole subject is
-# the trigger - so read the live catalog for the trigger plus the receipt carve-out in its body.
+# the trigger - so read the live catalog for the trigger plus the ruled scope inside the helper body.
+# The scope check is the point: #79=B narrowed the release to operations in state 'unknown' with no
+# recorded receipt, so a probe that only looked for the trigger would happily certify the pre-B
+# blanket-release build. Both shapes exist in this repo's history, which is what makes this check
+# worth having rather than decorative.
 psql_ro "select 'terminal_release_guard=' || case when exists (
   select 1 from pg_trigger t
   join pg_proc p on p.oid = t.tgfoid
@@ -59,7 +63,8 @@ psql_ro "select 'terminal_release_guard=' || case when exists (
     and exists (select 1 from pg_proc h
       join pg_namespace n on n.oid = h.pronamespace
       where n.nspname = 'work' and h.proname = 'release_unreceipted_reservations'
-        and pg_get_functiondef(h.oid) like '%receipt_recorded%'))
+        and pg_get_functiondef(h.oid) like '%gate_state = ''receipt_recorded''%'
+        and pg_get_functiondef(h.oid) like '%o.state = ''unknown''%'))
   then 'true' else 'FALSE' end"
 # A ledger row only proves the file ran. 0028 is the increment that gives an elapsed
 # execute lease an exit, so read the live function bodies: a database that recorded
@@ -184,6 +189,20 @@ if [[ -n "$scan_timer" ]]; then
   [[ "${configured:-0}" == "$synced" ]] || echo "  WARN: scan org list ($configured) != directory orgs ($synced); new tenants may be unscanned"
 fi
 grep -rl work-reconcile /etc/systemd/system 2>/dev/null | sed 's/^/  referenced by: /'
+
+echo
+echo "== drill binaries (#54) =="
+# These two used to live only as hand-placed files: the release never carried work-e2e-seed, so a
+# drill prerequisite had no source commit, no checksum and no install path. Reported, not asserted -
+# MISSING means the host has not run a rollout that installs them yet, which is a deployment state,
+# not a defect in the package.
+for b in work-e2e-seed work-replay; do
+  if [[ -x /usr/local/bin/$b ]]; then
+    printf '  %s installed sha16=%s\n' "$b" "$(sha256sum /usr/local/bin/$b | cut -c1-16)"
+  else
+    printf '  %s MISSING (packaged, not yet installed by a rollout)\n' "$b"
+  fi
+done
 
 echo
 echo "== runstream gauges wiring (C17 minimal set) =="

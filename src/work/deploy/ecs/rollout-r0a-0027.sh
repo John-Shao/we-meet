@@ -58,9 +58,21 @@ if [[ -z "$MIGRATOR_URL" ]]; then
   echo "--migrator-url (or MIGRATOR_DATABASE_URL) is required" >&2
   exit 1
 fi
-for bin in work-migrate work-api work-relay work-worker work-authz work-content-proxy work-egress work-directory-sync work-reconcile work-export work-provider-setup; do
-  [[ -f "$RELEASE/$bin" ]] || { echo "missing $RELEASE/$bin" >&2; exit 1; }
-done
+# Which binaries the package must carry is the package's own declaration (#54: a hand-copied list
+# here froze at 11 while cmd/ has 13, so the drill's own seed binary was never shipped and never
+# checked). A package that cannot state its contents is refused rather than silently half-installed.
+if [[ ! -f "$RELEASE/BINARIES" ]]; then
+  echo "aborting: $RELEASE/BINARIES is missing - rebuild the release with make-release.sh, which derives that list at build time" >&2
+  exit 1
+fi
+pack_bin_count=0
+while read -r bin; do
+  [[ -n "$bin" ]] || continue
+  pack_bin_count=$((pack_bin_count + 1))
+  [[ -f "$RELEASE/$bin" ]] || { echo "missing $RELEASE/$bin (declared by $RELEASE/BINARIES)" >&2; exit 1; }
+done < "$RELEASE/BINARIES"
+(( pack_bin_count >= 12 )) || { echo "aborting: $RELEASE/BINARIES declares $pack_bin_count binaries, expected at least 12" >&2; exit 1; }
+echo "package declares $pack_bin_count binaries"
 
 run() {
   if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -83,6 +95,11 @@ ledger_max() {
 
 install_binary() {
   local name="$1"
+  # The rollout radius is counted here, not copied into a document. Duty text said "装 10 二进制"
+  # for weeks and it was still being quoted in an authorization request after #54 added the drill
+  # binaries (13 now) - a number someone approves against a stale sentence is worse than no number.
+  declare -ga INSTALLED_BINARIES
+  INSTALLED_BINARIES+=("$name")
   if [[ -f "/usr/local/bin/$name" ]]; then
     run cp -p "/usr/local/bin/$name" "/usr/local/bin/$name.bak-$STAMP"
   fi
@@ -201,6 +218,18 @@ run env WORK_DATABASE_URL="$MIGRATOR_URL" /usr/local/bin/work-migrate status
 echo "== 5. binaries =="
 for bin in work-api work-relay work-worker work-authz work-content-proxy work-egress work-directory-sync work-reconcile work-export work-provider-setup; do
   install_binary "$bin"
+done
+# Drill-side binaries. They are installed only because the package now declares them: the host copy
+# of work-e2e-seed was hand-placed on 2026-10-30 and no release ever carried it (#54), which is how
+# a drill prerequisite ended up with no source commit and no checksum. Replacing that file is a
+# production write, so it happens here, under a rollout, and the sha goes into the log - not
+# silently at build time. Nothing in this step runs them.
+for bin in work-e2e-seed work-replay; do
+  if [[ -f "$RELEASE/$bin" ]]; then
+    install_binary "$bin"
+  else
+    echo "note: $bin is not in $RELEASE - skipping (the service units do not need it)"
+  fi
 done
 
 echo "== 6. service account, PKI, env =="
@@ -349,6 +378,10 @@ fi
 run systemctl restart work-worker
 
 echo "== 10. smoke =="
+# Read the radius from the run itself: count plus names, so an operator authorizing or reviewing a
+# rollout never has to trust a number written in prose. In --dry-run this is the plan, not the result.
+if [[ "$DRY_RUN" -eq 1 ]]; then RADIUS_MODE="will replace (dry-run plan)"; else RADIUS_MODE=replaced; fi
+echo "binaries this rollout $RADIUS_MODE = ${#INSTALLED_BINARIES[@]} -> ${INSTALLED_BINARIES[*]}"
 # A unit that systemd never stopped keeps serving the pre-rollout inode: the new
 # binary is on disk, /proc/<pid>/exe points at the deleted one. Catch that here
 # instead of discovering it hours later from an API response shape.

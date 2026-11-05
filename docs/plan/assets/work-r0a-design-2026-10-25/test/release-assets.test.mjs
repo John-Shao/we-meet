@@ -326,3 +326,129 @@ test('the verify script carries no stale increment list of its own', () => {
   assert.deepEqual(extra, [], `verify 里核了 manifest 没发布的增量名（会永远报 missing）：${extra.join(', ')}`);
   assert.doesNotMatch(verifyText, /missing in \d+\.\.\d+/, 'verify 的读数标签里又写死了编号区间');
 });
+
+// #79=B 的静态镜像守卫。真语义在 internal/authz/terminal_reservation_release_pg_test.go 的活库用例里，
+// 那些用例在 CI 确实会跑（work-r0a-gates.yml:198-226 的 go-migrate job 设了 WORK_TEST_PG_URL 并跑
+// go test ./... -p 1 -count=1）。这条仍然要有，理由是实在的两点：它在没有数据库的 ci-contract 路径上
+// 几十毫秒就红，不必等一次带 PG 的 job；并且它把"范围只到 unknown"写成一句可引用的规则，而不是只藏在
+// 增量文件的注释里——注释会被改写，断言不会。
+// （本段原写的是"CI 不跑活库用例"，那是没取证的定性，11-05 23:1x 按 workflow 原文更正。）
+// 只与代码比较：注释里出现同样的字符串不算满足——上一轮我自己就被"中文注释里有那个路径"骗过一次。
+test('the release chain accounts for every binary in cmd once, by name', () => {
+  // #54 的形状：cmd/ 有 13 个二进制，手抄的打包名单停在 11 个，于是演练前置 work-e2e-seed 从来没进过
+  // 包（主机上只有一份 Oct 30 手工件，没有源提交、没有 checksum）。名单现在由构建期从 cmd/ 推，
+  // 这条断言把"每个二进制恰好在运行时安装集或演练安装集里出现一次"钉成穷举：
+  // 漏一个＝它进不了现网；重复一个＝安装路径有两处说法。
+  const cmdNames = readdirSync(join(WORK_DIR, 'cmd'), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+  assert.ok(cmdNames.length >= 12, `只从 cmd/ 认出 ${cmdNames.length} 个二进制，枚举在空转`);
+
+  const releaseText = readFileSync(RELEASE, 'utf8');
+  const rolloutText = readFileSync(join(WORK_DIR, 'deploy/ecs/rollout-r0a-0027.sh'), 'utf8');
+  const verifyText = readFileSync(join(WORK_DIR, 'deploy/ecs/verify-r0a-0027.sh'), 'utf8');
+
+  // 打包侧必须从树里推，不许再手抄
+  assert.match(releaseText, /ls "\$ROOT\/cmd"/, 'make-release 不再从 cmd/ 推二进制清单，名单会重新过期');
+  assert.match(releaseText, />\s*"\$OUT\/BINARIES"/, 'make-release 必须把清单写进包里，rollout 才有可核对的声明');
+  assert.match(rolloutText, /\$RELEASE\/BINARIES/, 'rollout 必须按包里的声明核文件，而不是按自己抄的名字');
+  assert.match(verifyText, /work-e2e-seed/, 'verify 不报演练二进制，"装了没有"就又只剩口述');
+
+  // 安装侧：rollout 里每一个 `for bin in …; do` 都算一条覆盖路径（常驻服务一条、演练工具一条）。
+  // 按循环体形状去匹配会漏掉演练那条（它的下一行是 if 守卫），所以只看循环头。
+  const loops = [...rolloutText.matchAll(/for bin in ([^;]+); do/g)].map((m) => m[1].trim().split(/\s+/).filter(Boolean));
+  assert.ok(loops.length >= 2, '解析不到 rollout 的两条安装循环（常驻＋演练），这条断言在空转');
+  const flattened = loops.flat();
+  const installed = [...new Set(flattened)];
+  const dupes = flattened.filter((n, i) => flattened.indexOf(n) !== i);
+  assert.deepEqual(dupes, [], `同一个二进制被两条安装循环覆盖：${dupes.join(', ')}`);
+  // work-migrate 由第 4 步按名字单独装，不属于任何 for 循环
+  const unaccounted = cmdNames.filter((n) => n !== 'work-migrate' && !installed.includes(n));
+  assert.deepEqual(unaccounted, [], `cmd/ 里有二进制没有安装路径（进不了现网）：${unaccounted.join(', ')}`);
+  assert.ok(installed.includes('work-e2e-seed'), '演练前置 work-e2e-seed 必须有自己的安装路径（#54 的那份手工件就是这么来的）');
+
+  // 半径由脚本自己数并打印：文档里的"装 N 个二进制"活该过期（#54 之后 10→13，而那串数字当时正被
+  // 拿去请授权）。这条断言要的是"计数与报数"这两个动作都还在，不是要它等于某个值。
+  assert.match(rolloutText, /INSTALLED_BINARIES\+=\("\$name"\)/, 'install_binary 不再累加计数，收尾那行就会报零');
+  assert.match(rolloutText, /INSTALLED_BINARIES\+=\("\$name"\)/, 'install_binary 不再累加计数，收尾那行就会报零');
+  assert.match(rolloutText, /binaries this rollout \$RADIUS_MODE/, 'rollout 收尾不再自报半径，值班就只剩一个会过期的文档数字');
+
+  // 现网侧的正反判别已用两个真库做过：装过 B 前一版的库报 FALSE、装过 B 版的报 true。
+  // 这条断言守的是那个判别能力本身——探针要是缩回成"只认触发器在不在"，它就会给未裁的
+  // blanket-release 版报绿，而那一版在这仓库的历史里真存在过（0029 的第一版）。
+  const verifyProbe = readFileSync(join(WORK_DIR, 'deploy/ecs/verify-r0a-0027.sh'), 'utf8');
+  assert.match(
+    verifyProbe,
+    /o\.state = ''unknown''/,
+    "verify 的 0029 探针不再核 #79=B 的谓词 - 那它会给 B 前那一版报绿，判别力就没了",
+  );
+  assert.match(
+    verifyProbe,
+    /gate_state = ''receipt_recorded''/,
+    'verify 探针缩回成模糊字符串就会被供应商注释喂饱 - 要核的是谓词原文',
+  );
+  assert.doesNotMatch(
+    verifyProbe,
+    /pg_get_functiondef\(h\.oid\) like '%unknown%'/,
+    "探针里别再用 '%unknown%' 这种模糊匹配：prosrc 含注释，注释里出现过 'unknown' 就会误判为已收窄",
+  );
+});
+
+test('increment 0029 keeps the #79=B scope and its privilege narrowing', () => {
+
+  const sql = readFileSync(join(WORK_DIR, 'migrations/increments/0029_terminal_reservation_release.sql'), 'utf8');
+  const code = sql
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*--/.test(line))
+    .join('\n');
+  assert.ok(
+    code.includes('CREATE OR REPLACE FUNCTION work.release_unreceipted_reservations'),
+    '增量里没有那个 helper，这条断言在空转',
+  );
+
+  const helper = /CREATE OR REPLACE FUNCTION work\.release_unreceipted_reservations[\s\S]*?\n\$\$;/.exec(code);
+  assert.ok(helper, '解析不到 release_unreceipted_reservations 的函数体');
+  const body = helper[0];
+  assert.match(body, /r\.state = 'held'/, '预留状态谓词不见了 - 不看 held 就等于对所有预留动手');
+  assert.match(
+    body,
+    /o\.state = 'unknown'/,
+    "#79=B 的收窄谓词不见了：0029 只回收 operation.state='unknown' 那一单，摘掉它＝退回 blanket release",
+  );
+  assert.match(body, /d\.gate_state = 'receipt_recorded'/, '回执反向豁免不见了 - 已记回执的用量是真发生过的，不能被自动撤');
+  assert.doesNotMatch(body, /o\.state\s+IN\s*\(/, 'helper 用状态集合替掉了单值 unknown - 范围被放宽，要重裁 #79');
+
+  const revokes = code
+    .split(/\r?\n/)
+    .filter((line) => /REVOKE ALL ON FUNCTION work\.(release_unreceipted_reservations|run_terminal_reservation_release)/.test(line));
+  assert.equal(
+    revokes.length,
+    2,
+    `新函数的 PUBLIC 撤权只剩 ${revokes.length} 行（应为 2）- 活库穷举守卫 function_privilege_sweep 会红，别把它当测试噪音`,
+  );
+
+  const trigger = /CREATE TRIGGER run_terminal_reservation_release[\s\S]*?EXECUTE FUNCTION/.exec(code);
+  assert.ok(trigger, '解析不到那枚触发器');
+  // 终态集合从 schema 枚举现读推导，不抄三个词：集合随枚举漂移是同一类错（演练清单那 5 行刚修过一次）
+  const baseline = readFileSync(join(WORK_DIR, 'migrations/baseline/0002_initial_r0a_schema.sql'), 'utf8');
+  const runTable = /CREATE TABLE work\.run \([\s\S]*?\n\);/.exec(baseline);
+  assert.ok(runTable, '解析不到 work.run 的建表原文');
+  const stateCheck = runTable[0].match(/state\s+text NOT NULL CHECK \(state IN \(([^)]*)\)\)/);
+  assert.ok(stateCheck, '找不到 work.run.state 的 CHECK 约束原文 - 这条守卫就没有依据了');
+  const enumVals = stateCheck[1].split(',').map((s) => s.trim().replace(/'/g, '')).filter(Boolean);
+  assert.ok(enumVals.length >= 6, `只解析到 ${enumVals.length} 个 run.state 取值，解析器大概看错了行`);
+  const nonTerminal = ['queued', 'active', 'waiting', 'cancel_requested'];
+  assert.deepEqual(
+    nonTerminal.filter((v) => !enumVals.includes(v)),
+    [],
+    '非终态集合与枚举不再一致 - 推导终态的前提变了，这条守卫要一起改',
+  );
+  const terminal = enumVals.filter((v) => !nonTerminal.includes(v)).sort();
+  assert.equal(terminal.length, 3, `从枚举推出的终态有 ${terminal.length} 个（${terminal.join('/')}），与触发器的固定三值不符`);
+  const whenStates = [...trigger[0].matchAll(/'([a-z_]+)'/g)]
+    .map((m) => m[1])
+    .filter((v) => enumVals.includes(v))
+    .sort();
+  assert.deepEqual(whenStates, terminal, `触发器 WHEN 集合 ${whenStates.join('/')} 不等于枚举推出的终态集合 ${terminal.join('/')}`);
+});
