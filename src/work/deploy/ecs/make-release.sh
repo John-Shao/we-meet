@@ -43,8 +43,22 @@ cp "$ROOT/scripts/pilot-metrics.sql" "$OUT/"
 cp "$ROOT/scripts/run-pilot-metrics.sh" "$OUT/"
 cp "$ROOT/scripts/runstream-gauges.sql" "$OUT/"
 cp "$ROOT/scripts/run-runstream-gauges.sh" "$OUT/"
+# #57 (2026-11-05): the restore drill script lived only on the host, so D3-b could not run on a
+# rebuilt machine. It ships with the release now; byte-identical to the host copy (sha256
+# f069f8fcce8c2f3f8a6b98643d57954a6a834dc07fec334756c878222dd43843) at the time of import.
+cp "$ROOT/deploy/ecs/work-db-restore-drill.py" "$OUT/"
 cp "$ASSETS/log-scan.mjs" "$OUT/"
+# C16 复跑通道：扫描器与包装脚本必须成对交付。此前只拷扫描器、rollout 又不安装，脚本里
+# 「与本脚本同目录」那条候选路径在真机上永远命中不了，只剩 /tmp 手工放置那一条路。
+cp "$ROOT/scripts/work-c16-log-scan.sh" "$OUT/"
 cp "$ROOT/deploy/ecs/work-authz.env.example" "$OUT/"
+# 2026-11-05（L-C04-03 的 env 半）：这三个单元素环境此前没有任何模板，work-api／work-relay／
+# work-directory-sync 的旋钮只能从 Go 源码读；runbook §5.3 还直接指挥人设 WORK_DIRECTORY_*。
+# 只入包不自动落地：rollout 不对它们调 install_env，现网 /etc/work 下已有真环境文件，
+# 装模板属于部署行为变化、要单独授权。
+cp "$ROOT/deploy/ecs/work-api.env.example" "$OUT/"
+cp "$ROOT/deploy/ecs/work-relay.env.example" "$OUT/"
+cp "$ROOT/deploy/ecs/work-directory-sync.env.example" "$OUT/"
 cp "$ROOT/deploy/ecs/work-content-proxy.env.example" "$OUT/"
 cp "$ROOT/deploy/ecs/work-egress.env.example" "$OUT/"
 cp "$ROOT/deploy/ecs/work-runtime.env.example" "$OUT/"

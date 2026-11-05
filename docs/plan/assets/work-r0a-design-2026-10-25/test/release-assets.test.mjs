@@ -151,3 +151,58 @@ test('packaged shell scripts parse', () => {
   }
   assert.deepEqual(failures, [], 'bash -n rejected a script that ships in the release');
 });
+
+// #57 and L-C04-06 both came from the same shape of gap: a file that ships in the tarball but is
+// never installed, so the operator's "it is right there" reasoning is true of the package and
+// false of the host. The C16 re-run channel had exactly that - make-release.sh copied log-scan.mjs
+// since ruling A, yet no rollout step installed it, and work-c16-log-scan.sh itself was never in
+// the copy list at all, so the wrapper's "next to this script" candidate could not resolve.
+// Asserting the whole chain, because any one of the three links being missing produces the same
+// silent result.
+test('the C16 re-run channel is packaged, installed and verified - not just copied', () => {
+  const releaseText = readFileSync(RELEASE, 'utf8');
+  const rolloutText = readFileSync(join(WORK_DIR, 'deploy/ecs/rollout-r0a-0027.sh'), 'utf8');
+  const verifyText = readFileSync(join(WORK_DIR, 'deploy/ecs/verify-r0a-0027.sh'), 'utf8');
+
+  const problems = [];
+  for (const file of ['work-c16-log-scan.sh', 'log-scan.mjs']) {
+    if (!new RegExp(`^cp "\\$(ROOT|ASSETS)/[^"]*${file.replace('.', '\\.').replace('\\.', '\\.')}[^"]*" "\\$OUT/"`, 'm')
+      .test(releaseText)) {
+      problems.push(`make-release.sh does not copy ${file}`);
+    }
+    if (!new RegExp(`install [^\\n]*\\b${file.replace('.', '\\.')}\\b`, 'm').test(rolloutText)) {
+      problems.push(`rollout-r0a-0027.sh never installs ${file} - it would sit in the release dir only`);
+    }
+    if (!verifyText.includes(file)) {
+      problems.push(`verify-r0a-0027.sh does not check ${file} in place`);
+    }
+  }
+  assert.deepEqual(problems, [], 'the C16 scanner pair is not delivered end to end');
+
+  // Non-vacuity: the three files this test reads are real, and the wrapper is in the copy list the
+  // other checks parse, so a regex that stopped matching would surface here rather than as a pass.
+  assert.ok(shippedNames.has('work-c16-log-scan.sh'), 'the wrapper is not in the parsed copy list at all');
+  assert.ok(shippedNames.has('log-scan.mjs'), 'the scanner is not in the parsed shipped set at all');
+});
+
+// runbook §5.4 and the 2026-11-05 pilot write-authorization sheet both tell the operator to name the
+// age identity as `WORK_BACKUP_IDENTITY=…`. The tree carried two copies of the drill: deploy/ecs
+// honours that variable, the host copy (imported on 2026-11-05) hard-codes the 2026-10-29 path - and
+// packaging the second one made both instructions silently ineffective on the host. The tie below is
+// to the knob the docs command, so packaging a copy that lost it goes red instead of shipping a drill
+// that cannot be pointed at a rotated recipient chain.
+test('the packaged restore drill honours the identity knob the runbook commands', () => {
+  const rel = copySources.find((p) => p.endsWith('work-db-restore-drill.py'));
+  assert.ok(rel, 'the release must package work-db-restore-drill.py (#57 第二半)');
+  const text = readFileSync(join(WORK_DIR, rel), 'utf8');
+  assert.match(
+    text,
+    /os\.environ\.get\(\s*["']WORK_BACKUP_IDENTITY["']/,
+    `${rel} must read WORK_BACKUP_IDENTITY - runbook §5.4 and the authorization sheet command it`,
+  );
+  assert.match(
+    text,
+    /work-offsite-20261029\.agekey/,
+    `${rel} must keep the 2026-10-29 identity as the unset default, so the current path is unchanged`,
+  );
+});

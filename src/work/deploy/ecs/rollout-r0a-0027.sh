@@ -238,6 +238,14 @@ run systemctl start work-healthcheck.timer
 # Run 上未释放的预留。包装件与 SQL 必须同目录（脚本按 dirname $0 找 SQL），少一个就是空跑。
 run install -m 0755 -o root -g root "$RELEASE/run-runstream-gauges.sh" /usr/local/bin/run-runstream-gauges.sh
 run install -m 0644 -o root -g root "$RELEASE/runstream-gauges.sql" /usr/local/bin/runstream-gauges.sql
+# C16 复跑通道成对安装：包装脚本按 dirname $0 找 log-scan.mjs，两个都落在 /usr/local/bin 才自洽，
+# 不再依赖 /tmp 里那份手工放置的副本。
+run install -m 0755 -o root -g root "$RELEASE/work-c16-log-scan.sh" /usr/local/bin/work-c16-log-scan.sh
+run install -m 0644 -o root -g root "$RELEASE/log-scan.mjs" /usr/local/bin/log-scan.mjs
+# #57：恢复演练脚本随包交付。目录先补上（新机可能没有 meet-db-backup），文件权限沿用现网
+# 既有的 0700 root:root；verify 会比对主机副本与包内副本的 sha，不一致只 WARN 不覆盖判断。
+run install -d -m 0755 -o root -g root /opt/meet-db-backup
+run install -m 0700 -o root -g root "$RELEASE/work-db-restore-drill.py" /opt/meet-db-backup/work-db-restore-drill.py
 for unit in work-runstream-scan.service work-runstream-scan.timer; do
   run install -m 0644 -o root -g root "$RELEASE/$unit" "/etc/systemd/system/$unit"
 done

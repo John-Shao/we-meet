@@ -173,6 +173,22 @@ printf 'work-runstream-scan  timer=%s last_result=%s last_start=%s wrapper=%s sq
 if [[ ! -x /usr/local/bin/run-runstream-gauges.sh || ! -e /usr/local/bin/runstream-gauges.sql ]]; then
   echo "  WARN: wrapper and SQL must be installed side by side - the scan silently cannot run with only one"
 fi
+# #57 (2026-11-05): D3-b failed partly because the restore drill existed only on this host. The
+# script now ships with the release; verify only asserts it is in place and non-empty, because a
+# missing file is the failure mode that bit us, not a wrong byte in it.
+restore_drill="$(test -s /opt/meet-db-backup/work-db-restore-drill.py && echo present || echo MISSING)"
+printf 'restore-drill script=%s\n' "$restore_drill"
+if [[ "$restore_drill" != "present" ]]; then
+  echo "  WARN: /opt/meet-db-backup/work-db-restore-drill.py absent - a restore drill cannot run on this machine"
+fi
+# C16 复跑通道：两个文件必须同目录，否则扫描器找不到、复跑会静默退化成"没有扫描"。
+c16_wrapper="$(test -x /usr/local/bin/work-c16-log-scan.sh && echo present || echo MISSING)"
+c16_scanner="$(test -e /usr/local/bin/log-scan.mjs && echo present || echo MISSING)"
+printf 'c16 log-scan wrapper=%s scanner=%s
+' "$c16_wrapper" "$c16_scanner"
+if [[ "$c16_wrapper" != "present" || "$c16_scanner" != "present" ]]; then
+  echo "  WARN: work-c16-log-scan.sh and log-scan.mjs must ship side by side - the C16 re-run channel cannot work with only one"
+fi
 if [[ -n "$rs_timer" ]]; then
   rs_configured="$(set -o posix; . /etc/work/work-runstream-scan.env 2>/dev/null; echo ${WORK_RUNSTREAM_ORGS:-} | wc -w)"
   rs_synced="$(runuser -u postgres -- psql -d work -Atc 'select count(*) from work.org' 2>/dev/null || echo '?')"
