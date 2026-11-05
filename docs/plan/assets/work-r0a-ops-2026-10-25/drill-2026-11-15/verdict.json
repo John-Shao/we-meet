@@ -684,18 +684,19 @@
     {
       "step": "D3-b",
       "section": "rescheduled-2026-11-04",
-      "verdict": "fail",
-      "ts": "2026-11-04T21:54:01+08:00",
+      "verdict": "pass",
+      "ts": "2026-11-05T09:51:26+08:00",
       "evidence": [
         "attachments/d3-b-1-restore-drill-fail.log",
-        "attachments/d3-b-2-key-custody-diagnosis.txt"
+        "attachments/d3-b-2-key-custody-diagnosis.txt",
+        "attachments/d3-b-3-restore-drill-pass-20261105.txt"
       ],
-      "notes": "主签选「就在共享集群演（脚本原样）」。实测走到 age 解密就停了：`{\"status\":\"failed\", ..., \"error_type\":\"RuntimeError\", \"error\":\"age failed (exit 1)\"}` — **下载与 sha256 校验都过了**（bundle key `work/databases/work/2026-11-04/20261104T104425Z-622b1bbdfdec.tar.gz.age`、1,602,597 字节、sha `df7c1d34…`），失败在解密：**机上唯一身份文件 `/root/work-backups/work-backup.agekey` 的收件人是 `age1z43zrq…`，而备份配置 `recipient.txt` 写的是 `age1jyazk…`**（mtime 2026-10-29 12:22:30），两者不是同一把钥匙；全盘搜索没有任何 `*offsite*agekey`，而 10-29 那次 passed 的演练（`restore-drill-20261029T122356.json`，3 库／12 文件）正是用当时存在、现已消失的 `work-offsite-20261029.agekey` 跑的。旁证钥匙本身没坏：同一把 `work-backup.agekey` 能解出 10-28 的本地 cleanup 归档。三条附带结论：① **§0B「在隔离实例回放」是错的**——脚本用 `runuser -u postgres createdb work_drill_<hex>` 在**生产集群内**建 scratch 库再 dropdb（清单原文要改）；② 失败是干净的：集群库表现在仍是 postgres/template0/template1/temporal/temporal_visibility/work 六个，没留 scratch 库也没留临时目录（解密发生在建库之前）；③ 脚本**不在发布包内**，只由 runbook 指向 `/opt/meet-db-backup/`，且机上那份已漂移（缺 `WORK_BACKUP_IDENTITY` 覆盖、写死了不存在的 key 路径）——与 #47 同一类通道缺口。后果分档：**这条比演练本身重**——每日备份上传成功、sha 校验成功，但从今天起没有任何在机钥匙能解开它，C19（Backup/restore drill）的 done 与今晚事实冲突，已单开 #57 待主签裁钥匙保管位置。"
+      "notes": "主签选「就在共享集群演（脚本原样）」。实测走到 age 解密就停了：`{\"status\":\"failed\", ..., \"error_type\":\"RuntimeError\", \"error\":\"age failed (exit 1)\"}` — **下载与 sha256 校验都过了**（bundle key `work/databases/work/2026-11-04/20261104T104425Z-622b1bbdfdec.tar.gz.age`、1,602,597 字节、sha `df7c1d34…`），失败在解密：**机上唯一身份文件 `/root/work-backups/work-backup.agekey` 的收件人是 `age1z43zrq…`，而备份配置 `recipient.txt` 写的是 `age1jyazk…`**（mtime 2026-10-29 12:22:30），两者不是同一把钥匙；全盘搜索没有任何 `*offsite*agekey`，而 10-29 那次 passed 的演练（`restore-drill-20261029T122356.json`，3 库／12 文件）正是用当时存在、现已消失的 `work-offsite-20261029.agekey` 跑的。旁证钥匙本身没坏：同一把 `work-backup.agekey` 能解出 10-28 的本地 cleanup 归档。三条附带结论：① **§0B「在隔离实例回放」是错的**——脚本用 `runuser -u postgres createdb work_drill_<hex>` 在**生产集群内**建 scratch 库再 dropdb（清单原文要改）；② 失败是干净的：集群库表现在仍是 postgres/template0/template1/temporal/temporal_visibility/work 六个，没留 scratch 库也没留临时目录（解密发生在建库之前）；③ 脚本**不在发布包内**，只由 runbook 指向 `/opt/meet-db-backup/`，且机上那份已漂移（缺 `WORK_BACKUP_IDENTITY` 覆盖、写死了不存在的 key 路径）——与 #47 同一类通道缺口。后果分档：**这条比演练本身重**——每日备份上传成功、sha 校验成功，但从今天起没有任何在机钥匙能解开它，C19（Backup/restore drill）的 done 与今晚事实冲突，已单开 #57 待主签裁钥匙保管位置。**2026-11-05 09:51 反转（本格由 fail 改 pass）**：私钥从未丢失——它在管理员本机受保护目录（路径见 runbook §5.4 同日更正），用 `age-keygen -y` 推出的公钥与现网 `recipient.txt` 逐字相同（`age1jyazk2petru…mnvzul`）。把该私钥临时放进主机 root 0600 路径、以 `WORK_BACKUP_IDENTITY` 指名，对已安装的 `/opt/meet-db-backup/work-db-restore-drill.py` 跑同一条命令：`status=passed`，解开的正是「10-29 起不可解」区间内的 11-04 bundle（`work/databases/work/2026-11-04/20261104T223826Z-445cf31f44f1.tar.gz.age`，sha256 `4192b907…`），work 47 表/8669 行、temporal 36/4610、temporal_visibility 3/200、files 12；报告 `/var/lib/meet-db-backup/work/restore-drill-20261105T095126.json`；私钥跑完即从主机删除并核过（`CONFIRMED_GONE`，机上只剩 `work-backup.agekey`），无 `work_drill_*` 库与临时目录残留。**根因是取证方法**：先前只在主机上找钥匙，而托管模型本就规定主机无副本——「永久不可解」是搜索范围错误得出的结论，不是事实。保留一条真实缺陷：脚本默认身份路径指向主机上一个按政策不该存在的位置，值班必须显式传 `WORK_BACKUP_IDENTITY`，否则这条演练按默认必红（B 单换钥因此不再必要，未执行）。"
     }
   ],
   "summary": {
-    "pass": 24,
-    "fail": 4,
+    "pass": 25,
+    "fail": 3,
     "na": 15,
     "total": 76
   },

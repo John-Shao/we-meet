@@ -1,0 +1,41 @@
+D3-b 重跑（2026-11-05 09:41–09:51 CST，Work ECS lavm-t7fmveau9b，root）——本格由 fail 改 pass
+
+前提：#57 的「异地私钥找不回」被证伪。私钥一直在管理员本机受保护目录
+`C:\Users\shaoj\.we-meet-backup\work-offsite-20261029.agekey`（189 字节，mtime 2026-10-29 12:21）。
+比对公钥（私钥本体全程未打印、未进 argv、未进仓库）：
+
+    age-keygen -y <本机私钥>            -> age1jyazk2petru3c0f56s2ll2uuvjtx7rrsndjh3zezjr5a2h58zs9qmnvzul
+    cat /etc/meet-db-backup/work/recipient.txt
+                                       -> age1jyazk2petru3c0f56s2ll2uuvjtx7rrsndjh3zezjr5a2h58zs9qmnvzul   （逐字相同）
+    age-keygen -y /root/work-backups/work-backup.agekey
+                                       -> age1z43zrqvneftmrjjgr20g9gr0pf70faxhkccyudxy5hqzrc3et9fqzm4s4a   （机上另一把，非收件人）
+
+执行（按 runbook §5.4「临时把私钥放回 Work ECS，校验完删除」；机上那份 /opt 脚本已是
+仓库版 sha256 cf3724636…，认 WORK_BACKUP_IDENTITY——见 #57 第二半与本次 rollout）：
+
+    sudo WORK_BACKUP_IDENTITY=/root/work-backups/custody-check.agekey \
+      python3 /opt/meet-db-backup/work-db-restore-drill.py
+
+输出（原文）：
+
+    {"status": "passed", "service": "work", "archive_sha256": "4192b9073fe162be72ca816fac16a58c3df1623e42a1f612741bbe34da159401",
+     "key": "work/databases/work/2026-11-04/20261104T223826Z-445cf31f44f1.tar.gz.age",
+     "verified_at": "2026-11-05T01:51:22.475124+00:00",
+     "databases": [{"database": "work", "tables_verified": 47, "rows_verified": 8669},
+                   {"database": "temporal", "tables_verified": 36, "rows_verified": 4610},
+                   {"database": "temporal_visibility", "tables_verified": 3, "rows_verified": 200}],
+     "files_verified": 12,
+     "scope": "scratch local PostgreSQL databases; no production roles or app startup"}
+
+要点：被解开的 bundle 落在「2026-10-29 起永久不可解」那段区间内（2026-11-04 22:38Z 产），
+所以原结论是**搜索范围错误**（只在主机找，而托管模型本就规定主机无副本）得出的，不是事实。
+
+收尾核验：
+- 私钥副本已从主机删除：`CONFIRMED_GONE`；`/root/work-backups/` 只剩 `work-backup.agekey` 与历史 dump。
+- 无临时库残留：`pg_database` = postgres, work, template1, template0, temporal, temporal_visibility（无 `work_drill_*`）。
+- 无临时目录残留：`/var/lib/postgresql/work-drill-*`／`work-restore-*` 计数 0。
+- 主机侧报告文件：`/var/lib/meet-db-backup/work/restore-drill-20261105T095126.json`。
+
+保留的真实缺陷（不随反转消失）：脚本默认身份路径 `/root/work-backups/work-offsite-20261029.agekey`
+指向主机上一个按政策不该存在的位置——不显式传 `WORK_BACKUP_IDENTITY` 时这条演练必红。
+因此 B 单（换 age 收件人链）不再必要，未执行。

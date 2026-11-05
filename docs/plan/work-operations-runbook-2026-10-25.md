@@ -194,12 +194,30 @@ Work ECS 复用仓库 `deploy/backup/` 的 `work` 实例，在本机 Unix socket
 - 加密与密钥：`age` 公钥加密后上传，服务端完整读回校验；**私钥只在管理员本地受保护目录**
   （`%USERPROFILE%\.we-meet-backup\work-offsite-20261029.agekey`），Work ECS 上无副本。
   - **2026-11-05 更正（#57，主签答"不在、找不回"）**：上面那句已经不再成立。现网事实是三条，都取证过：
+    **（同日 09:51 再更正：本条判错了，上面那句仍然成立——私钥就在这台机器的该路径下。①–③ 三条事实本身复核无误，
+    错在把"机上没有"当成"没有"；取证与后果见下面 09:51 段与 `attachments/d3-b-3-restore-drill-pass-20261105.txt`。）**
     ① `recipient.txt`（mtime 10-29 12:22）里的收件人是 `age1jyazk…`；
     ② 机上 `/root/work-backups/` 里**只有一把**私钥 `work-backup.agekey`（`age-keygen -y` → `age1z43…`），
        而脚本默认的 `/root/work-backups/work-offsite-20261029.agekey` 在机上不存在；
     ③ 同一把 `work-backup.agekey` 能解出 10-28 的本地归档，所以不是钥匙损坏，是收件人换了、私钥没跟上。
     **后果**：2026-10-29 起（收件人切换那一刻）到换钥之前的所有 offsite bundle **永久不可解密**——这是数据
     保全层面的真实缺口，不是演练脚本的 bug。恢复能力在换钥并真解一次当代 bundle 之前，都不算被证明过。
+    **2026-11-05 09:51 作废上述"永久不可解密"**：本机 `%USERPROFILE%\.we-meet-backup\work-offsite-20261029.agekey`
+    用 `age-keygen -y` 推出的公钥与 `recipient.txt` **逐字相同**（`age1jyazk2petru…mnvzul`；机上另一把
+    `work-backup.agekey` 是 `age1z43…`，不是收件人）。按本节既有流程把私钥临时放回主机 root 0600 路径、以
+    `WORK_BACKUP_IDENTITY` 指名，`/opt/meet-db-backup/work-db-restore-drill.py`（仓库版 `cf3724636…`）对
+    **11-04 22:38Z 产的 bundle** 跑出 `status=passed`：sha256 `4192b907…`，work 47 表/8669 行、
+    temporal 36/4610、temporal_visibility 3/200、files 12；跑完私钥已从主机删除并核过（`CONFIRMED_GONE`），
+    无 `work_drill_*` 库与临时目录残留。所以 10-29 之后的 bundle **可解**，D3-b 据此改判 pass。
+    **只剩一条真缺陷**：脚本默认身份路径指向主机上一个按托管政策不该存在的位置——不显式传
+    `WORK_BACKUP_IDENTITY` 时这条演练必红。下面三个勾（换收件人链）因此**不再必要，未执行**。
+    **2026-11-05 #66 裁定＝必填加早失败（已实装）**：脚本在下载与建库之前先检查身份文件，缺失即以非零退出并打印
+    指名 `WORK_BACKUP_IDENTITY` 的原因（`identity file absent: … - set WORK_BACKUP_IDENTITY to the admin-held age
+    key, stage it on this host only for the duration of the drill, and remove it afterwards`）。默认路径保留以兼容
+    已按本节传参的调用方——**按文档传参的调用零可观测变化**。现场核验：把改动后的脚本原文放到主机
+    （`python3 -m py_compile` 过），不传变量直接跑 → `RC=1` 且消息如上；用完两份临时副本都已删除
+    （`CLEANED`）。**生效边界**：现网 `/opt` 那份仍是 09:41 rollout 装的、没有这段检查的版本，
+    所以这条改进要等下一次 rollout 才落到主机——在那之前，值班仍必须显式传 `WORK_BACKUP_IDENTITY`。
   - **换收件人链需要授权，逐条勾**（都是主机生产写或对外桶读，不做自决）：
     ☐ 生成新 age 密钥对，私钥落管理员本地目录并把公钥写进 `/etc/meet-db-backup/work/recipient.txt`；
     ☐ 立刻跑一次 `meet-db-backup@work.service` 产生新 bundle；
