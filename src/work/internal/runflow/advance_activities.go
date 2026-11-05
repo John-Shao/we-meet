@@ -1059,6 +1059,24 @@ func (a *Activities) FinishAdvance(
 				HeadRef: latest.Ref, HeadHash: latest.Hash, HeadRevision: latest.Revision,
 			}, nil
 		}
+		// The other refusal that is not a conflict: commit_runtime_checkpoint needs a
+		// live lease, and the lease belongs to the runtime parent that produced the
+		// answer. When that parent died - the case increment 0028 exists for - the
+		// receipt is still durable, so taking over the elapsed lease and committing
+		// once more finishes the step the parent had already paid for. Every other
+		// commit error skips this entirely, and a reclaim that is refused (live lease
+		// held by another parent, passed hard deadline, terminal row) leaves the
+		// original error in place.
+		if isLeaseElapsedError(err) &&
+			a.reclaimFinishedExecution(ctx, prepared.OrgID, execution.ExecutionID) == nil {
+			if revision, err = a.commitHead(ctx, prepared.OrgID, prepared.RunID,
+				execution.ExecutionID, &current, nextRef, prepared.RuntimeVersion); err == nil {
+				return AdvanceFinishOutput{
+					Status: AdvanceStatusSucceeded, ArtifactID: artifactID, VersionNo: versionNo,
+					HeadRef: nextRef.RefID, HeadHash: nextRef.Hash, HeadRevision: revision,
+				}, nil
+			}
+		}
 		return AdvanceFinishOutput{Status: AdvanceStatusFailed, ErrCode: "finish_head_conflict"}, nil
 	}
 	return AdvanceFinishOutput{
@@ -1293,6 +1311,27 @@ func headMissing(err error) bool {
 
 func advancePlanHolder(executionID string) string {
 	return "work-worker-plan:" + executionID
+}
+
+// advanceFinishHolder names the control plane itself, so a reclaim of an elapsed
+// lease is attributable to the step that commits the head rather than to a runtime
+// parent. It is deterministic for the same reason the plan holder is: a retry of the
+// finish is the same writer, not a new one.
+func advanceFinishHolder(executionID string) string {
+	return "work-worker-finish:" + executionID
+}
+
+// isLeaseElapsedError recognizes the one commit refusal that means "the lease the parent
+// held is over". commitHead reports domain errors through executionCommandError, which
+// renders advance_<code> and drops the pgErr, so the string form is the only live shape:
+// a variant that also matched pgErr.Message was mutation-tested and stayed green, which is
+// why that branch is not here.
+func isLeaseElapsedError(err error) bool {
+	return err != nil && err.Error() == "advance_runtime_execution_expired"
+}
+
+func (a *Activities) reclaimFinishedExecution(ctx context.Context, orgID, executionID string) error {
+	return a.claimExecution(ctx, orgID, executionID, advanceFinishHolder(executionID))
 }
 
 // bodyDigest is the Content Store's plain body hash: SHA-256 over the stored

@@ -422,11 +422,32 @@ func awaitQuotaOrSignal(
 // The start-to-close window is 4 minutes because that is what a lost completion
 // costs: measured on the pilot host 2026-11-04, a model step takes 15-25s and
 // the slowest provider exchange seen was 49.9s, while the previous 16-minute
-// window meant an interrupted Run sat open until Temporal gave up on it. One
-// retry is safe because consume_dispatch_delivery returns the recorded gate row
-// instead of authorising a second provider call (authz/consume_by_execution_pg_test.go
-// pins "exactly one winner"), so the retry finishes the receipt rather than
-// re-sending it. Schedule-to-close leaves room for both attempts plus backoff.
+// window meant an interrupted Run sat open until Temporal gave up on it.
+//
+// What one retry can and cannot recover, both measured on 2026-11-05 (run
+// 0fd4f0a8: worker stopped 3s into the activity, attempt 2 started at 4m06s, the
+// exchange work-node had already sent finished 2m17s later at 137,216ms):
+//
+//   - it cannot re-send. consume_dispatch_delivery answers "observed" for any
+//     operation that already has a delivery row, before it looks at holder,
+//     lease or deadline, and egress turns a non-won decision into not_sent.
+//     consume_by_execution_pg_test.go pins "exactly one winner".
+//   - before increment 0028 it could not do anything else either: the fragment
+//     was still state='active' with an elapsed lease, claim_runtime_execution
+//     refused a different holder, and the attempt died as lease_not_claimable.
+//     The Run then closed as advance_failed even though the answer of the first
+//     attempt might already be durable. That dead end is what 0028 opens.
+//   - with the lease taken over, not_sent reaches Node as WAITING_RECONCILE and
+//     the Run parks on wait_reason='reconcile'; the finish path then resolves
+//     the receipt from dispatch_delivery plus the content reference registry.
+//     So a retry finishes the receipt rather than re-sending it - but only
+//     because finishing reads the database, never this activity's memory. An
+//     exchange that ended unknown (no receipt attached, e.g. a truncated
+//     answer) stays an unknown for the operator to settle, because
+//     finishing.ErrReceiptNotAttached refuses to infer success from a consumed
+//     gate.
+//
+// Schedule-to-close leaves room for both attempts plus backoff.
 func advanceWithCancel(
 	ctx workflow.Context, cancelCh workflow.ReceiveChannel, request fragment.Request,
 ) (fragment.Result, bool, error) {

@@ -462,6 +462,133 @@ func TestAdvanceFinishCommitsRevisionOneAndPublishesArtifact(t *testing.T) {
 	if replay.Status != runflow.AdvanceStatusSucceeded || replay.HeadRevision != 1 {
 		t.Fatalf("finish replay = %#v", replay)
 	}
+
+	// The happy path must not read as a takeover: the parent's lease was live, so
+	// nothing displaced it. Without this line the reclaim below would look equally
+	// green on a build that reclaims unconditionally.
+	var takeovers int
+	if err := workdb.WithWorkerOrgContext(ctx, pool, flowOrg, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT count(*) FROM work.audit_event
+			WHERE target_id = $1 AND action = 'runtime.execution_taken_over'`,
+			execution.ExecutionID).Scan(&takeovers)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if takeovers != 0 {
+		t.Fatalf("live-lease finish wrote %d takeover audit rows, want 0", takeovers)
+	}
+}
+
+// TestAdvanceFinishCommitsThroughTakenOverLease is the interrupted-parent case
+// increment 0028 exists for: the runtime parent that produced the answer died with the
+// worker, so the execute lease elapsed and no live holder remains. The receipt is still
+// attached to the gate and the answer is still in the Content Store, so the finish has to
+// commit what was already paid for instead of closing the Run as a head conflict - and it
+// has to do that by taking the lease over, not by reviving the dead holder.
+func TestAdvanceFinishCommitsThroughTakenOverLease(t *testing.T) {
+	pool, dbName := newFlowDB(t)
+	store := newFlowContent(t)
+	seedAdvanceTask(t, dbName, store)
+	activities := newAdvanceActivities(pool, store)
+	ctx := context.Background()
+	prepared, err := activities.PrepareAdvance(ctx, runflow.Input{RunID: flowRun, OrgID: flowOrg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, err := activities.EnsureAdvanceHead(ctx, prepared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	execution, err := activities.PrepareAdvanceExecution(ctx, runflow.PrepareExecutionInput{
+		Prepared: prepared, Head: head,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedAdvanceEgress(t, pool, store, egressSeed{
+		OrgID: prepared.OrgID, TaskID: prepared.TaskID, RunID: prepared.RunID,
+		SnapshotID: prepared.SnapshotID, RuntimeVersion: prepared.RuntimeVersion,
+		ExecutionID: execution.ExecutionID, OperationID: execution.OperationID,
+		AttemptID: execution.AttemptID, RequestHash: execution.RequestHash,
+		Fence: prepared.Fence,
+	})
+
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = admin.Close(context.Background()) }()
+	// The parent is gone: elapsed lease, thirteen heartbeats behind, nothing else moved.
+	var elapsed int64
+	if _, err := admin.Exec(ctx, `
+		UPDATE work.runtime_execution
+		SET lease_until = now() - interval '1 second', heartbeat_seq = 13,
+		    revision = revision + 1, updated_at = now()
+		WHERE org_id = $1 AND execution_id = $2`, flowOrg, execution.ExecutionID); err != nil {
+		t.Fatal(err)
+	}
+	if err := admin.QueryRow(ctx, `
+		SELECT count(*) FROM work.runtime_execution
+		WHERE org_id = $1 AND execution_id = $2 AND lease_until < now()`,
+		flowOrg, execution.ExecutionID).Scan(&elapsed); err != nil {
+		t.Fatal(err)
+	}
+	if elapsed != 1 {
+		t.Fatalf("fixture did not leave an elapsed lease (rows=%d)", elapsed)
+	}
+
+	finished, err := activities.FinishAdvance(ctx, runflow.AdvanceFinishInput{
+		Prepared: prepared, Head: head, Execution: execution,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if finished.Status != runflow.AdvanceStatusSucceeded || finished.HeadRevision != 1 ||
+		finished.ArtifactID == "" || finished.VersionNo != 1 {
+		t.Fatalf("finish after a dead parent = %#v", finished)
+	}
+
+	var holder, state string
+	if err := admin.QueryRow(ctx, `
+		SELECT holder_id, state FROM work.runtime_execution
+		WHERE org_id = $1 AND execution_id = $2`, flowOrg, execution.ExecutionID).
+		Scan(&holder, &state); err != nil {
+		t.Fatal(err)
+	}
+	if state != "completed" {
+		t.Fatalf("execution state after finish = %q", state)
+	}
+	if want := "work-worker-finish:" + execution.ExecutionID; holder != want {
+		t.Fatalf("holder after finish = %q, want the reclaiming holder %q", holder, want)
+	}
+
+	var takeovers, claims int
+	var prev string
+	if err := admin.QueryRow(ctx, `
+		SELECT count(*) FILTER (WHERE action = 'runtime.execution_taken_over'),
+		       count(*) FILTER (WHERE action = 'runtime.execution_claimed')
+		FROM work.audit_event WHERE target_id = $1`, execution.ExecutionID).
+		Scan(&takeovers, &claims); err != nil {
+		t.Fatal(err)
+	}
+	if takeovers != 1 || claims != 1 {
+		t.Fatalf("audit takeovers=%d claims=%d, want 1 and 1", takeovers, claims)
+	}
+	if err := admin.QueryRow(ctx, `
+		SELECT metadata->>'previous_heartbeat_seq' FROM work.audit_event
+		WHERE target_id = $1 AND action = 'runtime.execution_taken_over'`,
+		execution.ExecutionID).Scan(&prev); err != nil {
+		t.Fatal(err)
+	}
+	if prev != "13" {
+		t.Fatalf("takeover audit previous_heartbeat_seq = %q, want 13", prev)
+	}
+
+	row := readAdvanceHeadRow(t, pool, flowOrg, flowRun)
+	if row.Revision != 1 || row.Ref != finished.HeadRef || row.ExecutionID != execution.ExecutionID {
+		t.Fatalf("head row after reclaiming finish = %#v", row)
+	}
 }
 
 // seedAdvanceRejection binds a rejected_not_executed receipt to the dispatch
