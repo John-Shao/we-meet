@@ -298,6 +298,23 @@ const policy = spawnSync(process.execPath, ['--test', ...policyTests], {
 });
 if (policy.status !== 0) fail('runtime policy tests failed');
 
+// The supply-chain admission suite sits at the runtime asset root and imports only node builtins
+// plus its own evaluator, so it belongs in the same place the policy suites already run. Without
+// this step the pinned-component guard that ties the policy to src/work/node/package.json would
+// only ever run on the machine that wrote it.
+const RUNTIME_DIR = path.join(HERE, '..', 'work-r0a-runtime-2026-10-25');
+const runtimeTests = fs
+  .readdirSync(RUNTIME_DIR)
+  .filter((file) => file.endsWith('.test.mjs'))
+  .sort()
+  .map((file) => path.join(RUNTIME_DIR, file));
+check(runtimeTests.length >= 1, `runtime admission suites discovered (${runtimeTests.length})`);
+const runtime = spawnSync(process.execPath, ['--test', ...runtimeTests], {
+  cwd: RUNTIME_DIR,
+  stdio: 'inherit',
+});
+if (runtime.status !== 0) fail('runtime admission tests failed');
+
 if (failures > 0) {
   console.error(`\n${failures} contract gate check(s) failed`);
   process.exit(1);
