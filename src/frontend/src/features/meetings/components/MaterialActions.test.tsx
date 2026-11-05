@@ -74,6 +74,9 @@ vi.mock('@/features/contacts', async (importOriginal) => ({
 }))
 let client: QueryClient
 let revision = 0
+// 后台刷新可以改的可观察后果之一:链接下拉的 value 直接来自 data.link_scope,
+// 所以它是「刷新已落到组件」的确定性凭据,不需要等时间。
+let linkScope: 'private' | 'organization' = 'private'
 const member = {
   id: '22222222-2222-4222-8222-222222222222',
   name: 'Teammate',
@@ -118,6 +121,7 @@ const confirmInvite = () => {
 beforeEach(() => {
   sessionStorage.clear()
   revision = 0
+  linkScope = 'private'
   vi.mocked(fetchApi).mockImplementation(async (_url, options) => {
     if (options?.method === 'POST') return {}
     return {
@@ -128,7 +132,7 @@ beforeEach(() => {
       is_owner: true,
       results: [member],
       count: 1,
-      link_scope: 'private',
+      link_scope: linkScope,
       can_link_organization: true,
       can_notify: true,
       pending_notifications: 0,
@@ -259,13 +263,9 @@ it('retries an uncertain change with the identical key and body', async () => {
   expect(posts()[1][1]).toEqual(posts()[0][1])
 })
 
-it('keeps the opening revision when link access changes', async () => {
+it('sends the revision the panel opened with when nothing refreshes underneath', async () => {
   show()
   await openMembers()
-  revision = 3
-  await act(async () => {
-    await client.invalidateQueries({ queryKey: ['material-collaboration'] })
-  })
   fireEvent.change(
     screen.getByRole('combobox', { name: /collaboration.link/ }),
     {
@@ -274,7 +274,44 @@ it('keeps the opening revision when link access changes', async () => {
   )
   fireEvent.click(screen.getByRole('button', { name: 'collaboration.confirm' }))
   await waitFor(() => expect(posts()).toHaveLength(1))
-  expect(postBody(0).expected_revision).toBe(0)
+  expect(postBody(0)).toMatchObject({
+    operation: 'link',
+    link_scope: 'organization',
+    expected_revision: 0,
+  })
+})
+
+// #20（2026-11-05 裁定 A）：实装的 baseline 是「点击当下已载入的 revision」
+// （MaterialActions.tsx:346/712，且 :327 每 5 秒轮询），旧用例断言的「打开时的
+// revision」不是实装提供的语义，只在刷新没赶在点击前落地时才绿，CI 全量负载下翻红。
+// 两分支都钉住：「刷新已落地」用 DOM 后果断言，不靠计时。
+it('sends the revision loaded by a refresh that landed before the edit', async () => {
+  show()
+  await openMembers()
+  revision = 3
+  linkScope = 'organization'
+  await act(async () => {
+    await client.invalidateQueries({ queryKey: ['material-collaboration'] })
+  })
+  await waitFor(() =>
+    expect(
+      screen.getByRole('combobox', { name: /collaboration.link/ })
+    ).toHaveValue('organization')
+  )
+  // 用户在这个新 baseline 上把可见范围收回私人。
+  fireEvent.change(
+    screen.getByRole('combobox', { name: /collaboration.link/ }),
+    {
+      target: { value: 'private' },
+    }
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'collaboration.confirm' }))
+  await waitFor(() => expect(posts()).toHaveLength(1))
+  expect(postBody(0)).toMatchObject({
+    operation: 'link',
+    link_scope: 'private',
+    expected_revision: 3,
+  })
 })
 
 it('hides collaborators after permission is revoked', async () => {
