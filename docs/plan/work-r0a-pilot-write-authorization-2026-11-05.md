@@ -473,7 +473,7 @@ ls -l "$DIR/$H/<共享对照 id>.enc"    # 期望仍在（这条不对称是控�
       需要先在 D0 意义上确认没有历史欠账被一次性引爆，并给 verify 加一条"该 timer 在位"断言。
 - [ ] **C**：判定清扫归 R0b 控制面（与 #56-C 同批），R0a 只保留库测；代价：`D4-6b` 与 `C30` 的相关行按"前提不成立"记 na 并写重开条件。
 
-**【17:1x 裁定＝B，节奏每小时；17:3x 落成可交付件】**三个框都留空不勾——实际选的是 B，而我写 B 时给它列的前置（"先确认没有历史欠账被一次性引爆"）已被 §11 的 D0 现读满足，所以成本比当初估的低一档。交付清单、七项本机真 schema 变异（含一条我自己埋的假警报）与发布链三处同步都写在 §13；**现网未装 unit**——装它属生产写，要另一次授权。
+**【17:1x 裁定＝B，节奏每小时；17:3x 落成可交付件】**三个框都留空不勾——实际选的是 B，而我写 B 时给它列的前置（"先确认没有历史欠账被一次性引爆"）已被 §11 的 D0 现读满足，所以成本比当初估的低一档。交付清单、七项本机真 schema 变异（含一条我自己埋的假警报）与发布链三处同步都写在 §13；**现网未装 unit**——装它属生产写，要另一次授权。**【19:1x 更正：这句已过期。**那一次授权在主签"按最小半径安装方案执行"里用掉了，unit 已在现网 `enabled/active`、下一次自动触发 20:03:18；装了什么、没改什么的证据与我那两条读数更正都在 §14。原文保留，因为它记的是 17:3x 当时的状态。】
 
 ## 11. D 段执行记录（2026-11-05 15:44–16:24，主签同轮授权"整批扫掉"并提供 sudo 现值）
 
@@ -601,6 +601,8 @@ export 侧 2026-11-05 处理 2），每条义务事件被 relay 投完且内容�
 
 ## 13. D4 裁定＝B／每小时已落地为可交付件（2026-11-05 17:1x–17:3x，仓库侧＋本机真 schema 验证，**现网未装 unit**）
 
+> **【19:1x 更新：标题里的"现网未装 unit"已过期——本节交付物已按最小半径装到现网，timer `enabled/active`、下一次自动触发 20:03:18。过程、"没改什么"的证据（无迁移、无重启、二进制 11/11 相同）与我这两条读数更正见 §14；标题原文不删，因为下面那段记录的是 17:3x 当时的状态。**】
+
 **裁定**：主签在盘点后选 **B（systemd timer 自动执行）**，节奏 **每小时**。§10 的 D4 三个框与 §11 末句"仍未裁"
 由此收口；**装 unit 属生产写，本轮没做**（下面第 4 条是它的前置）。
 
@@ -657,3 +659,64 @@ export 侧 2026-11-05 处理 2），每条义务事件被 relay 投完且内容�
 之后新增组织必须**人工追加**，否则 verify 的那条 org 数对比会 WARN（这正是把"静默不扫"变成可见的机制）。
 另有一条必须诚实：本单元**真删内容**。所以第一次 rollout 之前要先确认 D0 那六列是 0（今天 16:23 复读全 0 ✓），
 并且知道 6 小时内容备份的可回窗口（§5.25 末段）。
+
+## 14. 最小半径安装：timer 已在现网 armed（2026-11-05 19:0x，生产写，主签授权"按最小半径安装方案执行"）
+
+**为什么不是完整 rollout**：把包内 11 个 Go 二进制与主机 `/usr/local/bin` 逐个比 sha ⇒ **11/11 逐字节相同**
+（`47c2d5c0f` 只动脚本与文档，Go 源码与已部署的 `af4499199` 一致）。而 `rollout-r0a-0027.sh` 的真实半径是
+停 6 单元／重装 10 二进制／重启 7 单元——为零变化付一次服务中断，所以改走只装这五件的路线。**【19:1x 对账：这里说的"五件"是 rollout 里对应这五个动作的清单，落地时实际装了 7 件（`/usr/local/bin` 四件运行文件＋两个 unit＋一份 env），暂存目录里是 8 件——多出的是那份只从发布目录跑的 verify；逐件复核见下面"改了什么"那段末尾的 `find -newermt` 现读。】**
+
+**做了什么**：`~/work-release-0029` 暂存 8 件（4 运行文件＋2 unit＋env 模板＋verify），**逐件 sha 与包内相同且 CR=0**；
+`install` 两脚本→`/usr/local/bin`（0755／0644）**【19:1x 更正：四脚本，预检那一对也装了——`run-retention-preflight.sh`＋`retention-preflight-d0.sql` 与清扫那一对同批落在同一秒】**、两 unit→`/etc/systemd/system`、`install_env` 语义新建
+`/etc/work/work-retention-scan.env`（0640 root:work-control，内容只有 `WORK_RETENTION_ORGS` 与 `WORK_RETENTION_GRACE_MINUTES`）；
+`daemon-reload` → 先**手工跑包装件**两次（`work_worker` 身份，四行读数齐、rc=0／幂等复跑仍 rc=0）→
+`systemctl start work-retention-scan.service`（走单元路径：`User=work-control` ＋ 两份 EnvironmentFile）→
+`enable --now work-retention-scan.timer`。
+
+**改了什么、没改什么**：`ledger rows=28 max=28`（无迁移）；11 个现役单元仍 active，且 `work-worker` 进程启动时刻
+＝14:10:52、`work-relay`＝14:06:38（**与 C 段部署时同一进程，未被重启**）；唯一新行为是每小时一次清扫，
+下一次触发 `20:03:18`（`RandomizedDelaySec=5min` 之后）。**【19:18 现读更正：这个时刻已被重摇成 `20:01:06`。**`OnCalendar=hourly`＋`RandomizedDelaySec` 的"下一次"在真正触发之前不是固定值，同一个 timer 两次读出差 2 分多钟；而且 `list-timers` 的 `LAST` 仍是 `-`，说明 **timer 自己一次都还没跑过**——19:07:04 那次 `Result=success` 是我手工 `systemctl start` 的，不是自动路径。**值班口径因此改成：判"自动路径跑过"要现读 `systemctl list-timers`＋journal 的 `run-retention-scan summary:` 行数（verify 里的 `runs_logged=`），不要引用任何一个历史时刻。】**上线前复测 D0：六列全 0 ⇒ 首次自动触发不会删任何东西。
+包装后的预检件从 `/usr/local/bin` 跑通（`PREFLIGHT_RC=0`，成对安装自洽），包内 verify 的新段读出
+`timer=active enabled=enabled last_result=success wrapper=present sql=present orgs=1`，且
+`missing in 17..28: none`／`claim_carries_takeover=true`／`restore-drill script=present` ⇒ §9 那条"现网手工装的
+verify 与包内副本不一致"到本次 make-release（`RELEASE_COMMIT=4749ce01d`，包内 sha 前缀 `802f06378194ef35`＝仓库件）闭合。**【19:3x 现读把这半句判红：能闭合的只有"包＝仓库 tip"这一条，"现网跑的那份 verify＝包内那份"没有闭合。**逐件 sha 现读：`retention-scan.sql`／`run-retention-scan.sh`／`retention-preflight-d0.sql`／`run-retention-preflight.sh` 与两个 unit、env 模板**7 件与仓库件逐字节相同**（主机装到位的与发布目录里的也相同）；唯独 `verify-r0a-0027.sh` 三个值并存——仓库 tip `802f06378194`（17713 B）／主机上我 19:05 手工放的那份 `9aee8b1ace1d`（17956 B）／工作树里刚改成 journal 取时刻的 `81a997e00583`（18358 B）。所以我在上面引用的那些 `timer=… next=… runs_logged=…` 读数，出自 `9aee8b1ace1d` 那份**不在任何包里**的副本，而它恰好是 §9 点名要收敛的那一类缺口——我没有把它收敛掉，只是换了个 SHA。处置：这三行随下一次 make-release 一起进包，并在装包后用包内 verify 复跑一次；在那之前"§9 已闭合"这句话按**部分闭合**读。】
+**19:15 复核"只碰了这些"**：`find /usr/local/bin /etc/systemd/system /etc/work -maxdepth 1 -newermt '2026-11-05 19:00'` 只列出上面那 7 件＋`timers.target.wants`（`enable` 建的符号链接）与三个目录自身的 mtime，其余二进制与 env 一件没动；journal 里有两条 `run-retention-scan summary: orgs=1 swept_rows=0 grace_minutes=15 stuck_shred=0 scan_errors=0`（19:04:53／19:07:04），`Result=success` 而 `ActiveEnterTimestamp` 仍为空——那处异常读数至今未解释，按实记在第 ① 条。
+
+**两条我自己写错又被现读推翻的说法（原文不删，就地标注）**：
+① 我先前解释"`last_start=none` 是因为 oneshot 跑完会清空 `ExecMainStartTimestamp`"——**编的**。
+   同机 `work-reconcile-scan`／`work-runstream-scan`／`work-healthcheck` 三个 oneshot 都有时间戳，只有我这个空；
+   再 `systemctl start` 一次（19:07:04）时间戳就正常出现了，所以那是**装完后第一次启动的一次异常读数**，
+   成因我没查出来，按"未知"记；verify 那一行因此改成从 journal 取时刻（`last_run=`＋`runs_logged=`），
+   顺带把 `next=` 打出来——不依赖任何我解释不了的字段。**【20:2x 现读把这处异常收窄：timer 自己跑的那一次（20:01:12）把 `ExecMainStartTimestamp` 和 `InactiveExitTimestamp` 都填上了，只有 `ActiveEnterTimestamp` 仍是空。**所以"成功跑过之后三个时间戳全是空"这句说过头了——真实形状是"oneshot 成功结束后 `ActiveEnter` 不留值，其余两个在我 19:04 那次没出现、在 20:01 这次出现了"。成因我仍没查，按"半个未解释读数"记；`verify` 那行继续从 journal 取，不改成依赖这三个字段里的任何一个。】
+② 我上一条消息里把"起一次 service 验单元路径"说成已确认 timer 会跑——**timer 的首次自动触发当时还没发生**，
+   到 20:03:18 才算数；这一格我留着不宣布通过。**【20:2x 已发生并回读，这条现在闭合：`systemctl list-timers` 给出 `LAST=Thu 2026-11-05 20:01:12 CST`（此前一直是 `-`），`Result=success`，journal 里 `run-retention-scan summary:` 从 2 行变 3 行，新增那条正是 20:01:12、读数 `orgs=1 swept_rows=0 grace_minutes=15 stuck_shred=0 scan_errors=0`，下一次 `NEXT=21:03:50`。三件齐（LAST 非空＋行数增加＋Result=success）⇒ "自动路径跑过"成立，而且跑的是 timer 不是我手工 start。** swept_rows=0 的含义与 16:23 那次 D0 复测一致（当天已无到期欠账），不是"清扫没干活"的判据。】（19:18 补：那一次自动触发的时刻现读已重摇为 20:01:06，见上一段——判据取 `runs_logged` 与 `LAST`，不取时刻。）
+
+## 15. 注入批次：剩余 15 格逐格要什么（2026-11-05 19:5x 立单，**未授权、未执行**）
+
+主签点的是"提前演练"，我把能零写的都收了（§0D 与 verdict 现算 pass 34／fail 0／na 19）。剩下的 **15 格全是注入**，
+按半径切成**三件**要点头的事（下面签收栏正好 3 行，以表为准）。这三件不是同一种危险：I-1 打可用性、I-2 打进程、
+I-3 会**不可逆地删内容对象**。
+
+**先把两条会决定判据对错的事实钉住**（都是从本轮实测来的，不是推测）：
+- 在途集合必须是 `queued／active／waiting／cancel_requested` 四态。`running` 在 CHECK 约束里不存在，
+  `active`／`cancel_requested` 若漏掉，注入窗口里"正在跑"的 Run 会被读成"无事发生"——§0C 里 D1-6 那次
+  我就是靠 7／9 分钟窗口外推过结论，不能再犯同一类错。**【21:1x 前置已闭合：清单里那 5 行判据（D1-2／D1-4／D2-1／D4-4／P10）都就地改成四态集合，并钉进 `drill-steps.test.mjs` 两条新守卫——枚举从 `baseline/0002:128` 现读（同时断言"枚举里没有 running""至少 6 个取值"防解析器空转），跑批脚本 `rollout-r0a-0015/0016/0027.sh` 的在途集合逐项比对四个非终态。建守卫时抓到它自己的盲区：`mdRows` 的 `slice(1,-1)` 把没有收尾竖线的 P10 行最后一格整格丢掉，所以"已更正却报未更正"。三条变异核对（抹标记／漏 active／新增未更正的 running）都红在断言文本上，还原后 sha 逐字节相同。门禁：design 80/80、ci-contract 142／exit 0。⇒ I-1 现在缺的只有你一句点头。】**
+- 内容备份的覆盖边界：`work-content-backup.timer` 最近一次成功是 **18:54:28 CST**，receipt 记
+  `content/2026-11-05/20261105T105425Z-36ab10e500b4.tar.gz.age`、bytes=1,330,772、sha256 前缀 `a9c0f712`；
+  下一次触发 **11-06 00:50:56**。**19:46 那两笔种子新增的 15 个对象不在这份备份里**——任何"删了能回"的说法
+  要按这条时刻线说，不能说"有 6 小时备份所以可逆"。
+
+| # | 要点头的动作 | 覆盖步 | 半径（会动什么／不会动什么） | 前置与缺的东西 | 代价 | 不做或失败的后果 |
+|---|---|---|---|---|---|---|
+| I-1 | 围一次 **temporal server 层注入**取 D3 的账本证据 **【20:3x 已执行（主签"进入第 2 项"）：pod 2h95v→drmzk，窗口 65 秒内 12 次采样全 Running；D3-1／D3-3／D3-5 pass，D3-2／D3-4 按 P2 实测记 na，D3-6 记 fail（held 0→1 笔 100,000、Run 停 waiting/reconcile、display_state=running）；残留＝1 笔 held＋1 个 waiting Run，等 resume 授权。**【20:34 已按选定 resume：`-scan` 先证 Running／orphan=false 才发信号；Run 8 秒内 `failed/finish_receipt_missing`、display_state 不再假报 running，**但 held=100,000 没还**、operation=unknown 且无回执 ⇒ D3-6 维持 fail，重开条件收窄成"unknown 无回执的收口语义（新开 待裁 #76）裁定后 held 回 0"。**【21:2x #76 已裁并执行：这单 release，默认口径＝终态且无 bound 回执⇒release，漏 release 记代码缺口 待修 #77】held 1→0、reserved 100000→0、settled 不变、quota_entry 自动留 reserve/release 两条；D3-6 按重开条件改判 pass，但注明是靠人工 SQL 达到的。裁之前先取了不可逆性的证：released 之后 settle 与 adjust 两条守卫都拒绝。**gauges 20:36:29 自报 BREACH 并标红；`-scan` 不列终态 Run ⇒ 发现口径是 gauges。双发保护拿到正证：闸行 1、consumed 一次、dup=0。】：种 2 笔 Run → `kubectl delete pod temporal-server-…`（同节点单副本重建）→ 记基线 outbox／未投递 → 观察失联窗口内积压与 Work 数据面无损 → 恢复后看追赶与逐表 count/checksum | `D3-1`、`D3-3`、`D3-5`、`D3-6`（4 格） | 会动：Temporal server 短暂失联（11-04 那次约 90 秒内重建）；库里多出 2 个演练 task/run 与内容对象。**不会动**：不停 Postgres（P2 实测三库同实例，停它＝同时打掉 Work 数据面）、不迁移、不换二进制、不改配置 | 缺：主签一次"注入＋种子"的点头。已具备：`open_runs=0` 的干净基线、四态谓词、`work-db-restore-drill.py` 已在包内 | 单节点上 temporal 重启期间在途 Run 会看到 activity 失败并靠 0028 的租约接管重驱动；残留＝2 笔演练 task（11-04 那批同样留着，我没删） | `C22` 的"Temporal PG 故障恢复"仍只有一半（恢复演练侧有 D3-b，故障侧靠等价注入）。若拒：`D3-1..6` 按"前提不成立＋等价已演"记 na 并写重开条件，`C22` 维持 partial |
+| I-2 | **进程级 crash**：在有在途 Run 时对 temporal server 容器进程 `kill -9`（不是删 pod，走 kubelet 重启这条路），验在途 workflow 恢复且不产生第二个 Run；S1-4 是拿它与 file-backed dev 模式 R06 的结论做**文档级对照**，不动生产 | `S1-R06`、`S1-1`、`S1-2`、`S1-3`、`S1-4`（5 格） | 会动：与 I-1 同一台机、同一形状的失联，但触发路径不同（进程被杀 vs 调度器重建 pod）。不会动：PG、二进制、配置 | 缺：一次点头。已具备：种子通道（本轮已跑通）、`kill` 路径与 `journalctl`/`crictl` 取证口可用 | 与 I-1 同量级；区别是它证明的是"崩溃恢复"而不是"运维删除恢复"，两条证据不能互替 | `C03 §4(4)` 的"进程级崩溃"半条继续空着。若拒：S1 段记 na＋重开条件（接多节点／镜像形态时一并补），`C03` 维持 partial |
+| I-3 | **投递中途 SIGKILL**：手工起一个 relay 以真实 `content_shred` 投递，在两笔之间 `kill -9`，验租约到期后被第二个持有者重领且**只投一次**；再验重投递对已消失对象容忍（`ErrNotExist` 不产生 `content_delete_failed`）；N03-1 同形状打在 export worker 写完文件之后 | `N01-1`、`N01-2`、`N01-3`、`N03-1`（4 格） | **会不可逆地删内容对象**（这是三件里唯一不可逆的）；会多写 outbox／audit 行；不会动：PG、迁移、服务常驻单元（手工进程与 systemd 那份要分开跑，避免抢同一 taskqueue） | 缺：一次点头 **＋ 一件必须事先讲定的事**——N01-3 要一个"已经消失的对象"，最干净的做法是拿本轮 19:46 新建、**不在 18:54 备份里**的那 15 个中的 1 个来删；否则就改成"只验代码路径不碰真对象"，那样这半条就不算现网证据。已具备：relay 身份文件、备份 receipt 与 key 名 | 删错对象的恢复路径是**从 6 小时前的全量包重放**，粒度是整个 org 前缀不是单文件；`ErrNotExist` 语义本身已在测试层钉过（`lease_crash_test.go`、`cmd/work-export/lease_crash_test.go`），本批补的只是"真实进程＋真实 store"那一维 | `C03 §4(3)` 的"真实环境注入"继续空。若拒：N 段按"测试层已验、部署形态未验"记，`C03` 维持 partial 并把这条写进 11-18 复评 |
+
+**建议窗口**（不卡日历，卡的是"这三件分别点头"）：I-1 与 I-2 可以同一上午连着做（同一次种子、两种触发路径）；
+I-3 单独一次，且做之前先确认当时那份内容备份的覆盖时刻，别把"能回"说成永远能回。
+**负责人**：三件都是主签点头＋单人执行（独立复核人已离队，按自决日志＋11-18 复评）。
+
+**与既有待办的关系**（不重复授权，也不借道执行）：
+#54（seed 二进制不在包内）——本轮再次实测：`/usr/local/bin/work-e2e-seed` 是 Oct 30 的手工件（sha16 `ef3b44b9f7a43afb`），
+暂存发布目录里 `seed_in_staged_release_count=0`。三件注入都用得上它；照 #54=B 该"从仓库构建＋记 sha＋上传"，
+那是**第四件生产写**（换 `/usr/local/bin` 里的一个二进制），我没有顺手做，也没有把主机那份说成包内件。

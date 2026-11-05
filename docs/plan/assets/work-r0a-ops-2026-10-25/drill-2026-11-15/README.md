@@ -37,7 +37,53 @@
   **【同日 16:19 再算一次，方法同上】**`D4-6b` 已按主签裁定执行并改判 pass ⇒ 现算 pass **29**／fail **0**／na **14**／
   未取证 25／按 A 裁定排除 8，总 76。**fail 归零不等于演练做完了**：25 格仍未取证（11-15/16 演练本体），
   `C03`／`C22` 因此仍是 `partial`；这两格 pass 靠的是"整批清扫＋投递＋内容消失"，不是多节点／镜像／配额饱和那几半。
+
+  **【同日 19:5x 第三次现算，方法＝现算 `verdict.json.steps[].verdict`，不抄本行旧值】**只读批次与 P10 复验落地：
+  pass **34**／fail **0**／na **19**／未取证 **15**／按 A 裁定排除 8，总 76。三条要分开记：
+  ① 新增的 5 个 na 里有 **4 个是「前提在本部署不成立」**（P1 单副本／P2 三库同实例／P4 OSS Temporal 没有 namespace 限流或并发旋钮／
+     P5 Content Store 是本地目录、没有"演练桶"这一层），不是失败；P11 是组织前提（单人执行，没有五席可确认）。
+  ② 新增的 5 个 pass＝P3（7233 只在内网＋要求客户端证书，公网不通是从 meet 机另一网段验的、同目标 22 端口作对照）、
+     P8（主密钥注入通道就绪，只记长度与指纹）、P9（org 三列可读，"可改"沿用已演的 D4-6a／6c，**#59 仍开**）、
+     D1-7（**顺带推翻我 11-04 写在 §0C 的那句「claimed_by 该列不存在」**：列在，且是 baseline/0002:1249 就有的 relay 租约列）、
+     C13-0（在现 tip 复核三条证据仍在 ⇒ 无重加密驱动，与 A 一致）。
+  ③ **未取证的 15 格现在只剩注入批次**：D3-1..6／S1-R06＋S1-1..4／N01-1..3／N03-1。它们要的是生产写，逐格代价与前置
+     写在授权单 **§15**；其中 D3-2／D3-4 原文（停 Temporal 的 PG）**不演**，因为本轮 P2 实测三库同一个 postmaster，
+     停它等于打掉 Work 自己的数据面，等价注入已由 D3-a（删 pod）＋D3-b（恢复演练）覆盖。
+  ④ P10 复验还带出三条会让下批读成假绿的纠正：**在途状态谓词漏态**（CHECK 枚举里没有 `running`，漏了 `active`／
+     `cancel_requested`）、**"held 预留"不是列**（落在 `quota_account.reserved_tokens`／`task_summary.reserved_tokens`）、**【20:3x 更正我这句话说过头了："不是列"对，但结论不对——`held` 是 `work.quota_reservation.state` 的合法取值之一（CHECK 原文：held／settled／released／unknown，`baseline/0002:276`），现网分布 `released=35 settled=125`、held 行 0。所以"挂着多少预留"的正规读法是 `select count(*) … where state='held'`，而 `quota_account.reserved_tokens` 只是它的聚合额；仓库里 `src/work/scripts/runstream-gauges.sql:35,55` 早就是按 `q.state = 'held'` 读的。我把"没有这个列"推成"只是派生说法"，又一次没先查那个词在库侧的真身——和 §5 那批"空集要先归位再下结论"是同一课。】**
+     **seat 主体在 `work.member` 而不是 `work.subject`**。种子两笔已"现造现演现清"：19 秒／5 秒到 succeeded、
+     真实结算 1,644 tokens、预留归零；残留是 org 里多出这 2 个演练 task 与 15 个内容对象，我没删。
+  **【同日 20:3x 第四次现算，方法＝现算 steps[].verdict】**I-1（Temporal server 层注入）已执行并落账：
+  pass **37**／**fail 1（D3-6）**／na **21**／未取证 **9**／按 A 裁定排除 8，总 76。**fail 重新出现不是回退**：
+  16:19 那次清零的是 `D4-6b`；这次的 `D3-6` 是注入实测拿到的新缺口——一笔 Run 停在 `waiting/reconcile`
+  （派发闸 `consumed`、回执从未挂上、`held` 预留 100,000、用户侧 `display_state` 仍显示 running），
+  而判据原文要求"held 值不变"。**我没放宽判据、也没把它记成 pass(带范围)**，记 fail＋重开条件（见下条）。
+  未取证的 9 格＝S1-R06／S1-1..4／N01-1..3／N03-1，仍要逐件点头。
 - 失败步（附重开条件）：
+  - `D3-6`（2026-11-05 20:2x 新增）——Temporal server 失联的代价被账本如实记下：账本增量全部可归因
+    （run 168→170、operation 161→163、task_event 977→986、outbox 1182→1193；重复派发 0、死信 0、闸行 1 且 consumed 恰好一次、
+    schema_migration 仍 28／max 28、PG 未重启、worker／relay 的 NRestarts 都是 0），**但 `quota_reservation` 的 held 从 0 变 1 笔 100,000**：
+    那笔 Run `state=waiting／wait_reason=reconcile`，`dispatch_delivery.gate_state=consumed` 而 `receipt_recorded_at` 为空，
+    `task_summary.display_state=running`——用户看是"还在跑"，账上挂着一笔不会自己还的预留，恢复要人工 `work-reconcile --resume`
+    （#34=A 的证据门，不为跑绿自动写）。**重开条件**＝resume 后 held 回 0 且该 Run 终态可读，届时按"等价改判"记，带日期、不覆盖这段。
+    证据 `attachments/d3-i1-temporal-outage-20261105.txt`（含 worker journal 三种失联成因原句与我照业务词猜错的三个表／列名）。
+    **【20:34 已按主签选定 resume 重演半条，本格仍 fail】**`-scan` 先证 workflow_status=Running／orphan=false
+    （§5.16 禁的是对已结束 workflow 发信号；14:2x 那次的前提"闸已 receipt_recorded"这单不成立，所以没照抄那条命令）。
+    `work-reconcile … -signal-only` ⇒ resumed=true，8 秒内 Run=failed／terminal_reason=finish_receipt_missing、
+    `display_state=failed` ⇒ 假报 running 这一支已闭合；但 `quota_reservation` 仍 1 笔 held=100,000、
+    operation=unknown、回执从未挂上 ⇒ 判据那一支不满足，**不改成 pass**。发现侧拿到正证：runstream gauges 在
+    20:26:21（resume 前）报 held_on_terminal=0 是对的，20:36:29（resume 后）自报 **BREACH held_on_terminal=1／breaches=1**
+    并把单元标 `Failed with result 'exit-code'`，案语原文就写"收口语义待裁 #56-B"；`-scan` 此后返回 `runs:null`
+    ⇒ 终态挂预留不在 -scan 口径内，发现靠 gauges（§5.17/§5.21）。**新登记 待裁 #76**：operation=unknown 且无回执时
+    该 settle 还是 release（#56-B 在 11-04 只裁了"有 success 回执"那一档）；裁之前这 100,000 与巡检标红每小时重复一次。
+    **【21:2x 收口完成并改判 pass，上面那句 fail 原文不删】**主签裁 #76＝这单按 `release_quota` 收，
+    默认口径定为"终态且无 bound 回执 ⇒ release"，并把"该路径不释放预留"记成代码缺口（待修 #77）。
+    执行以 work_worker 身份＋`set_config(app.org_id)` 完成：`held` 1→0、`quota_account.reserved` 100000→0、
+    `settled` 不变、`quota_entry` 自动落下 `reserve=100000` 与 `release=100000`。**这格的 pass 是有条件的**：
+    账本自洽靠人工一条 SQL 达到，不是代码自动；`finish_receipt_missing` 那条终态路径没走到既有的
+    `case "failed" → release`（activities.go:875），不补这个口，下次同形状仍要人工、且那格该重记 fail。
+    不可逆性在选之前就取证了：`released` 之后 `settle_quota`（要 held/unknown）与 `adjust_quota`（要 settled）都拒绝。
+    **【同日 21:3x 第五次现算】**pass **38**／fail **0**／na **21**／未取证 **9**／按 A 裁定排除 8，总 76。
   - `D1-6`／`D2-4`——同一形态：**在途 Run 在中断后不会自动续跑**。Temporal 仍把 `AdvanceRuntime` 记为 STARTED、
     `nextRetry=None`，于是既不重试也不判孤儿；库里 lease 早已过期。重开条件＝给 activity 配 start-to-close／heartbeat
     超时并让恢复路径能重驱动，或明确「靠人工 reconcile 收」并把它写进值班口径。待裁 #56-A。

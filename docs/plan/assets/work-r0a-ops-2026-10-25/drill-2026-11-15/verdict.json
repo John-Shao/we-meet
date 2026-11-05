@@ -7,47 +7,57 @@
   },
   "host": "lavm-t7fmveau9b（Work 试点机 36.151.147.217，k3s v1.36.5+k3s1 单节点）",
   "helm_revision": null,
-  "migration_ledger": "27 行 ledger，尾项 0027_governance_receipt_payload_binding（applied 2026-11-03 15:03）",
+  "migration_ledger": "27 行 ledger，尾项 0027_governance_receipt_payload_binding（applied 2026-11-03 15:03）【11-05 现读更正：ledger 已 28 行，尾项 0028_runtime_execution_lease_takeover，11-05 14:0x 随 C 段部署；本行旧值保留，它记的是 11-04 那次开窗时的状态。】",
   "steps": [
     {
       "step": "P1",
       "section": "preflight",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "na",
+      "ts": "2026-11-05T19:31:20+08:00",
+      "evidence": [
+        "attachments/p-preflight-read-only-20261105.txt"
+      ],
+      "notes": "【11-05 只读批次】前提不成立：k3s work 命名空间里 temporal-server 的 DESIRED=1、READY=1，且这台机是唯一节点 ⇒ 清单 §1「滚动重启 replica-1／replica-2」没有可操作对象。已在 11-04 演过的 D1-alt（同节点单副本重建）显式声明不构成多节点证据。重开条件＝多节点拓扑落地。原文不删。"
     },
     {
       "step": "P2",
       "section": "preflight",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "na",
+      "ts": "2026-11-05T19:31:20+08:00",
+      "evidence": [
+        "attachments/p-preflight-read-only-20261105.txt"
+      ],
+      "notes": "【11-05 只读批次】两半要拆开：**「专用角色」成立**（temporal 库 owner=temporal、role temporal canlogin=true，Work 侧用 work_api／work_worker_login，互不复用）；**「与 Work 业务库分离（host 不同）」不成立**——work／temporal／temporal_visibility 三库同一个 postmaster（pm_start 均为 2026-10-28 09:30:05.475092+08、data_directory 均为 /data/pg16），Work 侧连接串是 127.0.0.1:5432。后果直接压在 D3：原文「systemctl stop temporal-postgresql」不是只停 Temporal 的库，而是同时打掉 Work 数据面。取证时我自己踩到 NULL 洗行：inet_server_port() 在 unix socket 下是 NULL，整行被拼成 NULL、psql 打印空行，补 coalesce 才现形。"
     },
     {
       "step": "P3",
       "section": "preflight",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-05T19:31:20+08:00",
+      "evidence": [
+        "attachments/p-preflight-read-only-20261105.txt"
+      ],
+      "notes": "【11-05 只读批次】四个面都取到：主机 netns 无 :7233 监听（sudo ss 同样为空）；ClusterIP 上是 TLS 且证书身份正确（subject CN=temporal-server、issuer=work-temporal-ca、SAN 含 DNS:temporal-server／DNS:localhost／IP 127.0.0.1，有效期到 2029-01-30）；不带客户端证书时 frontend 拒匿名连接（cluster health 报 error reading server preface: EOF）；公网侧不通且是**从另一台机另一网段**验的——meet 机 36.151.142.132 → 36.151.147.217:7233 超时不通，同目标 22 端口可通作对照（排除「整台机不通」造成的假绿）。"
     },
     {
       "step": "P4",
       "section": "preflight",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "na",
+      "ts": "2026-11-05T19:31:20+08:00",
+      "evidence": [
+        "attachments/p-preflight-read-only-20261105.txt"
+      ],
+      "notes": "【11-05 只读批次】要调的旋钮在本部署不存在。namespace describe 现值与 11-04 D4-c 逐字一致（work-r0a／Id 5d81da27-…／retention 168h／单集群 active／History 与 Visibility 归档 Disabled）；而 `namespace update --help` 给的可改项只有 active-cluster／cluster／data／description／email／history-archival-state／history-uri／visibility-archival-state／retention——**没有 rate limit、没有每 namespace 并发上限**（那是 Temporal Cloud 特性）。所以「降配额至种子 Run 数−1」无从下手；retention 虽可改，但改它既不是配额、又要落一次生产写并恢复原值，本轮没动。Work 侧真配额闸的证据在 D4-b／D4-3（已 pass）。"
     },
     {
       "step": "P5",
       "section": "preflight",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "na",
+      "ts": "2026-11-05T19:31:20+08:00",
+      "evidence": [
+        "attachments/p-preflight-read-only-20261105.txt"
+      ],
+      "notes": "【11-05 只读批次】本部署没有「桶」这一层：WORK_CONTENT_DIR=/var/lib/work/content 是本地文件系统（1300 个 .enc、1,246,902 字节、1 个 org 前缀），/etc/work/*.env 里连 oss／s3／bucket 字样的键都没有，也没有第二套「最小权限演练凭证」。内容面的隔离目前只靠 work-control 这个 Unix 用户与文件属主。重开条件＝接对象存储后端时（与 #40／C13 同源）。"
     },
     {
       "step": "P6",
@@ -55,9 +65,10 @@
       "verdict": "pass",
       "ts": "2026-11-04T19:42:30+08:00",
       "evidence": [
-        "attachments/d4-a-1-suspend-obligations-restore.log"
+        "attachments/d4-a-1-suspend-obligations-restore.log",
+        "attachments/p10-batch2-seed-and-rerun-20261105.txt"
       ],
-      "notes": "kill switch 可操作已实测：以 work_operator 身份调 work.apply_execution_entitlement，org 的 execution_enabled 由 true→false→true、operator_suspended 由 false→true→false，access_epoch 0→1。范围收清：主机上 work_operator 没有登录角色（无 work_operator_login）、/etc/work 里也没有 operator 用的 env 文件，本次是 superuser + SET ROLE work_operator 进入的，因此「值班手上有一条 operator DSN」这一条仍未成立，已另记待裁 #56-B。EXECUTE ACL 实测只有 work_owner 与 work_operator 两项。"
+      "notes": "kill switch 可操作已实测：以 work_operator 身份调 work.apply_execution_entitlement，org 的 execution_enabled 由 true→false→true、operator_suspended 由 false→true→false，access_epoch 0→1。范围收清：主机上 work_operator 没有登录角色（无 work_operator_login）、/etc/work 里也没有 operator 用的 env 文件，本次是 superuser + SET ROLE work_operator 进入的，因此「值班手上有一条 operator DSN」这一条仍未成立，已另记待裁 #56-B。EXECUTE ACL 实测只有 work_owner 与 work_operator 两项。 【11-05 复验，结论不变】work_operator 仍 canlogin=false、operator_login_role_count=0、/etc/work 里仍 NO_OPERATOR_ENV_FILE；EXECUTE 矩阵今天读作 work_operator=true／work_owner=true／work_migrator=true，api／worker／ops=false ⇒ 11-04 那条缺口没被任何后续部署顺带修掉，#56-B／#59 仍开。实测函数签名 9 个入参（p_org_id, p_actor_subject_id, p_operator_authorization_ref, p_enabled, p_operator_suspended, p_seat_limit, p_target_entitlement_revision, p_host_ack_revision, p_client_request_id），清单里 `apply_execution_entitlement(p_operator_suspended => true)` 那种省略写法在真库上跑不通。"
     },
     {
       "step": "P7",
@@ -65,25 +76,30 @@
       "verdict": "na",
       "ts": "2026-11-04T19:21:17+08:00",
       "evidence": [
-        "attachments/d2-alt-1-worker-drain-stageB.log"
+        "attachments/d2-alt-1-worker-drain-stageB.log",
+        "attachments/p10-batch2-seed-and-rerun-20261105.txt"
       ],
-      "notes": "「两个 Worker 版本镜像」在本部署不成立：crictl 里匹配 worker 的镜像数 0、主机无 docker，worker 是 systemd 单元 + 裸二进制。已按 §0A 改为二进制级版本切换（v1 sha256 9ae58c067b4a5103c951a3f932bf400a3c27915fc00787df6a8c3427c1846435，v2 sha256 33a6c7dfdd175c935a9d4823544e96d8de5e620e4352d16f4915f03f3d4b93f8，tip 8a0036c93 构建、上传后逐字节核对一致）。"
+      "notes": "「两个 Worker 版本镜像」在本部署不成立：crictl 里匹配 worker 的镜像数 0、主机无 docker，worker 是 systemd 单元 + 裸二进制。已按 §0A 改为二进制级版本切换（v1 sha256 9ae58c067b4a5103c951a3f932bf400a3c27915fc00787df6a8c3427c1846435，v2 sha256 33a6c7dfdd175c935a9d4823544e96d8de5e620e4352d16f4915f03f3d4b93f8，tip 8a0036c93 构建、上传后逐字节核对一致）。 【11-05 复验，结论不变但快照过期】镜像数仍 0（只有 crictl，无 docker），现役 pod 只有 temporal-server:1.25.0。**要记账**：worker 二进制现为 sha16 9cd4f2b986e19a2e、进程启动 11-05 14:10:53（＝C 段 0028 那次部署换的），而本目录环境快照与 11-04 记的 v1 是 9ae58c067b4a5103 ⇒ 下一批 D2／S1／N 若要 v1→v2 切换，v1 基线必须现读，不能照抄快照里的历史 sha。"
     },
     {
       "step": "P8",
       "section": "preflight",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-05T19:31:20+08:00",
+      "evidence": [
+        "attachments/p-preflight-read-only-20261105.txt"
+      ],
+      "notes": "【11-05 只读批次】注入通道就绪且当前 key 可读：五份服务 env（work-api／content-proxy／egress／relay／worker，0640 root:work-control）各带同一把 WORK_CONTENT_MASTER_KEY（只记长度 64 与 sha256 前 8 位 82f9a17b，不打印值），三个现役进程的 /proc/<pid>/environ 都读得到该键名（api 1873486／worker 1875248／relay 1873482）。env 文件不在仓库里，取证全程只输出长度与指纹。范围：A 裁定下不换 key、不注入新 key，本行只是现状确认。"
     },
     {
       "step": "P9",
       "section": "preflight",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-05T19:31:20+08:00",
+      "evidence": [
+        "attachments/p-preflight-read-only-20261105.txt"
+      ],
+      "notes": "【11-05 只读批次，带范围】三列现值 org 4a2d3f28… = active／exec=true／susp=false／epoch=1；「可读」本轮实测，「可改」用已演的 D4-6a／D4-6c 作证据（停用→四步 ack 解除→恢复）。未闭合的是 **#59**：这条链没有运维入口，只能由授权角色经 SQL 调 work.apply_execution_entitlement（实测 9 个入参），所以「值班手上有可操作闸门」只在 SQL 层成立。**并纠正原文一处事实**：清单 §7 说 tenant_access「在 schema 里有列」——现网库里根本没有这个列（information_schema 全库查 0 行，哨兵读数 NO_SUCH_COLUMN_ANYWHERE），work.org 的真实列是 id,status,execution_enabled,operator_suspended,home_region,revision,created_at,updated_at,name,access_epoch；仓库里 tenant_access 唯一的生产者是 0008 增量的 `CREATE POLICY tenant_access ON work.directory_sync_state`，它是 RLS **策略名**，不是开关也不是列 ⇒ 「启用 tenant-access flag」这个动作在本部署没有作用对象。"
     },
     {
       "step": "P10",
@@ -92,17 +108,20 @@
       "ts": "2026-11-04T19:22:05+08:00",
       "evidence": [
         "attachments/seed-DRILL1104-D2C-R3.log",
-        "attachments/seed-DRILL1104-D4A-R7.log"
+        "attachments/seed-DRILL1104-D4A-R7.log",
+        "attachments/p10-batch2-seed-and-rerun-20261105.txt"
       ],
-      "notes": "种子机制可用，但清单原文的四条前提当场纠正：① 必须 source /etc/work/work-api.env（缺 WORK_RUNTIME_VERSION 直接拒绝）；② 必须以 work-control 身份跑，以 root 跑会让 content 对象落成 root:root 600、advance 读不回（advance_input_read_failed）；③ 唯一有 work_seat 的主体是 535bbd27…（role=admin），owner 11661aed… 的 seat=false，原文「-actor <active owner subject>」在本库不可执行；④ client-request-id 有 8–128 字节下限。另：quota 期间行按 #51 结论首笔预留懒建，2026-11 行已由今晚预留自动建出。"
+      "notes": "种子机制可用，但清单原文的四条前提当场纠正：① 必须 source /etc/work/work-api.env（缺 WORK_RUNTIME_VERSION 直接拒绝）；② 必须以 work-control 身份跑，以 root 跑会让 content 对象落成 root:root 600、advance 读不回（advance_input_read_failed）；③ 唯一有 work_seat 的主体是 535bbd27…（role=admin），owner 11661aed… 的 seat=false，原文「-actor <active owner subject>」在本库不可执行；④ client-request-id 有 8–128 字节下限。另：quota 期间行按 #51 结论首笔预留懒建，2026-11 行已由今晚预留自动建出。 【11-05 重跑，pass 带范围】按「现造现演现清」种两笔：seed rc=0／0（work-control 身份＋source work-api.env），run 2025546a 19 秒到 succeeded、45be2b6b 5 秒到 succeeded；quota 2026-11 reserved 归 0、settled 18116→19760（真实结算 1,644 tokens）、task_summary 无未结算预留行 ⇒ 没制造 #11 那类 stale held；内容对象 1300→1315，属主全 work-control。「≥2 同时在途」取到（poll_01=2）。**三条必须带走的纠正**：① 在途谓词写错了——work.run.state 的 CHECK 枚举是 queued／active／waiting／cancel_requested／succeeded／failed／canceled，原文与我的过滤集合用的 `running` 不存在、`active` 与 `cancel_requested` 被漏 ⇒ 下一批注入前先把谓词改对，否则会把「正在跑」读成「什么都没发生」；② seat 主体在 **work.member**（member.work_seat，唯一 true 的是 subject 535bbd27…），库里没有 work.subject 表；③ 「held」不是列（全库 column_name like %held% 零命中），预留落在 quota_account.reserved_tokens 与 task_summary.reserved_tokens，值班文档里的「held 预留」是派生词。`waiting` 形态本轮平种不出来，要等 D3／S1／N 注入才有活体。#54 缺口仍在：seed 二进制是 Oct 30 手工件（sha16 ef3b44b9f7a43afb）、不在暂存发布目录也不在包内。残留按实报：org 4a2d3f28… 里多出这 2 个演练 task／成果，我没有删。"
     },
     {
       "step": "P11",
       "section": "preflight",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "na",
+      "ts": "2026-11-05T19:31:20+08:00",
+      "evidence": [
+        "attachments/p-preflight-read-only-20261105.txt"
+      ],
+      "notes": "【11-05 只读批次】组织前提不成立，不是技术失败：独立复核人 2026-11-01 离队，本阶段是单人执行＋自决日志＋复评；11-04 那次已按同一形状记。这一格要么改判据为「单席＋复评人」，要么等规模化补齐角色。附录 A 的五席表没有虚构填名。"
     },
     {
       "step": "D1-1",
@@ -170,10 +189,12 @@
     {
       "step": "D1-7",
       "section": "C03-D1",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": "本行判据的 claimed_by 列在 work.outbox 不存在（表只有 available_at/delivered_at/attempts/aggregate_*），需先改判据再取证，今晚不写结论。已测到的相邻事实：outbox 未投递数在清扫后由 1 回到 0（relay 把义务事件投完了）。"
+      "verdict": "pass",
+      "ts": "2026-11-05T19:31:20+08:00",
+      "evidence": [
+        "attachments/p-preflight-read-only-20261105.txt"
+      ],
+      "notes": "本行判据的 claimed_by 列在 work.outbox 不存在（表只有 available_at/delivered_at/attempts/aggregate_*），需先改判据再取证，今晚不写结论。已测到的相邻事实：outbox 未投递数在清扫后由 1 回到 0（relay 把义务事件投完了）。 【11-05 补，原文不删】【11-05 只读批次】本格同时**推翻 §0C 那句「claimed_by 该列不存在」**：现读 information_schema 里 work.outbox 有 claimed_by(text) 与 claimed_until(timestamptz)，且不是后加的迁移——baseline/0002:1249 就 ADD COLUMN claimed_by，:2493 SET claimed_by=p_relay_id、:2637 ack 时清回 NULL，一直是 relay 领取租约列 ⇒ 原文判据不用改写就能演。26 小时窗口读数：total=1168、undelivered=0、窗口内 131 行全部 claimed_by 非空且已 delivered，三个 relay 持有者（work-relay-1-11ebbea0／-fcc7aff2／-c4175adf）分别 11／93／27 行且各自 delivered=rows；(aggregate_type,aggregate_id,event_id) 分组 dups=0、max_events_per_id=1 ⇒ 「事件不重复、claimed_by 最多一次 completed」成立。**范围（不外推）**：claimed_until 非空数=0 说明取到的都是已 ack 的行，这是稳态投递证据；「租约到期后被第二个持有者重领仍只投一次」那半在 D1-alt／D2-alt／N01 的判据里，不在本格。"
     },
     {
       "step": "D2-1",
@@ -248,50 +269,62 @@
     {
       "step": "D3-1",
       "section": "C22-D3",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-05T20:28:21+08:00",
+      "evidence": [
+        "attachments/d3-i1-temporal-outage-20261105.txt"
+      ],
+      "notes": "基线读数齐：outbox total=1182、undelivered=0（这就是窗口里要对照的 N）；run=168／operation=161／task_event=977；按 id||state||terminal_reason 排序的 md5 校验和 a80ab954802785face3e7a1c94f3b5ea；quota_reservation held=0；无在途 Run；pg_postmaster_start=2026-10-28 09:30:05（用来证明注入没碰 PG）；temporal pod＝temporal-server-787478d8c8-2h95v（1/1 Running 24h）；v1 worker sha16=9cd4f2b986e19a2e 现读。"
     },
     {
       "step": "D3-2",
       "section": "C22-D3",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "na",
+      "ts": "2026-11-05T20:28:21+08:00",
+      "evidence": [
+        "attachments/d3-i1-temporal-outage-20261105.txt"
+      ],
+      "notes": "原文 `systemctl stop temporal-postgresql` 不执行。本轮 P2 实测 work／temporal／temporal_visibility 三库同一个 postmaster（data_directory 均 /data/pg16、pm_start 均为 2026-10-28 09:30:05.475092+08），停它不是\"只停 Temporal 的库\"而是同时打掉 Work 自己的数据面（run／task／outbox 都在同一实例）——那是自伤停机，不是故障注入。等价注入分两条已演：D3-a（server 层失联＝本轮删 pod，与 D1-alt 同一次动作由主签认定算同一证据）与 D3-b（恢复演练 work-db-restore-drill.py，11-05 已 pass）。重开条件＝真要停库时必须先约定窗口并逐次授权，且需要一个与业务库分离的 Temporal PG 实例（P2 那一半本来就在等这个）。"
     },
     {
       "step": "D3-3",
       "section": "C22-D3",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-05T20:28:21+08:00",
+      "evidence": [
+        "attachments/d3-i1-temporal-outage-20261105.txt"
+      ],
+      "notes": "判据原文\"等待 2–5 min，观察 Work outbox 积压增长\"在窗口内**满足但未证实它暗示的因果**，所以按现网改写后判 pass：未投递数从基线 N=0 在 t=40s 变 1、t=45s 变 2、t=50s 回 0（确实 > N）。可 relay 根本不依赖 Temporal——`work-relay.service` 全程 active、NRestarts=0，那 2 行是种子刚插入的事件落在 relay 秒级轮询间隔内的正常在途，不是失联造成的积压。⇒ 本行原文隐含的\"Temporal 失联 ⇒ Work outbox 积压\"在本接线不成立，改成\"失联期间 relay 仍持续投递，未投递数不因 Temporal 失联而累积\"。真正的失联证据是 worker 侧：journalctl 里 `Failed to poll for task` 由 4 条涨到 8 条再回 4 条，三种成因原句齐（EOF＋graceful_stop／dial tcp 10.43.147.249:7233 connection refused／i/o timeout）。"
     },
     {
       "step": "D3-4",
       "section": "C22-D3",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "na",
+      "ts": "2026-11-05T20:28:21+08:00",
+      "evidence": [
+        "attachments/d3-i1-temporal-outage-20261105.txt"
+      ],
+      "notes": "原文 `systemctl start temporal-postgresql`（\"恢复 PG\"）随 D3-2 一并移出：本轮没有停过 PG，所以也没有\"起回来\"这一步；pg_postmaster_start_time 在注入前后同为 2026-10-28 09:30:05.475092+08 就是这条的直接反证。恢复动作由 pod 重建承担（见 D3-5），DB 侧恢复能力由 D3-b 的恢复演练承担。"
     },
     {
       "step": "D3-5",
       "section": "C22-D3",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-05T20:28:21+08:00",
+      "evidence": [
+        "attachments/d3-i1-temporal-outage-20261105.txt"
+      ],
+      "notes": "追赶成立：删除指令 20:24:00 发出，5 秒内新 pod temporal-server-787478d8c8-drmzk 就 Running（窗口内 12 次采样全是 Running，说明 k3s 侧重建快于失联感知）；outbox 由 total=1193／undelivered=0 收尾，即窗口内出现过的 2 行未投递在 10 秒内被投完，未遗留。dead_lettered=0。注意这一格只证明\"投递侧追上\"，不证明\"停住的 Run 追上\"——那一条见 D3-6 的 fail。"
     },
     {
       "step": "D3-6",
       "section": "C22-D3",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-05T21:25:04+08:00",
+      "evidence": [
+        "attachments/d3-i1-temporal-outage-20261105.txt"
+      ],
+      "notes": "两半要拆开。**通过的一半**：账本增量全部可归因——run 168→170、operation 161→163、task_event 977→986、outbox 1182→1193，增量都由这两笔种子解释；重复派发 0（(aggregate,event) 分组 dups=0）、死信 0、闸行数=1 且 gate_state=consumed 恰好一次；schema_migration 仍 28／max=28（无迁移）；PG 未重启、work-worker 与 work-relay 的 NRestarts 都是 0。**推翻判据的一半**：原文要求\"quota_account held 值不变\"，现读 held 从 0 变成 1 笔 100,000——那笔 Run（5a72fe49）停在 state=waiting／wait_reason=reconcile，派发闸 consumed 但 receipt_recorded=0（回执从未挂上），task_summary 侧 display_state 仍是 running、reserved=100000、settled=0；窗口内 audit_event 有 run.wait=1、dispatch.gate_consumed=2 而 dispatch.receipt_attached 只有 1。⇒ 用户看到的是\"还在跑\"，账上挂着一笔不会自己还的预留，恢复要人工走 work-reconcile --resume（#34=A 定的证据门，不为跑绿自动写）。这不是数据损坏，是\"失联的代价被如实记账、但这条恢复路径需要人工\"，按原文判据记 **fail** 而不是放宽。重开条件＝执行 resume 后 held 回 0 且该 Run 终态可读（那时本格按\"等价改判\"记，带日期，不覆盖这段）。另记我自己三条照业务词猜表名列名的错：work.migration_ledger（真名 schema_migration）、dispatch_delivery 没有 id／run_id（按 operation_id 键、状态列叫 gate_state）、operation 的状态列叫 state 而非 status／task_summary 按 task_id 键。同类错第三次，落点：值班 SQL 的表名一律现读。\n**重演半条（20:34:45 resume，主签选定\"现在 resume 收掉\"）**：先跑只读 `work-reconcile -scan -org <org>` 证 workflow_status=Running／orphan=false（§5.16 禁的是对已结束 workflow 发 `-signal-only`，会报 already completed；而 14:2x 那次的前提\"闸已 receipt_recorded\"这单不成立，所以没照抄那条命令）。随后 `work-reconcile -org 4a2d3f28… -operation 884f0794… -signal-only` 返回 `{\"resumed\":true,\"signal_only\":true,\"resolution\":\"\"}`，8 秒内 Run=failed／terminal_reason=finish_receipt_missing、task_summary.display_state=failed ⇒ **用户侧假报 running 这一支已闭合**；但 `quota_reservation` 657da033 仍 state=held／amount=100000／settled=0，operation=unknown，`receipt_recorded_at` 依然为空 ⇒ **原判据那一支不满足，本格维持 fail**，重开条件收窄成\"unknown 且无回执的预留收口语义（新开 待裁 #76，不在 #56-B 已裁范围内）裁定后 held 回 0 且终态可读\"。两条正面证据一并记下：① 双发保护成立——闸行 1、gate_state=consumed 恰好一次、(聚合根,事件) 分组 dup=0、undelivered=0、死信 0；② 发现不是靠我手工数——runstream gauges 在 20:26:21（resume 前）报 held_on_terminal=0 是正确的，20:36:29（resume 后）自报 BREACH held_on_terminal=1／breaches=1 并把 work-runstream-scan.service 标成 Failed with result 'exit-code'，案语原文即\"未释放预留超过容差 0（§5.17；收口语义待裁 #56-B）\"；而 resume 后 `work-reconcile -scan` 返回 runs:null ⇒ **终态挂预留不在 -scan 口径内，发现口径是 gauges（§5.17/§5.21）**。我这轮还犯了四条读数错：造了不存在的表名 `work.migration_ledger`（真名 `schema_migration`，`verify-r0a-0027.sh:32` 用的就是它）、把 `dispatch_delivery` 当成有 id／run_id（它按 operation_id 键、状态列叫 gate_state）、把 `operation` 的状态列写成 status（叫 state）、以及一条把 join 建在 org_id 上的残留查询数出假数 170（真值 1 笔，没进任何结论）；另有一次 `printf \"%s\" ~/sudo-pass.txt | sudo -S` 把文件名当口令送进 stdin ⇒ 1 次 incorrect password attempt。全部按实记，不抹。\n【21:2x 改判 pass，带日期且不覆盖上面那段 fail 原文】主签裁定 #76＝这单按 release 收、默认口径＝\"终态且无 bound 回执 ⇒ release\"、并把漏 release 记成代码缺口（待修 #77）。执行以 work_worker 身份 + set_config(app.org_id) 调 release_quota：NOTICE released reservation=4f0b4688 amount=100000，psql_rc=0；quota_reservation 由 held=1/released=35 变 **held=0/released=36**，quota_account 2026-11 的 reserved 100000→**0**、settled 22654 不变，quota_entry 自动落下 reserve=100000 与 release=100000 两条（不是我另写的账）。Run 仍 failed/finish_receipt_missing、operation 仍 unknown ⇒ 收口没有改写事实、也没有补造用量。**为什么这格现在算 pass**：原判据\"held 值不变\"在注入当时确实被破坏（这一点上面那段永久留着），而重开条件写的是\"收口语义裁定后 held 回 0 且终态可读\"，现已满足。**这个 pass 是有条件的**：账本自洽是靠人工一条 SQL 达到的，不是代码自动的；代码缺口（activities.go:875 的 case failed/canceled 会 release，而 finish_receipt_missing 这条路不走它）记 待修 #77，不修则下次同形状仍要人工，且那一格该重新记 fail。执行过程中三次失败各教一件事：psql 不读 WORK_DATABASE_URL（要当参数传）、uuid 没有 min 聚合（这次失败让守卫真挡了一下）、work_worker 对该表能 SELECT 能 EXECUTE 但 **FOR UPDATE 被拒**（预留只能经 SECURITY DEFINER 写）——第三条是控制的现证，不是障碍。另附 RLS 正反对照：未设 org_id 数到 0、设了数到 1。不可逆性在选之前就已取证：released 之后 settle_quota 与 adjust_quota 的守卫都拒绝（settle 要 held/unknown、adjust 要 settled），所以选 release 就等于放弃将来补记这一次用量的可能。"
     },
     {
       "step": "D4-1",
@@ -379,10 +412,12 @@
     {
       "step": "C13-0",
       "section": "C13",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": "只跑前置审计：驱动不存在=与 #40-A 一致；C13-1..8 移出本次演练（A 裁定）"
+      "verdict": "pass",
+      "ts": "2026-11-05T19:31:20+08:00",
+      "evidence": [
+        "attachments/p-preflight-read-only-20261105.txt"
+      ],
+      "notes": "只跑前置审计：驱动不存在=与 #40-A 一致；C13-1..8 移出本次演练（A 裁定） 【11-05 补，原文不删】【11-05 只读批次，在 tip 4749ce01d 复核】11-03 的三条证据都还在：① 非测试代码 8 个 content.NewLocal 调用点全部硬编码 keyVersion=1（api:48／content-proxy:44／e2e-seed:81／egress:56／export:59／reconcile:227／relay:37／worker:75）；② cmd/ 的 13 个命令里没有任何内容重加密命令（work-provider-setup 是凭据重包裹，不是 Content Store 重加密）；③ local.go:144 的 `version != l.keyVersion` 两条分支都返回明文、解密恒用 deriveKey(l.master, orgID) ⇒ 不存在跨 master 读取窗口。判定＝主密钥离线重加密驱动不存在，与 A 裁定一致，按 11-04 的消歧**不记 blocked**，C13 保持 partial；重开条件＝>3 组织／疑似泄露／接对象存储。"
     },
     {
       "step": "C28-1",
@@ -702,9 +737,9 @@
     }
   ],
   "summary": {
-    "pass": 29,
+    "pass": 38,
     "fail": 0,
-    "na": 14,
+    "na": 21,
     "total": 76
   },
   "writeback_targets": {

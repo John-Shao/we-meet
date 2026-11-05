@@ -1,0 +1,199 @@
+演练 11-15/16 前置项复验 · 只读批次
+执行：2026-11-05 19:25–19:31 CST，试点机 lavm-t7fmveau9b（36.151.147.217），单人执行（主签授权"处理第 4 项：11-15/16 演练本体（提前演练）"）
+半径：**全程零生产写**。只有 `systemctl is-*`／`psql` 只读查询／`openssl`／`ss`／`temporal … describe`／`sha256sum`；没有 stop、没有 restart、没有改任何配置或数据。
+载体：原始 stdout 在同目录 `p-preflight-read-only-20261105.txt`（本文件），命令原文在文末"复放命令"段。
+
+================================================================================
+P1 Temporal ≥2 副本 —— 前提不成立（na）
+================================================================================
+temporal-server-787478d8c8-2h95v   1/1   Running   0   23h   10.42.0.47   lavm-t7fmveau9b
+NAME              READY   DESIRED
+temporal-server   1       1
+判读：DESIRED=1、READY=1，且这台机是 k3s 唯一节点 ⇒ 清单 §1「滚动重启 replica-1/replica-2」在本部署不可执行。
+D1-alt（同节点单副本重建）已在 11-04 演过并显式声明"不构成多节点证据"（README §结论）。
+重开条件：规模化／多节点拓扑落地之后。
+
+================================================================================
+P2 Temporal 独立 PG、与 Work 业务库分离 —— "host 不同"一支不成立，"专用角色"一支成立
+================================================================================
+三个库在同一个 postmaster 上（同 data_directory、同启动时刻）：
+  db=work                 data_directory=/data/pg16
+  db=temporal             data_directory=/data/pg16
+  db=temporal_visibility  data_directory=/data/pg16
+  db=work                 pm_start=2026-10-28 09:30:05.475092+08  srv=socket:socket  datadir=/data/pg16
+  db=temporal             pm_start=2026-10-28 09:30:05.475092+08  srv=socket:socket  datadir=/data/pg16
+  db=temporal_visibility  pm_start=2026-10-28 09:30:05.475092+08  srv=socket:socket  datadir=/data/pg16
+库 owner 与角色是分开的（"专用角色"成立）：
+  db|work|owner=work_owner|size=19 MB
+  db|temporal|owner=temporal|size=13 MB
+  db|temporal_visibility|owner=temporal|size=14 MB
+  role|temporal|canlogin=true   role|work_api|canlogin=false   role|work_worker_login|canlogin=true
+Work 侧连接串指向本机同一实例：
+  /etc/work/work-api.env|WORK_DATABASE_URL=127.0.0.1:5432
+  /etc/work/work-worker.env|WORK_DATABASE_URL=127.0.0.1:5432
+  /etc/work/work-relay.env|WORK_DATABASE_URL=127.0.0.1:5432
+后果（这条决定 D3 整批的形状）：原文 D3-2/D3-4「systemctl stop temporal-postgresql」不是"只停 Temporal 的库"，
+而是同时打掉 Work 自己的数据面（run/task/outbox 全在同实例）——§0A 已记，本轮再次实测为真。
+取证过程中我自己踩到的一个坑（按实记）：第一版读数查询写成 `... || inet_server_port()::text`，
+unix socket 连接下 `inet_server_port()` 是 NULL ⇒ 整行被拼成 NULL，psql 打印空行，看起来像"查询没返回"。
+补 coalesce 后才有上面的 srv=socket:socket。这正是"NULL 把行洗掉"那一类自假缺证。
+
+================================================================================
+P3 mTLS 7233 仅内网可达 —— pass（四个面都取到了）
+================================================================================
+(1) 主机网络命名空间里没有 :7233 监听：`ss -ltnp | grep -w 7233` → no listener（带 sudo 复跑同样为空）。
+(2) ClusterIP 上是 TLS 且证书身份正确：
+    CONNECTED(00000003)  subject=CN = temporal-server  issuer=CN = work-temporal-ca
+    notBefore=Oct 28 01:31:54 2026 GMT  notAfter=Jan 30 01:31:54 2029 GMT
+    SAN: DNS:temporal-server, DNS:temporal-server.work.svc, DNS:temporal-server.work.svc.cluster.local,
+         DNS:localhost, IP Address:127.0.0.1
+    不带客户端证书时 frontend 直接拒：`temporal operator cluster health --address 10.43.147.249:7233`
+    → "error reading server preface: EOF"（匿名连接被拒，不是明文服务）
+(3) 公网不可达，从**另一台机、另一网段**验的（不是自环）：
+      meet 机 36.151.142.132 → /dev/tcp/36.151.147.217/7233 ⇒ NOT_REACHABLE rc=124（8 秒超时）
+      同一目标机对照：36.151.147.217/22 ⇒ open（证明不是"整台机不通"造成的假绿）
+    Work 机上自测同样 rc=124。
+判读：7233 只在集群内 ClusterIP 上、要求 mTLS 客户端证书、公网侧被防火墙/路由挡死 ⇒ 原文判据成立。
+
+================================================================================
+P4 配额可调（原文＝`temporal operator namespace update -rd` 能改 retention/rate）—— na，旋钮不存在
+================================================================================
+现值（只读 describe，mTLS 走 worker 用的那套证书，与 11-04 D4-c 两次读数逐字一致）：
+  NamespaceInfo.Name                    work-r0a
+  NamespaceInfo.Id                      5d81da27-481d-4501-875b-0438b9583f9d
+  NamespaceInfo.State                   Registered
+  Config.WorkflowExecutionRetentionTtl  168h0m0s
+  ReplicationConfig.ActiveClusterName   active
+  ReplicationConfig.Clusters            [{"clusterName":"active"}]
+  Config.HistoryArchivalState           Disabled
+  Config.VisibilityArchivalState        Disabled
+  IsGlobalNamespace                     false
+`temporal operator namespace update --help` 给出的可改项只有（节选）：
+  --active-cluster / --cluster / --data / --description / --email /
+  --history-archival-state / --history-uri / --visibility-archival-state / --retention(-rd)
+⇒ **没有 rate limit、没有每 namespace 并发上限**这一类旋钮（§0A 已记：那是 Temporal Cloud 特性）。
+所以原文"改配额至种子 Run 数 −1"在本部署无从下手；retention 虽然可改，但改它既不是配额、
+又要落一次生产写（改完还得恢复原值），本轮**没有动**。Work 侧真配额闸的饱和证据在 D4-b／D4-3（已 pass）。
+
+================================================================================
+P5 Content Store 独立演练桶 + 最小权限凭证 —— na，本部署没有"桶"这一层
+================================================================================
+WORK_CONTENT_DIR=/var/lib/work/content（本地文件系统，不是对象存储）
+  object_count=1300  bytes=1246902  org 前缀目录数=1（3ae5f1dba8ac22a8f0e6a0fc3d39ae77）
+`grep -rliE 'oss|s3|bucket' /etc/work/*.env` → 无命中（键名层面都没有对象存储配置）
+`ls /etc/work/` 全清单里没有任何"演练桶专用凭证"文件。
+判读：清单要的"独立演练桶＋最小权限凭证"是对象存储形态下的控制，本部署（D-03 B：本地单层加密）没有落点；
+内容面的隔离目前只靠 `work-control` 这个 Unix 用户与文件属主（本轮 15 个新对象都是 work-control:work-control）。
+重开条件＝接入对象存储后端时（与 #40／C13 的重开条件同源）。
+
+================================================================================
+P8 WORK_CONTENT_MASTER_KEY 注入通道就绪 —— pass（只验"就绪＋当前 key 可读＋不入库"，不验轮换）
+================================================================================
+五份服务 env 各有一份同一把 key（只记长度与指纹，不打印密钥）：
+  /etc/work/work-api.env            has_key=1 len=64 sha8=82f9a17b
+  /etc/work/work-content-proxy.env  has_key=1 len=64 sha8=82f9a17b
+  /etc/work/work-egress.env         has_key=1 len=64 sha8=82f9a17b
+  /etc/work/work-relay.env          has_key=1 len=64 sha8=82f9a17b
+  /etc/work/work-worker.env         has_key=1 len=64 sha8=82f9a17b
+文件权限 0640 root:work-control；进程侧确实带上了（读 /proc/<pid>/environ 的键名存在性，不读值）：
+  work-api pid=1873486 key_present=1
+  work-worker pid=1875248 key_present=1
+  work-relay pid=1873482 key_present=1
+不入库：这些 env 文件本身不在仓库里（主机件），本轮取证全程只输出长度与 sha8。
+范围声明：A 裁定（11-03）下主密钥不换、不注入新 key，本行只作"现状确认"（清单 P8 行 2026-11-04 已就地标注）。
+
+================================================================================
+P9 租户开通/停用闸门可操作（三列可读可改）—— pass（带范围），并纠正一处原文事实
+================================================================================
+三列现值（superuser 直读，等价 SQL）：
+  org|4a2d3f28-38b9-4d6c-8614-70ef9a83960d|active|exec=true|susp=false|epoch=1
+"可读"本轮实测；"可改"一支的证据是已演的 D4-6a／D4-6c（停用→四步 ack 解除→恢复，pass）。
+范围（未闭合，不自决）：**#59 待裁**——这条链目前没有运维入口，只能由授权角色经 SQL 调
+`work.apply_execution_entitlement`（9 个入参，签名实测：
+  p_org_id text, p_actor_subject_id text, p_operator_authorization_ref text, p_enabled boolean,
+  p_operator_suspended boolean, p_seat_limit bigint, p_target_entitlement_revision bigint,
+  p_host_ack_revision bigint, p_client_request_id text），
+所以"值班手上有可操作的闸门"只在 SQL 层成立。
+**原文事实纠正（本轮新证据）**：清单 §7 与 P9 附近多处说 `tenant_access` "在 schema 里有列"——
+现网库里**根本没有这个列**：
+  select … from information_schema.columns where column_name='tenant_access' → 0 行
+  哨兵读数（防空集静默）：NO_SUCH_COLUMN_ANYWHERE
+  work.org 的真实列：id,status,execution_enabled,operator_suspended,home_region,revision,created_at,updated_at,name,access_epoch
+仓库里 `tenant_access` 唯一的生产者是增量 `0008_quota_directory_usage_hardening.sql:20`
+  `CREATE POLICY tenant_access ON work.directory_sync_state` ⇒ 它是**行级安全策略的名字**，不是开关、不是列。
+所以"启用 tenant-access org flag"这个动作在本部署没有对象可施；C28 段早已改用 org 三列演（取证更正的方向对，
+但把"有列"这件事写错了）。
+
+================================================================================
+P11 五席 + SRE/DBA 真名确认 —— na（组织前提不成立，不是技术失败）
+================================================================================
+清单附录 A 要的是五席到场＋真名。独立复核人 2026-11-01 离队后，本阶段是"单人执行＋自决日志＋复评"，
+11-04 那次已按同一形状记（README 参与人行）。这一格要么改判据为"单席＋复评人"，要么等规模化时补齐角色。
+
+================================================================================
+D1-7 核对 dispatching 计数 —— pass，并且**推翻 §0C 那句"该列不存在"**
+================================================================================
+§0C（11-04 记）原文：「原文判据引用 work.outbox.claimed_by，该列不存在（表只有 available_at／delivered_at／
+attempts／aggregate_*）→ 先改判据再演」。**这句错了**，本轮按 information_schema 现读：
+  col|id|uuid  col|org_id|text  col|aggregate_type|text  col|aggregate_id|uuid  col|event_id|uuid
+  col|payload|jsonb  col|available_at|tsz  col|delivered_at|tsz  col|attempts|integer
+  col|created_at|tsz  col|outbox_seq|bigint  col|last_error_code|text  col|dead_lettered_at|tsz
+  **col|claimed_by|text  col|claimed_until|tsz**
+出处也不是"后来加的迁移"：`baseline/0002_initial_r0a_schema.sql:1249 ADD COLUMN claimed_by text`
+一直是 relay 领取租约列（`SET claimed_by = p_relay_id` @ :2493，ack/失败清回 NULL @ :2637）。
+⇒ 原文判据不用改写就能演，本轮直接演：
+26 小时窗口（覆盖 11-04 注入之后到现在的全部投递）：
+  outbox_total|1168  undelivered|0  window_26h|131
+  claim_states|claimed_by_notnull=131  claimed_until_notnull=0  delivered=131  total=131
+  holders|work-relay-1-11ebbea0-b4d8-41c5-bd50-9b6ea2dc16c5|rows=11|delivered=11
+  holders|work-relay-1-fcc7aff2-504f-4c8e-99ca-76090b7e0f68|rows=93|delivered=93
+  holders|work-relay-1-c4175adf-8e5e-4d41-a9b2-6336ddeeeb2a|rows=27|delivered=27
+  dup_per_message|dups=0            ← (aggregate_type, aggregate_id, event_id) 分组里没有任何一行重复
+  event_dup|max_events_per_id=1
+判读："该 Run 事件不重复、claimed_by 最多一次 completed"成立：131 行全部一次投完、三个 relay 实例各自
+领到的行数=已投递行数、任何 (聚合根, 事件) 组合最多 1 行。
+**范围（不外推）**：这是**稳态**投递证据。claimed_until_notnull=0 说明取到的都是已 ack 的行（租约列被清回），
+所以"中断窗口内租约到期后是否被第二个持有者重领并仍只投一次"这一半**不在本格**——那是 D1-alt／D2-alt／N01 的判据。
+
+================================================================================
+C13-0 前置判定：主密钥离线重加密驱动在不在 —— pass（判定＝不存在，与 A 裁定一致，不记 blocked）
+================================================================================
+在仓库 tip `4749ce01d2148a3beedc42efb31085ee801ace10` 复核 11-03 的三条证据，三条都还在：
+① 非测试代码里 8 个 `content.NewLocal(...)` 调用点全部硬编码 keyVersion=1：
+   cmd/work-api/main.go:48、cmd/work-content-proxy/main.go:44、cmd/work-e2e-seed/main.go:81、
+   cmd/work-egress/main.go:56、cmd/work-export/main.go:59、cmd/work-reconcile/main.go:227、
+   cmd/work-relay/main.go:37、cmd/work-worker/main.go:75
+② `ls cmd/` 13 个命令（work-api/work-authz/work-content-proxy/work-directory-sync/work-e2e-seed/
+   work-egress/work-export/work-migrate/work-provider-setup/work-reconcile/work-relay/work-replay/work-worker）
+   里没有任何"内容重加密"命令；work-provider-setup 是凭据重包裹，不是 Content Store 重加密。
+③ `internal/content/local.go:144` 的 `if version != l.keyVersion` 两条分支都返回明文，
+   解密恒用 `deriveKey(l.master, orgID)` ⇒ 不存在跨 master 的读取窗口。
+⇒ "驱动不存在"是代码事实；A 裁定（11-03）把轮换移出 R0a 退出门与此一致，C13 保持 partial，
+   重开条件＝>3 组织／疑似主密钥泄露／接对象存储。
+
+================================================================================
+复放命令（都在试点机，root 段只走 sudo stdin；本轮无任何写）
+================================================================================
+P1   sudo kubectl get pods -n work -o wide | grep -i temporal
+     sudo kubectl get deploy -n work -o custom-columns=NAME:.metadata.name,READY:.status.readyReplicas,DESIRED:.spec.replicas
+P2     sudo runuser -u postgres -- psql -X -q -At -v ON_ERROR_STOP=1 -d postgres -c \
+         "select 'db|'||datname||'|owner='||pg_get_userbyid(datdba)||'|size='||pg_size_pretty(pg_database_size(datname)) from pg_database where datname in ('work','temporal','temporal_visibility')"
+     sudo runuser -u postgres -- psql -X -q -At -d work -c \
+         "select 'pm_start='||pg_postmaster_start_time()::text||' srv='||coalesce(inet_server_addr()::text,'socket')||':'||coalesce(inet_server_port()::text,'socket')||' datadir='||current_setting('data_directory')"
+     sudo grep -oE 'WORK_DATABASE_URL=.*' /etc/work/work-api.env | sed -E 's#postgres(ql)?://[^@]*@##; s#[/?].*##'
+P3     sudo ss -ltnp | grep -w 7233
+     echo | timeout 8 openssl s_client -connect 10.43.147.249:7233 | openssl x509 -noout -subject -issuer -dates -ext subjectAltName
+     （另一台机上）timeout 8 bash -c 'exec 3<>/dev/tcp/36.151.147.217/7233' && echo REACHABLE || echo NOT_REACHABLE
+P4     sudo bash -c 'set -a; . /etc/work/work-worker.env; set +a
+       temporal operator namespace describe --address "$WORK_TEMPORAL_ADDRESS" --namespace work-r0a --tls \
+         --tls-ca-path "$WORK_TEMPORAL_CA" --tls-cert-path "$WORK_TEMPORAL_CERT" \
+         --tls-key-path "$WORK_TEMPORAL_KEY" --tls-server-name "$WORK_TEMPORAL_SERVER_NAME"'
+     temporal operator namespace update --help
+P5     sudo grep -h '^WORK_CONTENT_DIR=' /etc/work/work-api.env
+     sudo find /var/lib/work/content -name '*.enc' | wc -l
+     sudo grep -rliE 'oss|s3|bucket' /etc/work/*.env
+P8     sudo grep -c '^WORK_CONTENT_MASTER_KEY=' /etc/work/*.env（只取键名与 sha256 前 8 位，不打印值）
+     sudo sha256sum /proc/$(systemctl show -p MainPID --value work-api.service)/environ 的键存在性
+P9/D1-7 见 /tmp/drill-batch2.sql 与 /tmp/drill-p7.sql（同目录另存）
+C13-0  （仓库根）grep -rn "NewLocal(" src/work/internal src/work/cmd --include=*.go | grep -v _test
+         ls src/work/cmd/ ; sed -n '140,150p' src/work/internal/content/local.go

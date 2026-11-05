@@ -104,7 +104,7 @@ R0a 有六类不属于任何 Run 的常驻作业（见 [D3 §11](work-r0a-orches
 | content shredder | `WorkContentShredBacklog`、Content Store 错误率 | 校验 Store 凭据与可达；同一引用不重复投递（D1 共享引用守卫） | 不可停：留存/删除是义务 |
 | directory_projection_sync | `WorkDirectoryProjectionStale`（滞后秒数） | 先看 Host 端口是否报错或返回旧修订号；同/旧修订重放被拒（`projection_revision_stale`）属正常幂等；`host_revision_regressed` 是 Host 数据回退/Failover 异常，先冻结同步并核对 Host，不要强推 | 不停同步：撤权靠它生效；只在确认目录不可用时降级为"管理页显示陈旧" |
 | audit_export_worker | `WorkAuditExportBacklog` / `WorkAuditExportFailureRatio` | 作业停在 `running` 且租约过期可重领；停在 `failed` 看 `error_code`；不做人工改状态 | 可停新作业（属"产生新工作"），已 ready 文件仍可一次性下载 |
-| expiry_sweep | `work_background_job_last_success_seconds{kind="expiry_sweep"}` | 清扫按组织逐事务、条件更新，重复运行返回 0 行，可安全重跑 | 不可停：过期内容不能留在存储**（2026-11-05 现网注：本主机此前从未调度过它，欠账能堆到"2 条导出超期 4 天"；首次真调用是 16:19，返回 2／2／0。这枚指标也没有产生者（`telemetry-producers.test.mjs` 的 `UNPRODUCED`），所以"没跑"不会告警——读数只看库里，口径见 §5.25）**。**【同日 17:3x 更新：调度形态已裁＝B／每小时**（主签选），执行体是 `work-retention-scan.service`＋`.timer`＋`scripts/run-retention-scan.sh`↔`retention-scan.sql`，发布链三处已同步；**但 unit 还没装到现网**——装它属生产写，要随下一次 rollout。在那之前本行仍是"手工、靠人"，只是第一次有了可装的执行者。判据与退出码（0／1／2 与 15 分钟投递宽限窗）见 §5.25，裁定与本机真 schema 变异核对见授权单 §13** |
+| expiry_sweep | `work_background_job_last_success_seconds{kind="expiry_sweep"}` | 清扫按组织逐事务、条件更新，重复运行返回 0 行，可安全重跑 | 不可停：过期内容不能留在存储**（2026-11-05 现网注：本主机此前从未调度过它，欠账能堆到"2 条导出超期 4 天"；首次真调用是 16:19，返回 2／2／0。这枚指标也没有产生者（`telemetry-producers.test.mjs` 的 `UNPRODUCED`），所以"没跑"不会告警——读数只看库里，口径见 §5.25）**。**【同日 17:3x 更新：调度形态已裁＝B／每小时**（主签选），执行体是 `work-retention-scan.service`＋`.timer`＋`scripts/run-retention-scan.sh`↔`retention-scan.sql`，发布链三处已同步；**但 unit 还没装到现网**——装它属生产写，要随下一次 rollout。在那之前本行仍是"手工、靠人"，只是第一次有了可装的执行者。判据与退出码（0／1／2 与 15 分钟投递宽限窗）见 §5.25，裁定与本机真 schema 变异核对见授权单 §13** **【19:1x：unit 已装并 `enable --now`，下一次自动触发 20:03:18（19:18 现读：这一刻已被重摇成 20:01:06——hourly+RandomizedDelaySec 的下一次在真正触发前不固定；list-timers 的 LAST 仍是 -，即 timer 自己还没跑过，19:07:04 那次是手工 start。判自动路径要看 runs_logged/LAST，不看历史时刻）；安装走的是最小半径（二进制 11/11 与主机相同 ⇒ 不跑完整 rollout；无迁移、无现役单元重启），过程与两条读数更正见授权单 §14】** |
 | dead_letter_ops | 人工触发，无告警 | 仅 `work_ops` 角色、必须带理由与工单号并审计 | — |
 
 通用规则：
@@ -718,6 +718,15 @@ org 清单单独放在 `/etc/work/work-reconcile-scan.env`（640 `root:work-cont
 
 ### 5.21 运行流读数巡检（2026-11-04，C17 单选 C＝最小集）
 
+> **待裁 #76（2026-11-05 20:3x 登记，未裁定、未执行任何收口写）**：`operation=unknown` 且 `dispatch_delivery.receipt_recorded_at IS NULL` 的 Run 终态化之后，
+> 那笔 `quota_reservation.state='held'` 该按 `settle_quota` 还是 `release_quota` 收？三个候选都给不出证据：settle 要填供应商用量（egress 不留每笔用量，填 0 是编造），
+> release 等于断言"没发过"（闸已 consumed，可能真发过），`-resolution not_sent／rejected_not_executed` 又要求 `-evidence-ref`。
+> #56-B 在 11-04 只裁了"有 `receipt_result=success` 回执"那一档，本形状不在其内。
+> **裁之前的现网状态（如实）**：1 笔 held=100,000 挂着，`work-runstream-scan.service` 每小时 `BREACH held_on_terminal=1／breaches=1` 标红一次
+> （这是设计的告警，不是新 bug；也别手跑 `work-healthcheck.sh` 去"确认"，它会发信）。发现口径是 gauges，不是 `work-reconcile -scan`（后者只列在途）。
+> 取证：drill 目录 `attachments/d3-i1-temporal-outage-20261105.txt`。
+> **【21:2x 已裁＝A 案（release），原句不删】**这一单已以 work_worker 身份 `set_config(app.org_id,…)` 后调 `work.release_quota(reservation_id)` 收口：`held` 1→0、`quota_account.reserved` 100000→0、`settled` 不变，`quota_entry` 自动留 `reserve`／`release` 两条（函数落的账，不是另写）。**默认口径就此定下**：Run 终态为 `failed`／`canceled` 且派发闸没有 bound 的 `rejected_not_executed` 回执 ⇒ **release，不写 usage、不补造用量**；要保留"将来拿到用量再补正"的可能，必须走 settle（守卫：settle 需 `held`/`unknown`，adjust 需 `settled`）——**release 之后这两扇门都关**，这是选它时已知的代价。**值班可执行形状**（EXECUTE 只授 `work_worker`，5220 行原文；`psql` 要把 URL 当参数传，不认 `WORK_DATABASE_URL` 这个变量名）：,> `psql "$WORK_DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -c "select set_config('app.org_id','<org>',false); select work.release_quota('<reservation-id>');"`,> **待修 #77（代码缺口，未动代码）**：`internal/runflow/activities.go:875` 的 `case "failed","canceled"` 是无条件 release，但 `finish_receipt_missing` 这条终态路径没走到它 ⇒ 终态化却不释放预留、要靠人工 SQL。补口＝增量或 Go 侧收口路径修正＋活库用例＋门禁传播（同 #67 的做法）；不修则 §5.17 的 `held_on_terminal` 会持续靠人工归零。
+
 主签 2026-11-04 就 C17 埋点范围单选 **C＝库侧 SQL 读数＋现有邮件告警**，不给 10 个 workload 二进制加 Prometheus 客户端；
 已入库的 48 条 Prometheus 规则与 Grafana 面板**保留、就地标注为未生效**（清单见本节末，不删）。
 
@@ -982,6 +991,7 @@ C＝归 R0b 控制面、R0a 只留库测）。三个选项的代价写在 `work-
 都在 `telemetry-producers.test.mjs` 的 `UNPRODUCED` 名单里，无数据的序列不 page。
 
 **【2026-11-05 17:3x 更新：这一类第一次有了执行者，但还没装到现网】**D4 裁定＝B／每小时（主签选）。
+> **【19:1x 更正本段第一句："还没装到现网"已过期】**按最小半径安装完成：二进制与主机 11/11 逐字节相同（`47c2d5c0f` 只动脚本与文档），所以没跑完整 rollout（那会停 6 单元／重装 10 二进制换零变化）；装了 4 件运行文件＋2 个 unit＋`/etc/work/work-retention-scan.env`（0640 root:work-control，只含组织清单与宽限窗），`enable --now work-retention-scan.timer` ⇒ `enabled/active`、下一次触发 20:03:18（19:18 现读：这一时刻已被重摇成 **20:01:06**——`OnCalendar=hourly`＋`RandomizedDelaySec` 的"下一次"在真正触发之前不是固定值；`list-timers` 的 `LAST` 仍是 `-` ⇒ timer 自己一次都还没跑过，19:07:04 那次是我手工 `start` 的。值班判据取 `runs_logged`／`LAST`，不取任何一个历史时刻）。装前 D0 六列复测全 0；装后手工跑两次（rc=0、四行读数齐、幂等），`systemctl start` 走单元路径也 rc=0；`ledger` 仍 28、11 个现役单元 active 且 `work-worker`/`work-relay` 进程启动时刻未变（＝没被重启）。两条读数更正（时间戳异常与"首次自动触发尚未发生"）记在授权单 §14。本段上面那段保留，它记的是 17:3x 的状态。**】
 交付形态照上面那条"手工单次调用"往上补了一层，没有另造一套：
 
 - 执行体：`src/work/scripts/retention-scan.sql`（默认 `now()`，**不带提前钟**；export 两条同事务、

@@ -1,0 +1,107 @@
+演练第二批复验 · P6 / P7 / P10 在 2026-11-05 现网状态上的重跑
+执行：2026-11-05 19:43–19:47 CST，试点机 lavm-t7fmveau9b，单人执行（主签指令"运行第二批演练（P6/P7/P10 等）"）
+半径：P6/P7 只读；**P10 落了两笔生产写**（造 2 个 Run，真打供应商、真落内容对象），按清单自己的口径"现造现演现清"收口，结果见下。
+
+================================================================================
+P7 worker 版本形态 —— 结论不变（na：无镜像），但**环境快照里的 v1 sha 已过期**
+================================================================================
+容器运行时与镜像（只读）：
+  机上存在的命令：/usr/local/bin/crictl（没有 docker、没有 nerdctl）
+  k3s crictl images 里匹配 "worker" 的镜像数 = 0
+  work 命名空间现役 pod 与镜像：temporal-server-787478d8c8-2h95v -> docker.io/temporalio/auto-setup:1.25.0
+worker 的真实形态（systemd 单元 + 二进制）：
+  work-worker.service  ActiveState=active SubState=running Result=success ExecMainStartTimestamp=Thu 2026-11-05 14:10:53 CST
+  /usr/local/bin/work-worker  sha16 = 9cd4f2b986e19a2e
+  正在跑的进程 /proc/<pid>/exe  sha16 = 9cd4f2b986e19a2e   （＝装着的件就是跑着的件）
+**要记账的偏移**：本目录 README"环境快照"行写的 worker v1 sha256 是 `9ae58c067b4a5103…`（11-04 那次）。
+现网现在是 `9cd4f2b986e19a2e`——11-05 14:10 的 C 段部署（0028）换过二进制。
+⇒ 下一批 D2／S1／N 注入若要"v1→v2 切换"，**v1 基线必须取现读 sha，不能引用 README/快照里那串历史值**；
+   这条属于"读数会过期"那一类，具名记在这里就是为了下次别再照抄。
+   （顺带：`WORK_RUNTIME_VERSION` 在 work-api.env 里=pi-1.4.0-r0a；work-worker.env 里没有这个键，
+   我第一次 grep 错了文件，输出空。）
+
+================================================================================
+P6 operator 通道 —— 结论不变（pass 带范围），且 11-04 那条缺口今天仍未闭合
+================================================================================
+角色面（cluster 级，从 work 库读 pg_roles）：
+  role|work_api|canlogin=false          role|work_api_login|canlogin=true
+  role|work_control_login|canlogin=true role|work_directory|canlogin=false
+  role|work_governance_events|canlogin=false  role|work_governance_events_login|canlogin=true
+  role|work_ledger|canlogin=false       role|work_migrator|canlogin=false
+  role|work_migrator_login|canlogin=true  role|work_operator|canlogin=false
+  role|work_ops|canlogin=false          role|work_ops_login|canlogin=true
+  role|work_owner|canlogin=false        role|work_worker|canlogin=false
+  role|work_worker_login|canlogin=true
+  **operator_login_role_count|0**        ← 没有 work_operator_login 这个角色
+  /etc/work 里 grep -i operator ⇒ NO_OPERATOR_ENV_FILE（没有 operator 的 DSN 文件）
+函数授权面（EXECUTE 矩阵，哨兵防空集）：
+  work_api=false  work_migrator=true  **work_operator=true**  work_ops=false  work_owner=true  work_worker=false
+判读：`work_operator` 这个**角色**确实被授予了 apply_execution_entitlement，但它**不能登录**，也没有 DSN 文件
+⇒ 值班手上依然没有 operator 通道，11-04 只能靠 superuser `SET ROLE work_operator` 进入。
+这条缺口就是 **#56-B／#59**，本轮复验证明它没有被后来任何一次部署顺带修掉。P6 维持 pass(带范围)，不升级成"已闭合"。
+
+================================================================================
+P10 在途 Run 种子 —— 机制重跑成立；但**清单的在途判据本身是错的**
+================================================================================
+—— 前置（只读）——
+  /usr/local/bin/work-e2e-seed  -rwxr-xr-x root root 10010784 Oct 30 16:45  sha16=ef3b44b9f7a43afb
+  seed_in_staged_release_count=0     ← 仍不在发布目录/包内 ⇒ #54 记的缺口今天仍然成立
+  唯一 seat 主体：work.member 里 work_seat=true 的行数 = 1，subject_id 前缀 535bbd27…（与 11-04 同一主体）
+  **主体表是 work.member，不是 work.subject**（information_schema：subject/seat 族表名探测 = NONE，
+    seat 列 = member.work_seat / execution_entitlement.seat_limit / governance_gap_report.seat_events(计数)）
+  "held" 不是列：全库找 column_name like '%held%' → **NO_COLUMN_NAMED_HELD_ANYWHERE**
+    预留真实落点：work.quota_account.reserved_tokens 与 work.task_summary.reserved_tokens
+    ⇒ 值班文档里说的"held 预留"是**派生词**（预留未结算），照它写 SQL 会查不存在的列。本轮第一版读数就因此报错。**【20:3x 更正我这句话说过头了："不是列"对，但结论不对——`held` 是 `work.quota_reservation.state` 的合法取值之一（CHECK 原文：held／settled／released／unknown，`baseline/0002:276`），现网分布 `released=35 settled=125`、held 行 0。所以"挂着多少预留"的正规读法是 `select count(*) … where state='held'`，而 `quota_account.reserved_tokens` 只是它的聚合额；仓库里 `src/work/scripts/runstream-gauges.sql:35,55` 早就是按 `q.state = 'held'` 读的。我把"没有这个列"推成"只是派生说法"，又一次没先查那个词在库侧的真身——和 §5 那批"空集要先归位再下结论"是同一课。】**
+  造前基线：pre_open_runs=0 / quota 2026-11 reserved=0 settled=18116 / ts_reserved=NONE / 内容对象 1300
+
+—— 种子（两笔，work-control 身份 + source work-api.env）——
+  seed_1 rc=0  cr=DRILL1105-B2-R1-1793879202  run=4e7ea6d4…(2025546a) task=af6ee930… input_ref=f4d10027…
+  seed_2 rc=0  cr=DRILL1105-B2-R2-1793879202  run=93a34fb3…(45be2b6b) task=11d04d6d… input_ref=a99bf522…
+
+—— 在途窗口轮询（3 秒一步）——
+  poll_01 inflight=2   states=[queued]  ids=[45be2b6b]
+  poll_02 inflight=0   …（此后一直 0）
+  max_inflight_observed=2
+  **两处读数为什么"不自洽"，按实记**：count 与 states 是两条独立的 psql 调用，相差约 200ms，
+  期间一笔已从 queued 走到 active；而 `active` **不在我的在途过滤集合里**，所以第二步直接读成 0。
+  这不是"没造出在途"，是我这条判据漏态（见下一段）。
+
+—— 状态枚举的实测纠正（本轮最重要的一条）——
+  pg_get_constraintdef(work.run.state) =
+    CHECK (state = ANY (ARRAY['queued','active','waiting','cancel_requested','succeeded','failed','canceled']))
+  ⇒ 原文（清单 P10 行／我照抄的过滤集合）写的 `('queued','running','waiting')` **两头都错**：
+     `running` 这个值不存在；`active` 与 `cancel_requested` 被漏掉。
+  ⇒ 在途集合应是 {queued, active, waiting, cancel_requested}。
+  后果不只这一格：D3-3／D3-5／D1-4／S1-3／N01 全部用"work.run.state 不变／无新派发"当判据，
+  用漏态的谓词去盯注入窗口，会把"正在跑"读成"什么都没发生"——**下一批注入前必须先把这个谓词改对**。
+
+—— 终态与残留（现清核对）——
+  post_runs_by_state = canceled=33 failed=18 succeeded=117
+  seed_run|2025546a|state=succeeded|wait=-|term=-|created=07:46:42|updated=07:47:01   （19 秒）
+  seed_run|45be2b6b|state=succeeded|wait=-|term=-|created=07:46:42|updated=07:46:47   （5 秒）
+  quota 2026-11：reserved=0  settled=19760（造前 18116 ⇒ 这两笔真实结算 1,644 tokens）
+  ts_reserved = NO_RESERVED_ROWS（没有留下任何未结算预留 ⇒ 没有制造 #11 那类 stale held）
+  内容对象 1300 → 1315（delta=+15），新增对象属主全部 work-control:work-control
+    例：work-control:work-control 180 /var/lib/work/content/3ae5f1dba8ac22a8f0e6a0fc3d39ae77/9041510aa6cd2642433d5931b5673c96.enc
+残留（**如实列，不自决删**）：org 4a2d3f28… 里多出 2 个演练 task/run 与其成果对象（会出现在该组织的
+历史/成果页里）。11-04 那批 DRILL1104-* 同样留着。要清理需要一个"删除演练数据"的授权动作，我没做。
+
+—— 判读 ——
+P10 复验：机制成立（造得出、跑得到终态、usage 结算、预留归零），"≥2 同时在途"取到了（poll_01=2）。
+但**"1 waiting + 1 running"这一形状本轮没取到**，因为 waiting 是被闸门/配额/对账逼出来的状态，
+平种不出来——它要等 D3/S1/N 那批注入才有活体（11-04 的 waiting/reconcile 也正是注入产物）。
+所以 P10 记 **pass（带范围）**：造 Run 的通道可用、身份与权限前提与 11-04 一致；
+`waiting` 形态的证据归属下一批，判据里的状态集合按上面的枚举改写后才算闭合。
+
+================================================================================
+复放命令
+================================================================================
+P7/P6/P10 只读段：/tmp/drill-batch2.sh + /tmp/drill-batch2.sql（本目录另有 batch2b 的列名/枚举补测）
+P10 种子：/tmp/drill-seed-inner.sh（root 侧，argv 只接 client-request-id；org/actor/goal 在脚本内）
+  sudo -u work-control 形状：
+    set -a; . /etc/work/work-api.env; set +a
+    runuser -u work-control -- env WORK_RUNTIME_VERSION="$WORK_RUNTIME_VERSION" \
+      WORK_DATABASE_URL="$WORK_DATABASE_URL" WORK_CONTENT_DIR="${WORK_CONTENT_DIR:-/var/lib/work/content}" \
+      /usr/local/bin/work-e2e-seed -org <org> -actor <seat subject> -goal '<文本>' -client-request-id '<8–128B>'
+状态枚举：select pg_get_constraintdef(oid) from pg_constraint
+  where conrelid='work.run'::regclass and contype='c' and pg_get_constraintdef(oid) like '%state%';

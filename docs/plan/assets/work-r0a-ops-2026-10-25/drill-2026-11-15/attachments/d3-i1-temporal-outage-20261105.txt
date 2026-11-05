@@ -1,0 +1,207 @@
+I-1（授权单 §15）· Temporal server 层注入的 D3 四格取证
+执行：2026-11-05 20:23:57–20:28:21 CST，试点机 lavm-t7fmveau9b，单人执行（主签指令"进入第 2 项"＝授权 I-1）
+注入手段：kubectl delete pod temporal-server-787478d8c8-2h95v（k3s 单节点单副本重建）
+半径与边界：
+  - 没停 Postgres。P2 本轮实测三库同一个 postmaster（work／temporal／temporal_visibility，data_directory=/data/pg16），
+    停它等于打掉 Work 自己的数据面；原文 D3-2／D3-4 因此不演，等价注入走 D3-a（同一次删 pod，11-04 已演）＋D3-b（恢复演练）。
+  - 没换二进制、没改配置、没有迁移。注入后 schema_migration 仍 28 行／max=28，尾项 0028_runtime_execution_lease_takeover。
+  - 种了两笔 Run（真打供应商，现造现演现清）；一笔 5 秒后 succeeded，另一笔停在 waiting/reconcile（本文件的核心发现）。
+在途谓词按本轮改对的四态集合读：queued／active／waiting／cancel_requested。
+v1 基线现读：/usr/local/bin/work-worker sha16 = 9cd4f2b986e19a2e（不是本目录快照里 11-04 那串 9ae58c067b4a5103）。
+
+我自己写错的三条读数（按实记，不删）：
+  ① 基线里我查 work.migration_ledger ⇒ ERROR: relation does not exist。真表名是 work.schema_migration
+     （现读 verify-r0a-0027.sh:32 用的就是它）。表名要现读，不能按业务词造。
+  ② dispatch_delivery 没有 id／run_id 列——它按 operation_id 键，闸状态列叫 gate_state。
+     我第一版 where run_id=… right(id…) 全报错，改成 join work.operation 才拿到读数。
+  ③ operation 的状态列叫 state 不是 status；task_summary 按 task_id 键、没有 run_id 列。
+  这三条都不是"表不存在"，是我照业务词猜列名——同一类错第三次犯，具名记在这里。
+
+### D3-1 基线 2026-11-05 20:23:57 CST
+ERROR:  relation "work.migration_ledger" does not exist
+LINE 1: ...(max(version)::text||'/'||max(name),'EMPTY') from work.migra...
+                                                             ^
+baseline_outbox|total=1182|undelivered=0
+NO_INFLIGHT
+baseline_runs|canceled=33 failed=18 succeeded=117
+baseline_held|rows=0
+baseline_quota|2026-11|reserved=0|settled=19760
+baseline_tables|run=168|operation=161|task_event=977|outbox=1182
+checksum|a80ab954802785face3e7a1c94f3b5ea
+pg_postmaster_start=2026-10-28 09:30:05.475092+08
+temporal_pod=temporal-server-787478d8c8-2h95v
+NAME                               READY   STATUS    RESTARTS   AGE   IP           NODE              NOMINATED NODE   READINESS GATES
+temporal-server-787478d8c8-2h95v   1/1     Running   0          24h   10.42.0.47   lavm-t7fmveau9b   <none>           <none>
+v1_worker_sha_now=9cd4f2b986e19a2e
+content_objects_before=1318
+### 种子两笔（制造在途） 2026-11-05 20:23:58 CST
+task_id=a43106d6-67b1-4635-bb90-5e2dd5d4a891
+run_id=ee998a70-ea02-4200-b776-24225a72fe49
+SEED_RC=0
+seed_1_done
+task_id=49a888a0-51be-4065-adb7-dbd114e20c6a
+run_id=01384d59-f778-42cf-bb6f-106ac8fe7122
+SEED_RC=0
+seed_2_done
+inflight_after_seed|active active
+### 注入前窗口基线（未投递 N） 2026-11-05 20:24:00 CST
+undelivered_before=0
+inject_start=2026-11-05 20:24:00 CST
+deleting pod=temporal-server-787478d8c8-2h95v
+pod "temporal-server-787478d8c8-2h95v" deleted from work namespace
+-- 失联窗口内每 5 秒取一次：Temporal 侧 + outbox 未投递 + 在途态 --
+t=05s undelivered=0 inflight=[active/active] pod=[Running temporal-server-787478d8c8-drmzk] worker_poll_fail=4
+t=10s undelivered=0 inflight=[active/active] pod=[Running temporal-server-787478d8c8-drmzk] worker_poll_fail=4
+t=15s undelivered=0 inflight=[active/active] pod=[Running temporal-server-787478d8c8-drmzk] worker_poll_fail=4
+t=20s undelivered=0 inflight=[active/active] pod=[Running temporal-server-787478d8c8-drmzk] worker_poll_fail=4
+t=25s undelivered=0 inflight=[active/active] pod=[Running temporal-server-787478d8c8-drmzk] worker_poll_fail=8
+t=30s undelivered=0 inflight=[active/active] pod=[Running temporal-server-787478d8c8-drmzk] worker_poll_fail=8
+t=35s undelivered=0 inflight=[active/active] pod=[Running temporal-server-787478d8c8-drmzk] worker_poll_fail=8
+t=40s undelivered=1 inflight=[waiting/active] pod=[Running temporal-server-787478d8c8-drmzk] worker_poll_fail=8
+t=45s undelivered=2 inflight=[waiting] pod=[Running temporal-server-787478d8c8-drmzk] worker_poll_fail=8
+t=50s undelivered=0 inflight=[waiting] pod=[Running temporal-server-787478d8c8-drmzk] worker_poll_fail=8
+t=55s undelivered=0 inflight=[waiting] pod=[Running temporal-server-787478d8c8-drmzk] worker_poll_fail=8
+t=60s undelivered=0 inflight=[waiting] pod=[Running temporal-server-787478d8c8-drmzk] worker_poll_fail=4
+inject_end=2026-11-05 20:25:05 CST
+### D3-5 追赶 / D3-6 账本核对（恢复后） 2026-11-05 20:25:05 CST
+post_outbox|total=1193|undelivered=0
+post_runs|canceled=33 failed=18 succeeded=118 waiting=1
+post_inflight|waiting
+post_tables|run=170|operation=163|task_event=986|outbox=1193
+checksum|a80ab954802785face3e7a1c94f3b5ea
+checksum|086e36ef9c8bff5b0dc43d200f91c252
+post_held|rows=1
+post_quota|2026-11|reserved=100000|settled=22654
+pg_still_same|2026-10-28 09:30:05.475092+08
+-- 本次注入涉及的三笔终态明细 --
+seed_run|5a72fe49|waiting/-|created=08:23:58|updated=08:24:43
+seed_run|c8fe7122|succeeded/-|created=08:23:58|updated=08:24:47
+-- worker 在窗口内的错误样本（用于判失联期间行为） --
+2026-11-05T20:24:01+08:00 lavm-t7fmveau9b work-worker[1875248]: 2026/11/05 20:24:01 WARN  Failed to poll for task. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkerType ActivityWorker Error closing transport due to: connection error: desc = "error reading from server: EOF", received prior goaway: code: NO_ERROR, debug data: "graceful_stop"
+2026-11-05T20:24:01+08:00 lavm-t7fmveau9b work-worker[1875248]: 2026/11/05 20:24:01 WARN  Failed to poll for task. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkerType WorkflowWorker Error closing transport due to: connection error: desc = "error reading from server: EOF", received prior goaway: code: NO_ERROR, debug data: "graceful_stop"
+2026-11-05T20:24:01+08:00 lavm-t7fmveau9b work-worker[1875248]: 2026/11/05 20:24:01 WARN  Failed to poll for task. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkerType ActivityWorker Error connection error: desc = "transport: Error while dialing: dial tcp 10.43.147.249:7233: connect: connection refused"
+2026-11-05T20:24:01+08:00 lavm-t7fmveau9b work-worker[1875248]: 2026/11/05 20:24:01 WARN  Failed to poll for task. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkerType WorkflowWorker Error connection error: desc = "transport: Error while dialing: dial tcp 10.43.147.249:7233: connect: connection refused"
+2026-11-05T20:24:22+08:00 lavm-t7fmveau9b work-worker[1875248]: 2026/11/05 20:24:22 WARN  Failed to poll for task. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkerType WorkflowWorker Error connection error: desc = "transport: Error while dialing: dial tcp 10.43.147.249:7233: i/o timeout"
+2026-11-05T20:24:23+08:00 lavm-t7fmveau9b work-worker[1875248]: 2026/11/05 20:24:23 WARN  Failed to poll for task. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkerType ActivityWorker Error connection error: desc = "transport: Error while dialing: dial tcp 10.43.147.249:7233: i/o timeout"
+-- outbox 是否有死信或重复 --
+dead_letter|0
+dup_events|0
+content_objects_after=1333 delta=15
+ts_end=2026-11-05 20:25:06 CST
+
+
+=== 追加取证 2026-11-05 20:2x（表名/列名现读＋停放 Run 的逐字段） ===
+== 该 Run 的 operation 与各自的闸状态（单次派发核对）==
+op|fdfd0482|model=dispatching|gate=consumed|receipt=-|consumed=2026-11-05 20:23:59.634218+08|recorded=-
+== 闸行总数与 consumed 次数（重复派发判据）==
+gate_rows|1|consumed_once=1|receipt_recorded=0
+== task_summary 侧的可见状态与预留 ==
+ts|d5d4a891|run_state=waiting|wait=reconcile|display=running|reserved=100000|settled=0
+== 窗口内 audit_event 动作族 ==
+audit|artifact.publish=1 dispatch.gate_consumed=2 dispatch.receipt_attached=1 input.create=2 operation.authorize=2 operation.finish=1 operation.finish_from_receipt=1 runtime.capability_issued=5 runtime.checkpoint_committed=3 runtime.execution_claimed=4 runtime.execution_registered=4 run.wait=1 task.submit=2
+== 全库有没有别的 Run 也停在 waiting/reconcile（残留清单）==
+all_waiting|5a72fe49/reconcile
+held_reservations|1|amount=100000
+ts=2026-11-05 20:28:21 CST
+
+== work schema 里的表名（与本次判据相关的族）==
+approval_operation, audit_event, audit_export, dispatch_delivery, operation, operation_resolution, operation_usage_fact, runtime_capability, runtime_checkpoint_head, runtime_execution, schema_migration, task, task_event, task_summary
+== ledger（正确表名）==
+schema_migration|rows=28|max=28|tail=0028_runtime_execution_lease_takeover
+== 那笔 waiting 的等待语义 ==
+run|5a72fe49|state=waiting|wait=reconcile|term=-|updated=08:24:43
+== task_summary 的可见状态 ==
+ERROR:  column "run_id" does not exist
+LINE 1: select coalesce(string_agg(right(run_id::text,8)||'='||displ...
+                                         ^
+HINT:  Perhaps you meant to reference the column "task_summary.org_id".
+
+
+
+================================================================================
+追加：resume 的实际结果与"发现侧"证据（20:34:45–20:37:26 CST，主签选定"现在 resume 收掉"）
+================================================================================
+适用性先核过（不是照抄 14:2x 那次）：
+  work-reconcile -scan -org <org> ⇒ workflow_status=Running、orphan=false、gate_state=consumed、
+  reservation_state=held、settled_tokens=0。runbook §5.16 禁的是"对已结束 workflow 发 -signal-only"
+  （会报 already completed），这单 workflow 还活着 ⇒ 适用。
+  14:2x 那次的前提是"闸已 receipt_recorded"，这单 receipt_recorded_at 为空——前提不同，所以先做 -scan 再决定。
+
+写动作（一条）：
+  /usr/local/bin/work-reconcile -org 4a2d3f28-… -operation 884f0794-b9c1-4635-b919-8253fdfd0482 -signal-only
+  ⇒ {"operation_id":"884f0794…","resolution":"","resumed":true,"run_id":"ee998a70…","signal_only":true}
+  身份＝work-control，env＝work-worker.env ＋ work-reconcile-scan.env（照 work-reconcile-scan.service 的
+  User/EnvironmentFile 形状，不另造；口令只走 stdin）
+
+结果（Run 侧闭合、账本侧没闭合）：
+  20:34:45 run=failed／terminal_reason=finish_receipt_missing（信号后 8 秒内）；worker journal 同一秒有 FinishAdvance 活动
+  task_summary：display_state=failed、run_state=failed、reserved=100000、settled=0 ⇒ 用户侧不再是假的 running ✓
+  operation 884f0794…：state=unknown，usage_recorded_at 仍为空
+  dispatch_delivery：gate_state=consumed、receipt_result=NULL、receipt_recorded_at=NULL（回执从未挂上）
+  quota_reservation 657da033…：state=held、amount=100000、settled=0 ⇒ 预留 100,000 没有还
+  quota_account 2026-11：reserved=100000、settled=22654
+  重复派发核对：闸行仍 1 行、consumed 恰好一次、outbox undelivered=0、dead_letter=0、dup_events=0
+  ⇒ "双发由交付闸挡死"这条保护在本次失联＋resume 全程成立（这是正证）
+
+发现侧（现成控制自己抓到了，不是我手工数出来的）：
+  20:26:21 那轮 gauges（resume 之前，Run 还 waiting）：held_on_terminal=0、open_runs=1、held_tokens=100000、
+    unknown_operations=35、breaches=0 ⇒ 当时报 0 是对的，别读成"巡检漏了"
+  20:36:29 那轮（resume 之后）：BREACH org=4a2d3f28… held_on_terminal=1、unknown_operations=36、open_runs=0、
+    held_tokens=100000，案语原文："未释放预留超过容差 0（§5.17；收口语义待裁 #56-B）"
+    summary: orgs=1 max_held_on_terminal=0 breaches=1 scan_errors=0
+    ⇒ systemctl：work-runstream-scan.service Failed with result 'exit-code'（这是设计中的标红，不是新 bug）
+  另一条口径边界：resume 之后再跑 work-reconcile -scan -org <org> 返回 "runs": null
+    ⇒ -scan 只列在途 Run，终态但预留未还的这单不在它口径里；发现靠 runstream gauges（§5.17/§5.21）
+
+本轮我自己再犯的错（按实记）：
+  ① 一条查"终态仍挂预留"的 SQL 我把 join 建在 org_id 上 ⇒ 数出 leaked=170（＝run 总数，笛卡尔式假数）。
+     真数只有 1 笔（held_detail 657da033）。这 170 从没进任何文档结论，但错法要记：数残留必须按 operation／run 键 join。
+  ② 一次 ssh 里我写 printf "%s" ~/sudo-pass.txt | sudo -S ——打印的是文件名不是内容 ⇒ sudo: no password was provided、
+     1 incorrect password attempt（会进 auth log）。口令只能 cat 管道进 stdin，这条我记过又犯。
+  ③ 三条表名／列名错（work.migration_ledger 不存在，真名 schema_migration；dispatch_delivery 没有 id／run_id、
+     状态列叫 gate_state；operation 叫 state 不叫 status、task_summary 按 task_id 键）同源：照业务词猜，
+     而不是先读 verify 与 information_schema。
+
+未闭合的语义（不自决，登记为待裁 #76）：
+  #56-B 在 11-04 裁的是"有 receipt_result=success 回执 ⇒ settle_quota（按 reported_tokens=0 记依据、不编造 token）"。
+  这单是 operation=unknown 且回执从未挂上：settle 要编造供应商用量，release 会把可能真发生过的调用记成没发生，
+  而 not_sent／rejected_not_executed 这类 resolution 又要求 -evidence-ref（我给不出证据）。
+  ⇒ 该走哪一种收口、要不要为"unknown 无回执"新增收口档，转主签裁。裁之前 held=100000 与 runstream-scan 标红
+    会每小时重复一次（20:36:29 已是第一次），这是接受该状态的代价，要写明。
+
+================================================================================
+待裁 #76 的裁定与执行（2026-11-05 21:24–21:25 CST，主签选定：这单 release，默认口径＝终态且无 bound 回执 ⇒ release，并记为代码缺口）
+================================================================================
+不可逆性是先取证再选的，不是选完才找理由：
+  settle_quota 的守卫原文＝ `IF reservation.state NOT IN ('held','unknown') THEN RAISE 'reservation_not_settleable'`
+  adjust_quota 的守卫原文＝ `IF reservation.state <> 'settled' THEN RAISE 'reservation_not_settled'`
+  release_quota 的守卫原文＝ `IF reservation.state <> 'held' THEN RAISE 'only_held_reservations_can_be_released'`
+  ⇒ settle(0) 会留着 adjust 的补正门；release 之后两扇门都关。这一条在选之前就摆给你看了。
+
+执行通道与身份（三次失败各教一件事，按实记）：
+  1) runuser -u work-control -- env WORK_DATABASE_URL="$WORK_DATABASE_URL" psql … ⇒ FATAL: role "work-control" does not exist
+     ——`psql` 不读 WORK_DATABASE_URL 这个名字（那是 Go 侧的约定），必须把它当**连接参数**传。我的错。
+  2) DO 块里 SELECT count(*), min(operation_id) ⇒ ERROR: function min(uuid) does not exist
+     ——uuid 没有 min 聚合。**这次失败让守卫真的挡了一次**（中止而不是顺手清），守卫本身是有效的。
+  3) DO 块里的 `SELECT … FOR UPDATE` ⇒ ERROR: permission denied for table quota_reservation
+     ——`work_worker` 能 SELECT、能 EXECUTE `release_quota`（5220 行 GRANT 原文），但**不能直接锁写这张表**；
+       预留的写只能经 SECURITY DEFINER 函数。这条不是障碍，是控制现证，留下了。
+  最终一条：psql "$WORK_DATABASE_URL" … -f 76-probe.sql，身份 work_worker ＋ set_config('app.org_id', …)
+
+RLS 的正反对照（同一身份、同一 SQL，只差 org_id）：
+  未设 app.org_id：rows_held_without_org|0
+  已设 app.org_id：rows_held_with_org|1          ⇒ FORCE RLS 在 worker 身份下真生效（不设租户就数不到，正是 #53 那条纪律）
+
+结果（全部现读）：
+  NOTICE: released reservation=4f0b4688-d5d3-41a5-8e5e-9ec9657da033 amount=100000，psql_rc=0
+  quota_reservation 状态分布：before held=1 released=35 settled=126 → after **released=36 settled=126**（held 消失）
+  quota_account 2026-11：reserved 100000 → **0**；settled 22654 **不变**（release 不产生结算额，这是它和 settle 的账目差别）
+  quota_entry 审计链：reserve=100000 **release=100000**（函数自己落的账，不是我另写的）
+  run 5a72fe49：仍 failed/finish_receipt_missing；operation 884f0794：仍 unknown ⇒ 释放预留不改变事实记录，也不补造用量
+  释放后 settle_quota／adjust_quota 两条守卫都返回"不允许"（state=released）⇒ 将来若真拿到那次供应商用量，只能记成新的一条审计说明，不能回补这笔账
+
+留下的缺口（记为待修 #77，不在本次执行范围）：
+  worker 自己的收口路径 `activities.go:875` 对 `case "failed","canceled"` 是**无条件 release**；
+  而 `finish_receipt_missing` 这条终态路径（FinishAdvance 拿不到回执时）没有走到那一步 ⇒ 终态化却不释放预留，
+  要靠人工 SQL 收。默认口径已经按裁定写进 runbook §5.21，代码补口需要增量＋活库用例＋门禁传播（同 #67 的做法），
+  是否现在动代码由主签另裁——我没有自决改代码。
