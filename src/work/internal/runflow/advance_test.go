@@ -552,3 +552,240 @@ func TestRunWorkflowAdvanceWaitingResume(t *testing.T) {
 		})
 	}
 }
+
+// quotaBlockedExecution is what PrepareAdvanceExecution returns once reserve_quota
+// refuses: the operation exists and is authorized, so the workflow still has to be
+// able to revoke it when the wait ends.
+func quotaBlockedExecution() runflow.AdvanceExecution {
+	return runflow.AdvanceExecution{
+		ExecutionID: advanceExecutionID, OperationID: advanceOperationID,
+		RequestHash: advanceHash, IntentRef: advanceRefID, IntentHash: advanceHash,
+		ErrCode: runflow.AdvanceErrQuotaExhausted,
+	}
+}
+
+func quotaAdvanceFixture() (runflow.AdvancePrepared, runflow.AdvanceHead, runflow.Input) {
+	return advancePreparedFixture(), advanceHeadFixture(),
+		runflow.Input{RunID: advanceRunID, OrgID: "org_advance"}
+}
+
+// #60=B: saturation parks the Run on wait_reason 'quota' and the same step dispatches
+// after an operator replenishes. PrepareExecution must run twice, and the wait reason
+// must be exactly 'quota' - that value is the only producer of the quota_exhausted
+// card in work.task_summary (baseline/0002:2779).
+func TestRunWorkflowAdvanceParksOnQuotaAndDispatchesAfterResume(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(runflow.RunWorkflowAdvance)
+	env.RegisterActivity(&runflow.Activities{})
+	prepared, head, input := quotaAdvanceFixture()
+	env.OnActivity(runflow.ActivityPrepareAdvance, mock.Anything, input).
+		Return(prepared, nil).Once()
+	env.OnActivity(runflow.ActivityEnsureHead, mock.Anything, prepared).
+		Return(head, nil).Once()
+	env.OnActivity(runflow.ActivityPrepareExecution, mock.Anything, mock.Anything).
+		Return(quotaBlockedExecution(), nil).Once()
+	env.OnActivity(runflow.ActivityPrepareExecution, mock.Anything, mock.Anything).
+		Return(runflow.AdvanceExecution{
+			ExecutionID: advanceExecutionID, OperationID: advanceOperationID,
+			AttemptID: advanceAttemptID, ReservationID: advanceReservationID,
+			RequestHash:    advanceHash,
+			DeadlineUnixMs: time.Now().Add(time.Minute).UnixMilli(),
+		}, nil).Once()
+	env.OnActivity(runflow.ActivityWaitRun, mock.Anything, runflow.WaitRunInput{
+		RunID: advanceRunID, OrgID: "org_advance", Reason: "quota",
+	}).Return(nil).Once()
+	env.OnActivity(runflow.ActivityResumeRun, mock.Anything, runflow.ResumeRunInput{
+		RunID: advanceRunID, OrgID: "org_advance",
+	}).Return(nil).Once()
+	env.OnActivity(runflow.ActivityAdvanceRuntime, mock.Anything, mock.Anything).
+		Return(checkpointedResult(), nil).Once()
+	env.OnActivity(runflow.ActivityFinishAdvance, mock.Anything, mock.Anything).
+		Return(runflow.AdvanceFinishOutput{Status: runflow.AdvanceStatusSucceeded}, nil).Once()
+	env.OnActivity(runflow.ActivityFinishRun, mock.Anything, runflow.FinishRunInput{
+		RunID: advanceRunID, OrgID: "org_advance", Outcome: "succeeded",
+	}).Return(nil).Once()
+	env.RegisterDelayedCallback(func() {
+		if env.IsWorkflowCompleted() {
+			t.Fatal("workflow finished instead of waiting for quota")
+		}
+		env.AssertNumberOfCalls(t, runflow.ActivityWaitRun, 1)
+		env.AssertNumberOfCalls(t, runflow.ActivityPrepareExecution, 1)
+		env.AssertNumberOfCalls(t, runflow.ActivityResumeRun, 0)
+		env.SignalWorkflow("resume", nil)
+	}, 2*time.Second)
+
+	env.ExecuteWorkflow(runflow.RunWorkflowAdvance, input)
+
+	if !env.IsWorkflowCompleted() {
+		t.Fatal("workflow did not complete")
+	}
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow: %v", err)
+	}
+	env.AssertExpectations(t)
+	env.AssertNumberOfCalls(t, runflow.ActivityPrepareExecution, 2)
+	env.AssertNumberOfCalls(t, runflow.ActivityAdvanceRuntime, 1)
+	env.AssertNotCalled(t, runflow.ActivityRevokeExecution, mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, runflow.ActivityAbortRun, mock.Anything, mock.Anything)
+}
+
+// The 24h bound is section 8.3's quota_wait_timeout. The test environment auto-fires
+// the timer, so this also proves the wait is bounded rather than open-ended.
+func TestRunWorkflowAdvanceFailsRunWhenQuotaWaitTimesOut(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(runflow.RunWorkflowAdvance)
+	env.RegisterActivity(&runflow.Activities{})
+	prepared, head, input := quotaAdvanceFixture()
+	env.OnActivity(runflow.ActivityPrepareAdvance, mock.Anything, input).
+		Return(prepared, nil).Once()
+	env.OnActivity(runflow.ActivityEnsureHead, mock.Anything, prepared).
+		Return(head, nil).Once()
+	env.OnActivity(runflow.ActivityPrepareExecution, mock.Anything, mock.Anything).
+		Return(quotaBlockedExecution(), nil).Once()
+	env.OnActivity(runflow.ActivityWaitRun, mock.Anything, runflow.WaitRunInput{
+		RunID: advanceRunID, OrgID: "org_advance", Reason: "quota",
+	}).Return(nil).Once()
+	env.OnActivity(runflow.ActivityRevokeExecution, mock.Anything, runflow.RevokeExecutionInput{
+		RunID: advanceRunID, OrgID: "org_advance",
+		ExecutionID: advanceExecutionID, Reason: runflow.AdvanceReasonQuotaTimeout,
+	}).Return(nil).Once()
+	env.OnActivity(runflow.ActivityAbortRun, mock.Anything, runflow.AbortRunInput{
+		RunID: advanceRunID, OrgID: "org_advance",
+		OperationID: advanceOperationID, Outcome: "failed",
+		Reason: runflow.AdvanceReasonQuotaTimeout,
+	}).Return(nil).Once()
+
+	env.ExecuteWorkflow(runflow.RunWorkflowAdvance, input)
+
+	if !env.IsWorkflowCompleted() {
+		t.Fatal("workflow did not complete")
+	}
+	err := env.GetWorkflowError()
+	if err == nil || !strings.Contains(err.Error(), runflow.AdvanceReasonQuotaTimeout) {
+		t.Fatalf("workflow error = %v, want %s", err, runflow.AdvanceReasonQuotaTimeout)
+	}
+	env.AssertExpectations(t)
+	env.AssertNumberOfCalls(t, runflow.ActivityPrepareExecution, 1)
+	env.AssertNotCalled(t, runflow.ActivityResumeRun, mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, runflow.ActivityAdvanceRuntime, mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, runflow.ActivityFinishRun, mock.Anything, mock.Anything)
+}
+
+// A cancel during the quota wait closes the Run as canceled and still revokes the
+// authorized operation - the wait must not make the Run uncancellable.
+func TestRunWorkflowAdvanceCancelsWhileWaitingForQuota(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(runflow.RunWorkflowAdvance)
+	env.RegisterActivity(&runflow.Activities{})
+	prepared, head, input := quotaAdvanceFixture()
+	env.OnActivity(runflow.ActivityPrepareAdvance, mock.Anything, input).
+		Return(prepared, nil).Once()
+	env.OnActivity(runflow.ActivityEnsureHead, mock.Anything, prepared).
+		Return(head, nil).Once()
+	env.OnActivity(runflow.ActivityPrepareExecution, mock.Anything, mock.Anything).
+		Return(quotaBlockedExecution(), nil).Once()
+	env.OnActivity(runflow.ActivityWaitRun, mock.Anything, runflow.WaitRunInput{
+		RunID: advanceRunID, OrgID: "org_advance", Reason: "quota",
+	}).Return(nil).Once()
+	env.OnActivity(runflow.ActivityRevokeExecution, mock.Anything, runflow.RevokeExecutionInput{
+		RunID: advanceRunID, OrgID: "org_advance",
+		ExecutionID: advanceExecutionID, Reason: "run_canceled",
+	}).Return(nil).Once()
+	env.OnActivity(runflow.ActivityAbortRun, mock.Anything, runflow.AbortRunInput{
+		RunID: advanceRunID, OrgID: "org_advance",
+		OperationID: advanceOperationID, Outcome: "canceled", Reason: "run_canceled",
+	}).Return(nil).Once()
+	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow("cancel", nil)
+	}, 2*time.Second)
+
+	env.ExecuteWorkflow(runflow.RunWorkflowAdvance, input)
+
+	if !env.IsWorkflowCompleted() {
+		t.Fatal("workflow did not complete")
+	}
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow: %v", err)
+	}
+	env.AssertExpectations(t)
+	env.AssertNotCalled(t, runflow.ActivityResumeRun, mock.Anything, mock.Anything)
+	env.AssertNotCalled(t, runflow.ActivityAdvanceRuntime, mock.Anything, mock.Anything)
+}
+
+// The quota wait keys on one code. A hard prepare failure must still close the Run
+// immediately - otherwise every defect in the dispatch path would turn into a 24h stall.
+func TestRunWorkflowAdvanceDoesNotWaitOnOtherPrepareFailures(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		result runflow.AdvanceExecution
+		err    error
+		reason string
+	}{
+		{
+			name:   "activity_failure",
+			result: runflow.AdvanceExecution{},
+			err:    errors.New("advance_quota_reserve_failed"),
+			reason: "execution_prepare_failed",
+		},
+		{
+			// The per-Run cap is a policy fact, not a shortage: the activity returns it
+			// as a hard failure precisely so the Run does not park for 24h.
+			name:   "run_cap_exceeded",
+			result: runflow.AdvanceExecution{},
+			err:    errors.New("run_cap_exceeded"),
+			reason: "execution_prepare_failed",
+		},
+		{
+			name: "other_domain_code",
+			result: runflow.AdvanceExecution{
+				ExecutionID: advanceExecutionID, OperationID: advanceOperationID,
+				ReservationID: advanceReservationID, ErrCode: "model_parameters_unavailable",
+			},
+			err:    nil,
+			reason: "model_parameters_unavailable",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var suite testsuite.WorkflowTestSuite
+			env := suite.NewTestWorkflowEnvironment()
+			env.RegisterWorkflow(runflow.RunWorkflowAdvance)
+			env.RegisterActivity(&runflow.Activities{})
+			prepared, head, input := quotaAdvanceFixture()
+			env.OnActivity(runflow.ActivityPrepareAdvance, mock.Anything, input).
+				Return(prepared, nil).Once()
+			env.OnActivity(runflow.ActivityEnsureHead, mock.Anything, prepared).
+				Return(head, nil).Once()
+			env.OnActivity(runflow.ActivityPrepareExecution, mock.Anything, mock.Anything).
+				Return(tc.result, tc.err).Once()
+			if tc.result.ExecutionID != "" {
+				env.OnActivity(runflow.ActivityRevokeExecution, mock.Anything, runflow.RevokeExecutionInput{
+					RunID: advanceRunID, OrgID: "org_advance",
+					ExecutionID: tc.result.ExecutionID, Reason: tc.reason,
+				}).Return(nil).Once()
+			}
+			env.OnActivity(runflow.ActivityAbortRun, mock.Anything, runflow.AbortRunInput{
+				RunID: advanceRunID, OrgID: "org_advance",
+				OperationID: tc.result.OperationID, ReservationID: tc.result.ReservationID,
+				Outcome: "failed", Reason: tc.reason,
+			}).Return(nil).Once()
+
+			env.ExecuteWorkflow(runflow.RunWorkflowAdvance, input)
+
+			if !env.IsWorkflowCompleted() {
+				t.Fatal("workflow did not complete")
+			}
+			err := env.GetWorkflowError()
+			if err == nil || !strings.Contains(err.Error(), tc.reason) {
+				t.Fatalf("workflow error = %v, want %s", err, tc.reason)
+			}
+			env.AssertExpectations(t)
+			env.AssertNumberOfCalls(t, runflow.ActivityPrepareExecution, 1)
+			env.AssertNotCalled(t, runflow.ActivityWaitRun, mock.Anything, mock.Anything)
+			env.AssertNotCalled(t, runflow.ActivityResumeRun, mock.Anything, mock.Anything)
+			env.AssertNumberOfCalls(t, runflow.ActivityAbortRun, 1)
+		})
+	}
+}

@@ -25,6 +25,10 @@ import (
 	"github.com/we-meet/work/internal/receipt"
 )
 
+// errAdvanceQuotaExhausted separates a saturated period account from a broken
+// reserve path. Only this one becomes a wait in RunWorkflowAdvance.
+var errAdvanceQuotaExhausted = errors.New("quota_exhausted")
+
 const (
 	canonicalObjectVersion = "v1"
 	advancePlanLease       = 10 * time.Minute
@@ -373,6 +377,13 @@ func (a *Activities) PrepareAdvanceExecution(
 		return AdvanceExecution{}, err
 	}
 	reservationID, err := a.ensureAdvanceReservation(ctx, prepared.OrgID, operationID, tokenUpperBound)
+	if errors.Is(err, errAdvanceQuotaExhausted) {
+		// Carry the identifiers the activity already committed (operation created and
+		// authorized, no reservation) back to the workflow: it parks the Run on the
+		// quota wait, and a timeout or cancel still has to revoke that operation.
+		execution.ErrCode = AdvanceErrQuotaExhausted
+		return execution, nil
+	}
 	if err != nil {
 		return AdvanceExecution{}, err
 	}
@@ -508,8 +519,12 @@ func (a *Activities) ensureAdvanceReservation(
 		switch {
 		case strings.Contains(message, "quota_account_not_found"):
 			return "", fmt.Errorf("quota_account_missing")
-		case strings.Contains(message, "quota_exhausted"), strings.Contains(message, "run_cap_exceeded"):
-			return "", fmt.Errorf("quota_exhausted")
+		case strings.Contains(message, "quota_exhausted"):
+			return "", errAdvanceQuotaExhausted
+		case strings.Contains(message, "run_cap_exceeded"):
+			// A per-Run cap is a policy fact, not a shortage: waiting cannot cure it,
+			// so it stays a hard failure instead of joining the quota wait.
+			return "", fmt.Errorf("run_cap_exceeded")
 		default:
 			return "", activityFailure(err, "advance_quota_reserve_failed")
 		}

@@ -941,3 +941,131 @@ func TestAbortRunCancelDoesNotUseRejectionClose(t *testing.T) {
 		t.Fatalf("operation=%s reservations=%s", operationState, reservations)
 	}
 }
+
+// #60=B: a saturated period account has to reach the workflow as a domain code, not as
+// an activity failure, because the workflow parks the Run on it instead of closing it.
+// reserve_quota only refuses when the account is enforcement='hard' (measured on the
+// pilot host in drill D4-b on 2026-11-04), so this test varies exactly those two
+// columns and nothing else.
+func TestAdvanceQuotaSaturationReturnsDomainCodeAndParksRun(t *testing.T) {
+	pool, dbName := newFlowDB(t)
+	store := newFlowContent(t)
+	seedAdvanceTask(t, dbName, store)
+
+	activities := newAdvanceActivities(pool, store)
+
+	ctx := context.Background()
+	prepared, err := activities.PrepareAdvance(ctx, runflow.Input{RunID: flowRun, OrgID: flowOrg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, err := activities.EnsureAdvanceHead(ctx, prepared)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(ctx)
+	// Saturate the period account the way the pilot drill did: reserve_quota refuses
+	// only under enforcement='hard', and ensure_quota_account is ON CONFLICT DO NOTHING,
+	// so the columns have to be set from outside the activity.
+	setAccount := func(limit int64, enforcement string) {
+		t.Helper()
+		if _, err := admin.Exec(ctx, `
+			INSERT INTO work.quota_account
+			  (org_id, account_key, period_id, limit_tokens, enforcement)
+			VALUES ($1, 'default', $2, $3, $4)
+			ON CONFLICT (org_id, account_key, period_id)
+			DO UPDATE SET limit_tokens = EXCLUDED.limit_tokens,
+			              enforcement = EXCLUDED.enforcement,
+			              version = work.quota_account.version + 1,
+			              updated_at = now()`,
+			flowOrg, flowPeriod, limit, enforcement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	setAccount(1, "hard")
+
+	blocked, err := activities.PrepareAdvanceExecution(ctx, runflow.PrepareExecutionInput{
+		Prepared: prepared, Head: head,
+	})
+	if err != nil {
+		t.Fatalf("saturation must come back as a code, not a failure: %v", err)
+	}
+	if blocked.ErrCode != "quota_exhausted" {
+		t.Fatalf("err_code = %q, want quota_exhausted", blocked.ErrCode)
+	}
+	if blocked.OperationID == "" || blocked.ExecutionID == "" {
+		t.Fatalf("identifiers needed to revoke on timeout/cancel are missing: %#v", blocked)
+	}
+	if blocked.ReservationID != "" || blocked.AttemptID != "" {
+		t.Fatalf("nothing may be reserved or claimed past saturation: %#v", blocked)
+	}
+
+	var opState string
+	var reservations int
+	if err := admin.QueryRow(ctx, `
+		SELECT o.state, count(r.id)
+		FROM work.operation o
+		LEFT JOIN work.quota_reservation r
+		  ON r.operation_id = o.id AND r.org_id = o.org_id
+		WHERE o.id = $1::uuid AND o.org_id = $2
+		GROUP BY o.state`, blocked.OperationID, flowOrg,
+	).Scan(&opState, &reservations); err != nil {
+		t.Fatal(err)
+	}
+	if opState != "authorized" || reservations != 0 {
+		t.Fatalf("operation=%s reservations=%d, want authorized/0 (no half reservation)", opState, reservations)
+	}
+
+	if err := activities.WaitRun(ctx, runflow.WaitRunInput{
+		RunID: flowRun, OrgID: flowOrg, Reason: "quota",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var runState, waitReason, display string
+	if err := admin.QueryRow(ctx, `
+		SELECT r.state, COALESCE(r.wait_reason, ''), s.display_state
+		FROM work.run r
+		JOIN work.task_summary s ON s.task_id = r.task_id AND s.org_id = r.org_id
+		WHERE r.id = $1::uuid AND r.org_id = $2`, flowRun, flowOrg,
+	).Scan(&runState, &waitReason, &display); err != nil {
+		t.Fatal(err)
+	}
+	if runState != "waiting" || waitReason != "quota" {
+		t.Fatalf("run=%s wait_reason=%s, want waiting/quota", runState, waitReason)
+	}
+	if display != "quota_exhausted" {
+		t.Fatalf("display_state = %q; wait_reason='quota' is the only producer of the"+
+			" quota_exhausted card (baseline/0002:2779)", display)
+	}
+
+	// Causal control: replenish the same account row. Nothing about the Run changed
+	// except those two columns, so a reservation here proves the refusal was the account.
+	setAccount(100000000, "hard")
+	if err := activities.ResumeRun(ctx, runflow.ResumeRunInput{
+		RunID: flowRun, OrgID: flowOrg,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := admin.QueryRow(ctx, `
+		 SELECT state, COALESCE(wait_reason, '') FROM work.run WHERE id = $1::uuid AND org_id = $2`,
+		flowRun, flowOrg).Scan(&runState, &waitReason); err != nil {
+		t.Fatal(err)
+	}
+	if runState != "active" || waitReason != "" {
+		t.Fatalf("after resume run=%s wait_reason=%q, want active/empty", runState, waitReason)
+	}
+	replenished, err := activities.PrepareAdvanceExecution(ctx, runflow.PrepareExecutionInput{
+		Prepared: prepared, Head: head,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replenished.ErrCode != "" || replenished.ReservationID == "" {
+		t.Fatalf("after replenishment the same call must reserve: %#v", replenished)
+	}
+}

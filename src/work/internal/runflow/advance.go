@@ -22,9 +22,26 @@ const (
 	ActivityAdvanceRuntime   = "AdvanceRuntime"
 	ActivityFinishAdvance    = "FinishAdvance"
 	ActivityRevokeExecution  = "RevokeAdvanceExecution"
+	ActivityResumeRun        = "ResumeRun"
 )
 
 const advanceLogicalKey = "model:1"
+
+// AdvanceErrQuotaExhausted is reserve_quota's saturation code. Unlike every other
+// prepare failure it is curable without a new Run, so the workflow parks on
+// wait_reason='quota' (which is what makes display_state='quota_exhausted' in
+// baseline/0002:2779 reachable) instead of failing the Run.
+const (
+	AdvanceErrQuotaExhausted = "quota_exhausted"
+	advanceWaitReasonQuota   = "quota"
+	// advanceQuotaWaitLimit and the quota_wait_timeout terminal code are §8.3 of the
+	// orchestration design; the wait bound is measured from the first saturation, not
+	// per attempt, so a run cannot live forever on repeated replenishment signals.
+	advanceQuotaWaitLimit        = 24 * time.Hour
+	AdvanceReasonQuotaTimeout    = "quota_wait_timeout"
+	advanceReasonQuotaWaitFail   = "quota_wait_failed"
+	advanceReasonQuotaResumeFail = "quota_resume_failed"
+)
 
 // AdvancePrepared is the read-only preparation result. It carries identifiers,
 // hashes and counters only; the task text stays in the Content Store and is
@@ -117,6 +134,13 @@ type RevokeExecutionInput struct {
 	Reason      string `json:"reason"`
 }
 
+// ResumeRunInput asks the database to flip a waiting Run back to active. Reason is
+// deliberately absent: wait_run records why, resume_run clears it.
+type ResumeRunInput struct {
+	RunID string `json:"run_id"`
+	OrgID string `json:"org_id"`
+}
+
 // RunWorkflowAdvance executes exactly one model step. The plan fragment creates
 // revision 0 of the canonical state; the execute fragment is registered against
 // that head; Go finishes the receipt and commits revision 1 itself, so the
@@ -161,10 +185,46 @@ func RunWorkflowAdvance(ctx workflow.Context, input Input) error {
 	}
 
 	var execution AdvanceExecution
-	if err := workflow.ExecuteActivity(ctx, ActivityPrepareExecution, PrepareExecutionInput{
-		Prepared: prepared, Head: head,
-	}).Get(ctx, &execution); err != nil {
-		return abortAdvance(ctx, input, AdvanceExecution{}, "failed", "execution_prepare_failed")
+	// Created on the first saturation and reused, so the 24h bound runs from "quota
+	// first ran out" rather than resetting on every replenishment signal. A Future
+	// that already fired returns "timeout" immediately on the next park.
+	var quotaDeadline workflow.Future
+	for {
+		execution = AdvanceExecution{}
+		if err := workflow.ExecuteActivity(ctx, ActivityPrepareExecution, PrepareExecutionInput{
+			Prepared: prepared, Head: head,
+		}).Get(ctx, &execution); err != nil {
+			return abortAdvance(ctx, input, AdvanceExecution{}, "failed", "execution_prepare_failed")
+		}
+		if execution.ErrCode != AdvanceErrQuotaExhausted {
+			break
+		}
+		// Saturation: park the Run and let an operator replenish, per §8.3. The
+		// identifiers the activity already committed (operation created and
+		// authorized, no reservation) travel with execution so a timeout or a
+		// cancel can still revoke and close the Run.
+		if err := workflow.ExecuteActivity(ctx, ActivityWaitRun, WaitRunInput{
+			RunID: input.RunID, OrgID: input.OrgID, Reason: advanceWaitReasonQuota,
+		}).Get(ctx, nil); err != nil {
+			return abortAdvance(ctx, input, execution, "failed", advanceReasonQuotaWaitFail)
+		}
+		if quotaDeadline == nil {
+			quotaDeadline = workflow.NewTimer(ctx, advanceQuotaWaitLimit)
+		}
+		switch awaitQuotaOrSignal(ctx, quotaDeadline, cancelCh, resumeCh) {
+		case "cancel":
+			return abortAdvance(ctx, input, execution, "canceled", "run_canceled")
+		case "timeout":
+			return abortAdvance(ctx, input, execution, "failed", AdvanceReasonQuotaTimeout)
+		}
+		// A resume signal is not proof that quota came back; resume_run flips the
+		// Run to active and the next PrepareAdvanceExecution re-reads the account
+		// and re-reserves. If it is still saturated, the loop parks it again.
+		if err := workflow.ExecuteActivity(ctx, ActivityResumeRun, ResumeRunInput{
+			RunID: input.RunID, OrgID: input.OrgID,
+		}).Get(ctx, nil); err != nil {
+			return abortAdvance(ctx, input, execution, "failed", advanceReasonQuotaResumeFail)
+		}
 	}
 	if execution.Canceled {
 		return abortAdvance(ctx, input, execution, "canceled", "run_canceled")
@@ -326,6 +386,32 @@ func cancelRequested(ctx workflow.Context, cancelCh workflow.ReceiveChannel) boo
 	selector.AddDefault(func() {})
 	selector.Select(ctx)
 	return requested
+}
+
+// awaitQuotaOrSignal waits for whichever comes first: the replenishment signal, a
+// cancel, or the 24h bound. A deadline that already passed fires immediately, so a
+// Run that bounced between saturated and replenished still terminates.
+func awaitQuotaOrSignal(
+	ctx workflow.Context,
+	deadline workflow.Future, cancelCh, resumeCh workflow.ReceiveChannel,
+) string {
+	selector := workflow.NewSelector(ctx)
+	result := ""
+	selector.AddFuture(deadline, func(workflow.Future) { result = "timeout" })
+	selector.AddReceive(cancelCh, func(channel workflow.ReceiveChannel, _ bool) {
+		var payload any
+		channel.Receive(ctx, &payload)
+		result = "cancel"
+	})
+	selector.AddReceive(resumeCh, func(channel workflow.ReceiveChannel, _ bool) {
+		var payload any
+		channel.Receive(ctx, &payload)
+		result = "resume"
+	})
+	for result == "" {
+		selector.Select(ctx)
+	}
+	return result
 }
 
 // advanceWithCancel lets a cancel signal stop the in-flight advance activity.

@@ -14,9 +14,12 @@
 SELECT 'ctx_org=' || set_config('app.org_id', :'org', false);
 
 -- G1 停放 Run：开放态、超过阈值分钟没动过、且没有任何还活着的执行租约。
+-- 例外：等配额（wait_reason='quota'）的 Run 是有意停放、上限 24h（#60=B，§8.3），
+-- 把它算进停放会让每个饱和的组织都发一封假警报；它仍出现在下面的 open_runs 里。
 SELECT 'gauge=parked_runs value=' || count(*)
   FROM work.run r
  WHERE r.state NOT IN ('succeeded', 'failed', 'canceled')
+   AND NOT (r.state = 'waiting' AND COALESCE(r.wait_reason, '') = 'quota')
    AND r.updated_at < now() - make_interval(mins => :stale_minutes)
    AND NOT EXISTS (
          SELECT 1 FROM work.runtime_execution e

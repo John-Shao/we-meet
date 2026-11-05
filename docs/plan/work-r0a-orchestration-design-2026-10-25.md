@@ -388,6 +388,8 @@ sequenceDiagram
 ### 8.3 配额等待
 
 - `reserveQuota` 返回 `quota_exhausted` → `waitRun(quota)`，workflow 等待 `quotaAvailable`/`resume`，最长 24h。
+  - **2026-11-04 深夜已实装（#60 主签裁 B＝语义归位）**：`internal/runflow/advance.go` 的 advance 接线在 PrepareAdvanceExecution 回 `err_code=quota_exhausted` 时调 `waitRun(reason="quota")` 并停在 resume/cancel/24h 定时器上；超时走 `finish/abort(failed, quota_wait_timeout)`。用例：`TestRunWorkflowAdvanceParksOnQuotaAndDispatchesAfterResume`、`TestRunWorkflowAdvanceFailsRunWhenQuotaWaitTimesOut`、`TestRunWorkflowAdvanceCancelsWhileWaitingForQuota`（三条都做过变异核对），库侧契约在 `TestAdvanceQuotaSaturationReturnsDomainCodeAndParksRun`（顺带证实 `wait_reason='quota'` 是 `work.task_summary.display_state='quota_exhausted'` 的唯一产生者，前端那张卡此前不可达）。
+  - **两处与原文的偏差要写清**：① 「quotaAvailable」不是自动探测——补额度是运维动作、reconcile 的写路径按 #34=A 保持人工，所以续跑靠 `work-reconcile --resume` 发信号；② 只有 `quota_exhausted` 进入等待，`run_cap_exceeded`（本次 Run 的硬上限）与 `quota_account_not_found` 仍即时失败，等也等不来。**试点机二进制未换，本条对现网尚未生效**（同 #56-A 那一次改动一起部署）。
 - 恢复时重新读取策略、账户、许可；重新 reserve 成功后才派发。
 - 24h 超时 → `finishRun(failed, quota_wait_timeout)`；Task 保持 open，可重试。
 - 配额调整/补充是服务方运营动作；R0a 不做配额写 UI。

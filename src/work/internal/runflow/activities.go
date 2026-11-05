@@ -699,6 +699,18 @@ func (a *Activities) WaitRun(ctx context.Context, input WaitRunInput) error {
 	return activityFailure(err, "wait_run_failed")
 }
 
+// ResumeRun flips a waiting Run back to active so the advance workflow can re-read
+// the quota account. Replenishment itself is an operator action (#34=A keeps the
+// reconciler's write path manual), so the workflow only ever asks the database to
+// resume after it was signalled.
+func (a *Activities) ResumeRun(ctx context.Context, input ResumeRunInput) error {
+	err := workdb.WithWorkerOrgContext(ctx, a.Pool, input.OrgID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `SELECT work.resume_run($1, $2)`, input.OrgID, input.RunID)
+		return err
+	})
+	return activityFailure(err, "resume_run_failed")
+}
+
 func (a *Activities) FinishRun(ctx context.Context, input FinishRunInput) error {
 	return activityFailure(a.finishRun(ctx, input), "finish_run_failed")
 }

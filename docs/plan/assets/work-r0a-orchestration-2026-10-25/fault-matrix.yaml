@@ -177,6 +177,9 @@ cases:
       - Temporal activity attempt history
       - one provider request
       - reconcile outcome
+  # 2026-11-04 深夜：本条的 waitRun(quota) 分支已在 runflow advance 接线实装（#60 裁 B），
+  # 用例名见 work-r0a-orchestration-design-2026-10-25.md §8.3 的注；resume 靠运维信号（#34=A）。
+  # 试点机二进制未换，本条对现网尚未生效，11-15/16 演练按原文判据取证据。
   - id: D3-R03
     title: Quota exhausted while Run is waiting
     inject:
