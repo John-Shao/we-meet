@@ -315,6 +315,17 @@
       "catalog_checksum": "sha256:88c22ac3d417c2f8420e30935f4a14139d8c4b57ea1512f64e833767feb1301a",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 29,
+      "name": "0029_terminal_reservation_release",
+      "kind": "increment",
+      "file": "increments/0029_terminal_reservation_release.sql",
+      "checksum": "sha256:dc06a34077922481448a38846d6021f90d599ebd35fd7b9b6632f8a42d0475a2",
+      "catalog": "catalogs/0029_terminal_reservation_release.json",
+      "catalog_checksum": "sha256:ef257ecd5b2c1b86439ae239822225e23f79a9ff60d423778940891888080f08",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

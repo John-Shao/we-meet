@@ -33,18 +33,34 @@ psql_ro "select version || ' ' || name from work.schema_migration order by versi
 psql_ro "select 'rows=' || count(*) || ' max=' || coalesce(max(version), 0) from work.schema_migration"
 psql_ro "select '0027=' || coalesce((select name from work.schema_migration where version = 27), 'MISSING')"
 psql_ro "select '0028=' || coalesce((select name from work.schema_migration where version = 28), 'MISSING')"
-# Every increment in the range has to be recorded by name as well as by number: a
-# database that reached 28 through some other chain would otherwise look fine.
-psql_ro "select 'missing in 17..28: ' || coalesce(string_agg(expected.version || ':' || expected.name, ', '), 'none') from (values
+# Every increment in the list has to be recorded by name as well as by number: a database that
+# reached the chain head through some other sequence of files would otherwise look fine.
+psql_ro "select 'missing rows against the list this script ships: ' || coalesce(string_agg(expected.version || ':' || expected.name, ', '), 'none (all present)') from (values
   (17, '0017_r0b_transition_authority'), (18, '0018_r0b_governance_authority'),
   (19, '0019_r0b_deny_lifecycle'), (20, '0020_r0b_local_execution_policy'),
   (21, '0021_r0b_operation_resolution'), (22, '0022_org_execution_reason_split'),
   (23, '0023_operator_entitlement_and_intents'), (24, '0024_provider_probe_grant'),
   (25, '0025_provider_config_conflict_detail'), (26, '0026_audit_export_org_gate'),
   (27, '0027_governance_receipt_payload_binding'),
-  (28, '0028_runtime_execution_lease_takeover')) expected(version, name)
+  (28, '0028_runtime_execution_lease_takeover'),
+  (29, '0029_terminal_reservation_release')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
+# Same reason as the 0028 probe below: a ledger row only proves a file ran. 0029 is the
+# increment that stops a terminal Run from keeping a reservation held, and its whole subject is
+# the trigger - so read the live catalog for the trigger plus the receipt carve-out in its body.
+psql_ro "select 'terminal_release_guard=' || case when exists (
+  select 1 from pg_trigger t
+  join pg_proc p on p.oid = t.tgfoid
+  where t.tgrelid = 'work.run'::regclass
+    and t.tgname = 'run_terminal_reservation_release'
+    and not t.tgisinternal
+    and pg_get_functiondef(p.oid) like '%release_unreceipted_reservations%'
+    and exists (select 1 from pg_proc h
+      join pg_namespace n on n.oid = h.pronamespace
+      where n.nspname = 'work' and h.proname = 'release_unreceipted_reservations'
+        and pg_get_functiondef(h.oid) like '%receipt_recorded%'))
+  then 'true' else 'FALSE' end"
 # A ledger row only proves the file ran. 0028 is the increment that gives an elapsed
 # execute lease an exit, so read the live function bodies: a database that recorded
 # version 28 while running some other claim_runtime_execution would otherwise pass.

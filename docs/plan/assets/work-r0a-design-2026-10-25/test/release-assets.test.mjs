@@ -221,8 +221,10 @@ test('every published increment is confirmed by the verify script, not only by t
 
   const verifyText = readFileSync(join(WORK_DIR, 'deploy/ecs/verify-r0a-0027.sh'), 'utf8');
   const normalized = verifyText.replace(/\s+/g, ' ');
+  // 锚在 SQL 的别名上，不锚在"missing in 17.."这种读数标签上：标签里带编号区间就会随链增长而过期，
+  // 而过期的标签会让这条守卫认错块（2026-11-05 加 0029 时它就是这么红的）。
   assert.ok(
-    normalized.includes('missing in 17..'),
+    normalized.includes('expected(version, name)'),
     'verify-r0a-0027.sh no longer carries the expected-ledger block this test reads',
   );
 
@@ -230,4 +232,97 @@ test('every published increment is confirmed by the verify script, not only by t
     .filter((entry) => !normalized.includes(`(${entry.version}, '${entry.name}')`))
     .map((entry) => `${entry.name}`);
   assert.deepEqual(missing, [], 'these published increments have no verification line in the rollout pair');
+});
+
+test('the rollout learns its chain tail from the package, not from a number copied into the script', () => {
+  // 2026-11-05 (#78)：rollout-r0a-0027.sh 原先写死 `if ledger > 27 → abort`。0028 落地那天没人改它，
+  // 于是现网（ledger=28）上这笔发布一进 preflight 就自杀，真实变更只能绕开发布脚本手工装 ——
+  // 与 #47／#54 同一类缺口：发布链"打包／安装／校验"里"安装"那段停在旧编号上。
+  // 现在链尾由 make-release 在构建期从 migrations/increments 算出、写成包内 MIGRATION_TAIL，
+  // rollout 读它。这里把这个形状钉住：谁再退回字面量，或者打包时算不出链尾，都红。
+  const releaseText = readFileSync(RELEASE, 'utf8');
+  const rolloutText = readFileSync(join(WORK_DIR, 'deploy/ecs/rollout-r0a-0027.sh'), 'utf8');
+
+  const increments = readdirSync(join(WORK_DIR, 'migrations/increments'))
+    .map((name) => /^0*(\d+)_/.exec(name))
+    .filter(Boolean)
+    .map((m) => Number(m[1]));
+  assert.ok(increments.length >= 20, `只认出 ${increments.length} 个增量文件，这条断言在空转`);
+  const realTail = Math.max(...increments);
+
+  assert.match(releaseText, /MIGRATION_TAIL/, 'make-release 不再写 MIGRATION_TAIL，rollout 就无从判断这一包带到第几号');
+  assert.match(releaseText, /exit 1/, '算不出链尾时 make-release 必须早失败，而不是产出没有链尾的包');
+  // 锚在代码行上，不锚在整篇文本上：`migrations/increments` 出现在注释里不算数。
+  // 2026-11-05 变异实测——把那行换成 `echo 27 > "$OUT/MIGRATION_TAIL"` 后，原来的整篇子串断言仍绿，
+  // 因为我自己写的中文注释里就有这个路径。看守"链尾是从目录算出来的"这件事，必须由写它的那行代码满足。
+  const writerLines = releaseText
+    .split(/\r?\n/)
+    .map((line, index) => [line.replace(/(^|[^"\\])#.*$/, '$1'), index + 1])
+    .filter(([line]) => />[\s]*"\$OUT\/MIGRATION_TAIL/.test(line));
+  assert.ok(writerLines.length >= 1, 'make-release 里没有写出 MIGRATION_TAIL 的代码行，这条断言在空转');
+  for (const [line, number] of writerLines) {
+    assert.match(
+      line,
+      /migrations\/increments/,
+      `make-release.sh:${number} 写 MIGRATION_TAIL 的那行没从增量目录算链尾 - 链尾又退回抄来的常数了：${line.trim()}`,
+    );
+  }
+
+  assert.match(rolloutText, /\$RELEASE\/MIGRATION_TAIL/, 'rollout 的 preflight 必须从包里读链尾');
+  // 读取必须容忍"文件不存在"：脚本是 set -euo pipefail，`x="$(cat 缺失文件 2>/dev/null)"` 的退出码
+  // 就是这条赋值行的退出码，会当场静默带走脚本 —— 2026-11-05 现网 dry-run 实测到就是这个形状，
+  // 拒绝本身对了，但操作员只看到两行输出，看不到"包里没有链尾"这句话。
+  const tailReads = rolloutText
+    .split(/\r?\n/)
+    .filter((line) => line.includes('cat') && line.includes('MIGRATION_TAIL'));
+  assert.ok(tailReads.length >= 1, 'rollout 里没有读 MIGRATION_TAIL 的代码行，这条断言在空转');
+  for (const line of tailReads) {
+    assert.match(
+      line,
+      /\|\|\s*true/,
+      `rollout 读链尾的那行不容忍缺失，缺文件时会静默退出而不是说明原因：${line.trim()}`,
+    );
+  }
+  assert.match(rolloutText, /-gt\s+"\$chain_tail"/, 'ledger 比较的右边必须是包里的链尾变量');
+  // 逐行核，不按整篇正则：`-gt 27` 与 `-gt "27"` 都得红，而一条拼错的整体正则会对两种形状都沉默
+  // （2026-11-05 变异实测：写死 27 加引号后，原先那条 doesNotMatch 原地变绿）。
+  const tailComparisons = rolloutText
+    .split(/\r?\n/)
+    .map((line, index) => [line, index + 1])
+    .filter(([line]) => /-gt\s+\S/.test(line) && line.includes('current'));
+  assert.ok(tailComparisons.length >= 1, 'rollout 里找不到 ledger 与链尾的那次比较，这条断言在空转');
+  for (const [line, number] of tailComparisons) {
+    assert.doesNotMatch(
+      line,
+      /-gt\s+"?\d+/,
+      `rollout-r0a-0027.sh:${number} 又出现了写死的编号比较 - 这正是 0028 那天让发布脚本自杀的形状：${line.trim()}`,
+    );
+  }
+  assert.match(rolloutText, /is missing or not a number/, '包里缺 MIGRATION_TAIL 时必须拒绝，而不是回落到旧编号');
+  // 正向对照：脚本引用的那个文件名，必须就是 make-release 写出来的那个（拼错的路径只会静默中止）。
+  const written = [...releaseText.matchAll(/>\s*"\$OUT\/([A-Z_]+)"/g)].map((m) => m[1]);
+  assert.ok(written.includes('MIGRATION_TAIL'), `make-release 实际写出的清单里没有 MIGRATION_TAIL：${written.join(', ')}`);
+  assert.ok(realTail >= 28, `链尾读数 ${realTail} 比已知发布（0028）还旧，读数不可信`);
+});
+
+// #78 的另一半：rollout 的编号闸改成从包里推之后，"校验"那一段还留着同一类字面量。
+// verify-r0a-0027.sh 用一张 (version, name) 的 values 清单核账本，停在 17..28 —— 0029 落地那天
+// 没人改它，现网就会"账本 max=29、清单里没有 29"，而 verify 照样报 none missing。
+// 正向（manifest → verify）已由上面那条守卫钉住；这条补它没有的两半：清单里多出来的名字，
+// 以及读数标签里再出现编号区间。
+test('the verify script carries no stale increment list of its own', () => {
+  const verifyText = readFileSync(join(WORK_DIR, 'deploy/ecs/verify-r0a-0027.sh'), 'utf8');
+  const manifest = JSON.parse(readFileSync(join(WORK_DIR, 'migrations/manifest.json'), 'utf8'));
+  const published = manifest.increments
+    .filter((entry) => entry.version >= 17)
+    .map((entry) => `${entry.version}:${entry.name}`);
+
+  const listed = [...verifyText.matchAll(/\((\d+),\s*'([A-Za-z0-9_]+)'\)/g)]
+    .map((m) => `${Number(m[1])}:${m[2]}`)
+    .sort();
+  assert.ok(listed.length >= 10, `verify 里只认出 ${listed.length} 组 (version, name)，解析器在空转`);
+
+  const extra = listed.filter((entry) => !published.includes(entry));
+  assert.deepEqual(extra, [], `verify 里核了 manifest 没发布的增量名（会永远报 missing）：${extra.join(', ')}`);
+  assert.doesNotMatch(verifyText, /missing in \d+\.\.\d+/, 'verify 的读数标签里又写死了编号区间');
 });

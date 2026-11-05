@@ -25,6 +25,16 @@ mkdir -p "$OUT"
 # directory goes through the same cygpath guard the docker cp lines use.
 git -C "$(cygpath -w "$ROOT" 2>/dev/null || echo "$ROOT")" rev-parse HEAD > "$OUT/RELEASE_COMMIT"
 echo "release source commit $(cat "$OUT/RELEASE_COMMIT") (workdir $GO_WORKDIR in $GO_CONTAINER)"
+# #78：这一包能装到第几号增量，必须由包自己说，不能让 rollout 里抄一个数字。
+# 0028 落地那天没人改 rollout 的 `> 27`，于是那台 ledger=28 的机器上发布脚本一进 preflight
+# 就自杀——"安装"这一段停在旧编号上，真实变更只能绕开发布脚本手工做（#47／#54 同一类缺口的第三面）。
+# 链尾在构建期从 migrations/increments 的文件名算出来，写进包里；rollout 读它，字面量就此消失。
+ls "$ROOT/migrations/increments" | sed -nE 's/^0*([0-9]+)_.*/\1/p' | sort -n | tail -1 > "$OUT/MIGRATION_TAIL"
+if ! grep -qE '^[0-9]+$' "$OUT/MIGRATION_TAIL"; then
+  echo "FATAL: cannot derive the migration chain tail from $ROOT/migrations/increments" >&2
+  exit 1
+fi
+echo "release chain ends at increment $(cat "$OUT/MIGRATION_TAIL")"
 
 echo "building binaries in $GO_CONTAINER ($GO_WORKDIR)"
 docker exec -w "$GO_WORKDIR" "$GO_CONTAINER" sh -c "mkdir -p /tmp/work-release && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o /tmp/work-release/ ./cmd/..."

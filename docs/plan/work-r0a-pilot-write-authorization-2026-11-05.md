@@ -365,7 +365,7 @@ SET app.org_id = '4a2d3f28-38b9-4d6c-8614-70ef9a83960d';
   什么也不改，**留到 11-15/16 演练正文那一坐**（>24 小时后）再扫——那时它是自然到期的，
   顺带把"现网确实存在到期未绑定输入"这条也验了；本格的两半各按各自时刻取证，`notes` 里写清夹具建立时刻。
 - **(i) 不取**：直连 `work_api` 身份＋`SET LOCAL work.input_ttl_hours='1'` 能把等待压到 60 分钟，但它同时要求
-  手工 `SET app.subject_id`（＝待裁 #52 那条缝），把一个演练夹具变成一次越权取证的示范，代价不对等。
+  手工 `SET app.subject_id`（＝#52 那条缝；**【11-06 更正：#52 已裁 A，不再是待裁项——本行引用的那条缝已有书面口径，按 §5.19 走库侧读路径】**），把一个演练夹具变成一次越权取证的示范，代价不对等。
 - 两条路都要 `content_ref` 是 Content Store 里**真在**的对象。`create_input` 的 ref 由调用方给，
   所以最省事的真 ref 来自同一次真 preview／上传（不要编造，理由见下一段）。
 
@@ -720,3 +720,42 @@ I-3 单独一次，且做之前先确认当时那份内容备份的覆盖时刻�
 #54（seed 二进制不在包内）——本轮再次实测：`/usr/local/bin/work-e2e-seed` 是 Oct 30 的手工件（sha16 `ef3b44b9f7a43afb`），
 暂存发布目录里 `seed_in_staged_release_count=0`。三件注入都用得上它；照 #54=B 该"从仓库构建＋记 sha＋上传"，
 那是**第四件生产写**（换 `/usr/local/bin` 里的一个二进制），我没有顺手做，也没有把主机那份说成包内件。
+
+## 16. #78 落地后的现场取证：三次 `--dry-run`，零生产写（2026-11-05 23:2x–23:4x）
+
+**这一节没有换过任何服务、没装过任何 `/usr/local/bin` 文件、没跑迁移**。主机侧动作只有三类：
+(1) 新建发布目录 `~/work-release-0031`（11 个 Go 二进制从 `~/work-release-0030` **硬链**过来，其余 42 件由本地包上传）；
+(2) 放两支只读脚本到 `/tmp`（`x78.sh`／`x78c.sh`）；(3) 以 root 跑它们——**跑的是 `rollout --dry-run`**，
+该模式下每个会改状态的步骤都只打印 `DRY-RUN:` 前缀，脚本里真正执行的只有只读探针（账本读数、重复回执探测、`df`、`is-active`、step 2b 的在途查询、step 10 的 journal 读取）。
+
+**为什么用硬链而不是重传 175M，且这不算抄一份**：判据不是"我宣布它们相同"，而是包内 `SHA256SUMS` 在机上逐件核对——
+`sha256sum -c` 结果 **52/52 OK、非 OK 行数 0**。清单是本地构建时生成的，硬链过来的文件若与本次包不同就必然核对失败；
+它过了 ⇒ 机上目录与包逐字节等价，也就顺带证了"Go 源码自 0030 未动"（`git status` 只有脚本与文档）。
+
+**三条判据与读数**（`/tmp/x78c.sh` 原文执行，RC 取自脚本本身、不取自下游 `head`，避免 SIGPIPE 改写退出码）：
+
+| 判据 | 命令形状 | 读数 | RC |
+|---|---|---|---|
+| 新脚本＋带链尾的包 → preflight 应通过 | `bash ~/work-release-0031/rollout-r0a-0027.sh --release 同目录 --dry-run` | `ledger currently at 28` ＋ `package chain ends at increment 28` ＋ `duplicate governance receipts: 0` | 0 |
+| 新脚本＋**没有** `MIGRATION_TAIL` 的包 → 应说明原因后才拒 | `--release ~/work-release-0030` | `aborting: /home/johnshao/work-release-0030/MIGRATION_TAIL is missing or not a number` ＋ 一行"怎么重建" | 1（输出 4 行） |
+| 旧脚本（写死 `> 27`）＋它自己的包 → 应仍中止（对照，证故障真实） | `bash ~/work-release-0030/rollout-r0a-0027.sh --release 同目录 --dry-run` | `database is ahead of this release (ledger 28); aborting` | 1 |
+
+**第二行那次 dry-run 抓到的是我代码里的真缺陷**：第一版写 `chain_tail="$(cat "$RELEASE/MIGRATION_TAIL" 2>/dev/null | tr …)"`，
+在 `set -euo pipefail` 下命令替换的退出码就是赋值行的退出码 ⇒ 缺文件时脚本**在那一行静默死掉**，机上第一次实测只有 2 行输出、
+零解释。本机用三行复现（坏形 RC=1 无输出；修形先打印原因再 RC=1），改成 `{ cat … || true; }` 后把"读链尾必须容忍缺失"钉进
+`release-assets.test.mjs` 并用变异验过。**拒绝的方向一直是对的，错的是它没把话说出来**。
+
+**没动什么的证据（现读，非假设）**：`schema_migration` 前后都 28；`/var/backups/work` 仍 15 件、最新仍是 140636 那次；
+`/tmp/work-pre-*.dump` 计数 0（dry-run 只预告 dump 路径）；`work-worker` 主进程仍是 pid 1875248／启动 14:10:52 ＝
+C 段那批进程没被重启；跑完 `ts_end=23:38:16`。
+
+**待你点头的下一件生产写（不在本节范围内）**：把修好的 `rollout-r0a-0027.sh`（sha 前缀 `caccdd301d742fa9`）与随包脚本装进
+`/usr/local/bin`——最小半径＝只 `install` 脚本件，不停服务、不迁移、不换二进制；完整 rollout 的半径是停 6 单元／重装 10 二进制／重启 7 单元，
+本轮**没有任何功能变化需要它**。**#77 一行没动**，收口路径的修复仍未开始。
+**【11-06 00:1x 更正，原文不删】**：这后半句在本节写完约半小时后已被推翻——#77 实装为增量 **0029**
+（`work.run` 终态触发器调 `release_unreceipted_reservations`，闸上已 `receipt_recorded` 的不撤、`unknown` 不撤），
+并且**被仓库既有的穷举守卫抓出一条真红**：新函数默认可被 PUBLIC 执行 ⇒ 补了 `REVOKE ... FROM PUBLIC`
+（活库现读 `public=false／work_api=false／work_worker=true`）。取证＝整链灌入 rc=0、`work-migrate apply/status` rc=0、
+authz 四用例 ok、privilege sweep 转绿。**本节上面那三次 dry-run 的读数不受影响**（它们核的是 rollout 与包，与 0029 无关）。
+仍未做的还是那一件：**0029 没部署到现网**（ledger 仍 28），部署要另一次授权；授权前 §5.21 的手工收口口径仍然有效。
+细节见 runbook §5.27 与 work-project.md 当日台账。

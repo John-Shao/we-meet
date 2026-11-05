@@ -137,8 +137,21 @@ install_env() {
 echo "== 1. preflight =="
 current="$(ledger_max)"
 echo "ledger currently at ${current:-0}"
-if [[ "${current:-0}" -gt 27 ]]; then
-  echo "database is ahead of this release (ledger $current); aborting" >&2
+# #78：这一包带到的链尾从包里读（make-release 构建期算好写进 MIGRATION_TAIL），不在此处抄数字。
+# 先前这里是写死的 `> 27`：0028 落地那天没人改它，于是在 ledger=28 的现网上这笔发布
+# 一进 preflight 就中止，真实变更只能绕开发布脚本手工装——保护语义没错，错在它不知道自己在跟谁比。
+# 读不到不能让它把脚本带走：这里是 set -euo pipefail，`x="$(cat 缺失文件)"` 的退出码就是赋值行的
+# 退出码，会在此处静默 exit 1 —— 操作员只看到两行输出，看不到"为什么拒绝"（2026-11-05 现网 dry-run 实测）。
+# 所以先吞掉读失败，把判断交给下面那条显式的数字校验，让它把话说完再退出。
+chain_tail="$( { cat "$RELEASE/MIGRATION_TAIL" 2>/dev/null || true; } | tr -d '[:space:]')"
+if [[ ! "$chain_tail" =~ ^[0-9]+$ ]]; then
+  echo "aborting: $RELEASE/MIGRATION_TAIL is missing or not a number - this package cannot prove which chain it carries" >&2
+  echo "  rebuild it with make-release.sh (it derives the tail from the migration chain embedded in this package)" >&2
+  exit 1
+fi
+echo "package chain ends at increment $chain_tail"
+if [[ "${current:-0}" -gt "$chain_tail" ]]; then
+  echo "database is ahead of this release (ledger $current, package chain ends at $chain_tail); aborting" >&2
   exit 1
 fi
 if [[ -f "$RELEASE/RELEASE_COMMIT" ]]; then
