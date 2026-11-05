@@ -213,11 +213,16 @@ ret_sql="$(test -e /usr/local/bin/retention-scan.sql && echo present || echo MIS
 ret_state="$(systemctl is-active work-retention-scan.timer 2>/dev/null || true)"
 ret_enabled="$(systemctl is-enabled work-retention-scan.timer 2>/dev/null || true)"
 ret_result="$(systemctl show -p Result --value work-retention-scan.service 2>/dev/null || true)"
-ret_last="$(systemctl show -p ExecMainStartTimestamp --value work-retention-scan.service 2>/dev/null || true)"
+# 时刻只从 journal 取：实测本机的 work-retention-scan.service 在成功跑过之后
+# InactiveExitTimestamp／ExecMainStartTimestamp／ActiveEnterTimestamp 全是空（原因未查清，不猜），
+# 所以"上一次什么时候跑的"这件事，唯一可靠来源是它自己的日志行。
+ret_last="$(journalctl -u work-retention-scan.service --no-pager -o short-iso 2>/dev/null | grep -E 'Finished|Failed|Deactivated' | tail -1 | cut -d' ' -f1)"
+ret_runs="$(journalctl -u work-retention-scan.service --no-pager -o cat 2>/dev/null | grep -c 'run-retention-scan summary:')"
 ret_orgs="$(set -o posix; . /etc/work/work-retention-scan.env 2>/dev/null; echo "${WORK_RETENTION_ORGS:-}" | wc -w)"
-printf 'work-retention-scan  timer=%s enabled=%s last_result=%s last_start=%s wrapper=%s sql=%s orgs=%s\n' \
-  "${ret_state:-none}" "${ret_enabled:-none}" "${ret_result:-none}" "${ret_last:-none}" \
-  "$ret_wrapper" "$ret_sql" "${ret_orgs:-0}"
+ret_next="$(systemctl show -p NextElapseUSecRealtime --value work-retention-scan.timer 2>/dev/null || true)"
+printf 'work-retention-scan  timer=%s enabled=%s next=%s last_result=%s last_run=%s runs_logged=%s wrapper=%s sql=%s orgs=%s\n' \
+  "${ret_state:-none}" "${ret_enabled:-none}" "${ret_next:-none}" "${ret_result:-none}" \
+  "${ret_last:-none}" "${ret_runs:-0}" "$ret_wrapper" "$ret_sql" "${ret_orgs:-0}"
 if [[ "$ret_wrapper" != "present" || "$ret_sql" != "present" ]]; then
   echo "  WARN: run-retention-scan.sh and retention-scan.sql must be installed side by side - the sweep silently cannot run with only one"
 fi
