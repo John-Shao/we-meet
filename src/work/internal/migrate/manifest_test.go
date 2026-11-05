@@ -40,6 +40,7 @@ var publishedIncrements = []string{
 	"0025_provider_config_conflict_detail",
 	"0026_audit_export_org_gate",
 	"0027_governance_receipt_payload_binding",
+	"0028_runtime_execution_lease_takeover",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {
