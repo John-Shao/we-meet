@@ -1,0 +1,22 @@
+[Unit]
+Description=Work retention sweep (expire due exports/inputs, enqueue content_shred)
+After=network-online.target postgresql.service work-relay.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=work-control
+Group=work-control
+# DB 连接复用 worker 环境（清扫函数的 GRANT EXECUTE 只给 work_worker，见 baseline/0002:5253-5255）；
+# 组织清单单独放在 work-retention-scan.env，避免第二份密钥副本漂移。
+EnvironmentFile=/etc/work/work-worker.env
+EnvironmentFile=/etc/work/work-retention-scan.env
+ExecStart=/usr/local/bin/run-retention-scan.sh
+TimeoutStartSec=5min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

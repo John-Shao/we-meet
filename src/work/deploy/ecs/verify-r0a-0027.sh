@@ -17,7 +17,10 @@ fi
 SINCE="${1:-2026-11-03 00:00:00}"
 
 psql_ro() {
-  runuser -u postgres -- psql -d work -Atc "$1"
+  # ON_ERROR_STOP turns a SQL error into a non-zero exit: without it a broken check printed
+  # its ERROR line and the script went on looking green (found 2026-11-05 - the parity query
+  # below had been erroring since it was written, and "missing: none" was never its output).
+  runuser -u postgres -- psql -v ON_ERROR_STOP=1 -d work -Atc "$1"
 }
 
 echo "== host =="
@@ -32,7 +35,7 @@ psql_ro "select '0027=' || coalesce((select name from work.schema_migration wher
 psql_ro "select '0028=' || coalesce((select name from work.schema_migration where version = 28), 'MISSING')"
 # Every increment in the range has to be recorded by name as well as by number: a
 # database that reached 28 through some other chain would otherwise look fine.
-psql_ro "select 'missing in 17..28: ' || coalesce(string_agg(expected, ', '), 'none') from (values
+psql_ro "select 'missing in 17..28: ' || coalesce(string_agg(expected.version || ':' || expected.name, ', '), 'none') from (values
   (17, '0017_r0b_transition_authority'), (18, '0018_r0b_governance_authority'),
   (19, '0019_r0b_deny_lifecycle'), (20, '0020_r0b_local_execution_policy'),
   (21, '0021_r0b_operation_resolution'), (22, '0022_org_execution_reason_split'),
@@ -195,6 +198,36 @@ fi
 # C16 复跑通道：两个文件必须同目录，否则扫描器找不到、复跑会静默退化成"没有扫描"。
 c16_wrapper="$(test -x /usr/local/bin/work-c16-log-scan.sh && echo present || echo MISSING)"
 c16_scanner="$(test -e /usr/local/bin/log-scan.mjs && echo present || echo MISSING)"
+# D 段（留存清扫欠账预检）成对交付的在位断言：包装件按 dirname $0 找 SQL，只装一个就是空跑。
+# 与 runstream／c16 同口径——缺件先记在位性，不改动清扫本身（那是带内容删除的写操作，另行授权）。
+printf 'retention preflight wrapper=%s sql=%s\n' \
+  "$(test -x /usr/local/bin/run-retention-preflight.sh && echo present || echo MISSING)" \
+  "$(test -e /usr/local/bin/retention-preflight-d0.sql && echo present || echo MISSING)"
+if [[ ! -x /usr/local/bin/run-retention-preflight.sh || ! -e /usr/local/bin/retention-preflight-d0.sql ]]; then
+  echo "  WARN: run-retention-preflight.sh and retention-preflight-d0.sql must be installed side by side - the D4-6b preflight cannot run with only one"
+fi
+# D4 裁定＝B（2026-11-05 主签选"每小时"）：清扫的执行体在位与否必须被读出来，不能靠"应该会跑"。
+# 这一段只报状态、不代跑——真跑会经由 outbox 让 relay 删内容对象，节奏交给 timer 本身。
+ret_wrapper="$(test -x /usr/local/bin/run-retention-scan.sh && echo present || echo MISSING)"
+ret_sql="$(test -e /usr/local/bin/retention-scan.sql && echo present || echo MISSING)"
+ret_state="$(systemctl is-active work-retention-scan.timer 2>/dev/null || true)"
+ret_enabled="$(systemctl is-enabled work-retention-scan.timer 2>/dev/null || true)"
+ret_result="$(systemctl show -p Result --value work-retention-scan.service 2>/dev/null || true)"
+ret_last="$(systemctl show -p ExecMainStartTimestamp --value work-retention-scan.service 2>/dev/null || true)"
+ret_orgs="$(set -o posix; . /etc/work/work-retention-scan.env 2>/dev/null; echo "${WORK_RETENTION_ORGS:-}" | wc -w)"
+printf 'work-retention-scan  timer=%s enabled=%s last_result=%s last_start=%s wrapper=%s sql=%s orgs=%s\n' \
+  "${ret_state:-none}" "${ret_enabled:-none}" "${ret_result:-none}" "${ret_last:-none}" \
+  "$ret_wrapper" "$ret_sql" "${ret_orgs:-0}"
+if [[ "$ret_wrapper" != "present" || "$ret_sql" != "present" ]]; then
+  echo "  WARN: run-retention-scan.sh and retention-scan.sql must be installed side by side - the sweep silently cannot run with only one"
+fi
+if [[ -z "$ret_enabled" ]]; then
+  echo "  WARN: work-retention-scan.timer not installed - 留存清扫仍无执行者（§5 那两行「不可停」只对投递成立；2026-11-04 那批欠账堆到 2 条超期 4 天就是这种状态）"
+fi
+if [[ "$ret_enabled" == "enabled" ]]; then
+  ret_synced="$(runuser -u postgres -- psql -d work -Atc 'select count(*) from work.org' 2>/dev/null || echo '?')"
+  [[ "${ret_orgs:-0}" == "$ret_synced" ]] || echo "  WARN: retention org list ($ret_orgs) != directory orgs ($ret_synced); new tenants' content may never be swept"
+fi
 printf 'c16 log-scan wrapper=%s scanner=%s
 ' "$c16_wrapper" "$c16_scanner"
 if [[ "$c16_wrapper" != "present" || "$c16_scanner" != "present" ]]; then

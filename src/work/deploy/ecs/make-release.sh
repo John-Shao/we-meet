@@ -43,6 +43,19 @@ cp "$ROOT/scripts/pilot-metrics.sql" "$OUT/"
 cp "$ROOT/scripts/run-pilot-metrics.sh" "$OUT/"
 cp "$ROOT/scripts/runstream-gauges.sql" "$OUT/"
 cp "$ROOT/scripts/run-runstream-gauges.sh" "$OUT/"
+# D 段（D4-6b 留存清扫）预检本体与包装脚本成对交付：SQL 只在 superuser 连接下才有正确含义
+# （FORCE RLS 对 owner 同样生效，见 runbook §5.2／#53），包装脚本负责取到那个连接并固定
+# ON_ERROR_STOP——少了它 psql 报错仍 rc=0，这份预检会把错误安静地读成"欠账为 0"。
+cp "$ROOT/scripts/retention-preflight-d0.sql" "$OUT/"
+cp "$ROOT/scripts/run-retention-preflight.sh" "$OUT/"
+# D4 裁定＝B（主签 2026-11-05，节奏每小时）：清扫从"文档指挥、机器上没有执行者"变成有 unit 的活儿。
+# 与 run-runstream-gauges 同一形状——`run-x.sh` ↔ `x.sql` 是 release-assets 双胞胎规则认的名字，
+# 只入一半就红；再加 service／timer／env 模板三件（env 模板只放组织清单，口令仍复用 work-worker.env）。
+cp "$ROOT/scripts/retention-scan.sql" "$OUT/"
+cp "$ROOT/scripts/run-retention-scan.sh" "$OUT/"
+cp "$ROOT/deploy/ecs/work-retention-scan.service" "$OUT/"
+cp "$ROOT/deploy/ecs/work-retention-scan.timer" "$OUT/"
+cp "$ROOT/deploy/ecs/work-retention-scan.env.example" "$OUT/"
 # #57 (2026-11-05): the restore drill script lived only on the host, so D3-b could not run on a
 # rebuilt machine. It ships with the release now; byte-identical to the host copy (sha256
 # f069f8fcce8c2f3f8a6b98643d57954a6a834dc07fec334756c878222dd43843) at the time of import.

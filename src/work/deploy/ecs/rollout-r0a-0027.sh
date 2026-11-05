@@ -228,10 +228,21 @@ install_env work-reconcile-scan
 run install -m 0755 -o root -g root "$RELEASE/work-healthcheck.sh" /usr/local/bin/work-healthcheck.sh
 run install -m 0644 -o root -g root "$RELEASE/work-healthcheck.service" /etc/systemd/system/work-healthcheck.service
 run install -m 0644 -o root -g root "$RELEASE/work-healthcheck.timer" /etc/systemd/system/work-healthcheck.timer
+# D4 裁定＝B（主签 2026-11-05，节奏每小时）：留存清扫从"文档指挥、机器上没有执行者"变成有 unit 的活儿。
+# 装在这几行而不是后面的脚本段，是因为 daemon-reload／enable 紧接在后面——unit 晚于它就等于本轮不生效。
+# 包装件与 SQL 同目录安装（脚本按 dirname $0 找 SQL，少一个是空跑）；env 模板只放组织清单，
+# 口令仍复用 /etc/work/work-worker.env（清扫函数的 GRANT EXECUTE 只给 work_worker）。
+run install -m 0755 -o root -g root "$RELEASE/run-retention-scan.sh" /usr/local/bin/run-retention-scan.sh
+run install -m 0644 -o root -g root "$RELEASE/retention-scan.sql" /usr/local/bin/retention-scan.sql
+for unit in work-retention-scan.service work-retention-scan.timer; do
+  run install -m 0644 -o root -g root "$RELEASE/$unit" "/etc/systemd/system/$unit"
+done
+install_env work-retention-scan
 run systemctl daemon-reload
-run systemctl enable work-reconcile-scan.timer work-healthcheck.timer
+run systemctl enable work-reconcile-scan.timer work-healthcheck.timer work-retention-scan.timer
 run systemctl start work-reconcile-scan.timer
 run systemctl start work-healthcheck.timer
+run systemctl start work-retention-scan.timer
 
 # C17 最小集（2026-11-04 主签选 C）：库侧只读巡检补上 Temporal 侧孤儿规则看不见的那一类
 # ——workflow 仍 Running、activity 停在 STARTED、库侧租约已过期的「停放 Run」，以及挂在已终态
@@ -242,6 +253,10 @@ run install -m 0644 -o root -g root "$RELEASE/runstream-gauges.sql" /usr/local/b
 # 不再依赖 /tmp 里那份手工放置的副本。
 run install -m 0755 -o root -g root "$RELEASE/work-c16-log-scan.sh" /usr/local/bin/work-c16-log-scan.sh
 run install -m 0644 -o root -g root "$RELEASE/log-scan.mjs" /usr/local/bin/log-scan.mjs
+# D 段（D4-6b 留存清扫预检）成对安装：包装脚本按 dirname $0 找 SQL，两个都落在 /usr/local/bin
+# 才自洽；此前那份只放在 /tmp，机器重启或换机就没了（#54／#57 同一类缺口）。
+run install -m 0755 -o root -g root "$RELEASE/run-retention-preflight.sh" /usr/local/bin/run-retention-preflight.sh
+run install -m 0644 -o root -g root "$RELEASE/retention-preflight-d0.sql" /usr/local/bin/retention-preflight-d0.sql
 # #57：恢复演练脚本随包交付。目录先补上（新机可能没有 meet-db-backup），文件权限沿用现网
 # 既有的 0700 root:root；verify 会比对主机副本与包内副本的 sha，不一致只 WARN 不覆盖判断。
 run install -d -m 0755 -o root -g root /opt/meet-db-backup

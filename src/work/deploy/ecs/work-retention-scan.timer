@@ -1,0 +1,16 @@
+[Unit]
+Description=Hourly Work retention sweep
+
+[Timer]
+# 主签 2026-11-05 裁定＝每小时一次（选项 B 的默认节奏）。
+# 为什么够：到期判据是"建后 24 小时"（未绑定输入按 work.input_ttl_hours，审计导出按
+# cmd/work-export/main.go:23 的 const 86400），小时级把"过期内容留在存储"的最长窗口压到 1 小时，
+# 而单次最多积压一小时的到期量（现网首次真跑实测：2 行、252KB，见授权单 §11）。
+# Persistent=true：机器停过一阵后补跑一次，避免"停机期间到期却没人扫"再次堆成 4 天那种欠账。
+OnCalendar=hourly
+RandomizedDelaySec=5min
+Persistent=true
+Unit=work-retention-scan.service
+
+[Install]
+WantedBy=timers.target
