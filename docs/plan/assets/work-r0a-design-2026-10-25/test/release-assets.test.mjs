@@ -206,3 +206,28 @@ test('the packaged restore drill honours the identity knob the runbook commands'
     `${rel} must keep the 2026-10-29 identity as the unset default, so the current path is unchanged`,
   );
 });
+
+
+// An increment that is in the manifest is applied by `work-migrate apply`, which reads the
+// embedded manifest - so a new increment ships with zero attention on the deploy side. The
+// verify script kept its hand-written (version, name) list at 0027 while the manifest moved to
+// 0028, which is the same gap class as #47 and #57: the release does the thing and nothing on
+// the host ever confirms it. Tie the two lists together so landing an increment without a
+// verification line goes red here rather than as a clean rollout.
+test('every published increment is confirmed by the verify script, not only by the manifest', () => {
+  const manifest = JSON.parse(readFileSync(join(WORK_DIR, 'migrations/manifest.json'), 'utf8'));
+  const increments = (manifest.increments || []).filter((entry) => entry.version >= 17);
+  assert.ok(increments.length >= 12, `parsed ${increments.length} increments from 17 up, list parsing is broken`);
+
+  const verifyText = readFileSync(join(WORK_DIR, 'deploy/ecs/verify-r0a-0027.sh'), 'utf8');
+  const normalized = verifyText.replace(/\s+/g, ' ');
+  assert.ok(
+    normalized.includes('missing in 17..'),
+    'verify-r0a-0027.sh no longer carries the expected-ledger block this test reads',
+  );
+
+  const missing = increments
+    .filter((entry) => !normalized.includes(`(${entry.version}, '${entry.name}')`))
+    .map((entry) => `${entry.name}`);
+  assert.deepEqual(missing, [], 'these published increments have no verification line in the rollout pair');
+});
