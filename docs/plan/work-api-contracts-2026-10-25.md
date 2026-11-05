@@ -76,7 +76,7 @@
 
 - 同一 Operation 同时最多一个 `held/unknown` 预留；审批等待释放后用新的 `reservation_seq` 重预留。
 - 结算按 `(operation_id, settlement_revision)` 唯一；同 revision 同金额幂等，不同金额冲突；修正追加 `adjust`，不覆写历史。
-- 金额使用整数最小计费单位 + 币种 + price_version；usage 原始计量单独记录，不能用浮点累计。
+- 金额使用整数最小计费单位 + 币种 + price_version；usage 原始计量单独记录，不能用浮点累计。**（2026-11-05 更正并被取代：本条是 D-08 之前的金额账本口径，已被 D-08a–d 全签的"token 配额"口径取代——`budget_*`→`quota_*`、`*_cents`→`*_tokens`，`currency`／`price_version` 与金额类错误码一并删除（台账 2026-10-26 行 `bdb91fe4e`）。Work 侧不再有价目：客户在自己的云厂商侧结算，只记 token 用量与配额事实。原文保留是为了让引用它的旧评审记录仍可追溯；新写代码/契约一律按 `quota_*` ＋ `usage`，不要按本条的字面值实现。取证锚点：全仓 `price_version` 现读仅剩 `src/work/internal/egress/doc.go:77` 一句"该账本已随 D-08 取消"的说明，无任何 SQL/Go/契约消费者。）**
 
 ### 3.7 内容与事件
 

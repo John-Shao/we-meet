@@ -313,7 +313,7 @@
       "verdict": "na",
       "ts": null,
       "evidence": [],
-      "notes": "同上。已另测到提交侧的真实拒绝码：停用时 submit_task 报 org_execution_unavailable（不是 rate_limited/quota_exhausted），见 D4-a 注。 2026-11-04 #58 裁定＝改承诺、不改实现：原文的「提交侧同步拒绝＋不产生 work.run 新行」在本接线不可达——reserve_quota 只由 worker 活动调用（internal/runflow/activities.go:270、advance_activities.go:502，EXECUTE 仅授 work_worker），提交恒先 202。判据已按 D4-b 实测改写进 checklist §5 的 D4-3 行，本步 verdict 仍留 na（不重复计 D4-b 的证据，与 D3-a「算同一证据、就地注明」同一处理）。11-16 正式演练按改写后的判据取 API＋Run 终态＋SQL 三类证据。附带登记 #60：§8.3／故障矩阵 D3-R03 的 waitRun(quota) 语义现网未实装。"
+      "notes": "同上。已另测到提交侧的真实拒绝码：停用时 submit_task 报 org_execution_unavailable（不是 rate_limited/quota_exhausted），见 D4-a 注。 2026-11-04 #58 裁定＝改承诺、不改实现：原文的「提交侧同步拒绝＋不产生 work.run 新行」在本接线不可达——reserve_quota 只由 worker 活动调用（internal/runflow/activities.go:270、advance_activities.go:502，EXECUTE 仅授 work_worker），提交恒先 202。判据已按 D4-b 实测改写进 checklist §5 的 D4-3 行，本步 verdict 仍留 na（不重复计 D4-b 的证据，与 D3-a「算同一证据、就地注明」同一处理）。11-16 正式演练按改写后的判据取 API＋Run 终态＋SQL 三类证据。附带登记 #60：§8.3／故障矩阵 D3-R03 的 waitRun(quota) 语义现网未实装。 11-04 深夜 #60 已裁 B 并实装（三条 workflow 用例＋一条活库契约用例，全部做过变异核对；顺带证实 wait_reason='quota' 是 display_state='quota_exhausted' 的唯一产生者），D4-3 判据随之再改写一次；试点机二进制未换，本格仍留 na 不翻。"
     },
     {
       "step": "D4-4",

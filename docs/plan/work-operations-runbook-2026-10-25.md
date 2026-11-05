@@ -159,6 +159,8 @@ R0a 有六类不属于任何 Run 的常驻作业（见 [D3 §11](work-r0a-orches
 
 ### 5.3 目录同步作业（work-directory-sync）
 
+- **旋钮现在有模板了（2026-11-05，L-C04-03）**：`deploy/ecs/work-directory-sync.env.example` 列出本作业全部四个环境变量与代码缺省（`WORK_DIRECTORY_MODE=full`、`WORK_DIRECTORY_TIMEOUT=10m`、`WORK_DIRECTORY_ORG_ID`、`WORK_DIRECTORY_ALLOW_MASS_ABSENCE=0`）。下面各条指挥的取值以该模板为准，不必再去读 `cmd/work-directory-sync/main.go`；模板由 `ops-env-surface.test.mjs` 保证"二进制读到的每个键都在模板里"。
+
 - **增量设计要求**：`WORK_DIRECTORY_MODE=incremental`，正常成功同步周期为 300s；以 Work 投影的 `work.org.revision` 为水位，只拉 `revision_after` 之后的成员变更；不判定缺席。实际 timer 周期须取证，不以本节要求代替部署状态。
 - **全量**：`WORK_DIRECTORY_MODE=full`（默认），每日至少一次；拉完整成员快照后，把 Host 缺席成员收窄为 `left`、撤 `work_seat`、记 `entitlement_lost`，不取消 Run。快照最多 10,000 个 subject，超过直接失败。缺席数 ≥ max(10, 候选成员 20%) 时默认拦截（写 `directory.member_absence_blocked`，不写入）；候选成员少于 10 人的组织不触发闸门。确认 Host 数据后以 `WORK_DIRECTORY_ALLOW_MASS_ABSENCE=1` 重跑 full，放行会写 `directory.member_absence_applied`。
 - **首次部署**：先按 [Host wire §8 L1](work-r0a-host-wire-decision-2026-10-28.md) 提交控制面登录身份证据（仅成员于 `work_directory`、无表权限）；再跑一次 full 建立水位；新组织先以 revision 1 建行，成员全部成功后才推进到快照 revision。
@@ -191,6 +193,34 @@ Work ECS 复用仓库 `deploy/backup/` 的 `work` 实例，在本机 Unix socket
   `meet-db-backup-notify@work.timer` 每分钟重试未送达邮件。
 - 加密与密钥：`age` 公钥加密后上传，服务端完整读回校验；**私钥只在管理员本地受保护目录**
   （`%USERPROFILE%\.we-meet-backup\work-offsite-20261029.agekey`），Work ECS 上无副本。
+  - **2026-11-05 更正（#57，主签答"不在、找不回"）**：上面那句已经不再成立。现网事实是三条，都取证过：
+    ① `recipient.txt`（mtime 10-29 12:22）里的收件人是 `age1jyazk…`；
+    ② 机上 `/root/work-backups/` 里**只有一把**私钥 `work-backup.agekey`（`age-keygen -y` → `age1z43…`），
+       而脚本默认的 `/root/work-backups/work-offsite-20261029.agekey` 在机上不存在；
+    ③ 同一把 `work-backup.agekey` 能解出 10-28 的本地归档，所以不是钥匙损坏，是收件人换了、私钥没跟上。
+    **后果**：2026-10-29 起（收件人切换那一刻）到换钥之前的所有 offsite bundle **永久不可解密**——这是数据
+    保全层面的真实缺口，不是演练脚本的 bug。恢复能力在换钥并真解一次当代 bundle 之前，都不算被证明过。
+  - **换收件人链需要授权，逐条勾**（都是主机生产写或对外桶读，不做自决）：
+    ☐ 生成新 age 密钥对，私钥落管理员本地目录并把公钥写进 `/etc/meet-db-backup/work/recipient.txt`；
+    ☐ 立刻跑一次 `meet-db-backup@work.service` 产生新 bundle；
+    ☐ 在新 bundle 上跑 `work-db-restore-drill.py`（下载→解密→建库→核对），以此把 D3-b 从 fail 改判。
+    重开条件：任一 bundle 需要历史恢复时（届时只能接受"不可解"并按 C15 运营风险处置）。
+    **完整授权申请单（含 dry-run 先行、回滚目标、部署后必做的三格重演、以及换钥后必须真解一次当代 bundle 才允许改判 D3-b）见
+    [work-r0a-pilot-write-authorization-2026-11-05.md](work-r0a-pilot-write-authorization-2026-11-05.md)；上面三个勾与该单 B1..B3 是同一件事，以该单为准。**
+  - **随包交付**：`work-db-restore-drill.py` 此前只在主机 `/opt/meet-db-backup/`，属 #47/#54 同一类缺口。
+    现按 #57 裁"进发布包"处理。**2026-11-05 深夜更正（本轮自查抓到自己的缺陷）**：先前按"与主机文件**逐字节相同**"
+    把机上那份（sha256 `f069f8fcce8c2f3f8a6b98643d57954a6a834dc07fec334756c878222dd43843`，7004 字节，取回于 2026-11-05）
+    导入成 `src/work/scripts/work-db-restore-drill.py` 并让 `make-release.sh` 取它——但仓库里本来就有这个脚本
+    `src/work/deploy/ecs/work-db-restore-drill.py`（sha256 `cf3724636df26167…`，7016 字节，随 `b8c96f4d3` 落地），
+    机上那份是它的**旧形**：身份路径写死成 `work-offsite-20261029.agekey`、丢了 `WORK_BACKUP_IDENTITY` 覆盖、多两个未用的 import。
+    打包旧形的后果就是下面那条 `sudo WORK_BACKUP_IDENTITY=… python3 /opt/meet-db-backup/work-db-restore-drill.py`
+    与授权单 B3 一起变成**空转旋钮**（脚本根本不读它，换钥后的当代 bundle 无从指名）。处置：删除 `scripts/` 那份重复，
+    `make-release.sh` 改取 `deploy/ecs/` 既有版本（`rollout-r0a-0027.sh` 的 `0700 root:root` 安装行与 `verify-r0a-0027.sh`
+    的在位非空断言都按 basename 引用，无需改），并给发布件加具名守卫
+    `release-assets.test.mjs`「the packaged restore drill honours the identity knob the runbook commands」，把打包件与
+    runbook 指挥的那个旋钮钉在一起。变异核对：临时去掉那行 `os.environ.get` 即红（断言文本命中，非构建失败），
+    还原后该文件 `git status` 为空、套件 8/8 绿。**换钥后请仍用 `WORK_BACKUP_IDENTITY=<新私钥路径>` 指名身份**；
+    下次 rollout 会用这份带覆盖的仓库版替换 `/opt` 那支旧形，属预期。
 - 告警：复用 Meet 已验证 SMTP 通道，收件人与 Meet 备份通知一致；失败、过期（>8 小时）和恢复
   均发信，持续异常每 6 小时提醒。
 
@@ -683,6 +713,13 @@ timer 是否 enable、org 清单是否与目录 org 数一致、以及容差现�
 - `parked_runs`（>0 即退出码 2）：开放态、超过 `WORK_RUNSTREAM_STALE_MINUTES`（默认 5）没动过、且没有任何还活着的
   执行租约。**这条补的正是 §5.18 那个盲区**——当晚 D1-alt／D2-alt 各造一个停放 Run，Temporal 侧两轮巡检都报 `orphans=0`。
   口径要说清：它判的是「库在等一个不会再回来的执行」，因此长时间没被领取的 queued Run 也算在内，这是想要的信号而不是误报。
+  **例外（2026-11-04 深夜，#60=B）**：`state='waiting' AND wait_reason='quota'` 的 Run 不计入——饱和后等配额是有意状态、
+  上限 24h（§8.3），算进来会让每个配额打满的组织发一封假警报；它仍在 `open_runs` 里可见。写这条例外时踩到一个 NULL 陷阱：
+  最初写 `NOT (state='waiting' AND wait_reason='quota')`，`wait_reason` 为 NULL 时整个谓词变 NULL、那一行会被**静默漏掉**，
+  改成 `COALESCE(r.wait_reason,'')` 才是「只排除等配额」。
+  这条例外现在有活库用例守着：`src/work/cmd/work-reconcile/runstream_gauges_pg_test.go` 直接执行发布件里的
+  那条 SELECT 原文（以 `work_worker` 连接、按包装件的方式设 `app.org_id`），两条变异分别把它读成 1（NULL 行漏掉）
+  和 3（等配额被当成停放并触发假警报）。
 - `held_on_terminal`（超过 `WORK_RUNSTREAM_MAX_HELD_ON_TERMINAL` 才退出码 2）：挂在已终态 Run 上的未释放预留，§5.17 口径。
   **现值 2 是 2026-11-04 演练残留的临时容差**，有日期、有归属（#56-B 收口语义）、有回收条件：预留归零后必须改回 0，
   改回那一轮会立刻转红并发信，那是预期行为，不是新故障。
@@ -706,6 +743,13 @@ grafana／node_exporter 单元全部 not-found、10 个 workload 二进制里 pr
 所以**任何一条 alert 今天都不会自己响**。当前真实的投递链只有两条：`work-healthcheck.timer` → `work-health-alert.py`
 （观察名单里的单元转红才发信，本单元已加入名单）与本页各节的值班手工 SQL。规模化前的接线代价记在
 pilot-checklist C17 的 note，不由本节自决。
+
+**等配额的 Run 怎么认、怎么办（2026-11-05，#60=B 的值班面）**：`quota_wait_timeout` 与"停在 `waiting` 等配额"都是**新增的终态/中间态码**，此前 runbook 里没有任何地方列过它们——现在钉死三句话：
+
+1. **认**：`SELECT id, state, wait_reason, updated_at FROM work.run WHERE state = 'waiting'`（owner 视角要 `SET app.org_id`，见 #53）；`wait_reason = 'quota'` 就是配额等待，**不是停放**，`parked_runs` 也已把它排除（§5.21 上文的例外）。用户侧表现为任务卡显示"配额不足"（`task_summary.display_state = 'quota_exhausted'`，这个显示态的**唯一**产生者就是这一行 `wait_reason`）。
+2. **办**：补额度是运维动作（`work.quota_account` 的 `limit_tokens`／`enforcement`），之后必须**人工**发续跑信号——`work-reconcile -resume`（写路径按 #34=A 保持人工，不自动探测配额恢复）。没补额度就发信号也不会坏：重跑 prepare 若仍饱和，会再park 一次。
+3. **上限**：从**第一次**饱和起 24 小时（`internal/runflow/advance.go` 的定时器在首次饱和时创建并复用，不因反复补额度信号而重置），超时则 Run 以 `failed / quota_wait_timeout` 结束、Task 保持 open 可重试；该终态**不结算任何预留**（饱和时根本没建预留行，活库用例 `TestAdvanceQuotaSaturationReturnsDomainCodeAndParksRun` 已钉"零预留"）。
+4. **未生效提醒**：以上要 `work-worker` 换到含 #56-A／#60=B 的二进制后才成立；试点机现值仍是"饱和即刻 `execution_prepare_failed`"，在那之前不要按本节判读生产。
 
 ### 5.22 租户开通／停用的运维入口（2026-11-04，#59 裁定＝照 kill switch 先例写进 runbook）
 

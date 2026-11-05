@@ -279,7 +279,7 @@ NetworkPolicy 要覆盖实际 CNI、Service DNAT 前后、IPv4/IPv6、Pod-to-nod
 | 维度 | 已签约束 | 不能宣称的事 |
 |---|---|---|
 | 池内并发 | 每 Pod 最多 2 个 Run 独占子进程；Temporal `maxConcurrentActivityTaskExecutions` 与本地准入闸取较小值，**本地准入是最终闸门**；不预热、不跨 Run 复用子进程 | worker slot 释放时机与子进程实际退出不同步，不能只靠 SDK 并发参数限制真实进程数 |
-| 子进程预算 | CPU 1 核、内存 1 GiB、PID 256、scratch 256 MiB、片段 16m、启动 15s、取消宽限 5s；由 Pod limits 与**委派的 cgroup v2 子树** + rlimit 共同约束 | Node 内部计数不是限额；无 per-child cgroup 时 CPU/内存争用会连带影响另一 Run |
+| 子进程预算 | CPU 1 核、内存 1 GiB、PID 256、scratch 256 MiB、片段 16m、启动 15s、取消宽限 5s；由 Pod limits 与**委派的 cgroup v2 子树** + rlimit 共同约束 | Node 内部计数不是限额；无 per-child cgroup 时 CPU/内存争用会连带影响另一 Run。**2026-11-05 标注（L-C04-03=A）：取消宽限 5s 是设计资产值，R0a 不发协议取消帧（见本节末第 1 条）；R0a 实际钉住并被用例覆盖的是片段 4m／启动 10m／`MaximumAttempts: 2`** |
 | Pod 预算 | Pod 内存 ≥ 父进程预留 256 MiB + 开销 128 MiB + N×(1 GiB + 256 MiB scratch)；requests=limits 取 Guaranteed QoS | tmpfs scratch 计入 Pod 内存，不能按磁盘另算；预算不足时一个 Run 的峰值会触发整 Pod OOM 杀掉兄弟 Run |
 | 委派不可用 | 父进程无特权，cgroup 子树须由运行时/systemd 委派；拿不到委派则并发降为 1，或回到每 Run Pod | 不得在无法隔离资源时按 2 并发上线，也不得为此给池加 root/capabilities |
 | 全局并发 | 副本数 × N 只是其中一个上限；真实上限还受供应商并发（PC-3）、组织配额与 egress 限流约束 | task queue 积压不会自动扩容；排队等待计入 `scheduleToClose`，不是活跃预算 |
@@ -292,7 +292,7 @@ NetworkPolicy 要覆盖实际 CNI、Service DNAT 前后、IPv4/IPv6、Pod-to-nod
 
 #### 父子失联、OOM 与回收
 
-1. 父进程监控 ready 握手（15s）、心跳、退出码与硬期限；判定失活后发取消帧、等 5s 宽限、强杀，再回收私有管道、execution scratch 与本地 slot。
+1. 父进程监控 ready 握手（15s）、心跳、退出码与硬期限；判定失活后发取消帧、等 5s 宽限、强杀，再回收私有管道、execution scratch 与本地 slot。**（2026-11-05 裁定 L-C04-03=A，主签单选"删承诺并就实改述"：本段的协议级取消帧与心跳属设计资产，R0a 不实现也不声明——Go 侧父子私有管道没有实现面（`internal/runtime`／`internal/host`／`internal/fragment` 对 heartbeat 与 frame 零命中），生产 worker 是 reference-only。R0a 的"判定失活"口径是 workflow 侧 revoke 片段＋活动退出期限（片段 4m，按活机 3m45s 定标，#56-A）＋Temporal 超时与对账接管，与已签 D4-09「取消只停止新调用、不声称进程已停止」同向；"取消宽限 5s"不作为任何验收判据，也不写进演练判据。重开条件＝R0b 的真子进程 broker 落地时，帧与心跳一并实现。）**
 2. **本地回收不产生"未发送"结论**：gate 已消费 → 片段报 `WAITING_RECONCILE` + unknown 待对账；未消费 → 报 `FAILED`，仍须按 `seal_dispatch_not_sent` 同锁封口才能证明 not_sent，且旧许可不复用。
 3. 子进程必须随父进程死亡自终止（PDEATHSIG/pidfd 监督）；仅靠父进程主动清理在父被 SIGKILL 时无效。孤儿子进程可能仍持 ≤30s 未过期 capability，所以短期 token + 每次在线核查是补偿控制，**不是隔离证明**。
 4. 父进程崩溃或 Pod 被杀：Go 侧按 activity 心跳超时走撤销 + 对账；不自动重启同一 execution，新片段必须新 execution_id 与新 holder，不从本地残留文件/内存恢复。
@@ -318,16 +318,18 @@ drain 顺序固定为：标记 draining → 先停止 poll 新 activity task →
 | PR-02 | 单子进程内存/CPU/PID/scratch 打满 | 限额由内核强制；只影响该子进程，兄弟 Run 片段仍完成；上报 `resource_exhausted` |
 | PR-03 | Pod 级 OOM / ephemeral-storage 驱逐 | 所有在途片段进入 unknown/对账，不自动付费重放，不声称未发送 |
 | PR-04 | 父进程 SIGKILL、Pod 直接删除 | 子进程自终止；孤儿拿不到新授权；Go 经心跳超时撤销并对账，不复用 execution |
-| PR-05 | 子进程挂死/忽略取消帧/ready 握手超时 | 宽限后强杀；slot、管道、scratch 全部回收；结果按 gate 状态分流 |
+| PR-05 | 子进程挂死/忽略取消帧/ready 握手超时 | 宽限后强杀；slot、管道、scratch 全部回收；结果按 gate 状态分流。**2026-11-05 标注（L-C04-03=A）：本行的"忽略取消帧"半依赖尚未实现的协议帧，R0a 无可执行判据；R0a 侧可证的是挂死／握手超时半，由片段 4m 上限＋revoke＋对账接管承担，落在 D1-6／D2-4 重演格（#56-A）** |
 | PR-06 | drain + 在途片段 + 宽限不足被 kubelet 硬杀 | 新片段被拒、在途可续租完成；硬杀路径由对账兜底并记录为已知风险 |
 | PR-07 | 滚动升级并存版本、旧 checkpoint 被新版本领取 | 版本不兼容即拒绝领取；不静默恢复、不损坏 head |
 | PR-08 | 旧 holder/generation/execution 迟到请求与迟到 activity 完成 | 全部拒绝；head 只按数据库事实推进 |
-| PR-09 | scratch 陈旧目录清扫、跨 Run 残留读取 | 不误删在用目录；清扫后无跨 Run 可读残留，不以"目录权限"替代内核约束 |
+| PR-09 | scratch 陈旧目录清扫、跨 Run 残留读取 | 不误删在用目录；清扫后无跨 Run 可读残留，不以"目录权限"替代内核约束 **（2026-11-05 取证更正：本条在 R0a 无实现面对象——`scratch` 与 `mkdtemp/tmpdir/MkdirTemp` 在 `src/work` 的 Go/mjs/sh 非测试代码全域 0 命中，落地的 reference child 不落任何 scratch 目录，因此既不存在"陈旧目录清扫器"也不存在跨 Run 可读残留；这是"没有实现"而不是"没测"，映射与重开条件见 `work-r0a-dr2-d4-review-2026-11-04.md` §8 的 PR-09 行。重开条件＝引入本地 candidate/scratch 写盘的那一天，必须先有清扫器再补这两条负例）** |
 | PR-10 | 节点驱逐/抢占、两 Run 连带影响压测与指标 | 实测连带影响在签收范围内；指标无高基数标识/正文；容量数字有压测依据 |
 
 运行设计模型：`node --test docs/plan/assets/work-r0a-runtime-2026-10-25/policy/runtime-pool.test.mjs`。它只验证判定与策略常量，不验证 cgroup、kill、Kubernetes、Temporal 或任何真实容量；PR 条目须真实环境执行后才能作为上线证据；F0-R6 的勾选只代表设计签收，不是容量承诺或部署许可。
 
 ## 7. 模型出口网关
+
+> **R0a 不自建入口限流（2026-11-05 裁定 L-C04-07=A，主签单选"接受＋写重开条件"）**：§7.1–7.5 没有独立限流小节，本节出现过的"egress 限流"由两件事承接——供应商侧 TPM（演示组织阿里云百炼 Qwen Flash 5,000,000、已开启动态限流、额度有效期 2026-10-15~2026-11-15）与 Work 的组织配额 `quota_*`（硬拒在 `work.reserve_quota`；饱和期 Run 走 `wait_reason='quota'` 等待上限 24h，见 D3 §8.3 与 #60=B）。因此 **R0a 不新增 `rate_limited`／429 到 API 面**：429 今天只在 R0b 控制面文档里有两面判定（`work-r0b-control-design-2026-10-30.md:582`／`:617`），本阶段无任何写者，把它做进来要同时动 contracts 闭集、5 语言文案与 `recovery_action`、OpenAPI 漂移门禁名单和前端读码。风险归属：并入 C15 既有运营风险口径（其注已记「TPM 5M 额度 2026-11-15 到期与动态限流属运营风险」）。**重开条件**＝演示组织开始处理客户数据，或任一组织在试点窗口内实际触顶 TPM；届时按 429 语义另开裁定。取证锚点：`work-r0a-provider-terms-price-decision-request-2026-10-26.md` 的 P5 行与 TPM 表。
 
 ```text
 Runtime/Adapter
