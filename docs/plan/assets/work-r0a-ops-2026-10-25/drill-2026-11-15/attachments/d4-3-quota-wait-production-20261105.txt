@@ -1,0 +1,26 @@
+D4-3 生产取证（2026-11-05 11:19–11:23 CST，Work ECS lavm-t7fmveau9b，root）
+
+判据来源：D4-b 改写后的判据（API ＋ Run 终态 ＋ SQL 三类证据）。建任务由真客户端完成：
+Keycloak 手机号登录（演示账号 13800000009 → 界面身份 John Shao，即持 work_seat 的主体
+535bbd27-62a0-4a95-91be-892182520d9e），/work/new 两步「预览并发送 → 确认发送」。
+
+饱和（演示组织 4a2d3f28-38b9-4d6c-8614-70ef9a83960d，period 2026-11，原值记尾）：
+  UPDATE work.quota_account SET enforcement='hard', limit_tokens=16200
+  （limit=1 会被 quota_account_check 拒：不得低于 settled=16118）
+
+证据：
+  run 6b36df58-f697-44ff-9c81-13407d28bbc0 state=waiting wait_reason=quota terminal=NULL
+  operation 4b12f020-5c36-48fa-a795-04d10808cc9c state=authorized, reserved_tokens=0
+  task_summary(35049d3c-c06d-41cb-a649-138af4b1971f) display_state=quota_exhausted
+  gauges: parked_runs=0 held_on_terminal=0 unknown_operations=35 open_runs=1 held_tokens=0
+          summary: orgs=1 stale_minutes=5 max_held_on_terminal=0 breaches=0 scan_errors=0
+  journal: PrepareAdvance → EnsureAdvanceHead → PrepareAdvanceExecution → WaitRun → NewTimer 24h0m0s
+  resume: work-reconcile -org … -operation … -signal-only → {"resumed":true,"signal_only":true}
+          ResumeRun → PrepareAdvanceExecution → WaitRun（其时组织被我误再次饱和，行为正确）
+          复原 soft/1000000 后再信号 → ResumeRun → PrepareAdvanceExecution → AdvanceRuntime
+          → FinishRun(11:22:44)：run=succeeded，summary=awaiting_acceptance，settled 16118→17171
+
+收尾：quota_account 两期复原并核读为 limit=1000000 / enforcement=soft（reserved=0）；
+自动复原保险单元 r0a-quota-restore-safety 已停用；8 个 Work 单元 active；无遗留临时库或临时文件。
+
+本格判 pass。D1-6／D2-4（worker 在 activity 中途被停）未在本轮注入，保持原判定。

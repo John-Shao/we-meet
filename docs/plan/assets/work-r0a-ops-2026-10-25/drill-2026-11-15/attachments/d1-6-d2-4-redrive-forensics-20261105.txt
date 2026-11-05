@@ -1,0 +1,122 @@
+#67 corrected forensics: what an interrupted execute fragment actually does in production
+Captured 2026-11-05 12:0x-12:1x CST on the Work pilot host (lavm-t7fmveau9b), read-only.
+Subject: run 0fd4f0a8-345f-4574-8a5b-b9c4e5b0af24, execution f372c418-28af-49c7-a61d-2874a6e55a30,
+operation 86513cd3-3ddc-432e-8dab-4ea07ab15f03, org 4a2d3f28-38b9-4d6c-8614-70ef9a83960d.
+Injection (authorized, 11:31-11:40): work-worker stopped 3s after the run appeared, restarted 25s later.
+
+== A. read-only SQL, run as superuser (runuser -u postgres -- psql -d work -f), RLS bypassed ==
+
+run 0fd4f0a8: state=failed terminal_reason=advance_failed fence=2 attempt_no=1
+  created_at 2026-11-05T11:35:09.06417+08  updated_at 2026-11-05T11:39:20.00529+08
+
+runtime_execution rows for that run (2 rows):
+  mode=plan    execution=80e17a8a-bff0-4023-bce2-2b23dac885b9 state=completed
+    holder=work-worker-plan:80e17a8a-... heartbeat_seq=0 terminal_reason=checkpoint_committed
+    created 11:35:09.81040 hard_deadline 11:45:09.810362
+  mode=execute execution=f372c418-28af-49c7-a61d-2874a6e55a30 state=revoked
+    holder=work-parent-1:a4a9819389306b4c713e9d80580c4f7c
+    heartbeat_seq=13  revision=15  lease_until=NULL  terminal_reason=advance_failed
+    created 11:35:09.883777  hard_deadline 2026-11-05T12:05:09.883559+08  (= created + 30 min)
+    operation_id=86513cd3-3ddc-432e-8dab-4ea07ab15f03
+    dispatch_attempt_id=7a691cc4-dfb9-4111-8d72-3769e1a0d4cb
+
+operation 86513cd3 (state at capture, after the operator settle described in section D):
+  state=reconciled revision=4 consumer_id=work-worker-1 logical_key=model:1
+  receipt_ref="work-egress journal 2026-11-05T11:37:27 execution=f372c418 stage=exchange_done
+               elapsed_ms=137216; worker canceled before receipt; tokens unknown to control plane"
+  reconcile_requested_at 11:39:19.997967  updated_at 11:47:41.085087
+
+dispatch_delivery (exactly one row):
+  gate_state=consumed  receipt_ref=NULL  receipt_hash=NULL  receipt_result=NULL
+  receipt_recorded_at=NULL  consumed_at=11:35:10.258897
+  holder_id=work-parent-1:a4a9819389306b4c713e9d80580c4f7c  revision=0
+  receipt_slot_id=3c049da3-c16c-47b1-a918-e3299b9e2716
+  gateway_invocation_id=work-egress-1:878f95c4-585a-4f94-96a0-aadda408dc9c
+
+quota_reservation a89c5496 (seq 1):
+  state=settled  amount_tokens=100000  settled_tokens=0  settlement_revision=1
+  created 11:35:09.871585  settled_at 11:47:41.085087  (operator settle, see D)
+
+== B. audit timeline for execution f372c418 (10 rows, verbatim order) ==
+
+11:35:09.883777  runtime.execution_registered   {mode: execute, run_fence: "2"}
+11:35:09.932758  runtime.execution_claimed      holder=work-parent-1:a4a98193... lease_until=11:35:39.933627
+11:35:09.937205  runtime.capability_issued      audience=work-egress generation=1  expires 11:35:39
+11:35:29.953424  runtime.capability_issued      generation=2
+11:35:48.958391  runtime.capability_issued      generation=3
+11:36:08.969450  runtime.capability_issued      generation=4
+11:36:28.983665  runtime.capability_issued      generation=5
+11:36:48.991566  runtime.capability_issued      generation=6
+11:37:09.001930  runtime.capability_issued      generation=7  expires 11:37:30.016451
+11:39:19.965839  runtime.execution_revoked      {reason: advance_failed, previous_state: "active"}
+
+The revoke row is the decisive one: previous_state='active' at 11:39:19.965839, i.e. the same second
+attempt 2 tried to claim. The fragment was NOT "released late" - it was still bound to the first
+holder, whose lease had expired at 11:35:39 and was never extended by anything afterwards.
+
+== C. what attempt 2 met (journalctl -u work-egress -u work-node -u work-worker, 11:34-11:41) ==
+
+11:35:09 work-worker  ExecuteActivity ActivityID 23 ActivityType AdvanceRuntime Attempt 1
+11:35:10 work-egress  invoke execution=f372c418 stage=authorized|request_validated|intent_loaded|
+                       messages_ready|provider_ready|execution_resolved elapsed_ms<=5
+11:35:10 work-egress  invoke execution=f372c418 stage=gate_consumed elapsed_ms=11
+11:35:13 work-worker  ERROR Activity error. ActivityType AdvanceRuntime Attempt 1 Error canceled
+11:37:27 work-egress  invoke execution=f372c418-28af-49c7-a61d-2874a6e55a30
+                       outcome=unknown code=partial_answer_length sent=true max_output_tokens=4096
+11:37:27 work-egress  invoke execution=f372c418 stage=exchange_done elapsed_ms=137216
+11:39:19 work-worker  ERROR Activity error. ActivityType AdvanceRuntime Attempt 2 Error lease_not_claimable
+11:39:19 work-worker  ExecuteActivity ActivityID 29 ActivityType RevokeAdvanceExecution
+11:39:19 work-worker  ExecuteActivity ActivityID 35 ActivityType AbortRun
+
+Three facts this establishes, and one it retracts:
+  1. #56-A holds: attempt 2 was scheduled at 4m06s (11:35:13 -> 11:39:19), not at the old 16-minute
+     boundary. The parking window that D1-6/D2-4 recorded on 11-04 is gone.
+  2. The provider exchange continued without the worker: work-egress finished 2m17s after the
+     cancel (137,216 ms), and the parent kept issuing capabilities until 11:37:09 (generation 7).
+     A stopped work-worker therefore does NOT stop the fragment - it only orphans the activity.
+  3. Attempt 2 could not take over. The only codes it could get were runtime_execution_expired
+     (active + elapsed lease) mapped by node/src/lease.mjs NOT_CLAIMABLE_CODES to
+     lease_not_claimable. There is no other exit: revoke => state 'revoked' (not claimable),
+     register => same execution_id returns the existing state, a new row => dispatch_gate_exists,
+     late heartbeat => state 'expired' (not claimable).
+  RETRACTED: the earlier note "重驱动判定得比租约释放得早" and the resulting fix sketch
+     "release the previous execution before claim on attempt >1". Revoking first cannot make a
+     row claimable, so that prescription would have changed nothing. This file is the evidence
+     for the retraction.
+
+== D. operator settle of the residue, per the ruling (not self-decided) ==
+
+  /usr/local/bin/work-reconcile -org 4a2d3f28-38b9-4d6c-8614-70ef9a83960d \
+    -operation 86513cd3-3ddc-432e-8dab-4ea07ab15f03 \
+    -resolution sent_succeeded -settled-tokens 0 \
+    -evidence-ref "work-egress journal 2026-11-05T11:37:27 execution=f372c418 stage=exchange_done
+                   elapsed_ms=137216; worker canceled before receipt; tokens unknown to control plane"
+
+  -> operation state unknown -> reconciled, reservation held -> settled with settled_tokens=0,
+     gauges back to held_on_terminal=0 breaches=0 scan_errors=0.
+  Zero tokens is the honest number for the control plane: the receipt was never attached, so no
+  provider usage figure exists in any trusted place. This is the shape registered as 待裁 #68.
+
+== E. what increment 0028 changes, and what it deliberately does not ==
+
+  changes: claim_runtime_execution accepts state='active' + lease elapsed + different holder,
+           takes the fragment over (new holder, new lease, heartbeat_seq reset to 0) and writes
+           audit action runtime.execution_taken_over with previous_holder_id,
+           previous_lease_until, previous_heartbeat_seq.
+           runtime_execution_guard allows that one shape (holder move and the accompanying seq
+           reset) and still refuses every other holder move or sequence decrease.
+  unchanged: same-holder replay of an elapsed lease -> runtime_execution_expired (as before),
+           live lease + foreign holder -> runtime_execution_holder_mismatch,
+           passed hard deadline -> runtime_execution_expired,
+           completed/revoked/expired -> runtime_execution_not_claimable,
+           run no longer current -> run_not_current,
+           dispatch_delivery (gate) semantics -> untouched; its guard still pins holder_id, so
+           the send right cannot move.
+  consequence for the drill: attempt 2 will no longer die in the claim. It claims, the gateway
+  answers observed/not_sent, node/src/child-pi.mjs maps a non-success outcome to
+  WAITING_RECONCILE, the run parks on wait_reason='reconcile', and FinishAdvance resolves the
+  receipt from dispatch_delivery plus the content reference registry. A durable answer therefore
+  finishes the run; a missing one stays an unknown for the operator.
+  Not deployed as of this file: pilot binaries are the 0027 release (work-worker 3b6ad1282deb9243...),
+  ledger tail is version 27. D1-6 and D2-4 remain fail until the C sheet in
+  work-r0a-pilot-write-authorization-2026-11-05.md runs and this injection is repeated.

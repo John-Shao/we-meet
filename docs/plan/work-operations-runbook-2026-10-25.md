@@ -109,7 +109,7 @@ R0a 有六类不属于任何 Run 的常驻作业（见 [D3 §11](work-r0a-orches
 
 通用规则：
 
-1. **重跑安全**：所有领取都带租约，所有收尾都校验持有者；作业崩溃后由租约到期接管，外部副作用按对象名固定（导出）或删除幂等（粉碎）设计，不需要人工"清理中间态"。
+1. **重跑安全**：所有领取都带租约，所有收尾都校验持有者；作业崩溃后由租约到期接管，外部副作用按对象名固定（导出）或删除幂等（粉碎）设计，不需要人工"清理中间态"。**（2026-11-05 更正：这句对 `work.runtime_execution` 此前不成立——`claim_runtime_execution` 拒绝任何"过期租约被新持有者领取"，而 revoke 之后也不能再 claim，所以运行片段一旦被中断就没有接管这条路，Run 只能终态化；增量 0028 才是让本句在这张表上为真，现网未部署前按 §5.23 判读。outbox／audit_export 两条一直成立，各有用例钉着。）**
 2. **不要绕过领域函数**：任何"手工修复"必须走 D1 函数（`requeue_outbox_dead_letter` 等）或工单化的 `work_ops` 操作；直接 UPDATE 会被 RLS/DML 权限拒绝，也不留审计。
 3. **时钟**：租约与到期比较使用数据库时间；排查时以 DB `now()` 为准，不看应用日志时间戳。
 4. **停止语义**：只有"产生新工作"的动作可被 kill switch/组织停用挡住；投递、清理、投影同步、清扫属义务作业，必须在开关打开时继续运行（D3 §11.3）。演练要单独验证这一条。
@@ -839,6 +839,64 @@ SELECT id, reason, state, epoch, release_floor_revision
 `directory_sync_state`；2026-11-04 22:35 把 org 置 `status='disabled'` 后跑一次 full 同步，`result=success`
 而 `execution_enabled` 仍 `false`。因此"Host 报 active 就自动重开服务"不是现网行为，试点期的过渡控制是
 P9／C28-1 的人工记录三列现值；`sync_org` 亦被 `baseline/0002:3882` 明确禁止覆盖 `operator_suspended`，方向一致。
+
+### 5.23 运行片段租约接管：中断的那一轮到底丢了什么（2026-11-05，#67=A 实装＝增量 0028，**现网未部署**）
+
+**先读边界**：0028 只在本树与用例里。现网（`work-worker 3b6ad128…`，无 0028）在同样场景下的实测行为是
+attempt 2 于 4m06s 报 `lease_not_claimable`、Run 判 `advance_failed`、operation 落 `unknown`
+（2026-11-05 11:39:19，run `0fd4f0a8`／execution `f372c418`）。**未部署前不要按本节判读生产，也不要把 D1-6／D2-4 改判。**
+
+**怎么认接管发生过**（只读，owner 视角要 `SET app.org_id`，见 #53）：
+
+```sql
+SELECT action, target_id, created_at, metadata
+  FROM work.audit_event
+ WHERE target_type = 'runtime_execution' AND action = 'runtime.execution_taken_over'
+ ORDER BY created_at DESC LIMIT 10;
+```
+
+`metadata` 里 `previous_holder_id`／`previous_lease_until`／`previous_heartbeat_seq` 是判据三件套：
+说明上一轮父进程在 `work.runtime_lease_seconds()`（现 30 秒）内没再心跳，控制面据此判它不在了。
+同时那一行 `work.runtime_execution` 的 `holder_id` 变了、`heartbeat_seq` 归 0、`state` 仍是 `active`。
+**归 0 是有意的**：`heartbeat_seq` 只排一个持有者自己的心跳顺序，不清零的话新持有者的心跳 1..13
+会被当成"旧 seq"而永不续租（`runtime_execution_heartbeat_not_monotonic` 那条守卫就是为此而放宽的，
+且只放宽这一形状）。旧持有者之后再来续租会拿 `runtime_execution_holder_mismatch` —— 那是正常拒绝，不是新缺陷。
+
+**接管不等于又发了一次供应商请求**（这是本节最要紧的一句，别读反）：`dispatch_delivery` 的 `holder_id`
+被 `dispatch_delivery_guard` 钉成不可变，第二次 consume 一律回 `observed`，egress 把非 won 的判定变成
+`not_sent`。核对两条：该 operation 的 `work.dispatch_delivery` 行数必须为 1，且 holder 仍是第一个；
+work-egress journal 里该 execution 只有一条 `stage=gate_consumed`。
+
+**两种终态怎么读**（都停在 `state='waiting' AND wait_reason='reconcile'`，差别在库里有没有回执）：
+
+1. `gate_state='receipt_recorded'`（上一轮的 exchange 写完并 attach 了回执，只是 Go 侧活动没收到结果）
+   ⇒ 答案没丢，且**这一步不需要先做 resolution**：`work-reconcile -org <org> -operation <op> -signal-only`
+   本身不写库（该 flag 的原文就是"给那些没有 resolution 适用的 Operation，让 worker 自己的收尾路径按交付闸判定"）；
+   workflow 收到 resume 后走 finish：从 `dispatch_delivery` 与内容引用登记处解析回执，正常发布 artifact、按真实 usage 结算，
+   Run `succeeded`。**收尾时那一行 `runtime_execution` 的 holder 会变成 `work-worker-finish:<execution_id>`，并多一条
+   `runtime.execution_taken_over` 审计**：`commit_runtime_checkpoint` 要求活租约，而持有租约的父进程已经死了，
+   所以 finish 只在"提交因 `runtime_execution_expired` 被拒"这一种情况下认领一次过期租约并重试提交
+   （活租约的正常路径完全不认领，用例 `TestAdvanceFinishCommitsThroughTakenOverLease` 与
+   `TestAdvanceFinishCommitsRevisionOneAndPublishesArtifact` 两边都钉着）。看到 finisher 名下的接管审计，
+   说明这一轮的账是靠库里已有的回执收完的，不是又发了一次请求。
+   若 Run 已因别的原因终态而账仍未收，才用下面第 2 条的 resolution，或 `-finish-from-receipt`
+   （从受信回执恢复已确认的成功）。
+2. `gate_state='consumed'` 且 `receipt_ref IS NULL`（崩溃在 exchange 中间，或答复触到 `max_output_tokens`
+   ⇒ journal 里 `outcome=unknown code=partial_answer_length`，见待裁 #68）
+   ⇒ 没有可解析的回执。`finishing.ErrReceiptNotAttached` 拒绝从"已消费"推断成功，
+   所以这条路只能按 §5.22 的 resolution 收账（`sent_succeeded` 需 `-settled-tokens`＋`-evidence-ref`），
+   Run 以 failed 收尾。**这不是代码坏了**，是 §8.1 的既有判据；判据要改属于待裁，不属于值班。
+
+**为什么这条与"禁止接管旧进程发送权"不冲突**：编排设计 `work-r0a-orchestration-design-2026-10-25.md:162`
+禁的是**发送权**，而发送权由交付闸唯一决定（上面那两句就是它的机器证据）；同一时刻仍只有一个持有者有租约
+（RR-01 的"一个有效 holder"），旧持有者被 claim／renew 双双拒绝。而 §5 通用规则 1 那句
+"作业崩溃后由租约到期接管"，在 `runtime_execution` 这张表上直到 0028 才为真——此前文档指挥的是一件实现不做的事。
+
+**0028 不是新增例外，而是补齐一条已被签下的通则**：同一份编排设计 §后台作业 :518 写的就是
+"**租约与接管**：所有领取都带持有者与到期时间；**只有租约过期才允许接管**；接管不得重复外部副作用"，
+:670 那行也按同一形状验过审计导出（"租约过期后新持有者收尾成功、旧持有者得 `audit_export_lease_lost`"）。
+`work.runtime_execution` 此前是唯一不遵守这条通则的领取路径（claim 永久拒绝外来持有者、revoke 后也不可再 claim），
+0028 把它拉回通则，"不重复外部副作用"那一半由交付闸的 `observed` 语义与 `dispatch_delivery.holder_id` 不可变负责。
 
 ## 6. 容量证据
 

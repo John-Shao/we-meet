@@ -84,3 +84,72 @@ D1-6 / D2-4 / D4-3 重演结论 = 未重演（见 §6：现网 open_runs=0，需
 - **A4 不需要做，本单原文过期**：`WORK_RUNSTREAM_MAX_HELD_ON_TERMINAL` 现值已是 **0**（文件 1496 字节、mtime 仍 Nov 4 21:58 ⇒ 本次 rollout 未覆盖 root 的活动配置，`install_env` 只在缺失时写入这条成立）。所以"改回 0 的那一轮会转红发信"这个预期没有发生、也不会发生：`breaches=0`。具名更正本单 A4 与 runbook §5.21 的"现值 2"表述。
 - **A5 未做，且缺前置**：实读 `open_runs=0`（先前的 stale waiting run 已随 #56-B 结算），现网**没有任何在途 Run** 可供观察"4 分钟内重驱动"或"饱和→`wait_reason='quota'`"。这三格需要先在试点组织播种任务/Run（写生产数据），并按 #54 的裁定用构建取证路径而非主机独有二进制。**这一步要单独点头**：它不是换二进制，而是往生产库里造工作。
 - **未做**：B1／B2／B3（age 换钥、`recipient.txt`、真实备份与当代 bundle 解密）一件没动；D1-6／D2-4／D4-3 三格 `verdict.json` 保持原判定，不因"部署完成"而翻。
+
+## 7. C 单：部署 0028 并重演 D1-6／D2-4（2026-11-05 12:5x 追加；**未执行任何一项**）
+
+主签 11-05 裁 #67=A＝"R0a 内修，并重演那两格"。内修已在树内（增量 `0028_runtime_execution_lease_takeover`
+＋4 条活库用例＋§5.23 值班口径），**"重演"这一半必须落到现网**，而它含三类写，本会话一律未动：
+
+| 写类别 | 具体动作 | 半径（照 A 段实测，不照本单原文的想当然） |
+|---|---|---|
+| 迁移 | `work-migrate apply` 跑 0028 | 纯函数替换（claim＋行守卫），无数据变更、无索引、无新列；回滚不对称，见下 |
+| 二进制＋单元 | `rollout-r0a-0027.sh` 全链 | 停 **6** 个单元、装 **10** 个二进制、重启 **7** 个（A2 已实测；脚本名是发布号，`apply` 按包内 manifest 跑所有未应用增量，含 0028） |
+| 生产数据 | 真客户端建一条任务（演示账号 13800000009）＋在 `AdvanceRuntime` 中停 `work-worker` | 造一条在途 Run 并留下可观察终态；若落在 `operation=unknown`＋held 预留，收账本身又是一次写（按 §5.22／#34=A 人工） |
+
+- [ ] **C0 基线（只读，先填 §8 空格再动手）**：`work-worker`／`work-node`／`work-egress` 三个二进制 sha256、
+      迁移 ledger 的 `max(version)`（现读应为 27）、`run-runstream-gauges.sh` 的 summary 一行。
+- [ ] **C1 打包**：按 tip 走 `make-release.sh`（在 `work-go-fix29` 容器内构建，`RELEASE_COMMIT` 必须＝当时 tip，
+      这样"部署内容"可归因；提交与推送需另行点头，见 §末）。
+- [ ] **C2 dry-run**：`rollout-r0a-0027.sh --dry-run`，确认停/装/起清单与 A2 实测一致（`--dry-run` 打印的
+      `rollback:` 行是**预告**，不是已写——A1 已证）。
+- [ ] **C3 实装**：`/root/run-rollout-0027.sh`（`0700`，DSN 走 `exec env MIGRATOR_DATABASE_URL=…` 从
+      `/root/work-secrets.env` 取值，口令不进 argv／不进文档）。
+- [ ] **C4 验（本轮新增三行是判据）**：`verify-r0a-0027.sh` 必须出现
+      `0028=0028_runtime_execution_lease_takeover`、`claim_carries_takeover=true`、`guard_allows_takeover_shape=true`。
+      后两行读的是**库里活的函数正文**——ledger 有 28 行而函数不是 0028 的形状，只靠 ledger 是看不出来的
+      （`release-assets.test.mjs` 那条"每个已发布增量都要有校验行"的门就是为这类缝隙加的）。
+- [ ] **C5 注入取证（目标＝一次短任务，让 exchange 能以 `receipt_recorded` 收口）**：
+      以 arm 时刻 `max(run.created_at)` 为水位自同步（11-05 的 v2 监视器已跑通，v1 会误命中旧终态 Run），
+      Run 进 `AdvanceRuntime` 后停 `work-worker`、约 25 秒后拉起，等 attempt 2（≈4m 后）。
+      四格证据：① `runtime.execution_taken_over` 审计在位（带 `previous_holder_id`／`previous_lease_until`／`previous_heartbeat_seq`）。
+      **条数可以是 1 或 2**：一条来自重驱动那轮认领的 `work-parent-N:<nonce>`，另一条可能来自运维 signal 之后的收尾
+      （`FinishAdvance` 只在提交因租约过期被拒时认领一次，holder 是 `work-worker-finish:<execution_id>`）——
+      看到第二条不是"又派发了一次"，读法见 runbook §5.23；
+      ② 该 operation 仍**只有 1 条** `dispatch_delivery` 且 egress journal 只有一条 `gate_consumed`（这条才是"没双发"的判据）；
+      ③ attempt 2 之后 Run 先停 `state='waiting' AND wait_reason='reconcile'`（Node 对 not_sent 回 WAITING_RECONCILE），
+      由你／值班下一次 `work-reconcile -org … -operation … -signal-only`（该 flag 不写库）后，Run 终态 `succeeded`
+      ——这一步需要一次人工 signal，是 #34=A 的既有口径，不是新缺口；回执 durable 时答案不丢，finish 从库里读出来；
+      ④ `settled_tokens` 按真实 usage 增加、`held` 归零，`runtime_execution.state` 落 `completed`／`terminal_reason=checkpoint_committed`。
+      如果 ③ 之后 finish 仍拿不到回执（gate 是 `consumed` 且 `receipt_ref IS NULL`），那是 **#68**（答复触顶）
+      或崩溃时机的形态，按 §5.22 收账，**不能记作"接管失败"，也不能据此改判那两格**。
+- [ ] **C6 收摊**：残留 operation／held 预留按主签裁的 resolution 结算并留具名 evidence ref；
+      监视器用不自匹配的 `pkill -f "watc[h].sh"` 收；本轮上传的 `/tmp` 脚本逐名删除并核过。
+
+**回滚的不对称，必须先看清**：二进制可以从 `/usr/local/bin/*.bak-<stamp>` 逐个还原并重启单元；
+**但 0028 不会跟着二进制退回去**——它是库里的函数正文，退了二进制，接管语义仍在库里生效。
+真要退回，只有两条：恢复本次 rollout 生成的 `work-pre-0028-<stamp>.dump`（会连 dump 之后的写一起丢），
+或按发布增量原文重新 `CREATE OR REPLACE` 回 0009 的那两体并改 ledger。前者有数据代价，后者未经演练。
+所以 C3 之前请确认：现网 `open_runs`、待收残留与在途作业都不在你不愿意丢的时间窗内。
+
+**不做 C 单的后果**：D1-6／D2-4 保持 fail（判据要求的"重驱动"证据在现网不存在，0028 只是树内事实）；
+11-15/16 整窗演练会按旧语义取证，等于把 #67 又排一次；
+runbook §5 通用规则 1 那句"作业崩溃后由租约到期接管"在生产上继续是一句指挥实现没做的事。
+
+## 8. C 段基线填空（C0 执行后写入；留空即视为未取证）
+
+```
+work-worker sha256 (before C3)   =
+work-node sha256 (before C3)     =
+work-egress sha256 (before C3)   =
+migration ledger max(version)    =
+runstream summary line           =
+release RELEASE_COMMIT           =
+verify: 0028 / takeover flags    =
+injected run id                  =
+takeover audit (previous_holder) =
+dispatch_delivery rows for it    =
+run terminal / wait_reason       =
+settled_tokens before -> after   =
+C6 resolution used               =
+D1-6 / D2-4 重演结论             =
+```

@@ -31,6 +31,12 @@
   - `D1-6`／`D2-4`——同一形态：**在途 Run 在中断后不会自动续跑**。Temporal 仍把 `AdvanceRuntime` 记为 STARTED、
     `nextRetry=None`，于是既不重试也不判孤儿；库里 lease 早已过期。重开条件＝给 activity 配 start-to-close／heartbeat
     超时并让恢复路径能重驱动，或明确「靠人工 reconcile 收」并把它写进值班口径。待裁 #56-A。
+    **【2026-11-05 状态更新，两格仍 fail】**#56-A 已随 A 单部署（09:41，`work-worker 3b6ad128…`），当日 11:31-11:40 按 v2 水位监视器做了 worker 中途停机注入：
+    重驱动确实发生（attempt 2 在 4m06s，不再是 16 分钟），但**过期租约在 `work.runtime_execution` 上没有出口**，attempt 2 立刻 `lease_not_claimable`、Run 判 `advance_failed`；
+    取证同时更正了本行原句——不是「释放得晚」，是 claim／revoke／register／晚心跳四条路都拒绝（见 revoke 审计 `previous_state='active'`）。
+    #67 已裁 R0a 内修＝增量 **0028**（允许接管已过期的租约，行守卫只放宽这一形状；双发仍由交付闸与 `dispatch_delivery.holder_id` 不可变挡死），
+    4 条活库用例＋四条变异核对。**0028 只在树内、现网未部署**，所以本两格不因"部署过 0027"而翻；重演判据（接管审计／单次 `gate_consumed`／
+    Run 终态可读／usage 结算）与授权半径分别写在 runbook §5.23 与授权单 §7 的 C 单。
   - `D4-6b`——判据要「两个清扫各处理 1」，实测 `expire_due_inputs=1`／`shred_due_audit_exports=0`（无到期作业可扫）。
     重开条件＝演练前预置一个 `status='expired'` 的 audit_export；另需先定清扫的调度形态（本主机无任何单元调它）。
 - N/A（原因）：`P7`（无 worker 镜像）、`D1-1`／`D1-5`（单副本，无 replica-2）、`D2-2`／`D2-6`（无 drain 开关）、
