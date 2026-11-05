@@ -410,6 +410,16 @@ D-08b 的 B1–B10 于 2026-10-27 签收，本小节是其在 D4 的落点。**�
 | `canonical_state / work-canonical-v1` | binding、revision/previous、writerExecutionId、input/template、completedModels、phase、pending、artifact | 不序列化 Pi 对象、JSONL session、原始 reasoning 或中止占位消息；不以该文档取代 Run/Operation/配额账本 |
 | `model_receipt / work-model-receipt-v1` | receiptId、binding、逻辑键、operation/attempt/execution/requestHash、writerGatewayId、记录时间、结果/内容引用/字节数、providerRequestId、usage、拒绝证据 | Node 自报 writerGatewayId 不构成可信来源；无任意 provider 原始响应/堆栈；unknown 不是终态回执 |
 
+> **【2026-11-05 裁定 #68＝A：判据不动，代价如实记账】** 上表的"unknown 不是终态回执"有一条此前没人算过的代价：
+> 供应商答复只要触到 `max_output_tokens`（`finish_reason='length'`），`internal/egress/provider_http.go:296-318`
+> 判 `partial_answer_length` ⇒ `outcome=unknown`、不建回执、`sent=true`。于是**一次普通的长答复**就会留下
+> "已发送、无回执、预留挂在终态 Run"的账（11-05 现网实测：`elapsed_ms=137216`、held 100,000，
+> 靠 §5.21 发现、按 §5.22 人工收）。判据维持不变的理由：截断答复既不能当成功（成果是半截的，用户看不出来），
+> 也不能当"未执行"（token 已消耗，release 等于少记一笔）。R0a 的处理是**如实记账＋写进值班口径**
+> （运维 runbook §5.24），不新增终态、不新增用户可见 display_state。
+> 重开条件＝设计伙伴实测（C26 golden tasks）里这类失败进入前列，或同一组织一周内 ≥2 次触发该告警
+> ⇒ 回到 B（`max_output_tokens` 按模板分档，需重算 token 上限承诺）或 C（重签本节），两者都要重新签收。
+
 `StoredReference.hash` 对这些 JSON 文档使用下述带域前缀摘要；对原始输入/公开回答字节使用原始 UTF-8 SHA-256，两者由引用 kind 区分。引用注册表必须存 kind、hash 算法版本及不可变 object_version，不能混用“正文 hash”与“请求 hash”。request 文档的引用 hash 必须与 pending.requestHash 相同，且等于网关复算结果。
 
 #### 规范化与模型消息装配

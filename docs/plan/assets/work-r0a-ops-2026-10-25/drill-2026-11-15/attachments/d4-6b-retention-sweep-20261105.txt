@@ -1,0 +1,139 @@
+D4-6b 留存义务清扫·现网执行记录
+日期：2026-11-05 16:19:51 +08（Work 试点机 36.151.147.217，DB 尾项 28）
+主签裁定：授权单 §10 的分支选择＝「现在整批扫掉（返回值 2，拿真实留存义务正证）」
+执行身份：work_worker_login（`connect_as=work_worker_login host=127.0.0.1 port=5432 db=work password_in=env`；
+          口令只经 libpq 环境变量，不进 argv、不落盘）
+调用体：src/work/scripts/retention-preflight-d0.sql（sha256 前缀 438e4deb21b1c5c7，主机 /tmp 副本逐字节相同）
+        ＋本次一次性夹具 /tmp/d-reads.sql /tmp/d-sweep.sql /tmp/d-after.sql /tmp/d-after2.sql
+判据：work-r0a-drill-checklist-2026-11-15.md:177（原文见同文件 76 行的结果表）
+
+================================================================
+0. 为什么"各处理 1"这条判据在本库不可满足（清扫前的现读，15:44:39）
+================================================================
+ctx|is_superuser=on|session_user=postgres|db=work|now=2026-11-05 15:44:39.729262+08
+org|4a2d3f28-38b9-4d6c-8614-70ef9a83960d|Default Organization
+demo|inputs_due|0
+demo|exports_ready_due|2
+demo|exports_expired_needing_shred|0
+demo|shred_outbox_undelivered|0
+demo|inputs_due_within_25h|0
+demo|exports_ready_due_within_25h|2
+ALL|inputs_due|0
+ALL|exports_ready_due|2
+ALL|exports_expired_needing_shred|0
+ALL|shred_outbox_undelivered|0
+ALL|inputs_due_within_25h|0
+ALL|exports_ready_due_within_25h|2
+ledger|max_version|28|0028_runtime_execution_lease_takeover
+（以上逐行转录自本会话内该文件的原样输出；下面第 1／2 段是落盘文件的原文。）
+
+结论三条：
+① 未绑定输入侧没有历史欠账（11-04 那次 expire_due_inputs=1 已把唯一一条扫掉），所以现跑只会得 0；
+② 导出侧欠账＝2，且这两条 10-31 建的导出在 11-01 就过了它们自己声明的 24 小时 TTL（超期 4 天），
+   三个清扫函数都只按 `expires_at <= p_now` 整批取、没有按 id 入参 ⇒ 返回值不可能是 1，只能是 2（或造完夹具后 3）；
+③ 提前钟的许可证（D0 的 exports_ready_due_within_25h＝0）不成立 ⇒ 本格改按整批口径执行，由主签裁定。
+
+清扫前那两条 ready 导出的明细（superuser 现读）：
+ready|0478f98c-a5d4-4b00-af77-29a91150255b|ref=content://work/4a2d3f28-38b9-4d6c-8614-70ef9a83960d/48a31a022c2df6e78b7e0e0a3fab5def?v=1|obj=48a31a022c2df6e78b7e0e0a3fab5def|bytes=89598|rows=283|downloaded=2026-10-31 15:14:16.879039+08|expires=2026-11-01 15:14:14.899032+08
+ready|40a97b5b-9d96-4a57-9dd3-df6ffb7d8660|ref=content://work/4a2d3f28-38b9-4d6c-8614-70ef9a83960d/db3f3dd885fd50717941dd3559aeeb67?v=1|obj=db3f3dd885fd50717941dd3559aeeb67|bytes=162897|rows=515|downloaded=-|expires=2026-11-01 15:43:24.901752+08
+盘上（清扫前）：
+object|present|48a31a022c2df6e78b7e0e0a3fab5def|89626 bytes
+object|present|db3f3dd885fd50717941dd3559aeeb67|162925 bytes
+objects_before=1302 bytes_before=1499453
+
+================================================================
+1. 清扫调用与逐条返回值（/tmp/d-sweep.sh 落盘原文）
+================================================================
+connect_as=work_worker_login host=127.0.0.1 port=5432 db=work password_in=env
+content_dir=/var/lib/work/content orgdir=3ae5f1dba8ac22a8f0e6a0fc3d39ae77 objects_before=1302 bytes_before=1499453
+=== BEFORE: DB ===
+ctx|org=4a2d3f28-38b9-4d6c-8614-70ef9a83960d|session_user=work_worker_login|is_superuser=off|db_now=2026-11-05 16:19:51.169014+08
+psql:/tmp/d-reads.sql:10: ERROR:  permission denied for table audit_export
+=== BEFORE: objects on disk ===
+psql:/tmp/d-reads.sql:10: ERROR:  permission denied for table audit_export
+=== SWEEP (as work_worker_login) ===
+ctx|org=4a2d3f28-38b9-4d6c-8614-70ef9a83960d|session_user=work_worker_login|is_superuser=off|called_at=2026-11-05 16:19:51.279687+08
+call|expire_due_audit_exports|2
+call|shred_due_audit_exports|2
+call|expire_due_inputs|0
+SWEEP_RC=0
+=== WAIT RELAY (up to 90s) ===
+psql:/tmp/d-reads.sql:10: ERROR:  permission denied for table audit_export
+poll_1 shred_undelivered=2
+psql:/tmp/d-reads.sql:10: ERROR:  permission denied for table audit_export
+poll_2 shred_undelivered=0
+=== AFTER: DB ===
+ctx|org=4a2d3f28-38b9-4d6c-8614-70ef9a83960d|session_user=work_worker_login|is_superuser=off|db_now=2026-11-05 16:19:56.467741+08
+psql:/tmp/d-reads.sql:10: ERROR:  permission denied for table audit_export
+=== AFTER: objects on disk ===
+objects_after=1300 bytes_after=1246902
+=== relay journal since 2026-11-05 16:19:51 (only failure lines expected to be absent) ===
+failure_lines=0
+backup_dir=0 files in /var/backups/work/r0a-d46b-before-20261105-161951 (0700)
+HOST_RC=0
+
+夹具自身的两处缺陷（如实记，不掩盖）：
+A) `permission denied for table audit_export`：baseline/0002:5187 就是 `REVOKE SELECT ON work.audit_export FROM work_worker`
+   ——导出正文引用对 worker 不可直读，worker 只能通过领域函数操作它。这是控制在生效，不是库的缺陷；
+   但它使我的 BEFORE 快照与逐对象备份**没有拿到**（`backup_dir=0 files`），因此本格的"盘上删除前副本"缺失，
+   可回性只能靠第 3 段那条 12:47 的内容备份回执来支撑。AFTER 的 DB 读数因此改走 §5.2 记的 owner/superuser 通道。
+B) 轮询那条 psql 没带 `ON_ERROR_STOP`（其余三条都带了），所以它在同一处报错后继续跑并返回了计数——
+   这次恰好让我拿到了投递数，但它正是"报错仍出数"的那类假绿形状；两份通道的差别要按具名理解，不是"哪种都行"。
+
+================================================================
+2. AFTER 证据（superuser 通道，落盘原文）
+================================================================
+=== objects by name (the two sweep targets) ===
+obj|gone|48a31a022c2df6e78b7e0e0a3fab5def
+obj|gone|db3f3dd885fd50717941dd3559aeeb67
+objects_in_dir=1300
+=== AFTER: identity ===
+ctx|is_superuser=on|user=postgres|db=work|now=2026-11-05 16:21:40.676015+08
+=== AFTER: audit_export rows (this org) ===
+export|0478f98c-a5d4-4b00-af77-29a91150255b|status=expired|ref_is_null=true|hash_is_null=true|expires=NULL|bytes=89598|rows=283|downloaded=2026-10-31 15:14:16.879039+08|obj=|updated=2026-11-05 16:19:51.280523+08
+export|40a97b5b-9d96-4a57-9dd3-df6ffb7d8660|status=expired|ref_is_null=true|hash_is_null=true|expires=NULL|bytes=162897|rows=515|downloaded=-|obj=|updated=2026-11-05 16:19:51.280523+08
+=== AFTER: content outbox rows ===
+shred_outbox|960536a1-8aa4-4ffa-b568-a2c92ecbd435|export=-|input=-|refs=["content://work/4a2d3f28-38b9-4d6c-8614-70ef9a83960d/58faed8a579bc64bf921f32dd8e8a2ec?v=1"]|delivered=2026-10-31 10:09:07.198245+08|attempts=1|created=2026-10-31 10:09:06.287218+08
+shred_outbox|fcbada5b-f913-427f-8899-cec276895da3|export=-|input=fcbada5b-f913-427f-8899-cec276895da3|refs=["content://work/4a2d3f28-38b9-4d6c-8614-70ef9a83960d/de4e74a4fdb056c273939e9ccd18d8e7?v=1"]|delivered=2026-11-04 19:42:08.962713+08|attempts=1|created=2026-11-04 19:42:08.555085+08
+shred_outbox|0478f98c-a5d4-4b00-af77-29a91150255b|export=0478f98c-a5d4-4b00-af77-29a91150255b|input=-|refs=["content://work/4a2d3f28-38b9-4d6c-8614-70ef9a83960d/48a31a022c2df6e78b7e0e0a3fab5def?v=1"]|delivered=2026-11-05 16:19:52.169685+08|attempts=1|created=2026-11-05 16:19:51.280523+08
+shred_outbox|40a97b5b-9d96-4a57-9dd3-df6ffb7d8660|export=40a97b5b-9d96-4a57-9dd3-df6ffb7d8660|input=-|refs=["content://work/4a2d3f28-38b9-4d6c-8614-70ef9a83960d/db3f3dd885fd50717941dd3559aeeb67?v=1"]|delivered=2026-11-05 16:19:52.171811+08|attempts=1|created=2026-11-05 16:19:51.280523+08
+shred_undelivered|0
+=== audit rows for the sweepers (newest 8) ===
+audit|2026-11-05 16:19:51.280523+08|audit_export.shredded|count=2|ttl_hours=-|actor=-|target=org:4a2d3f28-38b9-4d6c-8614-70ef9a83960d
+audit|2026-11-04 19:42:08.555085+08|input.expiry_swept|count=1|ttl_hours=24|actor=-|target=org:4a2d3f28-38b9-4d6c-8614-70ef9a83960d
+=== AFTER: backlog re-read (all must be 0 now) ===
+ALL|expired_exports_total|2
+ALL|exports_expired_needing_shred|0
+ALL|exports_ready_due|0
+ALL|ready_exports_remaining|0
+demo|exports_ready_due|0
+demo|inputs_due|0
+=== AFTER: backlog re-read（清扫后再跑一遍 D0 原文件，16:23:53）===
+ctx|is_superuser=on|session_user=postgres|db=work|now=2026-11-05 16:23:53.723368+08
+demo|inputs_due|0 | demo|exports_ready_due|0 | demo|exports_expired_needing_shred|0
+demo|shred_outbox_undelivered|0 | demo|inputs_due_within_25h|0 | demo|exports_ready_due_within_25h|0
+（ALL 六列同为 0；ledger 仍 28）
+
+判据对照（逐条）：
+· 到期清扫仍运行：三条调用 rc=0，返回 2／2／0。input 侧得 0 是因为库里已无到期未绑定输入（第 0 段①），
+  不是控制失效——同一条函数在 11-04 现网返回过 1（`input.expiry_swept|count=1|ttl_hours=24`，本文件第 2 段仍在）。
+· relay 仍投 content_shred：两条新 outbox 行 created 16:19:51.280523 → delivered 16:19:52.169685／52.171811
+  （≈0.9 秒），`shred_undelivered` 2→0，`work-relay` 日志窗口内 `fail|error|denied|unavailable` 命中 0 行。
+· 内容真删除：objects_in_dir 1302→1300，store 字节 1,499,453→1,246,902（差 252,551 ＝ 89,626＋162,925，
+  正是那两个对象），按对象名逐条 `obj|gone`。
+· 审计：`audit_export.shredded|count=2`，与返回值一致；`audit_export.expired` **没有新增行**
+  ⇒ 这两条是被清扫函数置终态的，不是被 `get_audit_export` 的惰性过期通道（baseline/0002:4659-4686）读掉的。
+
+================================================================
+3. 可回性（盘上不可逆 ≠ 无处可寻）
+================================================================
+content-backup 回执（/var/lib/work/content-backup.json 现读）：
+{ "status": "success", "format_version": "work-content-v1", "bucket": "we-work-backup",
+  "key": "content/2026-11-05/20261105T044700Z-92433c9c31f5.tar.gz.age", "bytes": 1578152,
+  "sha256": "d19a51f1287b986017f394366b53874a173836aa03cb28c43509c9635984247c",
+  "started_at": "2026-11-05T04:47:00.684902+00:00", "completed_at": "2026-11-05T04:47:04.901767+00:00" }
+svc|ExecMainStartTimestamp=Thu 2026-11-05 12:47:00 CST  svc|ExecMainStatus=0
+timer|NextElapseUSecRealtime=Thu 2026-11-05 18:54:20 CST
+⇒ 这两个对象在 12:47:00（+08）那次全量 tar 里（它们 10-31 就进了 store），备份早于删除 3.5 小时，
+   因此"删除不可逆"要按**盘上不可逆、加密备份可回**的口径读；解开需要 age 收件人私钥（#57 已验本机副本能解）。
+   下一次备份在 18:54 左右，届时这两个对象将不在 tar 内 ⇒ 真正的不可逆点是那一次。

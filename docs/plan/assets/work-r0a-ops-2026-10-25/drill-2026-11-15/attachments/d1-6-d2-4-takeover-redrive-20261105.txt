@@ -1,0 +1,64 @@
+D1-6／D2-4 重演证据：worker 中途停机后，接管把已完成的账收完（2026-11-05 14:10-14:16，生产）
+部署：rollout 14:06:38（RELEASE_COMMIT af4499199dfc6ca4150b80100ae799f1ab12bc9c，远端可见；
+  work-worker 新 sha256 前缀 9cd4f2b986e19a2e＝包内值；ledger rows=28 max=28；
+  verify 三条新断言：0028=0028_runtime_execution_lease_takeover／claim_carries_takeover=true／
+  guard_allows_takeover_shape=true；missing in 17..28: none；7 单元 pid 对齐；两巡检 last_result=success）
+同一轮还做了 work_worker_login 口令轮换（5 个 env 文件＋5 单元重启，见 runbook §5.16 之外的运维记录），
+  work-reconcile 以轮换后的口令实连成功（rc=0）即本文件所用水印与收账工具的登录证明。
+
+对象：run aca1aead-0d02-4ecb-88b3-2fec4f93d755／task 79594f3e-0513-4b94-a774-e5bf99de0e91
+      execute execution 706babad-1bda-406d-81e2-5dc3d45b61f7／operation dba2464d-1478-43e3-a32b-911a00eed1c4
+      org 4a2d3f28-38b9-4d6c-8614-70ef9a83960d，工作方法＝总结 v1，目标 27 字符（短，目的是让 exchange 以
+      finish_reason=stop 正常结束 ⇒ 回执 durable，走的正是 #68 之外的普通成功路径）
+
+一、注入时序（watcher 以 arm 时刻 max(run.created_at) 为水位自同步，日志 /tmp/r0a-inject2.log）
+  14:10:25.198 NEW_RUN state=queued
+  14:10:28     WORKER_STOPPED rc=0        （进入 AdvanceRuntime 后 3 秒停 worker）
+  14:10:53     WORKER_STARTED rc=0        （停 25 秒）
+  14:14:35     attempt 2 起来并完成接管（≈4m06s，与 #56-A 的 StartToClose=4m 一致）
+  14:14:39     run=waiting/reconcile takeovers=1  ⇒ READY_TO_RESUME
+  14:15:1x     运维 work-reconcile -signal-only ⇒ {"resumed":true,"signal_only":true}
+  14:15:46.88  run=succeeded
+
+二、终态与账（psql 原文）
+  run            state=succeeded terminal=- wait=- updated_at=14:15:46.883114+08
+  task_summary   display_state=awaiting_acceptance
+  operation      state=succeeded
+  预留           reservation=settled reserved=100000 settled=318  （318＝供应商真实 usage，非 0、非估算）
+  usage 事实行   usage_rows=1
+  runtime_execution  plan=completed/checkpoint_committed（holder work-worker-plan:72100ec4…）
+                     execute=completed/checkpoint_committed holder=work-worker-finish:706babad… heartbeat_seq=0
+  artifact       8c64217b-33bb-446f-9406-d7ac55ef8ecd version_no=1 state=published
+                 content_hash=sha256:57e647cdbf060a4… created_at=14:15:46.838452
+  组织读数       waiting_runs=0 open_runs=0 held_tokens=0   （本轮无残留，与 11:35 那次 held 100,000 相反）
+
+三、"接管"的两条审计（同一 execution，两个不同形状）
+  14:14:35.354016 runtime.execution_taken_over prev_holder=work-parent-1:33f1b900f2d1e0677e3fffd849c40a41
+                                              prev_lease=14:10:55.355984  prev_heartbeat_seq=0
+      ↑ 重驱动那一轮（Temporal attempt 2）从已死的父进程手里接管
+  14:15:46.853107 runtime.execution_taken_over prev_holder=work-parent-1:96047a27aaec8e91a5a90c976c45b32f
+                                              prev_lease=14:15:05.355573  prev_heartbeat_seq=0
+      ↑ 收尾那一轮：接管轮的父进程只活了 30 秒，FinishAdvance 提交前租约又过期，
+        于是按 advance_activities.go 的窄升级用 work-worker-finish:<execution_id> 认领一次再提交。
+        两条而不是"看起来像重复派发"的一条，正是 runbook §5.23 预告的形状。
+
+四、没有第二次供应商调用（原判据措辞在此更正）
+  work-egress journal：
+    14:10:25 stage=gate_consumed elapsed_ms=24     （第一次：赢下闸）
+    14:10:30 stage=exchange_done elapsed_ms=5317   （唯一一次真实供应商交换，5.3 秒）
+    14:14:35 stage=gate_consumed elapsed_ms=11     （第二次：这是"被观察到"的日志，不是重新派发）
+    14:14:35 outcome=not_sent code=provider_unknown sent=false max_output_tokens=4096
+    14:14:35 stage=exchange_done elapsed_ms=11
+  库里：delivery_rows=1 distinct_gate_holders=1 receipts=1（gate holder 由守卫钉死不可变）
+  ⇒ 更正 C 单 C5 判据②与两格注记里的原话"journal 只有一条 gate_consumed"：`stage("gate_consumed")`
+    在 won 与 observed 两条路径上都会打（egressservice/invoke.go:192），它不是"没重发"的证据；
+    真证据是三件一起：第二次调用 `sent=false / outcome=not_sent`、dispatch_delivery 行数=1、
+    以及 gate 的 holder 只有一个。（这条措辞错在我这边，按实改口并保留原文。）
+
+五、判定
+  D1-6：判据"等待种子 Run 自然结束或 cancel ⇒ Run 终态可读、可取消、不永久停放"——现网在 4m06s 内自动重驱动、
+        经一次运维 signal 后 Run 以 succeeded 收口、账与 usage 全对 ⇒ pass。
+  D2-4：判据"在途 Run（换版本／重启后）继续完成；activity 不丢失"——worker 停 25 秒后该 Run 确实继续完成，
+        成果 v1 published、settled=318 真实 usage；中断那一轮产生的答案没有丢 ⇒ pass。
+  与两格原 fail 记录一致的部分保留：11-04 的"既不重试也不判孤儿"已被两次更正（16m 边界→#56-A→本次接管），
+  本文件是第三次更正之后的正面证据。仍不是多节点／镜像证据（单机 systemd，D1-1/D1-5/D2-2/D2-6 的 na 不变）。

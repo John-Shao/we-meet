@@ -104,12 +104,14 @@ R0a 有六类不属于任何 Run 的常驻作业（见 [D3 §11](work-r0a-orches
 | content shredder | `WorkContentShredBacklog`、Content Store 错误率 | 校验 Store 凭据与可达；同一引用不重复投递（D1 共享引用守卫） | 不可停：留存/删除是义务 |
 | directory_projection_sync | `WorkDirectoryProjectionStale`（滞后秒数） | 先看 Host 端口是否报错或返回旧修订号；同/旧修订重放被拒（`projection_revision_stale`）属正常幂等；`host_revision_regressed` 是 Host 数据回退/Failover 异常，先冻结同步并核对 Host，不要强推 | 不停同步：撤权靠它生效；只在确认目录不可用时降级为"管理页显示陈旧" |
 | audit_export_worker | `WorkAuditExportBacklog` / `WorkAuditExportFailureRatio` | 作业停在 `running` 且租约过期可重领；停在 `failed` 看 `error_code`；不做人工改状态 | 可停新作业（属"产生新工作"），已 ready 文件仍可一次性下载 |
-| expiry_sweep | `work_background_job_last_success_seconds{kind="expiry_sweep"}` | 清扫按组织逐事务、条件更新，重复运行返回 0 行，可安全重跑 | 不可停：过期内容不能留在存储 |
+| expiry_sweep | `work_background_job_last_success_seconds{kind="expiry_sweep"}` | 清扫按组织逐事务、条件更新，重复运行返回 0 行，可安全重跑 | 不可停：过期内容不能留在存储**（2026-11-05 现网注：本主机此前从未调度过它，欠账能堆到"2 条导出超期 4 天"；首次真调用是 16:19，返回 2／2／0。这枚指标也没有产生者（`telemetry-producers.test.mjs` 的 `UNPRODUCED`），所以"没跑"不会告警——读数只看库里，口径见 §5.25）**。**【同日 17:3x 更新：调度形态已裁＝B／每小时**（主签选），执行体是 `work-retention-scan.service`＋`.timer`＋`scripts/run-retention-scan.sh`↔`retention-scan.sql`，发布链三处已同步；**但 unit 还没装到现网**——装它属生产写，要随下一次 rollout。在那之前本行仍是"手工、靠人"，只是第一次有了可装的执行者。判据与退出码（0／1／2 与 15 分钟投递宽限窗）见 §5.25，裁定与本机真 schema 变异核对见授权单 §13** |
 | dead_letter_ops | 人工触发，无告警 | 仅 `work_ops` 角色、必须带理由与工单号并审计 | — |
 
 通用规则：
 
-1. **重跑安全**：所有领取都带租约，所有收尾都校验持有者；作业崩溃后由租约到期接管，外部副作用按对象名固定（导出）或删除幂等（粉碎）设计，不需要人工"清理中间态"。**（2026-11-05 更正：这句对 `work.runtime_execution` 此前不成立——`claim_runtime_execution` 拒绝任何"过期租约被新持有者领取"，而 revoke 之后也不能再 claim，所以运行片段一旦被中断就没有接管这条路，Run 只能终态化；增量 0028 才是让本句在这张表上为真，现网未部署前按 §5.23 判读。outbox／audit_export 两条一直成立，各有用例钉着。）**
+1. **重跑安全**：所有领取都带租约，所有收尾都校验持有者；作业崩溃后由租约到期接管，外部副作用按对象名固定（导出）或删除幂等（粉碎）设计，不需要人工"清理中间态"。**（2026-11-05 更正：这句对 `work.runtime_execution` 此前不成立——`claim_runtime_execution` 拒绝任何"过期租约被新持有者领取"，而 revoke 之后也不能再 claim，所以运行片段一旦被中断就没有接管这条路，Run 只能终态化；增量 0028 才是让本句在这张表上为真，现网未部署前按 §5.23 判读。outbox／audit_export 两条一直成立，各有用例钉着。）**（同日 14:29 再更正半句：`0028` 已部署到现网，
+"现网未部署前"那个限定词失效——本句在 `work.runtime_execution` 上现在为真，接管口径按 §5.23 的正身读，
+其上方那段 11:39 的实测记录只作历史对照。）**
 2. **不要绕过领域函数**：任何"手工修复"必须走 D1 函数（`requeue_outbox_dead_letter` 等）或工单化的 `work_ops` 操作；直接 UPDATE 会被 RLS/DML 权限拒绝，也不留审计。
 3. **时钟**：租约与到期比较使用数据库时间；排查时以 DB `now()` 为准，不看应用日志时间戳。
 4. **停止语义**：只有"产生新工作"的动作可被 kill switch/组织停用挡住；投递、清理、投影同步、清扫属义务作业，必须在开关打开时继续运行（D3 §11.3）。演练要单独验证这一条。
@@ -846,6 +848,15 @@ P9／C28-1 的人工记录三列现值；`sync_org` 亦被 `baseline/0002:3882` 
 attempt 2 于 4m06s 报 `lease_not_claimable`、Run 判 `advance_failed`、operation 落 `unknown`
 （2026-11-05 11:39:19，run `0fd4f0a8`／execution `f372c418`）。**未部署前不要按本节判读生产，也不要把 D1-6／D2-4 改判。**
 
+> **【2026-11-05 14:29 传播：本节标题的"现网未部署"与上面那句"未部署前"已过期，按下面读】**
+> 0028 已随授权单 §8 的 C 段部署（ledger 尾项 28，verify 两枚函数体探针 `claim_carries_takeover`／
+> `guard_allows_takeover_shape` 都真），并且同日 14:10-14:15 用新的短答复注入重演过一次：
+> 接管在 4m06s 发生、Run 停 `waiting/reconcile` 且闸已 `receipt_recorded`、一条 `-signal-only` 后 `succeeded`、
+> `settled=318` 为供应商真实 usage、`held` 归零、交付闸仍 1 行且重放那次 `sent=false / outcome=not_sent`。
+> ⇒ **本节现在就是生产判读口径**；D1-6／D2-4 已据此改判 pass（逐条读数在授权单 §9 与
+> `drill-2026-11-15/attachments/d1-6-d2-4-takeover-redrive-20261105.txt`）。上面 11:39 那一次不作废，
+> 它记的是无 0028 时的行为，正是本节的由来。
+
 **怎么认接管发生过**（只读，owner 视角要 `SET app.org_id`，见 #53）：
 
 ```sql
@@ -897,6 +908,109 @@ work-egress journal 里该 execution 只有一条 `stage=gate_consumed`。
 :670 那行也按同一形状验过审计导出（"租约过期后新持有者收尾成功、旧持有者得 `audit_export_lease_lost`"）。
 `work.runtime_execution` 此前是唯一不遵守这条通则的领取路径（claim 永久拒绝外来持有者、revoke 后也不可再 claim），
 0028 把它拉回通则，"不重复外部副作用"那一半由交付闸的 `observed` 语义与 `dispatch_delivery.holder_id` 不可变负责。
+
+### 5.24 答复触顶：一次成功的供应商调用、一笔待收的账（2026-11-05，#68 裁定＝A）
+
+**认**（三条一起看，缺一就易误判）：work-egress journal `work egress invoke execution=<id> outcome=unknown code=partial_answer_length sent=true max_output_tokens=4096`；
+库里该 operation 的 `dispatch_delivery` 停在 `gate_state='consumed'` 且 `receipt_ref IS NULL`；`work.operation` 走 `unknown`。
+§5.21 巡检会为此发 `held_on_terminal≥1` 的告警——**这封信不是崩溃、也不是谁的错，是普通长答复的必经形状**。
+
+**为什么判 unknown（这条判据不动）**：`finish_reason='length'` 表示供应商成功生成但内容被输出上限截断。
+既不能记成功（成果是半截的，用户在界面上看不出被截），也不能记"未执行"（token 确实消耗了，`not_sent`／`release_quota`
+等于少记一笔账）。依据是 D4 §8.1 的"unknown 不是终态回执"，本节按 #68=A 维持它。
+
+**怎么办**（走 §5.22，人工＋证据门，不自动写）：诚实归类通常是 `sent_succeeded`；
+token 数优先取供应商 usage（有 `provider_request_id` 就去账号后台查那一次），
+查不到就 `-settled-tokens 0` 并把"查不到"这件事写进 `-evidence-ref`——2026-11-05 现网那笔就是这么收的
+（`receipt_ref="work-egress journal … stage=exchange_done elapsed_ms=137216; worker canceled before receipt; tokens unknown to control plane"`）。
+**不要**为了让 `breaches` 归零而选 `not_sent`：那会把一笔真实消耗做成零消耗，账比告警更难查。
+
+**用户侧现状（具名，别误以为已经做好）**：`DisplayState` 是闭集（`src/frontend/src/features/work/r0a/api/generated/r0a-api-types.d.ts:680`），
+只有 `reconciling`／`failed` 这类通用值，五种语言的文案里都没有"答复被输出上限截断"这种说明；
+要补这句就得新增终态或新增 display_state，那属 #68 的 B／C 两支（需重签），**不在本轮 A 内**。
+所以试点期这是一条**已知产品限制**：长答复可能失败，账由运维收，界面上只显示"失败"。
+值班遇到同类信时的正确说法是"任务输出超出单次长度上限，已收账，请缩短目标或分步再跑"，而不是"系统坏了"。
+
+**重开条件**：设计伙伴实测（C26 golden tasks／U3）里这类失败进入前列，或同一组织一周内 ≥2 次触发该告警
+⇒ 回 B（`max_output_tokens` 按模板／路由分档，需同步重算 preview 返回的 Token 上限承诺）或 C（重签 §8.1 的截断语义）。
+
+### 5.25 留存清扫（`expiry_sweep`）在现网到底怎么读（2026-11-05，D4-6b 现网首演）
+
+这一节是值班与下次演练的口径，因为 §5 那张作业表里 `expiry_sweep`／`content shredder` 两行写的"不可停"，
+在本主机直到 2026-11-05 16:19 之前**从没被执行过一次**（`deploy/ecs` 没有对应 timer，Go 侧只有测试调它们）。
+欠账长什么样：审计导出 `complete` 时带 24 小时 TTL（`cmd/work-export/main.go:23` 写死 `86400`，无 flag），
+10-31 建的两条到 11-01 就该过期，**超期 4 天仍然 `ready`**，正文还躺在 store 里。
+
+- **怎么调**：身份是 `work_worker`（`GRANT EXECUTE` 只给它，`baseline/0002:5253-5255`），
+  三个函数都是 SECURITY DEFINER——由 `baseline/0002:5163-5177` 那个 DO 循环对 `work` schema 全部函数统一加，
+  **函数头上不写这两个字**，所以 grep 内联 `SECURITY DEFINER` 会扑空（我自己错过一次）。
+  会话要先 `SET app.org_id`，清扫按组织逐事务运行。只读预检用仓库那份原文：
+  `src/work/scripts/retention-preflight-d0.sql`（六列欠账＋`ctx|is_superuser=` 自证）。
+- **"各处理 1"这类判据在这三个函数上不可满足**：`expire_due_audit_exports`／`expire_due_inputs` 只按
+  `expires_at <= p_now` 整批取，`shred_due_audit_exports` 按 `status='expired' AND content_ref IS NOT NULL`
+  且**该对象从没插过 shred**（那个 `NOT EXISTS` 不看 `delivered_at` ⇒ 投出去过的永不重投）。
+  **没有按 id 的入参**，所以要么整批、要么不动；想凑"恰好 1"只能去造欠账，那是拿演练当破坏。
+  提前钟（`p_now` 传未来）是测试与回填留下的缝，库侧用例自己就这么叫，但它会把窗口内别人的行一起判死：
+  export 侧尚可核（ready 且落进窗口的行数必须只等于夹具数），**input 侧绝对不要提前钟**
+  （未绑定输入的 `expires_at` 恒为"建后 24 小时"，提前 25 小时＝把最近一天所有未绑定输入一起投删）。
+- **`expired` 有两个写者**：清扫函数，以及 `get_audit_export`（`baseline/0002:4659-4686`）在读到
+  `ready` 且已过期的行时**就地**置 expired。两者产出的行形状一模一样（`expired`＋`content_ref` 仍在＋`expires_at`
+  被置 NULL——这是表上那条双向 CHECK 逼出来的唯一形状），**只有审计能区分**：
+  走清扫 ⇒ 没有 `audit_export.expired`；走惰性 ⇒ 有。11-04 那次记"库里没有到期作业可扫"而实际有 2 条超期，
+  正是因为没人读它们、惰性通道不触发。
+- **投递证据在库里，不在日志**：relay 的成功路径只调 `work.mark_outbox_delivered`，
+  只有失败才 `Printf`（`internal/relay/relay.go:105`／`:132`／`:272`；`ack()` 在 `:255-261`）。
+  所以"journal 显示投递了"这种判据没有对应物；对口读数是 `work.outbox` 的 `delivered_at`／`attempts`
+  与未投递计数回落，`journalctl -u work-relay` 的作用是**证否**（有没有 `content_delete_failed`／
+  `content_store_unavailable`）。16:19 那两条实测：created 16:19:51.280523 → delivered 16:19:52.169／52.171。
+- **`work_worker` 读不到 `audit_export`**（`baseline/0002:5187` 明令 REVOKE，api 侧同理，见 `:5186`）：
+  这是控制（正文引用不给 worker 直读），不是缺权限。⇒ 调用用 worker，**读数必须走 owner/superuser 通道**
+  并按 §5.2 的规则显式带组织条件；只准备一套身份会在 BEFORE 阶段就拿到 `permission denied`。
+- **内容侧只能按文件系统直证**：对象路径 `<WORK_CONTENT_DIR>/<hex(sha256(org_id)[:16])>/<id>.enc`
+  （`internal/content/local.go:160`＋`:173-176`），`id` 就是 `content://work/<org>/<id>?v=1` 里那段 32 位 hex。
+  `Local.Delete` 把 `ErrNotExist` 当成功（`:161-164`），**编造的 ref 会被静默 ack**：返回值、outbox、日志全绿
+  而对象从来就不在。所以只有真对象能给出"一条可证的消失"，且要跑前拍一次"存在"。
+- **可回性有期限**：内容 store 每 6 小时全量 age 加密备份（`work-content-backup.timer`，00/06/12/18:45 +08），
+  回执在 `/var/lib/work/content-backup.json`。清扫之前那一次备份里还含着被删对象 ⇒
+  盘上不可逆、备份可回（解要收件人私钥，#57）；**下一次备份之后就不再可回**，
+  所以手工执行这一类删除前，先核备份时刻，不要事后才想起没留副本。
+
+**调度形态仍未裁**（A＝维持手工＋值班动作表＋只报不删的欠账读数；B＝新增 systemd timer，真删变自动；
+C＝归 R0b 控制面、R0a 只留库测）。三个选项的代价写在 `work-r0a-pilot-write-authorization-2026-11-05.md` §10 的 D4 段。
+另记一条：这一类"没跑"在现网**连告警都不会有**——§5 那张表让值班看的
+`work_background_job_last_success_seconds{kind="expiry_sweep"}` 与 `work_content_shred_backlog`
+都在 `telemetry-producers.test.mjs` 的 `UNPRODUCED` 名单里，无数据的序列不 page。
+
+**【2026-11-05 17:3x 更新：这一类第一次有了执行者，但还没装到现网】**D4 裁定＝B／每小时（主签选）。
+交付形态照上面那条"手工单次调用"往上补了一层，没有另造一套：
+
+- 执行体：`src/work/scripts/retention-scan.sql`（默认 `now()`，**不带提前钟**；export 两条同事务、
+  input 独立事务）＋ `src/work/scripts/run-retention-scan.sh`（逐 org 跑，四行读数缺一即失败）；
+  单位 `work-retention-scan.service`（`Type=oneshot`，`User=work-control`，`EnvironmentFile` 复用
+  `work-worker.env`——清扫的 `GRANT EXECUTE` 只给 work_worker，见 `baseline/0002:5253-5255`）＋
+  `.timer`（`OnCalendar=hourly`、`RandomizedDelaySec=5min`、`Persistent=true`，停机后补跑）＋
+  `work-retention-scan.env.example`（只放 `WORK_RETENTION_ORGS`，不放第二份密钥）。
+- 发布链三处已同步（`make-release` 的 `cp`、`rollout` 的安装与 `enable`／`start`、`verify` 的在位与
+  组织数对比）。**`install_env` 只在文件缺失时写入**，所以首次上线时那份 env 由模板生成、
+  只含演示组织；**以后新增组织必须人工把它追加进 `WORK_RETENTION_ORGS`**——
+  漏列不会报错，只会让那个组织的内容永远不被扫，这正是 11-04 之前全部组织的状态；
+  `verify-r0a-0027.sh` 里那句"orgs 配置数 vs `work.org` 行数"对比就是为把它变成可见的 WARN。
+- 退出码：`0` 干净（**扫到多少行都算正常**，整批语义来自函数，脚本绝不按"恰好 1 行"判成败）；
+  `1` 调用失败或缺读数；`2` 有 `content_shred` 卡住超过宽限窗（默认 15 分钟，
+  `WORK_RETENTION_GRACE_MINUTES` 可覆盖）没被 relay 投走。**为什么必须有那个窗**：shred 行就在同一次
+  运行里刚 COMMIT，relay 是另一个进程、秒级轮询——按"未投递数"判红会让每一次真正干了活的运行都
+  `Result=failed` 并触发发信，而"relay 真卡住"反而被淹没在同一片红里。
+- 看它有没有在跑（现网装好之后）：`systemctl show work-retention-scan.service -p Result -p ExecMainStartTimestamp`、
+  `journalctl -u work-retention-scan.service -n 20`（每次运行有 `org=… exports_expired=… exports_shredded=…
+  inputs_expired=… shred_stuck=…` 与一行 summary），库里对 `audit_event` 的
+  `audit_export.shredded`／`input.expiry_swept` 两条 `metadata->>'count'` 与返回值逐次对齐。
+- 要停下来：`systemctl stop work-retention-scan.timer`（`disable` 才是让它跨重启也不回来）。
+  **不要指望 kill switch／组织停用能停它**——§5 通用规则 4 明确清扫属义务作业，在开关打开时仍须运行；
+  真要停某个组织，就从 `WORK_RETENTION_ORGS` 里摘掉它，那是唯一符合语义的开关。
+- 手工补跑用包装件，不要手抄 SQL：空 `WORK_RETENTION_ORGS` 会被脚本按"配错"退 1，
+  而不是安静地"扫了个空"。身份也不是随便换的——最后一行"本组织还有多少条卡住"靠 RLS 才成立，
+  以 superuser 连接跑同一条 SQL 得到的是**全库**计数（授权单 §13 记了这条边界）。
+- 回滚面很小：`disable` timer 即回到今天的手工状态，函数本体与迁移都没动。
 
 ## 6. 容量证据
 
