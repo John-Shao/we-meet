@@ -56,6 +56,16 @@ def psql(database, sql):
 
 def main():
     os.umask(0o077)
+    # The custody model keeps the offsite private key on the admin machine, never on this host, so
+    # the default path below is expected to be absent unless the operator stages it deliberately.
+    # Fail here rather than after the download and the sha check, when age exits with a message
+    # that names neither WORK_BACKUP_IDENTITY nor the model (that misread cost a "permanently
+    # undecryptable" conclusion on 2026-11-05, later disproved).
+    if not IDENTITY.is_file():
+        raise SystemExit(
+            "identity file absent: " + str(IDENTITY) +
+            " - set WORK_BACKUP_IDENTITY to the admin-held age key, stage it on this host only for"
+            " the duration of the drill, and remove it afterwards")
     receipt = json.loads((STATE / "last-success.json").read_text(encoding="utf-8"))
     storage = json.loads((CONFIG / "storage.json").read_text(encoding="utf-8"))
     import boto3
