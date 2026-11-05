@@ -65,11 +65,22 @@
 ## 5. 基线填空（执行前由 §1 写入，不留空即视为未取证）
 
 ```
-work-worker sha256        = 
-work-worker started_at    =
-recipient.txt before      =
-runstream summary line    =
+work-worker sha256        = 9ae58c067b4a5103c951a3f932bf400a3c27915fc00787df6a8c3427c1846435（部署前；部署后 3b6ad1282deb9243…）
+work-worker started_at    = Wed 2026-11-04 21:59:30 CST（部署前）→ Thu 2026-11-05 09:41:50 CST，MainPID 1825769
+recipient.txt before      = age1jyazk…（未改；B1 待执行）
+runstream summary line    = orgs=1 stale_minutes=5 max_held_on_terminal=0 breaches=0 scan_errors=0（2026-11-05 09:4x 实读）
 new key public (age1…)    =
-drill verdict on new bundle = 
-D1-6 / D2-4 / D4-3 重演结论 = 
+drill verdict on new bundle =
+D1-6 / D2-4 / D4-3 重演结论 = 未重演（见 §6：现网 open_runs=0，需先播种工作才能取证）
 ```
+
+## 6. A 段执行记录（2026-11-05 09:26–09:45，主签授权；B 段未动）
+
+- **前提三条全部解除并留痕**：① 先授权提交，7 笔落定，工作树干净，`RELEASE_COMMIT=b13174a5166a19748549915f62cc3c800b154aa7`＝部署内容可归因；② `work-go-r0a` 容器绑的是 `D:/workspace/we-meet/temp/r0a-wt`（**另一个工作树**），照它构建会重演台账 `:615` 的坑；新建专挂 `wt-fix29` 的 `work-go-fix29`，并因 MSYS 把 `-w /repo/src/work` 改写为 Windows 路径而必须 `MSYS2_ARG_CONV_EXCL=*`；③ DSN 通道＝`/root/work-secrets.env` 的 `PG_WORK_MIGRATOR_PASSWORD`（`0600 root:root`），照 `/root/run-rollout-0015.sh` 的既有形状写 `/root/run-rollout-0027.sh`（`0700`，`bash -n` 过），以 `exec env MIGRATOR_DATABASE_URL=…` 交变量——**口令不进 argv、不进本文、不落我的文件**。
+- **A1 dry-run 惰性已被证伪我的担心**：`--dry-run` 打印的 `rollback: restore …dump and reinstall …*.bak` 是预告，实读 `/var/backups/work/work-pre-0027-20261105-093847.dump` 不存在、`.bak-20261105-093847` 计数 0，现网 worker 仍是旧版、8 单元全 active。
+- **A2 半径更正并另行确认**：本单原文写"只重启 `work-worker`"是**错的**——`rollout:179` 停 6 个单元（含 directory-sync 两 timer 与 service、relay、export），`:189` 重装 10 个二进制，`:217/:290` 重启 authz/content-proxy/egress 与 api/relay/export。主签据实单选"按打包链跑完整 rollout"后才执行。
+- **A2 实装证据**：`work-worker` sha256 前缀 `3b6ad1282deb9243`（＝包内值），MainPID 1825769，`ExecMainStartTimestamp=Thu 2026-11-05 09:41:50 CST`；回滚点真实生成：`/var/backups/work/work-pre-0027-20261105-094147.dump`（1,521,454 字节，`postgres:postgres 0600`）＋11 个 `/usr/local/bin/*.bak-20261105-094147`；8 单元 `is-active` 全 active。
+- **A3 verify 全绿**：迁移 ledger `missing: none`；7 个单元 pid→`/usr/local/bin/*` 对齐；`work-reconcile-scan` 与 `work-runstream-scan` 均 `timer=enabled last_result=success wrapper/sql/env=present`；`restore-drill script=present`；`c16 log-scan wrapper=present scanner=present`；journal warnings 自 11-04 21:00 起 `No entries`；leftover `temporary role absent`。**另证成 #57 的三段交付链**：`/opt/meet-db-backup/work-db-restore-drill.py` sha256 前缀 `cf3724636df26167`＝仓库既有那份、读 `WORK_BACKUP_IDENTITY` 的那份，打包→安装→校验第一次在真机上全链闭合。
+- **A4 不需要做，本单原文过期**：`WORK_RUNSTREAM_MAX_HELD_ON_TERMINAL` 现值已是 **0**（文件 1496 字节、mtime 仍 Nov 4 21:58 ⇒ 本次 rollout 未覆盖 root 的活动配置，`install_env` 只在缺失时写入这条成立）。所以"改回 0 的那一轮会转红发信"这个预期没有发生、也不会发生：`breaches=0`。具名更正本单 A4 与 runbook §5.21 的"现值 2"表述。
+- **A5 未做，且缺前置**：实读 `open_runs=0`（先前的 stale waiting run 已随 #56-B 结算），现网**没有任何在途 Run** 可供观察"4 分钟内重驱动"或"饱和→`wait_reason='quota'`"。这三格需要先在试点组织播种任务/Run（写生产数据），并按 #54 的裁定用构建取证路径而非主机独有二进制。**这一步要单独点头**：它不是换二进制，而是往生产库里造工作。
+- **未做**：B1／B2／B3（age 换钥、`recipient.txt`、真实备份与当代 bundle 解密）一件没动；D1-6／D2-4／D4-3 三格 `verdict.json` 保持原判定，不因"部署完成"而翻。
