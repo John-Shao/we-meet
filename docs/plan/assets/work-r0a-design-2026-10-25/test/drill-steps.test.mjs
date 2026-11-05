@@ -32,7 +32,12 @@ const mdRows = (() => {
   for (const line of text.split(/\r?\n/)) {
     const match = /^\|\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*\|/.exec(line);
     if (!match || DATE_CELL.test(match[1]) || match[1] === '步') continue;
-    const cells = line.split('|').slice(1, -1).map((cell) => cell.trim());
+    // 原来这里是 slice(1, -1)，它假设每行都以竖线收尾。P10 行没有收尾竖线，于是那行的最后一格——
+    // 也就是装着判据与就地更正的那一格——被整格丢掉，守卫会把已更正的行读成未更正。
+    // 现在只在确实存在收尾竖线时才丢掉那个空格子，两种写法都读得到全格。
+    const parts = line.split('|');
+    if (parts[parts.length - 1].trim() === '') parts.pop();
+    const cells = parts.slice(1).map((cell) => cell.trim());
     rows.push({ step: match[1], action: cells[1] ?? '', cells });
   }
   return rows;
@@ -221,4 +226,64 @@ test('every step table row carries as many cells as its own header', () => {
   // Floor: if the parser ever stops seeing tables, the assertion above would pass over nothing.
   assert.ok(tables >= 12, `parsed only ${tables} tables in the checklist - the shape check is looking at the wrong file or the wrong syntax`);
   assert.deepEqual(mismatches, [], `rows that shift the 负责/时限 columns for whoever runs the drill:\n${mismatches.join('\n')}`);
+});
+
+test('a checklist criterion cannot name a work.run state the schema does not have', () => {
+  // 2026-11-05 现网实测：D1-2／D1-4／D2-1／D4-4 与 P10 的判据都写 `work.run.state='running'`，
+  // 而 CHECK 约束里没有这个值——种子 Run 约 200 毫秒就从 queued 走到 active，照原文盯会把
+  // 「正在跑」读成「无事发生」，注入批次拿到的绿灯不可信。枚举从迁移原文取，不手写常量。
+  const baseline = readFileSync(
+    fileURLToPath(new URL('../../../../../src/work/migrations/baseline/0002_initial_r0a_schema.sql', import.meta.url)),
+    'utf8',
+  );
+  const runTable = baseline.slice(baseline.indexOf('CREATE TABLE work.run ('));
+  const stateCheck = runTable.match(/state\s+text NOT NULL CHECK \(state IN \(([^)]*)\)\)/);
+  assert.ok(stateCheck, '找不到 work.run.state 的 CHECK 约束原文 - 这条守卫就没有依据了');
+  const enumVals = stateCheck[1].split(',').map((s) => s.trim().replace(/'/g, '')).filter(Boolean);
+  assert.ok(enumVals.length >= 6, `只解析到 ${enumVals.length} 个 run.state 取值，解析器大概看错了行`);
+  assert.ok(enumVals.includes('active'), '枚举里没有 active，读数无从解释注入窗口');
+  assert.ok(!enumVals.includes('running'), 'schema 竟然允许 running - 下面这条豁免逻辑要重写');
+
+  const offenders = [];
+  const annotated = [];
+  for (const row of mdRows) {
+    const text = row.cells.join(' ');
+    // 宽判据：这行要么写 work.run，要么写 state=/state in/状态转——只盯 `work.run.state` 会漏掉
+    // 「原 Run `running` 不跳 `failed`」和 P10 的 `SELECT … FROM work.run WHERE`，而那两处同样在指挥人找不存在的值。
+    const namesRunState = /work\.run|Run state|状态转|state\s*=|state in/i.test(text);
+    if (!namesRunState) continue;
+    if (!/\brunning\b/.test(text)) continue;
+    offenders.push(row.step);
+    // 豁免必须与被更正文本同一行，且要给出正确的态，否则只是盖个日期
+    if (text.includes('【2026-11-05') && /active/.test(text)) annotated.push(row.step);
+  }
+  assert.ok(offenders.length >= 1, '判据里一个 running 都没有 - 这条守卫在空转，先确认清单还是不是那个文件');
+  assert.deepEqual(
+    offenders.filter((step) => !annotated.includes(step)),
+    [],
+    `这些行还指挥值班去找不存在的 state='running'：${offenders.filter((s) => !annotated.includes(s)).join(', ')} ⇒ 注入批次会把正在跑的 Run 读成无事发生`,
+  );
+  assert.deepEqual(
+    [...offenders].sort(),
+    ['D1-2', 'D1-4', 'D2-1', 'D4-4', 'P10'],
+    `写 run 状态却提 running 的行应当正好是这五格，现读 ${offenders.join(', ')} - 集合变了说明判据被改写或又冒出了新的漏态写法`,
+  );
+
+});
+
+test('the shipped rollout scripts count in-flight runs with exactly the non-terminal enum', () => {
+  // 同一份枚举的另一半：文档改对了、脚本还在用别的集合，值班照脚本读也一样错。
+  const dir = new URL('../../../../../src/work/deploy/ecs/', import.meta.url);
+  const expected = ['queued', 'active', 'waiting', 'cancel_requested'];
+  const checked = [];
+  for (const name of ['rollout-r0a-0015.sh', 'rollout-r0a-0016.sh', 'rollout-r0a-0027.sh']) {
+    const text = readFileSync(fileURLToPath(new URL(name, dir)), 'utf8');
+    for (const line of text.split(/\r?\n/)) {
+      if (!/work\.run where state in \(/.test(line)) continue;
+      const got = line.match(/state in \(([^)]*)\)/)[1].split(',').map((s) => s.trim().replace(/'/g, ''));
+      assert.deepEqual([...got].sort(), [...expected].sort(), `${name} 的在途集合与四个非终态不一致：${got.join('/')}`);
+      checked.push(name);
+    }
+  }
+  assert.ok(checked.length >= 3, `只有 ${checked.length} 个 rollout 脚本带了在途谓词（${checked.join(', ')}）- 口径被改掉或文件搬家了`);
 });

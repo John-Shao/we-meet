@@ -21,7 +21,7 @@
 | P7 | 两个 Worker 版本镜像（D2） | registry tag `worker:v1-s2` / `worker:v2-s2` 存在 | 平台 | 11-06 |
 | P8 | `WORK_CONTENT_MASTER_KEY` 环境变量注入通道就绪（C13）——**2026-11-04：按 A，本项不再是演练前置**，主密钥不换、不注入新 key；保留本行只作 11-06 预检时的现状确认（当前 key 可读、文件不入库） | 进程 env 可读，文件不入库 | 后端 | 11-06 |
 | P9 | 租户开通/停用的**已接线**闸门可操作（C28）——**2026-11-04 #46=A 裁定**：目录同步按 Host 报的 `status=active` 自动置 `execution_enabled=true` **即设计**——**（22:35 实测证伪：`record_directory_sync` 只写 `directory_sync_state`，全仓无生产代码写这三列；停用态真跑一次同步 result=success 而标志仍 false。已开在 C28 note 与 #56 同批待裁）**，不加 Work 侧独立开关；试点期以「首批组织开通时人工确认 `status` 三列现值」作过渡控制（本行判据含此项） | `work.org` 的 `status/execution_enabled/operator_suspended` 三列可读可改（`tenant_access` 列无代码消费者，不作判据），证据＝SQL 读值【2026-11-04 修：本行原来多了第 6 个单元格，把「后端／11-10」整体挤到错误的列上——负责与时限读起来会串位；本表只有 5 列，现并回判据格】 | 后端 | 11-10 |
-| P10 | 在途 Run 种子：1 个 waiting + 1 个 running（**2026-11-04 #51 已裁 A：机制与时点定如下**——用主机上的 `work-e2e-seed -org <org> -actor <active owner subject> -goal <文本>` 造，它走与 `POST /work/v1/tasks` 相同的领域函数、不绕过授权；**在演练当天上午现造现演现清**，不在 11-10 彩排后把 held 预留挂多日，#11 那类 stale run 正是这样积起来的。两条实测前提：该二进制只在 `/usr/local/bin`、**不在发布包内**（任务 #54）；`quota_account` 目前只有 `2026-10` 周期行，当天要确认新周期行是首笔预留时懒建还是缺建——**该问句 2026-11-04 已按源码答毕（#51）**：worker 在 `reserve_quota` 之前的**同一事务**里调 `work.ensure_quota_account(org, key, period, limit, enforcement)`（`src/work/internal/runflow/activities.go:263-272`，另一处 `advance_activities.go:494`），函数体是 `INSERT … ON CONFLICT (org_id, account_key, period_id) DO NOTHING`（`src/work/migrations/increments/0006_org_policy_quota_provision.sql:6`），所以 `2026-11` 行由当天第一笔预留**懒建**、不缺建，额度取 worker 配置、`QuotaLimit` 未设时代码缺省 **1,000,000**（`activities.go:915-919`）。**同时撤回我此前挂在同一行的错连**：我把这条写成了「决定 D4『配额打满』能否演」——D4 打的是 **Temporal namespace 配额**（D4-1/D4-2 用 `temporal operator namespace describe/update -rd` 调 rate limit / concurrent workflows），与 `work.quota_account` 的 token 额度是两套东西；本条懒建结论影响的是**当天种子预留会记进哪个期间、以及 §5.17 的跨期可见性**，不是 D4 的可演性） | `SELECT run_id, state FROM work.run WHERE ...` ≥2 | 后端 | 11-10 彩排后；造 Run 在 11-15 上午。**#54=B（2026-11-04）seed 的可重放步骤**：演练前一天在仓库根构建`(cd src/work && go build -o /tmp/work-e2e-seed ./cmd/work-e2e-seed)`，`sha256sum` 记入 `verdict.json` 的 `P10.evidence`，经 meet 侧跳板上传到 Work 机 `/usr/local/bin/work-e2e-seed`（主机那份是历史手工件、**不在发布包内**，见 #54），演练后**保留**并在 `notes` 记明保留理由；不接受「主机上有一个来路不明的二进制」作为演练前置通过。
+| P10 | 在途 Run 种子：1 个 waiting + 1 个 running（**2026-11-04 #51 已裁 A：机制与时点定如下**——用主机上的 `work-e2e-seed -org <org> -actor <active owner subject> -goal <文本>` 造，它走与 `POST /work/v1/tasks` 相同的领域函数、不绕过授权；**在演练当天上午现造现演现清**，不在 11-10 彩排后把 held 预留挂多日，#11 那类 stale run 正是这样积起来的。两条实测前提：该二进制只在 `/usr/local/bin`、**不在发布包内**（任务 #54）；`quota_account` 目前只有 `2026-10` 周期行，当天要确认新周期行是首笔预留时懒建还是缺建——**该问句 2026-11-04 已按源码答毕（#51）**：worker 在 `reserve_quota` 之前的**同一事务**里调 `work.ensure_quota_account(org, key, period, limit, enforcement)`（`src/work/internal/runflow/activities.go:263-272`，另一处 `advance_activities.go:494`），函数体是 `INSERT … ON CONFLICT (org_id, account_key, period_id) DO NOTHING`（`src/work/migrations/increments/0006_org_policy_quota_provision.sql:6`），所以 `2026-11` 行由当天第一笔预留**懒建**、不缺建，额度取 worker 配置、`QuotaLimit` 未设时代码缺省 **1,000,000**（`activities.go:915-919`）。**同时撤回我此前挂在同一行的错连**：我把这条写成了「决定 D4『配额打满』能否演」——D4 打的是 **Temporal namespace 配额**（D4-1/D4-2 用 `temporal operator namespace describe/update -rd` 调 rate limit / concurrent workflows），与 `work.quota_account` 的 token 额度是两套东西；本条懒建结论影响的是**当天种子预留会记进哪个期间、以及 §5.17 的跨期可见性**，不是 D4 的可演性） | `SELECT run_id, state FROM work.run WHERE ...` ≥2 | 后端 | 11-10 彩排后；造 Run 在 11-15 上午。**#54=B（2026-11-04）seed 的可重放步骤**：演练前一天在仓库根构建`(cd src/work && go build -o /tmp/work-e2e-seed ./cmd/work-e2e-seed)`，`sha256sum` 记入 `verdict.json` 的 `P10.evidence`，经 meet 侧跳板上传到 Work 机 `/usr/local/bin/work-e2e-seed`（主机那份是历史手工件、**不在发布包内**，见 #54），演练后**保留**并在 `notes` 记明保留理由；不接受「主机上有一个来路不明的二进制」作为演练前置通过。**【2026-11-05 判据补：本行判据那句 `SELECT run_id, state FROM work.run WHERE ...` 用的状态集合（原文与我都写成 `('queued','running','waiting')`）两头都错——`work.run.state` 的 CHECK 枚举实测是 queued／active／waiting／cancel_requested／succeeded／failed／canceled：`running` 这个值不存在，`active` 与 `cancel_requested` 被漏。在途集合应是那四个态。本轮种两笔就撞上：200 毫秒内一笔已从 queued 走到 active，漏态谓词把它读成「没在跑」。下批 D3／S1／N 的「state 不变／无新派发」判据都按这个枚举改，否则会把正在跑读成无事发生。】 
 | P11 | 五席 + SRE/DBA 真名确认 | 填 §附录 A 表 | 平台 | 11-06 |
 
 任一 P 未通过 → 改期并通知 DR2。
@@ -78,7 +78,7 @@
 | D2-4 | fail | 中断后**不会自动续跑**：worker 停 20 秒再拉起（同一份 v2），该 Run 自 19:22:06 停在 active／dispatching，lease 19:23:05 过期后无人重取，观察约 7 分钟无进展 | `d2-alt-2`／`d2-alt-4` |
 | D1-alt | pass（不构成多节点证据） | 同节点单副本重建（pod `6dj5r／10.42.0.46` → `2h95v／10.42.0.47`）：无第二个 Run、无重复 activity、fence／attempt 不动，delivery gate 在恢复后从 consumed 走到 receipt_recorded | `d1-alt-1`／`d1-alt-2` |
 | D1-6 | fail | 同 D2-4 形态且拿到了原因：`temporal workflow describe` 显示 `pendingActivities=1`、`AdvanceRuntime` 停在 `PENDING_ACTIVITY_STATE_STARTED`、`nextRetry=None`——Temporal 仍认为 activity 在被执行，故既不重试也不判孤儿；约 9 分钟后靠运维 `request_cancel` 收口。这也是 §5.17 那批 stale 预留**第一次拿到产生过程** | `d1-alt-2-aftermath-scan.log` |
-| D1-7 | 未取证 | 原文判据引用 `work.outbox.claimed_by`，该列不存在（表只有 `available_at／delivered_at／attempts／aggregate_*`）→ 先改判据再演，本轮不写结论 | 无 |
+| D1-7 | 未取证 | 原文判据引用 `work.outbox.claimed_by`，该列不存在（表只有 `available_at／delivered_at／attempts／aggregate_*`）→ 先改判据再演，本轮不写结论 **【2026-11-05 现读推翻那句「该列不存在」：`claimed_by` 与 `claimed_until` 都在，而且不是后加的迁移——`baseline/0002:1249` 就 `ADD COLUMN claimed_by text`，它是 relay 领取租约列（:2493 置值、:2637 ack 时清回）。⇒ 判据不必改写，本格已按原文演成 pass，读数见 0D 段。我当时那句是查错了地方。】** | 无 → `attachments/p-preflight-read-only-20261105.txt` |
 | D4-b | pass（判据由主签改写） | 原文「新提交被受控拒绝并给出配额错误码」**在本接线里不成立**：`reserve_quota` 只在 worker 活动里被调（`activities.go:270`／`advance_activities.go:502`，EXECUTE 只授 `work_worker`），提交侧从不预留，客户永远先拿到 202。实测改为：2026-11 账户行 `limit=250000`＋`enforcement='hard'` → 同一提交路径三次 `PrepareAdvanceExecution … Error quota_exhausted` → Run 转 `failed／execution_prepare_failed`；`reserved_tokens` 全程 200,000（无半笔扣减）、无新增 held 预留、其它 Run 未动；恢复 `limit=1,000,000／soft` 后再提交同一路径 **succeeded**（因果对照）。**第二条更正：光改 limit 不打人——只有 `enforcement='hard'` 才判上限，账户默认 soft，原文与 §0A 都没写** | `d4-b-1-saturation-and-control.log`（改前有 quota_* 三表 pg_dump，sha16 `a8a465…`；两条写都走 work_owner＋`app.org_id`，脚本带 trap 兜底） |
 | D4-c | pass（纯记录） | 两次 describe 完全一致（18:59 预检／21:16 收尾）：`work-r0a`、Id `5d81da27-…`、retention `168h`、单集群 active、History／Visibility 归档 Disabled。**未做过 `-rd` 调整**，所以「调整后须恢复原值」一支不适用 | `d4-c-1-namespace-describe.txt` |
 | D3-a | pass（主签定：与 D1-alt 同一次注入算同一证据） | 已核两条：注入后 `pg_postmaster_start_time()` 仍是 2026-10-28 09:30:05、`postgresql.service` NRestarts=0（同实例三库都在，run／task 行数不变）；失联窗口内 worker journal `Failed to poll for task` ×4＋`Task processing failed with error` ×1，恢复后 outbox 未投递回到 0。**未取证的半条＝「告警行为符合 §5.18」**：注入在 19:36，而 runstream 巡检 20:15 才装，当晚刻意没手跑 healthcheck（它会发信）——这半条留给 #56-A 的边界复测 | `d1-alt-1`／`d1-alt-2` |
@@ -96,6 +96,40 @@ org 三列回到 `status=active／execution_enabled=true／operator_suspended=fa
 D3-a 的注入面今晚已被 D1-alt 覆盖同一动作（是否算同一证据由主签定）；D3-b 需要一个隔离实例与 `work-db-restore-drill.py`
 的逐次授权。
 
+## 0D. 2026-11-05 提前演练：只读批次全收，注入批次待授权
+
+主签 11-05 说"处理第 4 项：11-15/16 演练本体（提前演练）"，随后又点"运行第二批演练（P6/P7/P10 等）"。
+按**能不能零生产写**切两批做完，剩下的 15 格是注入批次，逐格要授权。判定落 [verdict.json](assets/work-r0a-ops-2026-10-25/drill-2026-11-15/verdict.json)，
+原始读数在 [attachments/p-preflight-read-only-20261105.txt](assets/work-r0a-ops-2026-10-25/drill-2026-11-15/attachments/p-preflight-read-only-20261105.txt)
+与 [attachments/p10-batch2-seed-and-rerun-20261105.txt](assets/work-r0a-ops-2026-10-25/drill-2026-11-15/attachments/p10-batch2-seed-and-rerun-20261105.txt)。
+
+| 批 | 步 | 判定 | 这一格真正留下的是什么 |
+|---|---|---|---|
+| 一（只读） | P3 | pass | 7233 只在集群内 ClusterIP、要求 mTLS 客户端证书（匿名被拒），公网不通是**从 meet 机另一网段**验的，同目标 22 端口作对照——排除"整台机不通"造成的假绿 |
+| 一 | P8 | pass | 五份服务 env 同一把主密钥（只记长度 64 与 sha256 前 8 位），三个现役进程 environ 都带得上；A 裁定下这只算现状确认 |
+| 一 | P9 | pass（带范围） | 三列现值可读，"可改"的证据是已演的 D4-6a／6c；**#59 仍开**（只能经 SQL 调 9 个入参的函数，无运维入口） |
+| 一 | D1-7 | pass | 判据原文就能演（见上面 0C 那行的更正）：26h 窗口 131 行全部一次投完、三个持有者各自 delivered=rows、按 (聚合根,事件) 分组 dups=0。**这是稳态证据**，"租约到期后被第二个持有者重领仍只投一次"那半在 D1-alt／N01 |
+| 一 | C13-0 | pass | 在 tip 上复核三条证据仍在 ⇒ 无重加密驱动＝与 A 一致，C13 保持 partial |
+| 一 | P1／P2／P4／P5／P11 | na | 五条都是**前提不成立**，不是失败：单副本；Temporal 与 Work 同 PG 实例（角色确实分开）；OSS Temporal 没有 namespace 限流／并发旋钮；Content Store 是本地目录没有"演练桶"这层；五席组织前提在单人执行下不成立 |
+| 二（含写） | P10 | pass（带范围） | 种子通道可用：两笔 19 秒／5 秒到 succeeded，usage 真实结算 1,644 tokens，**预留归零、无 stale held**；内容对象 +15 全 work-control:work-control。"1 waiting + 1 running"平种不出来，waiting 要注入才有活体 |
+| 二 | P6／P7 | 复验，结论不变 | operator 通道今天仍是 operator_login_role_count=0＋无 env 文件（#56-B／#59 没被后续部署顺带修掉）；镜像仍 0 条，**但 worker 二进制已是 9cd4f2b986e19a2e**（11-05 14:10 C 段换的），本目录快照里的 v1 9ae58c067b4a5103 过期——下一批的 v1 基线必须现读 |
+
+**这批最重要的产出不是绿灯，是三条会让下批演练读成假绿的纠正**：
+① **在途状态谓词漏态**（上表 P10 行已就地标注）。D3-3／D3-5／D1-4／S1-3／N01 都拿"`work.run.state` 不变"当判据，
+   用 `('queued','running','waiting')` 去盯，会把正在跑的 Run 读成"无事发生"。正确集合是
+   `queued／active／waiting／cancel_requested` 四态（CHECK 约束原文见 0C 之后的更正与附件）。
+② **"held 预留"不是列**。全库 column_name 匹配 `%held%` 零命中；预留落在
+   `work.quota_account.reserved_tokens` 与 `work.task_summary.reserved_tokens`，"held"是"预留未结算"的派生说法。**【20:3x 更正我这句话说过头了："不是列"对，但结论不对——`held` 是 `work.quota_reservation.state` 的合法取值之一（CHECK 原文：held／settled／released／unknown，`baseline/0002:276`），现网分布 `released=35 settled=125`、held 行 0。所以"挂着多少预留"的正规读法是 `select count(*) … where state='held'`，而 `quota_account.reserved_tokens` 只是它的聚合额；仓库里 `src/work/scripts/runstream-gauges.sql:35,55` 早就是按 `q.state = 'held'` 读的。我把"没有这个列"推成"只是派生说法"，又一次没先查那个词在库侧的真身——和 §5 那批"空集要先归位再下结论"是同一课。】**
+   我第一次按字面写 SQL 直接报错——ON_ERROR_STOP 让它报错而不是静默空表，这条纪律在这儿保住了读数。
+③ **seat 主体在 `work.member`**，库里没有 `work.subject` 表（清单与 11-04 记录都说"主体"，容易去找不存在的表）。
+
+**注入批次（15 格）逐格要什么**——三条都是生产写，且**不是同一种半径**，已按代价列进授权单 **§15**：
+D3-2／D3-4 原文（停 Temporal 的 PG）**不做**：P2 实测三库同实例，停它等于打掉 Work 自己的数据面，等价注入走 D3-a（删 pod，已 pass）
+＋D3-b（恢复演练，已 pass）。要新演的是 D3-1／3／5／6 围着一次 pod 层注入取基线—积压—追赶—账本核对，
+S1-1..4＋S1-R06 是"有在途 Run 时对 temporal server 进程 kill -9"，N01-1..3／N03-1 是"relay／export 在真实投递中途 SIGKILL"
+——后者会真删内容对象，属不可逆面，必须绑定 6 小时一次的加密备份窗口与恢复路径先讲定。
+
+
 
 ## 1. 11-15 上午 09:30–12:00 · D1 多节点拓扑滚动重启 server
 
@@ -104,9 +138,9 @@ D3-a 的注入面今晚已被 D1-alt 覆盖同一动作（是否算同一证据�
 | 步 | 动作 | 通过判据 | 证据 |
 |---|---|---|---|
 | D1-1 | 确认 Temporal 2 副本 `Running`，记录 pod name/IP | 两副本 Ready，namespace=work-r0a | `kubectl get pods -o wide` 截图 |
-| D1-2 | 提交种子 Run（模板 A），状态转 `running` | `work.run.state='running'`，Temporal history 有 WorkflowExecutionStarted | psql + temporal CLI |
+| D1-2 | 提交种子 Run（模板 A），状态转 `running` | `work.run.state='running'`，Temporal history 有 WorkflowExecutionStarted **【2026-11-05 更正：本部署的 `work.run.state` 没有 `running` 这个值，种子 Run 的真实路径是 queued→active；枚举＝queued／active／waiting／cancel_requested／succeeded／failed／canceled（`baseline/0002:128` 的 CHECK 原文）。本轮实测一笔从 queued 走到 active 只用了约 200 毫秒，照原文找 `running` 会永远等不到。】** | psql + temporal CLI |
 | D1-3 | 滚动重启 replica-1（delete pod → 等重建 → Ready） | pod 重建后 `temporal operator cluster health` 绿 | `kubectl logs --previous` |
-| D1-4 | 观察 `work.run` 状态变化 | 无新 Run 被创建、原 Run `running` 不跳 `failed`；`work.operation` 无重复行 | 以 superuser（`runuser -u postgres -- psql -d work`）**或已 `SET app.org_id` 的会话**执行 `SELECT count(*) FROM work.run WHERE ...` 不变——`work.run` 是 FORCE RLS 表，不设租户就直接数到 0 |
+| D1-4 | 观察 `work.run` 状态变化 | 无新 Run 被创建、原 Run `running` 不跳 `failed`；`work.operation` 无重复行 **【2026-11-05 更正：`running` 不存在，注入窗口里要盯的在途集合是 queued／active／waiting／cancel_requested 四态；漏掉 `active` 就等于把"正在跑"的 Run 排除在观察之外，这条判据会假绿。】 | 以 superuser（`runuser -u postgres -- psql -d work`）**或已 `SET app.org_id` 的会话**执行 `SELECT count(*) FROM work.run WHERE ...` 不变——`work.run` 是 FORCE RLS 表，不设租户就直接数到 0 |
 | D1-5 | 滚动重启 replica-2 | 同 D1-3 | logs 截图 |
 | D1-6 | 等待种子 Run 自然结束或 cancel | Run 终态 `succeeded`/`cancelled` 可读可取消 | Run detail 查询 |
 | D1-7 | 核对 dispatching 计数 | `work.outbox` 内该 Run 事件不重复、`claimed_by` 最多一次 `completed` | SQL + 时间戳 |
@@ -121,7 +155,7 @@ D3-a 的注入面今晚已被 D1-alt 覆盖同一动作（是否算同一证据�
 
 | 步 | 动作 | 通过判据 | 证据 |
 |---|---|---|---|
-| D2-1 | 确认当前 worker 版本 tag（v1），在途 Run 种子正在执行 activity | Run state=running，activity 进度可读 | worker 日志 |
+| D2-1 | 确认当前 worker 版本 tag（v1），在途 Run 种子正在执行 activity | Run state=running，activity 进度可读 **【2026-11-05 更正：同上，`running` 应为 `active`；另外"worker 版本 tag"在本部署是二进制 sha（现读 `9cd4f2b986e19a2e`），不是镜像 tag——快照里那串 11-04 的 `9ae58c067b4a5103` 已被 C 段部署换掉，v1 基线必须现读。】** | worker 日志 |
 | D2-2 | Drain worker v1：停止领取新 task，等已领取 activity 完成（窗口 ≥15 min） | `temporal taskqueue describe` pending=0；无新 activity 被 v1 领取 | drain 日志 + taskqueue describe 截图 |
 | D2-3 | 部署 worker v2（同 namespace、同 task queue） | v2 pod Ready，日志显示 polling | `kubectl logs` |
 | D2-4 | 验证在途 Run（v1 启动的 workflow）继续完成 | 该 Run 使用 v1 版本行为完成（对比 workflow type/version pinning）；activity 不丢失 | Run history + `work.operation` 逐条核对 |
@@ -171,7 +205,7 @@ D3-a 的注入面今晚已被 D1-alt 覆盖同一动作（是否算同一证据�
 | D4-1 | 记录当前 namespace 配额值 | `temporal operator namespace describe` 输出 | CLI 截图 |
 | D4-2 | 降低配额（rate limit / concurrent workflows）至种子 Run 数 -1 | 配额调低成功 | CLI |
 | D4-3 | 提交新 Run → 应受控失败 | **承诺改写（#58 裁定 2026-11-04：改承诺、不改实现）**：本接线里"提交侧同步拒绝"不成立——`reserve_quota` 只由 worker 活动调用（`internal/runflow/activities.go:270`／`advance_activities.go:502`，EXECUTE 仅授 `work_worker`），提交恒先返回 202 并产生 `work.run` 行，饱和在 Run 内暴露。按 D4-b 实测改为：PrepareAdvanceExecution 报 `quota_exhausted`、Run 进 failed 终态、`reserved_tokens` 不被半笔扣减、其它 Run 不受影响。**（#60 于 11-04 深夜改裁 B 后本句再改一次）**：判据现为「饱和 → `work.run.state='waiting'` 且 `wait_reason='quota'` 且 `task_summary.display_state='quota_exhausted'`，`reserved_tokens` 不被半笔扣减、其它 Run 不受影响；补额度并 `work-reconcile --resume` 后同一步派发；24h 未补则 `failed/quota_wait_timeout`」。**试点机二进制未换，11-16 演练前必须先部署，否则仍会看到旧的即失败行为**。**原判据保留供对照**：返回错误码为已定义的 `quota_exhausted`（`run_cap_exceeded`→`quota_exhausted` 映射）或 `rate_limited`；不产生 `work.run` 新行。**注：`outbox_backlog` 不是错误码目录里的码（取证：contracts/error-codes.json 无此码），勿写进判据**。**遗留（不在本裁定范围）**：终态 reason 现为 `execution_prepare_failed`，不区分配额与其它 prepare 失败；要让用户侧区分需新增枚举＋迁移，按 #56-C 同样记入 R0b。另有一条同类偏移：D2 编排设计 §8.3 与故障矩阵 D3-R03 承诺 `quota_exhausted` → `waitRun(quota)`（等配额补充、最长 24h、超时 `quota_wait_timeout`），而现网 runflow 只接了 `Reason: "reconcile"` 一种等待（`internal/runflow/advance.go:214`、`:261`），饱和直接进 failed 终态——登记为待裁 #60，本单不改实现也不改 §8.3 | API 响应 + SQL |
-| D4-4 | 已有 Run 不被误杀 | 种子 Run 仍 running/succeeded | `work.run.state` |
+| D4-4 | 已有 Run 不被误杀 | 种子 Run 仍 running/succeeded **【2026-11-05 更正：这里 `running` 同样不存在，应为 queued／active／waiting／cancel_requested 之一或 `succeeded`；写这条时别用竖线分隔，表格里会被读成新一列。】** | `work.run.state` |
 | D4-5 | 恢复配额 | namespace describe 恢复原值 | CLI |
 | D4-6a | 执行 kill switch：以授权角色经 **psql SQL** 调 `SELECT work.apply_execution_entitlement(...)`（0023/0027 定义的 SQL 函数，非 CLI、无 `--suspend` 标志；R0a 无对应 admin 端点，演练按签名直接 SQL 调用） | `work.org.operator_suspended = true`（列在 **org** 表，非 org_policy）；新导出请求 409 `org_operator_suspended`；管理读面仍 200 | psql SQL + API |
 | D4-6b | 验证义务不停：到期清扫仍运行，relay 仍投递 `content_shred` | 日志显示 `expire_due_inputs` / `shred_due_audit_exports` 各处理 1；relay 投递。**2026-11-05 现读改写**：这三个清扫只按 `expires_at <= p_now` 整批取、没有按 id 入参，所以"各处理 1"在本实现上不可满足（造夹具只会让返回值变 3）；现网已证 input 侧 2026-11-04 处理 1、export 侧 2026-11-05 处理 2（那 2 条是超期 4 天的真欠账，扫掉它们是留存义务本身要求做的事），义务事件全部被 relay 投完、内容对象从 store 真消失。本行原文不删，改写依据＝主签当日裁定＋授权单 §11 | relay 日志＋outbox／store 读数；附件 `drill-2026-11-15/attachments/d4-6b-retention-sweep-20261105.txt` |
@@ -213,7 +247,7 @@ D3-a 的注入面今晚已被 D1-alt 覆盖同一动作（是否算同一证据�
 
 | 步 | 动作 | 通过判据 | 证据 |
 |---|---|---|---|
-> **取证更正**：`tenant_access` 在 schema 里有列，但**无任何 Go 代码读取**（`internal/`/`cmd/` grep 零命中），切换它对访问控制无效果——原 C28 步骤凭它判"新租户可访问"是空跑。R0a 真正的租户开通/停用闸门是 `work.org.status` + `execution_enabled` + `operator_suspended`，且已被 `audit_export_gate_pg_test.go` 钉死（execution_enabled=false→403 `org_execution_unavailable`；operator_suspended=true→409 `org_operator_suspended`；status≠active→403）。C28 演练据此改造。
+> **取证更正**：`tenant_access` 在 schema 里有列，但**无任何 Go 代码读取**（`internal/`/`cmd/` grep 零命中），切换它对访问控制无效果——原 C28 步骤凭它判"新租户可访问"是空跑。**【2026-11-05 再更正，方向相同但事实更硬：它连「列」都不是。现网 `work` 库里按 column_name 查 `tenant_access` 全库 0 行（哨兵读数 NO_SUCH_COLUMN_ANYWHERE），`work.org` 的真实列是 id,status,execution_enabled,operator_suspended,home_region,revision,created_at,updated_at,name,access_epoch；仓库里这个名字唯一的生产者是 `increments/0008_quota_directory_usage_hardening.sql:20` 的 `CREATE POLICY tenant_access ON work.directory_sync_state`，即一个 RLS 策略名。⇒「在生产环境启用 tenant-access org flag」没有作用对象；本节改按 org 三列演是对的，但依据要换成「根本没有这个旋钮」。】R0a 真正的租户开通/停用闸门是 `work.org.status` + `execution_enabled` + `operator_suspended`，且已被 `audit_export_gate_pg_test.go` 钉死（execution_enabled=false→403 `org_execution_unavailable`；operator_suspended=true→409 `org_operator_suspended`；status≠active→403）。C28 演练据此改造。
 
 | 步 | 动作 | 通过判据 | 证据 |
 |---|---|---|---|
