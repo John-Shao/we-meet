@@ -23,7 +23,8 @@
     "formats": ["spdx-json", "cyclonedx-json"],
     "required_fields": ["name", "version", "purl"],
     "pinned_components": {
-      "pkg:npm/%40mariozechner/pi-agent-core": "1.4.0"
+      "pkg:npm/%40earendil-works/pi-agent-core": "1.4.0",
+      "pkg:npm/%40earendil-works/pi-ai": "1.4.0"
     },
     "forbidden_components": ["pkg:npm/npm", "pkg:npm/yarn", "pkg:npm/pnpm", "pkg:npm/corepack", "pkg:npm/node-gyp", "pkg:deb/debian/apt", "pkg:deb/debian/dpkg"],
     "lockfile_required": true

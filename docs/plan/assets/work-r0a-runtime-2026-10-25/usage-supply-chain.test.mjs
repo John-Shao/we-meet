@@ -178,7 +178,8 @@ function goodEvidence() {
       subject_digest: digest,
       lockfile_sha256: 'f'.repeat(64),
       components: [
-        { name: '@mariozechner/pi-agent-core', version: '1.4.0', purl: 'pkg:npm/%40mariozechner/pi-agent-core@1.4.0' },
+        { name: '@earendil-works/pi-agent-core', version: '1.4.0', purl: 'pkg:npm/%40earendil-works/pi-agent-core@1.4.0' },
+        { name: '@earendil-works/pi-ai', version: '1.4.0', purl: 'pkg:npm/%40earendil-works/pi-ai@1.4.0' },
         { name: 'undici', version: '7.0.0', purl: 'pkg:npm/undici@7.0.0' },
       ],
     },
@@ -205,7 +206,7 @@ test('placeholder digest, tag reference and unverified signature are denied', ()
 test('Pi version drift, package managers and missing lockfile are denied', () => {
   const evidence = goodEvidence();
   evidence.sbom.components[0].version = '1.5.0';
-  evidence.sbom.components[0].purl = 'pkg:npm/%40mariozechner/pi-agent-core@1.5.0';
+  evidence.sbom.components[0].purl = 'pkg:npm/%40earendil-works/pi-agent-core@1.5.0';
   evidence.sbom.components.push({ name: 'npm', version: '11.0.0', purl: 'pkg:npm/npm@11.0.0' });
   evidence.sbom.components.push({ name: 'x', version: '', purl: 'pkg:npm/x' });
   delete evidence.sbom.lockfile_sha256;
@@ -293,4 +294,38 @@ test('corepack, apt/dpkg and mixed-case purls of package managers are denied; sl
   const forbidden = result.errors.find((e) => e.code === 'sbom_forbidden_component');
   assert.ok(forbidden.detail.includes('corepack') && forbidden.detail.includes('apt') && forbidden.detail.includes('NPM'));
   assert.ok(result.errors.some((e) => e.code === 'base_image_not_allowed'));
+});
+
+// L-C04-06 (DR2 finding 14): the admission policy pinned `@mariozechner/pi-agent-core`, a
+// package the runner does not install - the shipped manifest says `@earendil-works/*`. A
+// policy that names the wrong artifact admits nothing real, so the pins are now tied to
+// the files the image is actually built from, and any future rename has to move both.
+test('supply-chain pins are exactly the declared and locked Pi dependencies', () => {
+  const nodeRoot = new URL('../../../../src/work/node/', import.meta.url);
+  const manifest = JSON.parse(fs.readFileSync(new URL('package.json', nodeRoot), 'utf8'));
+  const lock = JSON.parse(fs.readFileSync(new URL('package-lock.json', nodeRoot), 'utf8'));
+
+  const toPurlBase = (name) => `pkg:npm/${name.replace(/^@/, '%40')}`.toLowerCase();
+  const declared = Object.entries(manifest.dependencies ?? {})
+    .filter(([name]) => name.startsWith('@earendil-works/'))
+    .map(([name, version]) => `${toPurlBase(name)}@${version}`)
+    .sort();
+  assert.ok(declared.length >= 2, `expected at least two @earendil-works deps, got ${declared.join(', ')}`);
+
+  const pins = Object.entries(policy.sbom.pinned_components)
+    .map(([purl, version]) => `${purl}@${version}`)
+    .sort();
+  assert.deepEqual(pins, declared,
+    'policy pinned_components drifted from src/work/node/package.json dependencies');
+
+  // The version has to be what the lockfile resolves, not just what the manifest allows:
+  // an exact pin against a range in the lock would admit a build nobody measured.
+  const packages = lock.packages ?? {};
+  for (const [purl, version] of Object.entries(policy.sbom.pinned_components)) {
+    const name = decodeURIComponent(purl.replace(/^pkg:npm\//, '')).replace(/^%40/, '@');
+    const entry = packages[`node_modules/${name}`];
+    assert.ok(entry, `${name} is missing from package-lock.json - the policy pins a package the image cannot install`);
+    assert.equal(entry.version, version,
+      `${name} resolves to ${entry.version} in the lockfile but the policy pins ${version}`);
+  }
 });
