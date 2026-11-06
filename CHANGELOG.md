@@ -26,6 +26,12 @@ and this project adheres to
 - Make `make-release.sh` reconcile its two self-descriptions (chain tail from the
   worktree against the stamped commit) and select the Go build container by mount
   source instead of by name.
+- Add `rollout-r0a-0027.sh --migrations-only`, so "apply the chain without restarting
+  the worker" has an entry point in the release chain instead of being hand-run on the
+  host. It dumps, installs `work-migrate` (the chain is embedded in it), applies and
+  reads back status, installs the retention-scan pair, then exits without stopping,
+  restarting or installing anything else; it prints what it did not do, and a gate
+  fails if the branch ever calls `systemctl`.
 - Implement Work R0a's clean-slate data layer, 33 API operations, SSE and
   outbox delivery, mock runtime adapters and mock/live UI; 39 backend and
   1713 frontend tests are green.

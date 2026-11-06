@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Roll out Work R0a schema 0017-0027 on the pilot host.
+# Roll out Work R0a on the pilot host. The chain this package carries is not written here:
+# it is read from MIGRATION_TAIL, which make-release.sh derives from the increments at build
+# time (#78), so a hand-copied version number in this header would be a claim, not a reading.
 #
 # Non-additive changes inside this range, so they are not a surprise mid-window:
 #   0017:164 drops NOT NULL on work.artifact_version.content_ref, because a
@@ -11,9 +13,15 @@
 # Run as root. Every step is idempotent and every destructive step is preceded
 # by a database dump. Use --dry-run first: it prints the exact commands.
 #
+# --migrations-only is the I-4a radius: it dumps, installs work-migrate (the chain is embedded
+# in that binary), applies and reads back status, and installs the retention-scan pair so 0032's
+# read-only orphan reading exists on the host. It stops nothing, restarts nothing, installs no
+# other binary and touches no unit, so an in-flight workflow is never replayed under new code -
+# which is why #81's bounded parks do NOT become live in this mode (that is I-4b).
+#
 #   ./rollout-r0a-0027.sh --release /root/work-release-0027 \
 #     --migrator-url 'postgresql://work_migrator_login:...@127.0.0.1:5432/work' \
-#     [--enable-advance] [--runtime-bundle /root/work-runtime-0027.tar.gz] [--dry-run]
+#     [--enable-advance] [--migrations-only] [--runtime-bundle /root/work-runtime-0027.tar.gz] [--dry-run]
 #
 # Rollback: restore the dump taken in step 2 and reinstall the .bak-<stamp>
 # binaries. No increment in this range deletes a row, but the two relaxations and the
@@ -26,11 +34,12 @@ MIGRATOR_URL="${MIGRATOR_DATABASE_URL:-}"
 ENABLE_ADVANCE=0
 RUNTIME_BUNDLE=""
 DRY_RUN=0
+MIGRATIONS_ONLY=0
 STAMP="$(date +%Y%m%d-%H%M%S)"
 BACKUP_DIR=/var/backups/work
 
 usage() {
-  sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'
   exit 1
 }
 
@@ -40,11 +49,23 @@ while [[ $# -gt 0 ]]; do
     --migrator-url) MIGRATOR_URL="${2:-}"; shift 2 ;;
     --runtime-bundle) RUNTIME_BUNDLE="${2:-}"; shift 2 ;;
     --enable-advance) ENABLE_ADVANCE=1; shift ;;
+    --migrations-only) MIGRATIONS_ONLY=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage ;;
     *) echo "unknown flag: $1" >&2; usage ;;
   esac
 done
+
+if [[ "$MIGRATIONS_ONLY" -eq 1 && "$ENABLE_ADVANCE" -eq 1 ]]; then
+  echo "--migrations-only cannot be combined with --enable-advance: that flag's work lives after" >&2
+  echo "   this mode's early exit, so accepting both would report an intent nothing performed." >&2
+  exit 1
+fi
+if [[ "$MIGRATIONS_ONLY" -eq 1 && -n "$RUNTIME_BUNDLE" ]]; then
+  echo "--migrations-only cannot be combined with --runtime-bundle: the Node runtime install also" >&2
+  echo "   lives past the early exit. Pass it on the full rollout (I-4b)." >&2
+  exit 1
+fi
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "run as root" >&2
@@ -204,6 +225,37 @@ echo "dump: $DUMP"
 echo "== 2b. in-flight runs =="
 runuser -u postgres -- psql -d work -Atc "select state, count(*) from work.run where state in ('queued','active','waiting','cancel_requested') group by state" || true
 echo "the new worker cannot resume legacy in-flight runs; drain or accept their loss before --enable-advance"
+
+if [[ "$MIGRATIONS_ONLY" -eq 1 ]]; then
+  # I-4a. Why this branch exists at all: before it, "apply the chain without restarting the worker"
+  # had no entry point in the release chain, so doing it meant hand-running work-migrate on the
+  # host - the #47/#54/#78 hole again, just moved from packaging to installation. The chain travels
+  # inside work-migrate (migrations/embed.go), so exactly one binary must be installed here.
+  echo "== 3m. migrations-only: apply the chain, touch no running unit =="
+  install_binary work-migrate
+  run env WORK_DATABASE_URL="$MIGRATOR_URL" /usr/local/bin/work-migrate apply --legacy-migrator-disabled
+  run env WORK_DATABASE_URL="$MIGRATOR_URL" /usr/local/bin/work-migrate status
+  # 0032's read-only orphan reading needs the wrapper AND the SQL, installed as a pair into the same
+  # directory: the wrapper looks for the SQL by dirname $0, and only one of them is a silent no-op.
+  run install -m 0755 -o root -g root "$RELEASE/run-retention-scan.sh" /usr/local/bin/run-retention-scan.sh
+  run install -m 0644 -o root -g root "$RELEASE/retention-scan.sql" /usr/local/bin/retention-scan.sql
+  install_env work-retention-scan
+  # Read the tail the same tolerant way the preflight does (set -euo pipefail kills a bare
+  # `x="$(cat missing)"` with no message), then refuse if it is not a number.
+  chain_tail="$( { cat "$RELEASE/MIGRATION_TAIL" 2>/dev/null || true; } | tr -d '[:space:]')"
+  if ! [[ "$chain_tail" =~ ^[0-9]+$ ]]; then
+    echo "migrations-only aborted: $RELEASE/MIGRATION_TAIL is missing or not a number - this package cannot say which chain it carries" >&2
+    exit 1
+  fi
+  echo "migrations-only: this package carries chain tail $chain_tail"
+  echo "MIGRATIONS-ONLY DID NOT: stop or restart work-worker, work-relay, work-export or work-api;"
+  echo "MIGRATIONS-ONLY DID NOT: install any other binary (work-worker in particular);"
+  echo "MIGRATIONS-ONLY DID NOT: render runtime env, install or reload service units, or start/enable timers."
+  echo "consequence: #82 (0030) and #80 (0031/0032) take effect now, because the running binaries"
+  echo "  already call those functions; #81's bounded reconcile parks do NOT - they are Go-side"
+  echo "  workflow code and need the worker swap, which is I-4b and carries runbook §5.32's replay preflight."
+  exit 0
+fi
 
 echo "== 3. stop writers =="
 for unit in work-directory-sync.timer work-directory-sync-full.timer work-directory-sync.service work-worker work-relay work-export; do

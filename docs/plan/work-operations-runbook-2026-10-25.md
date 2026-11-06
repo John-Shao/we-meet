@@ -1483,6 +1483,13 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
    指不存在的文件 rc=1 并逐条报 `replay <路径>: ...`；它注册的正是 `RunWorkflow` 与 `RunWorkflowAdvance` 两个类型，与本批改到的工作流对得上。
 3. 全 ok ⇒ 正常 rollout；**任一 nondeterministic ⇒ 这一批只装迁移、把"换 worker"单独另批**（`work-migrate apply` 与换二进制本来就是两类半径），
    并在那笔 Run 上按 10-31 的口径先定性再处置——**不要为了装上 #81 而手工去动它的 workflow 历史或预留**。
+   **【11-06 16:4x 这一档现在有入口了，不必再手工跑 apply】**`rollout-r0a-0027.sh --migrations-only` 只做
+   「dump → 装 `work-migrate`（链 embed 在它里面）→ apply → status → 成对装 `run-retention-scan.sh`＋`retention-scan.sql`」然后立刻退出：
+   不 stop／不 restart 任何单元、不装其它二进制、不动 unit 与 timer，并把自己**没做**什么打印出来；
+   `test/release-assets.test.mjs` 有守卫钉这几条（分支里出现 `systemctl` 就红，变异已验）。
+   **代价要说全**：此模式下 **#81 的停放上界不生效**（那是 Go 侧 workflow 代码），所以 `reconcile_timeout` 的终态只能等到后来的完整 rollout 再验；
+   而 #82（0030）与 #80（0031／0032）**当场生效**——现网那两支二进制本来就在调被换掉的函数。
+   `--enable-advance` 与 `--runtime-bundle` 与此模式**互斥**（它们的步骤在 early exit 之后，接受了就是报一个没做的意图）。
 
 **别把这一步当成可选项写进"已具备"**：判断依据是包内二进制对新历史的真实重放结论，不是"代码改了超时所以应该没事"。
 

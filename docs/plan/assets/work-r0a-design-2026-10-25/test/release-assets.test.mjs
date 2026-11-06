@@ -540,3 +540,44 @@ test('make-release really refuses an increment missing from its stamped commit',
   assert.ok(!/NOT in the stamped commit/.test(clean.stdout + clean.stderr),
     '增量提交之后仍然拒绝 ⇒ 这条检查与 git 状态无关，是个假门');
 });
+
+// I-4a（2026-11-06）：在加这个模式之前，"只装链、不重启 worker"在发布链里没有入口，
+// 于是它只能被人手工跑 work-migrate——那正是 #47／#54／#78 那一族"真实变更绕开发布脚本"的病，
+// 只不过这一次是从打包段搬到了安装段。这条守卫钉的是该模式的**边界**：它必须在停写手之前退出，
+// 分支里除了 work-migrate 之外不装任何二进制、不出现 systemctl，并且把自己**没做**什么打印出来
+// （#81 的停放上界是 Go 侧 workflow 代码，它在这个模式下不生效——这句话漏掉就会让人以为上线已完成）。
+test('rollout can apply the chain without touching a running unit', () => {
+  const text = readFileSync(join(WORK_DIR, 'deploy/ecs/rollout-r0a-0027.sh'), 'utf8');
+  const lines = text.split(/\r?\n/);
+
+  assert.match(text, /--migrations-only\)\s*MIGRATIONS_ONLY=1;\s*shift\s*;;/,
+    'rollout 必须声明 --migrations-only 这个入口');
+  const branchAt = lines.findIndex((line) => line.includes('3m. migrations-only'));
+  const stopAt = lines.findIndex((line) => line.includes('== 3. stop writers =='));
+  assert.ok(branchAt >= 0, 'migrations-only 分支不见了');
+  assert.ok(stopAt > branchAt, '该分支必须在 stop writers 之前退出，否则它照样会停 worker');
+
+  const exitAt = lines.findIndex((line, index) => index > branchAt && line.trim() === 'exit 0');
+  assert.ok(exitAt > branchAt && exitAt < stopAt, '分支的 exit 0 必须落在 stop writers 之前');
+  const region = lines.slice(branchAt, exitAt + 1).join('\n');
+
+  assert.doesNotMatch(region, /systemctl/,
+    'migrations-only 分支里出现了 systemctl ⇒ 它不再是不碰在途单元的那一档');
+  const installed = [...region.matchAll(/install_binary\s+(\S+)/g)].map((m) => m[1]);
+  assert.deepEqual(installed, ['work-migrate'],
+    `该分支只应装 work-migrate（链是 embed 在它里面的），实际装了 ${installed.join(',') || '无'}`);
+  assert.match(region, /work-migrate apply --legacy-migrator-disabled/, '模式必须真跑 apply');
+  assert.match(region, /work-migrate status/, '模式必须回读 status，而不是只看 apply 的退出码');
+  // 0032 的孤儿读数成对安装：包装件与 SQL 少一个就是空跑（脚本按 dirname $0 找 SQL）。
+  assert.match(region, /run-retention-scan\.sh/, '模式必须装留存清扫的包装脚本');
+  assert.match(region, /retention-scan\.sql/, '模式必须与包装脚本同目录成对装那份 SQL');
+  // 没做什么必须自己声明——这条是防止以后有人把分支扩成"顺手也重启一下"而没人发现。
+  assert.match(region, /MIGRATIONS-ONLY DID NOT: stop or restart work-worker/,
+    '模式必须打印它没有停/重启 work-worker');
+  assert.match(region, /#81/, '模式必须点明 #81 在本模式下不生效');
+
+  // 反向：完整路径仍然要停写手并装 work-worker，否则"守卫有效"只是因为被守的东西被删了。
+  const full = lines.slice(stopAt).join('\n');
+  assert.match(full, /systemctl stop "\$unit"/, '正常路径的停写手循环不见了');
+  assert.match(full, /for bin in work-api work-relay work-worker/, '正常路径不再装 work-worker');
+});
