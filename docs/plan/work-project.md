@@ -1598,7 +1598,38 @@ B2 的形状：`advanceReconcileWaitLimit=24h` 与 `AdvanceReasonReconcileTimeou
   两类失败文本分别钉住（`mentionsParseFailure` 的 needle 就是这两条现读原文，不是我推测的措辞——第一版我按 "unexpected end" 写，被现读推翻了一次）。
   另外三条前置：空历史拒绝落盘（"没取到事件"是读失败，不能被读成"这工作流没干活"），缺 `-out`／缺 workflow id／缺 `WORK_TEMPORAL_ADDRESS`
   全部在拨号之前失败并点名变量。`go test ./cmd/work-replay` ok；消费段的 rc 语义（无参 rc=2、坏文件 rc=1）原样保留。
-  **仍按欠着写**：真执行的真历史还没导过第二次——那要在试点主机跑一次导出，而把新二进制放上主机是一次受控文件写，按项点头；
+  **仍按欠着写**：真执行的真历史还没导过第二次——那要在试点主机跑一次导出，而把新二进制放上主机是一次受控文件写，按项点头；【11-06 22:1x 这句已过期：包内二进制已在主机真导真放过两笔历史，见下一条】
+- **【11-06 22:1x I-5 已执行：0034 上线、42501 归零、演练行被 worker 自己领走；③ 也跑了，并抓到第一条真 nondeterministic】**
+  主签一次批了三件（① commit、② I-5、③ 批准），我按顺序做并把每件的边界说清。**①** 15 个路径分四笔提交
+  （`0763bdd6a` 0034＋两守卫、`f2a28fa21` 0033 行级用例、`dfc78e909` `work-replay -export`、`722b1a20a` 文档）。
+  **push 我没有当成①的一部分自动做**：I-5 那行的前置①写的就是"commit＋push"，而包里 `RELEASE_COMMIT` 必须有远端出处（#78 那条病根），
+  所以随后把 4 笔快进推到 `origin/fix-r0a-envelope-29`（ahead/behind 0/0，远端 tip `722b1a20a`）。
+  **提交前我重打过一次标题**：第一版 `0034 restores…`／`0033 gets…` 是数字起头，会被仓库自带的 `UC1`（gitmoji＋scope＋小写 subject）判违规——
+  那是我新加的违规，不是历史债，所以 `git reset --soft HEAD~4` 重建四笔，并断言**重打前后 `HEAD^{tree}` 相同**（`40f96c687…`）才继续。
+  **② I-5**：`make-release.sh` 从 `722b1a20a` 建包（自报 `release chain ends at increment 34`、13 个二进制含 `work-replay`、`MIGRATION_TAIL=34`），
+  上传后主机侧 `sha256sum -c` **55/55 OK、非 OK 0 条**；dry-run 先读半径（dump → 只装 `work-migrate` → apply → status → 成对装清扫件，三行 DID NOT 齐全），
+  实装 rc=0 ⇒ `rows=34 max=34`、清单 all present、`VERIFY_RC=0`、两枚新探针 `export_discovery_hardened=true`／`immutable_guard_hardened=true`。
+  **判据不是"脚本说成功"，是三条独立读数**：42501 从 18:44–22:09 的 **2457 条** 降到 22:10:05 之后 **0 条**（最后一条失败 22:10:00）；
+  紧接着 22:10:05 一行 `export=b9af0511… ready format=json rows=3010 bytes=1438077`——**worker 自己把过期租约那笔领走并真导出了**，
+  行现读 `status=ready`、`content_ref=…fb549f84110e91657dc9f69019ec8ccc?v=1`、租约字段清空、`updated_at > 22:10:05` 恰 1 行
+  ⇒ **I-3b 的那一步实际发生了**，这是我在授权单里提前摆出来的代价，不是顺手做的。半径核过：`work-worker` 的
+  `ExecMainStartTimestamp` 仍 20:26:25、`NRestarts=0`、sha 仍 `f4bbf1e99c26e1de`，只有 `work-migrate` 变（`bc651d7a8df0637a`＝包内同值），
+  `.bak` 与 dump 各一份（stamp `20261106-221004`）。
+  **③**：包内 `work-replay` 装上 `/usr/local/bin`（sha `8dbf07c641f22c12`＝包内同值，旧件留 `work-replay.bak-20261106-2215`），
+  再以 `work-control` ＋ `/etc/work/work-worker.env` 的读-only 形状真跑两笔：`01384d59…`（41 事件）⇒ `replay ok`，
+  `e24eb42c…`（57 事件）⇒ **`[TMPRL1100] nondeterministic workflow`**——那笔历史第 39 号事件是 `ActivityTaskScheduled: FinishAdvance`，
+  而新代码在同一处排的是 `StartTimer 86400s`（#81＝B2 那条上界）。**这条不是新缺陷，是 §5.32 预警的形状第一次被真数据证实**：
+  该执行的 Temporal 状态早在演练时就 `Failed`（已关闭、无在途可恢复），所以 I-4b 当时按"现读 Running=0"走第一档，没把任何在途暴露在这条分叉上；
+  反过来，下次只要有一笔 `Running` 的执行带着 B2 之前的历史，就必然落这一档 ⇒ 按 10-31 的口径先定性再处置，**不要手工去动它的历史或预留**。
+  同一份 JSON 取回本地后用**同一枚包内二进制**在容器里重放，得到同一句结论（跨环境一致，sha `9605fa60707aec74` 两端相同）；
+  主机 `/var/tmp` 里的导出件已删——里面是组织数据，不在盘上过夜。
+  **我自己这轮又踩的两条，按实记**：① 第一次 `.bak` 数出 0——我拿 **dry-run 打印的 stamp** 去 `ls` 真实文件名，而真实 stamp 是执行时新生成的
+  （`220948` 与 `221004` 差一分钟），按名字数才对；② 两处 `cmd | tail -n; echo RC=$?` 取到的是 `tail` 的退出码而不是脚本的（这条坑记过多次，本轮又出现两次），
+  所以凡是要报 rc 的地方我都改成"输出重定向进文件后立刻取 `$?`"（`VERIFY_RC=0` 那条是形状正确的那条；本地重放那次只引用它的**文本结论**，不引用它的 rc）。
+  **文档同步**：§5.33 的"现网未部署／尚未做"就地加带日期更正（原文留着当下一次的形状）、授权单 I-5 行标已执行并写全证据（列数核过＝8 根竖线）、
+  CHANGELOG 的 0034 从"未应用"改为"22:10 已应用"。**一处故意不修**：verify 探针输出里 `search_path=search_path=work, pg_catalog` 标签重复
+  （`proconfig` 的值本身带这个前缀）——为排版再动一次现网不值，记在这里，下次随批去掉。
+
   在那之前 §5.32 生效的仍是第①档（现读 `Running=0`）。这一条补的是"下次非零在途时手上有没有工具"，不是"重放前置已验过"。
 
 

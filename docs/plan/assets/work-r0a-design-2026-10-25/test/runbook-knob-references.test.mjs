@@ -38,9 +38,27 @@ assert.match(section, /GetVersion/, '§5.32 must keep the reason the replay is n
 const cmdNames = readdirSync(CMD_DIR, { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name);
-const deployStems = readdirSync(DEPLOY_DIR)
+const deployFiles = readdirSync(DEPLOY_DIR);
+const deployStems = deployFiles
   .map((name) => basename(name, name.endsWith('.example') ? '.example' : ''))
   .map((name) => name.replace(/\.(sh|service|timer|env|sql|py|json|md)$/,''));
+
+// Service accounts are objects too: procedure text legitimately says "run this as work-control",
+// and the authority for that name is the unit that runs as it. Resolved from the shipped units
+// rather than listed here, so an invented account still goes red.
+const unitIdentities = new Set(
+  deployFiles
+    .filter((name) => /\.(service|timer)$/.test(name))
+    .flatMap((name) => readFileSync(join(DEPLOY_DIR, name), 'utf8').split(/\r?\n/))
+    .map((line) => line.match(/^(?:User|Group)=(.+)$/))
+    .filter(Boolean)
+    .flatMap((match) => match[1].replace(/^!/, '').split(/[\s,]+/))
+    .filter((value) => value !== '')
+);
+// Floor, so this category cannot quietly become "nothing is ever allowed" (which would push the
+// next reader to hard-code a name list instead): the shipped units really do carry accounts.
+assert.ok(unitIdentities.size >= 2,
+  `only ${unitIdentities.size} service identities read from the shipped units - the derivation broke`);
 
 // Backticked `work-*` tokens must be a command, a deploy asset, or a systemd unit that exists.
 const namedBinaries = [...new Set([...section.matchAll(/`(work-[a-z0-9-]+)[`.\s]/g)].map((m) => m[1]))];
@@ -48,6 +66,7 @@ assert.ok(namedBinaries.length >= 3,
   `§5.32 names only ${namedBinaries.length} work-* objects; expected at least three`);
 for (const name of namedBinaries) {
   const resolved = cmdNames.includes(name)
+    || unitIdentities.has(name)
     || deployStems.some((stem) => stem === name || stem.startsWith(`${name}.`))
     || existsSync(join(DEPLOY_DIR, `${name}.service`))
     || existsSync(join(DEPLOY_DIR, `${name}.sh`))

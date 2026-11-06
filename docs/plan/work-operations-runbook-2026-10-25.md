@@ -1537,6 +1537,7 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
    ——**引擎数得清我写了几枚，就等于它把文件解开了**；反向对照是同目录一份截断 JSON，回 `temporalproto: unexpected EOF`，
    两类失败文本各自钉住，所以"没有 parse 错误"不是靠猜；另有空历史拒绝落盘（"没取到事件"是读失败，不是"这工作流没干活"），
    以及缺 `-out`／缺 workflow id／缺 `WORK_TEMPORAL_ADDRESS` 都在拨号之前失败并点名变量。
+   **【11-06 22:1x 这半已经真跑过，读数如下，别把它读成"工具还没验过"】**包内 `work-replay`（sha `8dbf07c641f22c12`，已随主签批准的那一步装进 `/usr/local/bin`，旧件留 `work-replay.bak-20261106-2215`）在试点主机以 `work-control` ＋ `/etc/work/work-worker.env` 的形状导了两笔真执行：`run:01384d59…` 41 事件、`run:e24eb42c…` 57 事件，同一枚二进制消费端分别回 `replay ok` 与 **`[TMPRL1100] nondeterministic workflow`**——那笔历史第 39 号事件是 `ActivityTaskScheduled: FinishAdvance`，而新代码在那一点排的是 `StartTimer 86400s`（#81＝B2 的上界）。**这不是新缺陷，是本档预警的那个形状第一次被真数据证实**：`e24eb42c…` 的 Temporal 执行早在演练时就 `Failed`（执行已关闭、没有可恢复的在途），所以 I-4b 当时按"现读 Running=0"走第一档没有把任何在途暴露在这条分叉上；反过来，**下次只要有一笔 `Running` 的执行其历史是新代码之前排的 `FinishAdvance`，就必然落到这一档**，按 10-31 的口径先定性再处置，不要手工去动它的历史。导出的 JSON 已从主机取回并删除（里面是组织数据，不在 `/var/tmp` 过夜），本地用同一枚包内二进制重放同一文件得到同一句 nondeterministic 结论。
    **仍欠的那半，按欠着写**：真执行的真历史还没导过一次。那需要在试点主机上跑一次导出（读-only，但要把新二进制放上主机＝另一次受控文件写，按项点头），
    再把 JSON 取回本地用**包内**消费段重放。在这之前，本节第①档（现读 `Running=0`）仍是实际生效的那条；本条补的是"下次非零在途时手上有没有工具"。
 3. 全 ok ⇒ 正常 rollout；**任一 nondeterministic ⇒ 这一批只装迁移、把"换 worker"单独另批**（`work-migrate apply` 与换二进制本来就是两类半径），
@@ -1552,7 +1553,7 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
 **别把这一步当成可选项写进"已具备"**：判断依据是包内二进制对新历史的真实重放结论，不是"代码改了超时所以应该没事"。
 
 
-### 5.33 导出轮询报 42501：`CREATE OR REPLACE` 把 `SECURITY DEFINER` 弄丢了（现网首发 2026-11-06 18:44:12，21:1x 复核，#87＝增量 0034，**现网未部署**）
+### 5.33 导出轮询报 42501：`CREATE OR REPLACE` 把 `SECURITY DEFINER` 弄丢了（现网首发 2026-11-06 18:44:12，21:1x 复核，#87＝增量 0034，**现网未部署**）→【11-06 22:1x 更正，原文不删：**0034 已随 I-5 上线**，账本现读 34，42501 自 22:10:05 起为 0，装后读数就记在本节末段】
 
 **先看症状，别看代码**。`work-export` 的轮询每 5 秒失败一次，journal 里始终是同一行——现网到 21:06:50 已累计 **1713 条**，首条 18:44:12 正落在 I-4a（账本 29→32）那一分钟：
 
@@ -1591,13 +1592,13 @@ ACL 反倒继承。于是一笔"只改谓词"的增量可以静默把函数退�
   搬进链建库，零违规才算过；另一条真做变异——`ALTER FUNCTION … SECURITY INVOKER` ＋ `RESET search_path` 提交后，
   worker 连接当场复现 42501、矩阵只报那一行，还原后两条一起归零。
 
-**值班处置（现网尚未做，按项授权后执行）**：装增量 0034 走 §5.32 末段那个档位，不碰任何单元——
+**值班处置（现网尚未做，按项授权后执行）**【11-06 22:10 更正，原文不删：**已执行＝主签批准的 I-5**；下面的命令与三条判据原样留着，它就是下一次的形状】：装增量 0034 走 §5.32 末段那个档位，不碰任何单元——
 
 ```
 sudo ./rollout-r0a-0027.sh --migrations-only <发布目录>       # 先 --dry-run 读半径
 ```
 
-装后必须读到的三条（前两条就在新加的 verify 探针里，探针已把"账本跑到 34"和"权限真的回来了"分开）：
+装后必须读到的三条（前两条就在新加的 verify 探针里，探针已把"账本跑到 34"和"权限真的回来了"分开）。**22:10 现读：三条全部成立**——① `export_discovery_hardened=true search_path=search_path=work, pg_catalog body_has_stale_lease_branch=true`（标签里 `search_path=` 重复了一次：`proconfig` 的值本身就是这个字符串。下次随批去掉这个标签，本轮不为排版再动一次现网）；② `immutable_guard_hardened=true search_path=search_path=work, pg_catalog`；③ `journalctl -u work-export`：18:44–22:09 之间 42501 **2457 条**，22:10:05 之后 **0 条**，最后一条失败 22:10:00，紧接着 22:10:05 就是 `export=b9af0511… ready format=json rows=3010 bytes=1438077`。同一轮 `VERIFY_RC=0`、`rows=34 max=34`、清单 all present；回滚点 `work-pre-0027-20261106-221004.dump`、`work-migrate.bak-20261106-221004` 一份；`work-worker` 没被碰（`ExecMainStartTimestamp` 仍 20:26:25、`NRestarts=0`、sha 仍 `f4bbf1e99c26e1de`）：
 
 1. `export_discovery_hardened=true search_path=work, pg_catalog body_has_stale_lease_branch=true`
    —— 三个字段各管一件事：门回来了、名字解析钉住了、#80 的过期租约谓词没被顺手删掉。
@@ -1605,7 +1606,6 @@ sudo ./rollout-r0a-0027.sh --migrations-only <发布目录>       # 先 --dry-ru
 2. `immutable_guard_hardened=true search_path=work, pg_catalog`（0017 丢的那半，行为中性但同属一个缺陷）。
 3. `journalctl -u work-export --since '<安装时刻>' | grep -c '42501'` ⇒ **0**，且此前积压的导出请求开始被领走。
 
-**不要提前宣布通过的两处**：① 0031 上线到 0034 装好这段窗口里导出通道是**全停**的，积压是否清空要按 §5.30 的队列读数复核，
-不是看 journal 安静就算；② 装上 0034 的**同一轮**，`work-export` 会按 #80 的设计自动领取那笔租约已过期的演练行
-`b9af0511…` 并真的跑一次导出——这正是 11-06 记在授权单里的 **I-3b 那一步的效果**，
+**不要提前宣布通过的两处**（22:10 后：① 已按读数收口，② 已发生且事先摆过）：① 0031 上线到 0034 装好这段窗口里导出通道是**全停**的，积压是否清空要按 §5.30 的队列读数复核，不是看 journal 安静就算——现读 `queued=0 running_stale=0 ready=9 total=151`，且 `updated_at > 22:10:05` 恰好 1 行，说明积压就是那一笔、已被消化；② 装上 0034 的**同一轮**，`work-export` 会按 #80 的设计自动领取那笔租约已过期的演练行
+`b9af0511…` 并真的跑一次导出——这正是 11-06 记在授权单里的 **I-3b 那一步的效果**（22:10:05 已发生：该行现读 `status=ready`、`content_ref=content://work/4a2d3f28-…/fb549f84110e91657dc9f69019ec8ccc?v=1`、租约字段清空），
 要么按 I-3b 单独点头，要么在装 0034 之前先把这一条代价摆给主签，**别把它写成"顺便修好的"**。

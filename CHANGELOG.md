@@ -244,7 +244,10 @@ and this project adheres to
   every poll from 2026-11-06 18:44 onward - 1,713 of them by 21:06. Both bodies are byte-identical to 0017 and
   0031; two gates now derive the restatement rule from the chain's own catalog
   checkpoints, and a live-database case reproduces the 42501 by dropping the
-  attribute. Not yet applied to the pilot database.
+  attribute. Applied to the pilot database on 2026-11-06 22:10 with
+  `rollout-r0a-0027.sh --migrations-only`: the export poll failures stopped and the
+  expired-lease drill export was claimed on the next poll and produced a real
+  1,438,077-byte payload.
 - 🐛(backend) report a meeting-room booking that loses a database deadlock as
   a room conflict instead of a 500, so two simultaneous bookings still yield
   one 201 and one 409
