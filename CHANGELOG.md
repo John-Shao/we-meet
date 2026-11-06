@@ -10,6 +10,22 @@ and this project adheres to
 
 ### Added
 
+- Commit a durable provider answer to the canonical head even after the execute
+  step's hard deadline has passed (migration 0030), so a step that was already
+  paid for no longer leaves a Run that nothing can terminalise; the deadline
+  still forbids any re-dispatch, and each such commit is audited with
+  `durable_receipt_after_deadline`.
+- Let the audit-export worker discover export requests whose lease has elapsed
+  (migration 0031) instead of leaving them stuck in `running` forever.
+- Add `work.list_content_refs` (migration 0032) so the retention scan can report
+  orphaned content objects read-only; it is SECURITY DEFINER with a pinned search
+  path and EXECUTE granted only to `work_worker`.
+- Bound the reconcile and usage-unavailable parks in the advance workflow with a
+  24h timer that fails the Run with `reconcile_timeout` without settling or
+  releasing anything, which keeps the reconcile write path manual.
+- Make `make-release.sh` reconcile its two self-descriptions (chain tail from the
+  worktree against the stamped commit) and select the Go build container by mount
+  source instead of by name.
 - Implement Work R0a's clean-slate data layer, 33 API operations, SSE and
   outbox delivery, mock runtime adapters and mock/live UI; 39 backend and
   1713 frontend tests are green.
