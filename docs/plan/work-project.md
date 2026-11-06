@@ -1465,6 +1465,15 @@ B2 的形状：`advanceReconcileWaitLimit=24h` 与 `AdvanceReasonReconcileTimeou
   ③ 这也解释了之前"纯文档推送把 required check 停在 expected"的现象——检查本来就挂在 PR 上。
   前面几轮我在报告与账本里写过"push 会触发 gates"，那句**按现读作废**（原文不删，按本条为准）；
   I-4 缺① 里"先 push"这一步因此不是"做完就有 CI 证据"，它只是让包里 `RELEASE_COMMIT` 有出处——**取证要多一步：开 PR**。
+- **【11-06 17:5x 新档位按"发布件"验过，不是按源码验的】**`make-release.sh` 从 tip `b79311fc5` 重建包（rc=0、`MIGRATION_TAIL` 32、
+  `RELEASE_COMMIT` 与 `git rev-parse HEAD` 现读相等、13 个二进制照旧由树推导出名单），**包里那份 rollout 与仓库文件 `sha256sum` 前 16 位相同（`1f4db5dbc7a61a65`）**
+  ——这同时反证了上一轮那次变异确实还原干净（变异过的话这个值会对不上）。
+  然后在容器里**跑包里那份脚本**（不是抄一份）：`--help` 打印出新段落（`migrations-only` 命中 2 行，旧的"schema 0017-0027"那句已从帮助里消失）；
+  `--migrations-only --enable-advance` 与 `--migrations-only --runtime-bundle` 都 rc=1 并给出那句"会报一个没做的意图"的理由，
+  且**先于** root 检查与任何数据库动作（同批 `--release /tmp/none` 根本没被打开）；`--bogus-flag` 仍走 usage。
+  **同轮补一条可见性缺口（§5.31）**：`verify-r0a-0027.sh` 对二进制只**打印** sha（`:161-163`、`:204`），从不与包内值比对
+  ⇒ I-4a 之后"哪些二进制还是旧的"没有机器读数，只有人盯；文档已写明这刻意、并禁止把这种对不上当红灯去顺手重启 worker（那等于把 I-4b 的风险提前）。
+  三条读数的归属也在那里分档了：0030／0031 在 I-4a 就该出现（换的是函数体、调用面没变），#81 的 `reconcile_timeout` 只能等 I-4b。
 
 **【交接：这轮余量用尽，剩下的按这个顺序做，别重新推演】**
 ① 主签单选 **#83**（超时那刻已有 bound 成功回执：G1 维持 B2 字面／G2 到期先 finish 一次／G3 只调上界长度）；

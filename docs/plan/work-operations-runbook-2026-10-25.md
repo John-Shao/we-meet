@@ -1418,6 +1418,14 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
 **先说这一节的适用条件**：下面三条都是**仓库事实**，不是现网事实。现网此刻仍跑 0029 链尾与旧 `work-worker`，
 所以看到"没有这些读数/终态"是**预期**，不是故障。装上（＝授权单 I-4）之后本节才生效。
 
+**【11-06 17:5x "装上"现在分两档，这三条读数要按档归属】**`rollout-r0a-0027.sh --migrations-only`（＝I-4a）只装链与留存清扫那一对文件，
+换 `work-worker` 是另一档（I-4b）。于是：**`durable_receipt_after_deadline`（0030）与"过期租约的导出被重新领走"（0031）在 I-4a 之后就应该出现**——
+现网那两支二进制本来就在调被 `CREATE OR REPLACE` 换掉的函数，换的是函数体、不是调用面；
+而 **`reconcile_timeout`（#81）在 I-4a 之后仍然不会出现**，它是 workflow 侧代码，去查它只会得出"修了却没用"的错误结论。
+**顺带一条必须如实记的可见性缺口**：`verify-r0a-0027.sh` 对二进制只是**打印** sha（`:161-163`、`:204`），并不拿包内值比对，
+所以 I-4a 之后没有机器读数告诉你"哪些二进制还是旧的"——那是刻意的状态，需要人看着那几行；
+**把这种"对不上"当红灯去修（顺手重启 worker）恰好把 I-4b 的风险提前**，那不是这一档该做的事。
+
 1. **`state=failed / terminal_reason=reconcile_timeout`**（#81＝B2）。含义：一笔 Run 停在"等人工核对"超过 24 小时后被**判失败**。
    值班要知道的三件事：① 它**不动账**——既不 `settle_quota` 也不 `release_quota`，预留按 #34=A 保持人工处置，
    所以看到 `quota_reservation` 仍是 `held` **不是 bug**，走 §5.17/§5.16 的既有通道；
