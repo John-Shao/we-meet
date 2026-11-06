@@ -86,13 +86,18 @@ psql_ro "select 'guard_allows_takeover_shape=' || case when pg_get_functiondef(
 # `permission denied for table audit_export (SQLSTATE 42501)` in every work-export poll from
 # 18:44:12 on 2026-11-06, 1,713 of them by 21:06:50. Read the attribute together with the discovery predicate the row is
 # supposed to carry, so neither a build that has the door but not the predicate, nor one that has
-# the predicate but not the door, can pass.
+# the predicate but not the door, can pass. The value is pulled out of proconfig by key rather than
+# dumping the array under this label: proconfig elements already read `search_path=work,pg_catalog`,
+# so printing the array after `search_path=` duplicated the prefix (and a function that pinned some
+# other SET clause would have been reported as if it pinned the search path).
 psql_ro "select 'export_discovery_hardened=' || prosecdef
-  || ' search_path=' || coalesce(array_to_string(proconfig, ','), 'MISSING')
+  || ' search_path=' || coalesce((select regexp_replace(e, '^search_path=', '') from unnest(proconfig) as e
+                                   where e like 'search_path=%'), 'MISSING')
   || ' body_has_stale_lease_branch=' || (prosrc like '%lease_until <= clock_timestamp()%')
   from pg_proc where oid = 'work.list_pending_audit_exports(text)'::regprocedure"
 psql_ro "select 'immutable_guard_hardened=' || prosecdef
-  || ' search_path=' || coalesce(array_to_string(proconfig, ','), 'MISSING')
+  || ' search_path=' || coalesce((select regexp_replace(e, '^search_path=', '') from unnest(proconfig) as e
+                                   where e like 'search_path=%'), 'MISSING')
   from pg_proc where oid = 'work.artifact_version_immutable_content()'::regprocedure"
 psql_ro "select 'gap_skip_index_unique=' || coalesce(i.indisunique::text, 'MISSING')
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -106,7 +111,8 @@ echo
 echo "== rejection-reconcile command =="
 psql_ro "select 'security_definer=' || prosecdef
   || ' owner=' || (select rolname from pg_roles where oid = proowner)
-  || ' search_path=' || coalesce(array_to_string(proconfig, ','), '-')
+  || ' search_path=' || coalesce((select regexp_replace(e, '^search_path=', '') from unnest(proconfig) as e
+                                   where e like 'search_path=%'), '-')
   || ' body_has_resolution=' || (prosrc like '%rejected_not_executed%')
  from pg_proc where oid = 'work.reconcile_operation(text,uuid,text,text,bigint,text)'::regprocedure"
 psql_ro "select 'worker_execute=' || has_function_privilege('work_worker',
@@ -130,7 +136,8 @@ psql_ro "select coalesce(string_agg(name, ', '), 'none') from (values
 # rather than by signature, so a parameter change cannot silently disable the check.
 psql_ro "select proname || ' | definer=' || prosecdef
   || ' | owner=' || (select rolname from pg_roles where oid = proowner)
-  || ' | search_path=' || coalesce(array_to_string(proconfig, ','), '-')
+  || ' | search_path=' || coalesce((select regexp_replace(e, '^search_path=', '') from unnest(p.proconfig) as e
+                                     where e like 'search_path=%'), '-')
  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
  where n.nspname = 'work' and proname in (
    'set_provider_config', 'create_audit_export', 'consume_governance_events',

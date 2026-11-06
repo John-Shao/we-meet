@@ -62,6 +62,18 @@ mkdir -p "$OUT"
 # directory goes through the same cygpath guard the docker cp lines use.
 git -C "$(cygpath -w "$ROOT" 2>/dev/null || echo "$ROOT")" rev-parse HEAD > "$OUT/RELEASE_COMMIT"
 echo "release source commit $(cat "$OUT/RELEASE_COMMIT") (workdir $GO_WORKDIR in $GO_CONTAINER)"
+# 包内容的出处也要由包自己说。RELEASE_COMMIT 只是一个 SHA，而下面全是 `cp "$ROOT/…"`：工作树脏的时候，
+# 包里的脚本就比戳名那个提交新——`git show $(cat RELEASE_COMMIT):file` 与包内不一致，这正是 #78／#47
+# 那一族"包的两个自述各说各话"的第四面。脏构建不禁止（演练取证经常要现做现装），但必须写进包里、
+# 由 rollout 打出来：装上出处不可追的脚本，要成为一个看得见的决定，而不是事后查不出来。
+DIRTY="$(git -C "$(cygpath -w "$WT_ROOT" 2>/dev/null || echo "$WT_ROOT")" status --porcelain -- \
+  src/work "docs/plan/assets/work-r0a-hardening-2026-10-25" | wc -l | tr -d ' ')"
+printf '%s\n' "$DIRTY" > "$OUT/RELEASE_DIRTY"
+if [ "$DIRTY" != "0" ]; then
+  echo "WARNING: $DIRTY path(s) under the packaged source differ from $(cat "$OUT/RELEASE_COMMIT"); this package is NOT reproducible against the stamped commit" >&2
+else
+  echo "release tree clean against $(cat "$OUT/RELEASE_COMMIT"); packaged files are reproducible at the same SHA"
+fi
 # #78：这一包能装到第几号增量，必须由包自己说，不能让 rollout 里抄一个数字。
 # 0028 落地那天没人改 rollout 的 `> 27`，于是那台 ledger=28 的机器上发布脚本一进 preflight
 # 就自杀——"安装"这一段停在旧编号上，真实变更只能绕开发布脚本手工做（#47／#54 同一类缺口的第三面）。

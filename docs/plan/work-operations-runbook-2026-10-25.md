@@ -762,6 +762,16 @@ timer 是否 enable、org 清单是否与目录 org 数一致、以及容差现�
 - `held_on_terminal`（超过 `WORK_RUNSTREAM_MAX_HELD_ON_TERMINAL` 才退出码 2）：挂在已终态 Run 上的未释放预留，§5.17 口径。
   **现值 2 是 2026-11-04 演练残留的临时容差**，有日期、有归属（#56-B 收口语义）、有回收条件：预留归零后必须改回 0，
   改回那一轮会立刻转红并发信，那是预期行为，不是新故障。
+  **2026-11-06 更正（原文按上面这段保留，因为它解释这个键为什么存在）**：那句"现值 2"只描述过主机，且已过期——
+  主机 `/etc/work/work-runstream-scan.env` 自 2026-11-04 21:58 起现读就是 0（A 单 :91 已具名更正过），
+  但**模板 `work-runstream-scan.env.example` 与包装件 `run-runstream-gauges.sh` 的兜底默认当时没跟着改，仍是 2**。
+  `install_env` 只在目标文件缺失时按模板新建，所以任何一次重装或新主机都会把容差静默放回 2，
+  让前两笔"挂在终态 Run 上的未释放预留"不报警——正是这条回收条件要防的事。本轮把两处一起归零，
+  于是回收条件在主机／模板／兜底三个位置同形，由具名门 `test/runstream-tolerance.test.mjs` 钉住。
+  同形不是推定：在容器里按发布链的布局（`/usr/local/bin` 成对安装＋两个 `EnvironmentFile` 的先后顺序）
+  跑发布件原文，对同一笔 `held_on_terminal=1` 读数，新模板 `BREACH … 超过容差 0` 退出码 2、
+  旧模板（`git show HEAD` 那份）`ok` 退出码 0；删掉赋值行让键完全缺失时，包装件兜底仍报 0 并退出码 2。
+  `summary: … max_held_on_terminal=<生效值>` 每次巡检自己打印生效值，所以生效容差取自身证证据，不抄本段。
 - `unknown_operations`／`suspended_orgs`／`open_runs`／`held_tokens`：**只报不判**。前者历史存量 34 条（最老约 5.4 天），
   只有与 `held_on_terminal>0` 同时出现才是要动作的信号；`suspended_orgs` 是有意的运维状态，把它当故障告警会诱导值班
   去解除停用，语义相反。
@@ -773,6 +783,11 @@ timer 是否 enable、org 清单是否与目录 org 数一致、以及容差现�
 同一时刻用默认 5 分钟则 `parked_runs=0`，证明"新鲜度"与"活租约"两个条件都真在生效；
 **四条负例**——移走 SQL 兄弟件→rc=1 并点名"必须成对交付"、org 清单为空→rc=1、容差降为 0→在真实那 2 笔残留上 rc=2、
 DSN 指向不可达端口→`scan_errors=1` rc=1。对照 Run 随后自然 `succeeded`，没留下新残留（`open_runs=0`，held 仍是那 2 笔）。
+**2026-11-06 复现口径（上面四例是当天在试点机上的真实读数，保留原文）**：第三条"容差降为 0→在真实那 2 笔残留上 rc=2"
+今天已不能按字面重做——那 2 笔残留 11-04 21:58 就结算归零了，而容差本身现在是 0，不再需要"降"。
+要再证一次这条越限，用不着在生产造残留：把发布件按本节上面的布局装进容器，只替掉 `psql` 让六条读数按我给的值返回，
+`held_on_terminal=1` 必须 `BREACH`＋退出码 2、`held_on_terminal=0` 必须 `ok`＋退出码 0、`parked_runs=2` 必须走停放那条腿。
+这条通道 11-06 实跑过，九个判据全对，且新旧模板在同一笔 `held=1` 读数上的差别（2→静默、0→报警）就是上面那段更正的证据。
 
 **未生效清单（值班不得把它当告警能力）**：`docs/plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml`
 （21 record＋27 alert＝48 条）、同目录 `prometheus-rules.test.yml`、部署副本 `deploy/observability/prometheus-rules.yaml`
@@ -1474,6 +1489,17 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
    这条读数的口径从此可信。**同一轮 I-4b 也做了**（换 `work-worker` 等 13 个二进制），
    所以本节开头"两个 Go 修复仍未部署"的说法到此失效：#81 的 `reconcile_timeout` **从此可以产生**，
    但**行为仍未取证**——要一次真实的饱和/停放形状才谈得上判它通过，别把"二进制里有了"当"验过了"。
+   **【11-07 00:0x 上面这句的判据要改写，原文不删】**现读 `work.run` 按 `(state, wait_reason)` 分组＝
+   `active|1`、`canceled|33`、`failed|20`、`succeeded|118`（`wait_reason` 全为空），**`waiting` 行数 0** ⇒ 这条上界眼下没有样本，
+   而"再等一天"也不会自己长出样本：唯一那笔 `active` 就是刻意保留的 `e24eb42c…`（`updated_at=11:41:56`，在 20:26 换二进制之前），
+   它的 Temporal 执行早已 `Failed` 且历史与新代码不兼容（11-06 22:1x 用包内 `work-replay` 真导真放证过：`01384d59…` ⇒ `replay ok`，
+   `e24eb42c…` ⇒ nondeterministic）——**活在一条已闭合执行里的 timer 永远不会触发**，所以收那一笔属 10-31 的孤儿关闭裁定，不属这条取证。
+   **也别把它读成"什么都没验"**：机制两半各有具名用例——`src/work/internal/runflow/advance_park_test.go:19`
+   在测试环境自燃定时器那条路上断言 `revoke`＋`abort` 带 `reconcile_timeout`，且 `AssertNotCalled` 钉住 `FinishRun`／`FinishAdvance`；
+   `src/work/internal/runflow/advance_g1_pg_test.go:24` 在活库上证到期那刻即使已有 bound 成功回执也不提交、不 settle、不 release（#83＝G1）。
+   **现网还欠的只有"真发生过一次"**，重开条件写清：下一笔进入 `state='waiting' AND wait_reason='reconcile'` 且 24h 内没有人工信号，
+   或主签授权用 `work-e2e-seed` 播种一笔、再按提交时刻＋24h 现读——播种生产数据与换二进制、`apply` 迁移是三类半径，各算各的，
+   别把"同意部署"当成"同意造样本"。
    **【11-06 22:3x 两个方向的比对现在都能只读跑，不碰清扫本体】**`run-retention-scan.sh` 是会改状态的那条通道（三个领域函数按到期整批处理），所以要看孤儿**不必**跑它：只要复现它的比对那半——① `runuser -u work-control -- bash -c 'set -a; . /etc/work/work-worker.env; set +a; psql "$WORK_DATABASE_URL" -X -q -At -c "select set_config(''app.org_id'',''<org>'',false)" -c "select work.list_content_refs(''<org>'')"'` 取库侧引用集；② `ls /var/lib/work/content/$(printf %s <org> | sha256sum | cut -c1-32)/*.enc` 取盘侧集（**目录名是 sha256(org) 前 32 个十六进制字符，文件名是 `<id>.enc`**，直接拿 `content_ref` 的 basename 去比会永远不相等）；③ `comm` 双向做差。22:3x 现读（org `4a2d3f28…`，库里就 1 个组织）：`objects=1353`、**盘上有而库里没引用＝15**（与预测逐位相同，含演练对象 `267c8708…`）、**库里有而盘上没有＝2**，两条都落在 `input_object.content_ref`：一行 `status=deleted`（10-31 的 task_input，deleted_at 10:09）、一行 `status=expired`（11-02 建、expires 11-03、deleted_at 11-04 19:42）——**对象是留存路径正常删掉的，行仍留着 `content_ref` 文本，所以引用集里有它们的 id**。
    ⇒ **判据：`refs−disk` 不是告警项**，稳态就该有条目（行比对象活得久）；要盯的是**`status='active'` 的行出现 dangling 引用**，那才是"库里说东西存在、盘上没有"。四条分支的老口径也顺带钉一下：那四条按 `content_ref IS NOT NULL` 过滤而不是按值形态，现读**没有任何一行的值不是 `content://work/` 形式**（`rows=0`），所以 `IS NOT NULL` 与 `LIKE` 两种写法今天给出的集合相同——这是现读结论，不是"永远如此"。
    **【登记为待修 #88，本轮只写判据不改码】**正因为行留着引用，孤儿读数对**"行已 `deleted`/`expired` 而对象还在盘上"这一类是系统性看不见**的（它被算成仍被引用）。那一类现在的兜底不是孤儿 gauge 而是 §5.25 的 `shred_stuck`（删除动作的投递义务），所以**这两条读数必须一起看**才算覆盖；要不要专门加一枚 `orphan_after_row_delete`，属新常量的取舍，等主签裁定。另外记我自己这轮的一条探针错：`psql -c "select set_config(...)"` 会把被设定的值**打印出来**，我第一版把那行当成一枚引用 id 计数，于是 `refs` 多 1、`channel−branch=1` 就是这么来的假差集；取引用集时应只保留函数输出（`-q` 之外再过滤，或把 set_config 换成 `-c "select 1"` 前置忽略）。
@@ -1602,6 +1628,14 @@ sudo ./rollout-r0a-0027.sh --migrations-only <发布目录>       # 先 --dry-ru
 ```
 
 装后必须读到的三条（前两条就在新加的 verify 探针里，探针已把"账本跑到 34"和"权限真的回来了"分开）。**22:10 现读：三条全部成立**——① `export_discovery_hardened=true search_path=search_path=work, pg_catalog body_has_stale_lease_branch=true`（标签里 `search_path=` 重复了一次：`proconfig` 的值本身就是这个字符串。下次随批去掉这个标签，本轮不为排版再动一次现网）；② `immutable_guard_hardened=true search_path=search_path=work, pg_catalog`；③ `journalctl -u work-export`：18:44–22:09 之间 42501 **2457 条**，22:10:05 之后 **0 条**，最后一条失败 22:10:00，紧接着 22:10:05 就是 `export=b9af0511… ready format=json rows=3010 bytes=1438077`。同一轮 `VERIFY_RC=0`、`rows=34 max=34`、清单 all present；回滚点 `work-pre-0027-20261106-221004.dump`、`work-migrate.bak-20261106-221004` 一份；`work-worker` 没被碰（`ExecMainStartTimestamp` 仍 20:26:25、`NRestarts=0`、sha 仍 `f4bbf1e99c26e1de`）：
+**【2026-11-07 00:2x 那个"下次"已做完，原文与当时的读数保留】**探针现在从 `proconfig` 里**按 key 取** search_path 的值，
+而不是把整个数组印在 `search_path=` 这个具名标签后面——重复不再出现，本节"装后必须读到的三条"写的形状从此就是实际输出。
+比排版更要紧的是后半句：整数组打印遇到别的 `SET` 子句时，会把一个不相干的旋钮读成 search_path，那才是这条" cosmetic "标签真正的问题。
+四处探针（`export_discovery_hardened`／`immutable_guard_hardened`／`reconcile_operation` 的 `security_definer=` 行／六条按名列出的 definer 行）
+已在现网**只读复跑**：值与 22:10 那轮逐字相同（`true`／`work_owner`／`work, pg_catalog`／`body_has_stale_lease_branch=true`），
+六行 definer 全部 `search_path=work, pg_catalog`；`bash -n` 通过，脚本里已无 `array_to_string(proconfig` 残留。
+**注意半径**：这四处改的是仓库里的 `verify-r0a-0027.sh`，现网 `/usr/local/bin` 那份仍是旧版，要等下次 rollout 装脚本才生效——
+在它生效之前，值班按本节读到的仍是带重复标签的旧形状，**那不是回归，是还没装**（并入任务 #92 的那一次）。
 
 1. `export_discovery_hardened=true search_path=work, pg_catalog body_has_stale_lease_branch=true`
    —— 三个字段各管一件事：门回来了、名字解析钉住了、#80 的过期租约谓词没被顺手删掉。

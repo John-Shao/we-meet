@@ -197,6 +197,21 @@ if [[ -f "$RELEASE/RELEASE_COMMIT" ]]; then
 else
   echo "WARN: $RELEASE/RELEASE_COMMIT is missing; these binaries have no recorded source commit" >&2
 fi
+# 出处要在这一步就被看见，而不是等人事后 `git show` 发现对不上：make-release 把打包时工作树的
+# 脏路径数写进 RELEASE_DIRTY（统计范围＝包真正拷走的那些路径），这里原样打印。缺这个文件＝旧包，
+# 按"不可归因"处理而不是当 0，因为沉默正是这次要修的那类缺陷。
+if [[ -f "$RELEASE/RELEASE_DIRTY" ]]; then
+  release_dirty="$(tr -d '[:space:]' < "$RELEASE/RELEASE_DIRTY")"
+  if [[ "$release_dirty" =~ ^[0-9]+$ ]] && [[ "$release_dirty" != "0" ]]; then
+    echo "WARN: $release_dirty packaged source path(s) were modified relative to $(cat "$RELEASE/RELEASE_COMMIT") - installed files may not match the stamped commit" >&2
+  elif [[ "$release_dirty" =~ ^[0-9]+$ ]]; then
+    echo "release tree clean against its recorded commit; packaged files reproducible"
+  else
+    echo "WARN: $RELEASE/RELEASE_DIRTY is not a number ('$release_dirty'); provenance of the packaged files is unknown" >&2
+  fi
+else
+  echo "WARN: $RELEASE/RELEASE_DIRTY is missing; cannot tell whether packaged files match $(cat "$RELEASE/RELEASE_COMMIT" 2>/dev/null || echo 'the recorded commit')" >&2
+fi
 # 0027 builds a UNIQUE index over (org_id, metadata->>'request_id') for the
 # governance_gap_skipped receipts, in the transaction that reads what is already there.
 # Two receipts for one request id would fail the increment inside the window, so the

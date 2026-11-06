@@ -1073,6 +1073,8 @@ D5:185"Inbox 只在首页/导航角标轮询；不做跨 Task SSE"的角标一�
 > 计数方法：blocking 未闭合项**现读** `pilot-checklist.json`（`blocking==true && status∉{done,not_applicable}`）＝ **15 项**
 > （C03／C04／C09／C13／C15／C16／C17／C22／C24／C25／C26／C27／C28／C30／C33），其中 **需要我这边动手的只有下面 A–E 五张卡**，
 > 其余是外部条件（商务签约、法务条款、真实用户指标、生产账号）。今天两次注入取证新增的是 A 与 B 两张。
+>
+> **【2026-11-07 00:49 现算更正，原文与上面那串编号保留】**上面"15 项"是 11-06 11:2x 的快照。按同一口径（`blocking==true && status∉{done,na}`）现读＝**未闭 15 项**（C03／C04／C09／C13／C15／C16／C17／C22／C24／C25／C26／C27／C28／C30／C33），其中 waived 2 项（C15／C33）；`pilot-checklist.json` 的 33 条状态分布：done 16／partial 11／waived 4／todo 2。本清单今天新增 **卡片 F（#88）与卡片 G（#94）**，所以"需要我这边动手的只有 A–E 五张卡"这句也过期——现在是 A–G 七张；另有一条不占卡片、只等我方 rollout 的 #92。计数与编号一律现读该 JSON，别再手抄。
 
 **卡片 A｜#80 审计导出的过期租约不可达 ＋ Put-before-commit 内容孤儿（`N03-1` fail 的根因）**
 - 原文引用：`work.list_pending_audit_exports` 的取行条件只有 `status='queued'`（`migrations/baseline/0002_initial_r0a_schema.sql:4695-4697`）；
@@ -1644,10 +1646,223 @@ B2 的形状：`advanceReconcileWaitLimit=24h` 与 `AdvanceReasonReconcileTimeou
   于是 `refs=2018` 多 1、`channel−branch=1` 那条差集就是这么来的——**差集非零先怀疑自己的取数形状，再怀疑生产**；
   另外同一轮更正了一条文档里一直在教的命令形状：`runuser -u work-control -m` 与 `-c` 互斥（今天真报错了），可执行形状已写进 §5.30/§5.31 的带日期更正。
 
+- **【11-06 23:4x 推送后取门禁结论，顺带挖出我读错 PR 的原因（是工具上下文，不是生产）】**
+  本批两笔（`4e6ec17a5`、`13994fe0a`，标题现 69 字符）推上去后远端 tip `13994fe0a`，对它的 run 现读：
+  **`Work R0a gates` completed／success、`Work R0a required gate` completed／success、`Release guard` completed／success**，
+  `meet Workflow` 仍在跑（该 workflow 的 `test-back` 历史上要 30 分钟以上，我不替它提前报绿，也不把它的 pending 读成红）。
+  **我上一轮说"PR #39 不是本分支"是错的，根因现在查实**：这个工作目录里 `gh` 的默认仓库解析到的是
+  `suitenumerique/meet`（上游），不是我们推的 `John-Shao/we-meet`（fork）——`gh repo view` 现读就是前者。
+  所以我那条不带 `--repo` 的 `gh pr view 39` 读的是**上游仓库的第 39 号 PR**（`doc/tilt`、MERGED），
+  `gh pr list --head …` 同理返回空；换成显式带 owner/repo 的调用，现读 PR #39＝
+  **head `fix-r0a-envelope-29` ＠ `13994fe0a`、base `aliyun-dev`、state open**，与账本一直写的"PR #39 上 Work gates 绿"一致。
+  教训按实记：**跨仓库/多 remote 环境里，凡是"某某编号"的读法都必须先核它属于哪个仓库**——
+  同一编号在两个仓库里都存在，这一次我恰好读到了错的那一个，还据此"更正"了一条本来是对的记录。
+
+- **【11-06 23:5x 对 pilot-checklist 做完成度审计：13 条 blocking 未关（不是 15 的那句已过期），C16 的前提被测量推翻并换成一条具名缺口，顺手修掉一枚自报数错的证据脚本】**
+  审计是照文件现算的，不是照我这几天的叙述：33 项＝done 16／partial 11／waived 4／todo 2，blocking 31，**未关 blocking 13 条**
+  （C03／C04／C09／C13／C16／C17／C22／C26／C27／C28／C30 为 partial，C24／C25 为 todo）；
+  而 `lastReview` 仍写 2026-11-01——**这一格我没改**：我只逐项复核了 C16，把全局复核日期改掉就是把一次点换成一次没做过的面。
+  **C16 的原前提被推翻**：它写着"0017-0026 与其后端点尚未发布，所以那些日志行从没扫过"。现读sha 逐个相同
+  （`work-api a6b8c3508f3b`／`work-egress 6ff7fd0afdc6`／`work-content-proxy 6ddc457b170d`／`work-authz 5f2366842fe3`／
+  `work-relay 5793809f3d0d`／`work-export 5608d7be1ac6`／`work-worker f4bbf1e99c26` 全部＝包内值），
+  真扫一遍：15 个 `work-*` service 单元、14 天 35,439 行、canary＝40 条活标题＋哨兵，`fail=0 warn=0`，
+  同轮正向对照照红（`fail=1`＋`log-scan: FAIL`）。**但剩下的缺口换成了具名的一条**：`work-runtime` 根本不是 Go 二进制——
+  它的 ExecStart 是 `/usr/local/bin/node /opt/work/runtime/bin/work-runtime-server.mjs`，单元自 10-31 19:42 起没再重启，
+  因为这几天没有一次 rollout 带 `--runtime-bundle`。所以这一格的判据从"等发布"变成"等一次带 runtime bundle 的 rollout"，
+  登记为任务；C16 **仍按 partial 记**，我没有为了好看翻它。
+  **顺手抓到一条我自己在证据脚本里埋的数错**：`work-c16-log-scan.sh` 打印的 `units=` 是把 `-u x` 拼成字符串再 `wc -w`，
+  于是 15 个单元报成 **30**——一个会自报膨胀计数的证据脚本，正好是我们这几天一直在消的那类"读起来像数、其实不是数"。
+  改成数组长度计数＋独立的 flag 数组（`"${UNIT_FLAGS[@]}"`，别把裸单元名当位置参数交给 journalctl——我第一版就是这么写错的，
+  `bash -n` 抓不到，是准备真跑之前自己看回来的），在主机上跑修改版得到 `units=15` 且行数与 verdict 不变，
+  **然后把 `/usr/local/bin` 那份还原成包内那份**（sha `c4e748c9a3c8` 与包内逐字节相同）——
+  我不留下"现网跑的某个文件不在任何提交里"这种状态，验证用一次性副本，改好的脚本走 commit→make-release→rollout 正常通道。
+  **两条 live 报警顺带查实不是新问题**：`work-reconcile-scan`／`work-runstream-scan` 两个只读巡检单元 `failed` 是**设计如此**
+  （越限就退出非零，systemd 记 failed）：runstream 报 `parked_runs=1 unknown_operations=36 open_runs=1 held_tokens=0`，
+  reconcile 报 `orphans=1`——那个 `parked_runs=1` 与今天下午我重放的 `e24eb42c…` 是同一笔对象：库里还当在途，
+  而它的 workflow 早已 `Failed` 且历史与新代码不兼容。所以这不是第五个缺口，是同一条缺口的两种读数；
+  收它要按 10-31 的孤儿口径走裁定，不是我这边能自决的。
+
   CHANGELOG 的 0034 从"未应用"改为"22:10 已应用"。**一处故意不修**：verify 探针输出里 `search_path=search_path=work, pg_catalog` 标签重复
   （`proconfig` 的值本身带这个前缀）——为排版再动一次现网不值，记在这里，下次随批去掉。
+  **【11-07 00:2x 这条"下次"已做完，且它不只是排版】**四处探针改成**按 key 从 `proconfig` 里取 search_path 的值**，
+  整数组打印遇到别的 `SET` 子句时会把不相干旋钮读成 search_path；现网只读复跑四处，值与 22:10 逐字相同、六行 definer 全是
+  `search_path=work, pg_catalog`，`bash -n` 过、脚本内已无 `array_to_string(proconfig` 残留。半径说清：改的是仓库里的
+  `verify-r0a-0027.sh`，**现网那份要等下次 rollout 才换**（已并入任务 #92，与两支运维脚本同一批）。
 
   在那之前 §5.32 生效的仍是第①档（现读 `Running=0`）。这一条补的是"下次非零在途时手上有没有工具"，不是"重放前置已验过"。
+
+**临时容差的回收条件补齐到第三处，两条发布件各按原文跑了一遍（2026-11-07 00:0x，全部仓库改动＋容器取证，零生产写）**：
+`WORK_RUNSTREAM_MAX_HELD_ON_TERMINAL` 主机那份 11-04 21:58 起就是 0（A 单 :91 具名更正过），**没跟着改的是模板
+`work-runstream-scan.env.example` 与包装件 `run-runstream-gauges.sh` 的兜底默认，两处仍写 2**——`install_env` 只在目标缺失时
+按模板新建，所以任何重装或新主机会把容差静默放回 2，前两笔"挂在终态 Run 上的未释放预留"就不报警。本轮把这两处归零，
+回收条件自此在主机／模板／兜底三个位置同形。新门 `test/runstream-tolerance.test.mjs` 四条判据（模板恰好声明一次且＝0、
+兜底＝0、生效值由脚本自己在 summary 与 BREACH 两行里报出来、兄弟 env 不再声明第二遍），**五次变异各自红在自己那一条**：
+模板改 2／模板重复声明（后一行会赢）／兜底改 2／summary 去掉生效值／`work-worker.env.example` 加同名键，
+还原后三个被测文件 sha 逐字相同（`d6acb471c7ea 9cf76f6c4740 ac279491a9f6`）。第一次红其实红在我的 needle：
+`${VAR:-0}` 的 `-` 被 `:(\S+)` 吞进捕获组得到 `-0`，**正确文件被自己的判据判死**；改成 `:-([0-9]+)` 后非数字兜底会掉出匹配、
+由"恰好声明一次"那条接手，判据修的是取法而不是数值。
+**发布件原文（不是抄一份）在容器里按发布链布局跑**：`/usr/local/bin` 成对安装 wrapper＋SQL，sha 先与仓库对过
+（`wrapper_identical=2`、`sql_identical=2`），两个 `EnvironmentFile` 按 unit 的先后顺序 source，只替掉 `psql` 让六条读数按我给的值返回，
+越限判断、生效值打印与退出码全是被测文件自己的。12 项判据全对、0 项不符（重跑一次计数相同）：新模板＋`held_on_terminal=1`
+⇒ `BREACH … 超过容差 0` rc=2；**同一笔读数在 `git show HEAD` 的旧模板上 ⇒ `ok` rc=0**，这一正一反就是漂移本身的证据；
+`held=0` ⇒ rc=0；`parked_runs=2` 走停放腿 rc=2；删掉赋值行让键完全缺失 ⇒ 兜底 0 且 rc=2。
+同一手法验 C16 扫描器（`systemctl`／`journalctl`／`sudo` 三个桩）：新脚本 `units=15`、journalctl 恰好收到 15 个 `-u`、非 `work-*` 单元 0 次、
+单单元时 `units=1`；**旧脚本（HEAD 那份，sha `c4e748c9a3c8` 与包内逐字节相同）在同一桩上打印 `units=30`**——我写进注释的那个膨胀计数
+不是推的，是被测文件原文跑出来的。零 `work-*` 单元那一档容器（bash 5.2.15）rc=0 且不报 unbound；主机 bash 现读 5.2.21，
+同属 ≥4.4 那一档所以这条成立，但要说清：**这种情况 journalctl 不带 `-u` 就是全量扫库**，改动前后一致、不是本轮引入的差别，
+`units=0` 本身已经是"单元清单没读到"的信号，值班见到就该停手核对而不是读它的日志行数。
+**传播面扫到三处过期活指令，都就地加同日标注、原文不删**：runbook §5.21 里"现值 2"那句（现在只描述过主机）、
+§5.21 末"容差降为 0→在真实那 2 笔残留上 rc=2"（那两笔 11-04 21:58 已结算，今天要么走上面这条桩通道复现、要么就别重做）、
+以及 A 单 A4 那行仍挂着一个空框并把"现值 2"当前提——**空框＝一次可再按的生产写**，标注写清了：按它去动 env 既没被授权也不需要，
+它想防的那条失效宽容从来没在生产上，风险在重装路径里且已闭。
+门：`ci-contract` 92＋38＋24 rc=0（第一段现读 92，台账旧记录 87 是过期值；**这 +5 我没有逐笔对账，不在此归因**）、ops 三文件 30/30 rc=0。
+
+**#89 那条"等 24h 就能现读 reconcile_timeout"的前提被现读推翻（2026-11-07 00:0x，只读取证，零生产写）**：
+`work.run` 按 `(state, wait_reason)` 分组＝`active|1`、`canceled|33`、`failed|20`、`succeeded|118`，**`waiting` 0 行**，
+所以 24h 上界在现网既没有样本、也不会靠等出样本——唯一那笔 `active` 就是刻意保留的 `e24eb42c…`（`updated_at=11:41:56`，早于 20:26 的 I-4b），
+它的执行早已 `Failed` 而历史与新代码不兼容（22:1x 用包内 `work-replay` 真导真放过），**活在一条闭合执行里的 timer 永不触发**；
+那一笔的归属是 10-31 的孤儿关闭裁定，不是 #89。反向也要说清，免得这条被读成"超时没验"：机制两半各有具名用例——
+`advance_park_test.go:19`（测试环境自燃定时器，断 `revoke`＋`abort` 带 `reconcile_timeout`，`AssertNotCalled` 钉 `FinishRun`／`FinishAdvance`）
+与 `advance_g1_pg_test.go:24`（活库，G1 形状：不提交、不 settle、不 release）。
+**这两条按名字单独跑过（00:08，`-count=1`，独占 trust 实例 `:55436`）**：两条都 PASS，workflow 那条的日志里
+`Auto fire timer TimerID 6 TimerDuration 24h0m0s TimeSkipped 24h0m0s` 后紧跟 `RevokeAdvanceExecution`＋`AbortRun`，
+"测试环境自燃定时器"因此不是我的解释而是那一行的读数。
+**我上一段写的"仍欠：#81 行为取证（别把'二进制里有'当'验过'）"据此收窄**：欠的不是"验过没有"，是"现网真发生过一次"，
+而它要么等下一次真停放、要么要主签单独点一次播种授权（`work-e2e-seed` 与换二进制、`apply` 迁移是三类半径）。判据与重开条件已写进 §5.31，
+任务 #89 已按这份读数改写（原文不删，runbook 里那句"行为仍未取证"保留并就地更正）。
+顺带一条我自己的读法错：第一次探列名时按业务词猜 `task_summary.id`，实际无此列（它按 `task_id` 键）——**同类错第四次**，
+落点仍是"值班 SQL 的表名列名一律先现读 catalog"，本轮已先读 `information_schema.columns` 才敢出上面那组数。
+
+**把两条容器取证升成仓库里的运行态门，并修掉 C16 的一条空清单盲扫（2026-11-07 00:1x，仓库改动＋本地运行态验证，零生产写）**：
+上一轮那两次容器跑是**一次性驱动脚本**，跑完就没了——文本门能钉住"模板里写的是 0"，却钉不住"脚本真的按 0 去判、真的把 15 个 `-u` 传下去"，
+而漂移之所以活过六天，恰恰因为**从来没有人执行过这两个脚本**。新增两枚运行态门，只在 PATH 前面放桩、被测文件用仓库里那一份原文：
+`test/runstream-gauge-runtime.test.mjs`（5 条：键缺失⇒退出码 2 且自报 `max_held_on_terminal=0`、模板值⇒同一笔读数必须 2、
+显式给 2⇒必须 0（**反向那条是防我自己把门写成"断言两遍 0"**）、零泄漏⇒0、`parked_runs=2`⇒走停放腿、缺 SQL 兄弟件⇒退出码 1 并点名成对交付）；
+`test/c16-log-scan-runtime.test.mjs`（3 条：15 单元⇒`units=15` 且 journalctl 恰好 15 个 `-u`、非 `work-*` 单元一次不出现、
+单单元⇒`units=1`）。两枚门都要求 bash/sed/awk 在场，**缺了就红而不是 skip**（否则又是一条"静默不再检查"的门）。
+**七次变异各自红在 owning 那条**：兜底 2／held 比较改成永不成立／parked 判据取消／成对交付 preflight 删掉／`units` 翻倍／零单元拒绝删掉／
+awk 过滤器去掉 `^work-` 前缀锚；还原后两个被测脚本 sha 与基线逐字节相同（`9cf76f6c4740 14081b4464c2`）。
+**顺手修的那条是本轮新发现的缺口，不是旧账**：`work-c16-log-scan.sh` 数到 0 个 `work-*` 单元时，`journalctl` 会**不带任何 `-u`** 跑，
+于是把整台机器的 journal 当成 Work 的运行日志扫一遍并报出"Work 运行时干净/不干净"——那不是 Work 的证据，是别人的日志贴了 Work 的标签，
+属"空输出＝没问题"同一族。现在它先打印 `units=0` 再以退出码 1 早失败并写明理由（值班看到的是一句原因，不是一个数字）。
+为此给 scratch 目录加了 `WORK="${WORK_C16_DIR:-/work-c16}"`：**默认值就是既有 runbook 与演练记录按名写的那个路径，操作员的路径没变**，
+加可覆盖只因为运行态门要在"根目录不可写"的机器上执行这个文件——跑不起来的测试不算测试。
+**本轮最该记住的是我自己的一次操作错**：第一次跑变异脚本时把它 `| head -80`，head 退出后 SIGPIPE 把脚本中段打死，
+正好停在"MUT6 已改文件、最终 restore 还没跑"那一瞬 ⇒ `work-c16-log-scan.sh` 被留在了变异态，而第二次跑的 `.proofbak`
+是从这个损坏态复制的（备份取在改动之后＝把损伤当基线，正是台账里那条纪律的镜像）。发现路径不是我去读文件，而是**第二次跑同一条变异时
+多了一条不相关的红**——那正是"红因必须能用得上"的信号。修法：按现读逐 needle 写探针（`probe-residue`：该在的六条都在、不该在的三条都不在、
+CR=0、`bash -n` 两支都过），补回被删的那五个字节块，再用 sha 与变异前基线逐字节对上确认恢复完整。
+**教训落条**：长输出的取证一律 `> log 2>&1` 再读尾巴，绝不 `| head`；变异脚本的 `.bak` 必须在开跑前从**干净态**取，跑完先比 sha 再谈结论。
+门：`ci-contract` 现读 **100＋38＋24＝162 rc=0**（第一段从 92 涨到 100 就是这两枚新门的 5＋3 条，数目是推出来的不是猜的）、ops 三文件 30/30 rc=0。
+
+**verify 探针的 `search_path=` 标签按 key 取值，四处一次改齐（2026-11-07 00:2x，仓库改动＋现网只读复跑，零生产写）**：
+这条上一轮被我记成"为排版再动一次现网不值"，本轮做下来要更正它的定性——**把整个 `proconfig` 数组印在具名标签后面不是排版问题**：
+`proconfig` 的元素本身就自带 `search_path=` 前缀，所以输出重复了一遍；而一旦某个函数带的是别的 `SET` 子句，
+同一行就会把一个不相干的旋钮报成 search_path，读的人会照它下结论。改法是从数组里按 key 取（`unnest(proconfig) … like 'search_path=%'`
+再剥前缀），NULL 时的 `MISSING`／`-` 两种缺省标记保持原样，**指纹形状不变**：发病时读到的 `false search_path=MISSING …` 今天仍然会读到。
+现网只读复跑四处（同一份 SQL 用文件交给 `psql -Atf`，不走 stdin——`sudo -S` 的口令管道会占掉 stdin，这条坑记过两次），
+值与 22:10 那轮逐字相同：`export_discovery_hardened=true … body_has_stale_lease_branch=true`、`immutable_guard_hardened=true`、
+`security_definer=true owner=work_owner …`，六行 definer 全是 `search_path=work, pg_catalog`；`bash -n` 过、
+`array_to_string(proconfig` 在脚本里归零。
+**我自己在取证工具上的一次错**：第一版用行列表切 `psql_ro "…"` 的调用块，遇到以 `" | sed` 收尾的那行就把后一个探针吞进前一 Statement，
+交上去的 SQL 里多出一段以 `s` 开头的碎片、psql 报 `syntax error at or near "s"`——**红因是我的切法，不是被测脚本**；
+换成按唯一锚点做文本切片后单独复跑那条探针才对上。教训：从 shell 脚本里抽 SQL 别按"引号行"猜边界，按语句锚点抽，
+抽完先数语句条数再交出去。半径：这四处改的是仓库里的 `verify-r0a-0027.sh`，现网那份仍旧，随 #92 那次 rollout 才换。
+**同一轮里我踩了自己记过的那条插入纪律**：给 §5.33 那条 734 字符的长句加同日标注时，我把锚点选在**句子中间**，
+结果那一行被劈成"前半＋我的八行＋后半"——内容没丢，但原句不再逐字存在，而且后半被粘到我最后一行的尾巴上。
+是 `git show HEAD` 逐行比对（`HEAD_lines_missing` 从 1 归 0）把它抓出来的，不是读文件读出来的。
+修法是把标注整块移到原行**之后**，让 HEAD 那一行逐字回来；复核三条一起看：`HEAD_lines_missing=0`、
+`git diff --numstat` 该文件 `34 0`（只加不删）、`ci-contract` rc=0。**纪律重申：插入一律锚在整行行尾或我自己那句的句末，
+绝不锚在长句中部；改完必须跑"HEAD 每行仍在"的比对，光看 numstat 的删除数不够——劈行会被算成"加了一行、删了一行"而我以为那是标注行本身。**
+
+**C17 的告警面从"10/27 有行为用例"补到 27/27，并把覆盖率钉成门（2026-11-07 00:3x，仓库改动＋容器取证，零生产写）**：
+`prometheus-rules.yaml` 定义 27 条告警、`prometheus-rules.test.yml` 只对其中 10 条断过行为，而**任何地方都没说过这件事**——
+`promtool test rules` 报 SUCCESS 只意味着"存在的用例通过"，不意味着"告警契约被验过"，这正是我这几天一直在消的"绿覆盖半个面"那一类。
+补齐的做法不是照规则文件抄期望：先写一份 **`exp_alerts: []` 的探针**（17 条、每条喂刚过阈值的合成序列），
+让 promtool 自己把它实际发出的 Labels/Annotations 打在失败输出里，再从那份读数生成期望——**期望来自被测物的输出，不是我的转述**。
+每条告警同时补**反方向**（低于阈值的合成输入 ⇒ `exp_alerts: []`），否则一条"逢数据就报"的规则照样能过。
+结果：`promtool check rules` 48 条规则 SUCCESS、`test rules` 全绿。补完 17 条之后门自己又红了一次——它数出 **27 条有"会报"用例、只有 21 条有"不会报"用例**，缺的 6 条属于原来那 10 条（`WorkAuditExportFailureRatio`／`WorkAuditExportSlow`／`WorkAuditExportTokenFailureBurst`／`WorkBackgroundJobLeaseTakeovers`／`WorkContentShredBacklog`／`WorkUnknownOperationsPresent`）：**门是对的，数据不够，所以要修数据而不是放宽门**；补上这 6 条低于阈值的用例后 27/27/27 全对。用例总数现读 **54**（HEAD 是 14；27 条"会报"＋27 条"不会报"，53 个输入块）——我先前在这里写的 74 是加法错的，按现读更正。
+慢燃烧那条要 >24h 的合成历史才够 6h/1d 窗口（`for=30m` 且窗口是 1d），这条细节是我第一版漏掉它的原因。
+新门 `test/alert-rule-coverage.test.mjs` 钉三件事：定义集非空（下限先于等值，空集不许它绿）、每条告警必须有"会报"与"不会报"两个方向的用例、
+用例里不许出现规则文件已不存在的告警名。**门自己的一次红**：我第一版把 ops 资产目录的相对路径多数了一层 `..`，
+文件读不到就红——不是断言红而是 ENOENT，按既有判据这不算验证；改路径后本地与容器两侧都过。
+仍未闭的半条如实登记：promtool **不在这个门里跑**（作业里没有容器），所以这道新钉的门覆盖"用例存在性"，
+"用例真的通过"仍要人按 README 里的命令跑一次容器——本轮跑了、绿了，但它在 CI 里不是自动的（记为 C17 剩余项，不当已闭）。
+**上面这两行是一句没核过的否定式覆盖结论，现读更正（原文保留，因为它记录了错是怎么产生的）**：
+`.github/workflows/work-r0a-gates.yml:245-249` **确实在 CI 里跑 promtool**——
+`docker run --rm -v "$GITHUB_WORKSPACE:/w:ro" --entrypoint sh prom/prometheus:v2.54.1 -c "promtool check rules … && promtool test rules …"`，
+check 与 test 两条都在 gates 作业里，所以这 54 个用例是**被 CI 强制的**，不需要谁手工去跑容器。
+新门 `alert-rule-coverage.test.mjs` 补的因此是另一件事：**用例存在性与双向覆盖**（本地 `ci-contract` 就能看到，不用等容器），
+promtool 管"用例真的通过"——两者互补，我把后者说成了前者没有的缺口。
+C17 真正没闭的那半据现读改写为：**从没在真 series 上验过告警**——没有 Prometheus 抓取、没有 dashboard、没有 Alertmanager 投递；
+这三样要等多节点／告警投递演练才有对象，属运维面，不是再写规则就能闭。清单里 C17 的 evidence 与 note 已按本轮实测同步更新（status 仍 partial）。
+教训按既有那条再钉一遍：**"CI 不管 X"这类否定式结论必须现读 workflow 的 `jobs.*steps.run` 原文**，我这次是先下结论后读文件。
+
+**C16 的"提交证据"半条今天被证明并不覆盖演练附件，且 8 处读数至今没人判过（2026-11-07 00:3x，只跑现成扫描器，零代码零生产写）**：
+我上一轮说 C16 剩下只差"部署后重扫运行日志"，这句**不完整**——按 gates 作业原文（`work-r0a-gates.yml:292-300`）log-scan 这个 job 只跑两条：
+`node --test log-scan.test.mjs`（10 条用例，本地镜像复跑 **10/10 绿**）与
+`node log-scan.mjs provider-smoke.log sandbox-smoke.log ../work-temporal-slice-2026-10-25`（**7 文件／60 行，clean**）。
+也就是说 **`work-r0a-ops-2026-10-25` 整个演练证据目录从没进过这条闸**：我手工把它交给同一个扫描器，得到
+**33 文件／3133 行、`failed=True`、8 处 `content.field`**，落在两个文件——`drill-2026-11-15/attachments/d4-6b-retention-sweep-20261105.txt`
+的第 37/38/96/97/98/99 行与 `d4-b-2-56b-settle.log` 的第 36/37 行。
+**这 8 处是什么要说准**：规则的原文是 `/\b(?:goal|background|prompt|messages|completion|artifact_content|content)\s*[=:]\s*["']?[^\s"']{12,}/gi`，
+命中的是行里 `content://work/<org>/<id>` 这种**引用 URI**（演练把导出行的 ref 原样记进证据），**不是提示词也不是成果正文**。
+所以这不是"证据泄了用户内容"，也不是"扫描器坏了"，而是一条**从没被裁定过的口径**：C16 判的是"日志里没有用户内容"，
+那么一条不可定位到正文的不透明 URI 算不算命中？两种走法各有代价，且都不该我自决：
+**① 把该目录纳入 CI 扫描**＝闸变红（8 处），要么逐处标注/收敛证据文本、要么给规则加"仅正文键"的收窄——后者是在动一条安全控制，需要裁定；
+**② 维持现状**＝这条闸对演练证据目录是**静默不检查**，而我们已经把"静默不再检查"当成要修的缺陷处理过多次。
+我这一轮做的是把读数与两档代价写清并登记待裁（任务 #94），**没动规则、没动 CI、没改任何证据文件**；
+C16 清单条目已按现读补上这条缺口（status 仍 partial）。另记一条自己的话：我先前那句"C16 只剩运行面"就是没读 workflow 步骤清单的产物，同一轮里第二次栽在同一处，按纪律再钉一遍。
+**同日顺手的数字传播扫（计数改动之后必做的那一遍）**：我这条链上刚把告警用例数从"14"改成"54"，
+`work-r0a-ops-2026-10-25/README.md:16` 就还写着"13 组输入序列、14 条断言"——已按现读改掉，并且**这次不再钉数字**：
+改成"两侧都有用例，条数以文件现读为准，由 `alert-rule-coverage.test.mjs` 每次运行自己打印"，因为这张表抄一次数就过期一次。
+反向也核了一遍，免得只挑刺不核实：`work-r0a-design-2026-10-25/README.md:15` 写的 `r0a-schema-smoke.sql`"148 项断言"**与文件现读逐字相符**
+（按 `INSERT INTO smoke_assert` 计数＝148），所以那条**不动**——它是仍然成立的读数，不是过期文字。
+同文件 :40 的"21 条 record、27 条 alert"同样与 `prometheus-rules.yaml` 现读相同，保留。
+**全量活库 Go 套件的正式读数（2026-11-07 00:42，独占 trust 实例 `wr0038-pg:55438`，串行 `-p 1 -count=1`）**：
+**36 包 `ok`、0 包 `FAIL`、10 包 `[no test files]`**，go 进程正常退出后由日志判读（不是凭通知——第一次那次的"exit 0"是命令末尾 `tee` 的状态，
+而那一跑本身已被我在跑完前 `docker rm` 掉它连的实例所作废，`internal/authz` 当时报 `unexpected EOF`）。
+判据按既有口径三条一起看：`^FAIL` 计数为 0、`ok` 行数达到 36（不是"看起来没红"）、进程已结束且日志尾部停在最后一个包（无截断）。
+覆盖的是当前工作树：含本批未提交的脚本/文档改动，Go 源码仍是 tip `13994fe0a` 那套（本轮没动 `src/work/*.go`）。
+跑完即停实例，避免第二套并行库（集群级角色操作会互相污染）。
+
+**发布链补上"包内容 vs 戳名提交"的自述（2026-11-07 00:45，仓库改动＋原文执行验证，零生产写）**：起因是我要给 #92 说清"要不要先 commit 才能装"，
+去读 `make-release.sh` 才发现：**`RELEASE_COMMIT` 只是 `git rev-parse HEAD` 的一个 SHA，而包里所有运维脚本都是 `cp "$ROOT/…"` 从工作树拷的**——
+工作树脏的时候，包里的脚本就比戳名那个提交新，`git show $(cat RELEASE_COMMIT):file` 与包内不一致，rollout 那边 (:195-198) 过去只打印 SHA、
+文件缺失才 WARN。这是 #78／#47／#54 那一族"包的两个自述没见过面"的**第四面**，也是本会话两次出现"现网跑的文件不在任何提交里"的同一条病根。
+做法沿用既有分工：**由包自己声明，rollout 只读不说数**——make-release 新增 `RELEASE_DIRTY`（`git status --porcelain -- src/work docs/plan/assets/work-r0a-hardening-2026-10-25` 的路径数），
+rollout 分四档打印：0⇒"reproducible"、非 0⇒WARN 列出条数、缺文件⇒按"不可归因"处理（不当 0，沉默正是这次的缺陷）、非数字⇒WARN 说出处未知。**不禁止脏构建**（演练取证经常要现做现装），
+只是把它变成一个看得见的决定。验证跑的是文件原文：rollout 那段用 `sed -n 195,216p` 抽出来在容器里对四种夹具各跑一次，四档输出如上；
+make-release 那段 `sed -n 59,76p` 在本机跑（它本来就是 host 侧代码，依赖 cygpath），脏档写出 `RELEASE_DIRTY=6` 且与 `git status` 现读 6 条逐字相同，
+干净档用 PATH 前置的 git 桩模拟 ⇒ `0` ＋ "reproducible"。新门 `test/release-provenance.test.mjs` 钉三件事：两侧 plumbing 在位、
+**pathspec 覆盖范围必须从 `cp` 源变量推出来**（将来谁加了一个新的拷贝源变量而没扩 pathspec，条数就会撒谎，门先红）、数字只在构建侧算一次。
+这条改动本身要随 #92 那次 rollout 才生效（现网那份 rollout 还不认识 RELEASE_DIRTY，缺文件时它只会照旧打印 SHA）。
+**【2026-11-07 00:47 上面这段有两处已被随后的更正作废，原文保留，按此读】**：
+① 段里引的 `"reproducible"`／`"NOT reproducible from that commit"` 是**改措辞之前**的字符串。现读以文件为准：
+make-release 脏档打印 `this package is NOT reproducible against the stamped commit`、干净档打印 `packaged files are reproducible at the same SHA`；
+rollout 脏档打印 `installed files may not match the stamped commit`、干净档打印 `packaged files match it`。
+② 段里写的抽取区间 `sed -n 195,216p` 也旧了：加了那行防坑注释之后是 **195,217**，本机 make-release 那段仍是 59-76。
+**为什么要改措辞（这条才是重点）**：`doc-schema-refs` 那条闸会解析 shell 里可复制的 SQL，而我写的英文 `"reproducible from that commit"`
+被它读成 `FROM that` ⇒ 判成悬空表名并红在门禁里（`make-release.sh:73 -> that, rollout-r0a-0027.sh:206 -> that`）。
+**守卫是对的，改我的文案，不放宽它**——这是本仓既有先例（"from <WORD>" 会被吃），现在两支脚本与门的期望一起钉住这个形状，
+`release-provenance.test.mjs` 里两条 `doesNotMatch(/reproducible from that/)` 就是防止下一个人又把它写回去。
+③ 门自己的另两次红也记全：一次是它"没解析到任何 `cp $VAR/` 源"⇒ **下限断言先于等值断言**，没让它空集通过；
+一次是改措辞后期望字符串过期⇒ 按新串更新。最终 `ci-contract` **106＋38＋24 rc=0**、ops 30/30、新门 3/3（本段之后再复跑一次并点名）。
+**两枚新门拿到 Linux 侧证据，并因此抓到门自己的一处错（2026-11-07 00:2x，仓库改动＋容器跑，零生产写）**：
+本地绿不等于 CI 绿——CI 在 Linux 跑 `node --test`，所以把三支门放进 `node:22-bookworm` 按仓库原路径跑了一遍，
+**结果 c16 门 12 条里红 2 条**：我的测试把脚本与扫描器成对拷进一个共享沙箱目录一次，而发布件自己的收尾会
+`rm -f` 它按 `dirname $0` 找到、且位于 `/tmp/` 下的那份扫描器（那是为主机 `/tmp/work-log-scan.mjs` 临时通道设计的）——
+**Linux 上沙箱就在 `/tmp` 下面，于是第一跑把扫描器删了，后续每一跑都死在 "preflight failed (node or scanner absent)"**，
+Windows 的 tmpdir 不在 `/tmp` 所以本地全绿。改成每次运行各建一个 `mkdtemp` 目录（脚本＋兄弟件现拷），
+Linux 3/3、本地 3/3 都对上，**修的是测试而不是发布件**：那条删除是设计内的、且它管的正是临时通道。
+顺手记这条门为什么值得存在：它抓到的是"只在某一平台成立的断言"，这类错**任何本地跑都看不见**。
+再补 Linux 侧变异三刀（用 node 写harness，因为我的 bash 驱动版在容器里报了个 inline 复现不出来的 rc——
+**harness 自己说不清为什么失败时，它证明不了任何事**，这本身就是换掉它的理由）：
+基线 3 pass；删掉零单元拒绝⇒只红 owning 那一条；`awk '/^work-/'` 去掉前缀锚⇒三条全红；`units` 翻倍⇒两条计数红；
+还原后 sha＝基线（容器内外各读一次相同 `14081b4464c2`），末跑复绿。
+**这轮的计数口径**：门＝c16 3 条＋runstream 运行态 5 条＋文本 4 条＝12 条，Linux/Windows 两侧各全跑一次；
+`ci-contract` 仍 100＋38＋24、ops 30/30（本段之后复跑并点名）。
+门：`ci-contract` 与 ops 复跑见本段末（本轮最后一次编辑之后再跑一次并点名）。
 
 
 **【交接：这轮余量用尽，剩下的按这个顺序做，别重新推演】**
@@ -1702,6 +1917,28 @@ F1 的语义没有被削弱：它管的是**已经调用 finish** 的那一步�
 ⑥ `docs`＝runbook §5.30/§5.31、本文件、授权单 I-4 行、`verdict.json` 的注记。
 **第一批之前必须先有 #83 的裁定**（若裁 G2，③ 的超时分支要改成先 finish 一次，②③的文件内容会变，所以别先合并 ③）。
 ⑥ 里 `verdict.json` 的 `S1-3`／`N03-1` 两格**仍是 fail**——装 I-4 并重演之前不翻色，这是有意的。
+
+
+**卡片 F｜待修 #88：留存把对象删掉之后，`refs−disk` 方向的孤儿对"行已删而对象在盘"是系统性盲区**
+- 原文引用（判据出处，不是我复述）：runbook §5.30 那两个方向的比对与"稳态就该有条目"的读法；`work.input_object.content_ref` 这列在行被标 `deleted`／`expired` 后**仍保留引用文本**（§5.30:1492 段的现读结论），而 `0033` 的引用集是按 `content_ref IS NOT NULL` 取，所以这一类 id 会被算成"仍被引用"。
+- 现证（11-06 22:3x 只读复跑）：`objects=1353`、盘有而引用无＝15、引用有而盘无＝**2**；那 2 条都在 `input_object`，一行 `status=deleted`（10-31 的 task_input，`deleted_at` 10:09）、一行 `status=expired`（11-02 建、expires 11-03、`deleted_at` 11-04 19:42）——即留存路径正常删了对象、行留着引用。**反向那一类（行删了、对象还在盘上）今天没有任何一枚读数会响。**
+- 现在的兜底不是孤儿 gauge，而是 §5.25 的 `shred_stuck`（删除动作的投递义务）⇒ 这两条读数**必须一起看**才算覆盖，这也是我为什么把它登记成"口径缺口"而不是"漏报 bug"。
+- 选项与代价：
+  - **F1＝加一枚 `orphan_after_row_delete`**（SQL＋清单＋活库用例＋verify 名单，一轮）。代价：现读口径下它会长期 ≥1（行比对象活得久是设计），    等于新增一条常态非零的 gauge，稀释"只报不删"这条闸的信噪比；要它有意义还得配阈值语义，那又是新常量。
+  - **F2＝不加，把"两条读数一起看"升级为机器断言**（在 retention 那条 runbook 步骤里要求同轮取 `shred_stuck` 与 `refs−disk`，    并在 §5.30 现读脚本里一次打印两个数＋一行合成判读）。代价：仍然没有独立告警，但缺口变成可核对的步骤而不是口头判据。
+  - **F3＝让清扫在删对象时一并清引用**（改留存语义）。代价：与"引用是审计事实"相冲，我不建议，且它属改已签设计而非补读数。
+- 我的建议：**F2**，并把 F1 的重开条件钉成"第 2 家租户接入，或 `deleted/expired` 行带引用的数量超过当前 2 笔一个数量级"。    理由：现读的 2 笔都有正常留存解释，新增会常态非零的告警项与"不为跑绿放宽、也不新造噪声门"的同一条纪律相冲。
+- 回答渠道：本条单选即可（F1／F2／F3）。**未答前我不部署、不改码、不动 §5.25／§5.30 的判据文字**；复评挂在既有的 11-08。
+
+**卡片 G｜待裁 #94：演练证据目录根本不在 C16 那条扫描闸的扫描集里**
+- 原文引用（现读 `jobs` 步骤实参，不是"步骤存在"就算覆盖）：`work-r0a-gates.yml:292-300` 的 log-scan 作业只跑两条——  `node --test log-scan.test.mjs` 与 `node log-scan.mjs provider-smoke.log sandbox-smoke.log ../work-temporal-slice-2026-10-25`；  而 `log-scan.mjs:75` 的 `SCAN_EXTENSIONS` 明明含 `.txt`——**扩展名支持，路径却没人递进去**。
+- 现证（00:37 手工把同一扫描器指向 ops 证据目录）：`33 文件／3133 行、failed=True、8 处 content.field`，  全部落在 `drill-2026-11-15/attachments` 的两个文件（`d4-6b-retention-sweep-20261105.txt` 第 37/38/96/97/98/99 行、  `d4-b-2-56b-settle.log` 第 36/37 行）。命中规则 `content.field` 的实际形状是 `content://work/<org>/<id>` 这类**引用 URI**，  不是提示词、不是成果正文。CI 现有扫描集则报 `7 文件／60 行 clean`，扫描器自身用例本地复跑 10/10。
+- 选项与代价：
+  - **G1＝把 ops 证据目录纳入 CI 扫描**：闸会立刻红这 8 处，随后要么逐处收敛／标注证据文本，要么收窄规则；后者是在动一条安全控制的口径，需要书面裁定。
+  - **G2＝维持不纳入**：这条闸对演练证据＝**静默不检查**，而我们已多次把"静默不再检查"本身当缺陷修（同一族的 #47／#54）。
+  - **G3＝纳入＋把口径写死**：在 C16 判据与扫描器用例里明确"不可定位到正文的 `content://` 引用 URI 不算用户内容"，    用具名用例钉住（正向：正文形态必须仍然 fail），再把目录递进 CI。代价：一句口径文字＋期望与用例改动，控制强度不变。
+- 我的建议：**G3**。理由：现读 8 处没有任何正文迹象，而"没人扫过"这件事本身就是这次发现的成因——G2 保留的正是这种状态；    G1 若不为口径买单，最后也会在同一个地方停下来要我改规则，那等于绕道 G3。
+- 回答渠道：本条单选（G1／G2／G3）。**裁定前不动 `log-scan.mjs`、不动 workflow、不改任何证据文件**；    另注：G3 落地时要连带 `--canary-file` 那条通道与 §5.21 的值班口径一起看，别只改一处。
 
 ### 5.1 设计层未决项
 
@@ -1956,3 +2193,64 @@ Temporal 切片需要 Docker Compose/Temporal dev（Windows 主机不能直接�
 | P0/P1/P2 | 评审问题优先级 | P0 阻断、P1 高摩擦、P2 文案/视觉；与 P0 决策（D-01–D-08）不是一回事 |
 
 阶段标签（R0a–R5c）来源：[Work 产品设计 §阶段标签](work-product-design-2026-10-25.md)；设计包/未决项/Epic 等编号以对应文档为准。
+
+**开工前先看这张表：13 条 blocking 的现状普查（2026-11-07 00:48，**由 `pilot-checklist.json` 现读生成**，不是我凭记忆列的）**：
+清单条目总数 33、blocking 未闭 13（done 16／waived 4／todo 与 partial 计入未闭）。这张表**不改任何状态**，它的用处是：每条的"缺什么"直接抄清单自己的 note 首句，所以谁认领哪一格、那一格的判据是什么，都在同一行里；与我今日读数有关的偏差在表下面单列，不在表里改写别人的判断。（口径说明：本表把 `waived` 记为已闭⇒**13 行**；
+§5.0 待裁清单同日 00:49 的更正按 `status∉{done,na}` 计⇒**15 项**，差的正是那 2 项 waived。两个数都对，取数法各自写在各自行里。）
+
+**前端那一半我今天没敢声称验过：本地测不了的原因找到了，CI 侧的覆盖读对了（2026-11-07 00:51）**：
+`src/frontend/src/features/work/` 下有 **23 个测试文件**（`client.operations.test.ts`／`AdminProviderPanel.test.tsx`／`RunOperations.test.tsx`／`error-copy.test.ts`／
+`useTaskEventStream.test.ts` 等），我这轮想在本 worktree 复跑一次，结果 `vitest` 一启动就死：
+`ERR_MODULE_NOT_FOUND: Cannot find package 'vitest' imported from .../vitest.config.ts.timestamp-*.mjs`，
+根因是 **`src/frontend/node_modules` 在这个工作树里不存在**（`node_modules_present=no`、无本地 `vitest` 可执行文件、
+`npx` 拿到的只是全局 5.1.0）。**这条红不是代码回归，是依赖没装**——按既有判据（ENOENT／"path not found" 会伪装成门禁红）单列，不算进任何结论。
+CI 侧我差点又下一次否定式错：只看到 `meet.yml` 的 `lint-front` 跑 `npm ci / lint / check`，正要写"前端单测不在 CI 里跑"，
+把全部 workflow 扫了一遍才发现 **`meet.yml:481 run: npm test`**，而 `package.json` 的 `scripts.test`
+＝`panda codegen && check:json && check:locales && check:work-api && vitest run`——**Work 前端契约检查（`check:work-api`）与单测都在 CI 里**，E2E 在 `:573`。
+所以现在的准确说法是：**前端那一半有 CI 强制、但我这个工作树没有本地复现能力**；
+
+**R0a 完成度审计（2026-11-07 00:53，逐条挂今日实测；结论：开发与测试主体已有读数，四项不闭合且都不在我自决范围内）**
+判据按本包既有范围列，不新造标准：
+
+| # | 判据 | 现读证据（今日或本会话内） | 状态 |
+|---|---|---|---|
+| 1 | R0a 代码实现（Go／SQL／前端） | tip `13994fe0a`＝`origin/fix-r0a-envelope-29`＝PR #39 head；迁移链尾 **34**（ledger 现读），0034 已 apply 且 42501 归零 | 已具备 |
+| 2 | 单元／契约／活库测试 | 活库串行全量 **36 包 ok／0 FAIL／10 无测试**；`ci-contract` **106＋38＋24 rc=0**；ops **30/30**；告警 **54 用例（27 触发＋27 不触发）**，promtool 由 CI `gates.yml:245-249` 强制 | 已具备（前端单测见第 5 行） |
+| 3 | 发布链三段齐（打包→安装→校验） | `--migrations-only` 两次真跑（29→32、32→33）＋ I-4b 换二进制 ＋ I-5（33→34）verify rc=0；新补**第四段＝出处自证**（`RELEASE_DIRTY`＋rollout 四档打印，脏档与干净档都按原文跑过） | 已具备（新那段待 rollout 生效，#92） |
+| 4 | 运维脚本的生效行为 | runstream 容差三处归零＋C16 空清单拒绝＋计数修正，均有**运行态门**（PATH 桩、被测文件 sha 对过仓库、Linux／Windows 双侧、七刀变异各红在自己那条） | 已具备（现网仍跑旧件，#92） |
+| 5 | 前端（D5／管理面／成果页）测试 | `check:work-api`／`check:json`（145 文件）／`check:locales` 本地 rc=0；CI 侧 `meet.yml:481` 跑 `npm test`（含 `vitest run`）、`:573` 跑 E2E；**本 worktree 无 node_modules ⇒ `vitest run` 尚未本地复现**（`ERR_MODULE_NOT_FOUND`，属环境非回归） | 部分：待 #95 |
+| 6 | 试点闸门签收 | 清单现读 33 条：done 16／partial 11／waived 4／todo 2；blocking 未闭两口径已并列（**13**＝不计 waived，**15**＝计 waived），逐条普查表在 00:48 段 | 未闭，见下 |
+
+**未闭合的四类，以及为什么不是我能自决的**：① 卡片 F（#88 留存引用口径）与卡片 G（#94 演练证据不在扫描集）要主签单选；
+② #89 的现网 `reconcile_timeout` 样本——`waiting` 现读 0 行，闭合执行里的 timer 永不触发；机制由
+`advance_park_test.go:19`＋`advance_g1_pg_test.go:24` 覆盖（00:08 各按名跑过一次都 PASS），缺的只是"真发生过一次"，
+要么等真停放、要么授权播种；③ #91／#92 是生产写半径（带 `--runtime-bundle` 的 rollout 与三件运维脚本的落地复核）；
+④ 普查表里商务签约／法务条款／真实用户指标／多节点演练那几格属外部条件。
+**所以本目标现在不能宣布完成**：第 1-4 行有读数，第 5 行缺一次本地复现，第 6 行仍有多格未闭，且 ①②③ 明确要求先有裁定或授权。
+
+**两条测量正在飞行中，别在下一轮重复启动、也别把它们当已完成（00:54）**：① `src/frontend` 的 `npm ci`（我起的，写的是 `.gitignore` 已覆盖的 `node_modules`，不会脏 commit，**但这是共享工作树——在别人眼里它现在是"半装好"的前端环境**，装完前跑前端测试会得到说不清的红）。判完成的取数法＝`node_modules/.bin/vitest` 存在＋`npmci.log` 末尾出现 `NPM_CI_RC=`；随后跑 `node_modules/.bin/vitest run src/features/work`，**通知里的 exit code 是包装命令最后一步的状态，不是 vitest 的**。② `make-release.sh` 的真实构建（`mkrel.log`，同样以 `MAKE_RELEASE_RC=` 为准），它要证的不是"能不能构建"，而是**今天新加的出处自证在真实包里长什么样**：期望看到 `RELEASE_DIRTY=6`（工作树现在恰好 6 条脏路径）、`release chain ends at increment 34`、`SHA256SUMS` 全通过，且包里的 `run-runstream-gauges.sh`／`work-c16-log-scan.sh`／`make-release.sh`／`rollout-r0a-0027.sh` 是**工作树的脏版本**——这正说明为什么需要那条 WARN。
+
+**两条都已收口（00:55），读数如下**：① `make-release.sh` 真实构建 `MAKE_RELEASE_RC=0`，包里出现 `WARNING: 6 path(s) under the packaged source differ from 13994fe0a…; this package is NOT reproducible against the stamped commit`、`release chain ends at increment 34`——**今天新加的出处自证在真实构建里就是这两行**，不是我只跑片段跑出来的形状。② `npm ci` `NPM_CI_RC=0`、`vitest` 可执行文件到位，但 `vitest run src/features/work` 仍 **rc=1 且 0 个文件**，根因是启动就失败：`Cannot read directory "../../../.."：Access is denied` ⇒ esbuild 往工作树之外爬被 Windows 权限挡在门外。**这是环境限制，不是代码或测试的红**（判据同 ENOENT 伪装成门禁红），所以 #95 仍开，且现在带着诊断：走法要么是既有的 worktree junction 配方，要么直接认 CI 的 `meet.yml:481`（`npm test` 含 `vitest run`）为权威，本地这条只在主检出或 junction 下再取。本轮结束时前端单测**没有本地读数**，这一点在审计表第 5 行仍然是"部分"。
+在装上 `src/frontend` 依赖（一次 `npm ci`，会往工作树写 node_modules）之前，我不把"前端测试本地已跑过"写进任何结论。已登记为任务。
+
+| 项 | 类别 | 负责 | 状态 | 标题 | 证据条数 | 清单自述还缺什么（note 首句） |
+|---|---|---|---|---|---|---|
+| C03 | design | backend + SRE | partial | D3 orchestration and fault matrix reviewed | 9 | U3 nine commitments answered yes on 2026-10-27; resources approved; drills staffed by 5 dev/test… |
+| C04 | design | runtime + security | partial | D4 runtime/egress design reviewed | 6 | No real sandbox/egress/provider. D-08b (gateway credential/KMS) is a DR0 sign-off and does not c… |
+| C09 | implementation | runtime + platform | partial | D4 sandbox, Content Store and egress integra… | 5 | Integration now exists and runs in production, so the old "no Content Store / no egress integrat… |
+| C13 | security | platform + securit… | partial | Static credential encryption and Content Sto… | 5 | D-03 B 定为静态单层加密，不使用云 KMS/HSM。Content Store 已实现并有单测（原「待 E5」过期，2026-11-01 按代码更正）。仍留 partial：主密钥是进程… |
+| C16 | security | runtime + backend | partial | No-content/no-secret logs and traces verifie… | 9 | Runtime log surface is now verified on the pilot instance, but only for deployed code: 0017-0026… |
+| C17 | ops | SRE | partial | SLO dashboards, alerts and on-call threshold… | 8 | Rules validated by promtool and wired into CI, but no Prometheus scrape, dashboards or Alertmana… |
+| C22 | ops | platform + backend | partial | Temporal topology/upgrade/DB-offset validati… | 12 | No multi-node topology, in-flight server restart, worker versioning/drain or production DB/Tempo… |
+| C24 | product | product + ops | todo | 3 design-partner organizations committed and… | 0 | No signed pilot organizations. |
+| C25 | product | product + design | todo | 7-8 design-partner research and usability te… | 1 | No participants recruited yet; at least two scenarios must reproduce in 3+ orgs. Ops owes channe… |
+| C26 | product | product + backend | partial | Golden tasks and activation/technical-succes… | 4 | The technical-success half is now measured on production. Still partial because activation and a… |
+| C27 | product | product + support … | partial | Pilot support escalation and data-deletion p… | 2 | Support tiers and deletion procedure drafted; contacts, legal/DPA sign-off pending. |
+| C28 | migration | product + frontend | partial | Cutover, org flag, rollback and legacy notic… | 6 | Cutover and legacy notice are real. Still open: the tenant-access org flag is not enabled, so th… |
+| C30 | migration | ops + legal | partial | Data deletion and ownership-transfer runbook | 4 | Procedure and commands exist; ops/legal sign-off and drill pending. |
+
+**表外要补的三条（今日实测，只针对我能证明的部分）**：
+① **C17**：告警行为用例覆盖已从 10/27 补到 27/27 且双向，`promtool check rules`＋`test rules` 在 CI 的 `work-r0a-gates.yml:245-249` 强制，本地另有 `alert-rule-coverage.test.mjs` 钉覆盖存在性——**但这不改变它 partial**，缺的是"真 series 上的抓取／dashboard／Alertmanager 投递"，不是规则数。
+② **C16**：今天新登记的缺口是**提交证据这一半**——CI 的扫描集不含演练证据目录，手工一扫 8 处 `content.field`（全是 `content://` 引用 URI），口径待裁（任务 #94）；运行面那一半仍等 #91／#92 的 rollout。
+③ **C22**：多节点／升级／DB-offset 这类要靠真演练窗口，与本轮任何仓库改动无关；我不动它的状态也不替它下结论。
+

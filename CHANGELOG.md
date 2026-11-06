@@ -234,6 +234,21 @@ and this project adheres to
 
 ### Fixed
 
+- Retire the temporary runstream tolerance at its last two shipping sites. The pilot host had
+  `WORK_RUNSTREAM_MAX_HELD_ON_TERMINAL=0` since 2026-11-04, but the env template and the wrapper's
+  fallback still said 2, and `install_env` builds a missing env file from the template - so any
+  reinstall or new host would silently re-adopt a tolerance that does not alert on the first two
+  reservations leaked on terminal Runs. Template, fallback and host now agree on 0, and each run
+  prints the effective value in its own summary.
+- Stop the C16 log scanner from reading the whole journal when it discovers no `work-*` unit: with an
+  empty unit list it ran `journalctl` without `-u`, so every other service on the machine was scanned
+  and reported under a Work runtime verdict. It now prints `units=0` and fails with the reason. The
+  count also comes from the unit array rather than a word count over the assembled flags, which
+  reported 15 units as 30.
+- Report the pinned search path by key instead of dumping `proconfig` behind a `search_path=` label in
+  the rollout verification output. The array elements already carry the prefix, so the reading showed
+  `search_path=search_path=work, pg_catalog`, and any other `SET` clause would have been reported as
+  if it were the search path. `MISSING` / `-` markers and every recorded value are unchanged.
 - 🐛(migrations) restate `SECURITY DEFINER` and `SET search_path` on
   `work.list_pending_audit_exports` and `work.artifact_version_immutable_content`
   (migration 0034). `CREATE OR REPLACE` rebuilds the `pg_proc` row from the statement

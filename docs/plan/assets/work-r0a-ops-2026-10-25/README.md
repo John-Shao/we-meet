@@ -13,7 +13,7 @@
 | `telemetry-contract.json` | 12 个 SLO 的指标/标签/记录规则/告警/runbook 契约；禁止正文/密钥标签 |
 | `generate-telemetry.mjs` | 生成 `prometheus-rules.yaml`；`--check` 检测漂移 |
 | `prometheus-rules.yaml` | 21 条 recording rule + 27 条告警（15 SLO + 12 operational）= 48 条规则 |
-| `prometheus-rules.test.yml` | promtool 告警单测：13 组输入序列、14 条断言，触发与不触发两侧都测 |
+| `prometheus-rules.test.yml` | promtool 告警单测：每条告警都有"会触发"与"不触发"两侧用例；**条数以文件现读为准，不在本表钉**——`alert-rule-coverage.test.mjs` 每次 `ci-contract` 运行都会打印 `27 defined / 27 firing / 27 stays-off`，本表抄数字只会过期（11-06→07 覆盖从 14 条涨到 54 条就是这条过期链的实证） |
 | `telemetry-model.mjs` | 契约/SLO/runbook/标签/PromQL 引用校验 |
 | `telemetry.test.mjs` | 11 组测试（覆盖、target 对齐、track-only、篡改负例、漂移、与 D3 作业契约的跨资产一致性） |
 | `ops-model.mjs` | 控制/SLO/清单校验与 go/no-go |

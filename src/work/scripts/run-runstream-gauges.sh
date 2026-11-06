@@ -16,7 +16,10 @@ STALE_MINUTES="${WORK_RUNSTREAM_STALE_MINUTES:-5}"
 # 2026-11-04 演练残留 2 笔未释放预留（各 100,000，2026-11 期间），收口语义待裁 #56-A／B。
 # 这条容差是有日期、有归属、有回收条件的临时值，不是把判据放宽后忘记：
 # 裁完并把预留归零后，把默认值改回 0（改回的那一次巡检会立刻转红并发信，属预期）。
-MAX_HELD_ON_TERMINAL="${WORK_RUNSTREAM_MAX_HELD_ON_TERMINAL:-2}"
+# A missing key must not silently tolerate leaked reservations: the tolerance is 0 by design, and
+# an exemption has to be written down somewhere rather than inherited from a fallback. The effective
+# value is printed in the summary line below, so a run never reports a number nobody declared.
+MAX_HELD_ON_TERMINAL="${WORK_RUNSTREAM_MAX_HELD_ON_TERMINAL:-0}"
 # 每条 gauge 都必须出现；缺行按扫描失败处理，避免「空输出＝没问题」的假绿。
 REQUIRED=(parked_runs held_on_terminal unknown_operations suspended_orgs open_runs held_tokens)
 
