@@ -1461,6 +1461,15 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
    `'false'` ＝ 租约内正常提交（含 head revision 0 那条）。**装后核查**：出现 `'true'` 的行说明这条链在生产走通了；
    一条都没有，只说明还没遇到该形状，不代表没生效。
 3. **留存扫描输出里的 `content_objects` / `content_orphans`**（#80 第二半，增量 0032）。
+   **【11-06 18:5x 这条读数现在会高报，别当泄漏数用】**现网首读给出 `content_objects=1352 content_orphans=178`，
+   定性之后**真实孤儿是 15 个**：`list_content_refs` 只扫了四张表的 `content_ref`，
+   而内容引用还存在别处——按现读数量级排：`runtime_execution.intent_ref`（盖住 157 个）、
+   `operation.receipt_ref`（6）、`dispatch_delivery.receipt_ref`（4）；`submission_dedup.result_ref`、
+   `runtime_checkpoint_head.checkpoint_ref`、`task_event.payload_ref`、`artifact_version.local_ref` 本次盖住 0 个但仍属同源风险。
+   ⇒ **在 0033 补齐分支之前，`content_orphans` 只能当"上界"读，不能当条数用**；
+   反方向那条（库里 515 个引用在盘上找不到对象）本轮**没有定性**，别顺手解释成"shred 之后本该如此"。
+   演练留下的 `267c8708…` 仍在这 15 个里，这正是 §5.30 缺口 ② 的物证，**保留、别删**。
+   其余原文继续有效：
    只在单元环境配了 `WORK_CONTENT_DIR` 时出现；**只报不删**，且**不进退出码**（投递义务由 `shred_stuck` 管）。
    读数含义：盘上该 org 目录里有对象，而库里四张带引用的表（成果版本、审计导出、内容引用、输入对象）都不指向它。
    处置口径沿用 §5.30：先定性（是自造夹具还是真实产物）、再决定回收，**不要写自动删除**；

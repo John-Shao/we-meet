@@ -1508,6 +1508,20 @@ B2 的形状：`advanceReconcileWaitLimit=24h` 与 `AdvanceReasonReconcileTimeou
   所以既不是"新造了 178 个漏洞"也不能读成"泄漏 178 个对象"；它可能混有演练夹具、历史遗留与引用形态本身不在这四张表里的对象。
   按 §5.30 的口径必须先定性（是谁产生的、为何库里无引用），再谈任何回收；**本轮一个删除动作都没做，也不该做**。
   **#81 仍未生效**（worker 没换），所以 `reconcile_timeout` 不该在现网出现；I-4b 现在明确不可执行——`active=1` 笔在途＋§5.32 的重放前置缺导出能力。
+- **【11-06 18:5x #85 定性完成：真实孤儿 15 个，不是 178；根因是我自己那条 SQL 分支不全，登记 #86 修】**
+  做法是把盘上 id 与**所有**含引用的列做并集再取差：盘上 1352，`list_content_refs` 只给 1608 条 id，
+  补上 `runtime_execution.intent_ref`／`operation.receipt_ref`／`dispatch_delivery.receipt_ref`／`submission_dedup.result_ref`／
+  `runtime_checkpoint_head.checkpoint_ref`／`task_event.payload_ref`／`artifact_version.local_ref` 之后并集 1852，
+  **`TRUE_ORPHANS=15`**。逐列覆盖数：intent_ref **157**、`operation.receipt_ref` 6、`dispatch_delivery.receipt_ref` 4，
+  其余四列本次 0——**0 不等于安全**，它们同样存 `content://…`，0032 一样不读。
+  **结论按责任写**：这不是"生产上有 178 个泄漏对象"，是**我这一轮上线的 0032 读数口径不完整**造成的假阳性；
+  §5.30 那条"只报不删、不进退出码"正是它没造成任何动作的原因——纪律是对的，我错在把分支清单抄漏。
+  **一次自踩（#53 的原样重演）**：我先忘了设 `app.org_id` 就以 postgres 调 definer，得到 `list_content_refs` **0 行**；
+  0 不是"没有引用"，是"这个会话看不见"，补上 GUC 后才是 1608。
+  **反向读数 515 条**（库里有引用、盘上无对象）本轮**未定性**，runbook 里我只写"未定性"，不写成"shred 之后本该如此"。
+  **待修 #86**：增量 0033 扩展 `list_content_refs` 覆盖上述全部列（`content_reference.ref_id` 与 `content_ref` 是否等价待核），
+  并配**判别式用例**——种一个只被 `intent_ref` 引用的对象，断言它**不**在孤儿集里；
+  只测"四张表都读到"的用例挡不住这次的漏法。0033 落地前，`content_orphans` 一律按**上界**读（§5.31 已同步）。
 
 **【交接：这轮余量用尽，剩下的按这个顺序做，别重新推演】**
 ① 主签单选 **#83**（超时那刻已有 bound 成功回执：G1 维持 B2 字面／G2 到期先 finish 一次／G3 只调上界长度）；
