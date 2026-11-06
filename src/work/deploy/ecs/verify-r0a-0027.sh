@@ -47,7 +47,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (30, '0030_durable_receipt_head_commit'),
   (31, '0031_audit_export_stale_lease_discovery'),
   (32, '0032_content_ref_reads_for_orphan_report'),
-  (33, '0033_list_content_refs_full_ref_coverage')) expected(version, name)
+  (33, '0033_list_content_refs_full_ref_coverage'),
+  (34, '0034_restore_function_security_definer')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # Same reason as the 0028 probe below: a ledger row only proves a file ran. 0029 is the
@@ -79,6 +80,20 @@ psql_ro "select 'claim_carries_takeover=' || case when pg_get_functiondef(
 psql_ro "select 'guard_allows_takeover_shape=' || case when pg_get_functiondef(
     'work.runtime_execution_guard()'::regprocedure) like '%clock_timestamp()%'
   then 'true' else 'FALSE' end"
+# 0034 (#87) is a permission fix, and a ledger row does not certify a permission. 0031 recorded
+# itself while leaving the function it rewrote with invoker rights - CREATE OR REPLACE does not
+# inherit SECURITY DEFINER or SET search_path - and that is what put
+# `permission denied for table audit_export (SQLSTATE 42501)` in every work-export poll from
+# 18:44:12 on 2026-11-06, 1,713 of them by 21:06:50. Read the attribute together with the discovery predicate the row is
+# supposed to carry, so neither a build that has the door but not the predicate, nor one that has
+# the predicate but not the door, can pass.
+psql_ro "select 'export_discovery_hardened=' || prosecdef
+  || ' search_path=' || coalesce(array_to_string(proconfig, ','), 'MISSING')
+  || ' body_has_stale_lease_branch=' || (prosrc like '%lease_until <= clock_timestamp()%')
+  from pg_proc where oid = 'work.list_pending_audit_exports(text)'::regprocedure"
+psql_ro "select 'immutable_guard_hardened=' || prosecdef
+  || ' search_path=' || coalesce(array_to_string(proconfig, ','), 'MISSING')
+  from pg_proc where oid = 'work.artifact_version_immutable_content()'::regprocedure"
 psql_ro "select 'gap_skip_index_unique=' || coalesce(i.indisunique::text, 'MISSING')
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
   left join pg_index i on i.indexrelid = c.oid

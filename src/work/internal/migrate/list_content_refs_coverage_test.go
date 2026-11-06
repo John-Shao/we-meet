@@ -69,7 +69,7 @@ func TestListContentRefsCoversEveryContentURIColumn(t *testing.T) {
 	// The columns that carry NO content URIs must stay out, and their exclusion has to be re-derived
 	// rather than trusted: this asserts against the live catalog, not against 2026-11-06 row counts.
 	for _, absent := range []string{"local_ref", "payload_ref", "result_ref", "checkpoint_ref", "input_checkpoint_ref", "ref_id"} {
-		if regexp.MustCompile(`(?s)FROM work\.\w+\s+\w+\s+WHERE \w+\.org_id = p_org_id AND \w+\.`+absent).MatchString(body) {
+		if regexp.MustCompile(`(?s)FROM work\.\w+\s+\w+\s+WHERE \w+\.org_id = p_org_id AND \w+\.` + absent).MatchString(body) {
 			t.Fatalf("body now scans %s; re-read which columns actually store content://work/ before keeping it", absent)
 		}
 	}

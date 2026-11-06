@@ -370,6 +370,17 @@
       "catalog_checksum": "sha256:d45c61e1fd9c6c6661901d723428178c948cfa80fbbc98441fbc2c50ba0fa260",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 34,
+      "name": "0034_restore_function_security_definer",
+      "kind": "increment",
+      "file": "increments/0034_restore_function_security_definer.sql",
+      "checksum": "sha256:def99d6de02cb23a6cca345f5bce369ff98b87993a1302f3f06de01eccb65002",
+      "catalog": "catalogs/0034_restore_function_security_definer.json",
+      "catalog_checksum": "sha256:3ce81900afa82ff992ac28adef48e7d9d6d59898cb29a325d18fe949ec3583ec",
+      "transactional": true,
+      "executable": true
     }
   ]
 }
