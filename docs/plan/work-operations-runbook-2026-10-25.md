@@ -1426,6 +1426,21 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
 所以 I-4a 之后没有机器读数告诉你"哪些二进制还是旧的"——那是刻意的状态，需要人看着那几行；
 **把这种"对不上"当红灯去修（顺手重启 worker）恰好把 I-4b 的风险提前**，那不是这一档该做的事。
 
+**【11-06 18:4x I-4a 已执行，现网状态以此段为准（上面 14:4x 标题里的"均未部署"就此失效）】**
+`rollout-r0a-0027.sh --migrations-only`（tip `b79311fc5` 建的包，上传后主机 `sha256sum -c SHA256SUMS`＝55 条全 OK／0 不一致）跑完 rc=0，
+账本 `max=32 rows=32`、version 30/31/32 三条都在。**没有重启是核对过的、不是宣称的**：
+`work-worker` 的 `ExecMainStartTimestamp` 仍是今天 07:57:12（早于本次部署）、`NRestarts=0`，relay／export 仍是 11:00:22，
+`work-worker` 安装态 sha 保持 `9cd4f2b986e19a2e`；唯一被换的二进制是 `work-migrate`（安装态与包内同为 `c52d5e179420bd02`），
+`.bak-<stamp>` 恰好 1 份，dump 1,635,658 字节。
+三条读数按档归属现已可验：**0031 生效**——演练留下的那笔 `b9af0511…`（`status=running`、`lease_until` 非空但已过期）
+第一次出现在 `list_pending_audit_exports` 的返回里（`seen=1`，该 org 当前待发 1 笔），**我没有去 claim 它**（I-3b 未批，它是缺口 ① 的物证）；
+**0030 在位**——`commit_runtime_checkpoint` 的活 catalog 里 `durable_receipt_after_deadline` 与 `hard_deadline <= v_now` 两个谓词都命中，
+但 `audit_event` 里 `='true'` 的行数为 **0**，这是"还没遇到该形状"，不是"没生效"；
+**0032 通道打通**——以 unit 的形状跑包内那份 `run-retention-scan.sh`（`User=work-control`＋两个 EnvironmentFile）得到
+`content_objects=1352 content_orphans=178`、`scan_errors=0`，只报不删、不动退出码。
+**#81 仍不生效**（`reconcile_timeout` 在现网不该出现），因为 worker 二进制没换——这就是 I-4b，而此刻有 1 笔 `active` Run 在途，
+§5.32 的重放前置又仍缺导出能力，所以 I-4b 不能做。
+
 1. **`state=failed / terminal_reason=reconcile_timeout`**（#81＝B2）。含义：一笔 Run 停在"等人工核对"超过 24 小时后被**判失败**。
    值班要知道的三件事：① 它**不动账**——既不 `settle_quota` 也不 `release_quota`，预留按 #34=A 保持人工处置，
    所以看到 `quota_reservation` 仍是 `held` **不是 bug**，走 §5.17/§5.16 的既有通道；

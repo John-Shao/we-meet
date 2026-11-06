@@ -1487,6 +1487,27 @@ B2 的形状：`advanceReconcileWaitLimit=24h` 与 `AdvanceReasonReconcileTimeou
   改 `title-max-length`／关掉 `UC1` 属于"为跑绿放宽控制"，与本包纪律相冲；这条红就让它红着，
   读 CI 的人按本条判断，**别把它当缺陷去修配置**。后续新提交按 emoji＋scope＋≤72 标题、正文非空且每行 ≤80 写就不会再加违规
   （本条与随后那笔提交就是照这个格式写的）。
+- **【11-06 18:4x I-4a 已执行：链到 32，worker 没被碰；顺带冒出一条新读数 #85】**
+  主机访问按主签给的现读通道（`johnshao@36.151.147.217`＋`id_ed25519`；sudo 口令只在远端从 `~/sudo-pass.txt` 管道进 `sudo -S`，
+  不进 argv、不回落本地；每条 sudo 单独喂 stdin——这条坑是笔记里记过的"一条命令里多个 sudo 吃同一份 stdin"）。
+  **动手前 dry-run 全绿再动**：dry-run 输出里 `systemctl` 出现 **0 次**、`stop|restart|start|enable|daemon-reload` **0 次**、`DRY-RUN:` 命令 10 条，
+  口令以 `<redacted>` 出现（`leaked_secret_lines=0`）。正式跑 rc=0。
+  **"没重启"是核对不是宣称**：`work-worker` `ExecMainStartTimestamp=Fri 2026-11-06 07:57:12`（早于本次 18:41）、`NRestarts=0`，
+  relay／export 仍 11:00:22；`work-worker` 安装态 sha 仍是 `9cd4f2b986e19a2e`（部署前后同值）；
+  唯一被换的是 `work-migrate`，其安装态与包内同为 `c52d5e179420bd02`——这条同时是"包→主机"交付完整性的一部分（上传后主机 `sha256sum -c SHA256SUMS`＝55 OK／0 不一致）。
+  `.bak-<stamp>` 按名字数是 **1** 份（不是按 `-newermt`，那个恒 0），dump 1,635,658 字节。账本 `max=32 rows=32`，30/31/32 三条齐。
+  **三条新语义在现网的归属核对**：① **0031 生效**——`b9af0511…`（`running`、`lease_until` 非空但已过期）第一次进了
+  `list_pending_audit_exports` 的返回（`seen=1`、该 org 待发 1 笔），**我没有 claim 它**（I-3b 未批，且它是缺口 ① 的物证）；
+  ② **0030 在位但未被触发**——活 catalog 里 `durable_receipt_after_deadline` 与 `hard_deadline <= v_now` 两谓词都命中，
+  而 `audit_event` 中 `='true'` 的行数 **0**：按 §5.31 的口径这是"还没遇到该形状"，不能写成"没生效"；
+  ③ **0032 通道打通**——按 unit 的真实形状（`User=work-control`＋两个 EnvironmentFile）跑**装上去的那份脚本**，
+  得 `content_objects=1352 content_orphans=178`、`scan_errors=0`。
+  **我自己的一条错假设当场被撞**：先想用 `work_api_login` `SET ROLE work_worker` 去走 definer 路径，直接
+  `permission denied to set role`——该登录不能 assume worker；正确做法是照 unit 的形状跑脚本原文，这也才是"测发布件要执行原文而非抄一份"。
+  **新发现，登记为待修 #85（未定性，别当结论用）**：`content_orphans=178`。这数字第一次被读到，此前该通道在生产不存在，
+  所以既不是"新造了 178 个漏洞"也不能读成"泄漏 178 个对象"；它可能混有演练夹具、历史遗留与引用形态本身不在这四张表里的对象。
+  按 §5.30 的口径必须先定性（是谁产生的、为何库里无引用），再谈任何回收；**本轮一个删除动作都没做，也不该做**。
+  **#81 仍未生效**（worker 没换），所以 `reconcile_timeout` 不该在现网出现；I-4b 现在明确不可执行——`active=1` 笔在途＋§5.32 的重放前置缺导出能力。
 
 **【交接：这轮余量用尽，剩下的按这个顺序做，别重新推演】**
 ① 主签单选 **#83**（超时那刻已有 bound 成功回执：G1 维持 B2 字面／G2 到期先 finish 一次／G3 只调上界长度）；
