@@ -326,6 +326,39 @@
       "catalog_checksum": "sha256:ef257ecd5b2c1b86439ae239822225e23f79a9ff60d423778940891888080f08",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 30,
+      "name": "0030_durable_receipt_head_commit",
+      "kind": "increment",
+      "file": "increments/0030_durable_receipt_head_commit.sql",
+      "checksum": "sha256:adca7caf34852efd62125c88bf802dd07924f8f5432996a3e9f9902401cfaa37",
+      "catalog": "catalogs/0030_durable_receipt_head_commit.json",
+      "catalog_checksum": "sha256:222161b8260e9b9ef9fd06a4b990342f0d3d381f72ae8f823ac673b32582fa70",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 31,
+      "name": "0031_audit_export_stale_lease_discovery",
+      "kind": "increment",
+      "file": "increments/0031_audit_export_stale_lease_discovery.sql",
+      "checksum": "sha256:750722e414d570ff7cc56e0cc1c233ecb301c7d03e6d6846b6667793b53f3a33",
+      "catalog": "catalogs/0031_audit_export_stale_lease_discovery.json",
+      "catalog_checksum": "sha256:356afe36aac7770518c8ef3bc34032560319af74e7483651d9491ec0a65d2038",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 32,
+      "name": "0032_content_ref_reads_for_orphan_report",
+      "kind": "increment",
+      "file": "increments/0032_content_ref_reads_for_orphan_report.sql",
+      "checksum": "sha256:b0a93a6944f84702af395da0440d962c2c6f71f635dabd93b0a4a8d9e935beef",
+      "catalog": "catalogs/0032_content_ref_reads_for_orphan_report.json",
+      "catalog_checksum": "sha256:fb4ab2947a4781caca488019683d4d5978fb7deb720e0db822c4b3ba1fb16a91",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

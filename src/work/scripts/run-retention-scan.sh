@@ -39,6 +39,7 @@ fi
 
 scan_errors=0
 stuck_total=0
+orphan_total=0
 swept_total=0
 org_count=0
 
@@ -55,8 +56,10 @@ for org in $WORK_RETENTION_ORGS; do
   fi
 
   declare -A values=()
+  declare -A refs=()
   while IFS= read -r line; do
     case "$line" in
+      refid=*) refs["${line#refid=}"]=1 ;;
       gauge=*)
         name=$(printf '%s' "$line" | sed -E 's/^gauge=([a-z_]+) value=.*$/\1/')
         val=$(printf '%s' "$line" | sed -E 's/^gauge=[a-z_]+ value=([^ ]*).*$/\1/')
@@ -76,11 +79,40 @@ for org in $WORK_RETENTION_ORGS; do
     continue
   fi
 
+  # 只报不删（#80 第二半）。名字必须按写入方推：
+  # 目录 = sha256(orgID) 前 16 字节，文件 = <id>.enc，id 来自 content_ref 的最后一段
+  # （internal/content/local.go:95-99 与 :178-179），已由 list_content_refs 抽好。
+  # 直接拿 basename 去等 content_ref 会永远不相等 ⇒ 所有文件都被读成孤儿。
+  objects=0
+  orphans=0
+  orphan_reading=0
+  if [ -n "${WORK_CONTENT_DIR:-}" ]; then
+    orphan_reading=1
+    dir_hash=$(printf '%s' "$org" | sha256sum | cut -c1-32)
+    org_dir="$WORK_CONTENT_DIR/$dir_hash"
+    if [ -d "$org_dir" ]; then
+      for f in "$org_dir"/*.enc; do
+        [ -e "$f" ] || continue
+        objects=$((objects + 1))
+        [ -n "${refs[$(basename "$f" .enc)]:-}" ] || orphans=$((orphans + 1))
+      done
+    fi
+  fi
+
   exp="${values[exports_expired]}"
   shd="${values[exports_shredded]}"
   inp="${values[inputs_expired]}"
   stuck="${values[shred_stuck]}"
   line="org=$org exports_expired=$exp exports_shredded=$shd inputs_expired=$inp shred_stuck=$stuck"
+  if [ "$orphan_reading" -eq 1 ]; then
+    line="$line content_objects=$objects content_orphans=$orphans"
+    orphan_total=$((orphan_total + orphans))
+    # 报而不判：孤儿对象不代表投递义务没完成（那条是 shred_stuck），
+    # 它代表"有一块空间没有任何留存路径会回收"，属 §5.30 的人工决定 ⇒ 不改退出码。
+    if [ "$orphans" -gt 0 ]; then
+      echo "run-retention-scan: ORPHANS $line - 盘上有对象而库里零引用，只报不删（§5.30；比对 $org_dir）"
+    fi
+  fi
   swept_total=$((swept_total + exp + shd + inp))
 
   if [ "$stuck" -gt 0 ]; then
@@ -92,7 +124,7 @@ for org in $WORK_RETENTION_ORGS; do
   fi
 done
 
-echo "run-retention-scan summary: orgs=$org_count swept_rows=$swept_total grace_minutes=$GRACE_MINUTES stuck_shred=$stuck_total scan_errors=$scan_errors"
+echo "run-retention-scan summary: orgs=$org_count swept_rows=$swept_total grace_minutes=$GRACE_MINUTES stuck_shred=$stuck_total scan_errors=$scan_errors content_dir=${WORK_CONTENT_DIR:-unset} orphan_objects=$orphan_total"
 
 if [ "$scan_errors" -gt 0 ]; then
   exit 1
