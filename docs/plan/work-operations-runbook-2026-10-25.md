@@ -1442,3 +1442,47 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
    读数含义：盘上该 org 目录里有对象，而库里四张带引用的表（成果版本、审计导出、内容引用、输入对象）都不指向它。
    处置口径沿用 §5.30：先定性（是自造夹具还是真实产物）、再决定回收，**不要写自动删除**；
    对比用 `id`（库里存的是 `content://work/<org>/<id>?v=N`，文件名是 `<id>.enc`，别拿整串引用去等 basename）。
+   **手工跑这条读数前必须先 `set_config('app.org_id', '<org>', false)`**：`SECURITY DEFINER` 换的是**角色**、不是租户上下文，
+   而 `input_object` 与 `audit_export` 现读都是 `relrowsecurity=t` **且** `relforcerowsecurity=t`（FORCE 对表 owner 同样生效，#53 记过的那条），
+   所以不设 GUC 就是**静默 0 条引用→0 个孤儿**，而这条读数按设计**不进退出码**（§5.30 的"只报不删"）——它不会替你报错。
+   随包那份 `retention-scan.sql:15` 正是因此先打一行 `ctx_org=`；自己拼 psql 时把这一步照抄上。
+   函数体内那四条 `WHERE x.org_id = p_org_id` 是**第二道**（本轮用例把其中一条去掉后仍读不到别组织，正是被上面这层 RLS 拦住的），
+   别把它当成"有 definer 就不用设上下文"的依据。
+
+### 5.32 换 `work-worker` 之前先做一次历史重放（#81＝B2 带来的新前置，2026-11-06 15:5x 现读代码得出，**未部署**）
+
+**为什么多这一步**：#81 把 advance 的三处停放从 `awaitResumeOrCancel(cancelCh, resumeCh)` 改成
+先 `workflow.NewTimer(ctx, advanceReconcileWaitLimit)` 再走 `awaitQuotaOrSignal`——**这是命令序列的变化**，
+而 `src/work` 全树没有一枚 `workflow.GetVersion` 闸（grep 零命中）。Temporal 的重放忠实于历史：
+换二进制那一刻**仍然开着**的 workflow，重放到停放点会看见"新代码要排一个历史里没有的 Timer" ⇒ `non-deterministic_error`。
+已经终态的 Run 不受影响（历史不再重放），所以这一步的成本只随在途数量变化。
+
+**先例不是假设**：2026-10-31 那次部署前导过 9 个开放 Run 的历史，8 个 replay ok，
+`3a34a855…` 因旧史排 `RevokeAdvanceExecution`、新代码排 `FinishAdvance` 报 nondeterministic，
+**当时的结论是"不能恢复，只能按孤儿关闭"**。这条就是本步要防的形状，代价按它读，不按"重启慢一点"读。
+
+**怎么做（三步，都是只读或本地）**：
+1. 现读在途：**逐 org** 跑 `work-reconcile -scan -org <org>`（`-org` 是必填，没有"全 org 一把扫"的开关）。
+   它每条 Run 都会向 Temporal 要一次 `DescribeWorkflowStatus`，输出 JSON 里看 **`workflow_status`** 是不是 `Running`
+   （键名来自 `cmd/work-reconcile/scan.go` 的 struct tag，别按记忆写）。**`run_state` 与 `workflow_status` 不是一回事**：
+   前者是库里那条 Run 的状态、后者是 Temporal 侧那条 workflow 的状态，这一步只数后者等于 `Running` 的条数。身份与 Temporal 八个变量（含 mTLS 三件路径）取
+   `/etc/work/work-worker.env`。**零个 Running ⇒ 本步记"无对象可重放"，直接进换二进制。**
+   **不要拿每小时那条 `work-reconcile-scan.service` 的 summary 当这一步的替代**：它内部同样调 `-scan`，
+   但只打印 `orgs=N orphans=M scan_errors=K`——`orphans` 数的是"库里有、workflow 已不在跑"的那些，
+   **`orphans=0` 恰恰不等于"没有在途"**（全在途时它本来就是 0）。这一步要的是 Running 计数，得自己按 org 读。
+2. 有对象 ⇒ 换之前用**新包里那份** `work-replay`（它没有 unit，得手工跑；`verify-r0a-0027.sh` 只核它在不在、不核它跑过）逐个重放导出的历史，取每个的结论。
+   **这一步的前半条目前交付链里没有：树内没有任何"导出历史 JSON"的实现。** 现读依据：`cmd/work-replay/main.go:26` 只是
+   `ReplayWorkflowHistoryFromJSONFile` 的**消费端**，`src/work` 内 `GetWorkflowExecutionHistory` 零命中；
+   10-31 那次用的临时重放二进制当时已删（`work-project.md:364` 原句"主机上的历史文件与临时重放二进制已删除"），没有可复用通道。
+   所以动手前先二选一：**①** 主机若装了 Temporal CLI，先 `command -v temporal` 现读确认，再按其导出参数把 JSON 落盘后喂 `work-replay`（别假设它在）；
+   **②** 给 `cmd/work-replay` 补一个导出模式（取历史落 JSON），这条才算把"取历史→重放"补成两段齐——**要另批实现＋用例，不是顺手能做完的一半**。
+   实现前要先核的一件事：本包用的 SDK 是 `go.temporal.io/sdk@v1.50.0`，消费入口是 `internal/internal_worker.go` 里的
+   `ReplayWorkflowHistoryFromJSONFile`。**它接受的 JSON 具体形状本轮没有取证**（我在模块缓存里没读到它的解析分支），
+   所以这里**故意不写命令样例**——照本文猜格式写导出，比不写更容易产出一个"能写出文件但重放永远报错"的假通道。
+   已实测的那一半：包内 `work-replay` 的接口形状是真的——本轮在容器里跑那份二进制，无参 rc=2 打印 `usage: work-replay HISTORY.json [...]`，
+   指不存在的文件 rc=1 并逐条报 `replay <路径>: ...`；它注册的正是 `RunWorkflow` 与 `RunWorkflowAdvance` 两个类型，与本批改到的工作流对得上。
+3. 全 ok ⇒ 正常 rollout；**任一 nondeterministic ⇒ 这一批只装迁移、把"换 worker"单独另批**（`work-migrate apply` 与换二进制本来就是两类半径），
+   并在那笔 Run 上按 10-31 的口径先定性再处置——**不要为了装上 #81 而手工去动它的 workflow 历史或预留**。
+
+**别把这一步当成可选项写进"已具备"**：判断依据是包内二进制对新历史的真实重放结论，不是"代码改了超时所以应该没事"。
+

@@ -1314,6 +1314,10 @@ B2 的形状：`advanceReconcileWaitLimit=24h` 与 `AdvanceReasonReconcileTimeou
   报 `1 contract gate check(s) failed`（rc=1），随后**仓库内容未变**的两次调用都 rc=0（末段 24/24 通过）。
   我没抓出是哪一条检查翻转，所以它既不是"已修"也不是"不存在"；下一次推这批改动的 CI 结论才是正证
   （同类先例：meet 线 `MaterialActions.test.tsx` 与 backend 的时序脆弱用例）。
+  **【11-06 15:4x 复跑：三次全绿，但这条仍记待归因】**在 5 笔已提交、工作树干净（`git status --porcelain` 0 行）的
+  tip `461ad5058` 上把 `ci-contract` 连跑三次：三次 rc=0、内层计数一致（86＋38＋24 fail 0），
+  三份输出剥掉计时行后彼此 `diff` 为 0 行。这只说明**在提交后的静态树上取不到它**，与它同框的未证前提是
+  "那次红发生在编辑进行中的瞬时文件状态"——多次绿不把它消解成"不存在"，正证依旧是推上去那批的 CI 结论。
 - **【11-06 14:5x 发布链的"两个自述"现在会互相对账＝`make-release.sh` 新增 25 行＋一条判别式守卫】**
   实测到的缺陷：`MIGRATION_TAIL` 是**工作树**算的、`RELEASE_COMMIT` 是 **HEAD** 印的，过去没人比 ——
   本会话就造出过"包宣称带到 32、而它写下的 commit 里没有 0030/0031/0032（0029 在）"这一状态
@@ -1338,6 +1342,111 @@ B2 的形状：`advanceReconcileWaitLimit=24h` 与 `AdvanceReasonReconcileTimeou
 ③ 与上一条 stamp 检查共存：先匹配容器 → 打印链尾 32 → 未提交增量仍 FATAL，构建不发生。
 **这一轮又被自己的文案绊了一次**：`derived from mounts:` 被 `doc-schema-refs` 读成 `FROM mounts` ⇒ design 84/85 红；
 改的是措辞（`matched by mount source`），**没给守卫加豁免**。改后 design 85/85、`ci-contract` rc=0。
+- **【11-06 15:5x 发布件第一次被当作物件本身跑：包内 `work-migrate` 在临时库把链装到 32】**
+  `make-release.sh` 从 tip `461ad5058` 建包 rc=0（容器按挂载匹配＝`work-go-fix29`、打印链尾 32、13 个二进制含
+  `work-e2e-seed`／`work-replay`、`SHA256SUMS` 55 条校验全过）；把**包内那份** `work-migrate` 拷进容器，对一个
+  `OWNER work_owner` 的新库跑 `apply --legacy-migrator-disabled` ⇒ rc=0、`max(version)=32`、`rows=32`。
+  三条新语义都按**包内文件原文**读回，不是我另抄一份：`commit_runtime_checkpoint` 的 prosrc 同时命中
+  `durable_receipt_after_deadline` 与 `hard_deadline <= v_now`；`list_pending_audit_exports` 命中过期租约谓词；
+  `list_content_refs` 是 `prosecdef=t`＋`search_path=work, pg_catalog`，权限现读 `work_worker`=t／`public`=f／`work_api`=f，
+  负例 `set role work_worker; select count(*) from work.content_reference` 仍 `permission denied`（这条中介没顺手放宽表）。
+  校验的判别力也做了正反：用**包内** `verify-r0a-0027.sh` 那条清单 SQL 跑新库＝`none (all present)`，
+  跑一台停在 14 号链尾的旧库＝点名 16 行（17 到 32 全列，首 `17:0017_r0b_transition_authority`、末 `32:0032_content_ref_reads_for_orphan_report`）
+  ⇒ 那条清单有判别力、不是恒真。**这一句我第一版写成"缺 22…32"，是照着一段被我自己截断的输出抄的**——按行数重读才改对。
+  **过程中两次自伤，都不算工件的错**：① 我先拿 `OWNER postgres` 的库跑，runner 按 `SET ROLE work_owner` 的前提直接 42501 拒——这是它自己的前提在说话；
+  ② 我第一版 ACL 探针写了枚不存在的 `pg_get_function_acldefault`，改按 `has_function_privilege` 现读才有结论。
+  **顺带抓到一处活指令过期**：授权单 I-4 那行写的是"装 0030＋0031／apply 到 31／链尾 29→31"，而 tip 实际带到 32——
+  按旧数字点等于少点一条 0032（它是**新增可执行对象＋GRANT/REVOKE**，形状与两条 `CREATE OR REPLACE` 不同，正是主签该看见的那类）。
+  已就地改到 32，并补上 0032 的形状、本轮发布件证据，以及"不装则 §5.31 那条只报不删的读数在现网根本取不到数"这条代价；
+  历史行"0031 落地当时写的清单到 31"**不改**——那是那一步的真值，不是指挥人的活指令。
+- **【11-06 15:5x 读 I-4 时顺带查出一件本轮没记的前置：#81 换 worker 会让"在途 workflow"非确定】**
+  起因是核对授权单那句"不碰那三处物证"是否成立。DB 侧成立（零回填、零表变化），**但 Temporal 侧有一条我此前没写进任何活指令的风险**：
+  `git show 8b4fef478` 里三处停放都从 `awaitResumeOrCancel(cancelCh, resumeCh)` 变成先 `workflow.NewTimer` 再 select，
+  即**命令序列变了**，而 `src/work` 全树 `workflow.GetVersion` 零命中 ⇒ 换二进制那刻仍开着的 workflow 重放会 `non-deterministic_error`。
+  这不是假想：**2026-10-31 那次部署前重放 9 个开放 Run，`3a34a855…` 就是这么红的**，当时结论"不能恢复，只能按孤儿关闭"（账本 :364 原句）。
+  落法两处：授权单 I-4 的"缺"栏加第 ③ 项（先用包内 `work-replay` 重放在途历史；任一不兼容 ⇒ 这批只装迁移、换二进制单独另批），
+  runbook 新增 §5.32 写全三步与"零在途 ⇒ 记无对象可重放"的口径。**没有改代码去回避它**（加 `GetVersion` 是另一条决策，且 #81 的裁定文字就是"加上界"），
+  也不把"应该没事"写进已具备——判据只能是包内二进制对新历史的真实重放结论。
+- **【11-06 16:0x §5.32 从"一段话"升成机器守卫：`test/runbook-knob-references.test.mjs`】**
+  新加的这条不是"再写一遍文档"，是把**文档指名的旋钮必须真在树里**钉成断言：§5.32 里每个 `` `work-*` `` 必须解析成
+  `src/work/cmd/` 下的命令、`deploy/ecs/` 下的脚本或 unit；每个 `` `-flag` `` 必须能在某个 cmd 的 Go 源里以 `"flag"` 字面量找到；
+  并且把要读的 JSON 键**双向**钉住（文档不提＝红，代码不再 emit＝红）。另带防空集下限（少于 3 个 work-* 对象、少于 2 个旗标即红，
+  节被掏空不能靠"没东西可查"蒙过去）。三条变异逐一验过红因都落在我那条具名断言上：`-scan`→`-scanx`、`work-replay`→`work-replayghost`、
+  `workflow_status`→`workflow_state`；每次还原后与备份 `sha256sum` 前 16 位相同（`c9aeab3fe0c6341e`）才算绿。
+  **第一条基线是红的，红在我自己的切片**：`slice(sectionStart+1)` 之后又拿 `/^#{2,3} /m` 找"下一个标题"，
+  匹配到的正是本标题的残段 ⇒ 节长 0。改成按行 findIndex 找节界才绿——**"先绿后红"这条判据又一次在写完之后才发现没满足**。
+  **第二个自伤更值得记**：JSON 键那一支我起初写成 `if (section.includes(key)) assert(...)`——命中才检查，
+  删掉文档里的键名它反而安静地绿（变异 rc=0 抓到）。改成两侧都无条件钉，并顺手在 §5.32 里把
+  `run_state`（库侧）与 `workflow_status`（Temporal 侧）区别写清，守卫与文档一起变硬。
+  **同轮现读两件事**：① #81 的风险面**不含配额停放**——`advanceQuotaWaitLimit` 那支的 commit `dffaaf962` 是已部署 `dff95937b` 的祖先，
+  生产历史里已经有那个 Timer，所以只有 reconcile／usage 两处停放是新形状；② 测试专用旋钮 `Activities.ExecuteDeadline`
+  在 `src/work/cmd/` 下**零个赋值点**（只有定义、取值器与那条 `advance_park_pg_test.go` 用它），生产默认仍是 30 分钟。
+  计数更新：design **86→87**、`ci-contract` **87＋38＋24＝149** rc=0。
+- **【11-06 16:0x 传播扫描扫出一条更危险的活指令：授权单 A 单那节还把"重启 work-worker"挂在待办复选框上】**
+  起因是"凡是指挥人换二进制的文本都得带上 §5.32 的前置"这句自我要求，`grep restart work-worker` 扫到
+  `work-r0a-pilot-write-authorization-2026-11-05.md` 第 2 节 A1／A2／A3 三个**未勾**复选框——而这三步
+  2026-11-05 09:26–09:52 就已执行（账本 :888 那段"A 段已执行到 A3＋A4 复核"），A5 三格也已现网取证、A4 经核原文过期。
+  **一个已执行却仍显示待办的复选框，等于一张可以再按一次的生产写授权**——比写错数字更容易被照做。
+  处理：节首加带日期状态标注（原文与复选框都不删，改为"本节是 0029 那一批的历史授权单，本表待点头的只有 I-4"），
+  并就地更正 A2 那句代价：它"停 worker 期间不派发、在途由 Temporal 继续"对 0029 那批成立，
+  **#81 这批不成立**（命令序列变了，最坏是那笔 Run 只能孤儿关闭）。design 87／ops 30／`ci-contract` 149 复跑全 rc=0。
+- **【11-06 16:0x §5.32 自己也被查出一段"只补了后半条"：树内没有导出历史 JSON 的实现】**
+  写"用包内 `work-replay` 重放导出的历史"时我没问过**导出**这一步归谁。现读结果：`cmd/work-replay/main.go:26` 只是
+  `ReplayWorkflowHistoryFromJSONFile` 的消费端，`src/work` 内 `GetWorkflowExecutionHistory` 零命中，
+  而 10-31 那次的临时重放件当时已删（`:364` 原句）——**这正是 #47／#54 那一族"打包了但没装/没装但能喊"的第四面：喊得出、取不到料**。
+  已把 §5.32 第 2 步写成"先二选一（① 现读确认主机有 Temporal CLI；② 另批给 `work-replay` 补导出模式）"，
+  并在 I-4 缺③ 下同一结论的第三档：**两条都不通就只能先证"零在途"再换二进制**，不允许在无重放手段时赌它不炸。
+  能实测的那一半照实测写：包内 `work-replay` 无参 rc=2 打 `usage: work-replay HISTORY.json [...]`、缺文件 rc=1 逐条报路径，
+  注册的是 `RunWorkflow`＋`RunWorkflowAdvance`（与本批改到的工作流同名）。
+  **同一轮里两条守卫立刻各抓到我自己一个真实缺陷**：① **既有**的 `doc-table-shape` 抓到我往表格行**中间**留了换行 ⇒ 该行竖线从 8 掉到 5
+  （按行合并修回，复测 8 根）；② **本轮新加**的 knob 守卫抓到反引号里的 `` `work-project.md` `` 被它按"命令名"解析而判不存在——
+  改法是把**计划文档也纳入解析域**（不存在的文档名照样红），**不是把断言放宽**。
+  补记：`ExecuteDeadline` 那条测试旋钮在 `src/work/cmd/` 下零赋值点，生产仍 30 分钟；这条与上一条都已写进账本防下次重查。
+- **【11-06 16:1x 收尾审计查出两处"裁定没有对手"，第一条已补：`advance_g1_pg_test.go`】**
+  按"每条裁定都要落到具名用例"过一遍 #80／#81／#82／#83，两处不成立：
+  **① #83＝G1 当时零覆盖**——`reconcile_timeout` 有 5 处断言，全在 workflow 层，而那一层**看不见回执**（mock 里没有 receipt 这个概念），
+  所以"到期时已有 bound 成功回执"这一格根本没被测；F1 那条 PG 用例走的是**相反分支**（驱动 `FinishAdvance`）。
+  已补 `TestAdvanceReconcileTimeoutKeepsDurableReceiptUncommitted`：复用 `parkAdvancePastDeadline`（现网形状：回执已落、租约与硬期限都过），
+  差别只在驱动的是超时支路（`RevokeAdvanceExecution`→`AbortRun`），断言 head 仍 revision 0、无 `durable_receipt_after_deadline='true'`、
+  **预留仍 `held`（不 settle 不 release）**、Run 收成 `failed`。基线 PASS（5.90s），整包 `-count=1` 61.259s ok／0 FAIL。
+  **正向对照（把超时支路临时换成 `FinishAdvance`）红在第 92 行＝预留那条**：`reservation after the timeout = "settled", want held`。
+  **而 head／marker 两条断言在那次对照里没红**，这条要如实记：先 revoke 再 finish 时，答案不再落成 head（0030 的例外臂没走），
+  但**配额照样被结算了**——所以 G1 的"不 settle"不是天然成立，它是被"超时支路只 abort、不 finish"这一条守住的；
+  以后若有人加"revoke 后补一次 finish"，会**静默结算配额而 head 仍为 0**，这条断言就是为那个形状放的。还原后整包复绿。
+  **② 0032 `work.list_content_refs` 至今没有任何自动化用例**（`grep -rln list_content_refs --include=*_test.go` 零命中），
+  现有证据只是我手工以 `work_worker` 跑通的那次读数。它的承重语义是"每条分支都带 `WHERE org_id = p_org_id`"——
+  一次 `CREATE OR REPLACE` 漏掉某支就能静默跨租户，属**必须补**的一条（两 org 四分支夹具＋跨 org 缺席断言＋权限矩阵）。
+  本轮余量不足以把它写完并做变异核对，**登记为具名待修 #84，不写进"已闭环"**。
+- **【11-06 16:2x #84 已补：`internal/migrate/list_content_refs_pg_test.go`，并由此改掉一条我自己写错的定性】**
+  两个 org × 两张表（`input_object`＋`audit_export`）各一条引用，以真 `work_worker` 调 `work.list_content_refs(org)`：
+  各自看得见自己两条分支、看不见对方、`has_function_privilege` 矩阵 worker t／api f／public f、
+  以及"GUC 停在 A 而参数写 B ⇒ 返回空"。**夹具先行**：种子后立刻断言两表各 2 行——**第一版就是栽在 0 行上却没报错**，
+  若没有这条下限，整条用例会以"什么都断言不到"的方式绿。
+  **两次自我推翻（都记下来，因为结论变了）**：
+  ① 我原以为 `SECURITY DEFINER` 就是租户边界，实测两表 `relrowsecurity=t` **且** `relforcerowsecurity=t`、FORCE 连表 owner 一起管，
+  ⇒ definer 换的是**角色**不是**上下文**，不设 `app.org_id` 就是 0 行（这正是 #53 那条纪律的同一形状）。
+  ② 我据此设计的变异对照"删掉一条 `WHERE x.org_id=p_org_id` 就会跨租户泄漏"**跑不出红**：删了仍读不到别组织——被 RLS 拦住了。
+  所以断言改成钉真实层次：函数体内那四条是**第二道**（用例保留这段"影子定义"并要求它**不**泄漏，若哪天某表不再 FORCE，这条会红并在消息里点名原因），
+  今天真正兜底的是 `app.org_id`。
+  **随包脚本没有被推翻**：`scripts/retention-scan.sql:15` 本来就先 `set_config('app.org_id', :'org', false)` 再调函数（注释里已引 #53），
+  缺的是**文档**——runbook §5.31 那条只报不删的读数没写"手工跑要先设上下文、且不设就是静默 0 而不报错（这条读数按设计不进退出码）"。已补。
+  证据：单测 ok 4.228s；整包 `internal/migrate -count=1` ok 124.040s、0 FAIL；design 87／ops 30／`ci-contract` 149 全 rc=0。
+- **【11-06 16:2x 落地清单（现读 `git status`，不是回忆）：5 笔已提交 ＋ 6 条未提交，按两批分】**
+  未提交面恰是 6 条、无残留夹具（`tmp_`／`.bak`／`.orig` 计数 0），远端仍是 `0 5`（0 behind／5 ahead of `origin/fix-r0a-envelope-29`）。
+  **A 批＝执法件**（会触发 gates：`src/work/**` 与 `docs/plan/assets/**` 都在触发名单里）：
+  `src/work/internal/runflow/advance_g1_pg_test.go`（#83＝G1）、`src/work/internal/migrate/list_content_refs_pg_test.go`（#84／0032）、
+  `docs/plan/assets/work-r0a-design-2026-10-25/test/runbook-knob-references.test.mjs`（§5.32 的旋钮守卫，design 86→87）。
+  **B 批＝活指令更正**：runbook（§5.31 的 `app.org_id` 前置＋新增 §5.32 与其"导出半条缺失"标注）、
+  授权单（I-4 半径 31→32＋缺③＋A 单过期复选框标注）、账本（本轮全部现读记录）。
+  分批理由：A 批红＝语义红（要改用件），B 批红＝文本形状红（要改措辞），两批的修法语义不同，混在一笔会让下次归因重新推演一遍。
+  **未提交期间别把这两批的任何一条说成"已落地"**；`提交`＝只 commit，push 每批单独授权。
+- **【11-06 16:3x 更正我自己反复说错的一句：push 不跑 Work gates，跑的是 PR】**
+  本轮把"推上去 CI 会给那条不复现的门禁红正证"这句话拿去现读，读 `.github/workflows/work-r0a-gates.yml:3-16`：
+  触发块**只有 `pull_request`（带 paths 过滤），没有 `push:`**。⇒ ① 只 push 分支不产生任何 Work 门禁结论；
+  ② 要拿到"87＋38＋24 在活库上跑过"的对外正证，必须开/更新一个 PR；
+  ③ 这也解释了之前"纯文档推送把 required check 停在 expected"的现象——检查本来就挂在 PR 上。
+  前面几轮我在报告与账本里写过"push 会触发 gates"，那句**按现读作废**（原文不删，按本条为准）；
+  I-4 缺① 里"先 push"这一步因此不是"做完就有 CI 证据"，它只是让包里 `RELEASE_COMMIT` 有出处——**取证要多一步：开 PR**。
 
 **【交接：这轮余量用尽，剩下的按这个顺序做，别重新推演】**
 ① 主签单选 **#83**（超时那刻已有 bound 成功回执：G1 维持 B2 字面／G2 到期先 finish 一次／G3 只调上界长度）；
