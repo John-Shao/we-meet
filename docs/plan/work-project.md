@@ -1068,6 +1068,58 @@ D5:185"Inbox 只在首页/导航角标轮询；不做跨 Task SSE"的角标一�
 
 ## 5. 当前问题
 
+### 5.0 待裁清单（2026-11-06 11:2x 现扫；每条都是"一次单选"，带原文与代价）
+
+> 计数方法：blocking 未闭合项**现读** `pilot-checklist.json`（`blocking==true && status∉{done,not_applicable}`）＝ **15 项**
+> （C03／C04／C09／C13／C15／C16／C17／C22／C24／C25／C26／C27／C28／C30／C33），其中 **需要我这边动手的只有下面 A–E 五张卡**，
+> 其余是外部条件（商务签约、法务条款、真实用户指标、生产账号）。今天两次注入取证新增的是 A 与 B 两张。
+
+**卡片 A｜#80 审计导出的过期租约不可达 ＋ Put-before-commit 内容孤儿（`N03-1` fail 的根因）**
+- 原文引用：`work.list_pending_audit_exports` 的取行条件只有 `status='queued'`（`migrations/baseline/0002_initial_r0a_schema.sql:4695-4697`）；
+  `running` 只由 `work.claim_audit_export` 写入（`:4732`），而该函数允许"租约已过期即可重领"（`:4724` 只在 `lease_until > now()` 时抛 `audit_export_not_claimable`）
+  ——但**没有任何调用方会去领**：baseline＋increments 里没有 stuck-running 清扫（全库搜 `running` 的导出写只有那一处）。
+  现证：常驻 `work-export` 恢复后 5 秒一轮连轮 12 次，`pending_for_worker=0`，那笔行从 10:58:55 起停在 `running／content_ref=NULL／ready_at=NULL`（11:03:23 仍在）。
+  另一半：导出正文是先落盘再提交，所以 `audit_export_lease_lost` 抛掉之后盘上留下
+  `267c8708d6273eb51b2a4f261af78844.enc`（1,438,105 bytes），库里引用 0 行、指向它的 `content_shred` 事件 0 条——
+  因为 shred 只由 `work.audit_export.content_ref` 驱动。
+- 关键对照（这是我这轮才看清的）：**outbox 那条路能自愈**（`work.claim_outbox` 的谓词读 `claimed_until`，本轮 `N01-2` 实测过期即被重领、只投一次），
+  **audit_export 这条不能** ⇒ 同样是租约，两条路的恢复能力不对称，而 0028 只补了 `work.runtime_execution` 的认领出口。
+- 选项与代价：
+  - **A1＝R0a 内修**（与 #67／#77 同一做法）：`list_pending_audit_exports` 并入"`running` 且 `lease_until` 已过期"，
+    另加一个**只报不删**的孤儿对象读数进 §5.21 那套 gauges。代价：一个迁移增量＋活库用例＋清单/守卫传播，约一轮；收益：这笔请求不再永久卡住、孤儿可被发现。
+  - **A2＝记例外**：R0a 不修，写进值班口径（§5.30 已写"不会自愈、怎么认、怎么手工收"）＋在 `C03`／`C09` 的 note 里挂例外与重开条件（第 2 家租户接入或导出量>0 时重开）。代价：留一个已知死角上线试点。
+  - **A3＝只靠人工**：连例外都不记，只保留 §5.30。代价：与"每个已知缺口都要有编号与重开条件"的本包纪律相冲，我不建议。
+- 我的建议：**A1**。理由是它的形状与 0028 完全同族（已被验过一次的改法），而 A2 会让"审计导出"这个已交付的 admin 能力带着一个永久卡死态进试点。
+
+**卡片 B｜#81 崩溃后 Run 停在 `waiting/reconcile` 没有超时兜底（`S1-3` fail 的根因，**与 #34=A 相冲**）**
+- 原文引用：`internal/runflow/advance.go:272-277`（`fragment.StateWaitingReconcile` ⇒ `WaitRun(reason='reconcile')` ⇒ 阻塞等 `resume`/`cancel`），
+  对照同文件 `:211-218`（配额那一支带 `advanceQuotaWaitLimit=24h` 的计时器）⇒ **reconcile 这一支没有任何上界**。
+  现证：10:44:24 SIGKILL，attempt 2 在 10:48:33 由 Temporal 重投并 0.34 秒返回，Run 此后 39 分钟仍 `waiting／reconcile／terminal=NULL`，
+  `task_summary.display_state=running`、`work.quota_reservation` 一笔 `held` 100,000 不还；唯一发现是每小时 gauges 的 `parked_runs`（09:16:24 BREACH、单元 status=2）。
+- **相冲点必须先摆出来**：#34=A 已签"reconcile 写路径保持人工／证据门，自动写不落地"。所以"给 reconcile 加自动收口或超时"这一支**与更早的签收文本相冲**，我不自决，只登记。
+- 选项与代价：
+  - **B1＝按人工口径定稿**：不改代码；把 `S1-3` 判据改写为"停放＋一次人工 `-signal-only` 后终态正确"，按等价改判记（`D1-6`／`D2-4` 那次就是这个形状）。代价：自动到终态这条承诺在本版本不成立，且每小时一条 BREACH 要有人认。
+  - **B2＝只加超时不加自动写**：给这一支一个上界（比如与配额同构的 N 小时），到点**判失败**（`failed／reconcile_timeout`）而不是无人值守地 release/settle——这样不违背 #34=A（不自动写账，只自动终止等待）。代价：动 workflow 与用例，且要新定一个 terminal_reason 文案与错误码目录条目。
+  - **B3＝记例外**：R0a 接受"崩溃后靠人工"，与 B1 类似但写进 `C03` note 的重开条件。
+- 我的建议：**B2**（它把"没人兜底"和"自动写账"分开——#34=A 禁的是后者）。若你更保守，B1 也能收口，但我得把 `S1-3` 按"等价改判"重写。
+
+**卡片 C｜I-2b 与 I-3b：两次"收残留"的生产写（各一次点头）**
+- C-1 `I-2b`：对 operation `cc465f2b…` 发一次 `work-reconcile … -signal-only`。已具备的同路实测：11-05 14:2x 那次 signal 后 Run=`succeeded`、成果 published、真实结算、`held` 归零。
+  不做的代价：每小时一条 `parked_runs` BREACH＋org 的 `reserved_tokens=100000` 不归还＋用户侧恒显"进行中"（`work-runstream-scan.service` 每小时 status=2）。
+- C-2 `I-3b`：对卡死导出行 `b9af0511…` 先 `claim_audit_export(...)` 再 `fail_audit_export(...)`（顺序固定，claim 必须先把 `lease_owner` 换成自己）。
+  **注意它与卡片 A 打架**：那个孤儿对象与这笔卡死行**正是 A 的物证**——A 裁完再收不迟，我的建议是**先裁 A，再决定 C-2**（否则证据就没了）。
+  C-1 不受影响，可以现在做。
+
+**卡片 D｜两笔本地 commit 是否推**：`5e4d948be`（I-2 落账）＋`158f26fa2`（I-3 落账）未推。
+- 它们都改 `docs/plan/assets/**` ⇒ 按 `work-r0a-gates.yml` 的路径过滤**会触发 gates**，不会把 required check 停在 expected（这是我推纯文档时踩过的坑，现读 workflow 才敢说）。
+- 代价：CI 会真跑一次全量（含 go-migrate 的活库串行）。收益：演练账与值班口径进远端，别人能按 SHA 引用。
+
+**卡片 E｜Temporal 自建＋设备面 PKI 的"重量"这件事从来没落档**
+- 现读：全库搜 `杠杆`／`太重`／`设备面` 在 `docs/plan/**` **零命中**（2026-11-06 现扫）⇒ 11-03 那次你在会话里质疑"自建 Temporal ＋ 设备面 PKI 太重、三条降杠杆方向"这件事**没有任何决策单承接**，
+  而 `work-project.md:1077` 只记了 U3"已定 A：自托管"。也就是说：一条会改变部署形态与运维量的开放问题，现在只活在我的记忆里。
+- 选项：**E1＝现在落项**（写一张 R0a/R0b 边界的决策征询单，三条方向逐条带代价，等 R0b 解冻时一并裁）；**E2＝明确关闭**（记"接受现形态，R0a 不再重议"）；**E3＝不动**（继续挂着，风险是下次重启时又要重讲一遍背景）。
+- 我的建议：**E1 落项但不执行**——它属 R0b／规模化议题，R0a 现网形态本轮刚被两次注入验过，改它要连带 §5.29／§5.30 两节值班口径重写。
+
 ### 5.1 设计层未决项
 
 | 项 | 状态 | 需要谁 |
