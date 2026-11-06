@@ -1527,6 +1527,21 @@ B2 的形状：`advanceReconcileWaitLimit=24h` 与 `AdvanceReasonReconcileTimeou
   落地面：`increments/0033_*.sql`＋`catalogs/0033_*.json`（904,407 字节，用 `CreateBaselineDB` 按**当前链**现采，且**没有**再调 `ApplyChain`——那条坑第三次绕开）、`manifest.json` 双 checksum（追加后 diff 恰好 11 行，先占位后回钉）、`manifest_test.go` 的 `publishedIncrements`、`verify-r0a-0027.sh` 的 (version,name) 清单。
   用例 `list_content_refs_coverage_test.go` PASS（1.74s），原有的 org 隔离用例仍 PASS（1.66s）；匹配器特异性单独验过三条：四条分支都在、切掉 `operation` 那条后它找不到而其余三条仍找到、**只写在注释里不算命中**。`go test ./internal/migrate -run TestManifest|TestPublished|TestCatalog` 亦 ok。
   **没做完的那半如实留着**：行级"只被 intent_ref 引用的对象不出现在孤儿集"没写——`dispatch_delivery` 有绑定守卫、`runtime_execution` 要经注册函数才能造出合法行，本轮预算内铺不完；**我没有把它记成已完成，也没用手工 INSERT 凑一个只证明夹具能跑的假覆盖**。现网账本仍是 32 ⇒ `content_orphans` 还是 178 那个上界，装到 33 才该降到 15（再一次 I-4a 形状，不换二进制、不动单元）。
+- **【11-06 20:2x I-4a 到 33 与 I-4b 都执行完；"I-4b 被导出能力卡住"这一条被现读推翻】**
+  执行前按 §5.32 数在途：`work-reconcile -scan -org <org>`（`runuser -u work-control -m` ＋ `work-worker.env` 的 unit 形状）得
+  **Running=0**，唯一一笔 `e24eb42c…` 是 `workflow_status=Failed` ⇒ 第①档成立，**那个还没写的导出模式今天不是拦路石**。
+  两次生产写都先 dry-run 再实装：① `--migrations-only` 到 33 rc=0、`ledger=33 rows=33`、`content_orphans` **178→15**
+  （与 19:5x 定性的预测逐位相同），其间 worker 没动（`ExecMainStartTimestamp` 仍 07:57:12、sha 仍 `9cd4f2b986e19a2e`，
+  只有 `work-migrate` 变成包内同值 `577e18a4dbd95c1d`）；② 完整 rollout rc=0：dry-run 先数出 12 步／81 命令／6 stop／3 restart，
+  实装后 worker 安装态 `f4bbf1e99c26e1de`＝包内同值、journal 20:26:22 停旧／20:26:25 起新（`TaskQueue work-r0a-run`）、无非确定错误、
+  8 单元 active、`.bak-20261106-202622` **13** 份、`verify-r0a-0027.sh` rc=0（`rows=33 max=33`、清单 all present、无 WARN）。
+  **我自己的四条错，逐条记**：① `bak=$(ls *.bak-$(date +%Y%m%d-%H))` 数出 0 份——glob 少了尾部通配，不是没有回滚件（按完整 stamp 名是 13）；
+  ② `work_api_login` 不能 `SET ROLE work_worker`，所以"以 worker 身份读 definer"必须走 unit 形状跑**装上去的那份脚本**；
+  ③ 两次把授权单里的句子当成 runbook 的锚点，脚本按 count≠1 中止、后续编辑没执行——**"锚点唯一命中"比"替换成功"更值得信**，
+  这次也说明结构性插入（按行定位、在单元格内追加）比复现整句稳；④ 先前那句"忘了设 `app.org_id` 就得到 0 行"是 #53 的原样重演。
+  **仍欠**：#81 的 `reconcile_timeout` 行为取证（别把"二进制里有"当"验过"）；`b9af0511…` 可发现但 I-3b 未批 ⇒ 未 claim；
+  有 `Running` 的场景下导出模式仍缺；0033 行级覆盖用例（#86 第二半）未写；三处演练物证未动。
+  推送侧：`0d7226bff` 已 push，PR #39 上 `Work R0a gates` 与 required gate 均 **completed／success**。
 
 **【交接：这轮余量用尽，剩下的按这个顺序做，别重新推演】**
 ① 主签单选 **#83**（超时那刻已有 bound 成功回执：G1 维持 B2 字面／G2 到期先 finish 一次／G3 只调上界长度）；

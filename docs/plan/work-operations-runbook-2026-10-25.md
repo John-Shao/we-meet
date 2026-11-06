@@ -1469,6 +1469,17 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
    ⇒ **在 0033 补齐分支之前，`content_orphans` 只能当"上界"读，不能当条数用**；
    反方向那条（库里 515 个引用在盘上找不到对象）本轮**没有定性**，别顺手解释成"shred 之后本该如此"。
    **【11-06 19:5x 0033 已进链，但现网还没装 ⇒ 上面那句"按上界读"仍然有效】**分支清单补齐 `runtime_execution.intent_ref`／`dispatch_delivery.receipt_ref`／`operation.receipt_ref` 三条（依据是"该行值真的以 `content://work/` 开头"的计数：157/316、126/148、126/164；`local_ref`／`payload_ref`／`result_ref`／`checkpoint_ref`／`input_checkpoint_ref` 计数为 0、`content_reference.ref_id` 是 uuid，所以**不进清单**）。账本要走到 33 才生效——那是再一次 I-4a 形状的动作（函数体替换、不换二进制、不动单元）；**在那之前现网 `content_orphans` 仍是 178 这个上界，不是 15**。
+   **【11-06 20:2x 上面那句已过期：现网到 33，实测 `content_orphans=15`】**按 unit 形状跑装上去的 `run-retention-scan.sh`，
+   `content_objects=1352 content_orphans=15`、`scan_errors=0`——与 19:5x 定性的预测值逐位相同，
+   这条读数的口径从此可信。**同一轮 I-4b 也做了**（换 `work-worker` 等 13 个二进制），
+   所以本节开头"两个 Go 修复仍未部署"的说法到此失效：#81 的 `reconcile_timeout` **从此可以产生**，
+   但**行为仍未取证**——要一次真实的饱和/停放形状才谈得上判它通过，别把"二进制里有了"当"验过了"。
+   **【11-06 20:2x 本前置这次走的是第①档，没被触发】**执行前逐 org 现读 `work-reconcile -scan -org <id>`
+   （以 unit 的形状：`runuser -u work-control -m` ＋ `/etc/work/work-worker.env`），得 **Running=0 条**——
+   唯一在途那笔 `e24eb42c…` 是 `workflow_status=Failed`，历史已闭合、永不重放 ⇒ 记"无对象可重放"，直接换二进制，**不需要导出能力**。
+   但那条缺口本身没被解决：将来任何一次有 `Running` 的换二进制，仍必须先补导出或先 drain。
+   换完的正反证：journal 20:26:22 停旧 / 20:26:25 起新（`TaskQueue work-r0a-run`）无非确定错误；
+   `.bak-20261106-202622` 按名字数 **13** 份；`verify-r0a-0027.sh` rc=0、`rows=33 max=33`、清单 all present、无 WARN。
    演练留下的 `267c8708…` 仍在这 15 个里，这正是 §5.30 缺口 ② 的物证，**保留、别删**。
    其余原文继续有效：
    只在单元环境配了 `WORK_CONTENT_DIR` 时出现；**只报不删**，且**不进退出码**（投递义务由 `shred_stuck` 管）。
