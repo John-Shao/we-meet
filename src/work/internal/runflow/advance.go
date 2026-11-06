@@ -37,10 +37,16 @@ const (
 	// advanceQuotaWaitLimit and the quota_wait_timeout terminal code are §8.3 of the
 	// orchestration design; the wait bound is measured from the first saturation, not
 	// per attempt, so a run cannot live forever on repeated replenishment signals.
-	advanceQuotaWaitLimit        = 24 * time.Hour
-	AdvanceReasonQuotaTimeout    = "quota_wait_timeout"
-	advanceReasonQuotaWaitFail   = "quota_wait_failed"
-	advanceReasonQuotaResumeFail = "quota_resume_failed"
+	advanceQuotaWaitLimit     = 24 * time.Hour
+	AdvanceReasonQuotaTimeout = "quota_wait_timeout"
+	// advanceReconcileWaitLimit is #81 = B2. It bounds the wait ONLY: at expiry the
+	// Run is failed with reconcile_timeout and nothing is settled or released, because
+	// #34 = A keeps the reconcile write path manual and evidence-gated. The bound
+	// mirrors the quota branch's 24h; changing the number is one edit here.
+	advanceReconcileWaitLimit     = 24 * time.Hour
+	AdvanceReasonReconcileTimeout = "reconcile_timeout"
+	advanceReasonQuotaWaitFail    = "quota_wait_failed"
+	advanceReasonQuotaResumeFail  = "quota_resume_failed"
 )
 
 // AdvancePrepared is the read-only preparation result. It carries identifiers,
@@ -275,9 +281,15 @@ func RunWorkflowAdvance(ctx workflow.Context, input Input) error {
 		}).Get(ctx, nil); err != nil {
 			return abortAdvance(ctx, input, execution, "failed", "reconcile_wait_failed")
 		}
-		switch awaitResumeOrCancel(ctx, cancelCh, resumeCh) {
+		// Created before the await and awaited exactly once, so the test
+		// environment's auto-fired timers cannot advance the virtual clock out from
+		// under the wait - the same reason the quota timer is created lazily.
+		reconcileDeadline := workflow.NewTimer(ctx, advanceReconcileWaitLimit)
+		switch awaitQuotaOrSignal(ctx, reconcileDeadline, cancelCh, resumeCh) {
 		case "cancel":
 			return abortAdvance(ctx, input, execution, "canceled", "run_canceled")
+		case "timeout":
+			return abortAdvance(ctx, input, execution, "failed", AdvanceReasonReconcileTimeout)
 		default:
 			return finishCheckpointed(ctx, input, prepared, head, execution, cancelCh, resumeCh)
 		}
@@ -322,9 +334,18 @@ func finishCheckpointed(
 			}).Get(ctx, nil); err != nil {
 				return abortAdvance(ctx, input, execution, "failed", "reconcile_wait_failed")
 			}
-			switch awaitResumeOrCancel(ctx, cancelCh, resumeCh) {
+			// Same bound as the park above, so "usage unavailable" cannot hold a Run
+			// open forever either. Created fresh per iteration on purpose: this one is
+			// inside the finish loop, so the bound restarts with each new park rather
+			// than being measured once from the first saturation - the quota branch
+			// measures from the first, this one measures from each, and the difference
+			// is deliberate (a resume here re-drives finish, it does not re-reserve).
+			usageDeadline := workflow.NewTimer(ctx, advanceReconcileWaitLimit)
+			switch awaitQuotaOrSignal(ctx, usageDeadline, cancelCh, resumeCh) {
 			case "cancel":
 				return abortAdvance(ctx, input, execution, "canceled", "run_canceled")
+			case "timeout":
+				return abortAdvance(ctx, input, execution, "failed", AdvanceReasonReconcileTimeout)
 			default:
 				continue
 			}
