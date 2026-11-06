@@ -1542,6 +1542,65 @@ B2 的形状：`advanceReconcileWaitLimit=24h` 与 `AdvanceReasonReconcileTimeou
   **仍欠**：#81 的 `reconcile_timeout` 行为取证（别把"二进制里有"当"验过"）；`b9af0511…` 可发现但 I-3b 未批 ⇒ 未 claim；
   有 `Running` 的场景下导出模式仍缺；0033 行级覆盖用例（#86 第二半）未写；三处演练物证未动。
   推送侧：`0d7226bff` 已 push，PR #39 上 `Work R0a gates` 与 required gate 均 **completed／success**。
+- **【11-06 21:1x 只读核查抓到我自己造成的生产回归：0031 把 `SECURITY DEFINER` 弄丢了；0034 已进链、现网未部署】**
+  起因是给 `b9af0511…` 那笔取证做的只读核查，三条读数撞在一起：`journalctl -u work-export` 每 5 秒一条（首条 **18:44:12**，正落在 I-4a 账本 29→32 那一分钟；到 21:06:50 累计 1713 条。我第一轮按 `--since 20:38` 取样，把发病时刻写晚了 2 小时——**读数窗口比症状窄，就会把'我什么时候开始看'读成'它什么时候开始坏'**）：
+  `ERROR: permission denied for table audit_export (SQLSTATE 42501)`、`pending_now=1` 而 `audit_export.%` 动作 6 小时零条、
+  `pg_proc` 里 `list_pending_audit_exports prosecdef=false config=none`，而同族其余函数全是 `prosecdef=true … search_path=work, pg_catalog`。
+  **根因是我自己写的 0031**：`CREATE OR REPLACE FUNCTION` 只按语句文本重建 `pg_proc` 那一行，`SECURITY DEFINER` 与 `SET search_path`
+  **不从被替换的行继承**（ACL 反倒继承）。0031 末尾那句注释写的正是"ACL 保留所以不重发 GRANT"——**那句概括本身没错，我拿它推了它没覆盖的属性**，
+  于是发现层退回调用者权限，而 `work_worker` 对 `audit_export` 没有 SELECT ⇒ #80 要修的"过期 running 没人领"被修它的那一笔亲手关在门外，
+  现网那笔演练行至今不可被 worker 发现。受害面按读数说：`updated_at > 18:44:12` 的导出行 **0 笔**（最后一次任何行被推动是 11:00:22），队列现读 `queued=0 running_stale=1 ready=8 total=151`——可见受害者只有那 1 笔过期租约；**"任何新请求同样会停在 `queued`"这句我只敢按代码路径讲（发现只有 `main.go:96` 这一条通道），现网今天没有新请求，所以它不是取来的证。**
+  **范围是穷举定的，不是照着症状点的**：① 链上 31 份 catalog 快照与尾快照对账，"曾经 definer、尾上不是"只有两枚——
+  `list_pending_audit_exports`（0030 前是、0031 丢）与 `artifact_version_immutable_content`（0016 前是、0017 丢）；
+  ② 现网按"可执行角色 × 函数体读的表 × 该角色有无 SELECT"交叉筛，全库只 1 行 = `list_pending_audit_exports / work_worker / audit_export`。
+  ⇒ 0029 的 `release_unreceipted_reservations` **不动**：它是有意 invoker 权限（0029:38-43 写明靠 RLS 收口），且可执行角色读得到它碰的表
+  ——那是另一个决定，不是同一个洞。其余 15 枚非 definer 函数都不在补救面内：要么只有 `work_owner` 可执行（`local_execution_policy_rules_valid`、
+  两枚 `stamp_*`、各守卫），要么可执行角色读得到它碰的表（`run_terminal_reservation_release` 与 0029 的 helper 同属这一档），
+  要么函数体根本不读表（`governance_seat_events_valid` 校验 jsonb 参数）。
+  **落地面（0034＝`--migrations-only` 形状：只装 `work-migrate`、不碰任何单元）**：`increments/0034_restore_function_security_definer.sql`
+  两枚函数各带上那两行子句，**body 与 0017／0031 逐字节相同**（程序化比对，只多两行——先错过一次把 `OLD.org_id` 写成 `OLD.artifact_id`，是比对抓的，不是我看出来的）；
+  catalog 用 `CreateBaselineDB` 按当前链现采，与 0033 那份对账**只差那两枚函数的 `security_definer`／`configuration` 四个值，其余段逐字节相同**
+  （这一条同时证明增量没夹带别的改动）；`manifest.json` 双 checksum（追加后 diff 恰好 11 行）＋ `publishedIncrements` ＋ `verify` 的 (version,name) 清单。
+  **新增两枚守卫，各自都带判别力**：`function_hardening_test.go` 不需要库，谓词从链本身派生（"曾经 definer ⇒ 尾上必须 definer＋钉住 search_path，
+  且最后一次重写它的那笔必须把子句写回去"），并把 1→33 那段历史钉成断言——**同一谓词必须正好点名上面那两枚**，所以它失去判别力时也是红的；
+  `workload_read_privilege_pg_test.go` 把现网那条谓词搬进活库（矩阵 20 行下限＋两枚具名对照：`list_pending_audit_exports`＝definer＋读不到，
+  0029 的 helper＝invoker＋读得到），另一条真做变异：`ALTER FUNCTION … SECURITY INVOKER`＋`RESET search_path` 提交后
+  worker 连接**当场复现 42501**、矩阵只报那一行，还原后两条一起归零。
+  `verify-r0a-0027.sh` 补 `export_discovery_hardened=`／`immutable_guard_hardened=` 两枚探针，把"账本跑到 34"与"权限真的回来了"分开；
+  21:0x 现网实测读数 `false search_path=MISSING body_has_stale_lease_branch=true`＝**谓词还在、门没了**，这指纹已写进 §5.33 的判据表。
+  **现网仍未动**：ledger 33、work-export 还在报 42501。解除它是一次 `--migrations-only` 生产写（按项授权），
+  代价必须一起摆出来：**装上 0034 的同一轮，`work-export` 会按 #80 的设计自动领取那笔租约已过期的演练行 `b9af0511…` 并真跑一次导出**
+  ——那正是 I-3b 的效果，要么单独点头，要么在授权前把它讲明，不能写成"顺便修好的"。运维口径与三条装后读数在 **§5.33**。
+  **登记为待修 #87（本轮已在仓库闭合、待生产写授权）**：`CREATE OR REPLACE` 的子句重发今后按 0034 的形状做；保留属性的清单必须逐项列，不靠一句概括。
+- **【11-06 22:0x #86 的第二半还上了：0033 那三条分支现在有行级用例，而且带历史变异对照】**
+  新文件 `list_content_refs_row_coverage_pg_test.go`。做法是把"只被这一列引用"的对象真造出来：`reserve_quota`→`claim_dispatch`→
+  `register_runtime_execution`（intent_ref 直接给 `content://work/<org>/<id>?v1`）→`claim_runtime_execution`→`consume_dispatch_delivery`→
+  `attach_dispatch_receipt`（delivery 那枚）→`finish_operation`（operation 那枚）——**没有一条是手工 INSERT**：
+  `dispatch_delivery` 有 0009 的绑定守卫、`runtime_execution` 要经注册函数才成合法行，手工插出来的只会证明我的夹具能跑。
+  每条分支两条断言成对下：① 直接谓词（`FROM <表> WHERE org_id=$1 AND <列> LIKE 'content://work/%'`）现读 ≥1 行（夹具真的写成了那条分支要选的形状），
+  ② `work.list_content_refs(org)` 返回那枚**裸 id**（另加一条全局断言：返回集里不许出现 `content://` 前缀或 `?`，因为留存扫描是拿 id 与盘上对象名比）。
+  少了①，② 有可能只是"函数返回得够多"；少了②，① 就什么都证明不了——两条一起才叫判别力。
+  另两格负向：一笔从没被引用的 id 必须不出现；第二个租户的三枚 id 必须不出现在第一个租户的读数里、且各自的在自己里（这才是逐分支钉 `org_id` 过滤）。
+  **变异对照用的是真历史而不是我编的**：同一份夹具先把 `0032` 的函数体换上去（从 `migrations.FS` 取原文、`CREATE`→`CREATE OR REPLACE`、
+  `SET ROLE work_owner`），三枚 id 必须**全部消失**＝现网 178-vs-15 那个形状在本地复现；再把 `0033` 的体换回来，三枚必须全部回来。
+  这一条就是"如果分支被删掉，这个用例会不会红"的答案，红因由被换掉的函数体给出，不由我的注释给出。
+  踩到的一条自己的错，记：`attach_dispatch_receipt` 先报 `invalid_request:receipt_hash`——我拿 `docHash(t, "receipt")` 造哈希，
+  而 `docHash` 是把种子重复截 64 位，"receipt" 里有非十六进制字符；守卫拒得对，改成 `docHash(t, "a")` 即过（这不是放宽，是把哈希造对）。
+  证据：`go test ./internal/migrate -p 1 -count=1` **ok 163.767s**（RC=0，含这两个新用例与既有全部）。
+- **【11-06 22:1x §5.32 那条"取历史→重放"补齐了前半段：`work-replay -export`】**
+  之前只有消费端（`ReplayWorkflowHistoryFromJSONFile`），所以文档能命令"先重放"却说不出历史从哪来——按 §5.32 自己写的规矩，
+  **没取证就不写命令样例**，这一轮先把形状取来：SDK 的解析分支在 `internal/internal_worker.go:2326 extractHistoryFromFile`，
+  它把整个文件 unmarshal 成 `historypb.History`（`DiscardUnknown`）⇒ 导出＝`GetWorkflowHistory(isLongPoll=false, ALL_EVENT)` 拼起来再 `protojson.Marshal`。
+  `isLongPoll` 固定 false 是有理由的：长轮询在 `Running` 的执行上是"等下一条事件"，预检会挂死在那里。
+  mTLS 复用 `dispatch.NewTemporal`（`Client()` 早就导出，不必再抄第二个拨号实现），env 旋钮与 `work-reconcile -scan` 同一套。
+  **用例怎么算证明了两段对齐**：正向把两枚事件写成文件交给**真消费入口**，回的是 `at least 3 events expected in the history`
+  ——引擎数得清我写了几枚，前提就是它把文件解开了；反向把同目录一份截断 JSON 也喂进去，回 `temporalproto: unexpected EOF`。
+  两类失败文本分别钉住（`mentionsParseFailure` 的 needle 就是这两条现读原文，不是我推测的措辞——第一版我按 "unexpected end" 写，被现读推翻了一次）。
+  另外三条前置：空历史拒绝落盘（"没取到事件"是读失败，不能被读成"这工作流没干活"），缺 `-out`／缺 workflow id／缺 `WORK_TEMPORAL_ADDRESS`
+  全部在拨号之前失败并点名变量。`go test ./cmd/work-replay` ok；消费段的 rc 语义（无参 rc=2、坏文件 rc=1）原样保留。
+  **仍按欠着写**：真执行的真历史还没导过第二次——那要在试点主机跑一次导出，而把新二进制放上主机是一次受控文件写，按项点头；
+  在那之前 §5.32 生效的仍是第①档（现读 `Running=0`）。这一条补的是"下次非零在途时手上有没有工具"，不是"重放前置已验过"。
+
 
 **【交接：这轮余量用尽，剩下的按这个顺序做，别重新推演】**
 ① 主签单选 **#83**（超时那刻已有 bound 成功回执：G1 维持 B2 字面／G2 到期先 finish 一次／G3 只调上界长度）；

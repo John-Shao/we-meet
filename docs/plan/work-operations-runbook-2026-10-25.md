@@ -1525,6 +1525,20 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
    所以这里**故意不写命令样例**——照本文猜格式写导出，比不写更容易产出一个"能写出文件但重放永远报错"的假通道。
    已实测的那一半：包内 `work-replay` 的接口形状是真的——本轮在容器里跑那份二进制，无参 rc=2 打印 `usage: work-replay HISTORY.json [...]`，
    指不存在的文件 rc=1 并逐条报 `replay <路径>: ...`；它注册的正是 `RunWorkflow` 与 `RunWorkflowAdvance` 两个类型，与本批改到的工作流对得上。
+   **【11-06 22:1x ② 已实现；上面那句"没取证就不写命令样例"现在按取证改口了】**`cmd/work-replay` 两段齐了。
+   消费段原样不变（位置参数＝历史文件；无参 rc=2 打 usage；坏文件逐条 `replay <路径>: ...` 后 rc=1），新增
+   `work-replay -export WORKFLOW_ID[,RUN_ID] -out FILE`：只做 `GetWorkflowHistory(isLongPoll=false, ALL_EVENT)` 再落盘，**读-only**；
+   `isLongPoll` 固定 false 的理由写在代码里——长轮询在 `Running` 的执行上是"等下一条事件"而不是"取已经发生的"，预检会挂在那儿。
+   env 旋钮与 `work-reconcile -scan` 同一套（`WORK_TEMPORAL_ADDRESS`／`_NAMESPACE`／`_CERT`／`_KEY`／`_CA`／`_SERVER_NAME`），
+   并且复用 `dispatch.NewTemporal` 那一份 mTLS 装配，不再抄第二个拨号实现。
+   形状这次是取来的不是猜的：SDK 的解析分支在 `internal/internal_worker.go:2326 extractHistoryFromFile`，
+   它把整个文件 unmarshal 成 `historypb.History`（`DiscardUnknown`）⇒ 导出用 `protojson.Marshal` 同一个消息。
+   `replay_format_test.go` 钉三件事：正向写两枚事件后交给**真消费入口**，回的是 `at least 3 events expected in the history`
+   ——**引擎数得清我写了几枚，就等于它把文件解开了**；反向对照是同目录一份截断 JSON，回 `temporalproto: unexpected EOF`，
+   两类失败文本各自钉住，所以"没有 parse 错误"不是靠猜；另有空历史拒绝落盘（"没取到事件"是读失败，不是"这工作流没干活"），
+   以及缺 `-out`／缺 workflow id／缺 `WORK_TEMPORAL_ADDRESS` 都在拨号之前失败并点名变量。
+   **仍欠的那半，按欠着写**：真执行的真历史还没导过一次。那需要在试点主机上跑一次导出（读-only，但要把新二进制放上主机＝另一次受控文件写，按项点头），
+   再把 JSON 取回本地用**包内**消费段重放。在这之前，本节第①档（现读 `Running=0`）仍是实际生效的那条；本条补的是"下次非零在途时手上有没有工具"。
 3. 全 ok ⇒ 正常 rollout；**任一 nondeterministic ⇒ 这一批只装迁移、把"换 worker"单独另批**（`work-migrate apply` 与换二进制本来就是两类半径），
    并在那笔 Run 上按 10-31 的口径先定性再处置——**不要为了装上 #81 而手工去动它的 workflow 历史或预留**。
    **【11-06 16:4x 这一档现在有入口了，不必再手工跑 apply】**`rollout-r0a-0027.sh --migrations-only` 只做
@@ -1537,3 +1551,61 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
 
 **别把这一步当成可选项写进"已具备"**：判断依据是包内二进制对新历史的真实重放结论，不是"代码改了超时所以应该没事"。
 
+
+### 5.33 导出轮询报 42501：`CREATE OR REPLACE` 把 `SECURITY DEFINER` 弄丢了（现网首发 2026-11-06 18:44:12，21:1x 复核，#87＝增量 0034，**现网未部署**）
+
+**先看症状，别看代码**。`work-export` 的轮询每 5 秒失败一次，journal 里始终是同一行——现网到 21:06:50 已累计 **1713 条**，首条 18:44:12 正落在 I-4a（账本 29→32）那一分钟：
+
+```
+work-export poll failure: ERROR:  permission denied for table audit_export (SQLSTATE 42501)
+```
+
+同一时刻库里往往还有活要干，所以三条读数必须一起取，缺一条就会误判成"没活干所以安静"：
+
+| 读数 | 命令（主机特权读，§5.2「零行不等于无数据」按本文用） | 发病时 |
+|---|---|---|
+| 有没有待办 | `runuser -u postgres -- psql -d work -Atc "select count(*) from work.audit_export where status='queued' or (status='running' and (lease_until is null or lease_until<=clock_timestamp()))"`（superuser 只读，RLS 不参与，见 §5.2） | `>0`（21:1x 现网实测：`queued=0 running_stale=1 ready=8 total=151`，即待办就是那 1 笔过期租约） |
+| 有没有动过 | `select coalesce(string_agg(distinct action, ','), 'none') from work.audit_event where created_at > now() - interval '6 hours' and action like 'audit_export.%'` | `none`（现网实测；库里历史上确有 `audit_export.requested/claimed/completed/downloaded` 这些动作，所以"6 小时零条"不是表里没有这种 action） |
+| 门还在不在 | `select prosecdef, coalesce(array_to_string(proconfig,','),'none') from pg_proc where oid='work.list_pending_audit_exports(text)'::regprocedure` | `false / none` |
+
+**现网到 21:06:50 的受害面（照读数说，不外推）**：`work.audit_export` 里 `updated_at > 18:44:12` 的行数＝**0**（最后一次任何行被推动是 11:00:22），也就是说这 1713 次轮询没有改动过任何一笔导出。今天库里没有新进来的导出请求（`queued=0`），所以现网能看见的受害者只有那笔 `running_stale=1` 的演练行；**机制上任何新请求同样会停在 `queued`**（轮询整条失败，`cmd/work-export/main.go:96` 只有这一条发现通道）——这一句是按代码路径说的，现网还没有样本能证明它，别把它读成已取证。
+
+**判据就落在第三行**：`work.list_pending_audit_exports` 是 worker 唯一的发现入口——`work_worker` 对 `work.audit_export`
+**没有 SELECT**（`baseline/0002:4689` 原句就写着"audit_export 表本身仍不对 worker 开放"），所以它必须是 `SECURITY DEFINER`
+并且钉住 `search_path`。同族的 `claim_audit_export`／`fail_audit_export`／`list_content_refs` 全是
+`prosecdef=true … search_path=work, pg_catalog`，只有它退回 `false` 时，症状必然是上面那一行 42501，而不是某个业务错误。
+
+**根因的形状（值得记住，因为它不报错）**：`baseline/0002:5163-5177` 是在装配完整库跑一遍
+`ALTER FUNCTION … SECURITY DEFINER` ＋ `ALTER FUNCTION … SET search_path = work, pg_catalog`，
+而 `CREATE OR REPLACE FUNCTION` **只按语句文本重建 `pg_proc` 那一行，这两个属性不从被替换的行继承**——
+ACL 反倒继承。于是一笔"只改谓词"的增量可以静默把函数退回调用者权限，账本照常记、`work-migrate status` 照常 up_to_date，
+直到非 owner 角色来调用它。0031 就是踩了这句"ACL 会继承"的推论（`#87`）。
+
+**凡是重写 `work` schema 里的函数，子句必须原样重发**。这条不再靠人记，两处机器兜底：
+
+- `internal/migrate/function_hardening_test.go`（**不需要数据库**，评审期就红）：拿链上每笔增量自带的 catalog 快照对账，
+  凡"曾经记录过 definer"的函数，尾快照必须仍是 definer＋钉住 `search_path`，且**最后一次重写它的那笔增量必须把两行子句写回去**。
+  同文件另一条把 1→33 那段历史钉成断言（谓词必须正好点名 `list_pending_audit_exports` 与 `artifact_version_immutable_content`），
+  所以守卫失去判别力时也是红的，不是静默变绿。
+- `internal/migrate/workload_read_privilege_pg_test.go`（活库）：把"可执行角色 × 函数体读的表 × 该角色有无 SELECT"这条现网谓词
+  搬进链建库，零违规才算过；另一条真做变异——`ALTER FUNCTION … SECURITY INVOKER` ＋ `RESET search_path` 提交后，
+  worker 连接当场复现 42501、矩阵只报那一行，还原后两条一起归零。
+
+**值班处置（现网尚未做，按项授权后执行）**：装增量 0034 走 §5.32 末段那个档位，不碰任何单元——
+
+```
+sudo ./rollout-r0a-0027.sh --migrations-only <发布目录>       # 先 --dry-run 读半径
+```
+
+装后必须读到的三条（前两条就在新加的 verify 探针里，探针已把"账本跑到 34"和"权限真的回来了"分开）：
+
+1. `export_discovery_hardened=true search_path=work, pg_catalog body_has_stale_lease_branch=true`
+   —— 三个字段各管一件事：门回来了、名字解析钉住了、#80 的过期租约谓词没被顺手删掉。
+   发病时现网实测是 `false search_path=MISSING body_has_stale_lease_branch=true`＝**谓词还在、门没了**，这指纹就是本节的判据。
+2. `immutable_guard_hardened=true search_path=work, pg_catalog`（0017 丢的那半，行为中性但同属一个缺陷）。
+3. `journalctl -u work-export --since '<安装时刻>' | grep -c '42501'` ⇒ **0**，且此前积压的导出请求开始被领走。
+
+**不要提前宣布通过的两处**：① 0031 上线到 0034 装好这段窗口里导出通道是**全停**的，积压是否清空要按 §5.30 的队列读数复核，
+不是看 journal 安静就算；② 装上 0034 的**同一轮**，`work-export` 会按 #80 的设计自动领取那笔租约已过期的演练行
+`b9af0511…` 并真的跑一次导出——这正是 11-06 记在授权单里的 **I-3b 那一步的效果**，
+要么按 I-3b 单独点头，要么在装 0034 之前先把这一条代价摆给主签，**别把它写成"顺便修好的"**。

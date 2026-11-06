@@ -20,6 +20,15 @@ and this project adheres to
 - Add `work.list_content_refs` (migration 0032) so the retention scan can report
   orphaned content objects read-only; it is SECURITY DEFINER with a pinned search
   path and EXECUTE granted only to `work_worker`.
+- Give `work-replay` the missing first leg of the pre-worker-swap check in runbook §5.32:
+  `work-replay -export WORKFLOW_ID[,RUN_ID] -out FILE` reads one workflow execution's full history
+  out of Temporal and writes the JSON the replay mode consumes. It is read-only (no workflow,
+  reservation or row is touched), reuses `dispatch.NewTemporal`'s mTLS assembly and the same
+  `WORK_TEMPORAL_*` knobs as `work-reconcile -scan`, and keeps `isLongPoll` false so an open
+  execution returns what already happened instead of waiting for the next event. The file shape is
+  now evidenced rather than assumed: the SDK parses the file as a `historypb.History`, and the new
+  test distinguishes a parse failure (`temporalproto: unexpected EOF`) from the replay engine
+  counting the events it decoded (`at least 3 events expected in the history`).
 - Bound the reconcile and usage-unavailable parks in the advance workflow with a
   24h timer that fails the Run with `reconcile_timeout` without settling or
   releasing anything, which keeps the reconcile write path manual.
@@ -225,6 +234,17 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(migrations) restate `SECURITY DEFINER` and `SET search_path` on
+  `work.list_pending_audit_exports` and `work.artifact_version_immutable_content`
+  (migration 0034). `CREATE OR REPLACE` rebuilds the `pg_proc` row from the statement
+  text alone, so the 0031 rewrite that added stale-lease discovery also dropped the
+  hardening the baseline applies to every function, which left the export worker
+  reading `audit_export` with its own privileges - and it has no SELECT there.
+  Production logged `permission denied for table audit_export (SQLSTATE 42501)` on
+  every poll from 2026-11-06 18:44 onward - 1,713 of them by 21:06. Both bodies are byte-identical to 0017 and
+  0031; two gates now derive the restatement rule from the chain's own catalog
+  checkpoints, and a live-database case reproduces the 42501 by dropping the
+  attribute. Not yet applied to the pilot database.
 - 🐛(backend) report a meeting-room booking that loses a database deadlock as
   a room conflict instead of a 500, so two simultaneous bookings still yield
   one 201 and one 409
