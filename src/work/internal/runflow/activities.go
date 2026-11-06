@@ -827,7 +827,24 @@ func (a *Activities) abortOperation(ctx context.Context, input AbortRunInput) er
 		return err
 	}
 	if reservationID == nil && input.ReservationID != "" {
-		reservationID = &input.ReservationID
+		// The caller may name the reservation it created before the operation could report
+		// it. Trust that name only while the row is still open: a step that reached its
+		// receipt was already settled by the finish path, and settle_quota then refuses with
+		// settlement_revision_not_monotonic - which is exactly what left the pilot Run
+		// 'active' with a published artifact after three abort_run_failed (#82). A closed
+		// reservation is not work to undo, so the cleanup chain must fall through to
+		// finishRun instead of failing on it.
+		var open bool
+		if err := workdb.WithWorkerOrgContext(ctx, a.Pool, input.OrgID, func(tx pgx.Tx) error {
+			return tx.QueryRow(ctx, `
+				SELECT COALESCE(state IN ('held', 'unknown'), false)
+				FROM work.quota_reservation WHERE id = $1 AND org_id = $2`,
+				input.ReservationID, input.OrgID).Scan(&open)
+		}); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		} else if err == nil && open {
+			reservationID = &input.ReservationID
+		}
 	}
 	switch opState {
 	case "prepared", "authorized", "waiting_approval":
