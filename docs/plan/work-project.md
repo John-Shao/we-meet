@@ -1128,6 +1128,11 @@ D5:185"Inbox 只在首页/导航角标轮询；不做跨 Task SSE"的角标一�
 ② **#82 是 #81(B2) 的前置**：超时分支走的是同一条 finish/abort 链，不先修它，B2 只会得到另一个停在 `active` 的 Run。
 所以本轮的实装顺序定为 **#82 → #80 → #81**（#80 与两者无依赖，可并行，但迁移编号要按链尾现读排：当前尾项 0029）。
 C-2（收卡死的导出行与孤儿对象）按主签意图**不做**，物证保留。E 卡片（Temporal 自建＋设备面 PKI 的重量）本轮未裁，继续挂着。
+**再补一条按实记的更正**：我给 F1 写的机制描述（"崩溃前 attempt 1 已把答案提交进 canonical head，所以 resume 带的旧快照过不了相等性"）**被现读推翻**——
+`work.runtime_checkpoint_head` 仍是 `checkpoint_revision=0`、11:41:56 也没有 `runtime.checkpoint_committed`，
+真实失败点是 `commitHead` 被拒后两条兜底都没接住（`advance_activities.go:1050-1080`）。⇒ F1 的**方向**不变（让已付费的那一步落成 succeeded），
+但**落点变了**：要动的是 0028 那条 reclaim 链路，不是 head 相等性；且第一步必须是"按生产顺序（接管→停放→resume→finish）的复现用例"，
+因为现有 `TestAdvanceFinishCommitsThroughTakenOverLease` 只走"接管→finish"、没有停放段，所以它一直绿——**缺口能活到生产就是因为这个覆盖差**。
 
 ### 5.1 设计层未决项
 

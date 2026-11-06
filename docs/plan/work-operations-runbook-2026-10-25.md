@@ -1270,6 +1270,18 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
   而 resume 带的是崩溃前的 head 快照，相等性兜底没过）⇒ 执行以 `FAILED／finish_head_conflict` 结束，
   Run 停在 `state=active／terminal_reason=NULL`，worker 另有 3 次 `AbortRun → abort_run_failed`（收尾链也走不完）。
   ⇒ 用户/管理面看到的是"进行中的任务、但成果已发布"，这是**状态错误而不是资金错误**。
+  **【11:5x 更正上面括号里的机制——它当时是推测，现读推翻了它，原文不删】**`work.runtime_checkpoint_head` 现读
+  `checkpoint_revision=0／updated_at=08:44:23`，且 11:41:56 那一秒**没有** `runtime.checkpoint_committed` 审计行
+  ⇒ **head 从未被推进、revision 1 根本没提交**，所以撞的不是那三处"head 相等性"分支（`:1006/:1014/:1022`），
+  而是**第四处：`commitHead` 被拒、它后面两条兜底都没接住**（`:1050-1080`）。兜底一＝"重放发现同一后继已提交"
+  （条件 `latest.Revision == head.Revision+1`，head 仍是 0 ⇒ 必然不成立）；兜底二＝0028 那条"租约已过期就接管后再提交一次"
+  （需 `isLeaseElapsedError(err)` 命中且 `reclaimFinishedExecution` 成功）。现读审计线：08:44:23 执行 `d2c73e8e` 注册并认领 →
+  **08:48:33 `runtime.execution_taken_over`**（0028 的租约接管在生产第一次真跑到，这是正面证据）→ 停放约 3 小时无心跳、租约必然过期 →
+  11:41:56 `operation.finish_from_receipt`＋`artifact.publish` 都成功、唯独 head 提交失败 → 同秒 `runtime.execution_revoked`。
+  ⇒ 还剩两种可能没分辨：(a) `isLeaseElapsedError` 没认出这条错误，0028 兜底整条被跳过；
+  (b) 兜底跑了但 `reclaimFinishedExecution` 拒绝——因为该行已在 08:48 被接管过，不再是 0028 接受的形状。
+  **分辨它需要一条按生产顺序来的复现用例**（接管 → **停放 3 小时** → resume → finish）；
+  已有的 `TestAdvanceFinishCommitsThroughTakenOverLease` 只走"接管 → finish"，覆盖不到这个形状，这也解释了为什么它一直绿。
 - 与 §5.16 那条可见性边界的关键差别：这一次 `work-reconcile -scan` **能报出来**（现读 `workflow_status=Failed／orphan=true`），
   因为执行已结束——不像 08:48 那次执行还活着、`isOrphan()` 按定义看不见。⇒ **§5.16 的人工孤儿关闭通道在这里适用**，
   且它是有证据门的人工写（#34=A），不要指望自动收口。
