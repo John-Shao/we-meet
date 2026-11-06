@@ -851,7 +851,7 @@ SELECT id, reason, state, epoch, release_floor_revision
 而 `execution_enabled` 仍 `false`。因此"Host 报 active 就自动重开服务"不是现网行为，试点期的过渡控制是
 P9／C28-1 的人工记录三列现值；`sync_org` 亦被 `baseline/0002:3882` 明确禁止覆盖 `operator_suspended`，方向一致。
 
-### 5.23 运行片段租约接管：中断的那一轮到底丢了什么（2026-11-05，#67=A 实装＝增量 0028，**现网未部署**）
+### 5.23 运行片段租约接管：中断的那一轮到底丢了什么（2026-11-05，#67=A 实装＝增量 0028，**现网未部署**→【11-06 更正：11-05 14:06 已上线，见 §5.29 末段】）
 
 **先读边界**：0028 只在本树与用例里。现网（`work-worker 3b6ad128…`，无 0028）在同样场景下的实测行为是
 attempt 2 于 4m06s 报 `lease_not_claimable`、Run 判 `advance_failed`、operation 落 `unknown`
@@ -1094,7 +1094,7 @@ C＝归 R0b 控制面、R0a 只留库测）。三个选项的代价写在 `work-
 **没有装进 `/usr/local/bin`，也没有重跑真实 rollout**——装它属生产写，另按项授权。在那之前上面"值班口径（修好之前）"那段仍然生效，
 只是要验一笔发布能不能装时，可以用包内这份脚本跑 dry-run，而不是先去改那个数字。
 
-### 5.27 #77 落地：终态 Run 不再挂着预留（增量 0029，2026-11-05 23:5x–11-06 00:0x，**现网未部署**）
+### 5.27 #77 落地：终态 Run 不再挂着预留（增量 0029，2026-11-05 23:5x–11-06 00:0x，**现网未部署**→【11-06 更正：07:57 已 rollout，ledger 现读 29；边界见 §5.29】）
 
 §5.21 记的那笔人工收口（以 work_worker 手跑 `work.release_quota`）现在由库侧自己做了。口径就是 #76 裁的那句：
 **Run 进终态、预留还是 `held`、且该 operation 在交付闸上没有 `receipt_recorded` ⇒ release 全额退回**。
@@ -1175,7 +1175,7 @@ C＝归 R0b 控制面、R0a 只留库测）。三个选项的代价写在 `work-
 授权之前 §5.21 那段"手工 SQL 收口"的口径**仍然有效**，runstream gauges 的 `held_on_terminal` 仍是发现手段。
 门禁（最后一次编辑之后）：design 82/82、`ci-contract` 82＋38＋24＝144／exit 0、ops 30/30、`bash -n` 过。
 
-### 5.28 发布链现在自己声明带哪些二进制（#54 根因，2026-11-05 23:1x，**主机未动**）
+### 5.28 发布链现在自己声明带哪些二进制（#54 根因，2026-11-05 23:1x，**主机未动**→【11-06 更正：07:57 已随 0029 上线，半径 13】）
 
 值班口径里有一条隐含假设："包里有的东西＝rollout 会装的东西"。查 #79 影响面时枚举 `cmd/` 才发现这个假设早就不成立：
 树里有 **13 个二进制**，打包名单是手抄的 **11 个** ——`work-e2e-seed`（注入批次的前置）与 `work-replay` 从来没进过包，
@@ -1186,6 +1186,17 @@ C＝归 R0b 控制面、R0a 只留库测）。三个选项的代价写在 `work-
 （推不出至少 12 条就拒绝出一个短包）；`rollout` 读它——**包里没这份声明就直接中止**，并按声明逐件核文件是否存在；
 常驻服务那条安装循环不变，另加一条只装演练二进制的循环。`verify` 新增一段报这两个名字在场与 sha，
 **`MISSING` 的含义是"这台机还没跑过带它们的 rollout"，是部署状态，不是缺陷**，别照它报警。
+
+**跑 `work-e2e-seed` 必须以 work-control 身份（2026-11-06 08:0x 现网定位，值班与演练都要读这条）**
+现象：一笔种子 Run 终态 `failed/prepare_failed`，worker journal 里 `PrepareAdvance` 连败 3 次 `advance_input_read_failed`。
+产地是**内容存储读取**（`internal/runflow/advance_activities.go:119` 的 `Content.Get`），**不是** SQL、不是 RLS、不是配额、不是 0029。
+现证：`/var/lib/work/content` 下 1333 个对象属主均为 `work-control:work-control`（模式 600），唯独这笔对应的
+`…／f7f3c67051d3e60ab6f114d5ef3b758a.enc` 属主是 `root:root`（600），时间戳 08:03:44 与种子时刻吻合；`newest_root_owned=1`。
+成因就是用 `sudo bash`（root）跑了 seed，而 worker 以 `User=work-control` 运行，读不到 root 所有的 0600 文件。
+**口径**：`work-e2e-seed` 一律 `sudo -u work-control …` 执行，让它把对象写进属主为 `work-control` 的内容目录；
+以 root 跑会留下"任务与 Run 都在、内容读不到"的失败样本，极易被误判成配额或 0029 的回归。
+已存在的 root 所有对象要重播前先改属主（`chown work-control:work-control`），那属生产写、需主签点头。
+**本次残留按实记、我未清理**：Run `f2046de9…`（`failed/prepare_failed`）与它的 task，以及那一个 `root:root` 的内容对象。
 
 **部署时要注意的行为变化（第一次跑带这段的 rollout 会看到）**：演练那条循环会把 `/usr/local/bin/work-e2e-seed`
 **换成仓库构建的那一份**（旧文件按既有规则留 `.bak-<stamp>`）。替换现网二进制属生产写，仍按项授权；
@@ -1205,6 +1216,50 @@ C＝归 R0b 控制面、R0a 只留库测）。三个选项的代价写在 `work-
 `release-assets` 13/13、design 84/84、`ci-contract` exit 0、ops 30/30。
 两次我自己造的错也记在这：变异红在空集下限而不是等值那条（下限先说话）；abort 提示里一句英文 "derives the list from cmd/"
 被 §5.26 那条同一个守卫读成表名——改措辞，**没有挂豁免**。
+
+### 5.29 Temporal server 被进程级 SIGKILL 之后，值班会看到什么（2026-11-06 08:44–09:23 现网实测，I-2／`S1-3` fail 的运维面）
+
+**先给结论的操作版**：Temporal 的容器 init 进程被 `kill -9`（不是 `delete pod`）之后，**库不会自己把在途 Run 收完**。
+它会停在 `state='waiting' / wait_reason='reconcile' / terminal_reason IS NULL`，`task_summary.display_state` 仍显示 `running`，
+`quota_reservation` 那一笔仍 `held`。这不是"卡住没恢复"——恢复发生在 Temporal 侧，只是**恢复的终点是停放**：
+
+- `work-reconcile -scan -org <org>` 会把它列出来，且 `workflow_status=Running`／`orphan=false`——
+  所以**永远不要拿 `orphans=0` 当"没有停放 Run"**（§5.16 那条可见性边界在这里同样成立）。
+- 发现口径是 §5.21 的每小时 gauges，报的是 **`parked_runs`**，不是 `held_on_terminal`：
+  实测 09:16:24 那行原文 `BREACH org=4a2d3f28… parked_runs=1 held_on_terminal=0 unknown_operations=36 open_runs=1 held_tokens=100000`，
+  单元以 `status=2` 退出（设计中的标红，**不要去"消警"**，也别手跑 `work-healthcheck.sh` 去确认——它会发信）。
+- **这一族 0029 不管，而且不该管**（§5.27 的边界，别读成回归）：0029 按 #79=B 只认"Run 已终态＋`operation.state='unknown'`＋无可信回执"。
+  本形状的三条全不满足（未终态／`operation='dispatching'`／`receipt_result='success'`），所以预留不释放是**正确行为**；
+  `held_on_terminal=0` 就是它没误触发的现证。挂着的预留要等 Run 真进终态那一步才会被处理。
+
+**机制（要写给下一班看，全部来自事件属性）**：`AdvanceRuntime` 在 `internal/runflow/advance.go:457` 是
+`StartToClose=4min／ScheduleToClose=10min` 且带 RetryPolicy，所以崩溃丢掉的那次派发会在约 4 分钟后以
+**attempt 2** 重投（现读 `event23 SCHEDULED@08:44:23.432 → event24 STARTED attempt=2@08:48:33.443`）。
+重投**不会二次打供应商**：交付闸的那一行在 attempt 1 期间已经写完（`consumed_at`／`receipt_recorded_at`／`receipt_result='success'`
+三件都早于崩溃时刻），attempt 2 读到已有回执即返回 `StateWaitingReconcile`。随后 `advance.go:272-277` 调 `WaitRun(reason='reconcile')`
+把库侧置停放，然后阻塞在 `resume`／`cancel` 信号通道上——**这一支没有超时**（配额那一支有 24h 上限，`advance.go:211-218`），
+所以它不会"过一会儿自己好"。
+
+**唯一已验过的处置**（一次生产写，需按授权逐项点头；§5.16 的身份与备份要求照用）：
+
+```
+sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/work/work-worker.env | xargs -d'\n') \
+  /usr/local/bin/work-reconcile -org <org> -operation <operation_id> -signal-only
+```
+
+前提是 `-scan` 显示 `workflow_status=Running`（对已结束 workflow 发信号会报 already completed）。
+预期形状与 11-05 14:2x 那次 `D1-6`／`D2-4` 的实测一致：`resume` ⇒ `finishCheckpointed` ⇒ 有 `success` 回执则结算并
+`succeeded`、`held` 归零、`display_state` 落真值。**若回执是缺的**（I-1 那笔的形状），同一条信号会得到
+`failed/finish_receipt_missing`＋预留不释放，那才走 §5.27 的 0029／人工 release 口径。
+
+**取证**：演练目录 `attachments/s1-i2-temporal-sigkill-20261106.txt`（含 SIGKILL 与优雅删除的对照读数：
+`lastState.exitCode=137`、上一容器日志 graceful/shutdown/signal 关键字 0 行，对照 I-1 的 `goaway graceful_stop`）。
+
+**顺带把三处过期状态标签就地改口**（都是标题里的字，容易被当现状读；原文不删，只标注）：
+§5.23 的"增量 0028 现网未部署"自 11-05 14:06 起失效（0028 已上线并据此改判过 `D1-6`／`D2-4`）；
+§5.27 的"增量 0029 现网未部署"自 11-06 07:57 起失效（现读 `ledger=29`、`terminal_release_guard=true`、`public_exec=f`）；
+§5.28 的"主机未动"同一时点失效（那次 rollout 半径由脚本自己打印＝13 个二进制，`.bak-20261106-075709` 留 12 份，
+`work-e2e-seed`／`work-replay` 两份演练件也是那时装上去的，本轮 I-2 用的就是它们）。
 
 ## 6. 容量证据
 

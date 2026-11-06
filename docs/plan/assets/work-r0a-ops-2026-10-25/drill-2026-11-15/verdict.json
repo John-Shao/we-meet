@@ -404,10 +404,12 @@
     {
       "step": "S1-R06",
       "section": "C03-S1",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": "多节点在途 server 重启补跑"
+      "verdict": "fail",
+      "ts": "2026-11-06T09:23:10+08:00",
+      "evidence": [
+        "attachments/s1-i2-temporal-sigkill-20261106.txt"
+      ],
+      "notes": "段落格（§6 关联表用它 gate C22 的 evidence 回写）。2026-11-06 08:44:22–09:23 在试点机执行 I-2：种子一笔在途 Run（work-control 身份）＋ kill -9 temporal-server 宿主机 pid 1947294（= pod temporal-server-787478d8c8-drmzk 里容器 53590d802d3b 的 init 进程，cmdline／cgroup／pgrep 唯一性三条现证后才动手）。恢复面 pass：容器 lastState.exitCode=137、restarts 0→1、3 秒内新 pid，同笔 Temporal 执行续跑（history 23→34、5 个 activity 各恰好一对 Started/Completed、work-replay rc=0），双发被交付闸挡死（consumed 恰 1、receipt_recorded_at=08:44:28）。终态面 fail，红因同 S1-3，不是第二个缺口。与 I-1（11-05 20:23 kubectl delete pod）的区别是注入手段本身：那次有 kubelet 优雅终止（worker 见 goaway graceful_stop），这次无 drain 窗口（graceful 关键字 0 行），两轮证据不可互用。残留：一笔 waiting/reconcile 停放 Run＋held 100,000，收口口子只有人工 -signal-only（生产写，未获逐项授权，见附件\"残留\"段）。"
     },
     {
       "step": "C13-0",
@@ -490,34 +492,42 @@
     {
       "step": "S1-1",
       "section": "C22-S1",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-06T09:23:10+08:00",
+      "evidence": [
+        "attachments/s1-i2-temporal-sigkill-20261106.txt"
+      ],
+      "notes": "判据\"提交种子 Run C，确认 Temporal history 有 WorkflowExecutionStarted + activity started\"。注入前 history：WorkflowExecutionStarted ＋ PrepareAdvance／EnsureAdvanceHead／PrepareAdvanceExecution 三对 Started/Completed ＋ AdvanceRuntime 已 Scheduled，run=active。种子身份教训已闭环：上一轮 I-2 用 root 跑 ⇒ 内容对象 root:root 0600 ⇒ worker(User=work-control) 读不到 ⇒ 8 秒 failed/prepare_failed（advance_activities.go:119）；本轮整段 runuser -u work-control -m，新对象现读 work-control:work-control 600。另一处硬编码也改掉：WORK_RUNTIME_VERSION 主机真值是 pi-1.4.0-r0a（api.env 现读），我上一版写的 \"pi-1\" 是我的假设。判据要求的证据类别（temporal CLI）本轮真用 CLI 取——本机 CLI 无 workflow history event 子命令，只有 workflow show，--output json 才是 work-replay 的输入格式。"
     },
     {
       "step": "S1-2",
       "section": "C22-S1",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-06T09:23:10+08:00",
+      "evidence": [
+        "attachments/s1-i2-temporal-sigkill-20261106.txt"
+      ],
+      "notes": "判据\"kill -9 一个 Temporal server 进程｜进程消失、systemd restart 拉起｜journalctl -u temporal\"。执行面按现网拓扑取偏离并具名：Temporal 不是 systemd 单元而是 k3s 单副本 Deployment，拉起方＝kubelet，证据＝kubectl lastState＋restarts 而非 journalctl。读数：KILL_RC=0；旧 pid 1947294 消失、新 pid 2059776（08:44:27，+3s）；pod restarts 0→1；lastState={\"terminated\":{\"exitCode\":137,\"reason\":\"Error\",\"finishedAt\":\"2026-11-06T00:44:24Z\"}}；上一容器日志中 graceful/shutdown/signal 关键字 0 行（与 I-1 的 graceful_stop 正是对照）；worker journal 6 行失联含 \"error reading from server: EOF\" 与 \"authentication handshake failed: … connection reset by peer\"。注入半径预检：动手前 in_flight=0、ledger 29／0029_terminal_reservation_release 注入后不变、undelivered 全程 0。"
     },
     {
       "step": "S1-3",
       "section": "C22-S1",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "fail",
+      "ts": "2026-11-06T09:23:10+08:00",
+      "evidence": [
+        "attachments/s1-i2-temporal-sigkill-20261106.txt"
+      ],
+      "notes": "判据\"等待 Run C 恢复或完成｜Run C 终态正确（succeeded／cancelled）；无第二个 Run\"。后半 pass：distinct_runs_for_task=1、temporal workflow list 中该 workflow_id 仅 1 笔、闸行 consumed 恰 1 次。前半 FAIL：注入后 39 分钟（09:23）Run 仍 state=waiting／wait_reason=reconcile／terminal=NULL，task_summary.display_state=running，quota_reservation held 100,000、settled=0，Temporal 执行仍 Running 且 history 停在 WFT-DONE（阻塞在 resume 信号通道）。机制从事件属性读死，不是推测：event23 SCHEDULED AdvanceRuntime@08:44:23.432 →（08:44:24 kill）→ event24 STARTED **attempt=2**@08:48:33.443 → event25 COMPLETED@08:48:33.780 → event29 WaitRun → 34 WFT-DONE。attempt=2 证明崩溃让 attempt1 的 Started 记账丢失（history 无 attempt1 的 Started、也无 ActivityTaskTimedOut），Temporal 在 advance.go:457 的 StartToClose=4min 后按 RetryPolicy 重投；重投未二次打供应商（回执 consumed 08:44:23／recorded 08:44:28 都在崩溃前由 attempt1 经 relay 落库），attempt2 读到已有回执 0.34 秒返回 StateWaitingReconcile ⇒ 走 advance.go:272-277 停放。结构性缺口：reconcile 这一支没有超时（配额那一支有 advanceQuotaWaitLimit=24h，advance.go:211-218），所以无人发 resume／cancel 就永久停放；唯一兜底是每小时 gauges，它确实抓到（09:16:24 BREACH parked_runs=1 open_runs=1 held_tokens=100000，服务以 status=2 退出＝设计中标红）。边界要说清，别读成\"0029 没生效\"：0029 按 #79=B 的条件是\"Run 已终态＋operation unknown＋无可信回执\"，本笔三条都不满足（未终态、operation=dispatching、receipt=success），不触发是正确行为，held_on_terminal=0 亦证巡检口径对。重开条件：要么给 reconcile 停放加自动收口／超时（代码缺口，需另裁），要么主签改写本格判据为\"停放＋人工 resume 后终态正确\"并按 runbook §5.16 发信号取证。"
     },
     {
       "step": "S1-4",
       "section": "C22-S1",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-06T09:23:10+08:00",
+      "evidence": [
+        "attachments/s1-i2-temporal-sigkill-20261106.txt"
+      ],
+      "notes": "判据\"对比 file-backed dev 的 R06 结论｜行为一致：已完成 workflow 不重放｜记录差异\"。dev 侧原文＝work-r0a-orchestration-design-2026-10-25.md:662「file-backed Temporal server 重启后，已完成 workflow 仍为 COMPLETED，Work DB task 仍 awaiting_acceptance」。生产两条对照都成立：① 崩溃前已 CLOSED 的 run:01384d59 重启后 describe 仍 Status=COMPLETED／RunTime=47.92s／HistoryLength=41；② 崩溃那笔执行内 5 个 activity 各恰好 1 对 Started/Completed、multiple_completions=0（从 --output json 的 34 条事件现算），work-replay 对同一份历史 rc=0（无 nondeterminism）。差异照记（这正是判据要的产物）：dev R06 只建模\"重启后已完成的东西不变\"，从未建模\"在途 activity 被 SIGKILL 打断\"，故其结论外推不出\"在途 Run 会走完\"——S1-3 的红不是回退，是 dev 证据覆盖不到的面；本格的 pass 只覆盖\"已完成不重放\"这一条断言，不外推为段落通过。"
     },
     {
       "step": "N01-1",
@@ -737,8 +747,8 @@
     }
   ],
   "summary": {
-    "pass": 38,
-    "fail": 0,
+    "pass": 41,
+    "fail": 2,
     "na": 21,
     "total": 76
   },

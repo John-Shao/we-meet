@@ -65,6 +65,15 @@
   剩下 9 格逐条就是注入批次——I-2：`S1-R06`／`S1-1..4`；I-3：`N01-1..3`／`N03-1`——全部要生产写点头，
   `C03`／`C22` 因此在部署与注入之前保持 `partial`，**不把这 9 格记成 na**。
   未取证的 9 格＝S1-R06／S1-1..4／N01-1..3／N03-1，仍要逐件点头。
+  **【11-06 09:2x 第六次现算，方法＝现算 `verdict.json.steps[].verdict`，不抄本行旧值】**I-2 已执行并落账
+  （主签令"执行 A->B->C／执行 A"）：pass **41**／**fail 2（`S1-3`＋`S1-R06`，同一根因）**／na **21**／
+  未取证 **4**／按 A 裁定排除 8，总 76。比上次多的 3 格 pass 是 `S1-1`／`S1-2`／`S1-4`；**fail 重新出现仍不是回退**——
+  它与 `D1-6`／`D2-4` 同族（"中断后不自动到终态"），只是注入手段从删 pod 换成进程级 SIGKILL，两条证据不可互替。
+  剩下未取证的 4 格＝`N01-1..3`／`N03-1`＝I-3（relay／export 在真实投递中途 SIGKILL，**会不可逆删内容对象**，
+  动手前必须现读内容备份覆盖时刻，不能沿用 11-05 那组 18:54:28／00:50:56 的旧时刻线）。
+  同期生产事实要在此具名更正上面两行的旧值：**现网 ledger 已 29**（0029 于 11-06 07:57 rollout，见 work-project 当日段），
+  故上面"现网未部署，ledger 仍 28"已过期；但 `D3-6` 的 pass 条件原文是"自洽靠人工一条 SQL 达到"，
+  **不改判、不改条件文字**，只记部署事实——自动收口是否已在现网生效，另按 `0029` 的实测单记（本轮 I-2 这笔不满足其三条件）。
 - 失败步（附重开条件）：
   - `D3-6`（2026-11-05 20:2x 新增）——Temporal server 失联的代价被账本如实记下：账本增量全部可归因
     （run 168→170、operation 161→163、task_event 977→986、outbox 1182→1193；重复派发 0、死信 0、闸行 1 且 consumed 恰好一次、
@@ -90,6 +99,24 @@
     `case "failed" → release`（activities.go:875），不补这个口，下次同形状仍要人工、且那格该重记 fail。
     不可逆性在选之前就取证了：`released` 之后 `settle_quota`（要 held/unknown）与 `adjust_quota`（要 settled）都拒绝。
     **【同日 21:3x 第五次现算】**pass **38**／fail **0**／na **21**／未取证 **9**／按 A 裁定排除 8，总 76。
+  - `S1-3`／`S1-R06`（2026-11-06 09:2x 新增，I-2 进程级 `kill -9`）——**Temporal server 进程被 SIGKILL 时，
+    在途 Run 不会自己走到终态**。恢复面本身是好的：attempt 2 在 4m10s 后由 Temporal 自己重投
+    （`advance.go:457` 的 `StartToCloseTimeout=4min`，事件属性现读 `STARTED attempt=2`），第二次派发被交付闸
+    0.34 秒短路（`consumed` 恰一次、`receipt_recorded_at=08:44:28` 落在崩溃之前 ⇒ 没有二次打供应商），
+    已完成 activity 无一对重复、`work-replay` rc=0、崩溃前已 CLOSED 的别笔执行仍是 COMPLETED
+    ⇒ `S1-1`／`S1-2`／`S1-4` 三格 pass，"已完成 workflow 不重放"与 dev R06 原文
+    （`work-r0a-orchestration-design-2026-10-25.md:662`）一致。红的是 `S1-3` 前半句"Run C 终态正确"：
+    注入后 39 分钟（09:23）Run 仍 `state=waiting／wait_reason=reconcile／terminal=NULL`、
+    `task_summary.display_state=running`、`quota_reservation` held 100,000 不还。结构原因写在附件里——
+    `StateWaitingReconcile` 那一支（`advance.go:272-277`）停放后阻塞等 `resume` 信号，而**这一支没有超时**
+    （配额那一支有 24h 上限，`advance.go:211-218`），所以唯一兜底是每小时 runstream gauges 的 `parked_runs`：
+    09:16:24 那轮确实报 `BREACH … parked_runs=1 open_runs=1 held_tokens=100000` 并以 status=2 退出（设计中标红）。
+    **两格同源，不是两个缺口**：`S1-R06` 是段落格（§6 用它 gate `C22` 的 evidence 回写，故该回写条件不成立）。
+    **与 0029 不冲突，别读成"0029 没生效"**：0029 按 #79=B 只管"Run 已终态＋operation `unknown`＋无可信回执"，
+    本笔三条都不满足（未终态、operation=`dispatching`、receipt=`success`），`held_on_terminal=0` 正是它没误触发的现证。
+    **重开条件**＝(1) 一次 `work-reconcile … -signal-only`（生产写；`D1-6`／`D2-4` 已证此路能让 Run=`succeeded`
+    并真实结算），按"等价改判"记、带日期不覆盖这段；或 (2) 给 reconcile 停放补自动收口／超时（代码缺口，需另裁）。
+    证据 `attachments/s1-i2-temporal-sigkill-20261106.txt`（含我照业务词猜错的六个列名与两条 shell 技术错，按实记不删）。
   - `D1-6`／`D2-4`——同一形态：**在途 Run 在中断后不会自动续跑**。Temporal 仍把 `AdvanceRuntime` 记为 STARTED、
     `nextRetry=None`，于是既不重试也不判孤儿；库里 lease 早已过期。重开条件＝给 activity 配 start-to-close／heartbeat
     超时并让恢复路径能重驱动，或明确「靠人工 reconcile 收」并把它写进值班口径。待裁 #56-A。

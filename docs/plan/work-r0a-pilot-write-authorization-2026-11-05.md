@@ -693,8 +693,13 @@ verify 与包内副本不一致"到本次 make-release（`RELEASE_COMMIT=4749ce0
 
 ## 15. 注入批次：剩余 15 格逐格要什么（2026-11-05 19:5x 立单，**未授权、未执行**）
 
+**【2026-11-06 09:3x 状态更正，上面标题那句"未授权、未执行"对 I-1／I-2 已失效】**主签 11-05 夜令"先 rollout，再跑注入批次"、
+11-06 令"执行 A->B->C／执行 A"，于是 **I-1（D3 四格＋两格 na）与 I-2（S1 五格）都已执行并落账**，
+剩余待点头的只有 **I-3 的 4 格**（`N01-1..3`／`N03-1`），外加本轮新登记的一件 **I-2b**（把 I-2 留下的停放 Run 收掉的那一次写）。
+**本表签收栏现为 4 行（I-1／I-2 两行标"已执行"），以表为准**；verdict 现算 pass 41／fail 2／na 21／未取证 4／排除 8，总 76。
+
 主签点的是"提前演练"，我把能零写的都收了（§0D 与 verdict 现算 pass 34／fail 0／na 19）。剩下的 **15 格全是注入**，
-按半径切成**三件**要点头的事（下面签收栏正好 3 行，以表为准）。这三件不是同一种危险：I-1 打可用性、I-2 打进程、
+按半径切成**三件**要点头的事（下面签收栏正好 3 行，以表为准）**【11-06 09:3x：本句的"3 行"已被上面那段更正取代——现为 4 行，其中 I-1／I-2 标"已执行"，待点头的是 I-2b 与 I-3；件数也从三件变"三件里两件已做＋一件新登记的小写"】**。**这三件不是同一种危险：I-1 打可用性、I-2 打进程、
 I-3 会**不可逆地删内容对象**。
 
 **先把两条会决定判据对错的事实钉住**（都是从本轮实测来的，不是推测）：
@@ -709,11 +714,43 @@ I-3 会**不可逆地删内容对象**。
 | # | 要点头的动作 | 覆盖步 | 半径（会动什么／不会动什么） | 前置与缺的东西 | 代价 | 不做或失败的后果 |
 |---|---|---|---|---|---|---|
 | I-1 | 围一次 **temporal server 层注入**取 D3 的账本证据 **【20:3x 已执行（主签"进入第 2 项"）：pod 2h95v→drmzk，窗口 65 秒内 12 次采样全 Running；D3-1／D3-3／D3-5 pass，D3-2／D3-4 按 P2 实测记 na，D3-6 记 fail（held 0→1 笔 100,000、Run 停 waiting/reconcile、display_state=running）；残留＝1 笔 held＋1 个 waiting Run，等 resume 授权。**【20:34 已按选定 resume：`-scan` 先证 Running／orphan=false 才发信号；Run 8 秒内 `failed/finish_receipt_missing`、display_state 不再假报 running，**但 held=100,000 没还**、operation=unknown 且无回执 ⇒ D3-6 维持 fail，重开条件收窄成"unknown 无回执的收口语义（新开 待裁 #76）裁定后 held 回 0"。**【21:2x #76 已裁并执行：这单 release，默认口径＝终态且无 bound 回执⇒release，漏 release 记代码缺口 待修 #77】held 1→0、reserved 100000→0、settled 不变、quota_entry 自动留 reserve/release 两条；D3-6 按重开条件改判 pass，但注明是靠人工 SQL 达到的。裁之前先取了不可逆性的证：released 之后 settle 与 adjust 两条守卫都拒绝。**gauges 20:36:29 自报 BREACH 并标红；`-scan` 不列终态 Run ⇒ 发现口径是 gauges。双发保护拿到正证：闸行 1、consumed 一次、dup=0。】：种 2 笔 Run → `kubectl delete pod temporal-server-…`（同节点单副本重建）→ 记基线 outbox／未投递 → 观察失联窗口内积压与 Work 数据面无损 → 恢复后看追赶与逐表 count/checksum | `D3-1`、`D3-3`、`D3-5`、`D3-6`（4 格） | 会动：Temporal server 短暂失联（11-04 那次约 90 秒内重建）；库里多出 2 个演练 task/run 与内容对象。**不会动**：不停 Postgres（P2 实测三库同实例，停它＝同时打掉 Work 数据面）、不迁移、不换二进制、不改配置 | 缺：主签一次"注入＋种子"的点头。已具备：`open_runs=0` 的干净基线、四态谓词、`work-db-restore-drill.py` 已在包内 | 单节点上 temporal 重启期间在途 Run 会看到 activity 失败并靠 0028 的租约接管重驱动；残留＝2 笔演练 task（11-04 那批同样留着，我没删） | `C22` 的"Temporal PG 故障恢复"仍只有一半（恢复演练侧有 D3-b，故障侧靠等价注入）。若拒：`D3-1..6` 按"前提不成立＋等价已演"记 na 并写重开条件，`C22` 维持 partial |
-| I-2 | **进程级 crash**：在有在途 Run 时对 temporal server 容器进程 `kill -9`（不是删 pod，走 kubelet 重启这条路），验在途 workflow 恢复且不产生第二个 Run；S1-4 是拿它与 file-backed dev 模式 R06 的结论做**文档级对照**，不动生产 | `S1-R06`、`S1-1`、`S1-2`、`S1-3`、`S1-4`（5 格） | 会动：与 I-1 同一台机、同一形状的失联，但触发路径不同（进程被杀 vs 调度器重建 pod）。不会动：PG、二进制、配置 | 缺：一次点头。已具备：种子通道（本轮已跑通）、`kill` 路径与 `journalctl`/`crictl` 取证口可用 | 与 I-1 同量级；区别是它证明的是"崩溃恢复"而不是"运维删除恢复"，两条证据不能互替 | `C03 §4(4)` 的"进程级崩溃"半条继续空着。若拒：S1 段记 na＋重开条件（接多节点／镜像形态时一并补），`C03` 维持 partial |
+| I-2 | **进程级 crash**：在有在途 Run 时对 temporal server 容器进程 `kill -9`（不是删 pod，走 kubelet 重启这条路），验在途 workflow 恢复且不产生第二个 Run；S1-4 是拿它与 file-backed dev 模式 R06 的结论做**文档级对照**，不动生产 | `S1-R06`、`S1-1`、`S1-2`、`S1-3`、`S1-4`（5 格） | 会动：与 I-1 同一台机、同一形状的失联，但触发路径不同（进程被杀 vs 调度器重建 pod）。不会动：PG、二进制、配置 | 缺：一次点头。已具备：种子通道（本轮已跑通）、`kill` 路径与 `journalctl`/`crictl` 取证口可用 **【11-06 00:3x 更正两处前置事实，执行时按这两条走：① 种子通道"已跑通"当时指的是 `SEED_RC=0`，不等于端到端通——root 身份跑种子会造出 `root:root 0600` 内容对象、worker（`User=work-control`）读不到，Run 8 秒 `failed/prepare_failed`；必须 `runuser -u work-control -m`，且 `WORK_RUNTIME_VERSION` 取 `api.env` 现读值（`pi-1.4.0-r0a`）不是硬编码。② `crictl ps --name temporal -q` 在这台 k3s 上返回空，取 pid 的正确路径是 `pgrep -f 'temporal-server --env docker start'` ＋ `/proc/<pid>/cgroup` 三重核对（cmdline／cgroup 含 cri-containerd＋kubepods／唯一命中）。】** | 与 I-1 同量级；区别是它证明的是"崩溃恢复"而不是"运维删除恢复"，两条证据不能互替 | `C03 §4(4)` 的"进程级崩溃"半条继续空着。若拒：S1 段记 na＋重开条件（接多节点／镜像形态时一并补），`C03` 维持 partial **【11-06 已执行，未走"若拒"分支：S1-1／S1-2／S1-4 pass，S1-3 与段落格 S1-R06 fail（红因同源＝SIGKILL 后在途 Run 只到 `waiting/reconcile`，不自达终态）。`C03 §4(4)` 的"进程级崩溃"半条因此是**已取证且不成立**，按 checklist §7 风险行原文的补救走＝`C03` 延到 DR4 前补签；`C22` 不回写。证据 `attachments/s1-i2-temporal-sigkill-20261106.txt】** |
+| I-2b | **收掉 I-2 留下的停放 Run**：对 operation `cc465f2b…` 发一次 `work-reconcile -org 4a2d3f28… -operation cc465f2b… -signal-only`（身份 `work-control`＋`work-worker.env`），把 Run 从 `waiting/reconcile` 推到终态 | 不改 verdict 计数，只清残留；若随后按"等价改判"重开 `S1-3`，则计 1 格翻色 | 会动：一笔演练 Run 的终态、其预留（`held` 100,000 → settle 或 release）、`task_summary.display_state`。不会动：别的 Run、二进制、配置、迁移 | 缺：一次点头。已具备：命令形状与身份已按 `D1-6`／`D2-4` 那次实测过（当时 signal 后 Run=`succeeded`、成果 published、真实结算 318 tokens、held 归零） | 每小时一条 `parked_runs=1` BREACH＋org 的 `reserved=100000` 不归还＋用户侧恒显 running；`work-runstream-scan.service` 每小时 `status=2` | 不做则残留与告警按小时重复（与 #76 当时的代价同一形状）。**注意判据不被放宽**：即使发了 signal 把 Run 收成终态，`S1-3` 也只能按"等价改判（需一次人工动作）"记，原文那句"自动到终态"仍不成立——要它真成立得补代码（reconcile 支路无超时：`advance.go:272-277` 对照 `:211-218`） |
 | I-3 | **投递中途 SIGKILL**：手工起一个 relay 以真实 `content_shred` 投递，在两笔之间 `kill -9`，验租约到期后被第二个持有者重领且**只投一次**；再验重投递对已消失对象容忍（`ErrNotExist` 不产生 `content_delete_failed`）；N03-1 同形状打在 export worker 写完文件之后 | `N01-1`、`N01-2`、`N01-3`、`N03-1`（4 格） | **会不可逆地删内容对象**（这是三件里唯一不可逆的）；会多写 outbox／audit 行；不会动：PG、迁移、服务常驻单元（手工进程与 systemd 那份要分开跑，避免抢同一 taskqueue） | 缺：一次点头 **＋ 一件必须事先讲定的事**——N01-3 要一个"已经消失的对象"，最干净的做法是拿本轮 19:46 新建、**不在 18:54 备份里**的那 15 个中的 1 个来删；否则就改成"只验代码路径不碰真对象"，那样这半条就不算现网证据。已具备：relay 身份文件、备份 receipt 与 key 名 | 删错对象的恢复路径是**从 6 小时前的全量包重放**，粒度是整个 org 前缀不是单文件；`ErrNotExist` 语义本身已在测试层钉过（`lease_crash_test.go`、`cmd/work-export/lease_crash_test.go`），本批补的只是"真实进程＋真实 store"那一维 | `C03 §4(3)` 的"真实环境注入"继续空。若拒：N 段按"测试层已验、部署形态未验"记，`C03` 维持 partial 并把这条写进 11-18 复评 |
 
 **建议窗口**（不卡日历，卡的是"这三件分别点头"）：I-1 与 I-2 可以同一上午连着做（同一次种子、两种触发路径）；
 I-3 单独一次，且做之前先确认当时那份内容备份的覆盖时刻，别把"能回"说成永远能回。
+
+**【11-06 09:5x · I-3 动手前预检把本单自己的一句前提证伪了，登记为待裁，未执行任何写】**
+上面 I-3 那行写的半径是"**不会动：PG、迁移、服务常驻单元（手工进程与 systemd 那份要分开跑，避免抢同一 taskqueue）**"。
+现读之后这句站不住，三条理由：
+① **抢占是全局的，没有"分开跑"这层**。`work.claim_outbox`（`baseline/0002:2461-2496`）的取行谓词原文是
+`WHERE o.delivered_at IS NULL AND (o.claimed_until IS NULL OR o.claimed_until < now()) … LIMIT LEAST(GREATEST(p_limit,1),100)`
+再加行级排他锁与 `SKIP LOCKED`（原文见该函数 2477-2490 行）
+——**没有按 `p_relay_id` 分区、也没有"自己的租约自己续"的分支**（`claimed_by` 只写不读）。所以手工那份与常驻那份抢的是同一批行，
+relay 侧不是 taskqueue 那种可按队列名隔离的东西；我 11-05 那句类比是错的。
+② **窗口拿不到**。常驻两份现在都在跑且健康：`work-relay` active（MainPID 2051774，07:57:12 起，NRestarts=0，
+`User=work-control`＋`/etc/work/work-relay.env`）、`work-export` active（2051779）。D4-6b 的实测是**两笔 `content_shred` 0.9 秒投完**，
+而 N01-1 要的判据恰恰是"处理 1 笔后、两笔之间 `kill -9`"——不暂停常驻那份，手工那份连第一批都抢不到，更谈不上停在两笔之间。
+③ **此刻连载荷都没有**：`outbox total=1203／undelivered=0`，09:03:50 那轮留存清扫 `swept_rows=0 stuck_shred=0`
+⇒ 必须先走 D4-6b 那条清扫造出 ≥2 笔 `content_shred`（这一步本身是生产写，且它就是"不可逆删对象"的开始）。
+
+**不可逆性的真值线（现读，替换上面 11-05 那组 18:54/00:50 的旧时刻）**：最近一次内容备份成功 **11-06 06:46:02 CST**，
+receipt `content/2026/11/05/20261105T224603Z-18f99d9c1480.tar.gz.age`、bytes=1,355,188、sha256 前缀 `849c444d`、`Result=success`；
+下一次触发 **12:47:22**；对象总数 1342、最新对象 **08:44:28** ⇒ **I-2 那 8 个新对象不在任何备份里**（要真删就删它们，
+演练产物且不需要回来）；11-05 的 15 个已在 06:46 那份里。N01-3 的语义侧我再核了一遍代码：
+`internal/content/local.go:152-167` 对 `os.ErrNotExist` 返回 nil ⇒ `shred()` 会 ack 而**不产生** `content_delete_failed`，
+所以那一格在测试层与代码层都成立，缺的从来只是"真实进程＋真实 store"那一维。
+
+**两条路，代价摆出来（要哪条请点名）**：
+- **A｜追加一次半径＝停常驻**：`systemctl stop work-relay work-export`（手工进程跑完立即 `start`，全程数分钟；
+  期间 outbox 不投递、audit export 不出件，现网 undelivered=0 且只有一笔 I-2 停放 Run，暂停不产生用户可见影响；
+  回滚点现成——`start` 回来即可，NRestarts／MainPID 可比对）。做完四格都是真注入证据。
+  **代价**：暂停期间投递停摆数分钟，且这是对"常驻单元"的写，需要单独点头。
+- **B｜不追加**：N 段按"**测试层已验、部署形态未验**"记（四格保持未取证，**不记 na、也不记 pass**），
+  重开条件＝接多副本／镜像形态或另批授权停常驻；`C03 §4(3)` 的"真实环境注入"半条继续空着，11-18 复评再提。
+- 明写一句：用 `claim_outbox` 手工预置一笔"活着但属于死掉持有者"的租约来模拟崩溃，**我不打算这么记**——
+  那观测形状与真注入相同，但它是 mock，把 mock 记成现网注入正是我在 §0C 反复取消的那类假绿。
 **负责人**：三件都是主签点头＋单人执行（独立复核人已离队，按自决日志＋11-18 复评）。
 
 **与既有待办的关系**（不重复授权，也不借道执行）：

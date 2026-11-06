@@ -128,6 +128,10 @@ D3-2／D3-4 原文（停 Temporal 的 PG）**不做**：P2 实测三库同实例
 ＋D3-b（恢复演练，已 pass）。要新演的是 D3-1／3／5／6 围着一次 pod 层注入取基线—积压—追赶—账本核对，
 S1-1..4＋S1-R06 是"有在途 Run 时对 temporal server 进程 kill -9"，N01-1..3／N03-1 是"relay／export 在真实投递中途 SIGKILL"
 ——后者会真删内容对象，属不可逆面，必须绑定 6 小时一次的加密备份窗口与恢复路径先讲定。
+**【2026-11-06 09:2x 状态更新，原文不删】**注入批次已收 5 格：I-2（`S1-1`／`S1-2`／`S1-3`／`S1-4`／`S1-R06`）执行完毕，
+pass 3＋fail 2（红因同源：进程级 SIGKILL 后在途 Run 不自达终态，见 §3 下方标注与 `attachments/s1-i2-temporal-sigkill-20261106.txt`）。
+**要新演的只剩 I-3＝`N01-1..3`／`N03-1` 四格**；本段那句"必须绑定 6 小时一次的加密备份窗口"到执行日必须重取——
+11-05 记的那组时刻（18:54:28 成功／00:50:56 下一次）今天已过期，且本轮 I-2 又净增 8 个内容对象。
 
 
 
@@ -177,6 +181,29 @@ S1-1..4＋S1-R06 是"有在途 Run 时对 temporal server 进程 kill -9"，N01-
 | S1-4 | 对比 file-backed dev 的 R06 结论 | 行为一致：已完成 workflow 不重放 | 记录差异 |
 
 **关联控制**：C22 S1-R06 / C03 关闭条件 §4(4)。
+
+**【2026-11-06 08:44–09:23 已执行（I-2，主签"执行 A"）——本节四格逐条落账，判据原文不改】**
+- 段首目标那句"验证 `systemctl restart` 级别（单进程崩溃）的 Temporal server 重启"按现网拓扑取偏离并具名：
+  Temporal 不是 systemd 单元，是 k3s 里 1 副本 Deployment，故 `kill -9` 打的是容器 init 进程、拉起方是 kubelet，
+  证据从 `journalctl -u temporal` 换成 `kubectl … lastState` ＋ pod `restarts`（这正是 S1-2 记 pass 而条件文字未改的理由）。
+- `S1-1` **pass**：注入前 history 有 `WorkflowExecutionStarted` ＋ 3 对 activity Started/Completed，`AdvanceRuntime` 已 Scheduled。
+  种子必须 `runuser -u work-control -m` 跑（root 跑会造出 root:root 0600 对象、worker 读不到 ⇒ 8 秒 `prepare_failed`），
+  `WORK_RUNTIME_VERSION` 取 `api.env` 现读值 `pi-1.4.0-r0a` 不是硬编码——这两条是上一轮 I-2 没跑成的真因，已闭环。
+- `S1-2` **pass**：`exitCode=137`、`restarts 0→1`、3 秒后新 pid，上一容器日志里 graceful/shutdown/signal 关键字 **0 行**
+  （与 I-1 删 pod 那次的 `goaway graceful_stop` 正好成对照，这就是"进程级崩溃"与"运维删除"两条证据不可互替的原因）。
+- `S1-3` **fail**：判据后半"无第二个 Run"成立（`distinct_runs_for_task=1`、该 workflow_id 在 list 里仅 1 笔、闸行 consumed 恰一次）；
+  前半不成立——注入后 39 分钟 Run 仍 `waiting／wait_reason=reconcile／terminal=NULL`、`display_state=running`、`held` 100,000 不还。
+  机制是读出来的不是猜的：`STARTED attempt=2 @08:48:33`＝崩溃丢了 attempt 1 的 Started 记账，Temporal 在
+  `advance.go:457` 的 `StartToClose=4min` 后重投，attempt 2 撞上已 durable 的成功回执 0.34 秒返回 `StateWaitingReconcile`
+  ⇒ 走 `advance.go:272-277` 停放并阻塞等 `resume`，**而这一支没有超时**（配额那一支有 24h：`advance.go:211-218`）。
+  重开条件二选一：一次 `work-reconcile -signal-only`（生产写，`D1-6`／`D2-4` 已证此路可达 `succeeded`＋真实结算）后按等价改判记，
+  或给 reconcile 停放补自动收口／超时（代码缺口，需另裁）。**这笔不满足 0029 的三个条件**（未终态／operation=dispatching／receipt=success），
+  `held_on_terminal=0` 是"0029 没误触发"的现证，不是它失效。
+- `S1-4` **pass（差异照记，这就是该格要求的产物）**：dev R06 原文（`work-r0a-orchestration-design-2026-10-25.md:662`）
+  只断言"已完成 workflow 仍为 COMPLETED"，生产两条都成立（崩溃前 CLOSED 的 `run:01384d59` 重启后仍 COMPLETED／RunTime 47.92s／
+  HistoryLength 41；崩溃那笔 5 个 activity 各恰好一对 Started/Completed、`work-replay` rc=0）。
+  差异＝dev 那次从没建模"在途 activity 被 SIGKILL 打断"，所以它的结论外推不出"在途 Run 会走完"；本格的 pass 不外推为段落通过。
+- 段落格 `S1-R06` **fail**，红因与 `S1-3` 同一根，不另计一个缺口；§11 那句"D1＋D2＋S1-R06 全 PASS ⇒ C22 回写"的条件因此不成立，`C22` 维持 partial。
 
 ## 4. 11-16 上午 09:30–12:00 · D3 Temporal PG 故障/恢复
 
@@ -292,6 +319,18 @@ S1-1..4＋S1-R06 是"有在途 Run 时对 temporal server 进程 kill -9"，N01-
 
 **与测试层的关系**：测试层已在 2026-11-02 验证通过（`lease_crash_test.go`、`cmd/work-export/lease_crash_test.go`），本步是在**真实 systemd/容器进程 + 真实 Content Store 桶**下复跑同等断言，补的是「部署形态」证据。
 
+**【2026-11-06 09:5x 动手前预检：本节 N01-1 那句"启动 relay 进程"在现网单副本形态下不可按原文执行，四格仍未取证】**
+`work.claim_outbox`（`baseline/0002:2461-2496`）的谓词不按 `claimed_by` 分区、也没有"持有者续自己的租约"分支
+（取行条件是 `claimed_until IS NULL OR claimed_until < now()`，再加行级 `FOR UPDATE` 与 `SKIP LOCKED`），而 `work-relay`／`work-export`
+常驻两份都 active、D4-6b 实测两笔 shred 0.9 秒投完 ⇒ 手工第二份抢不到批次，"两笔之间 SIGKILL"这个窗口拿不到；
+且此刻 `undelivered=0`、09:03:50 那轮清扫 `swept_rows=0 stuck_shred=0`，连载荷都要先造。
+**执行本节的前置因此多一条、且需单独点头**：`systemctl stop work-relay work-export` 数分钟（选项与代价见授权单 §15 末段）。
+不追加就按"测试层已验、部署形态未验"记，**四格保持未取证，不写 na、不写 pass**；也不要用"手工预置一笔死持有者的活租约"代替注入——
+那是 mock，观测形状相同但证据等级不同。N01-3 的语义侧另有代码级正证：`internal/content/local.go:152-167` 对
+`os.ErrNotExist` 返回 nil，故 `shred()` 会 ack 而不产生 `content_delete_failed`（本格缺的只是真实进程那一维）。
+不可逆性的当日真值线：**最近成功备份 11-06 06:46:02**（key `…20261105T224603Z-18f99d9c1480.tar.gz.age`、sha256 前缀 `849c444d`、
+bytes 1,355,188），下一次 12:47:22 ⇒ 06:46 之后新增的 8 个对象（I-2 种子产物）**不在任何备份里**。
+
 **关联控制**：C03 §4(3) D3-N01/N03 真实环境注入。
 
 ## 10. 证据落盘
@@ -323,7 +362,7 @@ docs/plan/assets/work-r0a-ops-2026-10-25/drills/
 
 | 条件 | 满足后操作 |
 |---|---|
-| D1 + D2 + S1-R06 全 PASS | C22 evidence 添加「多节点拓扑、在途重启、worker drain 实测 2026-11-15」 |
+| D1 + D2 + S1-R06 全 PASS | C22 evidence 添加「多节点拓扑、在途重启、worker drain 实测 2026-11-15」**（2026-11-06 实测：本条件不成立——`S1-R06` 已取证并记 fail，红因＝进程级 SIGKILL 后在途 Run 不自达终态，只到 `waiting/reconcile` 等人工 signal；故 `C22` 维持 partial，本行不执行）** |
 | D3 + D4 全 PASS | C22 evidence 添加「Temporal PG 故障恢复、配额饱和实测 2026-11-16」；C22 status → `done` |
 | D3-N01/N03/N06 真实环境 PASS | C03 §4(3) 满足 |
 | C13-0 判定驱动存在 → C13-1..8 全 PASS | **（2026-11-04 按 A 标为不适用）**本行原为「C13 note 更新：『主密钥轮换已于真实环境演练通过』；残余改为对象存储后端」——2026-11-03 取证判定驱动不存在且不存在安全轮换路径，裁定 A 又把轮换移出 R0a 退出门，故这一支路本次演练不可能走到 |
@@ -354,7 +393,7 @@ docs/plan/assets/work-r0a-ops-2026-10-25/drills/
 |---|---|---|---|
 | D1 重复派发 | 故障矩阵 §4.2 假设不成立 | **是** | 排查 Temporal sticky cache / outbox 去重逻辑；改期重跑 |
 | D2 丢活动 | Activity 在 drain 窗口丢失 | **是** | 排查 worker graceful shutdown 顺序；改期重跑 |
-| S1-R06 重启失败 | 单节点恢复不成立 | **是** | C03 延到 DR4 前补签 |
+| S1-R06 重启失败 | 单节点恢复不成立 | **是** | C03 延到 DR4 前补签 **（2026-11-06 本行已触发，形态要读准：恢复本身成立——同笔 Temporal 执行续跑、attempt 2 由 start-to-close 重投、已完成步骤零重放、无双发；不成立的是"在途 Run 自动到终态"，它停在 `waiting/reconcile`。所以按本行原文的补救走＝`C03` 延到 DR4 前补签，`C22` 不因 I-2 回写；另一支路是给 reconcile 停放补自动收口，属代码改动需另裁，见 §3 标注与 `attachments/s1-i2-temporal-sigkill-20261106.txt`）** |
 | D3 账本变化 | 业务数据完整性受损 | **是** | 紧急回滚 + DBA 核对；记录事件 |
 | D4 已有 Run 被杀 | 配额实现有误杀 bug | **是** | 修 namespace 配置 / Temporal bug；改期重跑 |
 | C13 轮换后解密失败 | 凭据/Content Store 不可用 | 否（只影响 C13） | **2026-11-04：本行已不可触发**——按 A 不执行轮换，这一失败模式不在本次演练路径内（原补救「恢复旧密钥文件；排查派生逻辑」保留，供重开轮换时参考；重开条件见 `pilot-checklist.json` C13 note） |

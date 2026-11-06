@@ -1,0 +1,529 @@
+I-2（授权单 §15／主签"执行 A->B->C，执行 A"）· 有在途 Run 时对 Temporal server 进程 kill -9
+执行：2026-11-06 08:44:22–09:23:10 CST，试点机 lavm-t7fmveau9b，单人执行。
+注入手段：kill -9 1947294（temporal-server --env docker start --service=frontend/history/matching/worker）。
+        该 pid 是 k3s pod temporal-server-787478d8c8-drmzk 里容器 53590d802d3b 的 init 进程
+        （/proc/<pid>/cgroup = /kubepods.slice/…/cri-containerd-53590d….scope，现证三条：cmdline、
+        cgroup、pgrep 唯一命中，任一条不满足脚本就早失败）。
+与 I-1 的区别只在注入手段：I-1 是 kubectl delete pod（kubelet 优雅终止，worker 侧看到
+  goaway "graceful_stop"）；本轮 SIGKILL 没有 drain 窗口，容器 lastState.exitCode=137、
+  上一容器日志里 graceful/shutdown/signal 关键字 0 行。两轮的判据文本不同，证据不能互用。
+半径与边界：
+  - 注入前现读 in_flight=0，脚本先判"只有我一笔在途"才动手；一笔种子 Run（真打供应商，现造现演）。
+  - 没停 Postgres、没换二进制、没改配置、没有迁移：注入前后 ledger 都是 29 /
+    0029_terminal_reservation_release；undelivered 全程 0；dead_letter 未新增。
+  - 种子身份＝work-control（这是上一轮 I-2 没跑成的根因修复，见下"前置"）。
+
+上一轮 I-2 失败的两个前提，本轮先修再演（都取证过才改的）：
+  ① 身份：种子以 root 跑 ⇒ 内容对象 root:root 0600，worker（unit User=work-control）读不到 ⇒
+     Run 8 秒内 failed/prepare_failed（advance_activities.go:119 的 Content.Get 失败）。
+     本轮整段种子走 runuser -u work-control -m，新对象现读 owner=work-control:work-control mode=600，
+     属主直方图现读：content_total=1342，其中 root=1（仍是上一轮那笔残留）／work-control=1341。
+  ② WORK_RUNTIME_VERSION 我上一版写死 "pi-1"，主机真值是 pi-1.4.0-r0a（/etc/work/work-api.env 现读）⇒
+     本轮不再硬编码，整份 api.env 用 set -a 导入。同一次现读还纠正了我另一条口误：我以为
+     WORK_CONTENT_MASTER_KEY／WORK_CONTENT_DIR 只在 worker.env，实际 api.env 里也有一份，
+     且两份的 master key sha256 前 8 位相同（82f9a17b）、content dir 相同（/var/lib/work/content）。
+  ③ runuser 是否保留导出变量也现测过（带 -m 与不带 -m 都能读到 marker），不是照抄惯例。
+
+四格＋段落格的结论（逐格判据原文见 work-r0a-drill-checklist-2026-11-15.md §3）：
+  S1-1 pass：注入前 history 有 WorkflowExecutionStarted＋3× ActivityTaskStarted（PrepareAdvance／
+    EnsureAdvanceHead／PrepareAdvanceExecution 各一对 Started/Completed，AdvanceRuntime 已 Scheduled），
+    run=active。判据里"证据＝temporal CLI"这一项这次是真用 CLI 取的（11-04 那批用的是 DB 侧投影）。
+    注意 CLI 形状：本机 temporal CLI 没有 `workflow history event` 子命令（unknown flag），
+    只有 `workflow show`；`--output json` 才是 work-replay 吃的那份格式。
+  S1-2 pass（带一处偏离，按实记）：判据原文是"进程消失、systemd restart 拉起／证据＝journalctl -u temporal"。
+    现网 Temporal 不是 systemd 单元而是 k3s 里的 1 副本 Deployment，所以拉起方是 kubelet、证据是
+    kubectl 的 lastState＋pod restarts。实际读数：KILL_RC=0，旧 pid 消失，3 秒后新 pid 2059776，
+    restarts 0→1，lastState={"terminated":{"exitCode":137,"reason":"Error","finishedAt":"2026-11-06T00:44:24Z"}}，
+    worker journal 6 行失联（error reading from server: EOF／connection reset by peer，无 graceful_stop）。
+  S1-3 FAIL：判据原文"Run C 终态正确（succeeded／cancelled）；无第二个 Run"。
+    后半成立：distinct_runs_for_task=1、`temporal workflow list --limit 200` 里本 run 的 workflow_id 只出现
+    1 次（started_workflows_for_this_run=1）、闸行 consumed 恰 1 次。
+    （我一开始拿 workflowStarted 的 originalExecutionRunId 当"没另起一笔"的证据，那字段在首次执行时
+      本来就缺席，我的脚本把它打印成 "this-is-original" ——那是我的默认值不是读数，作废，改用 list 计数。）
+    前半不成立：Run 至今（09:23，注入后 39 分钟）停在 state=waiting／wait_reason=reconcile／terminal=NULL，
+    task_summary.display_state 仍=running，quota_reservation 仍 held 100,000、settled=0。
+    恢复过程本身是对的（见下"机制"），红的是"没有任何自动收口会把它推到终态"。
+  S1-4 pass（差异已按判据要求记录）：判据原文"行为一致：已完成 workflow 不重放"，而 file-backed dev 的
+    R06 结论原文是 work-r0a-orchestration-design-2026-10-25.md:662「file-backed Temporal server 重启后，
+    已完成 workflow 仍为 COMPLETED，Work DB task 仍 awaiting_acceptance」。两条都在生产成立：
+    ① 崩溃前已 CLOSED 的 run:01384d59 重启后 describe 仍 Status=COMPLETED／RunTime=47.92s／HistoryLength=41（没变回去）；
+    ② 崩溃那笔的执行内，5 个 activity 每个都恰好 1 对 Started/Completed、multiple_completions=0
+       （从 --output json 的 34 条事件现算，不是肉眼看表）；work-replay 对同一份历史 rc=0（无 nondeterminism）。
+    差异（这条就是判据要的"记录差异"）：dev R06 演的是"重启后已完成的东西不变"，从没建模"在途 activity
+    被 SIGKILL 打断"，所以它的结论外推不出"在途 Run 会走完"——S1-3 的红不是回退，是 dev 证据覆盖不到的面。
+  S1-R06 FAIL：段落格（§6 关联表用它 gate C22 的 evidence 回写），红因与 S1-3 同一根，不是第二个缺口。
+
+机制（本轮真正拿到的东西，全部来自事件属性而不是推测）：
+  event 23 SCHEDULED AdvanceRuntime @08:44:23.432 →（08:44:24 kill）→ event 24 **STARTED attempt=2**
+  @08:48:33.443 → event 25 COMPLETED @08:48:33.780 → event 29 SCHEDULED WaitRun → 30/31 Started/Completed
+  → 34 WFT-DONE，此后无事件、describe 仍 Running。
+  ⇒ attempt=2 是硬证据：崩溃让 attempt 1 的 Started 记账丢了（history 里没有 attempt 1 的 Started，
+    也没有 ActivityTaskTimedOut），Temporal 在 4 分 10 秒后（advance.go:457 的 StartToClose=4min）
+    按 RetryPolicy 重投。重投**没有**二次打供应商：闸行 gate_state=receipt_recorded、
+    receipt_result=success、consumed_at=08:44:23、receipt_recorded_at=08:44:28（都在崩溃那一刻之前由
+    attempt 1 经 relay 落库），consumed 计数恰好 1；attempt 2 读到已有回执，0.34 秒返回。
+  ⇒ 返回的 state 是 fragment.StateWaitingReconcile，于是走 advance.go:272-277：WaitRun(reason='reconcile')
+    把库侧 Run 置 waiting，然后 awaitResumeOrCancel 阻塞在 resume/cancel 信号通道上。
+    这一支**没有超时**：配额那一支有 advanceQuotaWaitLimit=24h（advance.go:211-218），reconcile 这一支
+    没有对应计时器，所以除非有人发 resume／cancel，它会永久停放。现网唯一的兜底是每小时的 gauges——
+    它确实抓到了：09:16:24 work-runstream-scan 报
+    "BREACH org=4a2d3f28… parked_runs=1 held_on_terminal=0 unknown_operations=36 suspended_orgs=0
+     open_runs=1 held_tokens=100000 - 停放 Run（库在等一个不会再回来的执行；见 §5.18 可见性边界与 #56-A）"
+    并以 status=2 退出（设计中的标红，与 I-1 那次同一机制）。
+  ⇒ 与 0029 的边界要说清，别读成"0029 没生效"：0029 的触发条件按 #79=B 收窄成"Run 已终态＋operation
+    state='unknown'＋无可信回执"。本轮这笔 Run **没终态**、operation 仍是 dispatching、回执是 success，
+    三个条件一个都不满足 ⇒ 释放不触发是**按裁定执行的正确行为**（held_on_terminal=0 也证明巡检口径对）。
+    真正没被任何自动机制覆盖的是"非终态停放＋预留挂着"这一族，它的现证就是每小时那条 parked_runs BREACH。
+
+我自己这轮再犯的错（按实记，同一类第四次）：造列名。错的有 operation.outcome、task_event.kind、
+  task_event.event_type（真列叫 type，0002:449-461）、dispatch_delivery.reported_tokens（0009:212-232 里
+  压根没有 token 列）、artifact.run_id（HINT 提示 artifact.org_id）、runtime_execution.id／attempt_count。
+  另有两条是我的 shell/SQL 技术错：string_agg 的 ORDER BY 必须写在聚合括号内（我写到外层 ⇒
+  "ordinal_position must appear in GROUP BY"），以及 tmp-a-i2c.sh 里我在 source worker.env 之前就引用
+  $WORK_TEMPORAL_ADDRESS，set -u 直接 unbound 退出（这条至少是响的，不是静默假绿）。
+  第 6 段那份 attempt 现读里我也造过一个字段名：activityTaskStartedEventAttributes 没有 startedTime，
+  所以那几行打印成 "startedTime=undefined"——同一段里的 attempt=／scheduledEventId=／真实 eventTime
+  才是承重读数，别把 undefined 读成"没有时间"。
+  后果同前几次：那几行读数一开始是报错而不是"没有数据"，如果我不回头核 information_schema 就会把
+  报错读成空集。正确做法已在 tmp-a-i2d2.sh/tmp-a-i2e.sh 里改成先现读列名再拼查询。
+
+残留（都在演练 org 里，没删，等主签定点）：
+  1) 这笔停放 Run：run e24eb42c-5ffb-47ca-a0e9-385c9c4c30e2／task 3993fb34-b35a-44ed-9cb1-c679d34e358a／
+     operation cc465f2b-7f4c-4596-be51-c0f68a8760fc／reservation dd38220b（held 100,000）／
+     Temporal 执行 run:e24eb42c… 仍 Running。代价＝每小时一条 parked_runs BREACH＋org 的 reserved=100000
+     不归还＋用户侧 display_state 恒为 running。
+     唯一已验过的收口口子是人工信号（runbook §5.16）：
+       sudo -u work-control /usr/local/bin/work-reconcile -org 4a2d3f28-… -operation cc465f2b-… -signal-only
+     预期（按 advance.go:278-283 的 default 分支）：resume ⇒ finishCheckpointed ⇒ 有 success 回执 ⇒
+     settle＋succeeded。这是生产写，未获逐项授权前我没发信号；I-1 那次同样是问完才动的手。
+  2) 上一轮 root 属主那笔：run f2046de9（failed/prepare_failed）＋1 个 root:root 0600 内容对象
+     （/var/lib/work/content/3ae5f1dba8ac22a8f0e6a0fc3d39ae77/f7f3c67051d3e60ab6f114d5ef3b758a.enc），
+     chown 属生产写，同样待定。
+  3) 本轮净增内容对象 8 个（08:44 之后），属正常产物，未清。
+
+原始日志（本文件由 5 次执行拼成，前 1 次含注入，后 4 次都是只读复核）：
+
+################ 1) 注入段 tmp-a-i2.sh ################
+ts_start=2026-11-06 08:44:22 CST host=lavm-t7fmveau9b kernel=6.8.0-53-generic
+== 0) 半径预检：只有我一笔在途才允许注入 ==
+  in_flight_before=0
+  ledger=29 / 0029_terminal_reservation_release
+  held=0 undelivered=0
+== 1) 解析 kill 目标（pid 必须唯一、cmdline 与 cgroup 都要对上）==
+  candidates=1947294 count=1
+  pid=1947294 pod=temporal-server-787478d8c8-drmzk
+  cmdline=temporal-server --env docker start --service=frontend --service=history --service=matching --service=worker 
+  cgroup=0::/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podf557a8ad_c2b9_4de0_ae45_8482fa138d05.slice/cri-containerd-53590d802d3b83a680fd48171444157654b7cdd286b4751ef367e6ba88428977.scope
+  started=Thu Nov 5 20:24:00 2026
+  restarts_before=0
+== 2) S1-1 种子：以 work-control 身份提交一笔 Run ==
+  seed_runtime_version=pi-1.4.0-r0a content_dir=/var/lib/work/content seed_user_in_url=work_api_login
+  org=4a2d3f28-38b9-4d6c-8614-70ef9a83960d subject=535bbd27-62a0-4a95-91be-892182520d9e
+  SEED_RC=0 client_request_id=drill-1106-i2-1793925862
+    task_id=3993fb34-b35a-44ed-9cb1-c679d34e358a
+    run_id=e24eb42c-5ffb-47ca-a0e9-385c9c4c30e2
+    revision=1
+    input_ref=e5643885-c853-4ae0-b17d-a40a0869c8d1
+    snapshot_hash=sha256:2a122f6296f4facc8799024b89058a3e473e38724d23e64c8743cd3b64031b42
+  run_id=e24eb42c-5ffb-47ca-a0e9-385c9c4c30e2 task_id=3993fb34-b35a-44ed-9cb1-c679d34e358a workflow_id=run:e24eb42c-5ffb-47ca-a0e9-385c9c4c30e2
+  -- 内容对象属主（本轮要证的修复）--
+    newest=/var/lib/work/content/3ae5f1dba8ac22a8f0e6a0fc3d39ae77/b965833952f0d19b5aa62508b01ddf07.enc
+      owner=work-control:work-control mode=600 file=/var/lib/work/content/3ae5f1dba8ac22a8f0e6a0fc3d39ae77/b965833952f0d19b5aa62508b01ddf07.enc
+    owner_is_work_control=yes
+    content_total=1335 root_owned=1
+== 3) 等到 activity 真在跑（S1-1 判据：history 有 WorkflowExecutionStarted + ActivityTaskStarted）==
+  poll1 show_rc=1 activity_started_rows=0 run_state=queued/-
+  poll2 show_rc=0 activity_started_rows=3 run_state=active/-
+  S1_1_activity_started_seen=1
+  -- S1-1 history（注入前）--
+        1  2026-11-06T00:44:23Z  WorkflowExecutionStarted  
+        2  2026-11-06T00:44:23Z  WorkflowTaskScheduled     
+        3  2026-11-06T00:44:23Z  WorkflowTaskStarted       
+        4  2026-11-06T00:44:23Z  WorkflowTaskCompleted     
+        5  2026-11-06T00:44:23Z  ActivityTaskScheduled     
+        6  2026-11-06T00:44:23Z  ActivityTaskStarted       
+        7  2026-11-06T00:44:23Z  ActivityTaskCompleted     
+        8  2026-11-06T00:44:23Z  WorkflowTaskScheduled     
+        9  2026-11-06T00:44:23Z  WorkflowTaskStarted       
+       10  2026-11-06T00:44:23Z  WorkflowTaskCompleted     
+       11  2026-11-06T00:44:23Z  ActivityTaskScheduled     
+       12  2026-11-06T00:44:23Z  ActivityTaskStarted       
+       13  2026-11-06T00:44:23Z  ActivityTaskCompleted     
+       14  2026-11-06T00:44:23Z  WorkflowTaskScheduled     
+  in_flight_at_inject=1
+== 4) S1-2 注入：kill -9 1947294 ==
+  kill_at=2026-11-06 08:44:24 CST
+  KILL_RC=0
+  t=3s old_pid_alive=1 host_pids=2059776  pod_restarts_state=1 {"running":{"startedAt":"2026-11-06T00:44:24Z"}} run=active undelivered=0
+  new_pid_appeared=2026-11-06 08:44:27 CST
+  recovered_at=2026-11-06 08:44:27 CST
+  new_pid=2059776 old_pid=1947294
+  new_started=Fri Nov 6 08:44:23 2026
+  pod_now=temporal-server-787478d8c8-drmzk 0/1 Running 1 (3s ago) 12h 10.42.0.48 lavm-t7fmveau9b <none> <none>
+  deploy_now=/1 restarts=
+  -- 崩溃瞬间：上一容器日志尾（SIGKILL 不该有 graceful_stop）--
+    prev: {"level":"info","ts":"2026-11-06T00:37:55.453Z","msg":"none","component":"matching-engine","wf-task-queue-name":"/_sys/temporal-sys-batcher-taskqueue/2","wf-task-queue-type":"Workflow","wf-namespace":"temporal-system","worker-build-id":"_unversioned_","lifecycle":"Started","cause":"Poll","logging-call-at":"/home/runner/work/docker-builds/docker-builds/temporal/service/matching/physical_task_queue_manager.go:289"}
+    prev: {"level":"info","ts":"2026-11-06T00:38:36.205Z","msg":"none","component":"matching-engine","wf-task-queue-name":"/_sys/temporal-sys-dlq-activity-tq/1","wf-task-queue-type":"Activity","wf-namespace":"temporal-system","worker-build-id":"_unversioned_","lifecycle":"Stopped","cause":"Idle","logging-call-at":"/home/runner/work/docker-builds/docker-builds/temporal/service/matching/physical_task_queue_manager.go:307"}
+    prev: {"level":"info","ts":"2026-11-06T00:40:56.453Z","msg":"none","component":"matching-engine","wf-task-queue-name":"/_sys/temporal-sys-batcher-taskqueue/3","wf-task-queue-type":"Workflow","wf-namespace":"temporal-system","worker-build-id":"_unversioned_","lifecycle":"Stopped","cause":"Idle","logging-call-at":"/home/runner/work/docker-builds/docker-builds/temporal/service/matching/physical_task_queue_manager.go:307"}
+    prev: {"level":"info","ts":"2026-11-06T00:41:18.500Z","msg":"none","component":"matching-engine","wf-task-queue-name":"/_sys/work-r0a-run/3","wf-task-queue-type":"Workflow","wf-namespace":"work-r0a","worker-build-id":"_unversioned_","lifecycle":"Stopped","cause":"Idle","logging-call-at":"/home/runner/work/docker-builds/docker-builds/temporal/service/matching/physical_task_queue_manager.go:307"}
+    prev: {"level":"info","ts":"2026-11-06T00:41:47.177Z","msg":"none","component":"matching-engine","wf-task-queue-name":"/_sys/temporal-sys-dlq-activity-tq/1","wf-task-queue-type":"Activity","wf-namespace":"temporal-system","worker-build-id":"_unversioned_","lifecycle":"Started","cause":"Poll","logging-call-at":"/home/runner/work/docker-builds/docker-builds/temporal/service/matching/physical_task_queue_manager.go:289"}
+    prev: {"level":"info","ts":"2026-11-06T00:44:11.513Z","msg":"none","component":"matching-engine","wf-task-queue-name":"/_sys/work-r0a-run/3","wf-task-queue-type":"Workflow","wf-namespace":"work-r0a","worker-build-id":"_unversioned_","lifecycle":"Started","cause":"Poll","logging-call-at":"/home/runner/work/docker-builds/docker-builds/temporal/service/matching/physical_task_queue_manager.go:289"}
+    now:  {"level":"warn","ts":"2026-11-06T00:44:25.947Z","msg":"Search attribute CustomTextField already exists.","service":"frontend","namespace":"work-r0a","visibility-search-attribute":"CustomTextField","logging-call-at":"/home/runner/work/docker-builds/docker-builds/temporal/service/frontend/operator_handler.go:340"}
+    now:  {"level":"warn","ts":"2026-11-06T00:44:25.947Z","msg":"Search attribute CustomIntField already exists.","service":"frontend","namespace":"work-r0a","visibility-search-attribute":"CustomIntField","logging-call-at":"/home/runner/work/docker-builds/docker-builds/temporal/service/frontend/operator_handler.go:340"}
+    now:  {"level":"warn","ts":"2026-11-06T00:44:25.947Z","msg":"Search attribute CustomDatetimeField already exists.","service":"frontend","namespace":"work-r0a","visibility-search-attribute":"CustomDatetimeField","logging-call-at":"/home/runner/work/docker-builds/docker-builds/temporal/service/frontend/operator_handler.go:340"}
+    now:  Search attributes have been added
+  -- worker 在窗口内的失联样本（journalctl -u work-worker）--
+    worker_poll_error_lines=6
+    Nov 06 08:44:24 lavm-t7fmveau9b work-worker[2051782]: 2026/11/06 08:44:24 WARN  Failed to poll for task. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkerType ActivityWorker Error error reading from server: EOF
+    Nov 06 08:44:24 lavm-t7fmveau9b work-worker[2051782]: 2026/11/06 08:44:24 WARN  Failed to poll for task. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkerType WorkflowWorker Error error reading from server: EOF
+    Nov 06 08:44:24 lavm-t7fmveau9b work-worker[2051782]: 2026/11/06 08:44:24 WARN  Failed to poll for task. Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkerType WorkflowWorker Error connection error: desc = "transport: authentication handshake failed: read tcp 172.16.0.7:48358->10.43.147.249:7233: read: connection reset by peer"
+== 5) 等在途 Run 走到终态（S1-3）==
+  poll1 state=active undelivered=0 held=1
+  poll2 state=active undelivered=0 held=1
+  poll3 state=active undelivered=0 held=1
+  poll4 state=active undelivered=0 held=1
+  poll5 state=active undelivered=0 held=1
+  poll6 state=active undelivered=0 held=1
+  poll7 state=active undelivered=0 held=1
+  poll8 state=active undelivered=0 held=1
+  poll9 state=active undelivered=0 held=1
+  poll10 state=active undelivered=0 held=1
+  poll11 state=active undelivered=0 held=1
+  poll12 state=active undelivered=0 held=1
+  poll13 state=active undelivered=0 held=1
+  poll14 state=active undelivered=0 held=1
+  poll15 state=active undelivered=0 held=1
+  poll16 state=active undelivered=0 held=1
+  poll17 state=active undelivered=0 held=1
+  poll18 state=active undelivered=0 held=1
+  poll19 state=active undelivered=0 held=1
+  poll20 state=active undelivered=0 held=1
+  poll21 state=active undelivered=0 held=1
+  poll22 state=active undelivered=0 held=1
+  poll23 state=active undelivered=0 held=1
+  poll24 state=active undelivered=0 held=1
+  poll25 state=active undelivered=0 held=1
+  poll26 state=active undelivered=0 held=1
+  poll27 state=active undelivered=0 held=1
+  poll28 state=active undelivered=0 held=1
+  poll29 state=active undelivered=0 held=1
+  poll30 state=active undelivered=0 held=1
+  poll31 state=active undelivered=0 held=1
+  poll32 state=active undelivered=0 held=1
+  poll33 state=active undelivered=0 held=1
+  poll34 state=active undelivered=0 held=1
+  poll35 state=active undelivered=0 held=1
+  poll36 state=active undelivered=0 held=1
+  poll37 state=active undelivered=0 held=1
+  poll38 state=active undelivered=0 held=1
+  poll39 state=active undelivered=0 held=1
+  poll40 state=active undelivered=0 held=1
+  final_state=NOT_TERMINAL_AFTER_200S
+== 6) S1-3 / S1-4 终态读数 ==
+  run_final=active/- wait=-
+  distinct_runs_for_task=1
+  other_runs_created_since=0
+  ops=dispatching
+  gates=receipt_recorded
+  gate_rows_consumed=1
+  reservations=ERROR:  column r.amount does not exist
+LINE 1: select coalesce(string_agg(r.state||':'||r.amount::text,',')...
+                                                 ^
+  held_on_terminal_total=0
+  ledger=29 / 0029_terminal_reservation_release
+  undelivered_final=0
+  in_flight_final=1
+  -- 恢复后的 history：同一 workflow 继续，而不是另起一笔 --
+    show_rc=0 events=23
+        1  2026-11-06T00:44:23Z  WorkflowExecutionStarted  
+        5  2026-11-06T00:44:23Z  ActivityTaskScheduled     
+        6  2026-11-06T00:44:23Z  ActivityTaskStarted       
+        7  2026-11-06T00:44:23Z  ActivityTaskCompleted     
+       11  2026-11-06T00:44:23Z  ActivityTaskScheduled     
+       12  2026-11-06T00:44:23Z  ActivityTaskStarted       
+       13  2026-11-06T00:44:23Z  ActivityTaskCompleted     
+       17  2026-11-06T00:44:23Z  ActivityTaskScheduled     
+       18  2026-11-06T00:44:23Z  ActivityTaskStarted       
+       19  2026-11-06T00:44:23Z  ActivityTaskCompleted     
+       23  2026-11-06T00:44:23Z  ActivityTaskScheduled     
+      StateTransitionCount  16
+      HistoryLength         23
+  -- S1-4：把崩溃恢复后的历史交给离线重放器（file-backed 判据的同一件工具）--
+    history_json_bytes=20203
+    head: {
+    head:   "events": [
+    head:     {
+    head:       "eventId": "1",
+    head:       "eventTime": "2026-11-06T00:44:23.260243464Z",
+    head:       "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+    head:    
+    work_replay_rc=0
+    replay ok: /tmp/i2-s1/e24eb42c-5ffb-47ca-a0e9-385c9c4c30e2.json
+  -- 审计与用量是否被崩溃改动 --
+  audit_actions_since=dispatch.gate_consumed=1dispatch.receipt_attached=1input.create=1operation.authorize=1runtime.capability_issued=1runtime.checkpoint_committed=2runtime.execution_claimed=2runtime.execution_registered=1task.submit
+  usage_fact=rows=0 in=0 out=0
+  task_summary=running run=active reserved=100000 settled=0
+ts_end=2026-11-06 08:47:54 CST
+== 附件候选：/tmp/i2-s1（seed.log / s1-1-history.txt / s1-3-show.txt / e24eb42c-5ffb-47ca-a0e9-385c9c4c30e2.json / replay.log）==
+
+################ 2) 终态续取证 tmp-a-i2b.sh（只读）################
+ts=2026-11-06 09:13:27 CST run=e24eb42c-5ffb-47ca-a0e9-385c9c4c30e2
+== 1) 等到终态（最多 12 轮 × 20 秒）==
+  poll1 state=waiting held=1 undelivered=0 history_events=34
+  poll2 state=waiting held=1 undelivered=0 history_events=34
+  poll3 state=waiting held=1 undelivered=0 history_events=34
+  poll4 state=waiting held=1 undelivered=0 history_events=34
+  poll5 state=waiting held=1 undelivered=0 history_events=34
+  poll6 state=waiting held=1 undelivered=0 history_events=34
+  poll7 state=waiting held=1 undelivered=0 history_events=34
+  poll8 state=waiting held=1 undelivered=0 history_events=34
+  poll9 state=waiting held=1 undelivered=0 history_events=34
+  poll10 state=waiting held=1 undelivered=0 history_events=34
+  poll11 state=waiting held=1 undelivered=0 history_events=34
+  poll12 state=waiting held=1 undelivered=0 history_events=34
+== 2) S1-3 终态与账本读数 ==
+  ts_now=2026-11-06 09:17:29 CST
+  run_final=ERROR:  column "attempt" does not exist
+LINE 1: ...' wait='||coalesce(wait_reason,'-')||' attempt='||attempt::t...
+                                                             ^
+HINT:  Perhaps you meant to reference the column "run.attempt_no".
+  run_updated=11-06 08:48:33
+  distinct_runs_for_task=1
+  other_runs_since=0
+  ops=dispatching
+  gates=receipt_recorded
+  gate_consumed=1
+  reservations=held:100000
+  held_on_terminal_total=0
+  quota_account=ERROR:  column "period" does not exist
+LINE 1: select coalesce(string_agg(period||' reserved='||reserved_to...
+                                   ^
+HINT:  Perhaps you meant to reference the column "quota_account.period_id" or the column "quota_account.version".
+  task_summary=running run=waiting reserved=100000 settled=0
+  usage_fact=rows=0 in=0 out=0
+  ledger=29 / 0029_terminal_reservation_release
+  undelivered=0 in_flight=1
+  content_total=1342 root_owned=1
+== 3) Temporal 侧：同一执行继续，而不是另起一笔 ==
+      ExecutionTime         33 minutes ago
+      StateTransitionCount  25
+      HistoryLength         34
+    show_rc=0 lines=37
+        1  2026-11-06T00:44:23Z  WorkflowExecutionStarted  
+        2  2026-11-06T00:44:23Z  WorkflowTaskScheduled     
+        3  2026-11-06T00:44:23Z  WorkflowTaskStarted       
+        4  2026-11-06T00:44:23Z  WorkflowTaskCompleted     
+       16  2026-11-06T00:44:23Z  WorkflowTaskCompleted     
+       17  2026-11-06T00:44:23Z  ActivityTaskScheduled     
+       18  2026-11-06T00:44:23Z  ActivityTaskStarted       
+       19  2026-11-06T00:44:23Z  ActivityTaskCompleted     
+       20  2026-11-06T00:44:23Z  WorkflowTaskScheduled     
+       21  2026-11-06T00:44:23Z  WorkflowTaskStarted       
+       22  2026-11-06T00:44:23Z  WorkflowTaskCompleted     
+       23  2026-11-06T00:44:23Z  ActivityTaskScheduled     
+       24  2026-11-06T00:48:33Z  ActivityTaskStarted       
+       25  2026-11-06T00:48:33Z  ActivityTaskCompleted     
+       26  2026-11-06T00:48:33Z  WorkflowTaskScheduled     
+       27  2026-11-06T00:48:33Z  WorkflowTaskStarted       
+       28  2026-11-06T00:48:33Z  WorkflowTaskCompleted     
+       29  2026-11-06T00:48:33Z  ActivityTaskScheduled     
+       30  2026-11-06T00:48:33Z  ActivityTaskStarted       
+       31  2026-11-06T00:48:33Z  ActivityTaskCompleted     
+       32  2026-11-06T00:48:33Z  WorkflowTaskScheduled     
+       33  2026-11-06T00:48:33Z  WorkflowTaskStarted       
+       34  2026-11-06T00:48:33Z  WorkflowTaskCompleted     
+    started_workflows_for_this_run=1
+    open_workflows_total=0
+== 4) S1-4：终态历史再喂一次离线重放器 ==
+    history_json_bytes=26945
+    work_replay_rc=0
+    replay ok: /tmp/i2-s1/e24eb42c-5ffb-47ca-a0e9-385c9c4c30e2-final.json
+== 5) 恢复窗口内谁做了什么（worker／api／relay 的日志关键字计数）==
+  work-worker: total=12 poll_fail=6 timeout=1 err=7
+  work-relay: total=1 poll_fail=0 timeout=0 err=0
+  work-api: total=1 poll_fail=0 timeout=0 err=0
+  -- 与本次 Run 相关的日志样本（最多 12 行）--
+    Nov 06 08:44:23 lavm-t7fmveau9b work-worker[2051782]: 2026/11/06 08:44:23 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkflowType RunWorkflowAdvance WorkflowID run:e24eb42c-5ffb-47ca-a0e9-385c9c4c30e2 RunID 865b1b8d-1150-4996-bf27-c6df7daa52aa Attempt 1 ActivityID 5 ActivityType PrepareAdvance
+    Nov 06 08:44:23 lavm-t7fmveau9b work-worker[2051782]: 2026/11/06 08:44:23 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkflowType RunWorkflowAdvance WorkflowID run:e24eb42c-5ffb-47ca-a0e9-385c9c4c30e2 RunID 865b1b8d-1150-4996-bf27-c6df7daa52aa Attempt 1 ActivityID 11 ActivityType EnsureAdvanceHead
+    Nov 06 08:44:23 lavm-t7fmveau9b work-worker[2051782]: 2026/11/06 08:44:23 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkflowType RunWorkflowAdvance WorkflowID run:e24eb42c-5ffb-47ca-a0e9-385c9c4c30e2 RunID 865b1b8d-1150-4996-bf27-c6df7daa52aa Attempt 1 ActivityID 17 ActivityType PrepareAdvanceExecution
+    Nov 06 08:44:23 lavm-t7fmveau9b work-worker[2051782]: 2026/11/06 08:44:23 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkflowType RunWorkflowAdvance WorkflowID run:e24eb42c-5ffb-47ca-a0e9-385c9c4c30e2 RunID 865b1b8d-1150-4996-bf27-c6df7daa52aa Attempt 1 ActivityID 23 ActivityType AdvanceRuntime
+    Nov 06 08:48:33 lavm-t7fmveau9b work-worker[2051782]: 2026/11/06 08:48:33 DEBUG ExecuteActivity Namespace work-r0a TaskQueue work-r0a-run WorkerID work-worker-1 WorkflowType RunWorkflowAdvance WorkflowID run:e24eb42c-5ffb-47ca-a0e9-385c9c4c30e2 RunID 865b1b8d-1150-4996-bf27-c6df7daa52aa Attempt 1 ActivityID 29 ActivityType WaitRun
+  -- 现网是否自愈干净：runstream 巡检口径 --
+    gauges_held_on_terminal=0
+ts_end=2026-11-06 09:17:30 CST
+
+################ 3) 停放定性 tmp-a-i2c.sh（只读，含我一条 unbound 早退）################
+ts=2026-11-06 09:19:04 CST
+== run 行 ==
+  state=waiting wait=reconcile term=- attempt_no=1 created=08:44:22 updated=08:48:33
+== operation 行 ==
+  ERROR:  column "outcome" does not exist
+  LINE 1: ...e='||state||' kind='||kind||' outcome='||coalesce(outcome,'-...
+                                                               ^
+== 闸行 ==
+  gate=receipt_recorded receipt_result=success consumed=08:44:23 recorded=08:44:28
+== 预留与配额 ==
+  res=dd38220b state=held amount=100000 settled=0
+  quota_account 2026-10 reserved=0 settled=203047 limit=1000000
+  quota_account 2026-11 reserved=100000 settled=22654 limit=1000000
+== task_event 尾 6 条 ==
+  ERROR:  column "kind" does not exist
+  LINE 1: select to_char(created_at,'HH24:MI:SS')||' '||kind||' '||coa...
+                                                        ^
+  HINT:  Perhaps you meant to reference the column "task_event.id".
+== Temporal：这笔执行是开着还是关着 ==
+/tmp/tmp-a-i2c.sh: line 25: WORK_TEMPORAL_ADDRESS: unbound variable
+== 只读巡检：work-reconcile -scan 怎么看这一笔 ==
+  scan_rc=0 bytes=560
+    scan_runs_listed= 1
+      {"run_id":"e24eb42c-5ffb-47ca-a0e9-385c9c4c30e2","workflow_id":"run:e24eb42c-5ffb-47ca-a0e9-385c9c4c30e2","run_state":"waiting","task_state":"open","operation_id":"cc465f2b-7f4c-4596-be51-c0f68a8760fc","operation_state":"dispatching","gate_state":"receipt_recorded","receipt_result":"success","reserv
+== 这一笔会不会被现成的标红抓到（gauges 口径）==
+  held_on_terminal=0
+  open_runs_with_held=1
+  last_runstream_scan=Fri 2026-11-06 09:16:24 CST result=exit-code
+  last_reconcile_scan=Fri 2026-11-06 09:06:40 CST result=success
+ts_end=2026-11-06 09:19:05 CST
+
+################ 4) 停放定性二轮 tmp-a-i2d2.sh（只读）################
+ts=2026-11-06 09:20:13 CST
+== 0) 列名现读（不再按业务词猜）==
+  operation: ERROR:  column "columns.ordinal_position" must appear in the GROUP BY clause or be used in an aggregate function
+LINE 1: ...schema='work' and table_name='operation' order by ordinal_po...
+                                                             ^
+  task_event: ERROR:  column "columns.ordinal_position" must appear in the GROUP BY clause or be used in an aggregate function
+LINE 1: ...chema='work' and table_name='task_event' order by ordinal_po...
+                                                             ^
+  dispatch_delivery: ERROR:  column "columns.ordinal_position" must appear in the GROUP BY clause or be used in an aggregate function
+LINE 1: ...work' and table_name='dispatch_delivery' order by ordinal_po...
+                                                             ^
+  quota_reservation: ERROR:  column "columns.ordinal_position" must appear in the GROUP BY clause or be used in an aggregate function
+LINE 1: ...work' and table_name='quota_reservation' order by ordinal_po...
+                                                             ^
+== 1) 这笔 Run 的账本三件（按现读列名取）==
+  op=cc465f2b state=dispatching kind=model created=08:44:23 updated=08:44:23 usage_recorded=-
+  ERROR:  column d.reported_tokens does not exist
+  LINE 1: ...lesce(d.receipt_result,'-')||' tokens='||coalesce(d.reported...
+                                                               ^
+  reserv=dd38220b state=held amount=100000 settled=0
+  -- 这笔 task 的事件尾 8 条 --
+    ERROR:  column "event_type" does not exist
+    LINE 1: select to_char(created_at,'HH24:MI:SS')||' '||event_type fro...
+                                                          ^
+== 2) Temporal 执行开闭状态 ==
+    ExecutionTime         35 minutes ago
+    StateTransitionCount  25
+    HistoryLength         34
+  open_workflows_in_namespace=0
+== 3) 只读巡检的完整案语（work-reconcile -scan）==
+  rc=0
+  | {
+  |   "org_id": "4a2d3f28-38b9-4d6c-8614-70ef9a83960d",
+  |   "runs": [
+  |     {
+  |       "run_id": "e24eb42c-5ffb-47ca-a0e9-385c9c4c30e2",
+  |       "workflow_id": "run:e24eb42c-5ffb-47ca-a0e9-385c9c4c30e2",
+  |       "run_state": "waiting",
+  |       "task_state": "open",
+  |       "operation_id": "cc465f2b-7f4c-4596-be51-c0f68a8760fc",
+  |       "operation_state": "dispatching",
+  |       "gate_state": "receipt_recorded",
+  |       "receipt_result": "success",
+  |       "reservation_state": "held",
+  |       "settled_tokens": 0,
+  |       "workflow_status": "Running",
+  |       "orphan": false
+  |     }
+  |   ]
+  | }
+== 4) 每小时的 runstream 巡检为什么 exit-code（现成控制自己抓到了什么）==
+  Result=exit-code
+  ExecMainStartTimestamp=Fri 2026-11-06 09:16:24 CST
+  ExecMainExitTimestamp=Fri 2026-11-06 09:16:24 CST
+  Nov 06 09:16:24 lavm-t7fmveau9b systemd[1]: Starting work-runstream-scan.service - Work run-stream read-only gauges (parked Runs, unreleased reservations)...
+  Nov 06 09:16:24 lavm-t7fmveau9b run-runstream-gauges.sh[2066662]: run-runstream-gauges: BREACH org=4a2d3f28-38b9-4d6c-8614-70ef9a83960d parked_runs=1 held_on_terminal=0 unknown_operations=36 suspended_orgs=0 open_runs=1 held_tokens=100000 - 停放 Run（库在等一个不会再回来的执行；见 §5.18 可见性边界与 #56-A）
+  Nov 06 09:16:24 lavm-t7fmveau9b run-runstream-gauges.sh[2066662]: run-runstream-gauges summary: orgs=1 stale_minutes=5 max_held_on_terminal=0 breaches=1 scan_errors=0
+  Nov 06 09:16:24 lavm-t7fmveau9b systemd[1]: work-runstream-scan.service: Main process exited, code=exited, status=2/INVALIDARGUMENT
+  Nov 06 09:16:24 lavm-t7fmveau9b systemd[1]: work-runstream-scan.service: Failed with result 'exit-code'.
+  Nov 06 09:16:24 lavm-t7fmveau9b systemd[1]: Failed to start work-runstream-scan.service - Work run-stream read-only gauges (parked Runs, unreleased reservations).
+  -- gauges SQL 的判据原文里与本次相关的两条 --
+    18:-- 把它算进停放会让每个饱和的组织都发一封假警报；它仍出现在下面的 open_runs 里。
+    31:SELECT 'gauge=held_on_terminal value=' || count(*)
+    39:SELECT 'gauge=unknown_operations value=' || count(*)
+    49:SELECT 'gauge=open_runs value=' || count(*)
+== 5) 现网此刻总体 ==
+  inflight=1
+  waiting_by_reason reconcile=1
+  held=1 tokens=100000
+  unknown_ops=36
+ts_end=2026-11-06 09:20:13 CST
+
+################ 5) S1-4 对照 tmp-a-i2e.sh（只读）################
+ts=2026-11-06 09:23:09 CST
+== 1) task_event（列名 type）==
+  seq=3 run.waiting {"reason": "reconcile", "run_id": "e24eb42c-5ffb-47ca-a0e9-3
+  seq=2 operation.authorized {"operation_id": "cc465f2b-7f4c-4596-be51-c0f68a8760fc", "po
+  seq=1 task.submitted {"state": "open", "run_id": "e24eb42c-5ffb-47ca-a0e9-385c9c4
+== 2) 崩溃那笔：每个 activity 的 Started/Completed 配对数（从已存历史 JSON 现算）==
+    workflow_started runType=865b1b8d-1150-4996-bf27-c6df7daa52aa
+    act_5 PrepareAdvance sched=1 started=1 completed=1 failed=0 timedout=0
+    act_11 EnsureAdvanceHead sched=1 started=1 completed=1 failed=0 timedout=0
+    act_17 PrepareAdvanceExecution sched=1 started=1 completed=1 failed=0 timedout=0
+    act_23 AdvanceRuntime sched=1 started=1 completed=1 failed=0 timedout=0
+    act_29 WaitRun sched=1 started=1 completed=1 failed=0 timedout=0
+    activities_with_exactly_one_completion=5 activities_with_multiple_completions=0 total_events=34
+== 3) dev R06 的原命题：崩溃前已 CLOSED 的执行，重启后仍是 COMPLETED ==
+    HistoryLength         41
+    RunTime  47.92s
+    Status   COMPLETED
+  -- 本命名空间近 8 笔执行的状态分布 --
+      Running    run:e24eb42c-5ffb-47ca-a0e9-385c9c4c30e2  RunWorkflowAdvance  38 minutes ago
+      Failed     run:f2046de9-b0b4-4afa-8dee-7ed39fe419f0  RunWorkflowAdvance  1 hour ago    
+      Failed     run:ee998a70-ea02-4200-b776-24225a72fe49  RunWorkflowAdvance  12 hours ago  
+      Completed  run:01384d59-f778-42cf-bb6f-106ac8fe7122  RunWorkflowAdvance  12 hours ago  
+      Completed  run:4e7ea6d4-dbd2-4339-8828-1fd82025546a  RunWorkflowAdvance  13 hours ago  
+      Completed  run:93a34fb3-2e2f-41ea-8e5e-43c045be2b6b  RunWorkflowAdvance  13 hours ago  
+      Completed  run:aca1aead-0d02-4ecb-88b3-2fec4f93d755  RunWorkflowAdvance  19 hours ago  
+      Failed     run:0fd4f0a8-345f-4574-8a5b-b9c4e5b0af24  RunWorkflowAdvance  21 hours ago  
+== 4) 这笔 Run 有没有产出成果（停放 ⇒ 没有 publish）==
+  ERROR:  column "run_id" does not exist
+  LINE 1: ...rtifact_rows='||count(*) from work.artifact where run_id='e2...
+                                                               ^
+  HINT:  Perhaps you meant to reference the column "artifact.org_id".
+  checkpoint_heads=1
+  executions=active=1
+  executions=completed=1
+  ERROR:  column "id" does not exist
+  LINE 1: select 'execution_detail='||left(id::text,8)||' state='||sta...
+                                           ^
+  content_new_objects=8
+== 5) 崩溃窗口里 Temporal 自己的重启证据（上一容器最后 3 行有无 graceful/stop 字样）==
+  pod=temporal-server-787478d8c8-drmzk restarts=1 lastState={"terminated":{"containerID":"containerd://53590d802d3b83a680fd48171444157654b7cdd286b4751ef367e6ba88428977","exitCode":137,"finishedAt":"2026-11-06T00:44:24Z","reason":"Error","startedAt":"2026-11-05T12:24:00Z"}}
+    prev_tail: {"level":"info","ts":"2026-11-06T00:41:18.500Z","msg":"none","component":"matching-engine","wf-task-queue-name":"/_sys/work-r0a-run/3","wf-task-queue-type":"Workflow","wf-namespace":"work-r0a","worker-build-id":"_unversioned_","lifecycle":"Stopped","cause":"Idle","logging-call-at":"/home/runner/work/docker-builds/docker-builds/temporal/service/matching/physical_task_queue_manager.go:307"}
+    prev_tail: {"level":"info","ts":"2026-11-06T00:41:47.177Z","msg":"none","component":"matching-engine","wf-task-queue-name":"/_sys/temporal-sys-dlq-activity-tq/1","wf-task-queue-type":"Activity","wf-namespace":"temporal-system","worker-build-id":"_unversioned_","lifecycle":"Started","cause":"Poll","logging-call-at":"/home/runner/work/docker-builds/docker-builds/temporal/service/matching/physical_task_queue_manager.go:289"}
+    prev_tail: {"level":"info","ts":"2026-11-06T00:44:11.513Z","msg":"none","component":"matching-engine","wf-task-queue-name":"/_sys/work-r0a-run/3","wf-task-queue-type":"Workflow","wf-namespace":"work-r0a","worker-build-id":"_unversioned_","lifecycle":"Started","cause":"Poll","logging-call-at":"/home/runner/work/docker-builds/docker-builds/temporal/service/matching/physical_task_queue_manager.go:289"}
+  graceful_stop_lines_in_previous=0
+  killed_reason_from_lastState: 见上一行的 lastState JSON
+== 6) 现网总体与账本（注入后 vs 注入前）==
+  ledger=29 0029_terminal_reservation_release
+  runs total=172 succeeded=118 failed=20 waiting=1
+  reservations held=1 released=36 settled=126
+  undelivered=0
+ts_end=2026-11-06 09:23:10 CST
+
+################ 6) activity attempt 现读 tmp-a-attempts.cjs（只读，从 /tmp/i2-s1/<run>-final.json 算）################
+16 WFT-DONE at 2026-11-06T00:44:23.364674993Z
+17 SCHEDULED PrepareAdvanceExecution activityId=17 at 2026-11-06T00:44:23.364897201Z
+18 STARTED  scheduledEventId=17 attempt=1 identity=work-worker-1 startedTime=undefined at 2026-11-06T00:44:23.374825710Z
+19 COMPLETED scheduledEventId=17 startedEventId=18 at 2026-11-06T00:44:23.422145275Z
+20 WFT-SCHE at 2026-11-06T00:44:23.422152109Z
+22 WFT-DONE at 2026-11-06T00:44:23.432916102Z
+23 SCHEDULED AdvanceRuntime activityId=23 at 2026-11-06T00:44:23.432958477Z
+24 STARTED  scheduledEventId=23 attempt=2 identity=work-worker-1 startedTime=undefined at 2026-11-06T00:48:33.443848267Z
+25 COMPLETED scheduledEventId=23 startedEventId=24 at 2026-11-06T00:48:33.780604299Z
+26 WFT-SCHE at 2026-11-06T00:48:33.780612150Z
+28 WFT-DONE at 2026-11-06T00:48:33.793837011Z
+29 SCHEDULED WaitRun activityId=29 at 2026-11-06T00:48:33.793928156Z
+30 STARTED  scheduledEventId=29 attempt=1 identity=work-worker-1 startedTime=undefined at 2026-11-06T00:48:33.798791362Z
+31 COMPLETED scheduledEventId=29 startedEventId=30 at 2026-11-06T00:48:33.807398323Z
+32 WFT-SCHE at 2026-11-06T00:48:33.807405180Z
+34 WFT-DONE at 2026-11-06T00:48:33.817069268Z
