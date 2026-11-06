@@ -11,8 +11,9 @@
 // each is a human choice, so this test does not assert on it).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -451,4 +452,91 @@ test('increment 0029 keeps the #79=B scope and its privilege narrowing', () => {
     .filter((v) => enumVals.includes(v))
     .sort();
   assert.deepEqual(whenStates, terminal, `触发器 WHEN 集合 ${whenStates.join('/')} 不等于枚举推出的终态集合 ${terminal.join('/')}`);
+});
+
+// 发布包的两个自述过去各说各话：MIGRATION_TAIL 是工作树算出来的，RELEASE_COMMIT 是 HEAD 印出来的，
+// 没人比过。2026-11-06 实测复现：包打印"chain ends at increment 32"，而同包的 commit 里没有
+// 0030/0031/0032（0029 在）。rollout 于是按一个自己产不出来的数字决定装不装——
+// 部署完回溯不到源码，正是 #54/#78 那一族缺口的又一面。这条守卫要的是"比较动作在场且不可空转"。
+test('make-release refuses a chain tail its own stamped commit cannot produce', () => {
+  const text = readFileSync(join(WORK_DIR, 'deploy/ecs/make-release.sh'), 'utf8');
+  const code = text.split('\n').filter((line) => !line.trim().startsWith('#')).join('\n');
+  const headList = code.indexOf('ls-tree -r --name-only HEAD');
+  const treeList = code.indexOf('.increments-in-tree');
+  const refusal = code.indexOf('WORK_ALLOW_UNSTAMPED_MIGRATIONS');
+  const build = code.indexOf('building binaries');
+  assert.ok(headList > 0 && treeList > 0 && refusal > 0,
+    'make-release 不再比对 HEAD 与工作树的增量清单 - 包可以声明一个自己产不出来的链尾');
+  assert.ok(build > 0 && refusal < build && headList < build,
+    '拒绝必须发生在构建二进制之前，否则脏树包照样被建出来，标记也就没人看');
+  // 空转下限：comm 的两个输入必须是那两个列表文件；少一个就永远"无差异"地绿。
+  assert.ok(code.includes('comm -13') && code.includes('.increments-in-commit'),
+    'comm 必须同时吃 HEAD 列表与工作树列表 - 否则比较是装饰性的');
+  // 判别力（2026-11-06 实测：只钉"三个标记在场"时，把 HEAD 侧的增量文件过滤条件删掉守卫仍绿）：
+  // 两侧列表都必须**只收增量的 .sql**，否则一侧是全树、另一侧是目录名，比较恒不等或恒不等空。
+  const lines = code.split('\n');
+  const headAt = lines.findIndex((line) => line.includes('ls-tree -r --name-only HEAD'));
+  const treeLine = lines.find((line) => line.includes('.increments-in-tree'));
+  // shell 那行是折行的（续行符 \），所以 HEAD 侧要把它和后两行拼起来看，
+  // 否则守卫会因为找不到"同一行里的过滤条件"而红——2026-11-06 我就被这个自造错过了一次。
+  const headStatement = headAt >= 0 ? lines.slice(headAt, headAt + 3).join(' ') : '';
+  const filter = String.raw`migrations/increments/.*\.sql$`;
+  assert.ok(headStatement.includes(filter),
+    'HEAD 侧列表没有过滤到增量的 .sql - 它会吃进整棵树，比较就此失真');
+  assert.ok(treeLine && treeLine.includes('increments') && treeLine.includes(String.raw`\.sql$`),
+    '工作树侧列表没有过滤到 .sql - 目录里的非增量文件会被当成缺失的增量');
+});
+
+// 上一条只证明"比较动作在场"。这一条把脚本真跑一次：造一个"包里有、stamped commit 里没有"的增量，
+// 看它是否真的拒绝。做法是把 make-release.sh 复制进一个临时 git 仓库骨架里执行（脚本按自身位置推 ROOT），
+// 因此既不碰真工作树，也不给并行测试留临时增量文件；GO_CONTAINER 显式给出，跳过容器匹配那一段，
+// 让流程必须走到要测的对账上。2026-11-06 这一形状在本工作树真实发生过（链尾数到 32，而 commit 里没有 0030-0032）。
+test('make-release really refuses an increment missing from its stamped commit', (t) => {
+  const script = (dir, out) => {
+    try {
+      const stdout = execFileSync('bash', [join(dir, 'make-release.sh'), out], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, GO_CONTAINER: 'stamp-gate-none', GO_WORKDIR: '/nowhere' },
+      });
+      return { rc: 0, stdout, stderr: '' };
+    } catch (err) {
+      return { rc: err.status ?? 1, stdout: String(err.stdout ?? ''), stderr: String(err.stderr ?? '') };
+    }
+  };
+  const git = (cwd, args) => execFileSync('git', ['-C', cwd, ...args], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  const root = mkdtempSync(join(tmpdir(), 'stampgate-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const deployDir = join(root, 'src', 'work', 'deploy', 'ecs');
+  const incDir = join(root, 'src', 'work', 'migrations', 'increments');
+  mkdirSync(deployDir, { recursive: true });
+  mkdirSync(incDir, { recursive: true });
+  copyFileSync(RELEASE, join(deployDir, 'make-release.sh'));
+  git(root, ['init', '-q']);
+  git(root, ['config', 'user.email', 'gate@example.invalid']);
+  git(root, ['config', 'user.name', 'stamp gate']);
+  writeFileSync(join(incDir, '0001_alpha.sql'), '-- one\n');
+  git(root, ['add', '-A']);
+  git(root, ['commit', '-q', '-m', 'one']);
+
+  writeFileSync(join(incDir, '0002_beta.sql'), '-- two, deliberately uncommitted\n');
+  const dirty = script(deployDir, join(root, 'out-dirty'));
+  assert.notEqual(dirty.rc, 0,
+    '脏树必须被拒绝；放过去就等于包可以声明一个自己 commit 产不出的链尾');
+  assert.match(dirty.stderr, /NOT in the stamped commit/,
+    '失败原因必须是那条对账，而不是 docker 或后面的步骤 - 否则这条红是环境红');
+  assert.ok(dirty.stderr.includes('0002_beta.sql'), '必须点名那个未提交的增量');
+  assert.ok(!/building binaries/.test(dirty.stdout + dirty.stderr),
+    '拒绝必须发生在构建二进制之前，否则照样把包建出来');
+
+  // 判别力的另一半：提交之后再跑，同一关必须放行（之后死在 docker 步骤是另一件事）。
+  // 少了这一半，这条测试就只是"永远为真"的装饰。
+  git(root, ['add', '-A']);
+  git(root, ['commit', '-q', '-m', 'two']);
+  const clean = script(deployDir, join(root, 'out-clean'));
+  assert.ok(!/NOT in the stamped commit/.test(clean.stdout + clean.stderr),
+    '增量提交之后仍然拒绝 ⇒ 这条检查与 git 状态无关，是个假门');
 });

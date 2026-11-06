@@ -15,6 +15,43 @@ OUT="${1:-/tmp/work-release-0016}"
 # worktree is mounted in work-go-r0a. Building from the wrong one yields binaries without
 # the verified commit, so both are explicit here and the commit is stamped into the
 # release for rollout-r0a-*.sh to read at preflight.
+# 【11-06 14:5x 上面这段"显式写出来"并没有真的防住拿错源树】现读三件容器的挂载：
+# work-go -> D:/workspace/we-meet/we-meet/src/work 挂在 /src（已 exited 两天），
+# work-go-fix29 -> 本工作树挂在 /repo，work-go-r0a -> temp/r0a-wt 挂在 /repo。
+# 也就是说默认值 work-go+/src 指的是**另一棵源码树**：它要是活着，就会安静地建出
+# 与本包增量不一致的二进制（正是 #54/#78 那一族），它死了才只表现为"构建失败"。
+# 所以这里不再猜名字：从挂载反推——只有把本工作树的根挂进来的容器才是合法的构建容器。
+# 显式设置 GO_CONTAINER 仍然优先（人比脚本知道得多的场合留出口），自动推导只在未设时进行。
+WT_ROOT="$(cd "$ROOT/../.." && pwd)"
+WT_ROOT_WIN=$(cygpath -w "$WT_ROOT" 2>/dev/null || echo "$WT_ROOT")
+norm() { printf '%s' "$1" | tr 'A-Z\\' 'a-z//' | sed -E 's#/*$##'; }
+if [ -z "${GO_CONTAINER:-}" ]; then
+  match=""
+  match_dest=""
+  for candidate in $(docker ps --format '{{.Names}}'); do
+    line=$(docker inspect -f '{{range .Mounts}}{{.Source}}={{.Destination}} {{end}}' "$candidate" 2>/dev/null || true)
+    for pair in $line; do
+      src=${pair%%=*}
+      dest=${pair##*=}
+      if [ "$(norm "$src")" = "$(norm "$WT_ROOT_WIN")" ]; then
+        if [ -n "$match" ]; then
+          echo "FATAL: two running containers mount this worktree ($match and $candidate); set GO_CONTAINER and GO_WORKDIR explicitly" >&2
+          exit 1
+        fi
+        match="$candidate"
+        match_dest="$dest"
+      fi
+    done
+  done
+  if [ -z "$match" ]; then
+    echo "FATAL: no running container mounts this worktree ($WT_ROOT_WIN); the fallback work-go builds the MAIN checkout and would ship binaries this package cannot account for." >&2
+    echo "       start a container over this worktree, or set GO_CONTAINER/GO_WORKDIR to a tree that is byte-identical to it." >&2
+    exit 1
+  fi
+  GO_CONTAINER="$match"
+  GO_WORKDIR="${GO_WORKDIR:-$match_dest/src/work}"
+  echo "build container matched by mount source: $GO_CONTAINER, source $GO_WORKDIR"
+fi
 GO_CONTAINER="${GO_CONTAINER:-work-go}"
 GO_WORKDIR="${GO_WORKDIR:-/src}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
@@ -35,6 +72,31 @@ if ! grep -qE '^[0-9]+$' "$OUT/MIGRATION_TAIL"; then
   exit 1
 fi
 echo "release chain ends at increment $(cat "$OUT/MIGRATION_TAIL")"
+
+# The tail above and the commit stamped below are two independent readings - the working
+# tree and HEAD - and nothing compared them. That is how a package can announce
+# "chain ends at 32" while the commit it names holds no increment 30/31/32 (measured
+# 2026-11-06 with this session's own three increments present on disk and absent in the
+# stamped commit). rollout then accepts or refuses on a number the release cannot itself
+# reproduce, and the deployed box has no source to trace back to - the #54/#78 family,
+# one layer up. Refuse before building anything; the override is for deliberate worktree
+# builds and leaves a marker inside the package so a later reader can tell.
+TOP_DIR=$(git -C "$(cygpath -w "$ROOT" 2>/dev/null || echo "$ROOT")" rev-parse --show-toplevel)
+TOP_WIN=$(cygpath -w "$TOP_DIR" 2>/dev/null || echo "$TOP_DIR")
+git -C "$TOP_WIN" ls-tree -r --name-only HEAD 2>/dev/null \
+  | grep -E 'migrations/increments/.*\.sql$' | sed -E 's#.*/##' | sort > "$OUT/.increments-in-commit" || true
+ls "$ROOT/migrations/increments" | grep -E '\.sql$' | sort > "$OUT/.increments-in-tree"
+unstamped=$(comm -13 "$OUT/.increments-in-commit" "$OUT/.increments-in-tree" || true)
+if [ -n "$unstamped" ]; then
+  echo "FATAL: these increments are in the package but NOT in the stamped commit:" >&2
+  printf '  %s\n' $unstamped >&2
+  if [ "${WORK_ALLOW_UNSTAMPED_MIGRATIONS:-0}" != "1" ]; then
+    echo "commit them first, or set WORK_ALLOW_UNSTAMPED_MIGRATIONS=1 for a deliberate worktree build." >&2
+    exit 1
+  fi
+  echo "unstamped-migrations" > "$OUT/UNSTAMPED_MIGRATIONS"
+  echo "WARNING: packaging $(printf '%s\n' $unstamped | wc -l) increment(s) missing in the stamped commit; recorded in UNSTAMPED_MIGRATIONS" >&2
+fi
 
 echo "building binaries in $GO_CONTAINER ($GO_WORKDIR)"
 docker exec -w "$GO_WORKDIR" "$GO_CONTAINER" sh -c "mkdir -p /tmp/work-release && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o /tmp/work-release/ ./cmd/..."
