@@ -80,6 +80,13 @@
   注入批次到此收尾：I-1（D3）／I-2（S1）／I-3（N）三件都做过现网，`C03`／`C22` 因 fail 格保持 partial 不翻。
   还剩的生产写只有两件、且都是"收残留"不是"取证"：**I-2b**（对停放 Run 发一次 `-signal-only`）与
   **I-3b**（对卡死的导出行 claim＋fail 两条），逐条等点头。
+  **【11-06 11:4x 主签单选后追加的三条事实】**① I-1／I-2／I-3 三件的裁定为"点头继续"，已全部执行；
+  ② **I-2b 已执行**（11:41:56 一条 `-signal-only`，前提先用只读 `-scan` 证 workflow_status=Running 才发）：
+  停放被解开、**账目全结清**（operation succeeded／成果 published／预留 settled／`reserved` 归 0／真实结算 308 tokens），
+  但 **Run 没终态**——workflow 撞 `finish_head_conflict` 以 FAILED 结束，Run 停在 `active`，另有 3 次 `AbortRun → abort_run_failed`；
+  ③ 由此"**signal 一次就能等价改判成终态**"这条路被证伪，`S1-3`／`S1-R06` 维持 fail 且根因更新为 **#82**，
+  它同时是 #81（已裁 B2）的**前置**；**I-3b 按主签选择不做**（卡死导出行与孤儿对象是 #80 的物证）。
+  计数不变：pass 44／fail 3／na 21／排除 8／未取证 0，总 76。
 - 失败步（附重开条件）：
   - `D3-6`（2026-11-05 20:2x 新增）——Temporal server 失联的代价被账本如实记下：账本增量全部可归因
     （run 168→170、operation 161→163、task_event 977→986、outbox 1182→1193；重复派发 0、死信 0、闸行 1 且 consumed 恰好一次、

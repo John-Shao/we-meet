@@ -697,6 +697,14 @@ verify 与包内副本不一致"到本次 make-release（`RELEASE_COMMIT=4749ce0
 11-06 令"执行 A->B->C／执行 A"，于是 **I-1（D3 四格＋两格 na）与 I-2（S1 五格）都已执行并落账**，
 剩余待点头的只有 **I-3 的 4 格**（`N01-1..3`／`N03-1`），外加本轮新登记的一件 **I-2b**（把 I-2 留下的停放 Run 收掉的那一次写）。
 **本表签收栏现为 4 行（I-1／I-2 两行标"已执行"），以表为准**；verdict 现算 pass 41／fail 2／na 21／未取证 4／排除 8，总 76。
+**【11-06 11:41:56 I-2b 已执行并当场改写了它的预期，按实记】**主签单选"只做 C-1"，我先用只读 `-scan` 证明
+`workflow_status=Running／orphan=false`（§5.16 的前提），再发一条 `work-reconcile -operation cc465f2b… -signal-only`
+⇒ `resumed=true`。**账目全结清**：`operation=succeeded`、`usage_recorded_at=11:41:56`、成果 `artifact.published`、
+预留 `settled`、`quota_account.reserved` 100000→**0**、`settled` 22654→22962（真实 308 tokens）。
+**但 Run 没收口**：workflow 在 finish 阶段撞 `finish_head_conflict` 而以 FAILED 结束，Run 停在 `state=active／terminal=NULL`，
+worker 另有 3 次 `AbortRun → abort_run_failed`。⇒ 上面 I-2b 那行"预期 succeeded＋结算"只对了后半，
+新根因登记 **#82**（它是 #81 的 B2 修法的前置）；可见性侧 `-scan` 这次报 `orphan=true`，所以 §5.16 的人工孤儿通道适用，
+但**是否现在收这一笔（又一次生产写）另等点头**。C-2（卡死的导出行＋孤儿对象）按主签选择**不做**，物证保留。
 **【11-06 11:1x 再更正，本段以下一次读数为准】**I-3 也已执行并落账（主签 10:25"继续执行 B"，含"停 `work-relay`／`work-export`"那句追加半径；
 10:26:50 停 → 11:00:26 恢复，NRestarts 全 0）：`N01-1`／`N01-2`／`N01-3` pass、`N03-1` **fail**。
 **本表现存 5 行：I-1／I-2／I-3 三行标"已执行"，待点头的是 I-2b 与 I-3b 两件"收残留"的写**；

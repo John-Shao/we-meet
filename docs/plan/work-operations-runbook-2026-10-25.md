@@ -1261,6 +1261,24 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
 §5.28 的"主机未动"同一时点失效（那次 rollout 半径由脚本自己打印＝13 个二进制，`.bak-20261106-075709` 留 12 份，
 `work-e2e-seed`／`work-replay` 两份演练件也是那时装上去的，本轮 I-2 用的就是它们）。
 
+**【11-06 11:41:56 补一条值班必读：人工 `-signal-only` 解开停放之后，账能结清但 Run 可能收不到终态】**
+上面那句"唯一已验过的处置是人工发一次 resume"在 11-06 被一次真实现场**部分推翻**，形状要记准：
+- 好的那一半确实成立：`resumed=true` 之后 operation 转 `succeeded`、`usage_recorded_at` 填上、成果 `artifact.published`、
+  预留 `settled`、`quota_account.reserved` 由 100,000 归 **0**、`settled` 增加真实 308 tokens。
+- 坏的那半：**Run 没有终态化**。workflow 在 finish 阶段撞 `finish_head_conflict`
+  （`internal/runflow/advance_activities.go:999-1014`：崩溃前 attempt 1 已经把答案提交进 canonical head，
+  而 resume 带的是崩溃前的 head 快照，相等性兜底没过）⇒ 执行以 `FAILED／finish_head_conflict` 结束，
+  Run 停在 `state=active／terminal_reason=NULL`，worker 另有 3 次 `AbortRun → abort_run_failed`（收尾链也走不完）。
+  ⇒ 用户/管理面看到的是"进行中的任务、但成果已发布"，这是**状态错误而不是资金错误**。
+- 与 §5.16 那条可见性边界的关键差别：这一次 `work-reconcile -scan` **能报出来**（现读 `workflow_status=Failed／orphan=true`），
+  因为执行已结束——不像 08:48 那次执行还活着、`isOrphan()` 按定义看不见。⇒ **§5.16 的人工孤儿关闭通道在这里适用**，
+  且它是有证据门的人工写（#34=A），不要指望自动收口。
+- 巡检口径别读错：此时 `run-runstream-gauges` 报 `open_runs=1 held_tokens=0 breaches=0`——预留已结清所以不 breach，
+  这条 Run 要等 `stale_minutes=5` 之后才被计进 `parked_runs`。**"没有 BREACH"不等于"没有停在 active 的僵尸 Run"**，
+  手工现读用：`select id,state,updated_at from work.run where state in ('queued','active','waiting','cancel_requested')`，
+  再对每笔 `temporal workflow describe --workflow-id run:<id>` 看 Status 是否已经 FAILED／COMPLETED。
+- 已登记为 **#82**（finish/abort 链的缺陷，是 #81 那条"给 reconcile 加超时"的前置：超时分支走的是同一条链）。
+
 ### 5.30 审计导出卡死与内容孤儿：为什么"过期的租约"不会自己被人重领（2026-11-06 10:26–11:03 现网实测，I-3／`N03-1` fail 的运维面）
 
 值班如果看到"某笔审计导出一直是 `running`、`ready_at` 永远为空、管理面显示进行中"，**它不会自愈，也不该等自愈**。原因与读法：
