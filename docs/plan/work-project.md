@@ -1144,8 +1144,13 @@ C-2（收卡死的导出行与孤儿对象）按主签意图**不做**，物证�
 判据要求落成 succeeded／revision 1、**`dispatch.gate_consumed` 审计仍恰好 1 条**（这条区分"幂等收下已付费的那一步"与"把 deadline 当摆设再发一次"）、
 以及 `finish_run` 此后能把 Run 收进终态——最后这半才是现网用户看到的错。**证据范围**：`go test ./internal/runflow`（活库）整包 53s，只有这一条红；
 `TestAdvanceFinishCommitsThroughTakenOverLease` 与 `...RevisionOneAndPublishesArtifact` 复跑 ok 6.888s；`go vet ./internal/runflow ./cmd/work-worker` 干净。
-**必须说清的后果**：这条红会随本次推送进分支，所以 **#82 的修复落地之前该 tip 的 gates 就是红的**——这是有意的（把"未修"钉成机器证据，
-而不是 `t.Skip` 让它静默不再检查），但这个 tip 不该被合进 aliyun-dev。**还没做**：F1 的修复本体（0028 reclaim 链路那一边）与 abort 链。
+**必须说清的后果**：这条红会随本次推送进分支，所以 **#82 的修复落地之前该 tip 的 gates 会红**——这是有意的（把"未修"钉成机器证据，
+而不是 `t.Skip` 让它静默不再检查），但这个 tip 不该被合进 aliyun-dev。**【11-06 12:4x 现读 workflow 更正这句的生效时机】**
+`.github/workflows/work-r0a-gates.yml` 的 `push` 只监听 `branches: aliyun-dev`（`:40-41`），feature 分支的 push 不在触发口径内，
+`pull_request` 才带路径过滤 ⇒ 推完 `fix-r0a-envelope-29` 之后按 40 位 SHA 查 `actions/runs` 得 `total=0`（**没有 run 在排队，不是"还没建好"**），
+所以这条红**今天不会在任何 required check 上现形**，它会在下一次开/更新对 aliyun-dev 的 PR、或这个 tip 被合进去的那一刻才红。
+结论不变（别把这个 tip 合进 aliyun-dev，也别在它变绿之前开 PR），但我原本写的"推送即红"是错的时机，按实记。
+**还没做**：F1 的修复本体（0028 reclaim 链路那一边）与 abort 链。
 
 ### 5.1 设计层未决项
 
