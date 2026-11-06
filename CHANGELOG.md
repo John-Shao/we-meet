@@ -32,6 +32,11 @@ and this project adheres to
   reads back status, installs the retention-scan pair, then exits without stopping,
   restarting or installing anything else; it prints what it did not do, and a gate
   fails if the branch ever calls `systemctl`.
+- Extend `work.list_content_refs` to every column that really stores a content URI
+  (migration 0033): `runtime_execution.intent_ref`, `dispatch_delivery.receipt_ref` and
+  `operation.receipt_ref` were missing, which made the first production orphan reading
+  report 178 objects when 15 were unreferenced. Widening the reference set can only
+  remove reported orphans, never add them.
 - Implement Work R0a's clean-slate data layer, 33 API operations, SSE and
   outbox delivery, mock runtime adapters and mock/live UI; 39 backend and
   1713 frontend tests are green.

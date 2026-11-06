@@ -359,6 +359,17 @@
       "catalog_checksum": "sha256:fb4ab2947a4781caca488019683d4d5978fb7deb720e0db822c4b3ba1fb16a91",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 33,
+      "name": "0033_list_content_refs_full_ref_coverage",
+      "kind": "increment",
+      "file": "increments/0033_list_content_refs_full_ref_coverage.sql",
+      "checksum": "sha256:88c4e73615b938b587fc3942a6b2dcd4d1d706f1a63a6b7dfc20a7ef68654119",
+      "catalog": "catalogs/0033_list_content_refs_full_ref_coverage.json",
+      "catalog_checksum": "sha256:d45c61e1fd9c6c6661901d723428178c948cfa80fbbc98441fbc2c50ba0fa260",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

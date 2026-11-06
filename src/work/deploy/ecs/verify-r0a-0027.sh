@@ -46,7 +46,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (29, '0029_terminal_reservation_release'),
   (30, '0030_durable_receipt_head_commit'),
   (31, '0031_audit_export_stale_lease_discovery'),
-  (32, '0032_content_ref_reads_for_orphan_report')) expected(version, name)
+  (32, '0032_content_ref_reads_for_orphan_report'),
+  (33, '0033_list_content_refs_full_ref_coverage')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # Same reason as the 0028 probe below: a ledger row only proves a file ran. 0029 is the

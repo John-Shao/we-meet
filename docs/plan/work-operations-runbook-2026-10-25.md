@@ -1468,6 +1468,7 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
    `runtime_checkpoint_head.checkpoint_ref`、`task_event.payload_ref`、`artifact_version.local_ref` 本次盖住 0 个但仍属同源风险。
    ⇒ **在 0033 补齐分支之前，`content_orphans` 只能当"上界"读，不能当条数用**；
    反方向那条（库里 515 个引用在盘上找不到对象）本轮**没有定性**，别顺手解释成"shred 之后本该如此"。
+   **【11-06 19:5x 0033 已进链，但现网还没装 ⇒ 上面那句"按上界读"仍然有效】**分支清单补齐 `runtime_execution.intent_ref`／`dispatch_delivery.receipt_ref`／`operation.receipt_ref` 三条（依据是"该行值真的以 `content://work/` 开头"的计数：157/316、126/148、126/164；`local_ref`／`payload_ref`／`result_ref`／`checkpoint_ref`／`input_checkpoint_ref` 计数为 0、`content_reference.ref_id` 是 uuid，所以**不进清单**）。账本要走到 33 才生效——那是再一次 I-4a 形状的动作（函数体替换、不换二进制、不动单元）；**在那之前现网 `content_orphans` 仍是 178 这个上界，不是 15**。
    演练留下的 `267c8708…` 仍在这 15 个里，这正是 §5.30 缺口 ② 的物证，**保留、别删**。
    其余原文继续有效：
    只在单元环境配了 `WORK_CONTENT_DIR` 时出现；**只报不删**，且**不进退出码**（投递义务由 `shred_stuck` 管）。

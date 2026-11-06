@@ -1522,6 +1522,11 @@ B2 的形状：`advanceReconcileWaitLimit=24h` 与 `AdvanceReasonReconcileTimeou
   **待修 #86**：增量 0033 扩展 `list_content_refs` 覆盖上述全部列（`content_reference.ref_id` 与 `content_ref` 是否等价待核），
   并配**判别式用例**——种一个只被 `intent_ref` 引用的对象，断言它**不**在孤儿集里；
   只测"四张表都读到"的用例挡不住这次的漏法。0033 落地前，`content_orphans` 一律按**上界**读（§5.31 已同步）。
+- **【11-06 19:5x 0033 已进链（未部署）：按配方走完 1→6，落地面一处没漏】**
+  正文**从 0032 原文程序化派生**（`CREATE FUNCTION`→`CREATE OR REPLACE`、末分支改挂三条新分支、ACL 两行删掉并在注释里写明replacement 不改权限）——每处替换都断言命中 1 次；新列进来的依据是**值形态计数**而不是列名：`intent_ref` 157/316、`dispatch_delivery.receipt_ref` 126/148、`operation.receipt_ref` 126/164 存 content URI，而 `local_ref`／`payload_ref`／`result_ref`／`checkpoint_ref`／`input_checkpoint_ref` 是 0、`content_reference.ref_id` 是 uuid ⇒ **不进清单**（这条把我上一轮留的"ref_id 是否等价待核"关掉了）。
+  落地面：`increments/0033_*.sql`＋`catalogs/0033_*.json`（904,407 字节，用 `CreateBaselineDB` 按**当前链**现采，且**没有**再调 `ApplyChain`——那条坑第三次绕开）、`manifest.json` 双 checksum（追加后 diff 恰好 11 行，先占位后回钉）、`manifest_test.go` 的 `publishedIncrements`、`verify-r0a-0027.sh` 的 (version,name) 清单。
+  用例 `list_content_refs_coverage_test.go` PASS（1.74s），原有的 org 隔离用例仍 PASS（1.66s）；匹配器特异性单独验过三条：四条分支都在、切掉 `operation` 那条后它找不到而其余三条仍找到、**只写在注释里不算命中**。`go test ./internal/migrate -run TestManifest|TestPublished|TestCatalog` 亦 ok。
+  **没做完的那半如实留着**：行级"只被 intent_ref 引用的对象不出现在孤儿集"没写——`dispatch_delivery` 有绑定守卫、`runtime_execution` 要经注册函数才能造出合法行，本轮预算内铺不完；**我没有把它记成已完成，也没用手工 INSERT 凑一个只证明夹具能跑的假覆盖**。现网账本仍是 32 ⇒ `content_orphans` 还是 178 那个上界，装到 33 才该降到 15（再一次 I-4a 形状，不换二进制、不动单元）。
 
 **【交接：这轮余量用尽，剩下的按这个顺序做，别重新推演】**
 ① 主签单选 **#83**（超时那刻已有 bound 成功回执：G1 维持 B2 字面／G2 到期先 finish 一次／G3 只调上界长度）；

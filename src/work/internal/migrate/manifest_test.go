@@ -45,6 +45,7 @@ var publishedIncrements = []string{
 	"0030_durable_receipt_head_commit",
 	"0031_audit_export_stale_lease_discovery",
 	"0032_content_ref_reads_for_orphan_report",
+	"0033_list_content_refs_full_ref_coverage",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {
