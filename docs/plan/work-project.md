@@ -2233,6 +2233,13 @@ CI 侧我差点又下一次否定式错：只看到 `meet.yml` 的 `lint-front` 
 **两条都已收口（00:55），读数如下**：① `make-release.sh` 真实构建 `MAKE_RELEASE_RC=0`，包里出现 `WARNING: 6 path(s) under the packaged source differ from 13994fe0a…; this package is NOT reproducible against the stamped commit`、`release chain ends at increment 34`——**今天新加的出处自证在真实构建里就是这两行**，不是我只跑片段跑出来的形状。② `npm ci` `NPM_CI_RC=0`、`vitest` 可执行文件到位，但 `vitest run src/features/work` 仍 **rc=1 且 0 个文件**，根因是启动就失败：`Cannot read directory "../../../.."：Access is denied` ⇒ esbuild 往工作树之外爬被 Windows 权限挡在门外。**这是环境限制，不是代码或测试的红**（判据同 ENOENT 伪装成门禁红），所以 #95 仍开，且现在带着诊断：走法要么是既有的 worktree junction 配方，要么直接认 CI 的 `meet.yml:481`（`npm test` 含 `vitest run`）为权威，本地这条只在主检出或 junction 下再取。本轮结束时前端单测**没有本地读数**，这一点在审计表第 5 行仍然是"部分"。
 在装上 `src/frontend` 依赖（一次 `npm ci`，会往工作树写 node_modules）之前，我不把"前端测试本地已跑过"写进任何结论。已登记为任务。
 
+**主签单选 F2＋G3 已按原文执行（2026-11-07，仓库改动＋容器/本机验证，零生产写）**：
+**F2（#88）**＝不加 gauge，把"两条读数一起看"变成机器断言：`run-retention-scan.sh` 每 org 同轮打印 `PAIR … content_objects=… content_orphans=… shred_stuck=…` 并写明两者各属 §5.30／§5.25；`WORK_CONTENT_DIR` 缺失时打印 `orphan_reading=0` 并明说不得声称两条都看了。**退出码未动**（仍由 STUCK 支拥有），新门 `test/retention-pair.test.mjs` 三条判据用桩 psql＋真目录形状跑发布件原文验证；F1 按裁定不做，重开条件已写进 §5.30。
+**G3（#94）**＝口径写死＋扫描集扩大：`content.field` 加前置否定排除 `content://` 定位符，同批字段带正文仍 fail（`log-scan.test.mjs` 现 13 条，CI 强制）；workflow 那条 run 多带 `../work-r0a-ops-2026-10-25`，本地镜像 **40 文件／3193 行 fail=0 warn=0**（原 7 文件／60 行，8 处 finding 全消且无新发现）；新门 `test/c16-scan-scope.test.mjs` 钉扫描集不许静默缩小、且每个 target 必须在盘上存在。
+**四刀变异各自红在 owning 那条**：删 PAIR 行⇒两条红；让孤儿改退出码⇒report-only 那条红；还原 locator 前置否定⇒两条 locator 用例红；从 CI 扫描集删掉 ops 目录⇒scope 门红。三个被测文件还原后 sha 与基线逐字相同（`1a94613af594`／`e9df39a8e41b`／`2dcf2e0d320e`），末跑复绿；两枚新门在 Linux（node 22 容器）也各跑一次 **5/5**。
+**我自己的一次用例假设错，已按实更正并登记局限**：我拿"带空格的散文"当正文夹具，红了——该规则匹配的是 12 个以上**非空白**字符，散文本来就抓不到。改用无空格正文夹具后 13/13；**"规则不覆盖带空格散文"这条局限写进 §5.30 与 C16 note，不自行收紧或放宽**（那属改安全控制强度，需另行裁定）。
+传播面：runbook §5.30 两段同日标注（原文不删）、C16 的 evidence/note 按现读补记（status 仍 partial，因为运行面重扫仍等 #91/#92）、任务 #90／#94 收口。**#92 的落地清单因此多一件**：`run-retention-scan.sh` 也要随那次 rollout 装。
+
 | 项 | 类别 | 负责 | 状态 | 标题 | 证据条数 | 清单自述还缺什么（note 首句） |
 |---|---|---|---|---|---|---|
 | C03 | design | backend + SRE | partial | D3 orchestration and fault matrix reviewed | 9 | U3 nine commitments answered yes on 2026-10-27; resources approved; drills staffed by 5 dev/test… |

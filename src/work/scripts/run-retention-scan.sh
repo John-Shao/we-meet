@@ -112,6 +112,13 @@ for org in $WORK_RETENTION_ORGS; do
     if [ "$orphans" -gt 0 ]; then
       echo "run-retention-scan: ORPHANS $line - 盘上有对象而库里零引用，只报不删（§5.30；比对 $org_dir）"
     fi
+    # #88 = F2 (2026-11-07): these two readings only mean something together. Orphans are space no
+    # retention path will reclaim (a human decision, §5.30); shred_stuck is an undelivered deletion
+    # obligation (§5.25). One line carries both so neither can be read alone. Report only - the
+    # STUCK branch below still owns the exit code, and this line must not move it.
+    echo "run-retention-scan: PAIR $line - 两条读数同轮取：孤儿＝没人回收的空间（§5.30 人工决定），stuck＝没投出去的删除义务（§5.25）；一起看才算覆盖"
+  else
+    echo "run-retention-scan: PAIR org=$org shred_stuck=$stuck orphan_reading=0 - WORK_CONTENT_DIR 未设置，孤儿那一半本轮取不到，不得据此声称两条都看了（§5.30）" >&2
   fi
   swept_total=$((swept_total + exp + shd + inp))
 

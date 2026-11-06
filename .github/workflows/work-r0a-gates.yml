@@ -298,4 +298,5 @@ jobs:
       - name: Run scanner tests
         run: node --test log-scan.test.mjs
       - name: Scan committed evidence logs
-        run: node log-scan.mjs provider-smoke.log sandbox-smoke.log ../work-temporal-slice-2026-10-25
+        # #94 = G3: the drill evidence directory was never in this scan set; it is now.
+        run: node log-scan.mjs provider-smoke.log sandbox-smoke.log ../work-temporal-slice-2026-10-25 ../work-r0a-ops-2026-10-25
