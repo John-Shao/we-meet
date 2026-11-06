@@ -43,6 +43,12 @@ type Activities struct {
 	ConsumerID       string
 	StepCount        int
 	Now              func() time.Time
+	// ExecuteDeadline replaces the registered fragment's hard deadline window.
+	// It exists because hard_deadline is a binding column that
+	// runtime_execution_guard refuses to change, so the only way to hold a row
+	// whose deadline has genuinely passed is to register a short window and let
+	// the clock run past it. Zero, i.e. every deployed caller, means 30 minutes.
+	ExecuteDeadline time.Duration
 }
 
 // Raw error causes and details must not enter Temporal history.
@@ -895,6 +901,13 @@ func (a *Activities) stepCount() int {
 		return 3
 	}
 	return a.StepCount
+}
+
+func (a *Activities) executeDeadline() time.Duration {
+	if a.ExecuteDeadline > 0 {
+		return a.ExecuteDeadline
+	}
+	return advanceExecuteDeadline
 }
 
 func (a *Activities) quotaPeriod() string {

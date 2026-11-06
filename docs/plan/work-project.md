@@ -1133,6 +1133,19 @@ C-2（收卡死的导出行与孤儿对象）按主签意图**不做**，物证�
 真实失败点是 `commitHead` 被拒后两条兜底都没接住（`advance_activities.go:1050-1080`）。⇒ F1 的**方向**不变（让已付费的那一步落成 succeeded），
 但**落点变了**：要动的是 0028 那条 reclaim 链路，不是 head 相等性；且第一步必须是"按生产顺序（接管→停放→resume→finish）的复现用例"，
 因为现有 `TestAdvanceFinishCommitsThroughTakenOverLease` 只走"接管→finish"、没有停放段，所以它一直绿——**缺口能活到生产就是因为这个覆盖差**。
+**【11-06 12:2x 复现用例已落地，并且红在生产那五个字上】**新用例 `src/work/internal/runflow/advance_park_pg_test.go`
+的 `TestAdvanceFinishCommitsDurableAnswerAfterParkingPastDeadline` 按现网顺序排（注册→父进程领取→答案与回执落盘→窗口走完→finish），
+当前结果是 `Status=failed／ErrCode=finish_head_conflict`——与 11:41:56 那一笔同名。
+**夹具为什么不是"把 deadline 改小"**：`hard_deadline` 是绑定列，行守卫拒绝任何改动（`migrations/increments/0028_runtime_execution_lease_takeover.sql:203`），
+而注册函数本身又拒绝一个已经过去的 deadline（`migrations/increments/0009_runtime_execution_dispatch_gate.sql:585-587`）
+⇒ 唯一诚实的做法是**注册一个短窗口再让时钟走完**，这与 `internal/authz/lease_takeover_pg_test.go:55` 早就用的同一手法；
+为此给 `Activities` 加了 `ExecuteDeadline`（`internal/runflow/activities.go:51`，零＝30 分钟；`cmd/work-worker/main.go:100` 没设它，所以生产可观测行为一字不变）。
+**用例钉住的三件事**：夹具自检要求行确实停在"active ＋ lease 已过 ＋ deadline 已过"、闸口在 finish 之前已是 `receipt_recorded` 恰好一笔；
+判据要求落成 succeeded／revision 1、**`dispatch.gate_consumed` 审计仍恰好 1 条**（这条区分"幂等收下已付费的那一步"与"把 deadline 当摆设再发一次"）、
+以及 `finish_run` 此后能把 Run 收进终态——最后这半才是现网用户看到的错。**证据范围**：`go test ./internal/runflow`（活库）整包 53s，只有这一条红；
+`TestAdvanceFinishCommitsThroughTakenOverLease` 与 `...RevisionOneAndPublishesArtifact` 复跑 ok 6.888s；`go vet ./internal/runflow ./cmd/work-worker` 干净。
+**必须说清的后果**：这条红会随本次推送进分支，所以 **#82 的修复落地之前该 tip 的 gates 就是红的**——这是有意的（把"未修"钉成机器证据，
+而不是 `t.Skip` 让它静默不再检查），但这个 tip 不该被合进 aliyun-dev。**还没做**：F1 的修复本体（0028 reclaim 链路那一边）与 abort 链。
 
 ### 5.1 设计层未决项
 

@@ -410,7 +410,7 @@ func (a *Activities) PrepareAdvanceExecution(
 		return AdvanceExecution{}, err
 	}
 	if deadline.IsZero() {
-		deadline = time.Now().Add(advanceExecuteDeadline)
+		deadline = time.Now().Add(a.executeDeadline())
 	}
 	execution.DeadlineUnixMs = deadline.UnixMilli()
 	intentLocator := registeredIntentRef
