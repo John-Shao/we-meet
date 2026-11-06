@@ -1314,6 +1314,10 @@ B2 的形状：`advanceReconcileWaitLimit=24h` 与 `AdvanceReasonReconcileTimeou
   报 `1 contract gate check(s) failed`（rc=1），随后**仓库内容未变**的两次调用都 rc=0（末段 24/24 通过）。
   我没抓出是哪一条检查翻转，所以它既不是"已修"也不是"不存在"；下一次推这批改动的 CI 结论才是正证
   （同类先例：meet 线 `MaterialActions.test.tsx` 与 backend 的时序脆弱用例）。
+  **【11-06 16:3x 正证到手，这条按"已由 CI 补上"闭合】**PR #39 head `ff50e698b` 上 `Work R0a gates` 与 `Work R0a required gate` 均 **completed／success**，
+  而 gates 里就跑着 `node scripts/ci-contract.mjs`（`.github/workflows/work-r0a-gates.yml:95`）与活库串行 `go test ./... -p 1 -count=1`（同文件 `:225-226`）
+  ⇒ "仓库内容未变的一次红、随后多次绿"这一形状在远端干净环境对这一 SHA 没有复现。**闭合口径**：本地拿不到的正证已由 CI 补上，**不是**"永不再红"；
+  重开条件＝同族再翻时，比对那次 run 的 diff 集合与本地是否同一集合。下面那条 15:4x 的复跑记录是当时的真值，不改。
   **【11-06 15:4x 复跑：三次全绿，但这条仍记待归因】**在 5 笔已提交、工作树干净（`git status --porcelain` 0 行）的
   tip `461ad5058` 上把 `ci-contract` 连跑三次：三次 rc=0、内层计数一致（86＋38＋24 fail 0），
   三份输出剥掉计时行后彼此 `diff` 为 0 行。这只说明**在提交后的静态树上取不到它**，与它同框的未证前提是
