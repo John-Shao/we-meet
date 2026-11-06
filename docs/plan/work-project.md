@@ -1474,6 +1474,19 @@ B2 的形状：`advanceReconcileWaitLimit=24h` 与 `AdvanceReasonReconcileTimeou
   **同轮补一条可见性缺口（§5.31）**：`verify-r0a-0027.sh` 对二进制只**打印** sha（`:161-163`、`:204`），从不与包内值比对
   ⇒ I-4a 之后"哪些二进制还是旧的"没有机器读数，只有人盯；文档已写明这刻意、并禁止把这种对不上当红灯去顺手重启 worker（那等于把 I-4b 的风险提前）。
   三条读数的归属也在那里分档了：0030／0031 在 I-4a 就该出现（换的是函数体、调用面没变），#81 的 `reconcile_timeout` 只能等 I-4b。
+- **【11-06 18:1x 主签选 B：`lint-git` 的红是有意的，不为此改写已推送历史】**
+  外部结论先记：head `7192df49c` 上 **`Work R0a gates` completed／success**（8 个作业全绿，含
+  `Go migration, RLS, API and directory sync (PG16)` 这条活库串行——本轮新增的 G1 与 0032 用例就跑在它里面）、
+  `Work R0a required gate` success、`Release guard` success；只有 `meet Workflow` 仍在跑，`lint-git` 在其中红。
+  **违规不是猜的**：本地用仓库自己的 `.gitlint`（`extra-path=gitlint/` 带自定义规则）跑同一条 CI range
+  `gitlint --commits origin/aliyun-dev..HEAD`，四类：`UC1` 标题须匹配 `<gitmoji>(<scope>) <subject>`（我早先 6 笔
+  `type(scope): 中文` 中招）、`B6` 正文缺失（`ecab5b4f2`／`856b1132`——我加了 emoji 却仍漏了正文）、
+  `T1` 标题 78>72、`B1` 正文行 84>80。
+  **裁定与边界**：改写这 8 笔要 force-push、重写 PR #39 的 head 历史，换来的只是元数据层变绿 ⇒ 不做（B）。
+  **同时不许用放宽配置来"修绿"**：`.gitlint` 的阈值是这个仓库对提交可读性的自订规则，
+  改 `title-max-length`／关掉 `UC1` 属于"为跑绿放宽控制"，与本包纪律相冲；这条红就让它红着，
+  读 CI 的人按本条判断，**别把它当缺陷去修配置**。后续新提交按 emoji＋scope＋≤72 标题、正文非空且每行 ≤80 写就不会再加违规
+  （本条与随后那笔提交就是照这个格式写的）。
 
 **【交接：这轮余量用尽，剩下的按这个顺序做，别重新推演】**
 ① 主签单选 **#83**（超时那刻已有 bound 成功回执：G1 维持 B2 字面／G2 到期先 finish 一次／G3 只调上界长度）；
