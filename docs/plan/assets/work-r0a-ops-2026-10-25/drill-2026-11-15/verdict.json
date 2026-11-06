@@ -532,34 +532,42 @@
     {
       "step": "N01-1",
       "section": "C03-N",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-06T11:03:24+08:00",
+      "evidence": [
+        "attachments/n01-n03-i3-relay-export-sigkill-20261106.txt"
+      ],
+      "notes": "判据\"启动 relay 进程，投递 content_shred 事件｜relay 正常处理 1 笔后 SIGKILL（两笔之间）｜证据=kill -9 + 时间戳\"。载荷是自己造的：expire_due_audit_exports(now()+25h) 后 shred_due_audit_exports() 造 41 笔 content_shred（提前钟只打 export 侧，安全闸现读 due=41＝mine=41、别人的 ready=0 才动手；expire_due_inputs 全程没调，§5.25 禁止）。手工 relay WORK_RELAY_ID=drill2-crash-97dfa0ad…／BATCH=100／LEASE=45s／POLL=1ms，一次领完 41 笔，由一条 superuser 事务 FOR UPDATE 锁住倒数第二行把它卡在批次里，10:38:47 SIGKILL 真 pid 2086967（杀前把 pid/ppid/stat/comm/cmdline 四条一起打出来，杀后验 /proc 消失且 pgrep -x 计数 0）。留下的形状＝判据要的：2 行 delivered_at IS NULL／attempts=0／claimed_by=死人／claimed_until=10:39:30。第一次尝试是假的并已具名更正：kill -9 打中的是 runuser 外壳 2085134，真 relay 2085136（ppid 变 1）活着，行锁一释放它自己把剩下两行投完了 ⇒ 那一轮不作数，方法产出的代价记在附件\"我这轮自己犯的错\"第①条。"
     },
     {
       "step": "N01-2",
       "section": "C03-N",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-06T11:03:24+08:00",
+      "evidence": [
+        "attachments/n01-n03-i3-relay-export-sigkill-20261106.txt"
+      ],
+      "notes": "判据\"验证副本接管｜租约活着时副本拿 0 事件；claimed_until 到期后重领并一次投递\"。两半都有硬读数：第二份手工 relay（drill2-take-aa2e91b1…，POLL=200ms）在死人租约存活的 16 秒里 outbox delivered 计数 **+0**，且那两行的 claimed_by 始终是死人 id（不是被抢注）；过期后 **10:39:30.133／10:39:30.135** 由接管者各投一次——时刻与 claimed_until=10:39:30 对齐，说明放行条件是租约过期而不是有人手工干预。一次投递的正证：dup_per_export=0（同一 aggregate 只有一行 shred）、dead_letter=0、attempts 收在 1、对象账闭合 1383→1342＝正好 41 个被删。对照面也要记：同一条\"过期重领\"的能力在 outbox 这条路是**真可达**的（claim_outbox 的谓词看 claimed_until），而在 audit_export 那条路不可达（见 N03-1 的缺口①）——两把租约设计不对称，这一格的正证恰好把差异钉出来了。"
     },
     {
       "step": "N01-3",
       "section": "C03-N",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "pass",
+      "ts": "2026-11-06T11:03:24+08:00",
+      "evidence": [
+        "attachments/n01-n03-i3-relay-export-sigkill-20261106.txt"
+      ],
+      "notes": "判据\"验证重投递容忍已消失的对象｜ErrNotExist 不产生 content_delete_failed\"。\"已消失\"不是我为它造的：seq=1287 那行（export=e954ffd8，对象 3c288c281a5b…，stage1b 快照 sha16=58f9fffc9ebed5fe）是被 SIGKILL 的持有者**自己删掉文件、ack 却被行锁挡住没提交**的那一行——附件步骤 6 现读 disk=GONE，而同一批的另一行（seq=1288／f648daed）disk=present。接管者重投这两行时前者撞上 os.ErrNotExist，按 local.go:152-167 返回 nil ⇒ shred() 正常 ack；读数侧：两份手工 relay 日志与 journal 中 content_delete_failed 命中 **0**，两行最终都由 drill2-take 投递完成（delivered 10:39:30.133／.135），未投递 shred 归 0。⇒ 判据成立，且成立在一个真实消失的对象上（§5.25：编造的 ref 会被静默 ack，所以只有真对象能给出可证的消失——本轮的消失还是崩溃本身造的，比我手工 rm 更硬）。"
     },
     {
       "step": "N03-1",
       "section": "C03-N",
-      "verdict": null,
-      "ts": null,
-      "evidence": [],
-      "notes": ""
+      "verdict": "fail",
+      "ts": "2026-11-06T11:03:24+08:00",
+      "evidence": [
+        "attachments/n01-n03-i3-relay-export-sigkill-20261106.txt"
+      ],
+      "notes": "判据\"启动 export worker，写完文件后 SIGKILL｜旧持有者 audit_export_lease_lost；单 content_ref、无重复对象｜桶内文件数 + audit 表\"。两半的实测结果一正一负，且判据文本自身在两半之间互斥：（正）lease_lost 拿到了**旧持有者自己抛出的现场原文**：11:00:16 我 SIGCONT 被冻住的 holder1（pid 2090149，冻在行 b9af0511 的租约里，claim 于 10:48:55.240），它的 complete 立刻报 `ERROR: audit_export_lease_lost (SQLSTATE P0001)`（baseline:4780-4785 的 status/owner/lease 三查生效）。（负一·结构性缺口）**过期租约在 audit_export 这条路上不可达**：list_pending_audit_exports 的谓词只有 `e.status = 'queued'`（baseline:4695-4697），而 status='running' 只由 claim_audit_export 写（:4732），baseline＋increments 里没有任何针对卡死 running 行的清扫。现证：我把常驻 work-export 恢复后让它 5 秒一轮连轮 12 轮（60 秒），那笔行从 10:58:55 起租约已过期、11:03:23 仍是 running／owner=drill6-frozen／content_ref=NULL／ready_at=NULL，worker 侧 pending_for_worker=0 永远看不见它 ⇒ 一笔导出请求**永久卡住**、用户侧 get_audit_export 恒显示\"进行中\"。claim_audit_export 的\"过期可重领\"分支（:4724 只在 lease_until>now() 时拒）因此是空转的——没有调用方会去领。这与 0028 给 work.runtime_execution 补的接管出口是同一类问题的另一半：0028 补认领，这里的洞在发现层。（负二·内容侧）**Put 在 commit 之前 ⇒ 孤儿对象且无回收路径**：旧持有者放行后 11:00:16.408 写出 267c8708d6273eb51b2a4f261af78844.enc（1,438,105 bytes，属主 work-control），紧接着 complete 被 lease_lost 拒 ⇒ 文件在盘上、库里零引用、指向它的 shred 事件 0 条（shred 只由 content_ref 驱动，该行恒 NULL）。⇒ 判据\"无重复对象\"不成立；\"单 content_ref\"平凡成立（rows_with_multi_ref=0，因为第二个对象根本没被引用）。（判据文本的矛盾，不改文字）\"写完文件后 SIGKILL\"与\"旧持有者 lease_lost\"不可能由同一具进程同时给出：被 SIGKILL 的进程不会再来 complete。本轮按\"冻结→放行\"拿到 lease_lost，\"写完再死\"那一半由同一条 Put-before-commit 路径的孤儿对象侧证；另一次想用 SIGKILL 直接复现没做成——我起 holder7 之前漏 source worker.env，它当场 `WORK_DATABASE_URL is required` 退出（附件错误第⑤条），这一格因此**没有**被记成通过。重开条件：(1) 给 audit_export 补发现层出口（把过期 running 纳入 pending，或加一个 stuck-running 清扫）＋孤儿对象的可回收路径，属代码缺口需另裁；(2) 手工恢复本次那笔卡死行（claim＋fail 两条生产写，已登记 I-3b）。现网收口：relay／export／worker／api／content-proxy 全 active、NRestarts 全 0、outbox undelivered=0／dead_letter=0、shred 事件 total=144 全部投递；残留＝那笔 running 行＋那个孤儿对象＋8 笔 wave7 ready 导出（24h TTL 后由每小时留存清扫正常收）。"
     },
     {
       "step": "C13-1",
@@ -747,8 +755,8 @@
     }
   ],
   "summary": {
-    "pass": 41,
-    "fail": 2,
+    "pass": 44,
+    "fail": 3,
     "na": 21,
     "total": 76
   },

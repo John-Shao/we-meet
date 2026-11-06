@@ -74,6 +74,12 @@
   同期生产事实要在此具名更正上面两行的旧值：**现网 ledger 已 29**（0029 于 11-06 07:57 rollout，见 work-project 当日段），
   故上面"现网未部署，ledger 仍 28"已过期；但 `D3-6` 的 pass 条件原文是"自洽靠人工一条 SQL 达到"，
   **不改判、不改条件文字**，只记部署事实——自动收口是否已在现网生效，另按 `0029` 的实测单记（本轮 I-2 这笔不满足其三条件）。
+  **【11-06 11:0x 第七次现算，方法同上】I-3 已执行并落账（主签 10:25 令"继续执行 B"＝追加"停 work-relay／work-export 数分钟"那句半径，11:00:26 两单元已恢复 active、NRestarts=0）**：
+  pass **44**／fail **3**／na **21**／未取证 **0**／按 A 裁定排除 8，总 76 ⇒ **本清单 76 格自此全部有账，没有一格是空的**。
+  多的 3 格 pass 是 `N01-1`／`N01-2`／`N01-3`；新增的 1 格 fail 是 `N03-1`（不是回退，是注入拿到的两条结构性缺口，见下面失败步）。
+  注入批次到此收尾：I-1（D3）／I-2（S1）／I-3（N）三件都做过现网，`C03`／`C22` 因 fail 格保持 partial 不翻。
+  还剩的生产写只有两件、且都是"收残留"不是"取证"：**I-2b**（对停放 Run 发一次 `-signal-only`）与
+  **I-3b**（对卡死的导出行 claim＋fail 两条），逐条等点头。
 - 失败步（附重开条件）：
   - `D3-6`（2026-11-05 20:2x 新增）——Temporal server 失联的代价被账本如实记下：账本增量全部可归因
     （run 168→170、operation 161→163、task_event 977→986、outbox 1182→1193；重复派发 0、死信 0、闸行 1 且 consumed 恰好一次、
@@ -117,6 +123,19 @@
     **重开条件**＝(1) 一次 `work-reconcile … -signal-only`（生产写；`D1-6`／`D2-4` 已证此路能让 Run=`succeeded`
     并真实结算），按"等价改判"记、带日期不覆盖这段；或 (2) 给 reconcile 停放补自动收口／超时（代码缺口，需另裁）。
     证据 `attachments/s1-i2-temporal-sigkill-20261106.txt`（含我照业务词猜错的六个列名与两条 shell 技术错，按实记不删）。
+  - `N03-1`（2026-11-06 11:0x 新增，I-3 的 export 段）——**崩溃过的审计导出既不会被接管，也会在内容侧留下收不掉的孤儿**。
+    判据原文要"旧持有者 `audit_export_lease_lost`；单 content_ref、无重复对象"。前半拿到了现场原文（11:00:16 SIGCONT 被冻住的
+    旧持有者，它的 `complete` 立刻抛 `audit_export_lease_lost`，`baseline/0002:4780-4785` 的三查生效）；后半不成立：
+    ① `list_pending_audit_exports` 只认 `status='queued'`（`:4695-4697`），`running` 只由 `claim_audit_export` 写（`:4732`），
+    全库没有 stuck-running 清扫 ⇒ 常驻 worker 恢复后连轮 12 次（60 秒）看不见那笔过期租约，它从 10:58:55 起停在
+    `running／content_ref=NULL／ready_at=NULL`，用户侧恒显示"进行中"，**没有任何自动路径能救它**；
+    `claim_audit_export` 的"过期可重领"分支因此空转（无调用方）。这与 0028 补 `runtime_execution` 的接管出口同族，但洞在**发现层**。
+    ② Put 在 commit 之前 ⇒ 旧持有者写出 `267c8708…enc`（1,438,105 bytes）后提交被拒 ⇒ 文件在盘、库里零引用、
+    指向它的 shred 事件 0 条（shred 只认 `content_ref`）⇒ "无重复对象"不成立。
+    ③ 判据文本自身在两半之间互斥（被 SIGKILL 的进程不会再来 complete），文字不改，此处具名。
+    **重开条件**＝(1) 代码侧补发现层出口＋孤儿回收路径（新缺口，需另裁）；或 (2) 按 runbook §5.30 的人工 claim＋fail 把这一笔收掉并按"等价改判"记。
+    证据 `attachments/n01-n03-i3-relay-export-sigkill-20261106.txt`（含我把 `kill -9` 打到 runuser 外壳的那次假注入的验尸，
+    以及"采样密度低于事件时长"的方法学纠正）。
   - `D1-6`／`D2-4`——同一形态：**在途 Run 在中断后不会自动续跑**。Temporal 仍把 `AdvanceRuntime` 记为 STARTED、
     `nextRetry=None`，于是既不重试也不判孤儿；库里 lease 早已过期。重开条件＝给 activity 配 start-to-close／heartbeat
     超时并让恢复路径能重驱动，或明确「靠人工 reconcile 收」并把它写进值班口径。待裁 #56-A。

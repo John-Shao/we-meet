@@ -1261,6 +1261,35 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
 §5.28 的"主机未动"同一时点失效（那次 rollout 半径由脚本自己打印＝13 个二进制，`.bak-20261106-075709` 留 12 份，
 `work-e2e-seed`／`work-replay` 两份演练件也是那时装上去的，本轮 I-2 用的就是它们）。
 
+### 5.30 审计导出卡死与内容孤儿：为什么"过期的租约"不会自己被人重领（2026-11-06 10:26–11:03 现网实测，I-3／`N03-1` fail 的运维面）
+
+值班如果看到"某笔审计导出一直是 `running`、`ready_at` 永远为空、管理面显示进行中"，**它不会自愈，也不该等自愈**。原因与读法：
+
+- **发现层只认 queued**。`work.list_pending_audit_exports` 的谓词原文只有 `e.status = 'queued'`
+  （`baseline/0002:4695-4697`），而 `status='running'` 仅由 `work.claim_audit_export` 写（`:4732`）；
+  baseline＋increments 里没有任何针对 stuck-running 导出的清扫（`grep "status = 'running'"` 只有那一处写入点）。
+  ⇒ `claim_audit_export` 虽然允许过期重领（`:4724` 只在 `lease_until > now()` 时抛 `audit_export_not_claimable`），
+  **但没有调用方会去领它**——本轮实测：租约 10:58:55 过期后，我把常驻 `work-export` 恢复并让它 5 秒一轮连轮 12 次，
+  `pending_for_worker=0`，那笔行到 11:03:23 仍是 `running／content_ref=NULL／ready_at=NULL`。
+- **对照：outbox 那条路的租约是真能自愈的**。`work.claim_outbox` 的取行条件包含 `claimed_until IS NULL OR claimed_until < now()`，
+  所以持有者死后过期即可被第二份 relay 重领且只投一次（本轮 `N01-2` 现场：10:39:30.133／.135 两行各投一次，`dup=0`、`dead_letter=0`）。
+  ⇒ **同样是租约，两条路的自愈能力不对称**；不要把 outbox 的经验套到 export 上。
+- **内容侧还有个收不掉的副作用**：export 的 `Put` 在 `complete` 之前，提交被拒（`audit_export_lease_lost`，`:4780-4785`）时
+  文件已经在盘上。本轮留下 `267c8708d6273eb51b2a4f261af78844.enc`（1,438,105 bytes，属主 `work-control`）：
+  库里引用它的行 **0**、指向它的 `content_shred` 事件 **0**——因为 shred 只由 `audit_export.content_ref` 驱动，而该行恒 NULL。
+  ⇒ 它不会被留存清扫删掉，也不会被任何巡检报出来。**现读法**（只读）：
+  `select content_ref from work.audit_export where content_ref is not null` 取引用集，与
+  `find /var/lib/work/content -name '*.enc' -printf '%f\n'` 的盘上集做差；差集里若出现"某个导出时刻附近写入、体积与导出文件同级"的对象，就是这类孤儿。
+  手工 rm 属生产写且会毁掉缺口的物证，**在结论被接受前不要删**。
+- **人工收口那笔卡死行**（两条写，顺序固定；身份 `work_worker`＋`SET app.org_id`，口令只走进程环境）：
+  `select work.claim_audit_export('<export_id>','ops-recover',60);` 紧接
+  `select work.fail_audit_export('<export_id>','ops-recover','export_read_failed');`
+  ——claim 必须先把 `lease_owner` 换成自己，否则 fail 会同样抛 `audit_export_lease_lost`（同一个三查）。
+  这属逐项授权动作，登记在授权单 §15 的 **I-3b**。
+- **别把这三条巡检当兜底**：`work-retention-scan`（每小时，报 `stuck_shred`）看的是 shred 事件堆积，不看 running 导出；
+  `work-runstream-scan`（§5.21）看的是 Run／预留，也不看导出；管理面 `get_audit_export` 只会如实显示"进行中"。
+  ⇒ 目前**没有任何现成控制能发现卡死的导出行**，这是一个可见性缺口，已随 `N03-1` 记入演练账（不是本节目能修的）。
+
 ## 6. 容量证据
 
 ### 6.1 当前 DDL 烟雾（2026-10-25）

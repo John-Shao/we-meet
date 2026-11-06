@@ -1031,6 +1031,41 @@ D5:185"Inbox 只在首页/导航角标轮询；不做跨 Task SSE"的角标一�
 **S1-4 的对照做在原文上**：dev R06 结论原文是 `work-r0a-orchestration-design-2026-10-25.md:662`「file-backed Temporal server 重启后，已完成 workflow 仍为 COMPLETED」，生产两条都成立（崩溃前已 CLOSED 的 `run:01384d59` 重启后仍 `Status=COMPLETED／RunTime=47.92s／HistoryLength=41`；崩溃那笔 5 个 activity 各恰好一对 Started/Completed、multiple_completions=0，`work-replay` rc=0 无 nondeterminism）。差异＝dev 那次从未建模"在途 activity 被 SIGKILL 打断"，所以它的结论外推不出"在途 Run 会走完"；本格 pass 只覆盖"已完成不重放"，不外推为段落通过。
 **残留与下一步**：停放 Run `e24eb42c…`／operation `cc465f2b…`／reservation `dd38220b`（held 100,000）留在演练 org 里，**收口那一次 `-signal-only` 是生产写，没自决执行**，已按新行 **I-2b** 登记进授权单 §15（`D1-6`／`D2-4` 那次实测过同一路：signal 后 Run=`succeeded`、成果 published、真实结算、held 归零）；上一轮 root 属主那笔（`f2046de9…`＋1 个 `root:root` 对象）同样待定，`chown` 也是生产写。**未取证只剩 4 格＝I-3（`N01-1..3`／`N03-1`）**，它不可逆删内容对象，动手前必须现读内容备份覆盖时刻——11-05 那组时刻线（18:54:28／00:50:56）已过期，且本轮又净增 8 个对象。verdict 现算：**pass 41／fail 2／na 21／未取证 4／排除 8，总 76**。**门禁（本次编辑之后）**：design **84/84**、`ci-contract` exit 0（打印 `R0a contract gate passed`）、ops **30/30**；本轮无代码改动（只加附件与落账），Go 侧未重跑。**未 commit、未 push**；`git rev-list` 现读该分支领先远端 **13 笔**（不是先前记的 2 笔），push 前必须逐笔点名。
 
+**注入批次 I-3 已执行并落账，76 格自此全部有账（2026-11-06 10:26–11:03，主签 10:25 令"继续执行 B"＝追加"停 `work-relay`／`work-export` 数分钟"那句半径）**：
+先说代价与回滚：两单元 10:26:50 停、11:00:26 起，全程 `NRestarts=0`，`outbox undelivered=0／dead_letter=0`，
+`relay／export／worker／api／content-proxy` 现读全 active。
+**四格**：`N01-1`／`N01-2`／`N01-3` **pass**，`N03-1` **FAIL** ⇒ verdict 现算 **pass 44／fail 3／na 21／未取证 0／按 A 裁定排除 8，总 76**。
+**N01 三格是怎么在现网造出"停在租约里的真持有者"的**（单事件投递只有毫秒级，外部 kill 抓不到，方法本身就是产出）：
+`shred_due_audit_exports` 真造 41 笔事件（提前钟只打 export 侧，先过安全闸 `due=41＝mine=41、别人的 ready=0`；
+`expire_due_inputs` 一次都没调），`WORK_RELAY_BATCH_SIZE=100` 让一次认领吃掉整批，再用一条 superuser 事务
+`FOR UPDATE` 锁住倒数第二行把 relay 卡在批次里，10:38:47 `kill -9` 真 pid。读数是硬的：死人留 2 行
+`delivered_at IS NULL／attempts=0／claimed_until=10:39:30`，副本在租约存活的 16 秒里投递 **+0**，
+过期后 **10:39:30.133／.135** 各投一次（`dup_per_export=0`、对象账 1383→1342＝41 个），
+而 N01-3 那个"已消失对象"是**崩溃本身造的**（持有者删完文件、ack 被行锁挡住没提交就被杀，
+`e954ffd8`／`3c288c28…` 注入前存在、注入后 GONE），`content_delete_failed` 命中 0 ⇒ `Local.Delete` 的 `ErrNotExist` 容忍成立。
+**N03-1 的 fail 是两条结构性缺口，不是一格没做**：① **过期租约在 audit_export 侧不可达**——
+`list_pending_audit_exports` 只认 `status='queued'`（`baseline/0002:4695-4697`），`running` 只由 `claim_audit_export` 写（`:4732`），
+全库没有 stuck-running 清扫 ⇒ 常驻 worker 恢复后连轮 12 次（60 秒）看不见那笔，它从 10:58:55 起永久停在
+`running／content_ref=NULL／ready_at=NULL`（用户侧恒显"进行中"），`claim` 的"过期可重领"分支因此**空转**。
+这与 0028 给 `runtime_execution` 补的接管出口同族，但这次的洞在**发现层**——**outbox 那条路能自愈、export 这条不能，两把租约设计不对称**。
+② **Put 在 commit 之前 ⇒ 孤儿内容对象无回收路径**：旧持有者被放行后 11:00:16.408 写出 `267c8708…enc`（1,438,105 bytes），
+紧接着它的 complete 抛 `audit_export_lease_lost`（这半恰是判据要的现场原文）⇒ 文件在盘、库里零引用、shred 事件 0 条
+（shred 只认 `content_ref`）⇒ 判据"无重复对象"不成立。**另具名一条判据文本自身的矛盾**：
+"写完文件后 SIGKILL"与"旧持有者 lease_lost"不可能由同一具进程同时给出（被杀的进程不会再来 complete）——原文不改，记在此处。
+**我这轮被读数抓住的四次自错（都写进附件，不粉饰）**：① 第一次"注入"是假的——`kill -9` 打中 `runuser` 外壳（2085134），
+真 relay（2085136，ppid 变 1）活着并把尾部两行投完了，抓现行的是"delivered 出现在我释放行锁的同一时刻"；
+② `delivered_at` 写的是事务起点 `now()` 不是提交时刻，我一度据此误判"锁没生效"；
+③ 采样密度低于事件时长——41 笔 109KB 小导出整批 0.3 秒，我每轮 70ms 全落在它干完之后，改成 90 天窗口（单笔 300-400ms）才抓得住；
+④ `pgrep` 把僵尸也数进来（T 态进程收不到 SIGTERM、死后父进程没 wait），清场断言得按 `stat !~ /^Z/`；
+另有两条技术错：存着 SQL 的变量被当命令执行（`$( $VAR )` ⇒ "select: command not found"＋空值，逼我重跑一次 n01final 才拿到读数），
+以及 3B 第 4 段起 holder7 前漏 source `worker.env` ⇒ 它当场 `WORK_DATABASE_URL is required` 退出，
+"写完文件后 SIGKILL"那一次独立复现因此**没做成，也就没被记成通过**。
+**残留与下一步**：卡死的导出行 `b9af0511…`＋那个孤儿对象（结论被接受前不该删，它是物证）＋8 笔 wave7 ready 导出（24h TTL 后正常收）
+＋I-2 那笔停放 Run；两件"收残留"的写已登记 **I-2b**／**I-3b**（都是生产写，逐条等点头，我没自决）。
+运维可见性已写进 [runbook §5.30](file:///D:/workspace/we-meet/wt-fix29/docs/plan/work-operations-runbook-2026-10-25.md)：**目前没有任何现成控制能发现卡死的导出行**。
+**门禁（本次编辑之后）**：design 84/84、`ci-contract` exit 0、ops 30/30；本轮无任何代码／迁移改动，故未重跑 Go 全量。
+**未 commit**；上一批 `5e4d948be`（I-2 文档）仍未 push，等点头。
+
 ## 5. 当前问题
 
 ### 5.1 设计层未决项

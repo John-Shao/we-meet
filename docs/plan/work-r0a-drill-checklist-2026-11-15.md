@@ -331,6 +331,28 @@ pass 3＋fail 2（红因同源：进程级 SIGKILL 后在途 Run 不自达终态
 不可逆性的当日真值线：**最近成功备份 11-06 06:46:02**（key `…20261105T224603Z-18f99d9c1480.tar.gz.age`、sha256 前缀 `849c444d`、
 bytes 1,355,188），下一次 12:47:22 ⇒ 06:46 之后新增的 8 个对象（I-2 种子产物）**不在任何备份里**。
 
+**【2026-11-06 10:26–11:03 已执行（I-3，主签"继续执行 B"＝追加停常驻单元的半径）——四格落账，判据原文不改】**
+上面那句"需单独点头"的前置已履行：`systemctl stop work-relay work-export`（10:26:50 停，11:00:26 恢复，NRestarts 全程 0）。
+- `N01-1` **pass**：41 笔 `content_shred` 由 `shred_due_audit_exports` 真造（提前钟只打 export 侧，安全闸 due=41＝mine=41 才动手；
+  `expire_due_inputs` 一次都没调），手工 relay 一次领完整批后被一条 `FOR UPDATE` 行锁卡在批次里，10:38:47 `kill -9` **真 pid**（按 comm 认人）。
+  顺带记一次假注入并已具名作废：第一次 `kill -9` 打中的是 `runuser` 外壳，真 relay 活着并自己把尾部两行投完了。
+- `N01-2` **pass**：死人租约存活的 16 秒里第二份 relay 投递 **+0** 且 `claimed_by` 未被抢注；**10:39:30.133／.135**（＝过期之后）各投一次，
+  `dup_per_export=0`、`dead_letter=0`、对象账 1383→1342 正好 41 个。
+- `N01-3` **pass**：撞上的"已消失对象"是崩溃本身造的（持有者删完文件、ack 被行锁挡住没提交就被杀），不是我 rm 造的；
+  `content_delete_failed` 在两份手工日志与 journal 中命中 **0** ⇒ `Local.Delete` 的 `ErrNotExist` 容忍在现网成立。
+- `N03-1` **FAIL（两条结构性缺口，判据"接管后只投一次"在这条路上根本不成立）**：
+  ① **过期租约在 audit_export 侧不可达**——`list_pending_audit_exports` 的谓词只有 `status='queued'`（`baseline/0002:4695-4697`），
+  而 `running` 只由 `claim_audit_export` 写（`:4732`，且全库无 stuck-running 清扫）⇒ 常驻 worker 轮询 60 秒、连轮 12 次都看不见那笔，
+  它从 10:58:55 过期起一直停在 `running／content_ref=NULL／ready_at=NULL`（用户侧恒显示"进行中"）。
+  `claim_audit_export` 的"过期可重领"分支因此是**空转**的。这与 0028 给 `runtime_execution` 补的接管出口同族，但洞在**发现层**。
+  ② **Put 在 commit 之前 ⇒ 孤儿内容对象无回收路径**：旧持有者被放行后 11:00:16.408 写出 `267c8708…enc`（1,438,105 bytes），
+  随即 `complete` 抛 `audit_export_lease_lost`（这半是判据要的**正证**，现场原文已在附件）⇒ 文件在盘、库里零引用、
+  指向它的 shred 事件 0 条（shred 只认 `content_ref`）⇒ "无重复对象"不成立，"单 content_ref"平凡成立。
+  ③ 判据文本自身互斥处（文字不改，具名记）："写完文件后 SIGKILL"与"旧持有者 lease_lost"不可能由同一具进程同时给出——
+  被杀的进程不会再来 complete。
+  **重开条件**＝给 audit_export 补发现层出口＋孤儿可回收路径（代码缺口，需另裁），或明确"卡死导出靠人工 claim＋fail 收"并写进值班口径（见 runbook §5.30）。
+  证据 `attachments/n01-n03-i3-relay-export-sigkill-20261106.txt`。
+
 **关联控制**：C03 §4(3) D3-N01/N03 真实环境注入。
 
 ## 10. 证据落盘
@@ -364,7 +386,7 @@ docs/plan/assets/work-r0a-ops-2026-10-25/drills/
 |---|---|
 | D1 + D2 + S1-R06 全 PASS | C22 evidence 添加「多节点拓扑、在途重启、worker drain 实测 2026-11-15」**（2026-11-06 实测：本条件不成立——`S1-R06` 已取证并记 fail，红因＝进程级 SIGKILL 后在途 Run 不自达终态，只到 `waiting/reconcile` 等人工 signal；故 `C22` 维持 partial，本行不执行）** |
 | D3 + D4 全 PASS | C22 evidence 添加「Temporal PG 故障恢复、配额饱和实测 2026-11-16」；C22 status → `done` |
-| D3-N01/N03/N06 真实环境 PASS | C03 §4(3) 满足 |
+| D3-N01/N03/N06 真实环境 PASS | C03 §4(3) 满足 **【2026-11-06 已实测：不成立。N01-1／N01-2／N01-3 真实环境 pass（真持有者被 SIGKILL、副本在租约内存活期拿 0 事件、过期后各投一次、`ErrNotExist` 不产生 `content_delete_failed`），但 `N03-1` fail——过期租约在 audit_export 侧不可达（发现层只认 queued）＋孤儿内容对象无回收路径，两条都是结构性缺口。故本行不执行，`C03` 维持 partial，重开条件见 §9 标注与 runbook §5.30】** |
 | C13-0 判定驱动存在 → C13-1..8 全 PASS | **（2026-11-04 按 A 标为不适用）**本行原为「C13 note 更新：『主密钥轮换已于真实环境演练通过』；残余改为对象存储后端」——2026-11-03 取证判定驱动不存在且不存在安全轮换路径，裁定 A 又把轮换移出 R0a 退出门，故这一支路本次演练不可能走到 |
 | C13-0 判定驱动不存在（当前证据） | **（2026-11-04 更正）**本行原文写「C13 演 **blocked**，不签『演练通过』；按 #40 走 A/B/C 决策后再定 C13 定性」。#40 已于 2026-11-03 裁 A 定案：不跑 C13-1..8、**不记 blocked**，`pilot-checklist.json` C13 记带重开条件的范围例外、`status` 保持 `partial`；演练当天只把 C13-0 的审计结论落进 `verdict.json` |
 | C28-1 至 C28-7 全 PASS 且 ≤15 min | C28 evidence 添加计时记录；note 改为「flag 已验证翻转与回滚」 |
