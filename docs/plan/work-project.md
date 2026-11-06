@@ -1435,6 +1435,20 @@ B2 的形状：`advanceReconcileWaitLimit=24h` 与 `AdvanceReasonReconcileTimeou
   **随包脚本没有被推翻**：`scripts/retention-scan.sql:15` 本来就先 `set_config('app.org_id', :'org', false)` 再调函数（注释里已引 #53），
   缺的是**文档**——runbook §5.31 那条只报不删的读数没写"手工跑要先设上下文、且不设就是静默 0 而不报错（这条读数按设计不进退出码）"。已补。
   证据：单测 ok 4.228s；整包 `internal/migrate -count=1` ok 124.040s、0 FAIL；design 87／ops 30／`ci-contract` 149 全 rc=0。
+- **【11-06 16:4x `--migrations-only` 落地＝I-4a 从此有脚本入口（`8444e9b9e`，未 push）】**
+  起因是我自己在推荐里写的"I-4a＝只 apply＋装脚本"——现读 `rollout-r0a-0027.sh` 才发现**这档根本没有入口**：
+  参数只有 `--release/--migrator-url/--runtime-bundle/--enable-advance/--dry-run`，而第 3 步**无条件**停写手。
+  也就是说照原计划执行会退化成"手工跑 work-migrate"，正是 #47／#54／#78 那一族把真实变更挪出发布链的病，只是从打包段搬到安装段。
+  新分支只做 dump→装 `work-migrate`（链 embed 在其中）→apply→status→成对装 `run-retention-scan.sh`＋`retention-scan.sql` 然后 `exit 0`，
+  位置在 `== 3. stop writers ==` **之前**；不停/不起/不 restart、不装其它二进制、不动 unit 与 timer，并打印自己**没做**什么；
+  `--enable-advance`／`--runtime-bundle` 与之互斥（它们的步骤在 early exit 之后，接受了就是报一个没做的意图——这条拒绝是本轮想到的，不是我先写了再补的）。
+  **守卫与判别力**：`test/release-assets.test.mjs` 钉住"分支在 stop 步之前 exit、region 内无 `systemctl`、只装 `work-migrate`、包装件与 SQL 成对、DID NOT 行与 `#81` 那句在场"，
+  另配反向半边（正常路径必须仍有 `systemctl stop "$unit"` 与 work-worker 安装名单）——否则守卫会因为被守的东西被删掉而"成功"。
+  变异把一行 `run systemctl stop work-worker` 塞进分支 ⇒ 红在我那条具名断言上；还原后与备份 `sha256sum` 前 16 位相同（`1f4db5dbc7a61a65`）。
+  **两条被现场纠正的自伤**：① 我第一版用 `$(cat MIGRATION_TAIL || echo unknown)` 打印链尾，**被 #78 那条既有守卫判红**
+  （"读链尾的行必须容忍缺失并说明原因"，`|| true` 是它要的写法），改成现读→非数字就早失败；② 我又往表格行里留了换行（第二次），
+  `doc-table-shape` 再抓一次，I-4 那行竖线 5→8 才复绿。**结论：这个文件的表格行要靠机器，不靠我的小心。**
+  计数：design **87→88**、ops 30、`ci-contract` 88＋38＋24 rc=0；工作树现 0 未提交、`8444e9b9e` 未 push（push 与门禁需单独点头）。
 - **【11-06 16:2x 落地清单（现读 `git status`，不是回忆）：5 笔已提交 ＋ 6 条未提交，按两批分】**
   未提交面恰是 6 条、无残留夹具（`tmp_`／`.bak`／`.orig` 计数 0），远端仍是 `0 5`（0 behind／5 ahead of `origin/fix-r0a-envelope-29`）。
   **A 批＝执法件**（会触发 gates：`src/work/**` 与 `docs/plan/assets/**` 都在触发名单里）：
