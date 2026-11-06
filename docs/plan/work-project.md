@@ -1151,6 +1151,246 @@ C-2（收卡死的导出行与孤儿对象）按主签意图**不做**，物证�
 所以这条红**今天不会在任何 required check 上现形**，它会在下一次开/更新对 aliyun-dev 的 PR、或这个 tip 被合进去的那一刻才红。
 结论不变（别把这个 tip 合进 aliyun-dev，也别在它变绿之前开 PR），但我原本写的"推送即红"是错的时机，按实记。
 **还没做**：F1 的修复本体（0028 reclaim 链路那一边）与 abort 链。
+**【11-06 13:2x abort 链已修并转绿，上面那句"还没做"里的那一半作废，F1 本体仍未修】**abort 这一半今天有了具名根因，
+不再是"三次 abort_run_failed 而没人知道为什么"（`activityFailure` 按设计剥掉原始原因，runflow 包内没有任何 logger，所以只能这样取证：
+在同一个夹具里按 AbortRun 自己的语句顺序、用它自己的入参重放一遍不带包装的 SQL）。读数是
+`work.settle_quota(...)` 在**那笔预留已经是 settled** 的情况下回 `settlement_revision_not_monotonic`：finish 已经用回执结过账，
+而 `abortOperation` 走到 `case "succeeded"` 时用的不是库的读数，是调用方传进来的 `input.ReservationID`——那句兜底把一行已经关掉的预留
+又当成待结算的活儿。修法就一处：**只在库说这行仍 open（held/unknown）时才信那个 id**，已关的预留不是待撤销的工作，
+清理链应当直接落到 `finishRun`（现读同一条夹具里 `finish_run('failed', 'finish_head_conflict')` 是被接受的）。
+形状与 #76/#77 那条"终态且无 bound 回执⇒release"是同一个病根的两面：**写账之前先问库那笔还开着吗，而不是照调用方给的编号写**。
+证据：`TestAbortRunClosesRunAfterFinishRefusalPastDeadline`（`src/work/internal/runflow/advance_park_pg_test.go`）改前红于
+`abort_run_failed`、改后绿，且断言 Run 落 `failed` 带 `terminal_reason`；同包既有 `TestAbortRun*` 全绿。
+**变异核对（这条分支是承重的，不能只靠"改前红"）**：把新加的 `err == nil && open` 条件去掉、恢复"无条件信调用方给的 id"，
+同一条用例立刻红回 `abort_run_failed`；还原后与备份 `sha1sum` 逐字节相同（`be5af73f…`，diff 0 行）且再次绿。
+**为什么 usage=0 必然撞上**：`settle_quota`（baseline `0002_initial_r0a_schema.sql:952`，之后没有任何增量重写过它）
+对"同 revision 且金额等于 `LEAST(上报 tokens, 预留上界)`"按幂等重试放过，其余一律 `settlement_revision_not_monotonic`。
+finish 用的是回执里的真实用量（夹具里 100＋50＝150），而 workflow 传给 AbortRun 的 `UsageTokens` 是零值 ⇒
+`LEAST(0, …)=0 ≠ 150`，所以**只要那笔预留已被回执结过账，abort 的结算就不是"重复一次无害的写"，而是一次会被拒的矛盾写**。
+两次探针读数把这个机制钉住了：同一行 settled 预留上 tokens=150 的结算返回 nil（幂等支），tokens=0 的返回该错误。
+⇒ 今后凡是"清理链再写一次账"的设计，判据必须是库侧这行还开着吗，而不是调用方有没有给我一个编号。
+**F1 本体那半仍然红**：`commit_runtime_checkpoint` 自己就守 `hard_deadline <= now()`（`0009_...sql:1284`），
+所以只放宽 `claim_runtime_execution` 不够，落点是一个新增量（链尾现为 0029 ⇒ 0030），
+收窄条件是"**回执已 bound 且成功 ＋ head 仍在期望的 base** ⇒ 提交这个后继，不重发、不动 deadline 对其他路径的禁令"。
+它需要 catalog 重采＋manifest 钉值＋verify 清单＋活库回归，本轮余量不足以把它做完做完并验完，**不留半成品进仓**。
+**【11-06 13:3x 上一条最后一句作废：0030 已落地并全链路验完，不是半成品】**主签把目标定在"完成 R0a 的开发与测试"后，
+这一条有预算做完了，形状与上面写的设计一致（**不接管租约、不改 holder**）：
+- 增量 `src/work/migrations/increments/0030_durable_receipt_head_commit.sql` 用 `CREATE OR REPLACE`
+  （沿用 0028 的做法：它保留 0009 发布的 ACL，所以本轮**没有任何 GRANT 变化**），函数体是从 0009 现读原文程序化抽取后
+  只做三处改动写出的（守卫支、DECLARE 一个 `v_after_deadline`、审计 metadata 一个键），不是手抄；
+  抽取式生成让这个增量与生产在用的文本**逐字节同源**，除那三处。
+- catalog 由 `testpg.CreateBaselineDB`（它本身就跑全链）+ `migrate.ReadCatalog` 现采，
+  `catalogs/0030_durable_receipt_head_commit.json` 901,572 字节、**CR 计数 0**（0030.sql 同为 0），
+  manifest 的 `checksum` 与 `catalog_checksum` 都按最终字节回钉。
+- 落地面按现读补齐三处而不是只补一处：`internal/migrate/manifest_test.go` 的 `publishedIncrements` 名单、
+  `deploy/ecs/verify-r0a-0027.sh` 的 `(version, name)` VALUES 清单（加 `(30, '0030_durable_receipt_head_commit')`，`bash -n` 过）、
+  以及 `make-release` 的链尾**不需要改**（#78 之后由包自证，这正是那次修好的回报）。
+- **红的消失是可观测的**：`TestAdvanceFinishCommitsDurableAnswerAfterParkingPastDeadline` 从
+  `finish_head_conflict` 一路推进到 Succeeded／head revision 1／execution `completed`／Run 能被 `finish_run` 收终态；
+  整包 `./internal/runflow` 52.567s 全绿（本会话第一次）。
+- **两条判据专门用来防止"把 deadline 当摆设"**：holder 必须仍是那个死掉的父进程（`work-fake-parent`）——
+  一旦它读成 `work-worker-finish:…`，说明提交变成了重驱动；以及 revision 1 那条
+  `runtime.checkpoint_committed` 审计的 `durable_receipt_after_deadline` 必须是 `'true'`
+  （revision 0 那一条由 EnsureAdvanceHead 在租约还活着时写下，必须继续是 `'false'`，所以谓词钉在 revision 上）。
+  这条断言本身抓到过我一次自造证据错：第一版没钉 revision，读到的是 revision 0 那行，于是把正确的实现读成了 `"false"`。
+- 门禁：design **84/84**、`ci-contract` rc=0（"R0a contract gate passed"）、ops 待复跑；`./internal/migrate` 在
+  名单修好后 `TestEmbeddedManifestLoads`／tail-catalog 两条为绿，全链 101s 那次唯一的红就是这条计数断言；
+  35 包活库串行 `go test ./... -p 1` 正在后台跑，**结论以那份日志为准，不预判**。
+- **另加一条 SQL 层的三臂判据，因为"已付费"这件事必须由库来说**：
+  `src/work/internal/migrate/durable_head_commit_test.go` 的 `TestDurableReceiptIsTheOnlyWayToCommitPastDeadline`
+  三臂全绿（20.01s）：①deadline 已过＋**没有任何闸行** ⇒ `runtime_execution_expired`；②deadline 已过＋闸只到
+  `consumed`（发过但答案没回来）⇒ 同样拒；③deadline 已过＋`receipt_recorded`＋`receipt_result='success'` 绑定本
+  execution/operation/attempt ⇒ 落成 revision 1、审计键 `durable_receipt_after_deadline='true'`、holder 不变、行 `completed`。
+  这一组本身就是"变宽就会红"的控制：**把 receipt 谓词去掉，②红；把整条守卫删掉，①②同时红**——
+  所以我不再对 0030 的 SQL 做变异（变异会让 testpg 的校验和先炸，红因就不是断言而是完整性了）。
+  夹具上也踩过一处自己造的错：`receipt_slot_id` 是 uuid 列，我先传了 `"receipt/"+opID`，
+  两条臂以 `invalid input syntax for type uuid` 红——那是夹具错不是实现错，改成 `newUUID(t)` 后才读到真实判定。
+- **仍未做**：把 0030 装到现网。那是生产写，按项授权，且必须先 commit＋push 让包里的 SHA 有出处；在装上之前，runbook §5.29/§5.30 的人工收口口径继续有效。
+
+**【11-06 14:0x #80 的发现层已按 A1 落地＝增量 0031；孤儿对象那一半仍未做】**
+`migrations/increments/0031_audit_export_stale_lease_discovery.sql` 用 `CREATE OR REPLACE`
+把 `work.list_pending_audit_exports` 的取行条件从"只有 `status='queued'`"改成
+**"`queued`，或 `running` 且租约已过期（含 `lease_until IS NULL`）"**。
+依据不是我推测的：现读 `work.claim_audit_export` 只在 `lease_until > now()` 时拒（NULL 比较为 unknown ⇒ 不拒），
+所以**发现谓词必须与认领资格逐项同形**，否则库把活派出去却没人能领——`lease_until IS NULL` 那一支就是这么进来的
+（写成 `lease_until <= now()` 会让这类行被 NULL 比较静默丢掉，这正是本包反复踩过的排除谓词坑）。
+判据在 `cmd/work-export/lease_crash_test.go` 的 `TestStaleLeaseExportIsDiscoveredForRedrive`（5 读全绿，整包 7.143s）：
+排队可见 → **活租约必须不可见**（这条专治"把所有 running 都返回"）→ 过期租约可见 → 与 `claim_audit_export`  agrees →
+NULL 租约可见 → `failed` 不可见。夹具上我自己踩了两处并记下来，免得下次认错红因：
+先复制了别人的 seed 去 `DELETE work.org`，撞上 `org_policy_org_id_fkey`（共享库里那行归前一个用例，改成 `ON CONFLICT DO NOTHING`）；
+再想用 `fail_audit_export` 收尾，但 NULL 那一支已把 `lease_owner` 清空，助手正确地拒 ⇒ `audit_export_lease_lost`，
+于是收尾改成直接写状态——**被测的是读谓词，不是关闭路径**。
+落地面同样三处都补：`publishedIncrements`、`verify-r0a-0027.sh` 的 `(version,name)` 清单（到 31）、manifest 双 checksum
+（catalog 现采 901,673 B、CR=0）；`make-release` 仍无需改。**门禁**：design 84/84、`ci-contract` rc=0、ops 30/30、
+`./internal/migrate` 定向 20.785s 绿。**#80 剩下的那一半**＝"只报不删"的孤儿对象读数进 §5.21 那套 gauges
+（那是发布件 SQL＋打包/安装/校验四段的事，本轮未动）。**0031 与 0030 一样未部署**，
+所以 runbook §5.30 那条"不会自愈、要人工 claim＋fail 收"的值班口径**在装上新二进制之前仍然正确**，装后应改判为可自愈。
+**#80 第二半的实现前置已取证到可以直接动手的程度（11-06 14:0x，本轮余量不够做完并验完，故只交事实不交半成品）**：
+① 孤儿＝**盘上有、库里零引用**，所以这个读数必须落在 shell 侧（SQL 看不见文件），
+落点是已随包发布的 `scripts/run-retention-scan.sh`（与 `retention-scan.sql` 是一对，#47／#62 的配对规矩已在守卫里，
+新增读数只要进它现有的 `REQUIRED` 数组就自动被"缺行即 rc=1"覆盖，不需要新交付面）。
+② 引用集**现读自 catalog 的 `columns`，不是猜表名**：带 `content_ref` 列的关系恰好四个
+——`artifact_version`／`audit_export`／`content_reference`／`input_object`；取这四个的**全库并集**（不按 org 收窄）是故意的保守方向：
+宁可少报孤儿，也不给值班一个假警报。
+③ 对象名的真实形状在 `internal/content/local.go:95-99`：`<directory>/<orgHash(orgID)>/<id>.enc`，
+删除路径同形（`:160`），所以比对是"遍历一层目录取 basename 去掉 `.enc`"对"引用集"，
+**剩下一个必须先实测的细节**：`content_ref` 里存的是不是那个 `id` 的原样十六进制（演练现读是 32 位无横线的
+`267c8708d6273eb51b2a4f261af78844.enc`），还是带横线形式——两种都要在比对里归一化（去横线＋小写），
+否则会得到"全部文件都是孤儿"这种一看就假的读数。这一步我没做，因为把它做完并真拿一个链上库＋假桶目录验完，
+需要的时间超过本轮剩余，而**一个没验过的运维读数比没有读数更坏**。
+④ 该项必须**只报不删**且不进退出码判定（它不代表投递义务未完成，§5.30 已把这条写成人值班动作）。
+⑤ **上面 ①-④ 我照此实现过一遍，然后自己回退了**，因为一条前置只能在写完代码后现读才暴露：runner 连库身份是 `work_worker`
+（它头注释就是为此写的），而现读 baseline `0002:5249-5255` 只给四个函数 EXECUTE，
+**全链对 `audit_export`／`input_object`／`artifact_version`／`content_reference` 没有任何 GRANT SELECT**（grep 零命中）
+⇒ 我那版裸 SELECT 在生产会以 `42501` 失败，而脚本的 `ON_ERROR_STOP=1` 会让**已在每小时跑着的留存 timer 直接 rc=1 标红**——
+"为了只报不删而把清扫停掉"比没有这个读数更坏。两份脚本已 `git checkout --` 回退（回退后 diff 0 行、`bash -n` 过、`refid=` 零命中）。
+正确形状＝新增量 0032 落一个 SECURITY DEFINER 的 `work.list_content_refs(text)`（内部显式按 org_id 过滤，
+`REVOKE PUBLIC` ＋ `GRANT EXECUTE TO work_worker`），SQL 侧改调它出 `refid=`，`WORK_CONTENT_DIR` 未设时不要求该读数。
+这一段留在这里是为了让下一步不必重新推演：**这一半没做完，但它的阻断条件已经是取证而不是猜测**。
+**【11-06 14:2x 上面那条"没做完"已作废：#80 两半都落地并端到端验完＝增量 0032】**
+先按上一条 ⑤ 自己写的正确形状做了，然后把上面那份"回退说明"就地作废：
+- `0032_content_ref_reads_for_orphan_report.sql` 新增 `work.list_content_refs(text) RETURNS SETOF text`，
+  SECURITY DEFINER ＋ `SET search_path = work, pg_catalog` ＋ 四个分支各自**显式写 `org_id = p_org_id`**
+  （definer 绕 RLS，这是本包对 owner 视角读的硬规矩）＋ `REVOKE ALL … FROM PUBLIC` ＋ `GRANT EXECUTE TO work_worker`。
+  阻断条件是**实测**的而不是 grep 推的：`has_table_privilege('work_worker', …)` 现读
+  `audit_export=false／content_reference=false／input_object=true／artifact_version=true`
+  ——我上一轮那句"全链没有 GRANT SELECT"方向对、证据弱，这次换成读数；也正是这四个值决定了必须走 definer。
+- 引用 id 的抽取按**前缀模式**（`^content://work/[^/]*/`）而不是字符偏移，理由写在增量头注释里：
+  写死偏移会在 refPrefix 一改之后静默地把每个文件读成孤儿。
+- **守卫抓到一处、我没放宽它**：`doc-schema-refs` 红在
+  `retention-scan.sql:50 -> work.list_content_refs`——它把 FROM 位置上的集合返回函数当成不存在的表。
+  修法是把 SRF 从 FROM 位置移出（`FROM (SELECT work.list_content_refs(:'org') AS x) refs`），
+  **没有**给守卫加豁免名单、**也没有**改它的判据；改后 design 84/84、`ci-contract` rc=0。
+- **端到端重跑的是最终那版文件**（第一次跑的是改动前的行，所以不算证据）：容器内以
+  `work_worker_test_login` 身份跑 `run-retention-scan.sh` ＋ 伪造桶目录两个对象，读数
+  `content_objects=2 content_orphans=1`、`ORPHANS` 行在场、`SCAN_RC=0` ⇒ 报告不改退出码这条设计成立；
+  另跑一遍**不设 `WORK_CONTENT_DIR`** 的对照：`rc=0` 且输出里没有 content_* 字段
+  （`orphan_reading` 开关在那儿是有意的——否则现有部署会集体标红）。夹具的 audit_export 行要先补
+  `expires_at`，因为现读 `audit_export_check1` 是 `status='ready' ⟺ content_ref IS NOT NULL AND expires_at IS NOT NULL`
+  ——这条 CHECK 我第一版没读到，rc=3 撞上去之后按约束原文补的，不是猜的。
+- 落地面同 0030／0031：catalog 现采 903,431 B／CR=0、manifest 双 checksum、`publishedIncrements` 与
+  `verify-r0a-0027.sh` 的 `(version,name)` 清单到 32；`make-release` 仍无需改（两份脚本本来就在包里，配对规矩没动）。
+- **仍未做**：0030／0031／0032 一起装到现网（＝授权单里的 I-4 那一行，链尾现在到 32），以及 #81（B2）。
+
+**【11-06 14:3x #81(B2) 已实装，上面那句"以及 #81"作废；但实装翻出一条两条已签文本相冲，登记为待裁 #83，我没自决】**
+B2 的形状：`advanceReconcileWaitLimit=24h` 与 `AdvanceReasonReconcileTimeout="reconcile_timeout"`，
+**零迁移、零文案**——现读 `terminal_reason` 没有任何 CHECK 枚举、且经 API 是不透明字符串，
+`wait_run` 今天已允许 `'reconcile'`（与 #60=B 那次的"零迁移"同一依据）。
+**关键是三条门都被限了，不是一条**：我先只改了 `advance.go` 的 `StateWaitingReconcile` 一支，
+回头 grep `awaitResumeOrCancel` 才发现另有两支同样无人值守——
+`advance.go` 里 finish 循环内的 `AdvanceStatusUsageUnavailable` 停放，以及 `workflow.go` 的旧路 `RunWorkflow`
+（**它是活的**：`cmd/work-worker/main.go:122` 注册、`work-replay` 也在用，不是死代码）。
+若只留一条，"reconcile 停放有上界"就是一句假话。两处的计时起点**刻意不同**并各自写明：
+配额那一支从"第一次饱和"起算（Future 复用），finish 循环这一支每次停放重新起算（resume 在这里是重驱动 finish，不是重新预留）。
+超时只做一件事：**结束等待并判 `failed/reconcile_timeout`，不 settle 不 release**——这正是 B2 与 #34=A 不冲突的那条边界。
+新增用例 `TestRunWorkflowAdvanceFailsRunWhenReconcileWaitTimesOut` 绿（8.595s；测试环境会自动点燃未等待的定时器，
+所以这条能过本身就是"分支真的在等 deadline"的证据），改动前整包 `./internal/runflow` 52.678s 全绿 ⇒ 没有既有等待用例依赖"无限停放"。
+
+**待裁 #83（新登记，必须主签单选，我不自决）：到期时若已存在 bound 成功回执，F1 与 B2 说的是两件相反的事。**
+- B2 的原文（卡片 B 的选项文字）："给这一支一个上界……到点**判失败**（`failed／reconcile_timeout`）而不是无人值守地 release/settle"。
+- F1 的原文（#82 裁定文字）："已付费的那一步必须被收下（提交 head），否则留下一个永远收不了终态的 Run"。
+- 相冲的确切形状：停放 24 小时无人 signal 而**答案与回执早已落库**（I-2 现场正是这一形状）。
+  按 B2 照字面做＝Run 落成 `failed/reconcile_timeout`、operation 已 settled、head 不提交——
+  也就是把 F1 要消除的"成果已发布但状态不对"**从无限期变成有期限**，而不是消除它。
+  按 F1 的语义延伸做＝到期时先走一次 finish（提交那一步已付费的答案），只有拿不到 bound 成功回执时才判 `reconcile_timeout`；
+  这一支**不碰预留**，所以仍然不违背 #34=A。
+- 我这一轮的实现＝**照 B2 字面**（裁定文字怎么写的就怎么做），并在此处停下不改造成 F1 延伸，
+  因为"把某条已裁的默认口径推广到所有路径"是我这一整轮反复记过的那类自决错误。
+- 代价摆出来再请单选：**G1＝维持现状**（到期即 failed，代价是同形状的 Run 会以 failed 收尾而答案未提交，
+  账对状态不对，且 `parked_runs` 巡检在 24 小时内每小时标红）；
+  **G2＝到期先 finish**（状态与账都对，代价是 finish 在超时路径上被自动调用一次，需确认这不算 #34=A 禁的"自动写"，
+  并且它会让 `S1-3` 的判据从"判失败"改写为"要么 succeed 要么 reconcile_timeout"）；
+  **G3＝把上界调短/调长**（不改语义，只改运维量，与 G1/G2 可叠加）。
+- 未覆盖项也一起说清：本轮只给 advance 路的新超时写了用例，`workflow.go` 那条旧门的限界**编译通过但无测试**。
+  **【同轮 14:3x 补记：上面这条已作废，别照它判断覆盖】**旧门补了
+  `WorkflowSuite.TestUnknownReconcileWaitTimesOut`（不发 resume、只让 deadline 到，判据＝
+  `FinishRun(outcome=failed, reason=reconcile_timeout)` 恰好一次 ＋ `AssertExpectations`），
+  整包 `./internal/runflow` 56.468s 全绿。写这条时我先用了一枚**不存在的活动名**
+  `ActivitySettleReservation`（是 build failed 抓的，不是我发现的语义错），删掉后改按"mock 会拒绝未登记调用"这一既有机制表达同一含义。
+  **变异核对**：把 advance 那一支的 `case "timeout"` 去掉 ⇒ 新用例红，但红因不是"无限等待"而是落进
+  `default: finishCheckpointed` 后报 `finish_unavailable`——这条差别要留着读：**去掉超时不会挂住，而是把已付费的那一步重新推一遍**，
+  这正是 #83 里 F1 与 B2 会分叉的地方。还原经 `cmp` 与备份逐字节相同后再绿（2.678s）。
+- **一条尚未归因的门禁现象（按本包纪律记为待归因，不当已消解）**：本批最后一次编辑前的一次 `ci-contract`
+  报 `1 contract gate check(s) failed`（rc=1），随后**仓库内容未变**的两次调用都 rc=0（末段 24/24 通过）。
+  我没抓出是哪一条检查翻转，所以它既不是"已修"也不是"不存在"；下一次推这批改动的 CI 结论才是正证
+  （同类先例：meet 线 `MaterialActions.test.tsx` 与 backend 的时序脆弱用例）。
+- **【11-06 14:5x 发布链的"两个自述"现在会互相对账＝`make-release.sh` 新增 25 行＋一条判别式守卫】**
+  实测到的缺陷：`MIGRATION_TAIL` 是**工作树**算的、`RELEASE_COMMIT` 是 **HEAD** 印的，过去没人比 ——
+  本会话就造出过"包宣称带到 32、而它写下的 commit 里没有 0030/0031/0032（0029 在）"这一状态
+  （`git cat-file -e <stamped>:…0030…sql` 报 exists on disk, but not in <commit>）。
+  现在构建期用 `git ls-tree -r --name-only HEAD` 与目录列表 `comm -13` 对账，**不一致就在编译二进制之前 FATAL 退出**（实测 `rc=1` 并列出那三个文件名）；
+  故意要建脏树包时 `WORK_ALLOW_UNSTAMPED_MIGRATIONS=1` 放行并在包里落 `UNSTAMPED_MIGRATIONS` 标记（实测两条分支都对）。
+  守卫的判别力是**先绿后红**验出来的，不是宣称的：基线 release-assets 14/14 绿 → 把 HEAD 侧的 `.sql` 过滤删掉 ⇒ 红在我那条具名断言上 →
+  还原经 `cmp` 与备份逐字节相同 → 全套 design 85/85 绿、`ci-contract` rc=0、ops 30/30。
+  **过程中我自己制造又自己抓到一次假验证**：第一版断言按"同一行里有过滤条件"写，而 shell 那行是**折行**的（续行符 `\`），
+  于是基线本身就 13/14 红，我差点把随后那次变异红当成守卫有效——按"变异三判据"里"基线必须先 PASS"重跑才发现，改成拼接后续三行后基线才真绿。
+  仍未做的更强版本＝函数式跑一次 `make-release.sh` 断言 `rc=1`（需要临时造一个未提交的增量文件，会让并行跑的兄弟测试偶发误判，故本轮没做，记在此处）。
+
+**【11-06 14:5x 发布链第二处修好：构建容器不再靠名字猜，而是按挂载匹配】**
+`docker inspect` 现读三件容器：`work-go` 把**主检出** `we-meet/we-meet/src/work` 挂在 `/src` 且已 exited 两天；
+`work-go-fix29` 把**本工作树**挂在 `/repo`；`work-go-r0a` 挂的是 `temp/r0a-wt`。
+⇒ 原默认 `GO_CONTAINER=work-go GO_WORKDIR=/src` 指的是另一棵源码树：它死了只表现为"构建失败"，
+**它要是活着，就会安静地建出与本包增量不一致的二进制**，而包里印的仍是本工作树的 commit——比失败更坏。
+现在改成枚举运行中的容器、逐个把自己的挂载源与工作树根比对，命中才用（并把 `<dest>/src/work` 作为工作目录）；
+零命中 ⇒ 早失败并说明回退会拿错源码树；两命中 ⇒ 也拒绝并要求显式设置。显式 `GO_CONTAINER` 仍然优先。
+三条分支都在这台机上跑过：① 我第一版把工作树根算少一层（`…/wt-fix29/src`）⇒ 正确地拒绝，
+**而且是因为报错里回显了路径我才看出层级错**，不是靠读代码；② 修正后 `build container matched by mount source: work-go-fix29, source /repo/src/work`；
+③ 与上一条 stamp 检查共存：先匹配容器 → 打印链尾 32 → 未提交增量仍 FATAL，构建不发生。
+**这一轮又被自己的文案绊了一次**：`derived from mounts:` 被 `doc-schema-refs` 读成 `FROM mounts` ⇒ design 84/85 红；
+改的是措辞（`matched by mount source`），**没给守卫加豁免**。改后 design 85/85、`ci-contract` rc=0。
+
+**【交接：这轮余量用尽，剩下的按这个顺序做，别重新推演】**
+① 主签单选 **#83**（超时那刻已有 bound 成功回执：G1 维持 B2 字面／G2 到期先 finish 一次／G3 只调上界长度）；
+**【11-06 15:0x ① 已裁＝G1，按主签单选】**维持现状：到期即 `failed／reconcile_timeout`，**不 settle、不 release、不提交 head**。
+⇒ 本轮代码即最终形态，批次③ 不再改动；已知代价随裁定一起成立并有界——同形状（回执早已落库）的 Run 会以 failed 收尾、
+成果未提交＝"账对、状态不对"，从无限期缩到 ≤24 小时；`parked_runs` 在窗口内每小时仍标红一次（这是设计内的告警，不是新缺口）。
+F1 的语义没有被削弱：它管的是**已经调用 finish** 的那一步（0030 的例外支只在 finish 里生效），
+超时这一支不调用 finish，所以两条裁定各管一条路径、由 #83 明确划开，今后谁把两者合并就是改裁定、不是修 bug。
+**【11-06 15:1x #81 的覆盖面穷举完成，顺手删掉一枚会误导后来人的死辅助】**
+不按"我改了三处"记账，而是把等待面全部枚举：`ActivityWaitRun` 在仓库里**共四个调用点**
+（`advance.go:212` 配额、`:279` reconcile、`:332` finish 循环里的 usage-unavailable、`workflow.go:187` 旧路 reconcile）——
+四条现在都带 Timer 上界（配额 24h＝#60=B，其余三条＝本轮 B2 的 `advanceReconcileWaitLimit`）。
+另四处 `AddReceive` 经现读**不是停放**：`cancelRequested` 带 `AddDefault`（永不阻塞），
+两处活动等待循环 select 的是 activity future（由 StartToClose＝4 分钟与 RetryPolicy 兜住）⇒ 不再有无界人工等待的漏口。
+`awaitResumeOrCancel` 就此**零调用者**，已删除 22 行：留着一个"看起来是标准等待姿势"的死函数，
+下一个人完全可能把它捡回来接在新门上，那正是本轮要消掉的形状；旧形态在 git 历史里随时可取。
+顺带把 `workflow.go:199` 那条引用它的注释改写为说明"为什么删而不是留"，避免注释变成新的假线索。
+`go vet ./internal/runflow` 通过；随后的整包与全树串行结论以 `tmp-final-tree.log` 那份为准
+（中途我停过一次全量跑：原因正是"套件编译期间又改了源码"，那是本包记过两次的污染形态，不是环境抖动）。
+
+**【11-06 15:3x 上一段里那条"未做的更强版本"已做完＝函数式用例真跑了脚本】**
+之前只钉"比较动作在场"，主签会问"那把比较删了守卫红不红"——答案是当时的守卫对某些改法不红，所以这轮补齐：
+`test/release-assets.test.mjs` 新增 `make-release really refuses an increment missing from its stamped commit`，
+做法是把 `make-release.sh` **复制进一个临时 git 仓库骨架**（脚本按自身位置推 ROOT，所以能独立跑），
+`git init` ＋ 提交 `0001_alpha.sql` ＋ 再写一个**故意不提交**的 `0002_beta.sql`，然后真执行脚本，断言四件事：
+非零退出、stderr 命中 `NOT in the stamped commit`、**点名 `0002_beta.sql`**、且 `building binaries` 一行都没出现（拒绝发生在构建之前）。
+判别力的另一半同样跑了：把 0002 提交之后再来一次，同一关必须放行（之后死在 docker 步骤是另一件事）——
+少了这一半，这条测试就是"永远为真"的装饰。两个方向都在同一环境里成功产出/消失过那条文本，
+所以这不是环境红被读成语义红。
+**为什么这样造夹具而不是往真 `migrations/increments` 里放临时文件**：那条路会让并行跑的兄弟测试
+（`readdirSync(migrations/increments)` 的名单类守卫）偶发误判，属于"用一个新的假绿换掉一个装饰性守卫"。
+`GO_CONTAINER` 显式给值是为了跳过容器匹配那一段，让流程必然走到要测的对账上（容器匹配本身已有自己的分支实测）。
+**这套门禁现在的账面**：design 测试目录 **86/86**（这条 ＋1）、`ci-contract` rc=0、ops **30/30**；
+真工作树上脚本仍 rc=1 并点名 0031／0032（即"未提交就不许出包"这条对本批生效）。
+② commit ＋ push 这一整批（现 27 路径未提交；不 push 就没有可信 SHA，#78 之后包会自证链尾，但 commit 仍必须是真出处）；
+③ 授权 **I-4**（ledger 29→32 ＋ 换 `work-worker`，两类半径分开点头），装后按 §5.31 的三条读数复核：
+   `durable_receipt_after_deadline='true'` 是否出现、过期 `running` 导出是否被自动重领、扫描输出里是否有 `content_orphans`；
+④ 给 stamp 检查补函数式用例（临时造一个未提交增量断言 `rc=1`，注意别让并行节点测试因该临时文件偶发误判）；
+⑤ #80 之外仍空着的：R0b 的 EV 证据门至今零执行、`pilot-checklist.json` 的 15 条未关 blocking（商务／法务／真实用户侧）。
+
+**【11-06 15:0x 本轮余量用尽，就此停放；工作树未清理、未提交，下次照这六批落】**
+现读停放态：HEAD `d51f12280` 与 origin 齐平（`0 0`），本批 **25 个路径全未提交**（17 改 ＋ 8 新），
+我自己的探针残件 `internal/migrate/tmp_aclprobe_pg_test.go` 已删（不删就会被别人的 `git add -A` 一起带走），
+`go vet ./internal/migrate` 与 design 85/85、`ci-contract` rc=0、ops 30/30 均为最后一次编辑之后复跑。
+提交分批（按语义风险，不按文件数）：
+① `feat(migrations)`＝增量 0030 ＋ 其 catalog ＋ `manifest.json` ＋ `internal/migrate/manifest_test.go` ＋ `durable_head_commit_test.go` ＋ `verify-r0a-0027.sh`；
+② `fix(runflow)`＝`activities.go`（abort 链根因）＋ `advance_park_pg_test.go`；
+③ `feat(runflow)`＝`advance.go` ＋ `workflow.go` ＋ `workflow_test.go`（三条停放门限界，B2）；
+④ `feat(migrations)`＝0031 ＋ 0032 及其 catalog/名单/`verify` 清单 ＋ `cmd/work-export/lease_crash_test.go` ＋ `scripts/retention-scan.sql` ＋ `scripts/run-retention-scan.sh`；
+⑤ `fix(release)`＝`deploy/ecs/make-release.sh` ＋ `test/release-assets.test.mjs`（链尾与 commit 对账、按挂载匹配构建容器）；
+⑥ `docs`＝runbook §5.30/§5.31、本文件、授权单 I-4 行、`verdict.json` 的注记。
+**第一批之前必须先有 #83 的裁定**（若裁 G2，③ 的超时分支要改成先 finish 一次，②③的文件内容会变，所以别先合并 ③）。
+⑥ 里 `verdict.json` 的 `S1-3`／`N03-1` 两格**仍是 fail**——装 I-4 并重演之前不翻色，这是有意的。
 
 ### 5.1 设计层未决项
 

@@ -746,6 +746,16 @@ timer 是否 enable、org 清单是否与目录 org 数一致、以及容差现�
   上限 24h（§8.3），算进来会让每个配额打满的组织发一封假警报；它仍在 `open_runs` 里可见。写这条例外时踩到一个 NULL 陷阱：
   最初写 `NOT (state='waiting' AND wait_reason='quota')`，`wait_reason` 为 NULL 时整个谓词变 NULL、那一行会被**静默漏掉**，
   改成 `COALESCE(r.wait_reason,'')` 才是「只排除等配额」。
+- **`wait_reason='reconcile'` 的停放不加例外，是刻意的（2026-11-06 15:0x，#81＝B2 ＋ #83 裁 G1）**：
+  这一支现在也有 24h 上界，到期会自动判 `failed／reconcile_timeout`，**但它不该像配额那样被排除**——
+  配额到点是"等不到额度就失败"，语义上是正常收口；reconcile 到点是**一次本可避免的失败**：
+  答案与回执可能早已落库、账也可能已结算，超时只结束等待、既不 settle 也不 release、更不提交 head（G1 的明确代价）。
+  ⇒ 值班的正确读法从"有个僵尸在等人"升级为"**有 24 小时窗口决定要不要救**"：
+  要么在这之前按 §5.17／§5.16 核对并发一次 `-signal-only`，要么就让它以 failed 收尾、事后靠 §5.29 的人工通道补状态；
+  两种都是决定，不是遗漏。**每小时一条 BREACH 不等于告警坏了**——它是设计内的那只钟，
+  `parked_runs` 每过 `stale_minutes` 就再报一次，直到 Run 进终态为止。
+  **另一侧也要说清**：装 0030＋新 `work-worker` 之前，这条钟根本不会自己响完（停放是无界的，见 §5.29 现状），
+  所以上面"24 小时窗口"只对**已部署**的机器成立；现网此刻仍是旧行为，别按新语义去等它自收。
   这条例外现在有活库用例守着：`src/work/cmd/work-reconcile/runstream_gauges_pg_test.go` 直接执行发布件里的
   那条 SELECT 原文（以 `work_worker` 连接、按包装件的方式设 `app.org_id`），两条变异分别把它读成 1（NULL 行漏掉）
   和 3（等配额被当成停放并触发假警报）。
@@ -1269,6 +1279,11 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
   （`internal/runflow/advance_activities.go:999-1014`：崩溃前 attempt 1 已经把答案提交进 canonical head，
   而 resume 带的是崩溃前的 head 快照，相等性兜底没过）⇒ 执行以 `FAILED／finish_head_conflict` 结束，
   Run 停在 `state=active／terminal_reason=NULL`，worker 另有 3 次 `AbortRun → abort_run_failed`（收尾链也走不完）。
+  **【11-06 13:2x 这条括号的根因已具名并在仓库修好，现网未部署】**`abort_run_failed` 的内层原因是
+  `settle_quota` 回 `settlement_revision_not_monotonic`：finish 已按回执结过账，`abortOperation` 却照调用方传入的
+  `ReservationID` 去结算一行已经 closed 的预留。修法＝只在库报 held/unknown 时才信那个 id，已关的预留不再当活儿干，
+  清理链直接 `finish_run`。⇒ **在装带这个修复的二进制之前，值班仍要按下面的人工关闭通道收**；装上之后，
+  同一形状会自己落成 `failed／terminal_reason=finish_head_conflict`，不再需要人工写。
   ⇒ 用户/管理面看到的是"进行中的任务、但成果已发布"，这是**状态错误而不是资金错误**。
   **【11:5x 更正上面括号里的机制——它当时是推测，现读推翻了它，原文不删】**`work.runtime_checkpoint_head` 现读
   `checkpoint_revision=0／updated_at=08:44:23`，且 11:41:56 那一秒**没有** `runtime.checkpoint_committed` 审计行
@@ -1285,6 +1300,18 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
 - 与 §5.16 那条可见性边界的关键差别：这一次 `work-reconcile -scan` **能报出来**（现读 `workflow_status=Failed／orphan=true`），
   因为执行已结束——不像 08:48 那次执行还活着、`isOrphan()` 按定义看不见。⇒ **§5.16 的人工孤儿关闭通道在这里适用**，
   且它是有证据门的人工写（#34=A），不要指望自动收口。
+- **【11-06 13:3x 增量 0030 已在仓库落地，上面这句从"永远如此"改成"到装 0030 之前如此"】**这个形状现在会自己收口：
+  `work.commit_runtime_checkpoint` 在 deadline 之后仍拒，**唯一例外**是"这一 execution／operation／attempt 上已有一行
+  `receipt_recorded` 且 `receipt_result='success'` 的闸行"——那一步已经付费，提交它是记账而不是重新驱动
+  （不接管租约、不改 holder，且 `consume_dispatch_delivery` 对过期 deadline 照旧拒 ⇒ 结构上不可能二次投递）。
+  同批把收尾链修好：`abortOperation` 只在库报这行预留仍 `held`/`unknown` 时才结算，已结过的不再重结，
+  于是 `abort_run_failed` → `settlement_revision_not_monotonic` 这一条不再把 Run 留在 `active`。
+  **值班的实际差别**：装上带 0030 的 `work-migrate` 链与新的 `work-worker` 之后，同一现场应直接落成
+  `failed／terminal_reason=finish_head_conflict`（或 `succeeded`，取决于 finish 走没走通），成果与账目一致，
+  **不需要**人工 `-signal-only` 也不需要 §5.16 的关闭写；在那之前上面的人工口径全部照旧有效。
+  现读判据（装完之后用来确认它真生效，别看代码）：`work.audit_event` 里 action=`runtime.checkpoint_committed`
+  且 `metadata->>'durable_receipt_after_deadline' = 'true'` 的行存在＝例外支被走过；
+  该键为 `'false'` 的那些是租约内正常提交（含 head revision 0 那条），两种都要有，全是 `false` 就说明这条链在生产还没被触发过。
 - 巡检口径别读错：此时 `run-runstream-gauges` 报 `open_runs=1 held_tokens=0 breaches=0`——预留已结清所以不 breach，
   这条 Run 要等 `stale_minutes=5` 之后才被计进 `parked_runs`。**"没有 BREACH"不等于"没有停在 active 的僵尸 Run"**，
   手工现读用：`select id,state,updated_at from work.run where state in ('queued','active','waiting','cancel_requested')`，
@@ -1294,6 +1321,12 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
 ### 5.30 审计导出卡死与内容孤儿：为什么"过期的租约"不会自己被人重领（2026-11-06 10:26–11:03 现网实测，I-3／`N03-1` fail 的运维面）
 
 值班如果看到"某笔审计导出一直是 `running`、`ready_at` 永远为空、管理面显示进行中"，**它不会自愈，也不该等自愈**。原因与读法：
+**【11-06 14:4x 增量 0031 改写了上面这句的适用期，原文不删】**仓库里 `work.list_pending_audit_exports`
+已改为"`queued`，或 `running` 且租约已过期（含 `lease_until IS NULL`）"，与 `claim_audit_export` 本来就允许的过期重领同形。
+⇒ **装上 0031 之后这一支会自愈**：常驻 export worker 下一轮就会把那笔重新领走（旧持有者的 `complete` 会以
+`audit_export_lease_lost` 被拒，这正是 I-3 现场取到的那条）。**在此之前——也就是现网此刻——上面"不会自愈"仍是正确的值班口径**，
+人工 `claim` ＋ `fail` 的顺序照旧走。判据别靠猜：装后读 `work.audit_export`，同一条 `id` 的 `status` 从 `running`
+变成 `ready`/`failed` 即为已被重领；仍停在 `running` 且 `lease_until` 早过，说明跑的还是旧二进制。
 
 - **发现层只认 queued**。`work.list_pending_audit_exports` 的谓词原文只有 `e.status = 'queued'`
   （`baseline/0002:4695-4697`），而 `status='running'` 仅由 `work.claim_audit_export` 写（`:4732`）；
@@ -1378,3 +1411,34 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
 8. **对外表述**：`evidence_exhausted` 既不是「已确认失败」也不是「已完成」，界面与回复一律写「证据已穷尽·无法定论」；治理与用量报表把该 Operation 及其未释放预留**单列**，不得混入正常结算。
 9. **禁止事项**：不得用 `evidence_unavailable` 顶替副作用类；不得释放 unknown 预留来「解锁」任务；不得新增常驻作业或绕过 §1.4 端点表把 reconcile 暴露成 HTTP 口。
 10. **演练状态**：`not_run` —— 上述流程均未经真实环境演练，对应验收规格是 EV113/EV115/EV120；演练通过后在此逐条记录日期与证据位置。
+
+
+### 5.31 三个新终态/读数在装上前线与后线怎么读（`reconcile_timeout`、`durable_receipt_after_deadline`、`content_orphans`；2026-11-06 14:4x，**增量 0030／0031／0032 与两个 Go 修复均未部署**）
+
+**先说这一节的适用条件**：下面三条都是**仓库事实**，不是现网事实。现网此刻仍跑 0029 链尾与旧 `work-worker`，
+所以看到"没有这些读数/终态"是**预期**，不是故障。装上（＝授权单 I-4）之后本节才生效。
+
+1. **`state=failed / terminal_reason=reconcile_timeout`**（#81＝B2）。含义：一笔 Run 停在"等人工核对"超过 24 小时后被**判失败**。
+   值班要知道的三件事：① 它**不动账**——既不 `settle_quota` 也不 `release_quota`，预留按 #34=A 保持人工处置，
+   所以看到 `quota_reservation` 仍是 `held` **不是 bug**，走 §5.17/§5.16 的既有通道；
+   ② `work-task` 保持 open、可重试（与 `quota_wait_timeout` 同形）；
+   ③ 三条停放门（advance 的 reconcile 支、finish 循环里的 usage-unavailable 支、旧路 `RunWorkflow`）都带这个上界，
+   前两条计时起点是"本次停放"，配额那一支才是"第一次饱和"——别用 24 小时去反推停放时长。
+   **未决**：到期时若答案与回执早已落库，按 B2 字面仍判 `failed/reconcile_timeout`（成果已发布、账已结算、head 不提交）。
+   这与 #82=F1 的语义相冲，已登记**待裁 #83**；裁定前不要"顺手"改成先 finish。
+   **【11-06 15:0x #83 已裁＝G1，上面这条"未决"关闭，原文不删】**主签单选维持现状：到期即判失败，
+   **不 settle、不 release、也不提交 head**。⇒ 值班的读法照旧第 1 条的三句话，不需要再加"先看它会不会自己 succeed"。
+   与 F1 的分工由这条裁定划清：0030 的例外支只在**已经调用 finish** 的路径上生效，超时这一支不调用 finish，
+   所以两条已签文本各管一条路径；**今后谁把两者合并（到期自动 finish 或自动写账），那是改裁定，不是修 bug**，要重新单选。
+   这条裁定自带的代价也说清：同形状（答案与回执早已落库）的 Run 会以 `failed` 收尾而成果未提交——
+   "账对、状态不对"从无限期缩短到 ≤24 小时，`parked_runs` 在这窗口内每小时仍标红一次，这是设计内的告警而不是新缺口。
+2. **审计线 `runtime.checkpoint_committed` 里的 `metadata->>'durable_receipt_after_deadline'`**（#82＝F1，增量 0030）。
+   `'true'` ＝ 这一次 head 提交发生在硬期限**之后**，依据是绑定本 execution/operation/attempt 的成功回执；
+   这是记账，不是重新驱动——同一条 Run 的投递闸仍恰好只有一次 `dispatch.gate_consumed`。
+   `'false'` ＝ 租约内正常提交（含 head revision 0 那条）。**装后核查**：出现 `'true'` 的行说明这条链在生产走通了；
+   一条都没有，只说明还没遇到该形状，不代表没生效。
+3. **留存扫描输出里的 `content_objects` / `content_orphans`**（#80 第二半，增量 0032）。
+   只在单元环境配了 `WORK_CONTENT_DIR` 时出现；**只报不删**，且**不进退出码**（投递义务由 `shred_stuck` 管）。
+   读数含义：盘上该 org 目录里有对象，而库里四张带引用的表（成果版本、审计导出、内容引用、输入对象）都不指向它。
+   处置口径沿用 §5.30：先定性（是自造夹具还是真实产物）、再决定回收，**不要写自动删除**；
+   对比用 `id`（库里存的是 `content://work/<org>/<id>?v=N`，文件名是 `<id>.enc`，别拿整串引用去等 basename）。
