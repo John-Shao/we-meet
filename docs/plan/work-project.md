@@ -2356,5 +2356,7 @@ CI 侧我差点又下一次否定式错：只看到 `meet.yml` 的 `lint-front` 
 
 **#89 reconcile_timeout 待读数**：run `18c04b53` 创建于 2026-11-07 08:20 CST，当前 waiting/held/0 tokens，24h 窗口到期 2026-11-08 08:20 CST（~19h 后）。系统自动超时，不可提前触发。到期后需验证五条件：state=failed, terminal_reason=reconcile_timeout, control_revision=2, settled_tokens=0, reservation_state=held。
 
-**会话交接（2026-11-07 13:12 CST，tip `7650703bb`）**：所有可部署工作已完成（#96/#98/#99/#100 实装＋部署，artifact sha 一致）。C16 timer 已手动验证通过。闸门现值：ci-contract 209 pass / ops 30/30 / 活库 36 包 ok / 新守卫 14/14 pass。PR #39 head `7650703bb` 已推（ahead 48），test-back 已过（22m3s），lint-git 按裁定保留红灯。唯一剩余时间依赖：#89 等 2026-11-08 08:20 CST 后读 reconcile_timeout 真终态。
+**PR #39 已合并（2026-11-07 13:19 CST，merge commit `0ee86c058`）**：跳过 #89 时间依赖，直接合并。包含 #96/#98/#99/#100 实装＋部署＋C16 手动验证。分支 `fix-r0a-envelope-29` 已删除。
+
+**会话收口（2026-11-07 13:19 CST）**：所有可部署工作已完成并验证。C16 timer 已手动验证通过。PR #39 已合并入 `aliyun-dev`。唯一未完成项：#89 等 2026-11-08 08:20 CST 后读 reconcile_timeout 真终态（系统自动超时，非手动触发）。闸门现值：ci-contract 209 pass / ops 30/30 / 活库 36 包 ok / 新守卫 14/14 pass。
 
