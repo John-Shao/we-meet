@@ -240,6 +240,8 @@
 | **R0a Phase 2 bootstrap（本地）** | `internal/api` **9/9**（11 子用例）+ CSRF；全新 PG16 模拟 CI 全量通过；响应面与 [bootstrap-v1.json](assets/work-r0a-rebuild-2026-10-28/bootstrap-v1.json) 对齐；Host 用 stub，非真实 mTLS | [internal/api](../../src/work/internal/api)、[cmd/work-api](../../src/work/cmd/work-api) |
 | CI | 设计资产六个 job 已在 PR #7 远端跑绿（6/6）；新增 7 个 `work-r0a-gates` job 已在 PR #10 远端全部通过（含 `backend-migration`：迁移→148 冒烟→9 竞态→回滚/重放→Work pytest），`lint-git`/`check-changelog` 通过；`aliyun-dev` 保护要求常驻聚合检查 `Work R0a required gate`（非 Work PR 直接通过，Work PR 镜像 7 个 gate）。仓库全量流水线 meet Workflow **15/15 job 通过**、Release guard 通过。2026-10-28 工作区新增 `go-migrate`（第 8 个 gate，PG16）并把 `src/work/**` 加入 gates/required 路径；本机用全新 PG16 容器模拟 Go 部分（migrate 27/27 + db 3/3 + apierr 5/5 + host 4/4 + api 9/9）通过；backend-migration 已加入 Django Host 端点测试（本地 12/12）；2026-10-28 本地 Go 全量 87/87（PG16 集成）。**远端（2026-10-28）**：`Work R0a gates` 8/8、`Work R0a required gate` 与 push `Release guard` 均通过；新增 `test(host)` 固定 xdist 参数化 UUID、`fix(work)` 统一迁移资产 LF 校验和/目录快照后 gates 转绿。`meet Workflow` 仍有非必需红灯：`lint-git`（历史提交信息与旧脚本 print；需改历史或改文案，未处理）、`test-back`（挂起于 87% 后超时，历史不稳定）、`test-e2e`（`app-dev` 安装 legacy-work extra 时 temporalio 无 musl 轮子，已改 `--no-extra legacy-work` 待复跑）；`lint-back` 已修（分支新增 Python 文件 ruff）。`meet.yml` 仍无路径过滤，`src/work` PR 仍会触发 meet 全量 job，Work 路径隔离未完成 | [work-r0a-gates.yml](../../.github/workflows/work-r0a-gates.yml) |
 
+**【2026-11-07 09:3x 现读更正，上表作为当时的快照保留不删】上表两行的数字已被本轮工作取代，读的时候请按此更正：**D4 的"日志扫描 8/8"现为 13/13**（`log-scan.test.mjs`，G3 补了 locator 与正文两方向共 3 条，另原有 10 条）；**D6 的"ops+pilot+telemetry 28/28"现为 30/30**（逐文件现跑：ops-model 11／telemetry 11／pilot-ops 8），而"promtool 校验 48 条规则 + 14 条告警单测"里的**告警单测现为 54 条**（27 条告警各含"会报"与"不会报"两侧），48 条规则（21 record＋27 alert）不变。取数法：三个文件各跑 `node --test <file>` 读 `ℹ tests`；告警用例数由 `test/alert-rule-coverage.test.mjs` 每次运行自己打印，不要手抄。另：本地 node 契约门现为 **111＋38＋24**（本轮新增运行态门与覆盖门），活库 Go 全量 **36 包 ok／0 FAIL**。
+
 ### 4.3 最近提交
 
 | 提交 | 内容 |
@@ -1035,6 +1037,7 @@ D5:185"Inbox 只在首页/导航角标轮询；不做跨 Task SSE"的角标一�
 先说代价与回滚：两单元 10:26:50 停、11:00:26 起，全程 `NRestarts=0`，`outbox undelivered=0／dead_letter=0`，
 `relay／export／worker／api／content-proxy` 现读全 active。
 **四格**：`N01-1`／`N01-2`／`N01-3` **pass**，`N03-1` **FAIL** ⇒ verdict 现算 **pass 44／fail 3／na 21／未取证 0／按 A 裁定排除 8，总 76**。
+**【2026-11-07 09:30 等价改判：N03-1 按其自身重开条件改判 pass（I-4/I-5 之后现读：导出行 b9af0511… status=ready／row_count=3010／bytes=1438077／lease_owner 与 lease_until 均 NULL；09:00:22 自然触发的扫描输出 content_objects=1361／content_orphans=15／shred_stuck=0／scan_errors=0；链尾 34|34。证据 attachments/n03-1-reopen-evidence-20261107.txt）。verdict 现算 pass 45／fail 2／na 21／排除 8／总 76。原文与旧判定保留，不删。剩下 2 格 fail 是 S1-3 与 S1-R06，等 2026-11-08 08:25 CST 之后读 reconcile_timeout 终态。】
 **N01 三格是怎么在现网造出"停在租约里的真持有者"的**（单事件投递只有毫秒级，外部 kill 抓不到，方法本身就是产出）：
 `shred_due_audit_exports` 真造 41 笔事件（提前钟只打 export 侧，先过安全闸 `due=41＝mine=41、别人的 ready=0`；
 `expire_due_inputs` 一次都没调），`WORK_RELAY_BATCH_SIZE=100` 让一次认领吃掉整批，再用一条 superuser 事务
@@ -2263,6 +2266,30 @@ CI 侧我差点又下一次否定式错：只看到 `meet.yml` 的 `lint-front` 
 
 **CI 两条红灯的归因与处置（2026-11-07，主签已单选）**：PR #39 在 head `8e294c3ad` 上**Work 全部门禁 pass**（含 `No-content/no-secret log scan`＝G3 扩大后的扫描集、`SLO telemetry rules and ops model`＝54 用例），`test-front` **pass 3m38s**、`test-e2e` **pass 6m29s** ⇒ #95 的前端读数取 CI 正证收口（本地仍复现不了：esbuild 读 `D:\workspace` 被拒，junction 也无效，因为 vitest 走 realpath）。
 两条红分别是：① **lint-changelog**＝CHANGELOG 有 ≥80 显示宽度的行，现读 42 行，其中 **13 行是我本会话写的、29 行是旧债**；已按主签"提交并推送"全部重排到 ≤78，**内容按空白归一后逐字相同（脚本内断言）**，本地镜像 CI 那条命令得 `max_line_length=79` ⇒ 会转绿。② **lint-git**＝21 笔提交 UC1/B6 违规，**其中 20 笔是历史债**（`158f26fa2`／`5e4d948be`／`4a55d428e`／`dff95937b` 等），**另 1 笔是我自己的 `ab5fbd0d3`：B6 Body message is missing**——原因是我当时为过 T1 用了 `git commit --amend -m "新标题"`，**只给标题、把 body 丢了**。主签裁定：**不改已推历史、登记红灯**（与之前对 lint-git 的 B 裁决一致），所以这笔 B6 会持续红着，合并 PR #39 时该 required check 需另行豁免或管理员合并；我不 force-push。教训钉一条：**amend 只改标题时必须用 `--amend` 不带 `-m`（保留原 body），或 `-m` 标题＋`-m` body 一起给**，否则就是我自己造一条新违规。
+
+**完成度审计的现读更新（2026-11-07 09:2x，取代 00:53 那张表的第 3–6 行状态，表本身保留）**：
+第 3 行（发布链）→ **已具备且已在现网生效**：`RELEASE_DIRTY` 干净档在真实构建与真实 rollout 里都打印过，四件脚本主机 sha 与包内逐字相同。
+第 4 行（运维脚本行为）→ **已具备且现网读数复核完成**：容差 `max_held_on_terminal=0`、C16 `units=15`＝独立现数 15、verify 的 `search_path=` 只出现一次、retention 的 PAIR 行在 09:00:20 自然触发里读到且 `Result=success`（孤儿 15 未动退出码）。#91／#92 均收口。
+第 5 行（前端）→ **由 CI 正证收口**：`test-front` pass 3m38s、`test-e2e` pass 6m29s（head `8e294c3ad`）；本地复现仍受 Windows ACL 限制，属环境问题。#95 收口。
+第 6 行（试点闸门）→ 清单现读仍 **33 条：done 16／partial 11／waived 4／todo 2**，blocking 未闭 **13**（不计 waived）／15（计 waived）。其中 **C16 的未闭原因已从两条减到一条**（运行面已验，只剩 #96 散文盲区待裁）；C17 仍缺真 series 上的抓取／dashboard／Alertmanager 投递。
+**所以现在还不能宣布完成**：#89 要等 2026-11-08 08:24:38 CST 之后读终态；#96 待单选；C17 与其余格子属运维窗口／商务／法务／多节点演练。另外 `lint-git` 按裁定保持红灯（21 笔，含我自己 `ab5fbd0d3` 的 B6），合并 PR #39 时需豁免或管理员合并——这是一条**已知且被接受的红灯**，不是待修缺陷。
+
+**给 #96 补两条现读事实，选项据此改写（2026-11-07 09:2x）**：① 扫描器**已经有** `content.canary` 规则（`log-scan.mjs:101-111`，按 canary 原文精确命中），而 C16 包装件的 canary 来源之一就是**库里真实 task title**，并且每轮都跑正控（把一条真标题 append 到日志副本、要求扫描器 FAIL）——所以"用真实用户内容判正文"这套机制**不是要新建，它已经在跑**，我 08:0x 与 09:0x 两次现网重扫都读到 `positive control fired`。② **但主机上没有任何 c16／log-scan 定时器**（`systemctl list-timers --all | grep -ciE "c16|log-scan"` ＝ **0**），也就是说这条含 canary 的正文检测**只在有人手跑时才发生**。
+⇒ #96 的选项因此改写：**C1＝把 C16 包装件挂成定时器**（复用既有 canary＋正控，正文检测变成周期性；代价＝新增一个 unit＋timer 与安装/校验三处传播，属部署半径）；**C2＝收紧通用正则去覆盖带空格散文**（代价＝误报面扩大，需要 allowlist 与一轮全量重扫）；**C3＝维持现状并把局限写进判据**（已写进 §5.30 与 C16 note，等于零改动但正文检测仍是手动的）。我倾向 **C1**：它用真实内容做判据、机制已验过，缺的只是"自动跑"，而 C2 是在猜正则。裁定前我不新增 unit、不动规则。
+
+**#89 的样本已确认"上界真的armed"，收口时刻保持精确（2026-11-07 09:2x，只读取证）**：
+`work-reconcile -scan` 现读该笔：`run_state=waiting`、**`workflow_status=Running`、`orphan=false`** ⇒ 与那笔早已闭合的 `e24eb42c…` 不同，这条执行还活着，计时器有机会触发。再用包内 `work-replay -export` 取真历史：**35 个事件、恰好 1 个 TimerStarted（eventId=35、timerId=35）、`startToFireTimeout=86400s`，且它就是最后一个事件**（`EVENT_TYPE_TIMER_STARTED`）⇒ workflow 此刻正停在这只 24h 钟上。
+计时器 `eventTime=2026-11-07T00:24:30.779530586Z` ⇒ **预期触发 2026-11-08T00:24:30.78Z＝08:24:30 CST**；考虑 workflow task 调度延迟，**读数时刻定在 2026-11-08 08:25 CST 之后**（先前写的 08:24:38 是"我观察到停放"的墙钟，不是钟本身的起点，按此更正）。
+**而且这笔样本恰好是 #83=G1 的争点形状**：`gate_state=receipt_recorded`、`receipt_result=success`、`operation_state=dispatching`、`reservation_state=held`、`settled_tokens=0`——也就是"到期那刻已有 bound 成功回执"。所以收口不只读终态，还要同时核**head revision 仍为 0、`settled_tokens` 仍为 0、预留仍 held**（G1：不 settle、不 release、不提交 head）；若看到它自动 finish 了，那就是与裁定相冲的回归，要按缺陷登记而不是当成通过。
+取证用的主机临时件（`h89.json`／`scan89.json`／`seed89.log`）已删除并现读确认 0 残留；归档证据仍在仓库附件里。
+
+**C16 取证通道完整性另核一次（2026-11-07 09:3x，只读）**：包装件的候选顺序是"先 `/tmp/work-log-scan.mjs`、再同目录那份"，所以主机上若留着临时件就会**静默顶掉发布件**。现读：`/tmp/work-log-scan.mjs` **不存在**；`/usr/local/bin/log-scan.mjs` sha=`e9df39a8e41b` 与包内 `/root/work-release-fg/log-scan.mjs` **逐字相同**；包装件 sha=`14081b4464c2`（含空清单拒绝与数组计数那版）。⇒ 09:0x 那次"42 文件／3277 行 clean"用的确实是发布件，不是临时件。另：retention timer 下一次自然触发 **10:01:46**（上一次 09:00:20），PAIR 行会持续每小时出现，不需要我催。
+
+**穷举"哪些发布件根本没有测试"，补上其中一个（2026-11-07 09:4x）**：把 `src/work/scripts/*.sh` 与 `deploy/ecs/*.sh` 全列出来，逐个查是否被任何 node 门／CI workflow 引用。结果 16 支里 **8 支零覆盖**：`init-workload-pki.sh`、`provision-r0b-roles.sh`（R0b，暂停期）、`verify-r0a-0015.sh`／`verify-r0a-0016.sh`（已被 0027 取代）、`work-healthcheck.sh`（会发信，不手跑）、**`work-reconcile-scan.sh`**、`ecs-migrate.sh`、`run-retention-preflight.sh`。
+本轮补的是 **`work-reconcile-scan.sh`**（每小时 timer 在跑的只读孤儿巡检，属活件且零覆盖）：新门 `test/reconcile-scan-runtime.test.mjs` 用它自己的 `WORK_RECONCILE_BIN` 旋钮放桩，**不需要库／Temporal／root**，五条判据：干净巡检 rc=0 且每个 org 恰好调用一次、孤儿按**出现次数**计并驱动 rc=2、单 org 扫描失败算基础设施错误 rc=1 且其余 org 继续扫、失败与孤儿同时出现时 rc=1 优先、org 清单为空时拒绝而不是报一次"干净巡检"。本地与 Linux 各 **5/5**。
+**三刀变异各自红**：`grep -o`→`grep -c`（按行计）⇒ 计数那条红；删掉空清单拒绝⇒ 拒绝那条红；`scan_errors+1`→`+0`⇒ 失败计数两条红。还原后 sha 与基线逐字相同（`8ce560196fda`），末跑复绿。
+**我自己在这枚门里犯的两个错，都记下来**：① 把 `${ORG_A}` 写进**正则字面量**——正则不做插值，它匹配的是字面 `${ORG_A}`，于是断言恒红；改成 `includes('scan FAILED for org ' + ORG_A)`。② 第一版夹具一行只有一个 orphan，**`grep -o` 与 `grep -c` 读数相同⇒那条判据当时没有判别力**；改成同一行两个 `"orphan": true`，变异才真的红。这两条都属于"门绿不等于门有用"，按既有判据必须先证判别力再交付。
+**剩余 7 支零覆盖件如实登记，不当已闭**：其中 `work-healthcheck.sh` 与 `run-retention-preflight.sh` 是活件，前者会发 SMTP（取证要改成读同一属性而不是真跑），后者是 D0 预检；`ecs-migrate.sh` 与两支旧 verify 属历史/被取代件；两支 R0b 件在暂停期。要不要逐个补门属下一轮工作量，不在本轮宣称完成。
 
 | 项 | 类别 | 负责 | 状态 | 标题 | 证据条数 | 清单自述还缺什么（note 首句） |
 |---|---|---|---|---|---|---|

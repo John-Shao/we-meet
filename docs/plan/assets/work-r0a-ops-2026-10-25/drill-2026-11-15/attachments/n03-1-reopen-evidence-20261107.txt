@@ -1,0 +1,27 @@
+== N03-1 reopen evidence, read at 2026-11-07T09:29:31+08:00 ==
+-- 1) the once-stuck export row, whole row as json --
+（第一次取数把 LIKE 的模式写成双引号，被 PostgreSQL 当标识符报错；改用文件式 SQL 重取。原错误保留在下面一行，不隐藏。）
+ERROR-FIRST-ATTEMPT: column "b9af0511%" does not exist
+-- 1a) corrected read: the once-stuck export row, selected fields --
+{
+  "id": "b9af0511-3c32-42e9-8981-23248ac1d4b7",
+  "status": "ready",
+  "format": "json",
+  "row_count": 3010,
+  "bytes": 1438077,
+  "content_ref": "content://work/4a2d3f28-38b9-4d6c-8614-70ef9a83960d/fb549f84110e91657dc9f69019ec8ccc?v=1",
+  "ready_at": "2026-11-06T22:10:05.804665+08:00",
+  "updated_at": "2026-11-06T22:10:05.804665+08:00",
+  "created_at": "2026-11-06T10:48:54.959612+08:00"
+}
+-- 1b) lease fields as stored --
+{"lease_owner": null, "lease_until": null}
+-- 1c) full row --
+{"id": "b9af0511-3c32-42e9-8981-23248ac1d4b7", "bytes": 1438077, "format": "json", "org_id": "4a2d3f28-38b9-4d6c-8614-70ef9a83960d", "status": "ready", "range_to": "2026-11-06T10:47:24+08:00", "ready_at": "2026-11-06T22:10:05.804665+08:00", "row_count": 3010, "created_at": "2026-11-06T10:48:54.959612+08:00", "error_code": null, "expires_at": "2026-11-07T22:10:05.804665+08:00", "range_from": "2026-08-08T10:48:54+08:00", "updated_at": "2026-11-06T22:10:05.804665+08:00", "content_ref": "content://work/4a2d3f28-38b9-4d6c-8614-70ef9a83960d/fb549f84110e91657dc9f69019ec8ccc?v=1", "lease_owner": null, "lease_until": null, "content_hash": "sha256:9a17d3d1d46347152c5f8a653f0bf34ad705d74989cfa159ee44ae651ff250f0", "request_hash": "c28d4abc9f81f311a3f5996c93f4faedb4ef21a53223c6748b13e2c25712e500", "requested_by": "535bbd27-62a0-4a95-91be-892182520d9e", "downloaded_at": null, "client_request_id": "drill1106-i3w6-b-1", "download_expires_at": null, "download_token_hash": null}
+-- 2) retention scan output from the natural 09:00 run --
+Nov 07 09:00:22 lavm-t7fmveau9b run-retention-scan.sh[2335273]: run-retention-scan: ORPHANS org=4a2d3f28-38b9-4d6c-8614-70ef9a83960d exports_expired=0 exports_shredded=0 inputs_expired=0 shred_stuck=0 content_objects=1361 content_orphans=15 - 盘上有对象而库里零引用，只报不删（§5.30；比对 /var/lib/work/content/3ae5f1dba8ac22a8f0e6a0fc3d39ae77）
+Nov 07 09:00:22 lavm-t7fmveau9b run-retention-scan.sh[2335273]: run-retention-scan: PAIR org=4a2d3f28-38b9-4d6c-8614-70ef9a83960d exports_expired=0 exports_shredded=0 inputs_expired=0 shred_stuck=0 content_objects=1361 content_orphans=15 - 两条读数同轮取：孤儿＝没人回收的空间（§5.30 人工决定），stuck＝没投出去的删除义务（§5.25）；一起看才算覆盖
+Nov 07 09:00:22 lavm-t7fmveau9b run-retention-scan.sh[2335273]: run-retention-scan summary: orgs=1 swept_rows=0 grace_minutes=15 stuck_shred=0 scan_errors=0 content_dir=/var/lib/work/content orphan_objects=15
+-- 3) ledger tail --
+34|34
+

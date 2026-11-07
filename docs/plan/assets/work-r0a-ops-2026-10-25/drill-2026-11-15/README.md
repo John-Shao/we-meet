@@ -87,6 +87,7 @@
   ③ 由此"**signal 一次就能等价改判成终态**"这条路被证伪，`S1-3`／`S1-R06` 维持 fail 且根因更新为 **#82**，
   它同时是 #81（已裁 B2）的**前置**；**I-3b 按主签选择不做**（卡死导出行与孤儿对象是 #80 的物证）。
   计数不变：pass 44／fail 3／na 21／排除 8／未取证 0，总 76。
+  **【2026-11-07 09:30 现算更正，原文不删】N03-1 已按其自身重开条件等价改判 pass（导出行 b9af0511… ready／3010 行／1438077 字节／lease 两列均 NULL，加上 09:00:22 自然触发的扫描输出 content_objects=1361／content_orphans=15／scan_errors=0，链尾 34／34；证据 attachments/n03-1-reopen-evidence-20261107.txt）。verdict.json 现算 pass 45／fail 2／na 21／排除 8／总 76。剩下两格 fail 是 S1-3 与 S1-R06：同形状重演已做、24h 钟已 armed（TimerStarted 86400s 为历史最后事件），终态读数定于 2026-11-08 08:25 CST 之后，四项同真才翻色。**
 - 失败步（附重开条件）：
   - `D3-6`（2026-11-05 20:2x 新增）——Temporal server 失联的代价被账本如实记下：账本增量全部可归因
     （run 168→170、operation 161→163、task_event 977→986、outbox 1182→1193；重复派发 0、死信 0、闸行 1 且 consumed 恰好一次、
