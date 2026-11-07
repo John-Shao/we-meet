@@ -17,34 +17,56 @@ and this project adheres to
   `durable_receipt_after_deadline`.
 - Let the audit-export worker discover export requests whose lease has elapsed
   (migration 0031) instead of leaving them stuck in `running` forever.
-- Add `work.list_content_refs` (migration 0032) so the retention scan can report
-  orphaned content objects read-only; it is SECURITY DEFINER with a pinned search
+- Add `work.list_content_refs` (migration 0032) so the retention scan can
+report
+  orphaned content objects read-only; it is SECURITY DEFINER with a pinned
+  search
   path and EXECUTE granted only to `work_worker`.
-- Give `work-replay` the missing first leg of the pre-worker-swap check in runbook §5.32:
-  `work-replay -export WORKFLOW_ID[,RUN_ID] -out FILE` reads one workflow execution's full history
-  out of Temporal and writes the JSON the replay mode consumes. It is read-only (no workflow,
-  reservation or row is touched), reuses `dispatch.NewTemporal`'s mTLS assembly and the same
-  `WORK_TEMPORAL_*` knobs as `work-reconcile -scan`, and keeps `isLongPoll` false so an open
-  execution returns what already happened instead of waiting for the next event. The file shape is
-  now evidenced rather than assumed: the SDK parses the file as a `historypb.History`, and the new
-  test distinguishes a parse failure (`temporalproto: unexpected EOF`) from the replay engine
+- Give `work-replay` the missing first leg of the pre-worker-swap check in
+runbook §5.32:
+  `work-replay -export WORKFLOW_ID[,RUN_ID] -out FILE` reads one workflow
+  execution's full history
+  out of Temporal and writes the JSON the replay mode consumes. It is
+  read-only (no workflow,
+  reservation or row is touched), reuses `dispatch.NewTemporal`'s mTLS
+  assembly and the same
+  `WORK_TEMPORAL_*` knobs as `work-reconcile -scan`, and keeps `isLongPoll`
+  false so an open
+  execution returns what already happened instead of waiting for the next
+  event. The file shape is
+  now evidenced rather than assumed: the SDK parses the file as a
+  `historypb.History`, and the new
+  test distinguishes a parse failure (`temporalproto: unexpected EOF`) from
+  the replay engine
   counting the events it decoded (`at least 3 events expected in the history`).
-- Bound the reconcile and usage-unavailable parks in the advance workflow with a
+- Bound the reconcile and usage-unavailable parks in the advance workflow with
+a
   24h timer that fails the Run with `reconcile_timeout` without settling or
   releasing anything, which keeps the reconcile write path manual.
-- Make `make-release.sh` reconcile its two self-descriptions (chain tail from the
-  worktree against the stamped commit) and select the Go build container by mount
+- Make `make-release.sh` reconcile its two self-descriptions (chain tail from
+the
+  worktree against the stamped commit) and select the Go build container by
+  mount
   source instead of by name.
-- Add `rollout-r0a-0027.sh --migrations-only`, so "apply the chain without restarting
-  the worker" has an entry point in the release chain instead of being hand-run on the
-  host. It dumps, installs `work-migrate` (the chain is embedded in it), applies and
-  reads back status, installs the retention-scan pair, then exits without stopping,
-  restarting or installing anything else; it prints what it did not do, and a gate
+- Add `rollout-r0a-0027.sh --migrations-only`, so "apply the chain without
+restarting
+  the worker" has an entry point in the release chain instead of being
+  hand-run on the
+  host. It dumps, installs `work-migrate` (the chain is embedded in it),
+  applies and
+  reads back status, installs the retention-scan pair, then exits without
+  stopping,
+  restarting or installing anything else; it prints what it did not do, and a
+  gate
   fails if the branch ever calls `systemctl`.
-- Extend `work.list_content_refs` to every column that really stores a content URI
-  (migration 0033): `runtime_execution.intent_ref`, `dispatch_delivery.receipt_ref` and
-  `operation.receipt_ref` were missing, which made the first production orphan reading
-  report 178 objects when 15 were unreferenced. Widening the reference set can only
+- Extend `work.list_content_refs` to every column that really stores a content
+URI
+  (migration 0033): `runtime_execution.intent_ref`,
+  `dispatch_delivery.receipt_ref` and
+  `operation.receipt_ref` were missing, which made the first production orphan
+  reading
+  report 178 objects when 15 were unreferenced. Widening the reference set can
+  only
   remove reported orphans, never add them.
 - Implement Work R0a's clean-slate data layer, 33 API operations, SSE and
   outbox delivery, mock runtime adapters and mock/live UI; 39 backend and
@@ -234,33 +256,53 @@ and this project adheres to
 
 ### Fixed
 
-- Retire the temporary runstream tolerance at its last two shipping sites. The pilot host had
-  `WORK_RUNSTREAM_MAX_HELD_ON_TERMINAL=0` since 2026-11-04, but the env template and the wrapper's
-  fallback still said 2, and `install_env` builds a missing env file from the template - so any
-  reinstall or new host would silently re-adopt a tolerance that does not alert on the first two
-  reservations leaked on terminal Runs. Template, fallback and host now agree on 0, and each run
+- Retire the temporary runstream tolerance at its last two shipping sites. The
+pilot host had
+  `WORK_RUNSTREAM_MAX_HELD_ON_TERMINAL=0` since 2026-11-04, but the env
+  template and the wrapper's
+  fallback still said 2, and `install_env` builds a missing env file from the
+  template - so any
+  reinstall or new host would silently re-adopt a tolerance that does not
+  alert on the first two
+  reservations leaked on terminal Runs. Template, fallback and host now agree
+  on 0, and each run
   prints the effective value in its own summary.
-- Stop the C16 log scanner from reading the whole journal when it discovers no `work-*` unit: with an
-  empty unit list it ran `journalctl` without `-u`, so every other service on the machine was scanned
-  and reported under a Work runtime verdict. It now prints `units=0` and fails with the reason. The
-  count also comes from the unit array rather than a word count over the assembled flags, which
+- Stop the C16 log scanner from reading the whole journal when it discovers no
+`work-*` unit: with an
+  empty unit list it ran `journalctl` without `-u`, so every other service on
+  the machine was scanned
+  and reported under a Work runtime verdict. It now prints `units=0` and fails
+  with the reason. The
+  count also comes from the unit array rather than a word count over the
+  assembled flags, which
   reported 15 units as 30.
-- Report the pinned search path by key instead of dumping `proconfig` behind a `search_path=` label in
-  the rollout verification output. The array elements already carry the prefix, so the reading showed
-  `search_path=search_path=work, pg_catalog`, and any other `SET` clause would have been reported as
-  if it were the search path. `MISSING` / `-` markers and every recorded value are unchanged.
+- Report the pinned search path by key instead of dumping `proconfig` behind a
+`search_path=` label in
+  the rollout verification output. The array elements already carry the
+  prefix, so the reading showed
+  `search_path=search_path=work, pg_catalog`, and any other `SET` clause would
+  have been reported as
+  if it were the search path. `MISSING` / `-` markers and every recorded value
+  are unchanged.
 - 🐛(migrations) restate `SECURITY DEFINER` and `SET search_path` on
-  `work.list_pending_audit_exports` and `work.artifact_version_immutable_content`
-  (migration 0034). `CREATE OR REPLACE` rebuilds the `pg_proc` row from the statement
-  text alone, so the 0031 rewrite that added stale-lease discovery also dropped the
-  hardening the baseline applies to every function, which left the export worker
+  `work.list_pending_audit_exports` and
+  `work.artifact_version_immutable_content`
+  (migration 0034). `CREATE OR REPLACE` rebuilds the `pg_proc` row from the
+  statement
+  text alone, so the 0031 rewrite that added stale-lease discovery also
+  dropped the
+  hardening the baseline applies to every function, which left the export
+  worker
   reading `audit_export` with its own privileges - and it has no SELECT there.
-  Production logged `permission denied for table audit_export (SQLSTATE 42501)` on
-  every poll from 2026-11-06 18:44 onward - 1,713 of them by 21:06. Both bodies are byte-identical to 0017 and
+  Production logged `permission denied for table audit_export (SQLSTATE
+  42501)` on
+  every poll from 2026-11-06 18:44 onward - 1,713 of them by 21:06. Both
+  bodies are byte-identical to 0017 and
   0031; two gates now derive the restatement rule from the chain's own catalog
   checkpoints, and a live-database case reproduces the 42501 by dropping the
   attribute. Applied to the pilot database on 2026-11-06 22:10 with
-  `rollout-r0a-0027.sh --migrations-only`: the export poll failures stopped and the
+  `rollout-r0a-0027.sh --migrations-only`: the export poll failures stopped
+  and the
   expired-lease drill export was claimed on the next poll and produced a real
   1,438,077-byte payload.
 - 🐛(backend) report a meeting-room booking that loses a database deadlock as

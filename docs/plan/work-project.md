@@ -2259,6 +2259,11 @@ CI 侧我差点又下一次否定式错：只看到 `meet.yml` 的 `lint-front` 
 恢复与副作用：Temporal 新 pid **2329734** 已起，`work-worker／work-api／work-relay／work-export／work-runtime` 全 active；gauges 现读 `parked_runs=1 held_on_terminal=0 open_runs=2 held_tokens=100000 max_held_on_terminal=0`——那笔 100,000 预留挂在**未终态**的 run 上，所以 0029 不该动它（`held_on_terminal=0` 就是没误触发的现证）；每小时 `parked_runs` BREACH 属设计内，主签已接受，我没手跑 healthcheck。
 **#89 仍未闭，收口条件写死**：最早可读数时刻＝**2026-11-08 08:24:38 CST**（park+24h）。到点后要现读`state=failed／terminal_reason=reconcile_timeout`，并同时核**不 settle、不 release、不提交 head**（#83=G1）；在那之前不得宣布通过。取证已归档 `drill-2026-11-15/attachments/s89-reconcile-timeout-seed-20261107.txt`，并且**先用扫描器扫过这份新证据**（G3之后 ops 目录已在 CI 扫描集里，不能自己往里面塞一份会红的文件）。
 
+**#92 最后一格已收（2026-11-07 09:00 自然触发，不是我催的）**：`work-retention-scan.service` `ExecMainStartTimestamp=09:00:20`、`Result=success`；journal 里出现**一行 PAIR**：`PAIR org=4a2d3f28… exports_expired=0 exports_shredded=0 inputs_expired=0 shred_stuck=0 content_objects=1361 content_orphans=15 - 两条读数同轮取…`，两个数在同一行、每 org 恰好一行；同轮 `ORPHANS` 照旧只报不删，`summary … scan_errors=0`，**服务 Result=success ⇒ 孤儿 15 没有动退出码**，F2 的"report-only"不变量在现网成立。（`content_objects` 从 1353 涨到 1361，与 #89 播种新增的对象数相符。）#92 据此收口。
+
+**CI 两条红灯的归因与处置（2026-11-07，主签已单选）**：PR #39 在 head `8e294c3ad` 上**Work 全部门禁 pass**（含 `No-content/no-secret log scan`＝G3 扩大后的扫描集、`SLO telemetry rules and ops model`＝54 用例），`test-front` **pass 3m38s**、`test-e2e` **pass 6m29s** ⇒ #95 的前端读数取 CI 正证收口（本地仍复现不了：esbuild 读 `D:\workspace` 被拒，junction 也无效，因为 vitest 走 realpath）。
+两条红分别是：① **lint-changelog**＝CHANGELOG 有 ≥80 显示宽度的行，现读 42 行，其中 **13 行是我本会话写的、29 行是旧债**；已按主签"提交并推送"全部重排到 ≤78，**内容按空白归一后逐字相同（脚本内断言）**，本地镜像 CI 那条命令得 `max_line_length=79` ⇒ 会转绿。② **lint-git**＝21 笔提交 UC1/B6 违规，**其中 20 笔是历史债**（`158f26fa2`／`5e4d948be`／`4a55d428e`／`dff95937b` 等），**另 1 笔是我自己的 `ab5fbd0d3`：B6 Body message is missing**——原因是我当时为过 T1 用了 `git commit --amend -m "新标题"`，**只给标题、把 body 丢了**。主签裁定：**不改已推历史、登记红灯**（与之前对 lint-git 的 B 裁决一致），所以这笔 B6 会持续红着，合并 PR #39 时该 required check 需另行豁免或管理员合并；我不 force-push。教训钉一条：**amend 只改标题时必须用 `--amend` 不带 `-m`（保留原 body），或 `-m` 标题＋`-m` body 一起给**，否则就是我自己造一条新违规。
+
 | 项 | 类别 | 负责 | 状态 | 标题 | 证据条数 | 清单自述还缺什么（note 首句） |
 |---|---|---|---|---|---|---|
 | C03 | design | backend + SRE | partial | D3 orchestration and fault matrix reviewed | 9 | U3 nine commitments answered yes on 2026-10-27; resources approved; drills staffed by 5 dev/test… |
