@@ -247,3 +247,42 @@ func (s *WorkflowSuite) TestExecuteFailureAbortsRun() {
 	s.ErrorContains(env.GetWorkflowError(), "runtime_failed")
 	env.AssertExpectations(s.T())
 }
+
+// #81 = B2 on the legacy door. The advance path has its own timeout case; without this one
+// the bound added to RunWorkflow would be compiled but unobserved, and RunWorkflow is live
+// (registered in cmd/work-worker/main.go:122 and replayed by work-replay). No resume signal
+// arrives, so the only way this completes is the deadline branch.
+func (s *WorkflowSuite) TestUnknownReconcileWaitTimesOut() {
+	env := s.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(runflow.RunWorkflow)
+	env.RegisterActivity(&runflow.Activities{})
+	input := runflow.Input{RunID: flowRun, OrgID: flowOrg}
+	env.OnActivity(runflow.ActivityPrepareRun, mock.Anything, input).
+		Return(runflow.PreparedRun{RunID: flowRun, OrgID: flowOrg, TaskID: flowTask, StepCount: 2}, nil)
+	env.OnActivity(runflow.ActivityAcquireRun, mock.Anything, input).
+		Return(runflow.AcquireRunOutput{State: "active", Fence: 2}, nil)
+	env.OnActivity(runflow.ActivityCheckRun, mock.Anything, input).
+		Return(runflow.RunControl{State: "active"}, nil).Once()
+	env.OnActivity(runflow.ActivityExecuteStep, mock.Anything, mock.Anything).
+		Return(runflow.ExecuteStepOutput{
+			Step: 1, OperationID: "op-1", ReservationID: "res-1",
+			Unknown: true, ErrCode: "runtime_unknown",
+		}, nil).Once()
+	env.OnActivity(runflow.ActivityWaitRun, mock.Anything, runflow.WaitRunInput{
+		RunID: flowRun, OrgID: flowOrg, Reason: "reconcile",
+	}).Return(nil).Once()
+	env.OnActivity(runflow.ActivityFinishRun, mock.Anything, runflow.FinishRunInput{
+		RunID: flowRun, OrgID: flowOrg, Outcome: "failed",
+		Reason: runflow.AdvanceReasonReconcileTimeout,
+	}).Return(nil).Once()
+
+	env.ExecuteWorkflow(runflow.RunWorkflow, input)
+
+	s.True(env.IsWorkflowCompleted())
+	s.NoError(env.GetWorkflowError())
+	env.AssertExpectations(s.T())
+	// B2's boundary: the wait ends and the Run is terminalised through FinishRun alone.
+	// Nothing is settled or released on the operator's behalf (#34 = A keeps that write
+	// manual), which this expectation set shows by naming no account activity at all -
+	// the mock fails an unregistered call rather than letting it pass silently.
+}

@@ -1,0 +1,829 @@
+I-3（授权单 §15 · N 段）· relay／export 在真实投递中途被杀的现网取证
+执行：2026-11-06 10:26:50–11:03:24 CST，试点机 lavm-t7fmveau9b，单人执行。
+主签指令链："执行 A->B->C／执行 A"（A＝I-2，已落账）→ 10:25 "继续执行 B"＝追加我在 §15 登记的半径：
+`systemctl stop work-relay work-export`，11:00:26 两单元已恢复 active，NRestarts=0。
+覆盖步：`N01-1`／`N01-2`／`N01-3`／`N03-1`（4 格）。
+
+结论先摆（判据原文在 work-r0a-drill-checklist-2026-11-15.md §9）：
+  N01-1 pass／N01-2 pass／N01-3 pass／N03-1 **fail**。
+  N03-1 的 fail 不是"没拿到证据"，而是拿到了两条**结构性缺口的现证**（见下"缺口"段），
+  而且判据原文那两半在同一具进程身上逻辑上不可能同时成立——这点按实记，不改判据。
+
+一、怎么把"停在租约里的真持有者"造出来（这是本段的方法产出，下次照做）
+  障碍：单事件投递只有毫秒级（D4-6b 实测两笔 shred 的 ack 相隔 2ms），外部 `kill -9` 抓不到
+  "已认领未投递"那个瞬间。做法：
+    ① 载荷造足：`work.expire_due_audit_exports(now()+interval '25 hours')` ＋ `work.shred_due_audit_exports()`
+       一次造出 41 笔 `content_shred` 事件（提前钟只打在 export 侧，且加安全闸：
+       落进窗口的 ready 行数必须恰好等于我的夹具数，本轮 due=41／mine=41／别人的=0 才动手；
+       `expire_due_inputs` 全程没调——§5.25 写明它会连最近一天的未绑定输入一起投删）。
+    ② 让 relay 一次领完整批：`WORK_RELAY_BATCH_SIZE=100 WORK_RELAY_POLL_INTERVAL=1ms WORK_RELAY_LEASE_SECONDS=45`。
+    ③ 一条 superuser 事务自旋等 `claimed_by LIKE 'drill2-crash%'` 出现，然后 `FOR UPDATE` 锁住**倒数第二行**；
+       relay 处理到它就卡在 ack 上（PG 行锁），于是"死人持着活租约"这个状态被拉成几十秒，可以从容杀。
+       行锁 40 秒后自己 COMMIT 释放，不遗留。
+  实测：注入 10:38:47，死者 `drill2-crash-97dfa0ad…` 留下 2 行 `delivered_at IS NULL / attempts=0 /
+  claimed_until=10:39:30`；接管者 `drill2-take-aa2e91b1…` 在租约存活的 16 秒里投递 **+0**，
+  并在 **10:39:30.133／.135**（＝过期之后）把两行各投一次：`dup_per_export=0`、`dead_letter=0`、
+  `attempts` 收在 1。对象账 1383→1342＝正好 41 个被删（其中 1 个是死者删完文件、ack 没提交就死的）。
+  N01-3 的"已消失对象"由此是**崩溃本身造的**，不是我 rm 造的：`export=e954ffd8` 的对象
+  `3c288c281a5b…`（快照 sha16 `58f9fffc9ebed5fe`）在注入前存在、注入后 GONE，重投递撞上它 ⇒
+  `Local.Delete` 对 `os.ErrNotExist` 返回 nil（local.go:152-167）⇒ ack 成功，两份手工 relay 日志与
+  journal 里 `content_delete_failed` 命中 **0** 行 ⇒ 判据成立。
+
+二、缺口（N03-1 fail 的两条现证，都是结构性的）
+  ① **过期租约在 audit_export 这条路上不可达**：`work.list_pending_audit_exports` 的谓词原文只有
+     `e.status = 'queued'`（`baseline/0002:4695-4697`），而 `status='running'` 只由
+     `claim_audit_export`（`:4732`）写入——我把常驻 export 恢复后让它 5 秒一轮连轮 12 轮（60 秒），
+     那笔 `b9af0511` 从 10:58:55 起租约已过期、到 11:03:23 仍是
+     `status=running / owner=drill6-frozen / content_ref=NULL / ready_at=NULL`，worker 侧
+     `pending_for_worker=0` 永远看不见它。⇒ 崩溃（或被停）过的导出请求**永久卡住**，
+     用户侧 `get_audit_export` 恒显示"进行中"。这与 0028 给 `work.runtime_execution` 补的接管出口
+     是同一类问题的另一半：0028 补的是"认领"分支，这里的洞在"发现"分支。
+     注：`claim_audit_export` 确实允许过期重领（`:4724` 只在 `lease_until > now()` 时拒），
+     但**没有任何调用方会去领**——所以那个分支在本部署里是空转的。
+  ② **Put 在 commit 之前 ⇒ 孤儿内容对象，且无任何留存路径能删它**：旧持有者被放行后
+     11:00:16.408 写出 `267c8708d6273eb51b2a4f261af78844.enc`（1,438,105 bytes，属主 work-control），
+     紧接着它的 `complete_audit_export` 抛 `audit_export_lease_lost`（判据第一半，原文见日志第 26 行）
+     ⇒ 文件已落盘、库里无引用。全库引用它的行 **0** 条、指向它的 shred 事件 **0** 条，
+     因为 shred 只由 `audit_export.content_ref` 驱动而那一行的 content_ref 恒 NULL。
+     ⇒ 判据"无重复对象"在本形状下不成立；"单 content_ref"平凡成立（`rows_with_multi_ref=0`，
+     因为第二个对象根本没被引用）。全库对象因此净增 9＝8 笔 wave7 ready（24h 后由每小时留存清扫自动收）
+     ＋1 个永远收不掉的孤儿。
+  ③ 判据文本自身的矛盾（不改文字，具名记）："写完文件后 SIGKILL"与"旧持有者 audit_export_lease_lost"
+     不能由同一具进程同时给出——被 SIGKILL 的进程不会再来 complete，也就没人抛这条错误。
+     本轮我按"冻结→放行"拿到 lease_lost，"写完再死"那一半的形状由同一条 Put-before-commit 路径的
+     孤儿对象侧证（如果 holder1 的冻结点落在 Put 之后，它连放行都不需要就已经是那个形状）。
+
+三、我这轮自己犯的错（按实记，四次都被读数抓住而不是滑过去）
+  ① **第一次"注入"是假的**：`kill -9 $CRASH_PID` 打中的是 `runuser` 外壳（pid 2085134），
+     真正的 relay 是它的子进程 2085136（ppid 变 1 后继续活着）。于是租约没被死人持有、
+     接管没发生，是我在步骤 7 把"仍活着的原持有者"错当成第二份 relay。抓现行的是两行 delivered_at
+     出现在我释放行锁的同一时刻（10:33:27.6）。修法：目标一律 `pgrep -x <comm>`，杀之前把
+     pid／ppid／stat／cmdline 四条一起打出来，杀之后验 `/proc/<pid>` 消失且 comm 计数为 0。
+  ② **`delivered_at` 是事务起点不是提交时刻**：`mark_outbox_delivered` 里写 `now()`，
+     被行锁挡住的那笔 ack 直到 10:33:27 才提交，但落库的时间戳是 10:32:47.661——我一度据此判
+     "锁没生效"。正确读法是看**未提交事务对外不可见**：锁期间该行 `delivered_at IS NULL` 才是状态真值。
+  ③ **采样密度低于被测事件时长**：第一次想抓"export 停在租约里"用的是 41 笔 109KB 的小导出
+     （整批 ~0.3 秒），我每轮 STOP+psql+find+CONT 约 70ms ⇒ 十几个采样全落在它干完之后。
+     改成 6 笔 90 天窗口（单笔 300-400ms、每笔对象 1.4MB）并把 find 移出循环后才抓得住。
+  ④ **`pgrep` 会把僵尸算进来**：上一版留下的 holder 处于 T 态时 SIGTERM 只排队不生效，
+     它死后又因父进程（runuser 外壳）没 wait 而留在 Z 态 ⇒ 我的清场断言被两具僵尸挡下（早失败是对的，
+     但断言本身要按 `stat !~ /^Z/` 数活进程，并且差分取新 pid 时也要排除 Z）。
+  ⑤ **`WORK_DATABASE_URL is required`**：3B 第 4 段起 holder7 之前我没 source worker.env，
+     进程当场退出，所以"写完文件后再 SIGKILL"的独立一次没做成（该半按上面第③条降级为侧证，没当成通过）。
+     教训与 §5.28 同一条：手工起进程前，env 的导入必须照 unit 的 `EnvironmentFile=` 原文逐份叠加。
+  ⑥ 另有两条纯技术错：把存着 SQL 的变量当命令执行（`$( $SHRED_UNDEL )` ⇒ "select: command not found"
+     ＋空值，逼我另跑一次 n01final 重取），以及 `string_agg(... order by ...)` 之外那条
+     "aggregate functions are not allowed in GROUP BY"。空值和报错都不许当读数交差。
+
+四、现场与残留（都在演练 org，没删，等主签定点）
+  1) 卡死的导出行 `b9af0511`（running／租约已过期 4m28s／content_ref NULL／ready_at NULL）——
+     现存的唯一恢复口是运维手工重领再判死（两条写）：
+       claim_audit_export('b9af0511-…','drill-recover',60) 然后 fail_audit_export(…,'export_read_failed')
+     这属生产写，未获逐项授权前我没动，登记成 **I-3b**。
+  2) 孤儿对象 `267c8708d6273eb51b2a4f261af78844.enc`（1,438,105 bytes）——它是缺口的物证，
+     在结论被接受之前**不该 rm**；rm 它同样属生产写。
+  3) 8 笔 wave7 的 ready 导出＋对象：24h TTL 到点后由每小时留存清扫正常收（无需人工）。
+  4) I-2 那笔停放 Run 与 root 属主残留不变（见 s1-i2 附件"残留"段，登记为 I-2b）。
+  5) 现网状态：ledger=29／0029_terminal_reservation_release、relay／export／worker／api／content-proxy 全 active、
+     NRestarts 全 0、outbox undelivered=0／dead_letter=0、shred 事件 144 全部投递、
+     in_flight_runs=1（＝I-2 那笔停放）／held=1（同一笔）、runstream-scan 10:59:41 仍按设计标红（exit-code）。
+
+五、可回性（动手前钉的事实，不用口号）
+  最近一次内容备份成功 11-06 **06:46:02**（key `content/2026-11-05/20261105T224603Z-18f99d9c1480.tar.gz.age`、
+  bytes 1,355,188、sha256 前缀 `849c444d`），下一次 12:47:22。⇒ **06:46 之后建的对象不在任何备份里**，
+  删了就是删了；本轮我造的三波夹具（对象数在基线 1342 与峰值 1400 之间起伏，10:59:15 现读全库 1400）
+  全部落在 10:27 之后，因此**都不具可回性**——这也是我为什么只删自己造的导出对象：
+  一个真实输入／成果都没碰，被 shred 的每一笔都能对到我 10:27／10:38／10:43／10:48 四次
+  `create_audit_export` 夹具上（`client_request_id` 前缀 `drill1106-i3*`）。
+  收口读数：shred 事件 total=144／delivered=144／dead_letter=0；全库对象 1351＝基线 1342
+  ＋8 笔 wave7 ready（24h 后正常收）＋1 个永久孤儿。
+
+原始日志（本文件由以下执行拼接：预检→夹具→假注入→验尸→真注入→N01 收口→三次 3A→冻结→3B→N03 收口）：
+
+
+################ tmp-b-pre.out ################
+ts=2026-11-06 09:46:48 CST
+== ① 内容备份：timer、最近成功、receipt 与对象计数 ==
+  Fri 2026-11-06 12:47:22 CST   3h 0min Fri 2026-11-06 06:46:02 CST  3h 0min ago work-content-backup.timer        work-content-backup.service
+  svc: Result=success
+  svc: ExecMainStartTimestamp=Fri 2026-11-06 06:46:02 CST
+  svc: ExecMainExitTimestamp=Fri 2026-11-06 06:46:06 CST
+  last_backup_journal:
+    Nov 06 00:51:20 lavm-t7fmveau9b systemd[1]: work-content-backup.service: Deactivated successfully.
+    Nov 06 00:51:20 lavm-t7fmveau9b systemd[1]: Finished work-content-backup.service - Encrypted offsite backup for the Work Content Store.
+    Nov 06 06:46:02 lavm-t7fmveau9b systemd[1]: Starting work-content-backup.service - Encrypted offsite backup for the Work Content Store...
+    Nov 06 06:46:06 lavm-t7fmveau9b python3[2041434]: {"status": "success", "format_version": "work-content-v1", "bucket": "we-work-backup", "key": "content/2026/11/05/20261105T224603Z-18f99d9c1480.tar.gz.age", "bytes": 1355188, "sha256": "849c444dd19c1e9a8b86a35ea2497691ef3cb8a3b0972c912315063eb318dee5", "started_at": "2026-11-05T22:46:03.041582+00:00", "completed_at": "2026-11-05T22:46:06.708936+00:00"}
+    Nov 06 06:46:06 lavm-t7fmveau9b systemd[1]: work-content-backup.service: Deactivated successfully.
+    Nov 06 06:46:06 lavm-t7fmveau9b systemd[1]: Finished work-content-backup.service - Encrypted offsite backup for the Work Content Store.
+  content_objects_now=1342 newest=2026-11-06 08:44:28
+== ② 常驻投递单元：relay／export 的单元与身份 ==
+  work-relay: enabled=enabled active=active
+  work-export: enabled=enabled active=active
+  work-worker: enabled=enabled active=active
+  work-api: enabled=enabled active=active
+  work-content-proxy: enabled=enabled active=active
+    relay: MainPID=2051774
+    relay: NRestarts=0
+    relay: ExecMainStartTimestamp=Fri 2026-11-06 07:57:12 CST
+    unit: User=work-co
+    unit: EnvironmentFile=/etc/work/work-relay.e
+    unit: ExecStart=/usr/local/bi
+  正在跑的手工 relay／export 进程（除 systemd 那份之外不应有）:
+    2051774 /usr/local/bin/work-relay
+    2051779 /usr/local/bin/work-export
+== ③ 可投载荷：outbox 按 kind 的存量与未投递 ==
+  outbox total=1203 undelivered=0
+  ERROR:  column "kind" does not exist
+  LINE 1: ...'='||c||'(undel '||u||')',', '),'-') from (select kind, coun...
+                                                               ^
+  HINT:  Perhaps you meant to reference the column "outbox.id".
+  -- audit_export 侧（N03-1 要的载荷）--
+  ERROR:  column "state" does not exist
+  LINE 1: ...e(string_agg(state||':'||c,' '),'-') from (select state, cou...
+                                                               ^
+  HINT:  Perhaps you meant to reference the column "audit_export.status".
+  audit_export_cols: id org_id requested_by client_request_id request_hash range_from range_to format status content_ref content_hash bytes row_count error_code lease_owner lease_until ready_at expires_at download_token_hash download_expires_at downloaded_at created_at updated_at   -- 谁会产生 content_shred：留存清扫的单元与最近一次读数 --
+    retention-scan: Result=success
+    retention-scan: ExecMainStartTimestamp=Fri 2026-11-06 09:03:50 CST
+    Nov 06 09:03:50 lavm-t7fmveau9b run-retention-scan.sh[2063889]: run-retention-scan summary: orgs=1 swept_rows=0 grace_minutes=15 stuck_shred=0 scan_errors=0
+    Nov 06 09:03:50 lavm-t7fmveau9b systemd[1]: work-retention-scan.service: Deactivated successfully.
+    Nov 06 09:03:50 lavm-t7fmveau9b systemd[1]: Finished work-retention-scan.service - Work retention sweep (expire due exports/inputs, enqueue content_shred).
+== ④ 演练对象能不能认出来（现造现演现清的前提）==
+  orgs=1 active=1
+  tasks total=172 演练前缀=3
+  runs by_state=canceled:33 waiting:1 succeeded:118 failed:20
+  input_objects by_status=active:171 expired:1 deleted:1
+  最近 5 笔 task：3993fb34 整理一段试点验收说明 11-06 08:44 | 6698a06a 整理一段试点验收说明 11-06 08:03 | 49a888a0 I-1 注入演练的种子：请概述一次  11-05 20:23 | a43106d6 I-1 注入演练的种子：请概述一次  11-05 20:23 | 11d04d6d 演练第二批复验的种子：请概述一次留存 11-05 19:46
+ts_end=2026-11-06 09:46:49 CST
+
+################ tmp-b-s1.out ################
+ts_start=2026-11-06 10:26:50 CST
+== 0) 预检：单元、账本、载荷、身份文件 ==
+  work-relay: enabled=enabled active=active
+  work-export: enabled=enabled active=active
+  relay unit: User=work-control EnvironmentFile=/etc/work/work-relay.env ExecStart=/usr/local/bin/work-relay 
+  export unit: User=work-control EnvironmentFile=/etc/work/work-worker.env EnvironmentFile=-/etc/work/work-export.env ExecStart=/usr/local/bin/work-export 
+  -rw-r----- 1 root work-control  82 Oct 31 15:13 /etc/work/work-export.env
+  -rw-r----- 1 root work-control 632 Nov  5 14:03 /etc/work/work-relay.env
+  org=4a2d3f28-38b9-4d6c-8614-70ef9a83960d admin_subject=535bbd27-62a0-4a95-91be-892182520d9e
+  exports_now: expired=2
+  outbox: total=1203 undelivered=0
+  content_objects=1342
+  audit_events_in_last_3h=16
+  backup_receipt={
+  "status": "success",
+  "format_version": "work-content-v1",
+  "bucket": "we-work-backup",
+  "key": "content/2026/11/05/20261105T224603Z-18f99d9c1480.tar.gz.age",
+  "bytes": 1355188,
+  "sha256": "849c444dd19c1e9a8b86a
+== 1) 停常驻投递单元（数分钟后由 Stage 4 恢复）==
+  stopped work-relay at=2026-11-06 10:26:50 CST active=inactive
+  stopped work-export at=2026-11-06 10:26:50 CST active=inactive
+  remaining_work_processes:
+    2051451 /usr/local/bin/work-authz
+    2051452 /usr/local/bin/work-content-proxy
+    2051453 /usr/local/bin/work-egress
+    2051778 /usr/local/bin/work-api
+    2051782 /usr/local/bin/work-worker
+== 2) 造 41 笔审计导出夹具（work_api 身份＋org 管理员主体，走的是函数不是裸写）==
+  range=2026-11-06T07:26:50+08 .. 2026-11-06T10:25:50+08
+  CREATE_RC=0 lines=0
+    BEGIN
+    SET
+                  set_config              |              set_config              
+    --------------------------------------+--------------------------------------
+     4a2d3f28-38b9-4d6c-8614-70ef9a83960d | 535bbd27-62a0-4a95-91be-892182520d9e
+    (1 row)
+  exports_after_create: expired=2 queued=41
+== 3) 用手工 export 进程把夹具填满（resident 已停，不会抢）==
+/tmp/tmp-b-stage1.sh: line 91: WORK_CONTENT_MASTER_KEY: unbound variable
+
+################ tmp-b-s1b.out ################
+ts_start=2026-11-06 10:27:34 CST
+== 0) 现场状态（Stage 1 已停两个单元）==
+  relay=inactive export=inactive
+  exports: queued=41 expired=2
+== 1) 按单元原文叠加两份 env，然后以 work-control 身份跑一次手工 export ==
+  dsn_user=work_worker_login key_len=64 dir=/var/lib/work/content export_id=drill-export-holder
+  EXPORT_RC=0 ready_lines=41
+    2026/11/06 10:27:34 work-export export=cf4181ff-b453-4abd-83b2-810259b8dd40 ready format=json rows=16 bytes=8007 type=application/json
+    2026/11/06 10:27:34 work-export export=aa5cce98-cc8d-4480-8744-aebc860304dd ready format=json rows=16 bytes=8007 type=application/json
+    2026/11/06 10:27:34 work-export export=658017c6-71ca-4173-9167-ced39c6d2f02 ready format=json rows=16 bytes=8007 type=application/json
+  exports_now: ready=41 expired=2
+  outbox undelivered=0（export 侧不该产生未投递事件）
+== 2) 拍存在性清单（不可逆删除前唯一的凭据）==
+  fixture_ready_rows=41 objects_present=41 missing=0
+    3215d007-7b55-479b-af61-7a41d92875d8|7be7148f9efcfd029083e47601b36d9d|8007|8035|be139b83a763267c|/var/lib/work/content|/var/lib/work/content/3ae5f1dba8ac22a8f0e6a0fc3d39ae77/7be7148f9efcfd029083e47601b36d9d.enc
+    1a668e10-4cf2-4062-a2c5-20b5516f879d|10eae2da8f471ddb9ea1652522aa1444|8007|8035|b182d2e213c20545|/var/lib/work/content|/var/lib/work/content/3ae5f1dba8ac22a8f0e6a0fc3d39ae77/10eae2da8f471ddb9ea1652522aa1444.enc
+  content_objects=1383 bytes=1603303
+  前 3 笔 ready 导出的 lease（应已清空）: 1a668e10:ready/lease=-, 91405571:ready/lease=-, 3215d007:ready/lease=-
+  units_now: relay=inactive export=inactive
+ts_end=2026-11-06 10:27:35 CST
+REMINDER: 演练结束必须 systemctl start work-relay work-export
+
+################ tmp-b-s2.out ################
+ts_start=2026-11-06 10:32:46 CST
+  org=4a2d3f28-38b9-4d6c-8614-70ef9a83960d units: relay=inactive export=inactive
+  before: exports=ready=41 expired=2 objects=1383
+== 1) 提前钟的安全闸（§5.25：export 侧可核，input 侧绝不）==
+  ready_due_within_25h=41 mine=41 other_ready=0
+== 2) expire ＋ shred（只调 export 侧两个函数，不碰 expire_due_inputs；身份＝常驻那份用的 worker DSN）==
+  BEGIN
+                set_config              
+  --------------------------------------
+   4a2d3f28-38b9-4d6c-8614-70ef9a83960d
+  (1 row)
+  
+            ?column?          
+  ----------------------------
+   identity=work_worker_login
+  (1 row)
+  
+   ?column?  
+  -----------
+   expire=41
+  (1 row)
+  
+   ?column? 
+  ----------
+   shred=41
+  (1 row)
+  
+  COMMIT
+  SWEEP_RC=0
+  exports_after: expired=43
+  shred_events_undelivered=
+/tmp/tmp-b-stage2.sh: line 49: select: command not found
+  content_ref 是否已被 shred 清空（预期 NULL，refs 只在我 stage1b 的清单里）: 0
+  objects_still_present=1383（应仍是 1383）
+== 3) 起锁事务（后台自旋，等 relay 认领后锁住倒数第二行）＋ 起手工 relay ==
+  stall_txn=2085129 started=2026-11-06 10:32:47 CST
+  relay_crash_pid=2085134 started=2026-11-06 10:32:48 CST
+== 4) 等它卡住（delivered 计数连续 4 秒不涨）==
+  poll1 delivered_total=43 live_leased_by_crash=2
+  poll2 delivered_total=43 live_leased_by_crash=2
+  STALLED=1
+  stall_txn: psql:/tmp/i3/stall.sql:24: NOTICE:  stalled on tail-1 row 6419a29a at 2026-11-06 10:32:47.613708+08
+  -- 崩溃前逐行状态（尾部 6 行）--
+    row|seq=1247 id=9a4dadde delivered=NULL claimed_by=drill-crash-0d3a414f-c2ab-435e-8a6a-309d2b9aa12c until=10:34:02 attempts=0
+    row|seq=1246 id=6419a29a delivered=NULL claimed_by=drill-crash-0d3a414f-c2ab-435e-8a6a-309d2b9aa12c until=10:34:02 attempts=0
+    row|seq=1245 id=3887b89d delivered=10:32:47.660 claimed_by=drill-crash-0d3a414f-c2ab-435e-8a6a-309d2b9aa12c until=- attempts=1
+    row|seq=1244 id=2f5f6a0c delivered=10:32:47.659 claimed_by=drill-crash-0d3a414f-c2ab-435e-8a6a-309d2b9aa12c until=- attempts=1
+    row|seq=1243 id=ca85821d delivered=10:32:47.658 claimed_by=drill-crash-0d3a414f-c2ab-435e-8a6a-309d2b9aa12c until=- attempts=1
+    row|seq=1242 id=1f13363b delivered=10:32:47.656 claimed_by=drill-crash-0d3a414f-c2ab-435e-8a6a-309d2b9aa12c until=- attempts=1
+== 5) N01-1 注入：SIGKILL 这个真持有者 ==
+  kill_at=2026-11-06 10:32:50 CST pid=2085134 alive=yes
+  KILL_RC=0
+/tmp/tmp-b-stage2.sh: line 112: 2085134 Killed                  WORK_RELAY_ID="$CRASH_ID" WORK_RELAY_BATCH_SIZE=100 WORK_RELAY_LEASE_SECONDS=75 WORK_RELAY_POLL_INTERVAL=1ms runuser -u work-control -m -- /usr/local/bin/work-relay > "$RUNDIR/relay-crash.log" 2>&1
+  after_kill_pgrep=2085136 
+  delivered_after_kill=43 objects=1343
+  live_leased_orphans=2
+  lease_expires_at=10:34:02
+  orphan_row_ids=6419a29a-8438-40ad-87de-5c05f352feee,9a4dadde-7d15-4c4c-9739-ac1576dd31c6
+  -- 这些行对应的导出与对象（对象路径从 stage1b 的清单现取，不在库里猜）--
+    orphan|seq=1246|export=f985754c|delivered=NULL|lease_until=10:34:02
+    orphan|seq=1247|export=fd81355b|delivered=NULL|lease_until=10:34:02
+== 6) 认两笔孤儿各自的盘上状态（这一步决定 N01-3 的「已消失」从哪来）==
+  seq=1246 export=f985754c obj=3921f9d8e34e disk=absent  (清单里拍过 sha16=0e690efc106c8ed3)
+  seq=1247 export=fd81355b obj=44dbc45f2fb4 disk=present  (清单里拍过 sha16=2b2aa76071fe9a64)
+  孤儿中仍存在的文件数=1
+  ⇒ 不 rm：tail-1 已由崩溃本身造成「已消失」，tail 留给接管做一次真删（各一格，都不是空集）
+  objects_now=1343（起点 1383）
+== 7) N01-2 前半：租约还活着时起第二份 relay，它必须拿 0 事件 ==
+  takeover_pid=2085136 started=2026-11-06 10:32:54 CST
+  t=2s delivered_total=1242（与起点差 0） 死持有者仍占着的行=2 它的租约剩余=01:06
+  t=4s delivered_total=1242（与起点差 0） 死持有者仍占着的行=2 它的租约剩余=01:04
+  t=6s delivered_total=1242（与起点差 0） 死持有者仍占着的行=2 它的租约剩余=01:01
+  t=8s delivered_total=1242（与起点差 0） 死持有者仍占着的行=2 它的租约剩余=00:59
+  t=10s delivered_total=1242（与起点差 0） 死持有者仍占着的行=2 它的租约剩余=00:57
+  t=12s delivered_total=1242（与起点差 0） 死持有者仍占着的行=2 它的租约剩余=00:55
+  ⇒ 租约活着期间副本投递增量必须为 0，且 claimed_by 仍是死人（不是被抢注）
+== 8) 等租约到期看接管（LEASE=75s，从认领时刻起算）==
+  poll1 shred_undelivered=2 crash_lease_still_live=2 objects=1343
+  poll2 shred_undelivered=2 crash_lease_still_live=2 objects=1343
+  poll3 shred_undelivered=2 crash_lease_still_live=2 objects=1343
+  poll4 shred_undelivered=2 crash_lease_still_live=2 objects=1343
+  poll5 shred_undelivered=2 crash_lease_still_live=2 objects=1343
+  poll6 shred_undelivered=0 crash_lease_still_live=0 objects=1342
+  final_shred_undelivered=
+  -- 每行最终投递者（takeover 应成为剩下那几行的 claimed_by 并把它们投完）--
+/tmp/tmp-b-stage2.sh: line 170: select: command not found
+    ERROR:  aggregate functions are not allowed in GROUP BY
+    LINE 1: ...ect regexp_replace(claimed_by,'^drill-','')||'='||count(*)||...
+                                                                 ^
+  attempts 分布（重投递过的那行应 >1）: attempts=1:41
+  重复投递检查（同一 aggregate 多于一行 shred）: 0
+  objects_final=1342（起点 1383；41 笔里 1 笔被我预先 rm）
+  -- content_delete_failed 有没有出现过（判据要求没有）--
+    crash_log_hits=0
+0 takeover_log_hits=0
+0
+    journal_hits=0
+0
+  -- takeover 日志尾 8 行 --
+    2026/11/06 10:32:52 work relay started relay_id=drill-take-a1bbf681-2ab7-42a8-b466-032f28627637
+  -- crash 日志全文（应只有认领，无失败）--
+    2026/11/06 10:32:47 work relay started relay_id=drill-crash-0d3a414f-c2ab-435e-8a6a-309d2b9aa12c
+  units: relay=inactive export=inactive 手工 relay 还在跑=3
+ts_end=2026-11-06 10:33:31 CST
+REMINDER: 停掉的两个单元与后台 takeover relay 都要收（takeover 是我为演练起的，验完 kill 掉）
+
+################ tmp-b-s2b0.out ################
+ts=2026-11-06 10:35:44 CST
+== 1) 现在到底有几个 work-relay 活着，分别是谁 ==
+  2085136       1     176 work-relay      /usr/local/bin/work-relay
+  2085240       1     172 runuser         runuser -u work-control -m -- /usr/local/bin/work-relay
+  2085242 2085240     172 work-relay      /usr/local/bin/work-relay
+  comm 精确计数（pgrep -x）=2  含 runuser 外壳的 -f 计数=3
+== 2) 那两行孤儿的最终状态：谁投递的、什么时候 ==
+  seq=1246 id=6419a29a delivered=10:32:47.661 claimed_by=drill-crash-0d3a414f-c2ab-435e-8a6a-309d2b9aa12c attempts=1
+  seq=1247 id=9a4dadde delivered=10:33:27.654 claimed_by=drill-crash-0d3a414f-c2ab-435e-8a6a-309d2b9aa12c attempts=1
+  ⇒ 若 claimed_by 仍是 drill-crash-*，说明从头到尾都是那个被杀的进程自己投完的
+  lock 释放时刻（我那条 superuser 事务的 NOTICE）与投递时刻对齐吗：
+    psql:/tmp/i3/stall.sql:24: NOTICE:  stalled on tail-1 row 6419a29a at 2026-11-06 10:32:47.613708+08
+== 3) 两份日志全文（成功路径不打印，所以只有 started 行）==
+  crash:
+    2026/11/06 10:32:47 work relay started relay_id=drill-crash-0d3a414f-c2ab-435e-8a6a-309d2b9aa12c
+  takeover:
+    2026/11/06 10:32:52 work relay started relay_id=drill-take-a1bbf681-2ab7-42a8-b466-032f28627637
+== 4) 总体：夹具是否已全部投递 ==
+  shred: undelivered=0 total=45
+  exports: expired=43
+  objects=1342（夹具前 1383，41 笔全投完应到 1342）
+  outbox undelivered(all kinds)=0
+  units: relay=inactive export=inactive
+== 5) 清理：杀掉我为演练起的手工 relay（resident 仍是停的，杀完等于回到 10:26 的状态）==
+  pkill_rc=0
+  remaining manual relays: 0
+0
+  残留的 stall 事务是否已退出: 0
+  仍在跑的工作进程: 2051451 /usr/local/bin/work-authz 2051452 /usr/local/bin/work-content-proxy 2051453 /usr/local/bin/work-egress 2051778 /usr/local/bin/work-api 2051782 /usr/local/bin/work-worker 
+ts_end=2026-11-06 10:35:45 CST
+
+################ tmp-b-s2c.out ################
+ts_start=2026-11-06 10:38:42 CST
+== 0) 现场清零 ==
+  manual relays left=0
+0 units: relay=inactive export=inactive
+  outbox undelivered=0 objects=1342
+== 1) 第二波夹具：41 笔导出（api 身份）＋手工 export 填满＋拍存在性 ==
+  CREATE_RC=0 queued_now=41
+  EXPORT_RC=0 filled=41 ready=41
+  snapshot: refs=41 present=41 objects_total=1383
+== 2) expire ＋ shred（安全闸：窗口内的 ready 必须全是我的夹具）==
+  due_in_window=41 mine=41
+  SWEEP_RC=0 shred_undelivered=41 objects_before_injection=1383
+== 3) 起行锁事务（自旋等认领，锁住倒数第二行）＋ 起 relay，然后用 comm 取真 pid ==
+  -- 目标是谁（四条一起打，杀之前先认人）--
+    2086965 2086499 S    runuser         runuser -u work-control -m -- /usr/local/bin/work-relay
+    2086967 2086965 Sl   work-relay      /usr/local/bin/work-relay
+  CRASH_PID=2086967 comm_match_count=1
+  /proc/pid/comm=work-relay cmdline=/usr/local/bin/work-relay 
+  psql:/tmp/i3/stall2.sql:19: NOTICE:  lock granted on tail-1 535fdd53 at 2026-11-06 10:38:45.100162+08
+  被锁住的那行此刻（未提交 ⇒ 看不见 ack）: undelivered=2
+== 4) N01-1 注入：SIGKILL 真 pid，并验它真的不在了 ==
+  kill_at=2026-11-06 10:38:47 CST pid=2086967
+  KILL_RC=0
+  after: pgrep -x work-relay =[] count=0
+0
+  /proc/pid exists=no stat=GONE
+  runuser 外壳是否也走了: 0
+  死者身份=drill2-crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9
+  它留下的活租约行数=2（判据要 >=1）
+    orph|seq=1287 exp=e954ffd8 claimed_until=10:39:30 attempts=0
+    orph|seq=1288 exp=f648daed claimed_until=10:39:30 attempts=0
+  objects_now=1343（注入前 1343；被锁那行的文件应已消失=崩溃造成的「已消失」）
+    orphan seq=1287 export=e954ffd8 obj=3c288c281a5b disk=GONE 快照sha16=58f9fffc9ebed5fe
+    orphan seq=1288 export=f648daed obj=0c0adea8112e disk=present 快照sha16=384a9bb2b0d74ce3
+== 5) N01-2 前半：死人占着租约期间，副本必须拿 0 ==
+  takeover_pids=[2087062 ] started=2026-11-06 10:38:49 CST
+  t=2s delivered_total=1283(+0) 死者仍占着且租约未过期=2 未投递 shred=
+/tmp/tmp-b-stage2c.sh: line 136: select: command not found
+  t=4s delivered_total=1283(+0) 死者仍占着且租约未过期=2 未投递 shred=
+/tmp/tmp-b-stage2c.sh: line 136: select: command not found
+  t=6s delivered_total=1283(+0) 死者仍占着且租约未过期=2 未投递 shred=
+/tmp/tmp-b-stage2c.sh: line 136: select: command not found
+  t=8s delivered_total=1283(+0) 死者仍占着且租约未过期=2 未投递 shred=
+/tmp/tmp-b-stage2c.sh: line 136: select: command not found
+  t=10s delivered_total=1283(+0) 死者仍占着且租约未过期=2 未投递 shred=
+/tmp/tmp-b-stage2c.sh: line 136: select: command not found
+  t=12s delivered_total=1283(+0) 死者仍占着且租约未过期=2 未投递 shred=
+/tmp/tmp-b-stage2c.sh: line 136: select: command not found
+  t=14s delivered_total=1283(+0) 死者仍占着且租约未过期=2 未投递 shred=
+/tmp/tmp-b-stage2c.sh: line 136: select: command not found
+  t=16s delivered_total=1283(+0) 死者仍占着且租约未过期=2 未投递 shred=
+/tmp/tmp-b-stage2c.sh: line 136: select: command not found
+== 6) N01-2 后半：等租约真过期，看接管一次投完 ==
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll1 shred_undelivered= takeover是否重注了claimed_by=0 objects=1343
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll2 shred_undelivered= takeover是否重注了claimed_by=0 objects=1343
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll3 shred_undelivered= takeover是否重注了claimed_by=0 objects=1343
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll4 shred_undelivered= takeover是否重注了claimed_by=0 objects=1343
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll5 shred_undelivered= takeover是否重注了claimed_by=0 objects=1343
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll6 shred_undelivered= takeover是否重注了claimed_by=0 objects=1343
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll7 shred_undelivered= takeover是否重注了claimed_by=0 objects=1343
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll8 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll9 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll10 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll11 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll12 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll13 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll14 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll15 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll16 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll17 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll18 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll19 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll20 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll21 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll22 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll23 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll24 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll25 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll26 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll27 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll28 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll29 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 142: select: command not found
+  poll30 shred_undelivered= takeover是否重注了claimed_by=0 objects=1342
+/tmp/tmp-b-stage2c.sh: line 146: select: command not found
+  final: undelivered_shred= objects=1342
+    final|seq=1248 exp=0ba8ce3e delivered=10:38:45.099 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1249 exp=0fecf9c6 delivered=10:38:45.101 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1250 exp=13aeaeca delivered=10:38:45.102 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1251 exp=167db48e delivered=10:38:45.104 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1252 exp=1ffb6fa2 delivered=10:38:45.105 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1253 exp=231ff128 delivered=10:38:45.106 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1254 exp=2efe9661 delivered=10:38:45.108 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1255 exp=35ae1769 delivered=10:38:45.109 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1256 exp=35b04960 delivered=10:38:45.110 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1257 exp=3771d981 delivered=10:38:45.111 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1258 exp=382ea589 delivered=10:38:45.112 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1259 exp=43b4c390 delivered=10:38:45.113 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1260 exp=53874b58 delivered=10:38:45.114 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1261 exp=53a16353 delivered=10:38:45.115 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1262 exp=57dc86ff delivered=10:38:45.116 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1263 exp=59a7951c delivered=10:38:45.117 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1264 exp=6769996e delivered=10:38:45.119 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1265 exp=676f8839 delivered=10:38:45.120 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1266 exp=732b0103 delivered=10:38:45.121 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1267 exp=79e071a7 delivered=10:38:45.122 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1268 exp=802cf320 delivered=10:38:45.123 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1269 exp=82a4b51f delivered=10:38:45.124 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1270 exp=84d24084 delivered=10:38:45.126 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1271 exp=86acc3e2 delivered=10:38:45.127 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1272 exp=901a4417 delivered=10:38:45.128 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1273 exp=93ef8709 delivered=10:38:45.129 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1274 exp=a231a645 delivered=10:38:45.130 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1275 exp=a4802a65 delivered=10:38:45.131 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1276 exp=acf7586f delivered=10:38:45.133 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1277 exp=b6746b50 delivered=10:38:45.134 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1278 exp=bc11b18b delivered=10:38:45.135 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1279 exp=bcec1295 delivered=10:38:45.136 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1280 exp=c13d2e5a delivered=10:38:45.137 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1281 exp=c458c4fe delivered=10:38:45.139 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1282 exp=ce89db8e delivered=10:38:45.140 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1283 exp=cf9ec26c delivered=10:38:45.141 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1284 exp=de6bd8c2 delivered=10:38:45.142 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1285 exp=dfefbf8b delivered=10:38:45.144 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+    final|seq=1286 exp=e21a2b3c delivered=10:38:45.145 by=crash-97dfa0ad-0133-4ac1-8efa-4b56d80d1df9 attempts=1
+  重复 shred 事件（同一 export 两行）=0
+  content_delete_failed 命中：crash日志=0
+0 takeover日志=0
+0
+  其它错误行（takeover）：0
+0
+    2026/11/06 10:38:48 work relay started relay_id=drill2-take-aa2e91b1-1efc-4be3-8b83-0597fc0e22e6
+  两个孤儿对象的最终盘上状态（一个应 GONE=崩溃前已删，一个应 GONE=接管删的；都不该报错）
+    export=0ba8ce3e disk=GONE
+    export=0fecf9c6 disk=GONE
+    export=13aeaeca disk=GONE
+    export=167db48e disk=GONE
+    export=1ffb6fa2 disk=GONE
+    export=231ff128 disk=GONE
+    export=2efe9661 disk=GONE
+    export=35ae1769 disk=GONE
+    export=35b04960 disk=GONE
+    export=3771d981 disk=GONE
+    export=382ea589 disk=GONE
+    export=43b4c390 disk=GONE
+    export=53874b58 disk=GONE
+    export=53a16353 disk=GONE
+    export=57dc86ff disk=GONE
+    export=59a7951c disk=GONE
+    export=6769996e disk=GONE
+    export=676f8839 disk=GONE
+    export=732b0103 disk=GONE
+    export=79e071a7 disk=GONE
+    export=802cf320 disk=GONE
+    export=82a4b51f disk=GONE
+    export=84d24084 disk=GONE
+    export=86acc3e2 disk=GONE
+    export=901a4417 disk=GONE
+    export=93ef8709 disk=GONE
+    export=a231a645 disk=GONE
+    export=a4802a65 disk=GONE
+    export=acf7586f disk=GONE
+    export=b6746b50 disk=GONE
+    export=bc11b18b disk=GONE
+    export=bcec1295 disk=GONE
+    export=c13d2e5a disk=GONE
+    export=c458c4fe disk=GONE
+    export=ce89db8e disk=GONE
+    export=cf9ec26c disk=GONE
+    export=de6bd8c2 disk=GONE
+    export=dfefbf8b disk=GONE
+    export=e21a2b3c disk=GONE
+== 7) 收尾这一步：杀掉手工 relay（resident 仍停，留给 Stage 3/4）==
+  manual relays left=0
+0 units: relay=inactive export=inactive
+  stall 事务是否还在=0
+ts_end=2026-11-06 10:40:38 CST
+
+################ tmp-b-n01final.out ################
+ts=2026-11-06 10:41:41 CST
+== 1) 死者留下的那两行：现在谁投的、什么时候、attempts 几 ==
+  seq=1288 export=f648daed claimed_by=take-aa2e91b1-1efc-4be3-8b83-0597fc0e22e6 delivered_at=10:39:30.135 attempts=1 dead_holder_still_on_row=false
+  seq=1287 export=e954ffd8 claimed_by=take-aa2e91b1-1efc-4be3-8b83-0597fc0e22e6 delivered_at=10:39:30.133 attempts=1 dead_holder_still_on_row=false
+  -- 精确点：按 event 行 id 取（1287/1288 两行）--
+  row|seq=1287 id=535fdd53 exp=e954ffd8 by=take-aa2e91b1-1efc-4be3-8b83-0597fc0e22e6 delivered=10:39:30.133 attempts=1
+  row|seq=1288 id=35ab1e8a exp=f648daed by=take-aa2e91b1-1efc-4be3-8b83-0597fc0e22e6 delivered=10:39:30.135 attempts=1
+  undelivered_shred_total=0
+  本次两波夹具的 shred 行：drill-crash/drill2-crash 认领过 80 行、drill2-take 认领 2 行
+  投递成功但由接管方完成的那几行（应恰好 2 行）: 2
+== 2) 盘上账：内容对象数与两笔孤儿对象的最终状态 ==
+  objects=1342（夹具峰值 1383；41 笔全 shred 完应回到 1342）
+  export=e954ffd8 快照path=3c288c281a5b6c9c4e2982fc2a24deaa.enc sha16=58f9fffc9ebed5fe disk_now=GONE
+  export=f648daed 快照path=0c0adea8112ec6098e4bd623913268c2.enc sha16=384a9bb2b0d74ce3 disk_now=GONE
+== 3) 有没有出现过 content_delete_failed／其它投递失败（判据要求没有）==
+  两份手工 relay 日志行数：crash=2 takeover=1
+  hits: /tmp/i3/relay2-crash.log:0
+  hits: /tmp/i3/relay2-takeover.log:0
+  journal 里 resident relay 的失败（resident 全程停着，应为 0）: 0
+0
+== 4) 审计与库侧一致性（shred 计数、无重复事件、无死信）==
+  shred_events_total=86 delivered=86 dead_letter=0
+  dup_per_export=0
+  attempts_hist=a1:82
+  audit=audit_export.claimed x41
+  audit=audit_export.completed x41
+  audit=audit_export.requested x41
+  audit=audit_export.shredded x1
+  exports_by_status=expired:84
+  outbox 全局未投递=0 单元: relay=inactive export=inactive
+  手工 relay 残留=0
+0
+ts_end=2026-11-06 10:41:41 CST
+
+################ tmp-b-s3a.out ################
+ts_start=2026-11-06 10:43:11 CST
+  units: relay=inactive export=inactive（两个都该是 inactive）
+  before: exports=expired=84 objects=1342
+== 1) 第三波夹具：41 笔 queued 导出（不填满，留给手工 export 现场处理）==
+  CREATE_RC=0 queued=41
+== 2) 起手工 export 进程（setsid，独立于我的会话），用 comm 认 pid ==
+  holder_pid=2088609 comm_count=1 objects_before=1342
+    2088607 2088566 Ss   runuser         runuser -u work-control -m -- /usr/local/bin/work-export -org 4a2d3f28-38b9-4d6c-8614-70ef9a83960d -interval 30s
+    2088609 2088607 Sl   work-export     /usr/local/bin/work-export -org 4a2d3f28-38b9-4d6c-8614-70ef9a83960d -interval 30s
+== 3) 冻结—检查—放行的循环，直到它停在已认领、未提交的租约里 ==
+  没抓到 running 行。当前状态：exports=ready=41
+  holder 是否还在=1 日志尾：
+    2026/11/06 10:43:12 work-export export=debac9e1-867a-4eb8-aa89-135e3d05d41a ready format=json rows=264 bytes=109506 type=application/json
+    2026/11/06 10:43:12 work-export export=bde91f8b-6e62-4351-b5b6-b8b833b4d5e0 ready format=json rows=264 bytes=109506 type=application/json
+    2026/11/06 10:43:12 work-export export=8071f70b-ef91-40fe-8d6a-4d3a592d29b6 ready format=json rows=264 bytes=109506 type=application/json
+    2026/11/06 10:43:12 work-export export=b312effb-dcbc-4419-bc58-894d32aee4b3 ready format=json rows=264 bytes=109506 type=application/json
+  ⇒ 说明这一批已经被跑完；照实退出，不拿没抓到当抓到了
+
+################ tmp-b-s3a2.out ################
+ts_start=2026-11-06 10:45:59 CST
+  stray export procs left=1 units: relay=inactive export=inactive
+  audit_events_in_org=2992 exports_now=ready=41 expired=84 objects=1383
+== 1) 6 笔大范围夹具（90 天窗口 ⇒ 单笔导出上百毫秒，采样才追得上）==
+  CREATE_RC=0 queued=6 range=2026-08-08T10:46:00+08..2026-11-06T10:45:00+08
+== 2) 冻结第一份 holder，直到它停在某笔的 claim..complete 之间 ==
+  holder1_pid=2088609 at=2026-11-06 10:46:00 CST
+  caught at i=1 row=5d99a5cd-be51-4463-9bc4-e810d87cd99a|10:56:00 2026-11-06 10:46:00 CST
+  冻结中：stat=Z lease_until=10:56:00 它已完成的笔数=6
+  冻结行明细：
+== 3) 第二份 holder：让它真被 SIGKILL（判据原文那半）==
+  holder2_pid=2089572（排除冻结的 2088609）
+  kill_at=2026-11-06 10:46:02 CST target=2089572 work-export     /usr/local/bin/work-export -org 4a2d3f28-38b9-4d6c-8614-70ef9a83960d -interval 60s
+  KILL_RC=0
+  after: work-export 进程 =[2088609 2089603 ]（应只剩冻结的那份）
+  死者留下的活租约行=0
+== 4) 现场封存，等租约过期（600s，Stage 3B 回来做接管与放行）==
+  now=2026-11-06 10:46:02 CST
+  running 行总览：
+  objects=1389（T0=2026-11-06 10:46:00 起算；孤儿判定＝盘上有、库里没引用）
+  已写但未被任何行引用的对象（就是崩溃产生的孤儿候选）：
+    referenced=47 on_disk=1389 unreferenced=1342（注意：输入/成果对象本来就不被 audit_export 引用，所以这里的"未引用"含非导出对象，Stage 3B 用 T0 时间窗收窄）
+      10:46:00.6379086330 1430740 c77e4acb86d0322d4f018baeb0b38621.enc
+      10:46:00.6719114030 1430740 29d0e006ae6da5ae20fafbea032c4e49.enc
+      10:46:00.7029139290 1430740 55e7e2d0179188a205a141abeb2baeee.enc
+      10:46:00.7379167810 1430740 3fd0fd26a065cf63d3da77d8f4ec5382.enc
+      10:46:00.7649189810 1430740 a42f1261d4bf73cb16d111ccc4dc556d.enc
+      10:46:00.7979216700 1430740 afe08507b2db0256fedd8d5500c13379.enc
+ts_end=2026-11-06 10:46:02 CST
+REMINDER: 冻结的 holder1(pid=2088609) 要在 Stage 3B 里 SIGCONT；两笔 running 行的租约 600s 后过期，由恢复的 resident work-export 接管
+
+################ tmp-b-s3a3.out ################
+ts_start=2026-11-06 10:47:39 CST
+== 0) 清场：唤醒停着的、杀掉外壳、断言没有残留 work-export ==
+  work-export 残留=[2088609 2089603 ]
+    leftover: 2088609 2088607 Z    work-export
+    leftover: 2089603 2089601 Z    work-export
+ABORT: 还有 work-export 活着，先手工确认再重跑
+
+################ tmp-b-s3a4.out ################
+ts_start=2026-11-06 10:48:53 CST
+== 0) 清场 ==
+  work-export 相关进程（含僵尸与外壳）:
+  live(非Z)=0
+  objects=1389 exports=ready=47 expired=84
+== 1) 两波大范围夹具（90 天窗口 ≈ 每笔 300-400ms）==
+  exports drill1106-i3w6-a rc=0
+  exports drill1106-i3w6-b rc=0
+  queued=12 单笔耗时参考：上一波 6 笔跑了约 2.2s
+== 2) holder1：差分认 pid ⇒ 冻在租约里 ==
+  BEFORE=[  ] AFTER=[ 2090149  ] holder1_pid=2090149
+    caught i=1 stat=Tl row=b9af0511-3c32-42e9-8981-23248ac1d4b7|10:58:55 2026-11-06 10:48:55 CST
+  holder1 现在 stat=Tl 它已 ready=6 笔
+== 3) holder2：抓进租约后 SIGKILL（判据原文那一半）==
+  BEFORE=[ 2090149  ] AFTER=[ 2090149 2090189  ] holder2_pid=2090189
+  holder2 没抓到 ⇒ 不杀（杀空闲进程证不到东西）；日志尾：
+    2026/11/06 10:48:55 work-export export=91322f45-f209-446f-8e1c-e6583e90643b ready format=json rows=3010 bytes=1438077 type=application/json
+    2026/11/06 10:48:55 work-export export=ba0c9122-178f-4148-a87f-01cb0ff3fa21 ready format=json rows=3010 bytes=1438077 type=application/json
+    2026/11/06 10:48:55 work-export export=6e0437b2-79cc-4562-a678-bdfbe47c570a ready format=json rows=3010 bytes=1438077 type=application/json
+== 4) 封存现场 ==
+  now=2026-11-06 10:49:18 CST H1=2090149(stat=Tl) H2=2090189(stat=Sl)
+  row|exp=b9af0511|req=drill1106-i3w6-b-1|status=running|owner=drill6-frozen|lease_until=10:58:55|还差=577s|ref=NULL
+  obj 10:48:55.1691343230 1438105 860c65ea3b5ca2ca1d7baf835b383bd5.enc
+  obj 10:48:55.1991367700 1438105 5433224d08b57292266ec07cf34567df.enc
+  obj 10:48:55.2311393800 1438105 d8d433bf1cdd35d5800a8f9442215540.enc
+  obj 10:48:55.5941689900 1438105 e30fa029c667c29231a23ccbca3a09e7.enc
+  obj 10:48:55.6201711110 1438105 ff85e22c538de48de17571ab01391d3f.enc
+  obj 10:48:55.6551739660 1438105 92ad93b543e76dde03dfd8a9365de536.enc
+  obj 10:48:55.6861764940 1438105 73de390883d2f9bb332fb0a25ad43805.enc
+  obj 10:48:55.7221794310 1438105 e85e1409cc1cfccf17a1af330c75cb2f.enc
+  pid 已存 /tmp/i3/holder6.pids: 2090149 2090189 
+ts_end=2026-11-06 10:49:18 CST
+REMINDER: Stage 3B=(a)systemctl start work-export 让常驻接管 (b)SIGCONT 2090149 看它撞 audit_export_lease_lost (c)数孤儿对象 (d)清掉手工进程
+
+################ tmp-b-pre3b.out ################
+ts=2026-11-06 10:51:40 CST
+  holder1 stat=Tl（T=还冻着）
+  它的 DB 连接还在吗: 0
+    work-export state=idle xact_start=- idle_for=45s
+    work-export state=idle xact_start=- idle_for=165s
+  冻结行：running owner=drill6-frozen lease_until=10:58:55 剩余=435s ref=NULL
+  holder1 日志里 ready 的笔数=6（ready=6 而它认领了第 7 笔）
+  它认领该笔的时间与对象写入时间对得上吗：
+    claimed audit_event 10:48:55.240
+    10:48:54 之后盘上对象的写入时刻（每笔 ready 对应一个）：
+      10:48:55.0841273900 1438105 687ddc516597c0fd191302f6f68aafd6.enc
+      10:48:55.1131297550 1438105 0c4ab24df2bf81b329181b62513bc1a3.enc
+      10:48:55.1391318760 1438105 26a77a56ccc4d19859e85df611e6b4eb.enc
+      10:48:55.1691343230 1438105 860c65ea3b5ca2ca1d7baf835b383bd5.enc
+      10:48:55.1991367700 1438105 5433224d08b57292266ec07cf34567df.enc
+      10:48:55.2311393800 1438105 d8d433bf1cdd35d5800a8f9442215540.enc
+      10:48:55.5941689900 1438105 e30fa029c667c29231a23ccbca3a09e7.enc
+      10:48:55.6201711110 1438105 ff85e22c538de48de17571ab01391d3f.enc
+      10:48:55.6551739660 1438105 92ad93b543e76dde03dfd8a9365de536.enc
+      10:48:55.6861764940 1438105 73de390883d2f9bb332fb0a25ad43805.enc
+      10:48:55.7221794310 1438105 e85e1409cc1cfccf17a1af330c75cb2f.enc
+  库里已引用的导出对象数=58
+  queued/running 全局=ready=58 running=1 expired=84
+
+################ tmp-b-s3b.out ################
+ts_start=2026-11-06 10:59:15 CST
+== 0) 过期前的现场（证明接管不是我自己动手做的）==
+  holder1 pid=2090149 stat=Tl holder2 pid=2090189 stat=Sl
+  frozen_row|exp=b9af0511|status=running|owner=drill6-frozen|lease_until=10:58:55|ref=NULL|ready_at=NULL
+  常驻单元：export=inactive relay=inactive（都该 inactive）
+  冻结时刻之后盘上的对象数=11 全库对象=1400
+== 1) 恢复常驻 work-export，让它接管过期租约 ==
+  started at=2026-11-06 10:59:15 CST active=active NRestarts=0
+  poll1 冻结行=running|drill6-frozen|ref=NULL|ready=-
+  poll2 冻结行=running|drill6-frozen|ref=NULL|ready=-
+  poll3 冻结行=running|drill6-frozen|ref=NULL|ready=-
+  poll4 冻结行=running|drill6-frozen|ref=NULL|ready=-
+  poll5 冻结行=running|drill6-frozen|ref=NULL|ready=-
+  poll6 冻结行=running|drill6-frozen|ref=NULL|ready=-
+  poll7 冻结行=running|drill6-frozen|ref=NULL|ready=-
+  poll8 冻结行=running|drill6-frozen|ref=NULL|ready=-
+  poll9 冻结行=running|drill6-frozen|ref=NULL|ready=-
+  poll10 冻结行=running|drill6-frozen|ref=NULL|ready=-
+  poll11 冻结行=running|drill6-frozen|ref=NULL|ready=-
+  poll12 冻结行=running|drill6-frozen|ref=NULL|ready=-
+  常驻接管日志（resident 走 journal）：
+== 2) 放行旧持有者，让它自己撞 audit_export_lease_lost ==
+  放行前 stat=Tl at=2026-11-06 11:00:16 CST
+  CONT_RC=0
+  holder1 日志尾（判据要的 lease_lost 在这里）：
+    2026/11/06 11:00:16 work-export export=b9af0511-3c32-42e9-8981-23248ac1d4b7 failure: ERROR: audit_export_lease_lost (SQLSTATE P0001)
+    2026/11/06 11:00:16 work-export export=da3016a2-1854-4421-8a80-a7a69bc52edf failure: ERROR: audit_export_not_claimable (SQLSTATE P0001)
+    2026/11/06 11:00:16 work-export export=753b87a2-94c8-4ba1-86bc-36e67b8a0f65 failure: ERROR: audit_export_not_claimable (SQLSTATE P0001)
+    2026/11/06 11:00:16 work-export export=91322f45-f209-446f-8e1c-e6583e90643b failure: ERROR: audit_export_not_claimable (SQLSTATE P0001)
+    2026/11/06 11:00:16 work-export export=ba0c9122-178f-4148-a87f-01cb0ff3fa21 failure: ERROR: audit_export_not_claimable (SQLSTATE P0001)
+    2026/11/06 11:00:16 work-export export=6e0437b2-79cc-4562-a678-bdfbe47c570a failure: ERROR: audit_export_not_claimable (SQLSTATE P0001)
+  lease_lost 命中行数=1
+  它现在的 stat=Sl（放行后它把这一批跑完就停在 ticker 里）
+== 3) 孤儿对象账（判据第二半：单 content_ref、无重复对象）==
+  ref_now|exp=b9af0511|status=running|refs=NULL
+  冻结后对象清单 11 行 → 接管后 12 行（差值＝接管新写的＋旧持有者放行后补写的）
+    new: > 11:00:16.4086917410 1438105 267c8708d6273eb51b2a4f261af78844.enc
+  库里被引用的导出对象（全状态、含已 shred 的 NULL 引用不算）：
+    referenced_export_objects=58
+    本次演练窗口内 未被任何导出行引用的对象=1（>0 就是崩溃/接管留下的孤儿，且没有任何路径会再 shred 它——shred 只认 content_ref）
+      267c8708d6273eb51b2a4f261af78844 size=1438105
+  同一笔导出是否只有一个 content_ref（判据第一小半）：rows_with_multi_ref=0
+== 4) 补一段「写完文件后 SIGKILL」的形状（holder1 的冻结点在 claim 之后、Put 之前，证不了这半）==
+  第三波 8 笔 rc=0 queued=8
+  先停常驻（否则它 5 秒一轮就把这批吃光）active=inactive
+  holder7_pid=NONE（kill 前）ready=0 running=0
+  没找到 holder7（差分失败或它已退出），本段不算证据
+== 5) 收尾：清手工进程、恢复 relay、把 ready 的导出 expire+shred 让盘回基线 ==
+  残留活 work-export=0
+  单元恢复：relay=active export=active
+  sweep:               set_config              
+  sweep: --------------------------------------
+  sweep:  4a2d3f28-38b9-4d6c-8614-70ef9a83960d
+  sweep: (1 row)
+  sweep: 
+  sweep:  ?column?  
+  sweep: -----------
+  sweep:  expire=58
+  sweep: (1 row)
+  sweep: 
+  sweep:  ?column? 
+  sweep: ----------
+  sweep:  shred=58
+  sweep: (1 row)
+  sweep: 
+  poll1 未投递=0 objects=1351
+  最终：exports=ready=8 running=1 expired=142 objects=1351（基线 1342）
+  单元：relay=active export=active worker=active api=active
+  relay/export NRestarts=0/0
+ts_end=2026-11-06 11:00:26 CST
+
+################ tmp-b-n03final.out ################
+ts=2026-11-06 11:03:23 CST
+== 1) 卡死的导出行 ==
+  status=running owner=drill6-frozen lease_until=11-06 10:58:55 已过期=00:04:28.361577 content_ref=NULL bytes=NULL requested=10:48:54 updated=10:48:55
+  常驻 worker 从 11:00:26 起一直在跑，它每轮看到的 pending 集合：
+    pending_for_worker=0
+    （发现层原文：baseline/0002:4695-4697 只有 e.status = 'queued'）
+  running 行全局：exp=b9af0511/owner=drill6-frozen
+  用户侧读法（get_audit_export 会不会显示它）：status=running ⇒ 界面恒显示"进行中"，且 ready_at 为 NULL
+== 2) 孤儿对象 ==
+  path=/var/lib/work/content/3ae5f1dba8ac22a8f0e6a0fc3d39ae77/267c8708d6273eb51b2a4f261af78844.enc exists=yes size=1438105 mtime=2026-11-06 11:00:16.408691741 +0800 owner=work-control:work-control
+  它被任何行引用吗：0
+  全库对象=1351 基线=1342 ⇒ 净增 9（＝8 笔 wave7 ready 未过期 ＋ 1 个孤儿）
+  有没有 shred 事件指向它（预期 0，因为 shred 只由 content_ref 驱动）：0
+== 3) 现网是否回到干净状态 ==
+  units: relay=active export=active worker=active api=active content_proxy=active
+  NRestarts relay/export/worker=0/0/0
+awk: cmd. line:1: $2==\"work-relay\" && $1!~/^Z/
+awk: cmd. line:1:     ^ backslash not last character on line
+awk: cmd. line:1: $2==\"work-export\" && $1!~/^Z/
+awk: cmd. line:1:     ^ backslash not last character on line
+  手工进程残留: relay=0 export=0（僵尸 1+1 不计）
+  outbox total=1343 undelivered=0 dead_letter=0
+  shred 事件 total=144 delivered=144
+  本次演练产生的 shred 行按认领者分组：
+ERROR:  aggregate functions are not allowed in GROUP BY
+LINE 1: ...[0-9a-f]{8}.*$',''),'(never claimed)')||' rows='||count(*)||...
+                                                             ^
+  账本与单元总体：ledger=29 0029_terminal_reservation_release in_flight_runs=1 held=1
+  最近一次巡检：runstream=Fri 2026-11-06 10:59:41 CST result=exit-code retention=Fri 2026-11-06 11:01:25 CST result=success
+  最近一轮 gauges 案语：
+ts_end=2026-11-06 11:03:24 CST

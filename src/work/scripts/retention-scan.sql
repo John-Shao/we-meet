@@ -39,3 +39,12 @@ SELECT 'gauge=shred_stuck value=' || count(*)::text
    AND o.payload->>'kind' = 'content_shred'
    AND o.delivered_at IS NULL
    AND o.created_at < now() - make_interval(mins => :grace_minutes);
+
+-- 只报不删的孤儿对象前置读数（#80 = A1 第二半）。
+--
+-- SQL 看不见桶，所以这里只交"库里还引用着哪些对象 id"，文件侧比对在 run-retention-scan.sh 做。
+-- 走 work.list_content_refs(:'org') 而不是在本文件里直接 UNION 那四张表，是因为现读的权限面：
+-- has_table_privilege('work_worker', 'work.audit_export'/'work.content_reference', 'select') = false，
+-- 而本脚本的连接身份就是 work_worker 且带 ON_ERROR_STOP=1 —— 裸 SELECT 会每小时抛 42501，
+-- 把一个"只报不删"的读数变成留存清扫的红灯。细节与增量 0032 的头注释同源，别在这儿重述一遍形状。
+SELECT 'refid=' || x FROM (SELECT work.list_content_refs(:'org') AS x) refs;

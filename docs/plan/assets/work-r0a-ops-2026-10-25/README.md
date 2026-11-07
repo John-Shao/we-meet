@@ -13,7 +13,7 @@
 | `telemetry-contract.json` | 12 个 SLO 的指标/标签/记录规则/告警/runbook 契约；禁止正文/密钥标签 |
 | `generate-telemetry.mjs` | 生成 `prometheus-rules.yaml`；`--check` 检测漂移 |
 | `prometheus-rules.yaml` | 21 条 recording rule + 27 条告警（15 SLO + 12 operational）= 48 条规则 |
-| `prometheus-rules.test.yml` | promtool 告警单测：13 组输入序列、14 条断言，触发与不触发两侧都测 |
+| `prometheus-rules.test.yml` | promtool 告警单测：每条告警都有"会触发"与"不触发"两侧用例；**条数以文件现读为准，不在本表钉**——`alert-rule-coverage.test.mjs` 每次 `ci-contract` 运行都会打印 `27 defined / 27 firing / 27 stays-off`，本表抄数字只会过期（11-06→07 覆盖从 14 条涨到 54 条就是这条过期链的实证） |
 | `telemetry-model.mjs` | 契约/SLO/runbook/标签/PromQL 引用校验 |
 | `telemetry.test.mjs` | 11 组测试（覆盖、target 对齐、track-only、篡改负例、漂移、与 D3 作业契约的跨资产一致性） |
 | `ops-model.mjs` | 控制/SLO/清单校验与 go/no-go |
@@ -37,8 +37,10 @@ python -c "import json; [json.load(open(f, encoding='utf-8')) for f in ['securit
 ## 已验证
 
 - 11/11 ops + 6/6 pilot-ops + 11/11 telemetry 测试通过（共 28/28；黄金任务/试点指标/切换状态机见 `pilot-ops.mjs`）：控制字段/证据、SLO 必需指标/未测不冒充、清单完整性、go/no-go、容量基线、10× 失败、零使用、非法输入；12 个 SLO 全覆盖、target/window/unit 与 `slo-pilot.json` 对齐、track-only 不产生 SLO 告警、缺失/篡改/内容标签/错误 runbook 被拒。
+  **【2026-11-07 09:3x 更正】上面"11/11 ops + 6/6 pilot-ops + 11/11 telemetry（共 28/28）"是过期值。现读逐文件跑：`ops-model.test.mjs` 11/11、`telemetry.test.mjs` 11/11、`pilot-ops.test.mjs` **8/8**，合计 **30/30**。取数法＝对三个文件各跑一次 `node --test <file>` 读 `ℹ tests`／`ℹ pass`，别把总数写在文档里当常量。**
 - `prometheus-rules.yaml` 由契约生成且无漂移：21 条 record、27 条 alert；`promtool check rules`（prom/prometheus:v2.54.1）报告 **SUCCESS: 48 rules found**，`promtool test rules` 对 `prometheus-rules.test.yml` 的 13 组序列、14 条断言 **SUCCESS**。2.54 的 promtool 只支持 `alert_rule_test`（单数）并比较标签与注解，没有表达式单测，所以慢查询类告警改用可被单测覆盖的平均耗时形式；每条告警带 severity/for/runbook 与 `org_id` 注释；标签白名单禁止 goal/background/prompt/content/body/email/api_key/authorization/cookie/session。
 - 当前 `goNoGo`（2026-11-01 清单复审后）：**no-go，33 项中 31 项 blocking、15 个未关闭**，并按 `gate` 拆开：`start`（DR4 开工前必须关闭）**3 项**（C01/C02/C05/C11/C14 已签、C15 已 waived；剩 C03/C04 待 DR2 设计评审、C25 待可用性研究）、`pilot`（试点前）**12 项**（C33 = checkpoint 写入方决策 #280 已按 B 记为书面范围例外、同日 waived；C24/C25 类需要真实试点用户的仍留 `todo`）、`scale` 0 项；`canStartWork` 为 false。关闭全部 start 项只会让 `canStartWork` 变 true，试点 `go` 仍需 12 项实施证据。
+  **【2026-11-07 09:3x 现算更正，原文保留】上面那行是 2026-11-01 的快照，已过期。数字一律由 `ops-model.mjs` 的 `goNoGo(checklist)` 自己算，不要手抄：现读 `go=false`、`canStartWork=false`、`blockerCount=13`（`startBlockerCount=3`／`pilotBlockerCount=10`／`scaleBlockerCount=0`），清单共 33 项、其中 `blocking===true` 共 31 项。取数法：`node --input-type=module -e "import {goNoGo,loadOpsAssets} from './ops-model.mjs'; const a=await loadOpsAssets('.'); console.log(goNoGo(a.checklist))"`（在本目录跑）。13 项的逐条普查见 `docs/plan/work-project.md` 同日 00:48 段那张表。**
 - 基线：36 Run/日、108 模型 Operation/日、7.5 provider req/min、0.125 DB 预留/秒、1.296M token/日、1.156GB/365 天；均在试点限制内。
 - S1 参考演练：worker 重启、DB 终态偏移、执行开关/组织停用、outbox backlog 4/4，`patched` 升级 1/1，file-backed server 重启为修订前结果（未复跑）；见 [Temporal slice](../work-temporal-slice-2026-10-25/README.md)。
 - 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03；C21 on-call runbook。30 个 blocking 中 18 个未关闭（C01/C02/C11/C14 已提前签，C15 已 waived）。

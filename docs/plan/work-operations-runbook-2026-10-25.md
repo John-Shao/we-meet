@@ -725,7 +725,7 @@ org 清单单独放在 `/etc/work/work-reconcile-scan.env`（640 `root:work-cont
 > **裁之前的现网状态（如实）**：1 笔 held=100,000 挂着，`work-runstream-scan.service` 每小时 `BREACH held_on_terminal=1／breaches=1` 标红一次
 > （这是设计的告警，不是新 bug；也别手跑 `work-healthcheck.sh` 去"确认"，它会发信）。发现口径是 gauges，不是 `work-reconcile -scan`（后者只列在途）。
 > 取证：drill 目录 `attachments/d3-i1-temporal-outage-20261105.txt`。
-> **【21:2x 已裁＝A 案（release），原句不删】**这一单已以 work_worker 身份 `set_config(app.org_id,…)` 后调 `work.release_quota(reservation_id)` 收口：`held` 1→0、`quota_account.reserved` 100000→0、`settled` 不变，`quota_entry` 自动留 `reserve`／`release` 两条（函数落的账，不是另写）。**默认口径就此定下**：Run 终态为 `failed`／`canceled` 且派发闸没有 bound 的 `rejected_not_executed` 回执 ⇒ **release，不写 usage、不补造用量**；要保留"将来拿到用量再补正"的可能，必须走 settle（守卫：settle 需 `held`/`unknown`，adjust 需 `settled`）——**release 之后这两扇门都关**，这是选它时已知的代价。**值班可执行形状**（EXECUTE 只授 `work_worker`，5220 行原文；`psql` 要把 URL 当参数传，不认 `WORK_DATABASE_URL` 这个变量名）：,> `psql "$WORK_DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -c "select set_config('app.org_id','<org>',false); select work.release_quota('<reservation-id>');"`,> **待修 #77（代码缺口，未动代码）**：`internal/runflow/activities.go:875` 的 `case "failed","canceled"` 是无条件 release，但 `finish_receipt_missing` 这条终态路径没走到它 ⇒ 终态化却不释放预留、要靠人工 SQL。补口＝增量或 Go 侧收口路径修正＋活库用例＋门禁传播（同 #67 的做法）；不修则 §5.17 的 `held_on_terminal` 会持续靠人工归零。
+> **【21:2x 已裁＝A 案（release），原句不删】**这一单已以 work_worker 身份 `set_config(app.org_id,…)` 后调 `work.release_quota(reservation_id)` 收口：`held` 1→0、`quota_account.reserved` 100000→0、`settled` 不变，`quota_entry` 自动留 `reserve`／`release` 两条（函数落的账，不是另写）。**默认口径就此定下**：Run 终态为 `failed`／`canceled` 且派发闸没有 bound 的 `rejected_not_executed` 回执 ⇒ **release，不写 usage、不补造用量**；要保留"将来拿到用量再补正"的可能，必须走 settle（守卫：settle 需 `held`/`unknown`，adjust 需 `settled`）——**release 之后这两扇门都关**，这是选它时已知的代价。**值班可执行形状**（EXECUTE 只授 `work_worker`，5220 行原文；`psql` 要把 URL 当参数传，不认 `WORK_DATABASE_URL` 这个变量名）：,> `psql "$WORK_DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -c "select set_config('app.org_id','<org>',false); select work.release_quota('<reservation-id>');"`,> **待修 #77（代码缺口，未动代码）**【11-06 更正，原句不删：#77 已实装为增量 **0029**（终态触发器释放未记回执的 held 预留，取证与边界见 §5.27），**但现网未部署**——试点机 ledger 仍是 28，所以本段这条人工 release 的值班口径**在部署之前仍然有效**，不要因为读了 §5.27 就等它自动发生】：`internal/runflow/activities.go:875` 的 `case "failed","canceled"` 是无条件 release，但 `finish_receipt_missing` 这条终态路径没走到它 ⇒ 终态化却不释放预留、要靠人工 SQL。补口＝增量或 Go 侧收口路径修正＋活库用例＋门禁传播（同 #67 的做法）；不修则 §5.17 的 `held_on_terminal` 会持续靠人工归零。
 
 主签 2026-11-04 就 C17 埋点范围单选 **C＝库侧 SQL 读数＋现有邮件告警**，不给 10 个 workload 二进制加 Prometheus 客户端；
 已入库的 48 条 Prometheus 规则与 Grafana 面板**保留、就地标注为未生效**（清单见本节末，不删）。
@@ -746,12 +746,32 @@ timer 是否 enable、org 清单是否与目录 org 数一致、以及容差现�
   上限 24h（§8.3），算进来会让每个配额打满的组织发一封假警报；它仍在 `open_runs` 里可见。写这条例外时踩到一个 NULL 陷阱：
   最初写 `NOT (state='waiting' AND wait_reason='quota')`，`wait_reason` 为 NULL 时整个谓词变 NULL、那一行会被**静默漏掉**，
   改成 `COALESCE(r.wait_reason,'')` 才是「只排除等配额」。
+- **`wait_reason='reconcile'` 的停放不加例外，是刻意的（2026-11-06 15:0x，#81＝B2 ＋ #83 裁 G1）**：
+  这一支现在也有 24h 上界，到期会自动判 `failed／reconcile_timeout`，**但它不该像配额那样被排除**——
+  配额到点是"等不到额度就失败"，语义上是正常收口；reconcile 到点是**一次本可避免的失败**：
+  答案与回执可能早已落库、账也可能已结算，超时只结束等待、既不 settle 也不 release、更不提交 head（G1 的明确代价）。
+  ⇒ 值班的正确读法从"有个僵尸在等人"升级为"**有 24 小时窗口决定要不要救**"：
+  要么在这之前按 §5.17／§5.16 核对并发一次 `-signal-only`，要么就让它以 failed 收尾、事后靠 §5.29 的人工通道补状态；
+  两种都是决定，不是遗漏。**每小时一条 BREACH 不等于告警坏了**——它是设计内的那只钟，
+  `parked_runs` 每过 `stale_minutes` 就再报一次，直到 Run 进终态为止。
+  **另一侧也要说清**：装 0030＋新 `work-worker` 之前，这条钟根本不会自己响完（停放是无界的，见 §5.29 现状），
+  所以上面"24 小时窗口"只对**已部署**的机器成立；现网此刻仍是旧行为，别按新语义去等它自收。
   这条例外现在有活库用例守着：`src/work/cmd/work-reconcile/runstream_gauges_pg_test.go` 直接执行发布件里的
   那条 SELECT 原文（以 `work_worker` 连接、按包装件的方式设 `app.org_id`），两条变异分别把它读成 1（NULL 行漏掉）
   和 3（等配额被当成停放并触发假警报）。
 - `held_on_terminal`（超过 `WORK_RUNSTREAM_MAX_HELD_ON_TERMINAL` 才退出码 2）：挂在已终态 Run 上的未释放预留，§5.17 口径。
   **现值 2 是 2026-11-04 演练残留的临时容差**，有日期、有归属（#56-B 收口语义）、有回收条件：预留归零后必须改回 0，
   改回那一轮会立刻转红并发信，那是预期行为，不是新故障。
+  **2026-11-06 更正（原文按上面这段保留，因为它解释这个键为什么存在）**：那句"现值 2"只描述过主机，且已过期——
+  主机 `/etc/work/work-runstream-scan.env` 自 2026-11-04 21:58 起现读就是 0（A 单 :91 已具名更正过），
+  但**模板 `work-runstream-scan.env.example` 与包装件 `run-runstream-gauges.sh` 的兜底默认当时没跟着改，仍是 2**。
+  `install_env` 只在目标文件缺失时按模板新建，所以任何一次重装或新主机都会把容差静默放回 2，
+  让前两笔"挂在终态 Run 上的未释放预留"不报警——正是这条回收条件要防的事。本轮把两处一起归零，
+  于是回收条件在主机／模板／兜底三个位置同形，由具名门 `test/runstream-tolerance.test.mjs` 钉住。
+  同形不是推定：在容器里按发布链的布局（`/usr/local/bin` 成对安装＋两个 `EnvironmentFile` 的先后顺序）
+  跑发布件原文，对同一笔 `held_on_terminal=1` 读数，新模板 `BREACH … 超过容差 0` 退出码 2、
+  旧模板（`git show HEAD` 那份）`ok` 退出码 0；删掉赋值行让键完全缺失时，包装件兜底仍报 0 并退出码 2。
+  `summary: … max_held_on_terminal=<生效值>` 每次巡检自己打印生效值，所以生效容差取自身证证据，不抄本段。
 - `unknown_operations`／`suspended_orgs`／`open_runs`／`held_tokens`：**只报不判**。前者历史存量 34 条（最老约 5.4 天），
   只有与 `held_on_terminal>0` 同时出现才是要动作的信号；`suspended_orgs` 是有意的运维状态，把它当故障告警会诱导值班
   去解除停用，语义相反。
@@ -763,6 +783,11 @@ timer 是否 enable、org 清单是否与目录 org 数一致、以及容差现�
 同一时刻用默认 5 分钟则 `parked_runs=0`，证明"新鲜度"与"活租约"两个条件都真在生效；
 **四条负例**——移走 SQL 兄弟件→rc=1 并点名"必须成对交付"、org 清单为空→rc=1、容差降为 0→在真实那 2 笔残留上 rc=2、
 DSN 指向不可达端口→`scan_errors=1` rc=1。对照 Run 随后自然 `succeeded`，没留下新残留（`open_runs=0`，held 仍是那 2 笔）。
+**2026-11-06 复现口径（上面四例是当天在试点机上的真实读数，保留原文）**：第三条"容差降为 0→在真实那 2 笔残留上 rc=2"
+今天已不能按字面重做——那 2 笔残留 11-04 21:58 就结算归零了，而容差本身现在是 0，不再需要"降"。
+要再证一次这条越限，用不着在生产造残留：把发布件按本节上面的布局装进容器，只替掉 `psql` 让六条读数按我给的值返回，
+`held_on_terminal=1` 必须 `BREACH`＋退出码 2、`held_on_terminal=0` 必须 `ok`＋退出码 0、`parked_runs=2` 必须走停放那条腿。
+这条通道 11-06 实跑过，九个判据全对，且新旧模板在同一笔 `held=1` 读数上的差别（2→静默、0→报警）就是上面那段更正的证据。
 
 **未生效清单（值班不得把它当告警能力）**：`docs/plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml`
 （21 record＋27 alert＝48 条）、同目录 `prometheus-rules.test.yml`、部署副本 `deploy/observability/prometheus-rules.yaml`
@@ -851,7 +876,7 @@ SELECT id, reason, state, epoch, release_floor_revision
 而 `execution_enabled` 仍 `false`。因此"Host 报 active 就自动重开服务"不是现网行为，试点期的过渡控制是
 P9／C28-1 的人工记录三列现值；`sync_org` 亦被 `baseline/0002:3882` 明确禁止覆盖 `operator_suspended`，方向一致。
 
-### 5.23 运行片段租约接管：中断的那一轮到底丢了什么（2026-11-05，#67=A 实装＝增量 0028，**现网未部署**）
+### 5.23 运行片段租约接管：中断的那一轮到底丢了什么（2026-11-05，#67=A 实装＝增量 0028，**现网未部署**→【11-06 更正：11-05 14:06 已上线，见 §5.29 末段】）
 
 **先读边界**：0028 只在本树与用例里。现网（`work-worker 3b6ad128…`，无 0028）在同样场景下的实测行为是
 attempt 2 于 4m06s 报 `lease_not_claimable`、Run 判 `advance_failed`、operation 落 `unknown`
@@ -1022,6 +1047,327 @@ C＝归 R0b 控制面、R0a 只留库测）。三个选项的代价写在 `work-
   以 superuser 连接跑同一条 SQL 得到的是**全库**计数（授权单 §13 记了这条边界）。
 - 回滚面很小：`disable` timer 即回到今天的手工状态，函数本体与迁移都没动。
 
+### 5.26 发布链的编号闸：0030 这笔为什么"包能建、verify 能跑、rollout 拒绝跑"（2026-11-05 23:0x）
+
+事实顺序（全部现读，中止未留写痕）：
+1. 远端 tip `8879f5691`（四笔：守卫／verify 时刻读法／演练证据／清单回填），`Work R0a gates` **success**（run#240）。
+2. `make-release.sh`（`GO_CONTAINER=work-go-fix29 GO_WORKDIR=/repo/src/work`）产出 `work-release-0030`，
+   `RELEASE_COMMIT=8879f5691`、52 件。上传解包到 `~/work-release-0030`。
+3. **量过再决定半径**：11 个 Go 二进制与 `/usr/local/bin` **逐字节相同**；包里 `run-retention-scan.sh`／
+   `retention-scan.sql`／`run-retention-preflight.sh`／`retention-preflight-d0.sql`／`work-c16-log-scan.sh`／
+   `log-scan.mjs`／`run-runstream-gauges.sh`／`runstream-gauges.sql` 与机上八件也逐件相同；`schema_migration` 28／28。
+4. 于是先跑了**包内** `verify-r0a-0027.sh`（不是我自己抄一份）：`VERIFY_RC=0`，
+   `rows=28 max=28`、`missing in 17..28: none`、`claim_carries_takeover=true`、`guard_allows_takeover_shape=true`、
+   `restore-drill script=present`、`retention preflight wrapper=present sql=present`，
+   且新行印出 `work-retention-scan timer=active enabled=enabled … runs_logged=5 orgs=1`；
+   该文件 sha `81a997e00583` ＝仓库 tip 件 ⇒ §9 记的"现网跑的 verify 与包内不一致"到此**真闭合**。
+5. `rollout-r0a-0027.sh --dry-run` 在**第一步 preflight 就中止**（原文）：
+   `ledger currently at 28` ⇒ `database is ahead of this release (ledger 28); aborting`（`rollout-r0a-0027.sh:140` 写死 `> 27`）。
+
+**这条闸是对的，不要绕过它**。它挡的是"把比库旧的包装上去"——正是 11-04 那两次"包与库不同源"事故的形状。
+但它同时暴露一件我这几轮一直没点破的事：**仓库里没有能装 0028 的发布脚本**（`deploy/ecs/` 只有
+`rollout/verify-r0a-0015/0016/0027`），而现网 ledger 已在 28 —— 也就是 11-05 14:03 那次 C 段部署
+**没有走发布脚本**（走的是 `work-migrate apply` ＋手工装二进制那条路，`install` 出来的 `.bak-*` 与 dump 时间戳能对上）。
+这和 #47／#54 是同一类缺口：**发布链三段里"打包"与"校验"齐了，"安装"这一段还停在旧编号上**，
+于是运维只能靠手工动作，而手工动作正是"来路不明的二进制"与"包内 sha 与现网不一致"的来源。
+
+**两个修法（要主签点头，别自决改）**：
+- 小：把编号 bump 成 `rollout-r0a-0028.sh`／`verify-r0a-0028.sh`，同步 `make-release.sh` 的 `cp` 行与三处守卫
+  （`release-assets.test.mjs` 按 basename 钉 install/verify 成对、`drill-steps.test.mjs:279` 钉 rollout 清单、
+  `ops-env-surface.test.mjs` 钉 env），属机械传播但有面（这两个名字在文档里被引用十余处）。
+- 大（我更推荐）：**别再用字面量当"这一包能装到几号"**——让 preflight 从包里自带的 `work-migrate status/plan`
+  取"这个包的链尾"，只有当**库里有包内不存在的增量**时才 abort。这样"改一次编号要动五个文件"这件事本身消失，
+  而保护语义反而更准（今天这台机其实是"包比库新（脚本更新）但库比包编号新"，字面量把这两种情况混成了一个）。
+
+**值班口径（修好之前）**：ledger 已 ≥ 28 的机器上，`rollout-r0a-0027.sh` 一定会在 preflight 中止——**这不是故障，
+也不要为了跑通去改那个 27**；脚本与单元的更新仍按 §5.25／本节第 4 步的形状走"包内文件逐件比 sha ＋ 包内 verify 复跑"，
+并在授权单里记明本轮没动服务。
+
+中止未留写痕的核对（别假设，去查）：`/var/backups/work` 最新仍是 09:41 那次 `work-pre-0027-…dump`、
+`/usr/local/bin/*.bak-*` 最新仍是 14:06、我 19:04 装的六件 mtime 未变、四个服务全 active、
+`work-retention-scan.timer` `enabled/active` 且已跑到 `next=00:02:43`（23:02 那次自动触发也过了）。
+
+**#78 已裁并落地（2026-11-05 23:3x，主签裁"改成从包里推链尾"）**：上面两个修法都没采用——不 bump 文件名，改成让包自己说话。
+`make-release.sh` 在构建期从增量目录的文件名算出链尾、写成包内 `MIGRATION_TAIL`，算不出就早失败（不产出没有链尾的包）；
+`rollout-r0a-0027.sh` 的 preflight 读它，缺失或非数字就拒绝，只有「库比包内链尾新」才 abort。字面量就此消失，
+加 0029／0030 不必再动发布脚本，而保护语义没放宽——比库旧的包装不上。链尾取自增量目录文件名是有依据的：
+`migrations/embed.go:8` 用 `all:increments` 把同一批文件嵌进 `work-migrate`，所以"包里这个二进制能装到几号"与"链尾读数"同源，
+不是又抄一个数。
+
+**本轮自己造的三处错，都在验证里跑出来了（按实记）**：
+1. 守卫 `doc-schema-refs` 先红在我新写的一句提示文字上——脚本里那句英文提示把 "from migrations" 写成了介词短语，
+   被守卫按 SQL 的 `FROM <name>` 读成一个不存在的表。这是它在正常干活；我改措辞（"derives the tail from the migration chain
+   embedded in this package"），**没有挂 `schema-ref-exempt` 豁免**。
+2. 我第一版把"不许再出现写死编号"钉成整篇正则（`current…-gt +\d+`），然后做变异核对：把那行换回字面量 27——**守卫原地变绿**，
+   红因不是 build failed，是它压根没匹配上（引号不在模式里）。重写为逐行扫描（凡同时含 `-gt` 与 `current` 的行，右值不得是裸数字）
+   ＋正向断言右值必须是那个变量＋空集下限（找不到那次比较就直说"这条断言在空转"）。变异逐个验：字面量与变量并存 → 红并打印 `rollout-r0a-0027.sh:150` 原文；
+   打包侧把链尾写成常数 `echo 27` → 第一版仍绿（我自己中文注释里就有那个目录名，整篇子串断言被散文喂饱了），改成锚在"真正写出 `MIGRATION_TAIL` 的那行代码"
+   （先剥注释再匹配）才红；把那行改名 → 空集下限红。
+3. 现网第一次 dry-run 抓到的是**真缺陷**：`chain_tail="$(cat "$RELEASE/…"` 这种写法在 `set -euo pipefail` 下，命令替换的退出码就是赋值行的退出码，
+   于是文件缺失时脚本在那一行**静默死掉、一行解释都不打印**（机上读数：RC=1、输出 2 行）。拒绝的方向没错，但值班的人不知道为什么被拒。
+   本机用同样三行复现（坏形＝RC=1 无输出；修形＝先打印原因再 RC=1），改成读不到也继续、把判断交给显式的数字校验；
+   这个形状也钉成断言（读链尾那行必须容忍缺失）。
+
+**现网实证（全部 `--dry-run`，零副作用）**：包 `work-release-0031`（链尾读数 28，52 件在机上按包内清单逐字节核对全 OK；
+11 个 Go 二进制硬链自 `work-release-0030` 并通过清单＝与本次包逐字节相同，因为 Go 源码自 0030 起未动）。三条判据各对一件事：
+新脚本＋带链尾的包 → 打印"package chain ends at increment 28"、preflight 通过（RC=0）；新脚本＋**没有**链尾文件的旧包 →
+说明原因后才拒（"`…/MIGRATION_TAIL` is missing or not a number"，RC=1、输出 4 行）；旧脚本（写死 27）＋它自己的包 → 仍中止
+（"database is ahead of this release (ledger 28)"）——即本节第 5 条不是我推演出来的，是这个包在这台机上真的装不上。
+前后读数不动：账本 28、备份仍 15 件且最新仍是 140636、`/tmp` 无新 dump、`work-worker` 仍是 pid 1875248 / 14:10:52 那个进程。
+
+**边界（别说成已部署）**：修好的发布脚本现在只在仓库与包里（机上路径 `~/work-release-0031/rollout-r0a-0027.sh`，sha 前缀 `caccdd301d742fa9`），
+**没有装进 `/usr/local/bin`，也没有重跑真实 rollout**——装它属生产写，另按项授权。在那之前上面"值班口径（修好之前）"那段仍然生效，
+只是要验一笔发布能不能装时，可以用包内这份脚本跑 dry-run，而不是先去改那个数字。
+
+### 5.27 #77 落地：终态 Run 不再挂着预留（增量 0029，2026-11-05 23:5x–11-06 00:0x，**现网未部署**→【11-06 更正：07:57 已 rollout，ledger 现读 29；边界见 §5.29】）
+
+§5.21 记的那笔人工收口（以 work_worker 手跑 `work.release_quota`）现在由库侧自己做了。口径就是 #76 裁的那句：
+**Run 进终态、预留还是 `held`、且该 operation 在交付闸上没有 `receipt_recorded` ⇒ release 全额退回**。
+实现是增量 `0029_terminal_reservation_release`：`work.release_unreceipted_reservations(run, org)` ＋ `work.run` 上的
+行级 `AFTER UPDATE` 触发器（只在 `state` 这一列被改写、且新值落进三个终态之一时起作用）。选触发器而不是只补 `finish_run`，
+因为今天有多条路能把 Run 写成终态（finish_run、取消完成、supersede），不变量说的是 Run 的状态而不是哪个函数写的——
+**值班手工收口也走同一条账**，这正是 §5.21 那段"靠人工一条 SQL"想消掉的东西。
+
+**两条不撤的边界**（都写在增量注释里）：`state='unknown'` 的预留不动（金额本身未证，归 `reconcile_operation` 判）；
+闸上已 `receipt_recorded` 的不动（那是服务端"调用真发生过"的证据，撤了就等于抹掉一笔真实账单）。
+**代价也要写清**：release 之后 settle 与 adjust 两扇门都关（`release_quota` 只接 held），所以"将来拿到那次用量再补正"的可能
+被换成"账上不长期挂帐"——这是 #76 选 release 时就摆明的取舍，不是这里的实现失误。
+
+**验证**（本机活 PG，非现网）：`0001→0029` 整链一次灌入 rc=0（177 个关系、两个函数、1 枚触发器、`work_worker` 有 EXECUTE）；
+`work-migrate apply --legacy-migrator-disabled` rc=0 且 `status` rc=0（清单与 catalog 校验过）；
+`go test ./internal/authz/ -count=1` **ok 34s**，四个用例分别钉住"漏账闭合＋幂等（重放不再 release 第二次）"
+／"已记回执不撤"／"`unknown` 不撤"／"`waiting` 不是终态所以不撤"。
+其中"已记回执不撤"是反向对照：**没有它，前一条 pass 只能证明"终态就乱撤一通"**。
+用例第一版撞过一次状态机守卫（`invalid_transition:run:active->canceled`，SQLSTATE 23514）——那是控制在正常拦截，
+改成先落 `cancel_requested` 再收尾，不是把断言放宽。
+
+**顺带把 #78 那个洞的另一半堵了**：`verify-r0a-0027.sh` 的账本清单原本手写停在 17..28，0029 落地那天同样会静默漏核。
+现在既有守卫（manifest → verify 单向）锚在 SQL 别名而不是"missing in 17.."这种带编号的标签上
+（标签一过期，守卫会认错块——本轮实测它就是这么红过一次），并新增一条反向断言（verify 里不许有 manifest 没发布过的增量名）。
+变异核对：把清单里的 0029 换成错名 ⇒ 红在 "these published increments have no verification line"；还原后 sha 逐字节相同。
+读数字面量也改了：那行现在印 `missing rows against the list this script ships: none (all present)`，
+不再用 `(N rows)` 报一个其实是"缺失条数"的数——第一版在 13 条全齐时打出"0 rows"，会把值班引进"清单是空的"这个误读。
+
+**边界一条，值班要记**：PostgreSQL 给新函数默认授予 PUBLIC 可执行，而 baseline 的装配循环只走它认识的那批签名。
+0029 的两个函数因此必须各自把 PUBLIC 的 EXECUTE 撤掉（保留 work_worker 的 GRANT——触发器以调用者身份运行，
+而 `finish_run` 只授给 work_worker）。这一步不是我谨慎：漏掉它时，仓库里既有的穷举守卫
+`internal/api/function_privilege_sweep_pg_test.go:31` 会把两个函数名直接点名出来——它只在跑全量活库回归时才会暴露，
+单跑 authz 包是绿的。**结论照旧：子集绿不等于全绿。**
+
+**现网状态**：**0029 未部署**。库里 ledger 仍是 28，包 `work-release-0031` 也不含它（构建于 0029 落地之前）。
+
+**【11-06 00:2x：0029 与两处已签文本相冲，登记为待裁 #79；裁之前不要部署这个增量】** 扫 0029 的影响面时读到原文，发现"终态即自动 release"与我这几轮引用的默认口径来源之外，还有两条**更早已签**的文本对着干：
+- 数据设计 `work-r0a-data-design-2026-10-25.md:279`：供应商用量缺失时"回执可记录 `unavailable`，但不能补 0 假结算；**保留预留并进入用量核对**，确认用量后才允许下一次模型许可"。
+- 本节 §5.17 第 651 行："**是否对已终态任务释放预留属运维决策**，按 §5.16 的备份与审计要求执行，**不得为「清库存」放宽**"。
+
+也就是：#76 裁的是"这一单怎么收"＋"默认口径写成 release"，而这两句说的是"用量未证时预留要**留着等核对**、放不放**归运维判断**"。
+0029 把它变成库侧自动动作，方向上又比 #76 那句更宽（它对所有终态 Run 生效，不限 `unknown` 无回执那一类）。
+**三个可选项与代价**：
+- **A 保持 0029 现状**＝账上永不留长期挂帐，代价是直接与上面两句相冲，且"运维决策"那半变成没有决策；
+- **B 收窄 0029**＝只在 `operation.state='unknown'` 且闸上无 `receipt_recorded` 时释放（正好等于 §5.21 那个已裁形态），
+  这样 `unavailable`（用量待核对）那类仍按 :279 保留预留——**这条是与 #76 最贴合的形状，改动量＝触发器里加一个 operation 状态条件＋补一条用例**；
+- **C 不自动释放**，把 §5.21 的人工收口升级成有审计的固定流程（保留 :279／651 的语义，代价＝回到"靠值班记得做"，`held_on_terminal` 继续每小时标红）。
+我倾向 **B**：它消掉 D3-6 那类长期挂帐，又不冒充一个已被签收文档否认的"自动决定"。
+**未自决**：0029 树内保留（代码与用例已验、现网未部署），部署与"是否改成 B"都等你点头；若选 B，增量文件改动会重算 checksum 与 catalog，我会重跑那套取证。
+
+**【#79 已裁＝B，并已按 B 重做取证（11-05 23:0x，仓库＋本机活库，现网仍未动）】**主签选 **B 收窄到 unknown 无回执**，同时点头"先提交这批文件再谈部署"（push 仍单独等点头）。
+落地是谓词加一条 `AND o.state = 'unknown'`——A 案（对所有终态 blanket release）明确未被采用，这条谓词就是 :279 与 §5.17:651 那两句在库侧的**存续体**。
+**新证据（不是复算旧结论）**：整链重灌 rc=0（`trig=1`）；catalog 重采、增量与 catalog 两个 checksum 回钉 manifest；`go test ./internal/authz/` **ok 36s**，用例从 4 条变 5 条：
+正向（unknown 无回执 ⇒ release＋幂等）／回执反向对照／**非 unknown 不撤**（新增）／预留本身 `unknown` 不撤／`waiting` 不是终态不撤。
+**两处必须记的现场纠正**：① 新增的控制组我第一版想用 `unresolved` 状态，直接被 Operation 状态机拒绝
+（`invalid_transition:operation:dispatching->unresolved`，SQLSTATE 23514）——那个状态只能由 `reconcile_operation` 产生，伪造它等于测一个生产拿不到的形状；
+改成用夹具自然落在的 `dispatching`，验的仍是同一条谓词。② 回执那条对照在 B 之后会**变成空跑**：两个条件同时保护同一行，
+不逼出 `unknown` 它就只证明状态条件——所以用例里显式把 Operation 置成 `unknown`，让**只有回执**这一件事负责。
+**变异核对**：把 `AND o.state = 'unknown'` 摘掉 ⇒ 红在 `operation=dispatching: reservation=released reserved=0, want still held/1000 (only 'unknown' releases)`；
+还原后增量文件 sha 与变异前记录逐字节相同（`dc06a340…`），再跑 authz 仍 ok。⇒ 这条谓词不是装饰，红因是断言文本。
+门禁（这次文档编辑之后复跑）：design 82/82、`ci-contract` exit 0、ops 30/30。**0029 仍未部署**：现网 ledger 28，§5.21 那条人工收口口径继续有效。
+
+**【11-05 23:1x 补一条 CI 侧的存续体】**上面那个范围是活库用例在管的，而那批用例没有 `WORK_TEST_PG_URL` 就整组 skip ——
+**CI 上没人盯着"有人把谓词摘掉＝退回 blanket release"**。所以在 `release-assets.test.mjs` 里加了一条静态镜像守卫：
+读增量原文（先剥掉注释行再比，注释喂不饱断言），要求 helper 里同时有 `r.state = 'held'`、`o.state = 'unknown'`、
+`receipt_recorded` 豁免，且**不许**出现状态集合写法（放宽成集合＝要重裁 #79）；再核 PUBLIC 撤权行数必须等于 2
+（少一行就是活库穷举守卫 `function_privilege_sweep` 会红的那件事），最后把触发器的 WHEN 集合与"从 `work.run` 的 CHECK 枚举
+现读推出的非终态补集"逐项比对——终态集合以后随枚举漂移也红在这里。**三条变异各自验过**：摘谓词／删一行撤权／WHEN 里塞 `waiting`
+⇒ 三条分别红在自己的断言文本上；还原后增量 sha 与变异前逐字节相同。门禁：design **83/83**（这条守卫被自动发现）、`ci-contract` exit 0。
+
+**【11-05 23:2x 更正上面那条"CI 上没人看"——它是错的，原句不删】** `work-r0a-gates.yml:198-226` 的 `go-migrate` job
+（working-directory `src/work`、postgres:16 service）**就设了** `WORK_TEST_PG_URL`，并跑 `go test ./... -p 1 -count=1`
+⇒ 活库用例在 CI 确实跑。守卫仍然保留，但理由换成真的两个：**无库的 `ci-contract` 路径上几十毫秒就红**，不必等一次带 PG 的 job；
+并且"范围只到 unknown"这条规则要有一句可引用的断言，而不是只留在增量文件的注释里（注释会被改写，断言不会）。
+**这是我连着第二次把没取证的定性写进文档**（同一天前一次是 `held` 那句）——读到"CI 不管这个"这类句子，先去 workflow 找那行 env，别信我。
+下方那行"design 82/82"是加守卫之前的读数，现算 **83/83**。
+部署它要走 `work-migrate apply` 的真实半径（迁移＋二进制＋重启），要另一次授权；
+授权之前 §5.21 那段"手工 SQL 收口"的口径**仍然有效**，runstream gauges 的 `held_on_terminal` 仍是发现手段。
+门禁（最后一次编辑之后）：design 82/82、`ci-contract` 82＋38＋24＝144／exit 0、ops 30/30、`bash -n` 过。
+
+### 5.28 发布链现在自己声明带哪些二进制（#54 根因，2026-11-05 23:1x，**主机未动**→【11-06 更正：07:57 已随 0029 上线，半径 13】）
+
+值班口径里有一条隐含假设："包里有的东西＝rollout 会装的东西"。查 #79 影响面时枚举 `cmd/` 才发现这个假设早就不成立：
+树里有 **13 个二进制**，打包名单是手抄的 **11 个** ——`work-e2e-seed`（注入批次的前置）与 `work-replay` 从来没进过包，
+`deploy/` 与 runbook 也零引用。于是主机上那份 seed 是 Oct 30 手工放的：没有源提交、没有 checksum、没有安装路径。
+**#54 当时"完成"的是取证与裁定，根因没修**，现在把它改回未完成并修在这里。
+
+改法与 §5.26 同一条思路（别让脚本抄结论）：`make-release.sh` 构建期把清单**推自 `cmd/` 目录**并写成包内 `BINARIES`
+（推不出至少 12 条就拒绝出一个短包）；`rollout` 读它——**包里没这份声明就直接中止**，并按声明逐件核文件是否存在；
+常驻服务那条安装循环不变，另加一条只装演练二进制的循环。`verify` 新增一段报这两个名字在场与 sha，
+**`MISSING` 的含义是"这台机还没跑过带它们的 rollout"，是部署状态，不是缺陷**，别照它报警。
+
+**跑 `work-e2e-seed` 必须以 work-control 身份（2026-11-06 08:0x 现网定位，值班与演练都要读这条）**
+现象：一笔种子 Run 终态 `failed/prepare_failed`，worker journal 里 `PrepareAdvance` 连败 3 次 `advance_input_read_failed`。
+产地是**内容存储读取**（`internal/runflow/advance_activities.go:119` 的 `Content.Get`），**不是** SQL、不是 RLS、不是配额、不是 0029。
+现证：`/var/lib/work/content` 下 1333 个对象属主均为 `work-control:work-control`（模式 600），唯独这笔对应的
+`…／f7f3c67051d3e60ab6f114d5ef3b758a.enc` 属主是 `root:root`（600），时间戳 08:03:44 与种子时刻吻合；`newest_root_owned=1`。
+成因就是用 `sudo bash`（root）跑了 seed，而 worker 以 `User=work-control` 运行，读不到 root 所有的 0600 文件。
+**口径**：`work-e2e-seed` 一律 `sudo -u work-control …` 执行，让它把对象写进属主为 `work-control` 的内容目录；
+以 root 跑会留下"任务与 Run 都在、内容读不到"的失败样本，极易被误判成配额或 0029 的回归。
+已存在的 root 所有对象要重播前先改属主（`chown work-control:work-control`），那属生产写、需主签点头。
+**本次残留按实记、我未清理**：Run `f2046de9…`（`failed/prepare_failed`）与它的 task，以及那一个 `root:root` 的内容对象。
+
+**部署时要注意的行为变化（第一次跑带这段的 rollout 会看到）**：演练那条循环会把 `/usr/local/bin/work-e2e-seed`
+**换成仓库构建的那一份**（旧文件按既有规则留 `.bak-<stamp>`）。替换现网二进制属生产写，仍按项授权；
+`work-e2e-seed` 与 `work-replay` 都没有 unit，装上不等于有东西在跑它们。
+
+**半径要读脚本自己报的那一行，不要读本文或任何单子里的数字。** 值班与授权文档里"装 10 个二进制"这句活了很久，
+而 #54 之后 `install_binary` 有三处调用（`work-migrate`＋常驻 10＋演练 2）＝**13**；现在 `rollout` 在收尾时自己打印
+`binaries this rollout will replace (dry-run plan) = 13 -> …`（由 `install_binary` 里的计数数组累加，不是抄的常数）。
+**同一次现读还翻出一个对授权有决定意义的事实**：`work-migrate` 内嵌迁移链，0029 落地后它与主机/上一份包**字节不同**
+（包内清单当场报 `./work-migrate: FAILED`；传真件后 55/55 OK）——也就是说"这一包只动脚本、没有功能 delta"这类话
+**以后必须现读比对，不能再按上一包的结论说**。取证见 §5.26 的 dry-run 记录：ledger 前后 28、无新 `.bak`／dump、worker 进程未动。
+
+**机器看守**：`release-assets.test.mjs` 新增一条穷举——`cmd/` 里每个二进制必须**恰好**被一条安装循环覆盖一次
+（`work-migrate` 由 migrate 那一步按名单独装），漏一个就报"进不了现网"，重复一个就报"安装有两处说法"；
+同一条测试还要求打包侧确是从树里推、包内确有 `BINARIES`、rollout 确读它、verify 确点名 seed。
+**取证**：三包 `bash -n` 过；包 `work-release-0034` 印出 `packaging 13 binaries`、`BINARIES` 13 行、`sha256sum -c` 55/55 OK；
+`release-assets` 13/13、design 84/84、`ci-contract` exit 0、ops 30/30。
+两次我自己造的错也记在这：变异红在空集下限而不是等值那条（下限先说话）；abort 提示里一句英文 "derives the list from cmd/"
+被 §5.26 那条同一个守卫读成表名——改措辞，**没有挂豁免**。
+
+### 5.29 Temporal server 被进程级 SIGKILL 之后，值班会看到什么（2026-11-06 08:44–09:23 现网实测，I-2／`S1-3` fail 的运维面）
+
+**先给结论的操作版**：Temporal 的容器 init 进程被 `kill -9`（不是 `delete pod`）之后，**库不会自己把在途 Run 收完**。
+它会停在 `state='waiting' / wait_reason='reconcile' / terminal_reason IS NULL`，`task_summary.display_state` 仍显示 `running`，
+`quota_reservation` 那一笔仍 `held`。这不是"卡住没恢复"——恢复发生在 Temporal 侧，只是**恢复的终点是停放**：
+
+- `work-reconcile -scan -org <org>` 会把它列出来，且 `workflow_status=Running`／`orphan=false`——
+  所以**永远不要拿 `orphans=0` 当"没有停放 Run"**（§5.16 那条可见性边界在这里同样成立）。
+- 发现口径是 §5.21 的每小时 gauges，报的是 **`parked_runs`**，不是 `held_on_terminal`：
+  实测 09:16:24 那行原文 `BREACH org=4a2d3f28… parked_runs=1 held_on_terminal=0 unknown_operations=36 open_runs=1 held_tokens=100000`，
+  单元以 `status=2` 退出（设计中的标红，**不要去"消警"**，也别手跑 `work-healthcheck.sh` 去确认——它会发信）。
+- **这一族 0029 不管，而且不该管**（§5.27 的边界，别读成回归）：0029 按 #79=B 只认"Run 已终态＋`operation.state='unknown'`＋无可信回执"。
+  本形状的三条全不满足（未终态／`operation='dispatching'`／`receipt_result='success'`），所以预留不释放是**正确行为**；
+  `held_on_terminal=0` 就是它没误触发的现证。挂着的预留要等 Run 真进终态那一步才会被处理。
+
+**机制（要写给下一班看，全部来自事件属性）**：`AdvanceRuntime` 在 `internal/runflow/advance.go:457` 是
+`StartToClose=4min／ScheduleToClose=10min` 且带 RetryPolicy，所以崩溃丢掉的那次派发会在约 4 分钟后以
+**attempt 2** 重投（现读 `event23 SCHEDULED@08:44:23.432 → event24 STARTED attempt=2@08:48:33.443`）。
+重投**不会二次打供应商**：交付闸的那一行在 attempt 1 期间已经写完（`consumed_at`／`receipt_recorded_at`／`receipt_result='success'`
+三件都早于崩溃时刻），attempt 2 读到已有回执即返回 `StateWaitingReconcile`。随后 `advance.go:272-277` 调 `WaitRun(reason='reconcile')`
+把库侧置停放，然后阻塞在 `resume`／`cancel` 信号通道上——**这一支没有超时**（配额那一支有 24h 上限，`advance.go:211-218`），
+所以它不会"过一会儿自己好"。
+
+**唯一已验过的处置**（一次生产写，需按授权逐项点头；§5.16 的身份与备份要求照用）：
+
+```
+sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/work/work-worker.env | xargs -d'\n') \
+  /usr/local/bin/work-reconcile -org <org> -operation <operation_id> -signal-only
+```
+
+前提是 `-scan` 显示 `workflow_status=Running`（对已结束 workflow 发信号会报 already completed）。
+预期形状与 11-05 14:2x 那次 `D1-6`／`D2-4` 的实测一致：`resume` ⇒ `finishCheckpointed` ⇒ 有 `success` 回执则结算并
+`succeeded`、`held` 归零、`display_state` 落真值。**若回执是缺的**（I-1 那笔的形状），同一条信号会得到
+`failed/finish_receipt_missing`＋预留不释放，那才走 §5.27 的 0029／人工 release 口径。
+
+**取证**：演练目录 `attachments/s1-i2-temporal-sigkill-20261106.txt`（含 SIGKILL 与优雅删除的对照读数：
+`lastState.exitCode=137`、上一容器日志 graceful/shutdown/signal 关键字 0 行，对照 I-1 的 `goaway graceful_stop`）。
+
+**顺带把三处过期状态标签就地改口**（都是标题里的字，容易被当现状读；原文不删，只标注）：
+§5.23 的"增量 0028 现网未部署"自 11-05 14:06 起失效（0028 已上线并据此改判过 `D1-6`／`D2-4`）；
+§5.27 的"增量 0029 现网未部署"自 11-06 07:57 起失效（现读 `ledger=29`、`terminal_release_guard=true`、`public_exec=f`）；
+§5.28 的"主机未动"同一时点失效（那次 rollout 半径由脚本自己打印＝13 个二进制，`.bak-20261106-075709` 留 12 份，
+`work-e2e-seed`／`work-replay` 两份演练件也是那时装上去的，本轮 I-2 用的就是它们）。
+
+**【11-06 11:41:56 补一条值班必读：人工 `-signal-only` 解开停放之后，账能结清但 Run 可能收不到终态】**
+上面那句"唯一已验过的处置是人工发一次 resume"在 11-06 被一次真实现场**部分推翻**，形状要记准：
+- 好的那一半确实成立：`resumed=true` 之后 operation 转 `succeeded`、`usage_recorded_at` 填上、成果 `artifact.published`、
+  预留 `settled`、`quota_account.reserved` 由 100,000 归 **0**、`settled` 增加真实 308 tokens。
+- 坏的那半：**Run 没有终态化**。workflow 在 finish 阶段撞 `finish_head_conflict`
+  （`internal/runflow/advance_activities.go:999-1014`：崩溃前 attempt 1 已经把答案提交进 canonical head，
+  而 resume 带的是崩溃前的 head 快照，相等性兜底没过）⇒ 执行以 `FAILED／finish_head_conflict` 结束，
+  Run 停在 `state=active／terminal_reason=NULL`，worker 另有 3 次 `AbortRun → abort_run_failed`（收尾链也走不完）。
+  **【11-06 13:2x 这条括号的根因已具名并在仓库修好，现网未部署】**`abort_run_failed` 的内层原因是
+  `settle_quota` 回 `settlement_revision_not_monotonic`：finish 已按回执结过账，`abortOperation` 却照调用方传入的
+  `ReservationID` 去结算一行已经 closed 的预留。修法＝只在库报 held/unknown 时才信那个 id，已关的预留不再当活儿干，
+  清理链直接 `finish_run`。⇒ **在装带这个修复的二进制之前，值班仍要按下面的人工关闭通道收**；装上之后，
+  同一形状会自己落成 `failed／terminal_reason=finish_head_conflict`，不再需要人工写。
+  ⇒ 用户/管理面看到的是"进行中的任务、但成果已发布"，这是**状态错误而不是资金错误**。
+  **【11:5x 更正上面括号里的机制——它当时是推测，现读推翻了它，原文不删】**`work.runtime_checkpoint_head` 现读
+  `checkpoint_revision=0／updated_at=08:44:23`，且 11:41:56 那一秒**没有** `runtime.checkpoint_committed` 审计行
+  ⇒ **head 从未被推进、revision 1 根本没提交**，所以撞的不是那三处"head 相等性"分支（`:1006/:1014/:1022`），
+  而是**第四处：`commitHead` 被拒、它后面两条兜底都没接住**（`:1050-1080`）。兜底一＝"重放发现同一后继已提交"
+  （条件 `latest.Revision == head.Revision+1`，head 仍是 0 ⇒ 必然不成立）；兜底二＝0028 那条"租约已过期就接管后再提交一次"
+  （需 `isLeaseElapsedError(err)` 命中且 `reclaimFinishedExecution` 成功）。现读审计线：08:44:23 执行 `d2c73e8e` 注册并认领 →
+  **08:48:33 `runtime.execution_taken_over`**（0028 的租约接管在生产第一次真跑到，这是正面证据）→ 停放约 3 小时无心跳、租约必然过期 →
+  11:41:56 `operation.finish_from_receipt`＋`artifact.publish` 都成功、唯独 head 提交失败 → 同秒 `runtime.execution_revoked`。
+  ⇒ 还剩两种可能没分辨：(a) `isLeaseElapsedError` 没认出这条错误，0028 兜底整条被跳过；
+  (b) 兜底跑了但 `reclaimFinishedExecution` 拒绝——因为该行已在 08:48 被接管过，不再是 0028 接受的形状。
+  **分辨它需要一条按生产顺序来的复现用例**（接管 → **停放 3 小时** → resume → finish）；
+  已有的 `TestAdvanceFinishCommitsThroughTakenOverLease` 只走"接管 → finish"，覆盖不到这个形状，这也解释了为什么它一直绿。
+- 与 §5.16 那条可见性边界的关键差别：这一次 `work-reconcile -scan` **能报出来**（现读 `workflow_status=Failed／orphan=true`），
+  因为执行已结束——不像 08:48 那次执行还活着、`isOrphan()` 按定义看不见。⇒ **§5.16 的人工孤儿关闭通道在这里适用**，
+  且它是有证据门的人工写（#34=A），不要指望自动收口。
+- **【11-06 13:3x 增量 0030 已在仓库落地，上面这句从"永远如此"改成"到装 0030 之前如此"】**这个形状现在会自己收口：
+  `work.commit_runtime_checkpoint` 在 deadline 之后仍拒，**唯一例外**是"这一 execution／operation／attempt 上已有一行
+  `receipt_recorded` 且 `receipt_result='success'` 的闸行"——那一步已经付费，提交它是记账而不是重新驱动
+  （不接管租约、不改 holder，且 `consume_dispatch_delivery` 对过期 deadline 照旧拒 ⇒ 结构上不可能二次投递）。
+  同批把收尾链修好：`abortOperation` 只在库报这行预留仍 `held`/`unknown` 时才结算，已结过的不再重结，
+  于是 `abort_run_failed` → `settlement_revision_not_monotonic` 这一条不再把 Run 留在 `active`。
+  **值班的实际差别**：装上带 0030 的 `work-migrate` 链与新的 `work-worker` 之后，同一现场应直接落成
+  `failed／terminal_reason=finish_head_conflict`（或 `succeeded`，取决于 finish 走没走通），成果与账目一致，
+  **不需要**人工 `-signal-only` 也不需要 §5.16 的关闭写；在那之前上面的人工口径全部照旧有效。
+  现读判据（装完之后用来确认它真生效，别看代码）：`work.audit_event` 里 action=`runtime.checkpoint_committed`
+  且 `metadata->>'durable_receipt_after_deadline' = 'true'` 的行存在＝例外支被走过；
+  该键为 `'false'` 的那些是租约内正常提交（含 head revision 0 那条），两种都要有，全是 `false` 就说明这条链在生产还没被触发过。
+- 巡检口径别读错：此时 `run-runstream-gauges` 报 `open_runs=1 held_tokens=0 breaches=0`——预留已结清所以不 breach，
+  这条 Run 要等 `stale_minutes=5` 之后才被计进 `parked_runs`。**"没有 BREACH"不等于"没有停在 active 的僵尸 Run"**，
+  手工现读用：`select id,state,updated_at from work.run where state in ('queued','active','waiting','cancel_requested')`，
+  再对每笔 `temporal workflow describe --workflow-id run:<id>` 看 Status 是否已经 FAILED／COMPLETED。
+- 已登记为 **#82**（finish/abort 链的缺陷，是 #81 那条"给 reconcile 加超时"的前置：超时分支走的是同一条链）。
+
+### 5.30 审计导出卡死与内容孤儿：为什么"过期的租约"不会自己被人重领（2026-11-06 10:26–11:03 现网实测，I-3／`N03-1` fail 的运维面）
+
+值班如果看到"某笔审计导出一直是 `running`、`ready_at` 永远为空、管理面显示进行中"，**它不会自愈，也不该等自愈**。原因与读法：
+**【11-06 14:4x 增量 0031 改写了上面这句的适用期，原文不删】**仓库里 `work.list_pending_audit_exports`
+已改为"`queued`，或 `running` 且租约已过期（含 `lease_until IS NULL`）"，与 `claim_audit_export` 本来就允许的过期重领同形。
+⇒ **装上 0031 之后这一支会自愈**：常驻 export worker 下一轮就会把那笔重新领走（旧持有者的 `complete` 会以
+`audit_export_lease_lost` 被拒，这正是 I-3 现场取到的那条）。**在此之前——也就是现网此刻——上面"不会自愈"仍是正确的值班口径**，
+人工 `claim` ＋ `fail` 的顺序照旧走。判据别靠猜：装后读 `work.audit_export`，同一条 `id` 的 `status` 从 `running`
+变成 `ready`/`failed` 即为已被重领；仍停在 `running` 且 `lease_until` 早过，说明跑的还是旧二进制。
+
+- **发现层只认 queued**。`work.list_pending_audit_exports` 的谓词原文只有 `e.status = 'queued'`
+  （`baseline/0002:4695-4697`），而 `status='running'` 仅由 `work.claim_audit_export` 写（`:4732`）；
+  baseline＋increments 里没有任何针对 stuck-running 导出的清扫（`grep "status = 'running'"` 只有那一处写入点）。
+  ⇒ `claim_audit_export` 虽然允许过期重领（`:4724` 只在 `lease_until > now()` 时抛 `audit_export_not_claimable`），
+  **但没有调用方会去领它**——本轮实测：租约 10:58:55 过期后，我把常驻 `work-export` 恢复并让它 5 秒一轮连轮 12 次，
+  `pending_for_worker=0`，那笔行到 11:03:23 仍是 `running／content_ref=NULL／ready_at=NULL`。
+- **对照：outbox 那条路的租约是真能自愈的**。`work.claim_outbox` 的取行条件包含 `claimed_until IS NULL OR claimed_until < now()`，
+  所以持有者死后过期即可被第二份 relay 重领且只投一次（本轮 `N01-2` 现场：10:39:30.133／.135 两行各投一次，`dup=0`、`dead_letter=0`）。
+  ⇒ **同样是租约，两条路的自愈能力不对称**；不要把 outbox 的经验套到 export 上。
+- **内容侧还有个收不掉的副作用**：export 的 `Put` 在 `complete` 之前，提交被拒（`audit_export_lease_lost`，`:4780-4785`）时
+  文件已经在盘上。本轮留下 `267c8708d6273eb51b2a4f261af78844.enc`（1,438,105 bytes，属主 `work-control`）：
+  库里引用它的行 **0**、指向它的 `content_shred` 事件 **0**——因为 shred 只由 `audit_export.content_ref` 驱动，而该行恒 NULL。
+  ⇒ 它不会被留存清扫删掉，也不会被任何巡检报出来。**现读法**（只读）：
+  `select content_ref from work.audit_export where content_ref is not null` 取引用集，与
+  `find /var/lib/work/content -name '*.enc' -printf '%f\n'` 的盘上集做差；差集里若出现"某个导出时刻附近写入、体积与导出文件同级"的对象，就是这类孤儿。
+  手工 rm 属生产写且会毁掉缺口的物证，**在结论被接受前不要删**。
+- **人工收口那笔卡死行**（两条写，顺序固定；身份 `work_worker`＋`SET app.org_id`，口令只走进程环境）：
+  `select work.claim_audit_export('<export_id>','ops-recover',60);` 紧接
+  `select work.fail_audit_export('<export_id>','ops-recover','export_read_failed');`
+  ——claim 必须先把 `lease_owner` 换成自己，否则 fail 会同样抛 `audit_export_lease_lost`（同一个三查）。
+  这属逐项授权动作，登记在授权单 §15 的 **I-3b**。
+- **别把这三条巡检当兜底**：`work-retention-scan`（每小时，报 `stuck_shred`）看的是 shred 事件堆积，不看 running 导出；
+  `work-runstream-scan`（§5.21）看的是 Run／预留，也不看导出；管理面 `get_audit_export` 只会如实显示"进行中"。
+  ⇒ 目前**没有任何现成控制能发现卡死的导出行**，这是一个可见性缺口，已随 `N03-1` 记入演练账（不是本节目能修的）。
+
 ## 6. 容量证据
 
 ### 6.1 当前 DDL 烟雾（2026-10-25）
@@ -1080,3 +1426,227 @@ C＝归 R0b 控制面、R0a 只留库测）。三个选项的代价写在 `work-
 8. **对外表述**：`evidence_exhausted` 既不是「已确认失败」也不是「已完成」，界面与回复一律写「证据已穷尽·无法定论」；治理与用量报表把该 Operation 及其未释放预留**单列**，不得混入正常结算。
 9. **禁止事项**：不得用 `evidence_unavailable` 顶替副作用类；不得释放 unknown 预留来「解锁」任务；不得新增常驻作业或绕过 §1.4 端点表把 reconcile 暴露成 HTTP 口。
 10. **演练状态**：`not_run` —— 上述流程均未经真实环境演练，对应验收规格是 EV113/EV115/EV120；演练通过后在此逐条记录日期与证据位置。
+
+
+### 5.31 三个新终态/读数在装上前线与后线怎么读（`reconcile_timeout`、`durable_receipt_after_deadline`、`content_orphans`；2026-11-06 14:4x，**增量 0030／0031／0032 与两个 Go 修复均未部署**）
+
+**先说这一节的适用条件**：下面三条都是**仓库事实**，不是现网事实。现网此刻仍跑 0029 链尾与旧 `work-worker`，
+所以看到"没有这些读数/终态"是**预期**，不是故障。装上（＝授权单 I-4）之后本节才生效。
+
+**【11-06 17:5x "装上"现在分两档，这三条读数要按档归属】**`rollout-r0a-0027.sh --migrations-only`（＝I-4a）只装链与留存清扫那一对文件，
+换 `work-worker` 是另一档（I-4b）。于是：**`durable_receipt_after_deadline`（0030）与"过期租约的导出被重新领走"（0031）在 I-4a 之后就应该出现**——
+现网那两支二进制本来就在调被 `CREATE OR REPLACE` 换掉的函数，换的是函数体、不是调用面；
+而 **`reconcile_timeout`（#81）在 I-4a 之后仍然不会出现**，它是 workflow 侧代码，去查它只会得出"修了却没用"的错误结论。
+**顺带一条必须如实记的可见性缺口**：`verify-r0a-0027.sh` 对二进制只是**打印** sha（`:161-163`、`:204`），并不拿包内值比对，
+所以 I-4a 之后没有机器读数告诉你"哪些二进制还是旧的"——那是刻意的状态，需要人看着那几行；
+**把这种"对不上"当红灯去修（顺手重启 worker）恰好把 I-4b 的风险提前**，那不是这一档该做的事。
+
+**【11-06 18:4x I-4a 已执行，现网状态以此段为准（上面 14:4x 标题里的"均未部署"就此失效）】**
+`rollout-r0a-0027.sh --migrations-only`（tip `b79311fc5` 建的包，上传后主机 `sha256sum -c SHA256SUMS`＝55 条全 OK／0 不一致）跑完 rc=0，
+账本 `max=32 rows=32`、version 30/31/32 三条都在。**没有重启是核对过的、不是宣称的**：
+`work-worker` 的 `ExecMainStartTimestamp` 仍是今天 07:57:12（早于本次部署）、`NRestarts=0`，relay／export 仍是 11:00:22，
+`work-worker` 安装态 sha 保持 `9cd4f2b986e19a2e`；唯一被换的二进制是 `work-migrate`（安装态与包内同为 `c52d5e179420bd02`），
+`.bak-<stamp>` 恰好 1 份，dump 1,635,658 字节。
+三条读数按档归属现已可验：**0031 生效**——演练留下的那笔 `b9af0511…`（`status=running`、`lease_until` 非空但已过期）
+第一次出现在 `list_pending_audit_exports` 的返回里（`seen=1`，该 org 当前待发 1 笔），**我没有去 claim 它**（I-3b 未批，它是缺口 ① 的物证）；
+**0030 在位**——`commit_runtime_checkpoint` 的活 catalog 里 `durable_receipt_after_deadline` 与 `hard_deadline <= v_now` 两个谓词都命中，
+但 `audit_event` 里 `='true'` 的行数为 **0**，这是"还没遇到该形状"，不是"没生效"；
+**0032 通道打通**——以 unit 的形状跑包内那份 `run-retention-scan.sh`（`User=work-control`＋两个 EnvironmentFile）得到
+`content_objects=1352 content_orphans=178`、`scan_errors=0`，只报不删、不动退出码。
+**#81 仍不生效**（`reconcile_timeout` 在现网不该出现），因为 worker 二进制没换——这就是 I-4b，而此刻有 1 笔 `active` Run 在途，
+§5.32 的重放前置又仍缺导出能力，所以 I-4b 不能做。
+
+1. **`state=failed / terminal_reason=reconcile_timeout`**（#81＝B2）。含义：一笔 Run 停在"等人工核对"超过 24 小时后被**判失败**。
+   值班要知道的三件事：① 它**不动账**——既不 `settle_quota` 也不 `release_quota`，预留按 #34=A 保持人工处置，
+   所以看到 `quota_reservation` 仍是 `held` **不是 bug**，走 §5.17/§5.16 的既有通道；
+   ② `work-task` 保持 open、可重试（与 `quota_wait_timeout` 同形）；
+   ③ 三条停放门（advance 的 reconcile 支、finish 循环里的 usage-unavailable 支、旧路 `RunWorkflow`）都带这个上界，
+   前两条计时起点是"本次停放"，配额那一支才是"第一次饱和"——别用 24 小时去反推停放时长。
+   **未决**：到期时若答案与回执早已落库，按 B2 字面仍判 `failed/reconcile_timeout`（成果已发布、账已结算、head 不提交）。
+   这与 #82=F1 的语义相冲，已登记**待裁 #83**；裁定前不要"顺手"改成先 finish。
+   **【11-06 15:0x #83 已裁＝G1，上面这条"未决"关闭，原文不删】**主签单选维持现状：到期即判失败，
+   **不 settle、不 release、也不提交 head**。⇒ 值班的读法照旧第 1 条的三句话，不需要再加"先看它会不会自己 succeed"。
+   与 F1 的分工由这条裁定划清：0030 的例外支只在**已经调用 finish** 的路径上生效，超时这一支不调用 finish，
+   所以两条已签文本各管一条路径；**今后谁把两者合并（到期自动 finish 或自动写账），那是改裁定，不是修 bug**，要重新单选。
+   这条裁定自带的代价也说清：同形状（答案与回执早已落库）的 Run 会以 `failed` 收尾而成果未提交——
+   "账对、状态不对"从无限期缩短到 ≤24 小时，`parked_runs` 在这窗口内每小时仍标红一次，这是设计内的告警而不是新缺口。
+2. **审计线 `runtime.checkpoint_committed` 里的 `metadata->>'durable_receipt_after_deadline'`**（#82＝F1，增量 0030）。
+   `'true'` ＝ 这一次 head 提交发生在硬期限**之后**，依据是绑定本 execution/operation/attempt 的成功回执；
+   这是记账，不是重新驱动——同一条 Run 的投递闸仍恰好只有一次 `dispatch.gate_consumed`。
+   `'false'` ＝ 租约内正常提交（含 head revision 0 那条）。**装后核查**：出现 `'true'` 的行说明这条链在生产走通了；
+   一条都没有，只说明还没遇到该形状，不代表没生效。
+3. **留存扫描输出里的 `content_objects` / `content_orphans`**（#80 第二半，增量 0032）。
+   **【11-06 18:5x 这条读数现在会高报，别当泄漏数用】**现网首读给出 `content_objects=1352 content_orphans=178`，
+   定性之后**真实孤儿是 15 个**：`list_content_refs` 只扫了四张表的 `content_ref`，
+   而内容引用还存在别处——按现读数量级排：`runtime_execution.intent_ref`（盖住 157 个）、
+   `operation.receipt_ref`（6）、`dispatch_delivery.receipt_ref`（4）；`submission_dedup.result_ref`、
+   `runtime_checkpoint_head.checkpoint_ref`、`task_event.payload_ref`、`artifact_version.local_ref` 本次盖住 0 个但仍属同源风险。
+   ⇒ **在 0033 补齐分支之前，`content_orphans` 只能当"上界"读，不能当条数用**；
+   反方向那条（库里 515 个引用在盘上找不到对象）本轮**没有定性**，别顺手解释成"shred 之后本该如此"。
+   **【11-06 19:5x 0033 已进链，但现网还没装 ⇒ 上面那句"按上界读"仍然有效】**分支清单补齐 `runtime_execution.intent_ref`／`dispatch_delivery.receipt_ref`／`operation.receipt_ref` 三条（依据是"该行值真的以 `content://work/` 开头"的计数：157/316、126/148、126/164；`local_ref`／`payload_ref`／`result_ref`／`checkpoint_ref`／`input_checkpoint_ref` 计数为 0、`content_reference.ref_id` 是 uuid，所以**不进清单**）。账本要走到 33 才生效——那是再一次 I-4a 形状的动作（函数体替换、不换二进制、不动单元）；**在那之前现网 `content_orphans` 仍是 178 这个上界，不是 15**。
+   **【11-06 20:2x 上面那句已过期：现网到 33，实测 `content_orphans=15`】**按 unit 形状跑装上去的 `run-retention-scan.sh`，
+   `content_objects=1352 content_orphans=15`、`scan_errors=0`——与 19:5x 定性的预测值逐位相同，
+   这条读数的口径从此可信。**同一轮 I-4b 也做了**（换 `work-worker` 等 13 个二进制），
+   所以本节开头"两个 Go 修复仍未部署"的说法到此失效：#81 的 `reconcile_timeout` **从此可以产生**，
+   但**行为仍未取证**——要一次真实的饱和/停放形状才谈得上判它通过，别把"二进制里有了"当"验过了"。
+   **【11-07 00:0x 上面这句的判据要改写，原文不删】**现读 `work.run` 按 `(state, wait_reason)` 分组＝
+   `active|1`、`canceled|33`、`failed|20`、`succeeded|118`（`wait_reason` 全为空），**`waiting` 行数 0** ⇒ 这条上界眼下没有样本，
+   而"再等一天"也不会自己长出样本：唯一那笔 `active` 就是刻意保留的 `e24eb42c…`（`updated_at=11:41:56`，在 20:26 换二进制之前），
+   它的 Temporal 执行早已 `Failed` 且历史与新代码不兼容（11-06 22:1x 用包内 `work-replay` 真导真放证过：`01384d59…` ⇒ `replay ok`，
+   `e24eb42c…` ⇒ nondeterministic）——**活在一条已闭合执行里的 timer 永远不会触发**，所以收那一笔属 10-31 的孤儿关闭裁定，不属这条取证。
+   **也别把它读成"什么都没验"**：机制两半各有具名用例——`src/work/internal/runflow/advance_park_test.go:19`
+   在测试环境自燃定时器那条路上断言 `revoke`＋`abort` 带 `reconcile_timeout`，且 `AssertNotCalled` 钉住 `FinishRun`／`FinishAdvance`；
+   `src/work/internal/runflow/advance_g1_pg_test.go:24` 在活库上证到期那刻即使已有 bound 成功回执也不提交、不 settle、不 release（#83＝G1）。
+   **现网还欠的只有"真发生过一次"**，重开条件写清：下一笔进入 `state='waiting' AND wait_reason='reconcile'` 且 24h 内没有人工信号，
+   或主签授权用 `work-e2e-seed` 播种一笔、再按提交时刻＋24h 现读——播种生产数据与换二进制、`apply` 迁移是三类半径，各算各的，
+   别把"同意部署"当成"同意造样本"。
+   **【11-06 22:3x 两个方向的比对现在都能只读跑，不碰清扫本体】**`run-retention-scan.sh` 是会改状态的那条通道（三个领域函数按到期整批处理），所以要看孤儿**不必**跑它：只要复现它的比对那半——① `runuser -u work-control -- bash -c 'set -a; . /etc/work/work-worker.env; set +a; psql "$WORK_DATABASE_URL" -X -q -At -c "select set_config(''app.org_id'',''<org>'',false)" -c "select work.list_content_refs(''<org>'')"'` 取库侧引用集；② `ls /var/lib/work/content/$(printf %s <org> | sha256sum | cut -c1-32)/*.enc` 取盘侧集（**目录名是 sha256(org) 前 32 个十六进制字符，文件名是 `<id>.enc`**，直接拿 `content_ref` 的 basename 去比会永远不相等）；③ `comm` 双向做差。22:3x 现读（org `4a2d3f28…`，库里就 1 个组织）：`objects=1353`、**盘上有而库里没引用＝15**（与预测逐位相同，含演练对象 `267c8708…`）、**库里有而盘上没有＝2**，两条都落在 `input_object.content_ref`：一行 `status=deleted`（10-31 的 task_input，deleted_at 10:09）、一行 `status=expired`（11-02 建、expires 11-03、deleted_at 11-04 19:42）——**对象是留存路径正常删掉的，行仍留着 `content_ref` 文本，所以引用集里有它们的 id**。
+   ⇒ **判据：`refs−disk` 不是告警项**，稳态就该有条目（行比对象活得久）；要盯的是**`status='active'` 的行出现 dangling 引用**，那才是"库里说东西存在、盘上没有"。四条分支的老口径也顺带钉一下：那四条按 `content_ref IS NOT NULL` 过滤而不是按值形态，现读**没有任何一行的值不是 `content://work/` 形式**（`rows=0`），所以 `IS NOT NULL` 与 `LIKE` 两种写法今天给出的集合相同——这是现读结论，不是"永远如此"。
+   **【登记为待修 #88，本轮只写判据不改码】**正因为行留着引用，孤儿读数对**"行已 `deleted`/`expired` 而对象还在盘上"这一类是系统性看不见**的（它被算成仍被引用）。那一类现在的兜底不是孤儿 gauge 而是 §5.25 的 `shred_stuck`（删除动作的投递义务），所以**这两条读数必须一起看**才算覆盖；要不要专门加一枚 `orphan_after_row_delete`，属新常量的取舍，等主签裁定。另外记我自己这轮的一条探针错：`psql -c "select set_config(...)"` 会把被设定的值**打印出来**，我第一版把那行当成一枚引用 id 计数，于是 `refs` 多 1、`channel−branch=1` 就是这么来的假差集；取引用集时应只保留函数输出（`-q` 之外再过滤，或把 set_config 换成 `-c "select 1"` 前置忽略）。
+
+**【2026-11-07 主签裁定 F2 已执行，原文保留】**#88 按 **F2** 落地：不加新 gauge，而是把"两条读数一起看"变成机器断言。`run-retention-scan.sh` 现在每个 org 同一轮打印一行 `PAIR … content_objects=… content_orphans=… shred_stuck=…`，并写明各自含义（孤儿＝没人回收的空间，属 §5.30 人工决定；stuck＝没投出去的删除义务，属 §5.25）；`WORK_CONTENT_DIR` 未设置时打印 `PAIR … orphan_reading=0` 并明说"孤儿那一半本轮取不到，不得据此声称两条都看了"。**只报不删的纪律照旧**：这行不改退出码，退出码仍由 STUCK 那一支拥有——新门 `test/retention-pair.test.mjs` 用桩 psql＋真目录形状（sha256(org) 前 32 位、`<id>.enc`）跑发布件原文，三条判据：两个数在同一行、孤儿>0 单独出现时 rc 仍为 0、stuck>0 时 rc=2。变异四刀已验（删 PAIR 行⇒两条红；让孤儿改退出码⇒报告-only 那条红；还原后 sha 与基线逐字相同）。F1（加 `orphan_after_row_delete`）按裁定**不做**，重开条件＝第 2 家租户接入或该类行数超现读 2 笔一个数量级。
+
+**【2026-11-07 主签裁定 G3 已执行（#94），原文保留】**C16 的口径按 **G3** 写死：`content://work/<org>/<id>` 这类**引用 URI 是定位符，不是用户内容**，`content.field` 规则加前置否定把它排除；同一批字段（`prompt=`／`messages=`／`artifact_content=`／`content="…"`）带正文时**仍然 fail**，`log-scan.test.mjs` 现有 13 条用例（含这两方向）在 CI 的 log-scan 作业里强制。扫描集同时扩到演练证据目录：`work-r0a-gates.yml` 的那条 run 现在多带 `../work-r0a-ops-2026-10-25`，本地镜像实跑 **40 文件／3193 行、fail=0 warn=0**（此前只有 7 文件／60 行，那 8 处 `content.field` 全部消失且无新发现）。新门 `test/c16-scan-scope.test.mjs` 钉住扫描集不许再静默缩小（每个 target 还要在盘上真实存在）。**同时登记一条本轮发现的规则局限，不自行放宽或收紧**：该规则匹配的是"12 个以上非空白字符"，所以**带空格的散文正文它抓不到**（我第一版用例就是拿散文写的，红在自己的假设上）。要不要让它覆盖散文属改一条安全控制的强度，需另行裁定；本轮只把局限写在这里，不动规则。
+   **【11-06 20:2x 本前置这次走的是第①档，没被触发】**执行前逐 org 现读 `work-reconcile -scan -org <id>`
+   （以 unit 的形状：`runuser -u work-control -m` ＋ `/etc/work/work-worker.env`），得 **Running=0 条**【11-06 22:2x 这条命令形状要更正，原句不删：`runuser -u work-control -m` 与 `-c` 同时用会报 `options --{shell,fast,command,session-command,login} and --user are mutually exclusive`；今天可执行的形状是 `runuser -u work-control -- bash -c 'set -a; . /etc/work/work-worker.env; set +a; …'`——unit 的 `EnvironmentFile` 已经把该带的东西带上了，不需要 `-m`】——
+   唯一在途那笔 `e24eb42c…` 是 `workflow_status=Failed`，历史已闭合、永不重放 ⇒ 记"无对象可重放"，直接换二进制，**不需要导出能力**。
+   但那条缺口本身没被解决：将来任何一次有 `Running` 的换二进制，仍必须先补导出或先 drain。
+   换完的正反证：journal 20:26:22 停旧 / 20:26:25 起新（`TaskQueue work-r0a-run`）无非确定错误；
+   `.bak-20261106-202622` 按名字数 **13** 份；`verify-r0a-0027.sh` rc=0、`rows=33 max=33`、清单 all present、无 WARN。
+   演练留下的 `267c8708…` 仍在这 15 个里，这正是 §5.30 缺口 ② 的物证，**保留、别删**。
+   其余原文继续有效：
+   只在单元环境配了 `WORK_CONTENT_DIR` 时出现；**只报不删**，且**不进退出码**（投递义务由 `shred_stuck` 管）。
+   读数含义：盘上该 org 目录里有对象，而库里四张带引用的表（成果版本、审计导出、内容引用、输入对象）都不指向它。
+   处置口径沿用 §5.30：先定性（是自造夹具还是真实产物）、再决定回收，**不要写自动删除**；
+   对比用 `id`（库里存的是 `content://work/<org>/<id>?v=N`，文件名是 `<id>.enc`，别拿整串引用去等 basename）。
+   **手工跑这条读数前必须先 `set_config('app.org_id', '<org>', false)`**：`SECURITY DEFINER` 换的是**角色**、不是租户上下文，
+   而 `input_object` 与 `audit_export` 现读都是 `relrowsecurity=t` **且** `relforcerowsecurity=t`（FORCE 对表 owner 同样生效，#53 记过的那条），
+   所以不设 GUC 就是**静默 0 条引用→0 个孤儿**，而这条读数按设计**不进退出码**（§5.30 的"只报不删"）——它不会替你报错。
+   随包那份 `retention-scan.sql:15` 正是因此先打一行 `ctx_org=`；自己拼 psql 时把这一步照抄上。
+   函数体内那四条 `WHERE x.org_id = p_org_id` 是**第二道**（本轮用例把其中一条去掉后仍读不到别组织，正是被上面这层 RLS 拦住的），
+   别把它当成"有 definer 就不用设上下文"的依据。
+
+### 5.32 换 `work-worker` 之前先做一次历史重放（#81＝B2 带来的新前置，2026-11-06 15:5x 现读代码得出，**未部署**）
+
+**为什么多这一步**：#81 把 advance 的三处停放从 `awaitResumeOrCancel(cancelCh, resumeCh)` 改成
+先 `workflow.NewTimer(ctx, advanceReconcileWaitLimit)` 再走 `awaitQuotaOrSignal`——**这是命令序列的变化**，
+而 `src/work` 全树没有一枚 `workflow.GetVersion` 闸（grep 零命中）。Temporal 的重放忠实于历史：
+换二进制那一刻**仍然开着**的 workflow，重放到停放点会看见"新代码要排一个历史里没有的 Timer" ⇒ `non-deterministic_error`。
+已经终态的 Run 不受影响（历史不再重放），所以这一步的成本只随在途数量变化。
+
+**先例不是假设**：2026-10-31 那次部署前导过 9 个开放 Run 的历史，8 个 replay ok，
+`3a34a855…` 因旧史排 `RevokeAdvanceExecution`、新代码排 `FinishAdvance` 报 nondeterministic，
+**当时的结论是"不能恢复，只能按孤儿关闭"**。这条就是本步要防的形状，代价按它读，不按"重启慢一点"读。
+
+**怎么做（三步，都是只读或本地）**：
+1. 现读在途：**逐 org** 跑 `work-reconcile -scan -org <org>`（`-org` 是必填，没有"全 org 一把扫"的开关）。
+   它每条 Run 都会向 Temporal 要一次 `DescribeWorkflowStatus`，输出 JSON 里看 **`workflow_status`** 是不是 `Running`
+   （键名来自 `cmd/work-reconcile/scan.go` 的 struct tag，别按记忆写）。**`run_state` 与 `workflow_status` 不是一回事**：
+   前者是库里那条 Run 的状态、后者是 Temporal 侧那条 workflow 的状态，这一步只数后者等于 `Running` 的条数。身份与 Temporal 八个变量（含 mTLS 三件路径）取
+   `/etc/work/work-worker.env`。**零个 Running ⇒ 本步记"无对象可重放"，直接进换二进制。**
+   **不要拿每小时那条 `work-reconcile-scan.service` 的 summary 当这一步的替代**：它内部同样调 `-scan`，
+   但只打印 `orgs=N orphans=M scan_errors=K`——`orphans` 数的是"库里有、workflow 已不在跑"的那些，
+   **`orphans=0` 恰恰不等于"没有在途"**（全在途时它本来就是 0）。这一步要的是 Running 计数，得自己按 org 读。
+2. 有对象 ⇒ 换之前用**新包里那份** `work-replay`（它没有 unit，得手工跑；`verify-r0a-0027.sh` 只核它在不在、不核它跑过）逐个重放导出的历史，取每个的结论。
+   **这一步的前半条目前交付链里没有：树内没有任何"导出历史 JSON"的实现。** 现读依据：`cmd/work-replay/main.go:26` 只是
+   `ReplayWorkflowHistoryFromJSONFile` 的**消费端**，`src/work` 内 `GetWorkflowExecutionHistory` 零命中；
+   10-31 那次用的临时重放二进制当时已删（`work-project.md:364` 原句"主机上的历史文件与临时重放二进制已删除"），没有可复用通道。
+   所以动手前先二选一：**①** 主机若装了 Temporal CLI，先 `command -v temporal` 现读确认，再按其导出参数把 JSON 落盘后喂 `work-replay`（别假设它在）；
+   **②** 给 `cmd/work-replay` 补一个导出模式（取历史落 JSON），这条才算把"取历史→重放"补成两段齐——**要另批实现＋用例，不是顺手能做完的一半**。
+   实现前要先核的一件事：本包用的 SDK 是 `go.temporal.io/sdk@v1.50.0`，消费入口是 `internal/internal_worker.go` 里的
+   `ReplayWorkflowHistoryFromJSONFile`。**它接受的 JSON 具体形状本轮没有取证**（我在模块缓存里没读到它的解析分支），
+   所以这里**故意不写命令样例**——照本文猜格式写导出，比不写更容易产出一个"能写出文件但重放永远报错"的假通道。
+   已实测的那一半：包内 `work-replay` 的接口形状是真的——本轮在容器里跑那份二进制，无参 rc=2 打印 `usage: work-replay HISTORY.json [...]`，
+   指不存在的文件 rc=1 并逐条报 `replay <路径>: ...`；它注册的正是 `RunWorkflow` 与 `RunWorkflowAdvance` 两个类型，与本批改到的工作流对得上。
+   **【11-06 22:1x ② 已实现；上面那句"没取证就不写命令样例"现在按取证改口了】**`cmd/work-replay` 两段齐了。
+   消费段原样不变（位置参数＝历史文件；无参 rc=2 打 usage；坏文件逐条 `replay <路径>: ...` 后 rc=1），新增
+   `work-replay -export WORKFLOW_ID[,RUN_ID] -out FILE`：只做 `GetWorkflowHistory(isLongPoll=false, ALL_EVENT)` 再落盘，**读-only**；
+   `isLongPoll` 固定 false 的理由写在代码里——长轮询在 `Running` 的执行上是"等下一条事件"而不是"取已经发生的"，预检会挂在那儿。
+   env 旋钮与 `work-reconcile -scan` 同一套（`WORK_TEMPORAL_ADDRESS`／`_NAMESPACE`／`_CERT`／`_KEY`／`_CA`／`_SERVER_NAME`），
+   并且复用 `dispatch.NewTemporal` 那一份 mTLS 装配，不再抄第二个拨号实现。
+   形状这次是取来的不是猜的：SDK 的解析分支在 `internal/internal_worker.go:2326 extractHistoryFromFile`，
+   它把整个文件 unmarshal 成 `historypb.History`（`DiscardUnknown`）⇒ 导出用 `protojson.Marshal` 同一个消息。
+   `replay_format_test.go` 钉三件事：正向写两枚事件后交给**真消费入口**，回的是 `at least 3 events expected in the history`
+   ——**引擎数得清我写了几枚，就等于它把文件解开了**；反向对照是同目录一份截断 JSON，回 `temporalproto: unexpected EOF`，
+   两类失败文本各自钉住，所以"没有 parse 错误"不是靠猜；另有空历史拒绝落盘（"没取到事件"是读失败，不是"这工作流没干活"），
+   以及缺 `-out`／缺 workflow id／缺 `WORK_TEMPORAL_ADDRESS` 都在拨号之前失败并点名变量。
+   **【11-06 22:1x 这半已经真跑过，读数如下，别把它读成"工具还没验过"】**包内 `work-replay`（sha `8dbf07c641f22c12`，已随主签批准的那一步装进 `/usr/local/bin`，旧件留 `work-replay.bak-20261106-2215`）在试点主机以 `work-control` ＋ `/etc/work/work-worker.env` 的形状导了两笔真执行：`run:01384d59…` 41 事件、`run:e24eb42c…` 57 事件，同一枚二进制消费端分别回 `replay ok` 与 **`[TMPRL1100] nondeterministic workflow`**——那笔历史第 39 号事件是 `ActivityTaskScheduled: FinishAdvance`，而新代码在那一点排的是 `StartTimer 86400s`（#81＝B2 的上界）。**这不是新缺陷，是本档预警的那个形状第一次被真数据证实**：`e24eb42c…` 的 Temporal 执行早在演练时就 `Failed`（执行已关闭、没有可恢复的在途），所以 I-4b 当时按"现读 Running=0"走第一档没有把任何在途暴露在这条分叉上；反过来，**下次只要有一笔 `Running` 的执行其历史是新代码之前排的 `FinishAdvance`，就必然落到这一档**，按 10-31 的口径先定性再处置，不要手工去动它的历史。导出的 JSON 已从主机取回并删除（里面是组织数据，不在 `/var/tmp` 过夜），本地用同一枚包内二进制重放同一文件得到同一句 nondeterministic 结论。
+   **仍欠的那半，按欠着写**：真执行的真历史还没导过一次。那需要在试点主机上跑一次导出（读-only，但要把新二进制放上主机＝另一次受控文件写，按项点头），
+   再把 JSON 取回本地用**包内**消费段重放。在这之前，本节第①档（现读 `Running=0`）仍是实际生效的那条；本条补的是"下次非零在途时手上有没有工具"。
+3. 全 ok ⇒ 正常 rollout；**任一 nondeterministic ⇒ 这一批只装迁移、把"换 worker"单独另批**（`work-migrate apply` 与换二进制本来就是两类半径），
+   并在那笔 Run 上按 10-31 的口径先定性再处置——**不要为了装上 #81 而手工去动它的 workflow 历史或预留**。
+   **【11-06 16:4x 这一档现在有入口了，不必再手工跑 apply】**`rollout-r0a-0027.sh --migrations-only` 只做
+   「dump → 装 `work-migrate`（链 embed 在它里面）→ apply → status → 成对装 `run-retention-scan.sh`＋`retention-scan.sql`」然后立刻退出：
+   不 stop／不 restart 任何单元、不装其它二进制、不动 unit 与 timer，并把自己**没做**什么打印出来；
+   `test/release-assets.test.mjs` 有守卫钉这几条（分支里出现 `systemctl` 就红，变异已验）。
+   **代价要说全**：此模式下 **#81 的停放上界不生效**（那是 Go 侧 workflow 代码），所以 `reconcile_timeout` 的终态只能等到后来的完整 rollout 再验；
+   而 #82（0030）与 #80（0031／0032）**当场生效**——现网那两支二进制本来就在调被换掉的函数。
+   `--enable-advance` 与 `--runtime-bundle` 与此模式**互斥**（它们的步骤在 early exit 之后，接受了就是报一个没做的意图）。
+
+**别把这一步当成可选项写进"已具备"**：判断依据是包内二进制对新历史的真实重放结论，不是"代码改了超时所以应该没事"。
+
+
+### 5.33 导出轮询报 42501：`CREATE OR REPLACE` 把 `SECURITY DEFINER` 弄丢了（现网首发 2026-11-06 18:44:12，21:1x 复核，#87＝增量 0034，**现网未部署**）→【11-06 22:1x 更正，原文不删：**0034 已随 I-5 上线**，账本现读 34，42501 自 22:10:05 起为 0，装后读数就记在本节末段】
+
+**先看症状，别看代码**。`work-export` 的轮询每 5 秒失败一次，journal 里始终是同一行——现网到 21:06:50 已累计 **1713 条**，首条 18:44:12 正落在 I-4a（账本 29→32）那一分钟：
+
+```
+work-export poll failure: ERROR:  permission denied for table audit_export (SQLSTATE 42501)
+```
+
+同一时刻库里往往还有活要干，所以三条读数必须一起取，缺一条就会误判成"没活干所以安静"：
+
+| 读数 | 命令（主机特权读，§5.2「零行不等于无数据」按本文用） | 发病时 |
+|---|---|---|
+| 有没有待办 | `runuser -u postgres -- psql -d work -Atc "select count(*) from work.audit_export where status='queued' or (status='running' and (lease_until is null or lease_until<=clock_timestamp()))"`（superuser 只读，RLS 不参与，见 §5.2） | `>0`（21:1x 现网实测：`queued=0 running_stale=1 ready=8 total=151`，即待办就是那 1 笔过期租约） |
+| 有没有动过 | `select coalesce(string_agg(distinct action, ','), 'none') from work.audit_event where created_at > now() - interval '6 hours' and action like 'audit_export.%'` | `none`（现网实测；库里历史上确有 `audit_export.requested/claimed/completed/downloaded` 这些动作，所以"6 小时零条"不是表里没有这种 action） |
+| 门还在不在 | `select prosecdef, coalesce(array_to_string(proconfig,','),'none') from pg_proc where oid='work.list_pending_audit_exports(text)'::regprocedure` | `false / none` |
+
+**现网到 21:06:50 的受害面（照读数说，不外推）**：`work.audit_export` 里 `updated_at > 18:44:12` 的行数＝**0**（最后一次任何行被推动是 11:00:22），也就是说这 1713 次轮询没有改动过任何一笔导出。今天库里没有新进来的导出请求（`queued=0`），所以现网能看见的受害者只有那笔 `running_stale=1` 的演练行；**机制上任何新请求同样会停在 `queued`**（轮询整条失败，`cmd/work-export/main.go:96` 只有这一条发现通道）——这一句是按代码路径说的，现网还没有样本能证明它，别把它读成已取证。
+
+**判据就落在第三行**：`work.list_pending_audit_exports` 是 worker 唯一的发现入口——`work_worker` 对 `work.audit_export`
+**没有 SELECT**（`baseline/0002:4689` 原句就写着"audit_export 表本身仍不对 worker 开放"），所以它必须是 `SECURITY DEFINER`
+并且钉住 `search_path`。同族的 `claim_audit_export`／`fail_audit_export`／`list_content_refs` 全是
+`prosecdef=true … search_path=work, pg_catalog`，只有它退回 `false` 时，症状必然是上面那一行 42501，而不是某个业务错误。
+
+**根因的形状（值得记住，因为它不报错）**：`baseline/0002:5163-5177` 是在装配完整库跑一遍
+`ALTER FUNCTION … SECURITY DEFINER` ＋ `ALTER FUNCTION … SET search_path = work, pg_catalog`，
+而 `CREATE OR REPLACE FUNCTION` **只按语句文本重建 `pg_proc` 那一行，这两个属性不从被替换的行继承**——
+ACL 反倒继承。于是一笔"只改谓词"的增量可以静默把函数退回调用者权限，账本照常记、`work-migrate status` 照常 up_to_date，
+直到非 owner 角色来调用它。0031 就是踩了这句"ACL 会继承"的推论（`#87`）。
+
+**凡是重写 `work` schema 里的函数，子句必须原样重发**。这条不再靠人记，两处机器兜底：
+
+- `internal/migrate/function_hardening_test.go`（**不需要数据库**，评审期就红）：拿链上每笔增量自带的 catalog 快照对账，
+  凡"曾经记录过 definer"的函数，尾快照必须仍是 definer＋钉住 `search_path`，且**最后一次重写它的那笔增量必须把两行子句写回去**。
+  同文件另一条把 1→33 那段历史钉成断言（谓词必须正好点名 `list_pending_audit_exports` 与 `artifact_version_immutable_content`），
+  所以守卫失去判别力时也是红的，不是静默变绿。
+- `internal/migrate/workload_read_privilege_pg_test.go`（活库）：把"可执行角色 × 函数体读的表 × 该角色有无 SELECT"这条现网谓词
+  搬进链建库，零违规才算过；另一条真做变异——`ALTER FUNCTION … SECURITY INVOKER` ＋ `RESET search_path` 提交后，
+  worker 连接当场复现 42501、矩阵只报那一行，还原后两条一起归零。
+
+**值班处置（现网尚未做，按项授权后执行）**【11-06 22:10 更正，原文不删：**已执行＝主签批准的 I-5**；下面的命令与三条判据原样留着，它就是下一次的形状】：装增量 0034 走 §5.32 末段那个档位，不碰任何单元——
+
+```
+sudo ./rollout-r0a-0027.sh --migrations-only <发布目录>       # 先 --dry-run 读半径
+```
+
+装后必须读到的三条（前两条就在新加的 verify 探针里，探针已把"账本跑到 34"和"权限真的回来了"分开）。**22:10 现读：三条全部成立**——① `export_discovery_hardened=true search_path=search_path=work, pg_catalog body_has_stale_lease_branch=true`（标签里 `search_path=` 重复了一次：`proconfig` 的值本身就是这个字符串。下次随批去掉这个标签，本轮不为排版再动一次现网）；② `immutable_guard_hardened=true search_path=search_path=work, pg_catalog`；③ `journalctl -u work-export`：18:44–22:09 之间 42501 **2457 条**，22:10:05 之后 **0 条**，最后一条失败 22:10:00，紧接着 22:10:05 就是 `export=b9af0511… ready format=json rows=3010 bytes=1438077`。同一轮 `VERIFY_RC=0`、`rows=34 max=34`、清单 all present；回滚点 `work-pre-0027-20261106-221004.dump`、`work-migrate.bak-20261106-221004` 一份；`work-worker` 没被碰（`ExecMainStartTimestamp` 仍 20:26:25、`NRestarts=0`、sha 仍 `f4bbf1e99c26e1de`）：
+**【2026-11-07 00:2x 那个"下次"已做完，原文与当时的读数保留】**探针现在从 `proconfig` 里**按 key 取** search_path 的值，
+而不是把整个数组印在 `search_path=` 这个具名标签后面——重复不再出现，本节"装后必须读到的三条"写的形状从此就是实际输出。
+比排版更要紧的是后半句：整数组打印遇到别的 `SET` 子句时，会把一个不相干的旋钮读成 search_path，那才是这条" cosmetic "标签真正的问题。
+四处探针（`export_discovery_hardened`／`immutable_guard_hardened`／`reconcile_operation` 的 `security_definer=` 行／六条按名列出的 definer 行）
+已在现网**只读复跑**：值与 22:10 那轮逐字相同（`true`／`work_owner`／`work, pg_catalog`／`body_has_stale_lease_branch=true`），
+六行 definer 全部 `search_path=work, pg_catalog`；`bash -n` 通过，脚本里已无 `array_to_string(proconfig` 残留。
+**注意半径**：这四处改的是仓库里的 `verify-r0a-0027.sh`，现网 `/usr/local/bin` 那份仍是旧版，要等下次 rollout 装脚本才生效——
+在它生效之前，值班按本节读到的仍是带重复标签的旧形状，**那不是回归，是还没装**（并入任务 #92 的那一次）。
+
+1. `export_discovery_hardened=true search_path=work, pg_catalog body_has_stale_lease_branch=true`
+   —— 三个字段各管一件事：门回来了、名字解析钉住了、#80 的过期租约谓词没被顺手删掉。
+   发病时现网实测是 `false search_path=MISSING body_has_stale_lease_branch=true`＝**谓词还在、门没了**，这指纹就是本节的判据。
+2. `immutable_guard_hardened=true search_path=work, pg_catalog`（0017 丢的那半，行为中性但同属一个缺陷）。
+3. `journalctl -u work-export --since '<安装时刻>' | grep -c '42501'` ⇒ **0**，且此前积压的导出请求开始被领走。
+
+**不要提前宣布通过的两处**（22:10 后：① 已按读数收口，② 已发生且事先摆过）：① 0031 上线到 0034 装好这段窗口里导出通道是**全停**的，积压是否清空要按 §5.30 的队列读数复核，不是看 journal 安静就算——现读 `queued=0 running_stale=0 ready=9 total=151`，且 `updated_at > 22:10:05` 恰好 1 行，说明积压就是那一笔、已被消化；② 装上 0034 的**同一轮**，`work-export` 会按 #80 的设计自动领取那笔租约已过期的演练行
+`b9af0511…` 并真的跑一次导出——这正是 11-06 记在授权单里的 **I-3b 那一步的效果**（22:10:05 已发生：该行现读 `status=ready`、`content_ref=content://work/4a2d3f28-…/fb549f84110e91657dc9f69019ec8ccc?v=1`、租约字段清空），
+要么按 I-3b 单独点头，要么在装 0034 之前先把这一条代价摆给主签，**别把它写成"顺便修好的"**。

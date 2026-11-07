@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 # Read-only acceptance checks for rollout-r0a-0016.sh.
 #
+# HISTORICAL - do not use this to accept a current host. It only knows the units, probes and
+# expectations of the 0016 rollout; everything landed since (0017..0034, the runtime unit, the
+# export/reconcile/retention/runstream probes, the function-hardening and provenance checks) is
+# invisible to it, so a clean-looking run here is NOT acceptance. For a current host run
+# verify-r0a-0027.sh, which reads its (version,name) list and chain tail from the package itself.
+# Kept because the 0016 drill evidence refers to this exact text.
+#
 #   sudo ./verify-r0a-0016.sh "2026-10-31 00:10:00"
 #
 # Prints the ledger, the rejection-reconcile command identity and privileges,

@@ -60,10 +60,14 @@ const RULES = [
     pattern: /\bwe_meet_session=[^;\s]+/g,
   },
   {
+  // #94 = G3 (2026-11-07): `content://work/<org>/<id>` is a locator, not user content. The
+  // lookahead drops scheme-relative and content:// values while every body-shaped field
+  // (prompt=, messages=, artifact_content=, content="<text>") still fails. Rationale and the
+  // eight readings that forced the ruling are in the C16 checklist note and the ledger.
     id: 'content.field',
     severity: 'fail',
     pattern:
-      /\b(?:goal|background|prompt|messages|completion|artifact_content|content)\s*[=:]\s*["']?[^\s"']{12,}/gi,
+      /\b(?:goal|background|prompt|messages|completion|artifact_content|content)\s*[=:]\s*["']?(?!\/\/|content:\/\/)[^\s"']{12,}/gi,
   },
   {
     id: 'pii.email',

@@ -9,7 +9,11 @@
 # not sit around, nor appear in argv (ps, shell history, journald exec records).
 set -uo pipefail
 
-WORK=/work-c16
+# Scratch root. The default is the host path every runbook note and drill record names, so the
+# channel an operator follows does not change; it is overridable because the C16 runtime guard in
+# docs/plan/.../test/c16-log-scan-runtime.test.mjs executes this file on machines that have no
+# writable /, and a test that cannot run is not a test.
+WORK="${WORK_C16_DIR:-/work-c16}"
 LOG="$WORK/runtime.log"
 CAN="$WORK/canaries.txt"
 SCAN=""
@@ -46,12 +50,28 @@ if [ -z "$NODE" ] || [ ! -f "$SCAN" ]; then
   exit 1
 fi
 
-UNIT_ARGS=""
-for unit in $(systemctl list-units --type=service --all --no-legend --plain | awk '/^work-/ {print $1}'); do
-  UNIT_ARGS="$UNIT_ARGS -u $unit"
+UNITS=()
+while read -r unit; do
+  [ -n "$unit" ] || continue
+  UNITS+=("$unit")
+done < <(systemctl list-units --type=service --all --no-legend --plain | awk '/^work-/ {print $1}')
+# The count has to come from the array, not from `wc -w` over the assembled "-u x" string: that
+# form counts the flags too and printed 30 for 15 units, which is exactly the kind of inflated
+# evidence number a reviewer would have to re-derive by hand.
+echo "units=${#UNITS[@]}"
+# Discovery returning nothing is not "clean runtime": without -u, journalctl reads the WHOLE journal,
+# so the verdict would be reported as Work's while covering every other service on the box. Refuse,
+# the same way the gauges wrapper refuses an empty org list.
+if [ "${#UNITS[@]}" -eq 0 ]; then
+  echo "preflight failed: systemctl reported no work-* service units; refusing to scan the whole journal" >&2
+  cleanup
+  exit 1
+fi
+UNIT_FLAGS=()
+for unit in "${UNITS[@]}"; do
+  UNIT_FLAGS+=(-u "$unit")
 done
-echo "units=$(echo "$UNIT_ARGS" | wc -w)"
-journalctl $UNIT_ARGS --since "14 days ago" --no-pager --output=short-iso > "$LOG"
+journalctl "${UNIT_FLAGS[@]}" --since "14 days ago" --no-pager --output=short-iso > "$LOG"
 echo "log_lines=$(wc -l < "$LOG")"
 
 # Canary source 1: live task titles, newest first. The query needs a role that
@@ -91,6 +111,9 @@ echo "CANARY-work-r0a-c16-sentinel" >> "$CAN"
 
 echo "--- scanner output (redacted previews only) ---"
 "$NODE" "$SCAN" --canary-file="$CAN" "$LOG" 2>&1 | tail -20
+# #100：捕获 scanner 退出码（发现内容时 exit 1，干净时 exit 0）。PIPESTATUS[0] 是管道左端。
+scan_rc=${PIPESTATUS[0]}
+echo "scan_rc=$scan_rc"
 echo "--- end ---"
 
 # Positive control: a scan that cannot find a leak is not evidence of absence.
@@ -110,6 +133,13 @@ if [ "${control_clean:-0}" != "1" ]; then
   exit 1
 fi
 echo "positive control fired; the runtime verdict stands"
+
+# #100：scanner 发现内容时让 unit 变红，驱动告警。cleanup 在 exit 前调用，避免临时文件残留。
+if [ "$scan_rc" != "0" ]; then
+  echo "content finding detected (scanner exit $scan_rc); exiting non-zero to red the unit"
+  cleanup
+  exit 4
+fi
 
 if [ "$KEEP" = "keep" ]; then
   echo "kept: $LOG $SCAN $CAN"

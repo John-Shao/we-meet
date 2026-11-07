@@ -43,6 +43,12 @@ type Activities struct {
 	ConsumerID       string
 	StepCount        int
 	Now              func() time.Time
+	// ExecuteDeadline replaces the registered fragment's hard deadline window.
+	// It exists because hard_deadline is a binding column that
+	// runtime_execution_guard refuses to change, so the only way to hold a row
+	// whose deadline has genuinely passed is to register a short window and let
+	// the clock run past it. Zero, i.e. every deployed caller, means 30 minutes.
+	ExecuteDeadline time.Duration
 }
 
 // Raw error causes and details must not enter Temporal history.
@@ -821,7 +827,24 @@ func (a *Activities) abortOperation(ctx context.Context, input AbortRunInput) er
 		return err
 	}
 	if reservationID == nil && input.ReservationID != "" {
-		reservationID = &input.ReservationID
+		// The caller may name the reservation it created before the operation could report
+		// it. Trust that name only while the row is still open: a step that reached its
+		// receipt was already settled by the finish path, and settle_quota then refuses with
+		// settlement_revision_not_monotonic - which is exactly what left the pilot Run
+		// 'active' with a published artifact after three abort_run_failed (#82). A closed
+		// reservation is not work to undo, so the cleanup chain must fall through to
+		// finishRun instead of failing on it.
+		var open bool
+		if err := workdb.WithWorkerOrgContext(ctx, a.Pool, input.OrgID, func(tx pgx.Tx) error {
+			return tx.QueryRow(ctx, `
+				SELECT COALESCE(state IN ('held', 'unknown'), false)
+				FROM work.quota_reservation WHERE id = $1 AND org_id = $2`,
+				input.ReservationID, input.OrgID).Scan(&open)
+		}); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		} else if err == nil && open {
+			reservationID = &input.ReservationID
+		}
 	}
 	switch opState {
 	case "prepared", "authorized", "waiting_approval":
@@ -895,6 +918,13 @@ func (a *Activities) stepCount() int {
 		return 3
 	}
 	return a.StepCount
+}
+
+func (a *Activities) executeDeadline() time.Duration {
+	if a.ExecuteDeadline > 0 {
+		return a.ExecuteDeadline
+	}
+	return advanceExecuteDeadline
 }
 
 func (a *Activities) quotaPeriod() string {

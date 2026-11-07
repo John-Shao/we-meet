@@ -236,3 +236,562 @@ tests:
       - eval_time: 10m
         alertname: WorkOutboxDeadLetters
         exp_alerts: []
+
+# ---------------------------------------------------------------------------
+# 2026-11-07: the 17 alerts that had no behaviour case at all. Expectations were harvested
+# from promtool itself (`exp_alerts: []` probe), not transcribed from the rules file, so the
+# labels and annotations pinned here are what the rules actually emit. Each alert gets both
+# directions: above the threshold it fires, below it stays off.
+# ---------------------------------------------------------------------------
+  # WorkControlApiAvailabilityFastBurn
+  - interval: 1m
+    input_series:
+      - series: 'work:slo_control_api_availability:ratio_5m{org_id="org1"}'
+        values: '0.9+0x30'
+      - series: 'work:slo_control_api_availability:ratio_1h{org_id="org1"}'
+        values: '0.9+0x30'
+      - series: 'work_api_requests_total{org_id="org1",route="r",status_class="2xx"}'
+        values: '0+100x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: WorkControlApiAvailabilityFastBurn
+        exp_alerts:
+          - exp_labels:
+              alert_class: "slo"
+              org_id: "org1"
+              severity: "page"
+              slo: "control_api_availability"
+            exp_annotations:
+              org_id: "org1"
+              runbook: "work-operations-runbook-2026-10-25.md#4-slo-测量方案"
+              summary: "控制 API 快速燃烧错误预算（30d 目标的 14.4 倍）"
+  # WorkControlApiAvailabilityFastBurn
+  - interval: 1m
+    input_series:
+      - series: 'work:slo_control_api_availability:ratio_5m{org_id="org1"}'
+        values: '0.99+0x30'
+      - series: 'work:slo_control_api_availability:ratio_1h{org_id="org1"}'
+        values: '0.99+0x30'
+      - series: 'work_api_requests_total{org_id="org1",route="r",status_class="2xx"}'
+        values: '0+100x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: WorkControlApiAvailabilityFastBurn
+        exp_alerts: []
+  # WorkSubmitAcceptLatencyHigh
+  - interval: 1m
+    input_series:
+      - series: 'work:slo_submit_accept_latency:p95_5m{org_id="org1"}'
+        values: '600+0x30'
+      - series: 'work:slo_submit_accept_latency:p95_1h{org_id="org1"}'
+        values: '600+0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WorkSubmitAcceptLatencyHigh
+        exp_alerts:
+          - exp_labels:
+              alert_class: "slo"
+              org_id: "org1"
+              severity: "ticket"
+              slo: "submit_accept_p95_ms"
+            exp_annotations:
+              org_id: "org1"
+              runbook: "work-operations-runbook-2026-10-25.md#4-slo-测量方案"
+              summary: "提交受理 P95 超过 500ms"
+  # WorkSubmitAcceptLatencyHigh
+  - interval: 1m
+    input_series:
+      - series: 'work:slo_submit_accept_latency:p95_5m{org_id="org1"}'
+        values: '400+0x30'
+      - series: 'work:slo_submit_accept_latency:p95_1h{org_id="org1"}'
+        values: '400+0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WorkSubmitAcceptLatencyHigh
+        exp_alerts: []
+  # WorkStatusVisibleLatencyHigh
+  - interval: 1m
+    input_series:
+      - series: 'work:slo_status_visible_latency:p95_5m{org_id="org1"}'
+        values: '3000+0x30'
+      - series: 'work:slo_status_visible_latency:p95_1h{org_id="org1"}'
+        values: '3000+0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WorkStatusVisibleLatencyHigh
+        exp_alerts:
+          - exp_labels:
+              alert_class: "slo"
+              org_id: "org1"
+              severity: "ticket"
+              slo: "status_visible_p95_ms"
+            exp_annotations:
+              org_id: "org1"
+              runbook: "work-operations-runbook-2026-10-25.md#4-slo-测量方案"
+              summary: "提交状态在 2s 内未可见（P95）"
+  # WorkStatusVisibleLatencyHigh
+  - interval: 1m
+    input_series:
+      - series: 'work:slo_status_visible_latency:p95_5m{org_id="org1"}'
+        values: '1500+0x30'
+      - series: 'work:slo_status_visible_latency:p95_1h{org_id="org1"}'
+        values: '1500+0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WorkStatusVisibleLatencyHigh
+        exp_alerts: []
+  # WorkFirstScreenLatencyHigh
+  - interval: 1m
+    input_series:
+      - series: 'work:slo_first_screen:p95_5m{org_id="org1"}'
+        values: '2000+0x30'
+      - series: 'work:slo_first_screen:p95_1h{org_id="org1"}'
+        values: '2000+0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WorkFirstScreenLatencyHigh
+        exp_alerts:
+          - exp_labels:
+              alert_class: "slo"
+              org_id: "org1"
+              severity: "ticket"
+              slo: "first_screen_p95_ms"
+            exp_annotations:
+              org_id: "org1"
+              runbook: "work-operations-runbook-2026-10-25.md#4-slo-测量方案"
+              summary: "固定设备/网络档位下首屏 P95 超过 1.5s"
+  # WorkFirstScreenLatencyHigh
+  - interval: 1m
+    input_series:
+      - series: 'work:slo_first_screen:p95_5m{org_id="org1"}'
+        values: '1200+0x30'
+      - series: 'work:slo_first_screen:p95_1h{org_id="org1"}'
+        values: '1200+0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WorkFirstScreenLatencyHigh
+        exp_alerts: []
+  # WorkModelTtftHigh
+  - interval: 1m
+    input_series:
+      - series: 'work:slo_model_ttft:p95_5m{org_id="org1"}'
+        values: '12000+0x30'
+      - series: 'work:slo_model_ttft:p95_1h{org_id="org1"}'
+        values: '12000+0x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: WorkModelTtftHigh
+        exp_alerts:
+          - exp_labels:
+              alert_class: "slo"
+              org_id: "org1"
+              severity: "ticket"
+              slo: "ttft_p95_ms"
+            exp_annotations:
+              org_id: "org1"
+              runbook: "work-operations-runbook-2026-10-25.md#4-slo-测量方案"
+              summary: "模型首 token P95 超过 10s（试点暂定目标）"
+  # WorkModelTtftHigh
+  - interval: 1m
+    input_series:
+      - series: 'work:slo_model_ttft:p95_5m{org_id="org1"}'
+        values: '9000+0x30'
+      - series: 'work:slo_model_ttft:p95_1h{org_id="org1"}'
+        values: '9000+0x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: WorkModelTtftHigh
+        exp_alerts: []
+  # WorkOutboxLagHigh
+  - interval: 1m
+    input_series:
+      - series: 'work:slo_outbox_lag:p95_5m{org_id="org1"}'
+        values: '40+0x30'
+      - series: 'work:slo_outbox_lag:p95_1h{org_id="org1"}'
+        values: '40+0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WorkOutboxLagHigh
+        exp_alerts:
+          - exp_labels:
+              alert_class: "slo"
+              org_id: "org1"
+              severity: "page"
+              slo: "outbox_lag_p95_s"
+            exp_annotations:
+              org_id: "org1"
+              runbook: "work-operations-runbook-2026-10-25.md#4-slo-测量方案"
+              summary: "Outbox 投递 lag P95 超过 30s"
+  # WorkOutboxLagHigh
+  - interval: 1m
+    input_series:
+      - series: 'work:slo_outbox_lag:p95_5m{org_id="org1"}'
+        values: '20+0x30'
+      - series: 'work:slo_outbox_lag:p95_1h{org_id="org1"}'
+        values: '20+0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WorkOutboxLagHigh
+        exp_alerts: []
+  # WorkOutboxBacklogHigh
+  - interval: 1m
+    input_series:
+      - series: 'work_outbox_backlog_events{org_id="org1"}'
+        values: '2000+0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WorkOutboxBacklogHigh
+        exp_alerts:
+          - exp_labels:
+              alert_class: "operational"
+              org_id: "org1"
+              severity: "page"
+              slo: "outbox_lag_p95_s"
+            exp_annotations:
+              org_id: "org1"
+              runbook: "work-r0a-security-ops-migration-design-2026-10-25.md#5-试点容量模型"
+              summary: "Outbox backlog 超过 1000 条；新提交应返回 503"
+  # WorkOutboxBacklogHigh
+  - interval: 1m
+    input_series:
+      - series: 'work_outbox_backlog_events{org_id="org1"}'
+        values: '500+0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WorkOutboxBacklogHigh
+        exp_alerts: []
+  # WorkUnknownOperationAgeHigh
+  - interval: 1m
+    input_series:
+      - series: 'work_unknown_operation_age_minutes_max{org_id="org1"}'
+        values: '20+0x30'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: WorkUnknownOperationAgeHigh
+        exp_alerts:
+          - exp_labels:
+              alert_class: "slo"
+              org_id: "org1"
+              severity: "page"
+              slo: "unknown_age_p95_min"
+            exp_annotations:
+              org_id: "org1"
+              runbook: "work-operations-runbook-2026-10-25.md#5-故障注入矩阵"
+              summary: "存在超过 15 分钟的 unknown Operation，需人工核对"
+  # WorkUnknownOperationAgeHigh
+  - interval: 1m
+    input_series:
+      - series: 'work_unknown_operation_age_minutes_max{org_id="org1"}'
+        values: '5+0x30'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: WorkUnknownOperationAgeHigh
+        exp_alerts: []
+  # WorkQuotaReconciliationDiff
+  - interval: 1m
+    input_series:
+      - series: 'work:track_quota_reconciliation:abs_max_5m{org_id="org1"}'
+        values: '5+0x60'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: WorkQuotaReconciliationDiff
+        exp_alerts:
+          - exp_labels:
+              alert_class: "operational"
+              org_id: "org1"
+              severity: "ticket"
+              slo: "quota_reconciliation_diff_tokens"
+            exp_annotations:
+              org_id: "org1"
+              runbook: "work-r0a-data-design-2026-10-25.md#5-领域命令"
+              summary: "配额账本与供应商 usage 对账存在差额（仅统计，不阻断）"
+  # WorkQuotaReconciliationDiff
+  - interval: 1m
+    input_series:
+      - series: 'work:track_quota_reconciliation:abs_max_5m{org_id="org1"}'
+        values: '0+0x60'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: WorkQuotaReconciliationDiff
+        exp_alerts: []
+  # WorkQuotaUnsettledReservations
+  - interval: 1m
+    input_series:
+      - series: 'work_quota_unsettled_reservations{org_id="org1"}'
+        values: '1+0x60'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: WorkQuotaUnsettledReservations
+        exp_alerts:
+          - exp_labels:
+              alert_class: "operational"
+              severity: "ticket"
+              slo: "quota_reconciliation_diff_tokens"
+            exp_annotations:
+              org_id: ""
+              runbook: "work-r0a-data-design-2026-10-25.md#5-领域命令"
+              summary: "存在超过 30 分钟未结算的配额预留"
+  # WorkQuotaUnsettledReservations
+  - interval: 1m
+    input_series:
+      - series: 'work_quota_unsettled_reservations{org_id="org1"}'
+        values: '0+0x60'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: WorkQuotaUnsettledReservations
+        exp_alerts: []
+  # WorkGoldenTechnicalSuccessLow
+  - interval: 1m
+    input_series:
+      - series: 'work:slo_golden_technical_success:ratio_1h{org_id="org1"}'
+        values: '0.9+0x90'
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: WorkGoldenTechnicalSuccessLow
+        exp_alerts:
+          - exp_labels:
+              alert_class: "slo"
+              org_id: "org1"
+              severity: "ticket"
+              slo: "technical_success_rate"
+            exp_annotations:
+              org_id: "org1"
+              runbook: "work-operations-runbook-2026-10-25.md#4-slo-测量方案"
+              summary: "Golden task 技术成功率低于 95%（排除用户取消/预算等待）"
+  # WorkGoldenTechnicalSuccessLow
+  - interval: 1m
+    input_series:
+      - series: 'work:slo_golden_technical_success:ratio_1h{org_id="org1"}'
+        values: '0.98+0x90'
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: WorkGoldenTechnicalSuccessLow
+        exp_alerts: []
+  # WorkProviderErrorRateHigh
+  - interval: 1m
+    input_series:
+      - series: 'work:track_provider_error:ratio_1h{org_id="org1"}'
+        values: '0.1+0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WorkProviderErrorRateHigh
+        exp_alerts:
+          - exp_labels:
+              alert_class: "operational"
+              org_id: "org1"
+              severity: "ticket"
+              slo: "provider_error_rate"
+            exp_annotations:
+              org_id: "org1"
+              runbook: "work-r0a-runtime-egress-design-2026-10-25.md"
+              summary: "供应商 4xx/5xx 比例超过 5%，区分限流/超时/unknown"
+  # WorkProviderErrorRateHigh
+  - interval: 1m
+    input_series:
+      - series: 'work:track_provider_error:ratio_1h{org_id="org1"}'
+        values: '0.01+0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WorkProviderErrorRateHigh
+        exp_alerts: []
+  # WorkProviderAuthFailures
+  - interval: 1m
+    input_series:
+      - series: 'work_provider_requests_total{org_id="org1",http_status="401"}'
+        values: '0+10x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: WorkProviderAuthFailures
+        exp_alerts:
+          - exp_labels:
+              alert_class: "operational"
+              org_id: "org1"
+              severity: "page"
+              slo: "provider_error_rate"
+            exp_annotations:
+              org_id: "org1"
+              runbook: "work-r0a-runtime-egress-design-2026-10-25.md"
+              summary: "供应商鉴权失败（401），检查凭据轮换/撤销"
+  # WorkProviderAuthFailures
+  - interval: 1m
+    input_series:
+      - series: 'work_provider_requests_total{org_id="org1",http_status="401"}'
+        values: '5+0x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: WorkProviderAuthFailures
+        exp_alerts: []
+  # WorkProviderRateLimited
+  - interval: 1m
+    input_series:
+      - series: 'work_provider_requests_total{org_id="org1",http_status="429"}'
+        values: '0+10x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WorkProviderRateLimited
+        exp_alerts:
+          - exp_labels:
+              alert_class: "operational"
+              org_id: "org1"
+              severity: "ticket"
+              slo: "provider_error_rate"
+            exp_annotations:
+              org_id: "org1"
+              runbook: "work-r0a-runtime-egress-design-2026-10-25.md"
+              summary: "供应商限流（429），检查配额与退避"
+  # WorkProviderRateLimited
+  - interval: 1m
+    input_series:
+      - series: 'work_provider_requests_total{org_id="org1",http_status="429"}'
+        values: '5+0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WorkProviderRateLimited
+        exp_alerts: []
+  # WorkWorkflowStartFailures
+  - interval: 1m
+    input_series:
+      - series: 'work_workflow_start_total{org_id="org1",outcome="failed"}'
+        values: '0+10x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: WorkWorkflowStartFailures
+        exp_alerts:
+          - exp_labels:
+              alert_class: "operational"
+              org_id: "org1"
+              severity: "page"
+              slo: "operational"
+            exp_annotations:
+              org_id: "org1"
+              runbook: "work-operations-runbook-2026-10-25.md#2-升级-runbook"
+              summary: "已提交 Run 的工作流启动失败率超过 0.5%"
+  # WorkWorkflowStartFailures
+  - interval: 1m
+    input_series:
+      - series: 'work_workflow_start_total{org_id="org1",outcome="failed"}'
+        values: '5+0x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: WorkWorkflowStartFailures
+        exp_alerts: []
+  # WorkUsageMismatchHigh
+  - interval: 1m
+    input_series:
+      - series: 'work_usage_settlements_total{org_id="org1",outcome="usage_mismatch"}'
+        values: '0+10x60'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: WorkUsageMismatchHigh
+        exp_alerts:
+          - exp_labels:
+              alert_class: "operational"
+              org_id: "org1"
+              severity: "ticket"
+              slo: "operational"
+            exp_annotations:
+              org_id: "org1"
+              runbook: "work-r0a-pilot-operations-runbook-2026-10-26.md#7-usage-与账单对账"
+              summary: "供应商 usage 与网关计数不一致占比超过 5%"
+  # WorkUsageMismatchHigh
+  - interval: 1m
+    input_series:
+      - series: 'work_usage_settlements_total{org_id="org1",outcome="usage_mismatch"}'
+        values: '5+0x60'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: WorkUsageMismatchHigh
+        exp_alerts: []
+
+  # WorkControlApiAvailabilitySlowBurn (the 6h/1d burn, so the case needs >24h of history)
+  - interval: 1m
+    input_series:
+      - series: 'work:slo_control_api_availability:ratio_6h{org_id="org1"}'
+        values: '0.9+0x1900'
+      - series: 'work:slo_control_api_availability:ratio_1d{org_id="org1"}'
+        values: '0.9+0x1900'
+      - series: 'work_api_requests_total{org_id="org1",route="r",status_class="2xx"}'
+        values: '0+100x1900'
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: WorkControlApiAvailabilitySlowBurn
+        exp_alerts:
+          - exp_labels:
+              alert_class: "slo"
+              org_id: "org1"
+              severity: "ticket"
+              slo: "control_api_availability"
+            exp_annotations:
+              org_id: "org1"
+              runbook: "work-operations-runbook-2026-10-25.md#4-slo-测量方案"
+              summary: "控制 API 持续燃烧错误预算（30d 目标的 6 倍）"
+  - interval: 1m
+    input_series:
+      - series: 'work:slo_control_api_availability:ratio_6h{org_id="org1"}'
+        values: '0.997+0x1900'
+      - series: 'work:slo_control_api_availability:ratio_1d{org_id="org1"}'
+        values: '0.997+0x1900'
+      - series: 'work_api_requests_total{org_id="org1",route="r",status_class="2xx"}'
+        values: '0+100x1900'
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: WorkControlApiAvailabilitySlowBurn
+        exp_alerts: []
+
+# ---------------------------------------------------------------------------
+# 2026-11-07: the six alerts that had a firing case but no below-threshold case.
+# Without these, a rule rewritten to fire on everything would still pass promtool -
+# the alert-rule-coverage gate now requires both directions for all 27.
+# ---------------------------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'work_unknown_operations{org_id="org1"}'
+        values: '0+0x60'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: WorkUnknownOperationsPresent
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'work_background_job_runs_total{kind="audit_export_worker",outcome="failed",org_id="org1"}'
+        values: '5+0x60'
+      - series: 'work_background_job_runs_total{kind="audit_export_worker",outcome="succeeded",org_id="org1"}'
+        values: '100+10x60'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: WorkAuditExportFailureRatio
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'work_audit_export_downloads_total{outcome="denied",org_id="org1"}'
+        values: '5+0x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: WorkAuditExportTokenFailureBurst
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'work_content_shred_backlog{org_id="org1"}'
+        values: '50+0x60'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: WorkContentShredBacklog
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'work_background_job_lease_takeovers_total{kind="content_shredder"}'
+        values: '5+0x40'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WorkBackgroundJobLeaseTakeovers
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'work_audit_export_duration_seconds_sum{org_id="org1"}'
+        values: '0+100x60'
+      - series: 'work_audit_export_duration_seconds_count{org_id="org1"}'
+        values: '0+1x60'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: WorkAuditExportSlow
+        exp_alerts: []

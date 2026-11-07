@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Roll out Work R0a schema 0017-0027 on the pilot host.
+# Roll out Work R0a on the pilot host. The chain this package carries is not written here:
+# it is read from MIGRATION_TAIL, which make-release.sh derives from the increments at build
+# time (#78), so a hand-copied version number in this header would be a claim, not a reading.
 #
 # Non-additive changes inside this range, so they are not a surprise mid-window:
 #   0017:164 drops NOT NULL on work.artifact_version.content_ref, because a
@@ -11,9 +13,15 @@
 # Run as root. Every step is idempotent and every destructive step is preceded
 # by a database dump. Use --dry-run first: it prints the exact commands.
 #
+# --migrations-only is the I-4a radius: it dumps, installs work-migrate (the chain is embedded
+# in that binary), applies and reads back status, and installs the retention-scan pair so 0032's
+# read-only orphan reading exists on the host. It stops nothing, restarts nothing, installs no
+# other binary and touches no unit, so an in-flight workflow is never replayed under new code -
+# which is why #81's bounded parks do NOT become live in this mode (that is I-4b).
+#
 #   ./rollout-r0a-0027.sh --release /root/work-release-0027 \
 #     --migrator-url 'postgresql://work_migrator_login:...@127.0.0.1:5432/work' \
-#     [--enable-advance] [--runtime-bundle /root/work-runtime-0027.tar.gz] [--dry-run]
+#     [--enable-advance] [--migrations-only] [--runtime-bundle /root/work-runtime-0027.tar.gz] [--dry-run]
 #
 # Rollback: restore the dump taken in step 2 and reinstall the .bak-<stamp>
 # binaries. No increment in this range deletes a row, but the two relaxations and the
@@ -26,11 +34,12 @@ MIGRATOR_URL="${MIGRATOR_DATABASE_URL:-}"
 ENABLE_ADVANCE=0
 RUNTIME_BUNDLE=""
 DRY_RUN=0
+MIGRATIONS_ONLY=0
 STAMP="$(date +%Y%m%d-%H%M%S)"
 BACKUP_DIR=/var/backups/work
 
 usage() {
-  sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'
   exit 1
 }
 
@@ -40,11 +49,23 @@ while [[ $# -gt 0 ]]; do
     --migrator-url) MIGRATOR_URL="${2:-}"; shift 2 ;;
     --runtime-bundle) RUNTIME_BUNDLE="${2:-}"; shift 2 ;;
     --enable-advance) ENABLE_ADVANCE=1; shift ;;
+    --migrations-only) MIGRATIONS_ONLY=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage ;;
     *) echo "unknown flag: $1" >&2; usage ;;
   esac
 done
+
+if [[ "$MIGRATIONS_ONLY" -eq 1 && "$ENABLE_ADVANCE" -eq 1 ]]; then
+  echo "--migrations-only cannot be combined with --enable-advance: that flag's work lives after" >&2
+  echo "   this mode's early exit, so accepting both would report an intent nothing performed." >&2
+  exit 1
+fi
+if [[ "$MIGRATIONS_ONLY" -eq 1 && -n "$RUNTIME_BUNDLE" ]]; then
+  echo "--migrations-only cannot be combined with --runtime-bundle: the Node runtime install also" >&2
+  echo "   lives past the early exit. Pass it on the full rollout (I-4b)." >&2
+  exit 1
+fi
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "run as root" >&2
@@ -58,9 +79,21 @@ if [[ -z "$MIGRATOR_URL" ]]; then
   echo "--migrator-url (or MIGRATOR_DATABASE_URL) is required" >&2
   exit 1
 fi
-for bin in work-migrate work-api work-relay work-worker work-authz work-content-proxy work-egress work-directory-sync work-reconcile work-export work-provider-setup; do
-  [[ -f "$RELEASE/$bin" ]] || { echo "missing $RELEASE/$bin" >&2; exit 1; }
-done
+# Which binaries the package must carry is the package's own declaration (#54: a hand-copied list
+# here froze at 11 while cmd/ has 13, so the drill's own seed binary was never shipped and never
+# checked). A package that cannot state its contents is refused rather than silently half-installed.
+if [[ ! -f "$RELEASE/BINARIES" ]]; then
+  echo "aborting: $RELEASE/BINARIES is missing - rebuild the release with make-release.sh, which derives that list at build time" >&2
+  exit 1
+fi
+pack_bin_count=0
+while read -r bin; do
+  [[ -n "$bin" ]] || continue
+  pack_bin_count=$((pack_bin_count + 1))
+  [[ -f "$RELEASE/$bin" ]] || { echo "missing $RELEASE/$bin (declared by $RELEASE/BINARIES)" >&2; exit 1; }
+done < "$RELEASE/BINARIES"
+(( pack_bin_count >= 12 )) || { echo "aborting: $RELEASE/BINARIES declares $pack_bin_count binaries, expected at least 12" >&2; exit 1; }
+echo "package declares $pack_bin_count binaries"
 
 run() {
   if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -83,6 +116,11 @@ ledger_max() {
 
 install_binary() {
   local name="$1"
+  # The rollout radius is counted here, not copied into a document. Duty text said "装 10 二进制"
+  # for weeks and it was still being quoted in an authorization request after #54 added the drill
+  # binaries (13 now) - a number someone approves against a stale sentence is worse than no number.
+  declare -ga INSTALLED_BINARIES
+  INSTALLED_BINARIES+=("$name")
   if [[ -f "/usr/local/bin/$name" ]]; then
     run cp -p "/usr/local/bin/$name" "/usr/local/bin/$name.bak-$STAMP"
   fi
@@ -137,14 +175,42 @@ install_env() {
 echo "== 1. preflight =="
 current="$(ledger_max)"
 echo "ledger currently at ${current:-0}"
-if [[ "${current:-0}" -gt 27 ]]; then
-  echo "database is ahead of this release (ledger $current); aborting" >&2
+# #78：这一包带到的链尾从包里读（make-release 构建期算好写进 MIGRATION_TAIL），不在此处抄数字。
+# 先前这里是写死的 `> 27`：0028 落地那天没人改它，于是在 ledger=28 的现网上这笔发布
+# 一进 preflight 就中止，真实变更只能绕开发布脚本手工装——保护语义没错，错在它不知道自己在跟谁比。
+# 读不到不能让它把脚本带走：这里是 set -euo pipefail，`x="$(cat 缺失文件)"` 的退出码就是赋值行的
+# 退出码，会在此处静默 exit 1 —— 操作员只看到两行输出，看不到"为什么拒绝"（2026-11-05 现网 dry-run 实测）。
+# 所以先吞掉读失败，把判断交给下面那条显式的数字校验，让它把话说完再退出。
+chain_tail="$( { cat "$RELEASE/MIGRATION_TAIL" 2>/dev/null || true; } | tr -d '[:space:]')"
+if [[ ! "$chain_tail" =~ ^[0-9]+$ ]]; then
+  echo "aborting: $RELEASE/MIGRATION_TAIL is missing or not a number - this package cannot prove which chain it carries" >&2
+  echo "  rebuild it with make-release.sh (it derives the tail from the migration chain embedded in this package)" >&2
+  exit 1
+fi
+echo "package chain ends at increment $chain_tail"
+if [[ "${current:-0}" -gt "$chain_tail" ]]; then
+  echo "database is ahead of this release (ledger $current, package chain ends at $chain_tail); aborting" >&2
   exit 1
 fi
 if [[ -f "$RELEASE/RELEASE_COMMIT" ]]; then
   echo "release built from commit $(cat "$RELEASE/RELEASE_COMMIT")"
 else
   echo "WARN: $RELEASE/RELEASE_COMMIT is missing; these binaries have no recorded source commit" >&2
+fi
+# 出处要在这一步就被看见，而不是等人事后 `git show` 发现对不上：make-release 把打包时工作树的
+# 脏路径数写进 RELEASE_DIRTY（统计范围＝包真正拷走的那些路径），这里原样打印。缺这个文件＝旧包，
+# 按"不可归因"处理而不是当 0，因为沉默正是这次要修的那类缺陷。
+if [[ -f "$RELEASE/RELEASE_DIRTY" ]]; then
+  release_dirty="$(tr -d '[:space:]' < "$RELEASE/RELEASE_DIRTY")"
+  if [[ "$release_dirty" =~ ^[0-9]+$ ]] && [[ "$release_dirty" != "0" ]]; then
+    echo "WARN: $release_dirty packaged source path(s) were modified relative to $(cat "$RELEASE/RELEASE_COMMIT") - installed files may not match the stamped commit" >&2
+  elif [[ "$release_dirty" =~ ^[0-9]+$ ]]; then
+    echo "release tree clean against its recorded commit; packaged files reproducible"
+  else
+    echo "WARN: $RELEASE/RELEASE_DIRTY is not a number ('$release_dirty'); provenance of the packaged files is unknown" >&2
+  fi
+else
+  echo "WARN: $RELEASE/RELEASE_DIRTY is missing; cannot tell whether packaged files match $(cat "$RELEASE/RELEASE_COMMIT" 2>/dev/null || echo 'the recorded commit')" >&2
 fi
 # 0027 builds a UNIQUE index over (org_id, metadata->>'request_id') for the
 # governance_gap_skipped receipts, in the transaction that reads what is already there.
@@ -175,6 +241,37 @@ echo "== 2b. in-flight runs =="
 runuser -u postgres -- psql -d work -Atc "select state, count(*) from work.run where state in ('queued','active','waiting','cancel_requested') group by state" || true
 echo "the new worker cannot resume legacy in-flight runs; drain or accept their loss before --enable-advance"
 
+if [[ "$MIGRATIONS_ONLY" -eq 1 ]]; then
+  # I-4a. Why this branch exists at all: before it, "apply the chain without restarting the worker"
+  # had no entry point in the release chain, so doing it meant hand-running work-migrate on the
+  # host - the #47/#54/#78 hole again, just moved from packaging to installation. The chain travels
+  # inside work-migrate (migrations/embed.go), so exactly one binary must be installed here.
+  echo "== 3m. migrations-only: apply the chain, touch no running unit =="
+  install_binary work-migrate
+  run env WORK_DATABASE_URL="$MIGRATOR_URL" /usr/local/bin/work-migrate apply --legacy-migrator-disabled
+  run env WORK_DATABASE_URL="$MIGRATOR_URL" /usr/local/bin/work-migrate status
+  # 0032's read-only orphan reading needs the wrapper AND the SQL, installed as a pair into the same
+  # directory: the wrapper looks for the SQL by dirname $0, and only one of them is a silent no-op.
+  run install -m 0755 -o root -g root "$RELEASE/run-retention-scan.sh" /usr/local/bin/run-retention-scan.sh
+  run install -m 0644 -o root -g root "$RELEASE/retention-scan.sql" /usr/local/bin/retention-scan.sql
+  install_env work-retention-scan
+  # Read the tail the same tolerant way the preflight does (set -euo pipefail kills a bare
+  # `x="$(cat missing)"` with no message), then refuse if it is not a number.
+  chain_tail="$( { cat "$RELEASE/MIGRATION_TAIL" 2>/dev/null || true; } | tr -d '[:space:]')"
+  if ! [[ "$chain_tail" =~ ^[0-9]+$ ]]; then
+    echo "migrations-only aborted: $RELEASE/MIGRATION_TAIL is missing or not a number - this package cannot say which chain it carries" >&2
+    exit 1
+  fi
+  echo "migrations-only: this package carries chain tail $chain_tail"
+  echo "MIGRATIONS-ONLY DID NOT: stop or restart work-worker, work-relay, work-export or work-api;"
+  echo "MIGRATIONS-ONLY DID NOT: install any other binary (work-worker in particular);"
+  echo "MIGRATIONS-ONLY DID NOT: render runtime env, install or reload service units, or start/enable timers."
+  echo "consequence: #82 (0030) and #80 (0031/0032) take effect now, because the running binaries"
+  echo "  already call those functions; #81's bounded reconcile parks do NOT - they are Go-side"
+  echo "  workflow code and need the worker swap, which is I-4b and carries runbook §5.32's replay preflight."
+  exit 0
+fi
+
 echo "== 3. stop writers =="
 for unit in work-directory-sync.timer work-directory-sync-full.timer work-directory-sync.service work-worker work-relay work-export; do
   run systemctl stop "$unit" 2>/dev/null || true
@@ -188,6 +285,18 @@ run env WORK_DATABASE_URL="$MIGRATOR_URL" /usr/local/bin/work-migrate status
 echo "== 5. binaries =="
 for bin in work-api work-relay work-worker work-authz work-content-proxy work-egress work-directory-sync work-reconcile work-export work-provider-setup; do
   install_binary "$bin"
+done
+# Drill-side binaries. They are installed only because the package now declares them: the host copy
+# of work-e2e-seed was hand-placed on 2026-10-30 and no release ever carried it (#54), which is how
+# a drill prerequisite ended up with no source commit and no checksum. Replacing that file is a
+# production write, so it happens here, under a rollout, and the sha goes into the log - not
+# silently at build time. Nothing in this step runs them.
+for bin in work-e2e-seed work-replay; do
+  if [[ -f "$RELEASE/$bin" ]]; then
+    install_binary "$bin"
+  else
+    echo "note: $bin is not in $RELEASE - skipping (the service units do not need it)"
+  fi
 done
 
 echo "== 6. service account, PKI, env =="
@@ -253,6 +362,13 @@ run install -m 0644 -o root -g root "$RELEASE/runstream-gauges.sql" /usr/local/b
 # 不再依赖 /tmp 里那份手工放置的副本。
 run install -m 0755 -o root -g root "$RELEASE/work-c16-log-scan.sh" /usr/local/bin/work-c16-log-scan.sh
 run install -m 0644 -o root -g root "$RELEASE/log-scan.mjs" /usr/local/bin/log-scan.mjs
+# #96 C1（2026-11-07）：canary 机制本来就在跑、正控也真的 fire 过，但主机上 c16/log-scan 定时器数
+# 实测为 0，所以带真实用户内容的正文检测只在有人手跑时发生。这里给它一个执行者；扫描规则一行未动。
+# unit 以 root 跑，因为 canary 来源是 `sudo -u postgres psql`（work_api 在 RLS 下会读到 0 条标题），
+# 理由与 ProtectSystem 的取值都写在 unit 注释里。
+for unit in work-c16-log-scan.service work-c16-log-scan.timer; do
+  run install -m 0644 -o root -g root "$RELEASE/$unit" "/etc/systemd/system/$unit"
+done
 # D 段（D4-6b 留存清扫预检）成对安装：包装脚本按 dirname $0 找 SQL，两个都落在 /usr/local/bin
 # 才自洽；此前那份只放在 /tmp，机器重启或换机就没了（#54／#57 同一类缺口）。
 run install -m 0755 -o root -g root "$RELEASE/run-retention-preflight.sh" /usr/local/bin/run-retention-preflight.sh
@@ -266,8 +382,9 @@ for unit in work-runstream-scan.service work-runstream-scan.timer; do
 done
 install_env work-runstream-scan
 run systemctl daemon-reload
-run systemctl enable work-runstream-scan.timer
+run systemctl enable work-runstream-scan.timer work-c16-log-scan.timer
 run systemctl start work-runstream-scan.timer
+run systemctl start work-c16-log-scan.timer
 
 echo "== 8. Node runtime =="
 if [[ -n "$RUNTIME_BUNDLE" && -f "$RUNTIME_BUNDLE" ]]; then
@@ -336,6 +453,10 @@ fi
 run systemctl restart work-worker
 
 echo "== 10. smoke =="
+# Read the radius from the run itself: count plus names, so an operator authorizing or reviewing a
+# rollout never has to trust a number written in prose. In --dry-run this is the plan, not the result.
+if [[ "$DRY_RUN" -eq 1 ]]; then RADIUS_MODE="will replace (dry-run plan)"; else RADIUS_MODE=replaced; fi
+echo "binaries this rollout $RADIUS_MODE = ${#INSTALLED_BINARIES[@]} -> ${INSTALLED_BINARIES[*]}"
 # A unit that systemd never stopped keeps serving the pre-rollout inode: the new
 # binary is on disk, /proc/<pid>/exe points at the deleted one. Catch that here
 # instead of discovering it hours later from an API response shape.

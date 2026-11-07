@@ -193,10 +193,23 @@ func RunWorkflow(ctx workflow.Context, input Input) error {
 					Outcome: "failed", Reason: "reconcile_wait_failed",
 				}, err)
 			}
-			switch awaitResumeOrCancel(ctx, cancelCh, resumeCh) {
+			// #81 = B2 bounds this door too, with the same constant as the advance
+			// path: three parks existed, and leaving this one open-ended would mean
+			// "the reconcile wait is bounded" is true for two of three ways in.
+			// Every reconcile park now carries the bound. The unbounded helper
+			// this branch used to await on has been deleted rather than left as a
+			// load-bearing-looking pattern someone could reach for again; git history
+			// keeps the old shape if a future unbounded wait is ever genuinely wanted.
+			reconcileDeadline := workflow.NewTimer(ctx, advanceReconcileWaitLimit)
+			switch awaitQuotaOrSignal(ctx, reconcileDeadline, cancelCh, resumeCh) {
 			case "cancel":
 				return finishRun(ctx, FinishRunInput{
 					RunID: input.RunID, OrgID: input.OrgID, Outcome: "canceled", Reason: "run_canceled",
+				})
+			case "timeout":
+				return finishRun(ctx, FinishRunInput{
+					RunID: input.RunID, OrgID: input.OrgID, Outcome: "failed",
+					Reason: AdvanceReasonReconcileTimeout,
 				})
 			default:
 				return finishRun(ctx, FinishRunInput{
@@ -260,28 +273,6 @@ func executeStepWithCancel(
 	}
 	err := future.Get(stepCtx, &out)
 	return out, cancelConfirmed, err
-}
-
-func awaitResumeOrCancel(
-	ctx workflow.Context,
-	cancelCh, resumeCh workflow.ReceiveChannel,
-) string {
-	selector := workflow.NewSelector(ctx)
-	result := ""
-	selector.AddReceive(cancelCh, func(channel workflow.ReceiveChannel, more bool) {
-		var payload any
-		channel.Receive(ctx, &payload)
-		result = "cancel"
-	})
-	selector.AddReceive(resumeCh, func(channel workflow.ReceiveChannel, more bool) {
-		var payload any
-		channel.Receive(ctx, &payload)
-		result = "resume"
-	})
-	for result == "" {
-		selector.Select(ctx)
-	}
-	return result
 }
 
 func finishRun(ctx workflow.Context, input FinishRunInput) error {

@@ -41,6 +41,12 @@ var publishedIncrements = []string{
 	"0026_audit_export_org_gate",
 	"0027_governance_receipt_payload_binding",
 	"0028_runtime_execution_lease_takeover",
+	"0029_terminal_reservation_release",
+	"0030_durable_receipt_head_commit",
+	"0031_audit_export_stale_lease_discovery",
+	"0032_content_ref_reads_for_orphan_report",
+	"0033_list_content_refs_full_ref_coverage",
+	"0034_restore_function_security_definer",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

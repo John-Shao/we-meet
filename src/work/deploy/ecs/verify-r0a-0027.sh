@@ -33,18 +33,44 @@ psql_ro "select version || ' ' || name from work.schema_migration order by versi
 psql_ro "select 'rows=' || count(*) || ' max=' || coalesce(max(version), 0) from work.schema_migration"
 psql_ro "select '0027=' || coalesce((select name from work.schema_migration where version = 27), 'MISSING')"
 psql_ro "select '0028=' || coalesce((select name from work.schema_migration where version = 28), 'MISSING')"
-# Every increment in the range has to be recorded by name as well as by number: a
-# database that reached 28 through some other chain would otherwise look fine.
-psql_ro "select 'missing in 17..28: ' || coalesce(string_agg(expected.version || ':' || expected.name, ', '), 'none') from (values
+# Every increment in the list has to be recorded by name as well as by number: a database that
+# reached the chain head through some other sequence of files would otherwise look fine.
+psql_ro "select 'missing rows against the list this script ships: ' || coalesce(string_agg(expected.version || ':' || expected.name, ', '), 'none (all present)') from (values
   (17, '0017_r0b_transition_authority'), (18, '0018_r0b_governance_authority'),
   (19, '0019_r0b_deny_lifecycle'), (20, '0020_r0b_local_execution_policy'),
   (21, '0021_r0b_operation_resolution'), (22, '0022_org_execution_reason_split'),
   (23, '0023_operator_entitlement_and_intents'), (24, '0024_provider_probe_grant'),
   (25, '0025_provider_config_conflict_detail'), (26, '0026_audit_export_org_gate'),
   (27, '0027_governance_receipt_payload_binding'),
-  (28, '0028_runtime_execution_lease_takeover')) expected(version, name)
+  (28, '0028_runtime_execution_lease_takeover'),
+  (29, '0029_terminal_reservation_release'),
+  (30, '0030_durable_receipt_head_commit'),
+  (31, '0031_audit_export_stale_lease_discovery'),
+  (32, '0032_content_ref_reads_for_orphan_report'),
+  (33, '0033_list_content_refs_full_ref_coverage'),
+  (34, '0034_restore_function_security_definer')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
+# Same reason as the 0028 probe below: a ledger row only proves a file ran. 0029 is the
+# increment that stops a terminal Run from keeping a reservation held, and its whole subject is
+# the trigger - so read the live catalog for the trigger plus the ruled scope inside the helper body.
+# The scope check is the point: #79=B narrowed the release to operations in state 'unknown' with no
+# recorded receipt, so a probe that only looked for the trigger would happily certify the pre-B
+# blanket-release build. Both shapes exist in this repo's history, which is what makes this check
+# worth having rather than decorative.
+psql_ro "select 'terminal_release_guard=' || case when exists (
+  select 1 from pg_trigger t
+  join pg_proc p on p.oid = t.tgfoid
+  where t.tgrelid = 'work.run'::regclass
+    and t.tgname = 'run_terminal_reservation_release'
+    and not t.tgisinternal
+    and pg_get_functiondef(p.oid) like '%release_unreceipted_reservations%'
+    and exists (select 1 from pg_proc h
+      join pg_namespace n on n.oid = h.pronamespace
+      where n.nspname = 'work' and h.proname = 'release_unreceipted_reservations'
+        and pg_get_functiondef(h.oid) like '%gate_state = ''receipt_recorded''%'
+        and pg_get_functiondef(h.oid) like '%o.state = ''unknown''%'))
+  then 'true' else 'FALSE' end"
 # A ledger row only proves the file ran. 0028 is the increment that gives an elapsed
 # execute lease an exit, so read the live function bodies: a database that recorded
 # version 28 while running some other claim_runtime_execution would otherwise pass.
@@ -54,6 +80,25 @@ psql_ro "select 'claim_carries_takeover=' || case when pg_get_functiondef(
 psql_ro "select 'guard_allows_takeover_shape=' || case when pg_get_functiondef(
     'work.runtime_execution_guard()'::regprocedure) like '%clock_timestamp()%'
   then 'true' else 'FALSE' end"
+# 0034 (#87) is a permission fix, and a ledger row does not certify a permission. 0031 recorded
+# itself while leaving the function it rewrote with invoker rights - CREATE OR REPLACE does not
+# inherit SECURITY DEFINER or SET search_path - and that is what put
+# `permission denied for table audit_export (SQLSTATE 42501)` in every work-export poll from
+# 18:44:12 on 2026-11-06, 1,713 of them by 21:06:50. Read the attribute together with the discovery predicate the row is
+# supposed to carry, so neither a build that has the door but not the predicate, nor one that has
+# the predicate but not the door, can pass. The value is pulled out of proconfig by key rather than
+# dumping the array under this label: proconfig elements already read `search_path=work,pg_catalog`,
+# so printing the array after `search_path=` duplicated the prefix (and a function that pinned some
+# other SET clause would have been reported as if it pinned the search path).
+psql_ro "select 'export_discovery_hardened=' || prosecdef
+  || ' search_path=' || coalesce((select regexp_replace(e, '^search_path=', '') from unnest(proconfig) as e
+                                   where e like 'search_path=%'), 'MISSING')
+  || ' body_has_stale_lease_branch=' || (prosrc like '%lease_until <= clock_timestamp()%')
+  from pg_proc where oid = 'work.list_pending_audit_exports(text)'::regprocedure"
+psql_ro "select 'immutable_guard_hardened=' || prosecdef
+  || ' search_path=' || coalesce((select regexp_replace(e, '^search_path=', '') from unnest(proconfig) as e
+                                   where e like 'search_path=%'), 'MISSING')
+  from pg_proc where oid = 'work.artifact_version_immutable_content()'::regprocedure"
 psql_ro "select 'gap_skip_index_unique=' || coalesce(i.indisunique::text, 'MISSING')
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
   left join pg_index i on i.indexrelid = c.oid
@@ -66,7 +111,8 @@ echo
 echo "== rejection-reconcile command =="
 psql_ro "select 'security_definer=' || prosecdef
   || ' owner=' || (select rolname from pg_roles where oid = proowner)
-  || ' search_path=' || coalesce(array_to_string(proconfig, ','), '-')
+  || ' search_path=' || coalesce((select regexp_replace(e, '^search_path=', '') from unnest(proconfig) as e
+                                   where e like 'search_path=%'), '-')
   || ' body_has_resolution=' || (prosrc like '%rejected_not_executed%')
  from pg_proc where oid = 'work.reconcile_operation(text,uuid,text,text,bigint,text)'::regprocedure"
 psql_ro "select 'worker_execute=' || has_function_privilege('work_worker',
@@ -90,7 +136,8 @@ psql_ro "select coalesce(string_agg(name, ', '), 'none') from (values
 # rather than by signature, so a parameter change cannot silently disable the check.
 psql_ro "select proname || ' | definer=' || prosecdef
   || ' | owner=' || (select rolname from pg_roles where oid = proowner)
-  || ' | search_path=' || coalesce(array_to_string(proconfig, ','), '-')
+  || ' | search_path=' || coalesce((select regexp_replace(e, '^search_path=', '') from unnest(p.proconfig) as e
+                                     where e like 'search_path=%'), '-')
  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
  where n.nspname = 'work' and proname in (
    'set_provider_config', 'create_audit_export', 'consume_governance_events',
@@ -170,6 +217,20 @@ fi
 grep -rl work-reconcile /etc/systemd/system 2>/dev/null | sed 's/^/  referenced by: /'
 
 echo
+echo "== drill binaries (#54) =="
+# These two used to live only as hand-placed files: the release never carried work-e2e-seed, so a
+# drill prerequisite had no source commit, no checksum and no install path. Reported, not asserted -
+# MISSING means the host has not run a rollout that installs them yet, which is a deployment state,
+# not a defect in the package.
+for b in work-e2e-seed work-replay; do
+  if [[ -x /usr/local/bin/$b ]]; then
+    printf '  %s installed sha16=%s\n' "$b" "$(sha256sum /usr/local/bin/$b | cut -c1-16)"
+  else
+    printf '  %s MISSING (packaged, not yet installed by a rollout)\n' "$b"
+  fi
+done
+
+echo
 echo "== runstream gauges wiring (C17 minimal set) =="
 # 2026-11-04: main signing chose C (no per-binary Prometheus). The compensation is this read-only
 # gauge scan, whose whole reason to exist is that work-reconcile -scan cannot see a parked Run -
@@ -233,10 +294,21 @@ if [[ "$ret_enabled" == "enabled" ]]; then
   ret_synced="$(runuser -u postgres -- psql -d work -Atc 'select count(*) from work.org' 2>/dev/null || echo '?')"
   [[ "${ret_orgs:-0}" == "$ret_synced" ]] || echo "  WARN: retention org list ($ret_orgs) != directory orgs ($ret_synced); new tenants' content may never be swept"
 fi
-printf 'c16 log-scan wrapper=%s scanner=%s
-' "$c16_wrapper" "$c16_scanner"
+# #96 C1（2026-11-07）：在位性之外还要读出"有没有执行者、跑过没有"。controls_fired 数的是包装件
+# 自己打印的 positive control fired 行——0 与"跑过且正控成立"是两件事，只看在位性分不出来。
+c16_timer="$(systemctl is-enabled work-c16-log-scan.timer 2>/dev/null || true)"
+c16_active="$(systemctl is-active work-c16-log-scan.timer 2>/dev/null || true)"
+c16_result="$(systemctl show -p Result --value work-c16-log-scan.service 2>/dev/null || true)"
+c16_next="$(systemctl show -p NextElapseUSecRealtime --value work-c16-log-scan.timer 2>/dev/null || true)"
+c16_controls="$(journalctl -u work-c16-log-scan.service --no-pager -o cat 2>/dev/null | grep -c 'positive control fired')"
+printf 'c16 log-scan wrapper=%s scanner=%s timer=%s active=%s next=%s last_result=%s controls_fired=%s\n' \
+  "$c16_wrapper" "$c16_scanner" "${c16_timer:-none}" "${c16_active:-none}" "${c16_next:-none}" \
+  "${c16_result:-none}" "${c16_controls:-0}"
 if [[ "$c16_wrapper" != "present" || "$c16_scanner" != "present" ]]; then
   echo "  WARN: work-c16-log-scan.sh and log-scan.mjs must ship side by side - the C16 re-run channel cannot work with only one"
+fi
+if [[ "$c16_timer" != "enabled" ]]; then
+  echo "  WARN: work-c16-log-scan.timer not enabled - 正文/canary 检测仍只在有人手跑时发生（#96 C1 未生效）"
 fi
 if [[ -n "$rs_timer" ]]; then
   rs_configured="$(set -o posix; . /etc/work/work-runstream-scan.env 2>/dev/null; echo ${WORK_RUNSTREAM_ORGS:-} | wc -w)"

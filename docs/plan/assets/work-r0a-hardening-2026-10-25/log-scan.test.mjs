@@ -152,3 +152,30 @@ test('a missing canary file is reported by path, never by content', () => {
       error.message.includes('work-canary-missing')
   );
 });
+
+// #94 = G3: the drill evidence carries content:// locators, and the ruling is that a locator is
+// not user content. Both directions are pinned so the narrowing cannot quietly become a blanket
+// exemption: the locator passes, and the same fields carrying a body still fail.
+test('a content:// reference URI is a locator, not user content', () => {
+  const line = 'ready|0478f98c-a5d4-4b00-af77-29a91150255b|ref=content://work/4a2d3f28-38b9-4d6c-8614-70ef9a83960d/2f7a0e4e65a0a67693fe7?v=1';
+  const result = scanText(line, { source: 'unit.log' });
+  assert.equal(result.failed, false);
+  assert.equal(result.byRule['content.field'] || 0, 0);
+});
+
+test('a quoted content:// locator stays a locator', () => {
+  const result = scanText('usage={"receipt_ref": "content://work/org1/abc123def456ghi789?v=1"}', { source: 'unit.log' });
+  assert.equal(result.failed, false);
+});
+
+test('body-shaped values in the same fields still fail after the narrowing', () => {
+  for (const field of ['content', 'prompt', 'messages', 'artifact_content', 'goal', 'background', 'completion']) {
+    // The rule matches an unbroken run of 12+ non-space characters, so the fixture is a body-shaped
+    // token, not prose. Prose with spaces is NOT caught by this rule - that limitation is registered
+    // separately rather than fixed by quietly widening a security control.
+    const result = scanText(`${field}="invoice-summary-for-acme-corp-2026-q4"`, { source: 'unit.log' });
+    assert.equal(result.failed, true, `${field} carrying a body must still be caught`);
+    assert.equal(result.byRule['content.field'], 1, `${field} must be attributed to content.field`);
+  }
+});
+

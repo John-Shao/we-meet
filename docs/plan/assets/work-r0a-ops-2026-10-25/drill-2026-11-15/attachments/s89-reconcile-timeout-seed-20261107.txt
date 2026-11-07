@@ -1,0 +1,55 @@
+---TEMPORAL_NOW---
+2329734 temporal-server --env docker start --service=frontend --service=history --service=matching --service=worker
+---UNITS---
+active active active active active 
+---PARKED_READING---
+run-runstream-gauges: BREACH org=4a2d3f28-38b9-4d6c-8614-70ef9a83960d parked_runs=1 held_on_terminal=0 unknown_operations=36 suspended_orgs=0 open_runs=2 held_tokens=100000 - 停放 Run（库在等一个不会再回来的执行；见 §5.18 可见性边界与 #56-A）
+run-runstream-gauges summary: orgs=1 stale_minutes=5 max_held_on_terminal=0 breaches=1 scan_errors=0
+---LOG_COPY---
+== 1. resolve the kill target ==
+candidates=2059776 count=1
+target_pid=2059776
+cmdline=temporal-server --env docker start --service=frontend --service=history --service=matching --service=worker 
+started=Fri Nov  6 08:44:23 2026
+== 2. pre-injection in-flight census (must be zero besides our seed) ==
+1
+== 3. seed one real run as work-control ==
+seed_env_ok=1 dsn_user=work_api_login runtime_version=pi-1.4.0-r0a content_dir=/var/lib/work/content
+task_id=6a5199e3-dcc5-4da1-9259-35bc61abe735
+run_id=18c04b53-0ddb-40f8-ac33-09a925f3d224
+revision=1
+input_ref=5d9d1da2-af37-44cf-9ed8-f4268fbbca8e
+snapshot_hash=sha256:1ad9d1f3dfc66768c3034223a9b7f4d4b1b84433d82d7fbe35bbdd56eea7c434
+SEED_RC=0 client_request_id=seed-89-20261107-082019
+seeded_run_id=18c04b53-0ddb-40f8-ac33-09a925f3d224
+== 4. wait until that run is really in flight ==
+poll1 state=queued
+poll2 state=active
+== 5. inject ==
+KILL_RC=0 kill_at=2026-11-07 08:20:22 CST pid=2059776
+== 6. wait for the park (attempt 2 lands about 4 minutes later) ==
+t=15s state=active/-/-
+t=30s state=active/-/-
+t=45s state=active/-/-
+t=60s state=active/-/-
+t=75s state=active/-/-
+t=90s state=active/-/-
+t=105s state=active/-/-
+t=120s state=active/-/-
+t=135s state=active/-/-
+t=150s state=active/-/-
+t=165s state=active/-/-
+t=180s state=active/-/-
+t=195s state=active/-/-
+t=210s state=active/-/-
+t=225s state=active/-/-
+t=240s state=active/-/-
+t=255s state=active/-/-
+t=270s state=waiting/reconcile/-
+PARKED run_id=18c04b53-0ddb-40f8-ac33-09a925f3d224 at=2026-11-07 08:24:38 CST
+== 7. final reading ==
+18c04b53-0ddb-40f8-ac33-09a925f3d224|waiting|reconcile||2026-11-07 08:24:30.765436+08
+1
+EARLIEST_TIMEOUT_READ=2026-11-08 08:24:38 CST
+SEED89_DONE
+SEED89_RC=0
