@@ -2240,6 +2240,19 @@ CI 侧我差点又下一次否定式错：只看到 `meet.yml` 的 `lint-front` 
 **我自己的一次用例假设错，已按实更正并登记局限**：我拿"带空格的散文"当正文夹具，红了——该规则匹配的是 12 个以上**非空白**字符，散文本来就抓不到。改用无空格正文夹具后 13/13；**"规则不覆盖带空格散文"这条局限写进 §5.30 与 C16 note，不自行收紧或放宽**（那属改安全控制强度，需另行裁定）。
 传播面：runbook §5.30 两段同日标注（原文不删）、C16 的 evidence/note 按现读补记（status 仍 partial，因为运行面重扫仍等 #91/#92）、任务 #90／#94 收口。**#92 的落地清单因此多一件**：`run-retention-scan.sh` 也要随那次 rollout 装。
 
+**#91＋#92 已按主签授权实装（2026-11-07 08:0x，两个半径同批；逐项读数如下）**：
+① **推送**：`8e294c3ad` fast-forward 到 `origin/fix-r0a-envelope-29`（推前核 ahead/behind＝1/0，只带这一笔）。
+② **构建**：`make-release.sh` rc=0，`RELEASE_COMMIT=8e294c3ad…`、**`RELEASE_DIRTY=0` ⇒ 打印 "packaged files are reproducible at the same SHA"**（出处自证的干净档第一次在真实构建里出现）、`MIGRATION_TAIL=34`、13 个二进制、57 个文件；四件改过的脚本与 `log-scan.mjs` 在包内与仓库 sha 逐字相同（`1a94613af594`／`9cf76f6c4740`／`14081b4464c2`／`e9df39a8e41b`）。
+③ **上传校验**：主机解包 57 文件，`sha256sum -c SHA256SUMS` **FAILED=0**。
+④ **§5.32 前置**：换二进制前现读 `work-reconcile -scan` ⇒ **Running=0**、Failed=1（就是那笔早已闭合的 `e24eb42c…`）⇒ 走第①档，不需要重放。
+⑤ **dry-run 先读半径**：脚本自己打印"将替换 13 个二进制（含 `work-worker`）"＋runtime 安装＋重启清单；随后实装 **ROLLOUT_RC=0**，真实运行里也打出了 `release built from commit 8e294c3ad…` 与 `release tree clean …`；回滚点 `work-pre-0027-20261107-080355.dump` ＋ `*.bak-20261107-080355`。
+⑥ **verify**：`VERIFY_RC=0`、`rows=34 max=34`、`missing: none (all present)`；**`search_path=` 只出现一次**（`export_discovery_hardened=true search_path=work, pg_catalog body_has_stale_lease_branch=true`、`immutable_guard_hardened=true …`、六行 definer 全为 `work, pg_catalog`）⇒ 探针标签修正已在现网生效。四件脚本＋`log-scan.mjs` 的**主机 sha 与包内逐字相同**。
+⑦ **runstream 读数复核**：`summary … max_held_on_terminal=0`、`held_on_terminal=0`；仍有一条 `BREACH parked_runs=1`——那是刻意保留的 `e24eb42c…`（设计内告警，不是新故障），收它属 10-31 孤儿关闭裁定。
+⑧ **C16 读数复核（#91 的那半）**：`units=15`，而独立现数 `systemctl … | grep -c "^work-"` 也是 **15** ⇒ 计数修正生效（旧版会报 30）；`log_lines=37588`、positive control fired、扫描判决 **`scanned 1 files/37589 lines; fail=0 warn=0`、`log-scan: clean`**。
+⑨ **runtime 落地取证（#91）**：`work-runtime` active、`ExecMainStartTimestamp=08:04:01`；`/opt/work/runtime/src/capability-refresh.mjs` 的 sha `749815207f3e…` 与包内 `work-runtime.tar.gz` 同名文件**逐字相同** ⇒ 不再是 10-31 那份。
+**仍欠一格，不当成已闭**：`run-retention-scan.sh` 的 `PAIR` 行还没在真实运行里出现过——上一次 timer 触发是 08:00:48（早于本次安装），下一次自然触发 **09:00:15**。我**没有手工 `systemctl start` 去催它**：那条通道会真做 expire/shred（改状态），超出"装脚本"的授权半径。脚本 sha 已确认是新版，读数复核留到 09:00 之后（任务 #92 保持未闭直到看见 PAIR 行）。
+**我自己两次读数失效也记下来**：远端 `awk "{print \$1}"` 经三层引号被吃成 `\` ⇒ 报 backslash 错并给出 0（我改用 `grep -c` 才拿到 15）；另一次按猜的文件名 `src/index.mjs` 取 sha，得到 `e3b0c44298fc`——那是**空输入的 sha**，不是"文件相同"。改成先 `tar -tzf` 列真名再比，才对上。
+
 | 项 | 类别 | 负责 | 状态 | 标题 | 证据条数 | 清单自述还缺什么（note 首句） |
 |---|---|---|---|---|---|---|
 | C03 | design | backend + SRE | partial | D3 orchestration and fault matrix reviewed | 9 | U3 nine commitments answered yes on 2026-10-27; resources approved; drills staffed by 5 dev/test… |
