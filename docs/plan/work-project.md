@@ -2311,6 +2311,8 @@ CI 侧我差点又下一次否定式错：只看到 `meet.yml` 的 `lint-front` 
 **更正上一段：healthcheck 的运行时门本轮也做了（2026-11-07 10:0x）**。为能跑原文，把它的两个输出路径与告警调用改成可注入（`WORK_HEALTH_STATE_DIR`／`WORK_HEALTH_ALERT_LOG`／`WORK_HEALTH_PYTHON`／`WORK_HEALTH_ALERT_SCRIPT`，**四个默认值与原值逐字相同**，主机行为不变）；新门 `test/healthcheck-runtime.test.mjs` 把 curl／systemctl／journalctl／openssl／python3／logger 全部放桩（**不发信、不碰网络、不写 /var**），六条判据：健康时报 ok 且告知 alert 脚本、**不往降级日志追加**；观察名单单元 failed ⇒ degraded 并点名该单元；API 非 200 ⇒ 带实际码降级；30 分钟无目录同步报告 ⇒ `sync_no_report_30m`；报告带 errors ⇒ `sync_errors`；**告警投递失败不得阻止状态文件写出**且要记 delivery failed。本地与 Linux 各 **6/6**。
 **尚未做、不宣称已做**：这枚运行时门的**变异证明还没跑**（本轮时间用在修三处自造缺陷上），所以它现在是"两平台绿"而不是"已证有牙"；补变异列为 #97 的下一步。三处自造缺陷如实记：① 脚本用绝对路径 `/usr/bin/python3` 调用，PATH 放桩拦不到 ⇒ 才加了那两个可注入旋钮；② 桩里用 `${FAKE_SYNC:-…}` 把"空报告"当成未设置，导致"无同步报告"那条根本测不到 ⇒ 改成由 node 写文件、桩只 `cat`；③ 路径改成变量后，我自己先前那枚披露门因为只在非注释代码里找字面路径而红 ⇒ 改为连默认值一起查（默认值也是代码），**没有为了让它绿而删掉那条断言**。
 
+**【2026-11-07 10:0x 更正上一段：变异证明已补跑，四刀各红在 owning 那条】**① 观察名单判据改成永不匹配 ⇒ "failed 单元必须降级并点名"红；② 去掉降级日志追加 ⇒ 同一条红（它同时断言日志被追加）；③ 把投递失败的 `|| logger …` 换成 `|| true` ⇒ "投递失败必须被记录"红；④ 让"无同步报告"分支永不成立 ⇒ `sync_no_report_30m` 那条红。基线 6/6、每刀 6 中 1 红、还原后 sha 与基线逐字相同（`c766039bce4e`）、末跑复绿 6/6。**所以这枚门现在是"两平台绿＋已证有牙"，上一段那句"尚未做"按此更正**；#97 里对应的待办也随之关闭。仍余：两支 R0b 暂停期件（`init-workload-pki.sh`／`provision-r0b-roles.sh`）按线序定序不动。
+
 | 项 | 类别 | 负责 | 状态 | 标题 | 证据条数 | 清单自述还缺什么（note 首句） |
 |---|---|---|---|---|---|---|
 | C03 | design | backend + SRE | partial | D3 orchestration and fault matrix reviewed | 9 | U3 nine commitments answered yes on 2026-10-27; resources approved; drills staffed by 5 dev/test… |
