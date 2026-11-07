@@ -111,6 +111,9 @@ echo "CANARY-work-r0a-c16-sentinel" >> "$CAN"
 
 echo "--- scanner output (redacted previews only) ---"
 "$NODE" "$SCAN" --canary-file="$CAN" "$LOG" 2>&1 | tail -20
+# #100：捕获 scanner 退出码（发现内容时 exit 1，干净时 exit 0）。PIPESTATUS[0] 是管道左端。
+scan_rc=${PIPESTATUS[0]}
+echo "scan_rc=$scan_rc"
 echo "--- end ---"
 
 # Positive control: a scan that cannot find a leak is not evidence of absence.
@@ -130,6 +133,13 @@ if [ "${control_clean:-0}" != "1" ]; then
   exit 1
 fi
 echo "positive control fired; the runtime verdict stands"
+
+# #100：scanner 发现内容时让 unit 变红，驱动告警。cleanup 在 exit 前调用，避免临时文件残留。
+if [ "$scan_rc" != "0" ]; then
+  echo "content finding detected (scanner exit $scan_rc); exiting non-zero to red the unit"
+  cleanup
+  exit 4
+fi
 
 if [ "$KEEP" = "keep" ]; then
   echo "kept: $LOG $SCAN $CAN"

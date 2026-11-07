@@ -115,3 +115,50 @@ test('a single unit reports one, so the count cannot drift back to a word count'
   assert.equal(run.argv.filter((arg) => arg === '-u').length, 1,
     `one unit must produce exactly one -u: ${run.argv.join(' ')}`);
 });
+
+// #100：scanner 发现内容时 wrapper 必须 exit 4，让 unit 变红驱动告警。
+// 修改 journalctl 桩让它输出 canary，scanner 会找到并 exit 1，wrapper 捕获后 exit 4。
+test('a content finding exits 4 to red the unit', () => {
+  const findingSandbox = mkdtempSync(join(tmpdir(), 'r0a-c16-finding-'));
+  const findingArgvFile = join(findingSandbox, 'journalctl.argv');
+  const writeFindingStub = (name, body) => {
+    const path = join(findingSandbox, name);
+    writeFileSync(path, body, { encoding: 'utf8' });
+    chmodSync(path, 0o755);
+  };
+  writeFindingStub('systemctl', [
+    '#!/usr/bin/env bash',
+    '[ "${1:-}" = "list-units" ] || exit 0',
+    'printf \'work-unit-01.service loaded active running stub\\n\'',
+    '',
+  ].join('\n'));
+  writeFindingStub('journalctl', [
+    '#!/usr/bin/env bash',
+    'printf \'%s\\n\' "$@" > "$C16_ARGV"',
+    'printf \'2026-11-07T00:00:00 work-api[1]: GET /healthz 200\\n\'',
+    'printf \'CANARY-work-r0a-c16-sentinel\\n\'',
+    '',
+  ].join('\n'));
+  writeFindingStub('sudo', '#!/usr/bin/env bash\nexit 1\n');
+  writeFindingStub('node', `#!/usr/bin/env bash\nexec "${nodePath}" "$@"\n`);
+
+  const runDir = mkdtempSync(join(findingSandbox, 'run-finding-'));
+  const script = join(runDir, 'work-c16-log-scan.sh');
+  copyFileSync(SCRIPT, script);
+  copyFileSync(SCANNER, join(runDir, 'log-scan.mjs'));
+  const result = spawnSync('bash', [script, 'clean'], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      PATH: `${findingSandbox}${delimiter}${process.env.PATH}`,
+      FAKE_C16_UNITS: '1',
+      C16_ARGV: findingArgvFile,
+      WORK_C16_DIR: join(runDir, 'c16-work'),
+    },
+  });
+  assert.equal(result.status, 4,
+    `a content finding must exit 4 to red the unit, got ${result.status}:\n${result.stdout}\n${result.stderr}`);
+  assert.match(result.stdout + result.stderr, /content finding detected/,
+    'the refusal must name the reason');
+  rmSync(findingSandbox, { recursive: true, force: true });
+});
