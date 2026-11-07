@@ -158,6 +158,10 @@ cp "$ASSETS/log-scan.mjs" "$OUT/"
 # C16 复跑通道：扫描器与包装脚本必须成对交付。此前只拷扫描器、rollout 又不安装，脚本里
 # 「与本脚本同目录」那条候选路径在真机上永远命中不了，只剩 /tmp 手工放置那一条路。
 cp "$ROOT/scripts/work-c16-log-scan.sh" "$OUT/"
+# #96 C1 (2026-11-07): the wrapper now has an executor. Shipping the script without its units is
+# how the reconcile scan ended up installed-but-never-wired (#50), so both halves travel together.
+cp "$ROOT/deploy/ecs/work-c16-log-scan.service" "$OUT/"
+cp "$ROOT/deploy/ecs/work-c16-log-scan.timer" "$OUT/"
 cp "$ROOT/deploy/ecs/work-authz.env.example" "$OUT/"
 # 2026-11-05（L-C04-03 的 env 半）：这三个单元素环境此前没有任何模板，work-api／work-relay／
 # work-directory-sync 的旋钮只能从 Go 源码读；runbook §5.3 还直接指挥人设 WORK_DIRECTORY_*。

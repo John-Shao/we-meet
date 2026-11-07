@@ -1,0 +1,27 @@
+[Unit]
+Description=Work C16 runtime log scan (secrets + user content, read-only)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# root, not work-control: the wrapper's canary source is `sudo -u postgres psql` over peer auth
+# (work_api is under RLS and would read zero titles), its fallback reads /root/work-secrets.env,
+# and journalctl needs the whole work-* set. Running it as work-control would silently degrade
+# the canary to the synthetic sentinel only, which is exactly the false-clean this unit exists
+# to prevent.
+User=root
+Group=root
+ExecStart=/usr/local/bin/work-c16-log-scan.sh
+TimeoutStartSec=10min
+# NoNewPrivileges is deliberately absent: the wrapper execs sudo, and NNP would strip sudo's
+# setuid transition. The unit is already root, so there is no privilege to gain here.
+PrivateTmp=true
+# full, not strict: the wrapper creates its own scratch root /work-c16 and deletes it on exit.
+# strict would make / read-only and the mkdir would fail. read-only /home keeps the secrets-file
+# fallback readable while blocking writes to it.
+ProtectSystem=full
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

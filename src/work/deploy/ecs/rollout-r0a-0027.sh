@@ -362,6 +362,13 @@ run install -m 0644 -o root -g root "$RELEASE/runstream-gauges.sql" /usr/local/b
 # 不再依赖 /tmp 里那份手工放置的副本。
 run install -m 0755 -o root -g root "$RELEASE/work-c16-log-scan.sh" /usr/local/bin/work-c16-log-scan.sh
 run install -m 0644 -o root -g root "$RELEASE/log-scan.mjs" /usr/local/bin/log-scan.mjs
+# #96 C1（2026-11-07）：canary 机制本来就在跑、正控也真的 fire 过，但主机上 c16/log-scan 定时器数
+# 实测为 0，所以带真实用户内容的正文检测只在有人手跑时发生。这里给它一个执行者；扫描规则一行未动。
+# unit 以 root 跑，因为 canary 来源是 `sudo -u postgres psql`（work_api 在 RLS 下会读到 0 条标题），
+# 理由与 ProtectSystem 的取值都写在 unit 注释里。
+for unit in work-c16-log-scan.service work-c16-log-scan.timer; do
+  run install -m 0644 -o root -g root "$RELEASE/$unit" "/etc/systemd/system/$unit"
+done
 # D 段（D4-6b 留存清扫预检）成对安装：包装脚本按 dirname $0 找 SQL，两个都落在 /usr/local/bin
 # 才自洽；此前那份只放在 /tmp，机器重启或换机就没了（#54／#57 同一类缺口）。
 run install -m 0755 -o root -g root "$RELEASE/run-retention-preflight.sh" /usr/local/bin/run-retention-preflight.sh
@@ -375,8 +382,9 @@ for unit in work-runstream-scan.service work-runstream-scan.timer; do
 done
 install_env work-runstream-scan
 run systemctl daemon-reload
-run systemctl enable work-runstream-scan.timer
+run systemctl enable work-runstream-scan.timer work-c16-log-scan.timer
 run systemctl start work-runstream-scan.timer
+run systemctl start work-c16-log-scan.timer
 
 echo "== 8. Node runtime =="
 if [[ -n "$RUNTIME_BUNDLE" && -f "$RUNTIME_BUNDLE" ]]; then

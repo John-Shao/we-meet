@@ -1,0 +1,22 @@
+[Unit]
+Description=Daily Work C16 runtime log scan
+
+[Timer]
+# Ruling #96 = C1 (2026-11-07): the canary mechanism already existed and already fired its
+# positive control on both hand runs, but the host had no c16/log-scan timer at all, so prose
+# content detection only happened when somebody remembered to run it. This wires the existing
+# wrapper; it does not change the scanner's rules.
+#
+# Cadence is daily, chosen here rather than ruled: the wrapper scans "14 days ago" onward, so a
+# daily run already covers every line with overlap and bounds the time a leak can sit unnoticed
+# at 24h. Hourly would re-read the same 14-day window 24 times for no extra coverage. One line to
+# change if a different bound is wanted.
+# Persistent=true: a host that was down still gets one catch-up run, the same reason the retention
+# timer has it.
+OnCalendar=daily
+RandomizedDelaySec=10min
+Persistent=true
+Unit=work-c16-log-scan.service
+
+[Install]
+WantedBy=timers.target

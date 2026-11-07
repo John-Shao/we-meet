@@ -2,9 +2,10 @@
 // it, so it is an operator convenience wrapper - and its default binary is a developer's home copy.
 // Measured on the pilot host: that home copy was an Oct-29 build while /usr/local/bin/work-migrate
 // was the current build from that day's rollout. The chain is embedded in the binary, so the default
-// would run something predating 0028..0034 against a ledger-34 database. Changing the default is a
-// visible behaviour change and is registered for a ruling instead of being decided here; what this
-// guard pins is that the hazard stays disclosed and the documented escape hatch keeps working.
+// would run something predating 0028..0034 against a ledger-34 database. Ruling #98 = B
+// (2026-11-07): the default is NOT changed; a refusal-style precheck was added instead, and
+// ecs-migrate-refusal.test.mjs pins that half. What this guard pins is that the hazard stays
+// disclosed and the documented escape hatch keeps working.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

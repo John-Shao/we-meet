@@ -294,10 +294,21 @@ if [[ "$ret_enabled" == "enabled" ]]; then
   ret_synced="$(runuser -u postgres -- psql -d work -Atc 'select count(*) from work.org' 2>/dev/null || echo '?')"
   [[ "${ret_orgs:-0}" == "$ret_synced" ]] || echo "  WARN: retention org list ($ret_orgs) != directory orgs ($ret_synced); new tenants' content may never be swept"
 fi
-printf 'c16 log-scan wrapper=%s scanner=%s
-' "$c16_wrapper" "$c16_scanner"
+# #96 C1（2026-11-07）：在位性之外还要读出"有没有执行者、跑过没有"。controls_fired 数的是包装件
+# 自己打印的 positive control fired 行——0 与"跑过且正控成立"是两件事，只看在位性分不出来。
+c16_timer="$(systemctl is-enabled work-c16-log-scan.timer 2>/dev/null || true)"
+c16_active="$(systemctl is-active work-c16-log-scan.timer 2>/dev/null || true)"
+c16_result="$(systemctl show -p Result --value work-c16-log-scan.service 2>/dev/null || true)"
+c16_next="$(systemctl show -p NextElapseUSecRealtime --value work-c16-log-scan.timer 2>/dev/null || true)"
+c16_controls="$(journalctl -u work-c16-log-scan.service --no-pager -o cat 2>/dev/null | grep -c 'positive control fired')"
+printf 'c16 log-scan wrapper=%s scanner=%s timer=%s active=%s next=%s last_result=%s controls_fired=%s\n' \
+  "$c16_wrapper" "$c16_scanner" "${c16_timer:-none}" "${c16_active:-none}" "${c16_next:-none}" \
+  "${c16_result:-none}" "${c16_controls:-0}"
 if [[ "$c16_wrapper" != "present" || "$c16_scanner" != "present" ]]; then
   echo "  WARN: work-c16-log-scan.sh and log-scan.mjs must ship side by side - the C16 re-run channel cannot work with only one"
+fi
+if [[ "$c16_timer" != "enabled" ]]; then
+  echo "  WARN: work-c16-log-scan.timer not enabled - 正文/canary 检测仍只在有人手跑时发生（#96 C1 未生效）"
 fi
 if [[ -n "$rs_timer" ]]; then
   rs_configured="$(set -o posix; . /etc/work/work-runstream-scan.env 2>/dev/null; echo ${WORK_RUNSTREAM_ORGS:-} | wc -w)"
