@@ -2253,6 +2253,12 @@ CI 侧我差点又下一次否定式错：只看到 `meet.yml` 的 `lint-front` 
 **仍欠一格，不当成已闭**：`run-retention-scan.sh` 的 `PAIR` 行还没在真实运行里出现过——上一次 timer 触发是 08:00:48（早于本次安装），下一次自然触发 **09:00:15**。我**没有手工 `systemctl start` 去催它**：那条通道会真做 expire/shred（改状态），超出"装脚本"的授权半径。脚本 sha 已确认是新版，读数复核留到 09:00 之后（任务 #92 保持未闭直到看见 PAIR 行）。
 **我自己两次读数失效也记下来**：远端 `awk "{print \$1}"` 经三层引号被吃成 `\` ⇒ 报 backslash 错并给出 0（我改用 `grep -c` 才拿到 15）；另一次按猜的文件名 `src/index.mjs` 取 sha，得到 `e3b0c44298fc`——那是**空输入的 sha**，不是"文件相同"。改成先 `tar -tzf` 列真名再比，才对上。
 
+**#89 的样本已按授权播种并真停放（2026-11-07 08:20–08:24，I-2／§5.29 配方，主签选定并接受设计内告警）**：
+手法与前置：kill 目标现读唯一（pid 2059776，cmdline＝`temporal-server --env docker start --service=frontend/history/matching/worker`，cgroup 确认是容器 init）；以 `work-control` 身份用 `work-e2e-seed` 播一笔真 Run（DSN 取自 `/etc/work/work-api.env`，`dsn_user=work_api_login`，口令只进环境）；**轮询到该 run 真变 `active` 才注入**（poll1 queued→poll2 active），没等到就中止不杀。
+读数：`SEED_RC=0`，`run_id=18c04b53-0ddb-40f8-ac33-09a925f3d224`、`task_id=6a5199e3-dcc5-4da1-9259-35bc61abe735`、`client_request_id=seed-89-20261107-082019`；`kill -9` 于 **08:20:22**（KILL_RC=0）；**t=270s 读到 `waiting/reconcile/-`，PARKED at 08:24:38**，库行 `updated_at=08:24:30.765436+08`；`waiting/reconcile` 计数＝**1**。
+恢复与副作用：Temporal 新 pid **2329734** 已起，`work-worker／work-api／work-relay／work-export／work-runtime` 全 active；gauges 现读 `parked_runs=1 held_on_terminal=0 open_runs=2 held_tokens=100000 max_held_on_terminal=0`——那笔 100,000 预留挂在**未终态**的 run 上，所以 0029 不该动它（`held_on_terminal=0` 就是没误触发的现证）；每小时 `parked_runs` BREACH 属设计内，主签已接受，我没手跑 healthcheck。
+**#89 仍未闭，收口条件写死**：最早可读数时刻＝**2026-11-08 08:24:38 CST**（park+24h）。到点后要现读`state=failed／terminal_reason=reconcile_timeout`，并同时核**不 settle、不 release、不提交 head**（#83=G1）；在那之前不得宣布通过。取证已归档 `drill-2026-11-15/attachments/s89-reconcile-timeout-seed-20261107.txt`，并且**先用扫描器扫过这份新证据**（G3之后 ops 目录已在 CI 扫描集里，不能自己往里面塞一份会红的文件）。
+
 | 项 | 类别 | 负责 | 状态 | 标题 | 证据条数 | 清单自述还缺什么（note 首句） |
 |---|---|---|---|---|---|---|
 | C03 | design | backend + SRE | partial | D3 orchestration and fault matrix reviewed | 9 | U3 nine commitments answered yes on 2026-10-27; resources approved; drills staffed by 5 dev/test… |
