@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 # Local health probe for the systemd-hosted Work control plane.
 # Writes a status file for operators and appends failures to a local log.
-# External paging/email delivery is intentionally not wired here.
+# SIDE EFFECT, do not run this by hand to collect evidence: on a status transition it invokes
+# /usr/local/bin/work-health-alert.py, which sends email to every configured recipient through the
+# backup SMTP channel (see that file's send_mail loop). An earlier version of this header denied
+# that any external delivery was wired, which invited exactly the manual run it should warn
+# against; corrected 2026-11-07, with a guard tying this disclosure to the invocation below.
+# To read the same attributes without sending anything, query systemctl/curl yourself, or read
+# /var/lib/work/health.json and /var/log/work-health-alerts.log.
 set -uo pipefail
 mkdir -p /var/lib/work
 status="ok"

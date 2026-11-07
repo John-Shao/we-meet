@@ -2296,6 +2296,11 @@ CI 侧我差点又下一次否定式错：只看到 `meet.yml` 的 `lint-front` 
 另外两处平台/工具坑也如实记：① `-f` 路径断言在 Windows 红、Linux 绿——MSYS bash 报 POSIX 形路径而 node `join` 用反斜杠，改成"归一化分隔符后比尾名＋比本次 run 目录唯一名"，两平台都绿且仍能区分"交了另一份 SQL"；② 我用 python 写 JS 正则时把 `\` 折叠成 `\`，生成 `/\/g` 非法语法⇒整文件加载失败，改用字面编辑并干脆换成 `split('\').join('/')` 绕开正则。
 #97 余下 6 支（healthcheck 会发信 1、ecs-migrate 1、两支被取代的旧 verify 2、两支 R0b 2；8 支零覆盖减去本轮补的 2 支）仍按该任务登记的顺序处理，不在本轮宣称完成。
 
+**#97 第三支：`work-healthcheck.sh` 的问题不是缺测试，是它自己的头注释在说谎（2026-11-07 09:5x）**。原头注释写 "External paging/email delivery is intentionally not wired here"，而正文第 65 行就在调 `/usr/local/bin/work-health-alert.py`；现读那个 py 文件的 docstring 是 "Send Work health transition emails through the backup SMTP channel"，并且真的 `for recipient in config["recipients"]: notify.send_mail(...)`。**照头注释理解的人会手跑它去取证，然后给人发信**——正是 runbook 一直警告的那个事故。已把头注释改成明确的 SIDE EFFECT 警告（点名 alert 脚本与 SMTP 通道、给出只读替代：自己查 systemctl/curl，或读 `/var/lib/work/health.json` 与 `/var/log/work-health-alerts.log`），**行为一行未改**。
+新门 `test/healthcheck-side-effect-disclosure.test.mjs` 三条：① 探针确实调用 alert 脚本且该脚本确实 `send_mail` 给 recipients（剥掉注释后读代码，免得散文自证）；② 头注释必须披露副作用、且不得再出现"delivery is intentionally not wired"这类否认；③ **头注释给出的只读替代路径必须是脚本真写的路径**。第三条来自我自己的错：第一版更正里我写了 `/var/lib/work/health-status`，而脚本写的是 `health.json`——**凭空写出来的"安全替代"并不安全**，现读改正并由这条断言钉住。
+本地与 Linux 各 **3/3**；两刀变异各红（把否认句塞回去⇒披露那条红；把调用改成不存在的脚本名⇒调用那条红），还原后 sha 与基线逐字相同（`287a45596a27`），末跑复绿。**另记一次自喂断言**：我第一版更正里头注释**引用了那句假话原文**，于是 `doesNotMatch` 被自己的引用喂红；改成不复述假话（只说"早先版本否认过外部投递"）而不是放宽断言。
+#97 余下 5 支：`ecs-migrate.sh`（现读只有它自己的 usage 注释引用它，脚本/CI 无调用方，需先判是否已被 `work-migrate`＋`--migrations-only` 取代）、`verify-r0a-0015.sh`／`verify-r0a-0016.sh`（同样只有自引用，属被 0027 取代的历史件，倾向标注取代而非补门）、`init-workload-pki.sh`／`provision-r0b-roles.sh`（R0b 暂停期）。**注意 healthcheck 的运行时行为门仍未做**（它写 `/var/log` 与 `/var/lib/work`，要跑原文需要路径可注入或 root，本轮只做了披露一致性门，不宣称它的状态机已被测）。
+
 | 项 | 类别 | 负责 | 状态 | 标题 | 证据条数 | 清单自述还缺什么（note 首句） |
 |---|---|---|---|---|---|---|
 | C03 | design | backend + SRE | partial | D3 orchestration and fault matrix reviewed | 9 | U3 nine commitments answered yes on 2026-10-27; resources approved; drills staffed by 5 dev/test… |
