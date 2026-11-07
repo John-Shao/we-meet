@@ -9,7 +9,13 @@
 # To read the same attributes without sending anything, query systemctl/curl yourself, or read
 # /var/lib/work/health.json and /var/log/work-health-alerts.log.
 set -uo pipefail
-mkdir -p /var/lib/work
+# Defaults are the host paths the runbook and the header above name; overridable so the
+# runtime guard can execute this file without writing to /var on a build machine.
+STATE_DIR="${WORK_HEALTH_STATE_DIR:-/var/lib/work}"
+ALERT_LOG="${WORK_HEALTH_ALERT_LOG:-/var/log/work-health-alerts.log}"
+PYTHON_BIN="${WORK_HEALTH_PYTHON:-/usr/bin/python3}"
+ALERT_SCRIPT="${WORK_HEALTH_ALERT_SCRIPT:-/usr/local/bin/work-health-alert.py}"
+mkdir -p "$STATE_DIR"
 status="ok"
 issues=()
 
@@ -65,15 +71,15 @@ done
 
 ts=$(date -Is)
 issue_text=$(IFS=', '; echo "${issues[*]}")
-printf '{"status":"%s","checked_at":"%s","issues":"%s"}\n' "$status" "$ts" "$issue_text" > /var/lib/work/health.json.tmp
-mv /var/lib/work/health.json.tmp /var/lib/work/health.json
+printf '{"status":"%s","checked_at":"%s","issues":"%s"}\n' "$status" "$ts" "$issue_text" > "$STATE_DIR/health.json.tmp"
+mv "$STATE_DIR/health.json.tmp" "$STATE_DIR/health.json"
 
-/usr/bin/python3 /usr/local/bin/work-health-alert.py "$status" "$issue_text" \
+"$PYTHON_BIN" "$ALERT_SCRIPT" "$status" "$issue_text" \
   || logger -p daemon.err -t work-healthcheck "health alert delivery failed"
 
 if [ "$status" != "ok" ]; then
-  echo "$ts status=degraded issues=$issue_text" >> /var/log/work-health-alerts.log
+  echo "$ts status=degraded issues=$issue_text" >> "$ALERT_LOG"
   logger -p daemon.err -t work-healthcheck "status=degraded issues=$issue_text"
-  tail -n 200 /var/log/work-health-alerts.log > /var/log/work-health-alerts.log.tmp
-  mv /var/log/work-health-alerts.log.tmp /var/log/work-health-alerts.log
+  tail -n 200 "$ALERT_LOG" > "$ALERT_LOG.tmp"
+  mv "$ALERT_LOG.tmp" "$ALERT_LOG"
 fi

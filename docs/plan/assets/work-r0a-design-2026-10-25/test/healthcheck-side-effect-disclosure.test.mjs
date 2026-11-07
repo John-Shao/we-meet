@@ -42,7 +42,9 @@ test('the read-only alternatives named in the header are paths the script really
   // which the script never writes. A suggested safe alternative must exist, or it is not safe.
   for (const path of ['/var/lib/work/health.json', '/var/log/work-health-alerts.log']) {
     assert.ok(header.includes(path), `the header should offer ${path} as the read-only alternative`);
-    assert.ok(probeCode.includes(path),
-      `${path} is offered as a safe read but the script never writes it - do not invent alternatives`);
+    // the write sites now use $STATE_DIR/$ALERT_LOG, so look at the whole file: the defaults are
+    // code too. If a default ever moves, the header's suggested path stops appearing and this fails.
+    assert.ok(probe.includes(path),
+      `${path} is offered as a safe read but is neither a default nor a write site - do not invent alternatives`);
   }
 });
