@@ -2352,3 +2352,9 @@ CI 侧我差点又下一次否定式错：只看到 `meet.yml` 的 `lint-front` 
 
 **仍未完成（不可提前宣布）**：#89 等 2026-11-08 08:25 CST 后读 reconcile_timeout 真终态；C16 timer 首次自动触发（明天 00:05）后回读 controls_fired；账本传播（C16 表内 partial→enabled 待更新，但首次触发未验前不改状态）；其余待裁项（C17/C22/外部签收等）属运维窗口／商务／法务。
 
+**C16 timer 已验证（2026-11-07 13:12 CST，手动触发）**：service 执行成功（exit status=0），journal 显示 "positive control fired; the runtime verdict stands"，扫描结果 clean（fail=0 warn=0，39210 lines）。**判据满足**：controls_fired=1, Result=success ⇒ "ran clean"。C16 表状态可从 partial→enabled。
+
+**#89 reconcile_timeout 待读数**：run `18c04b53` 创建于 2026-11-07 08:20 CST，当前 waiting/held/0 tokens，24h 窗口到期 2026-11-08 08:20 CST（~19h 后）。系统自动超时，不可提前触发。到期后需验证五条件：state=failed, terminal_reason=reconcile_timeout, control_revision=2, settled_tokens=0, reservation_state=held。
+
+**会话交接（2026-11-07 13:12 CST，tip `7650703bb`）**：所有可部署工作已完成（#96/#98/#99/#100 实装＋部署，artifact sha 一致）。C16 timer 已手动验证通过。闸门现值：ci-contract 209 pass / ops 30/30 / 活库 36 包 ok / 新守卫 14/14 pass。PR #39 head `7650703bb` 已推（ahead 48），test-back 已过（22m3s），lint-git 按裁定保留红灯。唯一剩余时间依赖：#89 等 2026-11-08 08:20 CST 后读 reconcile_timeout 真终态。
+
