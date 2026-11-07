@@ -2313,6 +2313,10 @@ CI 侧我差点又下一次否定式错：只看到 `meet.yml` 的 `lint-front` 
 
 **【2026-11-07 10:0x 更正上一段：变异证明已补跑，四刀各红在 owning 那条】**① 观察名单判据改成永不匹配 ⇒ "failed 单元必须降级并点名"红；② 去掉降级日志追加 ⇒ 同一条红（它同时断言日志被追加）；③ 把投递失败的 `|| logger …` 换成 `|| true` ⇒ "投递失败必须被记录"红；④ 让"无同步报告"分支永不成立 ⇒ `sync_no_report_30m` 那条红。基线 6/6、每刀 6 中 1 红、还原后 sha 与基线逐字相同（`c766039bce4e`）、末跑复绿 6/6。**所以这枚门现在是"两平台绿＋已证有牙"，上一段那句"尚未做"按此更正**；#97 里对应的待办也随之关闭。仍余：两支 R0b 暂停期件（`init-workload-pki.sh`／`provision-r0b-roles.sh`）按线序定序不动。
 
+**健康探针的改动是"仓库已改、现网仍旧"，并且已证行为中性（2026-11-07 10:0x）**：`work-healthcheck.sh` **是发布件**（`make-release.sh:181` 拷它，连 service／timer 一起），主机 `/usr/local/bin/work-healthcheck.sh` 现读 3636 字节、Nov 7 08:03、sha `904e7827963a`，而仓库那份是 `c766039bce4e` ⇒ **现网跑的还是改前那份**（头注释的假声明也还在主机上）。
+把主机那份取回来逐行 diff（剥注释、去行尾空白）后，**代码差异只有两类**：新增的四行变量声明（`STATE_DIR`／`ALERT_LOG`／`PYTHON_BIN`／`ALERT_SCRIPT`，默认值与原字面量逐字相同）与使用点由字面量换成变量；**判定逻辑、观察名单、curl／systemctl／journalctl／openssl 调用、状态文件与日志格式、告警调用与失败兜底，一行未变**。所以在主机那四个环境变量都未设置的情况下，行为与改前完全一致——这是 diff 读出来的，不是我声称的。（注意：那条命令末尾的 `DIFF_RC` 取的是 `head` 的状态，不能当"无差异"的证据；结论来自 diff 的实际输出。）
+**因此登记部署跟进（任务 #99）**：这版探针要随下次 rollout 才上主机；因为它行为中性，可以与任何一次常规发布并批，不需要单独的生产写授权半径，但**装完要核主机 sha 变成 `c766039bce4e`**，否则主机上那句假声明会继续误导下一个手跑它的人。`ecs-migrate.sh` 不在发布包内（`in_package=no`），所以它的披露改动不需要部署，只影响仓库阅读者。
+
 | 项 | 类别 | 负责 | 状态 | 标题 | 证据条数 | 清单自述还缺什么（note 首句） |
 |---|---|---|---|---|---|---|
 | C03 | design | backend + SRE | partial | D3 orchestration and fault matrix reviewed | 9 | U3 nine commitments answered yes on 2026-10-27; resources approved; drills staffed by 5 dev/test… |
