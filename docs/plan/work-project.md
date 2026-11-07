@@ -2291,6 +2291,11 @@ CI 侧我差点又下一次否定式错：只看到 `meet.yml` 的 `lint-front` 
 **我自己在这枚门里犯的两个错，都记下来**：① 把 `${ORG_A}` 写进**正则字面量**——正则不做插值，它匹配的是字面 `${ORG_A}`，于是断言恒红；改成 `includes('scan FAILED for org ' + ORG_A)`。② 第一版夹具一行只有一个 orphan，**`grep -o` 与 `grep -c` 读数相同⇒那条判据当时没有判别力**；改成同一行两个 `"orphan": true`，变异才真的红。这两条都属于"门绿不等于门有用"，按既有判据必须先证判别力再交付。
 **剩余 7 支零覆盖件如实登记，不当已闭**：其中 `work-healthcheck.sh` 与 `run-retention-preflight.sh` 是活件，前者会发 SMTP（取证要改成读同一属性而不是真跑），后者是 D0 预检；`ecs-migrate.sh` 与两支旧 verify 属历史/被取代件；两支 R0b 件在暂停期。要不要逐个补门属下一轮工作量，不在本轮宣称完成。
 
+**#97 第二支也补了：`run-retention-preflight.sh`（2026-11-07 09:4x）**。新门 `test/retention-preflight-runtime.test.mjs` 用桩 psql 跑发布件原文，五条判据：缺 SQL 兄弟件时拒绝并点名 #47 成对交付、**`-v ON_ERROR_STOP=1` 必须在场**且 `-f` 交的就是同目录那份 SQL、**psql 自己的退出码必须传到调用方**、TCP 分支把 `-h/-p/-U/-d` 按配置带上、**口令永不进 argv 也不被回显**。本地与 Linux 各 **5/5**。
+**这枚门最值得记的是"变异本身失效"那次**：我第一版 MUT B 把 `exec psql …` 改成 `psql …` 再 `exit 0`，结果门**照样绿**——因为脚本有 `set -euo pipefail`，非 exec 的 psql 返回 7 时 shell 已经先退出 7，根本走不到 `exit 0`，所以那一刀**没有真的改变行为**，绿不能证明门有牙。改成 `psql … || true` 再加 `exit 0` 重跑，"退出码必须传递"那条立刻红 ⇒ 三刀（去掉 ON_ERROR_STOP／吞退出码／删缺件拒绝）各自红在 owning 那条，还原后 sha 与基线逐字相同（`8b9a8ed9ef2e`），末跑复绿。**判据补一条：变异跑绿先怀疑变异没生效，别急着说门没用或门有牙。**
+另外两处平台/工具坑也如实记：① `-f` 路径断言在 Windows 红、Linux 绿——MSYS bash 报 POSIX 形路径而 node `join` 用反斜杠，改成"归一化分隔符后比尾名＋比本次 run 目录唯一名"，两平台都绿且仍能区分"交了另一份 SQL"；② 我用 python 写 JS 正则时把 `\` 折叠成 `\`，生成 `/\/g` 非法语法⇒整文件加载失败，改用字面编辑并干脆换成 `split('\').join('/')` 绕开正则。
+#97 余下 6 支（healthcheck 会发信 1、ecs-migrate 1、两支被取代的旧 verify 2、两支 R0b 2；8 支零覆盖减去本轮补的 2 支）仍按该任务登记的顺序处理，不在本轮宣称完成。
+
 | 项 | 类别 | 负责 | 状态 | 标题 | 证据条数 | 清单自述还缺什么（note 首句） |
 |---|---|---|---|---|---|---|
 | C03 | design | backend + SRE | partial | D3 orchestration and fault matrix reviewed | 9 | U3 nine commitments answered yes on 2026-10-27; resources approved; drills staffed by 5 dev/test… |
