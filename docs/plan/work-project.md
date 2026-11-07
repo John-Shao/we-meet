@@ -2301,6 +2301,9 @@ CI 侧我差点又下一次否定式错：只看到 `meet.yml` 的 `lint-front` 
 本地与 Linux 各 **3/3**；两刀变异各红（把否认句塞回去⇒披露那条红；把调用改成不存在的脚本名⇒调用那条红），还原后 sha 与基线逐字相同（`287a45596a27`），末跑复绿。**另记一次自喂断言**：我第一版更正里头注释**引用了那句假话原文**，于是 `doesNotMatch` 被自己的引用喂红；改成不复述假话（只说"早先版本否认过外部投递"）而不是放宽断言。
 #97 余下 5 支：`ecs-migrate.sh`（现读只有它自己的 usage 注释引用它，脚本/CI 无调用方，需先判是否已被 `work-migrate`＋`--migrations-only` 取代）、`verify-r0a-0015.sh`／`verify-r0a-0016.sh`（同样只有自引用，属被 0027 取代的历史件，倾向标注取代而非补门）、`init-workload-pki.sh`／`provision-r0b-roles.sh`（R0b 暂停期）。**注意 healthcheck 的运行时行为门仍未做**（它写 `/var/log` 与 `/var/lib/work`，要跑原文需要路径可注入或 root，本轮只做了披露一致性门，不宣称它的状态机已被测）。
 
+**#97 第四支 `ecs-migrate.sh`：查归属时挖出一个真陷阱（2026-11-07 09:5x）**。先判它是不是死件：`make-release.sh`／rollout／CI **都不引用它**，发布包里也没有它（`in_package=no`），runbook 无活指令指向它 ⇒ 它是运维便利包装件，不是被取代的历史件。但它的默认二进制是 **`/home/johnshao/work-migrate`**（开发者家目录），而现读主机上那份是 **Oct 29 21:20、12,664,992 字节**，`/usr/local/bin/work-migrate` 是 **Nov 7 08:03、34,205,856 字节**（今天 rollout 装的）。**迁移链是 embed 进 work-migrate 的**，所以照默认跑等于拿一个**早于 0028–0034 的二进制**去对 ledger=34 的库做 status/plan/apply。
+处置按"改默认值前先查调用方"的纪律：**默认值不动**（改它属用户可见行为变更，另立裁定），只在头注释把陷阱与实测数字写清，并给出显式覆盖用法 `sudo WORK_MIGRATE_BIN=/usr/local/bin/work-migrate bash ecs-migrate.sh status`，要求 apply 前先核二进制自报的链尾。新门 `test/ecs-migrate-disclosure.test.mjs` 三条：① 披露必须在场且**它建议的覆盖旋钮真的存在于代码里**（`WORK_MIGRATE_BIN:-`）、并说明"链 embed 在二进制里"这个理由；② 口令不进 argv／不进 stdout（禁 `set -x`、禁 echo password/DSN，诊断只用 `compgen -v` 列**变量名**，DSN 靠 `exec` 走环境）；③ 非 root 拒绝、缺口令 `exit 2` 失败关闭仍在。本地＋Linux 各 **3/3**；两刀变异各红（删掉覆盖旋钮⇒披露那条红；加 `set -x`⇒口令那条红），还原后 sha 与基线逐字相同（`039165f4e806`），`bash -n` 过。**默认二进制该不该改成安装路径，登记为待裁（任务 #98），本轮不自决。**
+
 | 项 | 类别 | 负责 | 状态 | 标题 | 证据条数 | 清单自述还缺什么（note 首句） |
 |---|---|---|---|---|---|---|
 | C03 | design | backend + SRE | partial | D3 orchestration and fault matrix reviewed | 9 | U3 nine commitments answered yes on 2026-10-27; resources approved; drills staffed by 5 dev/test… |

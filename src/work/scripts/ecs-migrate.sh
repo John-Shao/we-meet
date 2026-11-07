@@ -4,6 +4,16 @@ set -euo pipefail
 # Runs work-migrate with the ECS migration login without printing secrets.
 # Usage: sudo bash ecs-migrate.sh <status|plan|apply> [work-migrate flags]
 # apply additionally needs -legacy-migrator-disabled.
+#
+# WHICH BINARY THIS RUNS matters: the migration chain is embedded in work-migrate, so an old copy
+# does not know newer increments. The default below is a developer's home copy, and on the pilot
+# host that file was measured (2026-11-07) as an Oct-29 build of 12,664,992 bytes while the
+# installed /usr/local/bin/work-migrate was the current 34,205,856-byte build from that day's
+# rollout - i.e. the default would run a binary predating 0028..0034 against a ledger-34 database.
+# This script is not in the release package and nothing in rollout/CI calls it, so it is an
+# operator convenience wrapper. Until the default is ruled on, pass WORK_MIGRATE_BIN explicitly:
+#   sudo WORK_MIGRATE_BIN=/usr/local/bin/work-migrate bash ecs-migrate.sh status
+# and check the binary's own reported chain tail before trusting an apply.
 
 if [[ ${EUID} -ne 0 ]]; then
   echo "run with sudo: sudo bash $0 $*" >&2
