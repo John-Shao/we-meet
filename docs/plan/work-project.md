@@ -2338,3 +2338,17 @@ CI 侧我差点又下一次否定式错：只看到 `meet.yml` 的 `lint-front` 
 ② **C16**：今天新登记的缺口是**提交证据这一半**——CI 的扫描集不含演练证据目录，手工一扫 8 处 `content.field`（全是 `content://` 引用 URI），口径待裁（任务 #94）；运行面那一半仍等 #91／#92 的 rollout。
 ③ **C22**：多节点／升级／DB-offset 这类要靠真演练窗口，与本轮任何仓库改动无关；我不动它的状态也不替它下结论。
 
+**三条待裁＋一个新缺口已实装并部署（2026-11-07 11:5x，提交 `c37d0418f` + `acbca9d55`）**：
+
+**#99 已部署**：`work-healthcheck.sh` 上主机，sha `c766039bce4e` 与仓库逐字相同（4508 字节），四个旋钮无覆盖，timer 未动。头注释谎言（"不发外部邮件"）已修正为明确的 SIDE EFFECT 警告。行为中性已逐字 diff 证明。
+
+**#96=C1 已实装＋部署**：新建 `work-c16-log-scan.service` + `.timer`（daily，root 跑，ProtectSystem=full，ProtectHome=read-only，NoNewPrivileges 未设因 wrapper 需 sudo）。三处传播：make-release（cp 两 unit）、rollout（install+enable+start）、verify（读 timer 状态＋controls_fired 计数，区分"从未跑"与"跑过且正控成立"）。守卫 `c16-timer-wiring.test.mjs` 6/6 pass。主机部署完成：timer enabled+active，下次触发 2026-11-08 00:05:36 CST。节奏 daily 是我定的默认（可一行改），未单独裁定。
+
+**#98=B 已实装**：`ecs-migrate.sh` 加拒绝式预检（默认 `/home/johnshao/work-migrate` 不动）：跑只读 `status`，捕获 `ledger_version_unknown` 时点名两个路径并 exit 3。更正前提：`verifyLedgerAgainstManifest` 已让旧二进制自动失败（`ledger_version_unknown`），B 的价值是"提前并说清路径"，不是"防止一次错误写入"。守卫 `ecs-migrate-refusal.test.mjs` 5/5 pass（含跨工件锚定 Go 源码的 `newError("ledger_version_unknown"`，确保 needle 不 rot）。本地与 CI 都是非 root，refusal 分支的真执行需主机 root 取证（已登记为证据，未在仓库门里跑）。
+
+**#100 已实装＋部署**：`work-c16-log-scan.sh` 捕获 `PIPESTATUS[0]`（scanner 退出码），正控通过后检查 scan_rc，发现内容时 exit 4（unit 变红驱动告警）。此前 scanner 的 verdict 被 pipe 到 tail 丢失。守卫加第 4 条测试（canary 注入日志→exit 4），4/4 pass。主机部署完成：wrapper sha `586faf3e` 与仓库一致。
+
+**闸门读数（本轮复跑）**：ci-contract **147+38+24=209 pass**（含新增 c16-timer-wiring 6 + ecs-migrate-refusal 5），ops **30/30 pass**，本轮新增守卫 **14/14 pass**。
+
+**仍未完成（不可提前宣布）**：#89 等 2026-11-08 08:25 CST 后读 reconcile_timeout 真终态；C16 timer 首次自动触发（明天 00:05）后回读 controls_fired；账本传播（C16 表内 partial→enabled 待更新，但首次触发未验前不改状态）；其余待裁项（C17/C22/外部签收等）属运维窗口／商务／法务。
+
