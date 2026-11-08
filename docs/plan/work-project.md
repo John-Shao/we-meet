@@ -28,7 +28,7 @@
 | 能否开始开发 | **有条件是**。E1–E3 已获产品准入，D-01–D-07 已正式签收（含 D-04、D-07 A），E1 可接入真实迁移体系；E4–E6 只做契约/mock；正式开工与试点仍受 C03/C04/C05/C25 和 DR1–DR4 限制 |
 | 最早开工 | 2026-12-07（DR4 2026-12-04 之后） |
 | 关键路径 | E1→E2→E3→E7→E8，11–16 周；go/no-go 窗口 2027-02-26～2027-04-02（含春节顺延） |
-| 能否上线试点 | **否**。14/31 blocking 未关闭（2026-11-04 按 `pilot-checklist.json` 现算：开工 3＝C03/C04/C25，试点 11＝C09/C13/C16/C17/C22/C24/C26/C27/C28/C29/C30；**C07 已因 D2′ 重签完成而关闭**。同一条计数今天三次变动都留了现算依据：18/30 是 §5.2 的过期分母 → 15/31 是 C07 关闭前的现值 → 14/31 是当前值），真实 Content Store、U1 与试点组织均未就绪（C14 已签降级、C15 已 waived） |
+| 能否上线试点 | **否**。14/31 blocking 未关闭（2026-11-04 按 `pilot-checklist.json` 现算：开工 3＝C03/C04/C25，试点 11＝C09/C13/C16/C17/C22/C24/C26/C27/C28/C29/C30；**C07 已因 D2′ 重签完成而关闭**。同一条计数今天三次变动都留了现算依据：18/30 是 §5.2 的过期分母 → 15/31 是 C07 关闭前的现值 → 14/31 是当前值），真实 Content Store、U1 与试点组织均未就绪（C14 已签降级、C15 已 waived）**【2026-11-08 09:2x 主签签字后现算：C03／C16／C17／C22 置 done；未关闭阻塞（不含 waived）＝9＝开工 2（C04/C25）＋试点 7（C09/C13/C24/C26/C27/C28/C30）。取数法：读 `pilot-checklist.json`，筛 `blocking && status!=='done' && status!=='waived'`；原 14/31 保留为 11-04 历史值。】** |
 | 主要阻塞 | U1 可用性（招募单已发，待运营给名单）、U4 评审检查表、C22 多节点（U3 九项已确认）、C07 远端 CI、C24 试点组织 |
 | 最近修复 | `315c94502` D1 静态凭证支持、`89bc22c4a` release guard 历史引用清理 |
 | 功能模块与落地 | 用户模块/控制面模块、R0a E1–E8 步骤、R0b–R5 顺序见 §3 |
@@ -2263,6 +2263,13 @@ CI 侧我差点又下一次否定式错：只看到 `meet.yml` 的 `lint-front` 
 **#89 仍未闭，收口条件写死**：最早可读数时刻＝**2026-11-08 08:24:38 CST**（park+24h）。到点后要现读`state=failed／terminal_reason=reconcile_timeout`，并同时核**不 settle、不 release、不提交 head**（#83=G1）；在那之前不得宣布通过。取证已归档 `drill-2026-11-15/attachments/s89-reconcile-timeout-seed-20261107.txt`，并且**先用扫描器扫过这份新证据**（G3之后 ops 目录已在 CI 扫描集里，不能自己往里面塞一份会红的文件）。
 
 **#89 已收口（2026-11-08 09:0x 现读，零生产写）**：`state=failed`、`terminal_reason=reconcile_timeout`、`control_revision` 2→3、`updated_at=2026-11-08 08:24:30.85+08`（park 08-07 08:24:38 + 24h）；`work.quota_reservation c7bb3894`：amount=100000、**settled_tokens=0**、**state=held**（不 settle 不 release 成立）；`work.operation 90fd0ccf`：state=unknown（不提交 head 成立）；`work.run` 按 task 6a5199e3 现读 `count(distinct id)=1`（无第二个 Run）；run 的审计只有 `run.wait` 与 `runtime.checkpoint_committed`，无 settle 行。演练两格 `S1-3`／`S1-R06` 按其自身第二条重开条件（补自动收口／超时，已由 #81=B2 落地并现网生效）改判 **pass**，verdict 现算 **pass 47／fail 0／na 21／总 76**；§11 的 C22 evidence 回写条件（D1+D2+S1-R06 全 PASS）自此成立并已执行（C22 status 不动，留主签）。原文与旧判定保留不删。
+
+**四项主签签字（2026-11-08 09:2x，逐条单选）**：
+- **C22 → done**：执行 §11 第 2 行（D3 4 pass/0 fail、D4 5 pass/0 fail），evidence 追加 PG 故障恢复／配额饱和实测；na 格（多节点／镜像升级／drain）保留"本部署不可按原文执行"的理由，重开条件＝上多节点或镜像级切换时重演。
+- **C17 → done，关闭条件改写**：判据由"真 Prometheus/Alertmanager 序列上的告警投递"改为"库侧运行流巡检＋现有邮件告警已在现网生效"；48 条规则与 Grafana 面板保留并标注"未生效"。重开条件＝引入 Prometheus 抓取、多节点或要求平台级投递。
+- **C16 → done，接受散文盲区为已知局限**：扫描规则只匹配 12+ 非空白字符 token，带空格正文不在覆盖面（登记于 #94/#96 段与 runbook）；依据＝timer 已部署且正控通过、全库重扫 clean、演练证据目录已纳入扫描集。
+- **C03 → done**：S1-3／S1-R06 改判 pass 后 §11 第 3 行「D3-N01/N03/N06 真实环境 PASS ⇒ C03 §4(3) 满足」成立，回写已执行。
+现算未关闭阻塞（不含 waived）＝**9**：开工 2（C04/C25）＋试点 7（C09/C13/C24/C26/C27/C28/C30）。
 
 **#92 最后一格已收（2026-11-07 09:00 自然触发，不是我催的）**：`work-retention-scan.service` `ExecMainStartTimestamp=09:00:20`、`Result=success`；journal 里出现**一行 PAIR**：`PAIR org=4a2d3f28… exports_expired=0 exports_shredded=0 inputs_expired=0 shred_stuck=0 content_objects=1361 content_orphans=15 - 两条读数同轮取…`，两个数在同一行、每 org 恰好一行；同轮 `ORPHANS` 照旧只报不删，`summary … scan_errors=0`，**服务 Result=success ⇒ 孤儿 15 没有动退出码**，F2 的"report-only"不变量在现网成立。（`content_objects` 从 1353 涨到 1361，与 #89 播种新增的对象数相符。）#92 据此收口。
 
