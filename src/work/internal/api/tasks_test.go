@@ -85,6 +85,26 @@ func TestListTasksKeysetPagination(t *testing.T) {
 	}
 }
 
+func TestListTasksArchivedView(t *testing.T) {
+	pool, dbName := newBootstrapDB(t, true, true)
+	seedTaskGraph(t, dbName)
+	setTaskState(t, dbName, "11111111-1111-4111-8111-222222222222", "archived")
+	server := newHTTPServer(t, pool, &stubVerifier{claims: testClaims()}, testCSRF(t))
+
+	archived := getTasks(t, server.URL, "?view=archived")
+	if len(archived.Items) != 1 || archived.Items[0].TaskID != "11111111-1111-4111-8111-222222222222" {
+		t.Fatalf("archived view = %#v, want only the archived task", archived.Items)
+	}
+	// The archived task is terminal, so the pending view must not show it; the
+	// new predicate narrows the list rather than redefining other views.
+	pending := getTasks(t, server.URL, "?view=pending")
+	for _, item := range pending.Items {
+		if item.TaskID == "11111111-1111-4111-8111-222222222222" {
+			t.Fatal("pending view shows an archived task")
+		}
+	}
+}
+
 func TestListTasksRejectsInvalidQuery(t *testing.T) {
 	pool, _ := newBootstrapDB(t, true, true)
 	server := newHTTPServer(t, pool, &stubVerifier{claims: testClaims()}, testCSRF(t))

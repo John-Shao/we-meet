@@ -13,12 +13,10 @@ export const ArchivePage = () => {
   const { t } = useTranslation('work')
   const [searchParams] = useSearchParams()
   const legacyTask = searchParams.get('legacyTask')
-  const tasksQ = useWorkTasks('all')
+  const tasksQ = useWorkTasks('archived')
   const items = legacyTask
     ? []
-    : (tasksQ.data?.pages
-        .flatMap((item) => item.items)
-        .filter((task) => task.display_state === 'archived') ?? [])
+    : (tasksQ.data?.pages.flatMap((item) => item.items) ?? [])
 
   return (
     <div className={page}>
@@ -72,6 +70,18 @@ export const ArchivePage = () => {
           </div>
         )}
       </section>
+
+      {!legacyTask && tasksQ.hasNextPage ? (
+        <div className={css({ display: 'flex', justifyContent: 'center' })}>
+          <Button
+            variant="secondary"
+            loading={tasksQ.isFetchingNextPage}
+            onPress={() => tasksQ.fetchNextPage()}
+          >
+            {t('items.loadMore')}
+          </Button>
+        </div>
+      ) : null}
 
       <p className={muted}>
         <RiArchiveLine size={16} aria-hidden="true" /> {t('archive.readOnly')}

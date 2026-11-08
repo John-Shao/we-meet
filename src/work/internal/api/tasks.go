@@ -440,6 +440,11 @@ func taskViewPredicate(view string) (string, bool) {
 		return "display_state = 'awaiting_acceptance'", true
 	case "completed":
 		return "display_state = 'completed'", true
+	case "archived":
+		// Archived tasks are terminal but still owned by the subject; the
+		// archive page asks for them directly instead of filtering a page of
+		// "all" client-side, which only ever saw the newest 20 rows.
+		return "display_state = 'archived'", true
 	default:
 		return "", false
 	}

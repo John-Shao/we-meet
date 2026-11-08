@@ -241,6 +241,7 @@ export type WorkTaskView =
   | 'running'
   | 'awaiting_acceptance'
   | 'completed'
+  | 'archived'
 
 export interface WorkAdminOverview {
   org_id: string

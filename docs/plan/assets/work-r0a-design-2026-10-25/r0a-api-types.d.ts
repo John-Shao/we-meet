@@ -1321,7 +1321,7 @@ export interface operations {
     listTasks: {
         parameters: {
             query?: {
-                view?: "pending" | "running" | "awaiting_acceptance" | "completed" | "all";
+                view?: "pending" | "running" | "awaiting_acceptance" | "completed" | "archived" | "all";
                 cursor?: components["parameters"]["Cursor"];
                 limit?: components["parameters"]["Limit"];
             };
