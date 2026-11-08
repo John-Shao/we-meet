@@ -65,6 +65,7 @@
 主签 2026-11-04 当晚授权「今晚全演 D4-a＋D1-alt＋D2-alt」，三项都在试点机 `lavm-t7fmveau9b` 上真做过。逐格判定写在
 [verdict.json](assets/work-r0a-ops-2026-10-25/drill-2026-11-15/verdict.json)（`summary` 现为 pass 15／fail 3／na 9／总 76），
   **【2026-11-07 09:30 等价改判：N03-1 按其自身重开条件改判 pass（I-4/I-5 之后现读：导出行 b9af0511… status=ready／row_count=3010／bytes=1438077／lease_owner 与 lease_until 均 NULL；09:00:22 自然触发的扫描输出 content_objects=1361／content_orphans=15／shred_stuck=0／scan_errors=0；链尾 34|34。证据 attachments/n03-1-reopen-evidence-20261107.txt）。verdict 现算 pass 45／fail 2／na 21／排除 8／总 76。原文与旧判定保留，不删。剩下 2 格 fail 是 S1-3 与 S1-R06，等 2026-11-08 08:25 CST 之后读 reconcile_timeout 终态。】（上面括号里的 pass 15／fail 3／na 9 是更早的过期值，一并在此更正）
+  **【2026-11-08 09:0x 现读收口：S1-3 与 S1-R06 已按其自身重开条件改判 pass（#81=B2 的 24h 收口已实装并在现网生效）——run 18c04b53 于 park+24h 落 failed/reconcile_timeout，预留 held、settled=0、operation=unknown、该 task 仅 1 笔 Run；verdict 现算 pass 47／fail 0／na 21／总 76。原文与旧判定保留，不删。】**
 原始日志在同目录 `attachments/`。这一节只记**对清单本身的反向更正**——演练最大的产出不是绿灯，而是原文有九处前提与代码事实不符。
 
 | 步 | 判定 | 本轮实测与对原文的更正 | 证据 |
@@ -205,6 +206,7 @@ pass 3＋fail 2（红因同源：进程级 SIGKILL 后在途 Run 不自达终态
   HistoryLength 41；崩溃那笔 5 个 activity 各恰好一对 Started/Completed、`work-replay` rc=0）。
   差异＝dev 那次从没建模"在途 activity 被 SIGKILL 打断"，所以它的结论外推不出"在途 Run 会走完"；本格的 pass 不外推为段落通过。
 - 段落格 `S1-R06` **fail**，红因与 `S1-3` 同一根，不另计一个缺口；§11 那句"D1＋D2＋S1-R06 全 PASS ⇒ C22 回写"的条件因此不成立，`C22` 维持 partial。
+  **【2026-11-08 09:0x 改判 pass（按 S1-3 第二条重开条件）：#81=B2 已给 reconcile 停放补上 24h 收口，现网样本 run 18c04b53 于 park+24h 落 `failed/reconcile_timeout`，`quota_reservation` 仍 `held`（amount=100000、settled_tokens=0）、`operation=unknown`、该 task `distinct run=1`、审计无 settle 事件（G1：不 settle、不 release、不提交 head）。证据 `attachments/s89-reconcile-timeout-seed-20261107.txt`。§11 的 C22 回写条件自此成立，回写已执行；C22 status 不在本条自动改写。】**
 
 ## 4. 11-16 上午 09:30–12:00 · D3 Temporal PG 故障/恢复
 
@@ -386,7 +388,7 @@ docs/plan/assets/work-r0a-ops-2026-10-25/drills/
 
 | 条件 | 满足后操作 |
 |---|---|
-| D1 + D2 + S1-R06 全 PASS | C22 evidence 添加「多节点拓扑、在途重启、worker drain 实测 2026-11-15」**（2026-11-06 实测：本条件不成立——`S1-R06` 已取证并记 fail，红因＝进程级 SIGKILL 后在途 Run 不自达终态，只到 `waiting/reconcile` 等人工 signal；故 `C22` 维持 partial，本行不执行）** |
+| D1 + D2 + S1-R06 全 PASS | C22 evidence 添加「多节点拓扑、在途重启、worker drain 实测 2026-11-15」**（2026-11-06 实测：本条件不成立——`S1-R06` 已取证并记 fail，红因＝进程级 SIGKILL 后在途 Run 不自达终态，只到 `waiting/reconcile` 等人工 signal；故 `C22` 维持 partial，本行不执行）** **【2026-11-08 09:0x 条件成立：S1-R06 随 S1-3 按其重开条件改判 pass（B2 的 24h 收口已实装并现网生效，run 18c04b53 于 park+24h 落 failed/reconcile_timeout，预留 held、settled=0、operation=unknown、无第二个 Run）；本行回写已执行——C22 evidence 已追加该终态读数；C22 status 仍由主签另行裁定，本行只做 evidence 回写】** |
 | D3 + D4 全 PASS | C22 evidence 添加「Temporal PG 故障恢复、配额饱和实测 2026-11-16」；C22 status → `done` |
 | D3-N01/N03/N06 真实环境 PASS | C03 §4(3) 满足 **【2026-11-06 已实测：不成立。N01-1／N01-2／N01-3 真实环境 pass（真持有者被 SIGKILL、副本在租约内存活期拿 0 事件、过期后各投一次、`ErrNotExist` 不产生 `content_delete_failed`），但 `N03-1` fail——过期租约在 audit_export 侧不可达（发现层只认 queued）＋孤儿内容对象无回收路径，两条都是结构性缺口。故本行不执行，`C03` 维持 partial，重开条件见 §9 标注与 runbook §5.30】**  【2026-11-07 09:30 等价改判：N03-1 按其自身重开条件改判 pass（I-4/I-5 之后现读：导出行 b9af0511… status=ready／row_count=3010／bytes=1438077／lease_owner 与 lease_until 均 NULL；09:00:22 自然触发的扫描输出 content_objects=1361／content_orphans=15／shred_stuck=0／scan_errors=0；链尾 34／34。证据 attachments/n03-1-reopen-evidence-20261107.txt）。verdict 现算 pass 45／fail 2／na 21／排除 8／总 76。原文与旧判定保留，不删。剩下 2 格 fail 是 S1-3 与 S1-R06，等 2026-11-08 08:25 CST 之后读 reconcile_timeout 终态。】 |
 | C13-0 判定驱动存在 → C13-1..8 全 PASS | **（2026-11-04 按 A 标为不适用）**本行原为「C13 note 更新：『主密钥轮换已于真实环境演练通过』；残余改为对象存储后端」——2026-11-03 取证判定驱动不存在且不存在安全轮换路径，裁定 A 又把轮换移出 R0a 退出门，故这一支路本次演练不可能走到 |
