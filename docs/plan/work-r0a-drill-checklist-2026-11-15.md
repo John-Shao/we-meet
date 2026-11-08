@@ -361,6 +361,45 @@ bytes 1,355,188），下一次 12:47:22 ⇒ 06:46 之后新增的 8 个对象（
 
 **关联控制**：C03 §4(3) D3-N01/N03 真实环境注入。
 
+## 9A. C27/C30 删除与移交演练（D5 段）
+
+**目标**：在现网验 runbook §3-§5 的三条运维链——所有权转移、运维代删、用户自删的库侧等价——端到端走通，
+补 C27（删除流程）与 C30（删除与移交 Runbook）的"drill pending"半格。
+
+**RB-05 边界**：本节只验库侧＋relay 投递＋内容消失。用户面 API（`DELETE /work/v1/tasks/{id}`）的 session/CSRF/writer
+链路不在本节范围——它由 Go 测试 `internal/api/task_delete_pg_test.go`（如存在）与前端 E2E 覆盖，
+本节用 `work.ops_delete_task` 走 `delete_task_core` 同一内核，证明删除链的库侧→outbox→relay→内容消失全链可用。
+
+**前置**：
+- 现网有 ≥2 个静止任务（无 active Run、无 blocking Operation）可供操作；若不够则先用 `work-e2e-seed` 播种并等 Run 终态。
+- `work_ops` 连接通道可用（按 §5.19 的库侧只读路径取数；写路径需 `SET ROLE work_ops` 或 `runuser -u work-control`）。
+- 工单号格式 `^[A-Z][A-Z0-9]+-[0-9]+$`，理由 ≥4 字符。
+
+| 步 | 动作 | 通过判据 | 证据 |
+|---|---|---|---|
+| D5-0 | **预检（只读）**：记录现网基线——`task` 总数、`content_objects` 数、`outbox` 未投递数、`audit_event` 最新 seq | 基线值记录在案 | SQL |
+| D5-1 | **播种（生产写）**：若静止任务不足，以 `work-e2e-seed` 播 2 笔任务并等 Run 全部终态 | `tasks_created=2`、两笔 Run `state IN ('succeeded','failed')` | seed 输出 + SQL |
+| D5-2 | **所有权转移 Task A**：`work.transfer_task_ownership(org, taskA, new_owner, actor, 'DRILL-1', 'C27 drill ownership transfer')` | 返回值＝原 revision+1；`task.owner_subject_id` 变为 new_owner；审计 `task.ownership_transferred` 新增 1 行（from/to/工单号）；事件 `task.owner_changed` payload 只含 `["owner"]` | SQL 前后对比 + audit 行 |
+| D5-3 | **验转移效果**：以原 owner 身份读 Task A | 原 owner 列表不再含 Task A（或详情返回 `task_not_found`）；新 owner 列表含 Task A | SQL（RLS 生效） |
+| D5-4 | **运维代删 Task A**：`work.ops_delete_task(org, taskA, actor, 'DRILL-2', 'C27 drill ops deletion after transfer')` | 返回值 ≥0；`task.deleted_at IS NOT NULL`、`title='[deleted]'`；审计 `task.deleted_by_ops` 新增 1 行（含工单号 `DRILL-2`）；`content_shred` outbox 新增 ≥1 行（aggregate_id=taskA 的 content_ref） | SQL + audit |
+| D5-5 | **等 relay 投递**：轮询 `outbox WHERE aggregate_id=taskA 的 content_ref` 直到 `delivered_at IS NOT NULL` 或超时 60 秒 | `delivered_at` 非空、`attempts ≥ 1` | SQL |
+| D5-6 | **验内容消失**：检查 Content Store 盘上对应 `.enc` 文件 | 文件不存在（`No such file`）；`content_objects` 计数比 D5-0 少 ≥1 | `ls` + SQL |
+| D5-7 | **运维代删 Task B（不经过转移）**：`work.ops_delete_task(org, taskB, actor, 'DRILL-3', 'C27 drill direct ops deletion')` | 同 D5-4 判据，审计工单号 `DRILL-3` | SQL + audit |
+| D5-8 | **等 relay + 验消失**：同 D5-5/D5-6 对 Task B | 同 D5-5/D5-6 | SQL + `ls` |
+| D5-9 | **幂等性验证**：对已删的 Task B 再调一次 `ops_delete_task` 同参数 | 返回 0（已删任务幂等无操作）或 `task_not_found`；不产生新审计行、不产生新 outbox 行 | SQL |
+| D5-10 | **拒绝用例**：以 `work_api` 身份调 `ops_delete_task` | `permission denied`（42501）或 `function not accessible`；证明角色闸生效 | SQL |
+| D5-11 | **收尾核对**：`task` 新增 tombstone 行数＝2、`audit_event` 新增行数＝3（1 transfer + 2 delete）、`outbox` 新增 `content_shred` 行数＝D5-0 后增量、`content_objects` 减少量＝outbox 投递量 | 逐表 count 对齐 | SQL |
+
+**关联控制**：C27（删除流程演练）/ C30（删除与移交 Runbook 演练）。
+
+**授权半径**：D5-1/5-4/5-7/5-9 是生产写（建任务／删任务），D5-2/5-3 是生产写（转移所有权），其余只读。
+**任一项都需要主签对具体生产写逐次点头**，本表只列动作与代价，不代表已授权。
+
+**【2026-11-08 12:08–13:40 已执行，主签逐次授权】**D5-0..D5-11 全部完成：11 pass + 1 na（D5-1 不需要播种，134 笔静止任务足够）。verdict.json summary pass=58/na=22/total=88。证据：`attachments/d5-c27-c30-deletion-transfer-20261108.txt`。按回写映射行（↓）追加 C27/C30 evidence；status 翻色由主签另裁。
+
+**回滚**：删除是不可逆的（内容对象被 relay 真删），但 D5 只删演练夹具任务，不触碰真实用户数据。
+任务 tombstone 后审计行与预算账本保留（365 天留存周期），符合 runbook §3 的"保留"约束。
+
 ## 10. 证据落盘
 
 每场演练目录结构（按已有约定）：
@@ -398,6 +437,7 @@ docs/plan/assets/work-r0a-ops-2026-10-25/drills/
 | C28-1 至 C28-7 全 PASS 且 ≤15 min | C28 evidence 添加计时记录；note 改为「flag 已验证翻转与回滚」 |
 | 第 8 节 `T-31-*` 触发且 T-31-2 判定完成（条件项：仅当 #31 有未发布到生产的新版本） | 判定写入 `verdict.json` 的 `T-31-5.notes`；不触发则五格全填 `na` 并记「生产已是扁平形状，不适用」——**2026-11-04 补**：这五行原本不存在，`T-31-1..5` 只在第 8 节有步骤表、回写映射与模板都没有落点 |
 | §4 全部满足（U3 + D1–D4 + N01/N03 + S1） | C03 status → `done`，DR2 签收 |
+| D5 全 PASS（D5-0..D5-11） | C27 evidence 追加「删除链端到端实测」；C30 evidence 追加「移交＋代删端到端实测」；两格 status 由主签另裁 |
 
 签收后回写：[U3 单](work-r0a-temporal-hosting-decision-request-2026-10-26.md) §9、[D3 §4.1](work-r0a-orchestration-design-2026-10-25.md)、[work-project](work-project.md) §3.3、`pilot-checklist.json`。
 
@@ -414,6 +454,7 @@ docs/plan/assets/work-r0a-ops-2026-10-25/drills/
 | 11-16 | 16:30–17:00 | C28 | | | | | | | |
 | 11-16 | 17:00–17:30 | #31 双形状（条件） | | | | | | | |
 | 11-16 | 17:30–18:00 | N01/N03 | | | | | | | |
+| 11-16 | 18:00–18:30 | D5（C27/C30 删除与移交） | | | | | | | ✓ |
 
 ## 附录 B：失败影响矩阵
 
@@ -427,6 +468,7 @@ docs/plan/assets/work-r0a-ops-2026-10-25/drills/
 | C13 轮换后解密失败 | 凭据/Content Store 不可用 | 否（只影响 C13） | **2026-11-04：本行已不可触发**——按 A 不执行轮换，这一失败模式不在本次演练路径内（原补救「恢复旧密钥文件；排查派生逻辑」保留，供重开轮换时参考；重开条件见 `pilot-checklist.json` C13 note） |
 | C28 切换超时 >15 min | 试点 SLA 无依据 | 否（只影响 C28） | 记录实际耗时为约束基线 |
 | N01/N03 与测试层结果不一致 | 部署环境有额外因素 | **是**（C03 §4(3)） | 对比测试层与部署层配置差异 |
+| D5 删除/移交链断裂 | 内容对象未粉碎或审计缺失 | 否（C27/C30） | 核对 outbox→relay→Content Store 链；检查 work_ops 权限与 RLS 上下文 |
 
 ## 附录 C：生产 DB/Temporal 升级步骤（作为 D2 版本切换的框架参考）
 

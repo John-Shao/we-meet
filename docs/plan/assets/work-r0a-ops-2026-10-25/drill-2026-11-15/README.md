@@ -1,6 +1,6 @@
 # 11-15/16 演练 · 现场证据目录
 
-**关联清单**：[../../../../work-r0a-drill-checklist-2026-11-15.md](../../../../work-r0a-drill-checklist-2026-11-15.md)（本目录 `verdict.json` 覆盖步号族 `P1..P11`／`D1-1..7`／`D2-1..7`／`D3-1..6`／`D4-1..6c`／`S1-1..4`＋`S1-R06`／`C13-0..8`（`C13-1..8` 已由 2026-11-03 裁定 A 标为不执行）／`C28-1..7`／`N01-1..3`／`N03-1`／`T-31-1..5`，共 69 条；两侧步骤号由 `verdict.json` 的 `checklist_reconciliation` 双向比对，2026-11-04 对齐）
+**关联清单**：[../../../../work-r0a-drill-checklist-2026-11-15.md](../../../../work-r0a-drill-checklist-2026-11-15.md)（本目录 `verdict.json` 覆盖步号族 `P1..P11`／`D1-1..7`／`D2-1..7`／`D3-1..6`／`D4-1..6c`／`D5-0..D5-11`／`S1-1..4`＋`S1-R06`／`C13-0..8`（`C13-1..8` 已由 2026-11-03 裁定 A 标为不执行）／`C28-1..7`／`N01-1..3`／`N03-1`／`T-31-1..5`，共 88 条；两侧步骤号由 `verdict.json` 的 `checklist_reconciliation` 双向比对，2026-11-08 对齐）
 **关联控制**：C03、C22、C13（A 裁定后只保留 C13-0 前置审计）、C28
 **执行窗口**：2026-11-15 14:00 – 2026-11-16 18:00（+08:00）· 主持：John · 复核：无（自决日志 + 11-18 复评）
 
@@ -88,6 +88,8 @@
   它同时是 #81（已裁 B2）的**前置**；**I-3b 按主签选择不做**（卡死导出行与孤儿对象是 #80 的物证）。
   计数不变：pass 44／fail 3／na 21／排除 8／未取证 0，总 76。
   **【2026-11-07 09:30 现算更正，原文不删】N03-1 已按其自身重开条件等价改判 pass（导出行 b9af0511… ready／3010 行／1438077 字节／lease 两列均 NULL，加上 09:00:22 自然触发的扫描输出 content_objects=1361／content_orphans=15／scan_errors=0，链尾 34／34；证据 attachments/n03-1-reopen-evidence-20261107.txt）。verdict.json 现算 pass 45／fail 2／na 21／排除 8／总 76。剩下两格 fail 是 S1-3 与 S1-R06：同形状重演已做、24h 钟已 armed（TimerStarted 86400s 为历史最后事件），终态读数定于 2026-11-08 08:25 CST 之后，四项同真才翻色。**
+  **【2026-11-08 09:0x S1-3/S1-R06 随 B2 超时收口改判 pass】现算 pass 47／fail 0／na 21／排除 8／总 76。**
+  **【2026-11-08 12:08–13:40 D5 段已执行（C27/C30 删除与移交合并演练），主签逐次授权】11 pass + 1 na（D5-1 不需要播种）。现算 pass **58**／fail **0**／na **22**／排除 **8**／总 **88**。证据：`attachments/d5-c27-c30-deletion-transfer-20261108.txt`。关键事实：Task A 所有权转移（需先分配 work_seat）→ 运维代删 → relay ~430ms 投递 → 磁盘 -2 .enc；Task B 直接运维代删 → 磁盘再 -2 .enc（累计 1352→1348）；幂等性 return 0；角色闸 work_api denied。教训：多语句不可放同一 `psql -c`（D5-10 permission denied 回滚了 D5-7）。C27/C30 仍 partial（剩余＝support contacts + legal/DPA sign-off）。
 - 失败步（附重开条件）：
   - `D3-6`（2026-11-05 20:2x 新增）——Temporal server 失联的代价被账本如实记下：账本增量全部可归因
     （run 168→170、operation 161→163、task_event 977→986、outbox 1182→1193；重复派发 0、死信 0、闸行 1 且 consumed 恰好一次、
@@ -193,6 +195,7 @@
 - [ ] D3-N01/N03/N06 真实环境 pass → `C03 §4(3)` 满足
 - [ ] C13-0 判定：驱动不存在（当前代码事实，与 #40-A 一致）→ `C13.status` 保持 `partial`，不空跑 C13-1..8
 - [ ] `T-31-1..5`（2026-11-04 补入本目录 `verdict.json`）：触发即逐格填 verdict，`T-31-5` 的判定（400＝客户端已对齐／202＝兼容窗口仍开放）写进 `notes`；未触发填 `na` 并写「生产已是扁平形状，不适用」
+- [x] D5-0..D5-11 全 pass → `pilot-checklist.C27.evidence` 追加「删除链端到端实测 2026-11-08」；`C30.evidence` 追加「移交＋代删端到端实测 2026-11-08」；两格 status 由主签另裁（仍 partial，剩余＝support contacts + legal/DPA）
 - [ ] §4 全满足（U3 + D1-D4 + N01/N03 + S1）→ `C03.status → done`，DR2 签收
 
 回写目标：`pilot-checklist.json` 对应 item；`work-project.md` §3.3；演练后签收单回写 `work-r0a-c03-u3-drills-2026-10-27.md` §2/§3。

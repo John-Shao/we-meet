@@ -1,0 +1,157 @@
+D5 — C27/C30 deletion + ownership transfer combined drill
+==========================================================
+Date: 2026-11-08 12:08–13:40 CST
+Host: lavm-t7fmveau9b (36.151.147.217)
+Operator: johnshao (work_ops via SET ROLE)
+Authorization: per-step main-sign approval
+
+D5-0 BASELINE (read-only)
+--------------------------
+task count         = 173 (alive=172, is_deleted=true: 1)
+quiescent tasks    = 134 (no active runs, no blocking ops)
+outbox content     = 153 (pending=0, all delivered)
+audit_event        = 3123
+content_reference  = 1315
+disk .enc files    = 1352
+work_ops EXECUTE   = transfer_task_ownership ✓, ops_delete_task ✓
+org 4a2d3f28…      = status=active, execution_enabled=true
+
+D5-1 SEED DECISION
+-------------------
+Not needed: 134 quiescent tasks far exceed the 2 required.
+Using existing tasks as drill targets.
+
+D5-2 OWNERSHIP TRANSFER (Task A = 49a888a0…)
+----------------------------------------------
+Pre-requisite: allocated work_seat for target member 0c80fe6a…
+  UPDATE work.member SET work_seat=true, updated_at=now()
+  WHERE id='0c80fe6a-…' AND org_id='4a2d3f28-…';
+  -- result: UPDATE 1
+
+Transfer execution:
+  SET ROLE work_ops;
+  SET LOCAL work.org_id = '4a2d3f28-…';
+  SELECT work.transfer_task_ownership(
+    p_org_id        := '4a2d3f28-…',
+    p_task_id       := '49a888a0-…',
+    p_actor         := '535bbd27-…',
+    p_new_owner     := '0c80fe6a-…',
+    p_ticket_ref    := 'DRILL-1',
+    p_reason        := 'C27 drill ownership transfer'
+  );
+  -- result: revision=3 (was 2, +1)
+
+Audit verification:
+  action=task.ownership_transferred, count=1
+  metadata contains from_subject_id=535bbd27…, to_subject_id=0c80fe6a…
+  ticket_ref=DRILL-1
+
+D5-3 RLS VERIFICATION POST-TRANSFER
+-------------------------------------
+Task A owner_subject_id = 0c80fe6a… (new owner)
+Previous owner 535bbd27… no longer holds Task A (confirmed via RLS-filtered query)
+
+D5-4 OPS DELETION — Task A (post-transfer)
+--------------------------------------------
+  SET ROLE work_ops;
+  SET LOCAL work.org_id = '4a2d3f28-…';
+  SELECT work.ops_delete_task(
+    p_org_id        := '4a2d3f28-…',
+    p_task_id       := '49a888a0-…',
+    p_actor         := 'drill-actor-subject-id',
+    p_ticket_ref    := 'DRILL-2',
+    p_reason        := 'C27 drill ops deletion after transfer'
+  );
+  -- result: 2 (processed 2 exclusive content hashes)
+
+Task state after deletion:
+  is_deleted=true, deleted_at IS NOT NULL, title='[deleted]'
+  deleted_by_ops=true
+
+Audit:
+  action=task.deleted_by_ops, ticket_ref=DRILL-2
+  metadata: content_refs=2, artifacts=1, owner=0c80fe6a…
+
+D5-5 RELAY DELIVERY — Task A shred outbox
+-------------------------------------------
+outbox rows for Task A (aggregate_id=49a888a0…):
+  created_at   = 2026-11-08 13:27:10.157+08
+  delivered_at = 2026-11-08 13:27:10.586+08
+  attempts     = 1
+  delivery latency ≈ 430ms
+
+Post-delivery: outbox content pending = 0
+
+D5-6 DISK VERIFICATION — Task A content gone
+----------------------------------------------
+Content Store file count: 1352 → 1350 (-2)
+
+Task A exclusive hashes (2):
+  648629929699… GONE
+  0be5e345b861… GONE
+
+Task A shared hashes (6):
+  all EXISTS (correctly retained — shared with other active tasks)
+
+D5-7 OPS DELETION — Task B (direct, no transfer)
+--------------------------------------------------
+  SET ROLE work_ops;
+  SET LOCAL work.org_id = '4a2d3f28-…';
+  SELECT work.ops_delete_task(
+    p_org_id        := '4a2d3f28-…',
+    p_task_id       := '<task-B-id>',
+    p_actor         := 'drill-actor-subject-id',
+    p_ticket_ref    := 'DRILL-3',
+    p_reason        := 'C27 drill direct ops deletion'
+  );
+  -- result: 2
+
+NOTE: First attempt placed D5-7~D5-10 in a single psql -c call.
+D5-10's permission denied aborted the entire transaction, rolling back
+D5-7's deletion. Fixed by running each step in its own psql -c call.
+
+Task B state: is_deleted=true, deleted_at IS NOT NULL, title='[deleted]'
+Audit: action=task.deleted_by_ops, ticket_ref=DRILL-3
+
+D5-8 RELAY + DISK — Task B
+----------------------------
+outbox content pending = 0 (all delivered)
+Content Store: 1350 → 1348 (-2)
+
+Task B exclusive hashes (2):
+  e77bec0b0cbe… GONE
+  9041510aa6cd… GONE
+
+Task B shared hashes (6):
+  all EXISTS (correctly retained)
+
+D5-9 IDEMPOTENCY CHECK
+------------------------
+Re-running ops_delete_task on already-deleted Task B with same params:
+  result: 0 (no operation performed)
+
+Audit count for Task B task.deleted_by_ops: still 1 (no new row)
+Conclusion: deletion is idempotent.
+
+D5-10 ROLE GATE (negative case)
+---------------------------------
+  SET ROLE work_api;
+  SET LOCAL work.org_id = '4a2d3f28-…';
+  SELECT work.ops_delete_task(...);
+  -- result: ERROR: permission denied for function ops_delete_task
+
+Conclusion: work_ops-only functions are correctly gated against work_api.
+
+D5-11 FINAL RECONCILIATION
+----------------------------
+task tombstoned       = 3 (baseline 1 + drill 2) ✓
+audit deleted_by_ops  = 2 ✓
+audit ownership_xfer  = 1 ✓
+outbox content total  = 155 (baseline 153 + drill 2, all delivered) ✓
+disk .enc files       = 1348 (baseline 1352 - 4) ✓
+content_reference     = 1315 (unchanged — shared refs not cleared) ✓
+
+All counts reconcile. Deletion chain end-to-end verified:
+  task tombstone → content_shred outbox → relay delivery → disk deletion
+Ownership transfer verified:
+  seat allocation → transfer_task_ownership → RLS isolation → ops_delete by new owner's task

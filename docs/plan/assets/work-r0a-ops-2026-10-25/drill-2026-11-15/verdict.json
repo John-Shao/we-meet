@@ -755,13 +755,109 @@
         "attachments/d3-b-3-restore-drill-pass-20261105.txt"
       ],
       "notes": "主签选「就在共享集群演（脚本原样）」。实测走到 age 解密就停了：`{\"status\":\"failed\", ..., \"error_type\":\"RuntimeError\", \"error\":\"age failed (exit 1)\"}` — **下载与 sha256 校验都过了**（bundle key `work/databases/work/2026-11-04/20261104T104425Z-622b1bbdfdec.tar.gz.age`、1,602,597 字节、sha `df7c1d34…`），失败在解密：**机上唯一身份文件 `/root/work-backups/work-backup.agekey` 的收件人是 `age1z43zrq…`，而备份配置 `recipient.txt` 写的是 `age1jyazk…`**（mtime 2026-10-29 12:22:30），两者不是同一把钥匙；全盘搜索没有任何 `*offsite*agekey`，而 10-29 那次 passed 的演练（`restore-drill-20261029T122356.json`，3 库／12 文件）正是用当时存在、现已消失的 `work-offsite-20261029.agekey` 跑的。旁证钥匙本身没坏：同一把 `work-backup.agekey` 能解出 10-28 的本地 cleanup 归档。三条附带结论：① **§0B「在隔离实例回放」是错的**——脚本用 `runuser -u postgres createdb work_drill_<hex>` 在**生产集群内**建 scratch 库再 dropdb（清单原文要改）；② 失败是干净的：集群库表现在仍是 postgres/template0/template1/temporal/temporal_visibility/work 六个，没留 scratch 库也没留临时目录（解密发生在建库之前）；③ 脚本**不在发布包内**，只由 runbook 指向 `/opt/meet-db-backup/`，且机上那份已漂移（缺 `WORK_BACKUP_IDENTITY` 覆盖、写死了不存在的 key 路径）——与 #47 同一类通道缺口。后果分档：**这条比演练本身重**——每日备份上传成功、sha 校验成功，但从今天起没有任何在机钥匙能解开它，C19（Backup/restore drill）的 done 与今晚事实冲突，已单开 #57 待主签裁钥匙保管位置。**2026-11-05 09:51 反转（本格由 fail 改 pass）**：私钥从未丢失——它在管理员本机受保护目录（路径见 runbook §5.4 同日更正），用 `age-keygen -y` 推出的公钥与现网 `recipient.txt` 逐字相同（`age1jyazk2petru…mnvzul`）。把该私钥临时放进主机 root 0600 路径、以 `WORK_BACKUP_IDENTITY` 指名，对已安装的 `/opt/meet-db-backup/work-db-restore-drill.py` 跑同一条命令：`status=passed`，解开的正是「10-29 起不可解」区间内的 11-04 bundle（`work/databases/work/2026-11-04/20261104T223826Z-445cf31f44f1.tar.gz.age`，sha256 `4192b907…`），work 47 表/8669 行、temporal 36/4610、temporal_visibility 3/200、files 12；报告 `/var/lib/meet-db-backup/work/restore-drill-20261105T095126.json`；私钥跑完即从主机删除并核过（`CONFIRMED_GONE`，机上只剩 `work-backup.agekey`），无 `work_drill_*` 库与临时目录残留。**根因是取证方法**：先前只在主机上找钥匙，而托管模型本就规定主机无副本——「永久不可解」是搜索范围错误得出的结论，不是事实。保留一条真实缺陷：脚本默认身份路径指向主机上一个按政策不该存在的位置，值班必须显式传 `WORK_BACKUP_IDENTITY`，否则这条演练按默认必红（B 单换钥因此不再必要，未执行）。"
+    },
+    {
+      "step": "D5-0",
+      "section": "c27-c30-deletion-transfer",
+      "verdict": "pass",
+      "ts": "2026-11-08T12:08:00+08:00",
+      "evidence": ["attachments/d5-c27-c30-deletion-transfer-20261108.txt"],
+      "notes": "只读基线：task=173( alive=172)、静止=134、outbox content=153(pending=0)、audit_event=3123、content_reference=1315、磁盘 .enc=1352。work_ops 对 transfer_task_ownership/ops_delete_task 有 EXECUTE 权限。org=4a2d3f28… status=active。"
+    },
+    {
+      "step": "D5-1",
+      "section": "c27-c30-deletion-transfer",
+      "verdict": "na",
+      "ts": "2026-11-08T12:08:00+08:00",
+      "evidence": [],
+      "notes": "不需要：134 笔静止任务远超所需的 2 笔，直接使用现有任务作为演练目标。"
+    },
+    {
+      "step": "D5-2",
+      "section": "c27-c30-deletion-transfer",
+      "verdict": "pass",
+      "ts": "2026-11-08T12:15:00+08:00",
+      "evidence": ["attachments/d5-c27-c30-deletion-transfer-20261108.txt"],
+      "notes": "Task A (49a888a0…) 所有权从 535bbd27… (admin) 转至 0c80fe6a… (member)。前置：为 0c80fe6a 分配 work_seat（UPDATE member SET work_seat=true）。返回 revision=3（原 2+1）。审计 task.ownership_transferred 含 from/to/ticket_ref=DRILL-1/reason。事件 task.owner_changed payload {fields:[owner]}。"
+    },
+    {
+      "step": "D5-3",
+      "section": "c27-c30-deletion-transfer",
+      "verdict": "pass",
+      "ts": "2026-11-08T12:15:00+08:00",
+      "evidence": ["attachments/d5-c27-c30-deletion-transfer-20261108.txt"],
+      "notes": "转移后 Task A owner_subject_id=0c80fe6a…（新 owner），原 owner 535bbd27… 不再持有此 task。RLS 按 owner_subject_id 过滤，原 owner 查询结果不含 Task A。"
+    },
+    {
+      "step": "D5-4",
+      "section": "c27-c30-deletion-transfer",
+      "verdict": "pass",
+      "ts": "2026-11-08T13:27:00+08:00",
+      "evidence": ["attachments/d5-c27-c30-deletion-transfer-20261108.txt"],
+      "notes": "运维代删 Task A：ops_delete_task(org, taskA, drill-actor, DRILL-2, 'C27 drill ops deletion after transfer')。返回 2（处理 2 个独占 content hash）。task.deleted_at IS NOT NULL、title='[deleted]'。审计 task.deleted_by_ops 含 ticket_ref=DRILL-2、content_refs=2、artifacts=1、owner=0c80fe6a（转移后的 owner）。"
+    },
+    {
+      "step": "D5-5",
+      "section": "c27-c30-deletion-transfer",
+      "verdict": "pass",
+      "ts": "2026-11-08T13:27:10+08:00",
+      "evidence": ["attachments/d5-c27-c30-deletion-transfer-20261108.txt"],
+      "notes": "relay 在 ~430ms 内投递 outbox 行（created_at=13:27:10.157、delivered_at=13:27:10.586、attempts=1）。aggregate_id=49a888a0…（Task A）。投递后 outbox content pending=0。"
+    },
+    {
+      "step": "D5-6",
+      "section": "c27-c30-deletion-transfer",
+      "verdict": "pass",
+      "ts": "2026-11-08T13:28:00+08:00",
+      "evidence": ["attachments/d5-c27-c30-deletion-transfer-20261108.txt"],
+      "notes": "磁盘验证：Content Store 文件数 1352→1350（-2）。Task A 的 8 个唯一 hash 中 2 个独占文件 GONE（648629929699…、0be5e345b861…），其余 6 个 EXISTS（被其他活跃任务共享，正确保留）。"
+    },
+    {
+      "step": "D5-7",
+      "section": "c27-c30-deletion-transfer",
+      "verdict": "pass",
+      "ts": "2026-11-08T13:35:00+08:00",
+      "evidence": ["attachments/d5-c27-c30-deletion-transfer-20261108.txt"],
+      "notes": "运维代删 Task B（不经过转移）：ops_delete_task(org, taskB, drill-actor, DRILL-3, 'C27 drill direct ops deletion')。返回 2。task.deleted_at IS NOT NULL、title='[deleted]'。审计 task.deleted_by_ops 含 ticket_ref=DRILL-3。注意：首次尝试将 D5-7~10 放在同一 psql -c 调用中，D5-10 的 permission denied 导致整个事务回滚；分离为独立事务后成功。"
+    },
+    {
+      "step": "D5-8",
+      "section": "c27-c30-deletion-transfer",
+      "verdict": "pass",
+      "ts": "2026-11-08T13:36:00+08:00",
+      "evidence": ["attachments/d5-c27-c30-deletion-transfer-20261108.txt"],
+      "notes": "relay 投递 + 磁盘验证：outbox content pending=0（已投递）。文件数 1350→1348（-2）。Task B 的 8 个唯一 hash 中 2 个独占文件 GONE（e77bec0b0cbe…、9041510aa6cd…），其余 6 个 EXISTS（共享保留）。"
+    },
+    {
+      "step": "D5-9",
+      "section": "c27-c30-deletion-transfer",
+      "verdict": "pass",
+      "ts": "2026-11-08T13:38:00+08:00",
+      "evidence": ["attachments/d5-c27-c30-deletion-transfer-20261108.txt"],
+      "notes": "幂等性验证：对已删 Task B 再调 ops_delete_task 同参数，返回 0（无操作）。审计 task.deleted_by_ops 对 Task B 仍为 1 行（未新增）。证明删除操作幂等。"
+    },
+    {
+      "step": "D5-10",
+      "section": "c27-c30-deletion-transfer",
+      "verdict": "pass",
+      "ts": "2026-11-08T13:38:30+08:00",
+      "evidence": ["attachments/d5-c27-c30-deletion-transfer-20261108.txt"],
+      "notes": "拒绝用例：SET ROLE work_api 后调 ops_delete_task → ERROR: permission denied for function ops_delete_task。证明角色闸生效：work_ops 专有函数对 work_api 不可执行。"
+    },
+    {
+      "step": "D5-11",
+      "section": "c27-c30-deletion-transfer",
+      "verdict": "pass",
+      "ts": "2026-11-08T13:40:00+08:00",
+      "evidence": ["attachments/d5-c27-c30-deletion-transfer-20261108.txt"],
+      "notes": "收尾核对：task tombstoned=3（基线 1 + 本次 2）✓；audit task.deleted_by_ops=2 ✓、task.ownership_transferred=1 ✓（合计 3 行）；outbox content=155（基线 153 + 本次 2，全 delivered）✓；磁盘 .enc=1348（基线 1352 - 4）✓；content_reference 行数不变（1315，共享引用不清除）✓。逐表 count 对齐。"
     }
   ],
   "summary": {
-    "pass": 47,
+    "pass": 58,
     "fail": 0,
-    "na": 21,
-    "total": 76
+    "na": 22,
+    "total": 88
   },
   "writeback_targets": {
     "pilot_checklist": "docs/plan/assets/work-r0a-ops-2026-10-25/pilot-checklist.json",
@@ -769,13 +865,13 @@
     "drill_checklist": "docs/plan/work-r0a-drill-checklist-2026-11-15.md"
   },
   "checklist_reconciliation": {
-    "as_of": "2026-11-04",
+    "as_of": "2026-11-08",
     "method": "双向集合比对：用正则取清单所有「| 步 | 动作 | 通过判据 | 证据 |」表格的首列步骤号（`^\\|\\s*([A-Za-z0-9][A-Za-z0-9._-]*)\\s*\\|`），与本页 steps[].step 求差集；再逐节核对每节表头/边界/关联控制是否都有落点。",
     "md_steps_missing_from_verdict": [],
     "verdict_extra_steps": [
       "S1-R06"
     ],
-    "note": "2026-11-04 第二次对齐：第一次的 `md_steps_missing_from_verdict: []` 是**按节局部取号**算出来的，改成整文件正则后发现漏集非空——清单第 8 节（#31 双形状过渡验证，条件项）的 T-31-1..T-31-5 五条条件步在本模板里没有落点，已补入（见 steps 里 section=RB-05-T31），total 由 64 变 69。另：C13 的裁定与表格矛盾已在清单侧就地标注解决，行不删以保住与 drill 目录的步号对齐。；2026-11-04 §0A/§0B 重排新增 7 个可执行步骤 id（D4-a/b/c、D2-alt、D1-alt、D3-a/b）并同步补进本页 steps，summary.total 随之更新——否则演练当天执行了却没有落点，正是 C03 当初「T-31-* 只存在于 markdown」的同一类缺陷。",
+    "note": "2026-11-04 第二次对齐：第一次的 `md_steps_missing_from_verdict: []` 是**按节局部取号**算出来的，改成整文件正则后发现漏集非空——清单第 8 节（#31 双形状过渡验证，条件项）的 T-31-1..T-31-5 五条条件步在本模板里没有落点，已补入（见 steps 里 section=RB-05-T31），total 由 64 变 69。另：C13 的裁定与表格矛盾已在清单侧就地标注解决，行不删以保住与 drill 目录的步号对齐。；2026-11-04 §0A/§0B 重排新增 7 个可执行步骤 id（D4-a/b/c、D2-alt、D1-alt、D3-a/b）并同步补进本页 steps，summary.total 随之更新——否则演练当天执行了却没有落点，正是 C03 当初「T-31-* 只存在于 markdown」的同一类缺陷。；2026-11-08 新增 D5-0..D5-11（C27/C30 删除与移交演练），summary.total 由 76 变 88，12 格 verdict=null 待执行。",
     "open_contradiction": null,
     "aligned_with": "drill-2026-11-15/README.md 第 37 行（不空跑 C13-1..8）；pilot-checklist.json C13（status 仍 partial）",
     "scope_exclusions": [
