@@ -410,7 +410,7 @@
       "blocking": true,
       "gate": "pilot",
       "evidence": [],
-      "note": "No signed pilot organizations."
+      "note": "No signed pilot organizations. 【2026-11-08 协调状态：仍 todo。仓库里没有任何组织名或联系方式（设计约定，真名只留运营受控表）。前置已写进招募单 §9：承诺件要素（范围/35 天备份留存与删除路径/席位/支持联系人/退出）、开通入口（runbook §5.22 的 work.apply_execution_entitlement SQL，无 HTTP 端点或管理台写面；#59 已于 2026-11-04 按 kill switch 先例写进 runbook）、匿名登记规则；并明确 execution_enabled 不会随 Host 状态自动翻转。外部输入逾期：11-05 渠道候选数与合规限制未回填、11-06 首批邀约未发出。追办截止 11-10，名单锁定 11-16，不足即走招募单 §7 降级。状态不由“材料已备”翻色，只在真实组织签署并完成接入后由主签执行。】 【2026-11-08 主签四项决定回写：①答谢不设（原 10-28 项关闭）；②名单 Owner＝John 兼运营，可直触现有付费组织，真名仍只留受控表；③承诺件形式＝邮件书面确认，模板见招募单 §10，收到对方回复“确认”即为 committed 证据；④排期维持 11-16 锁定。开通动作＝runbook §5.22 的 apply_execution_entitlement SQL，开通后回读 org 行（status/execution_enabled/operator_suspended/access_epoch）归档为接入证据。】"
     },
     {
       "id": "C25",
@@ -423,7 +423,7 @@
       "evidence": [
         "U1 recruit and schedule plan issued 2026-10-26 with the R0a judgement set corrected to UT1-UT5"
       ],
-      "note": "No participants recruited yet; at least two scenarios must reproduce in 3+ orgs. Ops owes channel candidate counts by 2026-11-05."
+      "note": "No participants recruited yet; at least two scenarios must reproduce in 3+ orgs. Ops owes channel candidate counts by 2026-11-05. 【2026-11-08 协调状态：仍 todo。§8.1 候选登记表 8 行全空；11-05（渠道候选数与合规限制）与 11-06（首批邀约）两项已逾期。补救排期见招募单 §9：11-10 回填＋答谢口径定稿 → 11-12 发出 ≥10 人邀约 → 11-16 锁定 7–8 人/≥3 管理员/≥3 组织 → 11-18 彩排 → 11-20～24 执行 → 11-27 报告。缺口是真实候选名单与档期，不是脚本、环境或判定任务集。】 【2026-11-08 主签四项决定回写：答谢不设（邀约文案已删答谢句，样本偏差在报告声明）；名单 Owner＝John 兼运营；维持 11-16 锁定不顺延；达不到 7 人/3 家即按招募单 §7 降级并把风险写进 DR3 材料。】"
     },
     {
       "id": "C26",

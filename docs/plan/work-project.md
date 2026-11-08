@@ -2271,6 +2271,8 @@ CI 侧我差点又下一次否定式错：只看到 `meet.yml` 的 `lint-front` 
 - **C03 → done**：S1-3／S1-R06 改判 pass 后 §11 第 3 行「D3-N01/N03/N06 真实环境 PASS ⇒ C03 §4(3) 满足」成立，回写已执行。
 现算未关闭阻塞（不含 waived）＝**9**：开工 2（C04/C25）＋试点 7（C09/C13/C24/C26/C27/C28/C30）。
 
+**C24／C25 协调推进（2026-11-08 09:4x，无外部副作用）**：现读两项仍 `todo`——§8.1 候选登记表 8 行全空，仓库里没有组织名或联系方式（设计约定，真名只留运营受控表）；招募单里 11-05“渠道候选数与合规限制回填”逾期 3 天、11-06“首批邀约发出”逾期 2 天。已在[招募单](work-r0a-usability-recruit-plan-2026-10-26.md)追加 §9：可直接转发的追办单（四项输入＋11-10 截止）、补救排期（11-10 回填/答谢口径 → 11-12 邀约 ≥10 人 → 11-16 锁定 7–8 人、≥3 管理员、≥3 组织 → 11-18 彩排 → 11-20～24 执行 → 11-27 报告）、以及 C24 的接入前置清单（承诺件要素；租户开通只能走 runbook §5.22 的 `work.apply_execution_entitlement` SQL，`EXECUTE` 仅授 `work_operator`、entitlement 懒建从 revision 0 起、同 request id 换载荷会 `idempotency_key_conflict`；`execution_enabled` 不随 Host 状态自动翻转）。两项状态不按“材料已备”翻色：C24 需真实组织签署并完成接入，C25 需真实用户完成 7–8 场研究。**同日主签四决**：答谢不设（原 10-28 项关闭，样本偏差在报告声明）；名单 Owner＝John 兼运营、可直触现有付费组织；C24 承诺件＝邮件书面确认（模板已写入招募单 §10）；排期维持 11-16 锁定。追办回复截止 11-10。
+
 **#92 最后一格已收（2026-11-07 09:00 自然触发，不是我催的）**：`work-retention-scan.service` `ExecMainStartTimestamp=09:00:20`、`Result=success`；journal 里出现**一行 PAIR**：`PAIR org=4a2d3f28… exports_expired=0 exports_shredded=0 inputs_expired=0 shred_stuck=0 content_objects=1361 content_orphans=15 - 两条读数同轮取…`，两个数在同一行、每 org 恰好一行；同轮 `ORPHANS` 照旧只报不删，`summary … scan_errors=0`，**服务 Result=success ⇒ 孤儿 15 没有动退出码**，F2 的"report-only"不变量在现网成立。（`content_objects` 从 1353 涨到 1361，与 #89 播种新增的对象数相符。）#92 据此收口。
 
 **CI 两条红灯的归因与处置（2026-11-07，主签已单选）**：PR #39 在 head `8e294c3ad` 上**Work 全部门禁 pass**（含 `No-content/no-secret log scan`＝G3 扩大后的扫描集、`SLO telemetry rules and ops model`＝54 用例），`test-front` **pass 3m38s**、`test-e2e` **pass 6m29s** ⇒ #95 的前端读数取 CI 正证收口（本地仍复现不了：esbuild 读 `D:\workspace` 被拒，junction 也无效，因为 vitest 走 realpath）。
