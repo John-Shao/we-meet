@@ -156,6 +156,15 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, correlationID, apierr.New("preview_stale"))
 		return
 	}
+	// The preview pinned the template bytes the user reviewed. Resolve the
+	// builtin now and require it to be the same version and content hash, or the
+	// submitted manifest would describe a template the preview never showed.
+	template, ok := templateByID(preview.TemplateID)
+	if !ok || template.Version != preview.TemplateVersion ||
+		template.ContentHash != preview.TemplateHash {
+		writeAPIError(w, correlationID, apierr.New("preview_stale"))
+		return
+	}
 	record, _, err := s.readPreviewInput(r.Context(), claims, body.InputRef, body.PermissionMode, true)
 	if err != nil {
 		s.writeAccessError(w, correlationID, err)
@@ -184,7 +193,6 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	title := truncateRunes(strings.TrimSpace(input.Goal), 20)
-	template, _ := templateByID(preview.TemplateID)
 	manifest, err := json.Marshal(map[string]any{
 		"template": map[string]any{
 			"id": template.ID, "version": template.Version, "content_hash": template.ContentHash,

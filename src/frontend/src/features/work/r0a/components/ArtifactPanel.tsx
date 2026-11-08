@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'wouter'
 import {
@@ -46,6 +46,7 @@ export const ArtifactPanel = ({
 }: Props) => {
   const { t } = useTranslation('work')
   const [open, setOpen] = useState(false)
+  const contentId = useId()
   const contentQ = useWorkArtifactContent(taskId, artifactId, versionNo, open)
 
   return (
@@ -62,6 +63,8 @@ export const ArtifactPanel = ({
           <Button
             size="dense"
             variant="secondary"
+            aria-expanded={open}
+            aria-controls={contentId}
             icon={
               open ? (
                 <RiEyeOffLine size={16} aria-hidden="true" />
@@ -95,29 +98,31 @@ export const ArtifactPanel = ({
         </Link>
       </div>
       {open ? (
-        contentQ.isLoading ? (
-          <p className={muted}>{t('task.artifactLoading')}</p>
-        ) : contentQ.isError ? (
-          <div className={css({ marginTop: 'sm' })}>
-            <p className={errorText}>{t('task.artifactLoadError')}</p>
-            {readOnly ? null : (
-              <Button
-                size="dense"
-                variant="secondary"
-                onPress={() => void contentQ.refetch()}
-              >
-                {t('retry')}
-              </Button>
-            )}
-          </div>
-        ) : !contentQ.data ? (
-          <p className={muted}>{t('task.artifactLoading')}</p>
-        ) : (
-          <ArtifactPreview
-            text={contentQ.data.text}
-            mediaType={contentQ.data.mediaType}
-          />
-        )
+        <div id={contentId}>
+          {contentQ.isLoading ? (
+            <p className={muted}>{t('task.artifactLoading')}</p>
+          ) : contentQ.isError ? (
+            <div className={css({ marginTop: 'sm' })}>
+              <p className={errorText}>{t('task.artifactLoadError')}</p>
+              {readOnly ? null : (
+                <Button
+                  size="dense"
+                  variant="secondary"
+                  onPress={() => void contentQ.refetch()}
+                >
+                  {t('retry')}
+                </Button>
+              )}
+            </div>
+          ) : !contentQ.data ? (
+            <p className={muted}>{t('task.artifactLoading')}</p>
+          ) : (
+            <ArtifactPreview
+              text={contentQ.data.text}
+              mediaType={contentQ.data.mediaType}
+            />
+          )}
+        </div>
       ) : null}
     </section>
   )

@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -79,6 +80,7 @@ type Server struct {
 	providerMaster []byte
 	prober         ProviderProber
 	shutdown       chan struct{}
+	shutdownOnce   sync.Once
 }
 
 // SetProviderMasterKey supplies the 32-byte key that seals a submitted provider API
@@ -97,11 +99,9 @@ func (s *Server) SetProviderMasterKey(key []byte) {
 // this signal a single open EventSource turns a restart into a full drain window
 // with the listener already closed.
 func (s *Server) BeginShutdown() {
-	select {
-	case <-s.shutdown:
-	default:
+	s.shutdownOnce.Do(func() {
 		close(s.shutdown)
-	}
+	})
 }
 
 // SetRuntimeVersion records the deployment's real execution body on every

@@ -781,7 +781,6 @@ export interface components {
             reason?: string;
         };
         CancelRequest: {
-            client_request_id: string;
             reason?: string;
         };
         Operation: {

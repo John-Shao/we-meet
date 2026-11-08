@@ -16,11 +16,32 @@ fi
 
 SINCE="${1:-2026-11-03 00:00:00}"
 
+# Every acceptance verdict is printed as `label=value`; a value of FALSE or MISSING is the check
+# answering "no", and the script used to exit 0 regardless. That made it a transcript to read,
+# not an acceptance check: a caller in a Makefile or a runbook step could not tell a green host
+# from one that failed every probe. Counted here and turned into the exit status at the end.
+FAILURES=0
+
 psql_ro() {
   # ON_ERROR_STOP turns a SQL error into a non-zero exit: without it a broken check printed
   # its ERROR line and the script went on looking green (found 2026-11-05 - the parity query
   # below had been erroring since it was written, and "missing: none" was never its output).
-  runuser -u postgres -- psql -v ON_ERROR_STOP=1 -d work -Atc "$1"
+  local out status
+  out="$(runuser -u postgres -- psql -v ON_ERROR_STOP=1 -d work -Atc "$1")"
+  status=$?
+  [[ -n "$out" ]] && printf '%s\n' "$out"
+  if [[ "$status" -ne 0 ]]; then
+    # A check that could not run has not passed; counting it would be wrong in the other
+    # direction (a silent green), so it counts as a failure with the reason printed.
+    printf '  ^^ check failed: psql exited %d\n' "$status"
+    FAILURES=$((FAILURES + 1))
+    return 0
+  fi
+  if grep -qE '(^|[^A-Za-z])(FALSE|MISSING)([^A-Za-z]|$)' <<<"$out"; then
+    printf '  ^^ check failed: verdict above reads FALSE/MISSING\n'
+    FAILURES=$((FAILURES + 1))
+  fi
+  return 0
 }
 
 echo "== host =="
@@ -99,7 +120,10 @@ psql_ro "select 'immutable_guard_hardened=' || prosecdef
   || ' search_path=' || coalesce((select regexp_replace(e, '^search_path=', '') from unnest(proconfig) as e
                                    where e like 'search_path=%'), 'MISSING')
   from pg_proc where oid = 'work.artifact_version_immutable_content()'::regprocedure"
-psql_ro "select 'gap_skip_index_unique=' || coalesce(i.indisunique::text, 'MISSING')
+# coalesce(indisunique::text, ...) would print Postgres's lowercase `false`, which the failure
+# counter (uppercase FALSE/MISSING, the convention every other verdict in this file already uses)
+# could not see - a non-unique index would have been reported and still exited 0.
+psql_ro "select 'gap_skip_index_unique=' || coalesce(case when i.indisunique then 'true' else 'FALSE' end, 'MISSING')
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
   left join pg_index i on i.indexrelid = c.oid
   where n.nspname = 'work' and c.relname = 'work_audit_event_gap_skip_request'"
@@ -363,3 +387,14 @@ echo "== leftover rollout artifacts =="
 psql_ro "select coalesce((select 'role work_rollout_r0a present'
  from pg_roles where rolname = 'work_rollout_r0a'), 'temporary role absent')"
 ls -1 /usr/local/bin/*.bak-* 2>/dev/null | tail -12 | sed 's/^/backup: /' || true
+
+echo
+if [[ "$FAILURES" -ne 0 ]]; then
+  # Loud and non-zero: the transcript above already says which line, this just refuses to let a
+  # pipeline treat "printed FALSE three times" as a pass. WARN lines about not-yet-deployed
+  # packaging (drill binaries, restore drill, org lists) stay out of the count on purpose - those
+  # are reported deployment state, not a verdict this script can assert.
+  echo "FAIL: ${FAILURES} acceptance check(s) answered FALSE/MISSING or could not run; see the ^^ lines above" >&2
+  exit 1
+fi
+echo "OK: every acceptance verdict read true/present (WARN lines above, if any, are deployment state)"

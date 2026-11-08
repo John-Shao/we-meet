@@ -1,10 +1,46 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AdminPage } from './AdminPage'
 
 let role = 'owner'
 let providerConfigured = true
+
+const createExportMock = {
+  mutateAsync: vi.fn(),
+  isPending: false,
+  isError: false,
+}
+
+const usageData = {
+  from: '2026-10-25',
+  to: '2026-11-01',
+  note: '服务端固定文案',
+  items: [
+    {
+      provider: 'aliyun',
+      model: 'qwen3.8-flash',
+      input_tokens: 107,
+      output_tokens: 43,
+      cached_input_tokens: 10,
+      run_count: 3,
+    },
+  ],
+}
+
+// Mutable so one case can render the disabled-query state (pending + idle) that
+// the page has to tell apart from an actual first load.
+const usageMock: {
+  data: typeof usageData | undefined
+  isPending: boolean
+  isError: boolean
+  fetchStatus: string
+} = {
+  data: usageData,
+  isPending: false,
+  isError: false,
+  fetchStatus: 'fetching',
+}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -55,11 +91,7 @@ vi.mock('../api/queries', () => ({
     isFetchingNextPage: false,
     fetchNextPage: vi.fn(),
   }),
-  useCreateAdminAuditExport: () => ({
-    mutateAsync: vi.fn(),
-    isPending: false,
-    isError: false,
-  }),
+  useCreateAdminAuditExport: () => createExportMock,
   useAdminAuditExport: () => ({ data: undefined }),
   useDownloadAdminAuditExport: () => ({
     mutateAsync: vi.fn(),
@@ -117,25 +149,7 @@ vi.mock('../api/queries', () => ({
     mutateAsync: vi.fn(),
     isPending: false,
   }),
-  useAdminUsage: () => ({
-    data: {
-      from: '2026-10-25',
-      to: '2026-11-01',
-      note: '服务端固定文案',
-      items: [
-        {
-          provider: 'aliyun',
-          model: 'qwen3.8-flash',
-          input_tokens: 107,
-          output_tokens: 43,
-          cached_input_tokens: 10,
-          run_count: 3,
-        },
-      ],
-    },
-    isPending: false,
-    isError: false,
-  }),
+  useAdminUsage: () => usageMock,
 }))
 
 const stubViewport = (readOnly: boolean) => {
@@ -155,6 +169,11 @@ afterEach(() => {
   cleanup()
   role = 'owner'
   providerConfigured = true
+  usageMock.data = usageData
+  usageMock.isPending = false
+  usageMock.isError = false
+  usageMock.fetchStatus = 'fetching'
+  createExportMock.mutateAsync.mockReset()
   vi.unstubAllGlobals()
 })
 
@@ -204,5 +223,46 @@ describe('AdminPage', () => {
     render(<AdminPage />)
     expect(screen.getByText('admin.forbiddenTitle')).toBeInTheDocument()
     expect(screen.queryByText('admin.title')).not.toBeInTheDocument()
+  })
+
+  // L5: the create-export handler awaits a mutation, so a cleared or reversed
+  // range must be refused before anything is sent - and say why.
+  it('refuses an export with a cleared date range', () => {
+    stubViewport(false)
+    render(<AdminPage />)
+    fireEvent.change(screen.getByLabelText('admin.from'), {
+      target: { value: '' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'admin.createExport' }))
+    expect(screen.getByText('admin.exportRangeRequired')).toBeInTheDocument()
+    expect(createExportMock.mutateAsync).not.toHaveBeenCalled()
+  })
+
+  it('refuses an export whose start date is after its end date', () => {
+    stubViewport(false)
+    render(<AdminPage />)
+    fireEvent.change(screen.getByLabelText('admin.from'), {
+      target: { value: '2026-11-10' },
+    })
+    fireEvent.change(screen.getByLabelText('admin.to'), {
+      target: { value: '2026-11-01' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'admin.createExport' }))
+    expect(
+      screen.getByText('errors.auditExportRangeInvalid')
+    ).toBeInTheDocument()
+    expect(createExportMock.mutateAsync).not.toHaveBeenCalled()
+  })
+
+  // U3: a disabled usage query is pending with fetchStatus 'idle' forever; that
+  // is "choose a range", not a spinner.
+  it('asks for a range instead of loading forever when the usage query is disabled', () => {
+    usageMock.data = undefined
+    usageMock.isPending = true
+    usageMock.fetchStatus = 'idle'
+    stubViewport(false)
+    render(<AdminPage />)
+    expect(screen.getByText('admin.usagePickRange')).toBeInTheDocument()
+    expect(screen.queryByText('loading')).not.toBeInTheDocument()
   })
 })

@@ -26,6 +26,17 @@ const (
 // sees ciphertext.
 const minProviderAPIKeyBytes = 8
 
+// maxProviderAPIKeyBytes bounds api_key. Without it a caller could submit an
+// arbitrarily large "key" that is then sealed, stored and fingerprinted; no real
+// provider key comes close to this ceiling.
+const maxProviderAPIKeyBytes = 512
+
+// providerAPIKeyLengthValid reports whether a trimmed plaintext key length is
+// inside the accepted range.
+func providerAPIKeyLengthValid(plaintext string) bool {
+	return len(plaintext) >= minProviderAPIKeyBytes && len(plaintext) <= maxProviderAPIKeyBytes
+}
+
 type providerCredentialCreateRequest struct {
 	Provider string  `json:"provider"`
 	Mode     string  `json:"mode"`
@@ -84,8 +95,8 @@ func (s *Server) createProviderCredential(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var body providerCredentialCreateRequest
-	if err := decodeStrictJSONBody(r.Body, &body); err != nil {
-		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+	if err := decodeStrictJSON(w, r, &body); err != nil {
+		writeAPIError(w, correlationID, decodeError(err))
 		return
 	}
 	provider := strings.TrimSpace(body.Provider)
@@ -108,7 +119,7 @@ func (s *Server) createProviderCredential(w http.ResponseWriter, r *http.Request
 		return
 	}
 	plaintext := strings.TrimSpace(*body.APIKey)
-	if len(plaintext) < minProviderAPIKeyBytes {
+	if !providerAPIKeyLengthValid(plaintext) {
 		writeAPIError(w, correlationID, apierr.New("invalid_request"))
 		return
 	}
@@ -159,8 +170,8 @@ func (s *Server) rotateProviderCredential(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var body providerCredentialRotateRequest
-	if err := decodeStrictJSONBody(r.Body, &body); err != nil {
-		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+	if err := decodeStrictJSON(w, r, &body); err != nil {
+		writeAPIError(w, correlationID, decodeError(err))
 		return
 	}
 	if body.APIKey == nil {
@@ -168,7 +179,7 @@ func (s *Server) rotateProviderCredential(w http.ResponseWriter, r *http.Request
 		return
 	}
 	plaintext := strings.TrimSpace(*body.APIKey)
-	if len(plaintext) < minProviderAPIKeyBytes {
+	if !providerAPIKeyLengthValid(plaintext) {
 		writeAPIError(w, correlationID, apierr.New("invalid_request"))
 		return
 	}
@@ -223,8 +234,8 @@ func (s *Server) revokeProviderCredential(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var body providerRevokeRequest
-	if err := decodeStrictJSONBody(r.Body, &body); err != nil {
-		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+	if err := decodeStrictJSON(w, r, &body); err != nil {
+		writeAPIError(w, correlationID, decodeError(err))
 		return
 	}
 	reason := ""

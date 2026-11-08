@@ -38,9 +38,10 @@ func (s *Server) Handler() http.Handler {
 	return s.limitBody(mux)
 }
 
-// ListenAndServe binds the mTLS listener and serves until ctx is canceled. It
-// requires a server certificate, its key and the client CA; a client without a
-// verified certificate fails the handshake and never reaches a handler.
+// ListenAndServe binds the TLS listener and serves until ctx is canceled. It
+// requires a server certificate and its key; no client certificate is requested
+// or verified, so the caller is authorised by the work-egress bearer checked by
+// the handler, not by the handshake.
 func (s *Server) ListenAndServe(ctx context.Context) error {
 	tlsConfig, err := s.tlsConfig()
 	if err != nil {

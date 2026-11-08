@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 
 	"github.com/we-meet/work/internal/advance"
@@ -22,6 +24,27 @@ import (
 	"github.com/we-meet/work/internal/providerctx"
 	workruntime "github.com/we-meet/work/internal/runtime"
 )
+
+// isDomainMessage reports whether err is a PostgreSQL RAISE carrying the given
+// message. Matching on PgError.Message keeps the classification stable when
+// unrelated error text happens to contain the same word.
+func isDomainMessage(err error, message string) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && strings.HasPrefix(pgErr.Message, message)
+}
+
+// runCanceledBestEffort reads the cancel flag for a branch that is already
+// returning an unknown/terminal outcome. A read failure must not overwrite that
+// outcome, but it is logged so the missing cancel signal can be traced.
+func (a *Activities) runCanceledBestEffort(ctx context.Context, orgID, runID string) bool {
+	canceled, err := a.runCanceled(ctx, orgID, runID)
+	if err != nil {
+		activity.GetLogger(ctx).Warn("run cancel state unreadable; treating as not canceled",
+			"org_id", orgID, "run_id", runID, "error", err)
+		return false
+	}
+	return canceled
+}
 
 // AdvanceClient is the Node internal advanceRuntime transport. Tests may
 // substitute a fake; production uses *advance.Client.
@@ -277,10 +300,10 @@ func (a *Activities) ExecuteStep(ctx context.Context, input ExecuteStepInput) (E
 			input.Prepared.OrgID, a.accountKey(), a.quotaPeriod(), operationID, amount,
 		).Scan(&reservationID)
 	}); err != nil {
-		if strings.Contains(err.Error(), "quota_account_not_found") {
+		if isDomainMessage(err, "quota_account_not_found") {
 			return fail("quota_account_missing")
 		}
-		if strings.Contains(err.Error(), "quota_exhausted") {
+		if isDomainMessage(err, "quota_exhausted") {
 			return fail("quota_exhausted")
 		}
 		return fail("quota_reserve_failed")
@@ -342,7 +365,7 @@ func (a *Activities) ExecuteStep(ctx context.Context, input ExecuteStepInput) (E
 			if markErr := a.markOperationUnknown(ctx, input.Prepared.OrgID, operationID, "runtime_unknown"); markErr != nil {
 				return fail("operation_unknown_failed")
 			}
-			canceled, _ = a.runCanceled(ctx, input.Prepared.OrgID, input.Prepared.RunID)
+			canceled = a.runCanceledBestEffort(ctx, input.Prepared.OrgID, input.Prepared.RunID)
 			out.Canceled = canceled
 			return out, nil
 		}
@@ -365,7 +388,7 @@ func (a *Activities) ExecuteStep(ctx context.Context, input ExecuteStepInput) (E
 		if markErr := a.markOperationUnknown(ctx, input.Prepared.OrgID, operationID, "usage_unavailable"); markErr != nil {
 			return fail("operation_unknown_failed")
 		}
-		canceled, _ = a.runCanceled(ctx, input.Prepared.OrgID, input.Prepared.RunID)
+		canceled = a.runCanceledBestEffort(ctx, input.Prepared.OrgID, input.Prepared.RunID)
 		out.Canceled = canceled
 		return out, nil
 	}
@@ -393,7 +416,7 @@ func (a *Activities) ExecuteStep(ctx context.Context, input ExecuteStepInput) (E
 		if markErr := a.markOperationUnknown(ctx, input.Prepared.OrgID, operationID, "content_write_failed"); markErr != nil {
 			return fail("operation_unknown_failed")
 		}
-		canceled, _ = a.runCanceled(ctx, input.Prepared.OrgID, input.Prepared.RunID)
+		canceled = a.runCanceledBestEffort(ctx, input.Prepared.OrgID, input.Prepared.RunID)
 		out.Canceled = canceled
 		return out, nil
 	}

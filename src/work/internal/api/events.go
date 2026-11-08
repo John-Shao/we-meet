@@ -24,6 +24,7 @@ const (
 	taskEventSchemaVersion = "work-event-v1"
 	ssePollInterval        = time.Second
 	sseHeartbeatInterval   = 15 * time.Second
+	seatRecheckInterval    = 30 * time.Second
 	sseBatchLimit          = 100
 	currentCursorHeader    = "X-Work-Event-Cursor"
 )
@@ -102,6 +103,10 @@ func (s *Server) streamTaskEvents(w http.ResponseWriter, r *http.Request) {
 	defer poll.Stop()
 	heartbeat := time.NewTicker(sseHeartbeatInterval)
 	defer heartbeat.Stop()
+	// The seat check at stream open is not permanent: a revoked seat should not
+	// keep receiving task events until the client happens to disconnect.
+	seatRecheckEveryPolls := int(seatRecheckInterval / ssePollInterval)
+	polls := 0
 	for {
 		select {
 		case <-r.Context().Done():
@@ -109,6 +114,13 @@ func (s *Server) streamTaskEvents(w http.ResponseWriter, r *http.Request) {
 		case <-s.shutdown:
 			return
 		case <-poll.C:
+			polls++
+			if polls%seatRecheckEveryPolls == 0 {
+				if err := s.requireSeat(r.Context(), claims); err != nil {
+					s.logger.Printf("work api task event stream closed: seat revoked correlation_id=%s", correlationID)
+					return
+				}
+			}
 			if err := s.drainTaskEvents(r.Context(), w, controller, claims, taskID, &cursor); err != nil {
 				s.logger.Printf("work api task event stream stopped correlation_id=%s", correlationID)
 				return

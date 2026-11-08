@@ -27,7 +27,8 @@
 //   - the provider endpoint and managed_key secret come from providerctx;
 //   - the answerRefId and rejectionEvidenceRefId are minted here.
 //
-// The listener requires mandatory mTLS and then re-checks a work-egress opaque
+// The listener presents a server certificate (server-side TLS only; it does not
+// request or verify a client certificate) and re-checks a work-egress opaque
 // bearer online on every request; a positive answer is never cached. The body
 // is parsed strictly: unknown fields, duplicate keys, invalid UTF-8,
 // non-integer numbers, trailing data, malformed identifiers or hashes are

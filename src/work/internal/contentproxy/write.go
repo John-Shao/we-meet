@@ -1,6 +1,7 @@
 package contentproxy
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -80,11 +81,21 @@ func (s *Server) handleCheckpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if ref.Hash != declaredHash {
+		if d, ok := s.store.(interface {
+			Delete(context.Context, string, string) error
+		}); ok {
+			_ = d.Delete(r.Context(), presented.org, ref.ContentRef)
+		}
 		writeError(w, http.StatusUnprocessableEntity, codeHashMismatch)
 		return
 	}
 	if err := s.references.Commit(r.Context(), presented.org, refID,
 		ref.ContentRef, ref.Hash, ref.Bytes); err != nil {
+		if d, ok := s.store.(interface {
+			Delete(context.Context, string, string) error
+		}); ok {
+			_ = d.Delete(r.Context(), presented.org, ref.ContentRef)
+		}
 		writeReserveError(w, err)
 		return
 	}

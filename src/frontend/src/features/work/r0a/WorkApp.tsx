@@ -126,11 +126,14 @@ const WorkApp = () => {
       <Switch>
         <Route path="/admin/work" component={AdminPage} />
         <Route path="/work/archive" component={ArchivePage} />
-        <Route
-          path="/work/items/:taskId/artifacts/:artifactId"
-          component={ArtifactWorkspacePage}
-        />
-        <Route path="/work/items/:taskId" component={TaskWorkspacePage} />
+        <Route path="/work/items/:taskId/artifacts/:artifactId">
+          {(params) => (
+            <ArtifactWorkspacePage key={`${params.taskId}:${params.artifactId}`} />
+          )}
+        </Route>
+        <Route path="/work/items/:taskId">
+          {(params) => <TaskWorkspacePage key={params.taskId} />}
+        </Route>
         <Route path="/work/items" component={MyWorkPage} />
         <Route path="/work/new" component={NewWorkPage} />
         <Route path="/work" component={HomePage} />

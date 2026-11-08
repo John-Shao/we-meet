@@ -54,8 +54,18 @@ func init() {
 	}
 }
 
-// Builtin returns the frozen template list. Callers must not mutate it.
-func Builtin() []Template { return builtin }
+// Builtin returns a deep copy of the frozen template list, so a caller that
+// appends to or rewrites the result cannot alter the shared assets that
+// ByID/Source hash. The Sections slice is copied too: a shallow copy would
+// still let a caller overwrite a builtin section.
+func Builtin() []Template {
+	out := make([]Template, len(builtin))
+	for i, template := range builtin {
+		out[i] = template
+		out[i].Sections = append([]string(nil), template.Sections...)
+	}
+	return out
+}
 
 // ByID returns one template by id.
 func ByID(id string) (Template, bool) {

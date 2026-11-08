@@ -18,6 +18,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -55,6 +56,17 @@ type Verifier interface {
 
 var ErrUnknownWorkload = errors.New("unknown workload certificate")
 
+// workloadIDPattern is the closed character set and length for a workload ID.
+// The ID is persisted with every holder, lease and receipt and is concatenated
+// into holder IDs ("<workload id>:<nonce>"), so separators, whitespace or
+// control characters would make holder ownership ambiguous.
+var workloadIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
+
+// validWorkloadID reports whether a workload ID satisfies workloadIDPattern.
+func validWorkloadID(value string) bool {
+	return workloadIDPattern.MatchString(value)
+}
+
 type registryEntry struct {
 	caller Caller
 }
@@ -70,6 +82,9 @@ func NewRegistryVerifier(entries map[string]Caller) (*RegistryVerifier, error) {
 		return nil, errors.New("at least one workload certificate is required")
 	}
 	registry := &RegistryVerifier{entries: make(map[string]registryEntry, len(entries))}
+	// A workload ID is an identity, not a label: two certificates sharing one
+	// would let either of them renew or claim the other's execution holder.
+	owners := make(map[string]struct{}, len(entries))
 	for fingerprint, caller := range entries {
 		normalized := normalizeFingerprint(fingerprint)
 		if len(normalized) != 64 {
@@ -78,9 +93,13 @@ func NewRegistryVerifier(entries map[string]Caller) (*RegistryVerifier, error) {
 		if caller.Kind != KindRuntimeParent && caller.Kind != KindEgress {
 			return nil, errors.New("unsupported workload kind")
 		}
-		if strings.TrimSpace(caller.WorkloadID) == "" || len(caller.WorkloadID) > 128 {
-			return nil, errors.New("workload id is required")
+		if !validWorkloadID(caller.WorkloadID) {
+			return nil, errors.New("workload id must match ^[A-Za-z0-9._-]{1,128}$")
 		}
+		if _, duplicate := owners[caller.WorkloadID]; duplicate {
+			return nil, errors.New("workload id is registered to more than one certificate")
+		}
+		owners[caller.WorkloadID] = struct{}{}
 		registry.entries[normalized] = registryEntry{caller: caller}
 	}
 	return registry, nil
@@ -103,7 +122,9 @@ func (v *RegistryVerifier) Verify(_ context.Context, certificate *x509.Certifica
 //	{"workloads":[{"fingerprint":"<sha256 hex>","kind":"runtime_parent","workload_id":"parent-a"}]}
 //
 // The file lists certificate instances explicitly; there is no wildcard and no
-// self-declared role.
+// self-declared role. NewRegistryVerifier applies the identity rules shared with
+// programmatic construction: every workload_id must match
+// ^[A-Za-z0-9._-]{1,128}$ and no two certificates may claim the same one.
 func LoadRegistry(body []byte) (*RegistryVerifier, error) {
 	var document struct {
 		Workloads []struct {
@@ -432,7 +453,15 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	}
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxRequestBody))
 	if err != nil {
-		writeError(w, http.StatusRequestEntityTooLarge, "invalid_request")
+		// Only an actual ceiling breach is 413. A truncated or aborted body is a
+		// malformed request (400); answering 413 there would tell the caller to
+		// shrink a payload that was never too large.
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeError(w, http.StatusRequestEntityTooLarge, "invalid_request")
+			return
+		}
+		writeError(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
 	result, err := spec.allow(s, r.Context(), caller, body)

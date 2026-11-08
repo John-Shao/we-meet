@@ -6,21 +6,18 @@ import (
 	"log"
 	"net/http"
 	"regexp"
-	"strconv"
-	"strings"
 	"time"
-	"unicode"
 
 	"github.com/we-meet/work/internal/authz"
 	"github.com/we-meet/work/internal/canonical"
 	"github.com/we-meet/work/internal/contentref"
+	"github.com/we-meet/work/internal/credheader"
 	"github.com/we-meet/work/internal/egress"
 	"github.com/we-meet/work/internal/providerctx"
 )
 
 var (
-	generationPattern = regexp.MustCompile(`^[1-9][0-9]{0,8}$`)
-	codeValuePattern  = regexp.MustCompile(`^[a-z][a-z0-9_]{1,63}(?::[a-z0-9_]{1,63})?$`)
+	codeValuePattern = regexp.MustCompile(`^[a-z][a-z0-9_]{1,63}(?::[a-z0-9_]{1,63})?$`)
 )
 
 // credential is the capability binding presented by the caller. None of it is
@@ -360,70 +357,18 @@ func wipe(secret []byte) {
 	}
 }
 
-// readCredential extracts the four credential headers. A missing, duplicated
-// or malformed credential is a 401: the caller has not presented a usable
-// identity, and the service deliberately does not say which part was wrong.
+// readCredential extracts the four credential headers. Parsing lives in
+// internal/credheader so this service and work-content-proxy cannot drift
+// apart on what counts as a usable identity.
 func readCredential(r *http.Request) (credential, bool) {
-	authorization, ok := singleHeader(r, HeaderAuthorization)
+	parsed, ok := credheader.Read(r)
 	if !ok {
 		return credential{}, false
 	}
-	scheme, token, ok := strings.Cut(authorization, " ")
-	if !ok || !strings.EqualFold(scheme, "Bearer") {
-		return credential{}, false
-	}
-	token = strings.TrimSpace(token)
-	if !validToken(token) {
-		return credential{}, false
-	}
-
-	org, ok := singleHeader(r, HeaderOrg)
-	if !ok || !validOrg(org) {
-		return credential{}, false
-	}
-	execution, ok := singleHeader(r, HeaderExecution)
-	if !ok || !uuidPattern.MatchString(execution) {
-		return credential{}, false
-	}
-	rawGeneration, ok := singleHeader(r, HeaderGeneration)
-	if !ok || !generationPattern.MatchString(rawGeneration) {
-		return credential{}, false
-	}
-	generation, err := strconv.Atoi(rawGeneration)
-	if err != nil || generation < 1 {
-		return credential{}, false
-	}
-	return credential{org: org, execution: execution, generation: generation, token: token}, true
-}
-
-// singleHeader returns a header only when exactly one value was sent. A
-// repeated Authorization/org/execution header is ambiguous and refused.
-func singleHeader(r *http.Request, name string) (string, bool) {
-	values := r.Header.Values(name)
-	if len(values) != 1 {
-		return "", false
-	}
-	value := strings.TrimSpace(values[0])
-	if value == "" {
-		return "", false
-	}
-	return value, true
-}
-
-func validToken(token string) bool {
-	if len(token) < 16 || len(token) > 512 {
-		return false
-	}
-	return !strings.ContainsFunc(token, func(r rune) bool {
-		return unicode.IsSpace(r) || unicode.IsControl(r)
-	})
-}
-
-func validOrg(org string) bool {
-	if org == "" || len(org) > 128 || strings.TrimSpace(org) != org {
-		return false
-	}
-	return !strings.ContainsFunc(org, func(r rune) bool {
-		return unicode.IsControl(r)
-	})
+	return credential{
+		org:        parsed.Org,
+		execution:  parsed.Execution,
+		generation: parsed.Generation,
+		token:      parsed.Token,
+	}, true
 }

@@ -11,6 +11,15 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # #47 A：C16 的日志扫描器住在资产目录，运行时证据要能从发布包自助复跑就必须把它带上。
 ASSETS="$ROOT/../../docs/plan/assets/work-r0a-hardening-2026-10-25"
 OUT="${1:-/tmp/work-release-0016}"
+# Safety: never clear a populated directory we did not name as a release. A
+# fresh or empty path is harmless; an existing release directory is ours to
+# rebuild; anything else is refused before rm -rf runs.
+if [[ -e "$OUT" && -n "$(ls -A "$OUT" 2>/dev/null)" ]]; then
+  case "$OUT" in
+    */work-release-*) ;;
+    *) echo "ERROR: refusing to clear non-empty directory not named work-release-*: $OUT" >&2; exit 1 ;;
+  esac
+fi
 # Which container builds this matters: work-go mounts the main checkout, while the R0a
 # worktree is mounted in work-go-r0a. Building from the wrong one yields binaries without
 # the verified commit, so both are explicit here and the commit is stamped into the

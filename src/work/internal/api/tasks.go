@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -20,8 +19,7 @@ import (
 )
 
 type cancelRunRequest struct {
-	ClientRequestID string  `json:"client_request_id"`
-	Reason          *string `json:"reason"`
+	Reason *string `json:"reason"`
 }
 
 const (
@@ -323,19 +321,12 @@ func (s *Server) cancelRun(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, correlationID, apierr.New("run_not_found"))
 		return
 	}
-	// CancelRequest declares client_request_id with minLength 8 and maxLength 128,
-	// the same bounds inputs and previews enforce. The reason is forwarded to the
-	// domain function unchanged: work.request_cancel accepts only enum codes, so an
-	// unsupported reason surfaces as invalid_request instead of being silently
-	// dropped on the floor.
+	// The reason is forwarded to the domain function unchanged: work.request_cancel
+	// accepts only enum codes, so an unsupported reason surfaces as invalid_request
+	// instead of being silently dropped on the floor.
 	var cancel cancelRunRequest
-	if err := decodeStrictJSONBody(r.Body, &cancel); err != nil {
-		writeAPIError(w, correlationID, apierr.New("invalid_request"))
-		return
-	}
-	requestID := strings.TrimSpace(cancel.ClientRequestID)
-	if idRunes := utf8.RuneCountInString(requestID); idRunes < 8 || idRunes > 128 {
-		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+	if err := decodeStrictJSON(w, r, &cancel); err != nil {
+		writeAPIError(w, correlationID, decodeError(err))
 		return
 	}
 	var view Run

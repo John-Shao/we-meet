@@ -8,6 +8,10 @@ const state = vi.hoisted(() => ({
   pages: [] as { items: unknown[]; next_cursor: string | null }[],
   isLoading: false,
   isError: false,
+  hasNextPage: false,
+  isFetchingNextPage: false,
+  isFetchNextPageError: false,
+  fetchNextPage: vi.fn(),
 }))
 
 vi.mock('react-i18next', () => ({
@@ -34,6 +38,10 @@ vi.mock('../api/queries', () => ({
     data: state.pages.length > 0 ? { pages: state.pages } : undefined,
     isLoading: state.isLoading,
     isError: state.isError,
+    hasNextPage: state.hasNextPage,
+    isFetchingNextPage: state.isFetchingNextPage,
+    isFetchNextPageError: state.isFetchNextPageError,
+    fetchNextPage: state.fetchNextPage,
   }),
 }))
 
@@ -57,6 +65,10 @@ const withRun = () => render(<RunOperations runId="run-1" />)
 beforeEach(() => {
   state.isLoading = false
   state.isError = false
+  state.hasNextPage = false
+  state.isFetchingNextPage = false
+  state.isFetchNextPageError = false
+  state.fetchNextPage = vi.fn()
   state.pages = [
     {
       items: [
@@ -168,5 +180,35 @@ describe('RunOperations', () => {
   it('renders nothing without a run', () => {
     render(<RunOperations runId={undefined} />)
     expect(screen.queryByText('task.operations')).toBeNull()
+  })
+
+  // The column has no load-more affordance, so anything still on page 2+ would
+  // simply be invisible - including the tool steps the count claims to summarize.
+  it('pulls the next page automatically until the projection is complete', () => {
+    const fetchNextPage = vi.fn()
+    state.hasNextPage = true
+    state.fetchNextPage = fetchNextPage
+    withRun()
+    expect(fetchNextPage).toHaveBeenCalledTimes(1)
+  })
+
+  it('waits for the in-flight page before asking for another', () => {
+    const fetchNextPage = vi.fn()
+    state.hasNextPage = true
+    state.isFetchingNextPage = true
+    state.fetchNextPage = fetchNextPage
+    withRun()
+    expect(fetchNextPage).not.toHaveBeenCalled()
+  })
+
+  // A failed page leaves the cursor unchanged, so an unguarded loop would retry
+  // the same request forever.
+  it('stops pulling once a page fails', () => {
+    const fetchNextPage = vi.fn()
+    state.hasNextPage = true
+    state.isFetchNextPageError = true
+    state.fetchNextPage = fetchNextPage
+    withRun()
+    expect(fetchNextPage).not.toHaveBeenCalled()
   })
 })

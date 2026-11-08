@@ -81,7 +81,9 @@ JSON
 fi
 
 chown "$OWNER:$GROUP" "$DIR"/*.key "$DIR"/*.crt "$DIR/workloads.json" 2>/dev/null || true
-chmod 640 "$DIR"/*.key
+# ca.key stays 600 root-only (set above): a blanket 640 on *.key would hand the CA
+# private key to every work-control service, letting any of them mint certificates.
+find "$DIR" -name '*.key' ! -name 'ca.key' -exec chmod 640 {} +
 chmod 640 "$DIR/workloads.json"
 
 echo

@@ -50,8 +50,14 @@ fi
 run() {
   if [[ "$DRY_RUN" -eq 1 ]]; then
     # The password is interpolated by psql below, so the dry run prints the
-    # statement with a placeholder instead of the secret.
-    echo "psql: $1" | sed "s/${PASSWORD:-__no_password__}/__redacted__/g"
+    # statement with a placeholder instead of the secret. This is bash parameter
+    # expansion, not sed: the password is passed in as a sed *pattern*, so any of
+    # . * [ ] ^ $ \ / & in it either changed the match or made sed abort with
+    # "unterminated address regex" - and a redactor that fails is a redactor that
+    # prints the secret. Quoting the pattern makes bash treat it literally, and
+    # there is no external process to leak it into argv either.
+    local stmt="$1"
+    echo "psql: ${stmt//"${PASSWORD:-__no_password__}"/__redacted__}"
     return 0
   fi
   runuser -u postgres -- psql -d "$DB" -v ON_ERROR_STOP=1 -Atc "$1"

@@ -366,8 +366,12 @@ export const useAdminAuditExport = (exportId: string | undefined) =>
     queryFn: () => fetchAdminAuditExport(exportId!),
     enabled: !!exportId,
     retry: false,
-    refetchInterval: 3000,
-    refetchIntervalInBackground: true,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      const terminal = ['ready', 'failed', 'expired', 'downloaded']
+      return status && terminal.includes(status) ? false : 3000
+    },
+    refetchIntervalInBackground: false,
   })
 
 export const useDownloadAdminAuditExport = () =>

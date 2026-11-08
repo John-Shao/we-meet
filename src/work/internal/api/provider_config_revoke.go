@@ -29,8 +29,8 @@ func (s *Server) adminRevokeProviderConfig(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	var body providerRevokeRequest
-	if err := decodeStrictJSONBody(r.Body, &body); err != nil {
-		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+	if err := decodeStrictJSON(w, r, &body); err != nil {
+		writeAPIError(w, correlationID, decodeError(err))
 		return
 	}
 	reason := ""

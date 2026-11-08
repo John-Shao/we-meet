@@ -331,7 +331,7 @@ func TestResolveSTSReturnsModeWithoutSecret(t *testing.T) {
 		provider:    "aliyun",
 		mode:        "sts_role",
 		roleRef:     &roleRef,
-		fingerprint: credentials.Fingerprint([]byte("sts-role:" + roleRef)),
+		fingerprint: credentials.Fingerprint([]byte("providerctx-test-master"), []byte("sts-role:"+roleRef)),
 	})
 	insertConfig(t, org, "aliyun", "sts_role", credentialID)
 

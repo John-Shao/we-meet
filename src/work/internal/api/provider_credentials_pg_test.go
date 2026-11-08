@@ -119,7 +119,7 @@ func TestCreateProviderCredentialWritesSealedSingleLayer(t *testing.T) {
 	fingerprint, _ := view["fingerprint"].(string)
 	// The fingerprint the API stores must be the one credentials.Fingerprint derives,
 	// otherwise work-provider-setup and the API would write two different forms.
-	if want := credentials.Fingerprint([]byte(providerAPIKey)); fingerprint != want {
+	if want := credentials.Fingerprint(providerTestMaster, []byte(providerAPIKey)); fingerprint != want {
 		t.Fatalf("fingerprint = %q, want %q", fingerprint, want)
 	}
 
@@ -220,6 +220,7 @@ func TestCreateProviderCredentialRejectsInvalidBodies(t *testing.T) {
 		{"missing api_key", `{"provider":"aliyun","mode":"managed_key"}`},
 		{"short api_key", `{"provider":"aliyun","mode":"managed_key","api_key":"abc123"}`},
 		{"blank api_key", `{"provider":"aliyun","mode":"managed_key","api_key":"   "}`},
+		{"oversized api_key", `{"provider":"aliyun","mode":"managed_key","api_key":"` + strings.Repeat("k", 513) + `"}`},
 		{"sts_role has no secret to fingerprint", `{"provider":"aliyun","mode":"sts_role","role_ref":"acs:ram::1:role/work"}`},
 		{"unknown mode", `{"provider":"aliyun","mode":"password","api_key":"` + providerAPIKey + `"}`},
 		{"role_ref beside api_key", `{"provider":"aliyun","mode":"managed_key","api_key":"` + providerAPIKey + `","role_ref":"x"}`},
@@ -297,7 +298,7 @@ func TestRotateProviderCredentialVersionsTheKey(t *testing.T) {
 	if version, ok := view["key_version"].(float64); !ok || int(version) != 2 {
 		t.Fatalf("key_version after rotate = %#v, want 2", view["key_version"])
 	}
-	if view["fingerprint"] != credentials.Fingerprint([]byte(providerAPIKeyRotated)) {
+	if view["fingerprint"] != credentials.Fingerprint(providerTestMaster, []byte(providerAPIKeyRotated)) {
 		t.Fatalf("rotate fingerprint = %#v, want the new key's fingerprint", view["fingerprint"])
 	}
 	if view["state"] != "active" {

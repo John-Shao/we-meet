@@ -38,8 +38,8 @@ func (s *Server) retryTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body retryTaskRequest
-	if err := decodeStrictJSONBody(r.Body, &body); err != nil {
-		writeAPIError(w, correlationID, apierr.New("invalid_json"))
+	if err := decodeStrictJSON(w, r, &body); err != nil {
+		writeAPIError(w, correlationID, decodeError(err))
 		return
 	}
 	if !validClientRequestID(body.ClientRequestID) || body.ExpectedRevision == nil ||

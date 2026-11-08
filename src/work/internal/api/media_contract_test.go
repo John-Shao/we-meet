@@ -65,8 +65,8 @@ func TestRetryTaskRejectsUnknownFields(t *testing.T) {
 		`{"client_request_id":"retry-unknown-0001","expected_revision":1,`+
 			`"target":{"kind":"cloud","profile":"text-v1"},"unexpected":"value"}`)
 	// A strict decoder reports the unknown key through the JSON decode error,
-	// which the catalog maps to 400 invalid_json.
-	if status != http.StatusBadRequest || body["code"] != "invalid_json" {
+	// which decodeError maps to 400 invalid_request.
+	if status != http.StatusBadRequest || body["code"] != "invalid_request" {
 		t.Fatalf("unknown retry field = %d %#v", status, body)
 	}
 }

@@ -131,14 +131,11 @@ func (s *Server) adminSetLocalPolicy(w http.ResponseWriter, r *http.Request) {
 	// The body limit is transport hygiene, not a domain rule: `classification_rules`
 	// is handed to the SQL validator as jsonb and bounds the document only by content,
 	// so without a byte cap one request could pin memory (ReadTimeout caps duration, not
-	// size). 64 KiB matches the precedent in previews.go; the semantic ceilings still
-	// live in work.local_execution_policy_rules_valid.
-	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
-	// decodeStrictJSONBody, not a bare Decode: this file shipped with
-	// DisallowUnknownFields plus one Decode, which still accepts `{} {}` and acts on the
-	// first object while a proxy or a log sees two - the exact defect decode.go:11-16
-	// records for previews.go.
-	if err := decodeStrictJSONBody(r.Body, &body); err != nil {
+	// size). decodeStrictJSON carries the same 64 KiB cap as previews.go; the semantic
+	// ceilings still live in work.local_execution_policy_rules_valid. It is a strict
+	// decode, not a bare Decode: `{} {}` must be refused whole, not acted on as its
+	// first object (the defect decode.go:11-16 records for previews.go).
+	if err := decodeStrictJSON(w, r, &body); err != nil {
 		writeAPIError(w, correlationID, decodeError(err))
 		return
 	}

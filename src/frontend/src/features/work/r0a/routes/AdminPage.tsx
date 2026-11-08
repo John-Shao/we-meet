@@ -15,8 +15,9 @@ import {
   useDownloadAdminAuditExport,
   useWorkBootstrap,
 } from '../api/queries'
+import { workErrorMessage } from '../api/client'
 import { useReadOnlyViewport } from '../hooks/useReadOnlyViewport'
-import { card, muted, notice, page } from '../ui'
+import { card, errorText, muted, notice, page } from '../ui'
 
 const dateInput = (daysAgo: number) => {
   const date = new Date()
@@ -24,8 +25,13 @@ const dateInput = (daysAgo: number) => {
   return date.toISOString().slice(0, 10)
 }
 
+// An empty or unparseable date input has no range at all: without the guard the
+// Date becomes Invalid Date and `toISOString()` throws a RangeError straight out
+// of the click handler.
 const asRange = (value: string, end: boolean) => {
+  if (!value) return null
   const date = new Date(`${value}T00:00:00.000Z`)
+  if (Number.isNaN(date.getTime())) return null
   if (end) date.setUTCDate(date.getUTCDate() + 1)
   return date.toISOString()
 }
@@ -41,6 +47,7 @@ export const AdminPage = () => {
   const downloadExport = useDownloadAdminAuditExport()
   const [rangeFrom, setRangeFrom] = useState(dateInput(7))
   const [rangeTo, setRangeTo] = useState(dateInput(1))
+  const [rangeError, setRangeError] = useState<string | null>(null)
   const [format, setFormat] = useState<'csv' | 'json'>('csv')
   const [exportId, setExportId] = useState<string>()
   const exportQ = useAdminAuditExport(exportId)
@@ -229,7 +236,10 @@ export const AdminPage = () => {
                 <input
                   type="date"
                   value={rangeFrom}
-                  onChange={(e) => setRangeFrom(e.target.value)}
+                  onChange={(e) => {
+                    setRangeFrom(e.target.value)
+                    setRangeError(null)
+                  }}
                 />
               </label>
               <label>
@@ -237,7 +247,10 @@ export const AdminPage = () => {
                 <input
                   type="date"
                   value={rangeTo}
-                  onChange={(e) => setRangeTo(e.target.value)}
+                  onChange={(e) => {
+                    setRangeTo(e.target.value)
+                    setRangeError(null)
+                  }}
                 />
               </label>
               <label>
@@ -255,24 +268,56 @@ export const AdminPage = () => {
                 size="dense"
                 loading={createExport.isPending}
                 onPress={async () => {
-                  const created = await createExport.mutateAsync({
-                    client_request_id: crypto.randomUUID(),
-                    range_from: asRange(rangeFrom, false),
-                    range_to: asRange(rangeTo, true),
-                    format,
-                  })
-                  setExportId(created.id)
+                  setRangeError(null)
+                  if (!rangeFrom || !rangeTo) {
+                    setRangeError(t('admin.exportRangeRequired'))
+                    return
+                  }
+                  // ISO date strings sort lexicographically, so the order check
+                  // runs before anything is sent.
+                  if (rangeFrom > rangeTo) {
+                    setRangeError(t('errors.auditExportRangeInvalid'))
+                    return
+                  }
+                  const from = asRange(rangeFrom, false)
+                  const to = asRange(rangeTo, true)
+                  if (!from || !to) {
+                    setRangeError(t('admin.exportRangeRequired'))
+                    return
+                  }
+                  try {
+                    const created = await createExport.mutateAsync({
+                      client_request_id: crypto.randomUUID(),
+                      range_from: from,
+                      range_to: to,
+                      format,
+                    })
+                    setExportId(created.id)
+                  } catch {
+                    // createExport.isError renders the failure copy below; the
+                    // catch only keeps the rejection from going unhandled.
+                  }
                 }}
               >
                 {t('admin.createExport')}
               </Button>
             </div>
+            {rangeError ? (
+              <p className={errorText} role="alert">
+                {rangeError}
+              </p>
+            ) : null}
             {createExport.isError ? (
-              <p className={muted}>{t('admin.exportError')}</p>
+              <p className={errorText} role="alert">
+                {t('admin.exportError')}
+              </p>
             ) : null}
             {exportQ.data ? (
               <p className={muted}>
-                {t('admin.exportStatus')}: {exportQ.data.status}
+                {t('admin.exportStatus')}:{' '}
+                {t(`admin.exportState.${exportQ.data.status}`, {
+                  defaultValue: exportQ.data.status,
+                })}
                 {' · '}
                 {t('admin.exportRows')}: {exportQ.data.row_count ?? '—'}
                 {exportQ.data.download_available ? (
@@ -280,13 +325,22 @@ export const AdminPage = () => {
                     variant="secondary"
                     size="dense"
                     loading={downloadExport.isPending}
-                    onPress={() =>
-                      void downloadExport.mutateAsync(exportQ.data!.id)
-                    }
+                    onPress={async () => {
+                      try {
+                        await downloadExport.mutateAsync(exportQ.data!.id)
+                      } catch {
+                        // Rendered by downloadExport.isError below.
+                      }
+                    }}
                   >
                     {t('admin.download')}
                   </Button>
                 ) : null}
+              </p>
+            ) : null}
+            {downloadExport.isError ? (
+              <p className={errorText} role="alert">
+                {t(workErrorMessage(downloadExport.error))}
               </p>
             ) : null}
           </>
@@ -353,7 +407,16 @@ export const AdminPage = () => {
         </p>
         <p className={notice}>{t('admin.usageNote')}</p>
         {usageQ.isPending ? (
-          <p className={muted}>{t('loading')}</p>
+          // A cleared date input disables the query (`enabled: !!from && !!to`),
+          // which stays pending forever with fetchStatus 'idle': that is "nothing
+          // to load yet", not a spinner.
+          usageQ.fetchStatus === 'idle' ? (
+            <p className={muted} role="status">
+              {t('admin.usagePickRange')}
+            </p>
+          ) : (
+            <p className={muted}>{t('loading')}</p>
+          )
         ) : usageQ.isError ? (
           <p className={muted}>{t('admin.usageError')}</p>
         ) : usageQ.data.items.length === 0 ? (

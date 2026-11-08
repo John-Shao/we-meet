@@ -19,9 +19,14 @@
 # other binary and touches no unit, so an in-flight workflow is never replayed under new code -
 # which is why #81's bounded parks do NOT become live in this mode (that is I-4b).
 #
+#   MIGRATOR_DATABASE_URL='postgresql://work_migrator_login:...@127.0.0.1:5432/work' \
 #   ./rollout-r0a-0027.sh --release /root/work-release-0027 \
-#     --migrator-url 'postgresql://work_migrator_login:...@127.0.0.1:5432/work' \
 #     [--enable-advance] [--migrations-only] [--runtime-bundle /root/work-runtime-0027.tar.gz] [--dry-run]
+#
+# The migrator URL is read from MIGRATOR_DATABASE_URL and nowhere else. It carries the migrator
+# role's password, and a command-line flag would write that password into the host's process table
+# (visible to every local user via ps), the shell history of whoever typed it, and any log that
+# records argv - which is exactly how it was invoked before this script dropped --migrator-url.
 #
 # Rollback: restore the dump taken in step 2 and reinstall the .bak-<stamp>
 # binaries. No increment in this range deletes a row, but the two relaxations and the
@@ -39,15 +44,24 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 BACKUP_DIR=/var/backups/work
 
 usage() {
-  sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'
   exit 1
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --release) RELEASE="${2:-}"; shift 2 ;;
-    --migrator-url) MIGRATOR_URL="${2:-}"; shift 2 ;;
-    --runtime-bundle) RUNTIME_BUNDLE="${2:-}"; shift 2 ;;
+    --release)
+      [[ $# -ge 2 ]] || { echo "missing value for --release" >&2; usage; }
+      RELEASE="$2"; shift 2 ;;
+    --migrator-url)
+      # Kept as a named case so the old invocation fails with an instruction instead of the
+      # generic "unknown flag", which would leave an operator guessing which spelling is current.
+      echo "--migrator-url was removed: export MIGRATOR_DATABASE_URL instead" >&2
+      echo "  (a URL on the command line is visible in ps to every local user for the whole run)" >&2
+      usage ;;
+    --runtime-bundle)
+      [[ $# -ge 2 ]] || { echo "missing value for --runtime-bundle" >&2; usage; }
+      RUNTIME_BUNDLE="$2"; shift 2 ;;
     --enable-advance) ENABLE_ADVANCE=1; shift ;;
     --migrations-only) MIGRATIONS_ONLY=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
@@ -76,7 +90,11 @@ if [[ -z "$RELEASE" || ! -d "$RELEASE" ]]; then
   exit 1
 fi
 if [[ -z "$MIGRATOR_URL" ]]; then
-  echo "--migrator-url (or MIGRATOR_DATABASE_URL) is required" >&2
+  echo "MIGRATOR_DATABASE_URL is not set, so there is no migrator URL to apply the chain with." >&2
+  echo "It is read only as an environment variable (a command-line flag would land in ps," >&2
+  echo "the shell history and any log of the invocation). Usage:" >&2
+  echo "  export MIGRATOR_DATABASE_URL='postgresql://work_migrator_login:<password>@127.0.0.1:5432/work'" >&2
+  echo "  ./rollout-r0a-0027.sh --release <release-dir> [--enable-advance] [--migrations-only] [--runtime-bundle <tar.gz>] [--dry-run]" >&2
   exit 1
 fi
 # Which binaries the package must carry is the package's own declaration (#54: a hand-copied list
@@ -89,11 +107,25 @@ fi
 pack_bin_count=0
 while read -r bin; do
   [[ -n "$bin" ]] || continue
+  # The name is used to build "$RELEASE/$bin" and later an install target under /usr/local/bin,
+  # so a list entry like "../../etc/passwd" or "x y" would make the package decide what gets
+  # written where. Refuse anything that is not a plain binary name before touching either path.
+  if [[ ! "$bin" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    echo "aborting: $RELEASE/BINARIES declares '$bin', which is not a plain binary name ([A-Za-z0-9_-]+)" >&2
+    exit 1
+  fi
   pack_bin_count=$((pack_bin_count + 1))
   [[ -f "$RELEASE/$bin" ]] || { echo "missing $RELEASE/$bin (declared by $RELEASE/BINARIES)" >&2; exit 1; }
 done < "$RELEASE/BINARIES"
 (( pack_bin_count >= 12 )) || { echo "aborting: $RELEASE/BINARIES declares $pack_bin_count binaries, expected at least 12" >&2; exit 1; }
 echo "package declares $pack_bin_count binaries"
+# If the package carries checksums (make-release.sh writes SHA256SUMS over the finished
+# payload), verify them before anything is installed: a corrupted or tampered copy must
+# fail here in preflight, not halfway through step 5. A missing file means an old package
+# and is tolerated, the same policy as RELEASE_COMMIT below.
+if [[ -f "$RELEASE/SHA256SUMS" ]]; then
+  (cd "$RELEASE" && sha256sum -c SHA256SUMS) || { echo "ERROR: SHA256SUMS verification failed" >&2; exit 1; }
+fi
 
 run() {
   if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -111,7 +143,22 @@ ensure_group() {
 }
 
 ledger_max() {
-  runuser -u postgres -- psql -d work -Atc "select coalesce(max(version),0) from work.schema_migration" 2>/dev/null || echo 0
+  # A failed read used to be laundered into "0" by `|| echo 0`, which reads as "nothing has ever
+  # been applied" - and every later comparison is then against a number this script invented. On
+  # 2026-11-05 the probe could not answer at all and the rollout still walked on. No answer is now
+  # a stop: the whole point of preflight is to know the starting ledger, so an unknown start is a
+  # reason not to begin.
+  local value
+  if ! value="$(runuser -u postgres -- psql -d work -Atc "select coalesce(max(version),0) from work.schema_migration" 2>/dev/null)"; then
+    echo "aborting: the ledger probe failed (psql as postgres could not read work.schema_migration);" >&2
+    echo "  preflight cannot tell which chain is applied, so it will not guess" >&2
+    return 1
+  fi
+  if [[ ! "$value" =~ ^[0-9]+$ ]]; then
+    echo "aborting: the ledger probe returned '$value', which is not a version number" >&2
+    return 1
+  fi
+  printf '%s\n' "$value"
 }
 
 install_binary() {
@@ -137,9 +184,17 @@ render_env() {
   local worker_url content_key
   worker_url="$(sed -n 's/^WORK_DATABASE_URL=//p' /etc/work/work-worker.env | head -1)"
   content_key="$(sed -n 's/^WORK_CONTENT_MASTER_KEY=//p' /etc/work/work-api.env | head -1)"
-  python3 - "$target" "$worker_url" "$content_key" "$name" <<'PYEOF'
-import pathlib, re, sys
-target, worker_url, content_key, name = sys.argv[1:5]
+  # Both values go to python3 through the environment, not argv: argv of a running process is
+  # world-readable in /proc/<pid>/cmdline and in ps, so a dump of the process table during this
+  # install would hand out the worker's database password and the content master key. The
+  # environment of a root-owned process is readable by root only, which is who runs this.
+  WORK_RENDER_DB_URL="$worker_url" \
+  WORK_RENDER_CONTENT_KEY="$content_key" \
+    python3 - "$target" "$name" <<'PYEOF'
+import os, pathlib, re, sys
+target, name = sys.argv[1:3]
+worker_url = os.environ.get('WORK_RENDER_DB_URL', '')
+content_key = os.environ.get('WORK_RENDER_CONTENT_KEY', '')
 path = pathlib.Path(target)
 text = path.read_text()
 if name != 'work-runtime' and worker_url:
@@ -173,7 +228,12 @@ install_env() {
 }
 
 echo "== 1. preflight =="
-current="$(ledger_max)"
+# ledger_max reports its own reason and returns non-zero; `set -e` would end the script there
+# anyway, but this stays explicit so a future `set +e` around here cannot turn "unknown" into a
+# silent pass with an empty $current.
+if ! current="$(ledger_max)"; then
+  exit 1
+fi
 echo "ledger currently at ${current:-0}"
 # #78：这一包带到的链尾从包里读（make-release 构建期算好写进 MIGRATION_TAIL），不在此处抄数字。
 # 先前这里是写死的 `> 27`：0028 落地那天没人改它，于是在 ledger=28 的现网上这笔发布
@@ -216,12 +276,23 @@ fi
 # governance_gap_skipped receipts, in the transaction that reads what is already there.
 # Two receipts for one request id would fail the increment inside the window, so the
 # question is asked before the dump is taken rather than after it.
-dupes="$(runuser -u postgres -- psql -d work -Atc "select count(*) from (
+# `|| echo probe-unavailable` used to stand here, and the next test only stopped on a number that
+# was neither 0 nor that literal - so a probe that could not run printed its reason and the rollout
+# carried on into the dump and the migration it was supposed to gate. A probe with no answer is a
+# failed preflight, not an empty one.
+if ! dupes="$(runuser -u postgres -- psql -d work -Atc "select count(*) from (
   select org_id, metadata ->> 'request_id' as rid from work.audit_event
-  where action = 'governance_gap_skipped' group by 1, 2 having count(*) > 1) d"
- 2>/dev/null || echo probe-unavailable)"
+  where action = 'governance_gap_skipped' group by 1, 2 having count(*) > 1) d" 2>/dev/null)"; then
+  echo "aborting: the duplicate governance receipt probe failed (psql error); 0027 builds a UNIQUE" >&2
+  echo "  index over this shape, so a probe that cannot answer must stop the rollout, not pass it" >&2
+  exit 1
+fi
 echo "duplicate governance receipts: ${dupes}"
-if [[ "${dupes}" != "probe-unavailable" && "${dupes}" != "0" ]]; then
+if [[ ! "$dupes" =~ ^[0-9]+$ ]]; then
+  echo "aborting: the duplicate probe returned '$dupes', not a count" >&2
+  exit 1
+fi
+if [[ "$dupes" != "0" ]]; then
   echo "aborting: 0027 would fail on ${dupes} duplicate request id(s); resolve them first" >&2
   exit 1
 fi
@@ -232,7 +303,11 @@ echo "== 2. database dump =="
 run mkdir -p "$BACKUP_DIR"
 DUMP="$BACKUP_DIR/work-pre-0027-$STAMP.dump"
 TMP_DUMP="/tmp/work-pre-0027-$STAMP.dump"
-run runuser -u postgres -- pg_dump -Fc -f "$TMP_DUMP" work
+# umask 077 is set on the writer, before pg_dump creates the file, so the dump is never briefly
+# world-readable under /tmp. A chmod after the fact leaves a window (and a crash between the two
+# leaves the whole database in a readable file indefinitely). The postgres-owned dump keeps 0600
+# through the mv below because mv preserves the mode.
+run sh -c 'umask 077; exec runuser -u postgres -- pg_dump -Fc -f "$1" work' sh "$TMP_DUMP"
 run mv "$TMP_DUMP" "$DUMP"
 run chmod 600 "$DUMP"
 echo "dump: $DUMP"
@@ -276,11 +351,18 @@ echo "== 3. stop writers =="
 for unit in work-directory-sync.timer work-directory-sync-full.timer work-directory-sync.service work-worker work-relay work-export; do
   run systemctl stop "$unit" 2>/dev/null || true
 done
+# 0017/0027 reshape tables the API reads and writes, so it must not serve during the
+# migration window. Stopped here after the writers and restarted right after step 4,
+# bounding the outage to the migration itself instead of the whole rollout.
+run systemctl stop work-api || true
 
 echo "== 4. migrate =="
 install_binary work-migrate
 run env WORK_DATABASE_URL="$MIGRATOR_URL" /usr/local/bin/work-migrate apply --legacy-migrator-disabled
 run env WORK_DATABASE_URL="$MIGRATOR_URL" /usr/local/bin/work-migrate status
+# Migration is done: bring the API back now, still on the old binary, so the outage lasts
+# only the migration window. Step 9 restarts it again to load the freshly installed binary.
+run systemctl restart work-api
 
 echo "== 5. binaries =="
 for bin in work-api work-relay work-worker work-authz work-content-proxy work-egress work-directory-sync work-reconcile work-export work-provider-setup; do
@@ -417,8 +499,9 @@ run systemctl start work-directory-sync.service || true
 echo "new work stays 503 until directory_sync_state has a successful row"
 
 echo "== 9. restart API, relay and export worker, start worker =="
-# work-api is not stopped in step 3, so only a restart loads the new binary.
-# work-export is stopped there, and restart brings it back either way.
+# work-api was stopped for the migration window (step 3) and restarted on the old binary
+# right after step 4; only this restart loads the new binary.
+# work-export is stopped in step 3, and restart brings it back either way.
 run systemctl restart work-api work-relay work-export
 if [[ -f /etc/work/work-worker.env ]]; then
   if grep -qE '^WORK_MODEL_|^WORK_RUNTIME_MODE=(openai_compatible|stub|fake)' /etc/work/work-worker.env; then

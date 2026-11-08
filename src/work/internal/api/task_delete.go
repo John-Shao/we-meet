@@ -25,6 +25,10 @@ func (s *Server) deleteTask(w http.ResponseWriter, r *http.Request) {
 	if !s.verifyCSRF(w, r, claims, correlationID) {
 		return
 	}
+	if err := s.requireWriter(r.Context(), claims); err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
 	taskID := r.PathValue("taskId")
 	if !validUUID(taskID) {
 		writeAPIError(w, correlationID, apierr.New("task_not_found"))

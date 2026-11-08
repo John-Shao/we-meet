@@ -108,7 +108,7 @@ func TestMemberAndSeatlessSessionsAreRefusedAcrossTheRouteTable(t *testing.T) {
 		"POST /work/v1/inputs":              `{"client_request_id":"sweep-seat-input","goal":"sweep","background":""}`,
 		"DELETE /work/v1/tasks/{taskId}":    `{"client_request_id":"sweep-seat-delete","expected_revision":0}`,
 		"POST /work/v1/tasks/{taskId}/runs": `{"client_request_id":"sweep-seat-retry","expected_revision":0,"target":{"kind":"cloud","profile":"text-v1"}}`,
-		"POST /work/v1/runs/{runId}/cancel": `{"client_request_id":"sweep-seat-cancel","reason":"operator_request"}`,
+		"POST /work/v1/runs/{runId}/cancel": `{"reason":"operator_request"}`,
 		"PUT /work/v1/admin/provider-config": `{"provider":"deepseek","model":"m","region":"r",` +
 			`"endpoint":"https://x.example/v1","credential_mode":"managed_key","credential_id":"` +
 			guardFixtureUUID + `","expected_revision":0}`,

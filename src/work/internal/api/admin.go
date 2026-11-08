@@ -174,8 +174,8 @@ func (s *Server) createAdminAuditExport(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var body createAuditExportRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+	if err := decodeStrictJSON(w, r, &body); err != nil {
+		writeAPIError(w, correlationID, decodeError(err))
 		return
 	}
 	var payload []byte
@@ -287,8 +287,37 @@ func (s *Server) downloadAdminAuditExport(w http.ResponseWriter, r *http.Request
 	}
 	hash := sha256.Sum256([]byte(token))
 	tokenHash := hex.EncodeToString(hash[:])
-	var payload []byte
+
+	// Read content_ref without consuming the ticket so a storage failure does not burn it.
+	var contentRef, format string
 	err := workdb.WithWorkContext(r.Context(), s.pool,
+		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
+		workdb.RoleAPI, workdb.Options{ReadOnly: true},
+		func(tx pgx.Tx) error {
+			return tx.QueryRow(r.Context(), `
+				SELECT content_ref, format FROM work.audit_export
+				WHERE org_id = $1 AND download_token_hash = $2`,
+				claims.OrgID, tokenHash,
+			).Scan(&contentRef, &format)
+		},
+	)
+	if err != nil {
+		s.writeAdminError(w, correlationID, err)
+		return
+	}
+
+	var data []byte
+	if s.content != nil && contentRef != "" {
+		data, err = s.content.Get(r.Context(), claims.OrgID, contentRef)
+		if err != nil {
+			writeAPIError(w, correlationID, apierr.New("service_degraded"))
+			return
+		}
+	}
+
+	// Content fetched successfully; now consume the ticket.
+	var payload []byte
+	err = workdb.WithWorkContext(r.Context(), s.pool,
 		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
 		workdb.RoleAPI, workdb.Options{},
 		func(tx pgx.Tx) error {
@@ -302,23 +331,19 @@ func (s *Server) downloadAdminAuditExport(w http.ResponseWriter, r *http.Request
 		s.writeAdminError(w, correlationID, err)
 		return
 	}
-	var content auditExportContent
-	if err := json.Unmarshal(payload, &content); err != nil {
-		writeAPIError(w, correlationID, apierr.New("service_degraded"))
-		return
-	}
-	if s.content == nil || content.ContentRef == "" {
+
+	if data == nil {
+		var content auditExportContent
+		if err := json.Unmarshal(payload, &content); err != nil {
+			writeAPIError(w, correlationID, apierr.New("service_degraded"))
+			return
+		}
 		writeJSON(w, http.StatusOK, content)
-		return
-	}
-	data, err := s.content.Get(r.Context(), claims.OrgID, content.ContentRef)
-	if err != nil {
-		writeAPIError(w, correlationID, apierr.New("service_degraded"))
 		return
 	}
 	mediaType := "text/csv; charset=utf-8"
 	extension := "csv"
-	if content.Format == "json" {
+	if format == "json" {
 		mediaType = "application/json"
 		extension = "json"
 	}

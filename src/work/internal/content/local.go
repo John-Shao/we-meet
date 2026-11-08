@@ -117,7 +117,7 @@ func (l *Local) Get(ctx context.Context, orgID, contentRef string) ([]byte, erro
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	id, version, err := parseRef(orgID, contentRef)
+	id, _, err := parseRef(orgID, contentRef)
 	if err != nil {
 		return nil, err
 	}
@@ -140,11 +140,6 @@ func (l *Local) Get(ctx context.Context, orgID, contentRef string) ([]byte, erro
 	plaintext, err := gcm.Open(nil, payload[:gcm.NonceSize()], payload[gcm.NonceSize():], []byte(orgID))
 	if err != nil {
 		return nil, fmt.Errorf("decrypt content object: %w", err)
-	}
-	if version != l.keyVersion {
-		// The object remains readable during a key-version transition; callers
-		// decide when to re-encrypt rather than silently rewriting content.
-		return plaintext, nil
 	}
 	return plaintext, nil
 }

@@ -14,7 +14,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -92,9 +94,9 @@ type probeReply struct {
 }
 
 func NewClient(config Config) (*Client, error) {
-	baseURL := strings.TrimRight(strings.TrimSpace(config.BaseURL), "/")
-	if baseURL == "" {
-		return nil, errors.New("provider probe gateway URL is required")
+	baseURL, err := gatewayBaseURL(config.BaseURL)
+	if err != nil {
+		return nil, err
 	}
 	transport := config.Transport
 	if transport == nil {
@@ -120,7 +122,53 @@ func NewClient(config Config) (*Client, error) {
 	if timeout <= 0 {
 		timeout = DefaultTimeout
 	}
-	return &Client{baseURL: baseURL, http: &http.Client{Transport: transport, Timeout: timeout}}, nil
+	// The grant token travels in the body, so a plaintext hop would expose a
+	// single-use provider credential, and a redirect would carry that body to
+	// whatever origin the redirect names. Keep the call pinned to the configured
+	// gateway and never follow a redirect.
+	return &Client{
+		baseURL: baseURL,
+		http: &http.Client{
+			Transport: transport,
+			Timeout:   timeout,
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
+	}, nil
+}
+
+// gatewayBaseURL normalises and validates the configured gateway URL. Plaintext
+// http is accepted only for a loopback listener (local development and tests).
+func gatewayBaseURL(raw string) (string, error) {
+	trimmed := strings.TrimRight(strings.TrimSpace(raw), "/")
+	if trimmed == "" {
+		return "", errors.New("provider probe gateway URL is required")
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Host == "" || parsed.User != nil {
+		return "", errors.New("provider probe gateway URL must be an absolute https URL")
+	}
+	switch parsed.Scheme {
+	case "https":
+	case "http":
+		if !isLoopbackHost(parsed.Hostname()) {
+			return "", errors.New("provider probe gateway URL must be an absolute https URL")
+		}
+	default:
+		return "", errors.New("provider probe gateway URL must be an absolute https URL")
+	}
+	return trimmed, nil
+}
+
+// isLoopbackHost reports whether host names the local machine, the only case
+// where the plaintext http scheme is tolerated.
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	address := net.ParseIP(host)
+	return address != nil && address.IsLoopback()
 }
 
 // Probe spends one grant. The token is never echoed into an error, a log line or a

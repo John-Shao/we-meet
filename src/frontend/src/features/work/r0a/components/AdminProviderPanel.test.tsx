@@ -29,6 +29,9 @@ const baseConfig = {
 }
 
 let config: unknown = baseConfig
+// Non-null puts the read into its failure branch, which must distinguish a 404
+// ("nothing configured") from every other failure.
+let configError: unknown = null
 
 const setConfig = vi.fn()
 const revokeConfig = vi.fn()
@@ -47,12 +50,10 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
 vi.mock('../api/queries', () => ({
-  useAdminProviderConfig: () => ({
-    data: config,
-    isPending: false,
-    isError: false,
-    error: null,
-  }),
+  useAdminProviderConfig: () =>
+    configError
+      ? { data: undefined, isPending: false, isError: true, error: configError }
+      : { data: config, isPending: false, isError: false, error: null },
   useSetAdminProviderConfig: () => mutation(setConfig),
   useRevokeAdminProviderConfig: () => mutation(revokeConfig),
   useCreateAdminProviderCredential: () => mutation(createCredential),
@@ -68,6 +69,7 @@ const reasonInput = () =>
 describe('AdminProviderPanel', () => {
   beforeEach(() => {
     config = baseConfig
+    configError = null
   })
   afterEach(() => {
     cleanup()
@@ -196,5 +198,21 @@ describe('AdminProviderPanel', () => {
     await vi.waitFor(() =>
       expect(screen.getByText('admin.providerRevoked')).toBeTruthy()
     )
+  })
+
+  // U4: only a 404 means "not configured"; a 500 dressed up as that would invite
+  // the owner to overwrite a configuration that is actually in effect.
+  it('keeps a failed read as an error instead of "not configured"', () => {
+    configError = { code: 'service_degraded', status: 500 }
+    render(<AdminProviderPanel />)
+    expect(screen.getByText('admin.providerError')).toBeTruthy()
+    expect(screen.queryByText('admin.providerEmpty')).toBeNull()
+  })
+
+  it('reads a 404 as "nothing configured yet"', () => {
+    configError = { code: 'not_found', status: 404 }
+    render(<AdminProviderPanel />)
+    expect(screen.getByText('admin.providerEmpty')).toBeTruthy()
+    expect(screen.queryByText('admin.providerError')).toBeNull()
   })
 })

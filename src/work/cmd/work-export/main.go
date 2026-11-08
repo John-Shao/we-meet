@@ -130,39 +130,49 @@ func processExport(ctx context.Context, pool *pgxpool.Pool, store content.Store,
 	if err := json.Unmarshal(raw, &view); err != nil {
 		return fmt.Errorf("decode claimed export: %w", err)
 	}
-	rows, err := readAuditRows(ctx, pool, orgID, view.RangeFrom, view.RangeTo)
+	data, mediaType, rowCount, failCode, err := streamExport(ctx, pool, orgID, view.RangeFrom, view.RangeTo, view.Format)
 	if err != nil {
-		_ = failExport(ctx, pool, orgID, workerID, exportID, "export_read_failed")
-		return err
-	}
-	data, mediaType, err := encodeExport(rows, view.Format)
-	if err != nil {
-		_ = failExport(ctx, pool, orgID, workerID, exportID, "export_encode_failed")
+		// The export has already been claimed; a silent failure would leave it
+		// leased until expiry, so surface a failure to record the reason.
+		if failErr := failExport(ctx, pool, orgID, workerID, exportID, failCode); failErr != nil {
+			log.Printf("work-export export=%s fail_export write failed: %v", exportID, failErr)
+		}
 		return err
 	}
 	ref, err := store.Put(ctx, orgID, data)
 	if err != nil {
-		_ = failExport(ctx, pool, orgID, workerID, exportID, "export_store_failed")
+		if failErr := failExport(ctx, pool, orgID, workerID, exportID, "export_store_failed"); failErr != nil {
+			log.Printf("work-export export=%s fail_export write failed: %v", exportID, failErr)
+		}
 		return err
 	}
 	err = workdb.WithWorkerOrgContext(ctx, pool, orgID, func(tx pgx.Tx) error {
 		var completed []byte
 		return tx.QueryRow(ctx, `
 			SELECT work.complete_audit_export($1, $2, $3, $4, $5, $6, $7)`,
-			exportID, workerID, ref.ContentRef, ref.Hash, int64(len(data)), int64(len(rows)), exportTTLSeconds,
+			exportID, workerID, ref.ContentRef, ref.Hash, int64(len(data)), rowCount, exportTTLSeconds,
 		).Scan(&completed)
 	})
 	if err != nil {
 		return err
 	}
 	log.Printf("work-export export=%s ready format=%s rows=%d bytes=%d type=%s",
-		exportID, view.Format, len(rows), len(data), mediaType)
+		exportID, view.Format, rowCount, len(data), mediaType)
 	return nil
 }
 
-func readAuditRows(ctx context.Context, pool *pgxpool.Pool, orgID string, from, to time.Time) ([]auditRow, error) {
-	var rows []auditRow
-	err := workdb.WithWorkerOrgContext(ctx, pool, orgID, func(tx pgx.Tx) error {
+// encodeError marks a failure that happened while serialising a row, so the
+// export is not blamed on the database read.
+type encodeError struct{ err error }
+
+func (e *encodeError) Error() string { return e.err.Error() }
+func (e *encodeError) Unwrap() error { return e.err }
+
+// streamAuditRows iterates the audit window without materialising it. The
+// export has to fit in memory once encoded (content.Store.Put takes bytes), but
+// there is no reason to hold every row as a struct at the same time.
+func streamAuditRows(ctx context.Context, pool *pgxpool.Pool, orgID string, from, to time.Time, fn func(auditRow) error) error {
+	return workdb.WithWorkerOrgContext(ctx, pool, orgID, func(tx pgx.Tx) error {
 		result, err := tx.Query(ctx, `
 			SELECT id::text, actor_subject_id, action, target_type, target_id, metadata, created_at
 			FROM work.audit_event
@@ -180,46 +190,80 @@ func readAuditRows(ctx context.Context, pool *pgxpool.Pool, orgID string, from, 
 				return err
 			}
 			row.Metadata = json.RawMessage(metadata)
-			rows = append(rows, row)
+			if err := fn(row); err != nil {
+				return err
+			}
 		}
 		return result.Err()
 	})
-	return rows, err
 }
 
-func encodeExport(rows []auditRow, format string) ([]byte, string, error) {
+// streamExport reads and encodes in one pass. failCode names the stage that
+// failed ("export_read_failed" or "export_encode_failed") so the recorded
+// failure reason stays specific.
+func streamExport(ctx context.Context, pool *pgxpool.Pool, orgID string, from, to time.Time, format string) (data []byte, mediaType string, rowCount int64, failCode string, err error) {
+	readStage := func(err error) ([]byte, string, int64, string, error) {
+		var enc *encodeError
+		if errors.As(err, &enc) {
+			return nil, "", 0, "export_encode_failed", err
+		}
+		return nil, "", 0, "export_read_failed", err
+	}
 	switch format {
 	case "csv":
-		var builder []byte
-		writer := csv.NewWriter(&byteWriter{buf: &builder})
-		if err := writer.Write([]string{"id", "actor_subject_id", "action", "target_type", "target_id", "metadata", "created_at"}); err != nil {
-			return nil, "", err
+		var out []byte
+		var count int64
+		writer := csv.NewWriter(&byteWriter{buf: &out})
+		if wErr := writer.Write([]string{"id", "actor_subject_id", "action", "target_type", "target_id", "metadata", "created_at"}); wErr != nil {
+			return nil, "", 0, "export_encode_failed", wErr
 		}
-		for _, row := range rows {
+		readErr := streamAuditRows(ctx, pool, orgID, from, to, func(row auditRow) error {
+			count++
 			actor := ""
 			if row.ActorSubjectID != nil {
 				actor = *row.ActorSubjectID
 			}
-			if err := writer.Write([]string{
+			if wErr := writer.Write([]string{
 				row.ID, actor, row.Action, row.TargetType, row.TargetID,
 				string(row.Metadata), row.CreatedAt.UTC().Format(time.RFC3339Nano),
-			}); err != nil {
-				return nil, "", err
+			}); wErr != nil {
+				return &encodeError{err: wErr}
 			}
+			return nil
+		})
+		if readErr != nil {
+			return readStage(readErr)
 		}
 		writer.Flush()
-		if err := writer.Error(); err != nil {
-			return nil, "", err
+		if wErr := writer.Error(); wErr != nil {
+			return nil, "", 0, "export_encode_failed", wErr
 		}
-		return builder, "text/csv; charset=utf-8", nil
+		return out, "text/csv; charset=utf-8", count, "", nil
 	case "json":
-		data, err := json.MarshalIndent(rows, "", "  ")
-		if err != nil {
-			return nil, "", err
+		out := []byte("[\n")
+		var count int64
+		first := true
+		readErr := streamAuditRows(ctx, pool, orgID, from, to, func(row auditRow) error {
+			chunk, mErr := json.MarshalIndent(row, "  ", "  ")
+			if mErr != nil {
+				return &encodeError{err: mErr}
+			}
+			count++
+			if !first {
+				out = append(out, ",\n"...)
+			}
+			first = false
+			out = append(out, "  "...)
+			out = append(out, chunk...)
+			return nil
+		})
+		if readErr != nil {
+			return readStage(readErr)
 		}
-		return append(data, '\n'), "application/json", nil
+		out = append(out, "\n]\n"...)
+		return out, "application/json", count, "", nil
 	default:
-		return nil, "", errors.New("unsupported export format")
+		return nil, "", 0, "export_encode_failed", errors.New("unsupported export format")
 	}
 }
 

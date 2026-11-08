@@ -48,7 +48,7 @@ func TestCancelRunEnqueuesExactlyOneSignalPerRequest(t *testing.T) {
 	token := bootstrapCSRF(t, server.URL)
 
 	response := cancelRunWithBody(t, server.URL, runA, token,
-		`{"client_request_id":"cancel-signal-0001","reason":"user_initiated"}`, true)
+		`{"reason":"user_initiated"}`, true)
 	if response.StatusCode != http.StatusAccepted {
 		t.Fatalf("cancel status = %d body=%s", response.StatusCode, readBody(response))
 	}
@@ -73,7 +73,7 @@ func TestCancelRunEnqueuesExactlyOneSignalPerRequest(t *testing.T) {
 	// the run is already cancel_requested, so the state machine has nothing to change
 	// and Temporal must not be signalled twice.
 	replay := cancelRunWithBody(t, server.URL, runA, token,
-		`{"client_request_id":"cancel-signal-0002","reason":"user_initiated"}`, true)
+		`{"reason":"user_initiated"}`, true)
 	if replay.StatusCode != http.StatusAccepted {
 		t.Fatalf("replay status = %d body=%s", replay.StatusCode, readBody(replay))
 	}

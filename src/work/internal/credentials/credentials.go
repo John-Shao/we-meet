@@ -5,7 +5,8 @@
 //   - AES-256-GCM with a random 12-byte nonce, org_id as the AAD;
 //   - the stored bytea is nonce || ciphertext;
 //   - key_version is monotonic, and rotation is an offline re-encrypt;
-//   - fingerprint is the first 8 bytes of SHA-256(plaintext), lowercase hex.
+//   - fingerprint is HMAC-SHA256 under a master-derived key, first 8 bytes,
+//     lowercase hex (keyed so a DB dump cannot confirm a guessed API key).
 //
 // The master key comes only from the process environment and is never
 // persisted. The "we-meet-work-provider:" prefix keeps this keying separate
@@ -80,7 +81,7 @@ func Seal(master []byte, orgID string, plaintext []byte) (ciphertext []byte, fin
 	payload := make([]byte, 0, nonceSize+len(sealed))
 	payload = append(payload, nonce...)
 	payload = append(payload, sealed...)
-	return payload, Fingerprint(plaintext), nil
+	return payload, Fingerprint(master, plaintext), nil
 }
 
 // Open decrypts a stored nonce || ciphertext value for orgID. Short input, a
@@ -109,9 +110,17 @@ func Open(master []byte, orgID string, ciphertext []byte) ([]byte, error) {
 	return plaintext, nil
 }
 
-// Fingerprint returns the first 8 bytes of SHA-256(plaintext) as lowercase
-// hexadecimal (16 characters).
-func Fingerprint(plaintext []byte) string {
-	digest := sha256.Sum256(plaintext)
-	return hex.EncodeToString(digest[:8])
+// Fingerprint returns a keyed fingerprint of the plaintext as 16 lowercase
+// hexadecimal characters.
+//
+// The digest is HMAC-SHA256 under a master-derived key rather than a bare
+// SHA-256: a stolen database row alone must not let an attacker confirm a
+// guessed API key offline, and identical keys in two orgs must not produce the
+// same fingerprint. The value is display/record only; nothing compares
+// fingerprints across rows or versions.
+func Fingerprint(master []byte, plaintext []byte) string {
+	derived := sha256.Sum256(append(append([]byte(nil), master...), []byte("work-credential-fingerprint")...))
+	mac := hmac.New(sha256.New, derived[:])
+	mac.Write(plaintext)
+	return hex.EncodeToString(mac.Sum(nil)[:8])
 }

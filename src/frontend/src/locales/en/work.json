@@ -49,6 +49,7 @@
     "viewAll": "View all work",
     "recent": "Recent work",
     "emptyRecent": "Your first submitted task will appear here.",
+    "tasksUnavailable": "Your recent work is unavailable right now.",
     "needsYou": "Needs you",
     "emptyInbox": "Nothing needs your attention right now.",
     "inboxUnavailable": "The list of tasks waiting on you is unavailable."
@@ -300,9 +301,19 @@
     "format": "Format",
     "createExport": "Create export",
     "exportError": "Failed to create export.",
+    "exportRangeRequired": "Choose a start date and an end date.",
     "exportStatus": "Status",
+    "exportState": {
+      "queued": "Queued",
+      "running": "Preparing",
+      "ready": "Ready",
+      "expired": "Expired",
+      "failed": "Failed",
+      "downloaded": "Downloaded"
+    },
     "exportRows": "Rows",
     "download": "Download",
+    "downloadError": "Could not download the export. Create a new export if the link has expired.",
     "overviewError": "Failed to load overview.",
     "providerTitle": "Model provider configuration",
     "providerField": "Provider",
@@ -319,6 +330,7 @@
     "usageNote": "Reference only: Work counts tokens; billing follows your cloud provider invoice.",
     "usageError": "Could not load usage.",
     "usageEmpty": "No usage recorded in the selected range.",
+    "usagePickRange": "Choose a date range to see usage.",
     "usage": {
       "provider": "Provider",
       "model": "Model",

@@ -306,7 +306,11 @@ export const ArtifactWorkspacePage = () => {
             </div>
           </div>
         </div>
-        {actionError ? <p className={errorText}>{actionError}</p> : null}
+        {actionError ? (
+          <p className={errorText} role="alert">
+            {actionError}
+          </p>
+        ) : null}
       </div>
 
       <div
@@ -453,7 +457,9 @@ export const ArtifactWorkspacePage = () => {
               </div>
             </div>
           ) : saveError ? (
-            <p className={errorText}>{saveError.message}</p>
+            <p className={errorText} role="alert">
+              {saveError.message}
+            </p>
           ) : null}
 
           {saveError?.code === 'artifact_read_only' ? (

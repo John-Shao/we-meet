@@ -27,8 +27,8 @@ func TestSealOpenRoundTrip(t *testing.T) {
 	if len(sealed) != nonceSize+len(plaintext)+16 {
 		t.Fatalf("sealed length = %d, want %d", len(sealed), nonceSize+len(plaintext)+16)
 	}
-	if fingerprint != Fingerprint(plaintext) {
-		t.Fatalf("Seal fingerprint = %q, Fingerprint = %q", fingerprint, Fingerprint(plaintext))
+	if fingerprint != Fingerprint(master, plaintext) {
+		t.Fatalf("Seal fingerprint = %q, Fingerprint = %q", fingerprint, Fingerprint(master, plaintext))
 	}
 
 	got, err := Open(master, orgID, sealed)
@@ -114,9 +114,10 @@ func TestSealUsesFreshNonce(t *testing.T) {
 }
 
 func TestFingerprintStableAndHex(t *testing.T) {
+	master := testMaster(0x5a)
 	plaintext := []byte("stable fingerprint input")
-	first := Fingerprint(plaintext)
-	second := Fingerprint(plaintext)
+	first := Fingerprint(master, plaintext)
+	second := Fingerprint(master, plaintext)
 	if first != second {
 		t.Fatalf("fingerprint not stable: %q != %q", first, second)
 	}
@@ -126,9 +127,14 @@ func TestFingerprintStableAndHex(t *testing.T) {
 	if !regexp.MustCompile(`^[0-9a-f]{16}$`).MatchString(first) {
 		t.Fatalf("fingerprint %q is not lowercase hex", first)
 	}
+	// A keyed fingerprint must not equal a bare SHA-256 prefix, and a different
+	// master must not reproduce the same value.
 	digest := sha256.Sum256(plaintext)
-	if want := hex.EncodeToString(digest[:8]); first != want {
-		t.Fatalf("fingerprint = %q, want %q", first, want)
+	if first == hex.EncodeToString(digest[:8]) {
+		t.Fatal("fingerprint matches bare SHA-256; the master key is not mixed in")
+	}
+	if Fingerprint(testMaster(0x5b), plaintext) == first {
+		t.Fatal("different masters produced the same fingerprint")
 	}
 }
 

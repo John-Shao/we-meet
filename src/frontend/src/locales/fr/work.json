@@ -49,6 +49,7 @@
     "viewAll": "View all work",
     "recent": "Recent work",
     "emptyRecent": "Your first submitted task will appear here.",
+    "tasksUnavailable": "La liste des travaux récents est indisponible.",
     "needsYou": "Needs you",
     "emptyInbox": "Nothing needs your attention right now.",
     "inboxUnavailable": "The list of tasks waiting on you is unavailable."
@@ -300,9 +301,19 @@
     "format": "Format",
     "createExport": "Create export",
     "exportError": "Failed to create export.",
+    "exportRangeRequired": "Choisissez une date de début et une date de fin.",
     "exportStatus": "Status",
+    "exportState": {
+      "queued": "En file d’attente",
+      "running": "En préparation",
+      "ready": "Prêt",
+      "expired": "Expiré",
+      "failed": "Échec",
+      "downloaded": "Téléchargé"
+    },
     "exportRows": "Rows",
     "download": "Download",
+    "downloadError": "Le téléchargement de l’export a échoué. Créez un nouvel export si le lien a expiré.",
     "overviewError": "Failed to load overview.",
     "providerTitle": "Configuration du fournisseur de modèles",
     "providerField": "Fournisseur",
@@ -319,6 +330,7 @@
     "usageNote": "À titre indicatif : Work compte des tokens ; la facturation suit la facture de votre fournisseur cloud.",
     "usageError": "Impossible de charger la consommation.",
     "usageEmpty": "Aucune consommation sur la période choisie.",
+    "usagePickRange": "Choisissez une période pour afficher la consommation.",
     "usage": {
       "provider": "Fournisseur",
       "model": "Modèle",

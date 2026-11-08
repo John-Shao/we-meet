@@ -49,6 +49,7 @@
     "viewAll": "View all work",
     "recent": "Recent work",
     "emptyRecent": "Your first submitted task will appear here.",
+    "tasksUnavailable": "De lijst met recent werk is niet beschikbaar.",
     "needsYou": "Needs you",
     "emptyInbox": "Nothing needs your attention right now.",
     "inboxUnavailable": "The list of tasks waiting on you is unavailable."
@@ -300,9 +301,19 @@
     "format": "Format",
     "createExport": "Create export",
     "exportError": "Failed to create export.",
+    "exportRangeRequired": "Kies een start- en einddatum.",
     "exportStatus": "Status",
+    "exportState": {
+      "queued": "In wachtrij",
+      "running": "Wordt voorbereid",
+      "ready": "Gereed",
+      "expired": "Verlopen",
+      "failed": "Mislukt",
+      "downloaded": "Gedownload"
+    },
     "exportRows": "Rows",
     "download": "Download",
+    "downloadError": "De export kon niet worden gedownload. Maak een nieuwe export als de link is verlopen.",
     "overviewError": "Failed to load overview.",
     "providerTitle": "Configuratie van modelprovider",
     "providerField": "Provider",
@@ -319,6 +330,7 @@
     "usageNote": "Ter referentie: Work telt alleen tokens; facturering volgt de factuur van uw cloudprovider.",
     "usageError": "Verbruik kon niet worden geladen.",
     "usageEmpty": "Geen verbruik in de gekozen periode.",
+    "usagePickRange": "Kies een periode om het verbruik te zien.",
     "usage": {
       "provider": "Provider",
       "model": "Model",

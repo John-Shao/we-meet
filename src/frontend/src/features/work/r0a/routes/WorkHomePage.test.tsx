@@ -18,6 +18,15 @@ type InboxPageFixture = {
 }
 
 const mocks = vi.hoisted(() => ({
+  tasks: {
+    data: {
+      pages: [{ items: [{ task_id: 'task-1', title: 'First task' }] }],
+    } as
+      | { pages: { items: { task_id: string; title: string }[] }[] }
+      | undefined,
+    isLoading: false,
+    isError: false,
+  },
   inbox: {
     data: {
       pages: [
@@ -68,12 +77,7 @@ vi.mock('../api/queries', () => ({
       csrf_token: 'test',
     },
   }),
-  useWorkTasks: () => ({
-    data: {
-      pages: [{ items: [{ task_id: 'task-1', title: 'First task' }] }],
-    },
-    isLoading: false,
-  }),
+  useWorkTasks: () => mocks.tasks,
   useWorkInbox: () => mocks.inbox,
 }))
 vi.mock('../components/Composer', () => ({
@@ -99,6 +103,11 @@ const stubViewport = (readOnly: boolean) => {
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  mocks.tasks.data = {
+    pages: [{ items: [{ task_id: 'task-1', title: 'First task' }] }],
+  }
+  mocks.tasks.isLoading = false
+  mocks.tasks.isError = false
 })
 
 describe('WorkHomePage read-only viewport', () => {
@@ -167,6 +176,20 @@ describe('WorkHomePage needs-you projection', () => {
     expect(screen.getByText('home.inboxUnavailable')).toBeInTheDocument()
     expect(screen.getByText('composer')).toBeInTheDocument()
     expect(screen.getByText('First task')).toBeInTheDocument()
+  })
+})
+
+describe('WorkHomePage recent work projection', () => {
+  // An unreadable list and an empty one are different facts: "your first task
+  // will appear here" on a failed read would tell the owner their work is gone.
+  it('says the list is unavailable instead of pretending it is empty', () => {
+    stubViewport(false)
+    mocks.tasks.data = undefined
+    mocks.tasks.isError = true
+    render(<WorkHomePage composerOpen />)
+    expect(screen.getByText('home.tasksUnavailable')).toBeInTheDocument()
+    expect(screen.queryByText('home.emptyRecent')).toBeNull()
+    expect(screen.getByText('composer')).toBeInTheDocument()
   })
 })
 

@@ -1,14 +1,15 @@
 // Package contentproxy is the F0-R5 content proxy on the internal
 // work-control-internal:8444 listener (D4 §6.3, D1 §5.5).
 //
-// The listener is separate from capability issuance. It authenticates the
-// caller with mandatory mTLS and then with an opaque work-content bearer that
-// internal/capability issued to that execution. Every request re-checks the
-// bearer online through work.authorize_runtime_capability: token digest,
-// audience, generation, holder/execution/org/task/run/fence, mode, lease, hard
-// deadline and Run/Task tombstone are all read from trusted records at call
-// time. A positive answer is never cached, and an unavailable authorization
-// backend or database is a denial (503), never a bypass.
+// The listener is separate from capability issuance. It presents a server
+// certificate (server-side TLS only; it does not request or verify a client
+// certificate) and authenticates the caller solely with an opaque work-content
+// bearer that internal/capability issued to that execution. Every request
+// re-checks the bearer online through work.authorize_runtime_capability: token
+// digest, audience, generation, holder/execution/org/task/run/fence, mode,
+// lease, hard deadline and Run/Task tombstone are all read from trusted records
+// at call time. A positive answer is never cached, and an unavailable
+// authorization backend or database is a denial (503), never a bypass.
 //
 // Only bound reads are implemented:
 //

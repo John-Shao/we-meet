@@ -164,7 +164,10 @@ const fillPath = (
 const parseError = async (response: Response): Promise<WorkApiError> => {
   let body: Record<string, unknown> = {}
   try {
-    body = (await response.json()) as Record<string, unknown>
+    const parsed = await response.json()
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      body = parsed as Record<string, unknown>
+    }
   } catch {
     /* non-JSON gateway error */
   }
@@ -322,10 +325,7 @@ export const cancelWorkRun = (runId: string) =>
   unwrap<unknown>(
     api().cancelRun({
       path: { runId },
-      // CancelRequest requires client_request_id (8-128). The control plane does
-      // not dedupe cancellation yet, so a per-attempt id satisfies the wire
-      // contract; the gap is recorded in docs/plan/work-project.md.
-      body: { client_request_id: crypto.randomUUID() },
+      body: {},
     })
   )
 

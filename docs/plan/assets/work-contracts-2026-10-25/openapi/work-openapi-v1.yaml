@@ -1001,9 +1001,7 @@ components:
     CancelRequest:
       type: object
       additionalProperties: false
-      required: [client_request_id]
       properties:
-        client_request_id: { type: string, minLength: 8, maxLength: 128 }
         reason: { type: string, maxLength: 500 }
 
     ApprovalDecisionRequest:

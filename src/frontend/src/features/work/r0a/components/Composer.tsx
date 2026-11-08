@@ -29,6 +29,15 @@ import { card, errorText, inputError, label, muted, row } from '../ui'
 
 type Props = { bootstrap: WorkBootstrap }
 
+// The counter and the server count code points (`Array.from`), while the native
+// maxLength attribute counts UTF-16 units - one emoji is two units there. The
+// limit is enforced here instead of by the attribute so both agree; it also
+// keeps a pasted run of astral characters from being cut mid-surrogate.
+const truncateToCodePoints = (value: string, max: number) => {
+  const codePoints = Array.from(value)
+  return codePoints.length > max ? codePoints.slice(0, max).join('') : value
+}
+
 const choice = css({
   display: 'flex',
   flexDirection: 'column',
@@ -116,12 +125,14 @@ export const Composer = ({ bootstrap }: Props) => {
   }
 
   const onGoalChange = (value: string) => {
-    setGoal(value)
+    setGoal(truncateToCodePoints(value, bootstrap.limits.max_goal_chars))
     invalidateInput()
   }
 
   const onBackgroundChange = (value: string) => {
-    setBackground(value)
+    setBackground(
+      truncateToCodePoints(value, bootstrap.limits.max_background_chars)
+    )
     invalidateInput()
   }
 
@@ -226,7 +237,6 @@ export const Composer = ({ bootstrap }: Props) => {
             id="work-goal"
             value={goal}
             rows={5}
-            maxLength={bootstrap.limits.max_goal_chars}
             placeholder={t('composer.goalPlaceholder')}
             onChange={(event) => onGoalChange(event.target.value)}
             aria-invalid={invalidGoal && goal.length > 0}
@@ -244,7 +254,6 @@ export const Composer = ({ bootstrap }: Props) => {
             id="work-background"
             value={background}
             rows={3}
-            maxLength={bootstrap.limits.max_background_chars}
             placeholder={t('composer.backgroundPlaceholder')}
             onChange={(event) => onBackgroundChange(event.target.value)}
           />
@@ -329,7 +338,11 @@ export const Composer = ({ bootstrap }: Props) => {
           </span>
         </div>
 
-        {error ? <p className={errorText}>{error}</p> : null}
+        {error ? (
+          <p className={errorText} role="alert">
+            {error}
+          </p>
+        ) : null}
         {!preview ? (
           <div
             className={css({

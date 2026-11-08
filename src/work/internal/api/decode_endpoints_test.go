@@ -28,12 +28,12 @@ func TestShippedWriteEndpointsRejectTrailingJSON(t *testing.T) {
 			name:  "cancel run",
 			url:   "/work/v1/runs/" + runA + "/cancel",
 			code:  "invalid_request",
-			clean: `{"client_request_id":"cancel-trail-01"}`,
+			clean: `{}`,
 		},
 		{
 			name:  "retry task",
 			url:   "/work/v1/tasks/" + taskA + "/runs",
-			code:  "invalid_json",
+			code:  "invalid_request",
 			clean: `{"client_request_id":"retry-trail-01","expected_revision":1}`,
 		},
 		{

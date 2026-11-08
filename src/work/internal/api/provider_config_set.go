@@ -53,8 +53,8 @@ func (s *Server) adminSetProviderConfig(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var body providerConfigSetRequest
-	if err := decodeStrictJSONBody(r.Body, &body); err != nil {
-		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+	if err := decodeStrictJSON(w, r, &body); err != nil {
+		writeAPIError(w, correlationID, decodeError(err))
 		return
 	}
 	// Presence, not a value: ProviderConfigSetRequest lists expected_revision as

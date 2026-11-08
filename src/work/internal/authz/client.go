@@ -9,7 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -43,9 +45,9 @@ type Client struct {
 }
 
 func NewClient(config ClientConfig) (*Client, error) {
-	baseURL := strings.TrimRight(strings.TrimSpace(config.BaseURL), "/")
-	if baseURL == "" {
-		return nil, errors.New("authorization service URL is required")
+	baseURL, err := authorizationBaseURL(config.BaseURL)
+	if err != nil {
+		return nil, err
 	}
 	transport := config.Transport
 	if transport == nil {
@@ -72,7 +74,54 @@ func NewClient(config ClientConfig) (*Client, error) {
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
-	return &Client{baseURL: baseURL, http: &http.Client{Transport: transport, Timeout: timeout}}, nil
+	// The caller identity rides on the client certificate, so a plaintext hop or
+	// a redirect to another origin would either expose the request body or
+	// silently retarget a privileged command. Refuse redirects outright and keep
+	// the request pinned to the configured internal service.
+	return &Client{
+		baseURL: baseURL,
+		http: &http.Client{
+			Transport: transport,
+			Timeout:   timeout,
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
+	}, nil
+}
+
+// authorizationBaseURL normalises and validates the configured service URL. The
+// transport carries a client certificate and privileged commands, so plaintext
+// http is accepted only for a loopback listener (local development and tests).
+func authorizationBaseURL(raw string) (string, error) {
+	trimmed := strings.TrimRight(strings.TrimSpace(raw), "/")
+	if trimmed == "" {
+		return "", errors.New("authorization service URL is required")
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Host == "" || parsed.User != nil {
+		return "", errors.New("authorization service URL must be an absolute https URL")
+	}
+	switch parsed.Scheme {
+	case "https":
+	case "http":
+		if !isLoopbackHost(parsed.Hostname()) {
+			return "", errors.New("authorization service URL must be an absolute https URL")
+		}
+	default:
+		return "", errors.New("authorization service URL must be an absolute https URL")
+	}
+	return trimmed, nil
+}
+
+// isLoopbackHost reports whether host names the local machine, the only case
+// where the plaintext http scheme is tolerated.
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	address := net.ParseIP(host)
+	return address != nil && address.IsLoopback()
 }
 
 func (c *Client) Claim(ctx context.Context, request ExecutionRequest) (ExecutionLease, error) {

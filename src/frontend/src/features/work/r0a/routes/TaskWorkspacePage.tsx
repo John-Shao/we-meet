@@ -380,7 +380,9 @@ export const TaskWorkspacePage = () => {
               ) : null}
             </div>
             {!readOnly && titleError ? (
-              <p className={errorText}>{titleError}</p>
+              <p className={errorText} role="alert">
+                {titleError}
+              </p>
             ) : null}
           </div>
           <div className={row}>
@@ -398,7 +400,9 @@ export const TaskWorkspacePage = () => {
           </div>
         </div>
         {!readOnly && actionError ? (
-          <p className={errorText}>{actionError}</p>
+          <p className={errorText} role="alert">
+            {actionError}
+          </p>
         ) : null}
       </div>
 
@@ -674,6 +678,7 @@ export const TaskWorkspacePage = () => {
                       expected_revision: detail.summary.revision,
                       target: { kind: 'cloud', profile: 'text-v1' },
                     })
+                    retryKey.rotate()
                   } catch (error) {
                     const code = (error as { code?: string })?.code
                     setRetryError(

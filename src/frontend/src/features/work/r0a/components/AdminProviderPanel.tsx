@@ -37,6 +37,15 @@ const readCode = (error: unknown, key: 'code' | 'status') => {
     : undefined
 }
 
+// Only a 404 means "nothing configured yet"; every other read failure is a real
+// error and must not be dressed up as an invitation to configure.
+const isNotConfigured = (error: unknown) =>
+  readCode(error, 'code') === 'not_found'
+
+// Success and failure share one line, so the tone has to travel with the text:
+// it decides role="status" versus role="alert" for the live region.
+type PanelStatus = { text: string; tone: 'success' | 'error' }
+
 // The owner-only write face for D-08d: the organization's own model access. The admin page
 // already showed the current configuration read-only; without these five calls the only way to
 // point Work at a customer's account was to hand-write HTTP requests, so the signed scope had an
@@ -65,7 +74,7 @@ export const AdminProviderPanel = () => {
   const [roleRef, setRoleRef] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [reason, setReason] = useState('')
-  const [status, setStatus] = useState<string>()
+  const [status, setStatus] = useState<PanelStatus>()
 
   // Prefilled from the live configuration the first time it arrives, so the form is an edit of
   // what is in effect rather than a blank request that would overwrite it with defaults.
@@ -212,11 +221,14 @@ export const AdminProviderPanel = () => {
                     expected_revision: config?.revision ?? 0,
                   })
                   setApiKey('')
-                  setStatus(
-                    t('admin.providerSaved', { revision: saved.revision })
-                  )
+                  setStatus({
+                    text: t('admin.providerSaved', {
+                      revision: saved.revision,
+                    }),
+                    tone: 'success',
+                  })
                 } catch (error) {
-                  setStatus(failure(error))
+                  setStatus({ text: failure(error), tone: 'error' })
                 }
               }}
             >
@@ -230,9 +242,12 @@ export const AdminProviderPanel = () => {
               onPress={async () => {
                 try {
                   await revokeConfig.mutateAsync({ reason })
-                  setStatus(t('admin.providerRevoked'))
+                  setStatus({
+                    text: t('admin.providerRevoked'),
+                    tone: 'success',
+                  })
                 } catch (error) {
-                  setStatus(failure(error))
+                  setStatus({ text: failure(error), tone: 'error' })
                 }
               }}
             >
@@ -297,13 +312,14 @@ export const AdminProviderPanel = () => {
                   // moment the id is usable: adopt it so the owner can save without copying.
                   setCredentialId(created.credential_id)
                   setApiKey('')
-                  setStatus(
-                    t('admin.credentialCreated', {
+                  setStatus({
+                    text: t('admin.credentialCreated', {
                       fingerprint: created.fingerprint,
-                    })
-                  )
+                    }),
+                    tone: 'success',
+                  })
                 } catch (error) {
-                  setStatus(failure(error))
+                  setStatus({ text: failure(error), tone: 'error' })
                 }
               }}
             >
@@ -321,13 +337,14 @@ export const AdminProviderPanel = () => {
                     body: { api_key: apiKey },
                   })
                   setApiKey('')
-                  setStatus(
-                    t('admin.credentialRotated', {
+                  setStatus({
+                    text: t('admin.credentialRotated', {
                       version: rotated.key_version,
-                    })
-                  )
+                    }),
+                    tone: 'success',
+                  })
                 } catch (error) {
-                  setStatus(failure(error))
+                  setStatus({ text: failure(error), tone: 'error' })
                 }
               }}
             >
@@ -344,9 +361,12 @@ export const AdminProviderPanel = () => {
                     credentialId,
                     body: { reason },
                   })
-                  setStatus(t('admin.credentialRevoked'))
+                  setStatus({
+                    text: t('admin.credentialRevoked'),
+                    tone: 'success',
+                  })
                 } catch (error) {
-                  setStatus(failure(error))
+                  setStatus({ text: failure(error), tone: 'error' })
                 }
               }}
             >
@@ -354,12 +374,26 @@ export const AdminProviderPanel = () => {
             </Button>
           </div>
 
-          <p className={notice}>
-            {status ??
-              (configQ.isError
-                ? t('admin.providerEmpty')
-                : t('admin.providerHint'))}
-          </p>
+          {status ? (
+            <p
+              className={notice}
+              role={status.tone === 'error' ? 'alert' : 'status'}
+            >
+              {status.text}
+            </p>
+          ) : configQ.isError ? (
+            isNotConfigured(configQ.error) ? (
+              <p className={notice} role="status">
+                {t('admin.providerEmpty')}
+              </p>
+            ) : (
+              <p className={notice} role="alert">
+                {t('admin.providerError')}
+              </p>
+            )
+          ) : (
+            <p className={notice}>{t('admin.providerHint')}</p>
+          )}
         </>
       )}
     </section>

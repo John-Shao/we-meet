@@ -201,7 +201,7 @@ func TestPGProviderSetupRoundTrip(t *testing.T) {
 	if credentialID == "" {
 		t.Fatalf("credential output has no credential_id: %q", stdout.String())
 	}
-	if got, want := created["fingerprint"], credentials.Fingerprint(plaintext); got != want {
+	if got, want := created["fingerprint"], credentials.Fingerprint(pgMaster, plaintext); got != want {
 		t.Fatalf("fingerprint = %q, want %q", got, want)
 	}
 
@@ -297,7 +297,7 @@ func TestPGProviderSetupRoundTrip(t *testing.T) {
 	if rotatedFields["key_version"] != "2" {
 		t.Fatalf("rotated key_version = %q, want 2", rotatedFields["key_version"])
 	}
-	if got, want := rotatedFields["fingerprint"], credentials.Fingerprint(rotated); got != want {
+	if got, want := rotatedFields["fingerprint"], credentials.Fingerprint(pgMaster, rotated); got != want {
 		t.Fatalf("rotated fingerprint = %q, want %q", got, want)
 	}
 	assertNoMarker(t, marker, stdout.String(), stderr.String())

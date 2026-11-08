@@ -198,29 +198,27 @@ func TestCancelRunRequiresCSRFAndIsIdempotent(t *testing.T) {
 	assertAPICode(t, other, http.StatusNotFound, "run_not_found")
 }
 
-func TestCancelRunEnforcesClientRequestIDLength(t *testing.T) {
+func TestCancelRunRejectsClientRequestID(t *testing.T) {
 	pool, dbName := newBootstrapDB(t, true, true)
 	seedTaskGraph(t, dbName)
 	server := newHTTPServer(t, pool, &stubVerifier{claims: testClaims()}, testCSRF(t))
 	token := bootstrapCSRF(t, server.URL)
 
-	// CancelRequest declares client_request_id with minLength 8, and the floor has to
-	// hold before the domain call: a short id that slipped past validation would
-	// cancel a live run instead of being refused.
-	for _, id := range []string{"a", "abcdefg"} {
-		response := cancelRunWithBody(t, server.URL, runA, token,
-			`{"client_request_id":"`+id+`"}`, true)
-		assertAPICode(t, response, http.StatusBadRequest, "invalid_request")
-		if got := runState(t, dbName, runA); got != "active" {
-			t.Fatalf("client_request_id %q changed run state to %q", id, got)
-		}
+	// L1 removed client_request_id from CancelRequest: the control plane never deduped
+	// on it (a replay is absorbed by the run state), so the receipt key was dead weight
+	// on the wire. DisallowUnknownFields must now refuse the field outright rather than
+	// silently drop it, and a bare object is a complete cancel body.
+	response := cancelRunWithBody(t, server.URL, runA, token,
+		`{"client_request_id":"abcdefgh"}`, true)
+	assertAPICode(t, response, http.StatusBadRequest, "invalid_request")
+	if got := runState(t, dbName, runA); got != "active" {
+		t.Fatalf("a refused cancel changed run state to %q", got)
 	}
 
-	accepted := cancelRunWithBody(t, server.URL, runA, token,
-		`{"client_request_id":"abcdefgh"}`, true)
+	accepted := cancelRunWithBody(t, server.URL, runA, token, `{}`, true)
 	if accepted.StatusCode != http.StatusAccepted {
 		accepted.Body.Close()
-		t.Fatalf("an eight-rune id is in contract range, status = %d", accepted.StatusCode)
+		t.Fatalf("a bare object is the whole cancel contract, status = %d", accepted.StatusCode)
 	}
 	accepted.Body.Close()
 	if got := runState(t, dbName, runA); got != "cancel_requested" {
@@ -297,7 +295,7 @@ func bootstrapCSRF(t *testing.T, baseURL string) string {
 
 func cancelRun(t *testing.T, baseURL, runID, token string, withCookie bool) *http.Response {
 	t.Helper()
-	return cancelRunWithBody(t, baseURL, runID, token, `{"client_request_id":"cancel-crash-0001"}`,
+	return cancelRunWithBody(t, baseURL, runID, token, `{}`,
 		withCookie && token != "")
 }
 

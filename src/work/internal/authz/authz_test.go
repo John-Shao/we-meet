@@ -431,12 +431,15 @@ func TestLoadRegistry(t *testing.T) {
 		t.Fatalf("caller = %#v, %v", caller, err)
 	}
 
+	other := newCertificate(t, "other")
 	for name, body := range map[string]string{
-		"empty":              `{"workloads":[]}`,
-		"unknown field":      `{"workloads":[],"extra":1}`,
-		"duplicate":          `{"workloads":[{"fingerprint":"` + fingerprint(parent) + `","kind":"egress","workload_id":"a"},{"fingerprint":"` + fingerprint(parent) + `","kind":"egress","workload_id":"b"}]}`,
-		"bad kind":           `{"workloads":[{"fingerprint":"` + fingerprint(parent) + `","kind":"admin","workload_id":"a"}]}`,
-		"self-declared role": `{"workloads":[{"fingerprint":"` + fingerprint(parent) + `","kind":"egress","workload_id":"a","role":"admin"}]}`,
+		"empty":                 `{"workloads":[]}`,
+		"unknown field":         `{"workloads":[],"extra":1}`,
+		"duplicate":             `{"workloads":[{"fingerprint":"` + fingerprint(parent) + `","kind":"egress","workload_id":"a"},{"fingerprint":"` + fingerprint(parent) + `","kind":"egress","workload_id":"b"}]}`,
+		"bad kind":              `{"workloads":[{"fingerprint":"` + fingerprint(parent) + `","kind":"admin","workload_id":"a"}]}`,
+		"self-declared role":    `{"workloads":[{"fingerprint":"` + fingerprint(parent) + `","kind":"egress","workload_id":"a","role":"admin"}]}`,
+		"duplicate workload id": `{"workloads":[{"fingerprint":"` + fingerprint(parent) + `","kind":"egress","workload_id":"a"},{"fingerprint":"` + fingerprint(other) + `","kind":"egress","workload_id":"a"}]}`,
+		"workload id charset":   `{"workloads":[{"fingerprint":"` + fingerprint(parent) + `","kind":"egress","workload_id":"a b"}]}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := authz.LoadRegistry([]byte(body)); err == nil {

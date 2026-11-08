@@ -134,6 +134,12 @@ export const WorkHomePage = ({
         <div className={card}>
           {tasksQ.isLoading ? (
             <p className={muted}>{t('loading')}</p>
+          ) : tasksQ.isError ? (
+            // A failed read is not an empty history: saying "your first task will
+            // appear here" on an error would tell the user their work is gone.
+            <p className={muted} role="alert">
+              {t('home.tasksUnavailable')}
+            </p>
           ) : recent.length === 0 ? (
             <p className={muted}>{t('home.emptyRecent')}</p>
           ) : (

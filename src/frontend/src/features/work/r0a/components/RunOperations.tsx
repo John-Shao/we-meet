@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
@@ -39,6 +40,24 @@ export const RunOperations = ({
   const { t } = useTranslation('work')
   const operationsQ = useWorkRunOperations(runId ?? undefined)
   const items = operationsQ.data?.pages.flatMap((page) => page.items) ?? []
+  const {
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  } = operationsQ
+
+  // D5 §5.3: the ledger is a read projection with no paging affordance in the
+  // column, so the fold count and the "tool steps" grouping must describe the
+  // whole run rather than the first page. Pull pages while one exists; each
+  // completed fetch flips isFetchingNextPage back to false and re-runs this
+  // effect until hasNextPage turns false. A failed page stops the loop instead
+  // of retrying immediately - the cursor never advanced, so retrying here would
+  // hammer the server forever.
+  useEffect(() => {
+    if (!hasNextPage || isFetchingNextPage || isFetchNextPageError) return
+    void fetchNextPage()
+  }, [hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage])
 
   if (!runId) return null
 
