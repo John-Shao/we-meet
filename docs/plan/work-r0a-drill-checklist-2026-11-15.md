@@ -60,6 +60,8 @@
 | D3-b | 重排 11-06｜DB 偏移证据改走恢复演练：`src/work/deploy/ecs/work-db-restore-drill.py` 在隔离实例回放→ **11-04 演过 **fail**（见 §0C 与 #57） **| 台账偏移与终态可读回；恢复步骤可重放、有 sha256 与耗时记录 | 演练输出 + 恢复后计数对比 |
 
 
+**【2026-11-08 09:5x 更正：§0B 表 D4-a 行的简写不可执行，原文保留】** 该行写的 `work.apply_execution_entitlement(p_operator_suspended => true)` 不能照抄：函数是九个参数（`p_org_id, p_actor_subject_id, p_operator_authorization_ref, p_enabled, p_operator_suspended, p_seat_limit, p_target_entitlement_revision, p_host_ack_revision, p_client_request_id`）且没有默认值，只给一个命名参数会直接 `function ... does not exist`。可执行形态以 [runbook §5.22](work-operations-runbook-2026-10-25.md) 的九参调用为准（2026-11-04 #59 裁定的落点）；D4-6c 的四步 ack（rev1/ack1 → rev2/ack2）同样以 runbook 为准。本条只改「怎么调」，不改 D4-a 已演 pass 的结论。
+
 ## 0C. 2026-11-04 夜间执行结果（D4-a／D2-alt／D1-alt 三项已演，其余四项未演）
 
 主签 2026-11-04 当晚授权「今晚全演 D4-a＋D1-alt＋D2-alt」，三项都在试点机 `lavm-t7fmveau9b` 上真做过。逐格判定写在
