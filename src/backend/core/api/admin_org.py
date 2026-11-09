@@ -122,6 +122,7 @@ class MembershipAdminSerializer(serializers.ModelSerializer):
             "org_role",
             "is_primary",
             "status",
+            "work_seat",
             # --- work profile (P10 M1) ---
             "employee_no",
             "employee_type",

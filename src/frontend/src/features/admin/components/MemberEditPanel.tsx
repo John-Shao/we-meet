@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
-import { Button, Input } from '@/primitives'
+import { Button, Input, Switch } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { StateHint } from '@/components/StateHint'
 
@@ -46,6 +46,7 @@ export const MemberEditPanel = ({ member, departments, onClose }: Props) => {
       department: member.department?.id ?? null,
       org_role: member.org_role,
       title: member.title,
+      work_seat: member.work_seat,
       employee_no: member.employee_no,
       employee_type: member.employee_type?.id ?? null,
       job_level: member.job_level?.id ?? null,
@@ -216,6 +217,18 @@ export const MemberEditPanel = ({ member, departments, onClose }: Props) => {
                 label: t(`role.${r}`, { defaultValue: r }),
               }))}
             />
+            <div className={rowCls}>
+              <label className={labelCls}>{t('members.workSeat')}</label>
+              <div className={css({ display: 'flex', alignItems: 'center', gap: 'sm' })}>
+                <Switch
+                  isSelected={form.work_seat ?? false}
+                  onChange={(v) => set('work_seat', v)}
+                />
+                <span className={css({ fontSize: 'sm', color: 'text.secondary' })}>
+                  {form.work_seat ? t('members.workSeatEnabled') : t('members.workSeatDisabled')}
+                </span>
+              </div>
+            </div>
           </Section>
 
           <Section title={t('members.sectionWork')}>

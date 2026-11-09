@@ -36,6 +36,7 @@ export interface AdminMember {
   org_role: string
   is_primary: boolean
   status: string
+  work_seat: boolean
   department: { id: string; name: string } | null
   // --- work profile (P10 M1) ---
   employee_no: string
@@ -109,6 +110,7 @@ export interface UpdateMembershipInput {
   title?: string
   status?: string
   is_primary?: boolean
+  work_seat?: boolean
   // --- work profile ---
   employee_no?: string
   employee_type?: string | null
