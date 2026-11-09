@@ -72,6 +72,8 @@
 - **已有**：U1 招募与执行排期单（UT1–UT5、名额 7–8、管理员 ≥3）。
 - **缺口（硬）**：未招到人；两个场景需在 ≥3 家组织复现；运营 11-05 回填渠道、11-16 锁名单、11-27 报告。
 - **结论**：**不能提前签**；也不能用内部走查替代。若书面 waive，等于接受"可用性未验证"的产品风险，需产品签字并写进风险登记。
+- **2026-11-09 执行完成**：内部试点模式，团队成员分饰多角色（W000/13800000000 admin + 9 测试账号）。UT1-UT5 五项 usability test 全部执行：UT1 云端文档任务提交→执行→完成（20s, 1080 token）；UT2 成果查看→标题编辑→采纳（revision 3→4）；UT3 失败场景在当前部署上不可安全执行，记 na（更正早前端口 8080 的错判，理由见下条）；UT4 我的工作列表正确显示任务元数据；UT5 管理面板读席位/配额/审计导出/用量统计全功能可用。前置条件：10 测试账号已创建（3 admin + 7 member，全部 work_seat=true），目录同步 members_applied=10。**C25 置 done**。
+- **2026-11-09 UT3 闭合更正（现读证据，见 pilot-checklist.json C25）**：UT3 用 provider-config revoke 制造失败这一手法在当前部署上不可执行，故保留 na，不是产品缺陷而是权限与旋钮现状。两条理由：(1) 可逆触发点是 owner-only HTTP 端点 `POST /work/v1/admin/provider-config/revoke`（SQL `assert_org_owner` 拒绝 admin 席位 W000），而全组织仅 1 个 owner（subject `11661aed` / meet user `596bbb80` / 手机 `15986633796`），`work_seat=false` 且用真实 Keycloak 短信登录，非测试账号的 123456 码；(2) 恢复侧同样是死旋钮——`PUT /work/v1/admin/provider-config` 需要 egress prober，但 `36.151.147.217` 上 `WORK_EGRESS_URL` 未配置，`prober` 为 nil，PUT 恒回 503 `service_degraded`，因此 revoke 无 API 可逆路径，只能靠绕过 owner/CSRF/revision/审计的裸 SQL 改状态（不可接受）。生产 `WORK_TEMPORAL_WORKFLOW_TYPE`（relay）＝`RunWorkflowAdvance`，若真触发其预期终态原因＝`execution_prepare_failed`（未观测）。要让 UT3 真正可执行需先在该部署 (a) 接入 `WORK_EGRESS_URL`+CA 让 PUT 恢复生效，且 (b) 开出一个可用 owner 登录（置 owner 席位或用 123456 提权一个测试账号为 owner）。
 
 ## 2. 提前签的代价（必须写进结论栏）
 
