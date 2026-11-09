@@ -76,12 +76,16 @@ test('blocking items split into a start gate and a pilot gate', () => {
   // C17（关闭条件改写为「库侧巡检＋邮件告警在现网生效」）、C22（§11 第 2 行 D3+D4 全 PASS）置 done，
   // 试点闸门 10 → 7。四项都由上面的状态数据推导，不在这里放宽任何闸门定义。
   // 2026-11-09 reconciliation: pilot blockers 7 -> 3. C28 closed this batch (cited the D4-a
-  // end-to-end cutover timing); the remaining open set is only C26/C27/C30. C24 was already
+  // end-to-end cutover timing); the remaining open set was C26/C27/C30. C24 was already
   // `done` from the pilot-org sign-off; C03/C16/C17/C22/C29 closed in the 11-04 / 11-08 passes.
-  assert.equal(result.pilotBlockerCount, 3);
+  // 2026-11-09 续：C26 于本批内由 §7 M2 播种（真 Keycloak 登录 → 真 POST /work/v1/inputs → 真 run
+  // → 真 awaiting_acceptance → 真采纳，三个不同 seated 提交者 03a7c56e／45a1a4ca／d662bc9c）＋
+  // 窗口重锚到 2026-11-08T00:00:00Z 的 pilot-metrics.sql 只读重跑（psql exit 0，4 条 go_gate 全绿）
+  // 关闭 ⇒ pilot blockers 3 -> 2，剩余开放集仅 C27／C30。
+  assert.equal(result.pilotBlockerCount, 2);
   assert.deepEqual(
     result.pilotBlockers.map((item) => item.id).sort(),
-    ['C26', 'C27', 'C30'],
+    ['C27', 'C30'],
   );
   assert.ok(!result.pilotBlockers.some((item) => item.id === 'C03'));
   assert.ok(!result.pilotBlockers.some((item) => item.id === 'C16'));
@@ -94,15 +98,19 @@ test('blocking items split into a start gate and a pilot gate', () => {
   assert.equal(checklist.items.find((item) => item.id === 'C29').status, 'done');
   assert.ok(!result.pilotBlockers.some((item) => item.id === 'C28'), 'C28 closed by citing the D4-a cutover timing');
   assert.equal(checklist.items.find((item) => item.id === 'C28').status, 'done');
+  assert.ok(!result.pilotBlockers.some((item) => item.id === 'C26'), 'C26 closed by the 2026-11-09 §7 M2 seeding + pilot-metrics.sql re-run (4 go_gate green in the 11-08 window)');
+  assert.equal(checklist.items.find((item) => item.id === 'C26').status, 'done');
   assert.equal(result.scaleBlockerCount, 0);
   // 2026-11-09: start gate is clear (C04 + C25 both closed), so canStartWork is now true;
   // go/no-go stays false because pilot blockers remain.
   assert.equal(result.canStartWork, true);
   assert.equal(result.blockerCount, result.startBlockerCount + result.pilotBlockerCount + result.scaleBlockerCount);
 
-  // 关掉开工闸门只允许开工，不等于可以试点：3 个试点证据项（C26/C27/C30）仍必须由实施产生。
+  // 关掉开工闸门只允许开工，不等于可以试点：2 个试点证据项（C27/C30）仍必须由实施产生。
   // （2026-11-08 由 10 改 7：C03/C16/C17/C22 经主签逐条签字关闭。
-  //  2026-11-09 由 7 改 3：C28 关闭（引用 D4-a 端到端 cutover 计时），上面 pilotBlockerCount 同一事实。）
+  //  2026-11-09 由 7 改 3：C28 关闭（引用 D4-a 端到端 cutover 计时），上面 pilotBlockerCount 同一事实。
+  //  2026-11-09 续 由 3 改 2：C26 关闭（§7 M2 播种三个真 seated 提交者 + 窗口重锚到 11-08 的
+  //  pilot-metrics.sql 只读重跑，四条 go_gate 全绿；见 C26 evidence 末条与 work-r0a-c26-metrics-collection-2026-11-09.md）。）
   const started = structuredClone(checklist);
   for (const item of started.items) {
     if (item.gate === 'start' && item.blocking) {
@@ -113,7 +121,7 @@ test('blocking items split into a start gate and a pilot gate', () => {
   const afterStart = goNoGo(started);
   assert.equal(afterStart.canStartWork, true);
   assert.equal(afterStart.go, false);
-  assert.equal(afterStart.pilotBlockerCount, 3);
+  assert.equal(afterStart.pilotBlockerCount, 2);
 });
 
 test('checklist rejects a missing or unknown gate', () => {

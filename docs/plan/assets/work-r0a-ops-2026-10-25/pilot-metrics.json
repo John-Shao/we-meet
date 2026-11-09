@@ -18,7 +18,7 @@
       "definition": "org is activated when >=3 distinct seated members submit >=1 task within 14 days of the org flag turning on",
       "numerator": "distinct subjects with task.submitted within 14d of enablement",
       "threshold": 3,
-      "target": "3 of 3 pilot orgs",
+      "target": ">=3 distinct seated submitters within 14d in the single pilot org (2026-11-09 §3A ruling: internal-pilot mode is one org per C24; the previous '3 of 3 pilot orgs' wording assumed external recruitment and is superseded, but the numeric threshold 3 is unchanged)",
       "go_gate": true
     },
     "technical_success_rate": {
