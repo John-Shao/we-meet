@@ -2271,6 +2271,19 @@ CI 侧我差点又下一次否定式错：只看到 `meet.yml` 的 `lint-front` 
 - **C03 → done**：S1-3／S1-R06 改判 pass 后 §11 第 3 行「D3-N01/N03/N06 真实环境 PASS ⇒ C03 §4(3) 满足」成立，回写已执行。
 现算未关闭阻塞（不含 waived）＝**9**：开工 2（C04/C25）＋试点 7（C09/C13/C24/C26/C27/C28/C30）。
 
+**2026-11-08 技术面三裁（John 单选，全部 A）⇒ C04/C09/C13 → done，blocking 9→6**：
+- **C04 → done**：DR2 署名确认有效（11-04 代录）；L-C04-04（node 122 条测试无 CI）与 L-C04-06（code 侧 cosign/SBOM＋镜像 digest 真值）转 R0b deferred，DR2 文档 §7 两行已加 11-08 标注。
+- **C09 → done**：维持现有范围例外——content-proxy 零生产请求（C33-B 已签 checkpoint write 无 caller）与本地 Content Store（与 C13 同源）均不作为 R0a 阻塞。
+- **C13 → done**：维持 #40=A 裁定——R0a 单主密钥不轮换、对象存储后端/规模化擦除转 R0b。
+剩余 6 项 blocking：C24/C25（试点组织＋用研，外部依赖）、C26（指标，需真实用户）、C27/C30（legal/DPA 签收）、C28（cutover 计时，需 C24 接入）。
+
+**2026-11-08 外部签收两裁（John 单选）⇒ C24 → done，blocking 6→5；C27/C28/C30 选 B，临时接受**：
+- **C24 → done**：John 确认内部试点模式，试点组织＝团队自用（John 兼运营），不走外部招募。原招募截止日 11-10 不适用。
+- **C25 仍 todo**：内部试点模式，用研对象＝团队成员，需实际执行用研后翻 done。
+- **C27/C30 选 B**：删除链＋所有权移交流程已演练通过（D5 11 pass + 1 na）作临时接受，legal/DPA 补签放宽到 DR3。R0a 试点可启动，legal 书面签在 DR3 前补齐。
+- **C28 选 B**：现在用试点机自演一次 cutover 计时（不等 C24 接入）。
+剩余 5 项 blocking：C25（用研执行）、C26（指标，需真实用户）、C27/C28/C30（legal 补签＋cutover 自演）。
+
 **C27/C30 演练包 D5 段已备（2026-11-08，零生产写）**：删除链＋所有权移交＋运维代删合并演练方案已写进[演练清单 §9A](work-r0a-drill-checklist-2026-11-15.md)（D5-0..D5-11 共 12 步），verdict.json 12 格 `verdict=null` 待执行，summary.total 由 76→88。覆盖：所有权转移（D5-2/3）、运维代删（D5-4/7/9）、删除链端到端（outbox→relay→Content Store 磁盘消失，D5-5/6/8）、角色闸（D5-10 work_api 不可调 ops 函数）、收尾逐表 count 对齐（D5-11）。关联回写：§11 新增 D5 行、附录 A 排 11-16 18:00–18:30、附录 B 新增失败模式。[pilot-checklist.json](assets/work-r0a-ops-2026-10-25/pilot-checklist.json) C27/C30 两格 evidence 与 note 已同步。**执行需逐次生产写授权**（D5-1 播种、D5-2 转移、D5-4/5-7/5-9 删除）。
 
 **C27/C30 D5 段已执行（2026-11-08 12:08–13:40，主签逐次授权）**：11 pass + 1 na，summary pass 47→58、na 21→22、total 88。关键事实：① Task A（49a888a0…）所有权从 535bbd27… 转至 0c80fe6a…（前置：为后者分配 work_seat，全库仅 1 人有席）；② 运维代删 Task A 返回 2（2 个独占 content hash 被 shred）；③ relay ~430ms 投递 outbox → Content Store 磁盘 1352→1350（-2 .enc）；④ 运维代删 Task B（不经过转移）返回 2 → 磁盘 1350→1348（-2 .enc，累计 -4）；⑤ 幂等性：对已删 Task B 再调返回 0、审计不增行；⑥ 角色闸：`SET ROLE work_api` 后调 `ops_delete_task` → `permission denied`；⑦ 收尾逐表 count 全对齐（tombstoned=3、audit +3、outbox +2 delivered、disk -4、content_reference 不变）。教训一条：首次将 D5-7~10 放在同一 `psql -c` 调用中，D5-10 的 permission denied 导致整个事务回滚（D5-7 的删除被 rollback），分离为独立事务后成功。证据：[attachments/d5-c27-c30-deletion-transfer-20261108.txt](assets/work-r0a-ops-2026-10-25/drill-2026-11-15/attachments/d5-c27-c30-deletion-transfer-20261108.txt)。C27/C30 仍 partial——剩余＝support contacts 与 legal/DPA sign-off（非演练项）。
