@@ -50,9 +50,12 @@ test('blocking items split into a start gate and a pilot gate', () => {
   // 2026-11-01 闸门复审：C05（D5 前端设计）、C10（React 页面/查询/SSE E2E）、C31（管理只读面）
   // 已按生产证据关闭，开工闸门只剩设计评审与可用性研究；
   // C33（子进程 checkpoint 写入 content-proxy，决策单 #280）按 John 勾选的 B 记为书面范围例外。
+  // 2026-11-09 reconciliation: both start-gate blockers are now closed - C04 by the D-08b
+  // adjudication (`done` in the checklist) and C25 by the UT1-UT5 internal-pilot usability
+  // evidence (see C25 evidence). The start gate is therefore clear.
   assert.deepEqual(
     result.startBlockers.map((item) => item.id).sort(),
-    ['C04', 'C25'],
+    [],
   );
   assert.ok(!result.startBlockers.some((item) => item.id === 'C15'));
   assert.equal(checklist.items.find((item) => item.id === 'C15').status, 'waived');
@@ -63,7 +66,7 @@ test('blocking items split into a start gate and a pilot gate', () => {
   assert.ok(c33.blocking, '#280 stays declared as an exit gate, closed by exception not by omission');
   // C11 signs the S01-S18 mapping口径 only; control implementation evidence stays in the pilot gate.
   assert.equal(checklist.items.find((item) => item.id === 'C11').status, 'done');
-  assert.equal(result.startBlockerCount, 2);
+  assert.equal(result.startBlockerCount, 0);
   // 2026-11-04：C07 关闭（D2′ 重签完成，#45 八项签署、surfaceFrozen=true 在远端 blob 核到），
   // 试点闸门由 12 降到 11。名单仍逐项钉死，不是放宽。
   // 2026-11-04 深夜：C29 关闭——**不是自评**，而是旧 Work 冻结面签收单 §4 那句由主签逐字确认、
@@ -72,7 +75,14 @@ test('blocking items split into a start gate and a pilot gate', () => {
   // 2026-11-08 主签逐条签字：C03（S1-3/S1-R06 改判 pass 后 §4(3) 成立）、C16（接受散文盲区为已知局限）、
   // C17（关闭条件改写为「库侧巡检＋邮件告警在现网生效」）、C22（§11 第 2 行 D3+D4 全 PASS）置 done，
   // 试点闸门 10 → 7。四项都由上面的状态数据推导，不在这里放宽任何闸门定义。
-  assert.equal(result.pilotBlockerCount, 7);
+  // 2026-11-09 reconciliation: pilot blockers 7 -> 3. C28 closed this batch (cited the D4-a
+  // end-to-end cutover timing); the remaining open set is only C26/C27/C30. C24 was already
+  // `done` from the pilot-org sign-off; C03/C16/C17/C22/C29 closed in the 11-04 / 11-08 passes.
+  assert.equal(result.pilotBlockerCount, 3);
+  assert.deepEqual(
+    result.pilotBlockers.map((item) => item.id).sort(),
+    ['C26', 'C27', 'C30'],
+  );
   assert.ok(!result.pilotBlockers.some((item) => item.id === 'C03'));
   assert.ok(!result.pilotBlockers.some((item) => item.id === 'C16'));
   assert.ok(!result.pilotBlockers.some((item) => item.id === 'C17'));
@@ -82,12 +92,17 @@ test('blocking items split into a start gate and a pilot gate', () => {
   }
   assert.ok(!result.pilotBlockers.some((item) => item.id === 'C29'), 'C29 closed by the signed freeze sheet');
   assert.equal(checklist.items.find((item) => item.id === 'C29').status, 'done');
+  assert.ok(!result.pilotBlockers.some((item) => item.id === 'C28'), 'C28 closed by citing the D4-a cutover timing');
+  assert.equal(checklist.items.find((item) => item.id === 'C28').status, 'done');
   assert.equal(result.scaleBlockerCount, 0);
-  assert.equal(result.canStartWork, false);
+  // 2026-11-09: start gate is clear (C04 + C25 both closed), so canStartWork is now true;
+  // go/no-go stays false because pilot blockers remain.
+  assert.equal(result.canStartWork, true);
   assert.equal(result.blockerCount, result.startBlockerCount + result.pilotBlockerCount + result.scaleBlockerCount);
 
-  // 关掉开工闸门只允许开工，不等于可以试点：7 个试点证据项仍必须由实施产生。
-  // （2026-11-08 由 10 改 7：C03/C16/C17/C22 经主签逐条签字关闭，与上面 pilotBlockerCount 同一事实。）
+  // 关掉开工闸门只允许开工，不等于可以试点：3 个试点证据项（C26/C27/C30）仍必须由实施产生。
+  // （2026-11-08 由 10 改 7：C03/C16/C17/C22 经主签逐条签字关闭。
+  //  2026-11-09 由 7 改 3：C28 关闭（引用 D4-a 端到端 cutover 计时），上面 pilotBlockerCount 同一事实。）
   const started = structuredClone(checklist);
   for (const item of started.items) {
     if (item.gate === 'start' && item.blocking) {
@@ -98,7 +113,7 @@ test('blocking items split into a start gate and a pilot gate', () => {
   const afterStart = goNoGo(started);
   assert.equal(afterStart.canStartWork, true);
   assert.equal(afterStart.go, false);
-  assert.equal(afterStart.pilotBlockerCount, 7);
+  assert.equal(afterStart.pilotBlockerCount, 3);
 });
 
 test('checklist rejects a missing or unknown gate', () => {

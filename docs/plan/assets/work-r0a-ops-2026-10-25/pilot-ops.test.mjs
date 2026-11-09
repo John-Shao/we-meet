@@ -101,7 +101,10 @@ test('cutover plan is consistent with the checklist and forbids dual-write', () 
   assert.deepEqual(validateCutover(pilot.cutover, pilot.checklist), []);
   const gate = canTransition(pilot.cutover, pilot.checklist, 'off', 'pilot_on');
   assert.equal(gate.allowed, false);
-  assert.ok(gate.missing.includes('C24'));
+  // 2026-11-09 reconciliation: C24 (pilot org recruitment) is now `done`, so it no longer
+  // blocks the enable transition; the gate is blocked only on the two `partial` legal /
+  // support items C27/C30. Order follows cutover-plan.json's requires_checklist.
+  assert.deepEqual(gate.missing, ['C27', 'C30']);
   assert.equal(canTransition(pilot.cutover, pilot.checklist, 'pilot_on', 'rolled_back').allowed, true);
   assert.equal(canTransition(pilot.cutover, pilot.checklist, 'off', 'rolled_back').allowed, false);
 
