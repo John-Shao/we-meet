@@ -16,16 +16,22 @@ var sqlStateFallback = map[string]string{
 }
 
 var conflictCodes = map[string]bool{
-	"version_conflict":   true,
-	"run_not_quiescent":  true,
-	"artifact_read_only": true,
+	"version_conflict":             true,
+	"run_not_quiescent":            true,
+	"artifact_read_only":           true,
+	"governance_revision_conflict": true,
 }
 
-// detailOptionalConflicts are the conflictCodes whose raisers carry no numeric
-// DETAIL. A missing detail is expected for them, not a contract break.
+// detailOptionalConflicts are the conflictCodes where a missing or non-numeric
+// DETAIL is acceptable: the raiser reports a state, not a revision, so the 409
+// stands without CurrentRevision rather than degrading to 503.
+// governance_revision_conflict is mixed (J41): five raisers (0018 x2, 0020 x3)
+// carry a numeric DETAIL and four (0023 x2, effective body 0027 x2) do not;
+// requiring a detail would turn those four legitimate 409s into 503.
 var detailOptionalConflicts = map[string]bool{
-	"run_not_quiescent":  true,
-	"artifact_read_only": true,
+	"run_not_quiescent":            true,
+	"artifact_read_only":           true,
+	"governance_revision_conflict": true,
 }
 
 type Error struct {

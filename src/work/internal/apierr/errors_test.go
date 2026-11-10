@@ -60,8 +60,8 @@ func TestServiceDegradedFallbackCarriesRecoveryAction(t *testing.T) {
 	}
 
 	for _, got := range []*Error{
-		New("not_a_public_code"),        // New fallback → serviceDegraded
-		FromDB(errors.New("boom")),      // non-Postgres → serviceDegraded("database_error")
+		New("not_a_public_code"),   // New fallback → serviceDegraded
+		FromDB(errors.New("boom")), // non-Postgres → serviceDegraded("database_error")
 	} {
 		if got.Code != "service_degraded" {
 			t.Fatalf("code = %q, want service_degraded", got.Code)
@@ -150,6 +150,20 @@ func TestFromDBMapsCatalogSQLStateAndConflicts(t *testing.T) {
 			name: "run not quiescent without detail",
 			err:  &pgconn.PgError{Code: "P0001", Message: "run_not_quiescent"},
 			code: "run_not_quiescent", status: 409, internal: "run_not_quiescent",
+		},
+		{
+			// J41: governance_revision_conflict is mixed — the optimistic-lock raisers
+			// (0018/0020) carry a numeric DETAIL, the entitlement ack raisers (0023,
+			// effective body 0027) do not. Both shapes must stay 409; requiring a
+			// detail turned the four no-detail raisers into 503.
+			name: "governance revision conflict with detail",
+			err:  &pgconn.PgError{Code: "P0001", Message: "governance_revision_conflict", Detail: "2"},
+			code: "governance_revision_conflict", status: 409, revision: revision(2), internal: "governance_revision_conflict",
+		},
+		{
+			name: "governance revision conflict without detail",
+			err:  &pgconn.PgError{Code: "P0001", Message: "governance_revision_conflict"},
+			code: "governance_revision_conflict", status: 409, internal: "governance_revision_conflict",
 		},
 		{
 			name: "mapped raw code",

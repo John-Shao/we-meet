@@ -381,6 +381,17 @@
       "catalog_checksum": "sha256:3ce81900afa82ff992ac28adef48e7d9d6d59898cb29a325d18fe949ec3583ec",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 35,
+      "name": "0035_release_restriction_single_writer",
+      "kind": "increment",
+      "file": "increments/0035_release_restriction_single_writer.sql",
+      "checksum": "sha256:583418ce1d53db27edde8ae08610a3f91461c8a315d04706df2cdbcb4867d902",
+      "catalog": "catalogs/0035_release_restriction_single_writer.json",
+      "catalog_checksum": "sha256:cbcf8fe794b4f489fbb000bfcbb8a7c5e9bdbebf268768d258c52fb31dda49b7",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

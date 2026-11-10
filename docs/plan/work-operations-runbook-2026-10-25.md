@@ -1416,6 +1416,8 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
 
 **适用范围与状态**：本机 Run 的 unknown 核账、`evidence_exhausted` 签署、治理事件游标推进。本包未上线、未演练——**本节是「照做即可执行」的运维合同，不是已发生记录**；任何步骤演练过后要在第 10 条改状态，不得默认视为已验证。
 
+**【2026-11-10 卡片 E=B 修订】** 正文离机链移出 R0b 本期：第 3 条的 `device_run_seal` 记录、第 6 条前置③的 recovery-only 通道本期不存在（恢复通道砍）；journal 清理水位改由 finish ack＋operation_resolution 驱动（见 [B03 载体设计](work-r0b-b03-reconciliation-carrier-2026-11-10.md) §3.2）。撤权设备迟到回执不再经专用通道上传，由服务端按 gate 事实＋降级路径（`evidence_unavailable`/`evidence_exhausted`）独立对账（B03 §3.3）。第 10 条 EV115 随 B03 §5 改写（seal 三类 ack→finish ack＋resolution 水位）；EV113/EV120 保留且更承重。原文保留供追溯，本节仍 `not_run`。
+
 1. **操作者**：主签一人（原设计写的「后端轮值 on-call」在单人团队下不存在）。**职责分离缺口的三条补偿**：①工单必须外部可见（Issue/工单系统），不得当场自造；②每次运维动作写强审计并保留 ≥365 天；③运维动作样本纳入 7 日延迟复评的抽查范围。
 2. **凭据**：`work-reconcile` 用一次性专用身份，运维身份不直接写业务表（与 R0a 口径一致）；发放/撤销/告警归属＝主签在自有云环境配置，依赖云厂商的部分记为「供应商操作＋主签核验」。用完即撤。
 3. **可接受的 evidence（服务端权威事实）**：egress receipt、provider request id、gate 事实（`dispatch_delivery`）、`device_run_seal` 记录、`consumed_governance_command`。**不接受**设备自报回执或「设备说没发出去」作为终态依据（不变量 2 与 RB-A21）。
