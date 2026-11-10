@@ -403,17 +403,6 @@
       "catalog_checksum": "sha256:bf79f260276d2d13bc703e01cd75e439adbae094780a74bf205cc290db6ebcc4",
       "transactional": true,
       "executable": true
-    },
-    {
-      "version": 37,
-      "name": "0037_fix_epoch_deduplication",
-      "kind": "increment",
-      "file": "increments/0037_fix_epoch_deduplication.sql",
-      "checksum": "sha256:d570b2b5ea7ebdbedcb23cb295b86667e24fc5ee7a15a2ef6ae96a22e36aded7",
-      "catalog": "catalogs/0037_fix_epoch_deduplication.json",
-      "catalog_checksum": "sha256:bf79f260276d2d13bc703e01cd75e439adbae094780a74bf205cc290db6ebcc4",
-      "transactional": true,
-      "executable": true
     }
   ]
 }
