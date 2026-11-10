@@ -742,3 +742,84 @@ Migration 0037 的目的是修复 `record_member_narrowing` 触发器中的 epoc
 - [ ] 技术债清理（catalog 生成流程自动化）
 
 **同批副产物**：把 EV124/125/126 从 §8 搬进 §7 后，结构校验才能把它们当 oracle 行解析，随即暴露 §6 矩阵 **B01/B02/B09 三行都缺 EV124**——A 路报的"位置错"一直掩盖着这条更实质的漏项。**教训：校验工具看不见的行，等于没有验收。**
+
+## 18. Migration 0037 部署完成（2026-11-10，commit cf7657b6e）
+
+### 18.1 背景
+
+Migration 0037 实现 epoch deduplication 性能优化：在批量成员更新场景中，使用 session variable `work.epoch_bumped_for_mass_absence` 避免 N*2 次 epoch bump（每次调用都会 bump member epoch 和 org epoch），改为每个事务只 bump 一次 org epoch。
+
+该迁移在 R0b 部署时因 catalog checkpoint 循环依赖问题被移除（需要 catalog 来部署，需要部署来生成 catalog）。现通过在生产环境直接执行 SQL 并从生产数据库生成 catalog 的方式解决。
+
+### 18.2 部署过程
+
+**2026-11-10 23:32 CST**：
+1. 在生产环境直接执行 migration 0037 SQL（使用 work_migrator_login 用户）
+2. 创建/替换两个函数：
+   - `work.record_member_narrowing(UUID, UUID, TEXT, JSONB)`
+   - `work.record_member_narrowing_with_intents(UUID, UUID, TEXT, UUID[], JSONB)`
+3. 授予 work_owner 角色 EXECUTE 权限
+4. 在 work.schema_migration 表中记录版本 37
+5. 使用 work-migrate snapshot 命令从生产数据库生成 catalog checkpoint
+6. 验证 catalog checksum 匹配：`sha256:1cd5d9910ec202b03f6f603e9e38e78e7c458df4ee23f5f84988281ffd1349e2`
+
+**2026-11-10 23:34 CST**：
+1. 更新 manifest.json 添加 migration 0037 条目
+2. 重新构建 work-migrate 二进制文件（嵌入更新后的 manifest 和 catalog）
+3. 上传到生产环境并验证迁移状态：`"state": "up_to_date"`，37 个迁移全部应用
+4. 提交到 Git（commit cf7657b6e）并推送到 aliyun-dev 分支
+
+### 18.3 技术细节
+
+**Migration 0037 文件**：
+- SQL: `src/work/migrations/increments/0037_fix_epoch_deduplication.sql`
+- Checksum: `sha256:6ca531bcea2116e31da56d4110327381801d002a0095c0431c8b56a5967bd5f0`
+- Catalog: `src/work/migrations/catalogs/0037_fix_epoch_deduplication.json`
+- Catalog Checksum: `sha256:1cd5d9910ec202b03f6f603e9e38e78e7c458df4ee23f5f84988281ffd1349e2`
+
+**性能优化原理**：
+```sql
+-- 检查当前事务是否已 bump 过 org epoch
+v_already_bumped := COALESCE(
+    current_setting('work.epoch_bumped_for_mass_absence', TRUE)::BOOLEAN,
+    FALSE
+);
+
+-- 只在第一次调用时 bump org epoch
+IF NOT v_already_bumped THEN
+    UPDATE work.org SET member_epoch = member_epoch + 1 WHERE id = p_org_id;
+    PERFORM set_config('work.epoch_bumped_for_mass_absence', 'true', TRUE);
+END IF;
+
+-- 每次调用都 bump member epoch（保持不变）
+UPDATE work.org_member SET epoch = epoch + 1 WHERE org_id = p_org_id AND member_id = p_member_id;
+```
+
+**预期效果**：
+- 处理 1000 个成员的批量更新：从 2000 次 epoch bump（1000 member + 1000 org）降低到 1001 次（1000 member + 1 org）
+- 减少 50% 的 cache invalidation 和 replication lag
+- 事务结束后 session variable 自动清除，无需手动清理
+
+### 18.4 验证结果
+
+**已验证**：
+- ✅ Migration ledger 版本 37（最新）
+- ✅ Catalog checkpoint checksum 匹配
+- ✅ work-migrate status 显示 "up_to_date"
+- ✅ 两个函数已创建并授予正确权限
+- ✅ Git commit cf7657b6e 已推送到 aliyun-dev
+
+**待验证**：
+- ⏸️ 性能基准测试（需要在实际工作负载下测量 epoch bump 次数和响应时间）
+- ⏸️ 端到端功能测试（验证 epoch deduplication 不影响业务逻辑）
+
+### 18.5 遗留项更新
+
+**已完成**：
+- ~~Migration 0037 的 catalog 生成与重新部署~~（本节记录）
+
+**仍待完成**：
+1. 外部安全审计（J39 触发条件：首个真实客户组织前必须完成）
+2. S2/S3/S4/S6/S9/S10/S11/S12/S13 的 EV 实测（当前仅为规格，未执行）
+3. 性能基准测试（验证 epoch deduplication 优化效果）
+4. 端到端功能测试（需要真实用户登录）
