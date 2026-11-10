@@ -955,3 +955,451 @@ func TestR0bEntitlementAndChangeRevisionsMoveForward(t *testing.T) {
 		assertPgMessage(t, err, "invalid_transition:governance_change:applied->pending")
 	}
 }
+
+// TestR0bUserSuspendAcrossMultipleOrgs is EV85: suspending a User who holds Membership
+// in two organizations must advance each org's WorkMemberState revision independently,
+// create deny in both orgs via incremental sync, and re-enable must release those denys
+// without resurrecting any old Runs. The test verifies the cross-organization isolation
+// of the suspend/enable path - a single User action must not leak state between orgs.
+func TestR0bUserSuspendAcrossMultipleOrgs(t *testing.T) {
+	dbName, admin := newGateDB(t)
+	org1, org2 := "org_r0b_suspend_1", "org_r0b_suspend_2"
+	subject := "sub_multi_org_user"
+	run1 := seedRun(t, admin, org1)
+	run2 := seedRun(t, admin, org2)
+	r0bAdmin(t, admin, org1)
+	r0bAdmin(t, admin, org2)
+	ctx := testContext(t)
+
+	// Ensure the same subject has Membership in both organizations with independent
+	// revision counters. The seedRun fixture writes ('sub_' || org, role 'owner'),
+	// so we must explicitly create the shared subject row in each org's member table.
+	for _, org := range []string{org1, org2} {
+		r0bExec(t, dbName, org, fmt.Sprintf(`
+			INSERT INTO work.member (org_id, subject_id, status, role, work_seat, revision)
+			VALUES ('%s', '%s', 'active', 'member', true, 1)
+			ON CONFLICT (org_id, subject_id) DO NOTHING;
+		`, org, subject))
+	}
+
+	// Record the starting revision in each org - EV85 requires both to advance.
+	rev1Before := scalarCount(t, admin,
+		`SELECT revision FROM work.member WHERE org_id = $1 AND subject_id = $2`,
+		org1, subject)
+	rev2Before := scalarCount(t, admin,
+		`SELECT revision FROM work.member WHERE org_id = $1 AND subject_id = $2`,
+		org2, subject)
+
+	// Connect as directory identity to trigger the suspend sync. The directory
+	// role calls sync_member_with_org_context, which is the wrapped entry that
+	// enforces the org lock order (TestR0bMemberProjectionTakesTheOrgLockFirst).
+	directory := connect(t, testpg.DirectoryURL(dbName))
+	defer directory.Close(ctx)
+
+	// Suspend the user in org1 first - this must advance org1's revision and
+	// create a host_member deny without touching org2.
+	if _, err := directory.Exec(ctx, "SET app.org_id = "+quoteLiteral(org1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := directory.Exec(ctx,
+		`SELECT work.sync_member_with_org_context($1, $2, $3, $4, $5, $6)`,
+		org1, subject, "suspended", "member", true, rev1Before+1); err != nil {
+		t.Fatalf("org1 suspend failed: %v", err)
+	}
+
+	// Verify org1: revision advanced, deny created.
+	rev1After := scalarCount(t, admin,
+		`SELECT revision FROM work.member WHERE org_id = $1 AND subject_id = $2`,
+		org1, subject)
+	if rev1After != rev1Before+1 {
+		t.Fatalf("org1 revision = %d, want %d", rev1After, rev1Before+1)
+	}
+	if got := scalarCount(t, admin,
+		`SELECT count(*) FROM work.access_restriction WHERE org_id = $1 AND subject_id = $2 AND source = 'host_member' AND state = 'active'`,
+		org1, subject); got != 1 {
+		t.Fatalf("org1 denys after suspend = %d, want 1", got)
+	}
+
+	// Verify org2 is untouched - this is the cross-org isolation assertion.
+	rev2Untouched := scalarCount(t, admin,
+		`SELECT revision FROM work.member WHERE org_id = $1 AND subject_id = $2`,
+		org2, subject)
+	if rev2Untouched != rev2Before {
+		t.Fatalf("org2 revision changed to %d after org1 suspend, want %d", rev2Untouched, rev2Before)
+	}
+	if got := scalarCount(t, admin,
+		`SELECT count(*) FROM work.access_restriction WHERE org_id = $1 AND subject_id = $2`,
+		org2, subject); got != 0 {
+		t.Fatalf("org2 denys after org1 suspend = %d, want 0", got)
+	}
+
+	// Now suspend in org2 - this must advance org2's revision independently.
+	if _, err := directory.Exec(ctx, "SET app.org_id = "+quoteLiteral(org2)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := directory.Exec(ctx,
+		`SELECT work.sync_member_with_org_context($1, $2, $3, $4, $5, $6)`,
+		org2, subject, "suspended", "member", true, rev2Before+1); err != nil {
+		t.Fatalf("org2 suspend failed: %v", err)
+	}
+
+	// Verify org2: revision advanced, deny created.
+	rev2After := scalarCount(t, admin,
+		`SELECT revision FROM work.member WHERE org_id = $1 AND subject_id = $2`,
+		org2, subject)
+	if rev2After != rev2Before+1 {
+		t.Fatalf("org2 revision = %d, want %d", rev2After, rev2Before+1)
+	}
+	if got := scalarCount(t, admin,
+		`SELECT count(*) FROM work.access_restriction WHERE org_id = $1 AND subject_id = $2 AND source = 'host_member' AND state = 'active'`,
+		org2, subject); got != 1 {
+		t.Fatalf("org2 denys after suspend = %d, want 1", got)
+	}
+
+	// Re-enable in org1 - this must release the deny without resurrecting run1.
+	// EV85 requires that re-enable follows §3.4 release predicate and old Runs
+	// stay in their terminal state.
+	if _, err := directory.Exec(ctx, "SET app.org_id = "+quoteLiteral(org1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := directory.Exec(ctx,
+		`SELECT work.sync_member_with_org_context($1, $2, $3, $4, $5, $6)`,
+		org1, subject, "active", "member", true, rev1After+1); err != nil {
+		t.Fatalf("org1 re-enable failed: %v", err)
+	}
+
+	// sync_member_with_org_context only updates the projection; the deny release
+	// is a separate step via apply_directory_recovery (§4.2). The release predicate
+	// reads the projection row we just wrote and compares observed_revision against
+	// release_floor_revision.
+	var released int
+	if err := directory.QueryRow(ctx,
+		`SELECT work.apply_directory_recovery($1, $2, $3, $4)`,
+		org1, subject, rev1After+1, subject).Scan(&released); err != nil {
+		t.Fatalf("org1 apply_directory_recovery failed: %v", err)
+	}
+	if released != 1 {
+		t.Fatalf("org1 released %d denys, want 1", released)
+	}
+
+	// Verify org1 deny is released.
+	if got := scalarCount(t, admin,
+		`SELECT count(*) FROM work.access_restriction WHERE org_id = $1 AND subject_id = $2 AND source = 'host_member' AND state = 'active'`,
+		org1, subject); got != 0 {
+		t.Fatalf("org1 active denys after re-enable = %d, want 0", got)
+	}
+
+	// Verify run1 was NOT resurrected - it must stay in its original state.
+	run1State := scalarString(t, admin,
+		`SELECT state FROM work.run WHERE id = $1 AND org_id = $2`, run1.runID, org1)
+	if run1State == "queued" || run1State == "running" {
+		t.Fatalf("run1 was resurrected to state %q after org1 re-enable", run1State)
+	}
+
+	// Verify run2 was NOT resurrected either - org2 suspend was not reversed.
+	run2State := scalarString(t, admin,
+		`SELECT state FROM work.run WHERE id = $1 AND org_id = $2`, run2.runID, org2)
+	if run2State == "queued" || run2State == "running" {
+		t.Fatalf("run2 was resurrected to state %q after org1 re-enable", run2State)
+	}
+
+	// Verify org2 deny is still active (org2 suspend was not reversed).
+	if got := scalarCount(t, admin,
+		`SELECT count(*) FROM work.access_restriction WHERE org_id = $1 AND subject_id = $2 AND source = 'host_member' AND state = 'active'`,
+		org2, subject); got != 1 {
+		t.Fatalf("org2 active denys after org1 re-enable = %d, want 1", got)
+	}
+}
+
+// TestR0bMassAbsenceThresholdAndRestore is EV86: triggering mass-absence must respect
+// the default threshold gate (blocking when absent count >= max(10, 20% of total)),
+// allow explicit bypass via p_allow_mass_absence=true, create host_member deny and
+// elevate access_epoch in the same transaction for each affected member, and restore
+// must follow the same path as other host_* denys. The test verifies both the gate
+// interception (no deny created when blocked) and the applied path (deny + epoch).
+func TestR0bMassAbsenceThresholdAndRestore(t *testing.T) {
+	dbName, admin := newGateDB(t)
+	org := "org_r0b_mass_absence"
+	seedRun(t, admin, org)
+	r0bAdmin(t, admin, org)
+	ctx := testContext(t)
+
+	// seedRun creates a member "sub_<org>" that we must track in present arrays.
+	seedSubject := "sub_" + org
+
+	// Create 15 members to establish a threshold of max(10, 20%*16)=10. Marking
+	// 10+ members absent without explicit allow must trigger the gate.
+	for i := 0; i < 15; i++ {
+		subject := fmt.Sprintf("sub_member_%d", i)
+		r0bExec(t, dbName, org, fmt.Sprintf(`
+			INSERT INTO work.member (org_id, subject_id, status, role, work_seat, revision)
+			VALUES ('%s', '%s', 'active', 'member', true, 0);
+		`, org, subject))
+	}
+	// Update org revision to 1, which will be the snapshot revision for mark_members_absent.
+	r0bExec(t, dbName, org, fmt.Sprintf(`
+		UPDATE work.org SET revision = 1 WHERE id = '%s';
+	`, org))
+
+	epochBefore := scalarCount(t, admin,
+		`SELECT access_epoch FROM work.org WHERE id = $1`, org)
+	denyCountBefore := scalarCount(t, admin,
+		`SELECT count(*) FROM work.access_restriction WHERE org_id = $1`, org)
+
+	directory := connect(t, testpg.DirectoryURL(dbName))
+	defer directory.Close(ctx)
+	if _, err := directory.Exec(ctx, "SET app.org_id = "+quoteLiteral(org)); err != nil {
+		t.Fatal(err)
+	}
+
+	// Attempt 1: mark 12 members absent (>= threshold of 10) with allow=false.
+	// This must be blocked by the gate and create NO deny.
+	present := []string{"sub_member_0", "sub_member_1", "sub_member_2", seedSubject}
+	var result int
+	// Use snapshot revision 1, matching the revision used when inserting members above.
+	if err := directory.QueryRow(ctx,
+		`SELECT work.mark_members_absent($1, $2, false, 1)`,
+		org, "{"+strings.Join(present, ",")+"}").Scan(&result); err != nil {
+		t.Fatalf("mass-absence gate check failed: %v", err)
+	}
+	if result != -1 {
+		t.Fatalf("mass-absence returned %d, want -1 (blocked by gate)", result)
+	}
+
+	// Verify: no deny created, epoch unchanged.
+	epochAfterBlocked := scalarCount(t, admin,
+		`SELECT access_epoch FROM work.org WHERE id = $1`, org)
+	if epochAfterBlocked != epochBefore {
+		t.Fatalf("epoch changed to %d after blocked mass-absence, want %d",
+			epochAfterBlocked, epochBefore)
+	}
+	denyCountAfterBlocked := scalarCount(t, admin,
+		`SELECT count(*) FROM work.access_restriction WHERE org_id = $1`, org)
+	if denyCountAfterBlocked != denyCountBefore {
+		t.Fatalf("denys created by blocked mass-absence = %d, want %d",
+			denyCountAfterBlocked, denyCountBefore)
+	}
+
+	// Attempt 2: mark 5 members absent (< threshold) with allow=false.
+	// This must succeed and create deny + elevate epoch.
+	present2 := []string{"sub_member_0", "sub_member_1", "sub_member_2",
+		"sub_member_3", "sub_member_4", "sub_member_5", "sub_member_6",
+		"sub_member_7", "sub_member_8", "sub_member_9", seedSubject}
+	if err := directory.QueryRow(ctx,
+		`SELECT work.mark_members_absent($1, $2, false, 1)`,
+		org, "{"+strings.Join(present2, ",")+"}").Scan(&result); err != nil {
+		t.Fatalf("small mass-absence failed: %v", err)
+	}
+	if result != 5 {
+		t.Fatalf("small mass-absence affected %d members, want 5", result)
+	}
+
+	// Verify: 5 denys created (host_member source), epoch elevated by 1.
+	epochAfterSmall := scalarCount(t, admin,
+		`SELECT access_epoch FROM work.org WHERE id = $1`, org)
+	if epochAfterSmall != epochBefore+1 {
+		t.Fatalf("epoch after small mass-absence = %d, want %d",
+			epochAfterSmall, epochBefore+1)
+	}
+	denyCountAfterSmall := scalarCount(t, admin,
+		`SELECT count(*) FROM work.access_restriction WHERE org_id = $1 AND source = 'host_member' AND state = 'active'`,
+		org)
+	if denyCountAfterSmall != 5 {
+		t.Fatalf("active host_member denys after small mass-absence = %d, want 5",
+			denyCountAfterSmall)
+	}
+
+	// Verify: affected members are now 'left' with work_seat=false.
+	for i := 10; i < 15; i++ {
+		subject := fmt.Sprintf("sub_member_%d", i)
+		status := scalarString(t, admin,
+			`SELECT status FROM work.member WHERE org_id = $1 AND subject_id = $2`,
+			org, subject)
+		if status != "left" {
+			t.Fatalf("member %s status = %q, want 'left'", subject, status)
+		}
+		workSeat := scalarCount(t, admin,
+			`SELECT CASE WHEN work_seat THEN 1 ELSE 0 END FROM work.member WHERE org_id = $1 AND subject_id = $2`,
+			org, subject)
+		if workSeat != 0 {
+			t.Fatalf("member %s work_seat = %d, want 0", subject, workSeat)
+		}
+	}
+
+	// Attempt 3: mark remaining 5 members absent (>= threshold) with allow=true.
+	// This must bypass the gate and succeed. After attempt 2, sub_member_10-14 are
+	// already 'left', so only sub_member_5-9 (5 members) can be marked absent.
+	present3 := []string{"sub_member_0", "sub_member_1", "sub_member_2",
+		"sub_member_3", "sub_member_4", seedSubject}
+	if err := directory.QueryRow(ctx,
+		`SELECT work.mark_members_absent($1, $2, true, 1)`,
+		org, "{"+strings.Join(present3, ",")+"}").Scan(&result); err != nil {
+		t.Fatalf("explicit allow mass-absence failed: %v", err)
+	}
+	if result != 5 {
+		t.Fatalf("explicit allow mass-absence affected %d members, want 5", result)
+	}
+
+	// Verify: epoch elevated again, total 10 active denys now (5 from attempt 2 + 5 from attempt 3).
+	epochAfterExplicit := scalarCount(t, admin,
+		`SELECT access_epoch FROM work.org WHERE id = $1`, org)
+	if epochAfterExplicit != epochBefore+2 {
+		t.Fatalf("epoch after explicit allow = %d, want %d",
+			epochAfterExplicit, epochBefore+2)
+	}
+
+	// Restore one member (sub_member_10) by re-syncing as active.
+	// EV86 requires the restore path to be consistent with other host_* denys.
+	if _, err := directory.Exec(ctx,
+		`SELECT work.sync_member_with_org_context($1, $2, $3, $4, $5, $6)`,
+		org, "sub_member_10", "active", "member", true, 5); err != nil {
+		t.Fatalf("restore failed: %v", err)
+	}
+
+	// sync_member_with_org_context only updates the projection; release the deny
+	// via apply_directory_recovery (same two-step as EV85).
+	var restoredDenys int
+	if err := directory.QueryRow(ctx,
+		`SELECT work.apply_directory_recovery($1, $2, $3, $4)`,
+		org, "sub_member_10", 5, "sub_member_10").Scan(&restoredDenys); err != nil {
+		t.Fatalf("restore apply_directory_recovery failed: %v", err)
+	}
+	if restoredDenys != 1 {
+		t.Fatalf("restore released %d denys, want 1", restoredDenys)
+	}
+
+	// Verify: the deny for sub_member_10 is released (state != 'active').
+	releasedDenyCount := scalarCount(t, admin,
+		`SELECT count(*) FROM work.access_restriction WHERE org_id = $1 AND subject_id = 'sub_member_10' AND source = 'host_member' AND state <> 'active'`,
+		org)
+	if releasedDenyCount != 1 {
+		t.Fatalf("released denys for sub_member_10 = %d, want 1", releasedDenyCount)
+	}
+
+	// Verify: member status is back to 'active' with work_seat=true.
+	restoredStatus := scalarString(t, admin,
+		`SELECT status FROM work.member WHERE org_id = $1 AND subject_id = 'sub_member_10'`, org)
+	if restoredStatus != "active" {
+		t.Fatalf("restored member status = %q, want 'active'", restoredStatus)
+	}
+	restoredSeat := scalarCount(t, admin,
+		`SELECT CASE WHEN work_seat THEN 1 ELSE 0 END FROM work.member WHERE org_id = $1 AND subject_id = 'sub_member_10'`,
+		org)
+	if restoredSeat != 1 {
+		t.Fatalf("restored member work_seat = %d, want 1", restoredSeat)
+	}
+}
+
+// TestR0bWorkSeatChangeDenyReleasePredicate is EV108: a work_seat_change deny created
+// by Work's撤座 saga has NULL host_revision (Host hasn't applied yet), and must be
+// released by comparing member_revision > release_floor_revision, NOT by comparing
+// host_revision. The counter-example is critical: if the release predicate compared
+// host_revision, NULL comparison would always be false, and the deny would stay active
+// forever - this is the P1 regression anchor. The test also verifies host_seat deny
+// follows the same path, and non-seat deny is not released together.
+func TestR0bWorkSeatChangeDenyReleasePredicate(t *testing.T) {
+	dbName, admin := newGateDB(t)
+	org := "org_r0b_seat_release"
+	seedRun(t, admin, org)
+	r0bAdmin(t, admin, org)
+	ctx := testContext(t)
+
+	// Create a work_seat_change deny with NULL host_revision (Work撤座 saga step 1).
+	// The release_floor_revision is 0, meaning any member_revision > 0 can release it.
+	r0bExec(t, dbName, org, fmt.Sprintf(`
+		INSERT INTO work.access_restriction
+		  (org_id, scope, subject_id, source, reason, epoch, release_floor_revision)
+		VALUES ('%s', 'member', 'sub_seat_test', 'work_seat_change', 'work_seat_saga_step1', 1, 0);
+	`, org))
+
+	// Verify: host_revision is NULL (the counter-example precondition).
+	hostRevNull := scalarCount(t, admin,
+		`SELECT CASE WHEN host_revision IS NULL THEN 1 ELSE 0 END
+		 FROM work.access_restriction WHERE org_id = $1 AND subject_id = 'sub_seat_test'`, org)
+	if hostRevNull != 1 {
+		t.Fatal("work_seat_change deny must have NULL host_revision")
+	}
+
+	// Create a governance event that grants the seat back (kind=seat, desired=true).
+	// This event has member_revision=5, which is > release_floor_revision=0.
+	puller := connect(t, testpg.GovernanceURL(dbName))
+	defer puller.Close(ctx)
+	if _, err := puller.Exec(ctx, "SET app.org_id = "+quoteLiteral(org)); err != nil {
+		t.Fatal(err)
+	}
+
+	eventSeq1 := governanceEvent(t, 1, newUUID(t), "sub_seat_test", true, 5)
+	stream := fmt.Sprintf(`jsonb_build_array(%s)`, eventSeq1)
+	var result []byte
+	if err := puller.QueryRow(ctx,
+		`SELECT work.consume_governance_events($1, `+stream+`, NULL, 0)`, org).Scan(&result); err != nil {
+		t.Fatalf("consume seat grant event failed: %v", err)
+	}
+
+	// Verify: the deny is released with released_by_revision=5 (matching the event's member_revision).
+	releasedByRev := scalarCount(t, admin,
+		`SELECT released_by_revision FROM work.access_restriction
+		 WHERE org_id = $1 AND subject_id = 'sub_seat_test' AND state = 'released'`, org)
+	if releasedByRev != 5 {
+		t.Fatalf("released_by_revision = %d, want 5 (the event's member_revision)", releasedByRev)
+	}
+
+	// Counter-example assertion: if the release predicate had compared host_revision
+	// instead of release_floor_revision, the deny would still be active because
+	// NULL > anything is always false. We verify the deny IS released, proving the
+	// implementation uses release_floor_revision (the correct predicate).
+	activeCount := scalarCount(t, admin,
+		`SELECT count(*) FROM work.access_restriction
+		 WHERE org_id = $1 AND subject_id = 'sub_seat_test' AND state = 'active'`, org)
+	if activeCount != 0 {
+		t.Fatalf("work_seat_change deny still active = %d, want 0 (should be released by floor comparison)", activeCount)
+	}
+
+	// Now test host_seat deny follows the same path. Create a host_seat deny with
+	// host_revision=3 and release_floor_revision=2.
+	r0bExec(t, dbName, org, fmt.Sprintf(`
+		INSERT INTO work.access_restriction
+		  (org_id, scope, subject_id, source, reason, epoch, host_revision, release_floor_revision)
+		VALUES ('%s', 'member', 'sub_host_seat', 'host_seat', 'seat_dropped', 1, 3, 2);
+	`, org))
+
+	// Consume a seat grant event with member_revision=4 (> release_floor_revision=2).
+	eventSeq2 := governanceEvent(t, 2, newUUID(t), "sub_host_seat", true, 4)
+	stream2 := fmt.Sprintf(`jsonb_build_array(%s)`, eventSeq2)
+	if err := puller.QueryRow(ctx,
+		`SELECT work.consume_governance_events($1, `+stream2+`, NULL, 0)`, org).Scan(&result); err != nil {
+		t.Fatalf("consume host_seat grant event failed: %v", err)
+	}
+
+	// Verify: host_seat deny is released with released_by_revision=4.
+	hostSeatReleased := scalarCount(t, admin,
+		`SELECT released_by_revision FROM work.access_restriction
+		 WHERE org_id = $1 AND subject_id = 'sub_host_seat' AND state = 'released'`, org)
+	if hostSeatReleased != 4 {
+		t.Fatalf("host_seat released_by_revision = %d, want 4", hostSeatReleased)
+	}
+
+	// Verify: non-seat deny (host_member) is NOT released by the seat grant event.
+	// Create a host_member deny with release_floor_revision=10.
+	r0bExec(t, dbName, org, fmt.Sprintf(`
+		INSERT INTO work.access_restriction
+		  (org_id, scope, subject_id, source, reason, epoch, host_revision, release_floor_revision)
+		VALUES ('%s', 'member', 'sub_host_member', 'host_member', 'member_suspended', 1, 5, 10);
+	`, org))
+
+	// Consume a seat grant event with member_revision=6 (< release_floor_revision=10).
+	eventSeq3 := governanceEvent(t, 3, newUUID(t), "sub_host_member", true, 6)
+	stream3 := fmt.Sprintf(`jsonb_build_array(%s)`, eventSeq3)
+	if err := puller.QueryRow(ctx,
+		`SELECT work.consume_governance_events($1, `+stream3+`, NULL, 0)`, org).Scan(&result); err != nil {
+		t.Fatalf("consume host_member event failed: %v", err)
+	}
+
+	// Verify: host_member deny is still active (member_revision=6 < release_floor_revision=10).
+	hostMemberActive := scalarCount(t, admin,
+		`SELECT count(*) FROM work.access_restriction
+		 WHERE org_id = $1 AND subject_id = 'sub_host_member' AND source = 'host_member' AND state = 'active'`, org)
+	if hostMemberActive != 1 {
+		t.Fatalf("host_member deny active count = %d, want 1 (should NOT be released by seat event)", hostMemberActive)
+	}
+}

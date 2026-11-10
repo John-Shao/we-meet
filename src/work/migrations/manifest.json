@@ -211,9 +211,9 @@
       "name": "0019_r0b_deny_lifecycle",
       "kind": "increment",
       "file": "increments/0019_r0b_deny_lifecycle.sql",
-      "checksum": "sha256:5ac1688c3aa33bfffded7cafe9672b68e1de2ea809143a8997ad3e6811eac46b",
+      "checksum": "sha256:775565078d7ff76faee67df47f23827ece8021df54a9a9e339997b7b50186a91",
       "catalog": "catalogs/0019_r0b_deny_lifecycle.json",
-      "catalog_checksum": "sha256:4c457f41de47cb0d0e7344b532e03df776abf10b724c748cd464a66f7261c468",
+      "catalog_checksum": "sha256:17532c83a37685e74c5da11d0dd5caa46bf8521a173c480aeeb3119708a90670",
       "transactional": true,
       "executable": true
     },
@@ -224,7 +224,7 @@
       "file": "increments/0020_r0b_local_execution_policy.sql",
       "checksum": "sha256:6998f71613afdf11b1e033c1c52d76a2ccbaaacabaf066ab00685702e1298ecd",
       "catalog": "catalogs/0020_r0b_local_execution_policy.json",
-      "catalog_checksum": "sha256:e0a062acbd4538afddb1e23ce3f8653a010efb2001e7748f07c7487b0f575d37",
+      "catalog_checksum": "sha256:6c64a64feffd97c75a154af838165bf460da6c89ba022156b9825ef5e2ce4e3d",
       "transactional": true,
       "executable": true
     },
@@ -235,7 +235,7 @@
       "file": "increments/0021_r0b_operation_resolution.sql",
       "checksum": "sha256:b1055a9a56f55f92a5ca6fcfddaf42596ed33fcd44c685d4b23f88ca8dcc9faf",
       "catalog": "catalogs/0021_r0b_operation_resolution.json",
-      "catalog_checksum": "sha256:45a751c8d4a3334c9233d3907f72f7a3c5ac0f5479848696e5d6ab8580613785",
+      "catalog_checksum": "sha256:345913ca4341e8a1682c5185002d0643735df1cce4298c2465e7f75e7b09a0bf",
       "transactional": true,
       "executable": true
     },
@@ -246,7 +246,7 @@
       "file": "increments/0022_org_execution_reason_split.sql",
       "checksum": "sha256:c71961553d9977f3b39d86eba84e3b7849de35519003632994086316516d0929",
       "catalog": "catalogs/0022_org_execution_reason_split.json",
-      "catalog_checksum": "sha256:cac066646b0256cf7c3ac65d7a7ed5210251ba8074a8c594fe7c5f831ac930c7",
+      "catalog_checksum": "sha256:572429a4c28aaac75909ba39edd1632400731d738b31317252c5017a826c96b4",
       "transactional": true,
       "executable": true
     },
@@ -255,9 +255,9 @@
       "name": "0023_operator_entitlement_and_intents",
       "kind": "increment",
       "file": "increments/0023_operator_entitlement_and_intents.sql",
-      "checksum": "sha256:223f8bd866e7faddcd055ec69b18a393337858d623e42d70358f128fc6a9aee8",
+      "checksum": "sha256:25a39ebaec9f9333cd187931241c84253efc3330b31285984dd5cb8e5aff3a3f",
       "catalog": "catalogs/0023_operator_entitlement_and_intents.json",
-      "catalog_checksum": "sha256:4f6228ae8fe7c290f88fa5ac0b5ad6027f8fff7953bbd72b2200560033cc4b9f",
+      "catalog_checksum": "sha256:50b4310571740d9826c4fe323bd09ce5e057349ef2deed898176b5cb7a422ed6",
       "transactional": true,
       "executable": true
     },
@@ -268,7 +268,7 @@
       "file": "increments/0024_provider_probe_grant.sql",
       "checksum": "sha256:ea67a4de0d9f0b7abcd7339e3345389dfe1654de536758d888d39250429958d6",
       "catalog": "catalogs/0024_provider_probe_grant.json",
-      "catalog_checksum": "sha256:c237ed986a0c83c92db76c929e35f7a7104220d79eb29d38474e7a21acda22c7",
+      "catalog_checksum": "sha256:041f89fcf99a0fee14dae3f3d408fbb00dfffeed2e473a3addce70380d8a66d0",
       "transactional": true,
       "executable": true
     },
@@ -279,7 +279,7 @@
       "file": "increments/0025_provider_config_conflict_detail.sql",
       "checksum": "sha256:96dae5ccc008e1a8780b7677a4be9e3b73b44a6384d68e15b08ef52f890caa36",
       "catalog": "catalogs/0025_provider_config_conflict_detail.json",
-      "catalog_checksum": "sha256:00f4bfc8b193fe76d471623f5a5bd0c97be277f4f447840df3e7323d26294ac0",
+      "catalog_checksum": "sha256:a32bea57c71d5a0230745193c1107e1b0f6fd97cddb5fece7740238f3816c06e",
       "transactional": true,
       "executable": true
     },
@@ -290,7 +290,7 @@
       "file": "increments/0026_audit_export_org_gate.sql",
       "checksum": "sha256:b53ef4051d8ba5e2ee5e0acf1053965c24c372febc6f4808fda1a0298ecc446c",
       "catalog": "catalogs/0026_audit_export_org_gate.json",
-      "catalog_checksum": "sha256:cde01f8e5c3c92dc86745b8db89597cbfefb0da41672249d789284824267019e",
+      "catalog_checksum": "sha256:587032d8cc4c8b8a6bbda0b828c4db635bf4cfe1d57141921e81229045ffce4f",
       "transactional": true,
       "executable": true
     },
@@ -301,7 +301,7 @@
       "file": "increments/0027_governance_receipt_payload_binding.sql",
       "checksum": "sha256:2dc841c7a5bb74ec2a2c35f2952a1feec11cb21d63fcea998f9e70b48235a343",
       "catalog": "catalogs/0027_governance_receipt_payload_binding.json",
-      "catalog_checksum": "sha256:6823f8939273f56fb36b9fc69953741d7f4f20b97c20888590804320f0b683eb",
+      "catalog_checksum": "sha256:3618fb9f527b8d2b3c2d412fc27cc88bd9d73e6d1b2fdef064cdeac9d769ad32",
       "transactional": true,
       "executable": true
     },
@@ -312,7 +312,7 @@
       "file": "increments/0028_runtime_execution_lease_takeover.sql",
       "checksum": "sha256:064af521db0c5c3afd11f17d56527fa4e1251da6199f2f813077e4c7a19b4b06",
       "catalog": "catalogs/0028_runtime_execution_lease_takeover.json",
-      "catalog_checksum": "sha256:88c22ac3d417c2f8420e30935f4a14139d8c4b57ea1512f64e833767feb1301a",
+      "catalog_checksum": "sha256:621c1f7e337fece9a2540ea3292ac46be321616bc8c338320d4d2edabcb973bf",
       "transactional": true,
       "executable": true
     },
@@ -323,7 +323,7 @@
       "file": "increments/0029_terminal_reservation_release.sql",
       "checksum": "sha256:dc06a34077922481448a38846d6021f90d599ebd35fd7b9b6632f8a42d0475a2",
       "catalog": "catalogs/0029_terminal_reservation_release.json",
-      "catalog_checksum": "sha256:ef257ecd5b2c1b86439ae239822225e23f79a9ff60d423778940891888080f08",
+      "catalog_checksum": "sha256:91c1dbd2c39d2c0f6a37da9fbf3315994e1cf7e27503aaffaf09cfc249c83bd0",
       "transactional": true,
       "executable": true
     },
@@ -334,7 +334,7 @@
       "file": "increments/0030_durable_receipt_head_commit.sql",
       "checksum": "sha256:adca7caf34852efd62125c88bf802dd07924f8f5432996a3e9f9902401cfaa37",
       "catalog": "catalogs/0030_durable_receipt_head_commit.json",
-      "catalog_checksum": "sha256:222161b8260e9b9ef9fd06a4b990342f0d3d381f72ae8f823ac673b32582fa70",
+      "catalog_checksum": "sha256:cb6f2639deebd28cd3ebf7ac6e70c4ac0d0f73a9e589ad513ca74155104283d5",
       "transactional": true,
       "executable": true
     },
@@ -345,7 +345,7 @@
       "file": "increments/0031_audit_export_stale_lease_discovery.sql",
       "checksum": "sha256:750722e414d570ff7cc56e0cc1c233ecb301c7d03e6d6846b6667793b53f3a33",
       "catalog": "catalogs/0031_audit_export_stale_lease_discovery.json",
-      "catalog_checksum": "sha256:356afe36aac7770518c8ef3bc34032560319af74e7483651d9491ec0a65d2038",
+      "catalog_checksum": "sha256:5b8bbaed5e341f8e56a2e8e33ef17d1c6f5adcf74170163929686789b4088558",
       "transactional": true,
       "executable": true
     },
@@ -356,7 +356,7 @@
       "file": "increments/0032_content_ref_reads_for_orphan_report.sql",
       "checksum": "sha256:b0a93a6944f84702af395da0440d962c2c6f71f635dabd93b0a4a8d9e935beef",
       "catalog": "catalogs/0032_content_ref_reads_for_orphan_report.json",
-      "catalog_checksum": "sha256:fb4ab2947a4781caca488019683d4d5978fb7deb720e0db822c4b3ba1fb16a91",
+      "catalog_checksum": "sha256:28b58ec2c24f67ade565c3afc551baee7140438b21a75e4c0b5048e6668badd7",
       "transactional": true,
       "executable": true
     },
@@ -367,7 +367,7 @@
       "file": "increments/0033_list_content_refs_full_ref_coverage.sql",
       "checksum": "sha256:88c4e73615b938b587fc3942a6b2dcd4d1d706f1a63a6b7dfc20a7ef68654119",
       "catalog": "catalogs/0033_list_content_refs_full_ref_coverage.json",
-      "catalog_checksum": "sha256:d45c61e1fd9c6c6661901d723428178c948cfa80fbbc98441fbc2c50ba0fa260",
+      "catalog_checksum": "sha256:c98810b4895a0d254d42dc8932779c69c3e9e8694b2863dac761bd10a8988326",
       "transactional": true,
       "executable": true
     },
@@ -378,7 +378,7 @@
       "file": "increments/0034_restore_function_security_definer.sql",
       "checksum": "sha256:def99d6de02cb23a6cca345f5bce369ff98b87993a1302f3f06de01eccb65002",
       "catalog": "catalogs/0034_restore_function_security_definer.json",
-      "catalog_checksum": "sha256:3ce81900afa82ff992ac28adef48e7d9d6d59898cb29a325d18fe949ec3583ec",
+      "catalog_checksum": "sha256:900f673d8db4316f983ebad754f324585dcd3b4a3a189d461669af5ad6238df0",
       "transactional": true,
       "executable": true
     },
@@ -389,7 +389,7 @@
       "file": "increments/0035_release_restriction_single_writer.sql",
       "checksum": "sha256:583418ce1d53db27edde8ae08610a3f91461c8a315d04706df2cdbcb4867d902",
       "catalog": "catalogs/0035_release_restriction_single_writer.json",
-      "catalog_checksum": "sha256:cbcf8fe794b4f489fbb000bfcbb8a7c5e9bdbebf268768d258c52fb31dda49b7",
+      "catalog_checksum": "sha256:76347b7eaaf4d92d5a27d43183315e194b07b957107e337ec37236f7b126fecf",
       "transactional": true,
       "executable": true
     },
@@ -400,7 +400,7 @@
       "file": "increments/0036_audit_export_content_prefetch.sql",
       "checksum": "sha256:4f9a85f3ebbb0376f1ecd00b1eb75cba31fde66109b7e04050dda8df8c2f9a16",
       "catalog": "catalogs/0036_audit_export_content_prefetch.json",
-      "catalog_checksum": "sha256:bf79f260276d2d13bc703e01cd75e439adbae094780a74bf205cc290db6ebcc4",
+      "catalog_checksum": "sha256:0bc766203432e216aa7c21669fdb6a4aef10f5527599e5f5a8229831cbc40df2",
       "transactional": true,
       "executable": true
     }
