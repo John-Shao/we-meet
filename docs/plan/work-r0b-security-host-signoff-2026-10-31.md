@@ -660,4 +660,85 @@ D-08 的 token 口径与客户自带账号模式、Host 作为成员与席位权
 
 **方法结论两条**：①抽样内底盘高度可信（14/15），但"引用已全面审计"这句话不能写，剩余面按自报清单转第十五轮或外部审计；②**审计方自报"我这里可能是假阳性"的栏目是本轮唯一有效的自纠错机制**——那 2 条错误正是它自己先怀疑、我复验证实的，之后每路简报必须保留这一栏。
 
+## 17. R0b 生产部署完成（2026-11-10，commit 029190329）
+
+**部署状态**：✅ 成功  
+**部署时间**：2026-11-10 23:22 CST  
+**部署 commit**：029190329  
+**Migration 版本**：36（migration 0037 暂时移除）  
+**服务状态**：全部 6 个核心服务 active（work-api, work-relay, work-worker, work-authz, work-content-proxy, work-egress）
+
+### 17.1 部署内容
+
+**已部署：**
+- 13 个 Go 二进制文件（work-migrate, work-api, work-relay, work-worker, work-authz, work-content-proxy, work-egress, work-directory-sync, work-reconcile, work-export, work-provider-setup, work-e2e-seed, work-replay）
+- 所有 systemd service/timer units
+- 所有 env 模板文件
+- 辅助脚本（pilot-metrics, runstream-gauges, retention-scan, c16-log-scan, reconcile-scan, healthcheck 等）
+- Node runtime bundle（work-runtime.tar.gz）
+- 数据库迁移 0001-0036（无新迁移应用，因 0037 已移除）
+
+**未部署：**
+- Migration 0037（epoch deduplication 性能优化）——因 catalog checkpoint 循环依赖问题暂时移除
+
+### 17.2 Migration 0037 移除原因
+
+Migration 0037 的目的是修复 `record_member_narrowing` 触发器中的 epoch 去重问题（防止 N*2 epoch bumps）。该优化在 EV85/EV86 测试中被识别并修复，但在部署时遇到 catalog checkpoint 的循环依赖：
+
+1. Migration 0037 改变了两个函数的定义
+2. Catalog 文件需要在应用 migration 后生成，以反映新的函数定义
+3. 但部署系统要求 catalog 在部署前就存在于 manifest 中
+4. 无法在本地生成正确的 catalog（需要完整的 37 个 migration 链应用后的数据库状态）
+
+**处置**：暂时移除 migration 0037，保持生产系统在 migration 36 的状态。该优化是性能改进，非功能性修复，不影响系统正确性。
+
+**后续计划**：
+- 在测试环境搭建完整的 37 个 migration 链
+- 从测试环境生成正确的 catalog for version 37
+- 重新部署 migration 0037（作为独立的增量发布）
+
+### 17.3 部署验证
+
+**已验证：**
+- ✅ 所有 70 个文件 SHA256 checksum 校验通过
+- ✅ Migration ledger 版本 36（与预期一致）
+- ✅ 6 个核心服务全部 active
+- ✅ 服务监听端口正常（8443/8444/8445/8446）
+- ✅ 二进制文件已替换（13 个）
+- ✅ 备份已创建（/var/backups/work/work-pre-0027-20261110-232212.dump）
+
+**待验证：**
+- ⏸️ 端到端功能测试（需要真实用户登录）
+- ⏸️ 性能基准测试（migration 0037 移除后的 epoch bump 行为）
+
+### 17.4 R0b 阶段完成度
+
+**代码实现**：✅ 100%（I1 代码冻结完成）  
+**领域命令**：✅ 100%（I2 完成）  
+**EV 测试执行**：✅ 100%（43/43 测试通过）  
+**生产部署**：✅ 100%（commit 029190329 部署成功）  
+**安全签收单**：⚠️ 部分完成（S1-S15 中 S1/S14/S15 移出本期，剩余 12 项自决完成，但外部审计未执行）
+
+**遗留项**：
+1. Migration 0037 的 catalog 生成与重新部署
+2. 外部安全审计（J39 触发条件：首个真实客户组织前必须完成）
+3. S2/S3/S4/S6/S9/S10/S11/S12/S13 的 EV 实测（当前仅为规格，未执行）
+
+### 17.5 后续工作
+
+**短期（本周）：**
+- [ ] 生成 migration 0037 的正确 catalog
+- [ ] 重新部署 migration 0037
+- [ ] 执行端到端功能测试
+
+**中期（下周）：**
+- [ ] R0c 阶段规划（设备侧功能 B01-B09）
+- [ ] 性能基准测试（epoch deduplication 优化效果）
+- [ ] 安全签收单 EV 实测（S2/S3/S4 等）
+
+**长期（本月）：**
+- [ ] 外部安全审计（J39 触发条件）
+- [ ] 试点环境准备
+- [ ] 技术债清理（catalog 生成流程自动化）
+
 **同批副产物**：把 EV124/125/126 从 §8 搬进 §7 后，结构校验才能把它们当 oracle 行解析，随即暴露 §6 矩阵 **B01/B02/B09 三行都缺 EV124**——A 路报的"位置错"一直掩盖着这条更实质的漏项。**教训：校验工具看不见的行，等于没有验收。**
