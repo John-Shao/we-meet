@@ -70,7 +70,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (32, '0032_content_ref_reads_for_orphan_report'),
   (33, '0033_list_content_refs_full_ref_coverage'),
   (34, '0034_restore_function_security_definer'),
-  (35, '0035_release_restriction_single_writer')) expected(version, name)
+  (35, '0035_release_restriction_single_writer'),
+  (36, '0036_audit_export_content_prefetch')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # Same reason as the 0028 probe below: a ledger row only proves a file ran. 0029 is the
@@ -388,6 +389,31 @@ echo "== leftover rollout artifacts =="
 psql_ro "select coalesce((select 'role work_rollout_r0a present'
  from pg_roles where rolname = 'work_rollout_r0a'), 'temporary role absent')"
 ls -1 /usr/local/bin/*.bak-* 2>/dev/null | tail -12 | sed 's/^/backup: /' || true
+
+echo
+echo "== 0036 audit_export_content_prefetch =="
+# 0036 added work.prefetch_audit_export_content as a SECURITY DEFINER function so the download
+# handler can read content_ref without burning the one-time ticket. The work_api role has no
+# direct SELECT on work.audit_export (baseline 0002:5186), so this function is the only path.
+psql_ro "select 'prefetch_function_exists=' || case when exists (
+  select 1 from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work' and p.proname = 'prefetch_audit_export_content'
+) then 'true' else 'FALSE' end"
+psql_ro "select 'prefetch_is_security_definer=' || p.prosecdef::text
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work' and p.proname = 'prefetch_audit_export_content'"
+psql_ro "select 'prefetch_pins_search_path=' || case when coalesce(
+  (select bool_or(cfg::text like '%search_path%') from unnest(p.proconfig) as cfg),
+  false) then 'true' else 'FALSE' end
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work' and p.proname = 'prefetch_audit_export_content'"
+psql_ro "select 'work_api_can_execute_prefetch=' || has_function_privilege(
+  'work_api', 'work.prefetch_audit_export_content(text, text, text)', 'EXECUTE')::text"
+psql_ro "select 'work_api_cannot_select_audit_export=' || case when has_table_privilege(
+  'work_api', 'work.audit_export'::regclass, 'SELECT') then 'FALSE' else 'true' end"
 
 echo
 if [[ "$FAILURES" -ne 0 ]]; then
