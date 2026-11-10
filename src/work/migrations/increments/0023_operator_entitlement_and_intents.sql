@@ -185,32 +185,16 @@ DECLARE
   v_source text;
   v_open_change boolean;
   v_intents bigint;
-  v_epoch_already_bumped boolean;
 BEGIN
   IF OLD.status = NEW.status AND OLD.work_seat = NEW.work_seat THEN
     RETURN NULL;
   END IF;
   PERFORM set_config('app.org_id', NEW.org_id, true);
 
-  -- Check if the epoch has already been bumped for this mass-absence event.
-  -- This prevents N*2 epoch bumps when mark_members_absent updates N members.
-  v_epoch_already_bumped := COALESCE(
-    NULLIF(current_setting('work.epoch_bumped_for_mass_absence', true), ''), 'false'
-  ) = 'true';
-
-  -- If we haven't bumped the epoch yet in this event, do it now and set the flag
-  -- immediately so subsequent branches/members don't bump it again.
-  IF NOT v_epoch_already_bumped THEN
-    UPDATE work.org SET access_epoch = access_epoch + 1, updated_at = now()
-    WHERE id = NEW.org_id RETURNING access_epoch INTO v_epoch;
-    PERFORM set_config('work.epoch_bumped_for_mass_absence', 'true', true);
-    v_epoch_already_bumped := true;
-  ELSE
-    SELECT access_epoch INTO v_epoch FROM work.org WHERE id = NEW.org_id;
-  END IF;
-
   IF OLD.status = 'active' AND NEW.status IN ('suspended', 'left') THEN
     v_restriction_id := gen_random_uuid();
+    UPDATE work.org SET access_epoch = access_epoch + 1, updated_at = now()
+    WHERE id = NEW.org_id RETURNING access_epoch INTO v_epoch;
     INSERT INTO work.access_restriction
       (id, org_id, scope, subject_id, source, reason, epoch, host_revision,
        release_floor_revision)
@@ -241,6 +225,8 @@ BEGIN
     ) INTO v_open_change;
     v_source := CASE WHEN v_open_change THEN 'work_seat_change' ELSE 'host_seat' END;
     v_restriction_id := gen_random_uuid();
+    UPDATE work.org SET access_epoch = access_epoch + 1, updated_at = now()
+    WHERE id = NEW.org_id RETURNING access_epoch INTO v_epoch;
     INSERT INTO work.access_restriction
       (id, org_id, scope, subject_id, source, reason, epoch, host_revision,
        release_floor_revision)
