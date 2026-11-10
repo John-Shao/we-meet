@@ -450,15 +450,16 @@
       "category": "product",
       "title": "Pilot support escalation and data-deletion procedure",
       "owner": "product + support + legal",
-      "status": "partial",
+      "status": "done",
       "blocking": true,
       "gate": "pilot",
       "evidence": [
         "work-r0a-pilot-operations-runbook-2026-10-26.md §2-4",
         "D1 delete_task/ops_delete_task smoke, now asserted: internal/api/ops_delete_pg_test.go runs the duty delete as work_ops and pins the tombstone, the redacted title, the revision bump, the input going deleted, exactly one content_shred hand-off carrying only that task's own reference, the ticket-bearing audit row, the repeat-call no-op, plus 6 refusal cases and the work_api grant boundary (2026-11-02)",
-        "drill-2026-11-15/verdict.json D5-0..D5-11（2026-11-08 已执行，11 pass + 1 na；证据 attachments/d5-c27-c30-deletion-transfer-20261108.txt）"
+        "drill-2026-11-15/verdict.json D5-0..D5-11（2026-11-08 已执行，11 pass + 1 na；证据 attachments/d5-c27-c30-deletion-transfer-20261108.txt）",
+        "2026-11-09 John 选 A：翻 done。support contacts＝C24 内部试点（John 兼运营）；deletion＝D5 11 pass+1 na＋ops_delete_pg_test.go；legal/DPA＝11-08 B 延到 DR3 12-01。回退条件：DR3 12-01 前 legal/DPA 书面签未补则回退 partial。"
       ],
-      "note": "Support tiers and deletion procedure drafted; contacts, legal/DPA sign-off pending. D5 drill executed 2026-11-08: ownership transfer (Task A 49a888a0… from 535bbd27… to 0c80fe6a…, required seat allocation first), ops deletion of Task A (2 exclusive content hashes shredded), direct ops deletion of Task B (2 more hashes shredded), relay delivery ~430ms, disk 1352→1348 (-4 .enc files), idempotency confirmed (return 0), role gate confirmed (work_api denied). Remaining: support contacts list and legal/DPA sign-off. 【2026-11-08 John 选 B：删除流程已演练通过（D5 11 pass + 1 na）作临时接受，legal/DPA 补签放宽到 DR3。R0a 试点可启动，legal 书面签在 DR3 前补齐。】"
+      "note": "Support tiers and deletion procedure drafted; contacts, legal/DPA sign-off pending. D5 drill executed 2026-11-08: ownership transfer (Task A 49a888a0… from 535bbd27… to 0c80fe6a…, required seat allocation first), ops deletion of Task A (2 exclusive content hashes shredded), direct ops deletion of Task B (2 more hashes shredded), relay delivery ~430ms, disk 1352→1348 (-4 .enc files), idempotency confirmed (return 0), role gate confirmed (work_api denied). Remaining: support contacts list and legal/DPA sign-off. 【2026-11-08 John 选 B：删除流程已演练通过（D5 11 pass + 1 na）作临时接受，legal/DPA 补签放宽到 DR3。R0a 试点可启动，legal 书面签在 DR3 前补齐。】 【2026-11-09 John 选 A：翻 done＋DR3 回退条件。support contacts 由 C24 内部试点裁定闭合（John＝唯一 support contact）；deletion 由 D5＋pg_test 闭合；legal/DPA 按 11-08 B 延到 DR3 12-01，届时未补书面签则回退 partial。pilotBlockerCount 2→1（本项），C30 同批翻后→0，go=true。】"
     },
     {
       "id": "C28",
@@ -502,7 +503,7 @@
       "category": "migration",
       "title": "Data deletion and ownership-transfer runbook",
       "owner": "ops + legal",
-      "status": "partial",
+      "status": "done",
       "blocking": true,
       "gate": "pilot",
       "evidence": [
@@ -510,9 +511,10 @@
         "D1 transfer_task_ownership/ops_delete_task (work_ops, ticket audit) smoke, now asserted: internal/api/transfer_ownership_pg_test.go proves the hand-over copies no grants by reading both projections (the former owner's list loses the task and its detail answers 404 task_not_found, the new owner's list gains it), pins the owner_changed event's fields=[\"owner\"], the from/to/ticket audit row, the idempotent re-run, 8 refusals including viewer / no seat / suspended / unknown subject and the deleted-task order, and the work_api grant boundary; internal/api/quota_adjust_pg_test.go additionally pins the ledger's append-only corrections and revision monotonicity (2026-11-02)",
         "2026-11-05: work-db-restore-drill.py ships with the release (byte-identical to the host copy) and the operator-facing write authorisation sheet work-r0a-pilot-write-authorization-2026-11-05.md lists the key-rotation steps that must be run before D3-b can be re-judged.",
         "删除链的现网一半已补 2026-11-05: 到期清扫第一次在试点机被真正调用（此前从未有单元调度，欠账堆到 2 条、超期 4 天），relay 投递与内容对象消失都有逐 id 读数；可回性＝盘上不可逆、12:47 那次加密备份可回（key content/2026-11-05/20261105T044700Z-92433c9c31f5.tar.gz.age）。清扫的调度形态仍是待裁项（授权单 §10 的 D4＝A 手工＋巡检读数／B systemd timer／C 归 R0b），未裁之前 C30 不翻 done",
-        "drill-2026-11-15/verdict.json D5-0..D5-11（2026-11-08 已执行，11 pass + 1 na；证据 attachments/d5-c27-c30-deletion-transfer-20261108.txt）"
+        "drill-2026-11-15/verdict.json D5-0..D5-11（2026-11-08 已执行，11 pass + 1 na；证据 attachments/d5-c27-c30-deletion-transfer-20261108.txt）",
+        "2026-11-09 John 选 A：翻 done。技术面全闭（D5 11 pass+1 na、transfer_ownership_pg_test.go、retention timer B hourly 11-05 装好、work-db-restore-drill.py 随发布件）；legal/DPA＝11-08 B 延到 DR3 12-01。回退条件：DR3 12-01 前 legal/DPA 书面签未补则回退 partial。"
       ],
-      "note": "Procedure and commands exist; ops/legal sign-off pending. D5 drill executed 2026-11-08: full deletion chain verified end-to-end on production (task tombstone → content_shred outbox → relay delivery → disk deletion), ownership transfer with RLS isolation confirmed, idempotency and role gate both pass. Retention sweep scheduling adjudicated as B (hourly timer, installed 2026-11-05). Remaining: legal/DPA sign-off. 【2026-11-08 John 选 B：所有权移交流程已演练通过（D5 11 pass + 1 na）作临时接受，legal/DPA 补签放宽到 DR3。R0a 试点可启动，legal 书面签在 DR3 前补齐。】"
+      "note": "Procedure and commands exist; ops/legal sign-off pending. D5 drill executed 2026-11-08: full deletion chain verified end-to-end on production (task tombstone → content_shred outbox → relay delivery → disk deletion), ownership transfer with RLS isolation confirmed, idempotency and role gate both pass. Retention sweep scheduling adjudicated as B (hourly timer, installed 2026-11-05). Remaining: legal/DPA sign-off. 【2026-11-08 John 选 B：所有权移交流程已演练通过（D5 11 pass + 1 na）作临时接受，legal/DPA 补签放宽到 DR3。R0a 试点可启动，legal 书面签在 DR3 前补齐。】 【2026-11-09 John 选 A：翻 done＋DR3 回退条件。技术面全闭；legal/DPA 按 11-08 B 延到 DR3 12-01，届时未补书面签则回退 partial。pilotBlockerCount→0，go=true。】"
     },
     {
       "id": "C31",

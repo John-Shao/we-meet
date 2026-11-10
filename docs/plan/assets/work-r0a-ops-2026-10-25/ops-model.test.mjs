@@ -37,12 +37,11 @@ test('SLO assets define required metrics and do not claim unmeasured results', (
   assert.ok(validateSlo(missing).some((issue) => issue.includes('missing required SLO metric')));
 });
 
-test('pilot checklist is valid and currently blocked', () => {
+test('pilot checklist is valid and currently green', () => {
   assert.deepEqual(validateChecklist(checklist), []);
   const result = goNoGo(checklist);
-  assert.equal(result.go, false);
-  assert.ok(result.blockerCount > 0);
-  assert.ok(result.blockers.every((item) => item.owner));
+  assert.equal(result.go, true);
+  assert.equal(result.blockerCount, 0);
 });
 
 test('blocking items split into a start gate and a pilot gate', () => {
@@ -82,10 +81,11 @@ test('blocking items split into a start gate and a pilot gate', () => {
   // → 真 awaiting_acceptance → 真采纳，三个不同 seated 提交者 03a7c56e／45a1a4ca／d662bc9c）＋
   // 窗口重锚到 2026-11-08T00:00:00Z 的 pilot-metrics.sql 只读重跑（psql exit 0，4 条 go_gate 全绿）
   // 关闭 ⇒ pilot blockers 3 -> 2，剩余开放集仅 C27／C30。
-  assert.equal(result.pilotBlockerCount, 2);
+  // 2026-11-09 续二：C27/C30 由主签单选 A 翻 done（DR3 12-01 回退条件），pilot blockers 2 -> 0，go=true。
+  assert.equal(result.pilotBlockerCount, 0);
   assert.deepEqual(
     result.pilotBlockers.map((item) => item.id).sort(),
-    ['C27', 'C30'],
+    [],
   );
   assert.ok(!result.pilotBlockers.some((item) => item.id === 'C03'));
   assert.ok(!result.pilotBlockers.some((item) => item.id === 'C16'));
@@ -100,17 +100,23 @@ test('blocking items split into a start gate and a pilot gate', () => {
   assert.equal(checklist.items.find((item) => item.id === 'C28').status, 'done');
   assert.ok(!result.pilotBlockers.some((item) => item.id === 'C26'), 'C26 closed by the 2026-11-09 §7 M2 seeding + pilot-metrics.sql re-run (4 go_gate green in the 11-08 window)');
   assert.equal(checklist.items.find((item) => item.id === 'C26').status, 'done');
+  assert.ok(!result.pilotBlockers.some((item) => item.id === 'C27'), 'C27 closed by D5 drill + C24 internal pilot + 11-08 B legal deferral to DR3');
+  assert.equal(checklist.items.find((item) => item.id === 'C27').status, 'done');
+  assert.ok(!result.pilotBlockers.some((item) => item.id === 'C30'), 'C30 closed by D5 drill + retention timer + 11-08 B legal deferral to DR3');
+  assert.equal(checklist.items.find((item) => item.id === 'C30').status, 'done');
   assert.equal(result.scaleBlockerCount, 0);
-  // 2026-11-09: start gate is clear (C04 + C25 both closed), so canStartWork is now true;
-  // go/no-go stays false because pilot blockers remain.
+  // 2026-11-09 续二: all gates clear — start (C04+C25), pilot (C27+C30 closed with DR3 condition), scale.
+  // go/no-go is now true; canStartWork remains true.
   assert.equal(result.canStartWork, true);
   assert.equal(result.blockerCount, result.startBlockerCount + result.pilotBlockerCount + result.scaleBlockerCount);
 
-  // 关掉开工闸门只允许开工，不等于可以试点：2 个试点证据项（C27/C30）仍必须由实施产生。
+  // 2026-11-09 续二：全闸清零（C27/C30 翻 done＋DR3 回退条件），go=true。
   // （2026-11-08 由 10 改 7：C03/C16/C17/C22 经主签逐条签字关闭。
   //  2026-11-09 由 7 改 3：C28 关闭（引用 D4-a 端到端 cutover 计时），上面 pilotBlockerCount 同一事实。
   //  2026-11-09 续 由 3 改 2：C26 关闭（§7 M2 播种三个真 seated 提交者 + 窗口重锚到 11-08 的
-  //  pilot-metrics.sql 只读重跑，四条 go_gate 全绿；见 C26 evidence 末条与 work-r0a-c26-metrics-collection-2026-11-09.md）。）
+  //  pilot-metrics.sql 只读重跑，四条 go_gate 全绿；见 C26 evidence 末条与 work-r0a-c26-metrics-collection-2026-11-09.md）。
+  //  2026-11-09 续二 由 2 改 0：C27/C30 关闭（D5 演练＋C24 内部试点＋11-08 B legal 延到 DR3 12-01，
+  //  回退条件：DR3 前未补 legal/DPA 书面签则回退 partial）。）
   const started = structuredClone(checklist);
   for (const item of started.items) {
     if (item.gate === 'start' && item.blocking) {
@@ -120,8 +126,8 @@ test('blocking items split into a start gate and a pilot gate', () => {
   }
   const afterStart = goNoGo(started);
   assert.equal(afterStart.canStartWork, true);
-  assert.equal(afterStart.go, false);
-  assert.equal(afterStart.pilotBlockerCount, 2);
+  assert.equal(afterStart.go, true);
+  assert.equal(afterStart.pilotBlockerCount, 0);
 });
 
 test('checklist rejects a missing or unknown gate', () => {

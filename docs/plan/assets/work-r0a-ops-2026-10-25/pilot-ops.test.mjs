@@ -100,11 +100,11 @@ test('pilot metrics compute from content-free events', () => {
 test('cutover plan is consistent with the checklist and forbids dual-write', () => {
   assert.deepEqual(validateCutover(pilot.cutover, pilot.checklist), []);
   const gate = canTransition(pilot.cutover, pilot.checklist, 'off', 'pilot_on');
-  assert.equal(gate.allowed, false);
-  // 2026-11-09 reconciliation: C24 (pilot org recruitment) is now `done`, so it no longer
-  // blocks the enable transition; the gate is blocked only on the two `partial` legal /
-  // support items C27/C30. Order follows cutover-plan.json's requires_checklist.
-  assert.deepEqual(gate.missing, ['C27', 'C30']);
+  assert.equal(gate.allowed, true);
+  // 2026-11-09 续二: C27/C30 flipped done (DR3 12-01 回退条件), so the enable transition
+  // is no longer blocked. gate.missing is empty; the mutation test below still works because
+  // validateCutover checks blocking+category regardless of status.
+  assert.deepEqual(gate.missing, []);
   assert.equal(canTransition(pilot.cutover, pilot.checklist, 'pilot_on', 'rolled_back').allowed, true);
   assert.equal(canTransition(pilot.cutover, pilot.checklist, 'off', 'rolled_back').allowed, false);
 
