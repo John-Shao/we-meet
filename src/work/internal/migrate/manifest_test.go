@@ -48,6 +48,7 @@ var publishedIncrements = []string{
 	"0033_list_content_refs_full_ref_coverage",
 	"0034_restore_function_security_definer",
 	"0035_release_restriction_single_writer",
+	"0036_audit_export_content_prefetch",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

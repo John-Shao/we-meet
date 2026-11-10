@@ -392,6 +392,17 @@
       "catalog_checksum": "sha256:cbcf8fe794b4f489fbb000bfcbb8a7c5e9bdbebf268768d258c52fb31dda49b7",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 36,
+      "name": "0036_audit_export_content_prefetch",
+      "kind": "increment",
+      "file": "increments/0036_audit_export_content_prefetch.sql",
+      "checksum": "sha256:4f9a85f3ebbb0376f1ecd00b1eb75cba31fde66109b7e04050dda8df8c2f9a16",
+      "catalog": "catalogs/0036_audit_export_content_prefetch.json",
+      "catalog_checksum": "sha256:bf79f260276d2d13bc703e01cd75e439adbae094780a74bf205cc290db6ebcc4",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

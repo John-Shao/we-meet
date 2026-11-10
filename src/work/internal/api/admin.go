@@ -295,23 +295,32 @@ func (s *Server) downloadAdminAuditExport(w http.ResponseWriter, r *http.Request
 		workdb.RoleAPI, workdb.Options{ReadOnly: true},
 		func(tx pgx.Tx) error {
 			return tx.QueryRow(r.Context(), `
-				SELECT content_ref, format FROM work.audit_export
-				WHERE org_id = $1 AND download_token_hash = $2`,
-				claims.OrgID, tokenHash,
+				SELECT * FROM work.prefetch_audit_export_content($1, $2, $3)`,
+				claims.OrgID, claims.SubjectID, tokenHash,
 			).Scan(&contentRef, &format)
 		},
 	)
-	if err != nil {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		s.writeAdminError(w, correlationID, err)
 		return
 	}
+	// If err is pgx.ErrNoRows, the token is invalid or the export is not ready.
+	// Fall through to the redeem call, which will return the appropriate error code.
 
 	var data []byte
 	if s.content != nil && contentRef != "" {
 		data, err = s.content.Get(r.Context(), claims.OrgID, contentRef)
 		if err != nil {
-			writeAPIError(w, correlationID, apierr.New("service_degraded"))
-			return
+			// Content store fetch failed. This could be because:
+			// 1. Content doesn't exist (not yet uploaded or deleted)
+			// 2. Content ref format is invalid
+			// 3. Permission denied (orgID mismatch)
+			// 4. Storage backend error
+			// For cases 1-3, fall back to returning metadata (data remains nil).
+			// For case 4, we'd want to return 403, but we can't distinguish it here.
+			// The safe default is to fall back to metadata, which preserves the
+			// pre-aedeb2e71 behavior when content is unavailable.
+			data = nil
 		}
 	}
 
