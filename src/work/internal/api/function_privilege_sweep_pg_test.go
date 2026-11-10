@@ -173,3 +173,58 @@ func TestTablesNoWorkloadRoleMayWriteAreNamedExactly(t *testing.T) {
 	}
 	t.Logf("owner-only tables = %s, SECURITY DEFINER functions = %s", ownerOnly, definers)
 }
+
+// TestAuditExportPermissionMatrix pins the three-part invariant for audit export access:
+// work_api may not SELECT the table directly, must EXECUTE the prefetch function, and that
+// function must be SECURITY DEFINER. This is the fix for the 503 regression introduced by
+// aedeb2e71 (direct table query) and resolved by 0036 (SECURITY DEFINER prefetch).
+func TestAuditExportPermissionMatrix(t *testing.T) {
+	_, dbName := newBootstrapDB(t, true, true)
+	seedTaskGraph(t, dbName)
+
+	// Part 1: work_api must NOT have direct SELECT on audit_export table.
+	// This is the design invariant from baseline 0002:5186.
+	canSelect := opsScalar(t, dbName, `
+		SELECT CASE WHEN has_table_privilege('work_api', 'work.audit_export'::regclass, 'SELECT')
+		       THEN 'true' ELSE 'false' END`)
+	if canSelect != "false" {
+		t.Fatalf("work_api has direct SELECT on work.audit_export = %s, want false: "+
+			"baseline 0002:5186 revokes this to enforce 'only through domain functions' rule", canSelect)
+	}
+
+	// Part 2: prefetch_audit_export_content must be SECURITY DEFINER.
+	// Without this, the function executes as work_api and hits the same permission denied.
+	isDefiner := opsScalar(t, dbName, `
+		SELECT p.prosecdef::text
+		FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+		WHERE n.nspname = 'work' AND p.proname = 'prefetch_audit_export_content'`)
+	if isDefiner != "true" {
+		t.Fatalf("prefetch_audit_export_content.prosecdef = %s, want true: "+
+			"0036 migration must create this as SECURITY DEFINER", isDefiner)
+	}
+
+	// Part 3: work_api must have EXECUTE on the prefetch function.
+	canExec := opsScalar(t, dbName, `
+		SELECT CASE WHEN has_function_privilege('work_api', 'work.prefetch_audit_export_content(text, text, text)', 'EXECUTE')
+		       THEN 'true' ELSE 'false' END`)
+	if canExec != "true" {
+		t.Fatalf("work_api has EXECUTE on prefetch_audit_export_content = %s, want true: "+
+			"0036 migration must grant this", canExec)
+	}
+
+	// Part 4: the function must pin its search_path (like all SECURITY DEFINER functions).
+	pinnedPath := opsScalar(t, dbName, `
+		SELECT CASE WHEN COALESCE(
+		         (SELECT bool_or(cfg::text LIKE '%%search_path%%')
+		          FROM unnest(p.proconfig) AS cfg),
+		         false)
+		       THEN 'true' ELSE 'false' END
+		FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+		WHERE n.nspname = 'work' AND p.proname = 'prefetch_audit_export_content'`)
+	if pinnedPath != "true" {
+		t.Fatalf("prefetch_audit_export_content pins search_path = %s, want true: "+
+			"SECURITY DEFINER without pinned search_path is privilege escalation", pinnedPath)
+	}
+
+	t.Logf("audit_export permission matrix verified: work_api no direct SELECT, prefetch is SECURITY DEFINER with pinned search_path and EXECUTE grant")
+}
