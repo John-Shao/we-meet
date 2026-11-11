@@ -293,7 +293,7 @@ R0b 阶段已成功完成生产部署，所有核心功能已上线。Migration 
 - 安全签收单自决完成
 
 **下一步：**
-- R0b 设备侧功能实现（B01-B03/B05-B08/B10）
+- R0b 设备侧功能实现（B01-B03/B05-B08/B10）**【2026-11-11 21:1x 主签裁定＝M1a 不开工，原行保留不删】**本行状态＝未开工，今日进一步裁为"不开"。两句要分开说，免得下一个人把"未开工"读成"判据没到手"：判据侧——M1a 开工要的那条 CI PG 作业已在 run `43013533916` @ `3cbdfacbb` 转绿；指令侧——主签答复＝不开工，所以 M1a→M1b→M2→M3→M4→M5 整条线（含卡片 I 的 I1 详细设计单）零代码、零 migration、零前端改动。唯一出处＝[work-project.md](work-project.md) §5.1 以"M1a 开工与 0038 rollout 的先后"起头那一行；M1—M5 拆解与顺序硬约束见 [r0b-device-implementation-plan-2026-11-11.md](r0b-device-implementation-plan-2026-11-11.md)。
 - Migration 0037 死代码处置（下一批待裁：revert 或补三表 + caller）**【2026-11-11 同日更新：已裁＝H1 revert，0038 migration＋catalog＋verify 脚本＋manifest_test 手抄清单已在本地 tip 落地；生产 rollout 属独立"换二进制"半径，另行授权】**
 - 端到端功能测试（需要真实用户登录）
 - R0c 阶段规划（B04 选择性云同步、B09 本机摘录远程外发）

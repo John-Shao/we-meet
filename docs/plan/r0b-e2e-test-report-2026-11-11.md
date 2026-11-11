@@ -202,7 +202,7 @@ record_member_narrowing_with_intents         | p_org_id uuid, p_member_id uuid, 
 
 **下一步**：
 1. 执行真实用户登录测试（手动）
-2. 完成 R0b 设备侧功能实现（B01-B03/B05-B08/B10）
+2. 完成 R0b 设备侧功能实现（B01-B03/B05-B08/B10） 【2026-11-11 21:1x 主签裁定＝**M1a 不开工**，本行保留不删】本项未开工，且"等的是指令不是判据"这件事今日已由外部读数与裁定分别坐实：M1a 的开工判据（CI 的 `Go migration, RLS, API and directory sync (PG16)`）在 run `43013533916` @ `3cbdfacbb` 转绿，主签对"要不要据此开工"的答复＝不开。⇒ 上面本行 20:0x／20:4x 两处"仍未开工"的措辞自此有了归因（不是判据没到手，是裁定为否）；M1a→M5 整条线含卡片 I 的 I1 设计单都在"不开"范围内。唯一出处＝work-project.md §5.1 以"M1a 开工与 0038 rollout 的先后"起头那一行，拆解与顺序约束见 [r0b-device-implementation-plan-2026-11-11.md](r0b-device-implementation-plan-2026-11-11.md)。
 3. 0037 死代码待裁：revert（0038 migration `DROP FUNCTION` 两个 overload）或补齐三张表 + `member_epoch` 列 + 至少一个 caller；独立部署半径＝migration。
    - **【2026-11-11 同日更新，卡片 H 主签裁定＝H1】**本项已裁定并本地落地：`src/work/migrations/increments/0038_revert_epoch_deduplication_overloads.sql`＋catalog（byte-identical 与 0036 那份一致）＋`manifest.json` v=38＋`src/work/deploy/ecs/verify-r0a-0027.sh` `epoch_dedup_reverted=` 语义探针＋`publishedIncrements` 手抄清单（同时补 0037/0038）。生产 rollout 属"换二进制"独立半径，仍需单独授权；本报告不宣告 0038 已上线。【2026-11-11 19:2x 就地更新本句，原文逐字保留】该授权已由主签单选 **Q1＝先 rollout** 用掉并执行完：0038＋0039 随 tail 39 发布包在现网应用（半径＝13 个二进制），台账现读 `rows=39`／`max=39`、`VERIFY_RC=0`、`epoch_dedup_reverted=true`，因此本句的"不宣告已上线"不再是有意的保守，而是已被今天读数取代的旧状态。详见 [work-project.md](work-project.md) 卡片 H【2026-11-11 主签裁定＝H1】段。
 4. R0c 阶段规划（B04 选择性云同步、B09 本机摘录远程外发）【2026-11-11 20:5x：本项已立项，范围／输入位置／两条启动触发条件落在 work-project.md §5.1 的 R0c 行，该行为唯一出处；本行保留不删。】
