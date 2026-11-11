@@ -18,7 +18,7 @@ R0b 阶段已于 2026-11-10 23:22 CST 成功完成生产部署（commit 02919032
 - ✅ 安全签收单自决完成（S1-S15，12 项本期执行）
 
 **遗留项：**
-- ⚠️ Migration 0037（epoch deduplication 性能优化）暂时移除，待 catalog 生成后重新部署【2026-11-11 关闭：本行的"待…重新部署"在同日 23:34 已由签收单 §18 执行完；随后主签对卡片 H 单选 **H1＝revert**，0037 的两个 overload 由新增量 0038 在本地撤回（未 commit／未 push／未部署，现网链尾 37）。详见 §4.2 与 §六 的同日标注】
+- ⚠️ Migration 0037（epoch deduplication 性能优化）暂时移除，待 catalog 生成后重新部署【2026-11-11 关闭：本行的"待…重新部署"在同日 23:34 已由签收单 §18 执行完；随后主签对卡片 H 单选 **H1＝revert**，0037 的两个 overload 由新增量 0038 在本地撤回（未 commit／未 push／未部署，现网链尾 37）。详见 §4.2 与 §六 的同日标注】【2026-11-11 19:2x 更正本格括号里的三个活状态，原文逐字保留】0038 已提交、已推送并已在现网应用：与 0039 同包（tail 39）落地，现网台账现读 `rows=39`／`max=39`，verify 脚本 `VERIFY_RC=0`、`epoch_dedup_reverted=true`。本行是执行摘要里的活句子，"未部署／链尾 37"记的是 11-11 早上的状态，不顶替今天的读数。
 - ⚠️ 外部安全审计未执行（J39 触发条件：首个真实客户组织前必须完成）
 - ⚠️ S2/S3/S4/S6/S9/S10/S11/S12/S13 的 EV 实测未执行（当前仅为规格）
 
@@ -201,7 +201,7 @@ EV85 和 EV86 测试通过，所有 43 个 EV 测试达到 100% 通过率。【2
 - [x] 生成 migration 0037 的正确 catalog（已完成，2026-11-10 23:34 CST）
   - ✅ 在生产环境直接执行 migration 0037 SQL
   - ✅ 从生产数据库生成 catalog checkpoint
-  - ✅ 验证 catalog checksum 匹配：sha256:1cd5d9910ec202b03f6f603e9e38e78e7c458df4ee23f5f84988281ffd1349e2
+  - ✅ 验证 catalog checksum 匹配：sha256:1cd5d9910ec202b03f6f603e9e38e78e7c458df4ee23f5f84988281ffd1349e2【2026-11-11 19:1x 更正，原文逐字保留】这个值当时是**现网手工 apply＋手工身份采样**两层偏移叠出来的钉值，与 runner 重放不可能一致；同日已按主签单选 K3 用 runner 同形手法重采为 `sha256:c627e0335d…`（911,514 字节，只动该 catalog 文件与 manifest 的 `catalog_checksum` 两处，SQL 文本与 `checksum`／`legacy_checksums` 未动）。⇒ 本格那条"从生产数据库生成 catalog checkpoint"作为**手法**自此不再被复用：它绕开了 runner 的角色包裹，正是那 10 条 `drift at version 37` 红的来源；配方与两个假信号见 work-project.md §5.1 以"0037 SQL↔catalog 角色偏移"起头那一行的同日标注。
   
 - [x] 重新部署 migration 0037（已完成，2026-11-10 23:34 CST）
   - ✅ 更新 manifest.json 添加 migration 0037 条目

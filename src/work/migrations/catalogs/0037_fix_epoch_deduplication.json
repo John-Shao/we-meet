@@ -13925,7 +13925,7 @@
       "leakproof": false,
       "strict": false,
       "parallel": "u",
-      "owner": "work_migrator_login",
+      "owner": "work_owner",
       "configuration": "search_path=work, pg_temp",
       "definition": "\nDECLARE\n    v_already_bumped BOOLEAN;\nBEGIN\n    -- Check if epoch was already bumped in this transaction\n    v_already_bumped := COALESCE(\n        current_setting('work.epoch_bumped_for_mass_absence', TRUE)::BOOLEAN,\n        FALSE\n    );\n    \n    -- Update member epoch (always)\n    UPDATE work.org_member\n    SET epoch = epoch + 1,\n        updated_at = NOW()\n    WHERE org_id = p_org_id AND member_id = p_member_id;\n    \n    -- Update org epoch only if not already bumped in this transaction\n    IF NOT v_already_bumped THEN\n        UPDATE work.org\n        SET member_epoch = member_epoch + 1,\n            updated_at = NOW()\n        WHERE id = p_org_id;\n        \n        -- Mark that we've bumped the epoch in this transaction\n        PERFORM set_config('work.epoch_bumped_for_mass_absence', 'true', TRUE);\n    END IF;\n    \n    -- Record the narrowing event\n    INSERT INTO work.org_member_narrowing_event (\n        org_id,\n        member_id,\n        narrowing_type,\n        details,\n        created_at\n    ) VALUES (\n        p_org_id,\n        p_member_id,\n        p_narrowing_type,\n        p_details,\n        NOW()\n    );\nEND;\n"
     },
@@ -13940,7 +13940,7 @@
       "leakproof": false,
       "strict": false,
       "parallel": "u",
-      "owner": "work_migrator_login",
+      "owner": "work_owner",
       "configuration": "search_path=work, pg_temp",
       "definition": "\nDECLARE\n    v_already_bumped BOOLEAN;\n    v_intent_id UUID;\nBEGIN\n    -- Check if epoch was already bumped in this transaction\n    v_already_bumped := COALESCE(\n        current_setting('work.epoch_bumped_for_mass_absence', TRUE)::BOOLEAN,\n        FALSE\n    );\n    \n    -- Update member epoch (always)\n    UPDATE work.org_member\n    SET epoch = epoch + 1,\n        updated_at = NOW()\n    WHERE org_id = p_org_id AND member_id = p_member_id;\n    \n    -- Update org epoch only if not already bumped in this transaction\n    IF NOT v_already_bumped THEN\n        UPDATE work.org\n        SET member_epoch = member_epoch + 1,\n            updated_at = NOW()\n        WHERE id = p_org_id;\n        \n        -- Mark that we've bumped the epoch in this transaction\n        PERFORM set_config('work.epoch_bumped_for_mass_absence', 'true', TRUE);\n    END IF;\n    \n    -- Record the narrowing event\n    INSERT INTO work.org_member_narrowing_event (\n        org_id,\n        member_id,\n        narrowing_type,\n        intent_ids,\n        details,\n        created_at\n    ) VALUES (\n        p_org_id,\n        p_member_id,\n        p_narrowing_type,\n        p_intent_ids,\n        p_details,\n        NOW()\n    );\n    \n    -- Update intent-level narrowing counts\n    FOREACH v_intent_id IN ARRAY p_intent_ids\n    LOOP\n        INSERT INTO work.org_member_intent_narrowing (\n            org_id,\n            member_id,\n            intent_id,\n            narrowing_type,\n            event_count,\n            last_event_at\n        ) VALUES (\n            p_org_id,\n            p_member_id,\n            v_intent_id,\n            p_narrowing_type,\n            1,\n            NOW()\n        )\n        ON CONFLICT (org_id, member_id, intent_id, narrowing_type)\n        DO UPDATE SET\n            event_count = org_member_intent_narrowing.event_count + 1,\n            last_event_at = NOW();\n    END LOOP;\nEND;\n"
     },
@@ -17108,23 +17108,7 @@
       "object_type": "function",
       "schema": "work",
       "object": "record_member_narrowing(p_org_id uuid, p_member_id uuid, p_narr",
-      "grantee": "work_migrator_login",
-      "privilege": "EXECUTE",
-      "grantable": false
-    },
-    {
-      "object_type": "function",
-      "schema": "work",
-      "object": "record_member_narrowing(p_org_id uuid, p_member_id uuid, p_narr",
       "grantee": "work_owner",
-      "privilege": "EXECUTE",
-      "grantable": false
-    },
-    {
-      "object_type": "function",
-      "schema": "work",
-      "object": "record_member_narrowing_with_intents(p_org_id uuid, p_member_id",
-      "grantee": "work_migrator_login",
       "privilege": "EXECUTE",
       "grantable": false
     },

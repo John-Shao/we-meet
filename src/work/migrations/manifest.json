@@ -411,7 +411,7 @@
       "file": "increments/0037_fix_epoch_deduplication.sql",
       "checksum": "sha256:c1d54a0eba68cce0a727e1949c40b2c300acee5b210c60b90dae7828d420dc5a",
       "catalog": "catalogs/0037_fix_epoch_deduplication.json",
-      "catalog_checksum": "sha256:1cd5d9910ec202b03f6f603e9e38e78e7c458df4ee23f5f84988281ffd1349e2",
+      "catalog_checksum": "sha256:c627e0335d15aea3f218b4071b8b32e63e51803766b8ee961743e7c05fc962c8",
       "transactional": true,
       "executable": true,
       "legacy_checksums": [
