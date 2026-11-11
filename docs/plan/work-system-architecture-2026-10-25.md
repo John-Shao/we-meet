@@ -390,7 +390,7 @@ Operation key由Work生成，例如`(run_id, turn_seq, model_request_seq)`和`(r
 - H02–H05/H12是R0a云端Runtime的go/no-go；H01/H06/H08是R0b本机Runtime的go/no-go；H07/H09/H10已执行（见下表）。
 - 失败时不默认增加第二套云端Python Harness；开发任务与生产接入在验证后单独安排。
 
-首轮执行记录（2026-10-25；Windows x64 / Node 24.15.0 / Pi agent-core 1.4.0 / faux脚本模型；实验目录`temp/harness-lab/experiments`，不进入仓库）：
+首轮执行记录（2026-10-25；Windows x64 / Node 24.15.0 / Pi agent-core 1.4.0 / faux脚本模型；实验目录`temp/harness-lab/experiments`，不进入仓库）（2026-11-11 注：该 experiments 目录经主签逐项单选裁定整体删除，原始实验产物不再本地保存，下表结论为执行当时的文字记录；删除清单见工作区 `_archive/README.md` 清理日志）：
 
 | 实验 | 结果 | 关键证据 |
 |---|---|---|
