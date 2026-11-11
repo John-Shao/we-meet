@@ -1,0 +1,165 @@
+# Work R0b 设备侧实施计划
+
+> 日期：2026-11-11
+>
+> 基线：[R0b 设备面重量决策征询单](work-r0b-device-plane-weight-decision-2026-11-10.md)（卡片 E=B 已裁，7 日复评窗 2026-11-17）＋ [R0b B03 对账载体设计](work-r0b-b03-reconciliation-carrier-2026-11-10.md)（四点按推荐已采纳）＋ [R0b 阶段收尾报告 §4.2](r0b-phase-closure-report-2026-11-10.md)（"中期：R0b 设备侧功能 B01-B03/B05-B08/B10"）。
+>
+> **完成度与阻塞项以 [work-project.md](work-project.md) 为唯一状态源**，本文只写"分期与集成点"，不重复数字、不写工时与排期。
+
+## 1. 交付范围与不做
+
+### 1.1 交付（本计划的覆盖范围）
+
+R0b 设备侧功能在卡片 E=B 之下剩：
+
+- **B01** 本机资料整理（文件夹授权、读取/检索、生成文本、采纳）
+- **B02** 逐次审批、拒绝、限本 Run 同类只读允许与撤销
+- **B03** 断线/休眠/Agent 重启/撤权/未知结果不重放（载体见 B03 设计文档）
+- **B05–B08** 席位授予/撤销、token 护栏、首次使用、权限交集
+- **B10** 从规格到故障/安全/可用性验收可追踪
+- **S2** 本机内容窗口（主窗口 ↔ viewer 隔离）
+- **S4** 目录授权绑定（handle 算法 + 实机竞态复现）
+
+### 1.2 范围外（本计划不覆盖）
+
+- **B04 成果选择性云同步**、**B09 本机摘录远程外发**（卡片 E=B 已移出到 R0c）
+- 外部安全审计 J39 触发后的具体审计（属试点前事件，触发时另开单）
+- Temporal 自建与设备面 PKI 的"三条杠杆"重议（2026-11-03 主签质疑已归档、卡片 E 已承接，不重开）
+
+## 2. 现有落点（2026-11-11 现读）
+
+设备面在本仓是**零代码**（Explore 盘点已交叉核对）：
+
+| 面 | 现状 | 判据 |
+|---|---|---|
+| 设备 agent 二进制/包 | 无 | `src/` 下无 `device*`/`agent*`/`local*`/`windows*`/`pi*`；`src/agents` 是 Python 会议 AI 不是设备 agent；无 `.rs` |
+| Migration 表 | 无 | `work.device`/`device_dispatch`/`device_checkpoint`/`workspace_grant`/`device_run_seal`/`disclosure_decision`/`artifact_replica` 在 0001-0037 与 catalog 全零命中 |
+| 域命令 SQL 函数 | 无 | `prepare_local_operation`/`acquire_device_lease`/`consume_device_permit`/`record_device_receipt`/`finish_local_run`/`finalize_local_artifact`/`consume_device_ack`/`record_device_model_result` 全零命中 |
+| Go handler | 三条 route 已注册但零消费者 | `bootstrap.go:187-193` 注册；`admin_local_policy.go`/`admin_governance_cursor.go`/`run_reconciliations.go` 有实现与测试；`grep work/v2 src/frontend` 零命中、`grep work/v2 work/scripts` 零命中 |
+| 前端 | 只有 `src/frontend/src/features/work/r0a/` | 无 `r0b/` 目录 |
+| 桌面壳 Electron 本机 IPC | 无 | `src/desktop/src` 现有 8 目录（auth/forward/main/policy/preload/renderer/startup/screen-picker/remote-control）；无 `viewer-preload`、无 `wemeet-local:` scheme、无 `chooseWorkspace`/`openLocalContent`/`stageLocalInput`/`confirmLocalWrite` 任一 IPC |
+| Bearer 鉴权 | 无 | `src/work/internal/api/auth.go:33-53` 只读 session cookie；`work_host.py` 无 Bearer 分支；`src/desktop/src/policy.ts:94` `isApi()` 只含 `/api/`+`/media/` |
+| EV 测试 | 43 `TestR0b*`、0 `TestEV*` | `grep '^func TestR0b' src/work/internal/**` = 43；`grep '^func TestEV' src/` = 0；closure §五 的"EV 测试代码 80%"按测试数量算，不顶替按 EV 编号算的判据 |
+
+## 3. 分期 M1–M5
+
+```
+M1 控制面契约（Go/SQL）
+  ├─ M1a Migration（表 + 域命令 SQL 函数 + catalog + GRANT）
+  ├─ M1b Go handler（Bearer + 六 handler + route + sweep 测试更新）
+  └─ M1c 0037 死代码处置（独立，可先于 M1a）
+      ↓
+M2 桌面壳本机能力（Electron IPC + viewer + S2 隔离）
+      ↓
+M3 设备 agent（Windows x64 binary；M3 前 M2 无法端到端）
+      ↓
+M4 前端 R0b feature + Ingress /work/v2（登记项 A 成对）
+      ↓
+M5 EV 与验收（TestEV* 命名补齐 + S2/S4 签收单实测 + J39 审计）
+```
+
+依赖判据：
+
+- M1 三片独立可先做；M1c 与 M1a 都是 migration，落笔时按 `git log` 链尾再定编号（memory `work-migration-increment-landing`）。
+- M2 依 M1b（要能 fetch `/work/v2/*` 才谈 IPC 消费）。
+- M3 依 M1（agent 要能拿 Bearer 才谈 journal）；与 M2 可并行到"IPC 契约冻结"那一步。
+- M4 依 M1 + M2 落 S2；`deploy/aliyun/work-api-entry.yaml:44` 加 `/work/v2` 是 M4 一起做的部署半径，不单独提前部署（否则三条 route 提前上线但没有 UI 消费者，会引入 SPA-vs-API 语义漂移）。
+- M5 依 M2/M3/M4 全落；EV 编号与 S 集合的最小集来自卡片 E=B 的"J39 审计最小集 S2/S4/S11"（六→三）。
+
+## 4. M1 三小片
+
+### M1a Migration：设备侧表 + 域命令 SQL
+
+- 表族（B03 载体设计已定，此处只列落地面）：
+  - 设备注册与绑定（`work.device` 与 device↔subject 绑定，承载 S4 目录授权 handle 与不变量 4"重启先核对旧日志再重新授权"）
+  - 目录授权句柄（`work.workspace_grant`：S4 §4.2 五步路径算法的落表，含过期/撤销列）
+  - 本机操作与 journal（`work.local_operation` 与 `operation_journal`：B03 §3.1 保留组 ①②；不重放以 Operation+request hash 去重）
+  - 租约与许可（`work.device_lease` 与 `device_permit`：不变量 2/4 的 lease/fence/generation）
+  - **不落**：`device_run_seal`、`journal_release` 独立持久性 verifier（B03 §3 明写卡片 E=B 砍掉）
+- 域命令 SQL 函数：`prepare_local_operation` / `acquire_device_lease` / `consume_device_permit` / `record_device_receipt` / `finish_local_run` / `finalize_local_artifact` 六个 SECURITY DEFINER；`consume_device_ack` / `record_device_model_result` 属被砍组不落。
+- 每个函数配 `REVOKE ... FROM PUBLIC` + 明确 GRANT 目标角色（memory `work-migration-increment-landing`：新函数漏 REVOKE PUBLIC 只在 ACL 穷举那一次红）。
+- Catalog 生成（从生产现读，非从 SQL 手抄）、`manifest.json` 追加、`verify.go` 手抄 (version, name) 清单同步。
+- 落地面还包括（同 memory）：`function_privilege_sweep_pg_test.go:134-136` 的 `want = "cancellation_intent,governance_change"` 字符串在 B05 接线后会变；这条字符串的更新在 M1b 或 B05 具体接线时做，本 M1a 只落表与函数不动 sweep。
+
+### M1b Go handler：Bearer + 六 handler + route + 授权穷举
+
+- `internal/api/auth.go` 扩 Bearer 分支（现在只有 session cookie；`client.go:19-20` 与 `work_host.py:142-180` 的 session verify 保留不动）。
+- 六个 handler 对应 M1a 的六个域命令：`device_enroll.go` / `local_operation.go` / `device_lease.go` / `device_permit.go` / `device_receipt.go` / `local_run_finish.go` / `local_artifact_finalize.go`（部分合并文件按现有 api 目录风格定）。
+- `bootstrap.go` route 注册扩，`phases` 值维持 `["R0a"]`（memory `work-r0b-product-decisions` + closure §4.1 已注：本批 phases 是契约、变更挂 M4）。
+- `route_authorization_sweep_pg_test.go` / `tenant_isolation_sweep_pg_test.go` / `cross_org_write_sweep_pg_test.go` 更新到新路由；这些 sweep 现在把 `access_restriction`/`execution_entitlement` 显式列为"未覆盖"清单，M1b 落 B05 接线后清单要重写。
+- **消费者仍为零**：M1b 完成后 `/work/v2/*` 仍只有 CLI 与内部可访问，浏览器端要 M4 才通；这条**不是缺口**，是"控制面先行、消费者分批"的既有纪律（J15–J18 同向）。
+
+### M1c 0037 死代码处置
+
+- 独立 migration，不依赖 M1a/M1b。
+- 二选一（见 closure §4.2 与 E2E 报告 §3.2 更正）：
+  - **选项 α**：`DROP FUNCTION` 两个 0037 overload，回到只保留 0019/0023 触发器版的干净状态；一个 increment + catalog 收工。
+  - **选项 β**：补 `work.org_member` + `work.org_member_narrowing_event` + `work.org_member_intent_narrowing` 三张表 + `work.org.member_epoch` 列 + 至少一个真实 caller（含权限、RLS、事件表 retention），使 0037 语义真的生效；工作量数倍且要重跑 43 个 R0b 测试确认没洗白 epoch 语义。
+- 建议 α（"不为过测试放宽控制" memory 的对称面：不为"部署过了"就补齐语义；0037 首稿是范围误判，撤回成本最低）。
+- 落项前先开一张待裁卡（见 §8），主签单选。
+
+## 5. M2/M3 未裁前置
+
+以下问题**未裁之前 M2/M3 不开工**；本计划不预设结论。
+
+### 5.1 M2 桌面壳
+
+- **S2 隔离口径**：signoff `:24` 原文"主窗口与本机正文的隔离口径待定"，是成果查看/审批交互（含 EV73）冻结阻塞项。要裁：进程模型（同一 renderer 加 origin 限制？第二 BrowserWindow？webview 隔离？）、网络隔离（主窗口是否可读 viewer 内的 `wemeet-local:` URL？）、消息闭集（preload ↔ main 允许哪些 IPC 名）。
+- **F13 竞态实机复现**：signoff `:26` 原文"竞态只在设计层推理，F13 未实机复现（EV78 是规格）"。当前 Windows 环境（memory `windows-harness-lab-env`）非管理员、无 Sandbox、Docker Linux；须先解环境再谈 F13 复现。
+- **viewer-preload.js 与 scheme 特权配置**：现有 `src/desktop/src/preload.ts` 只暴露 forward/auth；viewer 是新文件还是扩现有？`protocol.registerSchemesAsPrivileged` 目前不存在。
+
+### 5.2 M3 设备 agent
+
+- **语言与打包形态**：Go / Rust / Tauri / Node 壳四选一。R0b device-design 未定；harness 选型（memory `work-harness-selection`）说 Pi agent-core 首选，但 harness ≠ 设备 agent 落地语言，要单开一张重量决策征询单类比卡片 E。
+- **安装路径**：`%ProgramData%`（服务态）vs `%LOCALAPPDATA%`（用户态）；影响 journal 存储位置、升级通道、S4 handle 权限模型。
+- **journal 存储**：B03 载体 §3.1 说"本机 SQLite"，但 SQLite 与设备注册表如何备份/回滚/防篡改未定。
+- **升级通道**：与桌面壳同步发布还是独立？签名证书来源？
+- **与桌面壳的通信**：本地 HTTP vs named pipe vs Unix socket；S2 隔离口径决定这一条能不能反向调用。
+
+M3 开工前必须有"设备 agent 语言与打包形态征询单"落项，同卡片 E 一样带代价单选、7 日复评窗。
+
+## 6. M4 前端 R0b + Ingress
+
+- `src/frontend/src/features/work/r0b/` 新目录（现有只有 `r0a/`）。
+- Bootstrap `phases` 契约变更：`bootstrap_test.go:103-104` 单值断言、`r0a-api-types.d.ts:576` 字面量类型 `"R0a"[]` 与 `slice.mjs:363` mock 三处一起放宽到允许 R0b；memory `work-r0b-product-decisions` + closure §4.1 已注这一条属"下一批 R0b Web 前端上线时走新契约"。
+- 三条 `/work/v2` 消费者：
+  - `local-policy` 管理 UI（`admin_local_policy.go:20/94/166` 的 GET/PATCH 面）
+  - `governance-event-cursor` ops CLI（control-design §321 说"持 `org.work.seat.write` 且带 ticket_id + `gap_report_id`"，该细分权限码在 control §343/arch §138 记"今天不存在"——M4 前要先补权限码）
+  - `reconciliations` 用户可见（control §69 说"J16 说'用户看得见在等什么'，此前既无状态行也无查询口"）
+- **Ingress `/work/v2`**：`deploy/aliyun/work-api-entry.yaml:44` 追加一条 `- path: /work/v2 Prefix`——登记项 A 与 M4 一起部署，半径仅 meet k3s Ingress 对象，独立可回滚。
+
+## 7. M5 EV 与验收
+
+- **EV 命名测试补齐**：现在 43 个 `TestR0b*`、0 个 `TestEV*`。closure §五 的"EV 测试代码 80%"是按测试数量算的（12/15 覆盖），不顶替按 EV 编号（29 条）算的判据。arch `:154` 原文"EV 全部是规格，至今零执行——这是当前最大的证据缺口"、"29 条 EV 门里 15 条在体验 §8 任何 I 行都未排程"。
+- **S2/S4/S11 签收单实测**：卡片 E=B 已把 J39 最小集六→三；本批 S 集合的具体测试手法与产物在 M2/M3 落完后写。
+- **F13 竞态实机**（M2 阻塞项遗留到 M5）。
+- **J39 外部安全审计**：触发条件"首个真实客户组织前必须完成"（memory `work-r0b-product-decisions`）；审计产物＝书面报告＋可复现负例证据。
+
+## 8. 待开卡（本计划落项后要开进 [work-project.md](work-project.md) §5）
+
+以下每条一开卡即从"待裁"进入主签单选队列。编号将在 `work-project.md` §5 现读后确认（当前最大可见 `#286` 附近，避免与既有号冲突）：
+
+| 主题 | 阻塞面 | 判据 |
+|---|---|---|
+| 0037 死代码处置（revert vs 补三表+caller） | M1c | 独立部署半径＝migration；不阻塞 M1a/M1b |
+| M1a migration 表清单细化（列/索引/RLS/owner/GRANT 逐项） | M1a | 卡片 E=B 与 B03 载体设计已给范围，具体列名未定 |
+| S2 主窗口 ↔ viewer 隔离口径 | M2 | signoff `:24` 原文"隔离口径待定" |
+| Windows 环境（Sandbox/管理员）解锁 | M2/M5 | memory `windows-harness-lab-env`：当前非管理员、无 Sandbox |
+| 设备 agent 语言与打包形态征询单 | M3 | 类比卡片 E，带代价四选一＋7 日复评窗 |
+| Bootstrap phases 契约变更时机 | M4 | closure §4.1 已注；跟 M4 一起做 |
+| `org.work.seat.write` 细分权限码 | M4 | control §343/arch §138 记"今天不存在" |
+| S4 §14 卡片书面接受回填 | M2/M5 | signoff `:74` J33 六条硬条件"主签在场代答，Lily 书面接受未回填，§14 的 S4 卡片保持未勾选"（Lily 2026-11-01 离队；memory `feedback-external-asks-as-signable-memos`"答复方消失时降级为自决日志＋延迟复评"） |
+
+## 9. 本批不做
+
+- **不写** M1a/M1b/M1c 任何 SQL 或 Go 代码；M1a 起步属 §8 待开卡裁完之后。
+- **不动** migration、不改 Go/TS、不改前端、不改部署。
+- **不改**卡片 E=B 的 B04/B09 移出决定（属已裁范围，重开另议）。
+- **不改** closure §五 完成度表的"生产部署 100%"——那是控制面口径，与本计划"设备侧 0/100"是不同判据，不合并进同一格。
+- **不 push** 本笔与 `2f3e317de`/`4680da3e2` 三笔（push 每批单独授权）。
+
+## 10. 建议推进顺序（不是排期）
+
+- **可立刻独立裁**：M1c 0037 处置（revert 半径最小）。
+- **可并行推**：S2 隔离口径、设备 agent 语言、Windows 环境解锁——这三条都是 M2/M3 前置，无相互依赖。
+- **顺序硬约束**：M1a → M1b → M2 → M3 → M4 → M5；M1c 与 M1a 都写 migration，落笔时按 `git log -- migrations/increments/` 现读链尾定下一号，避免"先占位后回钉"的 checksum 死结（memory `work-migration-increment-landing`）。
