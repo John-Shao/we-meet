@@ -972,7 +972,7 @@ const standardizedFeedbackConsumers = [
   [
     '../src/features/admin/components/MemberEditPanel.tsx',
     [
-      "import { Button, Input } from '@/primitives'",
+      "import { Button, Input, Switch } from '@/primitives'",
       "import { StateHint } from '@/components/StateHint'",
       'state="error"',
       'onPress={refetchLookups}',
