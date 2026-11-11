@@ -217,6 +217,7 @@ EV85 和 EV86 测试通过，所有 43 个 EV 测试达到 100% 通过率。
   - ✅ 10 个演示手机号 send-otp + verify-otp(123456) 全部拿到 access_token + 独立 sub
   - ⚠️ 登记项 A：Ingress `deploy/aliyun/work-api-entry.yaml:44` 只转发 `/work/v1`，`/work/v2/runs/{id}/reconciliations` 被 SPA 兜住——本批无 Web 消费者，ops CLI 与 port-forward 可绕行；挂到 R0b Web 前端上线那批一起修（详见 `r0b-e2e-test-report-2026-11-11.md` §6.5）。
   - ✅ 原"缺口 B"复核撤回（2026-11-11）：`bootstrap.go:242` `Phases: []string{"R0a"}` 是契约不是缺陷——`bootstrap_test.go:103-104` 断言单值、`r0a-api-types.d.ts:576` 字面量类型 `"R0a"[]`、`WorkApp.tsx:100` 唯一消费者 `.includes('R0a')`；下一批 R0b Web 前端上线时走新契约（phases + 类型 + 测试同步放宽）。
+  - ⚠️ 0037 死代码复核（2026-11-11 生产现读）：`pg_proc` 里 0037 新加的两 overload（4 参 + 5 参）在，但 `work.org_member` / `org_member_narrowing_event` / `org_member_intent_narrowing` 三张表 baseline 与 0003–0037 全部 increment 都没创建，`work.org` 也没有 `member_epoch` 列（只有 `access_epoch`），Go/TS 全仓 grep `record_member_narrowing` 无 caller。plpgsql 首次执行才解析体，CREATE 通过但一调就 42P01。属"无实现面"（不是"未测"）；详见 `r0b-e2e-test-report-2026-11-11.md` §3.1/§3.2 更正。
   - 详见 `docs/plan/r0b-e2e-test-report-2026-11-11.md` §六
 
 ### 4.2 中期（下周）
@@ -233,10 +234,10 @@ EV85 和 EV86 测试通过，所有 43 个 EV 测试达到 100% 通过率。
   - B04: 成果选择性云同步（J13 收窄口径）
   - B09 部分: 本机摘录远程外发
   
-- [ ] 性能基准测试
-  - Migration 0037 优化效果验证
-  - Epoch bump 频率监控
-  - 系统性能指标采集
+- [ ] Migration 0037 死代码处置（下一批待裁）
+  - 二选一：(a) 0038 migration `DROP FUNCTION work.record_member_narrowing(uuid,uuid,text,jsonb)` 与 `..._with_intents(...)`，回到只保留 0019/0023 触发器版的干净状态；或 (b) 补三张表 + `work.org.member_epoch` 列 + 至少一个真实 caller（含权限、RLS、事件表 retention）。
+  - 独立部署半径＝migration；(a) 只需一个 increment + catalog，(b) 涉及新表设计与权限矩阵，工作量数倍。
+  - 相关"epoch bump 频率监控"、"系统性能指标采集"两项**撤销**——它们都以 0037 会被执行为前提；若走 (a) 永久不成立，若走 (b) 属功能上线后的运维事项，不属本批基准。
 
 - [ ] 安全签收单 EV 实测
   - S2/S3/S4/S6/S9/S10/S11/S12/S13 的 EV 实测
@@ -280,7 +281,7 @@ EV85 和 EV86 测试通过，所有 43 个 EV 测试达到 100% 通过率。
 
 ## 六、总结
 
-R0b 阶段已成功完成生产部署，所有核心功能已上线。Migration 0037（epoch deduplication 性能优化）已于 2026-11-10 23:32 CST 部署到生产环境（commit cf7657b6e），catalog checkpoint 从生产数据库生成并验证通过。
+R0b 阶段已成功完成生产部署，所有核心功能已上线。Migration 0037（epoch deduplication 性能优化）已于 2026-11-10 23:32 CST 部署到生产环境（commit cf7657b6e），catalog checkpoint 从生产数据库生成并验证通过。**2026-11-11 复核：0037 两 overload 函数在 `pg_proc` 里存在，但三张引用表 (`org_member`/`org_member_narrowing_event`/`org_member_intent_narrowing`) 从未在任何 baseline 或 increment 中创建，`work.org.member_epoch` 列不存在，Go/TS 全仓无 caller——属"无实现面"，登记为下一批待裁（revert 或补表 + caller）；E2E 首稿 §3.1 "count=1" 与 §3.2 "2N→N+1 减少 50%" 表述已撤回。**
 
 **关键成果：**
 - 43/43 EV 测试通过（100%）
@@ -291,7 +292,7 @@ R0b 阶段已成功完成生产部署，所有核心功能已上线。Migration 
 
 **下一步：**
 - R0b 设备侧功能实现（B01-B03/B05-B08/B10）
-- 性能基准测试（验证 epoch deduplication 优化效果）
+- Migration 0037 死代码处置（下一批待裁：revert 或补三表 + caller）
 - 端到端功能测试（需要真实用户登录）
 - R0c 阶段规划（B04 选择性云同步、B09 本机摘录远程外发）
 

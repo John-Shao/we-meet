@@ -95,22 +95,43 @@
 ### 3.1 函数存在性检查
 
 ```sql
-SELECT COUNT(*) FROM pg_proc 
-WHERE proname = 'record_member_narrowing';
+SELECT p.proname, pg_get_function_arguments(p.oid)
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'work' AND p.proname LIKE 'record_member_narrowing%'
+ORDER BY 1, 2;
 ```
 
-**结果**: 1
+**结果（2026-11-11 生产现读，两个 overload 都在）**：
 
-**结论**: ✅ PASS - migration 0037 创建的函数存在
+```
+record_member_narrowing                      |
+record_member_narrowing                      | p_org_id uuid, p_member_id uuid, p_narrowing_type text, p_details jsonb
+record_member_narrowing_with_intents         | p_org_id uuid, p_member_id uuid, p_narrowing_type text, p_intent_ids uuid[], p_details jsonb
+```
 
-### 3.2 Epoch Deduplication 优化
+**结论**：⚠️ 更正（v2.0 首稿写"count=1 → PASS"错误）——生产 `pg_proc` 实际有 3 行（1 个 0 参触发器 + 2 个 0037 新加的手动 overload）。0037 的函数注册成功，但——见 §3.2——它引用的表和列都不存在。
 
-**优化内容**:
-- 函数: `record_member_narrowing()` 和 `record_member_narrowing_with_intents()`
-- 机制: 使用 session variable `work.epoch_bumped_for_mass_absence` 避免重复 bump org epoch
-- 预期效果: 批量成员更新时，epoch bump 次数从 N*2 降低到 N+1（50% 减少）
+### 3.2 Epoch Deduplication 优化：死代码复核（2026-11-11 生产现读）
 
-**验证方法**: 需要在实际工作负载下测量（待性能基准测试）
+**0037 声称的优化**：
+- 函数：`record_member_narrowing()`（4 参）与 `record_member_narrowing_with_intents()`（5 参）
+- 机制：session 变量 `work.epoch_bumped_for_mass_absence` 避免同一事务内重复 bump org epoch
+- 首稿写的"预期效果 N*2 → N+1（50% 减少）"——**撤回**。
+
+**现读生产**（同一 SSH 会话，读 work-api.env 里的 `WORK_DATABASE_URL`）：
+
+| 检查 | 生产实际 | 0037 假设 |
+|------|----------|----------|
+| `work.org_member` 表 | **不存在** | 用作 UPDATE 目标 |
+| `work.org_member_narrowing_event` 表 | **不存在** | 用作 INSERT 目标 |
+| `work.org_member_intent_narrowing` 表 | **不存在** | 用作 INSERT ... ON CONFLICT 目标 |
+| `work.org.member_epoch` 列 | **不存在**（只有 `access_epoch`） | 用作 SET 目标 |
+| 0037 两函数的调用方 | **无**（Go/TS 全仓 grep `record_member_narrowing` 只命中 `function_privilege_sweep_pg_test.go:135` 的一行注释，注释自己就写"EXECUTE-granted to work_owner alone and **have no caller**"） | 需要批量 caller 才有 dedup 效果 |
+
+**语义后果**：plpgsql 在 CREATE 时不解析函数体，所以 0037 能"apply 成功"（`work-migrate status` = up_to_date、catalog checksum 匹配），但任何未来调用 `SELECT work.record_member_narrowing(uuid, uuid, text, jsonb)` 都会 42P01 `relation "work.org_member" does not exist`。所以：
+
+- "epoch bump 2N→N+1、50% 减少"这个指标**不可测**——没有能执行到这条路径的代码。
+- 0037 属"无实现面"（memory `feedback-untested-control-enumeration`：`"没测"vs"无实现面"两种结论产物不同`）——本批不做性能基准，也不留 pending checkbox；改登记为下一批的"0037 revert 或补三表 + caller"待裁项。
 
 ---
 
@@ -157,7 +178,7 @@ WHERE proname = 'record_member_narrowing';
 2. ✅ 数据库迁移到最新版本（37）
 3. ✅ API 端点正确要求认证
 4. ✅ mTLS 安全控制正常工作
-5. ✅ Migration 0037 函数已创建
+5. ⚠️ Migration 0037 函数注册成功但属死代码（见 §3.1/§3.2 更正）
 
 ### 5.3 待完成测试
 
@@ -167,7 +188,7 @@ WHERE proname = 'record_member_narrowing';
 2. ⏸️ 成果查看与下载
 3. ⏸️ 审计导出功能
 4. ⏸️ 权限委派测试
-5. ⏸️ 性能基准测试（epoch deduplication 优化效果）
+5. ❌ 性能基准测试（epoch deduplication）——**取消**，见 §3.2：0037 无 caller、无表、无列，指标不可测。
 
 ### 5.4 结论
 
@@ -177,12 +198,12 @@ WHERE proname = 'record_member_narrowing';
 - 服务部署完整（6 个核心服务）
 - 数据库迁移最新（版本 37）
 - API 端点可访问且安全控制正常
-- Migration 0037 优化已应用
+- Migration 0037 函数注册但无 caller / 无表（详见 §3.2 死代码复核）
 
 **下一步**：
 1. 执行真实用户登录测试（手动）
 2. 完成 R0b 设备侧功能实现（B01-B03/B05-B08/B10）
-3. 性能基准测试（验证 epoch deduplication 优化效果）
+3. 0037 死代码待裁：revert（0038 migration `DROP FUNCTION` 两个 overload）或补齐三张表 + `member_epoch` 列 + 至少一个 caller；独立部署半径＝migration。
 4. R0c 阶段规划（B04 选择性云同步、B09 本机摘录远程外发）
 
 ---
@@ -271,7 +292,7 @@ Keycloak subject：`sub=03a7c56e-91f4-4ab5-a809-2b9fde3cee30`。
 ### 6.6 未覆盖
 
 - 2.5 的 9 个非默认演示账号仅到 Token Exchange，未走完整 OIDC callback。Django session 建立路径与手机号解耦（1 号已端到端跑通）；`access_token` 拿到不等于 Work 侧有 org membership——首次进入 Work 时的 `no_org_membership` 分支本轮未观察。
-- Migration 0037 的"epoch bump 2N→N+1"具体减少率未测（需要批量 unknown 成员负载，属性能基准）。
+- Migration 0037 "epoch bump 2N→N+1" 不属"未测"——**无实现面**（0 caller、0 表、0 列，见 §3.2）；下一批先做 0037 revert 或补表 + caller 的裁定，之后再谈基准。
 - B03 `/work/v2/runs/{id}/reconciliations` 端到端依赖 §6.5 登记项 A（当前无 Web 消费者，ops CLI 与 port-forward 绕行；试点批次接入时补）。
 
 ### 6.7 结果矩阵（含 §一~§五 自动化）
