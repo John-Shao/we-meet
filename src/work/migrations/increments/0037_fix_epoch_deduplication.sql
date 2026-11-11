@@ -68,7 +68,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION work.record_member_narrowing(UUID, UUID, TEXT, JSONB) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION work.record_member_narrowing(UUID, UUID, TEXT, JSONB) TO work_admin;
+GRANT EXECUTE ON FUNCTION work.record_member_narrowing(UUID, UUID, TEXT, JSONB) TO work_owner;
 
 -- Recreate record_member_narrowing_with_intents() with epoch deduplication
 CREATE OR REPLACE FUNCTION work.record_member_narrowing_with_intents(
@@ -153,7 +153,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION work.record_member_narrowing_with_intents(UUID, UUID, TEXT, UUID[], JSONB) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION work.record_member_narrowing_with_intents(UUID, UUID, TEXT, UUID[], JSONB) TO work_admin;
+GRANT EXECUTE ON FUNCTION work.record_member_narrowing_with_intents(UUID, UUID, TEXT, UUID[], JSONB) TO work_owner;
 
 -- Reset the session variable at transaction end (safety measure)
 -- This is automatically handled by PostgreSQL session variable scope,

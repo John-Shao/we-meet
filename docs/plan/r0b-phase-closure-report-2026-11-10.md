@@ -11,7 +11,7 @@
 R0b 阶段已于 2026-11-10 23:22 CST 成功完成生产部署（commit 029190329）。本阶段实现了 R0b 安全签收单中的核心功能，完成了 43/43 EV 测试（100% 通过率），并将所有服务部署到生产环境。
 
 **关键成就：**
-- ✅ 43/43 EV 测试通过（100%）【2026-11-11 限定，原文保留：这 43 条是**本机活库**跑出的结论。同日卡片 H 验证现读：远端 run 42846015317（cf7657b6e，0037 落地那笔）的 `Go migration, RLS, API and directory sync (PG16)` **整条红**，红因 `role "work_admin" does not exist`——该角色在仓库里没有任何产生者。所以本行与"六、总结"里同一句，都只到"本机跑过"这一层，不构成 CI 外部正证；已登记待裁 W1／W2／W3（work-project.md §5.1）】
+- ✅ 43/43 EV 测试通过（100%）【2026-11-11 限定，原文保留：这 43 条是**本机活库**跑出的结论。同日卡片 H 验证现读：远端 run 42846015317（cf7657b6e，0037 落地那笔）的 `Go migration, RLS, API and directory sync (PG16)` **整条红**，红因 `role "work_admin" does not exist`——该角色在仓库里没有任何产生者。所以本行与"六、总结"里同一句，都只到"本机跑过"这一层，不构成 CI 外部正证；已登记待裁 W1／W2／W3（work-project.md §5.1）】 【2026-11-11 11:5x 更新，原文保留】主签单选 **W4** 已本机落地（0037 GRANT 目标改 `work_owner`＋checksum 重钉＋旧值入 `legacy_checksums`），一次性干净 `postgres:16` 集群上 CI 那句 `SQLSTATE 42704` 实跑消失、`TestTailCatalogCheckpointMatchesLiveChain` 转 PASS。本行限定的结论不变：未提交未推送，⇒ 仍不构成 CI 外部正证。
 - ✅ 生产部署成功（commit 029190329）
 - ✅ 所有核心服务正常运行
 - ✅ Migration 链完整（0001-0036）
@@ -174,7 +174,7 @@ EV85 和 EV86 测试失败，原因是 `record_member_narrowing` 触发器在批
 创建 migration 0037，使用 session 变量 `work.epoch_bumped_for_mass_absence` 进行 epoch 去重，确保每次批量更新只产生 1 次 epoch bump。
 
 **实施结果：**
-EV85 和 EV86 测试通过，所有 43 个 EV 测试达到 100% 通过率。
+EV85 和 EV86 测试通过，所有 43 个 EV 测试达到 100% 通过率。【2026-11-11 就地更正，原文保留：这句在本日两轮干净容器串行全量里都不成立——`TestR0bMassAbsenceThresholdAndRestore`（EV86）两轮同红（`epoch after small mass-absence = 10, want 1`，`src/work/internal/migrate/r0b_governance_test.go:1201`），所以"43 个 EV 测试 100% 通过"不是现读结论。本节上面记的机制（N*2、每次更新两次 bump）与实测同形，但本节记的解法 0037 已被卡片 H 裁 H1 撤回（那两个 overload 没有调用方，函数体引用的 `work.org_member` 全链从未创建；见 work-project.md 卡片 H 与 §5.1）。⇒ EV86 现为主签已裁的**必须交付项**（权威口径＝该测试），去重实现另起 V1，本会话未实施。】
 
 ### 3.3 部署脚本缺失文件
 

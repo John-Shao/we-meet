@@ -135,7 +135,7 @@ go test ./internal/migrate -run "TestR0b" -list ".*"
 
 **影响**：
 - 0/43 测试执行
-- 0/12 EV 测试执行
+- 0/12 EV 测试执行【2026-11-11 就地更正，原文保留：本行是 11-10 快照（"阻塞于 PG 环境"当时成立）。此后 EV 测试已在一次性干净 postgres:16 容器实跑，本日两轮串行全量同为 12 条红，其中含本文列出的 EV86＝`TestR0bMassAbsenceThresholdAndRestore`（`epoch after small mass-absence = 10, want 1`）；主签同日已裁该测试为权威⇒ epoch 去重转为必须交付项（V1，落点＝0019／0023 零参触发器），尚未落地。逐名红与读数见 work-project.md §5.1 行 2087 与 r0b-phase-closure-report-2026-11-10.md §3.2。本会话未部署、未动断言、未动触发器。】
 - 无法验证运行时行为
 
 ---

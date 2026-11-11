@@ -694,7 +694,7 @@ Migration 0037 的目的是修复 `record_member_narrowing` 触发器中的 epoc
 
 **处置**：暂时移除 migration 0037，保持生产系统在 migration 36 的状态。该优化是性能改进，非功能性修复，不影响系统正确性。
 
-【2026-11-11 更正本节结论，原文保留】这一段的定性句"该优化是性能改进，非功能性修复"**方向对、机制错**：它确实不影响正确性，但不是因为"只是性能改进"，而是因为**这段优化根本没有生效面**——0037 改的是 `record_member_narrowing(4 参)` 与 `record_member_narrowing_with_intents(5 参)` 两个 overload，而写 `work.org_member_narrowing_event` 的那条路径全链不存在（`work.org_member`／`work.org_member_narrowing_event`／`work.org_member_intent_narrowing` 三张表与 `work.org.member_epoch` 列在 0003—0037 任何 baseline／增量里都没建过，plpgsql 函数体延迟解析，所以 CREATE 会成功、**第一次调用即以 42P01 关系不存在失败**）。真正在跑的是 0019:261／0023:177 的**零参触发器版**，0037 没碰它。据此主签 2026-11-11 单选 **H1＝revert**，由 0038 撤回这两个 overload。另：这一节说的"暂时移除"只维持到同日 23:34，§18 记录了 0037 的补装。
+【2026-11-11 更正本节结论，原文保留】这一段的定性句"该优化是性能改进，非功能性修复"**方向对、机制错**：它确实不影响正确性，但不是因为"只是性能改进"，而是因为**这段优化根本没有生效面**——0037 改的是 `record_member_narrowing(4 参)` 与 `record_member_narrowing_with_intents(5 参)` 两个 overload，而写 `work.org_member_narrowing_event` 的那条路径全链不存在（`work.org_member`／`work.org_member_narrowing_event`／`work.org_member_intent_narrowing` 三张表与 `work.org.member_epoch` 列在 0003—0037 任何 baseline／增量里都没建过，plpgsql 函数体延迟解析，所以 CREATE 会成功、**第一次调用即以 42P01 关系不存在失败**）。真正在跑的是 0019:261／0023:177 的**零参触发器版**，0037 没碰它。据此主签 2026-11-11 单选 **H1＝revert**，由 0038 撤回这两个 overload。另：这一节说的"暂时移除"只维持到同日 23:34，§18 记录了 0037 的补装。【2026-11-11 12:4x EV86 权威裁定追加，本节原文不动】上面那句"该优化是性能改进，非功能性修复，不影响系统正确性"在这一条上已被反向限缩：`TestR0bMassAbsenceThresholdAndRestore`（`src/work/internal/migrate/r0b_governance_test.go`，本机同日两轮一次性干净集群串行全量读数 `epoch after small mass-absence = 10, want 1`）经主签裁定为**权威口径**＝一次收窄事件只允许提升 `org.access_epoch` 一次；5 行→10 次与本节 §17.2 引用的"N*2"逐字同形。⇒ epoch 去重不是可选的性能优化，而是**必须交付项**。H1（撤回 0037 那两个 overload）与本节"那段优化没有生效面"的机制陈述都仍然成立，那说的是 0037 这两个函数，不是问题本身；真正在跑的是 0019／0023 的**零参触发器版**，去重要落在那里，另起 V1。EV86 在 V1 落地前保持红，并按架构 §6.1 I1 证据门"缺一不得报完成"约束 I1 的完成声明。本会话未实施 V1、未动该行断言、未动 0019／0023 触发器、未部署。】
 
 **后续计划**（原文保留；三条已全部执行于 §18，其中第 3 条的产物已于 2026-11-11 被 0038 撤回）：
 - 在测试环境搭建完整的 37 个 migration 链
@@ -719,7 +719,7 @@ Migration 0037 的目的是修复 `record_member_narrowing` 触发器中的 epoc
 
 **代码实现**：✅ 100%（I1 代码冻结完成）  
 **领域命令**：✅ 100%（I2 完成）  
-**EV 测试执行**：✅ 100%（43/43 测试通过）【2026-11-11 限定，原文保留：本机活库口径；同一天现读远端 run 42846015317（cf7657b6e）的 Work R0a gates／Go PG job 为 **failure**，红因 `role "work_admin" does not exist`（该角色无产生者，见 work-project.md §5.1 待裁 W1／W2／W3）。本行不等于 CI 结论】  
+**EV 测试执行**：✅ 100%（43/43 测试通过）【2026-11-11 限定，原文保留：本机活库口径；同一天现读远端 run 42846015317（cf7657b6e）的 Work R0a gates／Go PG job 为 **failure**，红因 `role "work_admin" does not exist`（该角色无产生者，见 work-project.md §5.1 待裁 W1／W2／W3）。本行不等于 CI 结论】 【2026-11-11 11:5x 追加】W1／W2／W3 已由主签单选为 **W4** 并本机落地，生产只读实测同时证实现网从未有 `work_admin`（详见 §18.2 末段）；本行"不等于 CI 结论"这一定位不变，直到那笔推送后的 CI 读数回来。】
 **生产部署**：✅ 100%（commit 029190329 部署成功）  
 **安全签收单**：⚠️ 部分完成（S1-S15 中 S1/S14/S15 移出本期，剩余 12 项自决完成，但外部审计未执行）
 
@@ -782,11 +782,13 @@ Migration 0037 实现 epoch deduplication 性能优化：在批量成员更新�
 3. 上传到生产环境并验证迁移状态：`"state": "up_to_date"`，37 个迁移全部应用
 4. 提交到 Git（commit cf7657b6e）并推送到 aliyun-dev 分支
 
+**【2026-11-11 生产只读实测＋主签裁定 W4，上面两步的原文逐行保留】** 上面 1／3／4 三步今日由只读实测逐点对上：现网 `pg_roles` 里 `work_admin` 计数 0、`%admin%` 全库 0 行、`work%` 共 15 个角色且逐个核名（⇒ 步骤 3 记的"授予 work_owner"就是现网真实授权面：两个 overload 的 `proacl` 实测＝`{work_migrator_login=X, work_owner=X}`、owner＝`work_migrator_login`，零参触发器版＝`{work_owner=X/work_owner}`）；步骤 4 那次记账也留下指纹——现网台账 37 行 `kind=increment`、`adopted=f`、`duration_ms` 为 NULL（同库 36 行＝47），而 `runner.go` 三条写者路径对 increment 只会传非 NULL 时长（`applyIncrement` :362 传 `&ms`；两条 baseline 路径 :275／:309 只写 baseline 行）。⇒ 那行不是 `work-migrate apply` 写的。**由此更正本节一处读法**：台账钉着 `sha256:6ca531bcea…` 不等于"仓库 0037 文本在现网逐字跑过"，它只是手工写进去的同值；凡以"现网 checksum 相符"为前提论证 0037 已按文执行，前提都不成立。**同日处置（主签单选＝W4，未提交未部署）**：0037 的两条 `GRANT ... TO work_admin` 改为 `TO work_owner`，§18.3 那条 Checksum 自此是**旧值**——新值 `sha256:c1d54a0e…`，旧值保留进 manifest 的 `legacy_checksums`（`ledger.go:163-173` 的 `checksumMatches` 先比新钉再逐个比旧值；先例是 0003／0005 两条；机制由 `TestVerifyLedgerAcceptsPinnedLegacyChecksum` 看守），所以现网那行台账不会被判成 `published_migration_modified`。**§18.3 的 Catalog Checksum（`1cd5d991…`）本轮未动**，但真 runner 从空库重放到 37 仍对不上，差集只剩所有权面（`functions.changed` 2 条、只有 `owner` 一个字段不同：expected `work_migrator_login`／actual `work_owner`；`grants.missing` 2 条 `work_migrator_login` 的 EXECUTE；`grants.extra` 已由 W4 归零），逐字段读数见 work-project.md §5.1 中"0037 SQL↔catalog 角色偏移"那一行（行号系当日注记）。要不要为重采 0037 catalog 承担"现网 `work-migrate status`／`Apply` 在 0038 落地前会报 `drift at 37`"这一代价，是新的单选 K1／K2／K3，未裁；本轮现网一行数据未动。 【2026-11-11 12:2x 主签单选＝**K3**，本段随附一条**给未来那笔 rollout 的操作前置**：0037 catalog 的重采必须在 **0038 已在现网应用之后**做，并与那笔 rollout 同一批提交；重采只动 `catalogs/0037_fix_epoch_deduplication.json` 与 manifest 该 entry 的 `catalog_checksum`，SQL 文本与 `checksum`／`legacy_checksums` 不再动。**不要在 0038 落地前重采**——那会让现网 `work-migrate status`／`Apply` 一直报 `drift at 37`，且若 rollout 预检走同一判据会被它自己拦住。K3 生效期间 CI 与本机保持 12 条同族红（2026-11-11 两轮串行全量同值）（`drift at 37` 10 条＋#87 守卫 1 条＋EV86 1 条）。本会话现网一行数据未动、未部署；本批已按 Q3 提交并推送，那笔 CI 的外部读数由下一笔文档提交回写本节。】
+
 ### 18.3 技术细节
 
 **Migration 0037 文件**：
 - SQL: `src/work/migrations/increments/0037_fix_epoch_deduplication.sql`
-- Checksum: `sha256:6ca531bcea2116e31da56d4110327381801d002a0095c0431c8b56a5967bd5f0`
+- Checksum: `sha256:6ca531bcea2116e31da56d4110327381801d002a0095c0431c8b56a5967bd5f0`【2026-11-11 W4 起为**旧值**；新值 `sha256:c1d54a0e…`，旧值保留在同一 entry 的 `legacy_checksums` 里，见 §18.2 末段】
 - Catalog: `src/work/migrations/catalogs/0037_fix_epoch_deduplication.json`
 - Catalog Checksum: `sha256:1cd5d9910ec202b03f6f603e9e38e78e7c458df4ee23f5f84988281ffd1349e2`
 
@@ -834,5 +836,5 @@ UPDATE work.org_member SET epoch = epoch + 1 WHERE org_id = p_org_id AND member_
 **仍待完成**：
 1. 外部安全审计（J39 触发条件：首个真实客户组织前必须完成）
 2. S2/S3/S4/S6/S9/S10/S11/S12/S13 的 EV 实测（当前仅为规格，未执行）
-3. 性能基准测试（验证 epoch deduplication 优化效果）【2026-11-11 关闭为不适用：被测的两个 overload 零调用方、函数体引用的 `work.org_member` 从未创建，没有可测差异；见本节顶部阅读前置第 1／2 条】
+3. 性能基准测试（验证 epoch deduplication 优化效果）【2026-11-11 关闭为不适用：被测的两个 overload 零调用方、函数体引用的 `work.org_member` 从未创建，没有可测差异；见本节顶部阅读前置第 1／2 条】【2026-11-11 再限定：本项"关闭为不适用"只覆盖 0037 那两个无调用方的 overload，不覆盖去重这件事本身——主签同日已裁 EV86 的测试期望为权威（epoch 每次事件只升 1 次）⇒ 去重转为必须交付项，其证据门＝EV86／该测试本身＋架构 §6.1 I1；V1 落地时是否需要另立性能基准，随 V1 设计一并裁定，不在本节裁。】
 4. 端到端功能测试（需要真实用户登录）
