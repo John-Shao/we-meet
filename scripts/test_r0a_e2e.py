@@ -9,7 +9,7 @@ import os
 import sys
 
 # 添加 backend 到路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src/backend'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src/backend'))
 
 async def test_temporal_connection():
     """测试 Temporal 连接"""
