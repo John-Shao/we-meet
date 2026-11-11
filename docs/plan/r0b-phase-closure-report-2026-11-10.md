@@ -233,6 +233,7 @@ EV85 和 EV86 测试通过，所有 43 个 EV 测试达到 100% 通过率。【2
 - [ ] R0c 阶段规划（从 R0b 移出的功能）
   - B04: 成果选择性云同步（J13 收窄口径）
   - B09 部分: 本机摘录远程外发
+  - **【2026-11-11 20:5x 立项】**R0c 的范围、输入位置（哪些原文标为"保留作 R0c 输入"）与两条启动触发条件已落 [work-project.md](work-project.md) §5.1 的 R0c 行，该行是 R0c 范围的唯一出处；上面两行保留不删，只指过去。本项此前"无文档、无状态源条目"的状态自此结束，但仍未排期、零代码、零迁移。
   
 - [x] Migration 0037 死代码处置（下一批待裁）
   - **【2026-11-11 主签裁定＝(a) H1 revert，同日本地落地】**`src/work/migrations/increments/0038_revert_epoch_deduplication_overloads.sql`＋catalog（与 0036 catalog byte-identical，cmp 通过、checksum `bf79f260276d...`）＋`manifest.json` v=38 已入仓库 tip；`deploy/ecs/verify-r0a-0027.sh` 加 `epoch_dedup_reverted=` 语义探针；`internal/migrate/manifest_test.go` 的 `publishedIncrements` 同步补 0037/0038（0037 未列是 pre-existing red，非本批引入）。ci-contract.mjs 全绿（24 项，含 release-assets 的 `every published increment is confirmed by the verify script` 那条）。生产 rollout 属"换二进制"独立半径，另行授权，本批**未部署**。详见 [work-project.md](work-project.md) 卡片 H【2026-11-11 主签裁定＝H1】段。
