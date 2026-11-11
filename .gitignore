@@ -124,3 +124,5 @@ src/helm/env.d/aliyun-prod/values.work.yaml.tmp
 /src/work/work-relay
 /src/work/work-worker
 src/work/work-release-*
+*.exe
+.env-test
