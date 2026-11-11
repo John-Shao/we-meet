@@ -209,10 +209,15 @@ EV85 和 EV86 测试通过，所有 43 个 EV 测试达到 100% 通过率。
   - ✅ 上传到生产环境并验证状态：up_to_date（37 个迁移全部应用）
   - ✅ 提交到 Git（commit cf7657b6e）并推送到 aliyun-dev 分支
 
-- [ ] 执行端到端功能测试
-  - 真实用户登录测试
-  - 任务提交与执行测试
-  - 成果查看与下载测试
+- [x] 执行端到端功能测试（已完成，2026-11-11 CST，报告 2.0）
+  - ✅ 基础设施自动化 15/15 通过（服务、migration、端点、无凭证安全）
+  - ✅ 真实用户完整旅程通过：13800000000 通过 OIDC + Keycloak 手机 OTP 登录 → bootstrap → inputs → task-previews → submit → 4 秒内 succeeded → 产物下载
+  - ✅ CSRF / session / not-found 三类控制在带凭证下正确拒绝（6/6）
+  - ✅ R0b v1 新增面：me/usage、admin/usage（真实 19 run_count / 25961 output tokens）、admin/audit-exports（202 queued，range/92d 校验生效）
+  - ✅ 10 个演示手机号 send-otp + verify-otp(123456) 全部拿到 access_token + 独立 sub
+  - ⚠️ 登记项 A：Ingress `deploy/aliyun/work-api-entry.yaml:44` 只转发 `/work/v1`，`/work/v2/runs/{id}/reconciliations` 被 SPA 兜住——本批无 Web 消费者，ops CLI 与 port-forward 可绕行；挂到 R0b Web 前端上线那批一起修（详见 `r0b-e2e-test-report-2026-11-11.md` §6.5）。
+  - ✅ 原"缺口 B"复核撤回（2026-11-11）：`bootstrap.go:242` `Phases: []string{"R0a"}` 是契约不是缺陷——`bootstrap_test.go:103-104` 断言单值、`r0a-api-types.d.ts:576` 字面量类型 `"R0a"[]`、`WorkApp.tsx:100` 唯一消费者 `.includes('R0a')`；下一批 R0b Web 前端上线时走新契约（phases + 类型 + 测试同步放宽）。
+  - 详见 `docs/plan/r0b-e2e-test-report-2026-11-11.md` §六
 
 ### 4.2 中期（下周）
 
