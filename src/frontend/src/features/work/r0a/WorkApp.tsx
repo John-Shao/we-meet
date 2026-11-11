@@ -128,7 +128,9 @@ const WorkApp = () => {
         <Route path="/work/archive" component={ArchivePage} />
         <Route path="/work/items/:taskId/artifacts/:artifactId">
           {(params) => (
-            <ArtifactWorkspacePage key={`${params.taskId}:${params.artifactId}`} />
+            <ArtifactWorkspacePage
+              key={`${params.taskId}:${params.artifactId}`}
+            />
           )}
         </Route>
         <Route path="/work/items/:taskId">

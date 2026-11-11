@@ -253,6 +253,9 @@ URI
   buttons drop the brand-blue tertiary fill, the gear moves to the right of the
   create button as on the calendar bar, and removing a collaborator becomes a
   danger-toned icon button
+- 🎨(frontend) reformat the two files Prettier flagged in `lint-front`: the
+  work-seat switch row in the member edit panel and the keyed artifact route
+  in the Work app, both wrapped the way Prettier 3.8 wants them
 
 ### Fixed
 

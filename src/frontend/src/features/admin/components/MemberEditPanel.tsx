@@ -219,13 +219,23 @@ export const MemberEditPanel = ({ member, departments, onClose }: Props) => {
             />
             <div className={rowCls}>
               <label className={labelCls}>{t('members.workSeat')}</label>
-              <div className={css({ display: 'flex', alignItems: 'center', gap: 'sm' })}>
+              <div
+                className={css({
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'sm',
+                })}
+              >
                 <Switch
                   isSelected={form.work_seat ?? false}
                   onChange={(v) => set('work_seat', v)}
                 />
-                <span className={css({ fontSize: 'sm', color: 'text.secondary' })}>
-                  {form.work_seat ? t('members.workSeatEnabled') : t('members.workSeatDisabled')}
+                <span
+                  className={css({ fontSize: 'sm', color: 'text.secondary' })}
+                >
+                  {form.work_seat
+                    ? t('members.workSeatEnabled')
+                    : t('members.workSeatDisabled')}
                 </span>
               </div>
             </div>
