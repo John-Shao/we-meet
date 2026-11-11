@@ -1948,7 +1948,93 @@ F1 的语义没有被削弱：它管的是**已经调用 finish** 的那一步�
 - 我的建议：**G3**。理由：现读 8 处没有任何正文迹象，而"没人扫过"这件事本身就是这次发现的成因——G2 保留的正是这种状态；    G1 若不为口径买单，最后也会在同一个地方停下来要我改规则，那等于绕道 G3。
 - 回答渠道：本条单选（G1／G2／G3）。**裁定前不动 `log-scan.mjs`、不动 workflow、不改任何证据文件**；    另注：G3 落地时要连带 `--canary-file` 那条通道与 §5.21 的值班口径一起看，别只改一处。
 
+**卡片 H｜#101 Migration 0037 死代码处置（revert vs 补齐 vs 保留不改）**
+- 原文引用（2026-11-11 生产现读，见 `r0b-e2e-test-report-2026-11-11.md` §3.1/§3.2）：`pg_proc` 里 `record_member_narrowing` 三行（0019/0023 触发器版 0 参 ＋ 0037 手动版 4 参 ＋ 0037 手动版 5 参 `..._with_intents`）；三张引用表 `work.org_member` / `org_member_narrowing_event` / `org_member_intent_narrowing` 在 baseline 0002 与 0003–0037 全部 increment 与 catalog 中零命中；`work.org` 只有 `access_epoch` 列，无 `member_epoch`。Go/TS 全仓 grep `record_member_narrowing` 只命中 `function_privilege_sweep_pg_test.go:135` 的一行注释，注释自陈"EXECUTE-granted to work_owner alone and **have no caller**"。
+- 关键对照：plpgsql 在 CREATE 时不解析函数体，所以 0037 部署账本 ledger=37 与 catalog checksum 都是真的——语义**零生效**（memory `feedback-verify-doc-knobs-wired`：参考模型已验 ≠ 生产已接线；本例更强，被参考的模型本身不存在）。与卡片 E=B"journal/seal 那一整套砍掉"不冲突——0037 属 11-10 追加的"epoch dedup 性能"独立增量，属范围误判。
+- 选项与代价：
+  - **H1＝revert**：新 migration `DROP FUNCTION work.record_member_narrowing(uuid,uuid,text,jsonb)` 与 `..._with_intents(uuid,uuid,text,uuid[],jsonb)`，回到"只保留 0019/0023 触发器版"。代价＝一个 increment＋catalog＋`verify.go` 手抄 (version,name) 清单同步；零可观测行为改变（原本就无 caller）。
+  - **H2＝补齐**：补三张表（RLS/GRANT/索引逐项）+ `work.org.member_epoch` 列 + 至少一个真实 caller 走批量 unknown 成员路径。代价＝数倍工作量；要重跑 43 TestR0b* 与相关 sweep；且需先裁"这些表在 B03 载体已定 journal 之外承担什么职责"。
+  - **H3＝保留不改**：只登记"0037 属死代码、不部署、不 revert"。代价＝远端与生产各留一个"看起来已优化"的假信号，下一个读 migration 的人可能被误导（memory `feedback-shared-worktree-failure-attribution`"现网跑的是远端不存在的 SHA"是同族的另一面——这里远端和生产都有 SHA，但没有语义）。
+- 我的建议：**H1**。理由：与 closure §4.1 已注的"0037 部署完成"事实最一致（不改历史、只前滚 revert）、半径仅 migration、不引入新表新语义。H2 需先另开一张"这些表与 B03 journal 关系"设计单，本批不做。
+- 回答渠道：本条单选（H1／H2／H3）。**裁定前不动 migration、不改 0037 文件、不开 0038**。
+
+**卡片 I｜#102 M1a 设备侧 migration 表清单细化**
+- 原文引用：卡片 E=B 已裁"保留本机推理、砍正文离机链"，明写 journal/seal 那一整套属被砍组（work-project.md 卡片 E【2026-11-10 主签裁定＝B】段）；`work-r0b-b03-reconciliation-carrier-2026-11-10.md` §3.1 保留组 ①②③④、砍 ⑤⑥；`r0b-device-implementation-plan-2026-11-11.md` §4 M1a 给了 5 类表范围（设备注册/绑定、`workspace_grant`、`local_operation`+`operation_journal`、`device_lease`+`device_permit`，明不落 `device_run_seal`/`journal_release` 独立 verifier）。
+- 现读缺口：计划给了范围未给具体列名、索引、RLS、FK、GRANT 目标角色与事件表 retention；六域命令 SQL 函数（`prepare_local_operation` 等）在 B03 载体与设备设计里是描述文字，不是可执行 SQL 定义。
+- 选项与代价：
+  - **I1＝先写 M1a 详细设计单**（类比 B03 载体设计那份形状）——逐列逐索引逐 GRANT 定，附每个域命令输入/输出 JSON shape 与幂等键；裁完才开新 migration。代价＝设计单本身一轮工作。
+  - **I2＝直接开工 migration**，靠 43 TestR0b* 与 CI 兜住。代价＝表列名与设备 agent 侧（卡片 L）语言选型未定，会出现"SQL 定义了列、agent 用不同 shape 拿数据"的偏移（memory `feedback-plan-before-code`＋`feedback-check-callers-before-fixing-defaults` 双向指向 I1）。
+  - **I3＝最小切片**：仅落设备注册 + `workspace_grant` 两张表（对应 S4 与 S2 阻塞项），把 lease/permit/journal 推到卡片 L 裁完之后。代价＝M1b handler 只能挂 2 张表、其余 4 域命令延后；好处＝每张 migration 半径小、能立刻被 pg_test 覆盖，不留"注册了却没人写"的第二例（memory `feedback-adjudication-propagation-sweep`：`local_policy_not_configured` 那一族）。
+- 我的建议：**I3**——按最小可测切片落表；卡片 L 与卡片 J 裁完再补 lease/journal。
+- 回答渠道：本条单选（I1／I2／I3）。**裁定前不写 SQL、不改 `migrations/`**。
+
+**卡片 J｜#103 S2 主窗口 ↔ viewer 隔离口径（M2 阻塞项）**
+- 原文引用（`work-r0b-security-host-signoff-2026-10-31.md:24`）：判据列 "`wemeet-local:` + `webRequest` 取消全部出站 + CSP `connect-src 'none'`"；后果列原文 "**主窗口与本机正文的隔离口径待定，成果查看/审批交互（含 EV73）不能冻结**"。
+- 现读：`src/desktop/src/main.ts:197` 只有 `session.fromPartition("persist:we-meet-desktop-v1")` 一份 partition；`grep -r protocol.registerSchemesAsPrivileged src/desktop` 零命中；无 `viewer-preload.js`（`src/desktop/src/` 现有 8 目录 auth/forward/main/policy/preload/renderer/startup/screen-picker/remote-control）；`openLocalContent` IPC 不存在。
+- 关键对照：卡片 E=B 保留 S2 在 J39 最小集（六→三〔S2/S4/S11〕），不是移出，是**实现前未定**；与卡片 L（agent 语言）正交，S2 属桌面壳层。
+- 选项与代价：
+  - **J1＝第二 BrowserWindow + 独立 session partition + 只读 IPC**：主窗口保留原 partition，viewer 用新 partition；主窗口只拿元数据（artifact_id/bytes/media_type），viewer 从"我请求显示这一 id"起走一次性 Bearer 或短期 token 到 work-content-proxy 拉正文；webRequest 与 CSP 装在 viewer partition。代价＝新增窗口生命周期管理与 IPC 通道 4 条（open/close/render/ack）；EV73 具名可写。
+  - **J2＝同一 renderer + origin 限制**：只在主窗口 CSP 里禁 `wemeet-local:` 与外部 fetch，本机正文走 `<iframe sandbox>`。代价＝Electron iframe sandbox + CSP 组合历史上是 CVE 面（postMessage 若 origin 判定不严会退化）；EV73 只能部分闭合。
+  - **J3＝先裁"进程级还是 origin 级"**：本卡不裁具体形态，只裁隔离层级，衍生实现另开一张。代价＝EV73 冻结窗口推迟；好处＝不把 BrowserWindow vs webview 这种实现细节抬到本层。
+- 我的建议：**J1**——两个 session partition 是可 grep 可断言的形状，EV73 能写成"主窗口 fetch 拿不到本机正文"的具体负例。J3 更保守但会让 M2 起步拖一张衍生单。
+- 回答渠道：本条单选（J1／J2／J3）。**裁定前不动 `src/desktop/**`、不改 preload、不开 IPC 通道**。
+
+**卡片 K｜#104 Windows 环境（Sandbox / 管理员）解锁**
+- 原文引用：`work-r0b-security-host-signoff-2026-10-31.md:24/26` 都把"真实 Windows 抓包/DNS 日志"列为证据边界；F13 竞态原文（signoff :26, J33 §14）"**竞态只在设计层推理，F13 未实机复现（EV78 是规格）**"；EV78／EV72／EV73 全部要求实机。memory `windows-harness-lab-env` 记"非管理员、无 Windows Sandbox、Docker Linux、AppContainer 可建"。
+- 现读：本机 D:\workspace\we-meet 是 Windows 11 26300；Sandbox 从未启用；AppContainer 已验可建，但缺 DACL 写权限与 ETW 抓取（F13 复现最小要求）。
+- 关键对照：这条属"能力问题"不是"要不要做"——S2/S4/B01 EV 都要求真机；不解决环境只能记书面例外。与卡片 E=B 已裁的"砍正文离机链"正交（那条砍的是 S1/S14/S15 公网链，S2/S4 仍在）。
+- 选项与代价：
+  - **K1＝申请管理员＋启用 Windows Sandbox**：走本机 Windows 特性开启路径。代价＝账户提升、Sandbox 打开会改启停配置。
+  - **K2＝现机＋提权 PowerShell**：Sandbox 不开，只在现机以管理员跑 F13 复现脚本。代价＝复现完成后不留 Sandbox 兜底、脚本失败会污染用户目录。
+  - **K3＝接受书面例外**：把 S2/S4 EV 记成"规格已定，实机复现属试点前置"，本批不执行；memory `feedback-adjudication-propagation-sweep` 明说"演练格改判只按该格自己写的重开条件＋取新证据＋重算 summary"——重开条件要写清。代价＝J39 外部审计时"零 EV 实测"会被点名。
+- 我的建议：**K1** 优先，失败退 **K2**，两条都不通走 **K3** 并明写重开条件（首个真实客户组织前，或 EV73 归属的 I 行开工时）。这条属操作裁、不是设计裁。
+- 回答渠道：本条单选（K1／K2／K3）。**裁定前不改本机 Windows 特性、不提权**。
+
+**卡片 L｜#105 设备 agent 语言与打包形态征询**
+- 原文引用：`r0b-device-implementation-plan-2026-11-11.md` §5.2 列了"语言/安装路径/journal 存储/升级通道/与桌面壳通信"五问；`work-r0b-device-design-2026-10-30.md` §3.2/§3.3/§6.1 描述本机 journal 与 lease/fence/session/generation 机制但未指定语言；memory `work-harness-selection` 记"Pi agent-core 首选"——那是 harness（评测层）选型，**≠** 设备 agent 落地语言。
+- 现读：`src/work/cmd/` 现有 10 个 Go 二进制（work-api/authz/content-proxy/egress/relay/worker/export/migrate/provider-setup/directory）；`src/desktop/` Electron/TypeScript；无 `src/device*` 或 Rust 项目。
+- 选项与代价：
+  - **L1＝Go**：与 `src/work/cmd` 同语言、复用 pgx / apierr / host 客户端；打包走现有 cross-compile。代价＝Windows IPC 生态一般（Named Pipe 需 `github.com/Microsoft/go-winio`）；journal 若 SQLite 需 CGO 交叉编译。
+  - **L2＝Rust**：`windows-rs` crate 直调 Win32 API 处理 junction/reparse/DACL 最直接；SQLite 走 `rusqlite` 无 CGO。代价＝新增语言栈、build 工具链、审计面；CI 需加 Rust job；`electron-packaging-env` 里的约束不适用。
+  - **L3＝Tauri**：桌面壳已是 Electron，属"另起一壳"，本批不采纳；除非决定连桌面壳一起重写。
+  - **L4＝Node / Electron 主进程内**：agent 不独立成二进制，直接跑在 `src/desktop/src/main.ts`。代价＝journal 与升级通道与 Electron 生命周期绑死；S2 隔离要重新论证（agent 在主窗口进程里 ⇒ "主窗口不持有本机正文"这条边界破了）；与卡片 J 正面冲。
+- 我的建议：**L2**——Rust 对 S4 §4.2 五步路径算法（`GetFinalPathNameByHandle` / `OPEN_REPARSE_POINT` / DACL）的一手 Win32 覆盖最直接；L1 走 Go 也能做但会大量用 `golang.org/x/sys/windows`；L4 与 J 冲突，属"改一类行为"过度扩张（memory `feedback-check-callers-before-fixing-defaults`），不推荐；L3 属壳重写议题。
+- 回答渠道：本条单选（L1／L2／L3／L4）＋ 7 日复评窗（同卡片 E）。**裁定前不建 `src/device*` 目录、不选工具链**。
+
+**卡片 M｜#106 Bootstrap phases 契约变更时机**
+- 原文引用（closure §4.1 与 E2E 报告 §6.5 复核）：`bootstrap.go:242` `Phases: []string{"R0a"}` 单值；`bootstrap_test.go:103-104` 断言 `len(body.Phases) != 1 || body.Phases[0] != "R0a"` 就 fatal；`r0a-api-types.d.ts:576` `phases: "R0a"[]` 字面量类型；`slice.mjs:363` R0b mock 用 `phases: ['R0b']` 单值（"替换"语义）；`WorkApp.tsx:100` 唯一消费者 `.includes('R0a')`。
+- 关键对照：closure §4.1 已明写"下一批 R0b Web 前端上线时走新契约"——本卡只是把这句话变成可裁的单选；与登记项 A（Ingress `/work/v2`）绑定，与 M4 前端一起做。
+- 选项与代价：
+  - **M-a＝与 M4 前端一起**：R0b Web 前端上线时同步 phases 改 `["R0a","R0b"]`，`bootstrap_test.go` 与 `r0a-api-types.d.ts` 同步放宽；`WorkApp.tsx` 从 `.includes('R0a')` 改成入口分阶段判定。
+  - **M-b＝先扩 phases 后补前端**：M1b 落 handler 时就把 phases 改双值，让 ops CLI 与未来前端都能读；`WorkApp.tsx` 保持 `.includes('R0a')`（对 R0b 消费者零影响）。代价＝契约变更与消费者变更脱钩，下一个读 phases 的人会误以为 R0b Web 前端已存在。
+  - **M-c＝不加 phases 值，用其他字段**：新增 `capabilities: ["r0b_local", ...]`；`phases` 保持单值属"API 契约版本"语义。代价＝扩 DTO 与类型；好处＝语义清晰（phases 表协议代次、capabilities 表能力开关）。
+- 我的建议：**M-a**——按 closure §4.1 已注走；若前端消费者多起来再切 M-c。M-b 属"改一类行为"的过度扩张（memory `feedback-check-callers-before-fixing-defaults`），不做。
+- 回答渠道：本条单选（M-a／M-b／M-c）。**裁定前不改 phases 常量、不改类型、不改断言**。
+
+**卡片 N｜#107 `org.work.seat.write` 细分权限码**
+- 原文引用：`work-r0b-control-design-2026-10-30.md` §321 "运维身份：持 `org.work.seat.write` 且带 ticket_id + `gap_report_id`"；control §343 与 arch §138 记"**今天不存在**"；`admin_governance_cursor.go:17/107` 有 handler 但 ops CLI 与浏览器均无消费者（Explore 现读）。
+- 现读：E2E §6.2 bootstrap permissions 示例 `[work.task.create, work.artifact.read]`，权限码目录无 `org.work.seat.write`。
+- 选项与代价：
+  - **N-a＝M4 一起做**：权限码 + `governance_event_cursor` ops CLI + Web UI 三点成对上线。
+  - **N-b＝M1b 落权限码 + handler**：ops CLI 消费者推到 M4。代价＝权限码上线但零消费者（同 B05 "注册了却没人写" 那族，memory `feedback-adjudication-propagation-sweep` 会点名）。
+  - **N-c＝不新增，复用现有 seat 权限**：现有 seat 授予/撤销可能已用别的码（`work.seat.write`？`org.seat.write`？现读决定）。若语义匹配就不新加。
+- 我的建议：**N-a**——与 M4 前端 + Ingress 成对；若卡片 M 选 M-a，N-a 是自然结果。裁本卡时先跑一次现读权限码目录，再定 N-a 与 N-c 是否合并。
+- 回答渠道：本条单选（N-a／N-b／N-c）。**裁定前不新增权限码、不改 seat 面**。
+
+**卡片 O｜#108 S4 §14 卡片书面接受回填**
+- 原文引用（`work-r0b-security-host-signoff-2026-10-31.md:74` J33 现场答复）："**具名状态：主签在场代答，Lily 书面接受未回填，§14 的 S4 卡片保持未勾选**"；六条硬条件明列（handle 打开、逐级 reparse 检查、卷 GUID 规范化、DFS 例外、DACL 提示、输出根收紧）。
+- 现读：Lily 2026-11-01 离队（memory `user-role-and-decision-style`）。该未勾框属 memory `feedback-external-asks-as-signable-memos` 明指的"**已执行却仍空着的框＝可再按一次的生产写授权**（比数字写错更危险）"。
+- 选项与代价：
+  - **O-a＝降级为自决日志＋延迟复评**：把 J33 现场代答改成主签自决条目、§14 S4 卡片勾选、六条硬条件原样保留；7 日复评窗。
+  - **O-b＝保持未勾**：等试点前外部审计或真实客户组织接入时再回填。代价＝"可再按一次"的生产写授权窗口一直开着。
+  - **O-c＝重开 J33 六条**：不代答不回填，让 F13 实机（卡片 K）跑完再定。代价＝本批 S4 相关全部推到卡片 K 之后。
+- 我的建议：**O-a**——同时闭合 signoff 那一行与卡片 K 的解耦：六条硬条件不因 F13 未跑而作废（那是执行证据、不是接受），代答事实改成自决；§14 卡片勾选后带日期标注，不删原文。
+- 回答渠道：本条单选（O-a／O-b／O-c）。**裁定前不动 signoff §14、不勾选卡片**。
+
+**【2026-11-11 卡片家族扩至 A–O（15 张），计数现读】**上一段"需要我这边动手的只有 A–G 七张"的口径已过期；本批 8 张（H–O）来自 `r0b-device-implementation-plan-2026-11-11.md` §8 待开卡落项，一卡一答复项、带原文引用＋代价；每条回答渠道明写"裁定前不动什么"。#NNN 号取 #101–#108（避与既有任务 #99／决策单 #280 混），字母 H–O 续 A–G。R0b 生产部署与 E2E 报告结论不变，本批**零代码零部署零 migration**，只落卡。
+
 ### 5.1 设计层未决项
+
 
 | 项 | 状态 | 需要谁 |
 |---|---|---|
