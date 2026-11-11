@@ -73,7 +73,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (35, '0035_release_restriction_single_writer'),
   (36, '0036_audit_export_content_prefetch'),
   (37, '0037_fix_epoch_deduplication'),
-  (38, '0038_revert_epoch_deduplication_overloads')) expected(version, name)
+  (38, '0038_revert_epoch_deduplication_overloads'),
+  (39, '0039_mass_absence_epoch_dedup')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -89,6 +90,44 @@ psql_ro "select 'epoch_dedup_reverted=' || case when
       and not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
         where n.nspname = 'work' and p.proname = 'record_member_narrowing_with_intents')
   then 'true' else 'FALSE' end"
+# 0039 (V1) is about how many times the epoch moves, and only the two bodies show that: a ledger row
+# and pronargs would certify a build that still bumped the org epoch twice per absent member, which
+# is what made a 5-member mass absence read +10 where the ruled contract says +1. So count the
+# needles inside prosrc: the narrowing trigger must guard its own UPDATE with the staged-epoch check
+# in BOTH branches (status and seat), keep its own bump for everything that is not a batch, and the
+# batch command must own exactly one bump for the event, hand it off (2 set_config calls) and retire
+# the hand-off again (2 clear calls).
+psql_ro "with b as (
+    select p.proname,
+      (length(prosrc) - length(replace(prosrc,
+        'IF v_staged IS NOT NULL AND v_staged_org = NEW.org_id THEN', '')))
+        / length('IF v_staged IS NOT NULL AND v_staged_org = NEW.org_id THEN') as staged_guards,
+      (length(prosrc) - length(replace(prosrc,
+        'UPDATE work.org SET access_epoch = access_epoch + 1', '')))
+        / length('UPDATE work.org SET access_epoch = access_epoch + 1') as bumps,
+      (length(prosrc) - length(replace(prosrc,
+        'PERFORM set_config(''work.mass_absence_epoch', '')))
+        / length('PERFORM set_config(''work.mass_absence_epoch') as handoffs
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'work'
+      and ((p.proname = 'record_member_narrowing' and p.pronargs = 0)
+        or p.proname = 'mark_members_absent'))
+  select 'mass_absence_epoch_dedup=' || case when
+      coalesce((select staged_guards from b where proname = 'record_member_narrowing'), -1) = 2
+      and coalesce((select bumps from b where proname = 'record_member_narrowing'), -1) = 2
+      and coalesce((select bumps from b where proname = 'mark_members_absent'), -1) = 1
+      and coalesce((select handoffs from b where proname = 'mark_members_absent'), -1) = 4
+    then 'true' else 'FALSE' end"
+# 0039 restates that trigger, and CREATE OR REPLACE does not inherit SECURITY DEFINER or the
+# search_path pin - that is the 0031/0034 failure class #87 was opened for, so read the attributes
+# of the function that exists now rather than trusting the file that made it. Honest scope: this
+# one already reads true at 38 (0023 pinned it), so it is a tripwire for the *next* restatement of
+# this function, not a second proof that 0039 ran - the count probe above is what discriminates.
+psql_ro "select 'narrowing_trigger_hardened=' || case when p.prosecdef
+      and p.proconfig @> array['search_path=work, pg_catalog']
+    then 'true' else 'FALSE' end
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work' and p.proname = 'record_member_narrowing' and p.pronargs = 0"
 # Same reason as the 0028 probe below: a ledger row only proves a file ran. 0029 is the
 # increment that stops a terminal Run from keeping a reservation held, and its whole subject is
 # the trigger - so read the live catalog for the trigger plus the ruled scope inside the helper body.

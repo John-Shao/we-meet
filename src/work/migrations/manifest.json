@@ -428,6 +428,17 @@
       "catalog_checksum": "sha256:bf79f260276d2d13bc703e01cd75e439adbae094780a74bf205cc290db6ebcc4",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 39,
+      "name": "0039_mass_absence_epoch_dedup",
+      "kind": "increment",
+      "file": "increments/0039_mass_absence_epoch_dedup.sql",
+      "checksum": "sha256:a8d5d9881d3d7b06d0a8de9c6e492c4ce0c4cb7692a35e026807dc1a54166845",
+      "catalog": "catalogs/0039_mass_absence_epoch_dedup.json",
+      "catalog_checksum": "sha256:451c62a296aad316ae2818fcb362c7729fed824abd827aee693b6e81f55febff",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

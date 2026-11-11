@@ -174,7 +174,7 @@ EV85 和 EV86 测试失败，原因是 `record_member_narrowing` 触发器在批
 创建 migration 0037，使用 session 变量 `work.epoch_bumped_for_mass_absence` 进行 epoch 去重，确保每次批量更新只产生 1 次 epoch bump。
 
 **实施结果：**
-EV85 和 EV86 测试通过，所有 43 个 EV 测试达到 100% 通过率。【2026-11-11 就地更正，原文保留：这句在本日两轮干净容器串行全量里都不成立——`TestR0bMassAbsenceThresholdAndRestore`（EV86）两轮同红（`epoch after small mass-absence = 10, want 1`，`src/work/internal/migrate/r0b_governance_test.go:1201`），所以"43 个 EV 测试 100% 通过"不是现读结论。本节上面记的机制（N*2、每次更新两次 bump）与实测同形，但本节记的解法 0037 已被卡片 H 裁 H1 撤回（那两个 overload 没有调用方，函数体引用的 `work.org_member` 全链从未创建；见 work-project.md 卡片 H 与 §5.1）。⇒ EV86 现为主签已裁的**必须交付项**（权威口径＝该测试），去重实现另起 V1，本会话未实施。】
+EV85 和 EV86 测试通过，所有 43 个 EV 测试达到 100% 通过率。【2026-11-11 就地更正，原文保留：这句在本日两轮干净容器串行全量里都不成立——`TestR0bMassAbsenceThresholdAndRestore`（EV86）两轮同红（`epoch after small mass-absence = 10, want 1`，`src/work/internal/migrate/r0b_governance_test.go:1201`），所以"43 个 EV 测试 100% 通过"不是现读结论。本节上面记的机制（N*2、每次更新两次 bump）与实测同形，但本节记的解法 0037 已被卡片 H 裁 H1 撤回（那两个 overload 没有调用方，函数体引用的 `work.org_member` 全链从未创建；见 work-project.md 卡片 H 与 §5.1）。⇒ EV86 现为主签已裁的**必须交付项**（权威口径＝该测试），去重实现另起 V1，本会话未实施。】 【2026-11-11 14:2x 补，本会话已执行】上面那句"本会话未实施"止于该笔标注之前：V1 已落地为增量 **0039**（`increments/0039_mass_absence_epoch_dedup.sql`＋catalog＋`manifest.json` v=39，链尾现为 39；机制＝批量命令只抬一次 `work.org.access_epoch`，再经事务局部 GUC 把该值交给 0023 的零参触发器，触发器的状态分支与席位分支各改成"有暂存值且 org 匹配就用它，否则照旧自己抬升"，循环后显式清空）。`TestR0bMassAbsenceThresholdAndRestore`（EV86）在本机活库 **PASS**——:1200 的"每个事件只升 1 次"与 :1246 的"累计升 2 次"同时成立；回归面 `internal/directory`（`recovery_pg_test.go:60` 那条"每个 deny 抬一次"）整包 ok。**半径**＝migration＋换二进制：未提交、未 push、未 rollout、未重采 catalog，外部正证要等含代码批次推送后那笔 CI run。清单与逐条读数见 work-project.md §5.1 以"EV86 与"起头那一行的同日标注。
 
 ### 3.3 部署脚本缺失文件
 

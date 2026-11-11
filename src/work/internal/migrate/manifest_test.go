@@ -51,6 +51,7 @@ var publishedIncrements = []string{
 	"0036_audit_export_content_prefetch",
 	"0037_fix_epoch_deduplication",
 	"0038_revert_epoch_deduplication_overloads",
+	"0039_mass_absence_epoch_dedup",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

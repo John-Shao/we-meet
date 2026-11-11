@@ -113,6 +113,8 @@ go test ./internal/migrate -run "TestR0b" -v 2>&1 | grep -E "(PASS|FAIL|SKIP)"
 | EV120 | TestR0bReconcileClockHasAWriter | r0b_transition_test.go:335 | ~60 | ✅ | ⚠️ 需 PG |
 | EV123 | TestR0bResolutionMapGrantsAreReadOnly | r0b_transition_test.go:367 | ~50 | ✅ | ⚠️ 需 PG |
 
+**【2026-11-11 表外同日更正，上面这张表逐字保留，含 EV86 行】** 状态列的 ✅ 只表示"测试代码已实现"，不表示通过，本行不改变它。现读更正两条：① EV86 的断言在 `r0b_governance_test.go:1201`（表中 `:1109` 是用例起点），2026-11-11 一次性干净容器两轮串行全量与 CI run 42961862145 都给 `epoch after small mass-absence = 10, want 1`；② 同日主签裁"权威＝该测试"⇒ 事件级 epoch 去重转为必须交付项 V1，本会话已落地为增量 **0039**（链尾现为 39）并在本机使该测试 PASS，**未提交、未 push、未 rollout、未重采 catalog**；"⚠️ 需 PG"这条可执行性判据不变（它正是本条取证要活库的原因）。逐条读数见 work-project.md §5.1 以"EV86 与"起头那一行；§5.1 行号会漂，按行首格指认。
+
 **代码质量验证**：
 ```bash
 cd D:/workspace/we-meet/we-meet/src/work
