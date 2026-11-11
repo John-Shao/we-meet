@@ -2,8 +2,8 @@
 
 ## 范围
 
-按 [Color System](../color-system.md) D 阶段与 [Foundation System](../foundation-system.md)
-的口径，收口「会议」模块的四个栏目页及其共享件：
+按 [Color System](../design-system/color-system.md) D 阶段与 [Foundation System](../design-system/foundation-system.md)
+的口径，收口「会议」模块的四个栏目页及其共享件（2026-11-11 注：设计系统文档已移入 `docs/design-system/`，本文 prose 中的旧路径 `docs/color-system.md`、`docs/component-system.md` 均指该目录下的同名文件）：
 
 | 页面     | 路由                                                   | 组件                                                                  |
 | -------- | ------------------------------------------------------ | --------------------------------------------------------------------- |

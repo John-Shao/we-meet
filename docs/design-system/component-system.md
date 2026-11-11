@@ -4,7 +4,7 @@
 
 ## 1. 机器可读尺寸契约
 
-机器可读真源是 [`component.tokens.json`](../src/design-tokens/component.tokens.json)：
+机器可读真源是 [`component.tokens.json`](../../src/design-tokens/component.tokens.json)：
 
 | 语义                               |        Web |                Android | 用途                        |
 | ---------------------------------- | ---------: | ---------------------: | --------------------------- |

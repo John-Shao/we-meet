@@ -7,7 +7,7 @@
  *   - 失败：限流（`rateLimited`）、权限（`denied` / `requestDenied`）、结果不确定
  *     （`uncertain`）、复制失败（`copyError`）、冲突（`conflict`）…
  *
- * 两类不能共用 `role="status"`：`docs/component-system.md`
+ * 两类不能共用 `role="status"`：`docs/design-system/component-system.md`
  * §「加载、空数据与错误状态」要求**错误**走 `role="alert"` + `aria-live="assertive"`，
  * 否则读屏只会礼貌地念一句就翻过去，用户可能整段错过失败。
  *

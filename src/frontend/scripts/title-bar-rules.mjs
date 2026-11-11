@@ -2,7 +2,7 @@
 // `check-calendar-title-bar.mjs`(日历那条自己排的 header)复用。
 //
 // 规则出处:
-//   · `docs/component-system.md` §「图标按钮」—— 纯图标操作统一使用 `IconButton`,
+//   · `docs/design-system/component-system.md` §「图标按钮」—— 纯图标操作统一使用 `IconButton`,
 //     只走 icon24/28/32 三档,普通动作配 `quaternaryText`(危险动作 `quaternaryDanger`);
 //   · `docs/reviews/meetings-ux-migration-2026-09-16.md` §3.27 的基准表 ——
 //     主操作 `primary + action + 18px 图标`、次操作 `secondaryText + action + 18px 图标`、

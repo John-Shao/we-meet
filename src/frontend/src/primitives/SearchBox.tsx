@@ -178,7 +178,7 @@ const iconCls = css({
  * 右端那枚清除 ✕。
  *
  * 用 IconButton 而不是裸 `<button>`:悬停底色、pressed、focus-visible 环、无障碍名
- * 与 Tooltip 都由它一处给出(见 docs/component-system.md「图标按钮」)。
+ * 与 Tooltip 都由它一处给出(见 docs/design-system/component-system.md「图标按钮」)。
  *
  * 定位用 `top: 50%` + translateY 而不是写死 4px:写死的那个数只在框高正好 32px
  * (control.md)时居中,哪天调用点把框高改了,✕ 就贴到框顶去。`right: 0.25rem`

@@ -40,7 +40,7 @@ Let's say you want to change the font of our application to a custom font. You c
 Then, set the `FRONTEND_CSS_URL` environment variable to the URL of your custom CSS file. Once you've done this, our application will load your custom CSS file and apply the styles, changing the default font to the one you specified.
 
 > [!IMPORTANT]
-> You can override any CSS token—semantic or palette. See [panda.config.ts](../src/frontend/panda.config.ts) for all defined semantic tokens.
+> You can override any CSS token—semantic or palette. See [panda.config.ts](../../src/frontend/panda.config.ts) for all defined semantic tokens.
 > WeMeet 支持 Light/Dark 语义 token。会中房间仍可因沉浸式视频场景使用恒深色的组件角色；
 > 运行时覆盖颜色时必须同时提供两套主题值，并保持 Color System 规定的前景/背景配对。
 
@@ -65,7 +65,7 @@ These control the main visual aspects of the interface:
 
 > [!NOTE]
 > Focus styling is defined in exactly one place — the "统一焦点描边" block of
-> [src/frontend/src/styles/index.css](../src/frontend/src/styles/index.css) — and comes in two flavours:
+> [src/frontend/src/styles/index.css](../../src/frontend/src/styles/index.css) — and comes in two flavours:
 > input-like controls (`input` / `textarea` / `select`, plus the `Select` primitive) get a brand-blue
 > border plus the `--shadows-focus-ring` halo, mirroring the login page's input; everything else
 > (links, buttons, checkboxes, react-aria components) gets a `2px` `--colors-focus-ring` outline with a
@@ -115,7 +115,7 @@ ENV VITE_APP_TITLE=${VITE_APP_TITLE}
 ```
 
 For a real-world example, see how DINUM rebuilds the frontend to match their branding:
-[DINUM Dockerfile](../docker/dinum-frontend/Dockerfile)
+[DINUM Dockerfile](../../docker/dinum-frontend/Dockerfile)
 
 ---
 

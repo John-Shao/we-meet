@@ -10,7 +10,7 @@
 
 ## 2. Shape scale
 
-机器可读真源是 [`shape.tokens.json`](../src/design-tokens/shape.tokens.json)。DTCG 的 1px 在 Android 映射为 1dp；Web 的有限圆角由 Panda 转成 rem。
+机器可读真源是 [`shape.tokens.json`](../../src/design-tokens/shape.tokens.json)。DTCG 的 1px 在 Android 映射为 1dp；Web 的有限圆角由 Panda 转成 rem。
 
 | Scale        | Value | Semantic alias | 典型用途                          |
 | ------------ | ----: | -------------- | --------------------------------- |
@@ -26,7 +26,7 @@
 
 ## 3. Elevation scale
 
-机器可读真源是 [`elevation.tokens.json`](../src/design-tokens/elevation.tokens.json)。
+机器可读真源是 [`elevation.tokens.json`](../../src/design-tokens/elevation.tokens.json)。
 
 | Token     | Native level | Web shadow        | 典型用途                   |
 | --------- | -----------: | ----------------- | -------------------------- |

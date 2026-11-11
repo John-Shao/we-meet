@@ -331,7 +331,7 @@ const gridToggleWrap = css({ display: { base: 'none', md: 'inline-flex' } })
  * 铺满内容列、高度占满,状态块在其中居中。
  *
  * 状态本身也从 `StateHint`(面板级)换成 `PageState`(页面主内容区),与
- * `docs/component-system.md` §「加载、空数据与错误状态」的分工一致。
+ * `docs/design-system/component-system.md` §「加载、空数据与错误状态」的分工一致。
  */
 const unavailableLayout = cx(
   pageShell('canvas'),

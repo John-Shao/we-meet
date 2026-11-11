@@ -8,7 +8,7 @@ Please also check out our [dev handbook](https://suitenumerique.gitbook.io/handb
 
 ## Product UI conventions
 
-UI changes must follow the [WeMeet Component System](docs/component-system.md).
+UI changes must follow the [WeMeet Component System](docs/design-system/component-system.md).
 Standalone detail pages with a parent list use the shared header convention
 **“列表页名称 > 详情页名称”**: the list name links back to the list, the detail
 name is the page title, and page actions are aligned on the right. See the

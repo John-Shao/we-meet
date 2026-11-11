@@ -111,7 +111,7 @@ Dark Mode 是独立映射，不是颜色反转；半透明色必须按合成后�
 
 ## 6. 机器可读契约与校验
 
-规范源位于 [`src/design-tokens/color.tokens.json`](../src/design-tokens/color.tokens.json)，采用
+规范源位于 [`src/design-tokens/color.tokens.json`](../../src/design-tokens/color.tokens.json)，采用
 DTCG 2025.10 的 opaque sRGB 表达，并保留 HEX fallback。sRGB 是首期跨设备基线；未来可以在
 兼容链路稳定后增加 OKLCH/P3 增强值，不能牺牲 sRGB fallback。
 
@@ -154,7 +154,7 @@ npm run check:colors
 - **会议模块已完成 D 阶段收口**：视频会议（`/meeting`）、AI 录音、会议实录、智能纪要
   四个栏目页及其共享导航 / 列表 / 右下角详情面板全部改用语义角色，并已进入
   `check:colors` 与 `check:foundations` 的迁移清单（详见
-  [会议模块 UX 收口](./reviews/meetings-ux-migration-2026-09-16.md)）；
+  [会议模块 UX 收口](../reviews/meetings-ux-migration-2026-09-16.md)）；
 - 会中舞台的 `primaryDark.*` 固定深色控件，以及视频内容上的半透明遮罩属于
   component/product 例外；它们不跟随 App Light/Dark 模式反转；
 - 用户日历色、视频内容色和外部内容色单独建例外清单，不强行 token 化。

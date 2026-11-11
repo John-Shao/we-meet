@@ -21,9 +21,9 @@ Spacing 采用 WeMeet 的跨端工程约定：4px/dp 是基础单位，8px/dp �
 
 ## 2. 机器可读契约
 
-- [`spacing.tokens.json`](../src/design-tokens/spacing.tokens.json)：
+- [`spacing.tokens.json`](../../src/design-tokens/spacing.tokens.json)：
   `0 / 2 / 4 / 8 / 12 / 16 / 24 / 32 / 48 / 64`；
-- [`typography.tokens.json`](../src/design-tokens/typography.tokens.json)：Material 3 的 15 档
+- [`typography.tokens.json`](../../src/design-tokens/typography.tokens.json)：Material 3 的 15 档
   字号、行高、字重与字距；
 - Web：Panda 将尺寸换算为 `rem`，避免阻止浏览器文字缩放；
 - Android：DTCG `px` 按逻辑尺寸 1:1 映射到 `dp`，字体尺寸映射到 `sp`；
