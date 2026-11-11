@@ -33,7 +33,7 @@ R0b 设备侧功能在卡片 E=B 之下剩：
 | 面 | 现状 | 判据 |
 |---|---|---|
 | 设备 agent 二进制/包 | 无 | `src/` 下无 `device*`/`agent*`/`local*`/`windows*`/`pi*`；`src/agents` 是 Python 会议 AI 不是设备 agent；无 `.rs` |
-| Migration 表 | 无 | `work.device`/`device_dispatch`/`device_checkpoint`/`workspace_grant`/`device_run_seal`/`disclosure_decision`/`artifact_replica` 在 0001-0037 与 catalog 全零命中 |
+| Migration 表 | 无 | `work.device`/`device_dispatch`/`device_checkpoint`/`workspace_grant`/`device_run_seal`/`disclosure_decision`/`artifact_replica` 在 0001-0037 与 catalog 全零命中（2026-11-11 现读重扫：0038 只 DROP 0037 的两个函数、不建任何表，本行结论到链尾 38 仍成立） |
 | 域命令 SQL 函数 | 无 | `prepare_local_operation`/`acquire_device_lease`/`consume_device_permit`/`record_device_receipt`/`finish_local_run`/`finalize_local_artifact`/`consume_device_ack`/`record_device_model_result` 全零命中 |
 | Go handler | 三条 route 已注册但零消费者 | `bootstrap.go:187-193` 注册；`admin_local_policy.go`/`admin_governance_cursor.go`/`run_reconciliations.go` 有实现与测试；`grep work/v2 src/frontend` 零命中、`grep work/v2 work/scripts` 零命中 |
 | 前端 | 只有 `src/frontend/src/features/work/r0a/` | 无 `r0b/` 目录 |
@@ -98,6 +98,8 @@ M5 EV 与验收（TestEV* 命名补齐 + S2/S4 签收单实测 + J39 审计）
 - 建议 α（"不为过测试放宽控制" memory 的对称面：不为"部署过了"就补齐语义；0037 首稿是范围误判，撤回成本最低）。
 - 落项前先开一张待裁卡（见 §8），主签单选。
 
+**【2026-11-11 M1c 已裁定并本地落地＝α/H1】** 卡片 H 主签单选 α；产出：`increments/0038_revert_epoch_deduplication_overloads.sql`（DROP 两 overload，0019/0023 触发器版保留）＋ catalog（byte-identical 与 0036 那份一致，checksum `bf79f260276d2d13bc703e01cd75e439adbae094780a74bf205cc290db6ebcc4`）＋ `manifest.json` v=38 ＋ `deploy/ecs/verify-r0a-0027.sh` 加 `epoch_dedup_reverted=` 语义探针 ＋ `internal/migrate/manifest_test.go` 手抄 `publishedIncrements` 补 0037/0038。**未做**：生产 rollout 属独立"换二进制"半径，另行授权；M1a 起步仍等 §8 其余待裁卡。ci-contract.mjs 全 24 项绿（含 `every published increment is confirmed by the verify script` 那条）。
+
 ## 5. M2/M3 未裁前置
 
 以下问题**未裁之前 M2/M3 不开工**；本计划不预设结论。
@@ -150,6 +152,8 @@ M3 开工前必须有"设备 agent 语言与打包形态征询单"落项，同�
 | `org.work.seat.write` 细分权限码 | M4 | control §343/arch §138 记"今天不存在" |
 | S4 §14 卡片书面接受回填 | M2/M5 | signoff `:74` J33 六条硬条件"主签在场代答，Lily 书面接受未回填，§14 的 S4 卡片保持未勾选"（Lily 2026-11-01 离队；memory `feedback-external-asks-as-signable-memos`"答复方消失时降级为自决日志＋延迟复评"） |
 
+**【2026-11-11 同日更正：本表首行"0037 死代码处置"已裁定并本地落地】**卡片 H 主签单选 H1＝α revert；产出 `increments/0038_revert_epoch_deduplication_overloads.sql`＋catalog＋manifest v=38＋`verify-r0a-0027.sh` 语义探针＋`manifest_test.go` 手抄清单同步。生产 rollout 属"换二进制"独立半径，另行授权。表内其余 7 行"待开卡"照常进入 work-project.md §5（当前已在卡片 I–O，见 work-project.md §5.0）。原文首行保留不删，此更正取代其"待裁"状态。
+
 ## 9. 本批不做
 
 - **不写** M1a/M1b/M1c 任何 SQL 或 Go 代码；M1a 起步属 §8 待开卡裁完之后。
@@ -160,6 +164,7 @@ M3 开工前必须有"设备 agent 语言与打包形态征询单"落项，同�
 
 ## 10. 建议推进顺序（不是排期）
 
-- **可立刻独立裁**：M1c 0037 处置（revert 半径最小）。
+- **可立刻独立裁**：M1c 0037 处置（revert 半径最小）。【2026-11-11 已裁并已本地落地：主签单选 H1＝α＝revert，产出 0038；见 §4 M1c 与 §8 表外更正。这一条从"可裁"变"已裁"，不影响下面那条"按现读链尾定下一号"的约束——0038 之后现读链尾已是 38】
 - **可并行推**：S2 隔离口径、设备 agent 语言、Windows 环境解锁——这三条都是 M2/M3 前置，无相互依赖。
 - **顺序硬约束**：M1a → M1b → M2 → M3 → M4 → M5；M1c 与 M1a 都写 migration，落笔时按 `git log -- migrations/increments/` 现读链尾定下一号，避免"先占位后回钉"的 checksum 死结（memory `work-migration-increment-landing`）。
+- **【2026-11-11 新增，横在 M1a 之前的外部正证缺口】** CI 的 `Go migration, RLS, API and directory sync (PG16)` 自 cf7657b6e（0037 落地）起整条红，红因是 `role "work_admin" does not exist`——该角色在三处角色定义（`provision-r0b-roles.sh`／`internal/testpg`／`migrate/preflight.go`）零命中，没有任何产生者；0038 只 DROP 0037 的函数，排在 0037 之后，解不了它。**后果对本计划是直接的**：M1a／M1b 都要写 migration＋`_pg` 用例，而只要这条不修，它们**取不到任何 CI 侧正证**，本机活库跑不能作为替代（环境差异见 work-project.md 卡片 H 验证段）。已作为待裁 W1／W2／W3 登记（work-project.md §5.1），**裁定并修好之前不开 M1a**。

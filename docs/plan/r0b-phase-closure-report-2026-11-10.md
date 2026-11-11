@@ -11,14 +11,14 @@
 R0b 阶段已于 2026-11-10 23:22 CST 成功完成生产部署（commit 029190329）。本阶段实现了 R0b 安全签收单中的核心功能，完成了 43/43 EV 测试（100% 通过率），并将所有服务部署到生产环境。
 
 **关键成就：**
-- ✅ 43/43 EV 测试通过（100%）
+- ✅ 43/43 EV 测试通过（100%）【2026-11-11 限定，原文保留：这 43 条是**本机活库**跑出的结论。同日卡片 H 验证现读：远端 run 42846015317（cf7657b6e，0037 落地那笔）的 `Go migration, RLS, API and directory sync (PG16)` **整条红**，红因 `role "work_admin" does not exist`——该角色在仓库里没有任何产生者。所以本行与"六、总结"里同一句，都只到"本机跑过"这一层，不构成 CI 外部正证；已登记待裁 W1／W2／W3（work-project.md §5.1）】
 - ✅ 生产部署成功（commit 029190329）
 - ✅ 所有核心服务正常运行
 - ✅ Migration 链完整（0001-0036）
 - ✅ 安全签收单自决完成（S1-S15，12 项本期执行）
 
 **遗留项：**
-- ⚠️ Migration 0037（epoch deduplication 性能优化）暂时移除，待 catalog 生成后重新部署
+- ⚠️ Migration 0037（epoch deduplication 性能优化）暂时移除，待 catalog 生成后重新部署【2026-11-11 关闭：本行的"待…重新部署"在同日 23:34 已由签收单 §18 执行完；随后主签对卡片 H 单选 **H1＝revert**，0037 的两个 overload 由新增量 0038 在本地撤回（未 commit／未 push／未部署，现网链尾 37）。详见 §4.2 与 §六 的同日标注】
 - ⚠️ 外部安全审计未执行（J39 触发条件：首个真实客户组织前必须完成）
 - ⚠️ S2/S3/S4/S6/S9/S10/S11/S12/S13 的 EV 实测未执行（当前仅为规格）
 
@@ -234,7 +234,8 @@ EV85 和 EV86 测试通过，所有 43 个 EV 测试达到 100% 通过率。
   - B04: 成果选择性云同步（J13 收窄口径）
   - B09 部分: 本机摘录远程外发
   
-- [ ] Migration 0037 死代码处置（下一批待裁）
+- [x] Migration 0037 死代码处置（下一批待裁）
+  - **【2026-11-11 主签裁定＝(a) H1 revert，同日本地落地】**`src/work/migrations/increments/0038_revert_epoch_deduplication_overloads.sql`＋catalog（与 0036 catalog byte-identical，cmp 通过、checksum `bf79f260276d...`）＋`manifest.json` v=38 已入仓库 tip；`deploy/ecs/verify-r0a-0027.sh` 加 `epoch_dedup_reverted=` 语义探针；`internal/migrate/manifest_test.go` 的 `publishedIncrements` 同步补 0037/0038（0037 未列是 pre-existing red，非本批引入）。ci-contract.mjs 全绿（24 项，含 release-assets 的 `every published increment is confirmed by the verify script` 那条）。生产 rollout 属"换二进制"独立半径，另行授权，本批**未部署**。详见 [work-project.md](work-project.md) 卡片 H【2026-11-11 主签裁定＝H1】段。
   - 二选一：(a) 0038 migration `DROP FUNCTION work.record_member_narrowing(uuid,uuid,text,jsonb)` 与 `..._with_intents(...)`，回到只保留 0019/0023 触发器版的干净状态；或 (b) 补三张表 + `work.org.member_epoch` 列 + 至少一个真实 caller（含权限、RLS、事件表 retention）。
   - 独立部署半径＝migration；(a) 只需一个 increment + catalog，(b) 涉及新表设计与权限矩阵，工作量数倍。
   - 相关"epoch bump 频率监控"、"系统性能指标采集"两项**撤销**——它们都以 0037 会被执行为前提；若走 (a) 永久不成立，若走 (b) 属功能上线后的运维事项，不属本批基准。
@@ -292,7 +293,7 @@ R0b 阶段已成功完成生产部署，所有核心功能已上线。Migration 
 
 **下一步：**
 - R0b 设备侧功能实现（B01-B03/B05-B08/B10）
-- Migration 0037 死代码处置（下一批待裁：revert 或补三表 + caller）
+- Migration 0037 死代码处置（下一批待裁：revert 或补三表 + caller）**【2026-11-11 同日更新：已裁＝H1 revert，0038 migration＋catalog＋verify 脚本＋manifest_test 手抄清单已在本地 tip 落地；生产 rollout 属独立"换二进制"半径，另行授权】**
 - 端到端功能测试（需要真实用户登录）
 - R0c 阶段规划（B04 选择性云同步、B09 本机摘录远程外发）
 

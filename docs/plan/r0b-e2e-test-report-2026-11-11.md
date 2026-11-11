@@ -204,7 +204,9 @@ record_member_narrowing_with_intents         | p_org_id uuid, p_member_id uuid, 
 1. 执行真实用户登录测试（手动）
 2. 完成 R0b 设备侧功能实现（B01-B03/B05-B08/B10）
 3. 0037 死代码待裁：revert（0038 migration `DROP FUNCTION` 两个 overload）或补齐三张表 + `member_epoch` 列 + 至少一个 caller；独立部署半径＝migration。
+   - **【2026-11-11 同日更新，卡片 H 主签裁定＝H1】**本项已裁定并本地落地：`src/work/migrations/increments/0038_revert_epoch_deduplication_overloads.sql`＋catalog（byte-identical 与 0036 那份一致）＋`manifest.json` v=38＋`src/work/deploy/ecs/verify-r0a-0027.sh` `epoch_dedup_reverted=` 语义探针＋`publishedIncrements` 手抄清单（同时补 0037/0038）。生产 rollout 属"换二进制"独立半径，仍需单独授权；本报告不宣告 0038 已上线。详见 [work-project.md](work-project.md) 卡片 H【2026-11-11 主签裁定＝H1】段。
 4. R0c 阶段规划（B04 选择性云同步、B09 本机摘录远程外发）
+5. **【2026-11-11 卡片 H 验证时新增，独立于上面四项】CI 的 Go PG 测试面自 cf7657b6e 起整条红**：远端 run 42846015317 的 `Go migration, RLS, API and directory sync (PG16)` 里几乎每条 PG 用例都因 `apply increments/0037_fix_epoch_deduplication.sql: ERROR: role "work_admin" does not exist (SQLSTATE 42704)` 失败——`work_admin` 在 `provision-r0b-roles.sh`／`internal/testpg`／`migrate/preflight.go` 三处零命中，没有任何产生者。**本机复现不到这一条**（我本会话在建库容器里手工 `CREATE ROLE work_admin NOLOGIN` 过，环境差异已具名登记，角色未删）。0038 不解决它：DROP 排在 0037 之后，重放仍先撞 0037 的 GRANT。后果＝此后任何 Work Go 改动都取不到 CI 外部正证。已登记为待裁（W1 补建角色／W2 重指向既有角色／W3 接受长期红），详见 [work-project.md](work-project.md) §5.1 与卡片 H 验证段；**在裁定前，`r0b-phase-closure-report-2026-11-10.md` 的"43/43 EV 测试通过（100%）"（"执行摘要"与"六、总结"各一处）与签收单 `work-r0b-security-host-signoff-2026-10-31.md` §17.4 的"EV 测试执行 ✅ 100%（43/43 测试通过）"，连同本报告任何"测试通过"的表述，都不构成 CI 结论**。
 
 ---
 
@@ -292,7 +294,7 @@ Keycloak subject：`sub=03a7c56e-91f4-4ab5-a809-2b9fde3cee30`。
 ### 6.6 未覆盖
 
 - 2.5 的 9 个非默认演示账号仅到 Token Exchange，未走完整 OIDC callback。Django session 建立路径与手机号解耦（1 号已端到端跑通）；`access_token` 拿到不等于 Work 侧有 org membership——首次进入 Work 时的 `no_org_membership` 分支本轮未观察。
-- Migration 0037 "epoch bump 2N→N+1" 不属"未测"——**无实现面**（0 caller、0 表、0 列，见 §3.2）；下一批先做 0037 revert 或补表 + caller 的裁定，之后再谈基准。
+- Migration 0037 "epoch bump 2N→N+1" 不属"未测"——**无实现面**（0 caller、0 表、0 列，见 §3.2）；下一批先做 0037 revert 或补表 + caller 的裁定，之后再谈基准。**【2026-11-11 同日更新】**卡片 H 已裁＝H1，`0038_revert_epoch_deduplication_overloads.sql` 已在本地 tip 落地，0037 引入的 4/5 参 overload 与 `work_admin` GRANT 一并 DROP；0019/0023 触发器版 0 参保留；生产 rollout 属"换二进制"独立半径，另行授权。
 - B03 `/work/v2/runs/{id}/reconciliations` 端到端依赖 §6.5 登记项 A（当前无 Web 消费者，ops CLI 与 port-forward 绕行；试点批次接入时补）。
 
 ### 6.7 结果矩阵（含 §一~§五 自动化）

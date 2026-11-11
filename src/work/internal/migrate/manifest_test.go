@@ -49,6 +49,8 @@ var publishedIncrements = []string{
 	"0034_restore_function_security_definer",
 	"0035_release_restriction_single_writer",
 	"0036_audit_export_content_prefetch",
+	"0037_fix_epoch_deduplication",
+	"0038_revert_epoch_deduplication_overloads",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

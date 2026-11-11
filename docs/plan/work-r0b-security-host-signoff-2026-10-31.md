@@ -662,10 +662,12 @@ D-08 的 token 口径与客户自带账号模式、Host 作为成员与席位权
 
 ## 17. R0b 生产部署完成（2026-11-10，commit 029190329）
 
+**【2026-11-11 卡片 H 裁定后的适用范围标注】** 本节是 2026-11-10 23:22 CST 那一次部署的快照，原文逐行保留。读它时要先知道两件事：① 本节"0037 暂时移除／保持生产在 migration 36"的状态在**同一天 23:34 CST 已被下面的 §18 作废**（0037 重新部署、ledger 到 37）；② 本节与 §18 共同留下的那条遗留项"生成 0037 的 catalog 并重新部署"，**2026-11-11 由主签单选 H1 关闭＝撤回**——新增量 0038 `revert_epoch_deduplication_overloads` 已在本地落地（DROP 0037 的两个 overload；0019／0023 的零参触发器版原样保留）。因此本节里"重新部署 migration 0037"的每一句都是**历史陈述，不是待办**，按下它们等于重复一次生产写。0038 本批**未 commit、未 push、未在任何环境应用**，生产链尾仍是 37。
+
 **部署状态**：✅ 成功  
 **部署时间**：2026-11-10 23:22 CST  
 **部署 commit**：029190329  
-**Migration 版本**：36（migration 0037 暂时移除）  
+**Migration 版本**：36（migration 0037 暂时移除）【2026-11-11 就地标注：说的是 23:22 那一刻；同一天 23:34 由 §18 升到 37。卡片 H＝H1 后，撤回它的 0038 已在本地落地但**未部署**，所以现网读数是 37，不是 38】  
 **服务状态**：全部 6 个核心服务 active（work-api, work-relay, work-worker, work-authz, work-content-proxy, work-egress）
 
 ### 17.1 部署内容
@@ -676,10 +678,10 @@ D-08 的 token 口径与客户自带账号模式、Host 作为成员与席位权
 - 所有 env 模板文件
 - 辅助脚本（pilot-metrics, runstream-gauges, retention-scan, c16-log-scan, reconcile-scan, healthcheck 等）
 - Node runtime bundle（work-runtime.tar.gz）
-- 数据库迁移 0001-0036（无新迁移应用，因 0037 已移除）
+- 数据库迁移 0001-0036（无新迁移应用，因 0037 已移除）【2026-11-11 就地标注：0037 在同日 23:34 补装，见 §18；0038 是卡片 H 的撤回增量，本地已落地、未部署】
 
 **未部署：**
-- Migration 0037（epoch deduplication 性能优化）——因 catalog checkpoint 循环依赖问题暂时移除
+- Migration 0037（epoch deduplication 性能优化）——因 catalog checkpoint 循环依赖问题暂时移除【2026-11-11 就地标注：本行只活了 12 分钟，§18 记录了它的补装；卡片 H 裁 H1 后，0037 的两个 overload 由 0038 撤回，理由不是"catalog 循环依赖"，而是**那两个函数没有调用方、且函数体引用了全链从未创建的 `work.org_member`**】
 
 ### 17.2 Migration 0037 移除原因
 
@@ -692,7 +694,9 @@ Migration 0037 的目的是修复 `record_member_narrowing` 触发器中的 epoc
 
 **处置**：暂时移除 migration 0037，保持生产系统在 migration 36 的状态。该优化是性能改进，非功能性修复，不影响系统正确性。
 
-**后续计划**：
+【2026-11-11 更正本节结论，原文保留】这一段的定性句"该优化是性能改进，非功能性修复"**方向对、机制错**：它确实不影响正确性，但不是因为"只是性能改进"，而是因为**这段优化根本没有生效面**——0037 改的是 `record_member_narrowing(4 参)` 与 `record_member_narrowing_with_intents(5 参)` 两个 overload，而写 `work.org_member_narrowing_event` 的那条路径全链不存在（`work.org_member`／`work.org_member_narrowing_event`／`work.org_member_intent_narrowing` 三张表与 `work.org.member_epoch` 列在 0003—0037 任何 baseline／增量里都没建过，plpgsql 函数体延迟解析，所以 CREATE 会成功、**第一次调用即以 42P01 关系不存在失败**）。真正在跑的是 0019:261／0023:177 的**零参触发器版**，0037 没碰它。据此主签 2026-11-11 单选 **H1＝revert**，由 0038 撤回这两个 overload。另：这一节说的"暂时移除"只维持到同日 23:34，§18 记录了 0037 的补装。
+
+**后续计划**（原文保留；三条已全部执行于 §18，其中第 3 条的产物已于 2026-11-11 被 0038 撤回）：
 - 在测试环境搭建完整的 37 个 migration 链
 - 从测试环境生成正确的 catalog for version 37
 - 重新部署 migration 0037（作为独立的增量发布）
@@ -709,22 +713,24 @@ Migration 0037 的目的是修复 `record_member_narrowing` 触发器中的 epoc
 
 **待验证：**
 - ⏸️ 端到端功能测试（需要真实用户登录）
-- ⏸️ 性能基准测试（migration 0037 移除后的 epoch bump 行为）
+- ⏸️ 性能基准测试（migration 0037 移除后的 epoch bump 行为）【2026-11-11 关闭为**不适用**：0037 的两个 overload 无调用方，"移除前后的 epoch bump 行为"没有可测差异；实测证据是 `internal/migrate` 的 `TestR0bMassAbsenceThresholdAndRestore` 在含 0037 与不含 0037 的两棵树上给出**同一个红值 10**，见 work-project.md §5.1 卡片 H 落地记录】
 
 ### 17.4 R0b 阶段完成度
 
 **代码实现**：✅ 100%（I1 代码冻结完成）  
 **领域命令**：✅ 100%（I2 完成）  
-**EV 测试执行**：✅ 100%（43/43 测试通过）  
+**EV 测试执行**：✅ 100%（43/43 测试通过）【2026-11-11 限定，原文保留：本机活库口径；同一天现读远端 run 42846015317（cf7657b6e）的 Work R0a gates／Go PG job 为 **failure**，红因 `role "work_admin" does not exist`（该角色无产生者，见 work-project.md §5.1 待裁 W1／W2／W3）。本行不等于 CI 结论】  
 **生产部署**：✅ 100%（commit 029190329 部署成功）  
 **安全签收单**：⚠️ 部分完成（S1-S15 中 S1/S14/S15 移出本期，剩余 12 项自决完成，但外部审计未执行）
 
 **遗留项**：
-1. Migration 0037 的 catalog 生成与重新部署
+1. Migration 0037 的 catalog 生成与重新部署【2026-11-11 关闭：catalog 生成与重新部署都已在 §18 执行完，产物随后由卡片 H 裁定 H1、0038 撤回；本项不再是待办】
 2. 外部安全审计（J39 触发条件：首个真实客户组织前必须完成）
 3. S2/S3/S4/S6/S9/S10/S11/S12/S13 的 EV 实测（当前仅为规格，未执行）
 
 ### 17.5 后续工作
+
+【2026-11-11 节首标注，下面三个框的原文与勾选状态一律不动，读之前先看这条】前两个框"生成 migration 0037 的正确 catalog"与"重新部署 migration 0037"**在 2026-11-10 23:32—23:34 CST 已经执行过**（过程与产物见 §18），空着只是没人回填状态，不代表没人做过。**这两个框按下去都是生产写操作**：前者的做法是在现网直接执行 0037 的 SQL，后者是替换在架二进制并重灌增量——把它们当待办再执行一次，等于在没有裁定、没有回滚点的情况下对生产库重复写两次，而且第二次会在已经存在 0037 对象的库上撞 `already exists`／重复 GRANT，或把刚由 0038 撤回的 overload 重新装回去。所以：**这两个框由卡片 H（H1＝revert）关闭，不再执行；要重开必须先有新的裁定。** 第三个框"执行端到端功能测试"仍是待办，且不属 0037。中期那条"性能基准测试（epoch deduplication 优化效果）"同 §17.3 一并关闭为不适用（被测函数无调用方）。
 
 **短期（本周）：**
 - [ ] 生成 migration 0037 的正确 catalog
@@ -744,6 +750,13 @@ Migration 0037 的目的是修复 `record_member_narrowing` 触发器中的 epoc
 **同批副产物**：把 EV124/125/126 从 §8 搬进 §7 后，结构校验才能把它们当 oracle 行解析，随即暴露 §6 矩阵 **B01/B02/B09 三行都缺 EV124**——A 路报的"位置错"一直掩盖着这条更实质的漏项。**教训：校验工具看不见的行，等于没有验收。**
 
 ## 18. Migration 0037 部署完成（2026-11-10，commit cf7657b6e）
+
+**【2026-11-11 卡片 H 裁定 H1 后的阅读前置，本节原文与结论逐行保留】** 本节作为"那天做了什么"的记录是**准确的**：0037 确实在现网执行了、catalog 确实从生产库生成、ledger 确实到 37。要更正的是它对**效果**的四句话，因为它们会让下一个读者以为这条优化在跑：
+
+1. §18.1／§18.3 说"使用 session variable 避免 N*2 次 epoch bump""预期从 2000 次降到 1001 次"——**不成立**。§18.3 引用的函数体最后一行 `UPDATE work.org_member SET epoch = epoch + 1 ...` 里的 `work.org_member` 表，连同 `work.org_member_narrowing_event`、`work.org_member_intent_narrowing` 和 `work.org.member_epoch` 列，在 0003—0037 的任何 baseline／增量里**从未创建**。plpgsql 体延迟解析，所以 `CREATE OR REPLACE FUNCTION` 会成功，函数**第一次被调用即以 SQLSTATE 42P01（relation does not exist）失败**。
+2. §18.4 的"✅ 两个函数已创建并授予正确权限"——"已创建"为真（正因上面的延迟解析才创建得了）；但这两个 overload **零调用方**：全链唯一真正的写者路径是 0019:261／0023:177 触发的**零参版** `record_member_narrowing()`，0037 没有改它。仓内既无 Go 侧、也无 SQL 侧对四参／五参版的调用。所以"性能优化"没有生效面，属**"无实现面"而不是"未测"**。
+3. 因此本节"循环依赖已解决"这个副结论也要限定：0037 的 catalog 是靠**在生产库上直接执行 SQL 再 snapshot** 得到的，这份产物与增量自身文本在角色面上不一致（SQL 写 `GRANT ... TO work_admin`，catalog 记的是 `work_migrator_login`），后果是 `work-migrate apply` 在全新库上跑到 37 就以 `drift: schema drift at version 37` 中止——**HEAD 即红，不是 0038 引入**，已登记为待裁（work-project.md §5.1）。
+4. **处置**：主签 2026-11-11 单选 H1＝revert。新增量 **0038 `revert_epoch_deduplication_overloads`** 在本地落地，只 DROP 上面两个 overload，零参触发器版与 0037 的其余内容原样保留，0037 文件本体不改（历史保留）。0038 的 catalog 与 0036 的 catalog **逐字节相同**（`cmp -s`），这是"撤回后状态回到 0037 之前"的最强可用证明。**本批未 commit、未 push、未在任何环境应用**；现网链尾仍是 37，是否把 0038 推上去是另一条独立的生产写授权。
 
 ### 18.1 背景
 
@@ -816,10 +829,10 @@ UPDATE work.org_member SET epoch = epoch + 1 WHERE org_id = p_org_id AND member_
 ### 18.5 遗留项更新
 
 **已完成**：
-- ~~Migration 0037 的 catalog 生成与重新部署~~（本节记录）
+- ~~Migration 0037 的 catalog 生成与重新部署~~（本节记录）【2026-11-11：这一项"完成"的产物已由卡片 H（H1）经 0038 撤回；0038 本地落地、未部署，现网链尾仍为 37】
 
 **仍待完成**：
 1. 外部安全审计（J39 触发条件：首个真实客户组织前必须完成）
 2. S2/S3/S4/S6/S9/S10/S11/S12/S13 的 EV 实测（当前仅为规格，未执行）
-3. 性能基准测试（验证 epoch deduplication 优化效果）
+3. 性能基准测试（验证 epoch deduplication 优化效果）【2026-11-11 关闭为不适用：被测的两个 overload 零调用方、函数体引用的 `work.org_member` 从未创建，没有可测差异；见本节顶部阅读前置第 1／2 条】
 4. 端到端功能测试（需要真实用户登录）

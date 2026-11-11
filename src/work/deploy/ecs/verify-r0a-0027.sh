@@ -71,9 +71,24 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (33, '0033_list_content_refs_full_ref_coverage'),
   (34, '0034_restore_function_security_definer'),
   (35, '0035_release_restriction_single_writer'),
-  (36, '0036_audit_export_content_prefetch')) expected(version, name)
+  (36, '0036_audit_export_content_prefetch'),
+  (37, '0037_fix_epoch_deduplication'),
+  (38, '0038_revert_epoch_deduplication_overloads')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
+# A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
+# two 0037 overloads are gone from pg_proc. Count pronames, not oids: an ALTER-own or a partial
+# re-apply would still show oid-level entries but keep the overload count above one.
+psql_ro "select 'epoch_dedup_reverted=' || case when
+    (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'work' and p.proname in
+        ('record_member_narrowing','record_member_narrowing_with_intents')) = 1
+      and not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'work' and p.proname = 'record_member_narrowing'
+          and p.pronargs > 0)
+      and not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'work' and p.proname = 'record_member_narrowing_with_intents')
+  then 'true' else 'FALSE' end"
 # Same reason as the 0028 probe below: a ledger row only proves a file ran. 0029 is the
 # increment that stops a terminal Run from keeping a reservation held, and its whole subject is
 # the trigger - so read the live catalog for the trigger plus the ruled scope inside the helper body.

@@ -414,6 +414,17 @@
       "catalog_checksum": "sha256:1cd5d9910ec202b03f6f603e9e38e78e7c458df4ee23f5f84988281ffd1349e2",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 38,
+      "name": "0038_revert_epoch_deduplication_overloads",
+      "kind": "increment",
+      "file": "increments/0038_revert_epoch_deduplication_overloads.sql",
+      "checksum": "sha256:c6bd034c873eaeb9332a95efa9bb233da3d07cea5ae27c82cd4d2e47b91df429",
+      "catalog": "catalogs/0038_revert_epoch_deduplication_overloads.json",
+      "catalog_checksum": "sha256:bf79f260276d2d13bc703e01cd75e439adbae094780a74bf205cc290db6ebcc4",
+      "transactional": true,
+      "executable": true
     }
   ]
 }
