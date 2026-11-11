@@ -1622,7 +1622,7 @@ ACL 反倒继承。于是一笔"只改谓词"的增量可以静默把函数退�
 - `internal/migrate/function_hardening_test.go`（**不需要数据库**，评审期就红）：拿链上每笔增量自带的 catalog 快照对账，
   凡"曾经记录过 definer"的函数，尾快照必须仍是 definer＋钉住 `search_path`，且**最后一次重写它的那笔增量必须把两行子句写回去**。
   同文件另一条把 1→33 那段历史钉成断言（谓词必须正好点名 `list_pending_audit_exports` 与 `artifact_version_immutable_content`），
-  所以守卫失去判别力时也是红的，不是静默变绿。
+  所以守卫失去判别力时也是红的，不是静默变绿。【2026-11-11 15:5x 主签单选＝G1，原文全部保留，本节上面那两处描述自此要按新形状读】其一，判据范围窄了一格但方向不同：`hardeningGaps` 现在先问"这个函数在链尾那份 catalog 快照里还在不在"，不在就整条跳过，所以"最后一次重写它的那笔增量必须把两行子句写回去"从此只对链尾仍在场的函数成立。换到的是"链尾已不存在的函数不再制造一条修不掉的长红"——0038 把 0037 那两个 overload DROP 之后，#87 那条红已经没有任何可修的形式（重述一个不存在的函数不是修复），而这一半代价在 §5.1 以"#87 函数硬化守卫"起头那一行逐笔登记。其二，"在场"那一半的强度没动，只是从一段历史扩成三段：同文件新增三条判据，① 三个冻结窗口的对账 `TestHardeningGateExcusesOnlyNamesTheChainDropped`：同一条 `hardeningGaps` 分别读截到 37、38、39 的链，期望点名分别是 `record_member_narrowing` 与 `record_member_narrowing_with_intents` 两个、只有前者、以及空——这三行就是"豁免只吃链尾已不存在的名词、不吃当年真丢过钉的名词"的边界证明，且它们读的是已发布历史，不随链增长漂；② 合成窗口三分支 `TestHardeningGapsGateOnlyExcusesDroppedFunctions`：在场者丢子句必须红、在场者尾快照丢钉必须红（上面说的目录那一半）、只有链尾已无名才允许被跳过，并钉该窗口的计数为 2 在场／1 豁免；③ 覆盖下限 `hardeningCoverage`：链尾 39 上"曾被硬化＋被改写＋仍在场"的名词数低于 20 就红（2026-11-11 现读 27 个在场、1 个被豁免），且红因写的是"这道门把守卫洗空了、要新的非空论证"，不是"红少了"。判别力用变异核对过（needle 从文件现取，两轮跑完都还原成同一个 sha）：删掉那道存在性门 ⇒ 主测试与②③同红，且③直接打印出 38 窗口多点名 `record_member_narrowing_with_intents`；把那道门改成对所有名词都豁免 ⇒ ②③与 0033 那条同红，主测试反而绿＝"只看红条数"读不出来的那种静默变绿，正是上面那句"守卫失去判别力时也是红的"要靠机器而不是靠人守的原因。G3（收紧 `searchPathPinRE` 的拼写口径）与"把 overload 签名也做成键"都不在本批，未选≠已否决，触发条件仍写在那一行。
 - `internal/migrate/workload_read_privilege_pg_test.go`（活库）：把"可执行角色 × 函数体读的表 × 该角色有无 SELECT"这条现网谓词
   搬进链建库，零违规才算过；另一条真做变异——`ALTER FUNCTION … SECURITY INVOKER` ＋ `RESET search_path` 提交后，
   worker 连接当场复现 42501、矩阵只报那一行，还原后两条一起归零。

@@ -123,9 +123,12 @@ func lastRewrites(t *testing.T, manifest *Manifest, maxVersion int64) map[string
 	return out
 }
 
-// hardeningGaps returns the names the chain once hardened and no longer has, given a checkpoint
-// window and a rewrite map computed over the same window.
-func hardeningGaps(checkpoints []checkpoint, rewrites map[string]rewrite, maxVersion int64) []string {
+// everHardenedAndTail reduces a checkpoint window to the two facts this rule reads: which names the
+// chain ever recorded as SECURITY DEFINER, and the last checkpoint at or below maxVersion. Both the
+// gap walk and the coverage count are computed from this one reduction, so the gate that decides
+// which names are checked cannot drift away from the count that proves the gate is not emptying the
+// guard.
+func everHardenedAndTail(checkpoints []checkpoint, maxVersion int64) (map[string]bool, checkpoint) {
 	ever := map[string]bool{}
 	tail := checkpoint{hardened: map[string]bool{}, pinned: map[string]bool{}, present: map[string]bool{}}
 	for _, item := range checkpoints {
@@ -139,10 +142,45 @@ func hardeningGaps(checkpoints []checkpoint, rewrites map[string]rewrite, maxVer
 			}
 		}
 	}
+	return ever, tail
+}
+
+// hardeningCoverage counts, for one window, the names whose last rewrite the clause check actually
+// reads and the names it skips because the chain dropped them before that window's tail.
+func hardeningCoverage(checkpoints []checkpoint, rewrites map[string]rewrite, maxVersion int64) (checked int, dropped int) {
+	ever, tail := everHardenedAndTail(checkpoints, maxVersion)
+	for name := range ever {
+		if _, rewritten := rewrites[name]; !rewritten {
+			continue
+		}
+		if tail.present[name] {
+			checked++
+			continue
+		}
+		dropped++
+	}
+	return checked, dropped
+}
+
+// hardeningGaps returns the names the chain once hardened and no longer has, given a checkpoint
+// window and a rewrite map computed over the same window.
+//
+// Ruling G1 (2026-11-11) puts the tail-presence gate ahead of the clause check. The rule is about
+// functions that exist in the chain: a name the chain dropped (0038 dropped the 0037 overloads, and
+// createOrReplaceRE keys bare names, so a same-name overload that survives in the rewrite map is not
+// evidence the function is still there) has no live pg_proc row to leave unpinned, and requiring its
+// clauses anyway turned a revert into a permanent red with nothing left to fix. A rewrite that drops
+// the clauses on a function that is still present at the tail stays red, and hardeningCoverage is the
+// assertion that this gate has not quietly emptied the check.
+func hardeningGaps(checkpoints []checkpoint, rewrites map[string]rewrite, maxVersion int64) []string {
+	ever, tail := everHardenedAndTail(checkpoints, maxVersion)
 	gaps := []string{}
 	for name := range ever {
 		fresh, rewritten := rewrites[name]
 		if !rewritten {
+			continue
+		}
+		if !tail.present[name] {
 			continue
 		}
 		missing := []string{}
@@ -154,9 +192,6 @@ func hardeningGaps(checkpoints []checkpoint, rewrites map[string]rewrite, maxVer
 		}
 		if len(missing) > 0 {
 			gaps = append(gaps, fmt.Sprintf("%s: %s drops %s", name, fresh.file, strings.Join(missing, " + ")))
-			continue
-		}
-		if !tail.present[name] {
 			continue
 		}
 		if !tail.hardened[name] {
@@ -208,6 +243,17 @@ func TestCreateOrReplaceRestatesFunctionHardening(t *testing.T) {
 		}
 	}
 
+	// Ruling G1's cost has to be paid in the open: the tail-presence gate is only safe while it still
+	// lets a lot of names through. Reading on 2026-11-11, over the whole published chain at tail 39,
+	// this is 27 checked against 1 dropped - recount with
+	// `go test ./internal/migrate -run TestCreateOrReplaceRestatesFunctionHardening -v`.
+	checked, dropped := hardeningCoverage(checkpoints, rewrites, tailVersion)
+	if checked < 20 {
+		t.Fatalf("only %d functions the chain ever hardened are still present at the tail and rewritten (%d skipped "+
+			"as dropped) - the clause check has been narrowed to near nothing, so the tail-presence gate needs a new "+
+			"non-vacuity argument rather than a lower floor (#87, ruling G1)", checked, dropped)
+	}
+
 	if gaps := hardeningGaps(checkpoints, rewrites, tailVersion); len(gaps) > 0 {
 		t.Fatalf("functions the chain hardened once and lost again:\n  %s\n"+
 			"CREATE OR REPLACE does not inherit SECURITY DEFINER or SET search_path from the function it "+
@@ -238,5 +284,83 @@ func TestCreateOrReplaceHardeningGuardFiresOnThe0033Chain(t *testing.T) {
 	}
 	if len(gaps) != 2 {
 		t.Fatalf("got %d gap lines, want one per downgrade: %v", len(gaps), gaps)
+	}
+}
+
+// TestHardeningGapsGateOnlyExcusesDroppedFunctions is the non-vacuity half of the G1 ordering itself,
+// on a synthesized window rather than the published chain: dropping both clauses on a function the
+// tail still has must stay red, losing the pin in the tail catalog must stay red through the catalog
+// half, and a name the tail no longer has must be the only thing the new gate excuses. Without the
+// first two the gate excuses everything; without the third it does nothing, and the coverage floor in
+// the main test reads the same two counters this test pins.
+func TestHardeningGapsGateOnlyExcusesDroppedFunctions(t *testing.T) {
+	restated := " RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = work, pg_catalog "
+	downgraded := " RETURNS trigger LANGUAGE plpgsql "
+	early := checkpoint{
+		version: 39, file: "0039_early.json",
+		hardened: map[string]bool{"kept_fn": true, "dropped_fn": true, "unpinned_fn": true},
+		pinned:   map[string]bool{"kept_fn": true, "dropped_fn": true, "unpinned_fn": true},
+		present:  map[string]bool{"kept_fn": true, "dropped_fn": true, "unpinned_fn": true},
+	}
+	tail := checkpoint{
+		version: 40, file: "0040_tail.json",
+		hardened: map[string]bool{"kept_fn": true, "unpinned_fn": false},
+		pinned:   map[string]bool{"kept_fn": true, "unpinned_fn": true},
+		present:  map[string]bool{"kept_fn": true, "unpinned_fn": true},
+	}
+	window := []checkpoint{early, tail}
+	rewrites := map[string]rewrite{
+		"kept_fn":     {version: 40, file: "0040_kept.sql", clauses: downgraded},
+		"dropped_fn":  {version: 39, file: "0039_dropped.sql", clauses: downgraded},
+		"unpinned_fn": {version: 40, file: "0040_unpinned.sql", clauses: restated},
+	}
+
+	gaps := hardeningGaps(window, rewrites, 40)
+	names := []string{}
+	for _, gap := range gaps {
+		names = append(names, strings.SplitN(gap, ":", 2)[0])
+	}
+	if strings.Join(names, ",") != "kept_fn,unpinned_fn" {
+		t.Fatalf("gaps = %v, want exactly kept_fn and unpinned_fn - the clause half and the catalog half both have "+
+			"to stay in force for functions the tail still has, and dropped_fn is the only excusable name", names)
+	}
+	if len(gaps) != 2 {
+		t.Fatalf("got %d gap lines, want one per failing function: %v", len(gaps), gaps)
+	}
+	checked, dropped := hardeningCoverage(window, rewrites, 40)
+	if checked != 2 || dropped != 1 {
+		t.Fatalf("coverage = %d checked / %d dropped, want 2 / 1", checked, dropped)
+	}
+}
+
+// TestHardeningGateExcusesOnlyNamesTheChainDropped is the real-history half of the G1 argument: the
+// published chain frozen at 0037 must name both record_member_narrowing overloads (that is when the
+// pin was genuinely lost), the chain at 0038 must keep naming the zero-arg function while stopping on
+// the overload 0038 dropped, and 0039 must be clean. Unlike a coverage count these windows are frozen
+// history, so they cannot drift - they pin the exact boundary of what the new gate is allowed to
+// excuse.
+func TestHardeningGateExcusesOnlyNamesTheChainDropped(t *testing.T) {
+	manifest, err := LoadManifest(embedded.FS, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkpoints := publishedCheckpoints(t, manifest)
+	cases := []struct {
+		max  int64
+		want []string
+	}{
+		{37, []string{"record_member_narrowing", "record_member_narrowing_with_intents"}},
+		{38, []string{"record_member_narrowing"}},
+		{39, []string{}},
+	}
+	for _, item := range cases {
+		gaps := hardeningGaps(checkpoints, lastRewrites(t, manifest, item.max), item.max)
+		names := []string{}
+		for _, gap := range gaps {
+			names = append(names, strings.SplitN(gap, ":", 2)[0])
+		}
+		if strings.Join(names, ",") != strings.Join(item.want, ",") {
+			t.Errorf("the rule over the chain up to %d flags %v, want exactly %v", item.max, names, item.want)
+		}
 	}
 }

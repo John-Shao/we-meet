@@ -3,6 +3,9 @@ package migrate
 // #87 guard, live half.
 //
 // The static rule in function_hardening_test.go says a rewrite must restate the baseline hardening.
+// That static rule is scoped by existence since ruling G1 (2026-11-11): a name the chain dropped
+// before its tail checkpoint is skipped outright, and the catalog half of the same guard is what
+// catches a dropped name if anyone re-creates it.
 // This one says what that hardening is FOR: a function a workload role may execute must be able to
 // read the tables its body reads. Either the function is SECURITY DEFINER, or the executing role
 // holds SELECT. When 0031 dropped the attribute, work.list_pending_audit_exports fell into the third
