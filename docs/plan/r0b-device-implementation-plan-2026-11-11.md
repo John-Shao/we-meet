@@ -108,7 +108,7 @@ M5 EV 与验收（TestEV* 命名补齐 + S2/S4 签收单实测 + J39 审计）
 
 ### 5.1 M2 桌面壳
 
-- **S2 隔离口径**：signoff `:24` 原文"主窗口与本机正文的隔离口径待定"，是成果查看/审批交互（含 EV73）冻结阻塞项。要裁：进程模型（同一 renderer 加 origin 限制？第二 BrowserWindow？webview 隔离？）、网络隔离（主窗口是否可读 viewer 内的 `wemeet-local:` URL？）、消息闭集（preload ↔ main 允许哪些 IPC 名）。
+- **S2 隔离口径**：signoff `:24` 原文"主窗口与本机正文的隔离口径待定"，是成果查看/审批交互（含 EV73）冻结阻塞项。要裁：进程模型（同一 renderer 加 origin 限制？第二 BrowserWindow？webview 隔离？）、网络隔离（主窗口是否可读 viewer 内的 `wemeet-local:` URL？）、消息闭集（preload ↔ main 允许哪些 IPC 名）。【2026-11-11 已裁＝卡片 J 主签单选 J1：第二 BrowserWindow＋独立 session partition＋只读 IPC，IPC 闭集 open/close/render/ack 四条；主窗口只拿元数据、正文由 viewer 凭一次性 Bearer/短期 token 拉；出处＝work-project.md §5.0 卡片 J 同日标注与 signoff:24 就地标注。本条阻塞解除，EV73 可冻结；实现细节（viewer-preload 形态、scheme 特权配置）随 M2 开工定】
 - **F13 竞态实机复现**：signoff `:26` 原文"竞态只在设计层推理，F13 未实机复现（EV78 是规格）"。当前 Windows 环境（memory `windows-harness-lab-env`）非管理员、无 Sandbox、Docker Linux；须先解环境再谈 F13 复现。
 - **viewer-preload.js 与 scheme 特权配置**：现有 `src/desktop/src/preload.ts` 只暴露 forward/auth；viewer 是新文件还是扩现有？`protocol.registerSchemesAsPrivileged` 目前不存在。
 
@@ -121,6 +121,8 @@ M5 EV 与验收（TestEV* 命名补齐 + S2/S4 签收单实测 + J39 审计）
 - **与桌面壳的通信**：本地 HTTP vs named pipe vs Unix socket；S2 隔离口径决定这一条能不能反向调用。
 
 M3 开工前必须有"设备 agent 语言与打包形态征询单"落项，同卡片 E 一样带代价单选、7 日复评窗。
+
+**【2026-11-11 落项：卡片 L 主签单选＝L2（Rust，独立二进制）】**语言与打包形态已裁（windows-rs 承载 S4 五步算法、rusqlite 无 CGO），7 日复评窗至 2026-11-18；出处＝work-project.md §5.0 卡片 L 同日标注。本节五问只解决了第一问；安装路径（%ProgramData% vs %LOCALAPPDATA%）、journal 备份/回滚/防篡改、升级通道与签名、与桌面壳通信（本地 HTTP vs named pipe）四问仍开放，M3 开工前逐项裁。本落项不解除 M1a 冻结、不建 `src/device*`、不装工具链。
 
 ## 6. M4 前端 R0b + Ingress
 
@@ -155,6 +157,8 @@ M3 开工前必须有"设备 agent 语言与打包形态征询单"落项，同�
 | S4 §14 卡片书面接受回填 | M2/M5 | signoff `:74` J33 六条硬条件"主签在场代答，Lily 书面接受未回填，§14 的 S4 卡片保持未勾选"（Lily 2026-11-01 离队；memory `feedback-external-asks-as-signable-memos`"答复方消失时降级为自决日志＋延迟复评"） |
 
 **【2026-11-11 同日更正：本表首行"0037 死代码处置"已裁定并本地落地】**卡片 H 主签单选 H1＝α revert；产出 `increments/0038_revert_epoch_deduplication_overloads.sql`＋catalog＋manifest v=38＋`verify-r0a-0027.sh` 语义探针＋`manifest_test.go` 手抄清单同步。生产 rollout 属"换二进制"独立半径，另行授权。表内其余 7 行"待开卡"照常进入 work-project.md §5（当前已在卡片 I–O，见 work-project.md §5.0）。原文首行保留不删，此更正取代其"待裁"状态。
+
+**【2026-11-11 同日更正二：本表"S4 §14 卡片书面接受回填"行已裁定】**卡片 O 主签单选 O-a＝降级为自决日志＋延迟复评；signoff §3 J33 行、§14 结论表 S4 行、批次二 S4 卡片勾选框三处就地标注并勾选，六条硬条件原样保留，7 日延迟复评窗至 2026-11-18。该行"待裁"状态自此取代；S4 的设计接受与 F13 实机证据（卡片 K）仍是两类判据，不合并。原文行保留不删。
 
 ## 9. 本批不做
 

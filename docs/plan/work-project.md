@@ -1981,6 +1981,8 @@ F1 的语义没有被削弱：它管的是**已经调用 finish** 的那一步�
 - 我的建议：**I3**——按最小可测切片落表；卡片 L 与卡片 J 裁完再补 lease/journal。
 - 回答渠道：本条单选（I1／I2／I3）。**裁定前不写 SQL、不改 `migrations/`**。
 
+**【2026-11-11 主签裁定＝缓议（维持冻结）】**21:1x"M1a 不开工"裁定继续生效，I1／I2／I3 全部不启动（I1 的设计单禁令不能解除）。重开条件＝主签另给开工指令；建议先裁卡片 L（agent 语言）再回本卡走 I1 设计单，避免"SQL 定义了列、agent 用不同 shape 拿数据"的偏移。本轮回写零代码零 SQL 零 migration。
+
 **卡片 J｜#103 S2 主窗口 ↔ viewer 隔离口径（M2 阻塞项）**
 - 原文引用（`work-r0b-security-host-signoff-2026-10-31.md:24`）：判据列 "`wemeet-local:` + `webRequest` 取消全部出站 + CSP `connect-src 'none'`"；后果列原文 "**主窗口与本机正文的隔离口径待定，成果查看/审批交互（含 EV73）不能冻结**"。
 - 现读：`src/desktop/src/main.ts:197` 只有 `session.fromPartition("persist:we-meet-desktop-v1")` 一份 partition；`grep -r protocol.registerSchemesAsPrivileged src/desktop` 零命中；无 `viewer-preload.js`（`src/desktop/src/` 现有 8 目录 auth/forward/main/policy/preload/renderer/startup/screen-picker/remote-control）；`openLocalContent` IPC 不存在。
@@ -1992,6 +1994,8 @@ F1 的语义没有被削弱：它管的是**已经调用 finish** 的那一步�
 - 我的建议：**J1**——两个 session partition 是可 grep 可断言的形状，EV73 能写成"主窗口 fetch 拿不到本机正文"的具体负例。J3 更保守但会让 M2 起步拖一张衍生单。
 - 回答渠道：本条单选（J1／J2／J3）。**裁定前不动 `src/desktop/**`、不改 preload、不开 IPC 通道**。
 
+**【2026-11-11 主签裁定＝J1】**第二 BrowserWindow＋独立 session partition＋只读 IPC：主窗口保留原 partition 只拿元数据（artifact_id/bytes/media_type），viewer 新 partition 凭一次性 Bearer/短期 token 到 work-content-proxy 拉正文，webRequest 取消出站＋CSP `connect-src 'none'` 装在 viewer partition；IPC 闭集 4 条（open/close/render/ack）。EV73 自此可冻结为"主窗口 fetch 拿不到本机正文"的具体负例（实机抓包/DNS 证据仍属 EV72/EV73 执行面，未执行状态不变）。已接受代价：窗口生命周期管理＋4 条 IPC 通道。传播：signoff:24 后果列已就地标注；设备计划 §5.1 S2 条已标注。边界：本裁定是设计口径，不解除 M1a 冻结、不动 src/desktop（M2 代码仍等开工链）；viewer-preload 新文件 vs 扩现有、scheme 特权配置两个实现细节随 M2 开工定。
+
 **卡片 K｜#104 Windows 环境（Sandbox / 管理员）解锁**
 - 原文引用：`work-r0b-security-host-signoff-2026-10-31.md:24/26` 都把"真实 Windows 抓包/DNS 日志"列为证据边界；F13 竞态原文（signoff :26, J33 §14）"**竞态只在设计层推理，F13 未实机复现（EV78 是规格）**"；EV78／EV72／EV73 全部要求实机。memory `windows-harness-lab-env` 记"非管理员、无 Windows Sandbox、Docker Linux、AppContainer 可建"。
 - 现读：本机 D:\workspace\we-meet 是 Windows 11 26300；Sandbox 从未启用；AppContainer 已验可建，但缺 DACL 写权限与 ETW 抓取（F13 复现最小要求）。
@@ -2001,6 +2005,8 @@ F1 的语义没有被削弱：它管的是**已经调用 finish** 的那一步�
   - **K2＝现机＋提权 PowerShell**：Sandbox 不开，只在现机以管理员跑 F13 复现脚本。代价＝复现完成后不留 Sandbox 兜底、脚本失败会污染用户目录。
   - **K3＝接受书面例外**：把 S2/S4 EV 记成"规格已定，实机复现属试点前置"，本批不执行；memory `feedback-adjudication-propagation-sweep` 明说"演练格改判只按该格自己写的重开条件＋取新证据＋重算 summary"——重开条件要写清。代价＝J39 外部审计时"零 EV 实测"会被点名。
 - 我的建议：**K1** 优先，失败退 **K2**，两条都不通走 **K3** 并明写重开条件（首个真实客户组织前，或 EV73 归属的 I 行开工时）。这条属操作裁、不是设计裁。
+
+**【2026-11-11 主签裁定＝K1】**申请管理员＋启用 Windows Sandbox；失败退 K2（现机提权），两条都不通走 K3 并明写重开条件（首个真实客户组织前，或 EV73 归属的 I 行开工时）。提权与 Windows 特性开启由主签本人执行，助手只产出操作单与验证脚本：[windows-env-unlock-k1-runbook.md](windows-env-unlock-k1-runbook.md)。环境解锁完成判据与 F13 复现前置（依赖 M2 Broker 实现，当前设备面零代码）见该单。本裁定不改 signoff 证据边界——F13 未实机复现的状态到实机证据产出前不变。**【同日实测：K1 本机不可行，按预授权路径退 K2】**现读＝Windows 11 家庭中文版 build 26300（Sandbox 官方要求 Pro/Enterprise/Education，不采用非官方破解安装）；shaoj 在 Administrators 组（UAC 过滤令牌，K2 提权只需同意不需凭据）；ETW 非提升可列会话、起 trace 待提升验证。K2 执行步骤与隔离纪律见操作单 §3，执行登记待主签回填。
 - 回答渠道：本条单选（K1／K2／K3）。**裁定前不改本机 Windows 特性、不提权**。
 
 **卡片 L｜#105 设备 agent 语言与打包形态征询**
@@ -2014,6 +2020,8 @@ F1 的语义没有被削弱：它管的是**已经调用 finish** 的那一步�
 - 我的建议：**L2**——Rust 对 S4 §4.2 五步路径算法（`GetFinalPathNameByHandle` / `OPEN_REPARSE_POINT` / DACL）的一手 Win32 覆盖最直接；L1 走 Go 也能做但会大量用 `golang.org/x/sys/windows`；L4 与 J 冲突，属"改一类行为"过度扩张（memory `feedback-check-callers-before-fixing-defaults`），不推荐；L3 属壳重写议题。
 - 回答渠道：本条单选（L1／L2／L3／L4）＋ 7 日复评窗（同卡片 E）。**裁定前不建 `src/device*` 目录、不选工具链**。
 
+**【2026-11-11 主签裁定＝L2（Rust）】**设备 agent 落地语言＝Rust，独立二进制形态；windows-rs 直调 Win32 承载 S4 五步路径算法，journal 走 rusqlite（无 CGO）。**7 日复评窗至 2026-11-18**（与卡片 E 征询单 11-17 窗相邻，复评并读）。已接受代价：新增语言栈＋build 工具链＋CI Rust job＋审计面（单人兼两栈）。边界：本裁定只定语言与形态，**不解除 M1a 冻结**、不建目录、不装工具链（M3 开工仍等主签指令）；§5.2 五问中"安装路径/journal 备份回滚防篡改/升级通道/与桌面壳通信"四问仍开放，随 M3 开工前置逐项裁。harness 选型（Pi agent-core）是评测层，与本裁定无关、不改。
+
 **卡片 M｜#106 Bootstrap phases 契约变更时机**
 - 原文引用（closure §4.1 与 E2E 报告 §6.5 复核）：`bootstrap.go:242` `Phases: []string{"R0a"}` 单值；`bootstrap_test.go:103-104` 断言 `len(body.Phases) != 1 || body.Phases[0] != "R0a"` 就 fatal；`r0a-api-types.d.ts:576` `phases: "R0a"[]` 字面量类型；`slice.mjs:363` R0b mock 用 `phases: ['R0b']` 单值（"替换"语义）；`WorkApp.tsx:100` 唯一消费者 `.includes('R0a')`。
 - 关键对照：closure §4.1 已明写"下一批 R0b Web 前端上线时走新契约"——本卡只是把这句话变成可裁的单选；与登记项 A（Ingress `/work/v2`）绑定，与 M4 前端一起做。
@@ -2023,6 +2031,8 @@ F1 的语义没有被削弱：它管的是**已经调用 finish** 的那一步�
   - **M-c＝不加 phases 值，用其他字段**：新增 `capabilities: ["r0b_local", ...]`；`phases` 保持单值属"API 契约版本"语义。代价＝扩 DTO 与类型；好处＝语义清晰（phases 表协议代次、capabilities 表能力开关）。
 - 我的建议：**M-a**——按 closure §4.1 已注走；若前端消费者多起来再切 M-c。M-b 属"改一类行为"的过度扩张（memory `feedback-check-callers-before-fixing-defaults`），不做。
 - 回答渠道：本条单选（M-a／M-b／M-c）。**裁定前不改 phases 常量、不改类型、不改断言**。
+
+**【2026-11-11 主签裁定＝M-a】**phases 契约变更与 M4 前端同批：R0b Web 前端上线时 phases 改 `["R0a","R0b"]`，`bootstrap_test.go` 断言与 `r0a-api-types.d.ts` 字面量类型同步放宽，`WorkApp.tsx` 从 `.includes('R0a')` 改入口分阶段判定；与登记项 A（Ingress `/work/v2`）成对部署。依据＝closure §4.1 已注口径；M-b（契约消费者脱钩）不采纳；M-c（capabilities 字段）留作前端消费者增多后的重开备选。边界：M1a 冻结中，本裁是 M4 预裁口径，零代码；裁定前不动的 phases 常量/类型/断言在 M4 批次才改。
 
 **卡片 N｜#107 `org.work.seat.write` 细分权限码**
 - 原文引用：`work-r0b-control-design-2026-10-30.md` §321 "运维身份：持 `org.work.seat.write` 且带 ticket_id + `gap_report_id`"；control §343 与 arch §138 记"**今天不存在**"；`admin_governance_cursor.go:17/107` 有 handler 但 ops CLI 与浏览器均无消费者（Explore 现读）。
@@ -2034,6 +2044,8 @@ F1 的语义没有被削弱：它管的是**已经调用 finish** 的那一步�
 - 我的建议：**N-a**——与 M4 前端 + Ingress 成对；若卡片 M 选 M-a，N-a 是自然结果。裁本卡时先跑一次现读权限码目录，再定 N-a 与 N-c 是否合并。
 - 回答渠道：本条单选（N-a／N-b／N-c）。**裁定前不新增权限码、不改 seat 面**。
 
+**【2026-11-11 主签裁定＝N-a】**权限码 `org.work.seat.write`＋governance_event_cursor ops CLI＋Web UI 三点成对随 M4 上线（与卡片 M＝M-a 配套，含登记项 A Ingress `/work/v2`）；同批把 catalog 注释里的 interim `assert_org_admin` 闸收紧到 seat.write（0019 catalog `advance_governance_event_cursor` 注释明写该收紧属 I1 落地）。**裁前现读（N-c 判据）**：`work_seat` 是 membership 布尔字段非权限码（work_host.py:249／bootstrap.go:34）；bootstrap 只广告 create/read 两码（bootstrap.go:241）；全仓无任何 seat.write 码存在⇒N-c 不可行，不新增则已。N-b（零消费者先行）不采纳。边界：M1a 冻结中，本裁是 M4 预裁口径，零代码；裁定前不新增权限码、不改 seat 面。
+
 **卡片 O｜#108 S4 §14 卡片书面接受回填**
 - 原文引用（`work-r0b-security-host-signoff-2026-10-31.md:74` J33 现场答复）："**具名状态：主签在场代答，Lily 书面接受未回填，§14 的 S4 卡片保持未勾选**"；六条硬条件明列（handle 打开、逐级 reparse 检查、卷 GUID 规范化、DFS 例外、DACL 提示、输出根收紧）。
 - 现读：Lily 2026-11-01 离队（memory `user-role-and-decision-style`）。该未勾框属 memory `feedback-external-asks-as-signable-memos` 明指的"**已执行却仍空着的框＝可再按一次的生产写授权**（比数字写错更危险）"。
@@ -2043,6 +2055,8 @@ F1 的语义没有被削弱：它管的是**已经调用 finish** 的那一步�
   - **O-c＝重开 J33 六条**：不代答不回填，让 F13 实机（卡片 K）跑完再定。代价＝本批 S4 相关全部推到卡片 K 之后。
 - 我的建议：**O-a**——同时闭合 signoff 那一行与卡片 K 的解耦：六条硬条件不因 F13 未跑而作废（那是执行证据、不是接受），代答事实改成自决；§14 卡片勾选后带日期标注，不删原文。
 - 回答渠道：本条单选（O-a／O-b／O-c）。**裁定前不动 signoff §14、不勾选卡片**。
+
+**【2026-11-11 主签裁定＝O-a，已落地】**降级为自决日志＋延迟复评：signoff 三处就地标注（§3 J33 行具名状态、§14 结论表 S4 行、批次二 S4 卡片勾选框 `[x]`＋其下"卡片仍不勾选"行更正），原文逐字保留；六条硬条件原样生效，F13 实机证据仍属卡片 K（执行证据≠接受，两类判据不合并）。依据＝signoff 头部 11-01"全部条目由主签自决"口径与 J34 的 S8／S14 先例；Lily 11-01 离队、回填主体不存在。**7 日延迟复评窗至 2026-11-18**（与卡片 E 征询单 11-17 窗相邻，复评时并读）。本批零代码零部署零 migration，只动 signoff 与本台账及设备计划 §8 表外更正。
 
 **【2026-11-11 卡片家族扩至 A–O（15 张），计数现读】**上一段"需要我这边动手的只有 A–G 七张"的口径已过期；本批 8 张（H–O）来自 `r0b-device-implementation-plan-2026-11-11.md` §8 待开卡落项，一卡一答复项、带原文引用＋代价；每条回答渠道明写"裁定前不动什么"。#NNN 号取 #101–#108（避与既有任务 #99／决策单 #280 混），字母 H–O 续 A–G。R0b 生产部署与 E2E 报告结论不变，本批**零代码零部署零 migration**，只落卡。
 
