@@ -182,7 +182,7 @@ func TestTenantTablesAreEmptyToEveryLoginWhenTheOrgGUCIsUnset(t *testing.T) {
 	// maintenance superuser (WORK_TEST_PG_URL with only the database swapped), and a superuser is
 	// never stopped by a row policy, so a zero read from it would prove nothing either way.
 	wantUncovered := "access_restriction,audit_export,cancellation_intent,consumed_governance_command," +
-		"content_reference,device,device_pairing,device_run_binding,device_session," +
+		"content_reference,device,device_checkpoint,device_pairing,device_run_binding,device_session," +
 		"device_session_ticket,directory_sync_state,execution_entitlement,execution_lease," +
 		"governance_change,governance_event_cursor,governance_gap_report,local_execution_policy," +
 		"operation_resolution,operation_usage_fact,provider_access_config,provider_credential," +

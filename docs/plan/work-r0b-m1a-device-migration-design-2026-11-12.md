@@ -1023,6 +1023,82 @@
   - `ci-contract.mjs`：**151＋38＋24＝213 全 pass、0 fail、0 skipped、RC=0**。
   - **verify 探针判别力（执行发布件原文，不是抄一份）**：从 `verify-r0a-0027.sh` 用 awk 原样抽出 `== 0040 ==` 段（68 行、10 条 `psql_ro`），正跑于含 0040 的库＝**10/10 true**；再用 `CREATE DATABASE ... TEMPLATE` 造副本并施两处变异（删三条 FK、把部分唯一索引换成普通唯一索引），重跑＝**恰好 `device_fk_debt_repaid` 与 `device_key_unique_is_partial` 转 FALSE，其余 8 条不变**。⇒ 这两条探针不是恒真装饰。
   - **一条工具教训**：`docker exec` 不带 `-i` 时 heredoc 不进 psql，会**静默 exit 0**——第一次变异就是这样"成功"而库毫无变化，两跑全 true 差点被读成"探针无判别力"。变异必须回读库状态坐实，不能只看退出码。
+
+## 14. 批二（0041）补充设计：编排、租约与 checkpoint
+
+> 授权＝主签「批二开工」（2026-11-12）＋O-12＝甲（落笔前补该批 shape）。**批二＝1 张表**（`device_checkpoint`，C 组剩的那张；`execution_lease` 与 `device_run_binding` 已按卡片 T 移入批一）＋**5 个新命令**＋**1 处重述**（`rebind_run_workspace` 填 expected_checkpoint，§13.3 的义务）。仍是设计：零 SQL 零 Go。
+
+### 14.1 `work.device_checkpoint`（规格见 §5.C3，此处只补落笔口径）
+
+主键 `(org_id, run_id, checkpoint_seq)`；`signed_payload_hash` 在 seq=0 为 NULL、seq>=1 非空（CHECK）；`state` 闭集 `recorded`／`conflict`，白名单边只有 `recorded→conflict`；追加语义由 `device_checkpoint_guard` 保住（除 state 外全列不可变）＋`_no_delete`。索引 `work_device_checkpoint_run_recorded (org_id, run_id, checkpoint_seq DESC) WHERE state='recorded'`——**恢复基线按 Run 范围选，不按 fence**。
+
+### 14.2 五个命令
+
+| 命令 | GRANT | 标量签名 | 幂等键 | 关键判定 |
+|---|---|---|---|---|
+| `create_device_run_binding` | `work_worker` | `p_org_id, p_run_id, p_device_id, p_session_id, p_binding_revision bigint, p_client_request_id, p_offer jsonb` | 审计回执 `(org, actor, 'device_run_binding.create', request_id)`＋主键 `(org,run,revision)` | Run 属本 org、device active、session active 且属该 device；`grant_set` 过 helper；**不写 checkpoint**（§4.2 原文）；`start_nonce` 服务端生成；首份 offer 的 `expected_checkpoint_*` 为 NULL |
+| `acknowledge_run_ready` | `work_worker` | `p_org_id, p_run_id, p_binding_revision, p_client_request_id, p_ready jsonb` | 同上（action `device_run_binding.ready`） | `ready_or_reason` 闭集 `ready`／`missing_input`／`needs_reauthorization`／`profile_unavailable`；**只有 ready 才 offered→ready**，其余原样返回理由、不改状态、不 AcquireRun |
+| `acquire_device_lease` | `work_worker` | 见 §6.2（八字参） | execute 用 `(org, start_nonce)`；reconcile_finish 复用该 Run 当前 active 同 purpose 行 | Run 必须已 `active`（恢复由工作流先调既有 `resume_run`）；**fence 只读 `run.fence`**；TTL 1..30；execute 分支要求 binding `ready`→`active` 并在签 run_start 前**条件写 seq=0 基线**；reconcile_finish 分支不签 run_start、不写基线、不动 binding |
+| `renew_device_lease` | `work_worker` | `p_org_id, p_lease_id, p_ttl_seconds int, p_last_receipt_seq bigint` | lease 行本身＋`state='active'` CAS | 只延长 active 行；`last_receipt_seq` 只增；**已过期不复活**——过期后由 `acquire_device_lease(purpose='reconcile_finish')` 另签新行（白名单无 `expired→active` 边，这是刻意的） |
+| `record_device_checkpoint` | `work_worker` | `p_org_id, p_run_id, p_binding_revision, p_fence, p_client_request_id, p_checkpoint jsonb` | 主键 `(org,run,seq)`＋审计回执 | seq>=1（seq=0 唯一写者是 acquire）；同 seq 同 hash 幂等返回 recorded；**同 seq 异 hash → 既有行 CAS 成 conflict ＋ Run `active→waiting`、`wait_reason='reconcile'`**（已登记边），并停止新许可；seq 必须大于当前最大值 |
+
+**`p_offer` 键集**：`input_ref, input_hash, snapshot_descriptor_ref?, snapshot_hash, profile_id, profile_revision, runtime_digest, tool_manifest_hash, model_version, grant_set[], offer_ttl_seconds`。
+**`p_ready` 键集**：`binding_hash, ready_or_reason, device_signature`。
+**`p_checkpoint` 键集**（＝本机 §3.1 `checkpoint_commit` body）：`checkpoint_seq, checkpoint_hash, local_checkpoint_ref, receipt_through_seq, pending_operation_set_hash, device_signature`。
+
+### 14.3 `rebind_run_workspace` 的重述（§13.3 义务的兑现）
+
+批一创建的 resume offer 其 `expected_checkpoint_*` 为 NULL（当时无 checkpoint 表）。批二**必须 `CREATE OR REPLACE` 重述该函数**，把两列填为「该 Run 已 recorded 的最新一条 checkpoint」，**不按 fence 筛**；无 recorded 行时仍为 NULL（首次改绑发生在任何动作之前是合法的）。重述时按 **#87** 在同一条语句里重述 `SECURITY DEFINER` 与 `SET search_path = work, pg_catalog`，并保留批一的全部判定与写集（只增两列的取值，不减任何检查）。
+
+**配套 fail-closed**：`acquire_device_lease` 的 execute 分支**拒绝启动 `expected_checkpoint_seq IS NULL` 且该 Run 已存在 recorded checkpoint 的 resume offer**——即"有基线却没引用"一律拒，防止绕过恢复基线从初始输入重跑（本机 §3.2「缺checkpoint明确停止/恢复成果，不能从初始输入重跑」）。首份 offer（Run 尚无任何 checkpoint）不受此限。
+
+### 14.4 批二不做
+
+- 不建 `device_dispatch`／`device_receipt`／`device_run_finish`／`readonly_approval_grant` 的产生者（批三）。
+- 不扩 `usage_source`、不新增 `record_device_model_result`（I5，卡片 Q-a）。
+- 不新增公开码；新 raise 码一律补 `db_exception_map`（§13.6 的第五处落地面）。
+- O-5–O-10 六项仍属批三／批四，本批不裁。
+
+### 14.5 批二落地实录（2026-11-12，主签指令「批二开工」）
+
+- **增量**＝`src/work/migrations/increments/0041_local_run_orchestration.sql`，sha256 `16ba90c827bc70d89fbe54d03f56b8ed386b0a7ec1989e1f898b50eb4f579e9a`；**catalog** 活 PG16 采样，sha256 `e40e81b2e358b2a112442df1066e8a9f2cdcc2c4cc26cd8545b80ab1c284f4ec`。现读 relations **58**（＋1）、functions **193**（＋6：5 命令＋1 守卫；rebind 是 REPLACE 不新增）、policies **61**（＋1）、triggers **91**（＋3）。manifest v=**41**，两份手抄清单同步，verify 加 `(41,name)`＋`device_checkpoint` 进 `to_regclass`＋**9 条语义探针**（含两条专查「rebind 是否真被重述」：函数体含 `device_checkpoint`、且 REPLACE 后仍是 definer＋钉 search_path）。
+- **`db_exception_map` 补 3 条**（219→222）：`device_checkpoint_content_immutable`→`invalid_request`（23514 兜底）、`resync_required`→自身（已登记公开码）、`run_has_unreconciled_operation`→`service_degraded`（P0001 兜底）。**公开码仍 60，一个未增。**
+- **§13.3 的义务已兑现**：`rebind_run_workspace` 已 `CREATE OR REPLACE` 重述，`expected_checkpoint_*` 取该 Run 最新 **recorded** checkpoint（**不按 fence 筛**），无 recorded 行时仍 NULL；批一的全部判定与写集一条未减，#87 的两个属性在同一条语句里重述。配套 fail-closed 也已落：`acquire_device_lease` 的 execute 分支在「该 Run 已有 recorded checkpoint 而 offer 未引用」时回 `resync_required`。
+- **测试**＝`internal/migrate/r0b_orchestration_test.go` 五例，全绿：seq=0 基线**唯一写者且只写一次**（offer 不写、nonce 重放不写、服务端基线无设备签名）；**J12**（unknown 挡 execute 但不挡 hand-back；hand-back 不签 run_start、不写基线、重复请求复用同一行）；**同 seq 异 hash → 行 conflict ＋ Run `waiting/reconcile`**，同 hash 幂等，seq=0 不许设备写；**rebind 指向最新 recorded 基线**（seq=1、hash 相符、binding_revision=2）；**有基线却没引用的 resume offer 拒启动**。
+- **三个钉死清单按设计变化并已改**：幂等清单 18→**21**（加 `create_device_run_binding`／`acknowledge_run_ready`／`record_device_checkpoint`，均 `own_request_hash`）；两个不可达表清单 28→**29**（加 `device_checkpoint`）。`:47` 角色串仍不变。
+- **夹具教训（四条，都是既有约束不是新控制）**：Run 的 `waiting→queued` 不是登记边（offer 本就接受 waiting，不必改状态）；操作准入触发器要求 Run active **且 `task.active_run_id` 指向它**；`authorized→unknown` 不是登记边，合法路径是 `dispatching→unknown`。这些都是白名单在起作用，修法是改夹具而不是加边。
+- **半径**＝migration＋换二进制。**未提交、未 push、未 rollout**；现网台账仍 39。批三／批四未开工。
+- **门读数（取自身退出码）**：串行全量 `go test ./... -p 1` ＝ **`FULL_RC=0`，36 包 ok／0 FAIL／11 无测试＝47**，与 `go list ./...` 的 47 双向闭合，`--- FAIL` 计数 **0**；`ci-contract.mjs` ＝ **151＋38＋24＝213 全 pass、RC=0**。批二 5 个新用例与批一 5 个用例同批全绿。
+
+## 15. 批三（0042）补充设计：动作、回执、收尾与审批
+
+> 授权＝主签「批三开工」（2026-11-12）＋O-12＝甲。**批三＝3 张表**（`device_dispatch`／`device_receipt`／`device_run_finish`；`readonly_approval_grant` 已按卡片 T 移入批一）＋**8 个命令**＋**2 处既有对象修订**。四项前置已裁：**O-5＝甲**（`execution_id` 留列不写）、**O-6＝甲**（`reason_code` 只列设备侧七值，取消原因落 `work.run.terminal_reason`）、**O-9＝甲**（不给 `operation` 加 `prepare_id`，幂等权威仍是 `logical_key`＋`request_hash`）、**O-10＝甲**（attestation 两换表读／一保留／一删除）。
+
+> **【2026-11-12 第五项前置裁定＝丙，批三由 3 张变 4 张】**落笔前现读发现 **(A) 目的地闸与 (B) 成果分类下限的共同输入没有载体**：`device_dispatch`（§5.D1）无 grant_id、`operation`（0017 扩过）无 grant_id、`device_run_binding.grant_set` 只是 Run 选中的集合而非逐动作引用；且 0021 已发布注释自己登记了「`action_kind` 目前只存在于 prepare 帧与本节分集规则里，**表里没有列**」。主签单选 **丙＝新建 `work.local_action`**（`(org_id, operation_id, attempt_id)`；`action_kind` 六值闭集、`grant_id`＋`grant_revision`、`resource_selector_hash`、`classification`、`local_payload_ref`、`request_hash`），prepare 时插一行，(A)/(B) 按它聚合。好处＝同时关掉 action_kind 无列的已登记缺口、不改已上线表、两个谓词的输入集有专门载体且可反查；代价＝批三多一张表＋一道锁＋一份 catalog 面。**批四因此不能先于批三**：`finalize_local_artifact` 的 (B) 下限与「本机 write Operation 完成」前置都依赖批三的 `local_action` 与 `device_receipt`。
+
+### 15.1 八个命令中五个已有完整 shape
+
+`prepare_local_operation`（§6.1）、`consume_device_permit`（§6.3）、`record_device_receipt`（§6.4）、`finish_local_run`（§6.5）、`consume_device_ack`（§6.7）——本节不重复，只补下面三个与两处修订。
+
+### 15.2 三个新 shape
+
+| 命令 | GRANT | 标量签名 | 幂等键 | 判定与写集 |
+|---|---|---|---|---|
+| `decide_local_approval` | `work_api` | `p_org_id, p_actor_subject_id, p_auth_plane, p_auth_epoch, p_approval_id uuid, p_client_request_id, p_decision jsonb` | 审计回执 `(org, actor, 'approval.decide', request_id)`＋审批行 CAS | `p_decision` 键集＝`ApprovalDecisionProof` 闭合字段（本机 §4.3）：`approval_id, operation_id, params_hash, expected_revision, decision, remember_readonly, readonly_scope{tool_set,resource_selector_hash,grant_id,grant_revision}, readonly_expires_at, policy_epoch, access_epoch, nonce, expires_at, signature`。判定：owner＋当前执行权、`expected_revision` CAS、proof 与 HTTP 逐项相等、nonce 单次消费、`decision` 闭集 `approved`／`rejected`；**remember 只能 approved 且只读**，`readonly_scope`/`readonly_expires_at` 在无 remember 时必须 null，rejected 时 remember 必须 false。写集：`approval`（CAS）、`approval_decision`、`operation`（approved→authorized 或 rejected 路径）、`readonly_approval_grant`（remember 时插 active，TTL＝min(24h, run 终态, grant 到期)）、`run`（waiting(approval)→active 或按 §5 末条终止整 Run）、`audit_event`。**拒绝某动作终止整 Run**（reason `approval_rejected` 落 `run.terminal_reason`，O-6＝甲） |
+| `revoke_readonly_grant` | `work_api` | `p_org_id, p_actor_subject_id, p_grant_id uuid, p_client_request_id, p_expected_revision bigint` | 审计回执＋`status='active'` CAS | owner；`active→revoked`；提升 revision；**不取消已派发动作**（已派发只核账）；写 `audit_event`。读面 `list_readonly_grants` 同批落（`work_api`，响应字段＝§5.E1 列名，失效项仍可见供审计） |
+| `finish_local_run_state` | `work_worker` | `p_org_id, p_run_id, p_outcome, p_reason, p_terminal_run_revision_out` 内部体 | 由 `finish_local_run` 的 `(org,run,finish_id)` 承担 | **本机专用终态写者，不得调 `work.finish_run`**（§6.4 第 5 条四条理由）。`waiting(reconcile)` 下提议 succeeded **两步走** `waiting→active→succeeded`；failed/canceled 在 `cancel_requested` 下**不覆盖 terminal_reason**；Task 侧 succeeded 置 `awaiting_acceptance`、清 `active_run_id`、写 `latest_run_id`，failed/canceled 只清 `active_run_id`＋写 `latest_run_id`；同事务逐个 `execution_id` 调既有 `revoke_runtime_execution`、释放 lease、binding→finished |
+
+### 15.3 两处既有对象修订（同批，不另开增量）
+
+1. **债 2**：`operation_supersede_reason_check`（0017:68-70）四值 → **六值**，加 `workspace_rebound`／`tool_params_changed`。必须与 `prepare_local_operation` 同批，否则主动桶两值插入即 23514。改法是 `DROP CONSTRAINT` ＋ `ADD CONSTRAINT`（CHECK 不能 CREATE OR REPLACE）。
+2. **O-10**：`issue_operation_resolution`（0021）`CREATE OR REPLACE` 重述——`lease_or_revocation_checked` 换读 `execution_lease`＋`device.status`；`device_unreachable` 换读 `device_session`；`journal_unavailable` **保留 attestation**（journal 在本机 SQLite，服务端读不到）；`seal_checked` **删除**（`device_run_seal` 已移出）。按 #87 在同一条语句重述 `SECURITY DEFINER`＋`search_path`，且**保留 0021 的全部其余判定**（已签发结论不可改写、目标状态取映射∩已登记边且恰一候选、降级只落 `reconciled`）。
+
+### 15.4 批三不做
+
+- 不建 `artifact_replica`、不落 `finalize_local_artifact`／`create_local_user_artifact_version`（批四）。
+- 不扩 `usage_source`、不新增 `record_device_model_result`（I5，卡片 Q-a）⇒ **`device_local` 用量在批三仍不计量**，EV114 仍不在证据门内。
+- `device_dispatch.execution_id` 留列不写（O-5＝甲）；`delivery_state` 五值闭集保留，本期只有 `not_applicable`／`superseded` 有写者。
+- 不新增公开码；新 raise 码一律补 `db_exception_map`。
 - **一条方法教训（记下来免得下次再踩）**：`testpg` 夹具路径**不校验** manifest 的已发布 checksum，而 `work-migrate apply` 会（`published_migration_modified`）。本轮改 SQL 后夹具测试照样绿、真 apply 却拒绝——**所以「夹具绿」不能替代「真 apply 绿」**，改增量后必须重放＋重采＋回钉，再跑链尾重放门。
 
 ### 13.5 半径与未做

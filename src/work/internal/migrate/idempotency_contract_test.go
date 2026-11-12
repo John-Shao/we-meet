@@ -130,15 +130,18 @@ func TestEveryClientRequestKeyCommandIsIdempotent(t *testing.T) {
 	// and code 0027 chose). They are listed rather than exempted.
 	want := []string{
 		"accept_task=dedup+conflict",
+		"acknowledge_run_ready=own_request_hash",
 		"advance_governance_event_cursor=dedup+conflict",
 		"apply_execution_entitlement=own_request_hash",
 		"confirm_device_pairing=own_request_hash",
 		"create_audit_export=own_request_hash",
+		"create_device_run_binding=own_request_hash",
 		"create_input_idempotent=dedup+conflict",
 		"create_user_artifact_version=dedup+conflict",
 		"mint_device_session_ticket=own_request_hash",
 		"pair_device=own_request_hash",
 		"rebind_run_workspace=own_request_hash",
+		"record_device_checkpoint=own_request_hash",
 		"register_workspace_grant=own_request_hash",
 		"renew_device_certificate=own_request_hash",
 		"retry_task=dedup+conflict",

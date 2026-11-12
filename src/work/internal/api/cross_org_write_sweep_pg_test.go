@@ -159,7 +159,7 @@ func TestCrossOrgWritesAreRefusedOnEveryTenantTable(t *testing.T) {
 	// so every effect goes through a SECURITY DEFINER command and a direct cross-org UPDATE is
 	// refused by privilege before row security is even consulted.
 	wantUnattempted := "access_restriction,audit_export,cancellation_intent,consumed_governance_command," +
-		"content_reference,device,device_pairing,device_run_binding,device_session," +
+		"content_reference,device,device_checkpoint,device_pairing,device_run_binding,device_session," +
 		"device_session_ticket,directory_sync_state,execution_entitlement,execution_lease," +
 		"governance_change,governance_event_cursor,governance_gap_report,local_execution_policy," +
 		"operation_resolution,operation_usage_fact,provider_access_config,provider_credential," +

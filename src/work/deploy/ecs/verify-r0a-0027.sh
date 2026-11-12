@@ -75,7 +75,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (37, '0037_fix_epoch_deduplication'),
   (38, '0038_revert_epoch_deduplication_overloads'),
   (39, '0039_mass_absence_epoch_dedup'),
-  (40, '0040_device_identity_and_workspace_grants')) expected(version, name)
+  (40, '0040_device_identity_and_workspace_grants'),
+  (41, '0041_local_run_orchestration')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -214,7 +215,8 @@ psql_ro "select coalesce(string_agg(name, ', '), 'none') from (values
   ('work.device'), ('work.device_pairing'), ('work.device_session'),
   ('work.device_session_ticket'), ('work.workspace_grant'),
   ('work.workspace_grant_succession'), ('work.execution_lease'),
-  ('work.device_run_binding'), ('work.readonly_approval_grant')) v(name)
+  ('work.device_run_binding'), ('work.readonly_approval_grant'),
+  ('work.device_checkpoint')) v(name)
  where to_regclass(name) is null" | sed 's/^/missing: /'
 # The commands this range replaces keep their SECURITY DEFINER identity, and the new
 # guard triggers are what make the append-only tables hold. Both are matched by name
@@ -541,6 +543,50 @@ psql_ro "select 'device_command_receipt_index=' || case when (
   join pg_class c on c.oid = i.indexrelid
   where c.relname = 'work_audit_device_command_receipt'
     and i.indisunique and i.indpred is not null) = 1 then 'true' else 'FALSE' end"
+
+echo
+echo "== 0041 local_run_orchestration =="
+# A ledger row for 0041 only proves the file ran. The probes below read the live catalog
+# for what the increment is for, including the one fact a ledger row cannot show: that
+# rebind_run_workspace was actually RESTATED to reference device_checkpoint (0040 left it
+# NULL on purpose), and that the restatement kept its definer identity (#87).
+psql_ro "select 'checkpoint_table_present=' || case when to_regclass('work.device_checkpoint')
+  is not null then 'true' else 'FALSE' end"
+psql_ro "select 'checkpoint_baseline_shape=' || case when (
+  select count(*) from pg_constraint
+  where conname = 'device_checkpoint_baseline_shape' and contype = 'c') = 1
+  then 'true' else 'FALSE' end"
+psql_ro "select 'checkpoint_run_index_is_partial=' || case when (
+  select count(*) from pg_index i join pg_class c on c.oid = i.indexrelid
+  where c.relname = 'work_device_checkpoint_run_recorded'
+    and i.indpred is not null) = 1 then 'true' else 'FALSE' end"
+psql_ro "select 'orchestration_commands_definer_and_pinned=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work'
+    and p.proname in ('create_device_run_binding', 'acknowledge_run_ready',
+      'acquire_device_lease', 'renew_device_lease', 'record_device_checkpoint')
+    and p.prosecdef
+    and p.proconfig @> array['search_path=work, pg_catalog']) = 5
+  then 'true' else 'FALSE' end"
+psql_ro "select 'rebind_restated_reads_checkpoint=' || case when
+  pg_get_functiondef('work.rebind_run_workspace(text,text,text,bigint,uuid,text,uuid,uuid,jsonb)'::regprocedure)
+  like '%device_checkpoint%' then 'true' else 'FALSE' end"
+psql_ro "select 'rebind_kept_definer_after_replace=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work' and p.proname = 'rebind_run_workspace'
+    and p.prosecdef
+    and p.proconfig @> array['search_path=work, pg_catalog']) = 1
+  then 'true' else 'FALSE' end"
+psql_ro "select 'checkpoint_state_edge=' || case when (
+  select count(*) from work.state_transition
+  where entity = 'device_checkpoint' and from_state = 'recorded'
+    and to_state = 'conflict') = 1 then 'true' else 'FALSE' end"
+psql_ro "select 'lease_purpose_is_enforceable=' || case when (
+  select count(*) from pg_constraint
+  where conname = 'execution_lease_purpose_shape' and contype = 'c') = 1
+  then 'true' else 'FALSE' end"
+psql_ro "select 'work_api_cannot_select_checkpoint=' || case when has_table_privilege(
+  'work_api', 'work.device_checkpoint'::regclass, 'SELECT') then 'FALSE' else 'true' end"
 
 echo
 if [[ "$FAILURES" -ne 0 ]]; then

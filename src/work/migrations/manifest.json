@@ -450,6 +450,17 @@
       "catalog_checksum": "sha256:83b88ac9ae05efcab404d1b9eabf2e94e1b3b4157f08a5d094dca52e1cba62d7",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 41,
+      "name": "0041_local_run_orchestration",
+      "kind": "increment",
+      "file": "increments/0041_local_run_orchestration.sql",
+      "checksum": "sha256:16ba90c827bc70d89fbe54d03f56b8ed386b0a7ec1989e1f898b50eb4f579e9a",
+      "catalog": "catalogs/0041_local_run_orchestration.json",
+      "catalog_checksum": "sha256:e40e81b2e358b2a112442df1066e8a9f2cdcc2c4cc26cd8545b80ab1c284f4ec",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

@@ -53,6 +53,7 @@ var publishedIncrements = []string{
 	"0038_revert_epoch_deduplication_overloads",
 	"0039_mass_absence_epoch_dedup",
 	"0040_device_identity_and_workspace_grants",
+	"0041_local_run_orchestration",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {
