@@ -777,7 +777,7 @@
 | 一 | 0040 | A 组 3 张＋B 组 2 张 **【2026-11-12 S-b：A 组 4 张＋B 组 2 张＝6 张】** | `pair_device`／`activate_device_session`／`revoke_device`／`register_workspace_grant`／`revoke_workspace_grant`／`rebind_run_workspace` | **同批还债 1 的三条 FK**；覆盖 S4 目录授权绑定；`work_api` 面可被 pg_test 直接攻击 **【2026-11-12 更正：命令集 6→11】**按控制面 §1.4 端点逐行对账，批一还需 `confirm_device_pairing`／`mint_device_session_ticket`／`renew_device_certificate` 三个写者与 `list_devices`／`list_workspace_grants` 两个读面（读面必须是 definer，理由见 §12.1）；完整 shape 见 **§12**。**批一另被 O-13 阻断**（票据载体未定），裁定前不落笔 **【2026-11-12 四裁＝S-b：阻断解除】**新建 `work.device_session_ticket`（§5.A4），§12.6／§12.8 写集已补齐；**批一的落笔前置自此全部闭合，只等主签另给落笔指令** |
 | 二 | 0041 | C 组 3 张 | `create_device_run_binding`／`acknowledge_run_ready`／`acquire_device_lease`／`renew_device_lease`／`record_device_checkpoint` | seq=0 基线唯一写者在此批；J12 的 `purpose` 负例（EV113）可跑 |
 | 三 | 0042 | D 组 3 张＋E 组 `readonly_approval_grant` | `prepare_local_operation`／`consume_device_permit`／`record_device_receipt`／`finish_local_run`＋`finish_local_run_state`／`consume_device_ack`／`decide_local_approval`／`revoke_readonly_grant` | **同批还债 2**；不变量 2/3 的两个强制点、(A) 谓词、免审批唯一消费点都在此批；EV70/EV71/EV98/EV100/EV113/EV120 可跑 |
-| 四 | 0043 | E 组 `artifact_replica` | `finalize_local_artifact`／`create_local_user_artifact_version` | (B) 谓词与分类唯一写者；EV97 可跑 |
+| 四 | 0043 | E 组 `artifact_replica` **【2026-11-12 O-17＝乙 之后＝E 组 `artifact_replica` ＋ §17.3 `consumed_possession_nonce` 共 2 张】** | `finalize_local_artifact`／`create_local_user_artifact_version` | (B) 谓词与分类唯一写者；EV97 可跑 **【2026-11-12 批四落地后两处精确化，原文保留：①「分类唯一写者」限定于 (B) 推导在这条命令里做，不是 `artifact_version.classification` 列只有一个插入者——该列现有 `finalize_local_artifact`（推导，`0043:444-494`）与 `create_local_user_artifact_version`（proof 自报值＋base／clipboard 下界，`0043:862-896`）两个插入者，控制面 §4.2:331 已同批改注。②「EV97 可跑」只到「服务端判据在场且有具名用例」这一层：EV97 第 3 条要求的 (A) 目的地闸两支（`0042:941` prepare／`0042:1471` consume_device_permit）现读**零个**具名 Go 用例（`grep -rn destination_not_allowed_for_local_only --include=*.go src/work/internal` 零命中），且它要求的 `artifact_classification_floor` 审计事件未落地——逐条映射与重开条件见 §18.6，EV 侧不得据本行标「完备」。**】 |
 
 - **每批各自**：增量 SQL＋活库采样 catalog＋manifest 追加＋两份手抄清单同步＋verify 脚本语义探针（照 0036 段 :447-470 模板，大写 FALSE／小写 true）＋该批的 `_pg` 正反例。
 - **本文的 shape 覆盖边界（如实记，不冒充齐全）**：§6 只给**七个**命令的完整签名与闭合键集（设备计划点名的六个＋`consume_device_ack`）。上表为写者闭合而列出的其余命令（`pair_device`／`activate_device_session`／`revoke_device`／`register_workspace_grant`／`revoke_workspace_grant`／`rebind_run_workspace`／`create_device_run_binding`／`acknowledge_run_ready`／`renew_device_lease`／`record_device_checkpoint`／`decide_local_approval`／`revoke_readonly_grant`／`finish_local_run_state`／`create_local_user_artifact_version`）**本文只定它们的写集、状态转移与幂等键归属（见 §5 各表的「写者」与「白名单边」），不给完整 JSON shape**——它们不在卡片 I 点名的六函数范围内，其 shape 属落笔前的补充设计，登记为 O-12。`finish_local_run_state` 是例外：它的裁决顺序与写集已在 §6.5 逐条给出（因为它就是 `finish_local_run` 的终态写入体）。 **【2026-11-12 更新：O-12 已裁＝甲，批一那一份已交】**§12 给出批一 **11 个**命令的完整 shape；本段原写「其余 14 个」现读修正为 **19 个**（§12.1 按端点对账新增 5 个名），**已交 11、余 8**（批二 4／批三 3／批四 1），各自落笔前补。
@@ -800,6 +800,8 @@
 **【2026-11-12 五次更新：批三落笔前又查出三处「已签规则缺载体」，逐项单选后本表扩到 16 项】**主签在「再处理 2. 批三 0042」同日逐项单选 **O-14＝甲**（配额由调用方预留、命令只复验）、**O-15＝甲**（`approval_decision` 加可空 `nonce` 列＋部分唯一索引）、**O-16＝甲**（本批定义 `final_operation_set_hash` 的显式有序公式并跨侧传播），三条的原文依据、落地与代价见 **§16.1**。⇒ **本表现状：合计 16 项、已裁 14 项、仍开放 2 项（O-7／O-8，均属批四）**；**批三已落笔为增量 0042**（实录见 §16）。上面四条状态标注里的「已裁 11／开放 2（合计 13）」以本条为准（开放项仍是同两个，合计与已裁数变了）。取数法＝数下表以「O-」起头的行（16），已裁＝行内含「已裁＝」标注者（14）。**表数不变＝15**（O-15 是给已上线表加列，不新增表；O-14／O-16 各不新增表）。
 
 **【2026-11-12 六次更新：批四落笔前裁四项、登记三项，本表现状见下】**主签在「裁 O-7／O-8 开批四」同日逐项单选 **O-7＝甲**、**O-8＝甲**、**O-17＝乙**、**O-18＝丙**（四项裁定的原文依据、落地方式与已付代价统一见 **§17.1**）。O-17／O-18 是批四落笔前现读查出的两处「已签规则缺载体／已签文本与生效体不符」，随本节登记；写 shape 时又查出第三处＝**O-19**（用户保存路径的 `local_ref` 在签名域内没有载体），已按「proof 域外无签名标量入参」落笔并把三种被否方案记进行内，**属非阻断**（不决定 0043 能否落地，只决定该列将来是否升级为签名字段）。⇒ **本表现状：合计 19 项、已裁 18 项、仍开放 1 项＝O-19**。上一条（五次更新）里的「合计 16 项、已裁 14 项、仍开放 2 项（O-7／O-8）」以本条为准（那两项现已裁完，新增三项）。取数法＝数下表以「O-」起头的行（19），已裁＝行内含「已裁＝」标注者（18），开放＝无该标注者（1）。**表数同步更正＝16**：O-17＝乙 新增 `work.consumed_possession_nonce`（§17.3），M1a 总表数 15→16（不含 §5.F 延后那张，含它＝17）；「已落地」现读＝**14**（`grep -c '^CREATE TABLE'` 于 `0040*.sql`＝9＋`0041*.sql`＝1＋`0042*.sql`＝4），**批四余 2 张**＝`artifact_replica`＋`consumed_possession_nonce`。上文「表数现读更正」段的「总表数＝15、已落地 10、余 5」以本条为准，原文保留不删。
+
+**【2026-11-12 七次更新：批四已落笔为增量 0043，本表现状与 M1a 表数同时收口】**主签指令「裁 O-7／O-8 开批四」之后，`0043_local_artifact_replica_finalize` 已本地落地（**实录见 §18**，四栽原文与代价见 §17.1，逐条落地证据见 §18.1–§18.4）。⇒ **本表现状：合计 19 项、已裁 18 项、仍开放 1 项＝O-19**（用户保存路径 `local_ref` 的签名字段化，属 M1b／I4 重建 proof 帧时一并裁，不阻断 M1a 任何一批）。取数法（现读，两条都要跑）＝`awk '/^## 10\./,/^## 11\./' 本文件 | grep -c '^| O-'`＝**19**、其中含「已裁＝」标注者 **18**；全文 `grep -c '^| O-'`＝**23** 是多计了 §17 抬头那张四行裁定表（它重复 O-7／O-8／O-17／O-18 四行，不是新项），凡引用 23 处以 19 为准。**表数同步收口＝总 16、已落地 16**：`grep -c '^CREATE TABLE'` 于 `0040*.sql`＝9＋`0041*.sql`＝1＋`0042*.sql`＝4＋`0043*.sql`＝2＝**16**，与上一条的「总表数 15→16、批四余 2 张」相加一致，M1a 四批的表已全部落地；含 §5.F 那张延后表则总 17。**批次状态自此＝批一＋批二＋批三＋批四已实现，M1a 的 migration 面没有余下批次**。外部正证到手＝head_sha `9a2f2488ddca780aed7de504a249d2801b8406f0` 三笔 workflow（Work R0a gates／meet Workflow／Release guard）全 completed／success；**半径仍是 migration＋换二进制：现网台账仍 39，0040–0043 一律未 rollout**，rollout 定序仍按 O-11＝丙 待主签单选。上一条的「已落地 14、批四余 2 张」在批四落笔后由本条顶替，原文保留不删。
 
 | 号 | 主题 | 原文／现读依据 | 选项与代价 |
 |---|---|---|---|
@@ -1352,3 +1354,120 @@ INSERT INTO work.consumed_possession_nonce (org_id, purpose, nonce)
 8. **nonce 并发无专用例**：§17.3 末条那笔 23505 竞态只能靠两连接对拍证明，批四用例先覆盖串行两笔（第二笔 `unauthorized`）。与批三 §16.6 缺口表第 11 项同族，一起补。
 9. **`publish_ack` 不是真签名**：与 0042 的 `server_signature` 同口径（`'sha256:' || sha256_text(...)`），ES256 与 Bearer 面属 M1b／I4。本批所有 `signature` 只做格式检查，与 0040／0041／0042 一致。
 10. **传播清单（任务 #37 逐条落）**：控制面 §9:586／:606／:611 三行（O-18＝丙 的归属更正，以及「(B) 谓词与分类唯一写者」这句话的精确化——版本表的 `classification` 列有**两个**插入者：finalize 推导、用户保存取 proof 值并经 base／clipboard 下界约束；§9 那句指的是 (B) 推导唯一，不得读成列级唯一）、§4.1:272 副本行、§4.2:331 finalize 行、§7.1 四步、本机文档 §7.1／§7.3／§7.5、`work-project.md` 卡片 I 与 M1a 计数、台账卡片 I 的批四行。
+
+## 18. 批四落笔实录（2026-11-12，主签指令「裁 O-7／O-8 开批四」）
+
+### 18.0 时间口径（先把「同日」说清）
+
+四栽（O-7＝甲／O-8＝甲／O-17＝乙／O-18＝丙）与落笔动作都在 2026-11-12；本节里部分**现读**（串行全量套件、CI 三笔、`prosrc` diff、四个目录数）实际跑完于本机时钟 2026-11-13 00:0x（已过午夜）。凡各文档标注「2026-11-12 批四…」而读数落在 13 日凌晨的，以本小节为唯一口径，不改各条日期标注原文。
+
+### 18.1 落地物与逐处同步（每行都给命令与读数）
+
+| 项 | 取数法 | 读数 |
+|---|---|---|
+| 增量 SQL | `wc -l src/work/migrations/increments/0043_local_artifact_replica_finalize.sql`；`sha256sum` 同路径 | **1223 行**；sha256 `7e28657c1c997f582f5da798ee7b03d15746f471899821da568a16a8b42fb038` |
+| catalog 采样件 | `sha256sum src/work/migrations/catalogs/0043_local_artifact_replica_finalize.json` | sha256 `4f73c808926e76c14023accc23845c1e97e849f2dbce7012d325a2bec2d803a8` |
+| catalog 分项 | node 读该 JSON 的九个数组长度 | relations **64**／columns **821**／constraints **563**／indexes **176**／functions **217**／views **1**／triggers **100**／policies **67**／grants **821** |
+| catalog 增量 | 同上，对 0042 同字段作差 | ＋2／＋16／＋13／＋2／＋5／0／＋3／＋2／＋21，**九项全非负＝无删除**；functions 的 5 个新名字＝2 个命令＋2 个 proof／payload 校验 helper＋1 个副本一致性触发器函数，另有 1 个**已有函数被 REPLACE**（`rebind_run_workspace`），不计入＋5 |
+| 新表 | `grep -c '^CREATE TABLE' 0043*.sql` | **2**＝`work.consumed_possession_nonce`（:64）＋`work.artifact_replica`（:99）；M1a 累计已落地 `9+1+4+2`＝**16 张**（与 §10 七次更新一致） |
+| 新命令与 helper | 该文件内 `^CREATE (OR REPLACE )?FUNCTION work\.` 的名字与行号 | `artifact_replica_matches_version` :153／`local_artifact_version_payload_valid` :198／`user_version_proof_valid` :261／`finalize_local_artifact` :332／`create_local_user_artifact_version` :657／重述 `rebind_run_workspace` :992；触发器 :84／:172／:176 |
+| manifest | `node -e` 读 `increments[]` 末条 | `schema_version` 仍 **1**；`increments.length` **40→41**；末条 `version:43`，`checksum` 与 `catalog_checksum` 分别等于上两行 sha256 串（逐字相同，不是「已核对」） |
+| 已发布清单 | 上面「parent／HEAD」脚本数 `var publishedIncrements = []string{…}` 的条目 | **40→41** |
+| 幂等清单 | 数 `idempotency_contract_test.go` 的 `want := []string{` 条目 | **23→24**（新增 `create_local_user_artifact_version=dedup+conflict`） |
+| 两个不可达表清单 | 数 `cross_org_write_sweep_pg_test.go:163` 的 `wantUnattempted` 与 `tenant_isolation_sweep_pg_test.go:187` 的 `wantUncovered`（按逗号切分、去空） | 两者均 **33→35**，新增项同为 `artifact_replica`／`consumed_possession_nonce`，各自**无重复项**（items − unique ＝ 0） |
+| 错误目录 | 见 §18.3 | public **60→61**、map **230→234**、messages **60→61**、`recovery_action===null` **32 不变** |
+
+- **catalog 重采一次的原因照记**：先用裸 `psql` 逐文件灌链，`0032`／`0033`／`0035` 三个文件自己不切角色，其中的函数落成 `postgres` 属主；全链 apply 在 version 43 报 drift 拒收，而 1–42 逐版校验干净。改由 runner 建库重采后，`work-migrate apply` 对 43 个版本逐版验通过。这条属**采样环境**事实，不是判据变化。
+
+### 18.2 §17.7 承诺的 diff 数（原文要求「把 diff 行数写进 §18，不写已核对」）
+
+- 取数法＝node 读 `catalogs/0041_local_run_orchestration.json` 与 `catalogs/0043_local_artifact_replica_finalize.json` 中 `functions[]` 里 `name === 'rebind_run_workspace'` 的 `definition` 字段，按 `split('\n')` 先求公共前缀、再在不重叠前提下求公共后缀。
+- 读数：`0041`＝**162 行** → `0043`＝**179 行**，Δ＝**＋17**；公共前缀 **55** ＋ 公共后缀 **107** ＝ **162** ＝旧体**全部** ⇒ **被删／被改写的行数＝0**；插入 **17 行且连续**，位置＝新体第 **56–72** 行。
+- 插入内容逐行核过＝§17.3 那一段（11 行注释＋5 行 SQL＋1 行空行）：`IF EXISTS(… consumed_possession_nonce …) RAISE 'unauthorized' ERRCODE '42501'` ＋ `INSERT … purpose='workspace_rebind'`。除此之外 0043 对该函数没有任何其他改动，与 §17.7 「差异必须只有该消费块」同形。
+- 属性未漂：`security_definer` 仍 **true**、`configuration` 仍 `search_path=work, pg_catalog`、`owner` 仍 `work_owner`、`language` 仍 `plpgsql`（现读 0043 catalog 同一 entry 的四个字段）。
+- 对外行为只动一条：**换 `client_request_id`、复用同一 nonce** 的改绑从成功变 **401 `unauthorized`**；同 request_id 的重放仍在消费块之前走审计回执早退返回原结果。判据＝`TestR0bRebindConsumesItsNonceOnceAndRollsItBackOnRefusal`（含「拒绝更靠下时 nonce 不留在表里」的回滚侧）。
+
+### 18.3 §17.8 承诺的四个数（命令与读数一起给，不写「约」）
+
+| 数 | 命令 | parent（`9a2f2488d~1`） | HEAD（`9a2f2488d`） |
+|---|---|---|---|
+| 公开码 | `node -e "Object.keys(require('./src/work/contracts/error-codes.json').public).length"` | 60 | **61**（新增 `local_proof_expired`） |
+| `db_exception_map` | 同法数 `db_exception_map` | 230 | **234**（新增恰为 §17.8 那四条：`local_proof_expired`／`content_on_original_device`／`artifact_too_large` 三条自映射＋`artifact_replica_content_mismatch → invalid_request`；脚本对两份 JSON 作差，added 列表就是这四串，无多余无遗漏） |
+| 中文文案 | 数 `src/work/contracts/error-messages.json` 顶层键 | 60 | **61** |
+| `public` 中 `recovery_action === null` 的码数 | `Object.values(public).filter(e => e.recovery_action === null).length` | 32 | **32**（未漂移——`local_proof_expired` 的 `recovery_action` 是 `refresh_state`，非空，故 `doc-derived-counts.test.mjs` 钉的那句仍成立） |
+
+- 补一条判别力：**0043 里 26 个不同 `RAISE EXCEPTION` 名逐个在 `db_exception_map` 有条目**（同一脚本对文件正则取名去重后作差，`missing = 0`），其中 16 个是公开码。孤立码判据在本批成立。
+
+### 18.4 §17.9 写者闭合（判据与现读）
+
+- `function_privilege_sweep_pg_test.go:147` 的 `want := "governance_change"` **一字未变** ⇒ 「注册了没人写」判据不红，§17.9 的 :142→:147 行号更正成立。
+- 两张新表的运行角色可达 definer 写者：`artifact_replica` ← `finalize_local_artifact`（`work_worker`）；`consumed_possession_nonce` ← `create_local_user_artifact_version` 与 `rebind_run_workspace`（均 `work_api`）。
+- 两张新表**没有任何直接表权限**发给 `work_api`／`work_worker`：现行判据是 catalog `grants[]` 现读（＋21 条 GRANT 全部指向函数 EXECUTE，不含新表的表级授权）。verify 里那两条探针（`runtime_roles_cannot_touch_new_tables`／`validators_callable_by_no_one`）写好了但**从未执行**，见 §18.5——所以这条结论的当前证据是静态采样，不是运行态读数。
+- `:47` 角色串与三处角色定义一字未动（O-3＝甲 继续生效），`preflight.go`／`provision-r0b-roles.sh`／`testpg.go` 未改。
+
+### 18.5 verify 探针：新增 13 条、总数有两种口径、以及「从未执行」这条必须写明的缺口
+
+- 取数法两种口径并列（同文件 `src/work/deploy/ecs/verify-r0a-0027.sh`）：`grep -c 'psql_ro '`＝**77**（真正的调用点，批四前 64）；`grep -c 'psql_ro'`＝**78**（把 :25 的函数定义行 `psql_ro() {` 也数进去）。**本节的权威值＝77 调用点／13 条新增**；提交正文那句「78 total」属后一口径，原文不改，以此处为准。
+- 13 条新增探针名（:696／:703／:708／:113／:718／:727／:733／:740／:749／:756／:766／:774／:787）＝`replica_and_nonce_tables_present`／`replica_state_is_published_only`／`replica_location_is_local_only`／`replica_matches_version_trigger`／`replica_and_nonce_append_only`／`nonce_purpose_closed_set`／`nonce_key_is_org_and_nonce`／`local_finalize_pair_definer_and_pinned`／`local_finalize_worker_only`／`user_save_api_only`／`validators_callable_by_no_one`／`runtime_roles_cannot_touch_new_tables`／`rebind_consumes_nonce_after_replace`。
+- **未执行事实**：`grep -rl "verify-r0a-0027" .github/workflows/ src/work/**/*.go` 零命中 ⇒ 没有任何 CI 作业或 Go 测试跑这个脚本。三个 node 门（`c16-timer-wiring`／`legacy-verify-labels`／`release-assets`）读的是脚本**文本**（(version,name) 账本清单、标签、发布资产在场），不是执行那 13 条 SQL。⇒ **批四 13 条探针至今只有离线对照 `pg_get_constraintdef`／catalog 字段文本的校准，没有一次活库运行，也没有一次变异测红**。对照批三：§16 记的「四处变异⇒恰好那 4 条翻 FALSE、其余 12 条不变」是批三 16 条的实测判别力，**不得与批四并读成「四批探针都已验」**。重开条件＝在活库（全链 apply 到 43）跑一次 77 条＋对本批 13 条各造一次变异，并把「脚本无 CI 消费者」本身补成一条门。
+
+### 18.6 批四用例：15 个顶层、覆盖到哪、以及 EV97 的逐条映射
+
+- 运行读数：`WORK_TEST_PG_URL=postgres://postgres@localhost:55443/postgres?sslmode=disable go test ./internal/migrate -run 'TestR0b(Finalize|UserSave|ArtifactReplica|Rebind)' -v` ⇒ **RC=0**，顶层 `--- PASS` **16**、`--- FAIL` **0**、子用例 PASS **16**，`ok … 46.477s`。16 ＝ 批四新文件 `r0b_local_artifact_test.go` 的 **15** 个顶层 ＋ 批二的 `TestR0bRebindPointsAtTheLatestRecordedBaseline`（同正则命中，不是本批新增）。**该新文件现读未入版本库**（`git status` 显 `??`、`git log -1 -- 该路径` 为空）⇒ §18.8 那三笔 CI 绿**不覆盖这 15 个用例**，本行的 RC=0 是本机读数；口径见 §18.10 第二条。
+- 15 个名单（分组）：finalize 侧 8＝`WritesVersionReplicaAndDerivation`／`TakesTheStrictestInput`／`SuccessionGrantCountsBeforeAnyActionRuns`／`EmptyInputSetIsAFloorNotAGuess`／`ClassificationUnknownOnlyComesFromTheClaim`／`ReceiptBindingNegatives`／`GateReadsThisRunNotTheTask`／`ReplayTargetAndShapeRefusals`（8 子例＝11 键／9 键／receipt_ref 缺 seq／seq 为 0／负 bytes／非串 artifact_id／空 logical_name／hash 非 64 hex）；副本侧 2＝`ArtifactReplicaHasOneShippedWriterAndRefusesFalseContent`（8 子例）／`ArtifactReplicaInsertStatementExistsOnceInShipChain`；用户保存侧 4＝`UserSaveSpendsItsNonceAndWritesNoReplica`／`UserSaveRefusalsWriteNothing`／`UserSaveBaseReconciliationAndQuiescence`／`UserSaveClipboardFloorAndSameDeviceSources`；改绑侧 1＝`RebindConsumesItsNonceOnceAndRollsItBackOnRefusal`。
+- **这 15 个只证明六件事**：① finalize 成功支一次写「版本＋副本＋`classification_derivation`」三处；② (B) 由服务端输入集推导，最严格取胜、空集落 `local_only` 下界、succession 臂在任何动作之前计入、`classification_unknown` 只可能来自闭集外的值；③ O-18＝丙 的静止门按**本 Run**而非 Task，两侧分别断言；④ 回执绑定与幂等／形状拒绝族在拒绝时** census（版本／副本／nonce／去重四表行数）逐字不变**；⑤ 副本只有一个已发布写者且内容不符即拒（`artifact_replica_content_mismatch`→`invalid_request`），且发布链里该 `INSERT` 恰好一处；⑥ 用户保存消费 nonce、**不写副本**、base／clipboard 下界生效、改绑 nonce 单次且更靠下的拒绝不留 nonce。
+- **EV97 逐条映射（第 3 条要求的两支谓词按 EV 文本原样拆开）**：
+
+| EV97 要求 | 现读落点 | 具名用例 | 缺的那半与重开条件 |
+|---|---|---|---|
+| `workspace_grant`／`workspace_grant_succession` 载体（guide 原文「尚未建设」） | 两表都在 catalog 分项里（0043 grants／relations 现读，且出现在两份手抄清单内） | — | 无缺口；该「基础设施缺失」表述已由批四顶替，见 §18.9 末段 |
+| (B) 成果版本按 classification floor＝服务端事实非设备自报 | `0043:444-494`（三臂输入集＋最严格取值＋空集下界） | `TakesTheStrictestInput`／`EmptyInputSetIsAFloorNotAGuess`／`ClassificationUnknownOnlyComesFromTheClaim`／`WritesVersionReplicaAndDerivation` | 已覆盖；`artifact_classification_floor` **审计事件未落地**（§17.4 要求，拒绝支的同事务 insert 被自身 raise 回滚），故「计算过程可审计」只有成功支一份 `classification_derivation` |
+| Succession 链两侧分类处理 | `0043:459-462`（第二 UNION 臂取 `workspace_grant` 新值的 `grant_revision`／`classification`） | `SuccessionGrantCountsBeforeAnyActionRuns` | 已覆盖（用例在零 `local_action` 的情形下靠 succession 抬下限） |
+| (A) 目的地闸按 grant 分类下限判定 | `0042:941`（`prepare_local_operation`）＋`0042:1471`（`consume_device_permit`），两处同形 `v_taint >= classification_rank('local_only')` ⇒ `destination_not_allowed_for_local_only` | **0 个**：`grep -rn "destination_not_allowed_for_local_only" --include=*.go src/work/internal` 零命中 | **EV97 不能标「已实现完备」**。重开条件＝两支各补一条「下限达 `local_only` 时目的地被拒」＋一条「低于下限时放行」的对照，并同批把 `device_offline` 之类既有零例码族一并登记 |
+| 两个谓词分别断言（不得互相顶替） | (B) 有例、(A) 无例 ⇒ 「分别断言」这一条只成立一半 | 同上 | 同上；补完前 EV 台账里 EV97 只能写「(B) 侧已实现、(A) 侧无用例」 |
+
+- 批四其余未测项（各自的重开条件都已在别处签约，此处只点名不重复）：nonce 并发 23505 竞态（§17.10 第 8 条，与批三 §16.6 第 11 项同族）、`publish_ack` 真签名（第 9 条）、格式白名单服务端载体（第 4 条）、两个新命令的 **Go 调用方现读为 0**（`grep -rn finalize_local_artifact|create_local_user_artifact_version --include=*.go internal cmd | grep -v _test`＝**0 行**，只有 `idempotency_contract_test.go` 与本用例文件两处非实现命中）⇒ M1b 接 handler／route 之前，这两个命令在现网不可达，本批是 migration 面而非功能面。
+
+### 18.7 门读数（全量）与那两笔红的归因实验
+
+- 串行全量（`WORK_TEST_PG_URL` 指向 `work-test-pg`／5432）：**RC=1**，`^ok` 行 **35**、`--- FAIL:` 行 **2**、`[no test files]` **11**、包数 **47**；`go` 进程数 0（确认跑完）。两笔红同属 `internal/api` 一个包，故「FAIL 包数＝1」。
+- 两笔红具名＝`TestEveryWorkTableCarriesForcedTenantIsolation`（`work roles holding BYPASSRLS = [work], want none`）与 `TestAppendOnlyTablesAreProtectedAgainstTruncateByPrivilege`。
+- 归因＝集群出身不是本 delta：`docker inspect work-test-pg` 读出 `POSTGRES_USER=work`，该容器引导超user 名字恰落进门自己的判定 `rolname LIKE 'work%' AND rolbypassrls`。同一份**未改**测试在 `work-b4-pg`（55443，默认 `postgres` 用户＋trust）复跑 **2/2 PASS**、`ok github.com/we-meet/work/internal/api 8.881s`。⇒ 没有放宽任何判据：既没改判定串也没 skip。
+- 本机其它门：契约门 fail 0、读 verify 的 node 门 6/6（末次编辑之后复跑，见 §18.10）。
+
+### 18.8 CI 侧正证（`9a2f2488d`，status 与 conclusion 成对读）
+
+- `gh api "repos/John-Shao/we-meet/actions/runs?head_sha=9a2f2488ddca780aed7de504a249d2801b8406f0"` ⇒ 三笔全 `completed`／`success`＝**Work R0a gates**／**meet Workflow**／**Release guard**。
+- 逐笔 ID 级读数取到两笔：`43220749065`（Work R0a gates）completed／success、`43220749012`（meet Workflow）completed／success，两笔 `head_sha` 均为 40 位全串。**第三笔 `43220749098`（Release guard）本轮单条端点连取三次都 `net/http: TLS handshake timeout`**（同项目现读已知 intermittency），故它的 ID 级配对沿用任务 #38 的现读记录，workflow 级结论由上面的 list 读数独立支持。写这条不是为了声称已部署：见 §18.10。
+
+### 18.9 §17.10 第 10 条「传播清单」逐条对账（本轮任务 #37 的交付物）
+
+| 清单项 | 文件 | 现读落点 | 状态 |
+|---|---|---|---|
+| 控制面 §9:586（`run_not_quiescent` 归属） | `work-r0b-control-design-2026-10-30.md` | :586 就地两处更正＋§9:606／:611 同日更正 | 已落 |
+| 控制面 §9:606（`acceptance_blocked_unresolvable`） | 同上 | :606：finalize 那一半从未为真；载体＝0021:507 函数＋0021:531 `BEFORE INSERT ON work.acceptance` 触发器，零可观测变化 | 已落 |
+| 控制面 §9:611（finalize／用户保存两支码清单） | 同上 | :611 拆成两份完整清单，写明 finalize 无 `local_proof_expired`／`content_on_original_device`／`run_not_quiescent` | 已落 |
+| 「(B) 谓词与分类唯一写者」精确化 | 本设计单 §9 批四行＋控制面 §4.2:331 | 本文件 :780 行内两处标注；控制面 :331 第四条标注（列有两个插入者、角色不同、判据具名） | 已落 |
+| §4.1:272 副本行 | 控制面 | 两条标注（落笔形状＋唯一写者与假内容拒绝） | 已落 |
+| §4.2:331 finalize 行 | 控制面 | 三条标注（(B) 落点、O-18 门、未落地的审计事件） | 已落 |
+| §7.1 四步 | 控制面 :442／:446／:447／:448／:449／:451 | 逐步标注（nonce 载体与唯一行为变化／两支 `run_not_quiescent` 的空集真过／`content_on_original_device` 首个生产者／`output_limit_bytes` 首读者与格式白名单无载体／去重域与 `publish_ack` 非签名） | 已落 |
+| 本机文档 §7.1／§7.3／§7.5 | `work-r0b-device-design-2026-10-30.md` | :334／:349／:364／:366／:368 五处 | 已落 |
+| 台账卡片 I 与 M1a 计数、§2.10 索引行 | `work-project.md` | 卡片 I 批四段＋索引行同日更正（两者都带现读计数与取数法） | 已落 |
+| **清单外新发现（本轮扫出来的）** | `r0b-ev-implementation-progress-2026-11-10.md`／`r0b-completion-audit-checklist-2026-11-10.md`／`r0b-ev-test-execution-guide-2026-11-10.md` | 三处仍写「EV97 待实现／阻塞于基础设施缺失／需新增测试」，与已落地树不符 ⇒ 各加一条带日期更正并指向 §18.6 的映射表 | 已落（属 §17.10 第 10 条之外的补充扫，不是漏项补写） |
+
+### 18.10 半径、状态与自证边界
+
+- **半径＝migration＋换二进制**：0043 未 rollout，**现网台账仍 39**（CI 绿不等于部署，两个口径不合并）；0040–0043 四批的 rollout 定序仍按 O-11＝丙 待主签单选。
+- 提交与 push：增量本体（0043 SQL＋catalog＋manifest＋两份错误码 JSON＋verify 脚本＋四处手抄清单＋设计单 §17）在 **`9a2f2488d`** 已提交并推送至 `origin/aliyun-dev`（`git rev-list --left-right --count origin/aliyun-dev...HEAD`＝**0／0**，推前核过远端 tip 一致、未带他人提交）。**本节写下之后仍未提交的改动有两类**：① `src/work/internal/migrate/r0b_local_artifact_test.go`（批四 15 个用例）现读**未入版本库**（`git log -1 -- 该路径` 为空、`git status` 显 `??`）⇒ **CI 那三笔绿只覆盖 migration 面，不覆盖批四用例**，§18.6 的 RC=0 读数纯属本机；② 设计单 §10／§18 的本节、台账卡片 I 与 §2.10 索引行、两份设计正文的标注、以及 §18.9 末行的三份 EV 文档标注，连同 `r0b_actions_test.go` 的行尾补 newline（`--numstat`＝1／1），都未 commit。**是否 commit／push 各自主签指令。**
+- 本节不声称的事：批四 13 条 verify 探针未执行（§18.5）、EV97 的 (A) 侧零用例（§18.6）、两个新命令无 Go 调用方（§18.6）、nonce 并发无专用例、`artifact_classification_floor` 审计事件未落地、`local_ref` 仍是签名域外标量（O-19 开放）。
+
+### 18.11 末次写盘之后的门复跑（2026-11-13，读数全部取自最后一次改动之后）
+
+- 复跑判据先说清「什么必须重跑」：本轮最后一次写盘是**文档**（`work-project.md` §2.10 索引行那一格），所以按 [[adjudication-propagation-sweep]] 与 [[verification-exit-codes]] 的口径，读文档的门必须重跑；Go 门只需证明「没有任何 Go 文件读我改的那四份文档」，否则它的读数就是改前证据。
+- 文档门第一次复跑是**红的**：`node docs/plan/assets/work-r0a-design-2026-10-25/scripts/ci-contract.mjs` ⇒ `NODE_RC=1`，具名一条 `doc-table-shape.test.mjs` 报 `every table row carries as many cells as its own header` 失败，读数原文 `work-project.md:159 has 3 cells, header 2 (table at 149)`。根因现读判据：该门的 `splitCells` 按「未转义的竖线」切格（只放过写成反斜杠转义的那一种），**不剥 code span**，而我在这一格写了那条带竖线字符的 `grep` 计数模式串，格内的字面竖线因此被当成第三个分隔符。⇒ 修法＝把该格里的取数法改成不含竖线的说法（「设计单 §10 段内数以 O- 起头的行＝19」），**没有**放宽那道门、**没有**给它加豁免、**没有**动它的 lower-bound 断言；改后同一条命令复跑 ⇒ `NODE_RC=0`、`R0a contract gate passed`，三组读数 **151／38／24 全 pass、fail 0**。
+- 结构性自检（与那道门同一轮跑的，判据各附取数法）：逐份数「以竖线起头却不以竖线收尾的行」，新文件／HEAD 计数＝0／0、0／0、0／0、**1／1**、0／0、0／0、0／0（七份按 diff 顺序）——唯一的 1 是 `work-project.md:2321`，而它在 **HEAD 就已经不闭合**，即既有排版不一致、不是本轮造成的 cell 位移，且它的格数仍等于表头，所以那道门不报它，本批未动那一行；逐行保留判据＝把每份 HEAD 文本切成 24 字符窗口逐个在新文件里找在场，七份合计 **约 700 个窗口只 4 个不命中**，而那 4 个各是插入点两侧（两侧各 16 字符邻居现读都在场）⇒ 没有内容被吞；`**` 平价在剥掉 code span 后与 HEAD 同值（14／5／2／0／0／0／0，两份文档逐位相同）。
+- Go 门（三笔都在末次文档改动**之后**跑，`-count=1` 不复用缓存）：`internal/apierr` ⇒ `APIERR_RC=0`（4.226s）；`internal/migrate` 以 `WORK_TEST_PG_URL=postgres://postgres@localhost:55443/postgres?sslmode=disable` 串行 ⇒ `MIGRATE_RC=0`、`^ok` 行数 1、`^--- FAIL` 行数 0（274.387s，含 §18.6 那 15 个批四用例与 `r0b_actions_test.go` 本轮改动）；`internal/api` 同容器同法 ⇒ `API_RC=0`、`^--- FAIL` 行数 0（333.267s，含 §18.7 那两条集群角色普查门——它们在只读集群上是绿的，与 §18.7 记的 `work-test-pg` 5432 两红不冲突）。
+- 「Go 门不受本轮文档改动影响」这条不是声明，是现读：`grep -rn` 搜 `docs/plan` 在 `src/work` 的 `*.go` 里命中的路径全部落在 `work-r0a-*` 那几份与 `assets/work-r0a-orchestration-*`，**没有一条指向我本轮改过的四份 R0b 文档**（控制面、本机、设计单、台账）。
+- 未复跑的两组与为什么可以不跑：ops 30 与 promtool 那组只读 telemetry／48 条规则／runbook，本批 `git status` 现读的非文档改动只有 `internal/migrate` 的两份测试文件（一份 M、一份 ??），那几类文件一行未动，故不重跑；CI 也不重跑——`9a2f2488d` 那三笔的成对读数已落在 §18.8，而末次改动是纯文档，**push 每批单独授权、本轮未请求**。
+- 本轮之后的状态：四份文档＋两份测试文件仍**未 commit、未 push、未 rollout**（现网台账仍 39），§18.10 那句「是否 commit／push 各自主签指令」继续生效。
+- 本文未经外部独立安全复核，**不得称「经独立复核／审计通过」**；主签复核结论起 7 日延迟复评（与卡片 I 的 2026-11-19 窗并读）。

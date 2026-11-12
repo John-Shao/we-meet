@@ -15,7 +15,7 @@
 | EV84 | I1 | ✅ 已实现 | TestR0bAdmissionEpochIsStamped | r0b_governance_test.go:19 |
 | **EV85** | **I1** | **✅ 新实现** | **TestR0bUserSuspendAcrossMultipleOrgs** | **r0b_governance_test.go:958** |
 | **EV86** | **I1** | **✅ 新实现** | **TestR0bMassAbsenceThresholdAndRestore** | **r0b_governance_test.go:1109** |
-| EV97 | I2 | ⏸️ 待实现 | - | - |
+| EV97 | I2 | ⏸️ 待实现 | - | - **【2026-11-13 现读更正：本行的「待实现」与「测试函数／文件＝-」两处都已过期，原文保留不删。批四（增量 0043）已落地服务端判据并配具名用例＝`TestR0bFinalizeTakesTheStrictestInput`、`TestR0bFinalizeEmptyInputSetIsAFloorNotAGuess`、`TestR0bFinalizeSuccessionGrantCountsBeforeAnyActionRuns`、`TestR0bFinalizeClassificationUnknownOnlyComesFromTheClaim`（`src/work/internal/migrate/r0b_local_artifact_test.go`，2026-11-13 那轮 RC=0、顶层 16 PASS／0 FAIL）。状态自此只能写「部分实现」：EV97 第 3 条要求的 (A) 目的地闸两支（`0042:941` prepare／`0042:1471` consume_device_permit）现读**零个**具名用例（`grep -rn destination_not_allowed_for_local_only --include=*.go src/work/internal` 零命中），它要求的 `artifact_classification_floor` 审计事件也未落地（拒绝支的同事务审计 insert 被自身 raise 回滚）。逐条映射与重开条件＝M1a 设备侧 migration 设计单 §18.6**】 |
 | EV98 | I2 | ⏸️ 待实现 | - | - |
 | EV106 | I1 | ✅ 已实现 | TestR0bMemberProjectionTakesTheOrgLockFirst | r0b_governance_test.go:437 |
 | EV107 | I1 | ✅ 已实现 | TestR0bGovernanceCursorAdvancesOnlyForward | r0b_governance_test.go:160 |
@@ -30,7 +30,7 @@
 - **I1/I2 相关 EV 总数**：12 条
 - **已实现**：9 条（75%）
 - **本次新增**：3 条（EV85, EV86, EV108）
-- **待实现**：3 条（EV70, EV97, EV98）
+- **待实现**：3 条（EV70, EV97, EV98） **【2026-11-13 口径更正，原文保留：本行的「3 条」仍成立但 EV97 已从「零实现」变为「部分实现」——服务端 (B) 推导与 4 个具名用例已在批四 0043 落地，缺的那半是 (A) 目的地闸两支零用例与 `artifact_classification_floor` 审计事件未落地，逐条见 EV97 行同日标注与设计单 §18.6；「已实现 9 条」的分子不含 EV97，不得因本更正改写成 10。**】
 
 ## EV85 实现详情
 
