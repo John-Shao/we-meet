@@ -77,7 +77,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (39, '0039_mass_absence_epoch_dedup'),
   (40, '0040_device_identity_and_workspace_grants'),
   (41, '0041_local_run_orchestration'),
-  (42, '0042_local_actions_receipts_finish')) expected(version, name)
+  (42, '0042_local_actions_receipts_finish'),
+  (43, '0043_local_artifact_replica_finalize')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -682,6 +683,120 @@ psql_ro "select 'work_api_cannot_select_action_tables=' || case when (
     ('work.device_receipt'), ('work.device_run_finish')) t(n)
   where has_table_privilege('work_api', t.n::regclass, 'SELECT')) = 0
   then 'true' else 'FALSE' end"
+
+echo
+echo "== 0043 local_artifact_replica_finalize =="
+# 0043 is two tables, two new commands and one restatement, so the probes are split the same
+# way: the closed sets that carry O-7 (single-value state) and O-17 (the nonce's two
+# purposes), the two triggers that make "a replica never drifts from its version" and
+# "neither table is edited after the fact" database facts rather than command behaviour,
+# the definer identity of the two new writers plus the grant boundary that makes each of
+# them the only way in, and last the one thing a restatement can silently lose - 0041's
+# rebind did not consume a nonce, and step four of §12.12 only became true here.
+psql_ro "select 'replica_and_nonce_tables_present=' || case when (
+  select count(*) from (values ('work.artifact_replica'),
+    ('work.consumed_possession_nonce')) t(n)
+  where to_regclass(t.n) is not null) = 2 then 'true' else 'FALSE' end"
+# O-7 was decided as 甲: the state column admits exactly one value. Compared as the whole
+# definition, because a probe that only asked "does it mention published" would also pass
+# on a set that grew a second value.
+psql_ro "select 'replica_state_is_published_only=' || case when (
+  select count(*) from pg_constraint
+  where conname = 'artifact_replica_state_check' and contype = 'c'
+    and pg_get_constraintdef(oid) = 'CHECK ((state = ''published''::text))') = 1
+  then 'true' else 'FALSE' end"
+psql_ro "select 'replica_location_is_local_only=' || case when (
+  select count(*) from pg_constraint
+  where conname = 'artifact_replica_location_check' and contype = 'c'
+    and pg_get_constraintdef(oid) = 'CHECK ((location = ''local''::text))') = 1
+  then 'true' else 'FALSE' end"
+psql_ro "select 'replica_matches_version_trigger=' || case when (
+  select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid
+  where c.relname = 'artifact_replica' and t.tgname = 'artifact_replica_matches_version'
+    and not t.tgisinternal and t.tgtype::int & 2 = 2 and t.tgtype::int & 4 = 4) = 1
+  then 'true' else 'FALSE' end"
+psql_ro "select 'replica_and_nonce_append_only=' || case when (
+  select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid
+  where t.tgname in ('artifact_replica_append_only',
+    'consumed_possession_nonce_append_only') and not t.tgisinternal) = 2
+  then 'true' else 'FALSE' end"
+# O-17 was decided as 乙: one general table, purposes closed to the two possession
+# writes. The closed set is compared as its whole definition, so a third purpose - the
+# approval frame being the obvious candidate - turns this red. The nonce column
+# deliberately has no shape CHECK, so nothing here asserts one.
+psql_ro "select 'nonce_purpose_closed_set=' || case when (
+  select count(*) from pg_constraint
+  where conname = 'consumed_possession_nonce_purpose_check' and contype = 'c'
+    and pg_get_constraintdef(oid) =
+      'CHECK ((purpose = ANY (ARRAY[''user_version''::text, ''workspace_rebind''::text])))') = 1
+  then 'true' else 'FALSE' end"
+psql_ro "select 'nonce_key_is_org_and_nonce=' || case when (
+  select count(*) from pg_index i join pg_class c on c.oid = i.indexrelid
+  where c.relname = 'consumed_possession_nonce_pkey' and i.indisunique
+    and pg_get_indexdef(i.indexrelid) =
+      'CREATE UNIQUE INDEX consumed_possession_nonce_pkey '
+      || 'ON work.consumed_possession_nonce USING btree (org_id, nonce)') = 1
+  then 'true' else 'FALSE' end"
+psql_ro "select 'local_finalize_pair_definer_and_pinned=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work'
+    and p.proname in ('finalize_local_artifact', 'create_local_user_artifact_version')
+    and p.prosecdef
+    and p.proconfig @> array['search_path=work, pg_catalog']) = 2
+  then 'true' else 'FALSE' end"
+# Writer closure, read as an ACL rather than a grep: finalize is work_worker's, the user
+# save is work_api's, and neither command is reachable through PUBLIC.
+psql_ro "select 'local_finalize_worker_only=' || case when (
+  has_function_privilege('work_worker',
+    'work.finalize_local_artifact(text,uuid,uuid,jsonb)', 'EXECUTE')
+  and not has_function_privilege('work_api',
+    'work.finalize_local_artifact(text,uuid,uuid,jsonb)', 'EXECUTE')
+  and not has_function_privilege('public',
+    'work.finalize_local_artifact(text,uuid,uuid,jsonb)', 'EXECUTE')) then 'true' else 'FALSE' end"
+psql_ro "select 'user_save_api_only=' || case when (
+  has_function_privilege('work_api',
+    'work.create_local_user_artifact_version(text,text,text,bigint,uuid,uuid,uuid,text,text,jsonb)',
+    'EXECUTE')
+  and not has_function_privilege('work_worker',
+    'work.create_local_user_artifact_version(text,text,text,bigint,uuid,uuid,uuid,text,text,jsonb)',
+    'EXECUTE')
+  and not has_function_privilege('public',
+    'work.create_local_user_artifact_version(text,text,text,bigint,uuid,uuid,uuid,text,text,jsonb)',
+    'EXECUTE')) then 'true' else 'FALSE' end"
+psql_ro "select 'validators_callable_by_no_one=' || case when (
+  select count(*) from (values
+    ('work.local_artifact_version_payload_valid(jsonb)'),
+    ('work.user_version_proof_valid(jsonb)')) t(f)
+  where has_function_privilege('work_api', t.f, 'EXECUTE')
+     or has_function_privilege('work_worker', t.f, 'EXECUTE')
+     or has_function_privilege('public', t.f, 'EXECUTE')) = 0
+  then 'true' else 'FALSE' end"
+psql_ro "select 'runtime_roles_cannot_touch_new_tables=' || case when (
+  select count(*) from (values ('work_api'), ('work_worker'), ('work_directory'),
+    ('work_governance_events'), ('work_operator'), ('work_ops')) r(role),
+    (values ('work.artifact_replica'), ('work.consumed_possession_nonce')) t(n)
+  where has_table_privilege(r.role, t.n, 'SELECT')
+     or has_table_privilege(r.role, t.n, 'INSERT')
+     or has_table_privilege(r.role, t.n, 'UPDATE')
+     or has_table_privilege(r.role, t.n, 'DELETE')) = 0
+  then 'true' else 'FALSE' end"
+# The restatement, and the only part of it that is new: 0041's rebind offered a nonce it
+# never spent, so §12.12 step four was prose. Comments are stripped first, because the
+# body's own header says the old version "验签＋原子消费 nonce" in the past tense and a
+# substring test would read that sentence instead of the statement that does the work.
+psql_ro "select 'rebind_consumes_nonce_after_replace=' || case when (
+  with body as (
+    select regexp_replace(pg_get_functiondef(
+      'work.rebind_run_workspace(text,text,text,bigint,uuid,text,uuid,uuid,jsonb)'::regprocedure),
+      '--[^\n]*', '', 'g') as t)
+  select count(*) from body
+  where t like '%consumed_possession_nonce%' and t like '%workspace_rebind%'
+    and t like '%nonce%') = 1
+  then 'true' else 'FALSE' end"
+
+# The definer identity of the restated rebind is not re-asserted here: the 0041 section
+# above already reads prosecdef and the pinned search_path from the live tail, and that
+# row is what catches a #87 regression introduced by this restatement.
 
 echo
 if [[ "$FAILURES" -ne 0 ]]; then

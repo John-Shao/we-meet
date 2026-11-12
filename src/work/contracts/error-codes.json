@@ -372,6 +372,12 @@
       "retryable": false,
       "recovery_action": "reconnect_original_device",
       "ui": "not_in_r0a"
+    },
+    "local_proof_expired": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": "refresh_state",
+      "ui": "input_expired"
     }
   },
   "db_exception_map": {
@@ -604,6 +610,10 @@
     "quota_reservation_not_held": "service_degraded",
     "stale_fence": "service_degraded",
     "supersede_limit_exceeded": "service_degraded",
-    "supersede_not_allowed": "service_degraded"
+    "supersede_not_allowed": "service_degraded",
+    "artifact_replica_content_mismatch": "invalid_request",
+    "artifact_too_large": "artifact_too_large",
+    "content_on_original_device": "content_on_original_device",
+    "local_proof_expired": "local_proof_expired"
   }
 }

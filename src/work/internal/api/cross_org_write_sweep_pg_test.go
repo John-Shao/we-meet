@@ -158,9 +158,10 @@ func TestCrossOrgWritesAreRefusedOnEveryTenantTable(t *testing.T) {
 	// this set deliberately - like 0024's provider_probe_grant they grant no table privilege at all,
 	// so every effect goes through a SECURITY DEFINER command and a direct cross-org UPDATE is
 	// refused by privilege before row security is even consulted. 0042 adds four more on the
-	// same rule (local_action, device_dispatch, device_receipt, device_run_finish), so the
-	// named set is thirty-three.
-	wantUnattempted := "access_restriction,audit_export,cancellation_intent,consumed_governance_command," +
+	// same rule (local_action, device_dispatch, device_receipt, device_run_finish) and 0043 two
+	// more (artifact_replica, consumed_possession_nonce), so the named set is thirty-five.
+	wantUnattempted := "access_restriction,artifact_replica,audit_export,cancellation_intent," +
+		"consumed_governance_command,consumed_possession_nonce," +
 		"content_reference,device,device_checkpoint,device_dispatch,device_pairing,device_receipt," +
 		"device_run_binding,device_run_finish,device_session,device_session_ticket,directory_sync_state," +
 		"execution_entitlement,execution_lease,governance_change,governance_event_cursor," +

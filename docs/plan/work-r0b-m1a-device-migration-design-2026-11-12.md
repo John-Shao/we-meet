@@ -799,6 +799,8 @@
 
 **【2026-11-12 五次更新：批三落笔前又查出三处「已签规则缺载体」，逐项单选后本表扩到 16 项】**主签在「再处理 2. 批三 0042」同日逐项单选 **O-14＝甲**（配额由调用方预留、命令只复验）、**O-15＝甲**（`approval_decision` 加可空 `nonce` 列＋部分唯一索引）、**O-16＝甲**（本批定义 `final_operation_set_hash` 的显式有序公式并跨侧传播），三条的原文依据、落地与代价见 **§16.1**。⇒ **本表现状：合计 16 项、已裁 14 项、仍开放 2 项（O-7／O-8，均属批四）**；**批三已落笔为增量 0042**（实录见 §16）。上面四条状态标注里的「已裁 11／开放 2（合计 13）」以本条为准（开放项仍是同两个，合计与已裁数变了）。取数法＝数下表以「O-」起头的行（16），已裁＝行内含「已裁＝」标注者（14）。**表数不变＝15**（O-15 是给已上线表加列，不新增表；O-14／O-16 各不新增表）。
 
+**【2026-11-12 六次更新：批四落笔前裁四项、登记三项，本表现状见下】**主签在「裁 O-7／O-8 开批四」同日逐项单选 **O-7＝甲**、**O-8＝甲**、**O-17＝乙**、**O-18＝丙**（四项裁定的原文依据、落地方式与已付代价统一见 **§17.1**）。O-17／O-18 是批四落笔前现读查出的两处「已签规则缺载体／已签文本与生效体不符」，随本节登记；写 shape 时又查出第三处＝**O-19**（用户保存路径的 `local_ref` 在签名域内没有载体），已按「proof 域外无签名标量入参」落笔并把三种被否方案记进行内，**属非阻断**（不决定 0043 能否落地，只决定该列将来是否升级为签名字段）。⇒ **本表现状：合计 19 项、已裁 18 项、仍开放 1 项＝O-19**。上一条（五次更新）里的「合计 16 项、已裁 14 项、仍开放 2 项（O-7／O-8）」以本条为准（那两项现已裁完，新增三项）。取数法＝数下表以「O-」起头的行（19），已裁＝行内含「已裁＝」标注者（18），开放＝无该标注者（1）。**表数同步更正＝16**：O-17＝乙 新增 `work.consumed_possession_nonce`（§17.3），M1a 总表数 15→16（不含 §5.F 延后那张，含它＝17）；「已落地」现读＝**14**（`grep -c '^CREATE TABLE'` 于 `0040*.sql`＝9＋`0041*.sql`＝1＋`0042*.sql`＝4），**批四余 2 张**＝`artifact_replica`＋`consumed_possession_nonce`。上文「表数现读更正」段的「总表数＝15、已落地 10、余 5」以本条为准，原文保留不删。
+
 | 号 | 主题 | 原文／现读依据 | 选项与代价 |
 |---|---|---|---|
 | O-1 | 表清单按 §3 对账后口径确认（不建 `local_operation`／`operation_journal`／`device_permit`，`device_lease` 改名 `execution_lease`） | 偏移 1–3 逐条原文 | **甲＝按本文对账**（代价＝设备计划 §4 要加带日期更正标注，原文保留）／乙＝照设备计划字面建四张表（代价＝与 control §4.1 权威冲突、造出第二个单次性权威、0021 注释指向不存在的表） **【2026-11-12 已裁＝甲，卡片 P-a】**13 张表、租约表名 `execution_lease`、不建三张误读表；设备计划 §4／§8 已加带日期标注，原文保留 |
@@ -807,8 +809,8 @@
 | O-4 | `device_run_binding.grant_set` 用受校验 jsonb 还是另建子表 | §5.C1；0020 helper 先例 | **甲＝jsonb＋helper**（代价＝反查要展开 JSON）／乙＝子表（代价＝多一张表＋多一道锁，§4.1 未要求） **【2026-11-12 已裁＝甲】**`grant_set` 用受校验 jsonb＋`work.binding_grant_set_valid` helper（函数名现读 0040 原文核对），不建子表。裁定与批一表范围同批给出（台账卡片 T、本文 §13.1），**本行标注属同日传播补齐**——此前只记在卡片 T 与本节，未落到本表行内 |
 | O-5 | `device_dispatch.execution_id` 留列不写还是删列 | §5.D1；B03 §3.1 对 `local_content.sync状态` 的同一手法 | **甲＝留列不写**（代价＝一列本期无写者）／乙＝删列（代价＝R0c 恢复 egress 时要再加回来，且 0021 已发布注释提到它） **【2026-11-12 已裁＝甲】**留列不写，本期无写者；`delivery_state` 五值闭集保留，只有 `not_applicable`／`superseded` 有写者（§15.4） |
 | O-6 | `device_run_finish.reason_code` 是否扩取消路径词汇 | §5.D3；本机 §3.4 七值闭集 vs 控制面 §5 `approval_rejected` | **甲＝本期只列七值，取消路径 reason 落 `work.run.terminal_reason`**（代价＝两处词汇）／乙＝扩闭集（代价＝新值须同改本机 §3.4、控制面 §9 与 EV，属新增闭集成员，架构 §6.1 明禁单向加闸） **【2026-11-12 已裁＝甲】**本期只列设备侧七值，取消路径 reason 落 `work.run.terminal_reason`（§15.2 `decide_local_approval` 的 `approval_rejected`） |
-| O-7 | `artifact_replica.state` 本期单值 `published` 是否可接受 | §5.E2；控制面 §4.1 未给值域 | **甲＝单值**（代价＝将来 cloud 支恢复时要扩）／乙＝现在定多值（代价＝造出没有写者的状态值，违「孤立状态」规矩） |
-| O-8 | `work_run_classification` 是否随 M1a 落 | §5.F | **甲＝延后**（代价＝§4.1 设备侧行未一次落齐）／乙＝随批四落（代价＝无本期消费者，撞 :142 `want` 串） |
+| O-7 | `artifact_replica.state` 本期单值 `published` 是否可接受 | §5.E2；控制面 §4.1 未给值域 | **甲＝单值**（代价＝将来 cloud 支恢复时要扩）／乙＝现在定多值（代价＝造出没有写者的状态值，违「孤立状态」规矩） **【2026-11-12 已裁＝甲】**照 §5.E2 落 `CHECK (state IN ('published'))`，不造 `pending`／`failed`；已付代价写死：恢复 cloud 副本支时必须新增量 `DROP CONSTRAINT`＋`ADD`（CHECK 不可 `CREATE OR REPLACE`），落笔口径见 §17.2 |
+| O-8 | `work_run_classification` 是否随 M1a 落 | §5.F | **甲＝延后**（代价＝§4.1 设备侧行未一次落齐）／乙＝随批四落（代价＝无本期消费者，撞 :142 `want` 串） **【2026-11-12 已裁＝甲】**0043 **不建**该表；控制面 §4.1 的设备侧行清单本期保持少一行（带日期更正属批四传播，§17.10）。判据＝§9 写者闭合：落一张「注册了没人写」的表正是 `:147` 那条 `want` 串要拦的事，行内原写的 `:142` 属行号漂移，现读见 §17.9 |
 | O-9 | `prepare_id` 是否需要在 `operation` 上加列做服务端去重 | §6.1；控制面 §4.1 幂等权威是 logical_key＋hash | **甲＝不加列**（代价＝设备必须保证同 prepare_id 映射同 logical_key）／乙＝加列（代价＝改既有已上线表＋新唯一键＋全链重放） **【2026-11-12 已裁＝甲】**不加列；设备必须保证同 `prepare_id` 映射同 `logical_key`，服务端幂等权威仍是 `logical_key`＋`request_hash`（§15 抬头） |
 | O-10 | 0021 四个 attestation 键的处置（`journal_unavailable` 换不了、`seal_checked` 必须删） | §8 债 4 逐键原文 | **甲＝两键换表读、`journal_unavailable` 保留 attestation、`seal_checked` 删除**（代价＝已签文本「I4 落表后应替换为表读并把断言键删掉」要加带日期更正）／乙＝四键全保留（代价＝`seal_checked` 指向一张永不存在的表，降级裁决可被空断言过闸） **【2026-11-12 已裁＝甲】**`lease_or_revocation_checked` 换读 `execution_lease`＋`device.status`、`device_unreachable` 换读 `device_session`、`journal_unavailable` 保留 attestation、`seal_checked` 删除；重述落点＝批三 §15.3 第 2 条（按 #87 同句重述 `SECURITY DEFINER`＋`search_path`，保留 0021 其余全部判定） |
 | O-11 | 四批是否同包 rollout、以及批一是否先单独裁 | §9；每批半径＝migration＋换二进制 | 主签单选定序；本文不预设 **【2026-11-12 已裁＝丙】**批一（0040）先单独落，批二–四等批一拿到外部正证后再定序；每批半径仍是 migration＋换二进制，是否同包届时另裁 |
@@ -817,6 +819,9 @@
 | O-14 | **`prepare_local_operation` 的配额账户载体（阻断批三）** | §6.1 的 `p_action` 闭合键集 20 键无 `account_key`／`period_id`，而既有 `reserve_quota` 必须传这两值；云端取自部署配置（`runflow/activities.go:929`／`:953`），SQL definer 读不到。控制面 §4.2 该行只写拒绝时「不预留配额」 | **甲＝调用方预留、命令只复验**（代价＝M1b／I4 必须补调用方，本批写集去掉 `quota_reservation`；好处＝不改已签帧、不造第二套账户约定）／乙＝`p_action` 加两键（代价＝改已签本机 §3.1 帧，且设备侧能影响记账账户，须另加白名单）／丙＝SQL 按既有默认约定推导并自建账户（代价＝把部署配置变成 SQL 内硬约定，自建账户的 limit／enforcement 是新语义） **【2026-11-12 已裁＝甲】**落地与复验谓词见 §16.1／§16.2；`consume_device_permit` 的最新预留非 `held`／`unknown` 即 `quota_reservation_not_held` |
 | O-15 | **`decide_local_approval` 的 nonce 单次消费载体（阻断批三）** | 本机 §4.3 原文「服务端对HTTP字段逐项与proof比较并**原子消费nonce**」，而 `approval_decision` 只有七列无 nonce，全库亦无一次性 nonce 表 | **甲＝`approval_decision` 加可空 `nonce` 列＋部分唯一索引**（代价＝改 R0a 已上线表，纯加列、R0a 路径留 NULL 行为不变；好处＝单次性权威与决定事实同表同事务、零新表）／乙＝新建一次性 nonce 表（代价＝表数 15→16、多一份 catalog 面，与 O-13＝S-b 取舍同向）／丙＝用 `audit_event.metadata` 承担（代价＝把单次性权威放进审计表，违「审计是事实记录不是权威」的既有分工） **【2026-11-12 已裁＝甲】**索引＝`work_approval_decision_nonce_once (org_id, nonce) WHERE nonce IS NOT NULL`；跨审批单次消费由 `r0b_actions_test.go` 的第二个 pending 审批负例钉住 |
 | O-16 | **`final_operation_set_hash` 的重算公式（阻断批三，跨侧合同）** | 控制面 §6.4 第 3 条只写「等于服务端按本 Run 的 Operation id/state/result hash 重算的值」；`device_checkpoint.pending_operation_set_hash` 是设备自报、0041 只校格式，库里无任何公式 | **甲＝本批定义显式有序公式＋跨侧传播**（代价＝新定义一条跨侧合同，M3 的 Rust agent 必须照此实现；好处＝`finish_state_mismatch` 真有判别力）／乙＝只校格式＋与自报值相等（代价＝第 3 条核心判据空转，服务端不再独立重算）／丙＝用 PG `jsonb_agg::text` 规范化（代价＝设备侧要复刻 PG 的键序规则而非通用 canonical JSON，更易漂） **【2026-11-12 已裁＝甲】**公式＝本 Run 全部 Operation（含被取代者）、按 `operation_id::text` 升序、元素 `{"operation_id":"…","state":"…","result_hash":"…"}`、`result_hash` 取最新 completed 回执值（无则空串）、`sha256_text('[' ‖ join(',') ‖ ']')`；落点＝`work.local_operation_set_hash`，传播见 §16.1 |
+| O-17 | **`rebind_run_workspace` 的 nonce 从未被消费（§12.12 第④条与已上线生效体不符）** | §12.12 判定顺序第④条原文「验签＋**原子消费 nonce**」；现读 `0041:646-833` 的生效体只判 `nonce IS NULL`、把原值写进审计 metadata，全库没有任何单次性载体 ⇒ 重放同一 proof、换一个新 `client_request_id` 就能第二次改绑 | **甲＝记债不修**（代价＝§12.12 第④条继续是假陈述，改绑面留一条可重放的 possession proof）／**乙＝新建通用一次性 nonce 表并同批重述 rebind 补上消费**（代价＝表数 15→16、一条已上线命令行为收紧：同 `client_request_id` 的重放仍走幂等早退分支返回原结果，只有**换 request_id 复用 nonce** 的第二笔从成功变拒绝）／丙＝复用 0042 的 `approval_decision.nonce` 部分唯一索引（代价＝审批决定表承担非审批域的 nonce，三个签名域挤进同一列，违控制面 §1.2「不复用其他签名域」） **【2026-11-12 已裁＝乙】**表＝`work.consumed_possession_nonce`（§17.3），`purpose` 闭集 `user_version`／`workspace_rebind` 两值在 0043 内各有写者；重述落点＝§17.7（只插入消费块，0041 其余判定逐字保留） |
+| O-18 | **`finalize_local_artifact` 的静止门槛按 Task 级还是本 Run 判定** | 控制面 §9:586 行写「`run_not_quiescent`＝采纳/新 Run 准入与 `finalize_local_artifact` 静止条件」、:606 行把 `acceptance_blocked_unresolvable` 也归给 finalize；而 §6.4 第 4 条原文是「阻塞判定**按本 Run 计算，不复用 task 级** `task_has_blocking_operation`」，Task 级判定「保留但只用于新 Run 准入与采纳门槛」 | **甲＝复用 Task 级 `run_not_quiescent`**（代价＝本 Run 可收尾、但 Task 里另有未账动作时成果发布被无关动作锁死，正面撞 §6.4 第 4 条）／乙＝两道都查（代价＝同甲，且把采纳门槛塞进 worker 命令）／**丙＝只查本 Run 无 `unknown`／`unresolved`，复用批三同一谓词与同一拒绝码 `run_has_unreconciled_operation`**（代价＝§9:586／:606 两行归属要加带日期就地更正、原文保留；好处＝**零新增拒绝码**、与 0042 已落地的两个强制点同形） **【2026-11-12 已裁＝丙】**落地＝§17.5 判定顺序第 6 条；:606 那行的更正顺带记一件事——采纳门槛已由 0021 的 `work.acceptance` `BEFORE INSERT` 触发器兜住，本批**不产生新拒绝** |
+| O-19 | **用户保存路径的 `local_ref` 载体（批四写 shape 时发现，不阻断落笔）** | `UserVersionProof` 的闭合 21 键（控制面 §1.2:31）里**没有** `local_ref`，本机 §7.5 六步里也没有 receipt；而 0017 的 `artifact_version_location_shape`（:210-214）要求每个 `local_only` 版本 `local_ref IS NOT NULL` ⇒ 服务端要么拒落该版本，要么接受一个签名域外的指针 | **落笔已按甲执行＝proof 域外的无签名标量入参 `p_local_ref text`**（代价＝该列是客户端自报、服务端无法验真的指针，与 agent 路径不对称——后者有 `device_receipt.local_result_ref` 可对；好处＝已签键集一字不减，且去重 `request_hash` 把它折进去，改指针必换 hash）／乙＝给 `UserVersionProof` 加第 22 键（代价＝改已签跨侧合同帧，须同批改控制面 §1.2 与本机 §7.5 两处闭集＋设备侧实现；M3 未开工正是低成本窗口）／丙＝用户保存不写 `local_ref`（直接违反 0017 已上线 CHECK，落不进去）／丁＝服务端按本机 §7.1 的路径约定自行合成（代价＝自造一条无签名的跨侧合同，且用户保存的目录本来不在 Run 授权集内）。**重开条件**＝M1b 接 Bearer 面、设备侧统一重建 proof 帧时按乙把该键并入签名域并删掉入参，届时要连 `local_ref` 的可验真路径（谁写、写在哪个卷、与 `device_receipt` 的关系）一起定 |
 
 **另需传播的活指令**（裁定后同批扫，不静默改）：设备计划 §4 M1a 表族清单与「六函数」句、§8 待开卡表的「M1a migration 表清单细化」行、work-project.md 卡片 I 与 §5.1 的 M1a 开工行、架构 §6 I4 行（`device_run_seal`／`issue_run_seal` 已移出但 I4 描述仍含它们）、控制面 §4.2 段末「I4 落表后应替换为表读」句。
 
@@ -1207,3 +1212,143 @@ O-10 重述里「设备不可达」那一支被我写成 **`IF NOT EXISTS(active
 
 **口径**：本批的完成声明只到「增量落地＋写者闭合＋16 条探针有判别力＋上表六件事有正反例」。**上表 12 项是已识别的缺口，不是「大概没问题」**；批四与 M1b 落笔时按各自重开条件补，补完前不得声称 EV70/EV71/EV98/EV100/EV113/EV120 已跑通（§9 给批三列的那六个 EV 目前**一个都没有专用例**）。
 - **批一的证据门**：§9 的写者闭合判据（`function_privilege_sweep_pg_test.go:142` 的 `want` 串不变）＋三条 FK 债偿还的只读悬空计数为 0＋S4 五步路径算法的表基础就位（`root_ref`／`root_identity_hash`／`purpose`／TTL 上界）。**F13 实机竞态仍属卡片 K／M5，不在批一**（表就位不等于竞态已复现）。
+
+## 17. 批四（0043）补充设计：本机副本、分类下限与用户保存
+
+> 授权：主签 2026-11-12 指令「裁 O-7／O-8 开批四」，同日逐项单选 **O-7＝甲**、**O-8＝甲**、**O-17＝乙**、**O-18＝丙**（§17.1）。本节是 §9 批四那一行的 shape 交付物，也是 **O-12＝甲** 的第四份——§9 原列 19 个未给 shape 的命令里，批四那 1 个（`create_local_user_artifact_version`）在此补齐，**19／19 交完**。落笔增量号＝**0043**（现读：`ls src/work/migrations/increments | tail -1` ＝ `0042_local_actions_receipts_finish.sql`）。
+
+### 17.1 四项裁定（主签单选原文、现读依据与已付代价）
+
+| 项 | 裁定 | 现读依据 | 落笔效果与代价 |
+|---|---|---|---|
+| O-7 | **甲＝单值 `published`** | §5.E2「`state` 的值域控制面未给，本文取单值」＋唯一写者＝`finalize_local_artifact`（发布事务内插） | `CHECK (state IN ('published'))` 照 §5.E2 原样落，不造 `pending`／`failed`。已付代价：将来恢复 cloud 副本支时要新增量 `DROP CONSTRAINT`＋`ADD`（CHECK 不可 `CREATE OR REPLACE`），与 0042 里 `operation_supersede_reason_check` 四值扩六值同一手法 |
+| O-8 | **甲＝延后，不随批四落** | §5.F「六个域命令都不读它」＋写者也不在本期 | 0043 不建 `work_run_classification`；控制面 §4.1 设备侧行清单保持少一行（带日期更正见 §17.10 第 1 条）。判据＝§9 写者闭合：一张「注册了没人写」的表会让 `function_privilege_sweep_pg_test.go` 的 `want` 串变化，而那正是该门要拦的 |
+| O-17 | **乙＝新建通用一次性 nonce 表（兼修批一）** | §12.12 判定顺序第④条原文「验签＋**原子消费 nonce**」，而现读 `0041:646-833` 的生效体只判 `nonce IS NULL`、把原值写进审计 metadata，全库无载体 | 新建 `work.consumed_possession_nonce`（§17.3）＋同批 `CREATE OR REPLACE` 重述 `rebind_run_workspace` 补上消费（§17.7）。代价＝表数 15→16，且一条**已上线**命令行为收紧：同 `client_request_id` 的重放仍在幂等早退分支返回原结果，只有换 request_id 复用 nonce 的第二笔从成功变拒绝 |
+| O-18 | **丙＝只查本 Run 阻塞门** | 控制面 §6.4 第 4 条原文「阻塞判定**按本 Run 计算，不复用 task 级** `task_has_blocking_operation`」；§9:586／:606 把静止门槛与 `acceptance_blocked_unresolvable` 写到 finalize 名下 | `finalize_local_artifact` 复用批三的同一谓词（本 Run 无 `state IN ('unknown','unresolved')` 的 Operation）与同一拒绝码 `run_has_unreconciled_operation`；**不引入 Task 级闸、零新增拒绝码**；§9 两行的归属更正进 §17.10 传播清单（原文保留） |
+
+### 17.2 `work.artifact_replica` 落笔口径（O-7＝甲）
+
+- 逐列照 §5.E2，不改名、不加列、不减列：`org_id, version_id, location, replica_id, device_id, content_ref, local_ref, hash, bytes, state, created_at, updated_at`。
+- 两个闭集本期各只有一个值：`location CHECK IN ('local')`（cloud 支随 `finalize_cloud_replica` 移出＝控制面 §4.1 该行 E=B 标注）、`state CHECK IN ('published')`（O-7＝甲）。
+- **主键** `(org_id, version_id, location, replica_id)`；`replica_id uuid NOT NULL DEFAULT gen_random_uuid()`。
+- **三条 FK**：`(version_id, org_id) → work.artifact_version(version_id, org_id)`——**现读核过可落**：`work_artifact_version_version_id`（`0017:216-217`）是 **UNIQUE** 索引，无需新建唯一键；`(device_id, org_id) → work.device(id, org_id)`；`org_id → work.org(id)`。
+- **`BEFORE INSERT` 触发器 `artifact_replica_matches_version`**（§5.E2「不能换内容」的落点）：`NEW.hash` 必须等于 `work.artifact_version.content_hash`、`NEW.bytes` 必须等于 `.bytes`，否则 `RAISE EXCEPTION 'artifact_replica_content_mismatch' USING ERRCODE = '23514'`。两个必做的细节：① **名字映射**——本表叫 `hash`／`bytes`，版本表叫 `content_hash`／`bytes`（现读 `0002:399-401`），触发器里不得假设同名；② 该拒绝名与既有三个 `*_content_immutable` 同族（`workspace_grant_content_immutable` 等一律 `23514` ＋ 映射到 `invalid_request`），本批给它一条自映射的 `db_exception_map` 条目，见 §17.8。
+- **追加表**：`BEFORE UPDATE OR DELETE ... EXECUTE FUNCTION work.prevent_mutation()`（与 `local_action_no_mutation`／`device_receipt_append_only` 同一体）。
+- **RLS 三件套**＋**表权限零授予**（`REVOKE ALL ... FROM PUBLIC` 与对六个运行角色的第二条 REVOKE）照房规。
+- **retention 不清扫**（§5.E2 原文）。
+- **唯一写者＝`finalize_local_artifact`**。用户保存路径（§17.6）**不写本表**：那条路径没有任何服务端可验真的设备证据（O-19），把它的指针记成「副本事实」等于给一条无签名声明补一份权威记录。不对称的代价写在 §17.10 第 5 条，判据与重开条件一并写在那里。
+
+### 17.3 `work.consumed_possession_nonce`（O-17＝乙）
+
+| 列 | 类型 | 约束 |
+|---|---|---|
+| org_id | text | NOT NULL，FK `work.org(id)` |
+| purpose | text | NOT NULL CHECK `IN ('user_version','workspace_rebind')` |
+| nonce | text | NOT NULL |
+| consumed_at | timestamptz | NOT NULL DEFAULT now() |
+
+- **主键 `(org_id, nonce)`**，**不是** `(org_id, purpose, nonce)`：单次性按组织判定，与 0042 刚落地的 `work_approval_decision_nonce_once (org_id, nonce)` 同形；`purpose` 只作取证与告警维度，不参与唯一性。取舍写死：一个随机 nonce 在两个签名域各用一次也会被拒第二笔——这是想要的行为，而「不复用其他签名域」（控制面 §1.2:31）由 `purpose` 与两条独立的验签帧承担。
+- **`purpose` 两个值都有写者**（`user_version`←§17.6 步 3；`workspace_rebind`←§17.7），无孤立状态。
+- **刻意不给 `nonce` 形状 CHECK**：0041 的生效体只判 `IS NULL`，此处加 `^[A-Za-z0-9_-]{8,128}$` 会让一条今天能过的 rebind 改天被拒——那是 O-17 之外的行为改动（O-17 授权的动词是「消费」，不是「收紧形状」）。**重开条件**＝M1b 真接 Bearer 面时按 §1.2 的 nonce 定义统一收紧，并同批改 rebind 与 §17.6。
+- 追加表（`prevent_mutation()`）＋RLS 三件套＋零表授权；**retention 不清扫**——清扫一次等于允许一次重放。
+- **消费谓词**（两个写者各写一遍，不做成一个共享函数：它只有一行 EXISTS ＋一行 INSERT，共享反而藏住 `purpose` 与调用点）：
+
+```sql
+IF EXISTS (SELECT 1 FROM work.consumed_possession_nonce
+           WHERE org_id = p_org_id AND nonce = v_nonce) THEN
+  RAISE EXCEPTION 'unauthorized' USING ERRCODE = '42501';
+END IF;
+INSERT INTO work.consumed_possession_nonce (org_id, purpose, nonce)
+  VALUES (p_org_id, 'user_version', v_nonce);   -- 另一处为 'workspace_rebind'
+```
+
+- **位置**：幂等早退分支之后、proof 与标量逐项比较之后、任何业务写之前。这个顺序同时满足两件事——合法重试不被 nonce 打断，而 nonce 消费不可能发生在一笔最终失败的调用上（同一事务回滚即一起消失）。
+- **拒绝码选 `unauthorized`**（401 一族，已公开、已在 map）：0040／0041／0042 对 possession proof 这一族的失败（session 非当前、plane／epoch 不符、proof 与标量不等）一律抛它；再造一个 `*_nonce_reused` 只会多一个对外看不见的内部名（`approval_nonce_reused` 就是先例：映射到 `service_degraded`，端上读不到区别）。取证需求由主键值＋`audit_event` 里的 nonce 原值满足。
+- **并发**：两笔同 nonce 并发时第二笔收到 23505（未映射 → `service_degraded`），调用方重试即落进 EXISTS 分支得 `unauthorized`——单次性由主键兜住，不靠读后判。这条竞态无专用例，进 §17.10 第 8 条缺口清单。
+
+### 17.4 (B) 成果分类下限：输入集、比较器与证据
+
+- **输入集**（三块并起来，全部按本 Run 取）：
+  1. 本 Run 全部 Operation 的 **`work.local_action` 行，不加 `action_kind` 过滤**（§5 载体裁定＝丙 的原文是「every referenced grant」）。取的是**列 `local_action.classification`**——prepare 时写下的逐动作分类快照，所以 (B) 读的是当时的既成事实，不是 grant 的现值（grant 可以已失效或改了分类，那都不该洗白已读过的内容）。
+  2. `workspace_grant_succession` 上本 Run 的每一个 `new_grant_id`，读 `work.workspace_grant.classification`。这块**必须单独取**：改绑后的新 grant 在下一条动作出现之前没有 `local_action` 行，而 §6.6 的公式点名「含 succession 链上的新 grant」。
+  3. **输出根**＝`p_operation_id` 的 `artifact.write` 那条 `local_action` 行的分类（有则取，无则为 `null`）。
+- **与 (A) 的关系**（控制面 §4.2 第十轮 R10A-1「不得顺手合并成一个推导函数」）：(A) 的 0042 生效体按**单条待派发动作**判、`action_kind IN ('workspace.read','workspace.search','artifact.write')` 三值过滤、且只在后续动作引用时才看见 succession 新 grant；(B) 按**整 Run**判、无 kind 过滤、结构上看 succession。**两者只共享比较器 `work.classification_rank`（`remote_excerpt_allowed`=1、`local_only`=2），绝不共享输入集**。
+- **比较器与结果**：`result` ＝输入集中 rank 最大者对应的分类串；空集（本 Run 一条动作都没有）时 `result = 'local_only'`——这是下界不是猜测：没有证据能说这份成果比 `local_only` 更松，而 §10 的 J19 缺省本来就是它。
+- **申报值只用于交叉核对**：`p_version.classification_claimed` 低于 `result` → `classification_floor_required`（映射 `service_degraded`，批三已在 map）＋一条 `append_audit(..., 'artifact_classification_floor', ...)`。**审计 action 名与对外错误码是两个名字**（§6.6 原文），不得互换。
+- **推导证据（EV97 要的「计算过程」）**：`classification_derivation = {inputs[], output_root_classification, result}`，`inputs[]` 每元素 `{grant_id, grant_revision, classification, source}`，`source ∈ ('action','succession','output_root')`。落点＝**返回值 ＋ `audit_event.metadata`**（与 0041／0042 把 response 整体塞进 metadata 的先例同形）。**不塞进 `artifact_version.provenance`**：`artifact_version_immutable_content`（`0017:229` 起）把 `provenance` 钉成插入后不可变，往里塞一份只在计算当下成立的推导明细，会让「版本事实」与「一次判定的中间量」混成一列且永不可更正。
+- `classification_unknown` 的**唯一生产者**＝分类值不在闭集内（申报值或输入集读出的值）。§6.6 的拒绝码清单里它有名字无分支，本批给它这条分支，其余情况不得抛它。
+
+### 17.5 `finalize_local_artifact` 完整 shape
+
+- **签名**：`work.finalize_local_artifact(p_org_id text, p_run_id uuid, p_operation_id uuid, p_version jsonb) RETURNS jsonb`；`SECURITY DEFINER` ＋ `SET search_path = work, pg_catalog`；`REVOKE ALL ... FROM PUBLIC` ＋ `GRANT EXECUTE ... TO work_worker`（§6.6）。
+- **helper**：`work.local_artifact_version_payload_valid(p_version jsonb) RETURNS boolean`——对象形、**恰好 10 键**（`count(jsonb_object_keys)` 等于常数那一体裁，照 `approval_decision_proof_valid` 写）、`?&` 全键、无额外键；逐值形检查用 `BEGIN ... EXCEPTION WHEN others THEN RETURN false; END;`（`0040:116`／`0042:413` 先例）。只 `REVOKE FROM PUBLIC`，不给运行角色 EXECUTE——它只在 definer 体内被调用（0042 的七个 helper 全部如此处理）。
+- **`p_version` 十键**＝§6.6 原文：`version_id, artifact_id, logical_name, format, content_hash, byte_count, local_ref, device_id, classification_claimed, receipt_ref`。**无 `content_ref`**（正文不离机）。`artifact_id` 与 `logical_name` 的取舍见判定第 8 条。
+- **判定顺序**（每条只抛已登记的码）：
+  1. `p_org_id IS DISTINCT FROM current_setting('app.org_id', true)` → `org_context_mismatch`；`set_config`；helper 不过 → `invalid_request`。
+  2. 锁与归属：一条 `JOIN work.task ON run.task_id = task.id ... FOR UPDATE OF t, r`（**锁序照 `publish_artifact`（`0002:1677-1686`）：task＋run 同语句锁，再锁 artifact**，不得反过来）；run 不属该 task 或 task 已删 → `run_not_found`。
+  3. Run 状态门槛＝`r.state IN ('active','waiting')`（§7.1 原文「保持相同的 Run 状态门槛（active/waiting）」）否则 `run_not_active`。**现读更正**：§6.6 的清单写的 `run_not_active` 已公开、已在 map（自映射），直接采用；0041 的 rebind 用的也是这个名字，本批不另立。
+  4. Operation：`p_operation_id` 必须存在且 `run_id = p_run_id`，否则 `not_found`。
+  5. 回执绑定（§7.1 第一句「Device receipt 绑定 `version_id,hash,bytes,format,local_ref,device_id`」在 SQL 侧唯一能对上的东西）：`receipt_ref` 必须是一行真实 `work.device_receipt`（`id = receipt_ref`、`org_id` 同、`operation_id = p_operation_id`），否则 `not_found`；该行 `local_result_ref` 非空时必须等于 `p_version.local_ref`、`device_id` 必须等于 `p_version.device_id`，否则 `idempotency_conflict`。**不加 `state`／`outcome` 闸**：§6.6 与 §4.2 都没有这条，加它是自造判据（后果与重开条件见 §17.10 第 6 条）。
+  6. **本 Run 阻塞门（O-18＝丙）**：`EXISTS (SELECT 1 FROM work.operation o WHERE o.org_id = p_org_id AND o.run_id = p_run_id AND o.state IN ('unknown','unresolved'))` → `run_has_unreconciled_operation`。谓词与 0042 的不变量 3 两个强制点逐字同形（同 state 集、同码、同「先判后写、拒绝零副作用」）。**不查 Task 级 `task_has_blocking_operation`**——那一条按 §6.4 第 4 条只服务新 Run 准入与采纳门槛。
+  7. (B) 推导与交叉核对：按 §17.4 取输入集、算 `result`；`classification_claimed` 不在闭集 → `classification_unknown`；低于 `result` → `classification_floor_required` ＋ `artifact_classification_floor` 审计行。
+  8. 目标 artifact：`artifact_id` 非空 → 必须存在于该 task 且 `logical_name` 与入参相等，否则 `idempotency_conflict`；`artifact_id` 为空 → 照 `publish_artifact` 的 `logical_name → artifact` 归并，缺则建。已删除的 artifact → `artifact_deleted`（`0002` 已有此名，映射到 `artifact_not_found`）。
+  9. 幂等：先查「同一 artifact 上 `content_hash` 相同的已发布版本」（`publish_artifact` 的现有 dedupe 形状，`0002:1697-1700`），命中即返回原版本事实 ＋ `replayed:true`，不再插入、不再写副本行、不再抬 revision；再查 `version_id` 是否已被占用（§6.6 原文「`version_id` 未被占用」），被占且不是同一份内容 → `idempotency_conflict`。**§7.1 那句「同 run/hash 幂等语义」按 publish_artifact 的既有形状实现**（版本号的容器是 artifact），比它更严的「同 Run 内同 hash 只允许一份、跨 logical_name 也算」本批不做，登记在 §17.10 第 7 条。
+  10. **本批不加字节／格式闸**：§6.6 的清单没有体积码，`local_execution_policy.output_limit_bytes` 在本批的第一个读者是用户保存路径（§7.1 步 4 明确要求），agent 路径要收需要另裁（§17.10 第 6 条）。
+- **原子写集**（§6.6 原文，逐条）：`work.artifact`（归并或插入，`revision + 1`）、`work.artifact_version`（插 `state='published'`、`location='local_only'`、`content_ref` NULL、`local_ref`／`device_id`、`classification`＝(B) 结果、`media_type`＝`format`、`provenance = {'source':'run','run_id':...,'operation_id':...}`）、`work.artifact_replica`（插 local 行）、`work.task`（`revision + 1`）、`artifact.published` 任务事件、`outbox`、`audit_event`（action `artifact.local_finalize`，actor `NULL`＝worker 命令，与 0042 七个 worker 命令同形，metadata 带请求摘要与 `classification_derivation`）。
+- **`version_no` 由服务端算**（`MAX(version_no) + 1`，照 `publish_artifact`），所以 **`version_conflict` 在本命令没有可达分支**——§6.6 清单里那个名字保留给用户保存路径（R0a 已在那里用它），本命令不删该映射条目。
+- **`publish_ack`**：`'sha256:' || work.sha256_text('local_publish_ack|' || version_id || '|' || content_hash)`，与 0042 的 `server_signature` 同一临时口径（`0042:2097`），真 ES256 签名属 M1b／I4（§17.10 第 9 条）。
+- **返回**：`{version_id, artifact_id, version_no, location, classification, classification_derivation{inputs[], output_root_classification, result}, hash, bytes, format, local_ref, publish_ack, replayed}`（§6.6 的 shape ＋ 一条 `replayed`，与 0040／0041／0042 每个命令都带 `replayed` 一致）。
+
+### 17.6 `create_local_user_artifact_version` 完整 shape（§9 批四行点名的第二个命令）
+
+- **签名**：`work.create_local_user_artifact_version(p_org_id text, p_actor_subject_id text, p_auth_plane text, p_auth_epoch bigint, p_device_id uuid, p_session_id uuid, p_artifact_id uuid, p_client_request_id text, p_local_ref text, p_proof jsonb) RETURNS jsonb`；`SECURITY DEFINER` ＋ search_path；`REVOKE FROM PUBLIC` ＋ `GRANT EXECUTE ... TO work_api`（用户面，同 `decide_local_approval`）。
+- **helper**：`work.user_version_proof_valid(p_proof jsonb) RETURNS boolean`——**恰好 21 键**＝控制面 §1.2:31 的 `UserVersionProof` 闭合清单逐字照抄（`v, org_id, subject_id, auth_plane, auth_epoch, device_id, session_id, task_id, artifact_id, base_version_no, base_hash, version_id, format, content_hash, bytes, classification, clipboard_derived, clipboard_source_version_ids, client_request_id, nonce, expires_at`）；`clipboard_source_version_ids` 必须是 uuid 串数组（可为空数组），`nonce ~ '^[A-Za-z0-9_-]{8,128}$'`、`content_hash`／`base_hash ~ '^[0-9a-f]{64}$'`；**`signature` 不在键集内**（该帧的签名走 HTTP 头，与 `ApprovalDecisionProof` 的 20 键 helper 不同，不得照抄 0042 那一个）。
+- **`local_ref` 从哪来＝O-19**：proof 里没有它（已现读：21 键逐字对过），而 0017 的 CHECK 要求每个 `local_only` 版本非空。本批按 **`p_local_ref text` 无签名标量入参**落笔，并把它折进去重 `request_hash`——改指针必换 hash，重放不会把版本悄悄挪到另一个本地路径。「签名域外、服务端不可验真」这一事实写进增量注释与 §10 行内，不伪装成已验。
+- **判定顺序＝控制面 §7.1 那四步的逐条具体化**：
+  1. `org_context_mismatch` 前奏 ＋ `set_config` ＋ `PERFORM work.assert_session_subject(p_actor_subject_id)` ＋ `p_auth_plane = 'bearer'`（否则 `invalid_request`，照 `0040` 的 register 命令）＋ helper。
+  2. **去重先于一切**（§7.1 原文顺序）：`PERFORM work.lock_request_key(p_org_id, p_actor_subject_id, 'artifact.version', p_client_request_id)`——**operation_type 用 `'artifact.version'`，与 R0a 的云保存同域**（§7.1 原文写死的三元组，不另立 `artifact.version.local`）；`request_hash = sha256_text('artifact.version.local|' || artifact_id || '|' || base_version_no || '|' || content_hash || '|' || COALESCE(p_local_ref,'') || '|' || p_proof::text)`；命中且 hash 同 → 返回 `result_ref` 对应的版本事实 ＋ `replayed:true`，**此支不校验 proof 到期、不消费 nonce**（§7.1 加粗原文）；异 hash → `idempotency_key_conflict`。
+  3. **§7.1 步 1**：proof 的 `v, org_id, subject_id, auth_plane, auth_epoch, device_id, session_id, task_id, artifact_id, client_request_id` 与入参逐项全等（任一不等 `unauthorized`，照 `0042:2342-2349` 的体裁）；`device` 存在、`owner_subject_id = 本人`、`status = 'active'`（否则 `device_revoked`）；`device_session` 存在、`state='active'`、未过期、`auth_plane`／`auth_epoch`／`owner_subject_id` 与入参一致（否则 `unauthorized`）；`expires_at > now()`（否则 **`local_proof_expired`**，本批新登记的公开码，§17.8）；**消费 nonce**（`purpose='user_version'`，§17.3）。同步 1 里的 `requireSeat` 用 0042 那条 `EXISTS (SELECT 1 FROM work.member WHERE org_id=... AND subject_id=... AND status='active' AND role<>'viewer')`；**`access_restriction` 与组织停用不在 SQL 侧判**——0040／0041／0042 的二十一个命令一律把它们留在 API／Host 层，本批不开先例（分工写进增量注释，属现状不是缺口）。
+  4. **§7.1 步 2**：锁 task 与 artifact（`FOR UPDATE`，顺序照 `create_user_artifact_version` 的 `0002:3703-3712`）；`task.deleted_at IS NULL`、`owner_subject_id = 本人`、`state IN ('open','awaiting_acceptance')`（否则 `artifact_read_only`）、**`active_run_id IS NULL`**（否则 `run_not_quiescent`——这一条是 R0a 同表兄弟命令的既有门槛，本命令**继承**而非新造）；**base 版本已核账（J17）**：base 的 `provenance ->> 'run_id'` 非空时，该 Run 不得有 `state IN ('prepared','waiting_approval','authorized','dispatching','unknown','unresolved')` 的 Operation（否则 `run_not_quiescent`）；为空（用户手存的版本没有 Run）即无对象可判——**注释必须写明这是 vacuous 通过，不得写成「已核账成立」**。§7.1 的 J17 更正同时生效：**不再要求「latest Run 不是 failed/canceled」**（误点一次拒绝就让成果再也存不了，正是它要修的）。
+  5. **§7.1 步 3**：`base_version_no` 必须等于该 artifact 最新已发布版本（否则 `version_conflict`）；base 必须 `location='local_only'` 且 `device_id = p_device_id` 且 `content_hash = proof.base_hash`（否则 **`content_on_original_device`**，本批是它第一个生产者）；`proof.classification` 不得低于 base；`clipboard_derived = true` 时 `classification ≥ max(base.classification, clipboard_source_version_ids 各版本分类的最严值)`，且每个来源版本必须存在并同属 `(org, subject, device)`——缺失或更低一律 `classification_floor_required`（§7.1 步 3 原文把两种情况都归这个码，不得拆成两个名字）。
+  6. **§7.1 步 4**：`bytes <= local_execution_policy.output_limit_bytes`（本批是该列的**第一个读者**；`work.local_policy_gate` 非 `ready` 时按 0040 的体裁抛两个具面码 `local_policy_not_configured`／`local_policy_incomplete`）→ 超界 `artifact_too_large`（现读：它已是公开码但不在 map，本批补一条自映射，§17.8）；**格式白名单没有服务端载体**（`local_execution_policy` 无格式列，输出 profile 只在设备侧），本命令只校 `format <> ''` 与长度上界，这一条不对称登记在 §17.10 第 4 条；`version_id` 已被占用 → `idempotency_conflict`（`work_artifact_version_version_id` 是唯一索引，也是这里的兜底）。
+- **原子写集**：`work.artifact_version`（插 `location='local_only'`、`content_ref` NULL、`local_ref = p_local_ref`、`device_id`、`classification = proof.classification`、`version_no = 最新 + 1`、`provenance` 带 `source='user'` 与 device／base 事实）、`work.artifact`.`revision + 1`、`work.task`.`revision + 1`、`artifact.published` 任务事件、`work.submission_dedup`（`result_state='published'`、`result_ref = version_id::text`）、`audit_event`（action `artifact.local_version_create`，actor＝本人，metadata 带 `request_hash`、`nonce`、proof 的 `sha256_text`）、`outbox`。**不写 `artifact_replica`**（§17.2 末条）；**不创建 Operation／Approval／配额预留，不改 Run，也不把未采纳任务转成别的状态**（§7.1 末句原文）。
+- **返回**：`{version_id, artifact_id, version_no, location, classification, hash, bytes, format, local_ref, publish_ack, replayed}`——即 §7.1 说的 ArtifactVersionV2 ＋ publish_ack。
+
+### 17.7 `rebind_run_workspace` 重述（O-17＝乙 的「兼修批一」）
+
+- 手法＝把 `0041:646-833` 的生效体**逐字复制**进 0043 后 `CREATE OR REPLACE`，只插一段 nonce 消费块，其余判定、锁序、幂等、succession 写入、`offer_expiry`、审计一字不改。按 #87 在同一条 `CREATE OR REPLACE` 里重申 `SECURITY DEFINER` ＋ `SET search_path = work, pg_catalog`（增量替换后 ACL 与 proconfig 都要重新落到 catalog 上，0042 尾块对 `issue_operation_resolution` 的注释已立此例）。
+- **插入位置**：紧跟「proof 各字段与 HTTP 标量逐项相等」那段之后、取 recovery checkpoint 基线之前——即 §12.12 的第④条落在它自己的序号上。
+- 消费块＝§17.3 那一段，`purpose = 'workspace_rebind'`。
+- **可核对性判据**：0043 里这条 `CREATE OR REPLACE` 与 0041 生效体的差异必须**只有**该消费块。落地后对两侧 `prosrc` 逐行 diff，把 diff 行数写进 §18 实录（不写「已核对」这种无数量断言）。
+- 对外行为变化只有这一条：一笔**换了 `client_request_id`、复用同一 nonce** 的改绑从成功变为 401 `unauthorized`。同 request_id 的重放仍返回原结果（`0041` 的审计回执早退分支在消费块之前）。
+
+### 17.8 错误目录增量（现读 public 60／map 230 起算）
+
+| 动作 | 对象 | 依据与连锁 |
+|---|---|---|
+| 新增公开码 | `local_proof_expired`＝409／false／`refresh_state`／ui `input_expired` | 控制面 §9:557 该行原文逐项照抄；ui 取既有 23 值里的 `input_expired`，不扩词汇。**`recovery_action` 非空**，因此 `doc-derived-counts.test.mjs` 钉的那句「public 集里 `recovery_action === null` 的码数＝32」不漂移（现读该门用正则从控制面 §9 取数并与目录对算） |
+| 新增中文文案 | `error-messages.json` 加 `local_proof_expired` | `Catalog.validate()` 要求公开码逐个有文案，60→61 两侧同步 |
+| 新增映射条目 | `local_proof_expired` → 自身、`content_on_original_device` → 自身、`artifact_too_large` → 自身、`artifact_replica_content_mismatch` → `invalid_request` | 前两条是 §9 已声明而此前无生产者的码（`content_on_original_device` 早已公开但不在 map，§17.6 步 5 是它第一个抛点）；`artifact_too_large` 同理（此前只在 Go 层出现，SQL 第一次抛它就得有条目）；最后一条是本批新造的触发器名，与三个 `*_content_immutable` 同族同映射。自映射合法：`raise_coverage_test.go` 的 `allowed` 集合永远包含码自己 |
+| **不新增** | `input_limit_exceeded` | §9:547 声明过它，但本批没有任何生效体抛它（输出体积用既有 `artifact_too_large`）。按 §9 段末与 `contracts.rules` 自己立的规矩「公开码等第一个真正返回它的端点出现时再登记」，不提前造没人抛的码；它属 prepare 的动作载荷上限，随 M1b／I4 那条命令登记 |
+| **不新增** | 静止门槛相关码 | O-18＝丙 的效果正是零新增：复用 `run_has_unreconciled_operation`（0042 已在 map，映射 `service_degraded`） |
+| 落地后现读 | public 61、map 234、messages 61、`recovery_action === null` 仍 32 | 四个数都要在 §18 用命令与读数一起写，不写「约」 |
+
+### 17.9 写者闭合核对（§9 判据）
+
+- **行号更正**：§9 与 §11／§16 多处写 `function_privilege_sweep_pg_test.go:142`，现读该断言在 **:147**（`want := "governance_change"`）。这是行号漂移不是判据变化，本文保留 `:142` 的历史写法并在本节钉住现读位置；批四落地后跑的就是 `:147` 那一串。
+- **两张新表都必须同批有「运行角色可达的 definer 写者」**，否则 `want` 串变红（＝结构无写者）：`artifact_replica` ← `finalize_local_artifact`（`work_worker`）；`consumed_possession_nonce` ← `create_local_user_artifact_version`（`work_api`）与 `rebind_run_workspace`（`work_api`）。
+- **`:47` 的角色 `want` 串不变**：不新增组角色（O-3＝甲 继续生效），GRANT 目标只有 `work_api`／`work_worker`，`preflight.go`、`provision-r0b-roles.sh`、`testpg.go` 一字不动。
+- **同批要手抄同步的清单**（漏一处就是「门跑的是旧名单」）：`manifest.json`（`schema_version=43` ＋ catalog 双 checksum）、`baseline/catalog.json`（活库 `work-migrate snapshot` 采样，不手抄）、`verify-r0a-0027.sh` 的 (version,name) 清单与语义探针、`cross_org_write_sweep_pg_test.go` 与 `tenant_isolation_sweep_pg_test.go` 的表清单、`idempotency_contract_test.go` 的计数、两份错误码 JSON。
+
+### 17.10 批四不做（逐条带判据或重开条件）
+
+1. **不建 `work_run_classification`**（O-8＝甲）。传播：控制面 §4.1 设备侧行清单加一条带日期更正，写明本期不建、写者与读者都在 R0a 供应商探测线。
+2. **不恢复 cloud 副本支**（E=B 未解），`location` 闭集只有 `local`，`state` 只有 `published`。重开条件＝R0c 恢复 egress 时新增量扩两个 CHECK ＋ 落 `finalize_cloud_replica`。
+3. **不清扫副本表与 nonce 表**（retention 都不清）。这不是遗漏：清扫 nonce 等于允许重放，清扫副本等于让本机读取与采纳失去依据。
+4. **格式（`media_type`）白名单没有服务端载体**：`local_execution_policy` 没有格式列，§7.1 步 4 的「格式符合输出 profile」在 SQL 侧只能校非空＋长度。重开条件＝管理员面要按组织限格式时给 `local_execution_policy` 加一列受闭集校验的 `allowed_formats[]`（新语义，届时另裁）。
+5. **用户保存路径不写副本行**：不对称是有意的（§17.2 末条）。若将来要求「每个 `local_only` 版本都有副本行」，那等于把无签名证据的声明也记成副本事实，须连带裁 O-19 的乙方案一起做。
+6. **finalize 不加两类闸**：无 `device_receipt.state`／`outcome` 闸、无输出字节闸——两条 signed 文本都没有它们，加了就是自造判据。重开条件＝M1b 落调用方时按 Temporal 侧真实顺序补前置断言，并在同批把 §6.6 的拒绝码清单补齐。
+7. **不按「同 Run 内同 hash 只允许一份」收紧幂等**：本批用 `publish_artifact` 的 `(artifact, content_hash)` 形状。同一 Run 把同一份字节写到两个 `logical_name` 下会得到两个版本（不是缺陷，是 R0a 既有语义）。要改需先裁：这是版本容器语义，不是 bug 修复。
+8. **nonce 并发无专用例**：§17.3 末条那笔 23505 竞态只能靠两连接对拍证明，批四用例先覆盖串行两笔（第二笔 `unauthorized`）。与批三 §16.6 缺口表第 11 项同族，一起补。
+9. **`publish_ack` 不是真签名**：与 0042 的 `server_signature` 同口径（`'sha256:' || sha256_text(...)`），ES256 与 Bearer 面属 M1b／I4。本批所有 `signature` 只做格式检查，与 0040／0041／0042 一致。
+10. **传播清单（任务 #37 逐条落）**：控制面 §9:586／:606／:611 三行（O-18＝丙 的归属更正，以及「(B) 谓词与分类唯一写者」这句话的精确化——版本表的 `classification` 列有**两个**插入者：finalize 推导、用户保存取 proof 值并经 base／clipboard 下界约束；§9 那句指的是 (B) 推导唯一，不得读成列级唯一）、§4.1:272 副本行、§4.2:331 finalize 行、§7.1 四步、本机文档 §7.1／§7.3／§7.5、`work-project.md` 卡片 I 与 M1a 计数、台账卡片 I 的批四行。

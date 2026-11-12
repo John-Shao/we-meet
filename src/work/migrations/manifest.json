@@ -472,6 +472,17 @@
       "catalog_checksum": "sha256:177ae6ac89fa1bc089a7d730be40d28cc81a18a277ef55c6bb97fbf6afd871d4",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 43,
+      "name": "0043_local_artifact_replica_finalize",
+      "kind": "increment",
+      "file": "increments/0043_local_artifact_replica_finalize.sql",
+      "checksum": "sha256:7e28657c1c997f582f5da798ee7b03d15746f471899821da568a16a8b42fb038",
+      "catalog": "catalogs/0043_local_artifact_replica_finalize.json",
+      "catalog_checksum": "sha256:4f73c808926e76c14023accc23845c1e97e849f2dbce7012d325a2bec2d803a8",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

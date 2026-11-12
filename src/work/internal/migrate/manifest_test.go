@@ -55,6 +55,7 @@ var publishedIncrements = []string{
 	"0040_device_identity_and_workspace_grants",
 	"0041_local_run_orchestration",
 	"0042_local_actions_receipts_finish",
+	"0043_local_artifact_replica_finalize",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

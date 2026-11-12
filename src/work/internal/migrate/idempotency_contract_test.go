@@ -137,6 +137,7 @@ func TestEveryClientRequestKeyCommandIsIdempotent(t *testing.T) {
 		"create_audit_export=own_request_hash",
 		"create_device_run_binding=own_request_hash",
 		"create_input_idempotent=dedup+conflict",
+		"create_local_user_artifact_version=dedup+conflict",
 		"create_user_artifact_version=dedup+conflict",
 		"decide_local_approval=dedup+conflict",
 		"mint_device_session_ticket=own_request_hash",
