@@ -122,14 +122,28 @@ func TestEveryClientRequestKeyCommandIsIdempotent(t *testing.T) {
 	// The exact inventory, so a new key-taking command - or an existing one losing its protection
 	// to a rewrite - changes this string and lands here, instead of the sweep quietly passing on
 	// "everything I happened to match is covered".
+	//
+	// 0040 added eight device-side commands in the own_request_hash family: each looks its own
+	// dedup row up by (org, subject, client_request_id) - the pairing/ticket/grant tables, or the
+	// audit receipt for the three commands with no table of their own - and compares request_hash,
+	// raising idempotency_key_conflict on a different payload (control §4.2 段末④, the same carrier
+	// and code 0027 chose). They are listed rather than exempted.
 	want := []string{
 		"accept_task=dedup+conflict",
 		"advance_governance_event_cursor=dedup+conflict",
 		"apply_execution_entitlement=own_request_hash",
+		"confirm_device_pairing=own_request_hash",
 		"create_audit_export=own_request_hash",
 		"create_input_idempotent=dedup+conflict",
 		"create_user_artifact_version=dedup+conflict",
+		"mint_device_session_ticket=own_request_hash",
+		"pair_device=own_request_hash",
+		"rebind_run_workspace=own_request_hash",
+		"register_workspace_grant=own_request_hash",
+		"renew_device_certificate=own_request_hash",
 		"retry_task=dedup+conflict",
+		"revoke_device=own_request_hash",
+		"revoke_workspace_grant=own_request_hash",
 		"set_local_policy=revision_only",
 		"submit_task=dedup+conflict",
 		"update_task_title=dedup+conflict",

@@ -131,15 +131,20 @@ func TestTablesNoWorkloadRoleMayWriteAreNamedExactly(t *testing.T) {
 	_, dbName := newBootstrapDB(t, true, true)
 	seedTaskGraph(t, dbName)
 
-	// cancellation_intent (0018) and governance_change (0018) are the two: their only referencing
-	// commands - queue_run_cancellations, record_member_narrowing, and in the same shape
-	// release_restriction - are EXECUTE-granted to work_owner alone and have no caller. Both come
-	// from the R0b governance-authority increment, which the 2026-11-02 sequencing decision put on
-	// hold, so this is a held R0b surface rather than an R0a gap. Pinning the set is what keeps it
-	// honest: the day one of these gets wired, or a new table lands with no writer at all, the
-	// string changes.
+	// governance_change (0018) is the one left: its only referencing command is EXECUTE-granted to
+	// work_owner alone and has no caller, so it is still a held R0b surface rather than an R0a gap.
+	//
+	// cancellation_intent LEFT this set in 0040: revoke_device and revoke_workspace_grant insert
+	// into it and both are EXECUTE-granted to work_api, so it now has a real workload-reachable
+	// writer. That is the change this pin exists to force - "a table leaving it should be wired and
+	// tested for real" - and the wiring is tested by TestR0bDeviceRevokeWritesCancellationIntent
+	// in internal/migrate, which asserts the intent row, its source_event_id binding to the deny,
+	// and that a replay does not create a second one.
+	//
+	// Pinning the set is what keeps it honest: the day one of these gets wired, or a new table lands
+	// with no writer at all, the string changes.
 	unreachable := opsScalar(t, dbName, ownerOnlyReachabilitySQL)
-	want := "cancellation_intent,governance_change"
+	want := "governance_change"
 	if unreachable != want {
 		t.Fatalf("work tables with neither a workload SELECT grant nor a workload-reachable "+
 			"definer command = [%s], want [%s]: a table joining this list is structure without a "+
@@ -168,7 +173,7 @@ func TestTablesNoWorkloadRoleMayWriteAreNamedExactly(t *testing.T) {
 	}
 	if ownerCount < 19 || definerCount < 40 {
 		t.Fatalf("population behind the reachability claim = %s owner-only tables and %s definers, "+
-			"want at least 19 and 40: below that the exact-two answer above would be measured over "+
+			"want at least 19 and 40: below that the exact-one answer above would be measured over "+
 			"almost nothing", ownerOnly, definers)
 	}
 	t.Logf("owner-only tables = %s, SECURITY DEFINER functions = %s", ownerOnly, definers)

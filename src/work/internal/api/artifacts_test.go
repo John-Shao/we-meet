@@ -133,6 +133,20 @@ func TestArtifactVersionLocalOnlyContentIsNotProxied(t *testing.T) {
 	if _, err := conn.Exec(ctx, `SELECT set_config('app.org_id', $1, false)`, "org_a"); err != nil {
 		t.Fatal(err)
 	}
+	// 0040 added artifact_version_device_fkey, closing the edge 0017:156-158 left open
+	// ("the FK lands with the table it points at"). The local_only binding must now name
+	// a real device, so seed one rather than relying on the missing edge.
+	if _, err := conn.Exec(ctx, `
+		INSERT INTO work.device
+		  (org_id, id, owner_subject_id, device_name, platform, public_key_jwk,
+		   public_key_thumbprint, auth_plane, auth_epoch, status)
+		VALUES ('org_a', '22222222-2222-4222-8222-222222222222', 'sub_org_a',
+		        'fixture desk', 'windows-x64',
+		        '{"crv":"P-256","kty":"EC","x":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","y":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"}'::jsonb,
+		        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+		        'bearer', 0, 'active')`); err != nil {
+		t.Fatalf("seeding the device the local_only version binds to failed: %v", err)
+	}
 	// §4.1's local_only shape: content_ref NULL, and device_id / local_ref /
 	// classification all present.
 	if _, err := conn.Exec(ctx, `

@@ -187,6 +187,19 @@ func TestR0bArtifactVersionLocationShapeAndImmutability(t *testing.T) {
 
 	// local_only is the row 0017 makes possible: content_ref must be absent and
 	// the local binding must be complete.
+	//
+	// 0040 closed the foreign key 0017:156-158 promised ("the FK lands with the table
+	// it points at"), so the binding now has to name a real device. Seeding one is the
+	// closure being exercised, not a way around it.
+	r0bExec(t, dbName, org, fmt.Sprintf(`
+		INSERT INTO work.device
+		  (org_id, id, owner_subject_id, device_name, platform, public_key_jwk,
+		   public_key_thumbprint, auth_plane, auth_epoch, status)
+		VALUES ('%s', '%s', 'sub_%s', 'fixture desk', 'windows-x64',
+		        '{"crv":"P-256","kty":"EC","x":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","y":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"}'::jsonb,
+		        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+		        'bearer', 0, 'active')
+	`, org, deviceID, org))
 	r0bExec(t, dbName, org, fmt.Sprintf(`
 		INSERT INTO work.artifact_version
 		  (artifact_id, org_id, version_no, content_ref, content_hash, bytes, media_type,

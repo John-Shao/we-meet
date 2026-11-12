@@ -74,7 +74,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (36, '0036_audit_export_content_prefetch'),
   (37, '0037_fix_epoch_deduplication'),
   (38, '0038_revert_epoch_deduplication_overloads'),
-  (39, '0039_mass_absence_epoch_dedup')) expected(version, name)
+  (39, '0039_mass_absence_epoch_dedup'),
+  (40, '0040_device_identity_and_workspace_grants')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -209,7 +210,11 @@ psql_ro "select coalesce(string_agg(name, ', '), 'none') from (values
   ('work.runtime_capability'), ('work.content_reference'),
   ('work.directory_sync_state'), ('work.resolution_state_map'),
   ('work.execution_entitlement'), ('work.local_execution_policy'),
-  ('work.operation_resolution'), ('work.provider_probe_grant')) v(name)
+  ('work.operation_resolution'), ('work.provider_probe_grant'),
+  ('work.device'), ('work.device_pairing'), ('work.device_session'),
+  ('work.device_session_ticket'), ('work.workspace_grant'),
+  ('work.workspace_grant_succession'), ('work.execution_lease'),
+  ('work.device_run_binding'), ('work.readonly_approval_grant')) v(name)
  where to_regclass(name) is null" | sed 's/^/missing: /'
 # The commands this range replaces keep their SECURITY DEFINER identity, and the new
 # guard triggers are what make the append-only tables hold. Both are matched by name
@@ -468,6 +473,74 @@ psql_ro "select 'work_api_can_execute_prefetch=' || has_function_privilege(
   'work_api', 'work.prefetch_audit_export_content(text, text, text)', 'EXECUTE')::text"
 psql_ro "select 'work_api_cannot_select_audit_export=' || case when has_table_privilege(
   'work_api', 'work.audit_export'::regclass, 'SELECT') then 'FALSE' else 'true' end"
+
+echo
+echo "== 0040 device_identity_and_workspace_grants =="
+# A ledger row for 0040 only proves the file ran. These probes read the live catalog for the
+# facts the increment is actually for: the nine tables, the three foreign keys 0017/0018 owed,
+# the definer identity of all eleven commands, and the two index predicates that carry security
+# meaning (one active session per device; a revoked device must not keep its key reserved).
+psql_ro "select 'device_slice_table_count=' || case when (
+  select count(*) from (values
+    ('work.device'), ('work.device_pairing'), ('work.device_session'),
+    ('work.device_session_ticket'), ('work.workspace_grant'),
+    ('work.workspace_grant_succession'), ('work.execution_lease'),
+    ('work.device_run_binding'), ('work.readonly_approval_grant')) v(name)
+  where to_regclass(name) is not null) = 9 then 'true' else 'FALSE' end"
+psql_ro "select 'device_fk_debt_repaid=' || case when (
+  select count(*) from pg_constraint
+  where conname in ('artifact_version_device_fkey', 'access_restriction_device_fkey',
+                    'access_restriction_workspace_grant_fkey')
+    and contype = 'f') = 3 then 'true' else 'FALSE' end"
+psql_ro "select 'device_commands_definer_and_pinned=' || case when (
+  select count(*) from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work'
+    and p.proname in ('pair_device', 'confirm_device_pairing', 'mint_device_session_ticket',
+      'renew_device_certificate', 'activate_device_session', 'revoke_device',
+      'register_workspace_grant', 'revoke_workspace_grant', 'rebind_run_workspace',
+      'list_devices', 'list_workspace_grants')
+    and p.prosecdef
+    and p.proconfig @> array['search_path=work, pg_catalog']) = 11
+  then 'true' else 'FALSE' end"
+psql_ro "select 'device_commands_not_public=' || case when exists (
+  select 1 from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work'
+    and p.proname in ('pair_device', 'confirm_device_pairing', 'mint_device_session_ticket',
+      'renew_device_certificate', 'activate_device_session', 'revoke_device',
+      'register_workspace_grant', 'revoke_workspace_grant', 'rebind_run_workspace',
+      'list_devices', 'list_workspace_grants')
+    and has_function_privilege('public', p.oid, 'EXECUTE')) then 'FALSE' else 'true' end"
+psql_ro "select 'work_api_cannot_select_device=' || case when has_table_privilege(
+  'work_api', 'work.device'::regclass, 'SELECT') then 'FALSE' else 'true' end"
+psql_ro "select 'work_worker_cannot_select_workspace_grant=' || case when has_table_privilege(
+  'work_worker', 'work.workspace_grant'::regclass, 'SELECT') then 'FALSE' else 'true' end"
+# Both indexes must be UNIQUE *and* partial. A plain unique index on (org_id, device_id) would
+# forbid a second session row ever existing; a plain unique index on the key thumbprint would
+# make revocation permanent for that key, contradicting "重新配对生成新 ID".
+psql_ro "select 'device_session_one_active_is_partial_unique=' || case when (
+  select count(*) from pg_index i
+  join pg_class c on c.oid = i.indexrelid
+  where c.relname = 'work_device_session_one_active'
+    and i.indisunique and i.indpred is not null) = 1 then 'true' else 'FALSE' end"
+psql_ro "select 'device_key_unique_is_partial=' || case when (
+  select count(*) from pg_index i
+  join pg_class c on c.oid = i.indexrelid
+  where c.relname = 'work_device_one_live_per_key'
+    and i.indisunique and i.indpred is not null) = 1 then 'true' else 'FALSE' end"
+psql_ro "select 'device_state_edges_registered=' || case when (
+  select count(*) from work.state_transition
+  where entity in ('device', 'device_pairing', 'device_session', 'device_session_ticket',
+    'workspace_grant', 'execution_lease', 'device_run_binding', 'readonly_approval_grant')) = 25
+  then 'true' else 'FALSE' end"
+# The receipt index is what makes a replayed revoke/rebind a database fact rather than a
+# convention the handler has to remember.
+psql_ro "select 'device_command_receipt_index=' || case when (
+  select count(*) from pg_index i
+  join pg_class c on c.oid = i.indexrelid
+  where c.relname = 'work_audit_device_command_receipt'
+    and i.indisunique and i.indpred is not null) = 1 then 'true' else 'FALSE' end"
 
 echo
 if [[ "$FAILURES" -ne 0 ]]; then

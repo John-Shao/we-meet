@@ -170,21 +170,24 @@ func TestTenantTablesAreEmptyToEveryLoginWhenTheOrgGUCIsUnset(t *testing.T) {
 			unread = append(unread, table)
 		}
 	}
-	// Nineteen tenant tables are not readable by any of the six workload logins because their
+	// Twenty-eight tenant tables are not readable by any of the six workload logins because their
 	// only SELECT grant is work_owner's: no workload role holds direct SELECT there, and the
 	// access path is a SECURITY DEFINER command instead. That is the design, not a gap - checked
-	// against the migration sources at this head (0002 plus every increment; 186 function bodies
-	// parsed, 83 of them definers), where each of the nineteen is referenced by at least one
-	// definer function, from one (audit_export via create_audit_export) to ten
-	// (access_restriction). They are named rather than quietly skipped, so this sweep says what
+	// against the migration sources at this head (0002 plus every increment through 0040; 186
+	// function bodies parsed, 160 of them definers), where each of the twenty-eight is referenced by
+	// at least one definer function. 0040 added nine device-side tables to this set on purpose: they
+	// grant no table privilege at all, exactly like 0024's provider_probe_grant. They are named
+	// rather than quietly skipped, so this sweep says what
 	// it covers. The owning connection cannot stand in for them either: testpg.AdminURLFor is the
 	// maintenance superuser (WORK_TEST_PG_URL with only the database swapped), and a superuser is
 	// never stopped by a row policy, so a zero read from it would prove nothing either way.
 	wantUncovered := "access_restriction,audit_export,cancellation_intent,consumed_governance_command," +
-		"content_reference,directory_sync_state,execution_entitlement,governance_change," +
-		"governance_event_cursor,governance_gap_report,local_execution_policy,operation_resolution," +
-		"operation_usage_fact,provider_access_config,provider_credential,provider_probe_grant," +
-		"runtime_capability,runtime_checkpoint_head,usage_daily"
+		"content_reference,device,device_pairing,device_run_binding,device_session," +
+		"device_session_ticket,directory_sync_state,execution_entitlement,execution_lease," +
+		"governance_change,governance_event_cursor,governance_gap_report,local_execution_policy," +
+		"operation_resolution,operation_usage_fact,provider_access_config,provider_credential," +
+		"provider_probe_grant,readonly_approval_grant,runtime_capability,runtime_checkpoint_head," +
+		"usage_daily,workspace_grant,workspace_grant_succession"
 	if got := sortedJoin(unread); got != wantUncovered {
 		t.Fatalf("tenant tables unreachable by every workload login = [%s], want the documented "+
 			"set [%s]: a table joining or leaving this list changes what this sweep actually "+

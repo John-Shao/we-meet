@@ -45,6 +45,7 @@
 | catalog | `migrations/catalogs/` 36 份，命名＝`<增量 name>.json`；**由 `work-migrate snapshot` 从活库采样，不是从 SQL 文本生成** | `cmd/work-migrate/main.go` 的 `runSnapshot` → `migrate.ReadCatalog` |
 | 链尾重放门 | `internal/migrate/tail_catalog_test.go` 的 `TestTailCatalogCheckpointMatchesLiveChain`：只重放**链尾**那一份，要求 `diff.Empty()` 且 sha256 全等，另有防空集下限（functions ≥100、relations ≥40） | 读该测试 |
 | `MIGRATION_TAIL` | **不是 Go／shell 常量**，是构建期产物：`deploy/ecs/make-release.sh` 从 `increments/` 文件名算出写进包，rollout 读它 | 读 make-release.sh 的 `#78` 注释段 |
+| **错误码映射**（2026-11-12 落笔时补进本清单） | `src/work/contracts/error-codes.json` 的 `db_exception_map` 必须为**每个新 RAISE 码**补一条；23514／22023 类守卫映到 `invalid_request`（SQLSTATE 兜底），P0001 类映到 `service_degraded`，公开码原样 raised 映到自身。**公开码集合不因此扩大** | 目录 `rules` 原文＋`internal/apierr/raise_coverage_test.go` 的两个门 |
 
 ⇒ **M1a 不手改任何 `MIGRATION_TAIL` 值**； dropped 进 `increments/` 的 0040 会让构建期自己算出 40。
 
@@ -983,6 +984,68 @@
 ### 12.15 批一的落笔前置（本节产出后仍未闭合的部分）
 
 - **O-13（新增，阻断批一）**：device-session ticket 的载体。三个候选见 §10。裁定前 §12.6／§12.8 的原子写集悬置，**批一不落笔**。 **【2026-11-12 已裁＝S-b（乙），本条阻断解除】**新表规格见 §5.A4，两处写集已补齐。**批一的落笔前置自此全部闭合**：O-1／O-2／O-3／O-11／O-12／O-13 六项已裁，O-4–O-10 七项全属批二／三／四。剩下唯一的条件是**主签另给落笔指令**（21:1x 冻结对 I2／I3 仍生效，本文不自取）。
+
+## 13. 批一落笔实录（2026-11-12，主签指令「落笔 M1a 批一」）
+
+### 13.1 落笔前新裁的三项
+
+| 项 | 裁定 | 依据与代价 |
+|---|---|---|
+| **批一表范围** | **甲＝9 张**（A 组 4＋B 组 2＋`execution_lease`＋`device_run_binding`＋`readonly_approval_grant`） | §9 原按「表组」划批，但三个批一命令的写集跨批（§12.9 写 `execution_lease`、§12.11 写 `readonly_approval_grant`、§12.12 写两者＋`device_run_binding`）。甲是这 11 个命令的**依赖闭包**，写集一字不减。代价＝三张表在批一只有「撤销／失效」写者、没有「产生」写者，部署后是空表、`rebind_run_workspace` 在批二前不可达——与本仓已接受的「控制面先行、消费者分批」同形（三条 `/work/v2` 路由零消费者）。**批一由 6 张变 9 张，M1a 总数由 14 变 17。** |
+| **O-4** | **甲＝jsonb＋校验 helper** | `work.binding_grant_set_valid(jsonb)`：非空数组、每元素恰 `{grant_id, grant_revision}`、grant_id 不重复。照 0020 `local_execution_policy_rules_valid` 先例，满足「不把安全字段藏成无约束 JSON」而不新增第十张表。 |
+| **分类判定**（新缺口） | **甲＝设备报命中索引、服务端落值** | 分类规则的匹配器是卷／路径前缀／命名正则，而不变量 5 与本机 §2.4 明写服务端**无路径／文件名**，全仓无任何 `matched_rule` 概念⇒这条此前没定论。裁定：`workspace_grant.matched_rule_index` 记设备报的命中条目，**分类值取自服务端存的规则**，设备申报值只作交叉核对（更松即 `classification_floor_required`、更严受 `max_confirmable` 上限约束），无命中取 `classification_default`。**残余风险须写进 S4 签收边界**：被完全控制的 Broker 可谎报命中哪一条，与它谎报 `root_identity_hash` 属同一信任边界（本机 §4.2「当前用户 OS 已被完全控制不在防护承诺内」）。 |
+
+### 13.2 落笔时按既有已签约束纠正的五处（原文保留，不放宽任何控制）
+
+1. **不写 `outbox`**。§12 各写集原列「`audit_event`、`outbox`」，但 relay 是 `work.outbox` 的唯一消费者，未知 kind 以**非重试** `unknown_outbox_kind` 失败（`internal/relay/relay.go:196`），每条设备事件都会在队列里留一条永久失败行、而失败本身就是告警。0019:178-195 已就同一问题裁过，`r0b_governance_test.go:251-258` 把 `access_restriction` 的 outbox 计数钉为 0 并写明「deny 行本身就是收窄记录」。⇒ 批一**只写 `audit_event`**，取消意图走 `cancellation_intent`（那正是 0019 建该表的理由）。§12 各写集里的 `outbox` 一律读作「不写」。
+2. **设备密钥唯一键必须是部分索引**。原 §5.A1 写 `UNIQUE (org_id, public_key_thumbprint)`，那会让撤权后的同一把 CNG 密钥**永远无法重新配对**，与本机 §2.1「revoked 不复活，**重新配对生成新 ID**」冲突。落为 `work_device_one_live_per_key ... WHERE status <> 'revoked'`。
+3. **confirm 必须把 challenge 收回**。§12.5 原输入键集只有 `{client_request_id, signature}`，但服务端只存 `challenge_hash`（§4.1「无明文ticket」），无法重算被签串。⇒ 入参增 `challenge`，服务端哈希后与库内值比对再重算规范串。同理**重放铸票/铸挑战不能重发秘密**：重放返回同一身份＋秘密为 null＋`replayed=true`，客户端须保留首次响应。
+4. **ES256 验签不在 SQL 层**。plpgsql 无法验 ES256（pgcrypto 无 ECDSA verify），已上线先例 0021 `issue_operation_resolution` 就是**格式校验＋绑定＋单次 CAS**、密码学验签留给调用方。批一照此实现，并在增量头注释里写明这条分工；批一 PG 测试断言的是绑定与单次性，不是密码学。
+5. **`status` 列需要自己的白名单触发器**。`work.enforce_state_transition()` 读 `OLD.state`，而 §4.1 给 device 与 readonly_approval_grant 的列名是 `status`。基线已有同形先例 `enforce_approval_transition()`，故新增 `work.enforce_status_transition()`（读 `status`、仍查同一张 `work.state_transition`），**不改已签列名、不把白名单抄进各个守卫**。
+
+### 13.3 一条必须记住的跨批义务
+
+`rebind_run_workspace` 在批一创建的 resume offer **`expected_checkpoint_seq`／`expected_checkpoint_hash` 为 NULL**——`device_checkpoint` 属批二，此时没有已 recorded 的基线可指。这是 **fail-closed 而不是半个命令**：批二的 `acquire_device_lease` **必须拒绝启动 `expected_checkpoint` 为 NULL 的 resume offer**，且批二**必须重述本函数**把两列填为该 Run 最新 recorded 的 checkpoint（**不按 fence 筛**）。重述时按 #87 在同一条 `CREATE OR REPLACE` 里重述 `SECURITY DEFINER` 与 `SET search_path`。该义务已写进增量注释，不靠读者发现。
+
+### 13.4 落地物与现读证据
+
+- **增量**＝`src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql`，sha256 `af6ced2a6408824380df51503371c1fd40767d7113c435bd8fbd2d62779ef7ae`。
+- **catalog**＝`catalogs/0040_device_identity_and_workspace_grants.json`，sha256 `83b88ac9ae05efcab404d1b9eabf2e94e1b3b4157f08a5d094dca52e1cba62d7`，**由 `work-migrate snapshot` 从活 PG16 采样**（不是手写）。现读 relations **57**（＋9）、functions **187**（＋24：3 helper＋1 `enforce_status_transition`＋9 守卫/触发＋11 命令）、policies **60**（＋9）、triggers **88**（＋26）。
+- **manifest** v=40，两个 checksum 均已回钉；`publishedIncrements` 加一行；`verify-r0a-0027.sh` 加 `(40, name)` 元组、9 张表进 `to_regclass` 清单、并新增 `== 0040 ==` 段 **10 条语义探针**（表数=9、三条 FK 债、11 命令 definer＋search_path、无 PUBLIC EXECUTE、两条负向表权限、两个部分唯一索引的谓词、25 条白名单边、回执索引）。
+- **`MIGRATION_TAIL` 未手改**：构建期由 `make-release.sh` 从文件名算出 40。
+- **三条 FK 债已还**：`artifact_version_device_fkey`、`access_restriction_device_fkey`、`access_restriction_workspace_grant_fkey`，**未用 `NOT VALID`**（那会留下正是本债要查的行不校验）。
+- **测试**＝`internal/migrate/r0b_device_slice_test.go` 五个用例：挑战单次＋重放返回原结果＋错挑战拒；票据单次＋每设备一个 active session＋旧 session 留证；**`TestR0bDeviceRevokeWritesCancellationIntent`**（撤设备→session/lease 终态化＋deny＋intent 绑定 deny id＋outbox 零行＋重放不新增＋异 payload 409）；分类取自映射（规则值／更松拒／默认值／越权工具拒／越界索引拒，且拒绝零写入）；九表零表权限＋两面 GRANT 边界＋**撤权后同密钥可重新配对**。
+- **两个穷举串按设计变化并已改**：`cancellation_intent` **离开**「无写者」集合（`revoke_device`／`revoke_workspace_grant` 真的写它，且由上面那个具名测试兜住），`function_privilege_sweep_pg_test.go:142` 的 `want` 改为 `governance_change`；9 张新表进「无运行角色可直接读写」集合，`tenant_isolation_sweep_pg_test.go` 与 `cross_org_write_sweep_pg_test.go` 的清单各由 19 项扩为 **28 项**。**`:47` 的角色串未变**（R-a 不新增角色）。
+- **门读数（全部取自身退出码，不取管道末端或后台通知的 exit）**：
+  - `TestTailCatalogCheckpointMatchesLiveChain` **PASS**——采样值与干净重放逐字节相同。
+  - 批一 5 个 PG 用例 **PASS**；三个权限/租户穷举 **PASS**。
+  - **串行全量 `go test ./... -p 1`：`FULL_RC=0`，36 包 ok／0 FAIL／11 无测试＝47**，与 `go list ./...` 的 47 双向闭合，`--- FAIL` 计数 **0**。（第一轮全量是 `FULL_RC=1`、5 个红，逐条归因与修法见 §13.6；**修完后重跑才绿**，不是拿第一轮的定向绿冒充全量绿。）
+  - `ci-contract.mjs`：**151＋38＋24＝213 全 pass、0 fail、0 skipped、RC=0**。
+  - **verify 探针判别力（执行发布件原文，不是抄一份）**：从 `verify-r0a-0027.sh` 用 awk 原样抽出 `== 0040 ==` 段（68 行、10 条 `psql_ro`），正跑于含 0040 的库＝**10/10 true**；再用 `CREATE DATABASE ... TEMPLATE` 造副本并施两处变异（删三条 FK、把部分唯一索引换成普通唯一索引），重跑＝**恰好 `device_fk_debt_repaid` 与 `device_key_unique_is_partial` 转 FALSE，其余 8 条不变**。⇒ 这两条探针不是恒真装饰。
+  - **一条工具教训**：`docker exec` 不带 `-i` 时 heredoc 不进 psql，会**静默 exit 0**——第一次变异就是这样"成功"而库毫无变化，两跑全 true 差点被读成"探针无判别力"。变异必须回读库状态坐实，不能只看退出码。
+- **一条方法教训（记下来免得下次再踩）**：`testpg` 夹具路径**不校验** manifest 的已发布 checksum，而 `work-migrate apply` 会（`published_migration_modified`）。本轮改 SQL 后夹具测试照样绿、真 apply 却拒绝——**所以「夹具绿」不能替代「真 apply 绿」**，改增量后必须重放＋重采＋回钉，再跑链尾重放门。
+
+### 13.5 半径与未做
+
+- **半径**＝migration＋换二进制。**未提交、未 push、未 rollout**（各需单独授权）。
+- 批二／三／四未动；O-5–O-10 六项仍待裁（O-4 已裁）。
+- 生产数据未造；现网台账仍停在 39。
+
+### 13.6 第一轮全量查出的五处红与修法（全部由本批改动引起，无一放宽控制）
+
+定向门全绿之后跑的**串行全量**（`go test ./... -p 1`）查出 5 个红、3 个包。逐条归因与修法：
+
+| 红 | 归因 | 修法 |
+|---|---|---|
+| `TestArtifactVersionLocalOnlyContentIsNotProxied`（api） | 旧夹具用不存在的 `device_id` 插 `local_only` 版本，新 FK `artifact_version_device_fkey` 把它暴露 | 给夹具补一行真 device。**这正是 §8 债 1 预警的悬空引用**——我落笔前只想到查生产存量，漏了查测试夹具 |
+| `TestR0bArtifactVersionLocationShapeAndImmutability`（migrate） | 同上，另一处夹具 | 同上 |
+| `TestEveryPublishedRaiseIsRegistered`（apierr） | 3 处 `RAISE EXCEPTION '%', v_gate` 是动态消息，覆盖门的正则只认小写字面量⇒99 处 raise 只捕获 96 个码 | 改成按 `local_policy_gate` 返回值分支的**字面量** raise（`local_policy_incomplete`／`local_policy_not_configured`），门不放宽 |
+| `TestEveryClientRequestKeyCommandIsIdempotent`（migrate） | 8 个新命令确有去重＋hash 比对，但抛的是 `idempotency_conflict`；按控制面 §4.2 段末④，「同 request_id 异 payload」的正确码是 **`idempotency_key_conflict`**（0027 同形） | 改码（更准确，且落进门的 `own_request_hash` 类）＋把 8 个命令加进钉死清单（10→18 项） |
+| `TestIncrementGuardsKeepTheirFallbackStatus`（apierr） | 12 个 23514 守卫被我映到 `service_degraded`，而门要求保持其 SQLSTATE 兜底状态 | 按 `fallbackFor("23514")`＝**`invalid_request`** 重映，**不写偏离声明**（那是给已决偏离用的逃生口，不是给新代码用的） |
+
+**第五处落地面（§2.1 清单漏了它）**：`src/work/contracts/error-codes.json` 的 **`db_exception_map`**。目录规则原文要求它「lists every RAISE EXCEPTION code … including public codes raised verbatim」，所以每个新 raise 码都必须有映射。本批补 **20 条**（199→219）：12 个 23514 守卫→`invalid_request`；6 个 P0001 的设计已声明码（`device_revoked`／`local_policy_not_configured`／`local_policy_incomplete`／`classification_floor_required`／`classification_unknown`／`workspace_identity_changed`）→`service_degraded`（P0001 的兜底值）；2 个公开码原样 raised（`unauthorized`／`forbidden`）→自身。**公开码集合仍 60 个，一个未增**——所以 §12.3「M1a 不登记新公开码」成立，但那句话要补一句：**不登记公开码 ≠ 不补内部映射**，映射是必须的。那 6 个†码映到 `service_degraded` 是**过渡**，等 M1b／M4 的 HTTP 面落地时按 §9 给它们登记真正的公开码与状态并改映射。
+
+**两条方法教训**：① 定向门绿≠全量绿，本轮 5 个红全部只在串行全量里出现；② `testpg` 夹具路径不校验 manifest 已发布 checksum，而 `work-migrate apply` 会——改增量后必须走「摘条目→灌到 39→手工落 0040→采样→回钉两个值」，再跑链尾重放门，不能只看夹具测试。
 - **O-4–O-10、O-12 的余批部分**：不阻断批一（分别属批二／三／四）。
 - **批一不需要新公开码**：§12.3 的 † 类全部留到 M1b／M4 的 HTTP 面同批登记；批一只落 SQL 侧命令与 ‡ 类内部守卫。
 - **批一的证据门**：§9 的写者闭合判据（`function_privilege_sweep_pg_test.go:142` 的 `want` 串不变）＋三条 FK 债偿还的只读悬空计数为 0＋S4 五步路径算法的表基础就位（`root_ref`／`root_identity_hash`／`purpose`／TTL 上界）。**F13 实机竞态仍属卡片 K／M5，不在批一**（表就位不等于竞态已复现）。

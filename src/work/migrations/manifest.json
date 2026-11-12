@@ -439,6 +439,17 @@
       "catalog_checksum": "sha256:451c62a296aad316ae2818fcb362c7729fed824abd827aee693b6e81f55febff",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 40,
+      "name": "0040_device_identity_and_workspace_grants",
+      "kind": "increment",
+      "file": "increments/0040_device_identity_and_workspace_grants.sql",
+      "checksum": "sha256:af6ced2a6408824380df51503371c1fd40767d7113c435bd8fbd2d62779ef7ae",
+      "catalog": "catalogs/0040_device_identity_and_workspace_grants.json",
+      "catalog_checksum": "sha256:83b88ac9ae05efcab404d1b9eabf2e94e1b3b4157f08a5d094dca52e1cba62d7",
+      "transactional": true,
+      "executable": true
     }
   ]
 }
