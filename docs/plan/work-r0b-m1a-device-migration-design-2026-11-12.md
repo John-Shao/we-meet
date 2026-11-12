@@ -4,6 +4,10 @@
 >
 > **同日续裁（2026-11-12）**：卡片 **P-a**（表清单按控制面 §4.1 对账＝13 张表、租约表名 `execution_lease`、不建 `local_operation`／`operation_journal`／`device_permit`）、**Q-a**（`consume_device_ack` 进 M1a 当第七个域命令；`record_device_model_result` 与 `device_adapter` 延后架构 I5）、**R-a**（不新增 PG 组角色，GRANT 只用 `work_api`／`work_worker`）。三项落笔前置自此闭合，**M1a 只剩「主签另给落笔指令」这一条**。本文 §3 的对账结论、§6.7 的 GRANT 口径、§8 债 3、§10 的 O-1／O-2／O-3 均已按裁定转为**已裁口径**（原文逐字保留）；Q-a 的验收边界见 §11，R-a 的部署清单区分见 §6.7。
 >
+> **同日三裁（2026-11-12）**：**O-12＝甲**（每批落笔前补该批 shape）＋**O-11＝丙**（批一先单独落，余批再定序）。据此已产出 **§12 批一补充设计**：11 个命令的完整标量签名与闭合键集、错误码三分类（现读 `error-codes.json` 公开码 60 个，**M1a 不登记新公开码**）、对 §5 的三处列级更正。写 shape 时现读又查出**一处阻断缺口 O-13**（device-session ticket 无载体表：铸票在 hello 之前而 session 行尚不存在），**批一在它裁完前不落笔**。
+>
+> **同日四裁（2026-11-12）＝卡片 S-b（#112）**：新建 **`work.device_session_ticket`**（照 0024 `provider_probe_grant` 的一次性 token 形），⇒ **M1a 表数 13→14**，批一由「A 组 3 张＋B 组 2 张」变为「**A 组 4 张＋B 组 2 张＝6 张**」。规格见 **§5.A4**；`device_session.ticket_hash` 由 `session_ticket_id`（FK）取代；§12.6／§12.8 的原子写集据此补齐，**批一的阻断项自此清空**。**本文凡写「13 张表」「表数＝13」「A 组 3 张」处一律以本条为准**（原文逐字保留不删）：具体为 §2.4 的 sweep 行、§3.6 表清单、§4 总览、§9 批一行、§10 的 O-1 行、§12 抬头。卡片 P-a 确认的 13 张是**对账去掉三张误读表后的数**，S-b 是在该口径上**加一张语义必需的新表**，不是推翻 P-a。
+>
 > 基线：[R0b 设备侧实施计划 §4 M1a](r0b-device-implementation-plan-2026-11-11.md)＋[控制面详细设计 §4.1／§4.2／§4.3／§6.4／§7.1](work-r0b-control-design-2026-10-30.md)＋[本机执行详细设计 §2／§3／§4.2／§6.1](work-r0b-device-design-2026-10-30.md)＋[B03 对账载体设计 §3](work-r0b-b03-reconciliation-carrier-2026-11-10.md)（四点按推荐已采纳）＋[架构 §3 不变量／§6 实施顺序](work-r0b-architecture-2026-10-30.md)＋卡片 E=B／L=L2／J=J1／M=M-a／N=N-a。
 >
 > **本文零 SQL、零 Go、零 migration、零 catalog、零部署。** 表规格用列表给出，函数用「标量签名＋闭合 JSON 载荷」给出，不含任何可执行 `CREATE`／`ALTER`／`GRANT` 语句。完成度与阻塞项以 [work-project.md](work-project.md) 为唯一状态源，本文不重复数字、不写工时与排期。
@@ -139,7 +143,7 @@
 
 ### 3.6 对账后的 M1a 交付清单
 
-- **表**：13 张（§4），**不含** `local_operation`／`operation_journal`／`device_permit`／`device_run_seal`／`journal_release`／`disclosure_decision`／`content_upload`／`content_transfer_chunk`／`local_artifact_recovery`（后六张是 E=B 明写移出）。
+- **表**：13 张（§4），**不含** `local_operation`／`operation_journal`／`device_permit`／`device_run_seal`／`journal_release`／`disclosure_decision`／`content_upload`／`content_transfer_chunk`／`local_artifact_recovery`（后六张是 E=B 明写移出）。 **【2026-11-12 四裁＝S-b：13→14】**加 `work.device_session_ticket`（§5.A4）；「不含」清单不变（该表不在被砍组，它是本机 §2.2 明写要求的单次票据载体）。
 - **域命令**：设备计划点名的六个＋`consume_device_ack`（偏移 4）＋为写者闭合所必需的身份／授权／编排命令（§9）。
 - **延后**：`work_run_classification`（配置探测任务分类，属 R0a 供应商探测线，六函数不读它）、`record_device_model_result` 与 `device_adapter`（I5）、`register_device_model_execution`／`complete_device_model_execution`／`consume_device_model_gate`（I5，且 E=B 下 `device-egress` 支无产生者）。
 
@@ -150,6 +154,7 @@
 | A 设备身份 | `work.device` | device | `pair_device`／`activate_device_session`／`revoke_device` | 全部六个（撤权与 epoch 复验） |
 | A | `work.device_pairing` | device_pairing | `pair_device`／`activate_device_session` | 无（配对链自用） |
 | A | `work.device_session` | device_session | `activate_device_session`／`revoke_device`／epoch 提升 | acquire／consume／record／finish |
+| A | `work.device_session_ticket` | **§4.1 无此行，卡片 S-b 新增**（依据＝本机 §2.2 的单次 ticket＋§1.4 铸票端点在 hello 之前） | `mint_device_session_ticket`／`activate_device_session`／到期懒标 | activate（CAS 单次消费） |
 | B 目录授权 | `work.workspace_grant` | workspace_grant | `register_workspace_grant`／`revoke_workspace_grant`／`rebind_run_workspace` | prepare（分类与工具子集）／consume（(A) 谓词）／finalize（(B) 谓词） |
 | B | `work.workspace_grant_succession` | workspace_grant_succession | `rebind_run_workspace` | prepare（改绑判据）／finalize（(B) 含 succession 链） |
 | C 编排租约 | `work.device_run_binding` | device_run_binding | `create_device_run_binding`／`acknowledge_run_ready`／`acquire_device_lease`／`finish_local_run_state` | acquire／finish |
@@ -161,7 +166,7 @@
 | E 审批成果 | `work.readonly_approval_grant` | readonly_approval_grant | `decide_local_approval`／`revoke_readonly_grant`／Run 终态与改绑的失效 | **prepare（唯一消费点）** |
 | E | `work.artifact_replica` | artifact_replica（仅 location=local 支） | `finalize_local_artifact` | finalize／本机读取面 |
 
-十三张全部：`org_id text NOT NULL`＋`created_at`／`updated_at`＋`revision`（追加表除外，见各表）＋复合 FK 带 org_id＋`ENABLE`/`FORCE`/`tenant_isolation` 三句＋`REVOKE ALL FROM PUBLIC` 与六个运行角色＋**零表级 GRANT**（一切效果走 definer）。
+十三张全部：`org_id text NOT NULL`＋`created_at`／`updated_at`＋`revision`（追加表除外，见各表）＋复合 FK 带 org_id＋`ENABLE`/`FORCE`/`tenant_isolation` 三句＋`REVOKE ALL FROM PUBLIC` 与六个运行角色＋**零表级 GRANT**（一切效果走 definer）。 **【2026-11-12 四裁＝S-b：表数 13→14】**本段「十三张」读作「十四张」，新增 `work.device_session_ticket`（§5.A4）同样满足上述全部条件；批一由 5 张变 **6 张**。
 
 ## 5. 逐表规格
 
@@ -218,7 +223,7 @@
 | state | text | NOT NULL DEFAULT 'pending' CHECK (IN ('pending','consumed','expired')) |
 | revision／created_at／updated_at | — | 同 5.A1 |
 
-- **主键** `(org_id, id)`；**UNIQUE** `(org_id, client_request_id)`（幂等键）。
+- **主键** `(org_id, id)`；**UNIQUE** `(org_id, client_request_id)`（幂等键）。 **【2026-11-12 两处列级更正，见 §12.2，原文保留】**① 该 UNIQUE **收窄为 `(org_id, owner_subject_id, client_request_id)`**（控制面 §1.1 的去重作用域含 subject，不含它会让同组织两个成员用同一 request_id 互相吞掉请求）；② **增列 `purpose text NOT NULL CHECK (IN ('pair','renew'))`**——本机 §2.1 第 4 步要求证书续期用「新 challenge」，而 §4.1 本表没有区分挑战用途的列；两值各有写者（`pair_device`／`renew_device_certificate`），续期因此复用本表不新建表。若 **O-13** 选甲，闭集扩为三值（加 `session`）。
 - **CHECK** `device_pairing_window (expires_at > created_at)`；`device_pairing_ttl CHECK (expires_at <= created_at + interval '120 seconds')`（本机 §2.1 第 2 步「有效期 120s，一次使用」）；`device_pairing_consumed_shape`＝`state='consumed'` ⇔ `consumed_at IS NOT NULL`，且 `consumed_at >= created_at`。
 - **索引** `work_device_pairing_due (org_id, expires_at) WHERE state='pending'`（§4.1「过期索引」）。
 - **FK** `device_pairing_device_fkey (device_id, org_id) → work.device(id, org_id)`；`device_pairing_org_fkey (org_id) → work.org(id)`。
@@ -243,7 +248,8 @@
 | profile_id | text | 可空 |
 | journal_epoch | uuid | NOT NULL |
 | generation | bigint | NOT NULL CHECK (>= 0) |
-| ticket_hash | hash64 | NOT NULL（云端只存 hash） |
+| ticket_hash | hash64 | NOT NULL（云端只存 hash）**【2026-11-12：本列落点待 O-13，见 §12.2 更正 3——铸票在 hello 之前而 session 行尚不存在，放本表顺序错了】** **【2026-11-12 四裁＝S-b：本列移出本表，落 `work.device_session_ticket.ticket_hash`（§5.A4）；本行原文保留作追溯，落笔时不建此列】** |
+| session_ticket_id | uuid | 可空，FK → `work.device_session_ticket(id, org_id)`**【2026-11-12 S-b 新增，取代上一行】**：记录本 session 由哪张票据换来；hello 消费票据后写入，此后不可变 |
 | last_receipt_seq | bigint | NOT NULL DEFAULT 0 CHECK (>= 0) |
 | expires_at | timestamptz | NOT NULL |
 | state | text | NOT NULL DEFAULT 'active' CHECK (IN ('active','superseded','expired','revoked')) |
@@ -258,6 +264,40 @@
 - **写者**：`activate_device_session`（插 active，同事务把旧 active 置 superseded）、`revoke_device`、epoch 提升路径（控制面 §1.1「epoch 提升必须**同时**撤销该用户的 active `device_session`、执行 lease 与未消费许可」）。
 - **`expired` 懒标**，不设清扫作业。
 - **retention**：不清扫（「失效旧session不删除证据」，§4.1 原文）。
+
+### 5.A4 `work.device_session_ticket`（卡片 S-b 新增，2026-11-12）
+
+一次性 hello 票据的 hash 载体。**为什么必须独立成表**：铸票端点 `POST /devices/{id}/session-tickets` 在 hello **之前**，而 `session_id` 由服务端在 hello 分配（本机 §2.2），所以票据 hash 不能挂在 `device_session` 上；票据又必须服务端存 hash 才能在 hello 比对，载体不可省。形制照 0024 `provider_probe_grant`（一次性 token hash＋短 TTL＋`consumed_at`＋CAS），**不复用该表**（那是 R0a 供应商探测线）。
+
+| 列 | 类型 | 约束 |
+|---|---|---|
+| org_id | text | NOT NULL |
+| id | uuid | NOT NULL DEFAULT gen_random_uuid() |
+| device_id | uuid | NOT NULL |
+| owner_subject_id | text | NOT NULL CHECK (<> '') |
+| auth_plane | text | NOT NULL CHECK (IN ('bearer')) |
+| auth_epoch | bigint | NOT NULL CHECK (>= 0) |
+| public_key_thumbprint | hash64 | NOT NULL |
+| ticket_hash | hash64 | NOT NULL（**云端只存 hash，明文只在铸票响应给一次**） |
+| client_request_id | text | NOT NULL CHECK (<> '') |
+| request_hash | hash64 | NOT NULL |
+| expires_at | timestamptz | NOT NULL |
+| consumed_at | timestamptz | 可空 |
+| state | text | NOT NULL DEFAULT 'pending' CHECK (IN ('pending','consumed','expired')) |
+| revision | bigint | NOT NULL DEFAULT 0 CHECK (>= 0) |
+| created_at／updated_at | ts! | — |
+
+- **主键** `(org_id, id)`；**UNIQUE** `(org_id, ticket_hash)`（照 0024 `UNIQUE (org_id, token_hash)`）；**UNIQUE** `(org_id, owner_subject_id, client_request_id)`（幂等键，含 subject 的理由见 §12.2 更正 1）。
+- **CHECK** `device_session_ticket_window (expires_at > created_at)`；`device_session_ticket_ttl CHECK (expires_at <= created_at + interval '60 seconds')`（本机 §2.2 原文 TTL 60s）；`device_session_ticket_consumed_shape`＝`state='consumed'` ⇔ `consumed_at IS NOT NULL`，且 `consumed_at >= created_at`。
+- **索引** `work_device_session_ticket_due (org_id, expires_at) WHERE state='pending'`。
+- **FK** `device_session_ticket_device_fkey (device_id, org_id) → work.device(id, org_id)`；`device_session_ticket_org_fkey (org_id) → work.org(id)`。
+- **守卫** `device_session_ticket_guard BEFORE UPDATE`：不可变＝org_id／id／device_id／owner_subject_id／auth_plane／auth_epoch／public_key_thumbprint／ticket_hash／client_request_id／request_hash／expires_at／created_at，逐列 `IS DISTINCT FROM`；`state` 只走白名单边；`consumed_at` 只在 `pending→consumed` 时盖章且此后不可变。
+- **白名单边**（entity=`device_session_ticket`）：`pending→consumed`、`pending→expired`。两个终态无出边。
+- **`device_session_ticket_no_delete`**：`prevent_mutation`。
+- **写者**：`mint_device_session_ticket`（插 pending）、`activate_device_session`（CAS pending→consumed，**单次消费**）、到期**懒标** `pending→expired`（在 hello 消费时发现已过期即同事务 CAS 再拒，**不设清扫作业**，与 `device_pairing.expired`／0020 `readonly_approval_grant.expired` 同一手法）。
+- **名字对齐**：0024 用 `issued_at` 表达签发时刻，本表用 `created_at`——与 §5.A2 `device_pairing` 保持**同一名字**（M1a 内部一个概念一个名字），落笔时不得两种混用。
+- **retention**：**不清扫**。consumed／expired 行是「这张票据用过没有」的唯一证据，与 `device_pairing` 同档；删它会让 hello 的重放攻击失去可核对材料。
+- **与 `device_session` 的链接**：`device_session` 增列 `session_ticket_id uuid`（可空，FK 到本表），记录「本 session 由哪张票据换来」。**它取代原 §5.A3 的 `ticket_hash` 列**——顺序对了（票据先存在，session 后引用），且证据双向可查。
 
 ### 5.B1 `work.workspace_grant`
 
@@ -280,7 +320,7 @@
 | request_hash | hash64 | NOT NULL |
 | revision／created_at／updated_at | — | 同 5.A1 |
 
-- **主键** `(org_id, id)`；**UNIQUE** `(org_id, root_ref)`、`(org_id, client_request_id)`。
+- **主键** `(org_id, id)`；**UNIQUE** `(org_id, root_ref)`、`(org_id, client_request_id)`。 **【2026-11-12 更正，见 §12.2】**后者收窄为 `(org_id, owner_subject_id, client_request_id)`（§1.1 去重作用域含 subject）。
 - **CHECK** `workspace_grant_ttl CHECK (expires_at <= created_at + interval '8 hours')`（本机 §2.4「grant 有效期取登录会话、当前 Agent、**8h** 和用户选择期限的最小值」——8h 是硬上界，其余三个更小值由函数在签发时取 min）；`workspace_grant_succession_shape`＝`state='succeeded'` ⇔ `succeeded_by IS NOT NULL`。
 - **索引** `work_workspace_grant_device_active (org_id, device_id, session_id) WHERE state='active'`；`work_workspace_grant_due (org_id, expires_at) WHERE state='active'`。
 - **FK** device／session／org 复合；`workspace_grant_successor_fkey (succeeded_by, org_id) → work.workspace_grant(id, org_id)`（自引用）。
@@ -305,7 +345,7 @@
 | request_hash | hash64 | NOT NULL |
 | created_at／updated_at | ts! | — |
 
-- **主键** `(org_id, run_id, old_grant_id)`（§4.1「每Run每旧grant最多一条」）；**UNIQUE** `(org_id, client_request_id)`。
+- **主键** `(org_id, run_id, old_grant_id)`（§4.1「每Run每旧grant最多一条」）；**UNIQUE** `(org_id, client_request_id)`。 **【2026-11-12 更正，见 §12.2】**后者收窄为 `(org_id, owner_subject_id, client_request_id)`（§1.1 去重作用域含 subject）。
 - **CHECK** `workspace_grant_succession_distinct CHECK (old_grant_id <> new_grant_id)`。
 - **FK** run／old_grant／new_grant／org 四条复合。
 - **追加表**：`workspace_grant_succession_append_only BEFORE UPDATE OR DELETE EXECUTE FUNCTION work.prevent_mutation()`。**无 revision 列**（追加表不做 CAS，幂等由主键＋client_request_id 承担）。
@@ -595,7 +635,7 @@
 - **seq=0 基线**：`purpose='execute'` 且该 Run **尚不存在 seq=0 行**时，在签 `run_start` 之前写 `device_checkpoint`（`checkpoint_hash`＝设备 canonical input hash，`signed_payload_hash`＝NULL，`fence`＝当时 `run.fence`）。**仅当不存在时写**——否则每次 resume 都重写基线，与「同 seq 异 hash 即冲突」打架。
 - **原子写集**：`execution_lease`（插或 CAS）、`device_checkpoint`（条件写 seq=0）、`device_run_binding`（→active）、`work.run`（如需）、`audit_event`、`outbox`。
 - **输出 shape**：`{lease_id, run_id, fence, generation, purpose, expires_at, ttl_ms, start_nonce, run_start, checkpoint_seq, checkpoint_hash, server_signature}`。`run_start` 在 `reconcile_finish` 分支为 null，`start_nonce`／`checkpoint_*` 同。
-- **拒绝码**：`org_context_mismatch`、`stale_fence`、`run_has_unreconciled_operation`（仅 execute 分支）、`invalid_request:ttl`、`device_revoked`、`session_invalid`。
+- **拒绝码**：`org_context_mismatch`、`stale_fence`、`run_has_unreconciled_operation`（仅 execute 分支）、`invalid_request:ttl`、`device_revoked`、`session_invalid`。 **【2026-11-12 更正，原行保留】`session_invalid` 不是公开码**：控制面 §9 原文「公开码沿用 R0a 的 `unauthorized`…没有 `session_invalid`；`session_invalid`/`session_stale` 是 Host 侧内部码，Work 在 `hostFailure` 把它们映射成 `unauthorized`」⇒ 本行那一项**读作 `unauthorized`**。另 `org_context_mismatch`／`invalid_request:ttl` 是‡类内部守卫、`stale_fence`／`run_has_unreconciled_operation`／`device_revoked` 是†类未登记公开码，三分类与登记时机见 **§12.3**（M1a 不登记新公开码）。
 
 ### 6.3 `consume_device_permit`
 
@@ -733,20 +773,24 @@
 
 | 批 | 号（落笔前按现读链尾重定） | 表 | 同批命令 | 闭合性与证据 |
 |---|---|---|---|---|
-| 一 | 0040 | A 组 3 张＋B 组 2 张 | `pair_device`／`activate_device_session`／`revoke_device`／`register_workspace_grant`／`revoke_workspace_grant`／`rebind_run_workspace` | **同批还债 1 的三条 FK**；覆盖 S4 目录授权绑定；`work_api` 面可被 pg_test 直接攻击 |
+| 一 | 0040 | A 组 3 张＋B 组 2 张 **【2026-11-12 S-b：A 组 4 张＋B 组 2 张＝6 张】** | `pair_device`／`activate_device_session`／`revoke_device`／`register_workspace_grant`／`revoke_workspace_grant`／`rebind_run_workspace` | **同批还债 1 的三条 FK**；覆盖 S4 目录授权绑定；`work_api` 面可被 pg_test 直接攻击 **【2026-11-12 更正：命令集 6→11】**按控制面 §1.4 端点逐行对账，批一还需 `confirm_device_pairing`／`mint_device_session_ticket`／`renew_device_certificate` 三个写者与 `list_devices`／`list_workspace_grants` 两个读面（读面必须是 definer，理由见 §12.1）；完整 shape 见 **§12**。**批一另被 O-13 阻断**（票据载体未定），裁定前不落笔 **【2026-11-12 四裁＝S-b：阻断解除】**新建 `work.device_session_ticket`（§5.A4），§12.6／§12.8 写集已补齐；**批一的落笔前置自此全部闭合，只等主签另给落笔指令** |
 | 二 | 0041 | C 组 3 张 | `create_device_run_binding`／`acknowledge_run_ready`／`acquire_device_lease`／`renew_device_lease`／`record_device_checkpoint` | seq=0 基线唯一写者在此批；J12 的 `purpose` 负例（EV113）可跑 |
 | 三 | 0042 | D 组 3 张＋E 组 `readonly_approval_grant` | `prepare_local_operation`／`consume_device_permit`／`record_device_receipt`／`finish_local_run`＋`finish_local_run_state`／`consume_device_ack`／`decide_local_approval`／`revoke_readonly_grant` | **同批还债 2**；不变量 2/3 的两个强制点、(A) 谓词、免审批唯一消费点都在此批；EV70/EV71/EV98/EV100/EV113/EV120 可跑 |
 | 四 | 0043 | E 组 `artifact_replica` | `finalize_local_artifact`／`create_local_user_artifact_version` | (B) 谓词与分类唯一写者；EV97 可跑 |
 
 - **每批各自**：增量 SQL＋活库采样 catalog＋manifest 追加＋两份手抄清单同步＋verify 脚本语义探针（照 0036 段 :447-470 模板，大写 FALSE／小写 true）＋该批的 `_pg` 正反例。
-- **本文的 shape 覆盖边界（如实记，不冒充齐全）**：§6 只给**七个**命令的完整签名与闭合键集（设备计划点名的六个＋`consume_device_ack`）。上表为写者闭合而列出的其余命令（`pair_device`／`activate_device_session`／`revoke_device`／`register_workspace_grant`／`revoke_workspace_grant`／`rebind_run_workspace`／`create_device_run_binding`／`acknowledge_run_ready`／`renew_device_lease`／`record_device_checkpoint`／`decide_local_approval`／`revoke_readonly_grant`／`finish_local_run_state`／`create_local_user_artifact_version`）**本文只定它们的写集、状态转移与幂等键归属（见 §5 各表的「写者」与「白名单边」），不给完整 JSON shape**——它们不在卡片 I 点名的六函数范围内，其 shape 属落笔前的补充设计，登记为 O-12。`finish_local_run_state` 是例外：它的裁决顺序与写集已在 §6.5 逐条给出（因为它就是 `finish_local_run` 的终态写入体）。
+- **本文的 shape 覆盖边界（如实记，不冒充齐全）**：§6 只给**七个**命令的完整签名与闭合键集（设备计划点名的六个＋`consume_device_ack`）。上表为写者闭合而列出的其余命令（`pair_device`／`activate_device_session`／`revoke_device`／`register_workspace_grant`／`revoke_workspace_grant`／`rebind_run_workspace`／`create_device_run_binding`／`acknowledge_run_ready`／`renew_device_lease`／`record_device_checkpoint`／`decide_local_approval`／`revoke_readonly_grant`／`finish_local_run_state`／`create_local_user_artifact_version`）**本文只定它们的写集、状态转移与幂等键归属（见 §5 各表的「写者」与「白名单边」），不给完整 JSON shape**——它们不在卡片 I 点名的六函数范围内，其 shape 属落笔前的补充设计，登记为 O-12。`finish_local_run_state` 是例外：它的裁决顺序与写集已在 §6.5 逐条给出（因为它就是 `finish_local_run` 的终态写入体）。 **【2026-11-12 更新：O-12 已裁＝甲，批一那一份已交】**§12 给出批一 **11 个**命令的完整 shape；本段原写「其余 14 个」现读修正为 **19 个**（§12.1 按端点对账新增 5 个名），**已交 11、余 8**（批二 4／批三 3／批四 1），各自落笔前补。
 - **每批的半径**＝migration＋换二进制；**是否与上一批同包 rollout 由主签单选**，本文不自决。
 - **不推进 M1b**：M1b（Bearer＋handler＋route）依 M1a 的表与命令，且 `phases` 契约变更挂 M4（卡片 M=M-a）。本文只交设计，不开工任何一批。
-- **批一可独立先裁**：它只依赖已上线的 0017/0018/0020，且立即偿还三条 FK 债，半径最小。
+- **批一可独立先裁**：它只依赖已上线的 0017/0018/0020，且立即偿还三条 FK 债，半径最小。 **【2026-11-12 更新】**O-11 已裁＝**丙**（批一先单独落，余批再定序），但**批一现被 O-13 阻断**：票据载体未定则 `mint_device_session_ticket`／`activate_device_session` 的原子写集悬置（§12.2 更正 3）。O-13 裁完即可落笔，其余前置均已闭合。
 
 ## 10. 待裁项（本文不自决，逐条带原文与代价）
 
 **【2026-11-12 状态更新】O-1／O-2／O-3 已由主签同日逐项单选裁完＝卡片 P-a／Q-a／R-a（台账 §5.0 三张卡各自记依据与代价），下表三行原文保留、就地加已裁标注。其余 O-4–O-12 共 9 项仍待裁，属非阻断的实现细节，落笔时逐项裁；O-12 决定其余 14 个命令的 shape 何时补。**
+
+**【2026-11-12 二次更新：O-11／O-12 已裁，新增 O-13】**主签再逐项单选 **O-12＝甲**（每批落笔前补该批 shape）与 **O-11＝丙**（批一先单独落，余批再定序）。按甲已产出 **§12 批一补充设计**（11 个命令的完整 shape）。写 shape 时现读又查出一处阻断缺口＝**O-13**（device-session ticket 的载体无表，铸票在 hello 之前而 session 行尚不存在）。⇒ **本表现状：已裁 5 项（O-1／O-2／O-3／O-11／O-12），仍开放 8 项（O-4–O-10 与 O-13），合计 13 项**；其中**只有 O-13 阻断批一**，O-4–O-10 分别属批二／三／四。取数法＝数下表以「O-」起头的行，未入 doc-derived-counts 门禁，增删项时须重数并更新日期。
+
+**【2026-11-12 三次更新：O-13 已裁＝乙（卡片 S-b），批一阻断清空】⇒ 本表现状：合计 13 项、已裁 6 项（O-1／O-2／O-3／O-11／O-12／O-13）、仍开放 7 项（O-4–O-10），且开放的 7 项全部属批二／三／四，**批一已无待裁前置**。上面两条状态标注里的「已裁 5／开放 8」与「只有 O-13 阻断批一」均以本条为准，原文保留。
 
 | 号 | 主题 | 原文／现读依据 | 选项与代价 |
 |---|---|---|---|
@@ -760,8 +804,9 @@
 | O-8 | `work_run_classification` 是否随 M1a 落 | §5.F | **甲＝延后**（代价＝§4.1 设备侧行未一次落齐）／乙＝随批四落（代价＝无本期消费者，撞 :142 `want` 串） |
 | O-9 | `prepare_id` 是否需要在 `operation` 上加列做服务端去重 | §6.1；控制面 §4.1 幂等权威是 logical_key＋hash | **甲＝不加列**（代价＝设备必须保证同 prepare_id 映射同 logical_key）／乙＝加列（代价＝改既有已上线表＋新唯一键＋全链重放） |
 | O-10 | 0021 四个 attestation 键的处置（`journal_unavailable` 换不了、`seal_checked` 必须删） | §8 债 4 逐键原文 | **甲＝两键换表读、`journal_unavailable` 保留 attestation、`seal_checked` 删除**（代价＝已签文本「I4 落表后应替换为表读并把断言键删掉」要加带日期更正）／乙＝四键全保留（代价＝`seal_checked` 指向一张永不存在的表，降级裁决可被空断言过闸） |
-| O-11 | 四批是否同包 rollout、以及批一是否先单独裁 | §9；每批半径＝migration＋换二进制 | 主签单选定序；本文不预设 |
-| O-12 | 写者闭合所需的其余 14 个命令，其完整 JSON shape 何时补 | §9「shape 覆盖边界」；卡片 I 只点名六函数 | **甲＝每批落笔前补该批的 shape**（代价＝设计分四轮，但每轮都紧贴该批的表与守卫）／乙＝先出一份覆盖全部 21 个命令的补充设计单再落任何一批（代价＝一轮更大的设计工作，且批一的身份/授权面要等编排面定完才动，半径最小的那批被推迟） |
+| O-11 | 四批是否同包 rollout、以及批一是否先单独裁 | §9；每批半径＝migration＋换二进制 | 主签单选定序；本文不预设 **【2026-11-12 已裁＝丙】**批一（0040）先单独落，批二–四等批一拿到外部正证后再定序；每批半径仍是 migration＋换二进制，是否同包届时另裁 |
+| O-12 | 写者闭合所需的其余 14 个命令，其完整 JSON shape 何时补 | §9「shape 覆盖边界」；卡片 I 只点名六函数 | **甲＝每批落笔前补该批的 shape**（代价＝设计分四轮，但每轮都紧贴该批的表与守卫）／乙＝先出一份覆盖全部 21 个命令的补充设计单再落任何一批（代价＝一轮更大的设计工作，且批一的身份/授权面要等编排面定完才动，半径最小的那批被推迟） **【2026-11-12 已裁＝甲】**已产出 §12＝批一 11 个命令的完整 shape。**计数更正**：本行原写「其余 14 个／全部 21 个」，现读修正为**其余 19 个／全部 26 个**——§12.1 按 §1.4 端点逐行对账新增 5 个名（`confirm_device_pairing`／`mint_device_session_ticket`／`renew_device_certificate`／`list_devices`／`list_workspace_grants`）；取数法＝§6 的 7＋§9 原列 14＋§12.1 新增 5，未入 doc-derived-counts 门禁 |
+| O-13 | **device-session ticket 的载体（阻断批一）** | 本机 §2.2「hello 另需由当前桌面身份换得的单次 device-session ticket（TTL 60s…云端只存 hash）」＋§1.4 `POST /devices/{id}/session-tickets` 在 hello **之前**铸票，而 `session_id` 由服务端在 hello 分配 ⇒ 本文 §5.A3 把 `ticket_hash` 放 `device_session` 上**顺序错了**（§12.2 更正 3） | **甲＝`device_pairing` 的 `purpose` 闭集扩为三值（pair／renew／session），三种一次性挑战共表**（代价＝表名与内容不符，session ticket 不是 pairing，须在控制面 §4.1 加带日期更正说明该表是「设备一次性挑战」载体；好处＝表数保持 13、不新增 catalog 面）／**乙＝新建 `work.device_session_ticket`，照 0024 `provider_probe_grant` 的一次性 token 形**（代价＝表数 13→14，超出卡片 P-a 确认的 13 张，须同批更正计数＋多一份 catalog＋全链重放；好处＝名字与语义一致、票据证据独立、`device_pairing` 不被撑成杂物表）／丙＝`device` 上单槽 `pending_ticket_hash`＋`pending_ticket_expires_at`（代价＝同设备只能有一张未消费票据，第二次 mint 覆盖第一次即丢证据，且 `device` 多三列可变状态；好处＝零新表零新列于挑战表） **【2026-11-12 已裁＝乙，卡片 S-b】**新建 `work.device_session_ticket`，规格见 §5.A4；表数 **13→14**、批一 **5→6 张**；`device_session.ticket_hash` 由 `session_ticket_id`（FK）取代；§12.6／§12.8 写集已补齐，**批一阻断解除**。代价已付＝本文与台账凡写 13 张处同批加带日期更正（原文保留） |
 
 **另需传播的活指令**（裁定后同批扫，不静默改）：设备计划 §4 M1a 表族清单与「六函数」句、§8 待开卡表的「M1a migration 表清单细化」行、work-project.md 卡片 I 与 §5.1 的 M1a 开工行、架构 §6 I4 行（`device_run_seal`／`issue_run_seal` 已移出但 I4 描述仍含它们）、控制面 §4.2 段末「I4 落表后应替换为表读」句。
 
@@ -774,3 +819,170 @@
 - 本文引用的行号均为 2026-11-12 现读注记，**以符号名为准**（J40=A）；落笔前须重读，行号会漂。
 - 与卡片 E=B 的 B04/B09 移出决定、卡片 L=L2、J=J1、M=M-a、N=N-a 一致；不重开已裁范围。
 - §10 任一项裁定后，按 memory `feedback-adjudication-propagation-sweep` 做传播扫（runbook／演练清单／README／脚本），就地加带日期标注、不删原文不删行，改后复跑文档门禁。
+
+## 12. 批一（0040）补充设计：身份与目录授权面的命令 shape
+
+> 授权＝**O-12 主签单选甲**（每批落笔前补该批 shape）＋**O-11 主签单选丙**（批一先单独落，余批再定序），2026-11-12。本节仍是设计：**零 SQL、零 Go、零 migration**。批一＝§5 的 A 组 3 张＋B 组 2 张，同批偿还 §8 债 1 的三条 FK。 **【2026-11-12 四裁＝S-b：批一＝A 组 4 张＋B 组 2 张＝6 张**（加 `work.device_session_ticket`，§5.A4）**，O-13 阻断已解除，本节 11 个命令的写集全部补齐】**
+
+### 12.1 现读把批一的命令集从 6 个修正为 11 个
+
+§9 的批一原列 6 个命令。按控制面 §1.4 端点总表逐行对账，**写者 9 个＋读面 2 个＝11 个**：
+
+| 端点／入口（§1.4） | 命令 | §9 原列 |
+|---|---|---|
+| POST /devices/pairings | `pair_device` | 是 |
+| POST /devices/pairings/{id}/confirm | `confirm_device_pairing` | **否** |
+| POST /devices/{id}/session-tickets | `mint_device_session_ticket` | **否** |
+| POST /devices/{id}/certificate-renewals | `renew_device_certificate` | **否** |
+| gateway hello（mTLS gRPC，非 HTTP） | `activate_device_session` | 是 |
+| POST /devices/{id}/revoke | `revoke_device` | 是 |
+| POST /workspace-grants | `register_workspace_grant` | 是 |
+| POST /workspace-grants/{id}/revoke | `revoke_workspace_grant` | 是 |
+| POST /runs/{id}/workspace-rebinds | `rebind_run_workspace` | 是 |
+| GET /devices | `list_devices` | **否（读面）** |
+| GET /workspace-grants | `list_workspace_grants` | **否（读面）** |
+
+**读面为什么也必须是 definer**：M1a 照 0024 起的房规**一个表权限都不 GRANT**（§2.3），`work_api` 对新表无 SELECT，所以 GET 面只能走 SECURITY DEFINER 函数。先例＝0021 `list_run_reconciliations`，其理由原文「`work_api` 对 … 都没有 SELECT，为一个元数据视图给请求角色开裸表权限是本末倒置」。响应字段一律取 §5 的列名、不另立 DTO（照 §1.4 readonly-grants 行与 0020 local-policy 行的同一规矩）。
+
+**`confirm_device_pairing` 是新名不是新范围**：控制面 §4.2 只列 `pair_device`，而 §1.4 与本机 §2.1 第 2／3 步明写配对是**两个端点两步**（铸挑战 → 提交签名并 CAS 激活）。本文给第二步定名，不新增能力。
+
+### 12.2 写 shape 时对 §5 的三处列级更正（原文保留，就地生效）
+
+1. **幂等 UNIQUE 必须含 subject**：§5.A2／§5.B1／§5.B2 原写 `UNIQUE (org_id, client_request_id)`，**收窄为 `UNIQUE (org_id, owner_subject_id, client_request_id)`**。依据＝控制面 §1.1 原文「去重作用域 `(org,subject,logical_command,request_id)`」；不含 subject 会让同组织两个成员用同一 `client_request_id` 互相吞掉对方的请求。`logical_command` 由表本身固定，故不需入列。
+2. **`device_pairing` 增 `purpose` 列**：`purpose text NOT NULL CHECK (IN ('pair','renew'))`。依据＝本机 §2.1 第 4 步原文「续期需 active 设备、**新 challenge** 与当前有效 Host 会话授权，提前 1h 请求」，而 §4.1 `device_pairing` 没有区分配对挑战与续期挑战的列；两值各有写者（`pair_device`／`renew_device_certificate`），不造孤立状态。续期因此**复用同一张一次性挑战表**，不新建表。若 O-13 选甲，该闭集扩为三值（加 `session`）。
+3. **`device_session.ticket_hash` 的落点顺序错了**：本文 §5.A3 把 `ticket_hash` 放在 `device_session` 上，但 §1.4 的 `POST /devices/{id}/session-tickets` 在 hello **之前**铸票，而 `session_id` 由服务端在 hello 分配（本机 §2.2 原文）——**铸票时 session 行还不存在**，hash 无处可写。三个候选载体见 **O-13**；在 O-13 裁定前，`mint_device_session_ticket` 与 `activate_device_session` 的**原子写集**悬置，其余判定与线上 shape 不受影响（票据的线上形状与它存哪张表无关）。 **【2026-11-12 已裁＝S-b（乙），本更正闭合】**载体＝新表 `work.device_session_ticket`（§5.A4）；`device_session` 的 `ticket_hash` 列**不建**，改为 `session_ticket_id uuid`（FK 指向该表），顺序自此正确（票据先存在、session 后引用）。§12.6／§12.8 的原子写集已补齐。
+
+### 12.3 错误码三分类（现读 `src/work/contracts/error-codes.json`，公开码 60 个）
+
+**M1a 不登记任何新公开码。** 依据＝控制面 §4.2 段末⑦原文「公开码等第一个真正 RAISE 它的端点出现时再登记，不提前造没人抛的码」，而批一的 HTTP 面属 M1b／M4。本文用到的码分三类，下文逐命令标注：**无标记＝已登记公开码**（现读在 60 个里）；**†＝设计已声明但目录未登记**（落 HTTP 面时同批登记，属 M1b／M4 半径）；**‡＝SQL 内部守卫码**（按目录 `rules` 原文「Worker-only database exceptions map to service_degraded」映射，不进公开集）。
+
+| 类 | 码 | 现读依据 |
+|---|---|---|
+| 已登记 | `invalid_request`、`idempotency_conflict`、`idempotency_key_conflict`、`unauthorized`、`forbidden`、`not_found`、`run_not_found`、`task_not_found`、`run_not_active`、`version_conflict`、`content_on_original_device`、`rate_limited`、`request_too_large`、`csrf_invalid`、`service_degraded` | 目录 public 集现读命中 |
+| † 未登记 | `local_policy_not_configured`、`local_policy_incomplete`、`destination_not_allowed_for_local_only`、`run_has_unreconciled_operation`、`classification_floor_required`、`classification_unknown`、`supersede_not_allowed`、`supersede_limit_exceeded`、`stale_fence`、`finish_state_mismatch`、`finish_precondition_failed`、`run_cancel_requested`、`execution_unknown`、`workspace_identity_changed`、`workspace_changed`、`permit_expired`、`receipt_signature_invalid`、`receipt_seq_out_of_window`、`device_revoked` | 控制面 §9／§4.1 有声明，目录 public 集**零命中**；`classification_unknown` 另有 §4.1 第二十三轮裁定原文「该码声明而未登记」 |
+| ‡ 内部守卫 | `org_context_mismatch`、`invalid_request:ttl`、`invalid_request:signature`、`<表>_content_immutable`、`invalid_transition:<实体>:<from>-><to>`、`append_only_table:<表>` | 0021:212-214、0024:135-137、0021:223-224、baseline 0002:834-840 |
+
+**两处必须纠正的用法**：① **`session_invalid` 不是公开码**——控制面 §9 原文「公开码沿用 R0a 的 `unauthorized`：`contracts/error-codes.json` 的 public 集里只有它，没有 `session_invalid`；`session_invalid`/`session_stale` 是 Host 侧内部码，Work 在 `hostFailure` 把它们映射成 `unauthorized`」。本文 §6.2 的拒绝码清单里那一项**读作 `unauthorized`**，原文保留作追溯。② `local_policy_not_configured`／`local_policy_incomplete` 今天由 `work.local_policy_gate` 以**返回值**给出（0020），不是 RAISE；批一调用它时按返回值拒，登记留到 HTTP 面。
+
+### 12.4 `pair_device`
+
+- **端点／GRANT**：POST /devices/pairings → `work_api`。权限＝当前本机 owner 会话（§1.4），**不要求执行席位**。
+- **标量签名**：`p_org_id text, p_actor_subject_id text, p_auth_plane text, p_auth_epoch bigint, p_client_request_id text, p_device_name text, p_platform text, p_public_key_jwk jsonb` → `jsonb`。
+- **输入闭合键集**：`client_request_id, device_name, platform, public_key_jwk`（`additionalProperties=false`）。`org_id`／`subject_id`／`auth_plane`／`auth_epoch` **取自租户上下文与已验身份，不接受请求体携带**（照 §1.4 游标行「请求体不带 org_id」的同一规矩）。
+- **幂等键**：`(org_id, owner_subject_id, client_request_id)`（§12.2 更正 1）。同键同 `request_hash` 返回原 `pairing_id` 与原 challenge 的**同一份**（challenge 明文只在首次响应给出，重放不再产新挑战）；异 payload → `idempotency_conflict`。
+- **判定顺序**：① `org_context_mismatch`‡ 与 `assert_session_subject`；② `auth_plane='bearer'` 且 `auth_epoch` 与当前值全等（§1.1 先比面再比 epoch，跨面永不互相满足）；③ `work.local_policy_gate(p_org_id)` 返回 `ready`，否则按返回值拒†；④ `platform='windows-x64'`、`device_name` 形状、`device_pubkey_valid(p_public_key_jwk)`（拒私钥字段）；⑤ 同组织同 `public_key_thumbprint` 已有非 revoked 设备 → `idempotency_conflict`（一把密钥不绑两台）。
+- **原子写集**：`work.device`（插 `status='pending'`）、`work.device_pairing`（插 `purpose='pair'`、`state='pending'`、`challenge_hash`、`expires_at=now()+120s`）、`audit_event`、`outbox`。**challenge 明文不落库**（§4.1「无明文ticket」），只在响应里给一次。
+- **输出 shape**：`{pairing_id, device_id, challenge, expires_at, public_key_thumbprint}`（201）。
+- **拒绝码**：`unauthorized`、`forbidden`、`invalid_request`、`idempotency_conflict`、`local_policy_not_configured`†、`local_policy_incomplete`†、`rate_limited`。
+
+### 12.5 `confirm_device_pairing`
+
+- **端点／GRANT**：POST /devices/pairings/{id}/confirm → `work_api`。
+- **标量签名**：`p_org_id text, p_actor_subject_id text, p_auth_plane text, p_auth_epoch bigint, p_pairing_id uuid, p_client_request_id text, p_signature text` → `jsonb`。
+- **输入闭合键集**：`client_request_id, signature`。签名覆盖串由服务端按库内值重算：`work-device-pair-v2 || pairing_id || challenge || public_key_thumbprint || org_id || subject_id`（本机 §2.1 第 3 步原文），RFC 8785 JCS＋ES256 固定 64-byte R‖S。
+- **幂等键**：`(org_id, owner_subject_id, client_request_id)`；另 device_pairing 的 `state` CAS 保证挑战**一次使用**。
+- **判定顺序**：① 同一桌面身份与发起配对时**全等**（`auth_plane`＋`auth_epoch`＋subject 逐项比，§1.1）；② pairing 属本 org／本 subject／`purpose='pair'`；③ `expires_at` 未过（已过则同事务懒标 `pending→expired` 再拒）；④ `state='pending'` CAS；⑤ 验签（用库内 `public_key_jwk`，不接受请求体带公钥）；⑥ device `status='pending'` CAS→`active`。
+- **证书签发在事务外**（§4.3 原文「外部Host/mTLS/模型/对象存储调用全部在数据库事务外」）：顺序＝**事务一** CAS 激活＋pairing consumed → **外部** CA 签 clientAuth 证书（有效期 24h）→ **事务二** 写 `cert_serial`／`cert_not_after`。签证失败时设备 `active` 但无证书，连接被拒（fail-closed），由 `renew_device_certificate` 恢复；**不回滚事务一**（回滚会让已消费的 challenge 复活，违「一次使用」）。
+- **原子写集**：事务一＝`device`（pending→active）、`device_pairing`（pending→consumed＋`consumed_at`）、`audit_event`、`outbox`；事务二＝`device.cert_serial`／`cert_not_after`＋`audit_event`。
+- **输出 shape**：`{device_id, status, cert_serial, cert_not_after, certificate_pem, auth_plane, auth_epoch}`（200）。`certificate_pem` 只在签发成功那次给出，不落库。
+- **拒绝码**：`unauthorized`、`invalid_request`、`invalid_request:signature`‡、`idempotency_conflict`、`not_found`（pairing 不属本人时不承认其存在）、`device_revoked`†。
+
+### 12.6 `mint_device_session_ticket`
+
+- **端点／GRANT**：POST /devices/{id}/session-tickets → `work_api`。权限＝owner＋active 设备（§1.4）。
+- **标量签名**：`p_org_id text, p_actor_subject_id text, p_auth_plane text, p_auth_epoch bigint, p_device_id uuid, p_client_request_id text, p_public_key_thumbprint text` → `jsonb`。
+- **输入闭合键集**：`client_request_id, public_key_thumbprint`（§1.4「request_id+pubkey签名」； thumbprint 必须等于库内登记值，**不接受换 key**）。
+- **幂等键**：`(org_id, owner_subject_id, client_request_id)`。
+- **判定顺序**：① 身份与 `(auth_plane, auth_epoch)` 全等；② device `status='active'` 且属本 subject；③ thumbprint 与库内全等；④ `local_policy_gate` 返回 `ready`†。
+- **原子写集**：**悬置，待 O-13**（票据 hash 的载体未定）。无论选哪个载体，写集都含 `audit_event`＋`outbox`，且**只存 hash、TTL 60s、单次消费**（本机 §2.2 原文）。 **【2026-11-12 S-b 补齐】**＝`work.device_session_ticket`（插 `state='pending'`、`ticket_hash`、`expires_at=now()+60s`、绑定 device/subject/`auth_plane`/`auth_epoch`/`public_key_thumbprint`）＋`audit_event`＋`outbox`。**票据明文不落库**，只在 201 响应给一次；不动 `device`／`device_session`（铸票时 session 尚不存在）。
+- **输出 shape**：`{ticket, expires_at, device_id, session_ticket_id}`（201）。`ticket` 明文只给一次。
+- **拒绝码**：`unauthorized`、`forbidden`、`invalid_request`、`idempotency_conflict`、`not_found`、`device_revoked`†。
+
+### 12.7 `renew_device_certificate`
+
+- **端点／GRANT**：POST /devices/{id}/certificate-renewals → `work_api`。
+- **标量签名**：`p_org_id text, p_actor_subject_id text, p_auth_plane text, p_auth_epoch bigint, p_device_id uuid, p_client_request_id text` → `jsonb`。
+- **输入闭合键集**：`client_request_id`。**不接受新公钥**（§1.4 原文「不接受换key续期」；换 key 只能重新配对生成新 device_id）。
+- **幂等键**：`(org_id, owner_subject_id, client_request_id)`。
+- **判定顺序**：① 身份与 epoch 全等；② device `status='active'`（revoked 不复活，本机 §2.1「新证书不能恢复已撤销的 grant」）；③ 当前 Host 会话有效；④ 提前量＝`cert_not_after - now() <= 1h`（本机 §2.1 第 4 步「提前 1h 请求」）——**早于该窗口拒绝**，避免无限续期；⑤ 插 `device_pairing`（`purpose='renew'`、新 challenge、120s）。
+- **原子写集**：`device_pairing`（插 renew 挑战）、`audit_event`、`outbox`；随后走与 §12.5 相同的「事务外签证 → 事务二写 serial」两段，**但不动 `device.status`**（已 active）。
+- **输出 shape**：`{pairing_id, challenge, expires_at, purpose:'renew'}`（201）；confirm 后 `{device_id, cert_serial, cert_not_after, certificate_pem}`。
+- **拒绝码**：`unauthorized`、`forbidden`、`invalid_request`、`idempotency_conflict`、`device_revoked`†、`not_found`。
+
+### 12.8 `activate_device_session`
+
+- **入口／GRANT**：gateway hello（mTLS gRPC `work.device.v2.DeviceGateway/Connect`）经领域代理 → `work_worker`。**不是 HTTP 端点**，`work_api` 无 EXECUTE。
+- **标量签名**：`p_org_id text, p_device_id uuid, p_ticket_hash text, p_hello jsonb` → `jsonb`。
+- **`p_hello` 键集**（＝本机 §3.1 hello 帧 body）：`client_versions, protocol_major, protocol_minor, required_features[], tool_manifest_hash, runtime_digest, profile_id, journal_epoch, last_receipt_seq, boot_id, agent_instance_id, challenge_response`。外层信封的 `device_id`／`org_id` 由服务端映射，**禁止 body 覆盖**（本机 §3.1）。
+- **幂等键**：票据单次消费（CAS）＋`work_device_session_one_active` 部分唯一索引。同 `agent_instance_id`＋`boot_id` 的重连按本机 §2.2「TCP 重连可凭新 challenge 续接同一 active session」——**续接不新建行**，只在新 challenge 成立时延长；Agent 重启／登录变化／休眠恢复必须新 hello、新 session。
+- **判定顺序**：① mTLS 设备证书有效且映射到本 device（**不信任证书里客户端自报角色**）；② 票据 hash 匹配、未过期、未消费，且其绑定的 `(org, subject, device, auth_epoch, pubkey)` 与当前值逐项全等；③ device `status='active'`；④ `(auth_plane, auth_epoch)` 与当前值全等——**epoch 已提升则旧票据一律失效**（§1.1）；⑤ `required_features` 无未知安全 feature（本机 §3.1「未知安全 feature 拒绝，不能忽略后执行」）；⑥ 同事务把旧 active session 置 `superseded`，插新 active行。
+- **原子写集**：票据载体 CAS consumed（**待 O-13**）、`device_session`（旧→superseded、插新 active）、`audit_event`、`outbox`。**失效旧 session 不删除证据**（§4.1）。 **【2026-11-12 S-b 补齐】**票据载体＝`work.device_session_ticket` 的 `pending→consumed` CAS＋盖 `consumed_at`（已过期则同事务懒标 `pending→expired` 再拒）；新 `device_session` 行写 `session_ticket_id` 指向该票据，形成双向可查的证据链。其余不变。
+- **输出 shape**（hello_ack）：`{session_id, server_time, generation, lease_ttl_ms, heartbeat_ms, resync_required}`。`generation` 取控制面安全恢复 epoch；`resync_required` 为真时设备须先核对旧日志再重新授权（不变量 4）。
+- **拒绝码**：`unauthorized`（票据／证书／epoch 任一不符，**不细分以免泄露设备归属**）、`device_revoked`†、`resync_required`、`invalid_request`、`rate_limited`。
+
+### 12.9 `revoke_device`
+
+- **端点／GRANT**：POST /devices/{id}/revoke → `work_api`。权限＝owner，**revoke 不要求执行席位**（§1.4 原文）。
+- **标量签名**：`p_org_id text, p_actor_subject_id text, p_device_id uuid, p_client_request_id text, p_reason text` → `jsonb`。
+- **输入闭合键集**：`client_request_id, reason`。
+- **幂等键**：`(org_id, owner_subject_id, client_request_id)`；已 revoked 的设备重复撤销返回原结果（终态幂等）。
+- **判定顺序**：① owner 身份（**不要求席位**，席位被撤后仍须能撤设备）；② device 属本 org／本 subject；③ CAS `active→revoked`（或 `pending→revoked`），盖 `revoked_at`；④ **不抬任何一面的 epoch**——§1.1 原文「设备撤权（`revoke_device`）不抬任何一面的 epoch，而是让 Work 侧 deny 立即阻止新许可」，两者不得互相替代。
+- **原子写集**：`device`（→revoked）、`device_session`（全部 active→revoked）、`execution_lease`（全部 active→revoked）、`access_restriction`（插 `scope='device'`、`source='device'`、`release_floor_revision`）、`cancellation_intent`（逐受影响 Run，同源唯一）、`audit_event`、`outbox`。**不在同事务锁所有 Task**（§4.3 原文「组织批量撤权只写deny/epoch/意图，worker逐Task收敛」）。连接关闭由 gateway 异步执行，**不在 DB 事务内**。
+- **输出 shape**：`{device_id, status:'revoked', revoked_at, revoked_sessions, revoked_leases, cancellation_intents, revision}`（200 或 202）。**不回 deny 条数以外的敏感清单**，受影响 Run 只在审计与 `cancellation_intent` 行里看。
+- **拒绝码**：`unauthorized`、`forbidden`、`invalid_request`、`idempotency_conflict`、`not_found`。
+
+### 12.10 `register_workspace_grant`
+
+- **端点／GRANT**：POST /workspace-grants → `work_api`。权限＝owner＋当前设备 session（§1.4）。
+- **标量签名**：`p_org_id text, p_actor_subject_id text, p_auth_plane text, p_auth_epoch bigint, p_device_id uuid, p_session_id uuid, p_client_request_id text, p_grant jsonb` → `jsonb`。
+- **`p_grant` 键集**（设备**申报**，§1.4 J19 更正后口径）：`root_ref, root_identity_hash, allowed_tools[], classification_claimed, user_selected_ttl_seconds, output_root boolean`。**不含任何路径、文件名、volume_serial、root_file_id**（不变量 5、本机 §2.4）。
+- **幂等键**：`(org_id, owner_subject_id, client_request_id)`；另 `UNIQUE (org_id, root_ref)`。
+- **判定顺序**：① 身份＋`(auth_plane, auth_epoch)` 全等＋session `state='active'` 且属本 device；② `local_policy_gate` 返回 `ready`†；③ `allowed_tools` 是 `local_execution_policy.allowed_tools` 的**子集**（只能收窄）；④ **classification 由服务端判定**：按 `classification_rules` 有序规则匹配（匹配器卷／路径前缀／命名正则由设备侧本机判定后以 `root_identity_hash` 绑定，服务端按组织映射落值），无匹配取 `classification_default`；用户只能确认得**更严**，`rank(max_confirmable) >= rank(classification) >= rank(classification_floor)`，比较走**显式枚举序**（`local_only`=2、`remote_excerpt_allowed`=1），**绝不用字符串序**；⑤ 设备申报值只进**交叉核对**，低于服务端判定即 `classification_floor_required`† 且**登记失败**（零写入）；⑥ `expires_at = min(now()+8h, session.expires_at, 用户选择期限)`，且 `<= created_at + 8h`（§5.B1 CHECK）。
+- **原子写集**：`workspace_grant`（插 active）、`audit_event`（含分类推导输入：命中规则 id／判定值／申报值／最终值）、`outbox`。**不产生 Operation、不预留配额、不自动提交任务**（本机 §2.4「目录授权只授权，不自动提交任务」）。
+- **输出 shape**：`{grant_id, root_ref, classification, allowed_tools, grant_revision, expires_at, state, output_root, classification_derivation{matched_rule_id, server_value, claimed_value, result}}`（201）。
+- **拒绝码**：`unauthorized`、`forbidden`、`invalid_request`、`idempotency_conflict`、`classification_floor_required`†、`classification_unknown`†、`local_policy_not_configured`†、`local_policy_incomplete`†、`device_revoked`†。
+
+### 12.11 `revoke_workspace_grant`
+
+- **端点／GRANT**：POST /workspace-grants/{id}/revoke → `work_api`。§1.4「revoke 可先本地停止」。
+- **标量签名**：`p_org_id text, p_actor_subject_id text, p_grant_id uuid, p_client_request_id text, p_reason text` → `jsonb`。
+- **幂等键**：`(org_id, owner_subject_id, client_request_id)`；终态幂等。
+- **判定顺序**：① owner＋grant 属本人本 org；② CAS `active→revoked`；③ 使该 grant 上的 `readonly_approval_grant` 全部 `active→invalidated`（**同事务**，照 §4.1 该行「`invalidated`←…以及 `rebind_run_workspace` 使旧 grant 失效的同一事务」的同一手法）；④ 写 `access_restriction`（`scope='grant'`、`source='grant'`）；⑤ 对引用该 grant 的未终结 Run 写 `cancellation_intent`。
+- **停止范围**（§6.3 原文）：「目录撤销**只影响引用该 grant 的动作**」——不得顺手停整个组织或该 owner 的其他 grant；已派发动作皆核账，不声称未执行。
+- **原子写集**：`workspace_grant`、`readonly_approval_grant`、`access_restriction`、`cancellation_intent`、`audit_event`、`outbox`。
+- **输出 shape**：`{grant_id, state:'revoked', invalidated_readonly_grants, cancellation_intents, revision}`。
+- **拒绝码**：`unauthorized`、`forbidden`、`invalid_request`、`idempotency_conflict`、`not_found`。
+
+### 12.12 `rebind_run_workspace`
+
+- **端点／GRANT**：POST /runs/{id}/workspace-rebinds → `work_api`（§4.2 该行原文）。
+- **标量签名**：`p_org_id text, p_actor_subject_id text, p_auth_plane text, p_auth_epoch bigint, p_run_id uuid, p_client_request_id text, p_old_grant_id uuid, p_new_grant_id uuid, p_proof jsonb` → `jsonb`。
+- **`p_proof` 键集**（`GrantSuccessionProof`，本机 §3.5 末段原文）：`old_grant_id, new_grant_id, root_identity_hash, run_id, session_id, auth_plane, auth_epoch, nonce, expires_at, signature`。
+- **幂等键**：`(org_id, owner_subject_id, client_request_id)`＋主键 `(org_id, run_id, old_grant_id)`。**同 old_grant 重试必须复用同 request_id 返回原行，不得并生两条后继**（§4.1 原文）。
+- **判定顺序**：① 身份＋epoch 全等＋session active；② Run `state='waiting'` 且 `wait_reason='input'`，且当前生效 grant **等于** `p_old_grant_id`（改绑是链：首次为 binding 原 grant，之后为上一次的新 grant）；③ 两 grant 同 device／同 owner／`root_identity_hash` **相等**——不等即 `workspace_identity_changed`（§1.4 原文，409，原 Run 只能结束）；④ 验签＋**原子消费 nonce**；⑤ `p_proof` 各字段与 HTTP 字段逐项相等（不接受只在传输层携带）。
+- **原子写集**：`workspace_grant_succession`（插）、`workspace_grant`（旧→succeeded＋`succeeded_by`）、`readonly_approval_grant`（旧 grant 上的全部→invalidated）、`device_run_binding`（插更高 `binding_revision` 的 resume offer，`expected_checkpoint_*` 取该 Run 已 recorded 的最新一条、**不按 fence 筛**）、`work.run`（抬 `control_revision`、`wait_reason` 保持 `input`）、`audit_event`、`outbox`。**不新造 `waiting→succeeded` 边**；resume 由工作流先调既有 `resume_run`。
+- **输出 shape**：`{run_id, old_grant_id, new_grant_id, binding_revision, expected_checkpoint_seq, expected_checkpoint_hash, offer_expiry, state:'offered'}`（202）。
+- **拒绝码**：`unauthorized`、`forbidden`、`invalid_request`、`idempotency_conflict`、`workspace_identity_changed`†、`workspace_changed`†、`run_not_active`、`preview_stale`、`not_found`。
+
+### 12.13 `list_devices`（读面）
+
+- **端点／GRANT**：GET /devices → `work_api`，SECURITY DEFINER、`STABLE`。
+- **标量签名**：`p_org_id text, p_actor_subject_id text, p_cursor text, p_limit int` → `jsonb`。
+- **判定**：owner 身份；只列本人设备；分页用**签名 keyset cursor**（绑定 subject/org/filter/sort），`limit 1..100`（§1.1）；GET 默认 `no-store`。
+- **输出 shape**：`{items:[{device_id, device_name, platform, status, auth_plane, auth_epoch, cert_not_after, revoked_at, created_at, revision}], next_cursor}`。**不含 `public_key_jwk`／`cert_serial`／任何路径**；失效与已撤设备仍可见（供审计回看，照 readonly-grants 行同一口径）。
+- **拒绝码**：`unauthorized`、`invalid_pagination`、`invalid_request`。
+
+### 12.14 `list_workspace_grants`（读面）
+
+- **端点／GRANT**：GET /workspace-grants → `work_api`，SECURITY DEFINER、`STABLE`。
+- **标量签名**：`p_org_id text, p_actor_subject_id text, p_device_id uuid, p_cursor text, p_limit int` → `jsonb`。
+- **判定**：owner；只列本人 grant；`p_device_id` 可选过滤；keyset 分页同上。
+- **输出 shape**：`{items:[{grant_id, device_id, session_id, root_ref, classification, allowed_tools, grant_revision, expires_at, state, succeeded_by, created_at, revision}], next_cursor}`。**`root_identity_hash` 不回显**（它是设备密钥 HMAC，回显等于给跨设备关联材料）；不含任何路径／文件名。
+- **拒绝码**：`unauthorized`、`invalid_pagination`、`invalid_request`、`not_found`。
+
+### 12.15 批一的落笔前置（本节产出后仍未闭合的部分）
+
+- **O-13（新增，阻断批一）**：device-session ticket 的载体。三个候选见 §10。裁定前 §12.6／§12.8 的原子写集悬置，**批一不落笔**。 **【2026-11-12 已裁＝S-b（乙），本条阻断解除】**新表规格见 §5.A4，两处写集已补齐。**批一的落笔前置自此全部闭合**：O-1／O-2／O-3／O-11／O-12／O-13 六项已裁，O-4–O-10 七项全属批二／三／四。剩下唯一的条件是**主签另给落笔指令**（21:1x 冻结对 I2／I3 仍生效，本文不自取）。
+- **O-4–O-10、O-12 的余批部分**：不阻断批一（分别属批二／三／四）。
+- **批一不需要新公开码**：§12.3 的 † 类全部留到 M1b／M4 的 HTTP 面同批登记；批一只落 SQL 侧命令与 ‡ 类内部守卫。
+- **批一的证据门**：§9 的写者闭合判据（`function_privilege_sweep_pg_test.go:142` 的 `want` 串不变）＋三条 FK 债偿还的只读悬空计数为 0＋S4 五步路径算法的表基础就位（`root_ref`／`root_identity_hash`／`purpose`／TTL 上界）。**F13 实机竞态仍属卡片 K／M5，不在批一**（表就位不等于竞态已复现）。
