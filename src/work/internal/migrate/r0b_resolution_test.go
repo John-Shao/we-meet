@@ -76,22 +76,58 @@ func issueResolution(t *testing.T, admin *pgx.Conn, org, operationID, state stri
 	return out
 }
 
-// i4Facts are the two §4.2 preconditions the read-only degradation cannot evaluate
-// from server tables yet - lease expiry/revocation and journal availability belong to
-// I4 - so a caller must attest them by name and an unattested verdict is refused.
+// i4Facts attests the one §4.2 precondition the server still cannot read: the journal
+// lives in the device's SQLite (device design §6.1), so "原设备 journal 明确不可得" stays
+// a named attestation. 0042 (O-10 = jia) replaced the other two keys with table reads,
+// so attesting them here would be asserting something the function no longer looks at.
 func i4Facts(values map[string]any) map[string]any {
 	if values == nil {
 		values = map[string]any{}
 	}
-	values["lease_or_revocation_checked"] = "true"
 	values["journal_unavailable"] = "true"
 	return values
+}
+
+// degradationServerFacts creates what the restated issue_operation_resolution reads:
+// an expired lease for this Run, so "其 execution_lease 已过期或设备已撤权" holds, and a
+// revoked device whose only session is expired, so "设备不可达" holds. No
+// device_run_binding is created - the session read is a NOT EXISTS over the Run's
+// bindings, and the lease half of the revocation read needs no binding either.
+func degradationServerFacts(t *testing.T, dbName, org, runID string) {
+	t.Helper()
+	deviceID := newUUID(t)
+	sessionID := newUUID(t)
+	leaseID := newUUID(t)
+	instanceID := newUUID(t)
+	epoch := newUUID(t)
+	r0bExec(t, dbName, org, fmt.Sprintf(`
+		INSERT INTO work.device
+		  (org_id, id, owner_subject_id, device_name, platform, public_key_jwk,
+		   public_key_thumbprint, auth_plane, auth_epoch, status, revoked_at)
+		VALUES ('%s', '%s', 'sub_%s', 'fixture desk', 'windows-x64',
+		        '{"crv":"P-256","kty":"EC","x":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","y":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"}'::jsonb,
+		        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+		        'bearer', 0, 'revoked', now());
+		INSERT INTO work.device_session
+		  (org_id, id, device_id, owner_subject_id, boot_id, agent_instance_id,
+		   auth_plane, auth_epoch, protocol_major, protocol_minor, runtime_digest,
+		   journal_epoch, generation, expires_at, state)
+		VALUES ('%s', '%s', '%s', 'sub_%s', 'boot-degraded', '%s', 'bearer', 0, 1, 0,
+		        '%s', '%s', 1, now() + interval '1 hour', 'expired');
+		INSERT INTO work.execution_lease
+		  (org_id, id, run_id, device_id, session_id, binding_revision, fence,
+		   generation, purpose, start_nonce, expires_at, state)
+		VALUES ('%s', '%s', '%s', '%s', '%s', 1, 1, 1, 'reconcile_finish', NULL,
+		        now() + interval '1 hour', 'expired');
+	`, org, deviceID, org, org, sessionID, deviceID, org, instanceID,
+		strings.Repeat("d", 64), epoch, org, leaseID, runID, deviceID, sessionID))
 }
 
 func TestR0bReadonlyDegradationReconcilesAndKeepsTheReservation(t *testing.T) {
 	dbName, admin := newGateDB(t)
 	org := "org_r0b_resolution_ro"
 	runID, opID := localUnknownOperation(t, dbName, org, admin)
+	degradationServerFacts(t, dbName, org, runID)
 
 	// An unattested read-only verdict is refused: §4.2's preconditions (3) and (4) are
 	// server facts whose tables arrive with I4, and "the caller did not mention them"
@@ -179,9 +215,13 @@ func TestR0bExhaustedDegradationRequiresTicketAndBlocksAdoption(t *testing.T) {
 		`SELECT work.issue_operation_resolution($1, $2::uuid, 'failed', 'evidence_exhausted',
 		  'TICKET-42', $3, 'sub_operator', '{"device_unreachable": "true"}'::jsonb)`,
 		org, opID, "sha256:"+repeatHex(t, 64)); err == nil {
-		t.Fatal("an unattested evidence_exhausted verdict was accepted")
+		t.Fatal("an evidence_exhausted verdict was accepted without the server facts")
 	}
 
+	// 0042 (O-10 = jia): the refusal above is now the server's own read - no expired
+	// lease and no revoked device for this Run - rather than a missing attestation.
+	// Creating the facts is what makes the verdict issuable.
+	degradationServerFacts(t, dbName, org, runID)
 	issueResolution(t, admin, org, opID, "failed", "evidence_exhausted", "TICKET-42",
 		map[string]any{
 			"device_unreachable":          "true",
@@ -228,7 +268,8 @@ func TestR0bExhaustedDegradationRequiresTicketAndBlocksAdoption(t *testing.T) {
 func TestR0bResolutionIsIssuedOnceAndNeverRewritten(t *testing.T) {
 	dbName, admin := newGateDB(t)
 	org := "org_r0b_resolution_once"
-	_, opID := localUnknownOperation(t, dbName, org, admin)
+	runID, opID := localUnknownOperation(t, dbName, org, admin)
+	degradationServerFacts(t, dbName, org, runID)
 
 	// A retry with the same signature is the ordinary at-least-once delivery and
 	// returns the conclusion already issued.
@@ -392,9 +433,9 @@ func TestR0bReconciliationsReadFaceIsTheJ38Query(t *testing.T) {
 		  state, step_key)
 		VALUES ('%s', '%s', '%s', 'tool:9#0', 'tool', repeat('e', 64), 'unknown', 'tool:9')`,
 		opExhausted, org, runID))
+	degradationServerFacts(t, dbName, org, runID)
 	issueResolution(t, admin, org, opExhausted, "failed", "evidence_exhausted", "TICKET-55",
-		map[string]any{"device_unreachable": "true", "lease_or_revocation_checked": "true",
-			"seal_checked": "true", "egress_receipt": "checked, none"})
+		map[string]any{"egress_receipt": "checked, none"})
 
 	// opSettled: settled by real evidence, so it must not appear as somebody's wait.
 	opSettled := newUUID(t)
@@ -490,8 +531,12 @@ func TestR0bReconciliationsReadFaceIsTheJ38Query(t *testing.T) {
 				view.Items[exhausted].EvidenceSources)
 		}
 	}
-	if len(view.Items[exhausted].EvidenceSources) != 4 {
-		t.Fatalf("evidence sources = %#v, want the four the verdict was signed against",
+	// 0042 (O-10 = jia): three of the four keys this verdict used to be signed against
+	// (device_unreachable, lease_or_revocation_checked, seal_checked) are now server
+	// table reads or deleted outright, so they are no longer caller evidence. What is
+	// left is the one note the operator actually supplied.
+	if len(view.Items[exhausted].EvidenceSources) != 1 {
+		t.Fatalf("evidence sources = %#v, want the one note the verdict was signed against",
 			view.Items[exhausted].EvidenceSources)
 	}
 	// Both degradations are signed only when no server fact exists, so a signed verdict

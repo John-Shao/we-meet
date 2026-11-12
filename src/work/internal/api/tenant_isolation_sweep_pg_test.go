@@ -181,10 +181,13 @@ func TestTenantTablesAreEmptyToEveryLoginWhenTheOrgGUCIsUnset(t *testing.T) {
 	// it covers. The owning connection cannot stand in for them either: testpg.AdminURLFor is the
 	// maintenance superuser (WORK_TEST_PG_URL with only the database swapped), and a superuser is
 	// never stopped by a row policy, so a zero read from it would prove nothing either way.
+	// 0042 adds four more on the same rule (local_action, device_dispatch, device_receipt,
+	// device_run_finish), so the named set is thirty-three.
 	wantUncovered := "access_restriction,audit_export,cancellation_intent,consumed_governance_command," +
-		"content_reference,device,device_checkpoint,device_pairing,device_run_binding,device_session," +
-		"device_session_ticket,directory_sync_state,execution_entitlement,execution_lease," +
-		"governance_change,governance_event_cursor,governance_gap_report,local_execution_policy," +
+		"content_reference,device,device_checkpoint,device_dispatch,device_pairing,device_receipt," +
+		"device_run_binding,device_run_finish,device_session,device_session_ticket,directory_sync_state," +
+		"execution_entitlement,execution_lease,governance_change,governance_event_cursor," +
+		"governance_gap_report,local_action,local_execution_policy," +
 		"operation_resolution,operation_usage_fact,provider_access_config,provider_credential," +
 		"provider_probe_grant,readonly_approval_grant,runtime_capability,runtime_checkpoint_head," +
 		"usage_daily,workspace_grant,workspace_grant_succession"

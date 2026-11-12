@@ -54,6 +54,7 @@ var publishedIncrements = []string{
 	"0039_mass_absence_epoch_dedup",
 	"0040_device_identity_and_workspace_grants",
 	"0041_local_run_orchestration",
+	"0042_local_actions_receipts_finish",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

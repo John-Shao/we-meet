@@ -596,6 +596,14 @@
     "version_not_found": "version_not_found",
     "work_seat_required": "work_seat_required",
     "workspace_grant_content_immutable": "invalid_request",
-    "workspace_identity_changed": "service_degraded"
+    "workspace_identity_changed": "service_degraded",
+    "approval_nonce_reused": "service_degraded",
+    "destination_not_allowed_for_local_only": "service_degraded",
+    "device_dispatch_content_immutable": "invalid_request",
+    "permit_expired": "service_degraded",
+    "quota_reservation_not_held": "service_degraded",
+    "stale_fence": "service_degraded",
+    "supersede_limit_exceeded": "service_degraded",
+    "supersede_not_allowed": "service_degraded"
   }
 }

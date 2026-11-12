@@ -157,11 +157,14 @@ func TestCrossOrgWritesAreRefusedOnEveryTenantTable(t *testing.T) {
 	// them and that limit is named rather than smoothed over. 0040 added nine device-side tables to
 	// this set deliberately - like 0024's provider_probe_grant they grant no table privilege at all,
 	// so every effect goes through a SECURITY DEFINER command and a direct cross-org UPDATE is
-	// refused by privilege before row security is even consulted.
+	// refused by privilege before row security is even consulted. 0042 adds four more on the
+	// same rule (local_action, device_dispatch, device_receipt, device_run_finish), so the
+	// named set is thirty-three.
 	wantUnattempted := "access_restriction,audit_export,cancellation_intent,consumed_governance_command," +
-		"content_reference,device,device_checkpoint,device_pairing,device_run_binding,device_session," +
-		"device_session_ticket,directory_sync_state,execution_entitlement,execution_lease," +
-		"governance_change,governance_event_cursor,governance_gap_report,local_execution_policy," +
+		"content_reference,device,device_checkpoint,device_dispatch,device_pairing,device_receipt," +
+		"device_run_binding,device_run_finish,device_session,device_session_ticket,directory_sync_state," +
+		"execution_entitlement,execution_lease,governance_change,governance_event_cursor," +
+		"governance_gap_report,local_action,local_execution_policy," +
 		"operation_resolution,operation_usage_fact,provider_access_config,provider_credential," +
 		"provider_probe_grant,readonly_approval_grant,runtime_capability,runtime_checkpoint_head," +
 		"usage_daily,workspace_grant,workspace_grant_succession"

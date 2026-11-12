@@ -76,7 +76,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (38, '0038_revert_epoch_deduplication_overloads'),
   (39, '0039_mass_absence_epoch_dedup'),
   (40, '0040_device_identity_and_workspace_grants'),
-  (41, '0041_local_run_orchestration')) expected(version, name)
+  (41, '0041_local_run_orchestration'),
+  (42, '0042_local_actions_receipts_finish')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -587,6 +588,100 @@ psql_ro "select 'lease_purpose_is_enforceable=' || case when (
   then 'true' else 'FALSE' end"
 psql_ro "select 'work_api_cannot_select_checkpoint=' || case when has_table_privilege(
   'work_api', 'work.device_checkpoint'::regclass, 'SELECT') then 'FALSE' else 'true' end"
+
+echo
+echo "== 0042 local_actions_receipts_finish =="
+# A ledger row for 0042 only proves the file ran. These probes read the live catalog for
+# the facts the increment exists to create: the per-action carrier both predicates read,
+# the two single-use keys that replace a permit table, the partial indexes that make
+# "one final receipt" and "one accepted finish" database facts, the six-value supersede
+# closed set, the nonce single-use index, and the two things a restatement can silently
+# lose - the table reads that replaced the attestations, and the definer identity (#87).
+psql_ro "select 'action_ledger_tables_present=' || case when (
+  select count(*) from (values ('work.local_action'), ('work.device_dispatch'),
+    ('work.device_receipt'), ('work.device_run_finish')) t(n)
+  where to_regclass(t.n) is not null) = 4 then 'true' else 'FALSE' end"
+psql_ro "select 'local_action_kind_closed=' || case when (
+  select count(*) from pg_constraint
+  where conname = 'local_action_kind_check' and contype = 'c') = 1
+  then 'true' else 'FALSE' end"
+psql_ro "select 'dispatch_permit_single_use=' || case when (
+  select count(*) from pg_constraint
+  where conname in ('device_dispatch_command_unique', 'device_dispatch_jti_unique')
+    and contype = 'u') = 2 then 'true' else 'FALSE' end"
+psql_ro "select 'dispatch_unresolved_index_is_partial=' || case when (
+  select count(*) from pg_index i join pg_class c on c.oid = i.indexrelid
+  where c.relname = 'work_device_dispatch_unresolved'
+    and i.indpred is not null) = 1 then 'true' else 'FALSE' end"
+psql_ro "select 'dispatch_superseded_edge=' || case when (
+  select count(*) from work.state_transition
+  where entity = 'device_dispatch' and from_state = 'not_applicable'
+    and to_state = 'superseded') = 1 then 'true' else 'FALSE' end"
+psql_ro "select 'receipt_one_final_is_partial=' || case when (
+  select count(*) from pg_index i join pg_class c on c.oid = i.indexrelid
+  where c.relname = 'work_device_receipt_one_final'
+    and i.indisunique and i.indpred is not null) = 1 then 'true' else 'FALSE' end"
+psql_ro "select 'receipt_provenance_shape=' || case when (
+  select count(*) from pg_constraint
+  where conname = 'device_receipt_provenance_shape' and contype = 'c') = 1
+  then 'true' else 'FALSE' end"
+psql_ro "select 'finish_one_accepted_is_partial=' || case when (
+  select count(*) from pg_index i join pg_class c on c.oid = i.indexrelid
+  where c.relname = 'work_device_run_finish_one_accepted'
+    and i.indisunique and i.indpred is not null) = 1 then 'true' else 'FALSE' end"
+psql_ro "select 'finish_verdict_shape=' || case when (
+  select count(*) from pg_constraint
+  where conname = 'device_run_finish_verdict_shape' and contype = 'c') = 1
+  then 'true' else 'FALSE' end"
+psql_ro "select 'supersede_reason_six_values=' || case when (
+  select count(*) from pg_constraint
+  where conname = 'operation_supersede_reason_check' and contype = 'c'
+    and pg_get_constraintdef(oid) like '%workspace_rebound%'
+    and pg_get_constraintdef(oid) like '%tool_params_changed%') = 1
+  then 'true' else 'FALSE' end"
+psql_ro "select 'action_commands_definer_and_pinned=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work'
+    and p.proname in ('prepare_local_operation', 'consume_device_permit',
+      'record_device_receipt', 'finish_local_run', 'finish_local_run_state',
+      'consume_device_ack', 'decide_local_approval', 'revoke_readonly_grant',
+      'list_readonly_grants')
+    and p.prosecdef
+    and p.proconfig @> array['search_path=work, pg_catalog']) = 9
+  then 'true' else 'FALSE' end"
+psql_ro "select 'approval_nonce_single_use=' || case when (
+  select count(*) from pg_index i join pg_class c on c.oid = i.indexrelid
+  where c.relname = 'work_approval_decision_nonce_once'
+    and i.indisunique and i.indpred is not null) = 1 then 'true' else 'FALSE' end"
+psql_ro "select 'operation_set_hash_formula_defined=' || case when
+  pg_get_functiondef('work.local_operation_set_hash(text,uuid)'::regprocedure)
+  like '%result_hash%' then 'true' else 'FALSE' end"
+# The restatement's two halves: the attestation keys became table reads, and seal_checked
+# is gone rather than replaced. A restatement that kept the old keys would still pass a
+# ledger check and still let an operator attest a fact the server can read itself.
+# Comments are stripped first: the body's own comment says "seal_checked is DELETED", and
+# a substring test over the whole definition would be fed by that sentence instead of by
+# the code that does the work.
+psql_ro "select 'resolution_reads_tables_not_attestations=' || case when (
+  with body as (
+    select regexp_replace(pg_get_functiondef(
+      'work.issue_operation_resolution(text,uuid,text,text,text,text,text,jsonb)'::regprocedure),
+      '--[^\n]*', '', 'g') as t)
+  select count(*) from body
+  where t like '%execution_lease%' and t like '%device_session%'
+    and t not like '%seal_checked%' and t like '%journal_unavailable%') = 1
+  then 'true' else 'FALSE' end"
+psql_ro "select 'resolution_kept_definer_after_replace=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work' and p.proname = 'issue_operation_resolution'
+    and p.prosecdef
+    and p.proconfig @> array['search_path=work, pg_catalog']) = 1
+  then 'true' else 'FALSE' end"
+psql_ro "select 'work_api_cannot_select_action_tables=' || case when (
+  select count(*) from (values ('work.local_action'), ('work.device_dispatch'),
+    ('work.device_receipt'), ('work.device_run_finish')) t(n)
+  where has_table_privilege('work_api', t.n::regclass, 'SELECT')) = 0
+  then 'true' else 'FALSE' end"
 
 echo
 if [[ "$FAILURES" -ne 0 ]]; then
