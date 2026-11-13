@@ -319,11 +319,11 @@ go test ./... -parallel 4
 
 ## 相关文档
 
-- [I1/I2 验证状态报告](_archive/r0b-i1-i2-verification-status-2026-11-10.md)
-- [EV 测试执行计划](_archive/r0b-ev-test-execution-plan-2026-11-10.md)
-- [R0b 阶段完成度评估](_archive/r0b-phase-completion-assessment-2026-11-10.md)
-- [EV 测试实现进度报告](_archive/r0b-ev-implementation-progress-2026-11-10.md)
-- [R0b 阶段完成状态最终报告](_archive/r0b-final-status-report-2026-11-10.md)
+- [I1/I2 验证状态报告](r0b-i1-i2-verification-status-2026-11-10.md)
+- [EV 测试执行计划](r0b-ev-test-execution-plan-2026-11-10.md)
+- [R0b 阶段完成度评估](r0b-phase-completion-assessment-2026-11-10.md)
+- [EV 测试实现进度报告](r0b-ev-implementation-progress-2026-11-10.md)
+- [R0b 阶段完成状态最终报告](r0b-final-status-report-2026-11-10.md)
 
 ## 联系与支持
 

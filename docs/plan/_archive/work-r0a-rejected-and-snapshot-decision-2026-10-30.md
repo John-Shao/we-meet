@@ -91,7 +91,7 @@ John 判定（2026-10-30）：**选 (a)**，Lily 已复核该判定。落地方�
 
 ## 增量 C：unknown/unresolved 的已绑拒绝回执恢复（已签收，2026-10-31）
 
-本节不沿用 A1/B1/(a) 的签收，单独签收以下新增语义；John 于 2026-10-31 主签、Lily 经 John 转述复核，并授权部署 0016。部署验收证据以 [项目状态源](work-project.md) 为准，本节不复制运行状态。
+本节不沿用 A1/B1/(a) 的签收，单独签收以下新增语义；John 于 2026-10-31 主签、Lily 经 John 转述复核，并授权部署 0016。部署验收证据以 [项目状态源](../work-project.md) 为准，本节不复制运行状态。
 
 **已签收的实现**
 
@@ -105,7 +105,7 @@ John 判定（2026-10-30）：**选 (a)**，Lily 已复核该判定。落地方�
 **验收证据入口**
 
 - `internal/finishing/finishing_test.go`：`TestRejectedReceiptReconcilesWithoutUsage`、`TestReconcileRejectionRejectsInvalidEvidence`、`TestRejectedReceiptValidatesSnapshotBindingBeforeReconcile`、`TestReconcileRejectionPreservesUsageAndChecksReplayEvidence`、`TestConcurrentRejectedReceiptReconcilesOnce`、`TestReconcileRejectionDoesNotReverseSettlement`、`TestReconcileRejectionRetainsDefinerAndMinimalPrivileges`。
-- `internal/runflow/advance_pg_test.go`：`TestAdvanceFinishReconcilesWaitingProviderRejectionAndReplays`；`advance_test.go`：`TestRunWorkflowAdvanceWaitingResume`。全量执行状态与命令只记在 [项目状态源](work-project.md)。
+- `internal/runflow/advance_pg_test.go`：`TestAdvanceFinishReconcilesWaitingProviderRejectionAndReplays`；`advance_test.go`：`TestRunWorkflowAdvanceWaitingResume`。全量执行状态与命令只记在 [项目状态源](../work-project.md)。
 
 **边界**：只能恢复已经 attach 的终态拒绝回执；attach 仍未完成、consumed 无回执、无闸门的遗留操作均不由本增量清账。取消不借用拒绝收尾。真实 Temporal Server history replay 不在增量 C 的验收范围；环境部署与只读负例证据回写到项目状态源，部署成功不等于 Lily 对运行结果的复核。
 

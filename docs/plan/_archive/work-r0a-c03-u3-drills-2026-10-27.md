@@ -3,7 +3,7 @@
 > 状态：**U3 已答复（全部"是"），C03 待演练**。2026-10-27 平台/SRE 确认九项、资源已批、演练由开发与测试团队 5 人执行；**11-06 环境/档期已确认（五席与 SRE/DBA 角色占位，真名 11-06 补）**；**同日决定不提前签 C03**（缺的是实测，不是签字动作）；C03 仍按 DR2 **2026-11-17** 签，前置只剩四项演练与崩溃/开关用例。
 >
 > 当前证据：D3 设计 + 故障矩阵 18 例；Temporal dev 切片 10/10（F01/F02/F04/F07/F21/F23 + D3-R06–R09）；D3-N02/N04/N05 只做了数据库侧交错。**2026-11-02 补上的可执行用例**：D3-N01 做成真实的进程被杀（真 `content_shred` 事件 + 真 Content Store，含"每笔删除都失败"的另一半）；D3-N06 的拒绝侧由 0026 与端点层测试钉住、义务侧由 `internal/relay/suspended_obligations_test.go` 钉住。**仍未执行**：D3-N03 的 `duplicate_objects` 需真实对象存储、停用期间的投影同步连续性只有 `internal/directory` 的库侧证据、S1 多节点/在途 server 重启，以及 11-15/16 演练本体（需 SRE 在场并按真实运维入口操作开关）。
-> 相关：[U3 决策征询单](_archive/work-r0a-temporal-hosting-decision-request-2026-10-26.md)、[D3 设计](work-r0a-orchestration-design-2026-10-25.md)、[故障矩阵](assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)、[C03 签收行](_archive/work-r0a-dr0-dr1-signoff-2026-10-26.md)。
+> 相关：[U3 决策征询单](work-r0a-temporal-hosting-decision-request-2026-10-26.md)、[D3 设计](../work-r0a-orchestration-design-2026-10-25.md)、[故障矩阵](../assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)、[C03 签收行](work-r0a-dr0-dr1-signoff-2026-10-26.md)。
 
 ## 1. U3 九项承诺（平台/SRE 已答复 2026-10-27，全部"是"）
 
@@ -113,4 +113,4 @@ D3-N02/N04/N05 的数据库侧交错已实测，可保留；**不能把数据库
 | 后端（记录） | | | | |
 | 安全（C03 签收） | | | | |
 
-签收后回写 [U3 单](_archive/work-r0a-temporal-hosting-decision-request-2026-10-26.md) §9、[D3 §4.1](work-r0a-orchestration-design-2026-10-25.md) 与 [work-project](work-project.md)。
+签收后回写 [U3 单](work-r0a-temporal-hosting-decision-request-2026-10-26.md) §9、[D3 §4.1](../work-r0a-orchestration-design-2026-10-25.md) 与 [work-project](../work-project.md)。

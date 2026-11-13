@@ -2,7 +2,7 @@
 
 > 日期：2026-11-11
 >
-> 基线：[R0b 设备面重量决策征询单](work-r0b-device-plane-weight-decision-2026-11-10.md)（卡片 E=B 已裁，7 日复评窗 2026-11-17）＋ [R0b B03 对账载体设计](work-r0b-b03-reconciliation-carrier-2026-11-10.md)（四点按推荐已采纳）＋ [R0b 阶段收尾报告 §4.2](r0b-phase-closure-report-2026-11-10.md)（"中期：R0b 设备侧功能 B01-B03/B05-B08/B10"）。
+> 基线：[R0b 设备面重量决策征询单](work-r0b-device-plane-weight-decision-2026-11-10.md)（卡片 E=B 已裁，7 日复评窗 2026-11-17）＋ [R0b B03 对账载体设计](work-r0b-b03-reconciliation-carrier-2026-11-10.md)（四点按推荐已采纳）＋ [R0b 阶段收尾报告 §4.2](_archive/r0b-phase-closure-report-2026-11-10.md)（"中期：R0b 设备侧功能 B01-B03/B05-B08/B10"）。
 >
 > **完成度与阻塞项以 [work-project.md](work-project.md) 为唯一状态源**，本文只写"分期与集成点"，不重复数字、不写工时与排期。
 

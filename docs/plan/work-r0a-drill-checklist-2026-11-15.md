@@ -6,7 +6,7 @@
 > **RB-05 边界**：本轮只验数据层与基础设施（PG、Temporal、Content Store、角色/密钥、配额、开关）；经 API/编排/Runtime 的端到端项移出本轮。
 >
 > 关联控制：C03 (start, blocking) / C22 (pilot, blocking) / C13 (pilot, blocking) / C28 (pilot, blocking)。  
-> 关联文档：[D3 设计](work-r0a-orchestration-design-2026-10-25.md)、[运维 Runbook](work-operations-runbook-2026-10-25.md)、[U3 原清单](work-r0a-c03-u3-drills-2026-10-27.md)、[C03 签收条件](_archive/work-r0a-start-gate-disposition-2026-10-27.md) §C03。
+> 关联文档：[D3 设计](work-r0a-orchestration-design-2026-10-25.md)、[运维 Runbook](work-operations-runbook-2026-10-25.md)、[U3 原清单](_archive/work-r0a-c03-u3-drills-2026-10-27.md)、[C03 签收条件](_archive/work-r0a-start-gate-disposition-2026-10-27.md) §C03。
 
 ## 0. 前置条件（11-06 环境预检通过 + 11-10 彩排）
 

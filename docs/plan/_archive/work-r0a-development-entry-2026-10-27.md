@@ -53,7 +53,7 @@
 | [work-project](../work-project.md) §4.1/§6 | R0a 产品代码从“未开始”改“有条件启动”；E1 进行中；闸门计数不变 | 2026-10-27 |
 | [就绪包](work-r0a-implementation-readiness-2026-10-26.md) §6.3/§7 | “能否开工=否”保留，加“产品例外：E1–E3 已启动，剩余转遗留” | 2026-10-27 |
 | `pilot-checklist.json` | 本轮已改：C11 → done（映射口径），`start` 4 项；C03/C04/C05/C25 仍 partial/todo，ops-model 测试同步断言 | 2026-10-27 |
-| [C03 清单](../work-r0a-c03-u3-drills-2026-10-27.md)/[C11 单](work-r0a-c11-open-controls-decision-2026-10-27.md) | 保留各自关闭条件，标注“开发准入不替代本项” | 已有 |
+| [C03 清单](work-r0a-c03-u3-drills-2026-10-27.md)/[C11 单](work-r0a-c11-open-controls-decision-2026-10-27.md) | 保留各自关闭条件，标注“开发准入不替代本项” | 已有 |
 
 ## 5. 本决定不解决
 
