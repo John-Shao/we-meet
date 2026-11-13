@@ -195,6 +195,26 @@ func TestAdoptExistingDatabase(t *testing.T) {
 		  WHERE version_id IS NULL OR location <> 'cloud' OR content_ref IS NULL`); got != 0 {
 		t.Fatalf("cloud versions with a broken v2 identity or location = %d", got)
 	}
+	// Status names the catalog checkpoint it verified against, so `work-migrate status` alone
+	// tells an operator which chain the installed binary carries. The JSON field existed for
+	// months with nothing assigning it, which is why the reading is pinned against the same
+	// manifest lookup the verifier used rather than against a constant.
+	managed, err := runner.Status(testContext(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if managed.State != "up_to_date" {
+		t.Fatalf("status after adopt+apply = %q", managed.State)
+	}
+	versions := stampedVersions(t)
+	_, want, err := runner.manifest.CatalogForVersion(versions[len(versions)-1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if managed.CatalogSHA256 != want {
+		t.Fatalf("catalog_sha256 = %q, manifest pins %q for version %d",
+			managed.CatalogSHA256, want, versions[len(versions)-1])
+	}
 }
 
 func seedRepresentativeData(t *testing.T, dbName string) {

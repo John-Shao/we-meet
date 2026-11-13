@@ -1,0 +1,29 @@
+[Unit]
+Description=Work migration chain-tail gate (blocks a work-api that would serve a stale chain)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# root, and its own sandbox, for one reason: the only identity that can read work.schema_migration
+# and SET ROLE work_owner is the migration login, and its DSN is assembled from
+# /root/work-secrets.env by scripts/ecs-migrate.sh. work_api holds no SELECT on the ledger by
+# ruling (卡片 V 乙 rejected: 权限面不为便利扩), and work-api.service keeps ProtectHome=true and
+# NoNewPrivileges=true, so this check cannot be an ExecStartPre inside that unit - /root is masked
+# there and sudo's setuid transition is stripped. Those two controls are the point of the app
+# unit's sandbox, so the gate moves out instead of the sandbox coming down.
+# Same shape as work-c16-log-scan.service (root, ProtectHome=read-only, reads the secrets file),
+# which is installed and enabled on the pilot host.
+User=root
+Group=root
+# The wrapper is the single implementation of "turn /root/work-secrets.env into a migrator DSN";
+# re-deriving it here would be the second set 卡片 V rules against. Its own binary default is a
+# developer's home copy (#98=B), so the boot path names the installed one.
+Environment=WORK_MIGRATE_BIN=/usr/local/bin/work-migrate
+ExecStart=/usr/local/bin/ecs-migrate.sh status -require-up-to-date
+TimeoutStartSec=2min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+# read-only, not true: true masks /root, and that is where the secrets file the wrapper reads is.
+ProtectHome=read-only

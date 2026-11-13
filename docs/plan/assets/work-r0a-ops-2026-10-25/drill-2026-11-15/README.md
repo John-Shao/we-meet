@@ -188,6 +188,7 @@
   checklist 计数不因这两格改动（现算 `pilot-checklist.json`：done 16／partial 11／waived 4／todo 2 共 33；
   "blocking 13"＝`blocking===true` 且 status 不在 done/waived 的那 13 项，其中 gate=start 未关的 3 项）。
   **【2026-11-09 夜 现算更正，原文保留】上面那句"done 16／partial 11／waived 4／todo 2 共 33；blocking 13"是 11-05 追加时的快照，已过期。数字一律由 `ops-model.mjs:goNoGo(checklist)` 现读，不要手抄。现读：共 33 项，done 27／partial 2／waived 4／todo 0；`blockerCount=2`（start 0／pilot 2＝C27＋C30／scale 0）、`canStartWork=true`、`go=false`。取数法见 `../README.md` 同段那条命令（本目录的上一级跑）。**C03／C22 仍 partial 的结论不变**——多节点／drain／镜像／P7 那半没动；变的只是别的格自 11-05 后陆续关闭（C04／C09／C13 技术面三裁、C24 D5 端到端删除、C25 UT1–UT5 用研、C26 §7 M2＋`pilot-metrics.sql` 现读、C28 §7 M2 端到端 cutover 计时）。
+  **【2026-11-13 批次 C 更正，原文保留】上面那句的取数法（`goNoGo(checklist)`，含 `../README.md` 同段那条命令）已不可执行——`goNoGo()` 现在要求第二份资产 `slo-pilot.json`，只传 checklist 抛错退出 1；新命令见 `../README.md` 同日那段。读数也变：三档桶 `start/pilot/scale` 现为 0/0/0（C27／C30 已在 11-09 续二翻 done），`go=false` 仍成立但红的那一格换成了 `C17 / reason=slo_not_measured`（12 条 SLO 指标全 `not_measured`）。对本清单的含义：演练本身不会让闸门回绿，能让它回绿的是演练产出真指标读数并落进 `slo-pilot.json` 的 `status` ＋ `evidence`。**
 
 ## 回写映射（照清单最后一张表；每完成一行勾一项）
 

@@ -17,6 +17,13 @@ set -euo pipefail
 #   sudo WORK_MIGRATE_BIN=/usr/local/bin/work-migrate bash ecs-migrate.sh status
 # The binary already fails closed on its own with ledger_version_unknown; the precheck turns that
 # into a refusal naming both paths, instead of a JSON code an operator has to interpret.
+#
+# 【2026-11-13 更正（卡片 W 打包段／卡片 V 启动核对）】上面那句"不在发布包里、rollout／CI 都不调用它"
+# 已经过期，两句都要按现在的交付链读：make-release.sh 现按名把它入包（批次 B2），rollout 第 7 步把它
+# 装到 /usr/local/bin/ecs-migrate.sh，而 work-chain-check.service 以 root 调它做 work-api 的启动闸
+# （`status -require-up-to-date`）。这三处谁掉了都由 release-payload-closure.test.mjs 与
+# work-api-boot-gate.test.mjs 逐名钉红，所以这句自述不会只靠人记得改。#98=B 的默认二进制陷阱因此只
+# 作用在手工调用这一条路径上：unit 用 Environment=WORK_MIGRATE_BIN 显式点名已装好的那一份。
 
 if [[ ${EUID} -ne 0 ]]; then
   echo "run with sudo: sudo bash $0 $*" >&2

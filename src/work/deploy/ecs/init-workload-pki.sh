@@ -9,7 +9,21 @@ set -euo pipefail
 DIR=/etc/work/runtime-ca
 OWNER=root
 GROUP=work-control
-DAYS=825
+# The defaults are the lifetimes the running host was minted with; a run with no environment set
+# must keep producing exactly those. The knobs exist so rotation can be exercised, not to make a
+# production lifetime change a flag flip.
+LEAF_DAYS="${WORK_RUNTIME_LEAF_DAYS:-825}"
+CA_DAYS="${WORK_RUNTIME_CA_DAYS:-3650}"
+
+is_days() { [[ "$1" =~ ^[1-9][0-9]*$ ]]; }
+if ! is_days "$LEAF_DAYS" || ! is_days "$CA_DAYS"; then
+  echo "WORK_RUNTIME_LEAF_DAYS and WORK_RUNTIME_CA_DAYS must be positive whole days" >&2
+  exit 1
+fi
+if (( LEAF_DAYS > CA_DAYS )); then
+  echo "leaf lifetime ${LEAF_DAYS}d exceeds CA lifetime ${CA_DAYS}d: the chain would not validate" >&2
+  exit 1
+fi
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "run as root" >&2
@@ -27,7 +41,7 @@ chmod 750 "$DIR"
 
 if [[ ! -f "$DIR/ca.key" ]]; then
   openssl ecparam -genkey -name prime256v1 -out "$DIR/ca.key"
-  openssl req -x509 -new -key "$DIR/ca.key" -sha256 -days 3650 \
+  openssl req -x509 -new -key "$DIR/ca.key" -sha256 -days "$CA_DAYS" \
     -subj "/CN=work-runtime-ca" \
     -addext "basicConstraints=critical,CA:TRUE" \
     -addext "keyUsage=critical,keyCertSign,cRLSign" \
@@ -52,7 +66,7 @@ issue() {
     printf 'basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=clientAuth\n' >"$ext"
   fi
   openssl x509 -req -in "$DIR/$name.csr" -CA "$DIR/ca.crt" -CAkey "$DIR/ca.key" \
-    -CAcreateserial -days "$DAYS" -sha256 -extfile "$ext" -out "$DIR/$name.crt"
+    -CAcreateserial -days "$LEAF_DAYS" -sha256 -extfile "$ext" -out "$DIR/$name.crt"
   rm -f "$ext" "$DIR/$name.csr"
   chmod 600 "$DIR/$name.key"
   chmod 644 "$DIR/$name.crt"
@@ -88,5 +102,6 @@ chmod 640 "$DIR/workloads.json"
 
 echo
 echo "workload registry: $DIR/workloads.json"
+echo "configured lifetimes: leaf ${LEAF_DAYS}d, ca ${CA_DAYS}d (existing certificates are kept, not renewed)"
 echo "parent fingerprint: $(fingerprint work-parent)"
 echo "egress fingerprint:  $(fingerprint work-egress-client)"

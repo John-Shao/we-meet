@@ -78,6 +78,7 @@ func runStatus(ctx context.Context, args []string, stdout io.Writer) error {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	flags := addCommonFlags(fs)
+	requireUpToDate := fs.Bool("require-up-to-date", false, "exit non-zero unless this database already holds every increment the binary carries")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -95,7 +96,19 @@ func runStatus(ctx context.Context, args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return writeJSON(stdout, result)
+	if err := writeJSON(stdout, result); err != nil {
+		return err
+	}
+	if !*requireUpToDate || result.State == "up_to_date" {
+		return nil
+	}
+	// The status JSON is written before the refusal so the journal carries the ledger reading,
+	// not only the verdict. *migrate.Error is the type main.go maps to a non-zero exit.
+	return &migrate.Error{
+		Code: "ledger_pending_increments",
+		Message: fmt.Sprintf("status -require-up-to-date: ledger state %q, the chain this binary carries is ahead of this database by %d increment(s): %v",
+			result.State, len(result.Pending), result.Pending),
+	}
 }
 
 func runApply(ctx context.Context, args []string, stdout io.Writer) error {

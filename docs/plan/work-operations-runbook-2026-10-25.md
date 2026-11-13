@@ -37,6 +37,12 @@
 - 回滚镜像与 workflow 版本，不删除新 schema 字段；保持 expand/contract 的兼容窗口。
 - 已由新版本写入的 checkpoint 若旧 runtime 不兼容，必须保持暂停并恢复到兼容版本，不能忽略 schemaVersion；H10 已验证 1.3.0↔1.4.0 的基础恢复，镜像回退未验证。
 - 回滚后重放 outbox/对账，不重发已成功或 unknown 的 Operation。
+- **【2026-11-13 同日补句，原文不删】回滚多了一个要照顾的门**：卡片 V（#117）裁定＝甲之后，仓库里的 `work-api.service`
+  已 `Requires=work-chain-check.service`，而链 embed 在 `work-migrate` 二进制里 —— 于是"回滚镜像／回滚二进制"与"回滚账本"
+  这两件事的组合里，有一种会被启动路径拒绝：**二进制比账本旧**（`ledger_version_unknown`）本来就会拒绝，
+  **账本比二进制新**（`ledger_pending_increments`）自此也会。这是甲被接受时写明的代价（账本落后时 CrashLoop），
+  不是回归。窗口、日志指纹与恢复步骤见 §5.34；**该节今日本轮尚未部署到现网**（半径＝仓库内），
+  现网 `/etc/systemd/system/work-api.service` 仍是 Oct-29 那份 416 字节、没有这条 `Requires=` 的文件。
 
 ## 3. 区域灾备 Runbook
 
@@ -419,6 +425,17 @@ mTLS 透传；同命名空间 agent 被攻破仍可伪造 `Ssl-Client-Cert`。
 - 备份：`work-content-backup.timer` 每 6 小时打包、age 加密上传 OSS `we-work-backup/content/`，
   状态 `/var/lib/work/content-backup.json`，30 天清理；恢复需本地 age 私钥。
 - 首个备份是空内容目录的恢复烟雾，不是正文恢复证据；接入真实任务后必须重做下载/解密/目录恢复。
+- **【2026-11-13 同日标注，上面那句承诺逐字未改】上一条的"每 6 小时"仍然成立，但它的仓库出处已经没了**：卡片 W（#118）
+  的主签单选把 `work-content-backup.py`／`.service`／`.timer` 三件从 `src/work/deploy/ecs/` 删除，同时按同一裁定更正了
+  `make-release.sh` 的闭包与两处名单（同批执行，先改名单后删文件）。**主机侧本次一行未动**：timer 仍 enabled、
+  执行体仍是手工放的 `/opt/meet-db-backup/work-content-backup.py`（2840 字节、Oct 29、root 所有，与仓库那份剥 CR 后同哈希），
+  2026-11-13 18:46:54 CST 那轮仍成功上传。⇒ 从今天起，这条清扫与上传链**无版本来源**，改它没有 diff 可评审、
+  也没有回滚点，与 #54 那批手工承重件同形（方向相反：这次是仓库主动放弃出处）。这是裁定的后果，不是待修缺陷的记录。
+  取数法（全部主机只读）＝`sudo systemctl cat work-content-backup.timer` 看 `OnCalendar`、
+  `sudo systemctl list-timers work-content-backup.timer` 看下次与上次结果、
+  `sudo sha256sum /opt/meet-db-backup/work-content-backup.py`；仓库侧读数（打包闭包里的名字与安装出处）由
+  `docs/plan/assets/work-r0a-design-2026-10-25/test/release-payload-closure.test.mjs` 自己打印，
+  它并把这三件登记为"主机自管、仓库无载体"，谁把它们放回 `deploy/ecs` 就必须回来改这条门。复评窗＝2026-11-20。
 
 ### 5.9 Work Task SSE（2026-10-29）
 
@@ -1509,6 +1526,8 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
 **【2026-11-07 主签裁定 F2 已执行，原文保留】**#88 按 **F2** 落地：不加新 gauge，而是把"两条读数一起看"变成机器断言。`run-retention-scan.sh` 现在每个 org 同一轮打印一行 `PAIR … content_objects=… content_orphans=… shred_stuck=…`，并写明各自含义（孤儿＝没人回收的空间，属 §5.30 人工决定；stuck＝没投出去的删除义务，属 §5.25）；`WORK_CONTENT_DIR` 未设置时打印 `PAIR … orphan_reading=0` 并明说"孤儿那一半本轮取不到，不得据此声称两条都看了"。**只报不删的纪律照旧**：这行不改退出码，退出码仍由 STUCK 那一支拥有——新门 `test/retention-pair.test.mjs` 用桩 psql＋真目录形状（sha256(org) 前 32 位、`<id>.enc`）跑发布件原文，三条判据：两个数在同一行、孤儿>0 单独出现时 rc 仍为 0、stuck>0 时 rc=2。变异四刀已验（删 PAIR 行⇒两条红；让孤儿改退出码⇒报告-only 那条红；还原后 sha 与基线逐字相同）。F1（加 `orphan_after_row_delete`）按裁定**不做**，重开条件＝第 2 家租户接入或该类行数超现读 2 笔一个数量级。
 
 **【2026-11-07 主签裁定 G3 已执行（#94），原文保留】**C16 的口径按 **G3** 写死：`content://work/<org>/<id>` 这类**引用 URI 是定位符，不是用户内容**，`content.field` 规则加前置否定把它排除；同一批字段（`prompt=`／`messages=`／`artifact_content=`／`content="…"`）带正文时**仍然 fail**，`log-scan.test.mjs` 现有 13 条用例（含这两方向）在 CI 的 log-scan 作业里强制。扫描集同时扩到演练证据目录：`work-r0a-gates.yml` 的那条 run 现在多带 `../work-r0a-ops-2026-10-25`，本地镜像实跑 **40 文件／3193 行、fail=0 warn=0**（此前只有 7 文件／60 行，那 8 处 `content.field` 全部消失且无新发现）。新门 `test/c16-scan-scope.test.mjs` 钉住扫描集不许再静默缩小（每个 target 还要在盘上真实存在）。**同时登记一条本轮发现的规则局限，不自行放宽或收紧**：该规则匹配的是"12 个以上非空白字符"，所以**带空格的散文正文它抓不到**（我第一版用例就是拿散文写的，红在自己的假设上）。要不要让它覆盖散文属改一条安全控制的强度，需另行裁定；本轮只把局限写在这里，不动规则。
+
+**【2026-11-13 同日更正，原文不删】**本段的"现有 13 条用例"与"40 文件／3193 行"是 2026-11-07 的读数。今日现读＝**14 条**、`scanned 43 files/3435 lines; fail=0 warn=0`、`log-scan: clean`。两数一律由被验物自己打印，别抄本段：`cd docs/plan/assets/work-r0a-hardening-2026-10-25` 后跑 `node --test log-scan.test.mjs` 与 CI `work-r0a-gates.yml:300` 那条 run 的四个实参，**各看它自己的退出码**（`$?` 紧跟命令，不要接管道）。文件数从 40 涨到 43 是演练证据目录在长、不是扫描集在漂——这个区分只有现读拿得到。同日另补一条具名用例，钉的是前置否定 `(?!\/\/|content:\/\/)` 的**第二半**：只删 `content:\/\/` 而保留 `//` 那半时，在案证据集仍报 clean 且旧 13 条全绿，所以那一半此前从未被任何材料覆盖（台账与 runbook 曾把这种状态记成"13 条含两方向"，那说法对第一半成立、对第二半不成立）。规则本体未动（`log-scan.mjs` sha 前后同值 `e9df39a8e41b…`，与 11-07 构建档一致），散文盲区那条局限与本段的裁定文字均不变。
    **【11-06 20:2x 本前置这次走的是第①档，没被触发】**执行前逐 org 现读 `work-reconcile -scan -org <id>`
    （以 unit 的形状：`runuser -u work-control -m` ＋ `/etc/work/work-worker.env`），得 **Running=0 条**【11-06 22:2x 这条命令形状要更正，原句不删：`runuser -u work-control -m` 与 `-c` 同时用会报 `options --{shell,fast,command,session-command,login} and --user are mutually exclusive`；今天可执行的形状是 `runuser -u work-control -- bash -c 'set -a; . /etc/work/work-worker.env; set +a; …'`——unit 的 `EnvironmentFile` 已经把该带的东西带上了，不需要 `-m`】——
    唯一在途那笔 `e24eb42c…` 是 `workflow_status=Failed`，历史已闭合、永不重放 ⇒ 记"无对象可重放"，直接换二进制，**不需要导出能力**。
@@ -1529,6 +1548,7 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
    别把它当成"有 definer 就不用设上下文"的依据。
 
 ### 5.32 换 `work-worker` 之前先做一次历史重放（#81＝B2 带来的新前置，2026-11-06 15:5x 现读代码得出，**未部署**）
+<!-- knob-check: §5.32 -->
 
 **为什么多这一步**：#81 把 advance 的三处停放从 `awaitResumeOrCancel(cancelCh, resumeCh)` 改成
 先 `workflow.NewTimer(ctx, advanceReconcileWaitLimit)` 再走 `awaitQuotaOrSignal`——**这是命令序列的变化**，
@@ -1652,3 +1672,56 @@ sudo ./rollout-r0a-0027.sh --migrations-only <发布目录>       # 先 --dry-ru
 **不要提前宣布通过的两处**（22:10 后：① 已按读数收口，② 已发生且事先摆过）：① 0031 上线到 0034 装好这段窗口里导出通道是**全停**的，积压是否清空要按 §5.30 的队列读数复核，不是看 journal 安静就算——现读 `queued=0 running_stale=0 ready=9 total=151`，且 `updated_at > 22:10:05` 恰好 1 行，说明积压就是那一笔、已被消化；② 装上 0034 的**同一轮**，`work-export` 会按 #80 的设计自动领取那笔租约已过期的演练行
 `b9af0511…` 并真的跑一次导出——这正是 11-06 记在授权单里的 **I-3b 那一步的效果**（22:10:05 已发生：该行现读 `status=ready`、`content_ref=content://work/4a2d3f28-…/fb549f84110e91657dc9f69019ec8ccc?v=1`、租约字段清空），
 要么按 I-3b 单独点头，要么在装 0034 之前先把这一条代价摆给主签，**别把它写成"顺便修好的"**。
+
+
+### 5.34 链尾门：work-api 拒绝带着不合的链对外服务（卡片 V＝甲，2026-11-13 落地，**现网未部署**）
+<!-- knob-check: §5.34 -->
+
+**这节说的是哪一种故障**：`work-api` 起来了、也开始服务，但它连的数据库与它自己那一份迁移链不是同一个东西——
+人工重启、镜像回滚、换机 bring-up 都能造出这格，而 11-13 之前没有任何人拒绝它（外部复核 #3 指的就是这一格）。
+现在拒的是启动路径本身：`work-api.service` 用 `Requires=`／`After=` 拉一个 root 一次性单元
+`work-chain-check.service`，后者执行 `/usr/local/bin/ecs-migrate.sh status -require-up-to-date`。
+判据不是新造的，仍是 `work-migrate` 内部那套 manifest ↔ `work.schema_migration` 对账（`verifyCatalogAtVersion`）。
+**半径先说白**：本批只落仓库（unit、rollout 安装步骤、门与活库用例），现网那份 work-api unit 仍是 Oct-29 的 416 字节、
+没有这条 `Requires=`，本节描述的启动拒绝行为**在生产上尚未被观察过一次**；下面每条命令都是装好之后值班要跑的，不是本轮取证。
+
+**先看哪一个方向**——两种指纹不同，恢复动作也相反，别混：
+
+| 指纹 | journal 里的 code | 含义 | 恢复方向 |
+|---|---|---|---|
+| 账本**落后**于二进制 | `ledger_pending_increments` | 这份二进制带的链比库里已应用的多（回滚了二进制、或装完 unit 还没跑迁移） | 向前补链：按 §5.32 的档位跑 `work-migrate apply`，或走一次完整 rollout |
+| 二进制**落后**于账本 | `ledger_version_unknown` | 库里已有一个版本号，这份二进制的 manifest 根本不认识（装了旧包／镜像回滚过头） | 换回带那一号的二进制；**不要**为了启动去改账本 |
+
+**值班的三条读数（缺一条就会误判方向）**：
+
+```
+systemctl status work-chain-check.service                                   # 门自己的结论
+journalctl -u work-chain-check.service --since '-15 min' -o cat             # 拒绝原因在那条 code 上
+journalctl -u work-api.service --since '-15 min' | grep -c 'Dependency failed'  # work-api 是被谁挡住的
+```
+
+`work-api` 侧看不到链的细节，这是设计如此：它的沙箱（`ProtectHome=true`＋`NoNewPrivileges=true`）读不到迁移凭据，
+所以核对只能在 root 那个同伴单元里做，**权限面为此零扩展**（依据＝卡片 V 记的那格 `has_table_privilege('work_api',
+'work.schema_migration','select')`＝false，取数对象是按链重放出来的一次性库，**不是现网**；本批零 GRANT，
+现网那一格本轮未取读数。这条是"权限面不为便利扩"的既有条款，不是待修缺陷）。
+
+**门打印的原文**（`status` 先写读数、再返回拒绝，所以日志里两样都在，这点是刻意的）：这条策略的开关就叫
+`-require-up-to-date`（默认关：不带它时 `pending`／`empty` 都是 **exit 0 的可读状态**，rollout 第 4 步就靠打印它，
+门不是为了改这条语义；但读不到账本仍会非零退出，见下面那条不对称）。JSON 的 `state` 是
+`empty`／`pending`／`up_to_date` 之一，`pending` 数组逐名列出还差的版本号；取值法＝
+`sudo WORK_MIGRATE_BIN=/usr/local/bin/work-migrate bash /usr/local/bin/ecs-migrate.sh status -require-up-to-date`。
+**两个方向不对称，别当成排版**：`pending`／`empty` 那两臂 stdout 有这份 JSON；而 `ledger_version_unknown` 臂
+**stdout 为空**——它是在读账本的过程中失败的，根本没有读数可打印，拒绝只在 stderr 那一行。这就是包装件必须
+`2>&1` 合并两条流再判的原因（`ecs-migrate.sh` 的 precheck 已这么做，别"整理"成只看 stdout）。
+
+**每次启动都核对吗**：门单元**故意没有 `[Install]`**，所以它不会开机自启成一个独立服务，只被 `work-api` 拉起来；
+`Type=oneshot` 且未设 `RemainAfterExit` ⇒ 跑完即回 inactive，下一次 start 会重跑。⇒ 这句"每次重启都重跑"
+是按 unit 形状推的，**复评窗（2026-11-20）要在现网以 `journalctl -u work-chain-check` 的条数为准**，不是以本节为准。
+
+**CrashLoop 是目的不是事故，但它会吃掉重启预算**：账本落后时 `work-api` 起不来、`Restart=always` 每 5 秒重试一次，
+现象是"服务在循环、8080 不通"。**先读门的 code 再决定往哪边动**，两边方向相反，猜错就是把账本往前推或者把包往回换。
+需要临时把服务拉起来排障，只能由主签当场点名授权（本批未取、也未假设任何这类授权）；在那之前本节不提供"绕过门"的命令，
+因为那正是这扇门存在的理由。仓库侧的门是
+`docs/plan/assets/work-r0a-design-2026-10-25/test/work-api-boot-gate.test.mjs`（4 条，各判据取自身退出码），
+它钉住 flag 的默认值是关、ExecStart 逐字、两个单元各自的沙箱未被放宽、以及 rollout 装了那三件；
+`release-payload-closure.test.mjs` 钉住这些名字真的到得了主机。

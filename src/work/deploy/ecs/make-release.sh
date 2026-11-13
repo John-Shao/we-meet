@@ -198,6 +198,61 @@ cp "$ROOT/deploy/ecs/work-authz.service" "$OUT/"
 cp "$ROOT/deploy/ecs/work-content-proxy.service" "$OUT/"
 cp "$ROOT/deploy/ecs/work-egress.service" "$OUT/"
 cp "$ROOT/deploy/ecs/work-runtime.service" "$OUT/"
+# 2026-11-13（批次 B2）：运维便利包装件随包交付。此前包里从来没有它，而 2026-11-10 那次部署
+# 真的在主机上用它跑迁移——方式是手工把文件塞进发布目录再重新 sha，于是主机上那一份既没有
+# RELEASE_COMMIT 也没有可追的出处（#54／#57 同一类）。它的默认二进制陷阱仍由脚本自己的头注释
+# 与 ecs-migrate-refusal/disclosure 两门看守，这里只解决"哪个包能交付它"。
+cp "$ROOT/scripts/ecs-migrate.sh" "$OUT/"
+# ── 部署资产闭包（2026-11-13，批次 B2）──────────────────────────────────────────────
+# 上面那份 unit／env 名单是手抄的，它停在 14 个 unit，而 deploy/ecs 下现有 20 个：work-api／
+# work-worker／work-relay／work-export 四个 unit、work-worker／work-export 两个 env 模板，以及
+# work-content-backup.py／work-health-alert.py 两支脚本因此从来进不了包。2026-11-10 的部署记录
+# （_archive/r0b-phase-closure-report-2026-11-10.md §3.3）写的解法就是"补充缺失的文件到 release
+# package，重新打包并上传"——补的是那一个目录，不是打包脚本，所以下一次构建又少同一批。
+# 【2026-11-13 卡片 W 更正】上面 "20 个" 与 "work-content-backup.py" 都是 B2 当时的读数：主签同日裁定
+# 把 content-backup 三件（.py／.service／.timer）从本目录删除——主机的 6 小时备份继续跑，仓库不再持有
+# 它的出处（后果与执行边界写在 work-project.md 卡片 W 的裁定段）。所以本闭包今天交付的 .py 只有
+# work-health-alert.py 一支。本目录的活数字别从这里读，两条取数法：
+#   构建时 → 本脚本自己末尾打印的 scanned=／added=；
+#   构建前 → ls src/work/deploy/ecs/*.service src/work/deploy/ecs/*.timer src/work/deploy/ecs/*.env.example src/work/deploy/ecs/*.py | wc -l
+# 这里改成从目录推：包里没有、目录里有的，逐名要么补进包，要么进下面的跳过名单并写理由。
+# 名单为空＝今天 deploy/ecs 下每个 unit／env／py 都该进包；将来要少装一个，必须在这里写明为什么，
+# 而 release-payload-closure 门会核对每条理由（包括"rollout 已不再安装它"这种过期前提）。
+# 入包 ≠ 安装：rollout 只 install 它自己点名的 unit，本改动不碰任何主机的 systemd 状态。效果只有两个
+# ——重建新机时这些文件有出处（RELEASE_COMMIT＋SHA256SUMS），以及 verify 能把"包里有、主机还没装"
+# 如实报成部署状态而不是打包缺陷（verify-r0a-0027.sh:310-319 对 drill 二进制用的就是这条口径）。
+declare -A UNPACKAGED_DEPLOY_ASSETS=()
+closure_added=()
+closure_scanned=0
+for suffix in .service .timer .env.example .py; do
+  for asset in "$ROOT"/deploy/ecs/*"$suffix"; do
+    [ -e "$asset" ] || continue
+    closure_scanned=$((closure_scanned + 1))
+    name="$(basename "$asset")"
+    if [ -e "$OUT/$name" ]; then
+      continue
+    fi
+    if [ -n "${UNPACKAGED_DEPLOY_ASSETS[$name]:-}" ]; then
+      continue
+    fi
+    cp "$asset" "$OUT/"
+    closure_added+=("$name")
+  done
+done
+# 下限：读数不可信就当构建失败，不要产出一个"看起来成功"的短包（与上面 BINARIES 那段同形）。
+# 30 没有因为卡片 W 删掉三件而下调：删之前 scanned=36、删之后 33，下限要挡的是"glob 不匹配了"这种
+# 读数失效，不是"目录变小了"。真要少装一类资产，走上面的 UNPACKAGED_DEPLOY_ASSETS 并写理由。
+if [ "$closure_scanned" -lt 30 ]; then
+  echo "FATAL: the deploy-asset closure saw only $closure_scanned unit/env/script files in $ROOT/deploy/ecs" >&2
+  exit 1
+fi
+echo "deploy-asset closure: scanned=$closure_scanned added=${#closure_added[@]}"
+if [ "${#closure_added[@]}" -gt 0 ]; then
+  printf '  now packaged: %s\n' "${closure_added[*]}"
+fi
+for name in "${!UNPACKAGED_DEPLOY_ASSETS[@]}"; do
+  echo "  deliberately not packaged: $name (${UNPACKAGED_DEPLOY_ASSETS[$name]})"
+done
 chmod 0755 "$OUT"/*.sh
 
 (cd "$OUT" && sha256sum ./* >SHA256SUMS)

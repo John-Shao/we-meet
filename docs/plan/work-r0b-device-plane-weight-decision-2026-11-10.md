@@ -14,6 +14,7 @@
 - **设备面零代码**：迁移链现读无 `prepare_local_operation`、无 `work.device`／`work.workspace_grant` 表；Rust Broker、device-gateway 均未建。
 - **已落地的治理/控制面不受本单影响**：`0017`—`0023`＋`0027`、四条 `/work/v2` 路由、39 条 `TestR0b*` 守卫已在生产库（dormant schema）。J41／J42／#32／#43／#44 属控制面/治理，无论本单选哪条都照常推进。
 - **审计闸（J39/#49）**：接真实客户数据前必须外部审计，范围＝触发那一刻已实现的一切 R0b 新入口；六项 S 卡（S1/S2/S4/S11/S14/S15）是必读最小集。本单直接改变该集合的大小。
+  **【2026-11-13 批次 C 就地补，上面那行的引用文字逐字未改】**它已被 `docs/plan/assets/work-r0a-design-2026-10-25/r0b-audit-scope.json` 的 `scopeRuleSource` 逐字钉住，改一个字那条门就红（`audit-scope.mjs` 的 `scopeRule()` 要求全文只有一行含该标记）。补两条事实：①"触发那一刻已实现的一切 R0b 新入口"从此有产出物——`audit-scope.mjs` 从四处仓库权威现读生成清单（2026-11-13 现读 47 条），门＝`test/r0b-audit-scope.test.mjs`，取数法＝`node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs`，条目数与问题数由脚本自己打印；②本行末句"本单直接改变该集合的大小"因此可机械核对——单选 A／B／C／D 之后重跑生成器，集合的增减就是该单选对审计集合的影响，不再靠叙述。六项 S 卡仍是必读最小集，不因清单而缩小。
 
 ## 3. 选项（逐项带代价）
 

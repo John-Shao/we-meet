@@ -1,0 +1,506 @@
+{
+  "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
+  "chainTip": 43,
+  "chainTipCatalog": "catalogs/0043_local_artifact_replica_finalize.json",
+  "entries": [
+    {
+      "name": "GET /work/v2/admin/local-policy",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "GET /work/v2/runs/{runId}/reconciliations",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "PATCH /work/v2/admin/local-policy",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "POST /work/v2/admin/governance-event-cursor",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "acknowledge_run_ready",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0041_local_run_orchestration.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "acquire_device_lease",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0041_local_run_orchestration.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "activate_device_session",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "advance_governance_event_cursor",
+      "surface": "sql-handler",
+      "origin": "src/work/internal/api/admin_governance_cursor.go",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "apply_execution_entitlement",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0035_release_restriction_single_writer.sql",
+      "callableBy": [
+        "work_operator"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "claim_runtime_execution",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0028_runtime_execution_lease_takeover.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "commit_runtime_checkpoint",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0030_durable_receipt_head_commit.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "confirm_device_pairing",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "consume_device_ack",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0042_local_actions_receipts_finish.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "consume_device_permit",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0042_local_actions_receipts_finish.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "consume_governance_events",
+      "surface": "sql-duty",
+      "origin": "src/work/migrations/catalogs/0043_local_artifact_replica_finalize.json",
+      "callableBy": [
+        "work_governance_events"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "create_device_run_binding",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0041_local_run_orchestration.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "create_local_user_artifact_version",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0043_local_artifact_replica_finalize.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "decide_local_approval",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0042_local_actions_receipts_finish.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "finalize_local_artifact",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0043_local_artifact_replica_finalize.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "finish_local_run",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0042_local_actions_receipts_finish.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "finish_local_run_state",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0042_local_actions_receipts_finish.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "get_local_policy",
+      "surface": "sql-handler",
+      "origin": "src/work/internal/api/admin_local_policy.go",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "governance_seat_events_valid",
+      "surface": "sql-duty",
+      "origin": "src/work/migrations/catalogs/0043_local_artifact_replica_finalize.json",
+      "callableBy": [
+        "work_api",
+        "work_governance_events"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "issue_operation_resolution",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0042_local_actions_receipts_finish.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "list_content_refs",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0032_content_ref_reads_for_orphan_report.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "list_devices",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "list_pending_audit_exports",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0031_audit_export_stale_lease_discovery.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "list_readonly_grants",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0042_local_actions_receipts_finish.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "list_run_reconciliations",
+      "surface": "sql-handler",
+      "origin": "src/work/internal/api/run_reconciliations.go",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "list_workspace_grants",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "mark_members_absent",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0039_mass_absence_epoch_dedup.sql",
+      "callableBy": [
+        "work_directory"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "mint_device_session_ticket",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "pair_device",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "prefetch_audit_export_content",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0036_audit_export_content_prefetch.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "prepare_local_operation",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0042_local_actions_receipts_finish.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "rebind_run_workspace",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "record_device_checkpoint",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0041_local_run_orchestration.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "record_device_receipt",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0042_local_actions_receipts_finish.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "register_workspace_grant",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "release_unreceipted_reservations",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0029_terminal_reservation_release.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "renew_device_certificate",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "renew_device_lease",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0041_local_run_orchestration.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "revoke_device",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "revoke_readonly_grant",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0042_local_actions_receipts_finish.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "revoke_workspace_grant",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "run_terminal_reservation_release",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0029_terminal_reservation_release.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "set_local_policy",
+      "surface": "sql-handler",
+      "origin": "src/work/internal/api/admin_local_policy.go",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    }
+  ],
+  "namedAdjudications": [
+    {
+      "name": "ListGovernanceEvents",
+      "outcome": "alias",
+      "producerMentions": [
+        [],
+        []
+      ],
+      "noProducer": true,
+      "implementation": "consume_governance_events",
+      "implementedAs": true,
+      "holds": true
+    },
+    {
+      "name": "PATCH /work/v2/admin/local-policy",
+      "outcome": "in-scope",
+      "derivedAs": [
+        "http PATCH /work/v2/admin/local-policy",
+        "sql set_local_policy"
+      ],
+      "present": [
+        "http PATCH /work/v2/admin/local-policy",
+        "sql set_local_policy"
+      ],
+      "holds": true
+    },
+    {
+      "name": "SeedWorkMemberState",
+      "outcome": "no-producer",
+      "producerMentions": [
+        [],
+        []
+      ],
+      "noProducer": true,
+      "absentNote": "src/work/deploy/ecs/provision-r0b-roles.sh says the one-time Host write port is deliberately absent",
+      "holds": true
+    },
+    {
+      "name": "advance_governance_event_cursor",
+      "outcome": "in-scope",
+      "derivedAs": [
+        "sql advance_governance_event_cursor",
+        "http POST /work/v2/admin/governance-event-cursor"
+      ],
+      "present": [
+        "sql advance_governance_event_cursor",
+        "http POST /work/v2/admin/governance-event-cursor"
+      ],
+      "holds": true
+    },
+    {
+      "name": "consume_governance_events",
+      "outcome": "in-scope",
+      "derivedAs": [
+        "sql consume_governance_events"
+      ],
+      "present": [
+        "sql consume_governance_events"
+      ],
+      "holds": true
+    },
+    {
+      "name": "release_restriction",
+      "outcome": "covered-transitively",
+      "parent": "apply_execution_entitlement",
+      "callableBy": [],
+      "reachesFromParent": true,
+      "parentInScope": true,
+      "notIndependentlyCallable": true,
+      "holds": true
+    }
+  ],
+  "scopeRule": "范围＝触发那一刻已实现的一切 R0b 新入口；本清单由 audit-scope.mjs 从仓库四处权威现读生成，新增入口只有两种去向：留在默认的 external-audit-required，或带上具名决策引用改成例外。",
+  "scopeRuleFile": "docs/plan/work-r0b-device-plane-weight-decision-2026-11-10.md",
+  "scopeRuleSource": "- **审计闸（J39/#49）**：接真实客户数据前必须外部审计，范围＝触发那一刻已实现的一切 R0b 新入口；六项 S 卡（S1/S2/S4/S11/S14/S15）是必读最小集。本单直接改变该集合的大小。"
+}

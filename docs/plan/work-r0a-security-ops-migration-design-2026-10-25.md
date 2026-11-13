@@ -2,6 +2,9 @@
 
 > 状态：D6 设计草案；安全控制/SLO/容量/试点清单已建模并通过 8/8 校验，当前 **go/no-go = no-go（30 个 blocking 中 18 个未关闭；C01/C02/C14 提前签、C11 仅签映射口径、C15 已 waived）**；已完成 Temporal dev 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、RLS 池化、10 并发负载、Work DB 恢复、试点 on-call runbook、SLO 规则即代码 11/11 + promtool 校验（48 条规则 + 14 组告警单测）与日志扫描 8/8、管理读/目录投影/留存清扫的多连接竞态 7/7；本地关闭 C12/C18/C19/C20/C21，剩余 18 个未关闭（C01/C02/C14 已提前签，C11 仅签映射口径）。未做多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/真实遥测接入（C15 已 waived）。
 >
+> **【2026-11-13 现读更正：上方与本文末部的"当前"计数均为 2026-10-26 快照，现值不再由本文正文承载】** R0a 试点闸门是否关闭改由 `goNoGo()` 自己打印；取数法＝读 `pilot-checklist.json` 全 33 项、筛 `blocking && status ∉ {done, waived}` 按 `gate` 分桶，权威命令与当日读数在 [work-project.md](work-project.md) §5.2 顶部标注（该处不重复维护，避免又一处活数字）。本文上方"30 个 blocking 中 18 个未关闭"、§10.1"当前 no-go 从 29 降为 22"与 §10.1 末"**当前：no-go…**"三处均为历史值，原文逐字保留不删。
+> **绿门的含义有边界**：闸门绿只说明清单条目已 `done`/`waived`，**不等于真实 gVisor、云 KMS、真实遥测、多节点恢复已验**——这四项 2026-11-13 现读下仍按 `pilot-checklist.json` 的 C13/C16/C17 `note` 记为残口，且残口目前只写在 `note` 散文里、不在机器字段（33 项中 0 项带 `closeCondition`；该字段只在 `security-controls.json` 的校验里强制）。【2026-11-13 批次 B1 后本句的"不在机器字段"半句过期，原文保留：33 项已逐项补 `residual`／`reopenCondition`／`residualSource`，`validateChecklist` 对"closed 而无 residual"报错，`goNoGo()` 同批起同时打印 `residualCount`（现读 32）与 `unstatedReopenCount`（现读 7），故"绿而不空"现在是机器可读的；取数命令见 [work-project.md](work-project.md) §5.2 顶部标注。C13/C16/C17 三条残口的实质内容不变，只是从散文升为字段。】
+>
 > 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界）
 >
 > 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[D3 编排](work-r0a-orchestration-design-2026-10-25.md)、[D4 Runtime/出口](work-r0a-runtime-egress-design-2026-10-25.md)、[D5 前端](work-r0a-frontend-design-2026-10-25.md)、[威胁模型](work-threat-model-2026-10-25.md)、[运行手册](work-operations-runbook-2026-10-25.md)。
@@ -265,11 +268,11 @@ Go 迁移运行器以 advisory lock 串行化，**同一时刻只有一个写入
 - **本地 KMS envelope**：租户隔离/轮换/主密钥轮换/shredding **6/6**；不是云 KMS/HSM；见 [kms-envelope](assets/work-r0a-hardening-2026-10-25/kms-envelope.mjs)。
 - **真实 Qwen smoke**：qwen3.8-flash 200、首 token 2567ms、usage 80/110、provider request id 可记录，未输出 Key/正文；见 [provider-smoke.log](assets/work-r0a-hardening-2026-10-25/provider-smoke.log)。
 - **日志扫描参考 8/8**：Key（含 `sk-proj-`/`sk-ant-`）/GitHub token/阿里云 AccessKey/Bearer/cookie/私钥/正文 canary/email 规则；现有 7 个证据日志 0 fail / 0 warn，扫描结果只含脱敏预览；见 [log-scan-result.log](assets/work-r0a-hardening-2026-10-25/log-scan-result.log)。不是 staging OTel 证据。
-- **SLO 遥测规则 10/10**：12 个 SLO 全覆盖，生成 21 条 record + 19 条 alert（15 SLO + 4 operational，含 outbox 死信与 usage 偏差），每条告警带 severity/for/runbook，内容标签被禁止；见 [telemetry-contract](assets/work-r0a-ops-2026-10-25/telemetry-contract.json) / [rules](assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)。未接 Prometheus/Alertmanager，所有 SLO 仍 not_measured。
+- **SLO 遥测规则 10/10**：12 个 SLO 全覆盖，生成 21 条 record + 19 条 alert（15 SLO + 4 operational，含 outbox 死信与 usage 偏差）【2026-11-13 现读更正：该计数为 2026-10-26 快照，现算＝21 条 `record:` ＋ 27 条 `alert:` ＝ 48 条；取数法＝对 [prometheus-rules.yaml](assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml) 各数一次行前缀，`deploy/observability/prometheus-rules.yaml` 同值。本文 §4 写的 48 条为现值，不改】，每条告警带 severity/for/runbook，内容标签被禁止；见 [telemetry-contract](assets/work-r0a-ops-2026-10-25/telemetry-contract.json) / [rules](assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)。未接 Prometheus/Alertmanager，所有 SLO 仍 not_measured。
 - 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03 执行开关/组织停用；C21 §6.1 on-call/事故沟通。C31 仍 partial（P1-A 不能直接复用；方案 B 已让 Work 自己出席位/token 配额/导出作业，缺的是 Host 的身份与席位字段）；C16/C17 仍 partial：规则与告警单测可复现（promtool 48 条 + 14 断言），缺的是 staging 遥测/日志后端与真实序列上的验证。
-- 当前 no-go 从 29 降为 **22**；C09/C13/C14/C22 仍 partial，C15 已 waived、S13 已 out_of_scope、C24/C25/C27/C30 等仍待外部输入。
+- 当前 no-go 从 29 降为 **22**（本句为 2026-10-26 历史值；现值与取数法见文档顶部 2026-11-13 更正）；C09/C13/C14/C22 仍 partial，C15 已 waived、S13 已 out_of_scope、C24/C25/C27/C30 等仍待外部输入。
 
-**当前：no-go，30 个 blocking 中 18 个未关闭（C01/C02/C11/C14 已提前签、C15 已 waived）。** 主要阻塞：
+**当前：no-go，30 个 blocking 中 18 个未关闭（C01/C02/C11/C14 已提前签、C15 已 waived）。**【2026-11-13：本行"当前"是 2026-10-26 口径，现值取数法见文档顶部同日更正；§10.1 其余快照同批不逐行改】 主要阻塞：
 
 - D1–D5 设计尚未正式评审；D1 冒烟 148/148 + 竞态 9/9、Temporal 参考纵切 10/10 已完成，但 S1 多节点/在途 server 重启与正式评审仍未完成。
 - D2 生成客户端未接真实前端（R0a 门禁已在 PR #7 首次跑绿，仓库全量流水线 meet Workflow 也已 15/15 跑绿）；D4 真实 gVisor/Content Store/云 KMS/供应商条款；D5 React/E2E；C22 多节点/在途 server 重启。

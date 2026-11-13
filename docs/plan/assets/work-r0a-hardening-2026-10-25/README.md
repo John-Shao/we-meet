@@ -13,7 +13,7 @@
 | `provider-smoke.mjs` | 真实 Qwen 流式请求；只输出元数据/hash，不输出 Key/正文 |
 | `provider-smoke.log` | 本次运行输出 |
 | `log-scan.mjs` | 日志/追踪扫描：API Key（含 `sk-proj-`/`sk-ant-`）、GitHub token、阿里云 AccessKey、Bearer、cookie、私钥、正文/邮箱；输出只含脱敏预览 |
-| `log-scan.test.mjs` | 8 组测试（2026-10-26 增加厂商 token 规则）：合成密钥/canary、目录递归、脱敏、现有证据日志 |
+| `log-scan.test.mjs` | 8 组测试（2026-10-26 增加厂商 token 规则）：合成密钥/canary、目录递归、脱敏、现有证据日志。【2026-11-13：条数是活数字，别抄本行——以 `node --test log-scan.test.mjs` 自己打的 `ℹ tests` 为准（今日 14 条，含 #94=G3 的 locator／正文双方向与前置否定两半各自的具名用例）。】 |
 | `log-scan-result.log` | 对 provider/sandbox/Temporal 证据日志的扫描结果（0 fail / 0 warn） |
 
 ## 结果

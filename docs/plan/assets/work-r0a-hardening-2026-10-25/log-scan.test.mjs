@@ -168,6 +168,19 @@ test('a quoted content:// locator stays a locator', () => {
   assert.equal(result.failed, false);
 });
 
+// 2026-11-13 (G3 实施复核): the lookahead excludes two things - `//` (scheme-relative) and
+// `content://`. The two cases above both reach a `//` right after the separator, so they pass with
+// or without the second alternative; deleting `content:\/\/` kept the then-current 13 cases green and
+// every committed evidence file clean (43 files/3435 lines, fail=0). This is the only shape that
+// alternative covers: the value itself begins with `content:`, so the first character after the
+// separator is `c`, not `/`, and the `//` half cannot see it. Without it, an unquoted reference URI
+// in a content field is a locator the rule reports as user content.
+test('an unquoted content:// value in a content field is still only a locator', () => {
+  const result = scanText('content=content://work/org1/abc123def456ghi789?v=1', { source: 'unit.log' });
+  assert.equal(result.failed, false, JSON.stringify(result.findings));
+  assert.equal(result.byRule['content.field'] || 0, 0);
+});
+
 test('body-shaped values in the same fields still fail after the narrowing', () => {
   for (const field of ['content', 'prompt', 'messages', 'artifact_content', 'goal', 'background', 'completion']) {
     // The rule matches an unbroken run of 12+ non-space characters, so the fixture is a body-shaped

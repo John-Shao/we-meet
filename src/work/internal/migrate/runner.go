@@ -41,7 +41,7 @@ type Result struct {
 	Ledger        string             `json:"ledger"`
 	Applied       []AppliedMigration `json:"applied,omitempty"`
 	Pending       []int64            `json:"pending,omitempty"`
-	CatalogSHA256 string             `json:"catalog_sha256,omitempty"`
+	CatalogSHA256 string             `json:"catalog_sha256,omitempty"` // checkpoint this binary verified against; Apply sets no single one
 }
 
 func New(cfg Config) (*Runner, error) {
@@ -124,6 +124,11 @@ func (r *Runner) Status(ctx context.Context) (*Result, error) {
 		if err := r.verifyCatalogAtVersion(ctx, r.conn, state.MaxLedgerVersion()); err != nil {
 			return nil, err
 		}
+		_, catalogChecksum, err := r.manifest.CatalogForVersion(state.MaxLedgerVersion())
+		if err != nil {
+			return nil, err
+		}
+		result.CatalogSHA256 = catalogChecksum
 		result.Applied = appliedFromState(state)
 		if len(result.Pending) == 0 {
 			result.State = "up_to_date"

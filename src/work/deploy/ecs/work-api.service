@@ -2,6 +2,17 @@
 Description=Work API control plane
 After=network-online.target postgresql.service
 Wants=network-online.target
+# 卡片 V（#117，2026-11-13 裁定＝甲）：拒绝式链尾核对。work-api must not serve a database whose
+# ledger is ahead of (pending) or behind (ledger_version_unknown) the chain compiled into it, which
+# is the state a manual restart, an image rollback or a bring-up on a replacement host can produce.
+# The verdict comes from `work-migrate status -require-up-to-date`, i.e. the same
+# verifyCatalogAtVersion/manifest reading rollout step 4 already uses - no second judgement.
+# It is a companion unit rather than an ExecStartPre here because this unit's own ProtectHome=true
+# masks /root (where the migrator DSN file is) and NoNewPrivileges=true strips sudo's setuid, and
+# neither is traded away for a convenience check. Requires= without [Install] on the gate: starting
+# or restarting this unit re-runs the check every time.
+Requires=work-chain-check.service
+After=work-chain-check.service
 
 [Service]
 User=work-control

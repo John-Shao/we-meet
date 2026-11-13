@@ -29,11 +29,8 @@ func run(ctx context.Context) error {
 	}
 	defer pool.Close()
 
-	registryBody, err := os.ReadFile(requiredEnv("WORK_AUTHZ_WORKLOADS"))
-	if err != nil {
-		return errors.New("read workload registry")
-	}
-	verifier, err := authz.LoadRegistry(registryBody)
+	registryPath := requiredEnv("WORK_AUTHZ_WORKLOADS")
+	verifier, err := authz.LoadRegistryStore(registryPath)
 	if err != nil {
 		return err
 	}
@@ -42,6 +39,18 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	watchCtx, stopWatch := context.WithCancel(ctx)
+	defer stopWatch()
+	go verifier.Watch(watchCtx, authz.DefaultRegistryWatchInterval, func(changed bool, err error) {
+		digest, workloads := verifier.State()
+		if err != nil {
+			log.Printf("work authz registry reload refused path=%s keeping_sha256=%s workloads=%d err=%v",
+				registryPath, digest, workloads, err)
+			return
+		}
+		log.Printf("work authz registry reloaded path=%s sha256=%s workloads=%d", registryPath, digest, workloads)
+	})
 
 	certificate, err := tls.LoadX509KeyPair(requiredEnv("WORK_AUTHZ_CERT"), requiredEnv("WORK_AUTHZ_KEY"))
 	if err != nil {
@@ -87,7 +96,9 @@ func run(ctx context.Context) error {
 		close(shutdown)
 	}()
 
-	log.Printf("work authz listening addr=%s", listener.Addr())
+	digest, workloads := verifier.State()
+	log.Printf("work authz listening addr=%s registry_path=%s registry_sha256=%s workloads=%d",
+		listener.Addr(), registryPath, digest, workloads)
 	if err := httpServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

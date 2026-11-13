@@ -132,6 +132,7 @@ grep -E "^(--- PASS|--- FAIL|--- SKIP)" ev-test-results.log | sort | uniq -c
 
 **状态**：⏸️ 阻塞于基础设施缺失
 **【2026-11-13 现读更正，上面三行原文保留不删】** 基础设施缺口已闭合：`workspace_grant`／`workspace_grant_succession` 两表在 0043 catalog 现读在场，分类下限推导随批四增量 **0043** 落地（`work.finalize_local_artifact` 的三臂输入集＋最严格取值＋空集下界，SQL 行号 444–494），并有 4 个具名用例（`TestR0bFinalizeTakesTheStrictestInput` 等，`src/work/internal/migrate/r0b_local_artifact_test.go`）。**状态自此＝「部分实现」**：本 EV 第 3 条实现建议要求的「两个谓词分别断言」只做到一半——(B) 侧有例，(A) 目的地闸两支（`0042:941`／`0042:1471`）现读零具名例；`artifact_classification_floor` 审计事件也未落地（拒绝支的同事务审计 insert 被紧随的 raise 回滚）。逐条映射与重开条件＝`work-r0b-m1a-device-migration-design-2026-11-12.md` §18.6。
+**【2026-11-13 同日再更正，上面那段原文保留】** 「两个谓词分别断言只做到一半」与「(A) 两支零具名例」两处自此过期：(A) 的两个执法点各补了一条具名负例＋同夹具放行对照＝`TestR0bPrepareRefusesANonDeviceDestinationOnceTheRunHasLocalOnlyInput`／`TestR0bPermitConsumptionReChecksTheDestinationFromServerFacts`（`src/work/internal/migrate/r0b_actions_test.go`，活库 SQL 面，四刀变异 caught 4/4）。**状态仍＝「部分实现」**：缺的换成 `artifact_classification_floor` 审计事件（主签单选乙＝无实现面、不作断言）、`device_offline` 之类零例码族清单、`location=cloud` 正例与 v2 读 R0a 云版本通路回归、以及 (A)(B) 两侧的 `workspace.list` 臂。
 
 **需要的基础设施**：
 - `workspace_grant` 表（尚未建设）
@@ -306,7 +307,7 @@ go test ./... -parallel 4
 ### 本周计划
 
 5. ⏸️ 实现 EV70（需要 workspace_grant_succession 表）
-6. ⏸️ 实现 EV97（需要 workspace_grant 表和分类推导逻辑） **【2026-11-13 更正：表与推导逻辑都已落地（0043）并各有名用例，本行原文保留；「实现完」仍差 (A) 目的地闸两支的具名例与 `artifact_classification_floor` 审计事件，判据见本文 EV97 节同日更正与设计单 §18.6】**
+6. ⏸️ 实现 EV97（需要 workspace_grant 表和分类推导逻辑） **【2026-11-13 更正：表与推导逻辑都已落地（0043）并各有名用例，本行原文保留；「实现完」仍差 (A) 目的地闸两支的具名例与 `artifact_classification_floor` 审计事件，判据见本文 EV97 节同日更正与设计单 §18.6；**其中「仍差 (A) 目的地闸两支的具名例」这半已于同日补齐，见该节第二段再更正，仍差的只剩审计事件与清单**】**
 7. ⏸️ 实现 EV98（需要剪贴板来源追踪逻辑）
 8. ⏸️ 执行全部 12 条 I1/I2 EV 测试
 

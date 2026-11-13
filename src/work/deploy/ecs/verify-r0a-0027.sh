@@ -320,6 +320,37 @@ for b in work-e2e-seed work-replay; do
 done
 
 echo
+echo "== deploy/ecs closure files (卡片 W: packaged != installed) =="
+# 2026-11-13 卡片 W：make-release.sh 的 deploy/ecs 闭包把"从来没进过包"的那批 unit／env／helper
+# 补进了包，而包里有 ≠ 主机上有——安装是另一段半径。主签按分组裁定：只给 work-api.service（与卡片 V
+# 同日补的 work-chain-check.service）加安装步骤，其余逐名走这里的读数。present＝主机上有这一份
+# （多数是初次装机手工放的，仓库此刻才有出处）；MISSING＝按本包重建的主机上会缺。两者都是部署状态，
+# 不进 FAILURES（与上面 drill 二进制、restore drill 同一口径：本脚本只报，不因此拒绝）。
+for pair in \
+  "work-relay.service:/etc/systemd/system/work-relay.service" \
+  "work-worker.service:/etc/systemd/system/work-worker.service" \
+  "work-export.service:/etc/systemd/system/work-export.service" \
+  "work-worker.env.example:/etc/work/work-worker.env" \
+  "work-export.env.example:/etc/work/work-export.env" \
+  "work-health-alert.py:/usr/local/bin/work-health-alert.py"; do
+  name="${pair%%:*}"
+  host="${pair#*:}"
+  printf '  %s -> %s = %s\n' "$name" "$host" "$(test -e "$host" && echo present || echo MISSING)"
+done
+# content-backup 三件是同日裁定的另一组：仓库已删除出处，主机那条每 6 小时的备份照旧在跑（本脚本
+# 只读取，不动 timer）。这里报在位性，是为了让"仓库没有出处、主机那份是唯一的份"这件事出现在
+# 验收转写里，而不只写在文档里——缺与不缺都不改变退出码，也不构成停它的授权。
+for pair in \
+  "work-content-backup.service:/etc/systemd/system/work-content-backup.service" \
+  "work-content-backup.timer:/etc/systemd/system/work-content-backup.timer" \
+  "work-content-backup.py:/opt/meet-db-backup/work-content-backup.py"; do
+  name="${pair%%:*}"
+  host="${pair#*:}"
+  printf '  %s -> %s = %s (host-managed, no repo carrier since 卡片 W)\n' \
+    "$name" "$host" "$(test -e "$host" && echo present || echo MISSING)"
+done
+
+echo
 echo "== runstream gauges wiring (C17 minimal set) =="
 # 2026-11-04: main signing chose C (no per-binary Prometheus). The compensation is this read-only
 # gauge scan, whose whole reason to exist is that work-reconcile -scan cannot see a parked Run -

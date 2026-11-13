@@ -60,7 +60,7 @@
 - **D5 设计草案完成**：[前端体验设计](work-r0a-frontend-design-2026-10-25.md)、[状态/路由/文案/UI 模型资产](assets/work-r0a-frontend-2026-10-25/README.md)；UI 模型测试 11/11（2026-10-26 增至 14/14，含 canceled/archived 的 R0b 预留约束）。
 - **D5 仅为设计**：未实现 React 页面/React Query/SSE 客户端/Playwright，未做可用性测试。
 - **D6 设计草案完成**：[安全/运维/迁移/试点设计](work-r0a-security-ops-migration-design-2026-10-25.md)、[安全/SLO/容量/试点资产](assets/work-r0a-ops-2026-10-25/README.md)；8/8 校验通过。
-- **D6 当前 go/no-go = no-go**：30 个 blocking 中 18 个未关闭（C01/C02/C11/C14 提前签、C15 已 waived）；已完成 Temporal 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、RLS 池化、10 并发负载、Work DB 恢复、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke；未做生产演练/真实 gVisor/云 KMS（C14 已签降级，C15 waived）。
+- **D6 当前 go/no-go = no-go**【2026-11-13 现读更正：本行的 `no-go` 与"18 个未关闭"均为 2026-10-26 快照口径，不是当前值；当前 go/no-go 由 `goNoGo()` 自己打印，唯一权威命令与当日读数见 [Work 项目文档](work-project.md) §5.2 顶部标注，D6 顶部有同日更正。本行下方"未做生产演练/真实 gVisor/云 KMS"的证据边界不受本次更正影响，仍按原文成立】：30 个 blocking 中 18 个未关闭（C01/C02/C11/C14 提前签、C15 已 waived）；已完成 Temporal 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、RLS 池化、10 并发负载、Work DB 恢复、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke；未做生产演练/真实 gVisor/云 KMS（C14 已签降级，C15 waived）。
 
 ### 0.6 下一批优先项进展（2026-10-26）
 

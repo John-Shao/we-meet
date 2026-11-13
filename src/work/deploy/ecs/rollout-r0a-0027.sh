@@ -296,6 +296,21 @@ if [[ "$dupes" != "0" ]]; then
   echo "aborting: 0027 would fail on ${dupes} duplicate request id(s); resolve them first" >&2
   exit 1
 fi
+# 卡片 V（#117，2026-11-13 裁定＝甲）＋卡片 W 的那一条安装步骤，从第 7 步起让 work-api 的每一次
+# 启动（含人工 restart）都先跑一次链尾核对。核对要凭据，而凭据文件不是本轮装的——包里没有这支 unit
+# ＝本行不生效；包里有了＝缺它就会让第 9 步 restart 直接把 API 打进 CrashLoop。所以"会砸 API 的
+# 缺失"必须在动手之前拒绝，而不是在第 9 步之后被发现。判据按包自己声明的东西取，不抄路径常量。
+if [[ -f "$RELEASE/work-chain-check.service" ]] && [[ ! -r /root/work-secrets.env ]]; then
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo "WARN: /root/work-secrets.env is missing or unreadable; a real run would abort here, because"
+    echo "      this package carries work-chain-check.service and work-api would CrashLoop on restart"
+  else
+    echo "aborting: this package installs work-chain-check.service, which gates every work-api start," >&2
+    echo "  but /root/work-secrets.env is missing or unreadable - the API would CrashLoop at step 9." >&2
+    echo "  provision that file first; scripts/ecs-migrate.sh names the variables it reads." >&2
+    exit 1
+  fi
+fi
 df -h / | tail -1
 systemctl is-active work-api work-relay work-worker || true
 
@@ -401,8 +416,26 @@ echo "== 7. units =="
 for unit in work-authz work-content-proxy work-egress; do
   run install -m 0644 -o root -g root "$RELEASE/$unit.service" "/etc/systemd/system/$unit.service"
 done
+# 卡片 W（#118）分组裁定＝十个闭包名字里只给 work-api.service 补安装步骤，其余走 verify 的
+# present/MISSING 读数。这一步同时是卡片 V 甲的硬前置：只改仓库那份 unit 到不了现网。
+# work-api.service 与它 Requires= 的那支闸、闸的 ExecStart 指向的那支包装件必须同批落——unit 装上
+# 了而它调用的 helper 没装上，正是本卡登记的那一格（现网三份手工件都在，缺的是"按本包重建的主机"）。
+# 现网那份 unit 与仓库那份剥 CR 后只差 ProtectHome 的行序（2026-11-13 现读），语义相同；本轮写进去
+# 的语义变化只有链尾核对这一条，所以覆盖前留 .bak（与 install_binary 同法），给 runbook 的回滚窗口
+# 一个具体对象。restart 不在这里：第 9 步的重启才发生在链尾已 apply 之后。
+if [[ -f /etc/systemd/system/work-api.service ]]; then
+  run cp -p /etc/systemd/system/work-api.service "/etc/systemd/system/work-api.service.bak-$STAMP"
+fi
+# 两条 install 逐名写，不用 for 循环：门按字面名核对"unit 调用的东西 rollout 装不装"，循环里的
+# $unit 展开后门看不见（卡片 W 的教训就是"看得见"本身要机器可核）。
+run install -m 0644 -o root -g root "$RELEASE/work-api.service" /etc/systemd/system/work-api.service
+run install -m 0644 -o root -g root "$RELEASE/work-chain-check.service" /etc/systemd/system/work-chain-check.service
+run install -m 0755 -o root -g root "$RELEASE/ecs-migrate.sh" /usr/local/bin/ecs-migrate.sh
 run systemctl daemon-reload
 run systemctl enable work-authz work-content-proxy work-egress
+# work-api 在现网早已 enabled＋active（unit 是初次装机手工放的）；这里的 enable 是为了按本包重建的
+# 主机也能开机带出它与它的闸（闸无 [Install]，由 work-api 的 Requires= 拉起来）。
+run systemctl enable work-api
 # restart, not start: step 3 never stops these units, so `start` would be a
 # no-op and the freshly installed binaries would sit on disk unused.
 run systemctl restart work-authz work-content-proxy work-egress

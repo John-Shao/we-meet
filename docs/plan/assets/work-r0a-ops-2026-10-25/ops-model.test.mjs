@@ -37,15 +37,74 @@ test('SLO assets define required metrics and do not claim unmeasured results', (
   assert.ok(validateSlo(missing).some((issue) => issue.includes('missing required SLO metric')));
 });
 
-test('pilot checklist is valid and currently green', () => {
+test('pilot checklist is valid', () => {
   assert.deepEqual(validateChecklist(checklist), []);
-  const result = goNoGo(checklist);
+});
+
+// 2026-11-13 (review batch C, 主签单选「翻红，由 slo-pilot.json 推导」): `goNoGo()` now takes the
+// SLO asset next to the checklist. Before this, C17 could sit `done` on validated rule files while
+// slo-pilot.json said all 12 metrics were `not_measured`, and the gate still printed go=true. The
+// colour is derived from the measurement asset rather than hand-asserted here, so these two
+// assertions are the honest pair: the checklist half really is clear, and the red comes from the
+// half that was never measured. Nothing in this test is a relaxation - it replaces an assertion
+// that had become false against the data.
+test('go/no-go reads what was measured and is red while the pilot SLO has no measured metric', () => {
+  const result = goNoGo(checklist, slo);
+  assert.equal(result.go, false);
+  assert.equal(result.blockerCount, 1);
+  assert.deepEqual(
+    result.measurementBlockers.map((item) => `${item.id}:${item.reason}`),
+    ['C17:slo_not_measured'],
+  );
+  // the checklist buckets stay empty - prove the red is not a stale row sneaking back in.
+  assert.deepEqual(result.startBlockers.map((item) => item.id), []);
+  assert.deepEqual(result.pilotBlockers.map((item) => item.id), []);
+  assert.deepEqual(result.scaleBlockers.map((item) => item.id), []);
+  assert.equal(result.canStartWork, true, 'the measurement hole is a pilot question, not a DR4 start question');
+  assert.equal(result.sloMeasuredCount, 0);
+  assert.equal(result.sloNotMeasuredCount, result.sloMetricCount);
+});
+
+// The flag itself is the only thing tying a checklist row to the SLO asset, so it is typed, it is
+// checked against `blocking`, and exactly one item carries it. A second item adopting the flag would
+// have to be named here - silently spreading it across the checklist is how a gate turns into noise.
+test('the measured-SLO dependency is declared, typed and only on a blocking item', () => {
+  assert.deepEqual(
+    checklist.items.filter((item) => item.requiresMeasuredSlo === true).map((item) => item.id),
+    ['C17'],
+  );
+  const badType = structuredClone(checklist);
+  badType.items.find((item) => item.id === 'C17').requiresMeasuredSlo = 'yes';
+  assert.ok(validateChecklist(badType).some((issue) => issue.includes('C17 requiresMeasuredSlo must be boolean')),
+    'a non-boolean flag must be rejected, not coerced into truth');
+  const notBlocking = structuredClone(checklist);
+  notBlocking.items.find((item) => item.id === 'C17').blocking = false;
+  assert.ok(validateChecklist(notBlocking).some((issue) => issue.includes('the flag would decide nothing')),
+    'the flag on a non-blocking item decides nothing and must be rejected');
+});
+
+test('go/no-go refuses to decide from the checklist alone', () => {
+  assert.throws(() => goNoGo(checklist), /needs the SLO asset/);
+});
+
+// An all-`waived` SLO set is a signed decision not to measure; the hole being guarded is silence,
+// so a recorded "no" must not keep the gate red forever.
+test('a signed-away SLO set does not trip the measurement rule', () => {
+  const waived = structuredClone(slo);
+  for (const metric of waived.metrics) {
+    metric.status = 'waived';
+    metric.note = 'pilot accepts this metric unmeasured';
+    metric.evidence = [];
+  }
+  assert.deepEqual(validateSlo(waived), []);
+  const result = goNoGo(checklist, waived);
+  assert.equal(result.sloWaivedCount, result.sloMetricCount);
+  assert.equal(result.measurementBlockerCount, 0);
   assert.equal(result.go, true);
-  assert.equal(result.blockerCount, 0);
 });
 
 test('blocking items split into a start gate and a pilot gate', () => {
-  const result = goNoGo(checklist);
+  const result = goNoGo(checklist, slo);
   // 2026-11-01 闸门复审：C05（D5 前端设计）、C10（React 页面/查询/SSE E2E）、C31（管理只读面）
   // 已按生产证据关闭，开工闸门只剩设计评审与可用性研究；
   // C33（子进程 checkpoint 写入 content-proxy，决策单 #280）按 John 勾选的 B 记为书面范围例外。
@@ -107,8 +166,15 @@ test('blocking items split into a start gate and a pilot gate', () => {
   assert.equal(result.scaleBlockerCount, 0);
   // 2026-11-09 续二: all gates clear — start (C04+C25), pilot (C27+C30 closed with DR3 condition), scale.
   // go/no-go is now true; canStartWork remains true.
+  // 【2026-11-13 更正，原文不删】上面那句"go/no-go is now true"是当时的口径。go 现在多读一份资产：
+  // slo-pilot.json 里 12 条指标全为 not_measured，而 C17 声称依赖实测，所以 gate 由测量面翻红。
+  // 下面三档桶计数因此不再等于 blockerCount——差的那一格由 measurementBlockerCount 自己报。
   assert.equal(result.canStartWork, true);
-  assert.equal(result.blockerCount, result.startBlockerCount + result.pilotBlockerCount + result.scaleBlockerCount);
+  assert.equal(
+    result.blockerCount,
+    result.startBlockerCount + result.pilotBlockerCount + result.scaleBlockerCount + result.measurementBlockerCount,
+  );
+  assert.equal(result.measurementBlockerCount, 1, 'the only open half of the pilot gate is the unmeasured SLO');
 
   // 2026-11-09 续二：全闸清零（C27/C30 翻 done＋DR3 回退条件），go=true。
   // （2026-11-08 由 10 改 7：C03/C16/C17/C22 经主签逐条签字关闭。
@@ -124,10 +190,19 @@ test('blocking items split into a start gate and a pilot gate', () => {
       item.evidence = ['review sign-off'];
     }
   }
-  const afterStart = goNoGo(started);
+  const afterStart = goNoGo(started, slo);
   assert.equal(afterStart.canStartWork, true);
-  assert.equal(afterStart.go, true);
   assert.equal(afterStart.pilotBlockerCount, 0);
+  // DR4 and the pilot question stay different questions even with every checklist row closed:
+  // the start gate opens while the unmeasured SLO still holds the pilot half.
+  assert.equal(afterStart.go, false);
+  assert.equal(afterStart.measurementBlockerCount, 1);
+  // and with a measured SLO asset the same checklist prints green, which is the reopen path.
+  const measured = structuredClone(slo);
+  measured.metrics[0].status = 'met';
+  measured.metrics[0].evidence = ['prometheus query over real series, 14d window'];
+  assert.deepEqual(validateSlo(measured), []);
+  assert.equal(goNoGo(started, measured).go, true);
 });
 
 test('checklist rejects a missing or unknown gate', () => {
@@ -139,7 +214,7 @@ test('checklist rejects a missing or unknown gate', () => {
   assert.ok(validateChecklist(badGate).some((issue) => issue.includes('invalid gate')));
 });
 
-test('pilot go/no-go becomes true only when every blocking item is done or waived', () => {
+test('pilot go/no-go becomes true only when every blocking item is done or waived and the SLO it depends on is measured', () => {
   const done = structuredClone(checklist);
   for (const item of done.items) {
     if (item.blocking) {
@@ -148,7 +223,17 @@ test('pilot go/no-go becomes true only when every blocking item is done or waive
     }
   }
   assert.deepEqual(validateChecklist(done), []);
-  assert.equal(goNoGo(done).go, true);
+  // Closing every checklist row is not enough on its own - the real asset still reports nothing
+  // measured, so the flag pair has to keep saying no.
+  assert.equal(goNoGo(done, slo).go, false);
+  assert.equal(goNoGo(done, slo).measurementBlockerCount, 1);
+  const measured = structuredClone(slo);
+  for (const metric of measured.metrics) {
+    metric.status = 'met';
+    metric.evidence = ['prometheus query over real series, 14d window'];
+  }
+  assert.deepEqual(validateSlo(measured), []);
+  assert.equal(goNoGo(done, measured).go, true);
 });
 
 test('pilot capacity baseline fits the current limits', () => {

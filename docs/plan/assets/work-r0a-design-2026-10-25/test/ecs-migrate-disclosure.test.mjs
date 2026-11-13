@@ -1,5 +1,10 @@
 // 2026-11-07 (#97): ecs-migrate.sh is not in the release package and nothing in rollout or CI calls
 // it, so it is an operator convenience wrapper - and its default binary is a developer's home copy.
+// 【2026-11-13 批次 B2：本段第一句的"不在发布包里"已过期，原文逐字保留。make-release.sh 现在显式
+// `cp "$ROOT/scripts/ecs-migrate.sh" "$OUT/"`，因为 2026-11-10 那次部署真的在主机上用它跑迁移，方式
+// 是手工把文件塞进发布目录再重新 sha——那一份既没有 RELEASE_COMMIT 也没有出处。本门看守的"默认二进制
+// 陷阱已披露"那一半不变，#98=B 的定位（运维便利包装件）也没变：仍然没有安装步骤（卡片 W），
+// 主机上那份仍靠手工，只是从此以后它有了一个可追的来源。】
 // Measured on the pilot host: that home copy was an Oct-29 build while /usr/local/bin/work-migrate
 // was the current build from that day's rollout. The chain is embedded in the binary, so the default
 // would run something predating 0028..0034 against a ledger-34 database. Ruling #98 = B

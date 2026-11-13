@@ -183,6 +183,16 @@ F0-R4 的两层身份/opaque token/非特权 launcher 方案见[§6.2](#62-f0-r4
 
 私有 CA 的根分发、证书自动续期、撤销查询源和平台发行者的实人负责人须在 F0-R4 签收前落实；本文没有部署新的 CA，也不以“使用 mTLS”代替发行与轮换机制。证书过期/撤销或验证器不可用时拒绝新的服务请求；已建立连接不能无限沿用旧认证，连接重验上限不得超过证书到期或已签的撤销传播上限。
 
+#### `workloads.json` 的写入规矩与审计读者（2026-11-13 随卡片 Y 落地）
+
+卡片 Y 裁定为丙：本部署没有 CRL/OCSP 查询源（上一段仍然成立），因此**这份工作负载名单本身就是唯一的撤销面**。撤销面要成立，"名单里删掉了"和"已经不再接受"之间不能隔着一次无人敢做的重启，且必须有一个明确的读者，否则它仍只是又一份没人核对的配置。
+
+- **谁能写**：`WORK_AUTHZ_WORKLOADS`（现网 `/etc/work/runtime-ca/workloads.json`，见 `src/work/deploy/ecs/work-authz.env.example:8`）只由平台负责人按主签批准的**整条增删**改写；无通配项，请求字段不能自选 kind 或 `workload_id`。合法形状就是 `LoadRegistry` 的严格 JSON：重复键、未知字段、尾随数据、空名单、同一指纹出现两次、两个证书共用一个 `workload_id`、`workload_id` 不符 `^[A-Za-z0-9._-]{1,128}$` 全部在解析期拒绝。
+- **多久生效**：`work-authz` 以 `authz.DefaultRegistryWatchInterval`＝5 秒轮询该文件，字节不变不换、变了才换（原子指针交换，认证路径不加锁）；**解析失败、空名单或重复指纹的改写被拒绝并保留上一份可用名单**，同一种拒绝原因只警告一次（按错误文本去重，换原因或成功换入后重新计数）。启动时读到不合格名单则进程不起——不接受"看起来健康但谁都不认"的服务。
+- **撤销作用于哪一层**：只作用于工作负载身份认证，即该证书的**下一次请求**在 authenticate 处拿到 `401 unauthorized_caller`。它不主动断开已建立的 TLS 连接，也不回收已签发的 capability token；后者仍按上面的在线核查与短 TTL 收敛，不得把本条当成 token 撤销通道。
+- **审计读者**：journald 里的三行——启动 `work authz listening addr=… registry_path=… registry_sha256=… workloads=…`、换入 `work authz registry reloaded path=… sha256=… workloads=…`、拒绝 `work authz registry reload refused path=… keeping_sha256=… workloads=… err=…`。`sha256` 是**当前在生效那份文件字节**的摘要，因此"现网接受哪份名单"只需比摘要、不必解析任何一侧；这三行只含摘要与条数，不含正文，`log-scan.mjs` 现有规则无一条命中 `sha256=`/`workloads=` 键。
+- **还没有的那半（触发条件明写）**：现网没有任何机器核对读回"在生效的摘要"——`verify-r0a-0027.sh` 里没有这一格，也没有门禁断言名单条数。仓库侧现有的是 Go 单测 `src/work/internal/authz/registry_store_test.go`（被删的那一个被拒而其余仍可解析、坏文件保留上一份、相同字节不算换入、watch 每事件只报一次且 cancel 后停止）与四条变异核对。补齐"现网读数"这一格的触发条件＝该裁定的前置 (d)：换二进制并重启 `work-authz` 属**单独的生产写授权**，2026-11-13 本次实施只落仓库，不含部署、不含 unit 改动。
+
 #### 签发、刷新与撤销顺序
 
 1. Go 先登记 execution；父进程经 mTLS 领取并绑定 holder。签发请求只接受 `{executionId, audience}`，不接受 org/subject/role/scope 列表；授权模块从已锁定的 execution、快照、mode、head/intent/permit 推导允许范围。

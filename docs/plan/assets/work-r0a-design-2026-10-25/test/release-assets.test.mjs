@@ -16,6 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { packagedNames, parsePackager } from '../release-payload.mjs';
 
 const WORK_DIR = fileURLToPath(new URL('../../../../../src/work/', import.meta.url));
 const RELEASE = join(WORK_DIR, 'deploy/ecs/make-release.sh');
@@ -33,7 +34,22 @@ const assetCopySources = (() => {
   const text = readFileSync(RELEASE, 'utf8');
   return [...text.matchAll(/^cp "\$ASSETS\/([^"]+)" "\$OUT\/"/gm)].map((m) => m[1]);
 })();
-const shippedNames = new Set([...copySources, ...assetCopySources].map((p) => p.split('/').pop()));
+// 【2026-11-13 批次 B2】"shipped"有两套机制：手抄的 cp 清单，加上 make-release.sh 里的 deploy/ecs
+// 闭包循环。只读前者就会把闭包交付的文件（work-api.service、work-content-backup.py、
+// work-health-alert.py…）报成缺失——2026-11-10 那次部署就是这么被迫手工补文件的。两套机制的解析
+// 收在 release-payload.mjs 一处，本门与 release-payload-closure.test.mjs 因此不可能各说各话。
+// 【同日 卡片 W】上面括号里那份举例是 B2 当天的读数：work-content-backup.py（连同它的 .service／
+// .timer）已按主签裁定从 deploy/ecs 删除，闭包今天交付的 .py 只剩 work-health-alert.py 一支
+// （work-db-restore-drill.py 也进包，但走的是手抄清单——下面那条 WORK_BACKUP_IDENTITY 守卫读的就是它）。
+// 本门不写死文件名清单，所以那三件的消失在这里唯一的可见形式是 release-payload-closure.test.mjs
+// 里那条缺席断言。
+const parsed = parsePackager(readFileSync(RELEASE, 'utf8'));
+const deployEcsInventory = readdirSync(join(WORK_DIR, 'deploy/ecs'));
+const shippedNames = new Set([
+  ...copySources.map((p) => p.split('/').pop()),
+  ...assetCopySources.map((p) => p.split('/').pop()),
+  ...packagedNames(deployEcsInventory, parsed).packaged,
+]);
 
 test('the second source root ships real files, not just a line in the list', () => {
   const missing = assetCopySources.filter((p) => !existsSync(join(ASSETS_DIR, p)));
@@ -88,6 +104,13 @@ test('an operator wrapper is packaged together with the report it runs', () => {
 // (work-c16-log-scan.sh wanted /tmp/work-log-scan.mjs, which nothing copied). Ruling A (2026-11-04,
 // John) shipped that scanner and gave the script a candidate sequence, so this list is empty:
 // any new referenced-but-unpackaged file now goes red instead of being explainable away.
+// 【2026-11-13 批次 B2：那条"任何新引用"曾经有个洞——下面的扩展名名单里没有 `.py`，所以打包件
+// work-healthcheck.sh 调用的 /usr/local/bin/work-health-alert.py 从来不在扫描范围内，而 2026-11-10
+// 部署记录（_archive/r0b-phase-closure-report-2026-11-10.md §3.3）恰恰是缺 work-health-alert.py 与
+// work-content-backup.py 两个文件。名单加上 py，闭包由 release-payload-closure.test.mjs 看守。】
+// 【2026-11-13 卡片 W 补一句：那份记录里点名的 work-content-backup.py 当天晚些时候已随三件一起从
+// deploy/ecs 删除（主机那份继续跑、仓库不再给出处），所以 `.py` 这个扩展名今天管的是
+// work-health-alert.py 与 work-db-restore-drill.py 的引用。名单不缩。】
 const REFERENCED_NOT_PACKAGED = [];
 
 test('packaged scripts only reference repo files that ship, or are listed with a reason', () => {
@@ -117,7 +140,7 @@ test('packaged scripts only reference repo files that ship, or are listed with a
     if (!existsSync(abs)) continue;
     inspected++;
     const text = readFileSync(abs, 'utf8');
-    for (const match of text.matchAll(/([A-Za-z0-9_./-]+)\.(mjs|sql|json)\b/g)) {
+    for (const match of text.matchAll(/([A-Za-z0-9_./-]+)\.(mjs|sql|json|py)\b/g)) {
       const basename = match[1].split('/').pop() + '.' + match[2];
       const repoFile = findRepoFile(basename);
       if (!repoFile) continue; // not a repo file (path is host-local by design)
