@@ -4,7 +4,7 @@
 >
 > 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界；同日按 [D-08 决策单](work-r0a-provider-account-metering-decision-2026-10-26.md) 改为 token 配额模型；D-08a–d 已于 2026-10-27 签收，其中 D-08b 的 B2/B6 按 D-03 B 静态单层加密改写）
 >
-> 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[DDL 草案](work-data-model-ddl-draft-2026-10-25.md)、[架构 §5/§13/§14/§18](work-system-architecture-2026-10-25.md)、[R0a 决策单](work-r0a-detailed-design-plan-2026-10-25.md) D-04。
+> 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[DDL 草案](_archive/work-data-model-ddl-draft-2026-10-25.md)、[架构 §5/§13/§14/§18](work-system-architecture-2026-10-25.md)、[R0a 决策单](work-r0a-detailed-design-plan-2026-10-25.md) D-04。
 >
 > 资产：[可执行 schema](assets/work-r0a-design-2026-10-25/r0a-schema-draft.sql)、[冒烟脚本](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql)、[并发竞态脚本](assets/work-r0a-design-2026-10-25/r0a-concurrency-smoke.py)、[生成脚本](assets/work-r0a-design-2026-10-25/generate-schema.py)、[资产说明](assets/work-r0a-design-2026-10-25/README.md)。
 

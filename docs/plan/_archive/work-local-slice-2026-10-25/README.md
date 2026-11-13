@@ -2,7 +2,7 @@
 
 > 状态：参考实现，Node 24 + PostgreSQL 16 + 模拟设备 Agent；不接生产代码、不是 OS 沙箱证明。
 >
-> 基线：[Work 系统架构 v2.9](../../work-system-architecture-2026-10-25.md) §10、§11、§13、§21；[DDL 草案](../../work-data-model-ddl-draft-2026-10-25.md)；[设备协议](../../assets/work-contracts-2026-10-25/proto/work/device/v1/device.proto)。
+> 基线：[Work 系统架构 v2.9](../../work-system-architecture-2026-10-25.md) §10、§11、§13、§21；[DDL 草案](../work-data-model-ddl-draft-2026-10-25.md)；[设备协议](../../assets/work-contracts-2026-10-25/proto/work/device/v1/device.proto)。
 
 本目录验证“本机授权→断线恢复”的第二条纵切：
 

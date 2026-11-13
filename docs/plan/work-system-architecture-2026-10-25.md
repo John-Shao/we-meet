@@ -1066,7 +1066,7 @@ R3 Project承载brief、source refs、context versions、计划与任务引用�
 
 ## 15. API与事件契约
 
-以下路径为新设计草案，不声明仓库已有实现；采用 OpenAPI 3.1、JSON Schema 与版本化内部 Protobuf 落实。当前契约草案见[work-api-contracts-2026-10-25.md](work-api-contracts-2026-10-25.md)，资产目录见[assets/work-contracts-2026-10-25](assets/work-contracts-2026-10-25/README.md)。
+以下路径为新设计草案，不声明仓库已有实现；采用 OpenAPI 3.1、JSON Schema 与版本化内部 Protobuf 落实。当前契约草案见[work-api-contracts-2026-10-25.md](_archive/work-api-contracts-2026-10-25.md)，资产目录见[assets/work-contracts-2026-10-25](assets/work-contracts-2026-10-25/README.md)。
 
 ### 15.1 用户与管理API
 
@@ -1445,8 +1445,8 @@ R0a也需要最小策略和计量，不把安全控制放到R0b补；R0b补的�
 
 ### 22.2 架构评审后下一批交付
 
-1. 领域模型DDL与状态迁移约束，包括复合FK、RLS、预算锁与唯一Operation键（[草案](work-data-model-ddl-draft-2026-10-25.md)，已按 P0-1/P0-2/P1-1/P1-2 修订并冒烟；未评审/未应用生产）。
-2. OpenAPI/内部Protobuf/设备协议/事件schema，以及权限、错误码、幂等与版本规则（[契约说明](work-api-contracts-2026-10-25.md)，[OpenAPI 3.1](assets/work-contracts-2026-10-25/openapi/work-openapi-v1.yaml)，[Protobuf/事件 schema](assets/work-contracts-2026-10-25/README.md)；已起草并通过语法校验，待协议评审）。
+1. 领域模型DDL与状态迁移约束，包括复合FK、RLS、预算锁与唯一Operation键（[草案](_archive/work-data-model-ddl-draft-2026-10-25.md)，已按 P0-1/P0-2/P1-1/P1-2 修订并冒烟；未评审/未应用生产）。
+2. OpenAPI/内部Protobuf/设备协议/事件schema，以及权限、错误码、幂等与版本规则（[契约说明](_archive/work-api-contracts-2026-10-25.md)，[OpenAPI 3.1](assets/work-contracts-2026-10-25/openapi/work-openapi-v1.yaml)，[Protobuf/事件 schema](assets/work-contracts-2026-10-25/README.md)；已起草并通过语法校验，待协议评审）。
 3. 三条可执行纵切：云端任务→采纳（[参考切片](_archive/work-cloud-slice-2026-10-25/README.md)，已实现并 10/10 测试通过）；本机授权→断线恢复（[参考切片](_archive/work-local-slice-2026-10-25/README.md)，已实现并 8/8 测试通过）；连接器scope→撤销（[参考切片](_archive/work-connector-slice-2026-10-25/README.md)，已实现并 7/7 测试通过）。
 4. 威胁模型与沙箱证明、供应商条款/资源授权能力核对、计量价表上界（[威胁模型与核对清单](work-threat-model-2026-10-25.md)，已起草；沙箱证明、供应商书面条款、价表上界未关闭）。
 5. 工作流升级与区域恢复runbook、SLO测量方案、故障注入自动化（[Runbook](work-operations-runbook-2026-10-25.md)，已起草；当前 DDL 容量烟雾与逻辑恢复烟雾完成，区域演练/生产 SLO 未做）。

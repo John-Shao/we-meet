@@ -4,9 +4,9 @@
 >
 > 日期：2026-10-25
 >
-> 需求基线：[Work 系统架构 v2.9](work-system-architecture-2026-10-25.md) §11–§15、§21.2；[领域模型 DDL 草案](work-data-model-ddl-draft-2026-10-25.md)。
+> 需求基线：[Work 系统架构 v2.9](../work-system-architecture-2026-10-25.md) §11–§15、§21.2；[领域模型 DDL 草案](work-data-model-ddl-draft-2026-10-25.md)。
 >
-> 契约资产目录：[assets/work-contracts-2026-10-25](assets/work-contracts-2026-10-25/README.md)。
+> 契约资产目录：[assets/work-contracts-2026-10-25](../assets/work-contracts-2026-10-25/README.md)。
 
 ## 1. 范围与非目标
 
@@ -23,13 +23,13 @@
 
 | 文件 | 用途 |
 |---|---|
-| [openapi/work-openapi-v1.yaml](assets/work-contracts-2026-10-25/openapi/work-openapi-v1.yaml) | OpenAPI 3.1：bootstrap、预览/提交、Task/Run、审批、成果/采纳、SSE、inbox、连接器、设备、能力、管理端、operator |
-| [proto/work/common/v1/common.proto](assets/work-contracts-2026-10-25/proto/work/common/v1/common.proto) | 共享枚举、OrgContext、Ref、Money/Usage/Error、Quiescence、事件信封 |
-| [proto/work/control/v1/control.proto](assets/work-contracts-2026-10-25/proto/work/control/v1/control.proto) | 控制面领域命令：CreateRun、FinishRun、CreateOperation、ClaimDispatch、审批、预算、采纳、成果 finalize |
-| [proto/work/device/v1/device.proto](assets/work-contracts-2026-10-25/proto/work/device/v1/device.proto) | 设备双向连接、lease/command/receipt/cancel/reconcile/journal_release |
-| [proto/work/events/v1/events.proto](assets/work-contracts-2026-10-25/proto/work/events/v1/events.proto) | TaskEvent、InboxEvent、OutboxEnvelope 与类型化 payload |
-| [proto/work/egress/v1/egress.proto](assets/work-contracts-2026-10-25/proto/work/egress/v1/egress.proto) | 模型/工具出口、usage、provider 查询与 unknown 核对 |
-| [schema/work-event-envelope-v1.schema.json](assets/work-contracts-2026-10-25/schema/work-event-envelope-v1.schema.json) | SSE/inbox 公开事件信封 JSON Schema |
+| [openapi/work-openapi-v1.yaml](../assets/work-contracts-2026-10-25/openapi/work-openapi-v1.yaml) | OpenAPI 3.1：bootstrap、预览/提交、Task/Run、审批、成果/采纳、SSE、inbox、连接器、设备、能力、管理端、operator |
+| [proto/work/common/v1/common.proto](../assets/work-contracts-2026-10-25/proto/work/common/v1/common.proto) | 共享枚举、OrgContext、Ref、Money/Usage/Error、Quiescence、事件信封 |
+| [proto/work/control/v1/control.proto](../assets/work-contracts-2026-10-25/proto/work/control/v1/control.proto) | 控制面领域命令：CreateRun、FinishRun、CreateOperation、ClaimDispatch、审批、预算、采纳、成果 finalize |
+| [proto/work/device/v1/device.proto](../assets/work-contracts-2026-10-25/proto/work/device/v1/device.proto) | 设备双向连接、lease/command/receipt/cancel/reconcile/journal_release |
+| [proto/work/events/v1/events.proto](../assets/work-contracts-2026-10-25/proto/work/events/v1/events.proto) | TaskEvent、InboxEvent、OutboxEnvelope 与类型化 payload |
+| [proto/work/egress/v1/egress.proto](../assets/work-contracts-2026-10-25/proto/work/egress/v1/egress.proto) | 模型/工具出口、usage、provider 查询与 unknown 核对 |
+| [schema/work-event-envelope-v1.schema.json](../assets/work-contracts-2026-10-25/schema/work-event-envelope-v1.schema.json) | SSE/inbox 公开事件信封 JSON Schema |
 
 ## 3. 全局规则
 
@@ -146,7 +146,7 @@ OpenAPI 草案覆盖 33 个路径，按组：
 6. Protobuf tag/字段演进策略、生成代码目录和合同测试的 CI 位置。
 7. `operator` 与服务方 break-glass 的审批/审计 UI 契约。
 8. OpenAPI 生成客户端与现有仓库 SDK 的边界；本批不引入依赖。
-9. R0a 详细设计发现的契约缺口：输入创建（goal/background → `input_ref`）、内置模板、TaskSummary/视图筛选、Task title、管理只读映射；见 [work-r0a-detailed-design-plan-2026-10-25.md](work-r0a-detailed-design-plan-2026-10-25.md) §3 D2。R0a 子集已在 [work-r0a-api-design-2026-10-25.md](work-r0a-api-design-2026-10-25.md) 闭合输入/模板/TaskSummary/SSE 主要缺口；admin P1-A 映射仍待定。
+9. R0a 详细设计发现的契约缺口：输入创建（goal/background → `input_ref`）、内置模板、TaskSummary/视图筛选、Task title、管理只读映射；见 [work-r0a-detailed-design-plan-2026-10-25.md](../work-r0a-detailed-design-plan-2026-10-25.md) §3 D2。R0a 子集已在 [work-r0a-api-design-2026-10-25.md](../work-r0a-api-design-2026-10-25.md) 闭合输入/模板/TaskSummary/SSE 主要缺口；admin P1-A 映射仍待定。
 
 ## 9. 边界
 

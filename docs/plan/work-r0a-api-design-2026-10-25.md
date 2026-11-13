@@ -4,7 +4,7 @@
 >
 > 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界与 D-08 接入配置/用量接口；D-08a 已于 2026-10-27 由产品签收，b/d/c/d 未签）
 >
-> 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[API 契约草案](work-api-contracts-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[架构 §15](work-system-architecture-2026-10-25.md)。
+> 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[API 契约草案](_archive/work-api-contracts-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[架构 §15](work-system-architecture-2026-10-25.md)。
 >
 > 资产：[R0a OpenAPI](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、[生成类型](assets/work-r0a-design-2026-10-25/r0a-api-types.d.ts)、[运行时客户端](assets/work-r0a-design-2026-10-25/r0a-client.mjs)、[Host 端口契约](assets/work-r0a-design-2026-10-25/host-ports.mjs)、[WeMeet 适配器](assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs)、[mock server](assets/work-r0a-design-2026-10-25/mock-server.mjs)、[CI 门禁](assets/work-r0a-design-2026-10-25/scripts/ci-contract.mjs)、[合同测试](assets/work-r0a-design-2026-10-25/test/contract.test.mjs)。
 

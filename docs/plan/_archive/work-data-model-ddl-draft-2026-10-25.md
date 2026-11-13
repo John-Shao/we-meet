@@ -4,9 +4,9 @@
 >
 > 日期：2026-10-25
 >
-> 可执行 SQL：[work-ddl-draft-2026-10-25.sql](assets/work-ddl-draft-2026-10-25.sql)；冒烟脚本：[work-ddl-smoke-2026-10-25.sql](assets/work-ddl-smoke-2026-10-25.sql)
+> 可执行 SQL：[work-ddl-draft-2026-10-25.sql](../assets/work-ddl-draft-2026-10-25.sql)；冒烟脚本：[work-ddl-smoke-2026-10-25.sql](../assets/work-ddl-smoke-2026-10-25.sql)
 >
-> 需求基线：[Work 系统架构](work-system-architecture-2026-10-25.md) §5、§6、§11、§13、§14、§18。
+> 需求基线：[Work 系统架构](../work-system-architecture-2026-10-25.md) §5、§6、§11、§13、§14、§18。
 
 ## 1. 范围与假设
 
@@ -132,4 +132,4 @@
 9. R4/R5 的分享、协作编辑、自动化表未纳入本草案。
 10. 是否对所有租户表使用 `FORCE ROW LEVEL SECURITY`，以及迁移/运维角色的 bypass 策略。
 11. 直接表写权限与函数写入口的最小权限实现（当前函数为 invoker，脚本未 REVOKE 直接 DML）。
-12. R0a 详细设计新增 `work.input_object`、Task title/input_id 与管理只读投影；见 [work-r0a-detailed-design-plan-2026-10-25.md](work-r0a-detailed-design-plan-2026-10-25.md) §3 D1。可执行 R0a 裁剪版与 20/20 冒烟见 [work-r0a-data-design-2026-10-25.md](work-r0a-data-design-2026-10-25.md)。
+12. R0a 详细设计新增 `work.input_object`、Task title/input_id 与管理只读投影；见 [work-r0a-detailed-design-plan-2026-10-25.md](../work-r0a-detailed-design-plan-2026-10-25.md) §3 D1。可执行 R0a 裁剪版与 20/20 冒烟见 [work-r0a-data-design-2026-10-25.md](../work-r0a-data-design-2026-10-25.md)。

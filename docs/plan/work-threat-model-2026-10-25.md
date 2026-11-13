@@ -4,7 +4,7 @@
 >
 > 日期：2026-10-25
 >
-> 基线：[Work 系统架构 v2.9](work-system-architecture-2026-10-25.md) §10–§18、§21；[DDL 草案](work-data-model-ddl-draft-2026-10-25.md)；[API/内部契约](work-api-contracts-2026-10-25.md)。
+> 基线：[Work 系统架构 v2.9](work-system-architecture-2026-10-25.md) §10–§18、§21；[DDL 草案](_archive/work-data-model-ddl-draft-2026-10-25.md)；[API/内部契约](_archive/work-api-contracts-2026-10-25.md)。
 
 ## 1. 范围与资产
 

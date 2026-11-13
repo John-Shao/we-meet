@@ -167,7 +167,7 @@ SELECT has_table_privilege(current_user, 'work.member', 'SELECT') AS member_sele
 - **数据层**：生产 `core.0235` 已应用（`home_region/directory_revision/work_seat` 与 3 个目录触发器）；meet 库不再创建 Work schema（空 `work` schema/3 条台账已清理），Work `0001`–`0003` 在 Work ECS `work` 库。
 - **安全边界**：发布时 `workHost.enabled=false`；同日 P1 激活见 §10。
 - **后续（已在 §10 完成）**：生产 CA/Secret/客户端证书、Work 控制面/同步、mTLS 负例、真实 session bootstrap 与 mass-absence 闸门均已补齐；`realHostIntegrationVerified=true`。
-- **D-04 收敛（2026-10-28）**：meet 不再迁移 Work（`MIGRATION_MODULES={"work": None}`），空 `work` schema、3 条台账、7 个 Work 角色、`meet_migrator` 与 Secret 已清理；Work schema 只由 Work ECS `work_migrator_login` 迁移，边界见 [迁移 Runbook §7](work-r0a-migration-runbook.md#7-数据库边界2026-10-28)。
+- **D-04 收敛（2026-10-28）**：meet 不再迁移 Work（`MIGRATION_MODULES={"work": None}`），空 `work` schema、3 条台账、7 个 Work 角色、`meet_migrator` 与 Secret 已清理；Work schema 只由 Work ECS `work_migrator_login` 迁移，边界见 [迁移 Runbook §7](_archive/work-r0a-migration-runbook.md#7-数据库边界2026-10-28)。
 
 ## 10. 生产 Host 激活（2026-10-28）
 

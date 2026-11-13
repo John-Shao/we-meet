@@ -2,7 +2,7 @@
 
 > 状态：参考实现，Node 24 + PostgreSQL 16 + mock connector adapter；不接真实供应商、不是 OAuth/网络/凭据安全证明。
 >
-> 基线：[Work 系统架构 v2.9](../../work-system-architecture-2026-10-25.md) §11.4、§12、§13、§21；[DDL 草案](../../work-data-model-ddl-draft-2026-10-25.md)；[API/内部契约](../../assets/work-contracts-2026-10-25/README.md)。
+> 基线：[Work 系统架构 v2.9](../../work-system-architecture-2026-10-25.md) §11.4、§12、§13、§21；[DDL 草案](../work-data-model-ddl-draft-2026-10-25.md)；[API/内部契约](../../assets/work-contracts-2026-10-25/README.md)。
 
 本目录验证第三条纵切：
 

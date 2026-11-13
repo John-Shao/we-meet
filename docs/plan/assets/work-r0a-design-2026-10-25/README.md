@@ -111,5 +111,5 @@ D2：真实 cookie/CSRF 签发、真实 SSE 网关/背压/多连接、真实持�
 
 - 设计说明：[../../work-r0a-data-design-2026-10-25.md](../../work-r0a-data-design-2026-10-25.md)
 - 详细设计计划：[../../work-r0a-detailed-design-plan-2026-10-25.md](../../work-r0a-detailed-design-plan-2026-10-25.md)
-- 完整 DDL：[../../work-data-model-ddl-draft-2026-10-25.md](../../work-data-model-ddl-draft-2026-10-25.md)
-- API 契约：[../../work-api-contracts-2026-10-25.md](../../work-api-contracts-2026-10-25.md)
+- 完整 DDL：[../../work-data-model-ddl-draft-2026-10-25.md](../../_archive/work-data-model-ddl-draft-2026-10-25.md)
+- API 契约：[../../work-api-contracts-2026-10-25.md](../../_archive/work-api-contracts-2026-10-25.md)

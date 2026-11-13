@@ -2,9 +2,9 @@
 
 > 目标契约，不是现有实现；未生成/提交生产 SDK，未完成协议评审。
 >
-> 设计说明：[work-api-contracts-2026-10-25.md](../../work-api-contracts-2026-10-25.md)
+> 设计说明：[work-api-contracts-2026-10-25.md](../../_archive/work-api-contracts-2026-10-25.md)
 >
-> 需求基线：[Work 系统架构 v2.9](../../work-system-architecture-2026-10-25.md) §11–§15、§21.2；[DDL 草案](../../work-data-model-ddl-draft-2026-10-25.md)。
+> 需求基线：[Work 系统架构 v2.9](../../work-system-architecture-2026-10-25.md) §11–§15、§21.2；[DDL 草案](../../_archive/work-data-model-ddl-draft-2026-10-25.md)。
 
 ## 文件
 
