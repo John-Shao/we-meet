@@ -2,7 +2,7 @@
 
 > 状态：参考实现，Node 24 + PostgreSQL 16；不接生产代码、不接真实模型/供应商、不是部署方案。
 >
-> 基线：[Work 系统架构 v2.9](../../work-system-architecture-2026-10-25.md) §7、§11、§13、§14、§21；[DDL 草案](../../work-data-model-ddl-draft-2026-10-25.md)；[API/内部契约](../work-contracts-2026-10-25/README.md)。
+> 基线：[Work 系统架构 v2.9](../../work-system-architecture-2026-10-25.md) §7、§11、§13、§14、§21；[DDL 草案](../../work-data-model-ddl-draft-2026-10-25.md)；[API/内部契约](../../assets/work-contracts-2026-10-25/README.md)。
 
 本目录把“云端任务→运行→成果→采纳”做成可执行纵切，用来验证：
 

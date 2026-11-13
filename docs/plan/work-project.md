@@ -103,9 +103,9 @@
 | 资产 | 内容 |
 |---|---|
 | [work-contracts](assets/work-contracts-2026-10-25/README.md) | OpenAPI + control/device/events/egress Protobuf + 事件 Schema |
-| [work-cloud-slice](assets/work-cloud-slice-2026-10-25/README.md) | 云端任务→采纳纵切，10/10（历史结果） |
-| [work-local-slice](assets/work-local-slice-2026-10-25/README.md) | 本机授权→断线恢复纵切，8/8（历史结果） |
-| [work-connector-slice](assets/work-connector-slice-2026-10-25/README.md) | 连接器 scope→撤销纵切，7/7（历史结果） |
+| [work-cloud-slice](_archive/work-cloud-slice-2026-10-25/README.md) | 云端任务→采纳纵切，10/10（历史结果） |
+| [work-local-slice](_archive/work-local-slice-2026-10-25/README.md) | 本机授权→断线恢复纵切，8/8（历史结果） |
+| [work-connector-slice](_archive/work-connector-slice-2026-10-25/README.md) | 连接器 scope→撤销纵切，7/7（历史结果） |
 | [work-ops](assets/work-ops-2026-10-25/README.md) | 容量烟雾、备份恢复命令 |
 | [work-ddl-draft-2026-10-25.sql](assets/work-ddl-draft-2026-10-25.sql) / [smoke](assets/work-ddl-smoke-2026-10-25.sql) | 早期 DDL 与冒烟 |
 | [harness-lab](assets/harness-lab/README.md) | H01–H12 / S1–S6 Harness 准入实验；H11 未触发，多为 mock/部分通过 |

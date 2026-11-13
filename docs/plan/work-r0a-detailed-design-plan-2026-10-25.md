@@ -266,7 +266,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **目标**：冻结 R0a 公开接口子集，闭合当前契约缺口，并让客户端/mock/合同测试成为实现输入。
 
-**设计输入**：[OpenAPI](assets/work-contracts-2026-10-25/openapi/work-openapi-v1.yaml)、[API 契约](work-api-contracts-2026-10-25.md)、[云端纵切](assets/work-cloud-slice-2026-10-25/README.md)、[架构 §15](work-system-architecture-2026-10-25.md)。
+**设计输入**：[OpenAPI](assets/work-contracts-2026-10-25/openapi/work-openapi-v1.yaml)、[API 契约](work-api-contracts-2026-10-25.md)、[云端纵切](_archive/work-cloud-slice-2026-10-25/README.md)、[架构 §15](work-system-architecture-2026-10-25.md)。
 
 **当前进展（2026-10-25）**：已产出 [D2 设计说明](work-r0a-api-design-2026-10-25.md)、[R0a OpenAPI](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、生成的 TypeScript 类型与[运行时客户端](assets/work-r0a-design-2026-10-25/r0a-client.mjs)、[mock server](assets/work-r0a-design-2026-10-25/mock-server.mjs)、[10 组合同测试](assets/work-r0a-design-2026-10-25/test/contract.test.mjs)与 [9 组 Host 端口测试](assets/work-r0a-design-2026-10-25/test/host-ports.test.mjs)；OpenAPI 校验与 `tsc --noEmit` 通过，`ci-contract.mjs` 作为漂移门禁。远端 CI 与真实前端接入仍未完成。
 
@@ -306,7 +306,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **目标**：把“提交→派发→模型→预算→成果→采纳”做成可恢复、可对账、不可双重消费的持久流程。
 
-**设计输入**：[架构 §6/§7/§11/§14/§21](work-system-architecture-2026-10-25.md)、[云端纵切](assets/work-cloud-slice-2026-10-25/README.md)、[DDL 草案](work-data-model-ddl-draft-2026-10-25.md)。
+**设计输入**：[架构 §6/§7/§11/§14/§21](work-system-architecture-2026-10-25.md)、[云端纵切](_archive/work-cloud-slice-2026-10-25/README.md)、[DDL 草案](work-data-model-ddl-draft-2026-10-25.md)。
 
 **当前进展（2026-10-25）**：D3 设计、契约与 Temporal dev 参考纵切已产出；F01/F02/F04/F07/F21/F23 + D3-R06–R09 10/10 + normal 1/1、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）；多节点/在途 server 重启/正式 worker versioning 与 DR2 未执行。
 
