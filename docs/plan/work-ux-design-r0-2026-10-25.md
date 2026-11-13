@@ -1,5 +1,7 @@
 # WeMeet 工作 R0 UX 设计蓝图
 
+> **代码引用说明（2026-11-13）**：本文 `work.css` 代码引用指向已删除的旧 Work 前端样式文件。该引用已去链接化、仅作历史定位。
+
 > 版本：v1.3（中保真）
 >
 > 日期：2026-10-25
@@ -960,7 +962,7 @@
 - [豆包/千问扩展能力统一调研](../research/work-extension-unified-research-2026-10-25.md)
 - [新任务竞品调研](../research/work-new-task-competitor-research-2026-10-25.md)
 - [WeMeet design tokens](../../src/design-tokens)
-- [Work 现有样式](../../src/frontend/src/features/work/routes/work.css)
+- Work 现有样式（work.css，已删除）
 
 ### 16.4 变更记录
 

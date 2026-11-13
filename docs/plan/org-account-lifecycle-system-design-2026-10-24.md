@@ -1,5 +1,7 @@
 # 组织 / 账号生命周期与 Work 授权闭环：系统设计
 
+> **代码引用说明（2026-11-13）**：本文 `src/backend/work/*` 代码引用指向已删除的旧 Django work app（Work 已用 Go 重做，见 `src/work`）。这些引用已去链接化、仅作历史定位，引用文字逐字保留。
+
 - 日期：2026-10-24
 - 状态：已按 2026-10-24 评审修订；P0 与 P1-A 已实施并上线生产（2026-10-24，镜像 `a34668295`），P1-B / P1-C 与外部身份未实施
 - 上游方案：[org-account-lifecycle-plan-2026-10-24.md](org-account-lifecycle-plan-2026-10-24.md)
@@ -273,7 +275,7 @@ grant_restored
 
 - 版本前缀：`/api/v1.0/`。
 - core 管理端沿用 DRF 错误形状：`{"detail": "..."}` 或字段错误；新增的所有权端点额外带机器可读 `code`。
-- Work 数据面沿用现有 `{"code": "member_disabled"}`（[work/access.py:173](../../src/backend/work/access.py#L173)）。
+- Work 数据面沿用现有 `{"code": "member_disabled"}`（work/access.py:173）。
 - Work 管理面（P1）统一为 `{"code": "...", "detail": "...", "meta": {...}}`。
 - 所有管理端请求都必须能解析出调用者的组织（主用活跃 membership）；解析不出组织的调用者一律拒绝，不允许回退到「任意一个组织」。
 
@@ -481,7 +483,7 @@ python manage.py organization_lifecycle archive  <slug|uuid> --dry-run
 
 - 对已撤销行再次 `POST` 视为“重新启用”（upsert）：清空 `revoked_*`、`enabled=True`，重新校验席位并写 `grant_restored`。并发撞 `unique(organization, user)` 时返回 `409 grant_conflict`，客户端重试读取即可。
 - 席位 = 该组织下**去重后的有效自然人**（逐人 grant ∪ P1 组 grant），不是 grant 行数。
-- `member_limit_reached` 是管理面错误码，**不加入** `work.access.DENIAL_CODES`；否则运行中的任务会被 `failure_status` 误标为 `access_revoked`（[work/runs.py:127](../../src/backend/work/runs.py#L127)）。
+- `member_limit_reached` 是管理面错误码，**不加入** `work.access.DENIAL_CODES`；否则运行中的任务会被 `failure_status` 误标为 `access_revoked`（work/runs.py:127）。
 - P1 组授权导致存量超限时，不自动移除成员：新增启用被拒，存量保留并输出 `work_seat_overage` 报告。
 
 权限与范围：

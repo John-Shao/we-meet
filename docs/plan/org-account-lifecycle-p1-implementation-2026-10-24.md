@@ -1,5 +1,7 @@
 # 组织/账号生命周期 P1 功能清单与实现步骤
 
+> **代码引用说明（2026-11-13）**：本文 `src/backend/work/*` 代码引用指向已删除的旧 Django work app（Work 已用 Go 重做，见 `src/work`）。这些引用已去链接化、仅作历史定位，引用文字逐字保留。
+
 生成日期：2026-10-24。上游文档：[实施方案](org-account-lifecycle-plan-2026-10-24.md) §5、[系统设计](org-account-lifecycle-system-design-2026-10-24.md) §4.2 / §5.5 / §5.6 / 批次 5。
 
 前置状态：P0（所有权转移、离职撤权、席位上限、组织停用/归档）已在 `feature/work-tenant-access` 实现（`dc5b176b5`、`33478cfff`），**尚未按设计稿 §11.2 的发布顺序完成灰度与存量回填**。P1 的任何一块都不应在 P0 回填校验（`work_membership_left_unrevoked = 0`）通过之前上线生产。
@@ -28,13 +30,13 @@ P1 拆成三块可独立发布的能力，依赖外部条件的部分必须等�
 |---|---|---|
 | A1 | 新增权限码 `org.work_grant.read` / `org.work_grant.write`（分组 `operations`；沿用注册表的 `org.<subject>.<verb>` 约定） | [core/permissions_registry.py](../../src/backend/core/permissions_registry.py) |
 | A2 | 内置角色「并集追加」`read` 给 `hr / it / admin_office`，`write` 不给任何内置角色 | 数据迁移 `core/00XX_builtin_work_grant_permissions.py` + `core/permissions_registry.py` 的 `BUILTIN_ROLES`（播种与迁移必须同源） |
-| A3 | `GET /work/admin/grants/`：授权列表，`?q=` 与 `?status=`（active／revoked／disabled／expired），按部门 scope 过滤 | 新增 `work/api_admin.py`、[work/urls.py](../../src/backend/work/urls.py) |
+| A3 | `GET /work/admin/grants/`：授权列表，`?q=` 与 `?status=`（active／revoked／disabled／expired），按部门 scope 过滤 | 新增 `work/api_admin.py`、work/urls.py |
 | A4 | `POST /work/admin/grants/`：授予 / 重新启用（upsert），超限 `409 member_limit_reached`，唯一冲突 `409 grant_conflict` | `grants.grant_member` |
 | A5 | `DELETE /work/admin/grants/{user_id}/`：软撤销 → `204`，重复调用保留首次撤销时间 | `grants.revoke_member_grant` |
 | A6 | `POST /work/admin/grants/{user_id}/restore/`：恢复并重做席位校验 | `grants.restore_member_grant` |
 | A7 | `GET /work/admin/grants/summary/`：席位 `active / limit`、是否超限 | `grants.seat_usage` |
 | A8 | `GET /work/admin/access-audit/export/`：CSV 导出，要求 `org.audit.read`，脱敏 + 公式注入防护 | `work.audit` 查询 + `core.audit` 导出惯例 |
-| A9 | 审计留存清理：`WORK_ACCESS_AUDIT_RETENTION_DAYS`（默认 365）每日任务，归档组织不立即删审计 | [work/tasks.py](../../src/backend/work/tasks.py) + Celery beat |
+| A9 | 审计留存清理：`WORK_ACCESS_AUDIT_RETENTION_DAYS`（默认 365）每日任务，归档组织不立即删审计 | work/tasks.py + Celery beat |
 | A10 | 控制台 Work 授权页：席位占用、授予/撤销/恢复、撤销原因、超限时禁用授予按钮 | 前端，单独交付 |
 
 明确不做：不开放 `work.entitlement.write`（开通、预算、`member_limit` 仍归平台）；不新增 Work 数据面拒绝码。
@@ -43,13 +45,13 @@ P1 拆成三块可独立发布的能力，依赖外部条件的部分必须等�
 
 | 编号 | 功能 | 落点 |
 |---|---|---|
-| B1 | `work.WorkGroupGrant`（`organization` + `user_group` 唯一、`enabled` / `source` / `revoked_*`） | [work/models.py](../../src/backend/work/models.py)、`work/0011_group_grants.py` |
+| B1 | `work.WorkGroupGrant`（`organization` + `user_group` 唯一、`enabled` / `source` / `revoked_*`） | work/models.py、`work/0011_group_grants.py` |
 | B2 | 席位计数与投影改为「逐人 ∪ 组」去重自然人 | `grants.active_seats` / `seat_usage` |
-| B3 | 准入并集：`access.check` 的 grant 判定接受有效组授权 | [work/access.py](../../src/backend/work/access.py) |
+| B3 | 准入并集：`access.check` 的 grant 判定接受有效组授权 | work/access.py |
 | B4 | 组 grant 启用时做投影校验，超限拒绝；存量流动超限只产出 `work_seat_overage`，不自动撤权 | `work/grants.py` 新增 `grant_group` / `revoke_group_grant` |
 | B5 | `GET/POST/DELETE /work/admin/group-grants/` | `work/api_admin.py` |
 | B6 | 离职与归档联动：归档撤销全部 grant（含组）；单个成员离开组不自动撤权，只重算席位 | `core/services/organization_lifecycle.py`、`work/lifecycle.py` |
-| B7 | Django admin 组授权只读展示 + 走服务写入 | [work/admin.py](../../src/backend/work/admin.py) |
+| B7 | Django admin 组授权只读展示 + 走服务写入 | work/admin.py |
 
 ### P1-C 外部身份与事件
 

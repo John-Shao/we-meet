@@ -1,5 +1,7 @@
 # 组织 / 账号生命周期与 Work 授权闭环方案
 
+> **代码引用说明（2026-11-13）**：本文 `src/backend/work/*` 代码引用指向已删除的旧 Django work app（Work 已用 Go 重做，见 `src/work`）。这些引用已去链接化、仅作历史定位，引用文字逐字保留。
+
 - 日期：2026-10-24
 - 状态：已按 2026-10-24 系统设计评审修订；P0 与 P1-A 已实施并上线生产（2026-10-24，镜像 `a34668295`），P1-B / P1-C 与外部身份未实施
 - 依据：[飞书企业账号生命周期调研](../research/feishu-enterprise-account-lifecycle-2026-10-24.md)、[ADR-0005](../adr/0005-work-two-layer-access.md)
@@ -31,10 +33,10 @@ ADR-0005 把 Work 的准入拆成了两层：平台侧的 `WorkOrganizationEntit
 | 没有待离职 / 离职恢复状态 | `MembershipStatusChoices` 已有 `active / invited / suspended / left`，`Membership` 已有 `left_at / left_reason / left_snapshot`；`offboard_membership` 与 `rehire_membership` 已实现（[core/services/offboarding.py:119](../../src/backend/core/services/offboarding.py#L119)、[core/services/offboarding.py:246](../../src/backend/core/services/offboarding.py#L246)） | 不复制飞书的 `pending_departure`；P0-2 只补"离职 → Work 撤权"的边界 |
 | 没有管理员角色与数据范围 | `AdminRole` / `AdminRoleAssignment` / `AdminRoleScopeDepartment` 与权限注册表已存在（P10 M2，[core/models.py:6827](../../src/backend/core/models.py#L6827)、[core/permissions_registry.py:29](../../src/backend/core/permissions_registry.py#L29)） | P1 只给现有角色体系增加 Work 域权限码，不重建角色系统 |
 | 没有外部身份映射 | 属实，`Membership` 只有内部 `user` | P1 新增外部身份表，不把 `open_id` 当跨租户主键 |
-| `member_limit` 没有真正执行 | 属实，字段存在但创建 grant 时不校验（[work/models.py:292](../../src/backend/work/models.py#L292)） | P0-3 补执行路径 |
-| Work 数据是 owner-scoped | 属实，`WorkTask.owner` / `WorkDevice.owner` 都是个人（[work/models.py:10](../../src/backend/work/models.py#L10)、[work/models.py:38](../../src/backend/work/models.py#L38)） | P2 再做资源交接，P0 不碰数据归属 |
+| `member_limit` 没有真正执行 | 属实，字段存在但创建 grant 时不校验（work/models.py:292） | P0-3 补执行路径 |
+| Work 数据是 owner-scoped | 属实，`WorkTask.owner` / `WorkDevice.owner` 都是个人（work/models.py:10、work/models.py:38） | P2 再做资源交接，P0 不碰数据归属 |
 | `WorkMemberGrant` 只支持逐人 | 属实 | P1 增加组授权，保留逐人授权作为例外 |
-| 没有审计留存策略 | 属实，`WorkAccessAudit` 只保证写入（[work/models.py:389](../../src/backend/work/models.py#L389)） | P1 定义留存期与导出 |
+| 没有审计留存策略 | 属实，`WorkAccessAudit` 只保证写入（work/models.py:389） | P1 定义留存期与导出 |
 
 另外有两个调研时未列出的真实缺口，必须在 P0 一并处理：
 
@@ -56,7 +58,7 @@ ADR-0005 把 Work 的准入拆成了两层：平台侧的 `WorkOrganizationEntit
 
 ### 1.3 组织停用被误报成"成员被停用"
 
-`work.access._active_memberships` 同时过滤 `Membership.status=ACTIVE` 和 `Organization.is_active=True`（[work/access.py:60](../../src/backend/work/access.py#L60)）。当组织停用时，`request_organization` 和 `check` 都会落到 `member_disabled`，与"这个人被停用"无法区分；`check` 里的 `org_disabled` 目前只覆盖"Work 开通被关闭"和运维黑名单（[work/access.py:134](../../src/backend/work/access.py#L134)）。
+`work.access._active_memberships` 同时过滤 `Membership.status=ACTIVE` 和 `Organization.is_active=True`（work/access.py:60）。当组织停用时，`request_organization` 和 `check` 都会落到 `member_disabled`，与"这个人被停用"无法区分；`check` 里的 `org_disabled` 目前只覆盖"Work 开通被关闭"和运维黑名单（work/access.py:134）。
 
 **处理**：P0-4 把组织状态与成员状态拆开判断，统一返回 `org_disabled`，同时保留 `member_of` 的双重 fail-closed 语义，供成果交付二次校验使用。
 
@@ -195,13 +197,13 @@ P0 的四个项都不依赖飞书，也不改变现有两层授权的语义，�
 2. 在 `work` 的 `AppConfig.ready()` 注册接收器：
    - 找到该 `(organization, user)` 的 grant；若 `revoked_at` 为空，则 `enabled=False`、`revoked_at=now`、`revoked_reason="membership_left"`、`revoked_by=actor`。
    - 接收器与离职在同一事务内执行：撤权写失败应让离职回滚，而不是留下"已离职但仍有授权"的中间态。
-   - 撤权审计用现有的 best-effort 写法，审计失败不回滚撤权（[work/audit.py:47](../../src/backend/work/audit.py#L47)）。
+   - 撤权审计用现有的 best-effort 写法，审计失败不回滚撤权（work/audit.py:47）。
    - 幂等：重复信号不会重复写 `revoked_at`。
-3. `WorkMemberGrant` 增加字段：`revoked_at`、`revoked_reason`、`revoked_by`；`is_active()` 增加 `revoked_at is None` 条件（[work/models.py:333](../../src/backend/work/models.py#L333)）。
+3. `WorkMemberGrant` 增加字段：`revoked_at`、`revoked_reason`、`revoked_by`；`is_active()` 增加 `revoked_at is None` 条件（work/models.py:333）。
 4. `rehire_membership` 不发撤权动作，也不恢复 grant；`org_role` 必填、默认 `member`，原 OWNER 不能静默恢复。客户要恢复 Work，必须通过显式授权动作重新 `enabled=True` 并清空撤销字段，写 `grant_restored` 审计。
 5. 离职时的在途任务：
    - 该用户名下的 queued / running run 与 review 批量终止为 `canceled`，`error_code="membership_left"`。
-   - 已在 provider 侧执行中的调用无法中断，但成果交付会走 `scope_denial`，因 membership 不再是 ACTIVE 而返回 `access_revoked`（[work/access.py:185](../../src/backend/work/access.py#L185)）。
+   - 已在 provider 侧执行中的调用无法中断，但成果交付会走 `scope_denial`，因 membership 不再是 ACTIVE 而返回 `access_revoked`（work/access.py:185）。
    - 任务与成果的归属不在 P0 迁移，保留给 P2 的交接流程。
 6. 提供回填命令 `manage.py revoke_departed_grants --dry-run`：
    - 找出所有 `Membership.status=LEFT` 但仍有效的 grant，输出数量与组织分布。
@@ -232,8 +234,8 @@ P0 的四个项都不依赖飞书，也不改变现有两层授权的语义，�
 
 **现状**
 
-- `WorkOrganizationEntitlement.member_limit` 可空，空表示不限；字段存在，但没有任何写入路径校验（[work/models.py:292](../../src/backend/work/models.py#L292)）。
-- 当前 grant 只能通过 Django admin 写入，`WorkMemberGrantAdmin.save_model` 没有上限检查（[work/admin.py](../../src/backend/work/admin.py)）。
+- `WorkOrganizationEntitlement.member_limit` 可空，空表示不限；字段存在，但没有任何写入路径校验（work/models.py:292）。
+- 当前 grant 只能通过 Django admin 写入，`WorkMemberGrantAdmin.save_model` 没有上限检查（work/admin.py）。
 
 **设计**
 

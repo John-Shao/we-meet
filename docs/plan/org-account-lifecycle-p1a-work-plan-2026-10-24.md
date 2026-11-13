@@ -1,5 +1,7 @@
 # P1-A 工作计划与验收标准
 
+> **代码引用说明（2026-11-13）**：本文 `src/backend/work/*` 代码引用指向已删除的旧 Django work app（Work 已用 Go 重做，见 `src/work`）。这些引用已去链接化、仅作历史定位，引用文字逐字保留。
+
 生成日期：2026-10-24。上游：[P1 功能清单与实现步骤](org-account-lifecycle-p1-implementation-2026-10-24.md) §1 P1-A / §2 批次 A；[系统设计](org-account-lifecycle-system-design-2026-10-24.md) §5.5。
 
 P1-A = 客户侧 Work 授权管理面：权限码、grants 读写 API、席位摘要、访问审计导出与留存清理。无外部依赖，可与 P0 灰度并行开发，但**不得先于 P0 回填校验上线生产**。
@@ -48,7 +50,7 @@ python manage.py revoke_departed_grants --dry-run   # 期望末行 "would revoke
 
 原清单默认沿用数据面的 `X-Organization-Id` 解析。**P1-A 不这么做**：管理面以 `get_admin_context(request).organization`（即调用者的主用活跃 membership，见 [core/api/directory.py:62](../../src/backend/core/api/directory.py)）为唯一租户来源，与其余 org-admin 端点保持一致。
 
-理由：数据面按头部切租户，管理面按主 membership 定租户，两者混用会让「列表按 A 租户过滤、写入按 B 租户校验」在同一请求里同时成立——这是跨租户写入的成因。代价是 P1-A 不支持在同一会话里切换租户管理多个组织，控制台需要按租户重新登录或后续单开管理面租户切换设计。另一头也核实过：截至 2026-10-24，本仓前端代码里**没有任何地方发送 `X-Organization-Id`**（只有后端与文档引用它，见 [work/README.md](../../src/backend/work/README.md)）。所以 §T2 第 4 条的不一致拒绝实际只会命中脚本、运维误配和未来客户端，不会误伤现有控制台；但它也不是安全边界——真正的边界是「租户只来自 admin context」。
+理由：数据面按头部切租户，管理面按主 membership 定租户，两者混用会让「列表按 A 租户过滤、写入按 B 租户校验」在同一请求里同时成立——这是跨租户写入的成因。代价是 P1-A 不支持在同一会话里切换租户管理多个组织，控制台需要按租户重新登录或后续单开管理面租户切换设计。另一头也核实过：截至 2026-10-24，本仓前端代码里**没有任何地方发送 `X-Organization-Id`**（只有后端与文档引用它，见 work/README.md）。所以 §T2 第 4 条的不一致拒绝实际只会命中脚本、运维误配和未来客户端，不会误伤现有控制台；但它也不是安全边界——真正的边界是「租户只来自 admin context」。
 
 该限制写进 §5 未决项，不在本批次解决。
 
@@ -59,10 +61,10 @@ P1-A 是 Work 域自己的管理面，代码落在 `work` app。`core` 的改动
 | 位置 | 改动 | 说明 |
 |---|---|---|
 | `work/api_admin.py`（新） | 视图、序列化、`WorkAdminPermission`、范围校验、CSV 导出 | 全部管理面逻辑 |
-| [work/urls.py](../../src/backend/work/urls.py) | 追加 `admin/` 路由 | 前缀由 `meet/urls.py:20` 提供，不改挂载 |
-| [work/tasks.py](../../src/backend/work/tasks.py) | `prune_access_audit()` | 只删 `WorkAccessAudit` |
+| work/urls.py | 追加 `admin/` 路由 | 前缀由 `meet/urls.py:20` 提供，不改挂载 |
+| work/tasks.py | `prune_access_audit()` | 只删 `WorkAccessAudit` |
 | [meet/settings.py](../../src/backend/meet/settings.py) | `WORK_ACCESS_AUDIT_RETENTION_DAYS`、`WORK_ACCESS_AUDIT_RETENTION_DRY_RUN`、`WORK_ACCESS_AUDIT_PRUNE_BATCH`、`WORK_ACCESS_AUDIT_EXPORT_MAX_ROWS` + beat 条目 | 配置层，非 `core` app |
-| [work/models.py](../../src/backend/work/models.py) + `work/0011_access_audit_export.py`（新） | `WorkAccessAudit.Action` 加一个 `ACCESS_AUDIT_EXPORTED`，迁移只改 choices | §0.4 的唯一例外，见 §T6「导出留痕」；Postgres 上无 DDL |
+| work/models.py + `work/0011_access_audit_export.py`（新） | `WorkAccessAudit.Action` 加一个 `ACCESS_AUDIT_EXPORTED`，迁移只改 choices | §0.4 的唯一例外，见 §T6「导出留痕」；Postgres 上无 DDL |
 | [core/permissions_registry.py](../../src/backend/core/permissions_registry.py) | `PERMISSIONS` 加 2 个码；`BUILTIN_ROLES` 三个内置角色并集追加 `read` | 目录必须在 core：`AdminRole.permissions` 由它校验、控制台由它渲染 |
 | `core/migrations/00XX_builtin_work_grant_permissions.py`（新） | 对存量内置角色「并集追加 `read`」的数据迁移 | 纯数据迁移，`is_builtin=True` 行，不动 schema、不动自定义角色行 |
 | `core/tests/test_permissions_work_grant.py`（新） | 码目录、内置角色、可 scope 性 | 测试落在被改动的那一侧 |
@@ -98,7 +100,7 @@ git diff --name-only 33478cfff..HEAD -- src/backend/work/migrations   # 只允�
 
 ### T2 管理面视图骨架与闸门
 
-新增 `work/api_admin.py`，路由挂到 [meet/urls.py:20](../../src/backend/meet/urls.py) 已有的 `api/v1.0/work/` 前缀下（[work/urls.py](../../src/backend/work/urls.py)）。
+新增 `work/api_admin.py`，路由挂到 [meet/urls.py:20](../../src/backend/meet/urls.py) 已有的 `api/v1.0/work/` 前缀下（work/urls.py）。
 
 权限类 `WorkAdminPermission`（继承 `HasOrgPermission` 的语义，不修改它）：
 
@@ -114,7 +116,7 @@ git diff --name-only 33478cfff..HEAD -- src/backend/work/migrations   # 只允�
 两种落空的响应不同，且这条区分同时解决了「目标到底是不是成员」该不该回答：
 
 - 部门作用域管理员 → 范围外与「根本不是本组织成员」**同为** `403 {"code":"member_out_of_scope"}`。对只能看见半个组织的人，后一种信息本就不该区分出来，那是一次额外的成员身份探测面。
-- 全域管理员（`scope_type=all`，含 owner/admin）→ `filter_memberships` 不收窄，请求穿透到服务，由 `grants._require_active_member`（[work/grants.py:103](../../src/backend/work/grants.py)）给 `409 {"code":"member_not_active"}`。
+- 全域管理员（`scope_type=all`，含 owner/admin）→ `filter_memberships` 不收窄，请求穿透到服务，由 `grants._require_active_member`（work/grants.py:103）给 `409 {"code":"member_not_active"}`。
 
 因此**不再有 `404 member_not_found`**：服务本来就只区分「组织活跃 / 不活跃」，视图层加预检去换一个码，等于多一次查询只为把同一个事实说两种话。
 
@@ -132,7 +134,7 @@ git diff --name-only 33478cfff..HEAD -- src/backend/work/migrations   # 只允�
 
 `status` / `membership_state` 的判定必须与 `grants.valid_grants()` 用同一个 `now`（一次请求取一次），否则列表的 `active` 会与 `seat_usage` 的 `active` 在边界上打架。
 
-**`membership_state` 与部门范围一律用子查询 / `Exists`，禁止 `join` 或 `select_related` 到 membership**：membership 是每人每部门一行（§0.1），grant 与它的关系是 1→N。一旦 JOIN，同一个 grant 会按部门数重复出现、分页 `count` 虚高、`page_size` 截掉的是重复行而不是真人——这三个症状都要有对应测试。列表基数等于该组织的 grant 行数（`(organization, user)` 唯一，[work/models.py:388](../../src/backend/work/models.py)）。
+**`membership_state` 与部门范围一律用子查询 / `Exists`，禁止 `join` 或 `select_related` 到 membership**：membership 是每人每部门一行（§0.1），grant 与它的关系是 1→N。一旦 JOIN，同一个 grant 会按部门数重复出现、分页 `count` 虚高、`page_size` 截掉的是重复行而不是真人——这三个症状都要有对应测试。列表基数等于该组织的 grant 行数（`(organization, user)` 唯一，work/models.py:388）。
 
 `status` 过滤走 SQL 谓词而不是取全量再内存筛；分页用 `WorkGrantPagination(PageNumberPagination)`，`max_page_size = 100`（全局 `PAGE_SIZE=20` 不会自动 clamp 请求参数，[meet/settings.py:525](../../src/backend/meet/settings.py)）。排序 `-updated_at, id`（`id` 做 tiebreaker 保证翻页稳定），`select_related("organization", "user")`。`?q=` 只匹配 `full_name` / `short_name` / `sub` / `employee_no` 与 uuid 前缀——**不匹配 email 或 phone**，否则搜索本身变成一个能逐字验证他人邮箱的预言机。
 
@@ -148,7 +150,7 @@ git diff --name-only 33478cfff..HEAD -- src/backend/work/migrations   # 只允�
 
 ### T5 席位摘要
 
-`GET /work/admin/grants/summary/` → `grants.seat_usage(org.id)`，即 `{"active": n, "limit": m|null, "over_limit": bool}`。`over_limit` 用 `limit is not None and active > limit`（存量流动造成的超限只读展示，不自动撤权）。响应加 `Cache-Control: no-store`，与 `CapabilitiesView` 一致（[work/api.py:71](../../src/backend/work/api.py)）。
+`GET /work/admin/grants/summary/` → `grants.seat_usage(org.id)`，即 `{"active": n, "limit": m|null, "over_limit": bool}`。`over_limit` 用 `limit is not None and active > limit`（存量流动造成的超限只读展示，不自动撤权）。响应加 `Cache-Control: no-store`，与 `CapabilitiesView` 一致（work/api.py:71）。
 
 `GET /work/admin/entitlement/` 只读返回 `enabled` / `features` / `daily_token_budget` / `member_limit`；**不提供任何写端点**，开通、预算与席位上限仍是平台侧 Django admin。
 
@@ -208,7 +210,7 @@ git diff --name-only 33478cfff..HEAD -- src/backend/work/migrations   # 只允�
 
 两条不可回退的约束：
 
-1. 上表所有码都只出现在管理面，**不进** `work.access.DENIAL_CODES`（[work/access.py:214](../../src/backend/work/access.py) 现为 6 个码，P1-A 之后仍是 6 个）。数据面拒绝码是桌面端与 Android 的行为开关，加进去会立刻改变客户端的失败处理。
+1. 上表所有码都只出现在管理面，**不进** `work.access.DENIAL_CODES`（work/access.py:214 现为 6 个码，P1-A 之后仍是 6 个）。数据面拒绝码是桌面端与 Android 的行为开关，加进去会立刻改变客户端的失败处理。
 2. `member_limit_reached` 的 `meta` 必须是数字。`grants.MemberLimitReached` 为此重写了 `self.detail`，视图层不要把它再包一层 `ErrorDetail`。
 
 ## 3. 验收标准
@@ -299,7 +301,7 @@ cd ../.. && ruff check src/backend/work src/backend/core/permissions_registry.py
 | 步 | 回滚 |
 |---|---|
 | T1 权限码 | 迁移 `reverse` 为 no-op：回滚后该码已不在注册表，`_resolve` 会把它过滤掉；反向剥离反而可能删掉管理员显式授予的权限。不删注册表条目 |
-| T2–T5 API | 撤销 [work/urls.py](../../src/backend/work/urls.py) 的 admin 路由注册即可下线；`grants.py` 未被改动，Django admin 仍可运维 |
+| T2–T5 API | 撤销 work/urls.py 的 admin 路由注册即可下线；`grants.py` 未被改动，Django admin 仍可运维 |
 | T6 导出 | 端点从路由摘掉；不写库，无残留 |
 | T7 清理 | `WORK_ACCESS_AUDIT_RETENTION_DAYS=0` + 摘掉 beat 条目。**已删的审计行不可恢复**，故 T7 上线首周保持 `WORK_ACCESS_AUDIT_RETENTION_DRY_RUN=True`（默认值），用 `prune_work_access_audit --dry-run --batches 20` 核对存量条数并归档输出，再翻开关 |
 
@@ -312,5 +314,5 @@ T7 是唯一不可逆的一步，因此排在最后、且默认 dry-run 一周�
 3. **导出是否含成员姓名**：当前 `actor_label` / `display_name` 取 `User.full_name`，空则 `short_name`，再空则 uuid，不含 email/phone。若合规要求「导出不得含任何可识别姓名」，改为纯 uuid；两种口径都要在 §3.5 的断言里体现。
 4. **保留 365 天**：是否为租户可覆盖值（例如合同要求 730 天或 90 天）。若可覆盖，需要 `WorkOrganizationEntitlement` 加字段，那就不是本批次的工作。
 5. **控制台交付节奏**：后端 API 先于前端可用；前端未上线期间 Django admin 是唯一运维入口，因此 `work/admin.py` 不得因「有了 API」而删减只读展示。
-6. 上一轮走查遗留：[work/admin.py:145](../../src/backend/work/admin.py) 的 `save_model` 在服务拒绝时仍提示「保存成功」并静默丢弃 `source` / `expires_at`。T2 上线后 API 是主路径，该缺陷影响面变小，但修不修是独立决定，本计划默认**不含**它。
+6. 上一轮走查遗留：work/admin.py:145 的 `save_model` 在服务拒绝时仍提示「保存成功」并静默丢弃 `source` / `expires_at`。T2 上线后 API 是主路径，该缺陷影响面变小，但修不修是独立决定，本计划默认**不含**它。
 7. **`invited` 成员占席位**：`grants.valid_grants()` 只看 grant 自身状态，不查 membership，所以平台侧先建 grant、成员尚未接受邀请的情况下席位已被占用，而数据面 `access.check()` 又会因其非 `active` 而拒绝——「占着席位却用不了」。P1-A 的 POST 有 `_require_active_member` 挡住新增，但存量仍在。要么在 `seat_usage` 里按自然人过滤到活跃成员（改席位口径，属 P1-B 的量级），要么平台侧 grant 明确允许预占并在控制台显示 `invited`。本计划只把它列为观察项（§0.1 的宽式 SQL），不在 A 批次解决。
