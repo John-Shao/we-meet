@@ -10,7 +10,7 @@
 >
 > 决策范围：组织授权、成员准入、Work 数据边界、预算归属
 >
-> 关联：[Work 方案](../plan/work-module-product-architecture-agent-plan-2026-09-21.md)、[Work Agent 架构](../features/work-agent-architecture.md)、[ADR-0006](0006-work-absorbs-task.md)、[ADR-0007](0007-work-execution-local-remote.md)
+> 关联：[Work 方案](../work/archive/work-module-product-architecture-agent-plan-2026-09-21.md)、[Work Agent 架构](../features/work-agent-architecture.md)、[ADR-0006](0006-work-absorbs-task.md)、[ADR-0007](0007-work-execution-local-remote.md)
 
 ## 背景
 

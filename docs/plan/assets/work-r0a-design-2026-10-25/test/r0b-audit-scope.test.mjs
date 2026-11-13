@@ -126,7 +126,7 @@ test('the two #49 names without a producer stay without one, and the scan is not
 });
 
 test('the scope rule is quoted from the ruling, not restated', () => {
-  const ruling = readFileSync(join(ROOT, 'docs/plan/work-r0b-device-plane-weight-decision-2026-11-10.md'), 'utf8')
+  const ruling = readFileSync(join(ROOT, 'docs/work/design/work-r0b-device-plane-weight-decision-2026-11-10.md'), 'utf8')
     .replace(/\r\n/g, '\n')
     .split('\n');
   assert.ok(
@@ -222,6 +222,6 @@ test('tampering with the record trips the rule it is supposed to protect', () =>
   const signed = structuredClone(manifest);
   const [first] = signed.entries;
   first.classification = 'excluded-by-adjudication';
-  first.decision = 'docs/plan/work-r0b-device-plane-weight-decision-2026-11-10.md §2 审计闸（J39/#49）';
+  first.decision = 'docs/work/design/work-r0b-device-plane-weight-decision-2026-11-10.md §2 审计闸（J39/#49）';
   assert.deepEqual(validateAuditScope(signed).filter((problem) => problem.startsWith(first.name)), []);
 });

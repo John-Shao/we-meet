@@ -8,7 +8,7 @@
 >
 > 决策范围：目标架构；不承诺现在拆仓/拆服务，也不证明当前仓库已经独立或可售卖。
 >
-> 关联：[Work 系统架构](../plan/work-system-architecture-2026-10-25.md) §4、[D1 数据设计](../plan/work-r0a-data-design-2026-10-25.md)、[D2 API 设计](../plan/work-r0a-api-design-2026-10-25.md)、[D6 安全/运维/迁移](../plan/work-r0a-security-ops-migration-design-2026-10-25.md)、[ADR-0006](0006-work-absorbs-task.md)、[ADR-0019](0019-security-boundaries-service-split.md)、[ADR-0020](0020-pi-agent-core-adapter.md)。
+> 关联：[Work 系统架构](../work/design/work-system-architecture-2026-10-25.md) §4、[D1 数据设计](../work/design/work-r0a-data-design-2026-10-25.md)、[D2 API 设计](../work/design/work-r0a-api-design-2026-10-25.md)、[D6 安全/运维/迁移](../work/design/work-r0a-security-ops-migration-design-2026-10-25.md)、[ADR-0006](0006-work-absorbs-task.md)、[ADR-0019](0019-security-boundaries-service-split.md)、[ADR-0020](0020-pi-agent-core-adapter.md)。
 
 ## 背景
 

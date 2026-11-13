@@ -2,7 +2,7 @@
 // the three immutable Content Store documents of the Work R0a runtime:
 // model_request, canonical_state and model_receipt.
 //
-// Authority: docs/plan/work-r0a-runtime-egress-design-2026-10-25.md §8.1
+// Authority: docs/work/design/work-r0a-runtime-egress-design-2026-10-25.md §8.1
 // ("三类不可变文档", "规范化与模型消息装配" 1-6, "Canonical 提交点与恢复算法"),
 // with the field-level contract stated by
 // docs/plan/assets/work-r0a-orchestration-2026-10-25/RuntimeRecovery.contract.ts

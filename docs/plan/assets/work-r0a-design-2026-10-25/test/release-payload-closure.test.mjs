@@ -30,7 +30,7 @@ const WORK_DIR = fileURLToPath(new URL('../../../../../src/work/', import.meta.u
 const ECS = join(WORK_DIR, 'deploy/ecs');
 const RELEASE = join(ECS, 'make-release.sh');
 const ROLLOUT = join(ECS, 'rollout-r0a-0027.sh');
-const DOC = join(ASSET_DIR, '..', '..', 'work-project.md');
+const DOC = join(ASSET_DIR, '..', '..', '..', 'work', 'work-project.md');
 
 const parsed = parsePackager(readFileSync(RELEASE, 'utf8'));
 // Comment lines describe intent; only code lines may satisfy a structural assertion. The sibling

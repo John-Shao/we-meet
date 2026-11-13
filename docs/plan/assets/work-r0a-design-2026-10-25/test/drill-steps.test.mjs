@@ -17,7 +17,7 @@ import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const CHECKLIST = fileURLToPath(new URL('../../../work-r0a-drill-checklist-2026-11-15.md', import.meta.url));
+const CHECKLIST = fileURLToPath(new URL('../../../../work/design/work-r0a-drill-checklist-2026-11-15.md', import.meta.url));
 const VERDICT = fileURLToPath(new URL('../../work-r0a-ops-2026-10-25/drill-2026-11-15/verdict.json', import.meta.url));
 const DRILL_README = fileURLToPath(new URL('../../work-r0a-ops-2026-10-25/drill-2026-11-15/README.md', import.meta.url));
 const DRILL_DIR = fileURLToPath(new URL('../../work-r0a-ops-2026-10-25/drill-2026-11-15/', import.meta.url));

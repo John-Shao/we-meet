@@ -21,7 +21,7 @@
 | `preflight/rollout-preflight-ledger-read.sh` | **只读**取数：迁移台账（`tip_version`／`ledger_rows`／尾六号／0038–0043 各自是否已存在）、`/root` 下发布包与包装件、已装 `work-migrate` 的内嵌增量符号命中与包外 `migrations/` 目录在场性、逐个 `work-*` unit 的 `is-active`＋MainPID 的 exe 是否 `(deleted)`、在途 Run／未释放预留／outbox 积压、表与函数计数、设备面新表清单 |
 | `preflight/rollout-preflight-package-shape-read.sh` | **只读**取数：最新包的文件数与 `SHA256SUMS` 行数／`FAILED` 计数、包内 rollout 脚本会做哪些 systemctl 动作（列出来看，不执行）、包内 `work-migrate`／`work-api`／`work-authz`／`work-relay` 与 `/usr/local/bin` 同名件逐字节对照、三个最新包各自的 `RELEASE_COMMIT`／`MIGRATION_TAIL`／`RELEASE_DIRTY` 自证三行 |
 
-> 上面两份 `preflight/` 脚本的**唯一跑法**是一条 ssh：上传到 `/var/tmp` → 以 root 执行（口令取主机 `~/sudo-pass.txt`，不进 argv、不进聊天）→ 跑完立即 `rm -f`，判据取脚本自身退出码 `HOST_SCRIPT_RC=0`。命令原文与 2026-11-13 的当日读数见 [work-project.md](../../work-project.md) §9 那张表里"批 C 第三格"那一行。"这两份脚本改不动主机状态"不是散文承诺，由 `docs/plan/assets/work-r0a-design-2026-10-25/test/rollout-preflight-read-only.test.mjs` 机器强制（写动词扫描＋正向对照真部署脚本＋逐条 SQL 必须是 SELECT＋标签由脚本自己打印）。
+> 上面两份 `preflight/` 脚本的**唯一跑法**是一条 ssh：上传到 `/var/tmp` → 以 root 执行（口令取主机 `~/sudo-pass.txt`，不进 argv、不进聊天）→ 跑完立即 `rm -f`，判据取脚本自身退出码 `HOST_SCRIPT_RC=0`。命令原文与 2026-11-13 的当日读数见 [work-project.md](../../../work/work-project.md) §9 那张表里"批 C 第三格"那一行。"这两份脚本改不动主机状态"不是散文承诺，由 `docs/plan/assets/work-r0a-design-2026-10-25/test/rollout-preflight-read-only.test.mjs` 机器强制（写动词扫描＋正向对照真部署脚本＋逐条 SQL 必须是 SELECT＋标签由脚本自己打印）。
 
 ## 校验
 
@@ -61,7 +61,7 @@ D3 §11 的六类非 Run 作业现在有指标与告警：
 | 类别 | 数量 | 关键项 |
 |---|---|---|
 | 指标 | 28 | `work_background_job_runs_total{kind,outcome}`、`work_background_job_last_success_seconds{kind}`、`work_background_job_lease_takeovers_total`、`work_directory_projection_lag_seconds`、`work_audit_export_backlog`、`work_audit_export_duration_seconds_sum`/`_count`、`work_audit_export_downloads_total{outcome}`、`work_content_shred_backlog` |
-| 告警 | 27（15 SLO + 12 运维） | 新增 `WorkBackgroundJobStale`、`WorkBackgroundJobLeaseTakeovers`、`WorkDirectoryProjectionStale`、`WorkAuditExportBacklog`、`WorkAuditExportFailureRatio`、`WorkAuditExportSlow`、`WorkAuditExportTokenFailureBurst`、`WorkContentShredBacklog`，全部指向[运行手册 §5.1 后台作业故障处置](../../work-operations-runbook-2026-10-25.md) |
+| 告警 | 27（15 SLO + 12 运维） | 新增 `WorkBackgroundJobStale`、`WorkBackgroundJobLeaseTakeovers`、`WorkDirectoryProjectionStale`、`WorkAuditExportBacklog`、`WorkAuditExportFailureRatio`、`WorkAuditExportSlow`、`WorkAuditExportTokenFailureBurst`、`WorkContentShredBacklog`，全部指向[运行手册 §5.1 后台作业故障处置](../../../work/design/work-operations-runbook-2026-10-25.md) |
 | 控制 | 18（S01–S18） | S17 目录投影写入与新鲜度；S18 治理读越权与一次性下载入口 |
 
 `telemetry.test.mjs` 额外做两项跨资产一致性校验：D3 `background-jobs.contract.ts` 声明的作业指标/告警名必须在契约里存在，且"义务作业"（relay/shredder/投影同步/清扫）与"产生新工作的作业"（导出 worker）的划分必须与类型契约一致；`ops-model.test.mjs` 断言 `S17/S18` 存在且冻结集里不出现 `download_url`。
@@ -77,7 +77,7 @@ D3 §11 的六类非 Run 作业现在有指标与告警：
 
 ## 与其他文档
 
-- D6 设计说明：[../../work-r0a-security-ops-migration-design-2026-10-25.md](../../work-r0a-security-ops-migration-design-2026-10-25.md)
-- 威胁模型：[../../work-threat-model-2026-10-25.md](../../work-threat-model-2026-10-25.md)
-- 运行手册：[../../work-operations-runbook-2026-10-25.md](../../work-operations-runbook-2026-10-25.md)
-- R0a 详细设计计划：[../../work-r0a-detailed-design-plan-2026-10-25.md](../../work-r0a-detailed-design-plan-2026-10-25.md)
+- D6 设计说明：[../../work-r0a-security-ops-migration-design-2026-10-25.md](../../../work/design/work-r0a-security-ops-migration-design-2026-10-25.md)
+- 威胁模型：[../../work-threat-model-2026-10-25.md](../../../work/design/work-threat-model-2026-10-25.md)
+- 运行手册：[../../work-operations-runbook-2026-10-25.md](../../../work/design/work-operations-runbook-2026-10-25.md)
+- R0a 详细设计计划：[../../work-r0a-detailed-design-plan-2026-10-25.md](../../../work/design/work-r0a-detailed-design-plan-2026-10-25.md)

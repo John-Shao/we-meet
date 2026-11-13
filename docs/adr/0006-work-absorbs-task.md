@@ -8,7 +8,7 @@
 >
 > 决策范围：Work 与任务模块的入口、数据关系、权限边界与迁移节奏
 >
-> 关联：[Work 方案](../plan/work-module-product-architecture-agent-plan-2026-09-21.md)、[ADR-0001](0001-bounded-recursive-task-hierarchy.md)、[ADR-0002](0002-upward-task-visibility.md)、[ADR-0005](0005-work-two-layer-access.md)
+> 关联：[Work 方案](../work/archive/work-module-product-architecture-agent-plan-2026-09-21.md)、[ADR-0001](0001-bounded-recursive-task-hierarchy.md)、[ADR-0002](0002-upward-task-visibility.md)、[ADR-0005](0005-work-two-layer-access.md)
 
 ## 背景
 

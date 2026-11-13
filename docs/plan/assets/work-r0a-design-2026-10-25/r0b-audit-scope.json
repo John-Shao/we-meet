@@ -501,6 +501,6 @@
     }
   ],
   "scopeRule": "范围＝触发那一刻已实现的一切 R0b 新入口；本清单由 audit-scope.mjs 从仓库四处权威现读生成，新增入口只有两种去向：留在默认的 external-audit-required，或带上具名决策引用改成例外。",
-  "scopeRuleFile": "docs/plan/work-r0b-device-plane-weight-decision-2026-11-10.md",
+  "scopeRuleFile": "docs/work/design/work-r0b-device-plane-weight-decision-2026-11-10.md",
   "scopeRuleSource": "- **审计闸（J39/#49）**：接真实客户数据前必须外部审计，范围＝触发那一刻已实现的一切 R0b 新入口；六项 S 卡（S1/S2/S4/S11/S14/S15）是必读最小集。本单直接改变该集合的大小。"
 }

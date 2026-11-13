@@ -10,7 +10,7 @@
 >
 > 决策范围：执行位置、离线语义、跨端派发、数据边界与可用性叙事
 >
-> 关联：[Work 方案第 11 节](../plan/work-module-product-architecture-agent-plan-2026-09-21.md)、[Work Agent 架构](../features/work-agent-architecture.md)、[ADR-0005](0005-work-two-layer-access.md)
+> 关联：[Work 方案第 11 节](../work/archive/work-module-product-architecture-agent-plan-2026-09-21.md)、[Work Agent 架构](../features/work-agent-architecture.md)、[ADR-0005](0005-work-two-layer-access.md)
 
 ## 背景
 

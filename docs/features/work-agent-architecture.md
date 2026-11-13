@@ -384,4 +384,4 @@ Gateway 的供应商凭据在独立 namespace Secret；当前 Qwen 使用现有�
 
 当前生产端到端证据包括一次成功 dsh 任务、显式同步、成功 Pi 报告以及桌面/Android 只读查看；保留前三次失败，未自动付费重试。原生 OAuth UX、干净 Windows VM、逐文件修改预览、企业设备证明与统一计费、真实业务内容的规模质量评估仍需各自验收。未来增加自主修复或云端接管时，必须定义新的授权、幂等和恢复规则，不能从现有只读复核或断线恢复推导这些能力已经实现。
 
-相关记录：[架构整改](../reviews/work-agent-architecture-review-2026-10-08.md)、[代码走查](../reviews/work-agent-code-review-2026-10-08.md)、[产品主计划](../plan/work-module-product-architecture-agent-plan-2026-09-21.md)。
+相关记录：[架构整改](../reviews/work-agent-architecture-review-2026-10-08.md)、[代码走查](../reviews/work-agent-code-review-2026-10-08.md)、[产品主计划](../work/archive/work-module-product-architecture-agent-plan-2026-09-21.md)。

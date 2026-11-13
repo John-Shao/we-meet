@@ -206,9 +206,9 @@ test('the limitation is stated in the docs with the number the rule actually use
   // is what keeps a mutation that deletes the clause red.
   const bindingRe = new RegExp(`(?<![\\d.])${FLOOR}(?![\\d])[^。\\n]{0,16}(?:非空白|下限)`);
   const docs = [
-    join(ROOT, 'docs', 'plan', 'work-glossary.md'),
-    join(ROOT, 'docs', 'plan', 'work-project.md'),
-    join(ROOT, 'docs', 'plan', 'work-operations-runbook-2026-10-25.md'),
+    join(ROOT, 'docs', 'work', 'design', 'work-glossary.md'),
+    join(ROOT, 'docs', 'work', 'work-project.md'),
+    join(ROOT, 'docs', 'work', 'design', 'work-operations-runbook-2026-10-25.md'),
   ];
   for (const doc of docs) {
     const lines = readFileSync(doc, 'utf8').split(/\r?\n/);

@@ -141,7 +141,7 @@ test('every shipped bind default is loopback, and work-api is the only published
   assert.ok(existsSync(entry), 'the work-api entry manifest is the only published Work route - it must exist');
   assert.match(read(entry), /work-api listens on 0\.0\.0\.0:8080/,
     'the manifest must keep stating the bind address it assumes, or the 127.0.0.1 template and the ingress disagree silently');
-  const decision = read(join(REPO, 'docs', 'plan', 'work-r0a-host-wire-decision-2026-10-28.md'));
+  const decision = read(join(REPO, 'docs', 'work', 'design', 'work-r0a-host-wire-decision-2026-10-28.md'));
   assert.match(decision, /改为监听 `0\.0\.0\.0:8080`/,
     'the 0.0.0.0 bind is a signed exception; without that sentence the manifest asserts an undecided posture');
 });

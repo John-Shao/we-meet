@@ -29,7 +29,7 @@ const WRAPPER = join(WORK_DIR, 'scripts/ecs-migrate.sh');
 const ROLLOUT = join(ECS, 'rollout-r0a-0027.sh');
 const API_UNIT = join(ECS, 'work-api.service');
 const GATE_UNIT = join(ECS, 'work-chain-check.service');
-const DOC = join(ASSET_DIR, '..', '..', 'work-project.md');
+const DOC = join(ASSET_DIR, '..', '..', '..', 'work', 'work-project.md');
 
 // Comment lines describe intent; only code lines may satisfy a structural assertion (the lesson
 // release-assets.test.mjs recorded on 2026-11-05, when its own Chinese comment satisfied a check

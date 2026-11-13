@@ -15,7 +15,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const CONTRACT_PATH = path.join(HERE, 'telemetry-contract.json');
 export const SLO_PATH = path.join(HERE, 'slo-pilot.json');
 export const RULES_PATH = path.join(HERE, 'prometheus-rules.yaml');
-export const DOCS_ROOT = path.resolve(HERE, '..', '..');
+export const DOCS_ROOT = path.resolve(HERE, '..', '..', '..', 'work', 'design');
 
 const METRIC_NAME = /^work_[a-z0-9_]+$/;
 const RECORD_NAME = /^work:(?:slo|track)_[a-z0-9_]+:[a-z0-9_]+$/;

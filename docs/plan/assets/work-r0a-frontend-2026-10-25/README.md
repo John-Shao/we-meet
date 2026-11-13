@@ -40,8 +40,8 @@ python -c "import json; [json.load(open(f, encoding='utf-8')) for f in ['state-m
 
 ## 与其他文档
 
-- D5 设计说明：[../../work-r0a-frontend-design-2026-10-25.md](../../work-r0a-frontend-design-2026-10-25.md)
-- R0 UX：[../../work-ux-design-r0-2026-10-25.md](../../work-ux-design-r0-2026-10-25.md)
+- D5 设计说明：[../../work-r0a-frontend-design-2026-10-25.md](../../../work/design/work-r0a-frontend-design-2026-10-25.md)
+- R0 UX：[../../work-ux-design-r0-2026-10-25.md](../../../work/design/work-ux-design-r0-2026-10-25.md)
 - R0 原型：[../work-ux-r0/prototype.html](../work-ux-r0/prototype.html)
-- D2 API：[../../work-r0a-api-design-2026-10-25.md](../../work-r0a-api-design-2026-10-25.md)
-- R0a 详细设计计划：[../../work-r0a-detailed-design-plan-2026-10-25.md](../../work-r0a-detailed-design-plan-2026-10-25.md)
+- D2 API：[../../work-r0a-api-design-2026-10-25.md](../../../work/design/work-r0a-api-design-2026-10-25.md)
+- R0a 详细设计计划：[../../work-r0a-detailed-design-plan-2026-10-25.md](../../../work/design/work-r0a-detailed-design-plan-2026-10-25.md)

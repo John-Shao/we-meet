@@ -2,11 +2,11 @@
 // upstream model request per consumed dispatch gate, and a confirmed provider
 // success that is never reclassified as unknown by a later internal failure.
 //
-// Authority: docs/plan/work-r0a-runtime-egress-design-2026-10-25.md §7
+// Authority: docs/work/design/work-r0a-runtime-egress-design-2026-10-25.md §7
 // (模型出口网关, §7.1 request binding and §7.2 provider call rules) and §8.1
 // (F0-R3 canonical state, request and trusted receipt), with the send boundary
 // and ACK-loss rules of
-// docs/plan/work-r0a-data-design-2026-10-25.md §5.4 ("发送边界与 ACK 丢失").
+// docs/work/design/work-r0a-data-design-2026-10-25.md §5.4 ("发送边界与 ACK 丢失").
 //
 // # Decision table
 //

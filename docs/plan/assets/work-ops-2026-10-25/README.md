@@ -2,7 +2,7 @@
 
 > 本目录只包含可重复的烟雾脚本与命令，不是生产压测或 DR 演练证明。
 >
-> 说明：[Work 升级、灾备、SLO 与故障注入 Runbook](../../work-operations-runbook-2026-10-25.md)
+> 说明：[Work 升级、灾备、SLO 与故障注入 Runbook](../../../work/design/work-operations-runbook-2026-10-25.md)
 
 ## 文件
 

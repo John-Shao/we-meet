@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..', '..', '..', '..');
 const PREFLIGHT = join(ROOT, 'docs', 'plan', 'assets', 'work-r0a-ops-2026-10-25', 'preflight');
-const PROJECT_DOC = join(ROOT, 'docs', 'plan', 'work-project.md');
+const PROJECT_DOC = join(ROOT, 'docs', 'work', 'work-project.md');
 const READ_SCRIPTS = [
   'rollout-preflight-ledger-read.sh',
   'rollout-preflight-package-shape-read.sh',

@@ -1,7 +1,7 @@
 // Package fragment defines the Go side of the signed cross-language
 // advanceRuntime contract.
 //
-// Authority: docs/plan/work-r0a-orchestration-2026-10-25.md 搂5.0 (F0-R1) and
+// Authority: docs/work/design/work-r0a-orchestration-2026-10-25.md 搂5.0 (F0-R1) and
 // docs/plan/assets/work-r0a-orchestration-2026-10-25/AdvanceRuntime.contract.ts.
 // The payload carries identifiers and stored references only; task text,
 // provider keys and raw messages never appear here because Temporal history is

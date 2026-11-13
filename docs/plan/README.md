@@ -1,18 +1,19 @@
 # 方案与执行记录目录
 
-整理日期：2026-09-22；最近更新：2026-10-26（Work 文档收敛到项目文档）。
+整理日期：2026-09-22；最近更新：2026-11-14（Work 文档重构收敛到 `docs/work/`）。
 
 按主题查阅方案、实施契约、部署说明和历史执行记录。文档中的日期、代码版本、测试结果与部署状态保持原有语义；整理目录不代表重新测试或更新线上状态。
 
-阅读顺序：**Work 先读[项目文档](work-project.md)**（资产索引、进展、问题、闸门）；其余文档按产品/模块方案、实施契约、技术评审、部署交接与批次归档查阅。
+阅读顺序：**Work 先读 [docs/work/README.md](../work/README.md)**（入口、范围、权威来源表、当前状态）；其余文档按产品/模块方案、实施契约、技术评审、部署交接与批次归档查阅。
 
 ## Work 模块
 
-> Work 的资产索引、阶段进展、测试数字、U1–U4、blocking 与闸门只在[项目文档](work-project.md)维护；本节不再逐篇罗列，也不复制状态/计数。
+> Work 文档已重构收敛到 [`docs/work/`](../work/README.md)：六份短文档（README/architecture/security/operations/status/decisions）为阅读入口，活设计文档在 `docs/work/design/`，历史快照在 `docs/work/archive/`。状态以 [`docs/work/status.json`](../work/status.json) 为机器可读来源。本目录不再维护 Work 状态/计数。
 
 | 文档 | 用途 |
 |---|---|
-| [work-project.md](work-project.md) | **Work 项目文档（活文档）**：全部 Work 文档/资产/ADR/调研索引、功能模块与落地计划、进展与证据、当前问题、DR0–DR4 闸门、验证命令与维护规则 |
+| [docs/work/README.md](../work/README.md) | **Work 阅读入口**：范围、服务/目录结构、权威来源表、本地运行与测试、生产/试点准入 |
+| [docs/work/work-project.md](../work/work-project.md) | Work 项目状态桩：阶段、阻断项、开放裁定、入口链接 |
 
 ## 产品与模块方案
 
@@ -42,7 +43,7 @@
 | [ADR-0002](../adr/0002-upward-task-visibility.md) | 子任务向上可见 |
 | [ADR-0003](../adr/0003-task-delete-unbinds-subtasks.md) | 删除任务解绑子任务 |
 | [ADR-0004](../adr/0004-meeting-module-responsibility.md) | 会议模块职责边界 |
-| [ADR-0005–0021](../adr/0005-work-two-layer-access.md) | Work 相关 17 项 ADR（两层授权、吸收 Task、执行边界、控制平面、PG 事实源、Temporal、生命周期、出口、unknown、能力冻结、目录授权、成果不可变、单写 DR、R1/R3、服务拆分、Pi Adapter、独立产品边界）；逐项索引见[项目文档](work-project.md) |
+| [ADR-0005–0021](../adr/0005-work-two-layer-access.md) | Work 相关 17 项 ADR（两层授权、吸收 Task、执行边界、控制平面、PG 事实源、Temporal、生命周期、出口、unknown、能力冻结、目录授权、成果不可变、单写 DR、R1/R3、服务拆分、Pi Adapter、独立产品边界）；Work 视角合并索引见 [docs/work/decisions/](../work/decisions/README.md) |
 
 ## 实施基线与评审
 
@@ -97,4 +98,4 @@
 - 独立产品方案、实施契约、部署操作指南及跨服务协议保持独立，即使篇幅较短；结构化 JSON 和原有日志文件保持不变，日志不作为方案入口。
 - 后续同主题小批次优先追加到对应归档并补目录；日期、版本、范围、验证和限制须明确。新专题才新增独立方案；主题过大时按能力边界拆分并更新本索引。
 - 调整路径或锚点时同步更新仓库引用；勿在合并后继续使用原小文件路径或旧行号引用。
-- **Work 文档只在[项目文档](work-project.md)维护**；本索引的 Work 节只保留入口，不复制状态、测试数字或未决项。新增 Work 文档先加到项目文档，只有新增独立专题时才在本索引加一行。
+- **Work 文档收敛到 [`docs/work/`](../work/README.md)**；本索引的 Work 节只保留入口，不复制状态、测试数字或未决项。新增 Work 文档须说明"代码为何表达不了"，否则进状态桩或归档。

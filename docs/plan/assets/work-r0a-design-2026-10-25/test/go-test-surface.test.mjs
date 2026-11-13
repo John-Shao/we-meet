@@ -18,9 +18,9 @@ const HERE = fileURLToPath(new URL('.', import.meta.url));
 const PLAN_DIR = join(HERE, '..', '..', '..'); // docs/plan
 const REPO = join(PLAN_DIR, '..', '..');
 const WORK_ROOT = join(REPO, 'src', 'work');
-const GLOSSARY = join(PLAN_DIR, 'work-glossary.md');
-const RUNBOOK = join(PLAN_DIR, 'work-operations-runbook-2026-10-25.md');
-const WORK_PROJECT = join(PLAN_DIR, 'work-project.md');
+const GLOSSARY = join(PLAN_DIR, '..', 'work', 'design', 'work-glossary.md');
+const RUNBOOK = join(PLAN_DIR, '..', 'work', 'design', 'work-operations-runbook-2026-10-25.md');
+const WORK_PROJECT = join(PLAN_DIR, '..', 'work', 'work-project.md');
 const GATES_WF = join(REPO, '.github', 'workflows', 'work-r0a-gates.yml');
 
 function walkDirs(dir, out = []) {

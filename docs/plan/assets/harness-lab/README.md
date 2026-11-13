@@ -1,6 +1,6 @@
 # Work Harness / 技术验证脚本
 
-2026-10-25 首轮实验的脚本副本，不进入产品代码，也不是生产实现。结果与验收边界以 [work-system-architecture-2026-10-25.md](../../work-system-architecture-2026-10-25.md) §3.8、§21.2 为准。
+2026-10-25 首轮实验的脚本副本，不进入产品代码，也不是生产实现。结果与验收边界以 [work-system-architecture-2026-10-25.md](../../../work/design/work-system-architecture-2026-10-25.md) §3.8、§21.2 为准。
 
 ## 范围
 

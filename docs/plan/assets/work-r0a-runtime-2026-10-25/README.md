@@ -50,7 +50,7 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 
 ## 与其他文档
 
-- D4 设计说明：[../../work-r0a-runtime-egress-design-2026-10-25.md](../../work-r0a-runtime-egress-design-2026-10-25.md)
-- D3 编排设计：[../../work-r0a-orchestration-design-2026-10-25.md](../../work-r0a-orchestration-design-2026-10-25.md)
-- R0a 详细设计计划：[../../work-r0a-detailed-design-plan-2026-10-25.md](../../work-r0a-detailed-design-plan-2026-10-25.md)
-- 威胁模型：[../../work-threat-model-2026-10-25.md](../../work-threat-model-2026-10-25.md)
+- D4 设计说明：[../../work-r0a-runtime-egress-design-2026-10-25.md](../../../work/design/work-r0a-runtime-egress-design-2026-10-25.md)
+- D3 编排设计：[../../work-r0a-orchestration-design-2026-10-25.md](../../../work/design/work-r0a-orchestration-design-2026-10-25.md)
+- R0a 详细设计计划：[../../work-r0a-detailed-design-plan-2026-10-25.md](../../../work/design/work-r0a-detailed-design-plan-2026-10-25.md)
+- 威胁模型：[../../work-threat-model-2026-10-25.md](../../../work/design/work-threat-model-2026-10-25.md)

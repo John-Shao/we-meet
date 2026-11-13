@@ -20,7 +20,7 @@ import (
 )
 
 // work-replay is the read side of the pre-rollout check in
-// docs/plan/work-operations-runbook-2026-10-25.md §5.32: before a work-worker swap, every workflow
+// docs/work/design/work-operations-runbook-2026-10-25.md §5.32: before a work-worker swap, every workflow
 // that is still open has to be replayed against the code that is about to run it.
 //
 // It has two modes because that check needs both halves, and only the consumer half existed until

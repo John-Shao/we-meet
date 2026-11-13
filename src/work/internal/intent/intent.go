@@ -1,7 +1,7 @@
 // Package intent freezes the canonical model_request document of one runtime
 // execution and registers it as a content reference.
 //
-// Authority: docs/plan/work-r0a-runtime-egress-design-2026-10-25.md §8.1
+// Authority: docs/work/design/work-r0a-runtime-egress-design-2026-10-25.md §8.1
 // ("三类不可变文档", "规范化与模型消息装配" items 1-5). The document is the
 // logical request only: binding, logical key, input/template references, prior
 // receipts in order, route and parameters. It carries no base URL, credential,

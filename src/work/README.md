@@ -1,7 +1,7 @@
 # Work control plane (R0a rebuild)
 
 This subtree is the Go/Node Work implementation described by
-[the R0a rebuild plan](../../docs/plan/_archive/work-r0a-architecture-rebuild-plan-2026-10-28.md).
+[the R0a rebuild plan](../../docs/work/archive/work-r0a-architecture-rebuild-plan-2026-10-28.md).
 It must not import `src/backend/work` (the legacy Django implementation) or
 `src/backend/core`; the only Host integration is the versioned HTTP contract.
 
@@ -127,7 +127,8 @@ This source tree accepts only `WORK_RUNTIME_MODE=reference` (deterministic
 non-model text for lifecycle drills) and does not read provider credentials.
 Do not replace a production worker with this build on its business queue.
 Implementation gaps and release status are tracked in
-[the Work project](../../docs/plan/work-project.md#46-p0-核心边界修复2026-10-29),
+[Work status](../../docs/work/status.md) (historical P0/P1 detail in
+[the archived project ledger](../../docs/work/archive/work-project-full-2026-11-14.md)),
 including confirmed-result recovery and the Node/Pi + `work-egress` boundary.
 The placeholder environment file is `deploy/ecs/work-worker.env.example`.
 `WORK_MODEL_STEPS` selects 1-3 reference steps per Run (default 2);

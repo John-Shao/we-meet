@@ -31,13 +31,14 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..', '..', '..');
 const WORK = join(ROOT, 'src', 'work');
 const PLAN = join(ROOT, 'docs', 'plan');
+const WORK_DESIGN = join(ROOT, 'docs', 'work', 'design');
 const API_DIR = join(WORK, 'internal', 'api');
 const MIG_DIR = join(WORK, 'migrations');
 export const MANIFEST_PATH = join(HERE, 'r0b-audit-scope.json');
 // The 2026-11-10 card E ruling is what makes the audit scope a rule rather than a wish; the manifest
 // quotes it verbatim so the gate can tell whether the enumeration still describes that rule.
 export const SCOPE_RULE_FILE = join(
-  PLAN,
+  WORK_DESIGN,
   'work-r0b-device-plane-weight-decision-2026-11-10.md',
 );
 export const SCOPE_RULE_MARKER = '审计闸（J39/#49）';
@@ -275,7 +276,7 @@ export function deriveScope() {
  * Read out of that sentence rather than retyped, so a candidate added to the sentence has to be
  * adjudicated here instead of waiting for a reader to notice it was never in scope.
  */
-export const ARCHITECTURE_FILE = join(PLAN, 'work-r0b-architecture-2026-10-30.md');
+export const ARCHITECTURE_FILE = join(WORK_DESIGN, 'work-r0b-architecture-2026-10-30.md');
 export const CANDIDATE_SPAN_START = '另登记了';
 export const CANDIDATE_SPAN_END = '等需独立复核的入口';
 
@@ -440,9 +441,9 @@ export function validateAuditScope(manifest, derived = deriveScope()) {
     if (!CLASSIFICATIONS.includes(entry.classification)) {
       problems.push(`${entry.name}: classification ${entry.classification} is not a declared class`);
     } else if (entry.classification !== DEFAULT_CLASSIFICATION) {
-      const cited = String(entry.decision ?? '').match(/docs\/plan\/[^\s,、;；()（）]+\.md/);
+      const cited = String(entry.decision ?? '').match(/docs\/(?:plan|work)\/[^\s,、;；()（）]+\.md/);
       if (!cited) {
-        problems.push(`${entry.name}: moved out of ${DEFAULT_CLASSIFICATION} without citing a docs/plan decision`);
+        problems.push(`${entry.name}: moved out of ${DEFAULT_CLASSIFICATION} without citing a docs/plan or docs/work decision`);
       } else if (!existsSync(join(ROOT, cited[0]))) {
         problems.push(`${entry.name}: decision cites ${cited[0]}, which is not in the repo`);
       }

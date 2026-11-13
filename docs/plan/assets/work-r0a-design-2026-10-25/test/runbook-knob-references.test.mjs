@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const PLAN_DIR = join(HERE, '..', '..', '..');
 const WORK_ROOT = join(PLAN_DIR, '..', '..', 'src', 'work');
-const RUNBOOK = join(PLAN_DIR, 'work-operations-runbook-2026-10-25.md');
+const RUNBOOK = join(PLAN_DIR, '..', 'work', 'design', 'work-operations-runbook-2026-10-25.md');
 const DEPLOY_DIR = join(WORK_ROOT, 'deploy', 'ecs');
 const CMD_DIR = join(WORK_ROOT, 'cmd');
 
@@ -74,7 +74,9 @@ const resolves = (name) => cmdNames.includes(name)
   || existsSync(join(DEPLOY_DIR, `${name}.env.example`))
   // A backticked `work-*.md` citation is a document reference, not an executable knob:
   // still resolved against the tree, so a renamed or invented plan doc goes red too.
-  || existsSync(join(PLAN_DIR, `${name}.md`));
+  || existsSync(join(PLAN_DIR, `${name}.md`))
+  || existsSync(join(PLAN_DIR, '..', 'work', `${name}.md`))
+  || existsSync(join(PLAN_DIR, '..', 'work', 'design', `${name}.md`));
 
 const namedBinaries = [...new Set([...section.matchAll(/`(work-[a-z0-9-]+)[`.\s]/g)].map((m) => m[1]))];
 assert.ok(namedBinaries.length >= 3,

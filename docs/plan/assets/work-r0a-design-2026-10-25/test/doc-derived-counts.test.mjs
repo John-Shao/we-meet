@@ -17,8 +17,8 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const PLAN_DIR = join(HERE, '..', '..', '..'); // docs/plan
-const ARCH_DOC = join(PLAN_DIR, 'work-r0b-architecture-2026-10-30.md');
-const CONTROL_DOC = join(PLAN_DIR, 'work-r0b-control-design-2026-10-30.md');
+const ARCH_DOC = join(PLAN_DIR, '..', 'work', 'design', 'work-r0b-architecture-2026-10-30.md');
+const CONTROL_DOC = join(PLAN_DIR, '..', 'work', 'design', 'work-r0b-control-design-2026-10-30.md');
 const CATALOG = join(PLAN_DIR, '..', '..', 'src', 'work', 'contracts', 'error-codes.json');
 
 const archText = readFileSync(ARCH_DOC, 'utf8');

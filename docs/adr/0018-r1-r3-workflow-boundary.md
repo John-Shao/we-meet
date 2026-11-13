@@ -8,7 +8,7 @@
 >
 > 决策范围：目标架构；不证明当前仓库已实现，也不替代真实用户/生产验证。
 >
-> 关联：[Work 系统架构](../plan/work-system-architecture-2026-10-25.md)
+> 关联：[Work 系统架构](../work/design/work-system-architecture-2026-10-25.md)
 
 ## 背景
 
