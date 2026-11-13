@@ -358,7 +358,7 @@ gofmt -w ./internal/migrate/r0b_*.go
 - **技术验证报告**：[r0b-technical-verification-report-2026-11-10.md](r0b-technical-verification-report-2026-11-10.md)
 - **最终状态报告**：[r0b-final-status-report-2026-11-10.md](r0b-final-status-report-2026-11-10.md)
 - **交接文档**：[r0b-handoff-document-2026-11-10.md](r0b-handoff-document-2026-11-10.md)
-- **EV 测试执行指南**：[r0b-ev-test-execution-guide-2026-11-10.md](r0b-ev-test-execution-guide-2026-11-10.md)
+- **EV 测试执行指南**：[r0b-ev-test-execution-guide-2026-11-10.md](../r0b-ev-test-execution-guide-2026-11-10.md)
 
 ### 代码资源
 

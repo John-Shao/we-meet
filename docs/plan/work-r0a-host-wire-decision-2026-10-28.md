@@ -126,7 +126,7 @@ GET /work-host/v2/orgs/{org_id}/members?revision_after=<int>&cursor=<opaque>&lim
 | HW-01–HW-04 | 通过（按推荐方案） | John Shao | 2026-10-28 | 仅 wire 与边界；不证明真实 Host/mTLS/CSRF 已实现 |
 | HW-05 | 通过（改用 `sessionid` + session key 63-bit 哈希） | John Shao | 2026-10-28 | cookie 名勘误；`session_revision` 不是权限变更版本 |
 | 安全复核（HW-01–HW-04） | 通过 | Lily Zhu | 2026-10-28 | mTLS、CSRF、fail-closed、cookie/日志脱敏 |
-| 安全复核（HW-05） | **自决判定，未经外部复核**（2026-11-01 起无独立复核人，11-08 延迟复评；见[例外复核单](work-r0a-exception-review-2026-10-31.md)「复核承接」节） | ~~Lily Zhu~~ 已离队 | — | cookie 名勘误、session key 哈希语义 |
+| 安全复核（HW-05） | **自决判定，未经外部复核**（2026-11-01 起无独立复核人，11-08 延迟复评；见[例外复核单](_archive/work-r0a-exception-review-2026-10-31.md)「复核承接」节） | ~~Lily Zhu~~ 已离队 | — | cookie 名勘误、session key 哈希语义 |
 | 安全复核（新目录写入口 L1–L8） | L1–L8 通过（L2–L8 条件已落实） | Lily Zhu | 2026-10-28 | 见 §8；L1 证据已提交 |
 
 ## 8. Lily 复核：新目录写入口（2026-10-28）

@@ -3,7 +3,7 @@
 > 状态：**已签收（2026-10-27，B1–B10 三组全部通过）**。签字人：安全 + 平台 John Shao（关键项由 Lily Zhu 独立复核，(a)+(b)）；DR0 2026-11-03 出纪要追认。演示组织用 **A managed_key**；D-03 改 B 静态单层加密后 **B2/B6 已重写并随本单一并签收**。本单只解冻 **D4 §10 网关取凭证与 D6 S14** 的设计回写，**不关闭 C04**（C04 仍按 DR2 签）。
 >
 > 范围：D-08 §1 第 4 项 + R7（Key 托管）+ R8（吊销语义）；不含 D-08c（配额）、D-08d（管理台写/R9/R10）。
-> 相关：[D-08 决策单 §6](work-r0a-provider-account-metering-decision-2026-10-26.md)、[D4 出口设计](work-r0a-runtime-egress-design-2026-10-25.md)、[D6 S14](work-r0a-security-ops-migration-design-2026-10-25.md)、[签收单 R0-c](work-r0a-dr0-dr1-signoff-2026-10-26.md)。
+> 相关：[D-08 决策单 §6](../work-r0a-provider-account-metering-decision-2026-10-26.md)、[D4 出口设计](../work-r0a-runtime-egress-design-2026-10-25.md)、[D6 S14](../work-r0a-security-ops-migration-design-2026-10-25.md)、[签收单 R0-c](work-r0a-dr0-dr1-signoff-2026-10-26.md)。
 
 ## 0. 边界：D-08b ≠ C04
 

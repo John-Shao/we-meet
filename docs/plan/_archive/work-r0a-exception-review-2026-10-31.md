@@ -13,7 +13,7 @@
 **John 的签收**
 - 2026-10-31 接受 R0a 试点不交付 admin 读接口与 `/admin/work`。
 - UT5（管理只读验收）不执行；在 R0b/P1-A 再补。
-- 记录位置：[work-project.md](work-project.md) 完成度审计 D2′/D5 行。
+- 记录位置：[work-project.md](../work-project.md) 完成度审计 D2′/D5 行。
 
 **安全与数据边界**
 - 不新增 admin HTTP 路由、页面或下载入口；现有任务面的 owner/seat/RLS 与 CSRF 规则不变。
@@ -45,7 +45,7 @@
 **John 的签收**
 - 2026-10-31 接受“成果内嵌任务工作区”的 D5 简化。
 - 触发重评审条件：需要独立成果深链、分享，或独立导航入口。
-- 记录位置：[work-project.md](work-project.md) 完成度审计 D5 行。
+- 记录位置：[work-project.md](../work-project.md) 完成度审计 D5 行。
 
 **安全与体验边界**
 - 不新增成果公开 URL；现有下载响应头（`no-store`、`nosniff`、附件文件名）不变。
@@ -74,7 +74,7 @@
 
 ## 证据与边界
 
-- 历史页、旧链接和 `/work/new` 已随 frontend `645460d5b` 发布生产（Helm revision 523）并做真实浏览器验收；证据见 [work-project.md](work-project.md) D5 行。
+- 历史页、旧链接和 `/work/new` 已随 frontend `645460d5b` 发布生产（Helm revision 523）并做真实浏览器验收；证据见 [work-project.md](../work-project.md) D5 行。
 - 生产当前没有 `display_state=archived` 任务，归档列表只有空态证据；移动实机仍未验证。
 - 本单只请求对两项范围例外做判断，不把 John 的签收写成 Lily 的复核，也不把例外写成功能已实现。
 

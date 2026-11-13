@@ -1,6 +1,6 @@
 # Work R0a Runtime、Harness 与受控出口详细设计（D4）
 
-> D-08b（网关取凭证/KMS）签收清单见 [D-08b 签收清单](work-r0a-d08b-credential-path-2026-10-27.md)；D-08b 不关闭 C04。
+> D-08b（网关取凭证/KMS）签收清单见 [D-08b 签收清单](_archive/work-r0a-d08b-credential-path-2026-10-27.md)；D-08b 不关闭 C04。
 >
 > 状态：D4 设计草案；策略/Adapter 已通过测试，并完成 runc 降级沙箱、本地 KMS envelope 与真实 Qwen smoke；未接真实 gVisor、Content Store、云 KMS，供应商条款未关闭。
 >
@@ -481,7 +481,7 @@ usage = provider/gateway_estimate/unavailable；unavailable 的 token 字段必�
 
 provider id/model/dataResidency/quota 是配置占位，需在 D4 评审与商务/安全确认后替换；不能把示例值当成采购承诺。
 
-上述六类材料已收敛成可勾选的外部问句：[C15 供应商条款与价表确认单](work-r0a-provider-terms-price-decision-request-2026-10-26.md)。它把**接入下限定为三家：阿里云（Qwen）、DeepSeek、火山引擎（Doubao/Seed）**，三家全部进入闸门——任何一家缺书面结论，C15 就不关闭；并把驻留/训练/留存/子处理者/配额/价格上界列为试点闸门硬项，把 SLA、事故责任、免费额度列为可书面降级项。价表按各家独立 `price_version` 冻结，预算上界取三家最贵路径，未版本化价格不得进入 cents 账本。三家并列可路由**不改变派发语义**：路由在 Run 开始前决定，已派发失败进 unknown/对账，不在同一 Operation 上静默改投他家。期望答复 2026-12-04，硬期限 12-11。
+上述六类材料已收敛成可勾选的外部问句：[C15 供应商条款与价表确认单](_archive/work-r0a-provider-terms-price-decision-request-2026-10-26.md)。它把**接入下限定为三家：阿里云（Qwen）、DeepSeek、火山引擎（Doubao/Seed）**，三家全部进入闸门——任何一家缺书面结论，C15 就不关闭；并把驻留/训练/留存/子处理者/配额/价格上界列为试点闸门硬项，把 SLA、事故责任、免费额度列为可书面降级项。价表按各家独立 `price_version` 冻结，预算上界取三家最贵路径，未版本化价格不得进入 cents 账本。三家并列可路由**不改变派发语义**：路由在 Run 开始前决定，已派发失败进 unknown/对账，不在同一 Operation 上静默改投他家。期望答复 2026-12-04，硬期限 12-11。
 
 H02 已用 qwen3.8-flash、deepseek-chat、doubao-seed-2-1-lite 经本地网关做真实流式请求，但**不等于**生产网关、配额、条款或计费承诺。**接入模型已定为 `qwen3.8-flash`、`deepseek-v4.1-flash-1017`、`doubao-seed-2.1-lite`**：DeepSeek 的模型 id 与 H02 实测的 `deepseek-chat` 不同（1M 上下文、默认思考模式），三家的 usage 归一需按新 id 各复跑一次真实请求才算协议证据。
 

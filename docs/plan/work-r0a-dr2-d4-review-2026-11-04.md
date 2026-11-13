@@ -2,7 +2,7 @@
 
 日期：2026-11-04 ｜ 评审对象：[D4 运行时与出口设计](work-r0a-runtime-egress-design-2026-10-25.md)（543 行）｜ 闸门项：`pilot-checklist.json` **C04**（blocking，gate=start）
 评审人：John Shao（唯一开发者，产品/后端/安全/平台同一人）｜ 取证与逐条判定：Qoder agent，2026-11-04
-原排期：DR2 = 11-17（[DR0/DR1 签收单](work-r0a-dr0-dr1-signoff-2026-10-26.md) §5 把 C04 列为"DR1 会上不得签"的越界项）；本次是**提前完成的评审工作底稿**，署名仍由 John 填。
+原排期：DR2 = 11-17（[DR0/DR1 签收单](_archive/work-r0a-dr0-dr1-signoff-2026-10-26.md) §5 把 C04 列为"DR1 会上不得签"的越界项）；本次是**提前完成的评审工作底稿**，署名仍由 John 填。
 
 ## 0. 判据与证据分层
 

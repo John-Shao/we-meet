@@ -1,22 +1,22 @@
 # 工作（Work）模块：产品、架构与 Agent 选型方案
 
-**2026-10-25 产品重做**：目标产品形态见 [WeMeet 工作产品设计方案](work-product-design-2026-10-25.md)。本文保留历史产品范围、架构选型与实施记录，不作为 clean-slate 产品设计依据。
+**2026-10-25 产品重做**：目标产品形态见 [WeMeet 工作产品设计方案](../work-product-design-2026-10-25.md)。本文保留历史产品范围、架构选型与实施记录，不作为 clean-slate 产品设计依据。
 
 **2026-10-25 当前范围变更**：日常办公的材料上传 / 解析、沟通准备、周报和表格分析已全部删除；当前 Work 仅保留目标驱动的 `office_agent`、桌面本地 / 远程协调和 Pi 只读复核。以下历史章节保留原规划与实施记录，不再代表当前产品能力；其中提到的 `accept-work.sh`、`evaluate-candidate`、`work/materials/` 接口和 `communication-v*` 执行器均已删除，相关命令与评测流程无法再执行。
 
-**2026-10-08 当前实现入口**：详见 [Work Agent 架构](../features/work-agent-architecture.md)。已采用桌面 dsh 执行、服务端 Pi 只读复核、Android 派发与查看；生产保持单演示账号灰度。业务与执行器通过自有版本化协议独立更新，桌面内部候选为 delivery.4，服务端适配器为 0.3.5。精确版本、验证和限制见 [生产记录](../reviews/work-dual-agent-production-release-2026-10-08.md)；以下规划修订及 2026-10-07 补充保留其历史日期和范围。
+**2026-10-08 当前实现入口**：详见 [Work Agent 架构](../../features/work-agent-architecture.md)。已采用桌面 dsh 执行、服务端 Pi 只读复核、Android 派发与查看；生产保持单演示账号灰度。业务与执行器通过自有版本化协议独立更新，桌面内部候选为 delivery.4，服务端适配器为 0.3.5。精确版本、验证和限制见 [生产记录](../../reviews/work-dual-agent-production-release-2026-10-08.md)；以下规划修订及 2026-10-07 补充保留其历史日期和范围。
 
 **2026-10-24 授权、任务关系与执行模型决策**：以下三份 ADR 覆盖相关历史表述，后续实施以此为准。
 
-- [ADR-0005](../adr/0005-work-two-layer-access.md)：组织白名单（服务提供方控制）+ 组织内账号 allowlist（企业客户控制），两层均 fail-closed；材料与沟通准备同样纳入准入；预算按组织核算。**2026-10-24 已落地模型、迁移、统一准入谓词、API 准入与领取复核、`X-Organization-Id` 显式组织选择、成果交付二次校验、`access_revoked` 终态、非空组织、组织级预算与授权审计；`WORK_TENANT_ACCESS_ENABLED` 默认关闭，撤销 runbook 与客户自助后台仍待后续。**
-- [ADR-0006](../adr/0006-work-absorbs-task.md)：Work 逐步吸收 Task，先统一“我的工作”入口与读模型，不合并数据表。
-- [ADR-0007](../adr/0007-work-execution-local-remote.md)：只承诺本地与远程执行，云电脑标记“规划中”；设备离线进入 `waiting_device`，不云接管、不自动重发。
+- [ADR-0005](../../adr/0005-work-two-layer-access.md)：组织白名单（服务提供方控制）+ 组织内账号 allowlist（企业客户控制），两层均 fail-closed；材料与沟通准备同样纳入准入；预算按组织核算。**2026-10-24 已落地模型、迁移、统一准入谓词、API 准入与领取复核、`X-Organization-Id` 显式组织选择、成果交付二次校验、`access_revoked` 终态、非空组织、组织级预算与授权审计；`WORK_TENANT_ACCESS_ENABLED` 默认关闭，撤销 runbook 与客户自助后台仍待后续。**
+- [ADR-0006](../../adr/0006-work-absorbs-task.md)：Work 逐步吸收 Task，先统一“我的工作”入口与读模型，不合并数据表。
+- [ADR-0007](../../adr/0007-work-execution-local-remote.md)：只承诺本地与远程执行，云电脑标记“规划中”；设备离线进入 `waiting_device`，不云接管、不自动重发。
 
 生产部署状态以 2026-10-08 记录为准（backend `d45f7d634` / Helm revision 421）。下方 2026-10-07 段落中的“尚未部署线上 / 生产未部署”保留为当日历史状态，不代表 2026-10-24 的线上事实。
 
-2026-10-07 下一阶段实施补充：已补齐统一任务记录 → 客户端原设备领取 → 状态回报 → 用户主动成果同步，使用 `work-device/v1`、桌面 `0.3.0-local-work.2` 和独立适配器 `0.2.0`。设备断线不触发云端接管或自动重跑；本地原文件不自动上传，设备用量只作观测，不作为供应商确认的计费记录。服务端开关默认关闭，尚未部署线上（2026-10-07 当日状态，已被 2026-10-08 生产记录覆盖）。运行说明见 [任务协调](../../src/work-agent/COORDINATION.md)，证据见 [协调评审](../reviews/work-device-coordination-2026-10-07.md)。此段覆盖下方“云端任务同步后续另行建设”的历史状态。
+2026-10-07 下一阶段实施补充：已补齐统一任务记录 → 客户端原设备领取 → 状态回报 → 用户主动成果同步，使用 `work-device/v1`、桌面 `0.3.0-local-work.2` 和独立适配器 `0.2.0`。设备断线不触发云端接管或自动重跑；本地原文件不自动上传，设备用量只作观测，不作为供应商确认的计费记录。服务端开关默认关闭，尚未部署线上（2026-10-07 当日状态，已被 2026-10-08 生产记录覆盖）。运行说明见 [任务协调](../../src/work-agent/COORDINATION.md)，证据见 [协调评审](../../reviews/work-device-coordination-2026-10-07.md)。此段覆盖下方“云端任务同步后续另行建设”的历史状态。
 
-2026-10-07 客户端本地集成补充：当前工程采用 dsh 优先、Pi 对照。Windows 桌面新工作 / 周报 / 表格分析优先走原生本地目录授权 → 独立适配器 `work-local/v1` → 官方 dsh SDK / cwd；浏览器和桌面的云端材料入口保留 HTTP Agent 路径。业务与适配器均可独立更新。本机历史和模型用量当前存于本地，云端 WorkTask / 组织配额同步后续另行建设。运行说明见 [本地工作空间](../../src/work-agent/LOCAL.md)，证据见 [本地集成评审](../reviews/work-local-agent-2026-10-07.md)。本补充作为当前实施状态，下面保留各版规划与历史决策。
+2026-10-07 客户端本地集成补充：当前工程采用 dsh 优先、Pi 对照。Windows 桌面新工作 / 周报 / 表格分析优先走原生本地目录授权 → 独立适配器 `work-local/v1` → 官方 dsh SDK / cwd；浏览器和桌面的云端材料入口保留 HTTP Agent 路径。业务与适配器均可独立更新。本机历史和模型用量当前存于本地，云端 WorkTask / 组织配额同步后续另行建设。运行说明见 [本地工作空间](../../src/work-agent/LOCAL.md)，证据见 [本地集成评审](../../reviews/work-local-agent-2026-10-07.md)。本补充作为当前实施状态，下面保留各版规划与历史决策。
 
 **2026-10-07 动态内核决策更新：用户明确选择先做 dsh PoC、再用 Pi 对照，要求业务系统与
 Agent 松耦合、独立更新。已新增自有 `work-agent/v1` HTTP Job 契约、独立 Agent Gateway
@@ -25,7 +25,7 @@ Agent 松耦合、独立更新。已新增自有 `work-agent/v1` HTTP Job 契约
 新工作/周报/表格分析入口，真实 Work API → dsh → DeepSeek → 用量账本/授权下载验证通过。
 `WORK_AGENT_ENABLED` 默认关闭，本次未发布线上（2026-10-07 当日状态），当前仅验证合成材料。接入与升级规则见
 [PoC 说明](../../src/work-agent/README.md)，实测证据见
-[评审记录](../reviews/work-agent-poc-2026-10-07.md)。此决策覆盖下文历史候选优先顺序；
+[评审记录](../../reviews/work-agent-poc-2026-10-07.md)。此决策覆盖下文历史候选优先顺序；
 不代表已切换线上执行器、完成完整办公 MVP 或通过企业多租户放行。**
 
 日期：2026-09-21 · 更新：2026-09-24 · 修订：v1.27，v6 容器与新业务账本核验通过，进入周报批次 · 状态：backend `d45f7d634` / Helm revision 421，frontend `079db8e1d`；沟通准备本批工程验收完成，下一批 P0-2 周报；单组织试用范围限制、完整办公 MVP 验收和 D0 剩余发布门槛独立跟踪 · 原源码核查基线：we-meet `4c5ca713f`；办公第二批实施基线：`09a7841f9`
@@ -97,17 +97,17 @@ S1–S8 按本次消息中的图片顺序编号，界面左上角均显示版本
 
 | 能力 | 当前证据 | Work 的复用方式与增量 |
 |---|---|---|
-| Web 工作台 | [routes.ts](../../src/frontend/src/routes.ts)，已有会议、IM、日程、审批、任务、文档路由 | 增加 `/work` 路由与 `features/work`，复用导航、用户选择器、来源卡片 |
-| 桌面应用 | [main.ts](../../src/desktop/src/main.ts)、[preload.ts](../../src/desktop/src/preload.ts)、[桌面说明](../../src/desktop/README.md) | 已通过真实认证、部分业务及安装 / 升级 / 回退检查；设备和干净环境等剩余门槛见第 14.0.1 节。本轮承载共用办公页面，本地执行与远程配对另行建设 |
-| 文件与材料 | [models.py](../../src/backend/core/models.py) 的 `File / TaskAttachment`，及 [依赖清单](../../src/backend/pyproject.toml) | 可借鉴文件元数据、存储与上传校验；TaskAttachment 绑定人的待办，不直接用作 Work 材料。新增 WorkMaterial 归属、解析、版本与任务引用；当前直接依赖未列出 PDF / DOCX / XLSX 解析库，需专项选定和锁版 |
-| 会议 / 日程 / IM 检索问答 | [global_ask.py](../../src/backend/core/services/global_ask.py)、[meeting_search.py](../../src/backend/core/services/meeting_search.py) | 复用逐来源权限校验、引用和检索逻辑；新增可供 Agent 调用的工具契约。云文档全文检索需独立验证与接入 |
-| Qwen 文本能力 | [llm_client.py](../../src/backend/core/services/llm_client.py) | 当前主要是 chat、JSON、stream 与 embedding 封装，`from_settings` 限定 Qwen；新增 tool-call 循环、能力注册、路由，保留会议原路径 |
-| 模型目录与用量 | [models.py](../../src/backend/core/models.py) 中 `AIVendor / AIModel / AIUsageRecord` | 复用模型目录与调用计量；补充工具能力、部署区域、WorkRun 归因和预算预占 |
-| 行动项转待办 | [meeting_summary_tasks.py](../../src/backend/core/services/meeting_summary_tasks.py) | 已要求当前人工修订、真实账号、组织校验、请求去重；Work 必须沿用这些业务约束 |
-| 云文档交付 | [summary_export_delivery.py](../../src/backend/core/services/summary_export_delivery.py) | 复用冻结内容、租约、未知结果对账模式；通用 Work 成果需要新的适配器，不能直接套用会议专属导出模型 |
-| IM 通知与机器人 | [im_bots.py](../../src/backend/core/services/im_bots.py)、`task_notifications.py` | 新增工作助手身份与通知模板；保留发送权限、卡片动作鉴权和交付去重 |
-| 协作文档服务 | [we-meet-docs 架构](../../../we-meet-docs/documentation/architecture.md) | 对接文档 API 与现有身份映射，不直接写另一服务的数据库 |
-| 会中 AI Agent | [ai_agent.py](../../src/backend/core/services/ai_agent.py) | 现有职责为 LiveKit 房间内调度；Work Runtime 单独建设，两者共享模型基础设施而非执行生命周期 |
+| Web 工作台 | [routes.ts](../../../src/frontend/src/routes.ts)，已有会议、IM、日程、审批、任务、文档路由 | 增加 `/work` 路由与 `features/work`，复用导航、用户选择器、来源卡片 |
+| 桌面应用 | [main.ts](../../../src/desktop/src/main.ts)、[preload.ts](../../../src/desktop/src/preload.ts)、[桌面说明](../../../src/desktop/README.md) | 已通过真实认证、部分业务及安装 / 升级 / 回退检查；设备和干净环境等剩余门槛见第 14.0.1 节。本轮承载共用办公页面，本地执行与远程配对另行建设 |
+| 文件与材料 | [models.py](../../../src/backend/core/models.py) 的 `File / TaskAttachment`，及 [依赖清单](../../../src/backend/pyproject.toml) | 可借鉴文件元数据、存储与上传校验；TaskAttachment 绑定人的待办，不直接用作 Work 材料。新增 WorkMaterial 归属、解析、版本与任务引用；当前直接依赖未列出 PDF / DOCX / XLSX 解析库，需专项选定和锁版 |
+| 会议 / 日程 / IM 检索问答 | [global_ask.py](../../../src/backend/core/services/global_ask.py)、[meeting_search.py](../../../src/backend/core/services/meeting_search.py) | 复用逐来源权限校验、引用和检索逻辑；新增可供 Agent 调用的工具契约。云文档全文检索需独立验证与接入 |
+| Qwen 文本能力 | [llm_client.py](../../../src/backend/core/services/llm_client.py) | 当前主要是 chat、JSON、stream 与 embedding 封装，`from_settings` 限定 Qwen；新增 tool-call 循环、能力注册、路由，保留会议原路径 |
+| 模型目录与用量 | [models.py](../../../src/backend/core/models.py) 中 `AIVendor / AIModel / AIUsageRecord` | 复用模型目录与调用计量；补充工具能力、部署区域、WorkRun 归因和预算预占 |
+| 行动项转待办 | [meeting_summary_tasks.py](../../../src/backend/core/services/meeting_summary_tasks.py) | 已要求当前人工修订、真实账号、组织校验、请求去重；Work 必须沿用这些业务约束 |
+| 云文档交付 | [summary_export_delivery.py](../../../src/backend/core/services/summary_export_delivery.py) | 复用冻结内容、租约、未知结果对账模式；通用 Work 成果需要新的适配器，不能直接套用会议专属导出模型 |
+| IM 通知与机器人 | [im_bots.py](../../../src/backend/core/services/im_bots.py)、`task_notifications.py` | 新增工作助手身份与通知模板；保留发送权限、卡片动作鉴权和交付去重 |
+| 协作文档服务 | [we-meet-docs 架构](../../../../we-meet-docs/documentation/architecture.md) | 对接文档 API 与现有身份映射，不直接写另一服务的数据库 |
+| 会中 AI Agent | [ai_agent.py](../../../src/backend/core/services/ai_agent.py) | 现有职责为 LiveKit 房间内调度；Work Runtime 单独建设，两者共享模型基础设施而非执行生命周期 |
 
 特别注意：`jusi-light-im` 早期架构说明称单租户，不能由 Django 中存在 Organization 就推断整个 IM 链路已经支持租户隔离。多组织试点前，需要验证组织、群成员、搜索、机器人和对象存储的端到端隔离。
 
@@ -634,7 +634,7 @@ D0 验收只核实桌面承载已有业务的能力，不把所有消息 / 会�
 
 #### 14.0.1 本轮实施与证据（2026-09-22）
 
-验收环境由用户确认使用现有 `meet.we-meet.online`。Windows 候选包与操作说明统一维护在 [桌面 README](../../src/desktop/README.md)，避免新增零散计划文件；测试输出保留于 `src/desktop/test-results/`，安装包保留于 `src/desktop/release/`，不将二进制或账号数据提交到文档目录。
+验收环境由用户确认使用现有 `meet.we-meet.online`。Windows 候选包与操作说明统一维护在 [桌面 README](../../../src/desktop/README.md)，避免新增零散计划文件；测试输出保留于 `src/desktop/test-results/`，安装包保留于 `src/desktop/release/`，不将二进制或账号数据提交到文档目录。
 
 | 项目 | 已有证据 | 剩余门槛 |
 |---|---|---|
@@ -781,7 +781,7 @@ v1.12 的执行步骤：由用户在发布主机拉取代码并执行材料启�
 
 新增可交付范围：`prepare-communication` 持久化独立 Work 模型配置并保持生成关闭；`communication` 对照 backend / Worker 已部署配置，先做私有存储检查及一次真实合成模型探针，再开启生成；`probe-model` 可独立检查而不改开关。完整自定义模型配置保留，部分配置拒绝；探针使用已有 Executor 与引用校验，缺引用 / 缺用量 / 调用失败均不放行，输出耗时和用量，不打印凭证。宿主机脚本通过 stdin 使用现有镜像，无需为本批重建前后端。配置、执行与回退命令集中见 [Work 工程说明](../../src/backend/work/README.md)。
 
-离线验证：23 项存储 / Helm / 脚本测试、12 项模型探针 / overlay 测试、6 项既有发布回归通过，另通过 Ruff、Bash 语法及差异检查；覆盖配置不一致、Worker 滚动中、模型失败、引用错误、输出无效、用量缺失及敏感错误脱敏。这些测试使用模拟模型，**新增工具尚待生产运行，P0-1 仍不勾选完成**。现有开关是全局能力开关，本批当时尚未实现组织白名单（[ADR-0005](../adr/0005-work-two-layer-access.md) 已定义两层模型；2026-10-24 基础准入已落地，仍由开关默认关闭）；后续单组织试用必须补齐对应限制。
+离线验证：23 项存储 / Helm / 脚本测试、12 项模型探针 / overlay 测试、6 项既有发布回归通过，另通过 Ruff、Bash 语法及差异检查；覆盖配置不一致、Worker 滚动中、模型失败、引用错误、输出无效、用量缺失及敏感错误脱敏。这些测试使用模拟模型，**新增工具尚待生产运行，P0-1 仍不勾选完成**。现有开关是全局能力开关，本批当时尚未实现组织白名单（[ADR-0005](../../adr/0005-work-two-layer-access.md) 已定义两层模型；2026-10-24 基础准入已落地，仍由开关默认关闭）；后续单组织试用必须补齐对应限制。
 
 执行顺序：① 用户发布配置并返回模型探针 / 运行时输出；② Web 真实生成与用量检查；③ 故障及权限回归、桌面办公冒烟；④ 记录验收证据，达到第 14.5 节门槛后进入 P0-2 周报。工作机无生产集群 / SSH 连接，不能用本地脚本通过代替服务器成功。以下 20 条为本批固定沟通验收清单；部分已有本地覆盖，但本批生产 / 真实模型状态均须以新证据更新，危险故障注入仅在隔离环境执行。
 
@@ -827,11 +827,11 @@ v1.12 的执行步骤：由用户在发布主机拉取代码并执行材料启�
 
 证据集中见 [Work 工程说明](../../src/backend/work/README.md) 的生产验收记录及其本地文件引用。四份材料已清理应用层访问，三个任务 / 运行账本保留供核对。后续桌面及故障复验结果见下方 v1.16；周报和表格分析仍未实施。
 
-2026-09-24 继续收尾（v1.16）：已从固定干净提交构建并安装桌面 `d0.8 → d0.9`。`d0.8` 的真实登录和生成成功，但测试导航过早取消初始加载，触发误导性的“启动失败 / 检查安装文件”弹窗；调整等待后恢复原任务验收，无重复生成。`d0.9` 在主进程中将初始导航取消 `ERR_ABORTED / -3` 与真实启动错误区分，并通过真实 Electron 取消导航回归和 12 组桌面测试。其 manifest 记录源码 `6507434dc`、干净工作区；包已安装，版本 / 哈希见 [桌面 README](../../src/desktop/README.md)。
+2026-09-24 继续收尾（v1.16）：已从固定干净提交构建并安装桌面 `d0.8 → d0.9`。`d0.8` 的真实登录和生成成功，但测试导航过早取消初始加载，触发误导性的“启动失败 / 检查安装文件”弹窗；调整等待后恢复原任务验收，无重复生成。`d0.9` 在主进程中将初始导航取消 `ERR_ABORTED / -3` 与真实启动错误区分，并通过真实 Electron 取消导航回归和 12 组桌面测试。其 manifest 记录源码 `6507434dc`、干净工作区；包已安装，版本 / 哈希见 [桌面 README](../../../src/desktop/README.md)。
 
 `d0.9` 已安装包的 C20 办公路径通过：真实 `desktop` PKCE → 上传并解析合成材料 → 千问生成 → 下载并校验 Markdown → 刷新 → 重启恢复同账号与任务 → 退出登录。344 / 455 输入 / 输出 token，提交至成功约 15.2 秒，下载 1496 字节，页面错误 0；合成材料删除后详情 404、成果 409。`d0.8` 的合成材料亦已删除；这两次新增运行账本需与前述三次 Web 运行一起核对。系统浏览器的原生回跳提示、原生文件选择器仍未覆盖，D0 其他媒体 / 签名 / 干净环境门槛保持独立。
 
-C09、C13–C15 的既有边界 / 故障回归已在固定 `6507434dc` worktree 与独立 PostgreSQL 中复验：Work 后端 54 项全部通过，覆盖上下文超限、显式重试 / 幂等、取消丢弃晚到成果、过期运行不自动重发、错误引用 / Schema、供应商失败脱敏与撤权。该结果是隔离模型测试，不替代真实语义样本或生产故障演练。当前剩余优先级：① C10 / C19 的服务器账本关联与后台清理回执；② 扩充稀疏材料、冲突和缺失信息的固定语义评测并校准建议范围；③ 满足 P0-1 门槛后进入周报，单组织试用前落实组织范围限制（[ADR-0005](../adr/0005-work-two-layer-access.md)）。
+C09、C13–C15 的既有边界 / 故障回归已在固定 `6507434dc` worktree 与独立 PostgreSQL 中复验：Work 后端 54 项全部通过，覆盖上下文超限、显式重试 / 幂等、取消丢弃晚到成果、过期运行不自动重发、错误引用 / Schema、供应商失败脱敏与撤权。该结果是隔离模型测试，不替代真实语义样本或生产故障演练。当前剩余优先级：① C10 / C19 的服务器账本关联与后台清理回执；② 扩充稀疏材料、冲突和缺失信息的固定语义评测并校准建议范围；③ 满足 P0-1 门槛后进入周报，单组织试用前落实组织范围限制（[ADR-0005](../../adr/0005-work-two-layer-access.md)）。
 
 2026-09-24 下一批收尾（v1.17）：新增 `deploy/aliyun/accept-work.sh`，将 C10 / C19 核对收敛为 `audit`：在只读事务中逐笔比对上述 5 次业务 Run 与唯一账本的关联、账号 / 组织 / 模型 / 实际 token，并核验 6 份合成材料的清理 worker 回执。它不进行清理写入，不把应用拒读或 DB 清理标记宣称为独立对象存储查询结果。新增 `catalog / evaluate` 与 S01–S20 固定合成语义样本，扩充 C01 / C05–C09；它们与本节的 C01–C20 业务检查是两个编号集合。20 条涵盖稀疏资料、冲突 / 更正、未确认预算和日期、背景猜测、指令注入、否定 / 条件 / 主体 / 单位、相对日期和目标范围。
 
@@ -1134,7 +1134,7 @@ v6 系统哈希 `296a12bd77e915b66ccc6595c8b3d0a734eb50bd60f641b0fcea11ef0f6f375
 
 新 Run `8c3821d8-c249-4ebe-aebc-610d7cca7eca` 的全部检查项通过：任务、来源、成功状态、调用时间、模型、1433 / 500 token、唯一用量行及其关联指针 / 引用 / 账号 / 组织 / 模型 / token 一致；两个成果版本的正文哈希与浏览器留证一致，编辑版已采纳。`pricing_reconciled=false` 明确仅核对 token 与内部用量记录，未核对供应商金额账单。本次没有模型调用或清理操作，合成材料继续保留供复核。
 
-**本批工程验收结论：沟通准备收尾完成，可以推进 P0-2 周报。** 结论综合第 14.6 节 C01–C20 的适用证据、隔离故障回归、此前五次业务与六份材料清理回执、第 15.5 节 v6 单轮完整 20 条语义审阅、第 15.6 节新 Web 闭环和本次生产审计；不是只凭 `audit-v6` 的 `ok` 放行。脚本末尾的通用提示表示它本身不判断整个批次，与此处综合核定不矛盾。未实现的组织白名单（决策见 [ADR-0005](../adr/0005-work-two-layer-access.md)；2026-10-24 基础准入已落地，默认关闭）仍是单组织试用前置，D0 原生交互 / 签名 / 干净环境门槛及完整办公 100 条评测继续独立跟踪。
+**本批工程验收结论：沟通准备收尾完成，可以推进 P0-2 周报。** 结论综合第 14.6 节 C01–C20 的适用证据、隔离故障回归、此前五次业务与六份材料清理回执、第 15.5 节 v6 单轮完整 20 条语义审阅、第 15.6 节新 Web 闭环和本次生产审计；不是只凭 `audit-v6` 的 `ok` 放行。脚本末尾的通用提示表示它本身不判断整个批次，与此处综合核定不矛盾。未实现的组织白名单（决策见 [ADR-0005](../../adr/0005-work-two-layer-access.md)；2026-10-24 基础准入已落地，默认关闭）仍是单组织试用前置，D0 原生交互 / 签名 / 干净环境门槛及完整办公 100 条评测继续独立跟踪。
 
 下一批按以下顺序实施，不再重复本次部署或付费评测：
 
@@ -1360,10 +1360,10 @@ OpenHands 的推荐对象是 Software Agent SDK / Agent Server，其官方定位
 
 用户最新决定覆盖第 19 节的候选顺序：先做 dsh PoC，再用 Pi 对照；业务与执行器通过自有版本化协议保持独立更新。PoC 对照、本机工作空间及业务协调的前序证据见 `docs/reviews/work-*-2026-10-07.*`。
 
-本阶段先完善 Windows 自包含运行环境、一键安装、逐次命令/文件修改脚本审批、签名运行环境升级与回退，再新增设备/工作空间登记、Android 远程任务派发、桌面人工领取和手机状态/成果查看。Android 仓库为 `D:\workspace\jusi-meet\we-meet-android`；用户确认暂不开发 iOS。桌面与 Android、后端接口已实现并验证，版本与验收边界见 [交付评审](../reviews/work-delivery-and-android-2026-10-07.md)。
+本阶段先完善 Windows 自包含运行环境、一键安装、逐次命令/文件修改脚本审批、签名运行环境升级与回退，再新增设备/工作空间登记、Android 远程任务派发、桌面人工领取和手机状态/成果查看。Android 仓库为 `D:\workspace\jusi-meet\we-meet-android`；用户确认暂不开发 iOS。桌面与 Android、后端接口已实现并验证，版本与验收边界见 [交付评审](../../reviews/work-delivery-and-android-2026-10-07.md)。
 
 当前 Windows 候选未签名，Android 为 debug 测试包。正式 Windows 签名证书和运行时更新信任根尚未提供，正式发布与签名升级入口均拒绝未配置状态。生产未部署，开关默认关闭（2026-10-07 当日状态，已被 2026-10-08 生产记录覆盖）；干净 Windows 安装、完整正式发布签名和真实账号 Android→桌面全链路 UI 验收仍需发布准备阶段完成。
 
 ### 20.1 后续验收进展
 
-Android 实际联网与 Electron 实际 Work 页面已在同一隔离 Django/PostgreSQL 上完成派发、原 UUID 领取、四次逐项审批、最终 Agent `0.3.1` / DeepSeek 执行、主动同步及手机 SHA-256 预览，另验证手机取消待办。隔离 appId 的 Windows 衍生候选实际安装/升级/回退/卸载及已安装运行环境签名 fixture 验证通过。详见 [跨端验收](../reviews/work-cross-device-acceptance-2026-10-07.md)。真实账号登录、原产品真人选择器、干净 Windows 和正式发布证书仍待完成；生产未部署（2026-10-07 当日状态）。
+Android 实际联网与 Electron 实际 Work 页面已在同一隔离 Django/PostgreSQL 上完成派发、原 UUID 领取、四次逐项审批、最终 Agent `0.3.1` / DeepSeek 执行、主动同步及手机 SHA-256 预览，另验证手机取消待办。隔离 appId 的 Windows 衍生候选实际安装/升级/回退/卸载及已安装运行环境签名 fixture 验证通过。详见 [跨端验收](../../reviews/work-cross-device-acceptance-2026-10-07.md)。真实账号登录、原产品真人选择器、干净 Windows 和正式发布证书仍待完成；生产未部署（2026-10-07 当日状态）。

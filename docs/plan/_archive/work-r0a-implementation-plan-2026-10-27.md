@@ -2,7 +2,7 @@
 
 > 日期：2026-10-27
 > 
-> 基线：[实施就绪包](work-r0a-implementation-readiness-2026-10-26.md)、[详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、D1–D6 设计文档
+> 基线：[实施就绪包](work-r0a-implementation-readiness-2026-10-26.md)、[详细设计大纲](../work-r0a-detailed-design-plan-2026-10-25.md)、D1–D6 设计文档
 > 
 > 分支：`dev/work-r0a`（从 `aliyun-dev` 拉出）
 > 
@@ -31,7 +31,7 @@ R0a 交付**云端文本任务**的最小可用闭环：
 | D-03 B 静态加密 | 2026-10-27 | 全局主密钥 + 按 org 派生；不使用云 KMS/HSM；C13 标题已改 |
 | D-07 A 只拦新工作 | 2026-10-27 | 撤权不自动取消在途 Run；运营用 `ops_cancel_run` 手工处置 |
 | D-08a–d 全签 | 2026-10-27 | Token 配额模型；客户自带账号；演示组织独接百炼 |
-| D6 go/no-go 为 **no-go**（计数见 [work-project.md](work-project.md)） | pilot-checklist | 正式开工闸门仍为 DR4 2026-12-04；E1–E3 在准入条件下先行 |
+| D6 go/no-go 为 **no-go**（计数见 [work-project.md](../work-project.md)） | pilot-checklist | 正式开工闸门仍为 DR4 2026-12-04；E1–E3 在准入条件下先行 |
 | U1 可用性验证未关闭 | §6.1 | 7–8 名设计伙伴、≥3 家组织；报告 2026-11-27；DR3 2026-12-01 |
 
 ### 1.3 Epic 依赖关系
@@ -115,7 +115,7 @@ python manage.py migrate work zero  # 回滚 schema，保留角色
 
 1. `deploy/aliyun/work-roles.sql`（新建）
    - 生产角色创建脚本（由 DBA 执行）
-   - 权限矩阵（[D1 §4.1](work-r0a-data-design-2026-10-25.md) 为权威）：
+   - 权限矩阵（[D1 §4.1](../work-r0a-data-design-2026-10-25.md) 为权威）：
      - `work_owner`：NOLOGIN，拥有 work schema 所有对象
      - `work_api`：NOLOGIN，SELECT + 指定函数 EXECUTE
      - `work_worker`：NOLOGIN，SELECT + 指定函数 EXECUTE
@@ -749,7 +749,7 @@ python manage.py migrate work       # 重新应用
 
 **当前可做**：E1–E7 后（C24/C27/C30 与试点环境）
 
-**既有资产**（不另建平行定义）：[pilot-ops.mjs](assets/work-r0a-ops-2026-10-25/pilot-ops.mjs)、[golden-tasks.json](assets/work-r0a-ops-2026-10-25/golden-tasks.json)、[pilot-metrics.json](assets/work-r0a-ops-2026-10-25/pilot-metrics.json)、[cutover-plan.json](assets/work-r0a-ops-2026-10-25/cutover-plan.json)、[试点运营 Runbook](work-r0a-pilot-operations-runbook-2026-10-26.md) §10。
+**既有资产**（不另建平行定义）：[pilot-ops.mjs](../assets/work-r0a-ops-2026-10-25/pilot-ops.mjs)、[golden-tasks.json](../assets/work-r0a-ops-2026-10-25/golden-tasks.json)、[pilot-metrics.json](../assets/work-r0a-ops-2026-10-25/pilot-metrics.json)、[cutover-plan.json](../assets/work-r0a-ops-2026-10-25/cutover-plan.json)、[试点运营 Runbook](../work-r0a-pilot-operations-runbook-2026-10-26.md) §10。
 
 #### 步骤 8.1：组织开通
 
@@ -863,7 +863,7 @@ python manage.py migrate work       # 重新应用
 
 试点放行需满足：
 
-- [ ] D6 go/no-go 条件满足（blocking 全部 done/waived，计数见 [work-project.md](work-project.md)）
+- [ ] D6 go/no-go 条件满足（blocking 全部 done/waived，计数见 [work-project.md](../work-project.md)）
 - [ ] E1–E8 全部完成
 - [ ] 黄金任务技术成功率 > 95%
 - [ ] 切换/回滚演练成功

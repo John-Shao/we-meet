@@ -46,7 +46,7 @@
 - 原因：缺少 PostgreSQL 测试环境（`WORK_TEST_PG_URL` 未设置）
 - 影响：无法生成 EV 执行证据
 - 解决：搭建 Docker PostgreSQL 环境（预计 2 小时）
-- 详细步骤：参见 [EV 测试执行指南](r0b-ev-test-execution-guide-2026-11-10.md)
+- 详细步骤：参见 [EV 测试执行指南](../r0b-ev-test-execution-guide-2026-11-10.md)
 
 **P1 阻塞：3 条 EV 测试未实现**
 - EV70：需要 `workspace_grant_succession` 表（尚未建设）
@@ -181,7 +181,7 @@ export WORK_TEST_PG_URL="postgres://work:work@localhost:5432/work_test?sslmode=d
 docker exec -it work-test-pg psql -U work -d work_test -c "SELECT version();"
 ```
 
-详细步骤：参见 [EV 测试执行指南](r0b-ev-test-execution-guide-2026-11-10.md) §1
+详细步骤：参见 [EV 测试执行指南](../r0b-ev-test-execution-guide-2026-11-10.md) §1
 
 **任务 2：执行已实现的 9 条 EV 测试**（4 小时）
 
@@ -342,7 +342,7 @@ grep -E "^(--- PASS|--- FAIL|--- SKIP)" ev-test-results.log | sort | uniq -c
    - 关键成就与阻塞
    - 下一步行动建议
 
-6. [R0b EV 测试执行指南](r0b-ev-test-execution-guide-2026-11-10.md)
+6. [R0b EV 测试执行指南](../r0b-ev-test-execution-guide-2026-11-10.md)
    - 快速开始指南
    - 故障排查手册
    - 测试执行最佳实践
@@ -375,7 +375,7 @@ grep -E "^(--- PASS|--- FAIL|--- SKIP)" ev-test-results.log | sort | uniq -c
 ### 7.2 技术支持
 
 **PostgreSQL 环境问题**：
-- 参见 [EV 测试执行指南](r0b-ev-test-execution-guide-2026-11-10.md) §4 故障排查
+- 参见 [EV 测试执行指南](../r0b-ev-test-execution-guide-2026-11-10.md) §4 故障排查
 - 检查 Docker 日志：`docker logs work-test-pg`
 - 验证连接：`psql "$WORK_TEST_PG_URL" -c "SELECT version();"`
 

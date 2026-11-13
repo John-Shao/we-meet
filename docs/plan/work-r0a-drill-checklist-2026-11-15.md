@@ -6,7 +6,7 @@
 > **RB-05 边界**：本轮只验数据层与基础设施（PG、Temporal、Content Store、角色/密钥、配额、开关）；经 API/编排/Runtime 的端到端项移出本轮。
 >
 > 关联控制：C03 (start, blocking) / C22 (pilot, blocking) / C13 (pilot, blocking) / C28 (pilot, blocking)。  
-> 关联文档：[D3 设计](work-r0a-orchestration-design-2026-10-25.md)、[运维 Runbook](work-operations-runbook-2026-10-25.md)、[U3 原清单](work-r0a-c03-u3-drills-2026-10-27.md)、[C03 签收条件](work-r0a-start-gate-disposition-2026-10-27.md) §C03。
+> 关联文档：[D3 设计](work-r0a-orchestration-design-2026-10-25.md)、[运维 Runbook](work-operations-runbook-2026-10-25.md)、[U3 原清单](work-r0a-c03-u3-drills-2026-10-27.md)、[C03 签收条件](_archive/work-r0a-start-gate-disposition-2026-10-27.md) §C03。
 
 ## 0. 前置条件（11-06 环境预检通过 + 11-10 彩排）
 
@@ -463,7 +463,7 @@ docs/plan/assets/work-r0a-ops-2026-10-25/drills/
 | §4 全部满足（U3 + D1–D4 + N01/N03 + S1） | C03 status → `done`，DR2 签收 |
 | D5 全 PASS（D5-0..D5-11） | C27 evidence 追加「删除链端到端实测」；C30 evidence 追加「移交＋代删端到端实测」；两格 status 由主签另裁 |
 
-签收后回写：[U3 单](work-r0a-temporal-hosting-decision-request-2026-10-26.md) §9、[D3 §4.1](work-r0a-orchestration-design-2026-10-25.md)、[work-project](work-project.md) §3.3、`pilot-checklist.json`。
+签收后回写：[U3 单](_archive/work-r0a-temporal-hosting-decision-request-2026-10-26.md) §9、[D3 §4.1](work-r0a-orchestration-design-2026-10-25.md)、[work-project](work-project.md) §3.3、`pilot-checklist.json`。
 
 ## 附录 A：五席 + 到场角色
 

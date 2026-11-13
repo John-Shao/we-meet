@@ -29,7 +29,7 @@ John 于 2026-10-31 决定：R0a 新任务的默认 `maxOutputTokens` 从 **1024
 - E8 runner 补充 golden 长度指令（提交 `1b3dd2d7e`），受控任务 `3170cb90…` 输出 3,239B，Task `awaiting_acceptance`。
 - `work-egress` 进一步区分 `partial_answer_length` / `partial_answer_content_filter`（提交 `1b3ed9177`，二进制 sha256 `92b71943…`）。
 - 相关提交的 `Work R0a gates`、`Release guard` 通过。
-- **2026-11-01 更新**：完整 E8 18 次已在真实登录会话内跑完并通过（官方 `evaluateGoldenSuite`：`passRatio=1`、`p95=33.262s`、`passed=true`，G01–G06 各 3/3；输出字数全部落在 golden 区间内），证据见 [e8-golden-2026-11-01](assets/work-r0a-ops-2026-10-25/e8-golden-2026-11-01/README.md)。本文记录的 `maxOutputTokens=4096` 是该轮通过的前置条件之一。
+- **2026-11-01 更新**：完整 E8 18 次已在真实登录会话内跑完并通过（官方 `evaluateGoldenSuite`：`passRatio=1`、`p95=33.262s`、`passed=true`，G01–G06 各 3/3；输出字数全部落在 golden 区间内），证据见 [e8-golden-2026-11-01](../assets/work-r0a-ops-2026-10-25/e8-golden-2026-11-01/README.md)。本文记录的 `maxOutputTokens=4096` 是该轮通过的前置条件之一。
 
 ## 边界
 

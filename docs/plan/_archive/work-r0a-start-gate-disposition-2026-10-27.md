@@ -2,8 +2,8 @@
 
 > 状态：**处置建议 + 部分已签**。2026-10-27 按当前证据给每一项判定"能否提前签、还缺什么、按哪个 DR 关闭"；提前签只改 `pilot-checklist` 的 `status`，不改变证据边界。
 >
-> 当前计数：`start` **4** 项、`pilot` 14 项、`scale` 0；`canStartWork=false`、`go=false`（C01/C02/C11/C14 已于 2026-10-27 提前签，其中 C11 只签映射口径）（[ops-model](assets/work-r0a-ops-2026-10-25/ops-model.mjs)）。
-> 相关：[就绪包 §6.3/§7](work-r0a-implementation-readiness-2026-10-26.md)、[DR0/DR1 签收单](work-r0a-dr0-dr1-signoff-2026-10-26.md)、[D-08 决策单](work-r0a-provider-account-metering-decision-2026-10-26.md)、[C15 结项单](work-r0a-provider-terms-price-decision-request-2026-10-26.md)。
+> 当前计数：`start` **4** 项、`pilot` 14 项、`scale` 0；`canStartWork=false`、`go=false`（C01/C02/C11/C14 已于 2026-10-27 提前签，其中 C11 只签映射口径）（[ops-model](../assets/work-r0a-ops-2026-10-25/ops-model.mjs)）。
+> 相关：[就绪包 §6.3/§7](work-r0a-implementation-readiness-2026-10-26.md)、[DR0/DR1 签收单](work-r0a-dr0-dr1-signoff-2026-10-26.md)、[D-08 决策单](../work-r0a-provider-account-metering-decision-2026-10-26.md)、[C15 结项单](work-r0a-provider-terms-price-decision-request-2026-10-26.md)。
 
 ## 0. 结论先行
 

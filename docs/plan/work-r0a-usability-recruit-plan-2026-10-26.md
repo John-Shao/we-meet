@@ -4,7 +4,7 @@
 >
 > 发出日期：2026-10-26 ｜ 名单锁定：**2026-11-16** ｜ 执行：11-20～11-24 ｜ 报告：**2026-11-27** ｜ 复核：DR3 2026-12-01
 > 负责：产品 + 设计执行；运营给名单与档期；前端/后端按修复清单回写
-> 关联：[D5 §11.2 R0a 可用性任务集](work-r0a-frontend-design-2026-10-25.md)、[UX §13 研究执行包](work-ux-design-r0-2026-10-25.md)、[就绪包 §6.1 U1 / L8](work-r0a-implementation-readiness-2026-10-26.md)
+> 关联：[D5 §11.2 R0a 可用性任务集](work-r0a-frontend-design-2026-10-25.md)、[UX §13 研究执行包](work-ux-design-r0-2026-10-25.md)、[就绪包 §6.1 U1 / L8](_archive/work-r0a-implementation-readiness-2026-10-26.md)
 > 阻塞项：C25（todo）、U1（开放）、§0 #5；下游：DR3 签收、DR4 实施就绪
 
 ## 1. 先纠正一件事：判定任务集用 D5，不用 UX §13.2

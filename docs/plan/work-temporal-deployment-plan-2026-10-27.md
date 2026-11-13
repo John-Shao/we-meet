@@ -2,7 +2,7 @@
 
 > 日期：2026-10-27
 >
-> 依据：[D3 编排设计](work-r0a-orchestration-design-2026-10-25.md) §4、[U3 托管决策](work-r0a-temporal-hosting-decision-request-2026-10-26.md)（9 项全"是"）
+> 依据：[D3 编排设计](work-r0a-orchestration-design-2026-10-25.md) §4、[U3 托管决策](_archive/work-r0a-temporal-hosting-decision-request-2026-10-26.md)（9 项全"是"）
 >
 > 目标：在 JDCloud ECS 36.151.142.132 的 K3s 集群部署自托管 Temporal，接入 Work R0a 后端
 

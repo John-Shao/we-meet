@@ -4,7 +4,7 @@
 >
 > 状态：**已完成** ✓
 >
-> 依据：[部署计划](work-temporal-deployment-plan-2026-10-27.md)
+> 依据：[部署计划](../work-temporal-deployment-plan-2026-10-27.md)
 
 ## 1. 完成清单
 

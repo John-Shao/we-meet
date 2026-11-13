@@ -3,7 +3,7 @@
 > 状态：**S09 政策已定；C11 已提前签映射口径（2026-10-27）**。S09 留存政策选 A（365/24h/180d）并由产品签收；S06/S10 为 partial；D-07 A 已把 S17 唯一待定参数（同步节奏 + 滞后告警阈值）定案，因此映射口径可以先签。当前 **0 open、16 partial、2 out_of_scope**。
 >
 > 本项关闭的含义：**S01–S18 的对应关系与残余风险清单已签收**；`start` 闸门 5→4。16 项 partial 的**实施证据**仍在 pilot 闸门，DR3（2026-12-01）复审状态列，不重开映射口径。
-> 相关：[D6 安全/运维设计](work-r0a-security-ops-migration-design-2026-10-25.md)、[控制清单](assets/work-r0a-ops-2026-10-25/security-controls.json)、[开工闸门处置单](work-r0a-start-gate-disposition-2026-10-27.md)。
+> 相关：[D6 安全/运维设计](../work-r0a-security-ops-migration-design-2026-10-25.md)、[控制清单](../assets/work-r0a-ops-2026-10-25/security-controls.json)、[开工闸门处置单](work-r0a-start-gate-disposition-2026-10-27.md)。
 
 ## 0. 先纠正两处状态
 

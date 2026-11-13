@@ -1,7 +1,7 @@
 # Work 项目文档
 
 > 性质：活文档，项目入口。快照日期 **2026-10-27**；分支 `aliyun-dev`，截至快照最近一次已推送提交 `89bc22c4a`。
-> 结论：Work R0a 于 **2026-10-27 获有条件开发准入**（E1–E3 先行，E4–E6 只做契约/mock；见[开发准入单](work-r0a-development-entry-2026-10-27.md)）；**D-01–D-06 已于 2026-10-27 正式签收，D-07 已正式签收 A（只拦新工作 + 运营手工取消 `work.ops_cancel_run`）**；DR0 11-03 仍需形成正式纪要，DR1–DR4 未签收；D6 go/no-go 为 **no-go**（30 个 blocking 项中 18 个未关闭）；设计未决项中 **U2 已定方案 B、待 DR1 签收**，**U3 已定自托管（A），九项承诺已于 2026-10-27 确认、资源已批**；U1、U4 仍开放。
+> 结论：Work R0a 于 **2026-10-27 获有条件开发准入**（E1–E3 先行，E4–E6 只做契约/mock；见[开发准入单](_archive/work-r0a-development-entry-2026-10-27.md)）；**D-01–D-06 已于 2026-10-27 正式签收，D-07 已正式签收 A（只拦新工作 + 运营手工取消 `work.ops_cancel_run`）**；DR0 11-03 仍需形成正式纪要，DR1–DR4 未签收；D6 go/no-go 为 **no-go**（30 个 blocking 项中 18 个未关闭）；设计未决项中 **U2 已定方案 B、待 DR1 签收**，**U3 已定自托管（A），九项承诺已于 2026-10-27 确认、资源已批**；U1、U4 仍开放。
 > 本文只做索引与状态汇总，细节以链接文档为准；测试数字均为设计/参考证据，不是生产证明。
 > **2026-10-31 当前实现/运行状态以 §4.8 与完成度审计为准**；上方 2026-10-27 的准入/排期结论仍是历史计划口径，不代表 R0a 已全部验收。
 >
@@ -45,8 +45,8 @@
 |---|---|
 | [方案目录索引](README.md) | 全仓库方案/执行记录索引 |
 | **本文** | Work 项目资产、进展、问题、下一步 |
-| [R0a 实施就绪包](work-r0a-implementation-readiness-2026-10-26.md) | W4/DR4：完成审计、E1–E8 估算、L1–L8 测试矩阵、U1–U4、30 个 blocking 中 18 个未关闭、排期与 DR 议程 |
-| [R0a 实施计划](work-r0a-implementation-plan-2026-10-27.md) | 开发实施步骤：E1–E8 文件清单与验收；E1 迁移顺序与角色前置、CI 落点（work-r0a-gates）、凭证加密、六类后台作业归属；2026-10-27 复审 3 P0 / 6 P1 / 12 P2 已修 |
+| [R0a 实施就绪包](_archive/work-r0a-implementation-readiness-2026-10-26.md) | W4/DR4：完成审计、E1–E8 估算、L1–L8 测试矩阵、U1–U4、30 个 blocking 中 18 个未关闭、排期与 DR 议程 |
+| [R0a 实施计划](_archive/work-r0a-implementation-plan-2026-10-27.md) | 开发实施步骤：E1–E8 文件清单与验收；E1 迁移顺序与角色前置、CI 落点（work-r0a-gates）、凭证加密、六类后台作业归属；2026-10-27 复审 3 P0 / 6 P1 / 12 P2 已修 |
 | [R0a 架构对齐重做计划](work-r0a-architecture-rebuild-plan-2026-10-28.md) | 按 A13/§3 的 Node/Pi 形态重做 Runtime 与 API 层：RB-01–RB-06 决策、保留/废止清单、Phase 0–7 步骤、必须继承的缺陷结论 |
 | [Host v2 wire 决策](work-r0a-host-wire-decision-2026-10-28.md) | HW-01–HW-05：内网 mTLS SessionVerifier、Go HMAC CSRF、批量分页 OrgDiscovery、专用 Work Host CA、`sessionid` 勘误与 session key 哈希；John 已签、Lily 对 HW-01–04 复核通过（HW-05 细节待复核，2026-10-28） |
 | [Bootstrap v1 契约](assets/work-r0a-rebuild-2026-10-28/bootstrap-v1.json) | `work-bootstrap-v1`：旧 v1 八字段、R0a 常量、Go HMAC `work_csrf`；仅 bootstrap 冻结，D2' 全局 `surfaceFrozen` 仍为 false |
@@ -76,14 +76,14 @@
 | D6 | [安全、运维、迁移与试点](work-r0a-security-ops-migration-design-2026-10-25.md) | S01–S18 控制、SLO/告警（21 record + 27 alert，promtool 校验）、容量、切换、试点、后台作业处置、go/no-go |
 | — | [管理只读与 P1-A 映射](work-r0a-admin-readonly-mapping-2026-10-25.md) | U2 决策 B 的落地口径：Work 出自坐数据，Host 只给身份/席位/权限；字段归属表与 gap 规则 |
 | — | [试点运营 Runbook](work-r0a-pilot-operations-runbook-2026-10-26.md) | 支持分级、删除/代删/转移、对账、黄金任务 |
-| — | [C15 结项单（阿里云百炼）](work-r0a-provider-terms-price-decision-request-2026-10-26.md) | **已 waived（2026-10-27）**：演示组织用百炼且只用演示数据，P1–P5 全部不适用，P6 价目仅参考；不再作为 start 闸门。配额到期/限流属运营风险；演示组织若接触客户数据须重开 |
-| — | [U3 决策征询单](work-r0a-temporal-hosting-decision-request-2026-10-26.md) | **A（自托管）**；**九项承诺已确认（2026-10-27，全部"是"）、资源已批、演练 5 人**；A2/A4/A8 数值随资源单回填；C22 待四项演练；回退 B 不启动 |
-| — | [DR0/DR1 签收单](work-r0a-dr0-dr1-signoff-2026-10-26.md) | **D-01–D-07 已于 2026-10-27 正式签收**（D-03 B 静态单层加密、D-07 A 只拦新工作 + `ops_cancel_run`）；DR0 11-03 仍需签 R0-a 并形成纪要。DR1 逐条签收（R1-1–R1-6，C01/C02 只追认），每条含真名签字栏、三选一结论栏、会上待答问题、证据边界、不签后果与逾期降级；C01/C02/C14 已于 10-27 提前签、D-08a 产品已签、D-08b/D-08d 关键项由 Lily Zhu (a) 复核、其余 (b)；§5 单列属 DR2/DR3 的 4 个 start 项，防越界签收 |
-| — | [开发准入与遗留问题登记](work-r0a-development-entry-2026-10-27.md) | 2026-10-27 产品决定：E1–E3 先行、E4–E6 契约/mock；C03/C04/C05/C25 与 D-08、DR0 纪要转 L01–L15 遗留；D-01–D-07 已正式签收后 L06 收窄；该单末尾的「start 4 / pilot 14」是 10-27 当时计数，现行计数以 [pilot-checklist.json](assets/work-r0a-ops-2026-10-25/pilot-checklist.json) 与 §6「闸门清单复审（2026-11-01）」为准 |
-| — | [D-08b 签收清单](work-r0a-d08b-credential-path-2026-10-27.md) | 网关取凭证/Key 托管/KMS/吊销轮换/审计/脱敏十条；DR0 安全+平台 (b) 签，**不关闭 C04**；演示组织凭证模式待选 |
+| — | [C15 结项单（阿里云百炼）](_archive/work-r0a-provider-terms-price-decision-request-2026-10-26.md) | **已 waived（2026-10-27）**：演示组织用百炼且只用演示数据，P1–P5 全部不适用，P6 价目仅参考；不再作为 start 闸门。配额到期/限流属运营风险；演示组织若接触客户数据须重开 |
+| — | [U3 决策征询单](_archive/work-r0a-temporal-hosting-decision-request-2026-10-26.md) | **A（自托管）**；**九项承诺已确认（2026-10-27，全部"是"）、资源已批、演练 5 人**；A2/A4/A8 数值随资源单回填；C22 待四项演练；回退 B 不启动 |
+| — | [DR0/DR1 签收单](_archive/work-r0a-dr0-dr1-signoff-2026-10-26.md) | **D-01–D-07 已于 2026-10-27 正式签收**（D-03 B 静态单层加密、D-07 A 只拦新工作 + `ops_cancel_run`）；DR0 11-03 仍需签 R0-a 并形成纪要。DR1 逐条签收（R1-1–R1-6，C01/C02 只追认），每条含真名签字栏、三选一结论栏、会上待答问题、证据边界、不签后果与逾期降级；C01/C02/C14 已于 10-27 提前签、D-08a 产品已签、D-08b/D-08d 关键项由 Lily Zhu (a) 复核、其余 (b)；§5 单列属 DR2/DR3 的 4 个 start 项，防越界签收 |
+| — | [开发准入与遗留问题登记](_archive/work-r0a-development-entry-2026-10-27.md) | 2026-10-27 产品决定：E1–E3 先行、E4–E6 契约/mock；C03/C04/C05/C25 与 D-08、DR0 纪要转 L01–L15 遗留；D-01–D-07 已正式签收后 L06 收窄；该单末尾的「start 4 / pilot 14」是 10-27 当时计数，现行计数以 [pilot-checklist.json](assets/work-r0a-ops-2026-10-25/pilot-checklist.json) 与 §6「闸门清单复审（2026-11-01）」为准 |
+| — | [D-08b 签收清单](_archive/work-r0a-d08b-credential-path-2026-10-27.md) | 网关取凭证/Key 托管/KMS/吊销轮换/审计/脱敏十条；DR0 安全+平台 (b) 签，**不关闭 C04**；演示组织凭证模式待选 |
 | — | [C03 阻塞与演练清单](work-r0a-c03-u3-drills-2026-10-27.md) | **U3 九项已确认（2026-10-27，全部"是"）**；C22 四项演练（11-15/16，开发与测试 5 人）与 S1 多节点重启仍待演练；D3-N01/N03 已有可执行用例（2026-11-02，N01 两半：进程被杀与删除失败重试），D3-N06 仅导出闸门落地、到期清扫与投影同步仍无用例；C03 仍待演练，DR2 签收 |
-| — | [C11 未关闭控制处置单](work-r0a-c11-open-controls-decision-2026-10-27.md) | **C11 已签映射口径 + 残余风险清单（2026-10-27）**；S09 政策已签（365/24h/180d），S06/S09/S10 均为 partial；安全控制 0 open / 16 partial / 2 out_of_scope；实施证据按 DR3 12-01 签 |
-| — | [开工闸门 8 项处置单](work-r0a-start-gate-disposition-2026-10-27.md) | **C01/C02/C11/C14 已于 2026-10-27 提前签**（该单时点 start 8→4）；C04 需 D-08b；C03/C05/C25 需外部/实证；含代价与 11-03—12-01 动作表。2026-11-01 复审后 C05 关闭，开工闸门为 **C03/C04/C25** |
+| — | [C11 未关闭控制处置单](_archive/work-r0a-c11-open-controls-decision-2026-10-27.md) | **C11 已签映射口径 + 残余风险清单（2026-10-27）**；S09 政策已签（365/24h/180d），S06/S09/S10 均为 partial；安全控制 0 open / 16 partial / 2 out_of_scope；实施证据按 DR3 12-01 签 |
+| — | [开工闸门 8 项处置单](_archive/work-r0a-start-gate-disposition-2026-10-27.md) | **C01/C02/C11/C14 已于 2026-10-27 提前签**（该单时点 start 8→4）；C04 需 D-08b；C03/C05/C25 需外部/实证；含代价与 11-03—12-01 动作表。2026-11-01 复审后 C05 关闭，开工闸门为 **C03/C04/C25** |
 | — | [D-08 大模型接入账号与计量边界决策单](work-r0a-provider-account-metering-decision-2026-10-26.md) | **D-08a–d 已签 2026-10-27；D-08a 产品 John Shao + 法务 Lily Zhu（资格/授权 11-06 前补齐），D-08b A managed_key、B2/B6 静态改写，D-08c/d 通过并冻结**：Work 不算钱只统计 token、客户自带账号、演示组织独接阿里云 Qwen、凭证方案 (i)、token 护栏取代 cents 账本、用量可见性、管理台 owner 写；R1–R10 细则、对 D1/D2/D4/D6/C15 的冲击面与 D-08a–d 签收栏 |
 
 ### 2.4 R0a 可执行资产
@@ -142,7 +142,7 @@
 | [Work Agent 架构（历史，2026-10-08）](../features/work-agent-architecture.md) | 桌面 dsh/服务端 Pi/Android 分工；**2026-10-27 已从代码删除，仅文档存档** |
 | [src/work/README.md](../../src/work/README.md) | Work 实现总说明与迁移/角色入口（原 `src/backend/work/README.md` 随旧 Work 下线已不存在，2026-10-31 校正本链接）；本地验证按「角色 → migrate → 冒烟」 |
 | ~~src/work-agent/~~ | 2026-10-27 随 clean-slate 清理删除，无代码存档 |
-| [早期 Work 产品计划](work-module-product-architecture-agent-plan-2026-09-21.md) | 历史材料上传/周报/表格分析能力已删除，仅存档 |
+| [早期 Work 产品计划](_archive/work-module-product-architecture-agent-plan-2026-09-21.md) | 历史材料上传/周报/表格分析能力已删除，仅存档 |
 
 ### 2.10 R0b 架构与详细设计
 
@@ -160,7 +160,7 @@
 
 ## 3. 项目计划
 
-> 来源：[产品设计](work-product-design-2026-10-25.md) §6–§7、[系统架构](work-system-architecture-2026-10-25.md) §4.1、[R0a 就绪包](work-r0a-implementation-readiness-2026-10-26.md) §4。
+> 来源：[产品设计](work-product-design-2026-10-25.md) §6–§7、[系统架构](work-system-architecture-2026-10-25.md) §4.1、[R0a 就绪包](_archive/work-r0a-implementation-readiness-2026-10-26.md) §4。
 > 边界：R0a 有详细设计与参考资产；R0b 已进入独立架构/详细设计（见 §2.10/§4.9），不等于实现或安全准入；R1–R5 仍只有产品/UX/架构方向。实施步骤不附工时或排期估算。
 
 ### 3.1 用户功能模块与阶段
@@ -349,12 +349,12 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 | 回执校验 | `internal/receipt` | 哈希/七项绑定校验、三态 usage、unavailable 不产生结算、非终态与畸形文档拒绝（92% 覆盖） | 不判断发布资格 |
 | 内部执行授权 | `internal/authz` + `cmd/work-authz` | 证书指纹注册表、四种调用方命令、holder 由模块铸造并绑定工作负载、严格 JSON、枚举错误不泄露；PG 适配 claim/renew/consume/attach（83.7% 覆盖）；mTLS 监听入口；真实 CA 签发链上的双向 TLS 往返通过，无客户端证书在握手阶段被拒 | consume 的 receipt slot 由模块生成；工作负载证书签发/撤销服务属 F0-R4 未实现 |
 | F0-R4 运行时 capability | 迁移 0010 + `internal/capability` | 令牌明文不落库（仅 sha256）、generation 单调且旧代立即失效、holder/lease/fence/组织状态全部实时校验、撤销即时生效且幂等、跨租户拒绝、`work_worker` 独占 EXECUTE；PG 测试与 apply→11 幂等通过 | 0010 已随预发上线（`work-authz` 8443，mTLS+令牌双门禁实测 401）；“每个 audience 当前 generation 存 execution 元数据”用 `max(generation)` 实现；DB 过期硬上限 120s GUC 与 Go 30s 策略并存，需评审 |
-| F0-R5 内容引用注册表 | 迁移 0011+0012 + `internal/contentref` | 仅存元数据不含正文；同 slot 只有完全相同的绑定才幂等，异体冲突；墓碑后既不能解析也不能重注册；receipt/answer/rejection 仅 egress 可写，input/template 仅控制面可写；0012 增加 `runtime_child` 写入者与 `reserved → committed` 候选 slot，保留态不可被读取，提交需哈希/引用/字节完全一致，重复提交幂等、异体冲突；21 个测试函数（含真实 PG） | 0011/0012 已随预发上线；候选 slot 的 `object_version` 暂以 `ref_id::text` 代替显式版本参数；内容图授权已按 [A](work-r0a-content-graph-decision-2026-10-30.md) 落地（见下两行） |
+| F0-R5 内容引用注册表 | 迁移 0011+0012 + `internal/contentref` | 仅存元数据不含正文；同 slot 只有完全相同的绑定才幂等，异体冲突；墓碑后既不能解析也不能重注册；receipt/answer/rejection 仅 egress 可写，input/template 仅控制面可写；0012 增加 `runtime_child` 写入者与 `reserved → committed` 候选 slot，保留态不可被读取，提交需哈希/引用/字节完全一致，重复提交幂等、异体冲突；21 个测试函数（含真实 PG） | 0011/0012 已随预发上线；候选 slot 的 `object_version` 暂以 `ref_id::text` 代替显式版本参数；内容图授权已按 [A](_archive/work-r0a-content-graph-decision-2026-10-30.md) 落地（见下两行） |
 | F0-R5 内容代理 | `internal/contentproxy` + `cmd/work-content-proxy` | mTLS + `work-content` opaque bearer；每次请求在线校验 capability（摘要/受众/代次/holder/lease/fence/取消/墓碑，不缓存）；读取要求引用绑定当前 execution 且正文哈希校验后输出；checkpoint 写入按 reserve → Put → 哈希校验 → commit 顺序，哈希不符保持 reserved，冲突 409；错误只回枚举码；包内 22 个 Test/46 次运行（含子测试），76.4% 覆盖 | 已按内容图决策 A 接入 `execbinding`（advance 活动先物化绑定再冻结意图），未绑定 execution 的引用仍被拒绝；8444 已上线且无 bearer 401；checkpoint 写路径新增真实 PG+HTTP 端到端用例（2026-10-31，reserve→Put→commit→回读），真实执行窗口尚未观测到 child checkpoint 写 |
 | 出口单次发送 | `internal/egress` | 44 例：非 won 零发送、won 恰一次、成功按 正文→回执→attach 顺序、429/5xx/超时/截断为 unknown、可证未执行为 rejected、attach 失败不重发、并发一 won、回执经 `receipt.Verify` 回读 | 已接 `work-egress`（8445 上线，thin wire 三字段、consume-by-execution、回执挂接）；D-08b 凭证解析由 `providerctx` 承担；来源标签/秘密检测未实现 |
 | Node 父进程 | `src/work/node` | 41 例：单 Run 单子进程、并发/版本/排空门禁、nonce 握手、IPC 64 KiB、mTLS 服务端与 16 KiB 线上限、超时与崩溃、结算后进程确认退出 | Windows SIGTERM 绕过 JS handler，SIGKILL 升级分支与内核级 cgroup/rlimit 未验证；无 Pi 子进程 |
-| 内容图授权（[已签 A](work-r0a-content-graph-decision-2026-10-30.md)） | `internal/execbinding` | 按 execution 物化 input/template 引用：先读输入并校验哈希、模板经 TemplateSource 写入 Content Store，再以 execution 维度 slot 登记；重复绑定幂等，跨 execution 不可互读；PG 测试通过（62.4% 覆盖） | 已接入 advance 活动（prepare/execute 前物化绑定）；首次并发绑定可能留下一个孤立模板对象（本地 store 非内容寻址）；Lily 安全复核已通过 |
-| 凭据静态加密（[已签 A](work-r0a-credential-key-derivation-decision-2026-10-30.md)） | `internal/credentials` | HMAC-SHA256 前缀派生 + AES-256-GCM(12B nonce, AAD=org)、指纹 8 字节、解密错误统一枚举且不泄露明文；10 例/86% 覆盖，含与 Content Store 的域分离证明 | `work-egress` 已用其解密 managed_key；真实主密钥托管与轮换属 E5；Lily 复核已通过 |
+| 内容图授权（[已签 A](_archive/work-r0a-content-graph-decision-2026-10-30.md)） | `internal/execbinding` | 按 execution 物化 input/template 引用：先读输入并校验哈希、模板经 TemplateSource 写入 Content Store，再以 execution 维度 slot 登记；重复绑定幂等，跨 execution 不可互读；PG 测试通过（62.4% 覆盖） | 已接入 advance 活动（prepare/execute 前物化绑定）；首次并发绑定可能留下一个孤立模板对象（本地 store 非内容寻址）；Lily 安全复核已通过 |
+| 凭据静态加密（[已签 A](_archive/work-r0a-credential-key-derivation-decision-2026-10-30.md)） | `internal/credentials` | HMAC-SHA256 前缀派生 + AES-256-GCM(12B nonce, AAD=org)、指纹 8 字节、解密错误统一枚举且不泄露明文；10 例/86% 覆盖，含与 Content Store 的域分离证明 | `work-egress` 已用其解密 managed_key；真实主密钥托管与轮换属 E5；Lily 复核已通过 |
 | 供应商上下文解析 | `internal/providerctx` | 调 `resolve_provider_context`，managed_key 解密上送内存、sts_role 只回模式与角色引用、KMS 信封字段非空即拒绝；错误只含枚举码，Secret 在字符串/日志中恒被脱敏；8 例真实 PG、85% 覆盖 | sts_role 的取凭据未实现（R0a 不支持）；真实主密钥托管属 E5 |
 | Pi 子进程 | `src/work/node/{child-pi,content-client,gateway-client}.mjs` | fd-3 片段输入、内容代理四头读取与哈希校验、单次网关调用、Pi 1.4.0 单轮（无工具、无 provider key）；69 项 Node 测试全绿（25 新增） | 结果帧已扩展携带 `advance_result`（refs/哈希/枚举 reason，≤4 KiB），用量由 Go 收尾读取回执结算；网关按签名 §6.3 只发 `{executionId, requestRef, requestHash}` |
 | egress 服务 | `internal/egressservice` + `cmd/work-egress` | mTLS + `work-egress` 在线授权；managed_key 解密、route 与哈希复核、单次发送、回执挂接；PG 用例通过（65.5% 覆盖） | wire 已收敛到签名 §6.3 的 `{executionId, requestRef, requestHash}`：consume 由新增 0013 命令按 execution 派生 operation/attempt/holder/fence，egress 自读冻结 `model_request` 并装配消息；`requestRef` 兼容裸 uuid 与对象形式；真实 E2E 未跑 |
@@ -373,7 +373,7 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 
 **三项内部例外的签收（2026-10-31，John 主签；Lily 复核通过，经 John 转述）**：
 
-- **modelparams 默认值**：接受 R0a 试点默认 `maxOutputTokens=1024`、`temperatureMilli=0`、`outputFormat=markdown`；由 `internal/modelparams` 冻结并写入每个新任务的 snapshot manifest，变更会改变 snapshot hash，需重新评审。**该默认值已于 2026-10-31 由 John 自决改为 `maxOutputTokens=4096`**（`modelparams.go` 现值 `DefaultMaxOutputTokens = 4096`，决策与证据见 [4096 决策记录](work-r0a-modelparams-4096-2026-10-31.md)）；本条的 1024 只描述当时签收的默认值，不是现行值。
+- **modelparams 默认值**：接受 R0a 试点默认 `maxOutputTokens=1024`、`temperatureMilli=0`、`outputFormat=markdown`；由 `internal/modelparams` 冻结并写入每个新任务的 snapshot manifest，变更会改变 snapshot hash，需重新评审。**该默认值已于 2026-10-31 由 John 自决改为 `maxOutputTokens=4096`**（`modelparams.go` 现值 `DefaultMaxOutputTokens = 4096`，决策与证据见 [4096 决策记录](_archive/work-r0a-modelparams-4096-2026-10-31.md)）；本条的 1024 只描述当时签收的默认值，不是现行值。
 - **Node worker 条款临时例外**：D3' §5.0 的目标不变（Node Activity worker 只接收 `work-r0a-runtime` 上的 `advanceRuntime`）。R0a 试点接受当前实现：`AdvanceRuntime` 是 Go 队列 `work-r0a-run` 上的 Go 适配活动，经 mTLS 调用 Node HTTP runtime；Node 不创建 Run/Operation、不做业务状态迁移。触发重新评审/实现 Node worker 的条件：R0b 本机执行或云 Node 池拆分、需要独立扩缩/隔离、需要 Temporal heartbeat 语义、或 Go 适配层出现并发/超时问题。此前不得宣称 D3' Node worker 条款已满足；Temporal heartbeat 未由 Go 适配活动发出。
 - **F0-R4 工作负载证书静态实现例外**：R0a pilot 接受当前 `/root/work-certs` 静态证书 + `init-workload-pki.sh`，不实现自动签发/续期/撤销查询服务；轮换为手工、可能有停机。触发重新评审/实现的条件：池化/多节点/自动扩缩、需要自动撤销或证书生命周期自动化、或任何跨主机工作负载身份。此前不得宣称 F0-R4 证书服务已实现。**证书到期证据（2026-10-31 只读核对）**：runtime 服务证书 2029-02-01、Host client 2028-10-27、Temporal client 2029-01-30、各 CA 2036；手工轮换窗口充足，但仍无自动续期/撤销查询源。
 - [x] John 日期：2026-10-31。
@@ -384,7 +384,7 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 
 **D5 历史工作/旧链接（2026-10-31，已发布生产并验收）**：新增 `/work/archive` 只读页，按 `display_state=archived` 过滤；旧 `/work?task=` 重定向到 `/work/archive?legacyTask=...`，显示旧任务只读通知；`/work` 收起 Composer、`/work/new` 展开，旧 `view` 重定向已补；导航增加“历史”。本地 Work 前端 58/58、`tsc -b`、`check:json`/`check:locales` 与生产 `npm run build` 通过。2026-10-31 发布 frontend `645460d5b`（Helm revision 523，镜像 digest `sha256:bcd5242c…`），线上 bundle `index-BWzwuSOL.js` 含 `work/archive`/`legacyTask`/`work/new`；真实浏览器验证 `/work/archive` 空态与只读文案、旧任务 `e7b130ac…` 重定向到 `/work/archive?legacyTask=…` 并显示只读通知、`/work/new` 展开 Composer、`/work` 收起仅“新建工作”按钮、`/im` 正常。该实现不等同 D5 全量验收，移动实机与管理只读范围例外仍在；Lily 对历史页/成果路由简化的复核仍未取得。
 
-**D5 成果路由简化（2026-10-31，John 签收 → 已被 Lily 的 E2 复核推翻并补齐）**：John 当时签收“成果内嵌任务工作区、不实现独立 `/work/items/:taskId/artifacts/:artifactId` 页面”，触发条件是“需要独立成果深链/分享”。**该签收已被后续事实取代**：Lily 复核 E2 时要求补齐独立成果页，故提交 `42e4736bd` 实现并发布（前端镜像 `meet-frontend:42e4736bd`，Helm revision **527**，Work API 二进制 sha256 `8fe824b8…`），生产浏览器验收通过（深链渲染、下载头 `no-store`/`nosniff`/RFC 5987、按版本采纳入口、跨任务/非 owner/跨组织 404 `artifact_not_found` 负例），**Lily 经 John 转述接受，无附加条件**。证据见 [例外复核单 E2](work-r0a-exception-review-2026-10-31.md#e2-成果独立路由简化)。成果预览/下载/按版本验收仍可内嵌在任务工作区，两条路径并存。
+**D5 成果路由简化（2026-10-31，John 签收 → 已被 Lily 的 E2 复核推翻并补齐）**：John 当时签收“成果内嵌任务工作区、不实现独立 `/work/items/:taskId/artifacts/:artifactId` 页面”，触发条件是“需要独立成果深链/分享”。**该签收已被后续事实取代**：Lily 复核 E2 时要求补齐独立成果页，故提交 `42e4736bd` 实现并发布（前端镜像 `meet-frontend:42e4736bd`，Helm revision **527**，Work API 二进制 sha256 `8fe824b8…`），生产浏览器验收通过（深链渲染、下载头 `no-store`/`nosniff`/RFC 5987、按版本采纳入口、跨任务/非 owner/跨组织 404 `artifact_not_found` 负例），**Lily 经 John 转述接受，无附加条件**。证据见 [例外复核单 E2](_archive/work-r0a-exception-review-2026-10-31.md#e2-成果独立路由简化)。成果预览/下载/按版本验收仍可内嵌在任务工作区，两条路径并存。
 
 **只读对账扫描（2026-10-31，已执行）**：`work-reconcile -scan` 用 worker 登录 + Temporal mTLS 只读查询开放 Run，输出 `orphan` 标记；9 个开放 Run 中 7 个 waiting（dispatching/no-gate，workflow Running）、2 个孤儿（`3a34a855…` waiting / `a564dbcc…` active，workflow Failed，operation succeeded/settled）。扫描不改状态；2026-10-31 系统级 `/usr/local/bin/work-reconcile`（sha256 `694ef723…`）已安装并复跑同一结果；随后 2 个孤儿已关闭，见[完成度审计](#完成度审计2026-10-31-更新)。2026-10-31 04:21 UTC 复扫为 7 个；E8 浏览器 live 又新增 4 个 held Run（见下），05:17 UTC 复扫为 **11 个**开放 Run，全部 `workflow_status=Running`、`orphan=false`、`run_state=waiting`、`reservation_state=held`。命令需要 `WORK_DATABASE_URL` 与 `WORK_TEMPORAL_*` 环境。
 
@@ -2134,7 +2134,7 @@ F1 的语义没有被削弱：它管的是**已经调用 finish** 的那一步�
 |---|---|---|
 | U1 可用性验证 | 研究执行包就绪，**招募与执行排期单已发**[U1 招募与执行排期单](work-r0a-usability-recruit-plan-2026-10-26.md)；**判定集已确认 UT1–UT5，T2/T3 不计分**；未招募/未执行（11-16 锁定名单 → 11-20～24 执行 → 11-27 报告） | 产品 + 设计 + 运营；7–8 名设计伙伴（管理员 ≥3）、≥3 家组织 |
 | U2 管理页 A/B | **已定 B 并落成设计物**：6 个管理读接口 + D1 存储/聚合/投影写入 + 端口契约；DR1 需签收口径，并确认 Host 待补字段与撤权收窄策略（D1 §7.14；D-07 A 已签，`ops_cancel_run` 已补） | 后端 + 平台 + 产品 |
-| U3 Temporal 托管 | **已定 A：自托管**；[U3 决策征询单](work-r0a-temporal-hosting-decision-request-2026-10-26.md) §3 九项已于 2026-10-27 确认（全部"是"），资源已批；A2/A4/A8 数值随资源单回填；C22 待四项演练 | 平台 + SRE（法务不再介入） |
+| U3 Temporal 托管 | **已定 A：自托管**；[U3 决策征询单](_archive/work-r0a-temporal-hosting-decision-request-2026-10-26.md) §3 九项已于 2026-10-27 确认（全部"是"），资源已批；A2/A4/A8 数值随资源单回填；C22 待四项演练 | 平台 + SRE（法务不再介入） |
 | U4 §9.4 检查表 | 10 项证据已预填；勾选待各 DR | 架构（评审主持） |
 | R0b 新增入口复核 | **签收单为 S1–S15（第十一轮 R11B-16 更正：此前写 S1–S14 漏了 S15＝披露决定写入口），2026-10-31 发出**[R0b 安全与 Host 复核签收单](work-r0b-security-host-signoff-2026-10-31.md)；**答复日与后果分档只在签收单 §14／J18 维护（本文不复列日期）**；S12（`SeedWorkMemberState` 播种写端口 + 维护旗标）与 S13（`advance_governance_event_cursor` + `release_restriction`）是第七轮发现"入口存在但未登记"后补登记，**S14（设备恢复通道 `device-recovery/*`，不要求有效客户端证书）是第八轮同类漏登记**；S1/S2/S3/S4/S11/S15 属新增安全入口，须各自书面具名 | 安全（Lily 主签）+ 平台/SRE + Host 后端 |
 | R0b 第四轮复审 | 九项 P1 修订后交第五轮三路独立复核，被判 **3 项 NOT CLOSED、2 项 PARTIAL**，并新增 13 项 P1（R5-1…R5-13），现已全部修订 | 架构 + 后端 + 安全 |
@@ -2174,7 +2174,7 @@ F1 的语义没有被削弱：它管的是**已经调用 finish** 的那一步�
 
 > **计数口径（本轮按此重算，替代标题原先的 18/30）**：条目共 33 项；`gate=scale` 的 C23/C32 已 waived、不计入开工/试点分母 → 分母 31。未关闭＝`status ∉ {done, waived}`，得 start 3（C03/C04 partial＋C25 todo）与 pilot 12（C07/C09/C13/C16/C17/C22/C26/C27/C28/C29/C30 partial＋C24 todo）＝**15**。这一结果与 §6「闸门清单复审（2026-11-01）」记的 3/12/15 一致；下面的分組表原写于 C05、C31 关闭与 C33 waived 之前，已在各行就地更正（原句保留）。
 
-> C11 已于 2026-10-27 提前签**映射口径 + 残余风险清单**（不签实施证据），开工闸门 5→4；`pilot` 的 14 项计数不变。E1–E3 开工按[开发准入单](work-r0a-development-entry-2026-10-27.md)的分步卡口执行。
+> C11 已于 2026-10-27 提前签**映射口径 + 残余风险清单**（不签实施证据），开工闸门 5→4；`pilot` 的 14 项计数不变。E1–E3 开工按[开发准入单](_archive/work-r0a-development-entry-2026-10-27.md)的分步卡口执行。
 
 | 闸门 | 组 | 未关闭项 | 影响 |
 |---|---|---|---|
@@ -2184,14 +2184,14 @@ F1 的语义没有被削弱：它管的是**已经调用 finish** 的那一步�
 | pilot | 实施 | C07 远端 CI（R0a 六个 job 已在 PR #7 跑绿；仍缺主干/迁移体系接入与生成客户端接真实前端）、~~C31 管理读~~（Work 侧六个只读路由与 `work-export` 已落地、checklist `done`，Host 字段联调缺口随该证据记）、~~C10 React/E2E~~（七路由 React Query＋真实浏览器 SSE 已有证据，checklist `done`）、C16/C17 遥测（含后台作业 8 条新告警未接；11-04 实测 28 个 `work_*` 指标在 `src/` 零产生者，棘轮门已落） | 产品实现与运维证据 |
 | pilot | 试点 | C24 三家组织、C26 黄金任务、C27/C30 支持/删除、C28/C29 切换/旧数据 | 试点 go/no-go |
 
-`start` 的 4 项要 DR4（12-04）前关闭才能开工；`pilot` 的 14 项只能由实施与试点环境产生证据，**不可能在开工前关闭**，所以试点 `go` 的最早窗口仍是 2027-02-26～04-02。完整清单、负责人与日期见[就绪包 §6.2/§6.3](work-r0a-implementation-readiness-2026-10-26.md)。
+`start` 的 4 项要 DR4（12-04）前关闭才能开工；`pilot` 的 14 项只能由实施与试点环境产生证据，**不可能在开工前关闭**，所以试点 `go` 的最早窗口仍是 2027-02-26～04-02。完整清单、负责人与日期见[就绪包 §6.2/§6.3](_archive/work-r0a-implementation-readiness-2026-10-26.md)。
 
 ### 5.3 证据边界（必须按此解读）
 
 - 所有测试是**设计/参考证据**：mock、faux model、一次性 PG、Temporal dev；不是生产证明。
 - 未接真实供应商（仅一次 Qwen smoke）、真实 Content Store、真实云 KMS、真实 SSO/P1-A 身份字段。
 - 沙箱是 runc 降级 profile，不是 gVisor；本地 KMS 是 envelope 参考实现。
-- R0a 门禁已在 PR #7 首次远端运行并通过，仓库全量流水线（meet Workflow 15/15、Release guard）随后也跑绿——但这两者只证明**设计资产不回归既有产品**。E1–E3 实现与 E4–E8 契约/资产已在工作区落地并本地验证（Work pytest 39/39、前端 1713/1713、148/148、9/9、API 覆盖 88%、tsc 通过；真实 HTTP 全链路与 Playwright axe（含颜色对比）通过）；`backend-migration` job 已在 PR #10 远端跑绿，"实现的 CI 证据"已产生；DBA 角色已在 jd-sjy 集群预置（7 NOLOGIN + `work_owner`→`meet`，2026-10-27，未建 schema）；独立库 `work_staging` 已用 PR #10 镜像完成 0001/0002 迁移（29 表、33 RLS、148/148 冒烟），D1 §6.1 迁移身份仍开放；E4 Temporal 已自建部署（K3s `work-staging`，Server 1.25.0 + Worker）且 `temporal_client`/`outbox_relay` 已接线，但**端到端 workflow 执行至今未通过**（worker 在 Python 3.13 + asyncpg + temporalio/Windows 下 segfault，无一次 queued→succeeded 记录）；E5 未接真实 Content Store/供应商（生产路径仍指向 mock），E6 有 live 客户端但管理只读 UI 缺失，E7 资产齐备但未部署、无运行态证据，E8 未试点；切片需要 Docker/Temporal dev；S1-R06 与 C19 在修订后未复跑。逐项核对见[实施状态总结](work-r0a-implementation-status-2026-10-27.md)。
+- R0a 门禁已在 PR #7 首次远端运行并通过，仓库全量流水线（meet Workflow 15/15、Release guard）随后也跑绿——但这两者只证明**设计资产不回归既有产品**。E1–E3 实现与 E4–E8 契约/资产已在工作区落地并本地验证（Work pytest 39/39、前端 1713/1713、148/148、9/9、API 覆盖 88%、tsc 通过；真实 HTTP 全链路与 Playwright axe（含颜色对比）通过）；`backend-migration` job 已在 PR #10 远端跑绿，"实现的 CI 证据"已产生；DBA 角色已在 jd-sjy 集群预置（7 NOLOGIN + `work_owner`→`meet`，2026-10-27，未建 schema）；独立库 `work_staging` 已用 PR #10 镜像完成 0001/0002 迁移（29 表、33 RLS、148/148 冒烟），D1 §6.1 迁移身份仍开放；E4 Temporal 已自建部署（K3s `work-staging`，Server 1.25.0 + Worker）且 `temporal_client`/`outbox_relay` 已接线，但**端到端 workflow 执行至今未通过**（worker 在 Python 3.13 + asyncpg + temporalio/Windows 下 segfault，无一次 queued→succeeded 记录）；E5 未接真实 Content Store/供应商（生产路径仍指向 mock），E6 有 live 客户端但管理只读 UI 缺失，E7 资产齐备但未部署、无运行态证据，E8 未试点；切片需要 Docker/Temporal dev；S1-R06 与 C19 在修订后未复跑。逐项核对见[实施状态总结](_archive/work-r0a-implementation-status-2026-10-27.md)。
 - 云/本机/连接器纵切的 10/10、8/8、7/7 是历史记录，本轮未复跑。
 - D-08 修订只到设计资产：静态主密钥托管/轮换、STS 换角色、配置连通探测与上游 usage 归一都未接真实服务；D-08a–d 已于 2026-10-27 全部签收（D-08a 法务资格/授权 11-06 前补齐；D-08b A managed_key、B2/B6 静态改写；D-08c/d 冻结）；C15 已 waived（百炼 + 演示数据，P1–P5 不适用），配额到期属运营风险。
 

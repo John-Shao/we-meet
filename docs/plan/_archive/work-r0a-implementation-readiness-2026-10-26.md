@@ -2,7 +2,7 @@
 
 > 状态：**可评审草案**（2026-10-26 复审后修订），供 DR0–DR4 评审使用。**尚不可全面开工**：DR0–DR4 的正式会议纪要未开（可签条目的结论已在 2026-10-27 会前签完）；设计层未决项只剩 **U1**（§6.1：U2 已关闭、U3 已确认、U4 待各 DR 逐项勾选）；D6 go/no-go 为 **no-go**（30 个 blocking 项中 18 个未关闭，其中 `start` 4 项）。**有条件开发准入已生效**（E1–E3 先行）。
 > 撤回声明：本文上一版写的“详细设计完整、设计层未关闭项为 0”不成立。复审发现 D1 数据层与 D3 编排存在 P0/P1 缺陷（已修复并补负例，见 §2），并有 4 个设计未决项（U2 已定待签收）；排期也按 DR4 之后才能开工重新基线（§4）。
-> 日期：2026-10-26。上游：[详细设计大纲与决策单](work-r0a-detailed-design-plan-2026-10-25.md)、D1–D6 设计文档、[试点运营 Runbook](work-r0a-pilot-operations-runbook-2026-10-26.md)。
+> 日期：2026-10-26。上游：[详细设计大纲与决策单](../work-r0a-detailed-design-plan-2026-10-25.md)、D1–D6 设计文档、[试点运营 Runbook](../work-r0a-pilot-operations-runbook-2026-10-26.md)。
 > 负责人为角色，目标日期为**建议日期**；具体人名与日期在 DR0 会上确认后回填 §7。
 
 ## 1. 结论
@@ -18,16 +18,16 @@
 
 | 包 | 设计文档 | 可执行资产 | 本地证据（2026-10-26 修订后） |
 |---|---|---|---|
-| D1 数据/权限/迁移 | [data design](work-r0a-data-design-2026-10-25.md) | [schema/RLS/函数/冒烟](assets/work-r0a-design-2026-10-25/README.md)、`r0a-admin-directory.sql`（管理读 + 投影 + 导出作业） | PG16 空库应用 + 冒烟 **148/148** + 9 组多连接竞态：在原有覆盖上新增会话主体绑定、原因码枚举化、输入一次性绑定与共享引用不粉碎、各命令 owner/删除态校验、账本角色只读、worker 活动重放幂等、outbox 租约与跨组织 relay、死信阻塞与 start 死信收尾 Run、用户成果版本命令与编辑状态门槛（completed/最近 Run 失败或取消只读）、启动前取消、cancel_requested 不得成功收尾；二次修订另加 31 项：投影只经 `work_directory` 的 `sync_*` 写入且修订号单调（该单调性在三次修订里从"先读后写"改成 upsert 谓词，并发重放不再回退）、跨组织拒绝、不覆盖 `operator_suspended`、撤席位后新工作被拒、非管理员治理读被拒、`admin_overview` token 配额与账本逐字段相等、席位总数不受分页影响、导出幂等/范围/租约/失败不可重领/到期清扫/一次性下载凭证/跨组织不泄露存在性/审计无正文；三次修订再加 7 项（输入 TTL 窗口、共享引用两输入、只过期不粉碎、共享引用只投一次、重复清扫返回 0、按组织作用域、投影单调性写入谓词哨兵），竞态脚本另出原始日志并纳入日志扫描 |
-| D2 API/事件 | [API design](work-r0a-api-design-2026-10-25.md) | OpenAPI、生成类型/客户端、mock、[错误码目录](assets/work-r0a-design-2026-10-25/error-codes.json)、[Host 端口契约/WeMeet 适配器/stub host](assets/work-r0a-design-2026-10-25/host-ports.mjs)、`ci-contract.mjs` | 29 path / 33 operation / 63 schema；合同+客户端+Host 端口 **34/34**；错误码目录 `r0a-errors-v3`（50 公开码）覆盖 `r0a-schema-draft.sql` 全部 104 个 SQL 码，`ci-contract.mjs` 直接扫描该文件（2026-10-26 修订关闭）；二次修订增加管理读第 6 个接口（ticket/content）、导出作业生命周期与一次性凭证头（禁 `download_url`）、端口契约 9/9 |
-| D3 编排 | [orchestration design](work-r0a-orchestration-design-2026-10-25.md) | RunWorkflow/后台作业契约、故障矩阵 18 例（含 D3-N01–N06）、[Temporal 切片](assets/work-temporal-slice-2026-10-25/README.md) | Temporal dev 故障 **10/10**（F01/F02/F04/F07/F21/F23 + D3-R06–R09：启动前/claim 前取消、心跳超时 → unknown、跨组织单 relay），连续 3 次稳定；S1 **4/4**、升级 1/1、RLS 池化 3/3、10 并发 1/1；S1-R06 与 C19 恢复演练未在修订后复跑 |
-| D4 Runtime/出口 | [runtime design](work-r0a-runtime-egress-design-2026-10-25.md) | WorkAdapter 契约、工具/沙箱/出口策略、usage 对账、供应链准入 | 策略 **10/10** + usage/供应链 **19/19**；runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke |
-| D5 前端 | [frontend design](work-r0a-frontend-design-2026-10-25.md) | 状态矩阵、路由、174 条文案、UI 模型 | UI 模型 **14/14**（含重命名/删除门控、无假审批入口、completed/failed/run_canceled 只读，canceled/archived 为 R0b 预留只读）；**可用性未做**（§6.1） |
-| D6 安全/运维/试点 | [security-ops design](work-r0a-security-ops-migration-design-2026-10-25.md)、[pilot runbook](work-r0a-pilot-operations-runbook-2026-10-26.md)、[admin mapping](work-r0a-admin-readonly-mapping-2026-10-25.md) | 控制/SLO/清单 JSON、遥测规则、容量模型、黄金任务、试点指标、切换计划、日志扫描 | ops+pilot+telemetry **28/28**（21 record / 27 alert；指标 28）；promtool 校验 48 条规则 + 14 条告警单测；日志扫描 8/8（含并发竞态日志）；RLS 池化、10 并发、Work DB 恢复、kill switch 演练；管理页方案 B 的 Work 侧存储与端口契约已落地（§6.1），Host 字段接入仍是 C31 缺口 |
+| D1 数据/权限/迁移 | [data design](../work-r0a-data-design-2026-10-25.md) | [schema/RLS/函数/冒烟](../assets/work-r0a-design-2026-10-25/README.md)、`r0a-admin-directory.sql`（管理读 + 投影 + 导出作业） | PG16 空库应用 + 冒烟 **148/148** + 9 组多连接竞态：在原有覆盖上新增会话主体绑定、原因码枚举化、输入一次性绑定与共享引用不粉碎、各命令 owner/删除态校验、账本角色只读、worker 活动重放幂等、outbox 租约与跨组织 relay、死信阻塞与 start 死信收尾 Run、用户成果版本命令与编辑状态门槛（completed/最近 Run 失败或取消只读）、启动前取消、cancel_requested 不得成功收尾；二次修订另加 31 项：投影只经 `work_directory` 的 `sync_*` 写入且修订号单调（该单调性在三次修订里从"先读后写"改成 upsert 谓词，并发重放不再回退）、跨组织拒绝、不覆盖 `operator_suspended`、撤席位后新工作被拒、非管理员治理读被拒、`admin_overview` token 配额与账本逐字段相等、席位总数不受分页影响、导出幂等/范围/租约/失败不可重领/到期清扫/一次性下载凭证/跨组织不泄露存在性/审计无正文；三次修订再加 7 项（输入 TTL 窗口、共享引用两输入、只过期不粉碎、共享引用只投一次、重复清扫返回 0、按组织作用域、投影单调性写入谓词哨兵），竞态脚本另出原始日志并纳入日志扫描 |
+| D2 API/事件 | [API design](../work-r0a-api-design-2026-10-25.md) | OpenAPI、生成类型/客户端、mock、[错误码目录](../assets/work-r0a-design-2026-10-25/error-codes.json)、[Host 端口契约/WeMeet 适配器/stub host](../assets/work-r0a-design-2026-10-25/host-ports.mjs)、`ci-contract.mjs` | 29 path / 33 operation / 63 schema；合同+客户端+Host 端口 **34/34**；错误码目录 `r0a-errors-v3`（50 公开码）覆盖 `r0a-schema-draft.sql` 全部 104 个 SQL 码，`ci-contract.mjs` 直接扫描该文件（2026-10-26 修订关闭）；二次修订增加管理读第 6 个接口（ticket/content）、导出作业生命周期与一次性凭证头（禁 `download_url`）、端口契约 9/9 |
+| D3 编排 | [orchestration design](../work-r0a-orchestration-design-2026-10-25.md) | RunWorkflow/后台作业契约、故障矩阵 18 例（含 D3-N01–N06）、[Temporal 切片](../assets/work-temporal-slice-2026-10-25/README.md) | Temporal dev 故障 **10/10**（F01/F02/F04/F07/F21/F23 + D3-R06–R09：启动前/claim 前取消、心跳超时 → unknown、跨组织单 relay），连续 3 次稳定；S1 **4/4**、升级 1/1、RLS 池化 3/3、10 并发 1/1；S1-R06 与 C19 恢复演练未在修订后复跑 |
+| D4 Runtime/出口 | [runtime design](../work-r0a-runtime-egress-design-2026-10-25.md) | WorkAdapter 契约、工具/沙箱/出口策略、usage 对账、供应链准入 | 策略 **10/10** + usage/供应链 **19/19**；runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke |
+| D5 前端 | [frontend design](../work-r0a-frontend-design-2026-10-25.md) | 状态矩阵、路由、174 条文案、UI 模型 | UI 模型 **14/14**（含重命名/删除门控、无假审批入口、completed/failed/run_canceled 只读，canceled/archived 为 R0b 预留只读）；**可用性未做**（§6.1） |
+| D6 安全/运维/试点 | [security-ops design](../work-r0a-security-ops-migration-design-2026-10-25.md)、[pilot runbook](../work-r0a-pilot-operations-runbook-2026-10-26.md)、[admin mapping](../work-r0a-admin-readonly-mapping-2026-10-25.md) | 控制/SLO/清单 JSON、遥测规则、容量模型、黄金任务、试点指标、切换计划、日志扫描 | ops+pilot+telemetry **28/28**（21 record / 27 alert；指标 28）；promtool 校验 48 条规则 + 14 条告警单测；日志扫描 8/8（含并发竞态日志）；RLS 池化、10 并发、Work DB 恢复、kill switch 演练；管理页方案 B 的 Work 侧存储与端口契约已落地（§6.1），Host 字段接入仍是 C31 缺口 |
 
-CI：[work-r0a-gates.yml](../../.github/workflows/work-r0a-gates.yml) 覆盖 contract（含 schema 再生成无漂移）、db-smoke（PG16 schema + 冒烟）、ops/telemetry、runtime/frontend、log-scan 六个 job；仅在 PR 或 `aliyun-dev` push 时触发，**远端尚未运行**。
+CI：[work-r0a-gates.yml](../../../.github/workflows/work-r0a-gates.yml) 覆盖 contract（含 schema 再生成无漂移）、db-smoke（PG16 schema + 冒烟）、ops/telemetry、runtime/frontend、log-scan 六个 job；仅在 PR 或 `aliyun-dev` push 时触发，**远端尚未运行**。
 
-架构约束：[ADR-0021](../adr/0021-work-standalone-product-boundary.md) 要求 Work Core 与 WeMeet Host 通过端口/Connector 解耦，保留独立售卖选项；R0a 不扩大功能范围，R1 前做 stub-host 剥离演练。
+架构约束：[ADR-0021](../../adr/0021-work-standalone-product-boundary.md) 要求 Work Core 与 WeMeet Host 通过端口/Connector 解耦，保留独立售卖选项；R0a 不扩大功能范围，R1 前做 stub-host 剥离演练。
 
 ## 3. 完成审计（对照大纲 §0 “详细设计完成”定义）
 
@@ -100,10 +100,10 @@ E5 不在关键路径上的前提：C14 沙箱结论在 **2026-12-11** 前到位
 
 | # | 未决项 | 现状 | 关闭条件 | 负责角色 | 截止（闸门） |
 |---|---|---|---|---|---|
-| U1 | 可用性验证（C25） | 研究计划与执行包已就绪（[UX §13.6](work-ux-design-r0-2026-10-25.md)），并已发出[U1 招募与执行排期单](work-r0a-usability-recruit-plan-2026-10-26.md)（名额/渠道/同意话术/档期/降级路径）；**判定任务集修正为 R0a 的 UT1–UT5**——原脚本里的本机授权与命令审批不在 R0a 交付面，不计入完成率 | 7–8 名设计伙伴（管理员 ≥3）、≥3 家组织；边界复述通过；发现的问题回写状态矩阵/文案并在 DR3 前冻结 | 产品 + 设计（运营给名单） | 名单锁定 2026-11-16；报告 2026-11-27；DR3 2026-12-01 |
-| U2 | 管理只读页方案 A/B | **已签收（2026-10-27，方案 B 口径接受）**（[admin mapping §3.1/§4/§5](work-r0a-admin-readonly-mapping-2026-10-25.md)）：管理读 6 个 operation 进入 OpenAPI；D1 提供 `work.audit_export`、席位/token 配额聚合与 `work_directory` 投影写入；Host 端口契约可执行；撤权收窄策略同日定为 D-07 A | 剩余的是 Host 侧字段（`subject_id`/`role`/`revision`/席位布尔/组织字段）在 E2 联调时逐项认领（C31，pilot 闸门），不是本未决项 | 后端 + 平台 + 产品 | 已关闭（DR1 11-10 追认） |
+| U1 | 可用性验证（C25） | 研究计划与执行包已就绪（[UX §13.6](../work-ux-design-r0-2026-10-25.md)），并已发出[U1 招募与执行排期单](../work-r0a-usability-recruit-plan-2026-10-26.md)（名额/渠道/同意话术/档期/降级路径）；**判定任务集修正为 R0a 的 UT1–UT5**——原脚本里的本机授权与命令审批不在 R0a 交付面，不计入完成率 | 7–8 名设计伙伴（管理员 ≥3）、≥3 家组织；边界复述通过；发现的问题回写状态矩阵/文案并在 DR3 前冻结 | 产品 + 设计（运营给名单） | 名单锁定 2026-11-16；报告 2026-11-27；DR3 2026-12-01 |
+| U2 | 管理只读页方案 A/B | **已签收（2026-10-27，方案 B 口径接受）**（[admin mapping §3.1/§4/§5](../work-r0a-admin-readonly-mapping-2026-10-25.md)）：管理读 6 个 operation 进入 OpenAPI；D1 提供 `work.audit_export`、席位/token 配额聚合与 `work_directory` 投影写入；Host 端口契约可执行；撤权收窄策略同日定为 D-07 A | 剩余的是 Host 侧字段（`subject_id`/`role`/`revision`/席位布尔/组织字段）在 E2 联调时逐项认领（C31，pilot 闸门），不是本未决项 | 后端 + 平台 + 产品 | 已关闭（DR1 11-10 追认） |
 | U3 | Temporal 托管方式 | **A 自托管**；九项承诺 **2026-10-27 确认（全部"是"）**、资源已批、演练由开发与测试 5 人排期；A2/A4/A8 数值随资源单回填 | [U3 决策征询单](work-r0a-temporal-hosting-decision-request-2026-10-26.md) 已答复；C22 仍待四项演练，C17 告警接入 12-04 前 | 平台 + SRE | DR2 2026-11-17（C22 演练） |
-| U4 | §9.4 设计评审检查表 | 10 项证据已预填（[大纲 §9.4](work-r0a-detailed-design-plan-2026-10-25.md)）；勾选待各 DR 完成 | 每次 DR 逐项勾选并附证据链接；DR4 时 10 项全部勾选或书面豁免 | 架构（评审主持） | 各 DR；DR4 2026-12-04 全部关闭 |
+| U4 | §9.4 设计评审检查表 | 10 项证据已预填（[大纲 §9.4](../work-r0a-detailed-design-plan-2026-10-25.md)）；勾选待各 DR 完成 | 每次 DR 逐项勾选并附证据链接；DR4 时 10 项全部勾选或书面豁免 | 架构（评审主持） | 各 DR；DR4 2026-12-04 全部关闭 |
 
 §9.4 逐项现状：
 
@@ -130,7 +130,7 @@ E5 不在关键路径上的前提：C14 沙箱结论在 **2026-12-11** 前到位
 | 评审 | C03 D3、C04 D4 | partial | DR2 会议签收（U3 九项已确认，C22 四项演练待做） | 后端 + SRE；运行时 + 安全 | 2026-11-17 |
 | 评审 | C05 D5 | partial | DR3 签收（含 U1 可用性记录；U2 已于 10-27 签收） | 前端 + 产品 | 2026-12-01 |
 | 评审 | C11 威胁模型 | **done（2026-10-27 签映射口径 + 残余风险清单）** | DR3 只复审 16 项 partial 的**实施证据**与状态列，不重开映射口径 | 安全 | 2026-12-01 |
-| 外部 | C25 设计伙伴研究 | todo（**招募与执行排期单已发**[U1 招募与执行排期单](work-r0a-usability-recruit-plan-2026-10-26.md)） | 即 U1；11-05 前需运营回填渠道候选数与合规限制，11-16 锁定名单 | 产品 + 设计 + 运营 | 报告 2026-11-27 |
+| 外部 | C25 设计伙伴研究 | todo（**招募与执行排期单已发**[U1 招募与执行排期单](../work-r0a-usability-recruit-plan-2026-10-26.md)） | 即 U1；11-05 前需运营回填渠道候选数与合规限制，11-16 锁定名单 | 产品 + 设计 + 运营 | 报告 2026-11-27 |
 | 外部 | C15 阿里云百炼 | **waived（2026-10-27）** | P1–P5 全部不适用（演示组织使用百炼且只用演示数据），P6 价目仅参考；不再作为 start 闸门。配额到期/限流转为运营风险；演示组织若接触客户数据须重开 | 产品 + 平台 | 已结项 |
 | 环境 | C14 沙箱证明 | partial | gVisor 节点证据或签署降级声明 | 运行时 + 安全 | 2026-12-11 |
 | 实施 | C07 远端 CI / 生成客户端接入 | partial | E1 首个 PR 上 6 个 job 绿；E6 使用生成客户端对接真实 API | 后端 + 前端 | 2026-12-18（CI）/ 2027-01-29（接入） |
@@ -190,7 +190,7 @@ D-01..D-07 签收状态（同步大纲 §4/§8.1）：
 | D-05 Runtime/沙箱 | A 每 Run 一 Pod、Pi 内嵌、gVisor/等效 | **正式签收 A（2026-10-27）**；DR0 11-03 出纪要 | runc 降级 profile（C14 已签）；供应链准入策略 |
 | D-06 迁移/切换 | A 新 `/work` + 组织 flag，不迁移/不双写 | **正式签收 A（2026-10-27）**；DR0 11-03 出纪要 | 切换状态机、旧链接只读、留存期待法务 |
 | D-07 撤权收窄执行 | 设计侧原推荐 B；**实际签收 A** | **正式签收 A（2026-10-27）**：只拦新工作 + 运营手工取消；同步增量 5 分钟 + 每日全量校对、滞后 > 600 秒 page；B 转 R0b | D1 新增 `work.ops_cancel_run`（只授 `work_ops`，工单号必填）+ 5 项冒烟；D3 §11.5；D6 S17；遥测阈值 600 秒/5 分钟；试点 Runbook §5.2；窗口内消耗配额记为已接受风险 |
-| D-08 大模型接入账号与计量边界 | 产品已定（[决策单](work-r0a-provider-account-metering-decision-2026-10-26.md)）：Work 只统计 token、客户自带账号、演示组织独接阿里云 Qwen、DeepSeek Key 平台托管、Run 级 token 硬上限、组织 owner 可写接入配置 | **D-08a 产品签收、D-08b 会前确认、D-08c/d 待 DR1 冻结**（a 产品 + 法务 Lily Zhu，授权 11-06 前确认；b 演示组织 A managed_key 且 B2/B6 静态改写；c/d 冻结配额与接入面） | D1/D2 的 D-08 修订已合并（PR #9）；D-03 B + D-07 A 的 D1 修订本地复跑 148/148、9/9、34/34，已提交（commit `e13cec318`）；D4 §7.5 与 D6 S14/S17 已按 D-08b 回写 |
+| D-08 大模型接入账号与计量边界 | 产品已定（[决策单](../work-r0a-provider-account-metering-decision-2026-10-26.md)）：Work 只统计 token、客户自带账号、演示组织独接阿里云 Qwen、DeepSeek Key 平台托管、Run 级 token 硬上限、组织 owner 可写接入配置 | **D-08a 产品签收、D-08b 会前确认、D-08c/d 待 DR1 冻结**（a 产品 + 法务 Lily Zhu，授权 11-06 前确认；b 演示组织 A managed_key 且 B2/B6 静态改写；c/d 冻结配额与接入面） | D1/D2 的 D-08 修订已合并（PR #9）；D-03 B + D-07 A 的 D1 修订本地复跑 148/148、9/9、34/34，已提交（commit `e13cec318`）；D4 §7.5 与 D6 S14/S17 已按 D-08b 回写 |
 
 ## 8. 风险（评审与实施阶段）
 

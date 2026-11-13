@@ -3,7 +3,7 @@
 日期：2026-11-09 ｜ 提出：Qoder agent ｜ 裁定／执行授权：**待 John 逐格勾**（本文只申请，不代表已授权）
 关联：[work-project.md 台账](work-project.md)（11-09 C25/C28 关闭批）、[pilot-checklist.json C26 项](assets/work-r0a-ops-2026-10-25/pilot-checklist.json)、
 [pilot-metrics.json](assets/work-r0a-ops-2026-10-25/pilot-metrics.json)（阈值与定义）、[pilot-metrics.sql](../../../src/work/scripts/pilot-metrics.sql)（只读产生器）、
-[work-r0a-start-gate-disposition](work-r0a-start-gate-disposition-2026-10-27.md)（C26 属"不能提前签"栏）、[运维 runbook §5.22](work-operations-runbook-2026-10-25.md)
+[work-r0a-start-gate-disposition](_archive/work-r0a-start-gate-disposition-2026-10-27.md)（C26 属"不能提前签"栏）、[运维 runbook §5.22](work-operations-runbook-2026-10-25.md)
 
 ## 0. 为什么这件必须由你逐项勾
 

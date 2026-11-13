@@ -463,4 +463,4 @@ P2 资源交接 / 个人版 / SCIM ──── 依赖 P1 的身份模型
 - [飞书企业账号生命周期调研](../research/feishu-enterprise-account-lifecycle-2026-10-24.md)
 - [系统设计](org-account-lifecycle-system-design-2026-10-24.md)
 - [ADR-0005 Work 两层授权](../adr/0005-work-two-layer-access.md)
-- [Work 模块产品与架构方案](work-module-product-architecture-agent-plan-2026-09-21.md)
+- [Work 模块产品与架构方案](_archive/work-module-product-architecture-agent-plan-2026-09-21.md)

@@ -2,7 +2,7 @@
 
 > 状态：**已签收**（John 选 A 主签 2026-10-30；Lily 复核安全边界经 John 转述通过，非 firsthand）。本行此前误写「待签收」，与下方签收栏矛盾，2026-11-01 校正。
 > 提出：2026-10-30　截止：2026-11-06
-> 关联：[D4 §6.3](work-r0a-runtime-egress-design-2026-10-25.md)、[D1 §5.5](work-r0a-data-design-2026-10-25.md)、迁移 0011/0012、`internal/contentproxy`
+> 关联：[D4 §6.3](../work-r0a-runtime-egress-design-2026-10-25.md)、[D1 §5.5](../work-r0a-data-design-2026-10-25.md)、迁移 0011/0012、`internal/contentproxy`
 
 ## 1. 问题
 

@@ -57,7 +57,7 @@ C01/C02 已于 10-27 提前签，DR1 只追认；C14 已签降级、DR2 追认�
 | 重基线 | 接受 11-03～12-04 排期 |
 | 提前签追认 | C01 通过并附修订；C02/C14 原样追认 |
 
-会前材料：本文、[D-08 决策单](work-r0a-provider-account-metering-decision-2026-10-26.md)、[D-08b 清单](work-r0a-d08b-credential-path-2026-10-27.md)、[开工闸门处置单](work-r0a-start-gate-disposition-2026-10-27.md)、[就绪包 §6/§7](work-r0a-implementation-readiness-2026-10-26.md)。
+会前材料：本文、[D-08 决策单](../work-r0a-provider-account-metering-decision-2026-10-26.md)、[D-08b 清单](work-r0a-d08b-credential-path-2026-10-27.md)、[开工闸门处置单](work-r0a-start-gate-disposition-2026-10-27.md)、[就绪包 §6/§7](work-r0a-implementation-readiness-2026-10-26.md)。
 
 ### 0.3 正式签收与 DR0 待办（2026-10-27；11-03 形成会议纪要）
 
@@ -111,7 +111,7 @@ D-07 不放这里：2026-10-27 先受理“进入 R0a”，同日按 **A** 正�
 
 D-08b 的逐条设计口径与 DR0 签收表见 [D-08b 签收清单](work-r0a-d08b-credential-path-2026-10-27.md)。
 
-D-08a–d 的六字段签收表单已写在 [D-08 决策单 §6](work-r0a-provider-account-metering-decision-2026-10-26.md)（每项含读什么、证据边界、不签后果、逾期降级）。DR0 只做三件事：
+D-08a–d 的六字段签收表单已写在 [D-08 决策单 §6](../work-r0a-provider-account-metering-decision-2026-10-26.md)（每项含读什么、证据边界、不签后果、逾期降级）。DR0 只做三件事：
 
 - 受理 D-08 范围：a/b/d 进入 R0a，c/d 留 DR1 随 C01/C02 冻结；
 - 决定 D-08b/D-08d 的签字独立性走 (a) 补独立复核人还是 (b) 书面自证；
@@ -128,7 +128,7 @@ D-08a–d 的六字段签收表单已写在 [D-08 决策单 §6](work-r0a-provid
 - ☑ 2026-10-27 提前签（(b) 自证）；☑ 同日结论栏定为**通过并附修订**；☐ DR1 会议追认未开
 - 签字人：后端负责人 John Shao；DBA/安全 John Shao；独立复核 Lily Zhu
 - 结论栏：**冻结并附修订**——修订项 ①静态凭证 KMS 字段放宽 ②新增 `ops_cancel_run` 运营取消命令（D-07 A 的可执行面）；复核人 Lily Zhu，复核日 2026-11-10
-- 读什么：[D1 设计](work-r0a-data-design-2026-10-25.md)（§6.1 竞态、§7.14 撤权新鲜度）；[设计资产](assets/work-r0a-design-2026-10-25/README.md) 的 `r0a-schema-smoke.sql`（148 断言，含 D-08 25 项、静态凭证 4 项与运营取消 `ops_cancel_run` 5 项）、`r0a-concurrency-smoke.py`（9 组多连接竞态 + 不变量门）、`r0a-admin-directory.sql`（投影单调性谓词）
+- 读什么：[D1 设计](../work-r0a-data-design-2026-10-25.md)（§6.1 竞态、§7.14 撤权新鲜度）；[设计资产](../assets/work-r0a-design-2026-10-25/README.md) 的 `r0a-schema-smoke.sql`（148 断言，含 D-08 25 项、静态凭证 4 项与运营取消 `ops_cancel_run` 5 项）、`r0a-concurrency-smoke.py`（9 组多连接竞态 + 不变量门）、`r0a-admin-directory.sql`（投影单调性谓词）
 - 会上要回答的问题（可判定）：
   1. 七个角色（`work_owner/api/worker/ledger/migrator/ops/directory`）的授权面能否原样进仓库迁移体系？哪个要改？
   2. `FORCE RLS` + REVOKE 直接 DML + `SECURITY DEFINER` 命令面是否冻结为**唯一**写入口径？
@@ -148,7 +148,7 @@ D-08a–d 的六字段签收表单已写在 [D-08 决策单 §6](work-r0a-provid
 - ☑ 2026-10-27 提前签（(b) 自证）；☐ DR1 会议追认未开
 - 签字人：后端 John Shao；前端 John Shao
 - 结论栏：**冻结 29 path/33 operation**（D-08d 已签，接口面不再回退）
-- 读什么：[D2 设计](work-r0a-api-design-2026-10-25.md)；[资产 README](assets/work-r0a-design-2026-10-25/README.md) 的 OpenAPI 子集、错误码目录、生成客户端与 mock；Host 端口契约
+- 读什么：[D2 设计](../work-r0a-api-design-2026-10-25.md)；[资产 README](../assets/work-r0a-design-2026-10-25/README.md) 的 OpenAPI 子集、错误码目录、生成客户端与 mock；Host 端口契约
 - 会上要回答的问题：
   1. 33 个 operation（含 D-08 新增 8 个；D-08d 未签则回到 25）是否即为 R0a 冻结集？要删/要加的逐一列出并给理由。
   2. cookie + CSRF 单次刷新重试、同源 SSE、409 resync 三个语义是否接受？
@@ -164,7 +164,7 @@ D-08a–d 的六字段签收表单已写在 [D-08 决策单 §6](work-r0a-provid
 - ☑ 已签收（2026-10-27 会前逐条；11-10 DR1 追认）
 - 签字人：后端 John Shao + 平台 John Shao + 产品 John Shao（(b) 自证）；独立复核 Lily Zhu
 - 结论栏：**接受方案 B 口径**；Host 待补字段（`subject_id`/`role`/`revision`/席位布尔/组织字段）仍按 C31 在 E2 联调时逐项认领
-- 读什么：[管理只读映射](work-r0a-admin-readonly-mapping-2026-10-25.md) §3.1/§4/§5；D1 §7.14；Host 端口契约
+- 读什么：[管理只读映射](../work-r0a-admin-readonly-mapping-2026-10-25.md) §3.1/§4/§5；D1 §7.14；Host 端口契约
 - 会上要回答的问题：Host 侧需补的字段逐项确认——`subject_id`、`role`、`revision`、席位布尔、组织字段；缺哪个、谁在哪次发版补、联调日期。
 - 证据边界：已证——管理读 6 operation 进 OpenAPI；`work.audit_export` 作业、席位/token 配额聚合、`work_directory` 投影写入有设计物与冒烟负例；Host 五端口契约可执行 9/9。未证——P1-A 真实字段/权限映射（C31，pilot 闸）、staging 日志证明 token 不落 URL（S18）。
 - 不签的后果：管理面无法进入 E2；C31 的字段清单无人认领；审计导出授权测试（S10）没有可测口径。
@@ -176,7 +176,7 @@ D-08a–d 的六字段签收表单已写在 [D-08 决策单 §6](work-r0a-provid
 - 签字人：后端 John Shao + 安全 John Shao + 产品 John Shao（(b) 自证）；独立复核 Lily Zhu
 - 结论栏：**☑A 只拦新工作，在途 Run 由运营手工取消**（□B 转 R0b；□退回）—— **C（投影直接停止 Run）已拒绝，不列为可签选项**
 - 一起签的参数：投影同步**增量 5 分钟 + 每日一次全量校对**；`WorkDirectoryProjectionStale` 阈值 = 滞后 > **600 秒（2 个增量周期）**且持续 5 分钟，page；按组织关闭的开关不适用（A 本身不自动取消）
-- **A 的可执行面**：签约时发现 `request_cancel` 是 owner-only、`work_ops` 无取消命令，而转移所有权又要求任务静止——所以 A 必须配一条运营命令。已补 **`work.ops_cancel_run(org, run, actor, ticket_ref, reason)`**（只授 `work_ops`，工单号必填、原因用枚举码、复用同一状态机与 `cancel_signal` outbox、重复调用幂等），流程见[试点运营 Runbook §5.2](work-r0a-pilot-operations-runbook-2026-10-26.md)
+- **A 的可执行面**：签约时发现 `request_cancel` 是 owner-only、`work_ops` 无取消命令，而转移所有权又要求任务静止——所以 A 必须配一条运营命令。已补 **`work.ops_cancel_run(org, run, actor, ticket_ref, reason)`**（只授 `work_ops`，工单号必填、原因用枚举码、复用同一状态机与 `cancel_signal` outbox、重复调用幂等），流程见[试点运营 Runbook §5.2](../work-r0a-pilot-operations-runbook-2026-10-26.md)
 - 已接受风险：撤权到人工取消之间，在途 Run 继续消耗该组织 token 配额（进风险登记与客户接入说明）；设计侧原推荐 B 的落点（`EntitlementNarrowingHint`）保留但不消费
 - 读什么：D1 §7.14（现记录 `entitlement_lost` 但不改 Run）、D3 §11 作业清单与 `WorkDirectoryProjectionStale`、运行手册 §6.4
 - 会上要回答的问题：1) 选 A 还是 B；2) 投影同步周期上限取多少（新鲜度目标的唯一硬约束）；3) 告警阈值与同步周期是否绑定 D-07 一起签；4) 按组织关闭的开关默认值。
@@ -198,7 +198,7 @@ D-08a–d 的六字段签收表单已写在 [D-08 决策单 §6](work-r0a-provid
 - ☑ 已签收（2026-10-27 会前逐条；11-10 DR1 追认）
 - 签字人：R1-6c 后端 John Shao + 产品 John Shao；R1-6d 产品 John Shao + 安全 John Shao（(b) 自证，关键项独立复核 Lily Zhu）
 - 结论栏：**☑冻结（c/d 均通过）**——D1 的 token 配额护栏与 D2 的接入配置/凭证 8 个接口随 C01/C02 一并冻结；Run 级硬上限默认值不改，配置连通探测与真实用量归一仍属 E5
-- 读什么：[D-08 决策单 §4 冲击面](work-r0a-provider-account-metering-decision-2026-10-26.md)、§6 的 c/d 行；PR #9 的 139/139（D-03 修订后 148/148）、9/9、34/34
+- 读什么：[D-08 决策单 §4 冲击面](../work-r0a-provider-account-metering-decision-2026-10-26.md)、§6 的 c/d 行；PR #9 的 139/139（D-03 修订后 148/148）、9/9、34/34
 - 证据边界：已证——配额、接入配置、凭证与用量在 PG16/mock 上均通过；未证——真实 KMS/STS、配置连通探测、上游 usage 归一、Run 上限默认值的业务确认。
 - 不签的后果：D1/D2 冻结不含配额与接入面，E1/E2 按旧口径落库后立刻返工；C01/C02 只能部分冻结。
 - 逾期降级：先冻结数据面（c），接入配置写接口（d）退出 R0a、推到 R0b。
@@ -227,7 +227,7 @@ D-08a–d 的六字段签收表单已写在 [D-08 决策单 §6](work-r0a-provid
 
 | 项 | 归属 | 关闭条件 | 为什么不能提前签 |
 |---|---|---|---|
-| C03 D3 编排/故障矩阵 | DR2 11-17；[阻塞与演练清单](work-r0a-c03-u3-drills-2026-10-27.md) | U3 九项已于 2026-10-27 确认（全"是"）；四项 C22 演练与 D3-N01/N03/N06、S1-R06 在 11-15/16 执行 | 故障矩阵 18 例里崩溃注入与开关演练**未执行**，D3-N02–N05 只有数据库侧交错实测 |
+| C03 D3 编排/故障矩阵 | DR2 11-17；[阻塞与演练清单](../work-r0a-c03-u3-drills-2026-10-27.md) | U3 九项已于 2026-10-27 确认（全"是"）；四项 C22 演练与 D3-N01/N03/N06、S1-R06 在 11-15/16 执行 | 故障矩阵 18 例里崩溃注入与开关演练**未执行**，D3-N02–N05 只有数据库侧交错实测 |
 | C04 D4 Runtime/出口 | DR2 11-17 | 真实沙箱/egress/provider；D-08b 网关凭证/KMS 路径 | 策略 10/10 与 usage/供应链 19/19 是设计层证据；D-08b（B1–B10）未签、演示组织凭证模式未选；真实沙箱与出口未做；C15 已 waived，价目不再进入账本 |
 | C14 沙箱证明或签署降级 | **已于 2026-10-27 提前签降级** | gVisor 证据，或安全签署"R0a 不声明 gVisor 隔离" | 现只有 runc 降级 profile 的 smoke；已由 John Shao（安全）签降级，(b) 自证，DR2 追认，试点前复评 |
 | C15 阿里云百炼 | 已 waived | P1–P5 不适用（演示组织 + 演示数据），P6 仅参考；不再阻塞 | 已于 2026-10-27 结项；配额到期属运营风险 |
@@ -244,5 +244,5 @@ D-08a–d 的六字段签收表单已写在 [D-08 决策单 §6](work-r0a-provid
 | 就绪包 §6.1 | U2 行按签收结果关闭或改写；U4 行记录已勾哪几行 |
 | `pilot-checklist.json` | C01/C02 的 `status`/`note`（仅在实际签收后改；本表单不自动改） |
 | 大纲 §9.4 | DR1 两行勾选 |
-| [D-08 决策单](work-r0a-provider-account-metering-decision-2026-10-26.md) §6 | D-08a–d 的结论、真名与日期；未签项写缺口与再评审日 |
-| [work-project.md](work-project.md) | §4.3 提交行 + §5.2/§5.3 的闸门计数与结论口径（数字只写这里） |
+| [D-08 决策单](../work-r0a-provider-account-metering-decision-2026-10-26.md) §6 | D-08a–d 的结论、真名与日期；未签项写缺口与再评审日 |
+| [work-project.md](../work-project.md) | §4.3 提交行 + §5.2/§5.3 的闸门计数与结论口径（数字只写这里） |

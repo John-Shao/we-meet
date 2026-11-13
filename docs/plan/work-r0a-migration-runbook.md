@@ -4,7 +4,7 @@
 >
 > 权威设计：[D1 数据/权限/迁移](work-r0a-data-design-2026-10-25.md) §4、§6；[D-04](work-r0a-detailed-design-plan-2026-10-25.md)
 >
-> 实施步骤：[R0a 实施计划](work-r0a-implementation-plan-2026-10-27.md) E1
+> 实施步骤：[R0a 实施计划](_archive/work-r0a-implementation-plan-2026-10-27.md) E1
 
 ## 1. 迁移组成
 
