@@ -93,7 +93,7 @@ D3 把 R0a 的“提交 → 派发 → 模型 → 配额 → 成果 → 采纳�
 
 ### 5.0 D3' 执行片段协议（F0-R1 设计已签）
 
-本节按[重做计划](work-r0a-architecture-rebuild-plan-2026-10-28.md#跨语言执行契约)提出 Go/Node 接口，**不是 D3' 全部完成或已签收**。后续 §5.1–§6 与 `RunWorkflow.contract.ts` 保留旧 `r0a-v1` 的历史协议；其中同队列部署、直接 `invokeModel` 入口及旧 bigint 参数不能直接当作新 wire contract。其余领域活动仍需逐项与 D1 对齐，不在本次消息 Schema 中假定已经完成。
+本节按[重做计划](_archive/work-r0a-architecture-rebuild-plan-2026-10-28.md#跨语言执行契约)提出 Go/Node 接口，**不是 D3' 全部完成或已签收**。后续 §5.1–§6 与 `RunWorkflow.contract.ts` 保留旧 `r0a-v1` 的历史协议；其中同队列部署、直接 `invokeModel` 入口及旧 bigint 参数不能直接当作新 wire contract。其余领域活动仍需逐项与 D1 对齐，不在本次消息 Schema 中假定已经完成。
 
 资产：
 

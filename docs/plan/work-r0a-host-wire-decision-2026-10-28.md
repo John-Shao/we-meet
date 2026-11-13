@@ -2,7 +2,7 @@
 
 > 状态：**John 主签；Lily 对 HW-01–HW-04 安全复核通过（2026-10-28；mTLS、CSRF、fail-closed）；HW-05 细节为 John 自决判定、未经外部复核**（2026-11-01 起无独立复核人，11-08 延迟复评）。 本文只冻结 wire 与边界，不实现 HTTP/SQL/codegen，也不代表真实 Host 或 mTLS 已接通。
 >
-> 上游：[Host 合同 v2](assets/work-r0a-rebuild-2026-10-28/host-contract.json)、[D2' 公开契约 §8.3](work-r0a-api-design-2026-10-25.md#83-host-接入合同增量work-host-contract-v2设计已签已复核)、[重做计划 Phase 2](work-r0a-architecture-rebuild-plan-2026-10-28.md#phase-2go-控制面)。
+> 上游：[Host 合同 v2](assets/work-r0a-rebuild-2026-10-28/host-contract.json)、[D2' 公开契约 §8.3](work-r0a-api-design-2026-10-25.md#83-host-接入合同增量work-host-contract-v2设计已签已复核)、[重做计划 Phase 2](_archive/work-r0a-architecture-rebuild-plan-2026-10-28.md#phase-2go-控制面)。
 
 ## 0. 结论
 

@@ -68,7 +68,7 @@
 | A10 | 单写主 + 多可用区；区域写恢复要求同步灾备安全账本 | 不做多区域双写；安全记录不丢失优先于网络分区时可用性，缺乏同步保护时禁止自动跨域恢复写入 |
 | A11 | R1 单 Run 提示组合，R3 才启用确定性 DAG | 工作流引擎的存在不代表提前暴露产品链式能力 |
 | A12 | 按安全边界拆部署，按真实瓶颈拆服务 | R0 无需 Kafka、向量库、独立搜索集群和多 Agent 协作框架 |
-| A13 | 端云共用 Pi agent-core + Work 适配层，候选准入通过后落地 | 复用开源模型循环，不接管租户/审批/预算/恢复；主Runtime改为TypeScript/Node，见§3.2–§3.9。实施状态：R0a 首版以 Python Temporal Worker 落地，不符合本条，正按[R0a 架构对齐重做计划](work-r0a-architecture-rebuild-plan-2026-10-28.md)重做 |
+| A13 | 端云共用 Pi agent-core + Work 适配层，候选准入通过后落地 | 复用开源模型循环，不接管租户/审批/预算/恢复；主Runtime改为TypeScript/Node，见§3.2–§3.9。实施状态：R0a 首版以 Python Temporal Worker 落地，不符合本条，正按[R0a 架构对齐重做计划](_archive/work-r0a-architecture-rebuild-plan-2026-10-28.md)重做 |
 | A14 | Work Core 与 WeMeet Host 通过端口/Connector 解耦，保留独立售卖选项 | 现在不拆仓/拆服务；R0a 做边界与适配器，R1 前做 stub-host 剥离演练；见 ADR-0021 |
 
 ### 0.2 选择标准
@@ -204,7 +204,7 @@ flowchart TB
 | Web UI | TypeScript + React；TanStack Query 管服务端状态 | 类型契约、复杂工作区和组件生态；不将服务端业务状态复制到多个 store |
 | 桌面壳 | Electron + 同一 Web UI | 跨端交互与 Web 共享；关闭 Node integration，开启 context isolation/sandbox |
 | 控制面/编排/网关 | Go；HTTP/JSON、内部 gRPC | 长连接、资源占用、并发与静态契约适合控制面；不用它承担模型生态适配 |
-| Agent Runtime | TypeScript/Node + Pi agent-core + Work Adapter，端云同核（实施中） | 可替换streamFn与全部工具；不引入完整coding-agent；会话恢复与治理由Work负责；§3.8准入门槛H01–H10/H12已执行，H11未触发。当前实现为 Python Temporal Worker + mock 模型网关，与本行不符，重做路径见[R0a 架构对齐重做计划](work-r0a-architecture-rebuild-plan-2026-10-28.md) |
+| Agent Runtime | TypeScript/Node + Pi agent-core + Work Adapter，端云同核（实施中） | 可替换streamFn与全部工具；不引入完整coding-agent；会话恢复与治理由Work负责；§3.8准入门槛H01–H10/H12已执行，H11未触发。当前实现为 Python Temporal Worker + mock 模型网关，与本行不符，重做路径见[R0a 架构对齐重做计划](_archive/work-r0a-architecture-rebuild-plan-2026-10-28.md) |
 | 本机 Agent / ToolBroker | Rust 守护进程 + 独立受限Node sidecar | OS 文件句柄、进程与协议安全；Rust/Node均不是沙箱；不在Electron渲染层运行Agent |
 | 数据处理/转换工具 | Python等审核后的隔离工具进程 | 仅按工具需要引入，不作为默认端云Agent循环宿主 |
 | 持久编排 | Temporal，Go SDK | 审批等待、定时器、重放恢复、Worker 升级；承受独立运维与历史存储成本 |
@@ -239,7 +239,7 @@ Temporal 即使托管也必须满足元数据驻留；私有化必须随交付�
 | 条件备选（不进入默认实现） | OpenAI Agents SDK TypeScript，使用自定义Model/工具 | 只有触发§3.8定义的“首选失败”条件时才启动评估；不作为依赖、模块或并行运行时，不预先安装或适配 |
 | Python方案 | Pydantic AI core或OpenAI Agents SDK Python适合Python优先系统，但不作为本次第二套主Runtime | Python保留给数据解析/计算/转换工具，不因工具生态要求把云侧Harness另起一套 |
 
-v1.1中的Python主Runtime是未完成Harness调研时的架构候选；本次根据端云共享、Windows分发和可控模型/工具入口，主动调整为TS/Node，**不是因当前仓库已经使用某个执行器而复用**。R0a 首版实现与本结论相反地落在 Python Temporal Worker 上，该实现不构成对 Python 主Runtime 的追认，重做路径见[R0a 架构对齐重做计划](work-r0a-architecture-rebuild-plan-2026-10-28.md)。
+v1.1中的Python主Runtime是未完成Harness调研时的架构候选；本次根据端云共享、Windows分发和可控模型/工具入口，主动调整为TS/Node，**不是因当前仓库已经使用某个执行器而复用**。R0a 首版实现与本结论相反地落在 Python Temporal Worker 上，该实现不构成对 Python 主Runtime 的追认，重做路径见[R0a 架构对齐重做计划](_archive/work-r0a-architecture-rebuild-plan-2026-10-28.md)。
 
 以下结论属于技术选型推荐，不是已安装、运行验证或生产批准；§3.8的硬性实验未通过不能上线。
 

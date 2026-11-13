@@ -37,7 +37,7 @@ D4 要让 Pi agent-core 在受限云端 Runtime 中完成 R0a 文本任务，并
 
 ## 3. Runtime 架构与生命周期
 
-> 本节按[R0a 架构对齐重做计划](work-r0a-architecture-rebuild-plan-2026-10-28.md#rb-02-的形态与升级闸门)同步拟实施形态：池父进程为 Node Temporal Activity worker，Pi/WorkAdapter 在每 Run 独占子进程内运行。此修订不代表 D4 重签或安全准入完成；不能因 D4-01 曾写「Pod/进程」就免除评审。共享 Pod 的网络、资源与凭据风险需独立签收，**不得描述为 per-Run 沙箱**。
+> 本节按[R0a 架构对齐重做计划](_archive/work-r0a-architecture-rebuild-plan-2026-10-28.md#rb-02-的形态与升级闸门)同步拟实施形态：池父进程为 Node Temporal Activity worker，Pi/WorkAdapter 在每 Run 独占子进程内运行。此修订不代表 D4 重签或安全准入完成；不能因 D4-01 曾写「Pod/进程」就免除评审。共享 Pod 的网络、资源与凭据风险需独立签收，**不得描述为 per-Run 沙箱**。
 
 ```text
 Go RunWorkflow（唯一业务编排）
@@ -63,7 +63,7 @@ Go RunWorkflow（唯一业务编排）
 
 - Pi 子进程不持有 Temporal、PG、KMS 或供应商凭据；父进程的 Temporal 身份不能经环境/句柄/共享挂载泄漏给子进程。父进程若交付 scoped token，须按签收协议处理，不进 history/日志/参数。
 - 进程退出不等于 Run 终态或外部请求取消。Go 负责取消 intent 与账本状态；父进程转发取消、设置退出期限并回收，父/子失联由超时和对账接管。
-- 跨语言参数、重试、canonical state 提交屏障、片段身份/租约及取消协议按[跨语言执行契约](work-r0a-architecture-rebuild-plan-2026-10-28.md#跨语言执行契约)进入 D3'/D4' 机器可读资产并签收；不能以流程图替代协议与故障测试。
+- 跨语言参数、重试、canonical state 提交屏障、片段身份/租约及取消协议按[跨语言执行契约](_archive/work-r0a-architecture-rebuild-plan-2026-10-28.md#跨语言执行契约)进入 D3'/D4' 机器可读资产并签收；不能以流程图替代协议与故障测试。
 
 ## 4. Work Adapter 契约
 
@@ -466,7 +466,7 @@ usage = provider/gateway_estimate/unavailable；unavailable 的 token 字段必�
 | 成功已确认但结算/发布/ACK 失败 | 保留 succeeded 事实；Go 从缺失的内部步骤幂等收尾，不再调用模型、不转回 unknown |
 | 子进程退出/池 OOM/驱逐 | 不证明请求未执行；按账本与持久回执分类，Run 终态由 PG/Go workflow 决定 |
 
-失败窗口和验收断言以[失败分类与收尾恢复](work-r0a-architecture-rebuild-plan-2026-10-28.md#失败分类与收尾恢复)为 D3'/D4' 联合修订输入。特别是 `finishOperation(succeeded)` 已提交后，不能因后续内部错误调用只接受 dispatching/unknown 的 `markOperationUnknown`。
+失败窗口和验收断言以[失败分类与收尾恢复](_archive/work-r0a-architecture-rebuild-plan-2026-10-28.md#失败分类与收尾恢复)为 D3'/D4' 联合修订输入。特别是 `finishOperation(succeeded)` 已提交后，不能因后续内部错误调用只接受 dispatching/unknown 的 `markOperationUnknown`。
 
 ## 10. 供应商条款、价表与合规清单
 

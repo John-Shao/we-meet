@@ -1,8 +1,8 @@
 # Work R0a 按架构重做实施计划（Go 控制面 + Go 编排 + Node/Pi Runtime）
 
-> 状态与进展只在[项目文档](work-project.md)维护，本文只写决策、范围、步骤、文件清单与集成点，不写工时与排期。
+> 状态与进展只在[项目文档](../work-project.md)维护，本文只写决策、范围、步骤、文件清单与集成点，不写工时与排期。
 >
-> 上游依据：[系统架构](work-system-architecture-2026-10-25.md) §3 / A13 / §3.2–§3.9、[D4 Runtime 与出口](work-r0a-runtime-egress-design-2026-10-25.md)。
+> 上游依据：[系统架构](../work-system-architecture-2026-10-25.md) §3 / A13 / §3.2–§3.9、[D4 Runtime 与出口](../work-r0a-runtime-egress-design-2026-10-25.md)。
 > 触发原因：2026-10-28 的实现一致性核对发现 §3 声明的三项选型（Go 控制面、Temporal Go SDK、TypeScript/Node + Pi agent-core Runtime）在实现中全部为 Python，且架构文档 §3 将其写为已定选型。经确认按架构实施。
 
 ## 0. 决策记录（2026-10-28）
@@ -35,7 +35,7 @@
 | Pi/WorkAdapter 子进程 | `work-egress` 模型路径、签收的 scoped 内容/检查点路径；本片段短期身份 | 不接收 Temporal/PG/KMS/供应商凭据；启动环境、文件描述符与挂载访问采用白名单；退出后回收授权 |
 | 整个池 Pod | 上述端点的最小并集，禁止直接互联网与 metadata；关闭不需要的服务账号 token 挂载 | NetworkPolicy 只证明 Pod 级限制，不能区分父子进程；Temporal 即使网络可达，也必须拒绝无权身份 |
 
-具体待签方案见 [D4 §6.2 身份/隔离](work-r0a-runtime-egress-design-2026-10-25.md#62-f0-r4-身份签发与父子凭据隔离设计已签已复核)与[§6.3 内容代理/网络](work-r0a-runtime-egress-design-2026-10-25.md#63-f0-r5-内容代理与网络协议设计已签已复核)：父进程持服务 mTLS 身份，子进程只持按 audience 分离的短期 opaque capability；采用代理访问内容，不直连对象存储。非特权 launcher 的内核前提、真实发行者和目标 CNI/DNS 证据仍须签收，不能把文档中端口当已部署事实。父进程可以交付短期凭据，但不写日志、argv、环境、磁盘或 Temporal history；秘密启动/刷新管道与仅含引用/公开元数据的结果 IPC 分开。
+具体待签方案见 [D4 §6.2 身份/隔离](../work-r0a-runtime-egress-design-2026-10-25.md#62-f0-r4-身份签发与父子凭据隔离设计已签已复核)与[§6.3 内容代理/网络](../work-r0a-runtime-egress-design-2026-10-25.md#63-f0-r5-内容代理与网络协议设计已签已复核)：父进程持服务 mTLS 身份，子进程只持按 audience 分离的短期 opaque capability；采用代理访问内容，不直连对象存储。非特权 launcher 的内核前提、真实发行者和目标 CNI/DNS 证据仍须签收，不能把文档中端口当已部署事实。父进程可以交付短期凭据，但不写日志、argv、环境、磁盘或 Temporal history；秘密启动/刷新管道与仅含引用/公开元数据的结果 IPC 分开。
 
 **进程隔离必须有实测而非约定**：父子与不同 Run 的 UID/文件权限、凭据挂载、`/proc` 可见性、继承环境/句柄、临时目录及 IPC 访问均须测试；无法隔离的面必须明确列入安全签收，不能把 JS 钩子或 Pod NetworkPolicy 当作进程隔离证明。签收前不得承载真实多租户任务；若最低凭据/内容边界无法满足，则阻断池形态上线并重新决策，不能静默降级。
 
@@ -49,7 +49,7 @@
 
 ### 跨语言执行契约
 
-D3'/D4' 在 Phase 0 联合签收以下边界与机器可读契约，再进入 Go/Node 实现。字段/变体草案入口为 [D3 §5.0](work-r0a-orchestration-design-2026-10-25.md#50-d3-执行片段协议f0-r1-设计已签)，签收结论、随签条件与证据边界见 [D4 F0-R1–R6](work-r0a-runtime-egress-design-2026-10-25.md#61-phase-0-执行与安全签收清单2026-10-28-设计签收)（2026-10-28 设计签收，R4/R5 已复核）；设计签收不代表 Phase 0 全部完成，也不代表可部署：
+D3'/D4' 在 Phase 0 联合签收以下边界与机器可读契约，再进入 Go/Node 实现。字段/变体草案入口为 [D3 §5.0](../work-r0a-orchestration-design-2026-10-25.md#50-d3-执行片段协议f0-r1-设计已签)，签收结论、随签条件与证据边界见 [D4 F0-R1–R6](../work-r0a-runtime-egress-design-2026-10-25.md#61-phase-0-执行与安全签收清单2026-10-28-设计签收)（2026-10-28 设计签收，R4/R5 已复核）；设计签收不代表 Phase 0 全部完成，也不代表可部署：
 
 | 责任 | 唯一所有者 | 契约要求 |
 |---|---|---|
@@ -64,7 +64,7 @@ D3'/D4' 在 Phase 0 联合签收以下边界与机器可读契约，再进入 Go
 - **重试**：`advanceRuntime` 显式 `maximumAttempts=1`；不能把含收费调用的整段当作幂等 activity 重试。Go 只在核对状态后显式发起后续片段；领域活动按域码单独重试。恢复保留已确认事实，派发许可不得复用。
 - **活性/取消**：Go 收到 cancel signal 后读 DB，取消在途 activity；父进程把取消传给对应 execution_id 的子进程，等待有界退出并回收。心跳必须绑定子进程活性/执行期限，不能由空转父进程永久续命。父进程崩溃、IPC 丢失、子进程不退出、池 OOM/驱逐均有超时与对账接管路径；停止进程不等于外部请求已取消。
 - **恢复与版本**：canonical state 保存待处理请求、真实回执、提交点和版本；恢复需核验 current Run、授权、账本 fence 及片段所有权。execution_id 与租约/到期和出口检查防止旧子进程继续发送，不能只靠“沿用 fence”证明旧执行者已失效。Temporal 依赖只在父进程宿主层，Pi Driver/Adapter 保持可用于端侧的独立包。
-- **必签细节**：片段/gate/head 持久化与租约/事务边界提案见 [D1 §5.4](work-r0a-data-design-2026-10-25.md#54-f0-r2-片段所有权与发送去重增量设计已签未迁移)，canonical state/哈希/回执提案见 [D4 §8.1](work-r0a-runtime-egress-design-2026-10-25.md#81-f0-r3-canonical-state请求与可信回执设计已签)。D1 行为增量、可信历史回答的来源策略、scoped 身份、取消/编解码/提交屏障仍须签收；结构/纯模型测试不能代替 SQL 并发、真实 Pi 恢复或隔离证明。RR 故障合同覆盖每个提交窗口、第二次调用、旧片段迟到、重复投递与取消后用量。
+- **必签细节**：片段/gate/head 持久化与租约/事务边界提案见 [D1 §5.4](../work-r0a-data-design-2026-10-25.md#54-f0-r2-片段所有权与发送去重增量设计已签未迁移)，canonical state/哈希/回执提案见 [D4 §8.1](../work-r0a-runtime-egress-design-2026-10-25.md#81-f0-r3-canonical-state请求与可信回执设计已签)。D1 行为增量、可信历史回答的来源策略、scoped 身份、取消/编解码/提交屏障仍须签收；结构/纯模型测试不能代替 SQL 并发、真实 Pi 恢复或隔离证明。RR 故障合同覆盖每个提交窗口、第二次调用、旧片段迟到、重复投递与取消后用量。
 
 ### RB-03 与 RB-04 的次序约束
 
@@ -77,9 +77,9 @@ D3'/D4' 在 Phase 0 联合签收以下边界与机器可读契约，再进入 Go
 
 ### 局部候选修订：事件传输与目录调度
 
-只允许评估两个有界简化：[D3 §10.1 EX-SSE](work-r0a-orchestration-design-2026-10-25.md#101-ex-sse单实例-db-直读-sse候选设计修订) 的单实例 DB 直读 SSE，以及 [D3 §11.6 EX-DIR](work-r0a-orchestration-design-2026-10-25.md#116-ex-dir单机-systemd-目录同步候选设计修订) 的 systemd 目录同步。它们分别影响 Phase 3/5/6 的事件链和 Phase 2/3/5 的目录作业宿主，不改变 RB-01/RB-02 的 Node/Pi、片段协议、受控出口、凭据隔离与恢复要求；Go 直接持 Key 调模型不在例外中。
+只允许评估两个有界简化：[D3 §10.1 EX-SSE](../work-r0a-orchestration-design-2026-10-25.md#101-ex-sse单实例-db-直读-sse候选设计修订) 的单实例 DB 直读 SSE，以及 [D3 §11.6 EX-DIR](../work-r0a-orchestration-design-2026-10-25.md#116-ex-dir单机-systemd-目录同步候选设计修订) 的 systemd 目录同步。它们分别影响 Phase 3/5/6 的事件链和 Phase 2/3/5 的目录作业宿主，不改变 RB-01/RB-02 的 Node/Pi、片段协议、受控出口、凭据隔离与恢复要求；Go 直接持 Key 调模型不在例外中。
 
-1. 核对现有运行入口与测试，将本地/替身/真实环境证据分开记录到[项目文档 §4.5](work-project.md#45-候选设计修订与验收证据)。
+1. 核对现有运行入口与测试，将本地/替身/真实环境证据分开记录到[项目文档 §4.5](../work-project.md#45-候选设计修订与验收证据)。
 2. 按 D3 的 EX-SSE/EX-DIR 验收矩阵补正确性、故障、容量和运维证据；未通过项保持开放，不以已部署替代验收。
 3. 涉及数据/公开接口行为变更先走对应 D1/D2 签收与版本化迁移。John 对适用环境、证据和残余风险逐项确认后才正式采纳；涉及安全边界变化另由 Lily 复核。采纳后同步 D3/D5/D6 及相关契约/部署资产，不保留相互矛盾的正式要求。
 4. 超出已验范围时重新评估；不自动切换传输/调度，不停留存与投递义务，也不把两个候选推广成全局架构降级。
@@ -102,7 +102,7 @@ D3'/D4' 在 Phase 0 联合签收以下边界与机器可读契约，再进入 Go
 | 资产 | 处置 |
 |---|---|
 | `src/backend/work/sql/r0a_schema.sql` / `r0a_roles.sql` | 保留领域模型、RLS、角色、状态白名单及并发不变量；经签收的修复以版本化增量迁移落地，不能直接对已有库重放整份 schema |
-| [D1 数据设计](work-r0a-data-design-2026-10-25.md) | 保留主体；文档勘误与行为变更分开处理，见[Phase 0](#phase-0设计重签前置闸门) |
+| [D1 数据设计](../work-r0a-data-design-2026-10-25.md) | 保留主体；文档勘误与行为变更分开处理，见[Phase 0](#phase-0设计重签前置闸门) |
 | D6 遥测契约与 `deploy/observability/prometheus-rules.yaml` | 保留指标/SLO/告警语义，核对标签冲突并同步资产；更换生产者，不把现有规则当成已有采集证据 |
 | 前端 UI 层 | 保留组件、样式、路由框架及仍适用的交互/无障碍测试；数据契约变更后重新验收 |
 
@@ -133,15 +133,15 @@ Phase 7 执行停接新任务 → 旧执行排空/受控收尾 → 路由与消�
 
 先签受影响设计与验收合同，再写实现；本文不代替 D1/D2'/D3'/D4' 的正式签收。每项须有设计/契约资产、明确决策与可执行验收条目，未决项不得带入对应实现。
 
-1. **D2' 新 API 契约**：按产品/UX 重新切分资源与操作，重建 OpenAPI/生成客户端；保留仍适用的公开错误语义，随 SQL 增量复核异常映射。解决 `TaskDetail.snapshot` 形状、管理席位 keyset 分页、409 的 `current_revision`、非法 `media_type` 的 422 语义、CSRF 头名单一来源。五项结论与 DP 负例见 [D2 §8](work-r0a-api-design-2026-10-25.md#8-d2-公开契约重签2026-10-28-设计签收)（2026-10-28 设计签收）；旧 mock/客户端/漂移门禁随之退役，不再作为合格证据。
+1. **D2' 新 API 契约**：按产品/UX 重新切分资源与操作，重建 OpenAPI/生成客户端；保留仍适用的公开错误语义，随 SQL 增量复核异常映射。解决 `TaskDetail.snapshot` 形状、管理席位 keyset 分页、409 的 `current_revision`、非法 `media_type` 的 422 语义、CSRF 头名单一来源。五项结论与 DP 负例见 [D2 §8](../work-r0a-api-design-2026-10-25.md#8-d2-公开契约重签2026-10-28-设计签收)（2026-10-28 设计签收）；旧 mock/客户端/漂移门禁随之退役，不再作为合格证据。
 2. **D3' 编排与跨语言合同**：冻结[跨语言执行契约](#跨语言执行契约)，Go 承载 RunWorkflow，Node 只承载 `advanceRuntime` activity；重列活动的签名/错误码/队列/重试/超时，不强行沿用旧活动数量。补全对账器扫描规则、已确认结果后的收尾恢复、六类作业的容量与停止/恢复矩阵。Go/TS 编解码、history 脱敏和故障测试一起签收。
 3. **D4' 池进程与安全签收**：采用 RB-02，不再设计逐 Run 创建 Pod；冻结父子进程网络/身份、scoped 内容路径、并发与资源上限、取消回收、canonical state、Pi 版本与镜像供应链证据。同步 D4 正文、WorkAdapter、tool-manifest、sandbox-profile、egress-policy 及测试；降级只启用 `model_call`，模板装配和存储由受信任基础设施处理。启用额外工具或改变信任边界须单独签收，`sandboxProof=false` 不等于获准上线。
 4. **D1 勘误与行为修订分单**：
    - 文档勘误：核对 outbox 跨组织例外、relay 内上下文改写、调用方与 GRANT 对照、已删除函数的旧描述；若发现实际权限需变化，转行为修订单，不能把当前 GRANT 自动当作正确设计。
    - 行为修订：`record_usage` 的独立去重与并发/重试语义、`authorize_operation` 的 authorized 重试短路、非 relay 作业的最小跨租户枚举权限，以及片段所有权所需的数据层增量，均列明不变量、权限、迁移及负例后签收。
    - **采纳默认保持现行 `awaiting_acceptance` 前置条件**。open 任务凭理由结案是独立产品决策，不在本次勘误中放开；如后续批准，必须同步 D1/D2'/D5 的状态机、权限、审计与测试。
-5. **Host 接入合同**：会话验真、IdentityDirectory、Entitlement、权威组织发现及增量/全量同步协议按[Phase 2](#phase-2go-控制面)冻结；不是只声明 Go 无法 import ORM。Host adapter 的实现位置、服务身份、失效语义及契约测试必须落实。`work-host-contract-v2`（新增 `SessionVerifier`/`OrgDiscovery`、严格 fail closed 会话、修订单调同步、缺字段报 gap）见 [D2 §8.3](work-r0a-api-design-2026-10-25.md#83-host-接入合同增量work-host-contract-v2设计已签已复核)，2026-10-28 设计签收、Lily 已复核通过；P1-A 字段缺口未关闭，联调不豁免 F0-R5 的内部解析硬前置。
-6. **迁移接管与切换合同**：明确 schema 基线、迁移台账接管、前向修复、旧 workflow/作业处置、宿主引用摘除及兼容构建回退步骤；不得以停用 Work 为理由停止留存/对账义务。单写入者、漂移拒绝、恢复与回退规则及 MT 负例见 [D6 §7.5](work-r0a-security-ops-migration-design-2026-10-25.md#75-迁移台账接管与切换合同2026-10-28-设计签收)（设计签收、Lily 已复核通过，无强制接管通道）；尚无接管演练。
+5. **Host 接入合同**：会话验真、IdentityDirectory、Entitlement、权威组织发现及增量/全量同步协议按[Phase 2](#phase-2go-控制面)冻结；不是只声明 Go 无法 import ORM。Host adapter 的实现位置、服务身份、失效语义及契约测试必须落实。`work-host-contract-v2`（新增 `SessionVerifier`/`OrgDiscovery`、严格 fail closed 会话、修订单调同步、缺字段报 gap）见 [D2 §8.3](../work-r0a-api-design-2026-10-25.md#83-host-接入合同增量work-host-contract-v2设计已签已复核)，2026-10-28 设计签收、Lily 已复核通过；P1-A 字段缺口未关闭，联调不豁免 F0-R5 的内部解析硬前置。
+6. **迁移接管与切换合同**：明确 schema 基线、迁移台账接管、前向修复、旧 workflow/作业处置、宿主引用摘除及兼容构建回退步骤；不得以停用 Work 为理由停止留存/对账义务。单写入者、漂移拒绝、恢复与回退规则及 MT 负例见 [D6 §7.5](../work-r0a-security-ops-migration-design-2026-10-25.md#75-迁移台账接管与切换合同2026-10-28-设计签收)（设计签收、Lily 已复核通过，无强制接管通道）；尚无接管演练。
 7. **架构与演练回写**：架构 A13/§3 指向 RB-02 及受影响签收，§3.8 保留 mock/部分/未触发证据边界；U3/C22 收窄指定演练，不取消完整试点 go/no-go。
 
 ### Phase 1：数据层留存与迁移机制替换
@@ -199,7 +199,7 @@ Temporal Go SDK 承载唯一 RunWorkflow；领域活动只经 `work.*` 写入。
 - Pi 核心包只依赖 `agent-core` 及必要 pi-ai 消息/类型；Node Temporal worker 为独立宿主层。不引入 coding-agent、TUI、pi-mcp、codemode、pi-durable。
 - `reference` 仅用于隔离的生命周期演练，不是 Node/Pi + work-egress 的架构替代或生产切换方案；不得在业务队列中用演练产物替代真实任务结果。实施状态见 Work 项目文档。
 - 落实[跨语言执行契约](#跨语言执行契约)：Pi Agent + Driver + GatewayStreamAdapter + canonical state；使用受控提交屏障保存待请求/真实回执/检查点，禁止裸事件流或 `continue()` 充当防重放保证。端云共用核心契约，宿主传输不侵入模型循环。
-- 父进程监督每 Run 独占的短寿命子进程，验证 IPC 版本/大小/身份；设池并发、单 Run 时间与资源限额、子进程退出/强制回收及孤儿清理机制。不能声称进程 OOM 只影响本 Run，必须测池 Pod OOM/驱逐及多 Run 恢复。具体并发/预算、准入先于 claim、回收、drain 与滚动升级提案见 [D4 §6.5](work-r0a-runtime-egress-design-2026-10-25.md#65-f0-r6-池并发资源预算与回收设计已签)，真实负例见 [D4 §6.6](work-r0a-runtime-egress-design-2026-10-25.md#66-f0-r6-负例验收合同)；无委派 cgroup 子树时并发降为 1 或回到每 Run Pod，不得为资源隔离给池加特权。
+- 父进程监督每 Run 独占的短寿命子进程，验证 IPC 版本/大小/身份；设池并发、单 Run 时间与资源限额、子进程退出/强制回收及孤儿清理机制。不能声称进程 OOM 只影响本 Run，必须测池 Pod OOM/驱逐及多 Run 恢复。具体并发/预算、准入先于 claim、回收、drain 与滚动升级提案见 [D4 §6.5](../work-r0a-runtime-egress-design-2026-10-25.md#65-f0-r6-池并发资源预算与回收设计已签)，真实负例见 [D4 §6.6](../work-r0a-runtime-egress-design-2026-10-25.md#66-f0-r6-负例验收合同)；无委派 cgroup 子树时并发降为 1 或回到每 Run Pod，不得为资源隔离给池加特权。
 - WorkAdapter 保留七方法接口，但模型可调用能力由签收 profile 决定。降级只开放 `model_call`，模板装配、结果/检查点存储是受控基础设施职责，不能经工具名单绕开 D4-12；额外工具未签不启用。
 - 出口校验来源标签、秘密、片段身份、Operation/dispatch attempt/fence/hash；只有有效许可可发送，不接受客户端自报授权。模型请求、HTTP SDK 和流重连均禁用派发后自动重试。
 - Content Store 对象键绑定逻辑对象/版本，使用条件写与存储围栏；同对象重放幂等，不能覆盖其他版本或他人写入。内容引用、生命周期、孤儿处理、scoped 权限及 canonical state 恢复必须实测；本地路径适配须做规范化和包含性验证。
@@ -283,7 +283,7 @@ RB-05 **只收窄指定基础设施演练，不缩小试点放行标准**。U3/C
 
 替代门禁通过前不得删除原断言；确需删除的断言须注明产品/契约废弃依据及替代覆盖，不能以删除失败测试达成通过。Phase 0 冻结“需求/不变量 → 测试资产 → 新运行器/环境 → 证据”的映射，Phase 1–7 逐项复验。
 
-本计划不声明任何阶段已完成；进展与测试数字只在[项目文档](work-project.md)维护。文档修订通过不等于设计重签完成，也不等于运行时、安全或试点准入通过。
+本计划不声明任何阶段已完成；进展与测试数字只在[项目文档](../work-project.md)维护。文档修订通过不等于设计重签完成，也不等于运行时、安全或试点准入通过。
 
 ## 更新记录
 

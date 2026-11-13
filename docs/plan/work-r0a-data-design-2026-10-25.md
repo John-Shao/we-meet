@@ -225,7 +225,7 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 
 ### 5.4 F0-R2 片段所有权与发送去重增量（设计已签，未迁移）
 
-本节是[重做计划](work-r0a-architecture-rebuild-plan-2026-10-28.md)的增量设计，已于 2026-10-28 随 F0-R2 设计签收，但**不是现有数据库能力**，也不修改已应用 SQL。现有 `operation` 只有 attempt/consumer/receipt_ref；最终 `claim_dispatch` 对同 consumer 可重放返回原 attempt（`r0a_schema.sql` 的最终定义），这只恢复领域许可，**不授权重复发送**。现有 `resume_run` 不提升 fence，不能单独隔离旧子进程。`finish_operation` 的同结果短路不核对 receipt_ref，`reconcile_operation` 对 reconciled 直接返回；新收尾入口必须在调用它们前验证唯一回执绑定，必要修订随 D1 单独签。
+本节是[重做计划](_archive/work-r0a-architecture-rebuild-plan-2026-10-28.md)的增量设计，已于 2026-10-28 随 F0-R2 设计签收，但**不是现有数据库能力**，也不修改已应用 SQL。现有 `operation` 只有 attempt/consumer/receipt_ref；最终 `claim_dispatch` 对同 consumer 可重放返回原 attempt（`r0a_schema.sql` 的最终定义），这只恢复领域许可，**不授权重复发送**。现有 `resume_run` 不提升 fence，不能单独隔离旧子进程。`finish_operation` 的同结果短路不核对 receipt_ref，`reconcile_operation` 对 reconciled 直接返回；新收尾入口必须在调用它们前验证唯一回执绑定，必要修订随 D1 单独签。
 
 #### 持久对象与约束
 

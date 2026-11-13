@@ -240,7 +240,7 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 
 ## 8. D2' 公开契约重签（2026-10-28 设计签收）
 
-本节是[重做计划](work-r0a-architecture-rebuild-plan-2026-10-28.md) Phase 0 第 1、5 项的设计签收记录。上文 §1–§7 的 29 path / 33 operation 属 `r0a-openapi-v1`，按 RB-03 **不作为必须保留的契约**；它仍是错误语义、幂等与投影口径的来源，不能被当成新契约的实现证据。**OpenAPI、生成客户端与前端调用层尚未重建**，`surfaceFrozen` 保持 `false`。
+本节是[重做计划](_archive/work-r0a-architecture-rebuild-plan-2026-10-28.md) Phase 0 第 1、5 项的设计签收记录。上文 §1–§7 的 29 path / 33 operation 属 `r0a-openapi-v1`，按 RB-03 **不作为必须保留的契约**；它仍是错误语义、幂等与投影口径的来源，不能被当成新契约的实现证据。**OpenAPI、生成客户端与前端调用层尚未重建**，`surfaceFrozen` 保持 `false`。
 
 ### 8.0 签收结论与条件
 

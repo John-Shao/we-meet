@@ -47,7 +47,7 @@
 | **本文** | Work 项目资产、进展、问题、下一步 |
 | [R0a 实施就绪包](_archive/work-r0a-implementation-readiness-2026-10-26.md) | W4/DR4：完成审计、E1–E8 估算、L1–L8 测试矩阵、U1–U4、30 个 blocking 中 18 个未关闭、排期与 DR 议程 |
 | [R0a 实施计划](_archive/work-r0a-implementation-plan-2026-10-27.md) | 开发实施步骤：E1–E8 文件清单与验收；E1 迁移顺序与角色前置、CI 落点（work-r0a-gates）、凭证加密、六类后台作业归属；2026-10-27 复审 3 P0 / 6 P1 / 12 P2 已修 |
-| [R0a 架构对齐重做计划](work-r0a-architecture-rebuild-plan-2026-10-28.md) | 按 A13/§3 的 Node/Pi 形态重做 Runtime 与 API 层：RB-01–RB-06 决策、保留/废止清单、Phase 0–7 步骤、必须继承的缺陷结论 |
+| [R0a 架构对齐重做计划](_archive/work-r0a-architecture-rebuild-plan-2026-10-28.md) | 按 A13/§3 的 Node/Pi 形态重做 Runtime 与 API 层：RB-01–RB-06 决策、保留/废止清单、Phase 0–7 步骤、必须继承的缺陷结论 |
 | [Host v2 wire 决策](work-r0a-host-wire-decision-2026-10-28.md) | HW-01–HW-05：内网 mTLS SessionVerifier、Go HMAC CSRF、批量分页 OrgDiscovery、专用 Work Host CA、`sessionid` 勘误与 session key 哈希；John 已签、Lily 对 HW-01–04 复核通过（HW-05 细节待复核，2026-10-28） |
 | [Bootstrap v1 契约](assets/work-r0a-rebuild-2026-10-28/bootstrap-v1.json) | `work-bootstrap-v1`：旧 v1 八字段、R0a 常量、Go HMAC `work_csrf`；仅 bootstrap 冻结，D2' 全局 `surfaceFrozen` 仍为 false |
 | [R0a 迁移 Runbook](_archive/work-r0a-migration-runbook.md) | E1 正向迁移、回滚（保留角色）、前置检查、故障排查与 CI 闸门 |
@@ -274,7 +274,7 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 - clean-slate 重做 Work，不建 we-work；产品/UX/架构不以当前实现为约束。
 - **Bootstrap v1（2026-10-28 冻结）**：沿用旧 v1 八字段；`org` 从 Work 投影读，`csrf_token` 改由 Go HMAC 签发，R0a 常量不变；只冻结 bootstrap，D2' 全局 `surfaceFrozen` 仍为 false。详见 [bootstrap-v1.json](assets/work-r0a-rebuild-2026-10-28/bootstrap-v1.json)。
 - **Host v2 wire（2026-10-28 已签）**：HW-01 内网 mTLS + 原始 `sessionid`（2026-10-28 勘误，`we_meet_session` 作废）；HW-02 Go 签发 HMAC CSRF + `work_csrf` cookie；HW-03 批量分页 + revision 游标；HW-04 专用 Work Host CA + 客户端证书、内网端点。详见[决策单](work-r0a-host-wire-decision-2026-10-28.md)；Lily 对 HW-01–04 安全复核通过（2026-10-28；HW-05 细节待复核），真实 Host/mTLS 未接通。
-- **RB-06（2026-10-28）**：不拆仓；新 Go/Node 控制面、Runtime 与跨语言契约集中到 `src/work/` 独立子树，依赖单向指向 Host HTTP 合同；前端 R0a 仍留在 meet 应用。可拆验收与再拆触发条件见[重做计划](work-r0a-architecture-rebuild-plan-2026-10-28.md#rb-06-的仓库与模块边界)。
+- **RB-06（2026-10-28）**：不拆仓；新 Go/Node 控制面、Runtime 与跨语言契约集中到 `src/work/` 独立子树，依赖单向指向 Host HTTP 合同；前端 R0a 仍留在 meet 应用。可拆验收与再拆触发条件见[重做计划](_archive/work-r0a-architecture-rebuild-plan-2026-10-28.md#rb-06-的仓库与模块边界)。
 - R0a 仅云端文本任务；本机、连接器、项目、远程设备不在 R0a。
 - **RB-02（2026-10-28 复议）**：选择常驻 Node 池 Pod + 每 Run 独占子进程，Go 唯一 RunWorkflow、Node Activity worker；选型不等于安全准入。下述历史 D-05「每 Run 一 Pod」的受影响条款已随 D4 F0-R1–R6 于 2026-10-28 完成设计签收（R4/R5 Lily 已复核通过）；设计签收不等于安全准入，上线仍须真实隔离/网络/资源证据，`sandboxProof=false` 不变。
 - 错误码：构建期生效的目录是 `src/work/contracts/error-codes.json`，2026-11-01 起为 **`r0b-governance-v1`**（52 公开码／118 条 `db_exception_map`；随 R0b 治理增量登记 `cursor_advance_not_allowed` 与 `governance_revision_conflict`，`retryable` 仍仅 5xx/429；`docs/plan/assets/work-r0a-design-2026-10-25/error-codes.json` 是冻结设计副本，仍是 `r0a-errors-v3`，不参与构建）。**"所有 SQL 码必须映射"这句此前只对 R0a 草案成立**：`internal/apierr/raise_coverage_test.go` 现在扫真实迁移链，把 0003–0016 遗留的 **66 个未登记 RAISE 码**钉成一份只准缩短的欠账清单（新增加量再漏一个即失败；已登记的码若补上映射，必须同时从清单删除，否则测试失败）。这些码今天靠 SQLSTATE 兜底（23514／22023→400 `invalid_request`，其余→503 `service_degraded`），逐个按语义改映射会改动 `/work/v1` 已发布响应，属单独决策，不随 R0b 增量顺手做。
@@ -292,7 +292,7 @@ PR #8（DR0/DR1 签收单与三套价目快照）已于 2026-10-26 合并进 `al
 
 ### 4.5 候选设计修订与验收证据
 
-2026-10-29，John 同意将“单实例 DB 直读 SSE”和“systemd 目录同步”作为候选设计修订，先补验收证据再决定正式采纳。**本次授权是候选登记与证据核对，不是架构豁免、安全复核或试点放行**；不改变 Node/Pi、受控出口、凭据隔离及持久恢复要求。验收合同唯一入口为 [D3 EX-SSE](work-r0a-orchestration-design-2026-10-25.md#101-ex-sse单实例-db-直读-sse候选设计修订) / [EX-DIR](work-r0a-orchestration-design-2026-10-25.md#116-ex-dir单机-systemd-目录同步候选设计修订)，实施顺序见[重做计划](work-r0a-architecture-rebuild-plan-2026-10-28.md#局部候选修订事件传输与目录调度)。
+2026-10-29，John 同意将“单实例 DB 直读 SSE”和“systemd 目录同步”作为候选设计修订，先补验收证据再决定正式采纳。**本次授权是候选登记与证据核对，不是架构豁免、安全复核或试点放行**；不改变 Node/Pi、受控出口、凭据隔离及持久恢复要求。验收合同唯一入口为 [D3 EX-SSE](work-r0a-orchestration-design-2026-10-25.md#101-ex-sse单实例-db-直读-sse候选设计修订) / [EX-DIR](work-r0a-orchestration-design-2026-10-25.md#116-ex-dir单机-systemd-目录同步候选设计修订)，实施顺序见[重做计划](_archive/work-r0a-architecture-rebuild-plan-2026-10-28.md#局部候选修订事件传输与目录调度)。
 
 | 候选 | 状态与已获证据 | 未通过的采纳前置 | 责任与决定 |
 |---|---|---|---|

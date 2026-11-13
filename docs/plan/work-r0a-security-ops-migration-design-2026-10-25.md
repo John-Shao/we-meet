@@ -186,7 +186,7 @@ node pilot-capacity-model.mjs
 
 ### 7.5 迁移台账接管与切换合同（2026-10-28 设计签收）
 
-本节是[重做计划](work-r0a-architecture-rebuild-plan-2026-10-28.md) Phase 0 第 6 项的设计签收记录（John 主签，Lily 于 2026-10-28 复核通过，未附加条件；解除复核前不实施限制，接受漂移即中止、周期可能拉长的代价），**不是已执行的接管，也没有演练记录**。随签条件：**不提供强制接管通道**——发现任何对象/权限/校验和漂移即停下对齐，不允许工单批准的强行 stamp，也不提供破坏性回滚。资产：[migration-takeover.policy.json](assets/work-r0a-rebuild-2026-10-28/migration-takeover.policy.json) + [模型](assets/work-r0a-rebuild-2026-10-28/migration-takeover.model.mjs) + [测试](assets/work-r0a-rebuild-2026-10-28/migration-takeover.test.mjs)；模型不连数据库、不执行 SQL，也不证明任何真实库可被接管。
+本节是[重做计划](_archive/work-r0a-architecture-rebuild-plan-2026-10-28.md) Phase 0 第 6 项的设计签收记录（John 主签，Lily 于 2026-10-28 复核通过，未附加条件；解除复核前不实施限制，接受漂移即中止、周期可能拉长的代价），**不是已执行的接管，也没有演练记录**。随签条件：**不提供强制接管通道**——发现任何对象/权限/校验和漂移即停下对齐，不允许工单批准的强行 stamp，也不提供破坏性回滚。资产：[migration-takeover.policy.json](assets/work-r0a-rebuild-2026-10-28/migration-takeover.policy.json) + [模型](assets/work-r0a-rebuild-2026-10-28/migration-takeover.model.mjs) + [测试](assets/work-r0a-rebuild-2026-10-28/migration-takeover.test.mjs)；模型不连数据库、不执行 SQL，也不证明任何真实库可被接管。
 
 #### 单写入者与前置条件
 

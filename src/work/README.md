@@ -1,7 +1,7 @@
 # Work control plane (R0a rebuild)
 
 This subtree is the Go/Node Work implementation described by
-[the R0a rebuild plan](../../docs/plan/work-r0a-architecture-rebuild-plan-2026-10-28.md).
+[the R0a rebuild plan](../../docs/plan/_archive/work-r0a-architecture-rebuild-plan-2026-10-28.md).
 It must not import `src/backend/work` (the legacy Django implementation) or
 `src/backend/core`; the only Host integration is the versioned HTTP contract.
 
