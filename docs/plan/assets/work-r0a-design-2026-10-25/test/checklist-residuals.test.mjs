@@ -131,7 +131,7 @@ test('the sentinel is used verbatim so the count means what it says', () => {
 });
 
 test('the doc points at a take command that prints both residual fields', () => {
-  const doc = readFileSync(join(REPO, 'docs', 'work', 'work-project.md'), 'utf8');
+  const doc = readFileSync(join(REPO, 'docs', 'work', 'status.md'), 'utf8');
   // What is pinned is the command, not a copied number: a prose reading rots the moment an item
   // moves, and the 2026-11-13 rewrite of §5.2 exists to stop exactly that.
   const cmd = doc.match(/node --input-type=module -e "[^\n]*goNoGo\(c,\s*s\)[^\n]*/);

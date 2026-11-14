@@ -7,7 +7,7 @@
 
 ### 1.1 权威与范围
 
-以已完整阅读的 [R0b 架构](work-r0b-architecture-2026-10-30.md) §1/B01–B10、§3 不变量和 §4 决策为本轮权威；承接 [产品](work-product-design-2026-10-25.md) §19.2/§19.10 及 [UX](work-ux-design-r0-2026-10-25.md) §5.2/§6.5–§6.7/§8。
+以已完整阅读的 [R0b 架构](work-r0b-architecture-2026-10-30.md) §1/B01–B10、§3 不变量和 §4 决策为本轮权威；承接 [产品](../archive/design-baseline/work-product-design-2026-10-25.md) §19.2/§19.10 及 [UX](../archive/design-baseline/work-ux-design-r0-2026-10-25.md) §5.2/§6.5–§6.7/§8。
 细节分工：[device](work-r0b-device-design-2026-10-30.md) §2身份、§3租约、§4工具、§5模型外发、§6日志、§7成果；[control](work-r0b-control-design-2026-10-30.md) §1合同、§2治理权限、§3Host写、§4数据命令、§5审批、§6撤权编排、§7成果同步、§8配额审计。本文引用文件，不假定兄弟文档锚点。
 继承 [D-08](../archive/work-r0a-provider-account-metering-decision-2026-10-26.md) 的客户自带账号与 token 计量，以及 [Host wire](work-r0a-host-wire-decision-2026-10-28.md) 的身份、成员和席位权威；早期 UX 的“换设备继续”“金额预算”“移动审批”“管理员天然写权”不作为实现依据。
 

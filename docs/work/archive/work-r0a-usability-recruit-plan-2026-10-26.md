@@ -6,7 +6,7 @@
 >
 > 发出日期：2026-10-26 ｜ 名单锁定：**2026-11-16** ｜ 执行：11-20～11-24 ｜ 报告：**2026-11-27** ｜ 复核：DR3 2026-12-01
 > 负责：产品 + 设计执行；运营给名单与档期；前端/后端按修复清单回写
-> 关联：[D5 §11.2 R0a 可用性任务集](../design/work-r0a-frontend-design-2026-10-25.md)、[UX §13 研究执行包](../design/work-ux-design-r0-2026-10-25.md)、[就绪包 §6.1 U1 / L8](work-r0a-implementation-readiness-2026-10-26.md)
+> 关联：[D5 §11.2 R0a 可用性任务集](design-baseline/work-r0a-frontend-design-2026-10-25.md)、[UX §13 研究执行包](design-baseline/work-ux-design-r0-2026-10-25.md)、[就绪包 §6.1 U1 / L8](work-r0a-implementation-readiness-2026-10-26.md)
 > 阻塞项：C25（todo）、U1（开放）、§0 #5；下游：DR3 签收、DR4 实施就绪
 
 ## 1. 先纠正一件事：判定任务集用 D5，不用 UX §13.2
@@ -60,7 +60,7 @@ T2/T3（本机、审批）保留为 R0b 前瞻观察项：**记录但不计入 U
 **知情同意要点（四条，逐条口头确认再开始）**：
 1. 录屏 + 观察笔记；记录只含任务、时间、错误、原话，**不记录业务正文**；使用匿名编号。
 2. 数据仅用于本次研究与 R0a 改进；不进入模型训练，不写入产品日志（与 D6 S14 同一口径）。
-3. 可随时中止、可要求删除自己的记录；删除请求走[删除 Runbook](../design/work-r0a-pilot-operations-runbook-2026-10-26.md)同一路径。
+3. 可随时中止、可要求删除自己的记录；删除请求走[删除 Runbook](../ops/work-r0a-pilot-operations-runbook-2026-10-26.md)同一路径。
 4. 我们不提供真实客户数据；所有材料由参与者自备或主持人提供的虚构样本。
 
 ## 5. 环境与分工
@@ -153,7 +153,7 @@ T2/T3（本机、审批）保留为 R0b 前瞻观察项：**记录但不计入 U
 
 **C24 组织接入的前置清单（承诺与开通分开）**：
 
-1. **承诺件（外部）**：每家企业一份书面确认，至少覆盖——试点范围与周期（声明的 35 天备份留存＋删除路径，见 [试点运行手册](../design/work-r0a-pilot-operations-runbook-2026-10-26.md) 第 33 行）、管理员与席位数量、数据不出境的边界复述、支持联系人、退出与数据删除方式。形式可以是邮件确认/LOI/试点协议，三者任选，但必须可归档。
+1. **承诺件（外部）**：每家企业一份书面确认，至少覆盖——试点范围与周期（声明的 35 天备份留存＋删除路径，见 [试点运行手册](../ops/work-r0a-pilot-operations-runbook-2026-10-26.md) 第 33 行）、管理员与席位数量、数据不出境的边界复述、支持联系人、退出与数据删除方式。形式可以是邮件确认/LOI/试点协议，三者任选，但必须可归档。
 2. **开通（运维）**：租户开通/停用**没有** HTTP 端点或管理台写面，唯一入口是 runbook §5.22 的 `work.apply_execution_entitlement` SQL（#59 已于 2026-11-04 按 kill switch 先例写进 runbook；`EXECUTE` 仅授 `work_operator`，新租户 entitlement 懒建、从 revision 0 起，同 `client_request_id` 换载荷会 `idempotency_key_conflict`）。开通前需要：org id、管理员 subject id、席位上限、工单号。
 3. **登记**：仓库只写匿名组织代号与席位/角色；真名、联系方式、公司全名只留在运营受控表。
 4. **不要把“Host 报 active”当成已开通**：`execution_enabled` 不会随 Host 状态自动翻转（runbook §5.22 与 876 行现读），开通必须显式 Apply 一次。
@@ -184,4 +184,4 @@ T2/T3（本机、审批）保留为 R0b 前瞻观察项：**记录但不计入 U
 > 谢谢！
 > <发件人>
 
-**开通动作（运维，收到"确认"后执行）**：按 [运维 runbook §5.22](../design/work-operations-runbook-2026-10-25.md) 的 `work.apply_execution_entitlement` SQL 执行（`EXECUTE` 仅授 `work_operator`；新租户 entitlement 懒建、从 revision 0 起；同一 `client_request_id` 换载荷会 `idempotency_key_conflict`）；`execution_enabled` 不会随 Host 状态自动翻转，必须显式 Apply 一次。开通后回读 `SELECT status, execution_enabled, operator_suspended, access_epoch FROM work.org WHERE id = '<org>'` 并把结果归档为 C24 的接入证据。
+**开通动作（运维，收到"确认"后执行）**：按 [运维 runbook §5.22](../ops/work-operations-runbook-2026-10-25.md) 的 `work.apply_execution_entitlement` SQL 执行（`EXECUTE` 仅授 `work_operator`；新租户 entitlement 懒建、从 revision 0 起；同一 `client_request_id` 换载荷会 `idempotency_key_conflict`）；`execution_enabled` 不会随 Host 状态自动翻转，必须显式 Apply 一次。开通后回读 `SELECT status, execution_enabled, operator_suspended, access_epoch FROM work.org WHERE id = '<org>'` 并把结果归档为 C24 的接入证据。

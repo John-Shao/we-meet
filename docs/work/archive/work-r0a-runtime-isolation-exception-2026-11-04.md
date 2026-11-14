@@ -3,7 +3,7 @@
 # R0a 运行时隔离例外单（C04 / DR2 S1=A）
 
 日期：2026-11-04 ｜ 提出：Qoder agent（DR2 评审发现 1／10）｜ 裁定：**S1=A 接受现实＋书面例外**（John Shao，单选）
-关联：[DR2 评审记录](work-r0a-dr2-d4-review-2026-11-04.md)、[D4 设计 §6](../design/work-r0a-runtime-egress-design-2026-10-25.md)、C14 已签降级、C09 集成项
+关联：[DR2 评审记录](work-r0a-dr2-d4-review-2026-11-04.md)、[D4 设计 §6](design-baseline/work-r0a-runtime-egress-design-2026-10-25.md)、C14 已签降级、C09 集成项
 
 ## 1. 本条例外声明的事实
 

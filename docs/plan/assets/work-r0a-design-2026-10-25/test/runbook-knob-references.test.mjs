@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const PLAN_DIR = join(HERE, '..', '..', '..');
 const WORK_ROOT = join(PLAN_DIR, '..', '..', 'src', 'work');
-const RUNBOOK = join(PLAN_DIR, '..', 'work', 'design', 'work-operations-runbook-2026-10-25.md');
+const RUNBOOK = join(PLAN_DIR, '..', 'work', 'ops', 'work-operations-runbook-2026-10-25.md');
 const DEPLOY_DIR = join(WORK_ROOT, 'deploy', 'ecs');
 const CMD_DIR = join(WORK_ROOT, 'cmd');
 

@@ -2,7 +2,7 @@
 
 > **代码、迁移、契约和测试是详细设计的权威来源；文档不复制实现细节，只保留架构决策、边界、操作约束和当前状态。**
 >
-> 本目录是 Work 文档的唯一阅读入口。历史快照在 [archive/](archive/README.md)，被 CI 门禁钉住的活设计文档在 [design/](design/)。
+> 本目录是 Work 文档的唯一阅读入口。已实现设计的基线快照与历史台账在 [archive/](archive/README.md)；未落地需评审的 R0b 设计与安全边界决策在 [design/](design/)；运维参考（runbook/drill/glossary）在 [ops/](ops/)。CI 保护机器契约与代码行为，文档侧只做漂移轻检查（链接/锚点/引用存在性、status 生成一致性）。
 
 ## Work 是什么
 
@@ -10,7 +10,7 @@ Work 是 we-meet 的 AI 任务执行模块：用户写一个目标（Composer）
 
 ## 当前范围与状态
 
-当前状态以 [status.json](status.json) 为机器可读来源，[status.md](status.md) 渲染它。一句话：**R0a 已实现并部署试点环境；R0b 设计完成自查、外部审计未执行、实现部分开始；不允许真实客户数据，试点尚未开始。**
+当前状态由 `scripts/work-status.mjs` 生成 [status.json](status.json) 与 [status.md](status.md)：生产/决策事实记录在 [status.inputs.json](status.inputs.json)，动态试点门禁与仓库迁移 tip 由脚本现算（CI 校验生成无漂移）。一句话：**R0a 已实现并部署试点环境；R0b 设计完成自查、外部审计未执行、实现部分开始；不允许真实客户数据，试点尚未开始。**
 
 | 阶段 | 范围 | 状态 |
 |---|---|---|
@@ -28,11 +28,12 @@ R0a **不含**：本机执行、连接器、项目/链式、手工审批 UI（�
 | [architecture.md](architecture.md) | 稳定架构：模块边界、领域对象、信任边界、关键不变量 |
 | [security.md](security.md) | 安全属性、信任边界、当前验证状态、客户数据准入 |
 | [operations.md](operations.md) | 可操作运维步骤：部署、迁移、备份、回滚、告警、go/no-go |
-| [status.json](status.json) / [status.md](status.md) | 当前状态（机器可读 + 渲染） |
+| [status.json](status.json) / [status.md](status.md) | 当前状态（`scripts/work-status.mjs` 生成；事实输入 [status.inputs.json](status.inputs.json)） |
 | [decisions/](decisions/README.md) | 架构决策记录（ADR）索引 |
-| [design/](design/) | 活设计文档（D1–D6、R0b 设计、runbook 等），由 CI 门禁钉住与代码一致 |
+| [design/](design/) | 未落地 R0b 设计（需评审）＋安全边界决策（host-wire/threat-model）；已实现 R0a 设计基线见 [archive/design-baseline/](archive/design-baseline/) |
+| [ops/](ops/) | 运维参考长文（runbook/drill-checklist/glossary/pilot-ops）；[operations.md](operations.md) 是其精简操作入口 |
 | [archive/](archive/README.md) | 历史快照，只读追溯，不参与当前设计阅读 |
-| [work-project.md](work-project.md) | 项目状态桩：阶段、阻断项、开放裁定、入口链接 |
+| [work-project.md](work-project.md) | 项目纯索引：状态指向 status，开放裁定指向 decisions/open-rulings |
 
 ## 服务与目录结构
 
@@ -77,14 +78,17 @@ Temporal 切片需要 Docker Compose / Temporal dev（Windows 主机不能直接
 ## 如何运行测试 / 门禁
 
 ```bash
-# 契约 / 类型 / 文档漂移门禁（222＋38＋24，自动发现 test/*.mjs）
+# 契约 / 类型 / 文档漂移门禁（231＋38＋24，自动发现 test/*.mjs；含 status 生成漂移校验）
 node docs/plan/assets/work-r0a-design-2026-10-25/scripts/ci-contract.mjs
 
 # ops / pilot / telemetry（34）
 (cd docs/plan/assets/work-r0a-ops-2026-10-25 && node --test ops-model.test.mjs telemetry.test.mjs pilot-ops.test.mjs)
 
+# 重新生成 status.json / status.md（改 status.inputs.json 后跑）
+node scripts/work-status.mjs
+
 # 试点 go/no-go 现读
-# 命令见 status.json 的 pilot_gate_command 字段
+# 命令见 status.json 的 pilot_gate.command 字段
 ```
 
 CI 见 `.github/workflows/work-r0a-gates.yml`（8 个 job）与 `work-r0a-required.yml`，仅在 PR 或 `aliyun-dev` push 且命中 Work 路径时触发。

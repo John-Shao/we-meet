@@ -37,15 +37,15 @@ python -c "import yaml; d=yaml.safe_load(open('fault-matrix.yaml', encoding='utf
 ## 未验证
 
 - 未做 S1 拓扑/升级/DB-Temporal 偏移、outbox backlog/kill switch/org suspend 演练。
-- D3-N02–N05 的**数据库侧交错**已用多连接竞态脚本实测（导出去重与租约接管、一次性凭证单次兑换、共享引用只粉碎一次、投影乱序/重复投递——其中投影丢更新是这批竞态测出并修复的），见 [D1 资产 README](../work-r0a-design-2026-10-25/README.md) 与 [D1 §6.1](../../../work/design/work-r0a-data-design-2026-10-25.md)。
+- D3-N02–N05 的**数据库侧交错**已用多连接竞态脚本实测（导出去重与租约接管、一次性凭证单次兑换、共享引用只粉碎一次、投影乱序/重复投递——其中投影丢更新是这批竞态测出并修复的），见 [D1 资产 README](../work-r0a-design-2026-10-25/README.md) 与 [D1 §6.1](../../../work/archive/design-baseline/work-r0a-data-design-2026-10-25.md)。
 - 仍未执行：进程被杀的真实窗口（D3-N01 与 D3-N03 的崩溃点）、义务作业在 kill switch/组织停用下继续运行（D3-N06）、真实 worker 多副本与跨库时钟偏差下的租约接管——契约只是类型与预期状态，待实施验证（C20/C22）。
 - 参考纵切使用 faux model + in-memory Temporal；未接真实 provider、sandbox、KMS 或生产 Temporal。
 - 真实供应商回执查询、history 驻留、worker 升级/回滚、SSE 多实例均未验证。
 
 ## 与其他文档
 
-- D3 设计说明：[../../work-r0a-orchestration-design-2026-10-25.md](../../../work/design/work-r0a-orchestration-design-2026-10-25.md)
-- R0a 详细设计计划：[../../work-r0a-detailed-design-plan-2026-10-25.md](../../../work/design/work-r0a-detailed-design-plan-2026-10-25.md)
-- D1 数据设计：[../../work-r0a-data-design-2026-10-25.md](../../../work/design/work-r0a-data-design-2026-10-25.md)
-- D2 API 设计：[../../work-r0a-api-design-2026-10-25.md](../../../work/design/work-r0a-api-design-2026-10-25.md)
-- 架构 §7/§21：[../../work-system-architecture-2026-10-25.md](../../../work/design/work-system-architecture-2026-10-25.md)
+- D3 设计说明：[../../work-r0a-orchestration-design-2026-10-25.md](../../../work/archive/design-baseline/work-r0a-orchestration-design-2026-10-25.md)
+- R0a 详细设计计划：[../../work-r0a-detailed-design-plan-2026-10-25.md](../../../work/archive/design-baseline/work-r0a-detailed-design-plan-2026-10-25.md)
+- D1 数据设计：[../../work-r0a-data-design-2026-10-25.md](../../../work/archive/design-baseline/work-r0a-data-design-2026-10-25.md)
+- D2 API 设计：[../../work-r0a-api-design-2026-10-25.md](../../../work/archive/design-baseline/work-r0a-api-design-2026-10-25.md)
+- 架构 §7/§21：[../../work-system-architecture-2026-10-25.md](../../../work/archive/design-baseline/work-system-architecture-2026-10-25.md)

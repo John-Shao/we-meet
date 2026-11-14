@@ -1,3 +1,5 @@
+> 已归档（2026-11-14）。本文件是已实现 R0a 设计的基线快照，原文保留；详细设计以代码、迁移、契约、测试为权威，当前架构/安全/运维见 [docs/work/README.md](../../README.md)。
+
 # WeMeet 工作系统架构设计
 
 > 版本：v2.10（clean-slate 目标架构；在 v2.9 基础上新增 A14/ADR-0021：Work 作为可剥离独立产品的边界）
@@ -6,11 +8,11 @@
 >
 > 状态：架构提案，待评审与技术验证；不是当前系统实现说明，也不是上线证明。
 >
-> R0b 阶段实施细化见 [R0b 架构设计](work-r0b-architecture-2026-10-30.md) 及其详细设计包；本文仍是长期目标。R0b 的 API/设备版本、Host 权威写合同、权限委派和 token 治理以该增量及 R0a 已签 D-08 为准；历史实验状态不自动成为 R0b 准入证据。
+> R0b 阶段实施细化见 [R0b 架构设计](../../design/work-r0b-architecture-2026-10-30.md) 及其详细设计包；本文仍是长期目标。R0b 的 API/设备版本、Host 权威写合同、权限委派和 token 治理以该增量及 R0a 已签 D-08 为准；历史实验状态不自动成为 R0b 准入证据。
 >
 > 设计前提：**不考虑当前实现，不继承现有服务、数据库、接口、执行器、目录结构及部署方式。** 技术选择以产品目标、安全、可靠性和长期演进成本为依据。
 >
-> 需求基线：[产品设计](work-product-design-2026-10-25.md)、[R0 UX](work-ux-design-r0-2026-10-25.md)、[扩展 UX](work-ux-design-extensions-2026-10-25.md)。原型用于说明交互，不作为权限、计费或隔离机制的权威定义。
+> 需求基线：[产品设计](work-product-design-2026-10-25.md)、[R0 UX](work-ux-design-r0-2026-10-25.md)、[扩展 UX](../../design/work-ux-design-extensions-2026-10-25.md)。原型用于说明交互，不作为权限、计费或隔离机制的权威定义。
 >
 > 交付范围：目标架构、领域与部署边界、技术选型、数据模型、关键协议、执行流程、安全不变量、故障恢复、容量目标与阶段路线。详细 DDL/OpenAPI、供应商采购、部署配置和迁移方案另行交付。
 
@@ -68,7 +70,7 @@
 | A10 | 单写主 + 多可用区；区域写恢复要求同步灾备安全账本 | 不做多区域双写；安全记录不丢失优先于网络分区时可用性，缺乏同步保护时禁止自动跨域恢复写入 |
 | A11 | R1 单 Run 提示组合，R3 才启用确定性 DAG | 工作流引擎的存在不代表提前暴露产品链式能力 |
 | A12 | 按安全边界拆部署，按真实瓶颈拆服务 | R0 无需 Kafka、向量库、独立搜索集群和多 Agent 协作框架 |
-| A13 | 端云共用 Pi agent-core + Work 适配层，候选准入通过后落地 | 复用开源模型循环，不接管租户/审批/预算/恢复；主Runtime改为TypeScript/Node，见§3.2–§3.9。实施状态：R0a 首版以 Python Temporal Worker 落地，不符合本条，正按[R0a 架构对齐重做计划](../archive/work-r0a-architecture-rebuild-plan-2026-10-28.md)重做 |
+| A13 | 端云共用 Pi agent-core + Work 适配层，候选准入通过后落地 | 复用开源模型循环，不接管租户/审批/预算/恢复；主Runtime改为TypeScript/Node，见§3.2–§3.9。实施状态：R0a 首版以 Python Temporal Worker 落地，不符合本条，正按[R0a 架构对齐重做计划](../work-r0a-architecture-rebuild-plan-2026-10-28.md)重做 |
 | A14 | Work Core 与 WeMeet Host 通过端口/Connector 解耦，保留独立售卖选项 | 现在不拆仓/拆服务；R0a 做边界与适配器，R1 前做 stub-host 剥离演练；见 ADR-0021 |
 
 ### 0.2 选择标准
@@ -204,7 +206,7 @@ flowchart TB
 | Web UI | TypeScript + React；TanStack Query 管服务端状态 | 类型契约、复杂工作区和组件生态；不将服务端业务状态复制到多个 store |
 | 桌面壳 | Electron + 同一 Web UI | 跨端交互与 Web 共享；关闭 Node integration，开启 context isolation/sandbox |
 | 控制面/编排/网关 | Go；HTTP/JSON、内部 gRPC | 长连接、资源占用、并发与静态契约适合控制面；不用它承担模型生态适配 |
-| Agent Runtime | TypeScript/Node + Pi agent-core + Work Adapter，端云同核（实施中） | 可替换streamFn与全部工具；不引入完整coding-agent；会话恢复与治理由Work负责；§3.8准入门槛H01–H10/H12已执行，H11未触发。当前实现为 Python Temporal Worker + mock 模型网关，与本行不符，重做路径见[R0a 架构对齐重做计划](../archive/work-r0a-architecture-rebuild-plan-2026-10-28.md) |
+| Agent Runtime | TypeScript/Node + Pi agent-core + Work Adapter，端云同核（实施中） | 可替换streamFn与全部工具；不引入完整coding-agent；会话恢复与治理由Work负责；§3.8准入门槛H01–H10/H12已执行，H11未触发。当前实现为 Python Temporal Worker + mock 模型网关，与本行不符，重做路径见[R0a 架构对齐重做计划](../work-r0a-architecture-rebuild-plan-2026-10-28.md) |
 | 本机 Agent / ToolBroker | Rust 守护进程 + 独立受限Node sidecar | OS 文件句柄、进程与协议安全；Rust/Node均不是沙箱；不在Electron渲染层运行Agent |
 | 数据处理/转换工具 | Python等审核后的隔离工具进程 | 仅按工具需要引入，不作为默认端云Agent循环宿主 |
 | 持久编排 | Temporal，Go SDK | 审批等待、定时器、重放恢复、Worker 升级；承受独立运维与历史存储成本 |
@@ -239,7 +241,7 @@ Temporal 即使托管也必须满足元数据驻留；私有化必须随交付�
 | 条件备选（不进入默认实现） | OpenAI Agents SDK TypeScript，使用自定义Model/工具 | 只有触发§3.8定义的“首选失败”条件时才启动评估；不作为依赖、模块或并行运行时，不预先安装或适配 |
 | Python方案 | Pydantic AI core或OpenAI Agents SDK Python适合Python优先系统，但不作为本次第二套主Runtime | Python保留给数据解析/计算/转换工具，不因工具生态要求把云侧Harness另起一套 |
 
-v1.1中的Python主Runtime是未完成Harness调研时的架构候选；本次根据端云共享、Windows分发和可控模型/工具入口，主动调整为TS/Node，**不是因当前仓库已经使用某个执行器而复用**。R0a 首版实现与本结论相反地落在 Python Temporal Worker 上，该实现不构成对 Python 主Runtime 的追认，重做路径见[R0a 架构对齐重做计划](../archive/work-r0a-architecture-rebuild-plan-2026-10-28.md)。
+v1.1中的Python主Runtime是未完成Harness调研时的架构候选；本次根据端云共享、Windows分发和可控模型/工具入口，主动调整为TS/Node，**不是因当前仓库已经使用某个执行器而复用**。R0a 首版实现与本结论相反地落在 Python Temporal Worker 上，该实现不构成对 Python 主Runtime 的追认，重做路径见[R0a 架构对齐重做计划](../work-r0a-architecture-rebuild-plan-2026-10-28.md)。
 
 以下结论属于技术选型推荐，不是已安装、运行验证或生产批准；§3.8的硬性实验未通过不能上线。
 
@@ -365,7 +367,7 @@ Operation key由Work生成，例如`(run_id, turn_seq, model_request_seq)`和`(r
 
 ### 3.8 Harness 准入实验
 
-本轮完成源码/官方文档研究，并在仓库外实验目录安装了Pi 1.4.0核对导出API；H03–H05/H12以faux/mock模型执行，H02以qwen3.8-flash、deepseek-chat、doubao-seed-2-1-lite各执行3次真实流式请求，H01以161MB用户级安装包在模拟干净环境执行安装/签名/启动/卸载，H06在非管理员Windows上以AppContainer+Node permission model执行隔离对照，H07–H09以mock控制账本/端云适配/上下文场景执行，H10以真实Pi 1.3.0与1.4.0做跨版本恢复，H11因H03–H05通过而未触发；S1–S6已执行首轮（见§21.2）。故仍不宣称包体、延迟、内存、多供应商兼容或生产崩溃恢复已经达标。实验运行产物不进入仓库；可复现脚本副本见[assets/harness-lab](../../plan/assets/harness-lab/README.md)，不预装任何备选Harness。
+本轮完成源码/官方文档研究，并在仓库外实验目录安装了Pi 1.4.0核对导出API；H03–H05/H12以faux/mock模型执行，H02以qwen3.8-flash、deepseek-chat、doubao-seed-2-1-lite各执行3次真实流式请求，H01以161MB用户级安装包在模拟干净环境执行安装/签名/启动/卸载，H06在非管理员Windows上以AppContainer+Node permission model执行隔离对照，H07–H09以mock控制账本/端云适配/上下文场景执行，H10以真实Pi 1.3.0与1.4.0做跨版本恢复，H11因H03–H05通过而未触发；S1–S6已执行首轮（见§21.2）。故仍不宣称包体、延迟、内存、多供应商兼容或生产崩溃恢复已经达标。实验运行产物不进入仓库；可复现脚本副本见[assets/harness-lab](../../../plan/assets/harness-lab/README.md)，不预装任何备选Harness。
 
 证据边界：H01–H12 与 S1–S6 验证的对象是本节描述的 Node + Pi agent-core 形态，**不构成对仓库中任何已存在实现的准入依据**。R0a 现有的 Python Temporal Worker 从未参与这组实验，其准入须另立实验与签收。
 
@@ -477,13 +479,13 @@ Operation key由Work生成，例如`(run_id, turn_seq, model_request_seq)`和`(r
 
 **Host 端口**：`IdentityDirectory`（subject/org/membership/revocation）、`Entitlement`（seat/feature/quota）、`Notification`、`BillingExport`、`ConnectorProvider`。Work Core 只依赖端口；R0a 提供 WeMeet 适配器，独立产品可替换为 OIDC/IdP、目录、通知和计费服务。R0a 的 `we_meet_session` 只是认证适配器，核心不依赖 cookie 细节。
 
-端口形状已在 R0a 变成可执行契约：[host-ports.mjs](../../plan/assets/work-r0a-design-2026-10-25/host-ports.mjs) 声明方法清单与返回值校验（缺方法/多方法/缺字段/多余字段/枚举非法一律拒绝），[we-meet-host-adapter.mjs](../../plan/assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs) 把 P1-A 形状映射成 `work.sync_org_projection`/`work.sync_member_projection` 的投影载荷并在字段缺失时报 gap（不把 token 配额当席位或 cents 预算），[stub-host.mjs](../../plan/assets/work-r0a-design-2026-10-25/stub-host.mjs) 用本地数据实现同一组端口。R0a 数据层对应物：`work.org`/`work.member` 只有 `work_directory` 角色能经 `sync_*` 写入（修订号单调、跨组织拒绝、不覆盖 `operator_suspended`），管理读的席位统计/cents 账本/异步审计导出作业归 Work 所有（U2 方案 B）。校验见 [host-ports.test.mjs](../../plan/assets/work-r0a-design-2026-10-25/test/host-ports.test.mjs) 9/9，含静态边界检查（Work 运行面不 import 适配器、适配器不写 SQL）。
+端口形状已在 R0a 变成可执行契约：[host-ports.mjs](../../../plan/assets/work-r0a-design-2026-10-25/host-ports.mjs) 声明方法清单与返回值校验（缺方法/多方法/缺字段/多余字段/枚举非法一律拒绝），[we-meet-host-adapter.mjs](../../../plan/assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs) 把 P1-A 形状映射成 `work.sync_org_projection`/`work.sync_member_projection` 的投影载荷并在字段缺失时报 gap（不把 token 配额当席位或 cents 预算），[stub-host.mjs](../../../plan/assets/work-r0a-design-2026-10-25/stub-host.mjs) 用本地数据实现同一组端口。R0a 数据层对应物：`work.org`/`work.member` 只有 `work_directory` 角色能经 `sync_*` 写入（修订号单调、跨组织拒绝、不覆盖 `operator_suspended`），管理读的席位统计/cents 账本/异步审计导出作业归 Work 所有（U2 方案 B）。校验见 [host-ports.test.mjs](../../../plan/assets/work-r0a-design-2026-10-25/test/host-ports.test.mjs) 9/9，含静态边界检查（Work 运行面不 import 适配器、适配器不写 SQL）。
 
 **Connector 标准**：消息/文档/会议与外部 SaaS 使用同一 manifest/auth/scope/resource selector/限流/撤销/审计契约；内部系统不给特权旁路，不直连表。
 
 **部署**：Work API/worker/relay/egress/SSE、独立 DB/schema/角色、Temporal namespace、对象存储/KMS、管理只读控制台和前端壳可独立部署；初期可同集群，但角色、密钥、配额、租户缓存必须可分离。
 
-**验证**：R0a 做设计/依赖检查；R1 前做一次 stub-host 剥离演练（无 WeMeet 核心表）跑通 golden path；R4 独立售卖前再做独立部署、计费与品牌打包。R0a 不因此扩大功能范围。详见 [ADR-0021](../../adr/0021-work-standalone-product-boundary.md)。
+**验证**：R0a 做设计/依赖检查；R1 前做一次 stub-host 剥离演练（无 WeMeet 核心表）跑通 golden path；R4 独立售卖前再做独立部署、计费与品牌打包。R0a 不因此扩大功能范围。详见 [ADR-0021](../../../adr/0021-work-standalone-product-boundary.md)。
 
 ## 5. 数据模型与一致性
 
@@ -1066,7 +1068,7 @@ R3 Project承载brief、source refs、context versions、计划与任务引用�
 
 ## 15. API与事件契约
 
-以下路径为新设计草案，不声明仓库已有实现；采用 OpenAPI 3.1、JSON Schema 与版本化内部 Protobuf 落实。当前契约草案见[work-api-contracts-2026-10-25.md](../archive/work-api-contracts-2026-10-25.md)，资产目录见[assets/work-contracts-2026-10-25](../../plan/assets/work-contracts-2026-10-25/README.md)。
+以下路径为新设计草案，不声明仓库已有实现；采用 OpenAPI 3.1、JSON Schema 与版本化内部 Protobuf 落实。当前契约草案见[work-api-contracts-2026-10-25.md](../work-api-contracts-2026-10-25.md)，资产目录见[assets/work-contracts-2026-10-25](../../../plan/assets/work-contracts-2026-10-25/README.md)。
 
 ### 15.1 用户与管理API
 
@@ -1198,7 +1200,7 @@ R5b定时任务复用SubmitTask：触发实例有唯一occurrence_id，代表明
 | 供应链风险 | 固定镜像digest、签名、依赖扫描、受审核工具目录，用户技能不能执行安装脚本 |
 | 管理员越权看正文 | 治理与内容读取分权、显式break-glass审批与审计 |
 
-提示隔离和模型防注入能力不能形成绝对安全保证；安全来自模型之外的最小工具权限和实际执行约束。详细资产、信任边界、控制与供应商/价表核对见[威胁模型](work-threat-model-2026-10-25.md)。
+提示隔离和模型防注入能力不能形成绝对安全保证；安全来自模型之外的最小工具权限和实际执行约束。详细资产、信任边界、控制与供应商/价表核对见[威胁模型](../../design/work-threat-model-2026-10-25.md)。
 
 ### 17.2 数据分级
 
@@ -1257,7 +1259,7 @@ R5b定时任务复用SubmitTask：触发实例有唯一occurrence_id，代表明
 | Temporal历史、正文与分析投影 | 初期目标RPO≤5分钟；缺失正文/检查点显式标记，不得以再次收费生成来冒充恢复 |
 | 恢复服务时间 | 目标RTO≤60分钟，但恢复写入以账本完整、旧主隔离和权限核对完成为前提；正确性优先于时限 |
 
-区域灾备形态采用§18.2的同步灾备副本，代价是跨故障域提交延迟和分区时执行不可用。未声明灾备边界的试点/私有化不能承诺区域故障后自动恢复写入；只能在其声明的持久性故障边界内恢复，超出边界保持停止并人工核账。具体冻结/提升/账本核对/重开顺序见[运行手册](work-operations-runbook-2026-10-25.md)。
+区域灾备形态采用§18.2的同步灾备副本，代价是跨故障域提交延迟和分区时执行不可用。未声明灾备边界的试点/私有化不能承诺区域故障后自动恢复写入；只能在其声明的持久性故障边界内恢复，超出边界保持停止并人工核账。具体冻结/提升/账本核对/重开顺序见[运行手册](../../ops/work-operations-runbook-2026-10-25.md)。
 
 恢复流程：
 
@@ -1304,7 +1306,7 @@ Temporal和业务库不要求同一备份时间点；恢复器以安全账本为
 | 本机失联 | 租约建议30s，过期不再执行新动作；不保证远程外部请求被回滚 |
 | 恢复正确性 | 幂等重复投递不新建Run/收费操作；unknown无自动重发 |
 
-时间指标必须附流量、窗口和分位数；设计阶段不填写伪造“实测通过”。指标口径、告警和当前烟雾证据见[运行手册](work-operations-runbook-2026-10-25.md)。
+时间指标必须附流量、窗口和分位数；设计阶段不填写伪造“实测通过”。指标口径、告警和当前烟雾证据见[运行手册](../../ops/work-operations-runbook-2026-10-25.md)。
 
 ### 19.3 观测数据
 
@@ -1445,11 +1447,11 @@ R0a也需要最小策略和计量，不把安全控制放到R0b补；R0b补的�
 
 ### 22.2 架构评审后下一批交付
 
-1. 领域模型DDL与状态迁移约束，包括复合FK、RLS、预算锁与唯一Operation键（[草案](../archive/work-data-model-ddl-draft-2026-10-25.md)，已按 P0-1/P0-2/P1-1/P1-2 修订并冒烟；未评审/未应用生产）。
-2. OpenAPI/内部Protobuf/设备协议/事件schema，以及权限、错误码、幂等与版本规则（[契约说明](../archive/work-api-contracts-2026-10-25.md)，[OpenAPI 3.1](../../plan/assets/work-contracts-2026-10-25/openapi/work-openapi-v1.yaml)，[Protobuf/事件 schema](../../plan/assets/work-contracts-2026-10-25/README.md)；已起草并通过语法校验，待协议评审）。
-3. 三条可执行纵切：云端任务→采纳（[参考切片](../archive/work-cloud-slice-2026-10-25/README.md)，已实现并 10/10 测试通过）；本机授权→断线恢复（[参考切片](../archive/work-local-slice-2026-10-25/README.md)，已实现并 8/8 测试通过）；连接器scope→撤销（[参考切片](../archive/work-connector-slice-2026-10-25/README.md)，已实现并 7/7 测试通过）。
-4. 威胁模型与沙箱证明、供应商条款/资源授权能力核对、计量价表上界（[威胁模型与核对清单](work-threat-model-2026-10-25.md)，已起草；沙箱证明、供应商书面条款、价表上界未关闭）。
-5. 工作流升级与区域恢复runbook、SLO测量方案、故障注入自动化（[Runbook](work-operations-runbook-2026-10-25.md)，已起草；当前 DDL 容量烟雾与逻辑恢复烟雾完成，区域演练/生产 SLO 未做）。
+1. 领域模型DDL与状态迁移约束，包括复合FK、RLS、预算锁与唯一Operation键（[草案](../work-data-model-ddl-draft-2026-10-25.md)，已按 P0-1/P0-2/P1-1/P1-2 修订并冒烟；未评审/未应用生产）。
+2. OpenAPI/内部Protobuf/设备协议/事件schema，以及权限、错误码、幂等与版本规则（[契约说明](../work-api-contracts-2026-10-25.md)，[OpenAPI 3.1](../../../plan/assets/work-contracts-2026-10-25/openapi/work-openapi-v1.yaml)，[Protobuf/事件 schema](../../../plan/assets/work-contracts-2026-10-25/README.md)；已起草并通过语法校验，待协议评审）。
+3. 三条可执行纵切：云端任务→采纳（[参考切片](../work-cloud-slice-2026-10-25/README.md)，已实现并 10/10 测试通过）；本机授权→断线恢复（[参考切片](../work-local-slice-2026-10-25/README.md)，已实现并 8/8 测试通过）；连接器scope→撤销（[参考切片](../work-connector-slice-2026-10-25/README.md)，已实现并 7/7 测试通过）。
+4. 威胁模型与沙箱证明、供应商条款/资源授权能力核对、计量价表上界（[威胁模型与核对清单](../../design/work-threat-model-2026-10-25.md)，已起草；沙箱证明、供应商书面条款、价表上界未关闭）。
+5. 工作流升级与区域恢复runbook、SLO测量方案、故障注入自动化（[Runbook](../../ops/work-operations-runbook-2026-10-25.md)，已起草；当前 DDL 容量烟雾与逻辑恢复烟雾完成，区域演练/生产 SLO 未做）。
 6. 当前产品与本架构§1.3差异回写；真实用户测试与技术验证签收仍单列，不由本文件代替。
 
 第1项已按 P0-1/P0-2/P1-1/P1-2 修订并冒烟（未评审、未应用生产）；第2项已起草契约草案并通过语法校验（未做真实鉴权/协议回归）；第3项的三条参考纵切已实现并测试通过；第4/5项已起草并完成局部证据，供应商/沙箱/区域演练未关闭；第6项未开始。A01–A14的ADR见§22.4。

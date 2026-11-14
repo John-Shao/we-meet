@@ -4,7 +4,7 @@
 >
 > 日期：2026-10-25
 >
-> 基线：[Work 系统架构 v2.9](work-system-architecture-2026-10-25.md) §7、§18–§21；[DDL 草案](../archive/work-data-model-ddl-draft-2026-10-25.md)；[容量脚本](../../plan/assets/work-ops-2026-10-25/capacity-smoke.py)。
+> 基线：[Work 系统架构 v2.9](../archive/design-baseline/work-system-architecture-2026-10-25.md) §7、§18–§21；[DDL 草案](../archive/work-data-model-ddl-draft-2026-10-25.md)；[容量脚本](../../plan/assets/work-ops-2026-10-25/capacity-smoke.py)。
 
 ## 1. 适用范围与原则
 
@@ -102,7 +102,7 @@
 
 ### 5.1 后台作业故障处置
 
-R0a 有六类不属于任何 Run 的常驻作业（见 [D3 §11](work-r0a-orchestration-design-2026-10-25.md)）：outbox relay、content shredder、目录投影同步、审计导出 worker、到期清扫、死信运维。它们的告警都按作业（`kind`）分维度，处置顺序固定：
+R0a 有六类不属于任何 Run 的常驻作业（见 [D3 §11](../archive/design-baseline/work-r0a-orchestration-design-2026-10-25.md)）：outbox relay、content shredder、目录投影同步、审计导出 worker、到期清扫、死信运维。它们的告警都按作业（`kind`）分维度，处置顺序固定：
 
 | 作业 | 先查 | 再动 | 停止判断 |
 |---|---|---|---|
@@ -171,13 +171,13 @@ R0a 有六类不属于任何 Run 的常驻作业（见 [D3 §11](work-r0a-orches
 
 - **增量设计要求**：`WORK_DIRECTORY_MODE=incremental`，正常成功同步周期为 300s；以 Work 投影的 `work.org.revision` 为水位，只拉 `revision_after` 之后的成员变更；不判定缺席。实际 timer 周期须取证，不以本节要求代替部署状态。
 - **全量**：`WORK_DIRECTORY_MODE=full`（默认），每日至少一次；拉完整成员快照后，把 Host 缺席成员收窄为 `left`、撤 `work_seat`、记 `entitlement_lost`，不取消 Run。快照最多 10,000 个 subject，超过直接失败。缺席数 ≥ max(10, 候选成员 20%) 时默认拦截（写 `directory.member_absence_blocked`，不写入）；候选成员少于 10 人的组织不触发闸门。确认 Host 数据后以 `WORK_DIRECTORY_ALLOW_MASS_ABSENCE=1` 重跑 full，放行会写 `directory.member_absence_applied`。
-- **首次部署**：先按 [Host wire §8 L1](work-r0a-host-wire-decision-2026-10-28.md) 提交控制面登录身份证据（仅成员于 `work_directory`、无表权限）；再跑一次 full 建立水位；新组织先以 revision 1 建行，成员全部成功后才推进到快照 revision。
+- **首次部署**：先按 [Host wire §8 L1](../design/work-r0a-host-wire-decision-2026-10-28.md) 提交控制面登录身份证据（仅成员于 `work_directory`、无表权限）；再跑一次 full 建立水位；新组织先以 revision 1 建行，成员全部成功后才推进到快照 revision。
 - **失败处置**：进程非零退出或报告 `orgs_failed/members_failed > 0` 时，**下一轮必须补跑 full**，不能只重跑增量——失败组织的低修订成员不会被增量窗口重新拉取。成员失败/gap 不推进水位，可安全重试。
 - **不要**为缺席成员手工执行 `ops_cancel_run` 以外的表写入；投影写入只经 `work_directory` 的领域函数。
 
 #### systemd 候选宿主验收
 
-按 [D3 EX-DIR](work-r0a-orchestration-design-2026-10-25.md#116-ex-dir单机-systemd-目录同步候选设计修订) 验收，不把 systemd 的存在等同于正式采纳。授权运维人员在目标环境核对以下证据；本节不是重启/改配置授权，取数不输出 Environment、EnvironmentFile 正文或凭据。
+按 [D3 EX-DIR](../archive/design-baseline/work-r0a-orchestration-design-2026-10-25.md#116-ex-dir单机-systemd-目录同步候选设计修订) 验收，不把 systemd 的存在等同于正式采纳。授权运维人员在目标环境核对以下证据；本节不是重启/改配置授权，取数不输出 Environment、EnvironmentFile 正文或凭据。
 
 1. 核对增量/全量 timer 的有效周期、最近/下次触发时间及对应 service 的退出结果；周期按既有 300s/每日全量，不豁免为 10min。
 2. 保存不含密钥的版本化 unit/部署入口与校验和，核对服务身份仅有目录投影权限；环境文件只记录引用和权限，不归档正文。
@@ -453,7 +453,7 @@ mTLS 透传；同命名空间 agent 被攻破仍可伪造 `Ssl-Client-Cert`。
   2026-10-29 应用。
 - 直读模式不消费 outbox；relay 处理 `task_event` 路由 ACK 及其他副作用，ACK 不表示浏览器收到。
   实现/发布状态与历史证据只看[项目文档](../work-project.md)，不能由 SSE 可见推断启动/取消/粉碎投递成功。
-- 候选适用边界与验收按 [D3 EX-SSE](work-r0a-orchestration-design-2026-10-25.md#101-ex-sse单实例-db-直读-sse候选设计修订)；单实例直读不自动证明多实例、背压、重连风暴或长连接撤权符合要求。
+- 候选适用边界与验收按 [D3 EX-SSE](../archive/design-baseline/work-r0a-orchestration-design-2026-10-25.md#101-ex-sse单实例-db-直读-sse候选设计修订)；单实例直读不自动证明多实例、背压、重连风暴或长连接撤权符合要求。
 - 正向验收必须包含首次快照→建流和 409→补读期间发生最终状态变化的浏览器用例；记录恢复游标、事件 ID/顺序和最终状态，不记录正文。
 - 故障验收在隔离环境暂停/恢复 relay 与 API，确认从 DB 补读；outbox 积压和新提交保护独立验证，不拿 ACK 延迟代替 DB commit→浏览器可见延迟。
 - 容量验收记录连接/事件峰值、DB 查询与连接预算、慢客户端缓冲及重连突发；会话失效、撤席位和清扫游标必须单独验证。结果回写[项目文档 §4.5](../archive/work-project-full-2026-11-14.md#45-候选设计修订与验收证据)，不能用后端单测替代浏览器与目标环境证据。
@@ -1433,7 +1433,7 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
 
 **适用范围与状态**：本机 Run 的 unknown 核账、`evidence_exhausted` 签署、治理事件游标推进。本包未上线、未演练——**本节是「照做即可执行」的运维合同，不是已发生记录**；任何步骤演练过后要在第 10 条改状态，不得默认视为已验证。
 
-**【2026-11-10 卡片 E=B 修订】** 正文离机链移出 R0b 本期：第 3 条的 `device_run_seal` 记录、第 6 条前置③的 recovery-only 通道本期不存在（恢复通道砍）；journal 清理水位改由 finish ack＋operation_resolution 驱动（见 [B03 载体设计](work-r0b-b03-reconciliation-carrier-2026-11-10.md) §3.2）。撤权设备迟到回执不再经专用通道上传，由服务端按 gate 事实＋降级路径（`evidence_unavailable`/`evidence_exhausted`）独立对账（B03 §3.3）。第 10 条 EV115 随 B03 §5 改写（seal 三类 ack→finish ack＋resolution 水位）；EV113/EV120 保留且更承重。原文保留供追溯，本节仍 `not_run`。
+**【2026-11-10 卡片 E=B 修订】** 正文离机链移出 R0b 本期：第 3 条的 `device_run_seal` 记录、第 6 条前置③的 recovery-only 通道本期不存在（恢复通道砍）；journal 清理水位改由 finish ack＋operation_resolution 驱动（见 [B03 载体设计](../design/work-r0b-b03-reconciliation-carrier-2026-11-10.md) §3.2）。撤权设备迟到回执不再经专用通道上传，由服务端按 gate 事实＋降级路径（`evidence_unavailable`/`evidence_exhausted`）独立对账（B03 §3.3）。第 10 条 EV115 随 B03 §5 改写（seal 三类 ack→finish ack＋resolution 水位）；EV113/EV120 保留且更承重。原文保留供追溯，本节仍 `not_run`。
 
 1. **操作者**：主签一人（原设计写的「后端轮值 on-call」在单人团队下不存在）。**职责分离缺口的三条补偿**：①工单必须外部可见（Issue/工单系统），不得当场自造；②每次运维动作写强审计并保留 ≥365 天；③运维动作样本纳入 7 日延迟复评的抽查范围。
 2. **凭据**：`work-reconcile` 用一次性专用身份，运维身份不直接写业务表（与 R0a 口径一致）；发放/撤销/告警归属＝主签在自有云环境配置，依赖云厂商的部分记为「供应商操作＋主签核验」。用完即撤。

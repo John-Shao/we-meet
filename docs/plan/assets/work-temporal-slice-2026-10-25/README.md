@@ -118,6 +118,6 @@ bash scripts/persist-restart.sh
 
 ## 相关文档
 
-- D3 设计：[../../work-r0a-orchestration-design-2026-10-25.md](../../../work/design/work-r0a-orchestration-design-2026-10-25.md)
+- D3 设计：[../../work-r0a-orchestration-design-2026-10-25.md](../../../work/archive/design-baseline/work-r0a-orchestration-design-2026-10-25.md)
 - D1 schema：[../work-r0a-design-2026-10-25/README.md](../work-r0a-design-2026-10-25/README.md)
-- D6 no-go：[../../work-r0a-security-ops-migration-design-2026-10-25.md](../../../work/design/work-r0a-security-ops-migration-design-2026-10-25.md)
+- D6 no-go：[../../work-r0a-security-ops-migration-design-2026-10-25.md](../../../work/archive/design-baseline/work-r0a-security-ops-migration-design-2026-10-25.md)

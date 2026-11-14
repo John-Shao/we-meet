@@ -1,12 +1,14 @@
+> 已归档（2026-11-14）。本文件是已实现 R0a 设计的基线快照，原文保留；详细设计以代码、迁移、契约、测试为权威，当前架构/安全/运维见 [docs/work/README.md](../../README.md)。
+
 # Work R0a API、事件与协议详细设计（D2）
 
 > 状态：D2 详细设计草案；R0a OpenAPI 子集（**29 path / 33 operation**）、生成类型、运行时客户端、管理读适配、mock server 与 **34 组测试**已完成（2026-10-26 D-08 修订：配额字段改 token、新增用量与接入配置 8 个 operation、错误码目录补 6 个内部码）；R0a 门禁已在 PR #7（`refactor/work-module` → `aliyun-dev`，commit `62affea4b`）首次远端运行 **6/6 job 通过**（Work R0a gates，31s）；首跑曾败于 `orchestration-contract` 缺 PyYAML，已在同一 PR 修复。仓库全量流水线也已跑绿（head `9494f79b0`：meet Workflow 15/15、Release guard 通过，25/25 检查通过且可合并）；未做真实鉴权/持久化/供应商回归。
 >
 > 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界与 D-08 接入配置/用量接口；D-08a 已于 2026-10-27 由产品签收，b/d/c/d 未签）
 >
-> 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[API 契约草案](../archive/work-api-contracts-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[架构 §15](work-system-architecture-2026-10-25.md)。
+> 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[API 契约草案](../work-api-contracts-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[架构 §15](work-system-architecture-2026-10-25.md)。
 >
-> 资产：[R0a OpenAPI](../../plan/assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、[生成类型](../../plan/assets/work-r0a-design-2026-10-25/r0a-api-types.d.ts)、[运行时客户端](../../plan/assets/work-r0a-design-2026-10-25/r0a-client.mjs)、[Host 端口契约](../../plan/assets/work-r0a-design-2026-10-25/host-ports.mjs)、[WeMeet 适配器](../../plan/assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs)、[mock server](../../plan/assets/work-r0a-design-2026-10-25/mock-server.mjs)、[CI 门禁](../../plan/assets/work-r0a-design-2026-10-25/scripts/ci-contract.mjs)、[合同测试](../../plan/assets/work-r0a-design-2026-10-25/test/contract.test.mjs)。
+> 资产：[R0a OpenAPI](../../../plan/assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、[生成类型](../../../plan/assets/work-r0a-design-2026-10-25/r0a-api-types.d.ts)、[运行时客户端](../../../plan/assets/work-r0a-design-2026-10-25/r0a-client.mjs)、[Host 端口契约](../../../plan/assets/work-r0a-design-2026-10-25/host-ports.mjs)、[WeMeet 适配器](../../../plan/assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs)、[mock server](../../../plan/assets/work-r0a-design-2026-10-25/mock-server.mjs)、[CI 门禁](../../../plan/assets/work-r0a-design-2026-10-25/scripts/ci-contract.mjs)、[合同测试](../../../plan/assets/work-r0a-design-2026-10-25/test/contract.test.mjs)。
 
 ## 1. 目标与结论
 
@@ -20,7 +22,7 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 
 **结论**：R0a 子集已形成 22 个 path、25 个 operation、51 个 schema、67 个唯一本地 `$ref`，OpenAPI 3.1 校验通过；生成 TypeScript 类型通过 `tsc --noEmit`；生成运行时客户端覆盖 25 个 operation（含 `deleteTask`）；合同/客户端/Host 端口共 **31/31** 测试通过；错误码目录（`r0a-errors-v3`：49 个公开码、101 个 SQL 异常映射）冻结，CI 直接扫描 `r0a-schema-draft.sql` 做漂移门禁。它仍不是生产 API，也不证明真实 cookie/CSRF、Content Store、SSE 网关、P1-A 字段或供应商可用。
 
-> **2026-11-01 校正（本段的三处数字均为 D-08 修订前的旧值）**：契约资产 `assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml` 实测为 **29 path / 33 operation**（本文 :3 与 :159 已按此记），`error-codes.json` 的 `r0a-errors-v3` 实测为 **50 个公开码 / 105 个 `db_exception_map` 键**；此外 2026-10-28 的 RB-03 已决定不保 D2 契约，29/33 也不再是必须保留的约束。引用本段时以这三项实测值与 [work-project.md](../work-project.md) 为准。
+> **2026-11-01 校正（本段的三处数字均为 D-08 修订前的旧值）**：契约资产 `assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml` 实测为 **29 path / 33 operation**（本文 :3 与 :159 已按此记），`error-codes.json` 的 `r0a-errors-v3` 实测为 **50 个公开码 / 105 个 `db_exception_map` 键**；此外 2026-10-28 的 RB-03 已决定不保 D2 契约，29/33 也不再是必须保留的约束。引用本段时以这三项实测值与 [work-project.md](../../work-project.md) 为准。
 
 ## 2. 契约决策
 
@@ -85,16 +87,16 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 - 唯一幂等键是请求体 `client_request_id`；作用域为 `(org_id, subject_id, operation_type)`；不另设 `Idempotency-Key` 请求头。
 - 同 key 同 payload 返回原结果；不同 payload 返回 409。更新/采纳/取消使用 revision 或显式状态检查。
 - 错误结构：`code`、安全可展示 `message`、`retryable`、`correlation_id`、`current_revision`、`recovery_action`。
-- **错误码目录已冻结**：[error-codes.json](../../plan/assets/work-r0a-design-2026-10-25/error-codes.json)（`r0a-errors-v3`）列出 49 个公开码的 HTTP 状态、`retryable`、`recovery_action` 与 UI 行为 token；文案键由 D5 [copy.zh-CN.json](../../plan/assets/work-r0a-frontend-2026-10-25/copy.zh-CN.json) 维护，未知码回退 `work.r0a.error.generic`；`db_exception_map` 把 `r0a-schema-draft.sql` 中全部 101 个 SQL 异常码映射到公开码（worker/outbox 内部异常统一映射为 503 `service_degraded`，原始码只进内部日志）。CI 门禁校验：mock 使用的每个码及状态与目录一致；直接扫描 `r0a-schema-draft.sql` 的 `RAISE EXCEPTION`，要求均为 snake_case 码（可带 `:detail`）、每个码都有映射、映射表无 SQL 已不再抛出的条目；`retryable` 当且仅当 5xx/429（`preview_stale` 为 409、不可自动重试，需重新预览）。mock 未知错误默认 503。新增错误码必须先改目录。
+- **错误码目录已冻结**：[error-codes.json](../../../plan/assets/work-r0a-design-2026-10-25/error-codes.json)（`r0a-errors-v3`）列出 49 个公开码的 HTTP 状态、`retryable`、`recovery_action` 与 UI 行为 token；文案键由 D5 [copy.zh-CN.json](../../../plan/assets/work-r0a-frontend-2026-10-25/copy.zh-CN.json) 维护，未知码回退 `work.r0a.error.generic`；`db_exception_map` 把 `r0a-schema-draft.sql` 中全部 101 个 SQL 异常码映射到公开码（worker/outbox 内部异常统一映射为 503 `service_degraded`，原始码只进内部日志）。CI 门禁校验：mock 使用的每个码及状态与目录一致；直接扫描 `r0a-schema-draft.sql` 的 `RAISE EXCEPTION`，要求均为 snake_case 码（可带 `:detail`）、每个码都有映射、映射表无 SQL 已不再抛出的条目；`retryable` 当且仅当 5xx/429（`preview_stale` 为 409、不可自动重试，需重新预览）。mock 未知错误默认 503。新增错误码必须先改目录。
 - 代表错误：`scope_unavailable`、`permission_mode_unavailable`、`preview_stale`、`idempotency_key_conflict`、`version_conflict`、`run_not_quiescent`、`resync_required`、`input_not_found`、`artifact_not_published`、`csrf_invalid`、`title_invalid`。
 
 ### 2.8 Host 适配与独立部署边界（ADR-0021）
 
 - R0a 的 `sessionid` 只是 Host 认证适配器（2026-10-28 勘误：原 `we_meet_session` 作废）；核心只依赖认证端口，独立产品可接 OIDC/bearer。
-- 租户/成员/席位从 `IdentityDirectory`/`Entitlement` 端口解析；客户端 `org_id` 只用于资源定位。端口形状与校验器已可执行：[host-ports.mjs](../../plan/assets/work-r0a-design-2026-10-25/host-ports.mjs)（五个端口、方法清单、值校验），[we-meet-host-adapter.mjs](../../plan/assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs)（P1-A 形状 → `sync_*` 投影载荷，缺字段报 gap），[stub-host.mjs](../../plan/assets/work-r0a-design-2026-10-25/stub-host.mjs)（独立产品替身，同一端口同一投影形状）。
+- 租户/成员/席位从 `IdentityDirectory`/`Entitlement` 端口解析；客户端 `org_id` 只用于资源定位。端口形状与校验器已可执行：[host-ports.mjs](../../../plan/assets/work-r0a-design-2026-10-25/host-ports.mjs)（五个端口、方法清单、值校验），[we-meet-host-adapter.mjs](../../../plan/assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs)（P1-A 形状 → `sync_*` 投影载荷，缺字段报 gap），[stub-host.mjs](../../../plan/assets/work-r0a-design-2026-10-25/stub-host.mjs)（独立产品替身，同一端口同一投影形状）。
 - 端口契约的三条硬规则：Host 不能塞未声明字段进 Work（`unexpected_field`）；不把 token 配额换算成席位或金额预算（`incompatible_source`）；通知投递不接受正文字段（`no_content_allowed`）。收窄（撤席位/停用成员）只产出 `request_cancel` 提示，由领域命令执行，适配器不写表。
 - 通知、计费、业务系统 Connector 通过 Host 端口；会议/消息/文档与外部 SaaS 使用同一 Connector 契约，不直连表。
-- 独立部署与剥离演练见 [ADR-0021](../../adr/0021-work-standalone-product-boundary.md)；R0a API 不变。
+- 独立部署与剥离演练见 [ADR-0021](../../../adr/0021-work-standalone-product-boundary.md)；R0a API 不变。
 
 ## 3. R0a API 子集
 
@@ -226,21 +228,21 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 
 ## 7. 交付物与下一步
 
-- [r0a-openapi-v1.yaml](../../plan/assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)：R0a 公开契约子集。
-- [r0a-api-types.d.ts](../../plan/assets/work-r0a-design-2026-10-25/r0a-api-types.d.ts)：生成的 TypeScript 类型。
-- [r0a-client.mjs](../../plan/assets/work-r0a-design-2026-10-25/r0a-client.mjs)：从契约生成的运行时客户端；[生成器](../../plan/assets/work-r0a-design-2026-10-25/generate-client.mjs) 带 `--check` 漂移校验。
-- [host-ports.mjs](../../plan/assets/work-r0a-design-2026-10-25/host-ports.mjs)：ADR-0021 五个 Host 端口的方法与值形状。
-- [we-meet-host-adapter.mjs](../../plan/assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs) / [stub-host.mjs](../../plan/assets/work-r0a-design-2026-10-25/stub-host.mjs)：WeMeet 适配与独立产品替身，产出 D1 `sync_*` 投影载荷。
-- [mock-server.mjs](../../plan/assets/work-r0a-design-2026-10-25/mock-server.mjs)：无依赖合同 mock。
-- [error-codes.json](../../plan/assets/work-r0a-design-2026-10-25/error-codes.json)：冻结错误码目录与 SQL 异常映射。
-- [contract.test.mjs](../../plan/assets/work-r0a-design-2026-10-25/test/contract.test.mjs)：10 组合同测试；[client.test.mjs](../../plan/assets/work-r0a-design-2026-10-25/test/client.test.mjs)：12 组客户端测试；[host-ports.test.mjs](../../plan/assets/work-r0a-design-2026-10-25/test/host-ports.test.mjs)：9 组 Host 端口契约测试。
-- [ci-contract.mjs](../../plan/assets/work-r0a-design-2026-10-25/scripts/ci-contract.mjs)：CI 门禁。
-- Phase 0 已签设计资产：[d2-prime-surface.json](../../plan/assets/work-r0a-rebuild-2026-10-28/d2-prime-surface.json)（`design_signed`）、[host-contract.json](../../plan/assets/work-r0a-rebuild-2026-10-28/host-contract.json)（`design_signed`）及各自模型/测试（见 §8）；evidence 仍为 `design_model_only`，契约与客户端未重建。
+- [r0a-openapi-v1.yaml](../../../plan/assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)：R0a 公开契约子集。
+- [r0a-api-types.d.ts](../../../plan/assets/work-r0a-design-2026-10-25/r0a-api-types.d.ts)：生成的 TypeScript 类型。
+- [r0a-client.mjs](../../../plan/assets/work-r0a-design-2026-10-25/r0a-client.mjs)：从契约生成的运行时客户端；[生成器](../../../plan/assets/work-r0a-design-2026-10-25/generate-client.mjs) 带 `--check` 漂移校验。
+- [host-ports.mjs](../../../plan/assets/work-r0a-design-2026-10-25/host-ports.mjs)：ADR-0021 五个 Host 端口的方法与值形状。
+- [we-meet-host-adapter.mjs](../../../plan/assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs) / [stub-host.mjs](../../../plan/assets/work-r0a-design-2026-10-25/stub-host.mjs)：WeMeet 适配与独立产品替身，产出 D1 `sync_*` 投影载荷。
+- [mock-server.mjs](../../../plan/assets/work-r0a-design-2026-10-25/mock-server.mjs)：无依赖合同 mock。
+- [error-codes.json](../../../plan/assets/work-r0a-design-2026-10-25/error-codes.json)：冻结错误码目录与 SQL 异常映射。
+- [contract.test.mjs](../../../plan/assets/work-r0a-design-2026-10-25/test/contract.test.mjs)：10 组合同测试；[client.test.mjs](../../../plan/assets/work-r0a-design-2026-10-25/test/client.test.mjs)：12 组客户端测试；[host-ports.test.mjs](../../../plan/assets/work-r0a-design-2026-10-25/test/host-ports.test.mjs)：9 组 Host 端口契约测试。
+- [ci-contract.mjs](../../../plan/assets/work-r0a-design-2026-10-25/scripts/ci-contract.mjs)：CI 门禁。
+- Phase 0 已签设计资产：[d2-prime-surface.json](../../../plan/assets/work-r0a-rebuild-2026-10-28/d2-prime-surface.json)（`design_signed`）、[host-contract.json](../../../plan/assets/work-r0a-rebuild-2026-10-28/host-contract.json)（`design_signed`）及各自模型/测试（见 §8）；evidence 仍为 `design_model_only`，契约与客户端未重建。
 - 下一步 D3：Temporal/编排与提交/派发/预算/成果/采纳/取消/恢复；D4：Pi Adapter、沙箱与模型网关。DR1 还需把 D1/D2 的接口与 schema 对齐评审。
 
 ## 8. D2' 公开契约重签（2026-10-28 设计签收）
 
-本节是[重做计划](../archive/work-r0a-architecture-rebuild-plan-2026-10-28.md) Phase 0 第 1、5 项的设计签收记录。上文 §1–§7 的 29 path / 33 operation 属 `r0a-openapi-v1`，按 RB-03 **不作为必须保留的契约**；它仍是错误语义、幂等与投影口径的来源，不能被当成新契约的实现证据。**OpenAPI、生成客户端与前端调用层尚未重建**，`surfaceFrozen` 保持 `false`。
+本节是[重做计划](../work-r0a-architecture-rebuild-plan-2026-10-28.md) Phase 0 第 1、5 项的设计签收记录。上文 §1–§7 的 29 path / 33 operation 属 `r0a-openapi-v1`，按 RB-03 **不作为必须保留的契约**；它仍是错误语义、幂等与投影口径的来源，不能被当成新契约的实现证据。**OpenAPI、生成客户端与前端调用层尚未重建**，`surfaceFrozen` 保持 `false`。
 
 ### 8.0 签收结论与条件
 
@@ -251,7 +253,7 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 
 2026-10-28，Lily 对 Host 合同复核通过，未附加条件：接受席位/角色收窄按 300s 周期同步、同步不取消在途 Run，由 `ops_cancel_run` 处置。300s 是正常成功同步的调度周期，不是故障下的收窄时延上界；失败、积压与投影过期仍须拒绝新工作。解除复核前不实施限制，严格 fail closed 与内部 DNS 硬前置不变；DP 条目未执行。
 
-资产：[d2-prime-surface.json](../../plan/assets/work-r0a-rebuild-2026-10-28/d2-prime-surface.json)（契约常量）、[d2-prime.model.mjs](../../plan/assets/work-r0a-rebuild-2026-10-28/d2-prime.model.mjs) 与[测试](../../plan/assets/work-r0a-rebuild-2026-10-28/d2-prime.test.mjs)；[host-contract.json](../../plan/assets/work-r0a-rebuild-2026-10-28/host-contract.json)、[host-contract.model.mjs](../../plan/assets/work-r0a-rebuild-2026-10-28/host-contract.model.mjs) 与[测试](../../plan/assets/work-r0a-rebuild-2026-10-28/host-contract.test.mjs)。它们只在"已验真的服务端事实"上判定语义，不实现 HTTP、SQL、会话、mTLS 或 codegen。
+资产：[d2-prime-surface.json](../../../plan/assets/work-r0a-rebuild-2026-10-28/d2-prime-surface.json)（契约常量）、[d2-prime.model.mjs](../../../plan/assets/work-r0a-rebuild-2026-10-28/d2-prime.model.mjs) 与[测试](../../../plan/assets/work-r0a-rebuild-2026-10-28/d2-prime.test.mjs)；[host-contract.json](../../../plan/assets/work-r0a-rebuild-2026-10-28/host-contract.json)、[host-contract.model.mjs](../../../plan/assets/work-r0a-rebuild-2026-10-28/host-contract.model.mjs) 与[测试](../../../plan/assets/work-r0a-rebuild-2026-10-28/host-contract.test.mjs)。它们只在"已验真的服务端事实"上判定语义，不实现 HTTP、SQL、会话、mTLS 或 codegen。
 
 ### 8.1 保留项与重签项
 
@@ -260,7 +262,7 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 | 公开错误码目录语义、`retryable` 只给 429/5xx、未映射内部码降级为 `service_degraded` | 资源/操作切分、路径与 schema 名称、生成链路由 Go 控制面承载 |
 | `client_request_id` 幂等且作用域 `(org_id, subject_id, operation_type)`，不接受 `Idempotency-Key` 头 | 旧 mock server、旧生成客户端与旧漂移门禁退役，不再作为合格证据 |
 | keyset 分页、`expected_revision` 乐观并发、事件/错误/日志无正文 | Runtime 内部标识（execution/attempt/hash/ref）一律不进公开响应 |
-| org/subject 只由服务端解析，DB 侧 `work.assert_session_subject` 二次比对（**2026-11-04 按 #52=A 补记真实强度**：该函数体只比对 `nullif(current_setting('app.subject_id', true), '')`，因此库侧这道门**等于「谁能连上库」**——任何持有 `work_ops_login` 的会话 `SET app.subject_id=<任意主体>` 即可通过。身份的真实签发面仍在应用层；运维直连属受控例外，程序约束见[运维手册 §5.2b](work-operations-runbook-2026-10-25.md)） | `WAITING_RECONCILE` 等内部状态到 `DisplayState` 的映射随 D3' 重核 |
+| org/subject 只由服务端解析，DB 侧 `work.assert_session_subject` 二次比对（**2026-11-04 按 #52=A 补记真实强度**：该函数体只比对 `nullif(current_setting('app.subject_id', true), '')`，因此库侧这道门**等于「谁能连上库」**——任何持有 `work_ops_login` 的会话 `SET app.subject_id=<任意主体>` 即可通过。身份的真实签发面仍在应用层；运维直连属受控例外，程序约束见[运维手册 §5.2b](../../ops/work-operations-runbook-2026-10-25.md)） | `WAITING_RECONCILE` 等内部状态到 `DisplayState` 的映射随 D3' 重核 |
 
 ### 8.2 五个必解项的拟定结论
 
@@ -274,7 +276,7 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 
 ### 8.3 Host 接入合同增量（`work-host-contract-v2`，设计已签、已复核）
 
-现有五端口 [host-ports.mjs](../../plan/assets/work-r0a-design-2026-10-25/host-ports.mjs)（`r0a-host-v1`）保留；v2 新增 `SessionVerifier` 与 `OrgDiscovery` 两个端口，并把同步协议与失效语义写成可判定规则。Lily 已复核通过，实现时替换 v1。
+现有五端口 [host-ports.mjs](../../../plan/assets/work-r0a-design-2026-10-25/host-ports.mjs)（`r0a-host-v1`）保留；v2 新增 `SessionVerifier` 与 `OrgDiscovery` 两个端口，并把同步协议与失效语义写成可判定规则。Lily 已复核通过，实现时替换 v1。
 
 - **适配器位置与身份**：Host adapter 是 Go 控制面内的模块，以工作负载 mTLS 身份调用 Host；Node 父进程、Pi 子进程、egress 与前端都不可调用。适配器不写表，只经 `work.sync_org_projection` / `work.sync_member_projection`（`work_directory` 角色）落投影；Host 不能用请求体自报角色。
 - **会话验真**：在请求路径内、**严格 fail closed**——Host/身份服务不可用时新请求一律拒绝，包括只读；接受的验真结果最多 60s，正向结果零缓存。可用性代价已随签收接受，不得私自加降级放行。缺 `subject_id`/`org_id`/`session_revision`/`verified_at` 任一字段即报 gap，不猜测。撤销对**新请求**立即生效，但不声称已取消在途请求。

@@ -3,8 +3,8 @@
 > 本文档是 Work 模块的精简操作入口：只保留"执行什么、按什么顺序、如何判定"。
 > 详细参考仍是旧 runbook（架构、裁定史、故障注入与逐次取证都在那里，本文不复述）：
 >
-> - [work-operations-runbook-2026-10-25.md](design/work-operations-runbook-2026-10-25.md)：升级/灾备/SLO/故障注入，§5.x 是各专题值班口径。
-> - [work-r0a-pilot-operations-runbook-2026-10-26.md](design/work-r0a-pilot-operations-runbook-2026-10-26.md)：试点运营（支持分级、删除、死信、切换）。
+> - [work-operations-runbook-2026-10-25.md](ops/work-operations-runbook-2026-10-25.md)：升级/灾备/SLO/故障注入，§5.x 是各专题值班口径。
+> - [work-r0a-pilot-operations-runbook-2026-10-26.md](ops/work-r0a-pilot-operations-runbook-2026-10-26.md)：试点运营（支持分级、删除、死信、切换）。
 >
 > 命令与本文冲突时，以仓库脚本/unit 为准：`src/work/deploy/ecs/`、`src/work/scripts/`、`deploy/aliyun/`。
 
@@ -172,6 +172,14 @@ sudo ./rollout-r0a-0027.sh --release <发布目录> --migrations-only
    - 全部 `replay ok` → 正常 rollout；任一 nondeterministic → 本批只 `--migrations-only`，换 worker 另批授权，该 Run 先定性再处置（§5.16 口径），不手工动 workflow 历史。
    - Running=0 → 记"无对象可重放"，直接换二进制。
    - 导出 JSON 含组织数据：用后取回并删除，不在主机过夜。
+
+**只读前置取数**（rollout 前另有两个主机侧只读探针，跑完即删，判据取脚本自身退出码 `HOST_SCRIPT_RC=0`）：`docs/plan/assets/work-r0a-ops-2026-10-25/preflight/rollout-preflight-ledger-read.sh`（台账/在途 Run/预留/outbox）与 `rollout-preflight-package-shape-read.sh`（发布包形状/在装件比对）。取数形状：
+
+```bash
+ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes johnshao@<work-ecs> 'cat > /var/tmp/pf.sh && sed -i "s/\r$//" /var/tmp/pf.sh && sudo -S -p "" bash /var/tmp/pf.sh < ~/sudo-pass.txt; rc=$?; rm -f /var/tmp/pf.sh; echo HOST_SCRIPT_RC=$rc' < docs/plan/assets/work-r0a-ops-2026-10-25/preflight/rollout-preflight-ledger-read.sh
+```
+
+读数现取（tip_version/open_runs/RELEASE_DIRTY 等由脚本打印），不在本文手抄；现网迁移 tip 与发布包见 [status.md](status.md)。
 
 ### 3.5 装后验证与链尾闸 [只读]
 

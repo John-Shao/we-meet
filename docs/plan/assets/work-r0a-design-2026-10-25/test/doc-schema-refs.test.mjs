@@ -19,15 +19,14 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const PLAN_DIR = join(HERE, '..', '..', '..'); // docs/plan
-const WORK_DESIGN = join(PLAN_DIR, '..', 'work', 'design');
+const WORK_OPS = join(PLAN_DIR, '..', 'work', 'ops');
 const WORK_ROOT = join(PLAN_DIR, '..', '..', 'src', 'work');
 
 const DOC_SOURCES = [
   [join('assets', 'work-r0a-ops-2026-10-25', 'README.md'), PLAN_DIR],
   [join('assets', 'work-r0a-design-2026-10-25', 'README.md'), PLAN_DIR],
-  ['work-operations-runbook-2026-10-25.md', WORK_DESIGN],
-  ['work-r0a-drill-checklist-2026-11-15.md', WORK_DESIGN],
-  ['work-r0a-data-design-2026-10-25.md', WORK_DESIGN],
+  ['work-operations-runbook-2026-10-25.md', WORK_OPS],
+  ['work-r0a-drill-checklist-2026-11-15.md', WORK_OPS],
   ...readdirSync(join(WORK_ROOT, 'scripts')).filter((n) => n.endsWith('.sql')).map((n) => [n, join(WORK_ROOT, 'scripts')]),
   // The deployed shell wrappers hold the psql invocations an operator actually copies.
   ...readdirSync(join(WORK_ROOT, 'scripts')).filter((n) => n.endsWith('.sh')).map((n) => [n, join(WORK_ROOT, 'scripts')]),

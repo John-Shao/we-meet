@@ -1,15 +1,17 @@
+> 已归档（2026-11-14）。本文件是已实现 R0a 设计的基线快照，原文保留；详细设计以代码、迁移、契约、测试为权威，当前架构/安全/运维见 [docs/work/README.md](../../README.md)。
+
 # Work R0a 安全、运维、迁移与试点详细设计（D6）
 
 > 状态：D6 设计草案；安全控制/SLO/容量/试点清单已建模并通过 8/8 校验，当前 **go/no-go = no-go（30 个 blocking 中 18 个未关闭；C01/C02/C14 提前签、C11 仅签映射口径、C15 已 waived）**；已完成 Temporal dev 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、RLS 池化、10 并发负载、Work DB 恢复、试点 on-call runbook、SLO 规则即代码 11/11 + promtool 校验（48 条规则 + 14 组告警单测）与日志扫描 8/8、管理读/目录投影/留存清扫的多连接竞态 7/7；本地关闭 C12/C18/C19/C20/C21，剩余 18 个未关闭（C01/C02/C14 已提前签，C11 仅签映射口径）。未做多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/真实遥测接入（C15 已 waived）。
 >
-> **【2026-11-13 现读更正：上方与本文末部的"当前"计数均为 2026-10-26 快照，现值不再由本文正文承载】** R0a 试点闸门是否关闭改由 `goNoGo()` 自己打印；取数法＝读 `pilot-checklist.json` 全 33 项、筛 `blocking && status ∉ {done, waived}` 按 `gate` 分桶，权威命令与当日读数在 [work-project.md](../work-project.md) §5.2 顶部标注（该处不重复维护，避免又一处活数字）。本文上方"30 个 blocking 中 18 个未关闭"、§10.1"当前 no-go 从 29 降为 22"与 §10.1 末"**当前：no-go…**"三处均为历史值，原文逐字保留不删。
-> **绿门的含义有边界**：闸门绿只说明清单条目已 `done`/`waived`，**不等于真实 gVisor、云 KMS、真实遥测、多节点恢复已验**——这四项 2026-11-13 现读下仍按 `pilot-checklist.json` 的 C13/C16/C17 `note` 记为残口，且残口目前只写在 `note` 散文里、不在机器字段（33 项中 0 项带 `closeCondition`；该字段只在 `security-controls.json` 的校验里强制）。【2026-11-13 批次 B1 后本句的"不在机器字段"半句过期，原文保留：33 项已逐项补 `residual`／`reopenCondition`／`residualSource`，`validateChecklist` 对"closed 而无 residual"报错，`goNoGo()` 同批起同时打印 `residualCount`（现读 32）与 `unstatedReopenCount`（现读 7），故"绿而不空"现在是机器可读的；取数命令见 [work-project.md](../work-project.md) §5.2 顶部标注。C13/C16/C17 三条残口的实质内容不变，只是从散文升为字段。】
+> **【2026-11-13 现读更正：上方与本文末部的"当前"计数均为 2026-10-26 快照，现值不再由本文正文承载】** R0a 试点闸门是否关闭改由 `goNoGo()` 自己打印；取数法＝读 `pilot-checklist.json` 全 33 项、筛 `blocking && status ∉ {done, waived}` 按 `gate` 分桶，权威命令与当日读数在 [work-project.md](../../work-project.md) §5.2 顶部标注（该处不重复维护，避免又一处活数字）。本文上方"30 个 blocking 中 18 个未关闭"、§10.1"当前 no-go 从 29 降为 22"与 §10.1 末"**当前：no-go…**"三处均为历史值，原文逐字保留不删。
+> **绿门的含义有边界**：闸门绿只说明清单条目已 `done`/`waived`，**不等于真实 gVisor、云 KMS、真实遥测、多节点恢复已验**——这四项 2026-11-13 现读下仍按 `pilot-checklist.json` 的 C13/C16/C17 `note` 记为残口，且残口目前只写在 `note` 散文里、不在机器字段（33 项中 0 项带 `closeCondition`；该字段只在 `security-controls.json` 的校验里强制）。【2026-11-13 批次 B1 后本句的"不在机器字段"半句过期，原文保留：33 项已逐项补 `residual`／`reopenCondition`／`residualSource`，`validateChecklist` 对"closed 而无 residual"报错，`goNoGo()` 同批起同时打印 `residualCount`（现读 32）与 `unstatedReopenCount`（现读 7），故"绿而不空"现在是机器可读的；取数命令见 [work-project.md](../../work-project.md) §5.2 顶部标注。C13/C16/C17 三条残口的实质内容不变，只是从散文升为字段。】
 >
 > 日期：2026-10-25（2026-10-26 增补 ADR-0021 边界）
 >
-> 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[D3 编排](work-r0a-orchestration-design-2026-10-25.md)、[D4 Runtime/出口](work-r0a-runtime-egress-design-2026-10-25.md)、[D5 前端](work-r0a-frontend-design-2026-10-25.md)、[威胁模型](work-threat-model-2026-10-25.md)、[运行手册](work-operations-runbook-2026-10-25.md)。
+> 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[D3 编排](work-r0a-orchestration-design-2026-10-25.md)、[D4 Runtime/出口](work-r0a-runtime-egress-design-2026-10-25.md)、[D5 前端](work-r0a-frontend-design-2026-10-25.md)、[威胁模型](../../design/work-threat-model-2026-10-25.md)、[运行手册](../../ops/work-operations-runbook-2026-10-25.md)。
 >
-> 资产：[安全控制](../../plan/assets/work-r0a-ops-2026-10-25/security-controls.json)、[SLO](../../plan/assets/work-r0a-ops-2026-10-25/slo-pilot.json)、[遥测契约](../../plan/assets/work-r0a-ops-2026-10-25/telemetry-contract.json)、[Prometheus 规则](../../plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)、[试点清单](../../plan/assets/work-r0a-ops-2026-10-25/pilot-checklist.json)、[容量模型](../../plan/assets/work-r0a-ops-2026-10-25/pilot-capacity-model.mjs)、[校验模型](../../plan/assets/work-r0a-ops-2026-10-25/ops-model.mjs)、[ops 测试](../../plan/assets/work-r0a-ops-2026-10-25/ops-model.test.mjs)、[遥测测试](../../plan/assets/work-r0a-ops-2026-10-25/telemetry.test.mjs)、[日志扫描](../../plan/assets/work-r0a-hardening-2026-10-25/log-scan.mjs)。
+> 资产：[安全控制](../../../plan/assets/work-r0a-ops-2026-10-25/security-controls.json)、[SLO](../../../plan/assets/work-r0a-ops-2026-10-25/slo-pilot.json)、[遥测契约](../../../plan/assets/work-r0a-ops-2026-10-25/telemetry-contract.json)、[Prometheus 规则](../../../plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)、[试点清单](../../../plan/assets/work-r0a-ops-2026-10-25/pilot-checklist.json)、[容量模型](../../../plan/assets/work-r0a-ops-2026-10-25/pilot-capacity-model.mjs)、[校验模型](../../../plan/assets/work-r0a-ops-2026-10-25/ops-model.mjs)、[ops 测试](../../../plan/assets/work-r0a-ops-2026-10-25/ops-model.test.mjs)、[遥测测试](../../../plan/assets/work-r0a-ops-2026-10-25/telemetry.test.mjs)、[日志扫描](../../../plan/assets/work-r0a-hardening-2026-10-25/log-scan.mjs)。
 
 ## 1. 目标与范围
 
@@ -34,7 +36,7 @@ D6 回答 R0a 试点能否开始、如何安全运行、如何切换/回滚、�
 
 ## 3. 安全控制映射
 
-完整控制见 [security-controls.json](../../plan/assets/work-r0a-ops-2026-10-25/security-controls.json)。状态：`closed/partial/open/out_of_scope`；`closed` 必须有证据。
+完整控制见 [security-controls.json](../../../plan/assets/work-r0a-ops-2026-10-25/security-controls.json)。状态：`closed/partial/open/out_of_scope`；`closed` 必须有证据。
 
 | ID | 威胁 | 核心控制 | 状态 |
 |---|---|---|---|
@@ -66,9 +68,9 @@ D6 回答 R0a 试点能否开始、如何安全运行、如何切换/回滚、�
 
 ## 4. SLO、告警与测量
 
-完整 SLO 见 [slo-pilot.json](../../plan/assets/work-r0a-ops-2026-10-25/slo-pilot.json)。所有指标当前为 `not_measured`；`met/missed` 必须有证据。
+完整 SLO 见 [slo-pilot.json](../../../plan/assets/work-r0a-ops-2026-10-25/slo-pilot.json)。所有指标当前为 `not_measured`；`met/missed` 必须有证据。
 
-规则即代码见 [telemetry-contract.json](../../plan/assets/work-r0a-ops-2026-10-25/telemetry-contract.json) 与生成的 [prometheus-rules.yaml](../../plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)：12 个 SLO 全覆盖，21 条 recording rule、27 条告警（合计 48 条规则）；每条告警带 severity/for/runbook 与 `org_id` 注释，指标标签禁止正文/密钥。规则已用 `prom/prometheus:v2.54.1` 的 `promtool check rules` 与 `promtool test rules` 验证（[prometheus-rules.test.yml](../../plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.test.yml)：13 组输入序列、14 条断言，含触发与不触发两侧），CI 的 `ops-telemetry` job 直接跑 promtool；但**规则未接入 Prometheus/Alertmanager，也没有仪表盘或真实序列**——通过校验只证明表达式与阈值语义，不代表已测量。`org_id` 进入指标与告警；task/run/operation ID 因基数过高不进入指标标签，需通过 exemplar/trace/结构化日志关联。
+规则即代码见 [telemetry-contract.json](../../../plan/assets/work-r0a-ops-2026-10-25/telemetry-contract.json) 与生成的 [prometheus-rules.yaml](../../../plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)：12 个 SLO 全覆盖，21 条 recording rule、27 条告警（合计 48 条规则）；每条告警带 severity/for/runbook 与 `org_id` 注释，指标标签禁止正文/密钥。规则已用 `prom/prometheus:v2.54.1` 的 `promtool check rules` 与 `promtool test rules` 验证（[prometheus-rules.test.yml](../../../plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.test.yml)：13 组输入序列、14 条断言，含触发与不触发两侧），CI 的 `ops-telemetry` job 直接跑 promtool；但**规则未接入 Prometheus/Alertmanager，也没有仪表盘或真实序列**——通过校验只证明表达式与阈值语义，不代表已测量。`org_id` 进入指标与告警；task/run/operation ID 因基数过高不进入指标标签，需通过 exemplar/trace/结构化日志关联。
 
 | 指标 | 目标/口径 | 窗口 | 状态 |
 |---|---|---|---|
@@ -99,12 +101,12 @@ D3 §11 的六类非 Run 作业纳入遥测与演练范围：
 - **指标**：`work_background_job_runs_total{kind,outcome}`、`work_background_job_last_success_seconds{kind}`、`work_background_job_lease_takeovers_total{kind}`、`work_directory_projection_lag_seconds`、`work_audit_export_backlog`、`work_audit_export_duration_seconds_sum`/`_count`、`work_audit_export_downloads_total{outcome}`、`work_content_shred_backlog`（连同原有共 28 个指标定义）。
 - **告警**：`WorkBackgroundJobStale`（义务作业 15 分钟无成功记录 → page）、`WorkBackgroundJobLeaseTakeovers`、`WorkDirectoryProjectionStale`（投影滞后 > 15 分钟 → page，撤权新鲜度）、`WorkAuditExportBacklog`、`WorkAuditExportFailureRatio`、`WorkAuditExportSlow`、`WorkAuditExportTokenFailureBurst`（凭证校验失败突增，泄露信号）、`WorkContentShredBacklog`（正文未清理 → page，优先于功能问题）。渲染规则 21 record / 27 alert；ops+pilot+telemetry 测试 **28/28**，其中跨资产断言要求 D3 作业契约声明的指标/告警名都存在于本契约。
 - **导出耗时用均值不用分位**：`WorkAuditExportSlow` 比较 `rate(..._sum)/rate(..._count)` 的平均耗时（阈值 600s）。理由是 R0a 的导出量级是个位数作业，P95 在这个样本量上没有稳定含义；同时 histogram 需要应用侧显式注册 `_bucket` 家族，客户端未注册时告警表达式会静默失效（promtool 的表达式单测在 2.54 上也无法覆盖这类"永不触发"）。等有真实量之后再把这条换成 P95，并在单测里补分位序列。
-- **处置**：见[运行手册 §5.1 后台作业故障处置](work-operations-runbook-2026-10-25.md)——先判"是义务作业还是产生新工作的作业"，前者不许停，后者可停且在途可安全重领。
+- **处置**：见[运行手册 §5.1 后台作业故障处置](../../ops/work-operations-runbook-2026-10-25.md)——先判"是义务作业还是产生新工作的作业"，前者不许停，后者可停且在途可安全重领。
 - **演练新增项**（属既有 C20/C21/C22 范围，不新开 blocking）：kill switch/停用状态下义务作业继续运行的验证、租约接管与重复投递验证、粉碎积压的处置与恢复。
 
 ## 5. 试点容量模型
 
-完整模型见 [pilot-capacity-model.mjs](../../plan/assets/work-r0a-ops-2026-10-25/pilot-capacity-model.mjs)。运行：
+完整模型见 [pilot-capacity-model.mjs](../../../plan/assets/work-r0a-ops-2026-10-25/pilot-capacity-model.mjs)。运行：
 
 ```bash
 node pilot-capacity-model.mjs
@@ -185,11 +187,11 @@ node pilot-capacity-model.mjs
 - 部署单元：Work API/worker/relay/egress/SSE、独立 DB/schema/角色、Temporal namespace、对象存储/KMS、管理控制台、前端壳；初期可同集群/同 VPC，但清单与权限可分离。
 - 安全/运维：不共享数据库写角色、租户缓存、密钥；Host 端口/Connector 只走版本化接口，内部系统不给旁路。
 - 验证：R1 前 stub-host 剥离演练；R4 独立售卖前独立部署/计费/品牌打包；R0a 不扩范围。
-- 迁移/导出：Work 数据可导出，Host 目录投影可重建（投影只由 `work_directory` 经 `sync_*` 写入，删库重放即可恢复）；见 [D1 §4.4](work-r0a-data-design-2026-10-25.md) 与 [host-ports.mjs](../../plan/assets/work-r0a-design-2026-10-25/host-ports.mjs)。
+- 迁移/导出：Work 数据可导出，Host 目录投影可重建（投影只由 `work_directory` 经 `sync_*` 写入，删库重放即可恢复）；见 [D1 §4.4](work-r0a-data-design-2026-10-25.md) 与 [host-ports.mjs](../../../plan/assets/work-r0a-design-2026-10-25/host-ports.mjs)。
 
 ### 7.5 迁移台账接管与切换合同（2026-10-28 设计签收）
 
-本节是[重做计划](../archive/work-r0a-architecture-rebuild-plan-2026-10-28.md) Phase 0 第 6 项的设计签收记录（John 主签，Lily 于 2026-10-28 复核通过，未附加条件；解除复核前不实施限制，接受漂移即中止、周期可能拉长的代价），**不是已执行的接管，也没有演练记录**。随签条件：**不提供强制接管通道**——发现任何对象/权限/校验和漂移即停下对齐，不允许工单批准的强行 stamp，也不提供破坏性回滚。资产：[migration-takeover.policy.json](../../plan/assets/work-r0a-rebuild-2026-10-28/migration-takeover.policy.json) + [模型](../../plan/assets/work-r0a-rebuild-2026-10-28/migration-takeover.model.mjs) + [测试](../../plan/assets/work-r0a-rebuild-2026-10-28/migration-takeover.test.mjs)；模型不连数据库、不执行 SQL，也不证明任何真实库可被接管。
+本节是[重做计划](../work-r0a-architecture-rebuild-plan-2026-10-28.md) Phase 0 第 6 项的设计签收记录（John 主签，Lily 于 2026-10-28 复核通过，未附加条件；解除复核前不实施限制，接受漂移即中止、周期可能拉长的代价），**不是已执行的接管，也没有演练记录**。随签条件：**不提供强制接管通道**——发现任何对象/权限/校验和漂移即停下对齐，不允许工单批准的强行 stamp，也不提供破坏性回滚。资产：[migration-takeover.policy.json](../../../plan/assets/work-r0a-rebuild-2026-10-28/migration-takeover.policy.json) + [模型](../../../plan/assets/work-r0a-rebuild-2026-10-28/migration-takeover.model.mjs) + [测试](../../../plan/assets/work-r0a-rebuild-2026-10-28/migration-takeover.test.mjs)；模型不连数据库、不执行 SQL，也不证明任何真实库可被接管。
 
 #### 单写入者与前置条件
 
@@ -235,9 +237,9 @@ Go 迁移运行器以 advisory lock 串行化，**同一时刻只有一个写入
 - 3 个 golden tasks；反馈节奏；已知限制（无本机/连接器/项目/分享/移动编辑）。
 - 支持升级：P1 支持 → P2 研发 → 安全事件；工单不含正文/密钥。
 - 数据删除：按保留策略执行；正文/密钥/备份范围写清；第三方供应商删除单独确认。
-- 所有权转移：试点期间人工流程（D1 `transfer_task_ownership`，见[试点运营 runbook](work-r0a-pilot-operations-runbook-2026-10-26.md) §5）；不自动恢复离职人员权限。
+- 所有权转移：试点期间人工流程（D1 `transfer_task_ownership`，见[试点运营 runbook](../../ops/work-r0a-pilot-operations-runbook-2026-10-26.md) §5）；不自动恢复离职人员权限。
 - 删除：用户自助 `DELETE /tasks/{id}`（静止才允许）；运维代删 `ops_delete_task`；组织退出流程与粉碎/备份边界见 runbook §3–§4。
-- 黄金任务与指标：[golden-tasks.json](../../plan/assets/work-r0a-ops-2026-10-25/golden-tasks.json)（6 个，3 模板×2）、[pilot-metrics.json](../../plan/assets/work-r0a-ops-2026-10-25/pilot-metrics.json)（激活/技术成功率/采纳率 go-gate），由 [pilot-ops.mjs](../../plan/assets/work-r0a-ops-2026-10-25/pilot-ops.mjs) 校验并只引用 D1 实际发出的事件。
+- 黄金任务与指标：[golden-tasks.json](../../../plan/assets/work-r0a-ops-2026-10-25/golden-tasks.json)（6 个，3 模板×2）、[pilot-metrics.json](../../../plan/assets/work-r0a-ops-2026-10-25/pilot-metrics.json)（激活/技术成功率/采纳率 go-gate），由 [pilot-ops.mjs](../../../plan/assets/work-r0a-ops-2026-10-25/pilot-ops.mjs) 校验并只引用 D1 实际发出的事件。
 - 退出：导出/归档/删除；保留审计事实；不删除旧任务证据除非策略允许。
 
 ## 9. 演练矩阵
@@ -258,17 +260,17 @@ Go 迁移运行器以 advisory lock 串行化，**同一时刻只有一个写入
 
 ## 10. Go/No-Go 与当前状态
 
-完整清单见 [pilot-checklist.json](../../plan/assets/work-r0a-ops-2026-10-25/pilot-checklist.json)；`ops-model.mjs` 校验状态/证据，`goNoGo` 只把 `done/waived` 视为关闭。
+完整清单见 [pilot-checklist.json](../../../plan/assets/work-r0a-ops-2026-10-25/pilot-checklist.json)；`ops-model.mjs` 校验状态/证据，`goNoGo` 只把 `done/waived` 视为关闭。
 
 ### 10.1 执行进展（2026-10-25）
 
-- **Temporal 参考纵切**：F01/F02/F04/F07/F21/F23 + D3-R06–R09 **10/10** + normal 1/1（dev server、faux model、D1 schema）；见 [slice](../../plan/assets/work-temporal-slice-2026-10-25/README.md)。
+- **Temporal 参考纵切**：F01/F02/F04/F07/F21/F23 + D3-R06–R09 **10/10** + normal 1/1（dev server、faux model、D1 schema）；见 [slice](../../../plan/assets/work-temporal-slice-2026-10-25/README.md)。
 - **S1 参考演练 4/4 + 升级 1/1**：worker 重启/resume；DB 终态优先（无迟到 artifact，workflow 以 superseded 完成）；执行开关/组织停用阻断 submit/acquire；outbox backlog 新提交失败并在 drain 后恢复；`patched` v1→v2 升级保持旧 workflow 行为；file-backed server 重启后已完成 workflow 仍 COMPLETED 为修订前结果，修订后未复跑。
-- **沙箱降级 profile**：runc、非 root(65532)、只读根、无宿主挂载、`--network none`、cap-drop；gVisor 不可用，`sandboxProof=false`；见 [sandbox-smoke.log](../../plan/assets/work-r0a-hardening-2026-10-25/sandbox-smoke.log)。
-- **本地 KMS envelope**：租户隔离/轮换/主密钥轮换/shredding **6/6**；不是云 KMS/HSM；见 [kms-envelope](../../plan/assets/work-r0a-hardening-2026-10-25/kms-envelope.mjs)。
-- **真实 Qwen smoke**：qwen3.8-flash 200、首 token 2567ms、usage 80/110、provider request id 可记录，未输出 Key/正文；见 [provider-smoke.log](../../plan/assets/work-r0a-hardening-2026-10-25/provider-smoke.log)。
-- **日志扫描参考 8/8**：Key（含 `sk-proj-`/`sk-ant-`）/GitHub token/阿里云 AccessKey/Bearer/cookie/私钥/正文 canary/email 规则；现有 7 个证据日志 0 fail / 0 warn，扫描结果只含脱敏预览；见 [log-scan-result.log](../../plan/assets/work-r0a-hardening-2026-10-25/log-scan-result.log)。不是 staging OTel 证据。
-- **SLO 遥测规则 10/10**：12 个 SLO 全覆盖，生成 21 条 record + 19 条 alert（15 SLO + 4 operational，含 outbox 死信与 usage 偏差）【2026-11-13 现读更正：该计数为 2026-10-26 快照，现算＝21 条 `record:` ＋ 27 条 `alert:` ＝ 48 条；取数法＝对 [prometheus-rules.yaml](../../plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml) 各数一次行前缀，`deploy/observability/prometheus-rules.yaml` 同值。本文 §4 写的 48 条为现值，不改】，每条告警带 severity/for/runbook，内容标签被禁止；见 [telemetry-contract](../../plan/assets/work-r0a-ops-2026-10-25/telemetry-contract.json) / [rules](../../plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)。未接 Prometheus/Alertmanager，所有 SLO 仍 not_measured。
+- **沙箱降级 profile**：runc、非 root(65532)、只读根、无宿主挂载、`--network none`、cap-drop；gVisor 不可用，`sandboxProof=false`；见 [sandbox-smoke.log](../../../plan/assets/work-r0a-hardening-2026-10-25/sandbox-smoke.log)。
+- **本地 KMS envelope**：租户隔离/轮换/主密钥轮换/shredding **6/6**；不是云 KMS/HSM；见 [kms-envelope](../../../plan/assets/work-r0a-hardening-2026-10-25/kms-envelope.mjs)。
+- **真实 Qwen smoke**：qwen3.8-flash 200、首 token 2567ms、usage 80/110、provider request id 可记录，未输出 Key/正文；见 [provider-smoke.log](../../../plan/assets/work-r0a-hardening-2026-10-25/provider-smoke.log)。
+- **日志扫描参考 8/8**：Key（含 `sk-proj-`/`sk-ant-`）/GitHub token/阿里云 AccessKey/Bearer/cookie/私钥/正文 canary/email 规则；现有 7 个证据日志 0 fail / 0 warn，扫描结果只含脱敏预览；见 [log-scan-result.log](../../../plan/assets/work-r0a-hardening-2026-10-25/log-scan-result.log)。不是 staging OTel 证据。
+- **SLO 遥测规则 10/10**：12 个 SLO 全覆盖，生成 21 条 record + 19 条 alert（15 SLO + 4 operational，含 outbox 死信与 usage 偏差）【2026-11-13 现读更正：该计数为 2026-10-26 快照，现算＝21 条 `record:` ＋ 27 条 `alert:` ＝ 48 条；取数法＝对 [prometheus-rules.yaml](../../../plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml) 各数一次行前缀，`deploy/observability/prometheus-rules.yaml` 同值。本文 §4 写的 48 条为现值，不改】，每条告警带 severity/for/runbook，内容标签被禁止；见 [telemetry-contract](../../../plan/assets/work-r0a-ops-2026-10-25/telemetry-contract.json) / [rules](../../../plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)。未接 Prometheus/Alertmanager，所有 SLO 仍 not_measured。
 - 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03 执行开关/组织停用；C21 §6.1 on-call/事故沟通。C31 仍 partial（P1-A 不能直接复用；方案 B 已让 Work 自己出席位/token 配额/导出作业，缺的是 Host 的身份与席位字段）；C16/C17 仍 partial：规则与告警单测可复现（promtool 48 条 + 14 断言），缺的是 staging 遥测/日志后端与真实序列上的验证。
 - 当前 no-go 从 29 降为 **22**（本句为 2026-10-26 历史值；现值与取数法见文档顶部 2026-11-13 更正）；C09/C13/C14/C22 仍 partial，C15 已 waived、S13 已 out_of_scope、C24/C25/C27/C30 等仍待外部输入。
 
@@ -300,14 +302,14 @@ Go 迁移运行器以 advisory lock 串行化，**同一时刻只有一个写入
 4. **KMS/Content Store**：加密/删除/恢复/驻留未实现。
 5. **SLO 目标**：TTFT/unknown/technical success 为试点暂定，需数据校准；不能当合同。
 6. **容量**：模型只覆盖试点假设；10× 压力不通过；生产三档未做。
-7. **旧数据/路由**：保留期提案 180 天只读后归档导出再删（待法务）；切换状态机见 [cutover-plan.json](../../plan/assets/work-r0a-ops-2026-10-25/cutover-plan.json)；回滚演练未做。
-8. **所有权转移/离职**：D1 `transfer_task_ownership`（work_ops、工单号、静止、席位校验、审计）+ [试点运营 runbook §5](work-r0a-pilot-operations-runbook-2026-10-26.md)；未演练、未签收。
+7. **旧数据/路由**：保留期提案 180 天只读后归档导出再删（待法务）；切换状态机见 [cutover-plan.json](../../../plan/assets/work-r0a-ops-2026-10-25/cutover-plan.json)；回滚演练未做。
+8. **所有权转移/离职**：D1 `transfer_task_ownership`（work_ops、工单号、静止、席位校验、审计）+ [试点运营 runbook §5](../../ops/work-r0a-pilot-operations-runbook-2026-10-26.md)；未演练、未签收。
 9. **试点组织/研究**：3 家未签、7–8 名研究未做（招募与执行排期单已发，待运营回填名单）；不能以内部走查代替。
-10. **事故沟通/支持**：支持分级 S1–S4、工单模板与升级路径见[试点运营 runbook §2](work-r0a-pilot-operations-runbook-2026-10-26.md)；联系人/渠道待 C24。
+10. **事故沟通/支持**：支持分级 S1–S4、工单模板与升级路径见[试点运营 runbook §2](../../ops/work-r0a-pilot-operations-runbook-2026-10-26.md)；联系人/渠道待 C24。
 11. **合规**：数据驻留/删除/审计保留需法务/安全确认。
 12. **No-go 清单**：30 个 blocking 中 18 个未关闭是当前事实；本地测试不能替代试点环境、安全签收与组织研究（C15 已 waived）。
 13. **独立产品边界**：Host 端口/Connector 契约与剥离演练未完成；ADR-0021 设计约束不等于可独立售卖。
-14. **目录投影新鲜度（D-07 A 已定案，2026-10-27）**：增量同步 5 分钟 + 每日全量校对，`WorkDirectoryProjectionStale` 在滞后 > 600 秒（2 个增量周期）且持续 5 分钟时 page。R0a 只保证"下一次授权/提交被拦住"，**不自动取消在途 Run**（自动取消 = D-07 B 推到 R0b）；值班按[试点运营 Runbook §5.2](work-r0a-pilot-operations-runbook-2026-10-26.md)用 `work.ops_cancel_run` 手工停止。已接受风险：窗口内继续消耗该组织 token 配额。运维需监控投影修订滞后与 `directory.member_synced` 的 `entitlement_lost` 事件。
+14. **目录投影新鲜度（D-07 A 已定案，2026-10-27）**：增量同步 5 分钟 + 每日全量校对，`WorkDirectoryProjectionStale` 在滞后 > 600 秒（2 个增量周期）且持续 5 分钟时 page。R0a 只保证"下一次授权/提交被拦住"，**不自动取消在途 Run**（自动取消 = D-07 B 推到 R0b）；值班按[试点运营 Runbook §5.2](../../ops/work-r0a-pilot-operations-runbook-2026-10-26.md)用 `work.ops_cancel_run` 手工停止。已接受风险：窗口内继续消耗该组织 token 配额。运维需监控投影修订滞后与 `directory.member_synced` 的 `entitlement_lost` 事件。
 
 ## 13. 验收标准
 
@@ -324,9 +326,9 @@ D6 完成（可进入 R0a 试点）需要：
 
 ## 14. 交付物与下一步
 
-- [security-controls.json](../../plan/assets/work-r0a-ops-2026-10-25/security-controls.json)
-- [slo-pilot.json](../../plan/assets/work-r0a-ops-2026-10-25/slo-pilot.json)
-- [pilot-checklist.json](../../plan/assets/work-r0a-ops-2026-10-25/pilot-checklist.json)
-- [pilot-capacity-model.mjs](../../plan/assets/work-r0a-ops-2026-10-25/pilot-capacity-model.mjs)
-- [ops-model.mjs](../../plan/assets/work-r0a-ops-2026-10-25/ops-model.mjs) + [8 组测试](../../plan/assets/work-r0a-ops-2026-10-25/ops-model.test.mjs)
+- [security-controls.json](../../../plan/assets/work-r0a-ops-2026-10-25/security-controls.json)
+- [slo-pilot.json](../../../plan/assets/work-r0a-ops-2026-10-25/slo-pilot.json)
+- [pilot-checklist.json](../../../plan/assets/work-r0a-ops-2026-10-25/pilot-checklist.json)
+- [pilot-capacity-model.mjs](../../../plan/assets/work-r0a-ops-2026-10-25/pilot-capacity-model.mjs)
+- [ops-model.mjs](../../../plan/assets/work-r0a-ops-2026-10-25/ops-model.mjs) + [8 组测试](../../../plan/assets/work-r0a-ops-2026-10-25/ops-model.test.mjs)
 - 下一步：D6 评审后按 no-go 清单逐项关闭；优先 Temporal 测试、沙箱/供应商/KMS、SLO/恢复演练、试点组织与研究。

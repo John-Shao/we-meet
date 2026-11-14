@@ -10,9 +10,9 @@
 >
 > 范围：R1 套件/技能/快捷命令、R2a 只读连接器、R3 项目上下文与链式预览、能力库与管理面入口
 >
-> 产品依据：[WeMeet 工作产品设计方案](work-product-design-2026-10-25.md)
+> 产品依据：[WeMeet 工作产品设计方案](../archive/design-baseline/work-product-design-2026-10-25.md)
 >
-> R0 UX 依据：[R0 UX 设计蓝图](work-ux-design-r0-2026-10-25.md)
+> R0 UX 依据：[R0 UX 设计蓝图](../archive/design-baseline/work-ux-design-r0-2026-10-25.md)
 >
 > 可点击原型：[prototype.html](../../plan/assets/work-ux-extensions/prototype.html)
 >
@@ -885,8 +885,8 @@ Composer 的 `＋` 菜单提供套件、技能和选择文件夹；连接器 chi
 
 ### 15.3 参考
 
-- [WeMeet 工作产品设计方案](work-product-design-2026-10-25.md)
-- [R0 UX 设计蓝图](work-ux-design-r0-2026-10-25.md)
+- [WeMeet 工作产品设计方案](../archive/design-baseline/work-product-design-2026-10-25.md)
+- [R0 UX 设计蓝图](../archive/design-baseline/work-ux-design-r0-2026-10-25.md)
 - [工作管理面原型](../../plan/assets/work-ux-admin/prototype.html)
 - [扩展能力统一调研](../../research/work-extension-unified-research-2026-10-25.md)
 - [豆包工作扩展调研](../../research/work-extension-doubao-research-2026-10-25.md)

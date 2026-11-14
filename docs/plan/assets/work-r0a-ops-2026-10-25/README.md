@@ -61,7 +61,7 @@ D3 §11 的六类非 Run 作业现在有指标与告警：
 | 类别 | 数量 | 关键项 |
 |---|---|---|
 | 指标 | 28 | `work_background_job_runs_total{kind,outcome}`、`work_background_job_last_success_seconds{kind}`、`work_background_job_lease_takeovers_total`、`work_directory_projection_lag_seconds`、`work_audit_export_backlog`、`work_audit_export_duration_seconds_sum`/`_count`、`work_audit_export_downloads_total{outcome}`、`work_content_shred_backlog` |
-| 告警 | 27（15 SLO + 12 运维） | 新增 `WorkBackgroundJobStale`、`WorkBackgroundJobLeaseTakeovers`、`WorkDirectoryProjectionStale`、`WorkAuditExportBacklog`、`WorkAuditExportFailureRatio`、`WorkAuditExportSlow`、`WorkAuditExportTokenFailureBurst`、`WorkContentShredBacklog`，全部指向[运行手册 §5.1 后台作业故障处置](../../../work/design/work-operations-runbook-2026-10-25.md) |
+| 告警 | 27（15 SLO + 12 运维） | 新增 `WorkBackgroundJobStale`、`WorkBackgroundJobLeaseTakeovers`、`WorkDirectoryProjectionStale`、`WorkAuditExportBacklog`、`WorkAuditExportFailureRatio`、`WorkAuditExportSlow`、`WorkAuditExportTokenFailureBurst`、`WorkContentShredBacklog`，全部指向[运行手册 §5.1 后台作业故障处置](../../../work/ops/work-operations-runbook-2026-10-25.md) |
 | 控制 | 18（S01–S18） | S17 目录投影写入与新鲜度；S18 治理读越权与一次性下载入口 |
 
 `telemetry.test.mjs` 额外做两项跨资产一致性校验：D3 `background-jobs.contract.ts` 声明的作业指标/告警名必须在契约里存在，且"义务作业"（relay/shredder/投影同步/清扫）与"产生新工作的作业"（导出 worker）的划分必须与类型契约一致；`ops-model.test.mjs` 断言 `S17/S18` 存在且冻结集里不出现 `download_url`。
@@ -77,7 +77,7 @@ D3 §11 的六类非 Run 作业现在有指标与告警：
 
 ## 与其他文档
 
-- D6 设计说明：[../../work-r0a-security-ops-migration-design-2026-10-25.md](../../../work/design/work-r0a-security-ops-migration-design-2026-10-25.md)
+- D6 设计说明：[../../work-r0a-security-ops-migration-design-2026-10-25.md](../../../work/archive/design-baseline/work-r0a-security-ops-migration-design-2026-10-25.md)
 - 威胁模型：[../../work-threat-model-2026-10-25.md](../../../work/design/work-threat-model-2026-10-25.md)
-- 运行手册：[../../work-operations-runbook-2026-10-25.md](../../../work/design/work-operations-runbook-2026-10-25.md)
-- R0a 详细设计计划：[../../work-r0a-detailed-design-plan-2026-10-25.md](../../../work/design/work-r0a-detailed-design-plan-2026-10-25.md)
+- 运行手册：[../../work-operations-runbook-2026-10-25.md](../../../work/ops/work-operations-runbook-2026-10-25.md)
+- R0a 详细设计计划：[../../work-r0a-detailed-design-plan-2026-10-25.md](../../../work/archive/design-baseline/work-r0a-detailed-design-plan-2026-10-25.md)

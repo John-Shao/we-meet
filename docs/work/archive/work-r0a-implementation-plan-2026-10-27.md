@@ -4,7 +4,7 @@
 
 > 日期：2026-10-27
 > 
-> 基线：[实施就绪包](work-r0a-implementation-readiness-2026-10-26.md)、[详细设计大纲](../design/work-r0a-detailed-design-plan-2026-10-25.md)、D1–D6 设计文档
+> 基线：[实施就绪包](work-r0a-implementation-readiness-2026-10-26.md)、[详细设计大纲](design-baseline/work-r0a-detailed-design-plan-2026-10-25.md)、D1–D6 设计文档
 > 
 > 分支：`dev/work-r0a`（从 `aliyun-dev` 拉出）
 > 
@@ -117,7 +117,7 @@ python manage.py migrate work zero  # 回滚 schema，保留角色
 
 1. `deploy/aliyun/work-roles.sql`（新建）
    - 生产角色创建脚本（由 DBA 执行）
-   - 权限矩阵（[D1 §4.1](../design/work-r0a-data-design-2026-10-25.md) 为权威）：
+   - 权限矩阵（[D1 §4.1](design-baseline/work-r0a-data-design-2026-10-25.md) 为权威）：
      - `work_owner`：NOLOGIN，拥有 work schema 所有对象
      - `work_api`：NOLOGIN，SELECT + 指定函数 EXECUTE
      - `work_worker`：NOLOGIN，SELECT + 指定函数 EXECUTE
@@ -751,7 +751,7 @@ python manage.py migrate work       # 重新应用
 
 **当前可做**：E1–E7 后（C24/C27/C30 与试点环境）
 
-**既有资产**（不另建平行定义）：[pilot-ops.mjs](../../plan/assets/work-r0a-ops-2026-10-25/pilot-ops.mjs)、[golden-tasks.json](../../plan/assets/work-r0a-ops-2026-10-25/golden-tasks.json)、[pilot-metrics.json](../../plan/assets/work-r0a-ops-2026-10-25/pilot-metrics.json)、[cutover-plan.json](../../plan/assets/work-r0a-ops-2026-10-25/cutover-plan.json)、[试点运营 Runbook](../design/work-r0a-pilot-operations-runbook-2026-10-26.md) §10。
+**既有资产**（不另建平行定义）：[pilot-ops.mjs](../../plan/assets/work-r0a-ops-2026-10-25/pilot-ops.mjs)、[golden-tasks.json](../../plan/assets/work-r0a-ops-2026-10-25/golden-tasks.json)、[pilot-metrics.json](../../plan/assets/work-r0a-ops-2026-10-25/pilot-metrics.json)、[cutover-plan.json](../../plan/assets/work-r0a-ops-2026-10-25/cutover-plan.json)、[试点运营 Runbook](../ops/work-r0a-pilot-operations-runbook-2026-10-26.md) §10。
 
 #### 步骤 8.1：组织开通
 

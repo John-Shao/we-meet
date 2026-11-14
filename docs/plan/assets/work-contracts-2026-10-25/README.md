@@ -4,7 +4,7 @@
 >
 > 设计说明：[work-api-contracts-2026-10-25.md](../../../work/archive/work-api-contracts-2026-10-25.md)
 >
-> 需求基线：[Work 系统架构 v2.9](../../../work/design/work-system-architecture-2026-10-25.md) §11–§15、§21.2；[DDL 草案](../../../work/archive/work-data-model-ddl-draft-2026-10-25.md)。
+> 需求基线：[Work 系统架构 v2.9](../../../work/archive/design-baseline/work-system-architecture-2026-10-25.md) §11–§15、§21.2；[DDL 草案](../../../work/archive/work-data-model-ddl-draft-2026-10-25.md)。
 
 ## 文件
 

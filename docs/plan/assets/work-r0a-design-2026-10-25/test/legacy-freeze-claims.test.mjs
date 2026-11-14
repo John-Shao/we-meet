@@ -17,10 +17,9 @@ const LOCALES = join(HERE, '..', '..', '..', '..', '..', 'src', 'frontend', 'src
 const MARKER = '2026-11-04';
 
 const DOCS = [
-  join(PLAN_DIR, '..', 'work', 'design', 'work-r0a-pilot-operations-runbook-2026-10-26.md'),
+  join(PLAN_DIR, '..', 'work', 'ops', 'work-r0a-pilot-operations-runbook-2026-10-26.md'),
   join(PLAN_DIR, '..', 'work', 'design', 'work-r0a-host-wire-decision-2026-10-28.md'),
-  join(PLAN_DIR, '..', 'work', 'design', 'work-r0a-frontend-design-2026-10-25.md'),
-  join(PLAN_DIR, '..', 'work', 'design', 'work-r0a-drill-checklist-2026-11-15.md'),
+  join(PLAN_DIR, '..', 'work', 'ops', 'work-r0a-drill-checklist-2026-11-15.md'),
 ];
 
 // Phrases that would send someone to data or routes that no longer exist.

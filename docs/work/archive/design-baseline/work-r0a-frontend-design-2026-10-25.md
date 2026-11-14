@@ -1,12 +1,14 @@
+> 已归档（2026-11-14）。本文件是已实现 R0a 设计的基线快照，原文保留；详细设计以代码、迁移、契约、测试为权威，当前架构/安全/运维见 [docs/work/README.md](../../README.md)。
+
 # Work R0a 前端体验详细设计（D5）
 
-> 状态：D5 设计草案；路由/状态矩阵/文案（174 条）/UI 模型与 14 组测试已产出，未实现 React 页面。**该「未实现」只描述 2026-10-25 的设计时点**：D5 路由表的 7 条路由（`/work`、`/work/new`、`/work/items`、`/work/items/:taskId`、`/work/items/:taskId/artifacts/:artifactId`、`/work/archive`、`/admin/work`）均已在 `src/frontend/src/features/work/r0a/` 实现并发布生产；现状见 [work-project.md](../work-project.md) 完成度审计 D5 行。
+> 状态：D5 设计草案；路由/状态矩阵/文案（174 条）/UI 模型与 14 组测试已产出，未实现 React 页面。**该「未实现」只描述 2026-10-25 的设计时点**：D5 路由表的 7 条路由（`/work`、`/work/new`、`/work/items`、`/work/items/:taskId`、`/work/items/:taskId/artifacts/:artifactId`、`/work/archive`、`/admin/work`）均已在 `src/frontend/src/features/work/r0a/` 实现并发布生产；现状见 [work-project.md](../../work-project.md) 完成度审计 D5 行。
 >
 > 日期：2026-10-25
 >
-> 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[D2 API 设计](work-r0a-api-design-2026-10-25.md)、[R0 UX 设计](work-ux-design-r0-2026-10-25.md)、[R0 原型](../../plan/assets/work-ux-r0/prototype.html)、现有前端栈。
+> 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[D2 API 设计](work-r0a-api-design-2026-10-25.md)、[R0 UX 设计](work-ux-design-r0-2026-10-25.md)、[R0 原型](../../../plan/assets/work-ux-r0/prototype.html)、现有前端栈。
 >
-> 资产：[UI 状态契约](../../plan/assets/work-r0a-frontend-2026-10-25/ui-state.contract.ts)、[状态矩阵](../../plan/assets/work-r0a-frontend-2026-10-25/state-matrix.json)、[路由](../../plan/assets/work-r0a-frontend-2026-10-25/routes.json)、[文案](../../plan/assets/work-r0a-frontend-2026-10-25/copy.zh-CN.json)、[UI 模型](../../plan/assets/work-r0a-frontend-2026-10-25/ui-model.mjs)、[14 组测试](../../plan/assets/work-r0a-frontend-2026-10-25/ui-model.test.mjs)。
+> 资产：[UI 状态契约](../../../plan/assets/work-r0a-frontend-2026-10-25/ui-state.contract.ts)、[状态矩阵](../../../plan/assets/work-r0a-frontend-2026-10-25/state-matrix.json)、[路由](../../../plan/assets/work-r0a-frontend-2026-10-25/routes.json)、[文案](../../../plan/assets/work-r0a-frontend-2026-10-25/copy.zh-CN.json)、[UI 模型](../../../plan/assets/work-r0a-frontend-2026-10-25/ui-model.mjs)、[14 组测试](../../../plan/assets/work-r0a-frontend-2026-10-25/ui-model.test.mjs)。
 
 ## 1. 目标与范围
 
@@ -230,7 +232,7 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 
 ## 6. 状态矩阵与动作
 
-机器可读矩阵：[state-matrix.json](../../plan/assets/work-r0a-frontend-2026-10-25/state-matrix.json)；类型：[ui-state.contract.ts](../../plan/assets/work-r0a-frontend-2026-10-25/ui-state.contract.ts)；校验：[ui-model.mjs](../../plan/assets/work-r0a-frontend-2026-10-25/ui-model.mjs)。
+机器可读矩阵：[state-matrix.json](../../../plan/assets/work-r0a-frontend-2026-10-25/state-matrix.json)；类型：[ui-state.contract.ts](../../../plan/assets/work-r0a-frontend-2026-10-25/ui-state.contract.ts)；校验：[ui-model.mjs](../../../plan/assets/work-r0a-frontend-2026-10-25/ui-model.mjs)。
 
 | display_state | 主操作 | 可用动作 | 禁止 |
 |---|---|---|---|
@@ -322,7 +324,7 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 
 - 7–8 名设计合作伙伴（知识工作者 ≥2、本地重度用户 ≥2、**管理员 ≥3**）；至少两个场景在 3 家以上组织复现。
 - **R0a 判定任务集（UT1–UT5）**：提交一个云端文档任务、在待验收时采纳（含一次标题编辑）、遇到失败/未知时判断下一步、在“我的工作 / Inbox”找到“需要你”项、管理员在 `/admin/work` 读出席位与配额状况并发起一次审计导出下载。UX §13.2 的本机授权与命令审批任务**不计入 R0a 判定**。
-- 招募名额、渠道、邀约与同意话术、档期、环境与降级路径见 [U1 招募与执行排期单](../archive/work-r0a-usability-recruit-plan-2026-10-26.md)。
+- 招募名额、渠道、邀约与同意话术、档期、环境与降级路径见 [U1 招募与执行排期单](../work-r0a-usability-recruit-plan-2026-10-26.md)。
 - 成功标准：能复述执行位置/不访问本机/成果去向/配额；能区分失败/未知/取消；不误以为有本机/连接器/审批。
 - 未通过则回 D5 修正，不进入 DR4。
 
@@ -365,9 +367,9 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 ## 15. 交付物与下一步
 
 - [work-r0a-frontend-design-2026-10-25.md](work-r0a-frontend-design-2026-10-25.md)
-- [ui-state.contract.ts](../../plan/assets/work-r0a-frontend-2026-10-25/ui-state.contract.ts)
-- [state-matrix.json](../../plan/assets/work-r0a-frontend-2026-10-25/state-matrix.json)
-- [routes.json](../../plan/assets/work-r0a-frontend-2026-10-25/routes.json)
-- [copy.zh-CN.json](../../plan/assets/work-r0a-frontend-2026-10-25/copy.zh-CN.json)
-- [ui-model.mjs](../../plan/assets/work-r0a-frontend-2026-10-25/ui-model.mjs) + [14 组测试](../../plan/assets/work-r0a-frontend-2026-10-25/ui-model.test.mjs)
+- [ui-state.contract.ts](../../../plan/assets/work-r0a-frontend-2026-10-25/ui-state.contract.ts)
+- [state-matrix.json](../../../plan/assets/work-r0a-frontend-2026-10-25/state-matrix.json)
+- [routes.json](../../../plan/assets/work-r0a-frontend-2026-10-25/routes.json)
+- [copy.zh-CN.json](../../../plan/assets/work-r0a-frontend-2026-10-25/copy.zh-CN.json)
+- [ui-model.mjs](../../../plan/assets/work-r0a-frontend-2026-10-25/ui-model.mjs) + [14 组测试](../../../plan/assets/work-r0a-frontend-2026-10-25/ui-model.test.mjs)
 - 下一步：D5 评审后实现 `features/work/r0a`；D6 补运维/试点/DR 与真实可用性测试。

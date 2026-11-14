@@ -1,3 +1,5 @@
+> 已归档（2026-11-14）。本文件是已实现 R0a 设计的基线快照，原文保留；详细设计以代码、迁移、契约、测试为权威，当前架构/安全/运维见 [docs/work/README.md](../../README.md)。
+
 # WeMeet 工作产品设计方案
 
 > 版本：v1.2（clean-slate，2026-10-26 R0a 范围澄清）
@@ -14,22 +16,22 @@
 >
 > 2026-10-26 澄清：R0a 不做手工审批（策略自动），管理后台只有只读子集；完整审批/管理与 R0b/R2a 对齐。
 >
-> R0b 实施规格以 [R0b 架构与详细设计](work-r0b-architecture-2026-10-30.md) 为准：本期必选闭环、细分可委派治理权限；预算沿用已签 D-08 token 护栏，不恢复金额账本；计划/复核/移动写操作后置。本文保留目标产品路线，旧权限码/原型控件不构成新阶段授权。
+> R0b 实施规格以 [R0b 架构与详细设计](../../design/work-r0b-architecture-2026-10-30.md) 为准：本期必选闭环、细分可委派治理权限；预算沿用已签 D-08 token 护栏，不恢复金额账本；计划/复核/移动写操作后置。本文保留目标产品路线，旧权限码/原型控件不构成新阶段授权。
 >
 > 关联文档：
 >
 > - [WeMeet 工作目标系统架构（不以当前实现为约束）](work-system-architecture-2026-10-25.md)
-> - [豆包工作与千问办公扩展能力统一调研](../../research/work-extension-unified-research-2026-10-25.md)
+> - [豆包工作与千问办公扩展能力统一调研](../../../research/work-extension-unified-research-2026-10-25.md)
 > - [WeMeet 工作 R0 UX 设计蓝图](work-ux-design-r0-2026-10-25.md)
-> - [WeMeet 工作扩展 UX 设计（R1–R3）](work-ux-design-extensions-2026-10-25.md)
-> - [豆包工作扩展能力调研](../../research/work-extension-doubao-research-2026-10-25.md)
-> - [千问办公扩展能力调研](../../research/work-extension-qwen-research-2026-10-25.md)
-> - [新任务竞品调研](../../research/work-new-task-competitor-research-2026-10-25.md)
-> - [新任务技术调研](../../research/work-new-task-technical-research-2026-10-25.md)
-> - [Work Agent 架构](../../features/work-agent-architecture.md)
-> - [ADR-0005：Work 两层授权](../../adr/0005-work-two-layer-access.md)
-> - [ADR-0006：Work 逐步吸收 Task](../../adr/0006-work-absorbs-task.md)
-> - [ADR-0007：只承诺本地与远程执行](../../adr/0007-work-execution-local-remote.md)
+> - [WeMeet 工作扩展 UX 设计（R1–R3）](../../design/work-ux-design-extensions-2026-10-25.md)
+> - [豆包工作扩展能力调研](../../../research/work-extension-doubao-research-2026-10-25.md)
+> - [千问办公扩展能力调研](../../../research/work-extension-qwen-research-2026-10-25.md)
+> - [新任务竞品调研](../../../research/work-new-task-competitor-research-2026-10-25.md)
+> - [新任务技术调研](../../../research/work-new-task-technical-research-2026-10-25.md)
+> - [Work Agent 架构](../../../features/work-agent-architecture.md)
+> - [ADR-0005：Work 两层授权](../../../adr/0005-work-two-layer-access.md)
+> - [ADR-0006：Work 逐步吸收 Task](../../../adr/0006-work-absorbs-task.md)
+> - [ADR-0007：只承诺本地与远程执行](../../../adr/0007-work-execution-local-remote.md)
 
 > **一页纸结论**：WeMeet 工作 = 成果优先的任务工作区，不是聊天壳；R0a 先重建骨架、我的工作和云端文档场景，R0b 补本机资料整理与组织治理；R1 加技能/套件模板，R2a 加只读连接器、R2b 单独做远程设备，R3 才做项目上下文与链式，R4a/R4b 做富成果与工作台，R5 拆成协作、自动化、生态三条线。
 >
@@ -1270,7 +1272,7 @@ Brief 摘要：目标 / 受众 / 约束 / 成功标准
 - 权限码：`org.work_grant.read` / `org.work_grant.write`；`write` 不预置给内置角色，需 owner 显式授予。
 - 当前阶段不支持同一会话切换多个组织；管理面以主组织为准。后续如支持，单独设计。
 - 组织归档/停用：停止新任务、撤销席位、保留审计；成果访问按留存策略。
-- 管理面原型：[work-ux-admin/prototype.html](../../plan/assets/work-ux-admin/prototype.html)；页面与状态见 R0 UX §6.7。
+- 管理面原型：[work-ux-admin/prototype.html](../../../plan/assets/work-ux-admin/prototype.html)；页面与状态见 R0 UX §6.7。
 
 ### 15.3 执行安全
 
@@ -1619,7 +1621,7 @@ Brief 摘要：目标 / 受众 / 约束 / 成功标准
 | R5b 自动化 | 定时/触发工作 | 配方 + 触发器 + 通知 + 预算 + 审计 | R5a + 调度/通知 | 待评估 | 失败重试、预算保护、审计 |
 | R5c 生态 | 伙伴与精选市场 | 工作伙伴、组织/精选市场、发布审核 | R5a + 商务/法务 | 待评估 | 供给/需求/治理验证 |
 
-工程量沿用[统一调研](../../research/work-extension-unified-research-2026-10-25.md)的 E1–E4 估算，假设 R0a 已提供统一 Composer 和任务/成果骨架。R0a/R0b 为新增重建估算：按 1 名前端 + 1 名后端、复用平台底座计算，不含设计、QA、迁移、桌面分发和 3–5 人日技术 spike；R0 合计 30–46 人日，另加 20–30% 缓冲。R2b、R5a–R5c 需单独立项重估。R4b 的 30–50+ 不包含在 E4 的 60–95 内。R0a–R4b 规划区间约 171–279 人日（不含 R5、R0 缓冲、设计/QA/迁移/桌面分发），不是交付承诺。
+工程量沿用[统一调研](../../../research/work-extension-unified-research-2026-10-25.md)的 E1–E4 估算，假设 R0a 已提供统一 Composer 和任务/成果骨架。R0a/R0b 为新增重建估算：按 1 名前端 + 1 名后端、复用平台底座计算，不含设计、QA、迁移、桌面分发和 3–5 人日技术 spike；R0 合计 30–46 人日，另加 20–30% 缓冲。R2b、R5a–R5c 需单独立项重估。R4b 的 30–50+ 不包含在 E4 的 60–95 内。R0a–R4b 规划区间约 171–279 人日（不含 R5、R0 缓冲、设计/QA/迁移/桌面分发），不是交付承诺。
 
 ### 19.2 R0a 骨架与云端主场景
 
@@ -1944,15 +1946,15 @@ R5a/R5b/R5c 各自单独立项、单独估算、单独开关；不打包成一�
 
 | 文档 | 用途 |
 |---|---|
-| [统一扩展调研](../../research/work-extension-unified-research-2026-10-25.md) | 两家扩展模型、WorkPreset、E1–E4 路线图与工作量 |
-| [豆包工作扩展调研](../../research/work-extension-doubao-research-2026-10-25.md) | 工作伙伴、技能、插件、授权模式的截图与逐项分析 |
-| [千问办公扩展调研](../../research/work-extension-qwen-research-2026-10-25.md) | 专家套件、`SKILL.md`、链式/增强模式、连接器 |
-| [新任务竞品调研](../../research/work-new-task-competitor-research-2026-10-25.md) | 新任务输入、环境、权限、上下文、成果的竞品对比 |
-| [新任务技术调研](../../research/work-new-task-technical-research-2026-10-25.md) | Composer、草稿、幂等、执行环境、状态与接口 |
-| [Work Agent 架构](../../features/work-agent-architecture.md) | 执行器、Gateway、桌面、复核、部署边界 |
-| [ADR-0005](../../adr/0005-work-two-layer-access.md) | 组织授权 + 成员席位 |
-| [ADR-0006](../../adr/0006-work-absorbs-task.md) | Work 逐步吸收 Task |
-| [ADR-0007](../../adr/0007-work-execution-local-remote.md) | 只承诺本地/远程执行 |
+| [统一扩展调研](../../../research/work-extension-unified-research-2026-10-25.md) | 两家扩展模型、WorkPreset、E1–E4 路线图与工作量 |
+| [豆包工作扩展调研](../../../research/work-extension-doubao-research-2026-10-25.md) | 工作伙伴、技能、插件、授权模式的截图与逐项分析 |
+| [千问办公扩展调研](../../../research/work-extension-qwen-research-2026-10-25.md) | 专家套件、`SKILL.md`、链式/增强模式、连接器 |
+| [新任务竞品调研](../../../research/work-new-task-competitor-research-2026-10-25.md) | 新任务输入、环境、权限、上下文、成果的竞品对比 |
+| [新任务技术调研](../../../research/work-new-task-technical-research-2026-10-25.md) | Composer、草稿、幂等、执行环境、状态与接口 |
+| [Work Agent 架构](../../../features/work-agent-architecture.md) | 执行器、Gateway、桌面、复核、部署边界 |
+| [ADR-0005](../../../adr/0005-work-two-layer-access.md) | 组织授权 + 成员席位 |
+| [ADR-0006](../../../adr/0006-work-absorbs-task.md) | Work 逐步吸收 Task |
+| [ADR-0007](../../../adr/0007-work-execution-local-remote.md) | 只承诺本地/远程执行 |
 
 ### 21.3 竞品映射
 

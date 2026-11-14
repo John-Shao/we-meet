@@ -1,3 +1,5 @@
+> 已归档（2026-11-14）。本文件是已实现 R0a 设计的基线快照，原文保留；详细设计以代码、迁移、契约、测试为权威，当前架构/安全/运维见 [docs/work/README.md](../../README.md)。
+
 # Work R0a 控制面与持久编排详细设计（D3）
 
 > 状态：D3 可评审草案（2026-10-26 修订：取消四时点、派发后失败一律 unknown、迟到用量计费、跨组织租约 relay）；Temporal dev 参考纵切 F01/F02/F04/F07/F21/F23 + D3-R06–R09 10/10，S1 参考演练 R01–R05 本轮复跑通过、R06 未复跑；多节点/在途 server 重启/生产 Temporal、真实 provider 未做。
@@ -6,7 +8,7 @@
 >
 > 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[D2 API 设计](work-r0a-api-design-2026-10-25.md)、[架构 §6/§7/§11/§14/§21](work-system-architecture-2026-10-25.md)。
 >
-> 资产：[RunWorkflow/Activity 契约](../../plan/assets/work-r0a-orchestration-2026-10-25/RunWorkflow.contract.ts)、[故障矩阵](../../plan/assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)。
+> 资产：[RunWorkflow/Activity 契约](../../../plan/assets/work-r0a-orchestration-2026-10-25/RunWorkflow.contract.ts)、[故障矩阵](../../../plan/assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)。
 
 ## 1. 目标与范围
 
@@ -76,11 +78,11 @@ D3 把 R0a 的“提交 → 派发 → 模型 → 配额 → 成果 → 采纳�
 | 故障排查 | 可查 server/PG/history | 受供应商支持流程约束 |
 | 迁移 | 自托管可导出/迁移 | 迁出成本与合同约束需先确认 |
 
-**决定（2026-10-26）：采用自托管**（同区、独立 PG、mTLS、7 天 history、≥2 worker 副本），与 D3-01 一致；A/B 比较到此为止，不再重开。仍**待平台书面确认**多节点拓扑、值班/告警、PG 备份恢复与 ≥15 分钟 drain 窗口等 9 项承诺（逐条见 [U3 决策征询单 §3](../archive/work-r0a-temporal-hosting-decision-request-2026-10-26.md)）；确认前 U3/C22 保持未关闭。若任一项被判"否"，才回退到托管路线（须先取得驻留/留存/DPA 书面承诺）或重做控制面调度——两条都需要新 ADR 与 E4 重排。工作流契约和本设计的取消/对账语义不因托管方式改变。
+**决定（2026-10-26）：采用自托管**（同区、独立 PG、mTLS、7 天 history、≥2 worker 副本），与 D3-01 一致；A/B 比较到此为止，不再重开。仍**待平台书面确认**多节点拓扑、值班/告警、PG 备份恢复与 ≥15 分钟 drain 窗口等 9 项承诺（逐条见 [U3 决策征询单 §3](../work-r0a-temporal-hosting-decision-request-2026-10-26.md)）；确认前 U3/C22 保持未关闭。若任一项被判"否"，才回退到托管路线（须先取得驻留/留存/DPA 书面承诺）或重做控制面调度——两条都需要新 ADR 与 E4 重排。工作流契约和本设计的取消/对账语义不因托管方式改变。
 
 未确认前，E4 不得按“已排期”承诺；U3 与 C22 保持未关闭（选定 A 只消除了选型不确定，没有消除对平台的资源与运维依赖）。
 
-为把“等平台答复”变成可签收动作，已发出 [U3 决策征询单](../archive/work-r0a-temporal-hosting-decision-request-2026-10-26.md)：自托管路线列出平台必须逐条承诺的 9 项（多副本、独立 PG、内网 mTLS、备份 RPO/RTO、**≥15 分钟 drain 窗口**、值班、`temporal_*` 告警接入、namespace 配额、演练排期），托管路线列出法务必须先答的 6 项（驻留、history 保留与个人数据判定、训练条款、退出条款、DPA/认证、计费口径），并写明期望答复日 2026-11-14 与三种不答复后果。选 A 之后的四项演练就是 C22 的关闭动作。
+为把“等平台答复”变成可签收动作，已发出 [U3 决策征询单](../work-r0a-temporal-hosting-decision-request-2026-10-26.md)：自托管路线列出平台必须逐条承诺的 9 项（多副本、独立 PG、内网 mTLS、备份 RPO/RTO、**≥15 分钟 drain 窗口**、值班、`temporal_*` 告警接入、namespace 配额、演练排期），托管路线列出法务必须先答的 6 项（驻留、history 保留与个人数据判定、训练条款、退出条款、DPA/认证、计费口径），并写明期望答复日 2026-11-14 与三种不答复后果。选 A 之后的四项演练就是 C22 的关闭动作。
 
 **Workflow 与 Run 的关系**：
 
@@ -93,13 +95,13 @@ D3 把 R0a 的“提交 → 派发 → 模型 → 配额 → 成果 → 采纳�
 
 ### 5.0 D3' 执行片段协议（F0-R1 设计已签）
 
-本节按[重做计划](../archive/work-r0a-architecture-rebuild-plan-2026-10-28.md#跨语言执行契约)提出 Go/Node 接口，**不是 D3' 全部完成或已签收**。后续 §5.1–§6 与 `RunWorkflow.contract.ts` 保留旧 `r0a-v1` 的历史协议；其中同队列部署、直接 `invokeModel` 入口及旧 bigint 参数不能直接当作新 wire contract。其余领域活动仍需逐项与 D1 对齐，不在本次消息 Schema 中假定已经完成。
+本节按[重做计划](../work-r0a-architecture-rebuild-plan-2026-10-28.md#跨语言执行契约)提出 Go/Node 接口，**不是 D3' 全部完成或已签收**。后续 §5.1–§6 与 `RunWorkflow.contract.ts` 保留旧 `r0a-v1` 的历史协议；其中同队列部署、直接 `invokeModel` 入口及旧 bigint 参数不能直接当作新 wire contract。其余领域活动仍需逐项与 D1 对齐，不在本次消息 Schema 中假定已经完成。
 
 资产：
 
-- [AdvanceRuntime.contract.ts](../../plan/assets/work-r0a-orchestration-2026-10-25/AdvanceRuntime.contract.ts)：TS 消息类型、单次执行与超时建议；无 Temporal SDK 依赖。
-- [advance-runtime.schema.json](../../plan/assets/work-r0a-orchestration-2026-10-25/advance-runtime.schema.json)：JSON Schema Draft-07，作为本轮 wire 形状校验基线。
-- [advance-runtime.test.mjs](../../plan/assets/work-r0a-orchestration-2026-10-25/advance-runtime.test.mjs)：结构正负例；复用前端已有 Ajv，不安装新依赖。TS 类型不能替代运行时验证，Go codec 双向与实际 Temporal payload 测试仍待实现。
+- [AdvanceRuntime.contract.ts](../../../plan/assets/work-r0a-orchestration-2026-10-25/AdvanceRuntime.contract.ts)：TS 消息类型、单次执行与超时建议；无 Temporal SDK 依赖。
+- [advance-runtime.schema.json](../../../plan/assets/work-r0a-orchestration-2026-10-25/advance-runtime.schema.json)：JSON Schema Draft-07，作为本轮 wire 形状校验基线。
+- [advance-runtime.test.mjs](../../../plan/assets/work-r0a-orchestration-2026-10-25/advance-runtime.test.mjs)：结构正负例；复用前端已有 Ajv，不安装新依赖。TS 类型不能替代运行时验证，Go codec 双向与实际 Temporal payload 测试仍待实现。
 
 #### 消息与控制权
 
@@ -294,7 +296,7 @@ sequenceDiagram
 
 ## 6. Activity 契约
 
-完整 TypeScript 契约见 [RunWorkflow.contract.ts](../../plan/assets/work-r0a-orchestration-2026-10-25/RunWorkflow.contract.ts)。
+完整 TypeScript 契约见 [RunWorkflow.contract.ts](../../../plan/assets/work-r0a-orchestration-2026-10-25/RunWorkflow.contract.ts)。
 
 | Activity | 关键输入 | 输出/副作用 | 幂等键 | 重试/超时 |
 |---|---|---|---|---|
@@ -476,7 +478,7 @@ sequenceDiagram
 
 ### 10.1 EX-SSE：单实例 DB 直读 SSE（候选设计修订）
 
-本项只评估事件传输方式：以 API 轮询 `work.task_event` 替代上文 `task_event` 经 relay 转发 SSE。目标是在单实例演示环境减少一条投递链与故障环节；不是用现有实现反向证明设计已获豁免。候选授权、验收证据与采纳状态只在[项目文档 §4.5](../archive/work-project-full-2026-11-14.md#45-候选设计修订与验收证据)维护；证据齐备并经 John 确认后才修订正式基线，涉及身份/留存边界变化须另经 Lily 复核。
+本项只评估事件传输方式：以 API 轮询 `work.task_event` 替代上文 `task_event` 经 relay 转发 SSE。目标是在单实例演示环境减少一条投递链与故障环节；不是用现有实现反向证明设计已获豁免。候选授权、验收证据与采纳状态只在[项目文档 §4.5](../work-project-full-2026-11-14.md#45-候选设计修订与验收证据)维护；证据齐备并经 John 确认后才修订正式基线，涉及身份/留存边界变化须另经 Lily 复核。
 
 **适用范围与不变量**：
 
@@ -544,14 +546,14 @@ R0a 的编排不止"每个 Run 一个 workflow"。下面这些常驻/周期性�
 ### 11.5 撤权新鲜度与手工取消（D-07 A，2026-10-27 定案）
 
 - **节奏**：投影同步增量 **5 分钟**一轮，每日一次全量校对；`WorkDirectoryProjectionStale` 在滞后 > **600 秒（2 个增量周期）**且持续 5 分钟时 page（阈值来源：D6 遥测契约）。
-- **执行方式 = A**：失权只拦新工作（`create_input`/`submit_task`/`retry_task`/所有权转移即拒）。**在途 Run 不自动取消**——值班看到 `entitlement_lost` 审计与滞后告警后，按[试点运营 Runbook §5.2](work-r0a-pilot-operations-runbook-2026-10-26.md)用 `work.ops_cancel_run`（只授 `work_ops`，工单号必填）手工处置；已派发给供应商的请求照常进入 unknown/对账，不假装停止。owner 本人在职时仍用常规 `request_cancel`。
+- **执行方式 = A**：失权只拦新工作（`create_input`/`submit_task`/`retry_task`/所有权转移即拒）。**在途 Run 不自动取消**——值班看到 `entitlement_lost` 审计与滞后告警后，按[试点运营 Runbook §5.2](../../ops/work-r0a-pilot-operations-runbook-2026-10-26.md)用 `work.ops_cancel_run`（只授 `work_ops`，工单号必填）手工处置；已派发给供应商的请求照常进入 unknown/对账，不假装停止。owner 本人在职时仍用常规 `request_cancel`。
 - **已接受风险**：撤权到人工取消之间的窗口内，在途 Run 继续消耗该组织 token 配额。写进风险登记与产品文案，不作为缺陷处理。
 - **B 方案（投影同步附带定向取消意图）推到 R0b**：`EntitlementNarrowingHint` 类型保留但 R0a 不消费；届时补取消策略（哪些状态取消、每轮上限、幂等键）与告警，不改 D1 命令语义。
 - **实现红线**：投影写入不直接改 Run 状态；`work_directory` 角色拿不到 Run 写权限。
 
 ### 11.6 EX-DIR：单机 systemd 目录同步（候选设计修订）
 
-本项只评估用 systemd timer + oneshot service 承载目录投影同步，替代 §11.1 的 Temporal Schedule 及该作业的队列宿主；不将其推广到 RunWorkflow、对账器、审计导出或其他义务作业。收益是单机部署/排障更简单、目录同步不依赖 Temporal 可用性；代价是单机故障域与漏跑补偿、互斥、监控、切换责任必须显式补齐。候选的证据与采纳状态只在[项目文档 §4.5](../archive/work-project-full-2026-11-14.md#45-候选设计修订与验收证据)维护。
+本项只评估用 systemd timer + oneshot service 承载目录投影同步，替代 §11.1 的 Temporal Schedule 及该作业的队列宿主；不将其推广到 RunWorkflow、对账器、审计导出或其他义务作业。收益是单机部署/排障更简单、目录同步不依赖 Temporal 可用性；代价是单机故障域与漏跑补偿、互斥、监控、切换责任必须显式补齐。候选的证据与采纳状态只在[项目文档 §4.5](../work-project-full-2026-11-14.md#45-候选设计修订与验收证据)维护。
 
 **适用范围与不变量**：
 
@@ -582,7 +584,7 @@ R0a 的编排不止"每个 Run 一个 workflow"。下面这些常驻/周期性�
 
 ## 13. 故障矩阵
 
-完整机器可读矩阵见 [fault-matrix.yaml](../../plan/assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)。
+完整机器可读矩阵见 [fault-matrix.yaml](../../../plan/assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)。
 
 | ID | 场景 | 必须保持 |
 |---|---|---|
@@ -609,7 +611,7 @@ R0a 的编排不止"每个 Run 一个 workflow"。下面这些常驻/周期性�
 | D3-N05 | 目录投影连续失败 / 单 org 抛错 | 其他 org 继续同步；同 revision 重放被拒但不算失败；滞后越限告警；管理页显示陈旧而非假数据 |
 | D3-N06 | Kill switch 或组织停用期间的义务作业 | 新提交/新导出停止；relay、shredder、投影同步、清扫继续；恢复后不重放已完成的外部动作 |
 
-证据分三层，不合并计数：F/D3-R 例有 Temporal dev 切片执行记录（§15.1）；**D3-N02/N03/N04/N05 的数据库侧交错**已由 [r0a-concurrency-smoke.py](../../plan/assets/work-r0a-design-2026-10-25/r0a-concurrency-smoke.py) 多连接实测（数字见 [D1 §6.1](work-r0a-data-design-2026-10-25.md)，矩阵里逐例记在 `measured` 字段）；崩溃注入（D3-N01 与 D3-N03 的进程被杀、D3-N06 的开关演练）、真实 Content Store 删除确认与真实 IdP 重放节奏**仍未执行**——因此 D3-N 组不能记作“已通过”。
+证据分三层，不合并计数：F/D3-R 例有 Temporal dev 切片执行记录（§15.1）；**D3-N02/N03/N04/N05 的数据库侧交错**已由 [r0a-concurrency-smoke.py](../../../plan/assets/work-r0a-design-2026-10-25/r0a-concurrency-smoke.py) 多连接实测（数字见 [D1 §6.1](work-r0a-data-design-2026-10-25.md)，矩阵里逐例记在 `measured` 字段）；崩溃注入（D3-N01 与 D3-N03 的进程被杀、D3-N06 的开关演练）、真实 Content Store 删除确认与真实 IdP 重放节奏**仍未执行**——因此 D3-N 组不能记作“已通过”。
 
 ## 14. D3 对 D1/D2 的增量
 
@@ -661,11 +663,11 @@ D3 完成（DR2）需要：
   - S1-R05：v1 worker 停止后切 v2；旧 workflow 保持 v1 artifact `draft.md`，新 workflow 使用 `draft-v2.md`。
   - S1-R06：file-backed Temporal server 重启后，已完成 workflow 仍为 COMPLETED，Work DB task 仍 awaiting_acceptance。
 - 边界：F04/F07/F21/D3-R07/D3-R08 使用测试 `faultMode` 直接启动 workflow，不经过 outbox；F23 是数据库幂等断言；S1-R01 只验证 worker 重启，不做 Temporal server 重启/多节点/version patch；切片为缩短测试把 activity 超时/心跳改为 30s/3s（设计基线为模型 15m、心跳 30s），D3-R08 不证明生产超时值；未接真实 provider、sandbox、KMS。
-- 资产：[work-temporal-slice-2026-10-25](../../plan/assets/work-temporal-slice-2026-10-25/README.md)。
+- 资产：[work-temporal-slice-2026-10-25](../../../plan/assets/work-temporal-slice-2026-10-25/README.md)。
 
 ### 15.2 数据库侧并发竞态（2026-10-26）
 
-编排关心的交错在数据库层就能测，不需要等 Temporal worker 就位。[r0a-concurrency-smoke.py](../../plan/assets/work-r0a-design-2026-10-25/r0a-concurrency-smoke.py) 用多连接同时打同一组领域命令，完整数字见 [D1 §6.1](work-r0a-data-design-2026-10-25.md)；与 D3 相关的三条结论：
+编排关心的交错在数据库层就能测，不需要等 Temporal worker 就位。[r0a-concurrency-smoke.py](../../../plan/assets/work-r0a-design-2026-10-25/r0a-concurrency-smoke.py) 用多连接同时打同一组领域命令，完整数字见 [D1 §6.1](work-r0a-data-design-2026-10-25.md)；与 D3 相关的三条结论：
 
 1. **作业只有一个持有者**：10 个并发 `claim_audit_export` → 1 胜、9 个 `audit_export_not_claimable`；租约过期后新持有者收尾成功、旧持有者得 `audit_export_lease_lost`。§11.2 的"租约 + 只有当前持有者能收尾"不是纸面约定。
 2. **清扫不重复也不漏**：3 个并发 `expire_due_inputs` 只有一个领到 4 行（`FOR UPDATE` 串行化），2 个共享引用各投递一次 `content_shred`；义务作业（§11.3）在并发下不产生第二条删除请求。
@@ -682,7 +684,7 @@ D3 完成（DR2）需要：
 3. **供应商回执查询**：不同供应商对 unknown 的查询能力不同；无法确认时保持 unresolved，不释放配额。
 4. **配额等待信号权限**：谁可以补配额/发 resume 需运营权限与审计；R0a 无配额写 UI。
 5. **Workflow 版本/Worker 发布**：`patched` 升级已验证；worker versioning 部署、正式 drain/回滚演练未做。
-6. ~~Outbox 顺序/DLQ~~：**已定并实现于 D1（2026-10-26 修订）**：`outbox_seq` 单聚合严格有序（头部未投递——在途租约/退避/死信——即阻塞同聚合后续行；跨聚合不保证）；`mark_outbox_failed` 2^n 秒退避（≤300s），第 10 次（约 13.5 分钟）或不可重试即死信 + 审计；**死信继续阻塞同聚合**，start_workflow 死信同时收尾 Run（queued→failed / cancel_requested→canceled）并 supersede 同 Run 后续消息；`requeue_outbox_dead_letter`/`skip_outbox_dead_letter` 仅 `work_ops`、需理由、审计；relay 租约 + 跨组织策略见 §10。PG 冒烟 114/114、竞态 7/7、Temporal 切片 faults 10/10、s1 4/4 回归通过。告警 `WorkOutboxDeadLetters`，处置见[试点运营 runbook §6](work-r0a-pilot-operations-runbook-2026-10-26.md)。
+6. ~~Outbox 顺序/DLQ~~：**已定并实现于 D1（2026-10-26 修订）**：`outbox_seq` 单聚合严格有序（头部未投递——在途租约/退避/死信——即阻塞同聚合后续行；跨聚合不保证）；`mark_outbox_failed` 2^n 秒退避（≤300s），第 10 次（约 13.5 分钟）或不可重试即死信 + 审计；**死信继续阻塞同聚合**，start_workflow 死信同时收尾 Run（queued→failed / cancel_requested→canceled）并 supersede 同 Run 后续消息；`requeue_outbox_dead_letter`/`skip_outbox_dead_letter` 仅 `work_ops`、需理由、审计；relay 租约 + 跨组织策略见 §10。PG 冒烟 114/114、竞态 7/7、Temporal 切片 faults 10/10、s1 4/4 回归通过。告警 `WorkOutboxDeadLetters`，处置见[试点运营 runbook §6](../../ops/work-r0a-pilot-operations-runbook-2026-10-26.md)。
 7. **SSE 多实例/背压**：长连接、游标保留、重连风暴未实现。
 8. **人工审批**：R0a 不覆盖 F03 的完整审批 UI/通知；待 R0b/R2。
 9. **超时数值**：Run/模型/配额等待是初始建议，需产品与试点数据校准。
@@ -695,7 +697,7 @@ D3 完成（DR2）需要：
 
 ## 17. 交付物与下一步
 
-- [RunWorkflow.contract.ts](../../plan/assets/work-r0a-orchestration-2026-10-25/RunWorkflow.contract.ts)：workflow/activity/signal/query/retry/错误分类契约。
-- [background-jobs.contract.ts](../../plan/assets/work-r0a-orchestration-2026-10-25/background-jobs.contract.ts)：§11 六类后台作业的调度参数、租约/幂等键、错误分类与停止语义（类型契约，不含 Temporal 运行时）。
-- [fault-matrix.yaml](../../plan/assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)：F01/F02/F03/F04/F07/F21/F23 + D3 专项 + D3-N 后台作业用例。
-- 下一步：S1 拓扑/升级/DB-Temporal 偏移、outbox backlog/停用演练、后台作业租约接管与"义务作业不可停"演练（D3-N01–N06）、真实 provider/sandbox；随后 D4/D6 评审。参考纵切见 [README](../../plan/assets/work-temporal-slice-2026-10-25/README.md)。
+- [RunWorkflow.contract.ts](../../../plan/assets/work-r0a-orchestration-2026-10-25/RunWorkflow.contract.ts)：workflow/activity/signal/query/retry/错误分类契约。
+- [background-jobs.contract.ts](../../../plan/assets/work-r0a-orchestration-2026-10-25/background-jobs.contract.ts)：§11 六类后台作业的调度参数、租约/幂等键、错误分类与停止语义（类型契约，不含 Temporal 运行时）。
+- [fault-matrix.yaml](../../../plan/assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)：F01/F02/F03/F04/F07/F21/F23 + D3 专项 + D3-N 后台作业用例。
+- 下一步：S1 拓扑/升级/DB-Temporal 偏移、outbox backlog/停用演练、后台作业租约接管与"义务作业不可停"演练（D3-N01–N06）、真实 provider/sandbox；随后 D4/D6 评审。参考纵切见 [README](../../../plan/assets/work-temporal-slice-2026-10-25/README.md)。

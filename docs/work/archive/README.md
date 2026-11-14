@@ -12,6 +12,7 @@
 ## 内容分类
 
 - **完整台账快照**：`work-project-full-2026-11-14.md`（瘦身前 work-project 全文，含开放卡片 V/W/X/Y/G/#96 全文与近期变更记录）。
+- **已实现 R0a 设计基线**：[design-baseline/](design-baseline/README.md)（D1–D6、系统架构、产品设计等长文，已由代码取代，仅供追溯）。
 - **work-project 历史段**：`work-project-progress-log.md`（实现进展）、`work-project-r0a-impl-log.md`（实装叙事）、`work-project-r0a-closed-cards.md`（已闭卡片 A/B/C/D/H）、`work-project-changelog.md`（旧变更条目）。
 - **R0b 过程快照**：r0b-* 报告/交接/审计/会话总结/验证报告等。
 - **R0a 已闭决策/签收/征询**：开发准入、实施就绪包、实施计划、DR0/DR1 签收、D-08 决策、C03/C11/C15 处置、凭证路径、内容图、密钥派生等。

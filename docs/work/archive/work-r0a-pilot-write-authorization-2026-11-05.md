@@ -4,7 +4,7 @@
 
 日期：2026-11-05 ｜ 提出：Qoder agent ｜ 裁定／执行授权：**待 John 逐格勾**（本文只申请，不代表已授权）
 关联：[work-project.md 台账](../work-project.md)（#56-A、#60=B、#57 三段）、[DR2 评审单](work-r0a-dr2-d4-review-2026-11-04.md)、
-[演练包 verdict.json](../../plan/assets/work-r0a-ops-2026-10-25/drill-2026-11-15/verdict.json)、[运维 runbook §5.21／§5.22](../design/work-operations-runbook-2026-10-25.md)
+[演练包 verdict.json](../../plan/assets/work-r0a-ops-2026-10-25/drill-2026-11-15/verdict.json)、[运维 runbook §5.21／§5.22](../ops/work-operations-runbook-2026-10-25.md)
 
 ## 0. 为什么这两件必须由你授权
 

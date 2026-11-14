@@ -86,7 +86,7 @@ R0A_LOG_FILE=/tmp/r0a-concurrency-rerun.log python r0a-concurrency-smoke.py
 
 `admin-directory-concurrency.log` 命中仓库根 `.gitignore` 的 `*.log`：作为证据提交时需 `git add -f`（与 [work-temporal-slice](../work-temporal-slice-2026-10-25/README.md) 里的 `*-result.log` 同一做法）。
 
-仓库里那份是 CI `db-smoke` 一次运行的快照，[runbook](../../../work/design/work-operations-runbook-2026-10-25.md) 与数据设计 §6.1 都按名引用它的计数。脚本默认就地写这个路径（`r0a-concurrency-smoke.py:38`，`R0A_LOG_FILE` 未设时取仓库内文件名），所以本机复跑会覆写被引用的证据：竞态结果本身随交错而变（本机一次复跑把 `projection_revision_race` 的 `applied` 从 `[3, 6, 8, 9]` 变成 `[9]`、`projection_revision_stale` 从 4 变成 7，两组都是同一个不变量的合法读数），覆写后的数字与被引用处对不上。该文件虽命中 `*.log` 仍是被跟踪文件（`git add -f` 纳管），覆写会在 `git status` 里显示为 ` M`，但只看门禁结论的人容易漏掉。复跑请带上例中的 `R0A_LOG_FILE`；若已经覆写，用 `git checkout -- admin-directory-concurrency.log` 还原，别把本机快照当签收证据提交。
+仓库里那份是 CI `db-smoke` 一次运行的快照，[runbook](../../../work/ops/work-operations-runbook-2026-10-25.md) 与数据设计 §6.1 都按名引用它的计数。脚本默认就地写这个路径（`r0a-concurrency-smoke.py:38`，`R0A_LOG_FILE` 未设时取仓库内文件名），所以本机复跑会覆写被引用的证据：竞态结果本身随交错而变（本机一次复跑把 `projection_revision_race` 的 `applied` 从 `[3, 6, 8, 9]` 变成 `[9]`、`projection_revision_stale` 从 4 变成 7，两组都是同一个不变量的合法读数），覆写后的数字与被引用处对不上。该文件虽命中 `*.log` 仍是被跟踪文件（`git add -f` 纳管），覆写会在 `git status` 里显示为 ` M`，但只看门禁结论的人容易漏掉。复跑请带上例中的 `R0A_LOG_FILE`；若已经覆写，用 `git checkout -- admin-directory-concurrency.log` 还原，别把本机快照当签收证据提交。
 
 ## 已验证
 
@@ -109,7 +109,7 @@ D2：真实 cookie/CSRF 签发、真实 SSE 网关/背压/多连接、真实持�
 
 ## 与其他文档
 
-- 设计说明：[../../work-r0a-data-design-2026-10-25.md](../../../work/design/work-r0a-data-design-2026-10-25.md)
-- 详细设计计划：[../../work-r0a-detailed-design-plan-2026-10-25.md](../../../work/design/work-r0a-detailed-design-plan-2026-10-25.md)
+- 设计说明：[../../work-r0a-data-design-2026-10-25.md](../../../work/archive/design-baseline/work-r0a-data-design-2026-10-25.md)
+- 详细设计计划：[../../work-r0a-detailed-design-plan-2026-10-25.md](../../../work/archive/design-baseline/work-r0a-detailed-design-plan-2026-10-25.md)
 - 完整 DDL：[../../work-data-model-ddl-draft-2026-10-25.md](../../../work/archive/work-data-model-ddl-draft-2026-10-25.md)
 - API 契约：[../../work-api-contracts-2026-10-25.md](../../../work/archive/work-api-contracts-2026-10-25.md)

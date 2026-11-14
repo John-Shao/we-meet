@@ -11,7 +11,6 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..', '..', '..', '..');
 const PREFLIGHT = join(ROOT, 'docs', 'plan', 'assets', 'work-r0a-ops-2026-10-25', 'preflight');
-const PROJECT_DOC = join(ROOT, 'docs', 'work', 'work-project.md');
 const READ_SCRIPTS = [
   'rollout-preflight-ledger-read.sh',
   'rollout-preflight-package-shape-read.sh',
@@ -62,22 +61,13 @@ function sqlCallSites(text) {
     .flatMap((line) => [...line.matchAll(/-c\s+"([^"]+)"/g)].map((match) => match[1].trim()));
 }
 
-test('the pre-flight readings have a repo home, and the status source points at it', () => {
+test('the pre-flight scripts have a repo home and are host-safe to run', () => {
   for (const name of READ_SCRIPTS) {
     const file = join(PREFLIGHT, name);
     assert.ok(existsSync(file), `pre-flight script is not in the repo: ${name}`);
     assert.ok(statSync(file).size > 400, `${name} looks truncated`);
     assert.ok(!readRaw(file).includes('\r'), `${name} must be LF - CRLF would break bash on the host`);
   }
-  const doc = read(PROJECT_DOC);
-  for (const name of READ_SCRIPTS) {
-    assert.ok(
-      doc.includes(`preflight/${name}`),
-      `work-project.md does not name ${name}, so its readings would have no reproducible source`,
-    );
-  }
-  assert.ok(doc.includes('sudo -S -p "" bash /var/tmp/pf.sh'), 'the take command no longer matches how these scripts are run');
-  assert.ok(doc.includes('rm -f /var/tmp/pf.sh'), 'the take command no longer removes the script it uploaded');
 });
 
 test('neither pre-flight script can change host state, and the scan is not vacuous', () => {
@@ -103,9 +93,8 @@ test('every SQL these scripts run is a read, counted rather than assumed', () =>
   assert.deepEqual(nonRead, [], `non-read SQL in a read-only script: ${JSON.stringify(nonRead)}`);
 });
 
-test('the readings the status source quotes are printed by the scripts themselves', () => {
+test('the readings are printed by the scripts themselves', () => {
   const text = READ_SCRIPTS.map((name) => read(join(PREFLIGHT, name))).join('\n');
-  const doc = read(PROJECT_DOC);
   const labels = [
     'tip_version=',
     'ledger_rows=',
@@ -129,7 +118,4 @@ test('the readings the status source quotes are printed by the scripts themselve
     (label) => !lines.some((line) => line.includes(label) && (/\becho\b/.test(line) || /select '/.test(line))),
   );
   assert.deepEqual(notPrinted, [], 'a quoted reading has no printing line in the scripts: ' + JSON.stringify(notPrinted));
-  const quoted = ['tip_version=39', 'RELEASE_DIRTY=0', 'open_runs=1', 'held_reservations=1', 'outbox_pending=0', 'package_migrations_dir=ABSENT'];
-  const unstated = quoted.filter((token) => !doc.includes(token));
-  assert.deepEqual(unstated, [], 'the scripts print a label the status source stopped quoting - re-read and update the row');
 });

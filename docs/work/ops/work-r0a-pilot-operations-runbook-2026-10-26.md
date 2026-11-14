@@ -2,7 +2,7 @@
 
 > 状态：设计定稿草案（2026-10-26），关闭 C26/C27/C30 的**设计侧**缺口；未经支持/法务/安全签收，未在试点环境演练。
 >
-> 关联：[D6 安全/运维/迁移设计](work-r0a-security-ops-migration-design-2026-10-25.md)、[通用 Runbook](work-operations-runbook-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[D2 API](work-r0a-api-design-2026-10-25.md)。
+> 关联：[D6 安全/运维/迁移设计](../archive/design-baseline/work-r0a-security-ops-migration-design-2026-10-25.md)、[通用 Runbook](work-operations-runbook-2026-10-25.md)、[D1 数据设计](../archive/design-baseline/work-r0a-data-design-2026-10-25.md)、[D2 API](../archive/design-baseline/work-r0a-api-design-2026-10-25.md)。
 >
 > 可执行资产：[pilot-ops.mjs](../../plan/assets/work-r0a-ops-2026-10-25/pilot-ops.mjs)（6/6）、[golden-tasks.json](../../plan/assets/work-r0a-ops-2026-10-25/golden-tasks.json)、[pilot-metrics.json](../../plan/assets/work-r0a-ops-2026-10-25/pilot-metrics.json)、[cutover-plan.json](../../plan/assets/work-r0a-ops-2026-10-25/cutover-plan.json)、D1 领域命令（PG16 冒烟 114/114 + 多连接竞态 7/7）、[usage 对账](../../plan/assets/work-r0a-runtime-2026-10-25/usage/usage-reconcile.mjs)。
 

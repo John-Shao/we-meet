@@ -130,7 +130,7 @@ D-08a–d 的六字段签收表单已写在 [D-08 决策单 §6](work-r0a-provid
 - ☑ 2026-10-27 提前签（(b) 自证）；☑ 同日结论栏定为**通过并附修订**；☐ DR1 会议追认未开
 - 签字人：后端负责人 John Shao；DBA/安全 John Shao；独立复核 Lily Zhu
 - 结论栏：**冻结并附修订**——修订项 ①静态凭证 KMS 字段放宽 ②新增 `ops_cancel_run` 运营取消命令（D-07 A 的可执行面）；复核人 Lily Zhu，复核日 2026-11-10
-- 读什么：[D1 设计](../design/work-r0a-data-design-2026-10-25.md)（§6.1 竞态、§7.14 撤权新鲜度）；[设计资产](../../plan/assets/work-r0a-design-2026-10-25/README.md) 的 `r0a-schema-smoke.sql`（148 断言，含 D-08 25 项、静态凭证 4 项与运营取消 `ops_cancel_run` 5 项）、`r0a-concurrency-smoke.py`（9 组多连接竞态 + 不变量门）、`r0a-admin-directory.sql`（投影单调性谓词）
+- 读什么：[D1 设计](design-baseline/work-r0a-data-design-2026-10-25.md)（§6.1 竞态、§7.14 撤权新鲜度）；[设计资产](../../plan/assets/work-r0a-design-2026-10-25/README.md) 的 `r0a-schema-smoke.sql`（148 断言，含 D-08 25 项、静态凭证 4 项与运营取消 `ops_cancel_run` 5 项）、`r0a-concurrency-smoke.py`（9 组多连接竞态 + 不变量门）、`r0a-admin-directory.sql`（投影单调性谓词）
 - 会上要回答的问题（可判定）：
   1. 七个角色（`work_owner/api/worker/ledger/migrator/ops/directory`）的授权面能否原样进仓库迁移体系？哪个要改？
   2. `FORCE RLS` + REVOKE 直接 DML + `SECURITY DEFINER` 命令面是否冻结为**唯一**写入口径？
@@ -150,7 +150,7 @@ D-08a–d 的六字段签收表单已写在 [D-08 决策单 §6](work-r0a-provid
 - ☑ 2026-10-27 提前签（(b) 自证）；☐ DR1 会议追认未开
 - 签字人：后端 John Shao；前端 John Shao
 - 结论栏：**冻结 29 path/33 operation**（D-08d 已签，接口面不再回退）
-- 读什么：[D2 设计](../design/work-r0a-api-design-2026-10-25.md)；[资产 README](../../plan/assets/work-r0a-design-2026-10-25/README.md) 的 OpenAPI 子集、错误码目录、生成客户端与 mock；Host 端口契约
+- 读什么：[D2 设计](design-baseline/work-r0a-api-design-2026-10-25.md)；[资产 README](../../plan/assets/work-r0a-design-2026-10-25/README.md) 的 OpenAPI 子集、错误码目录、生成客户端与 mock；Host 端口契约
 - 会上要回答的问题：
   1. 33 个 operation（含 D-08 新增 8 个；D-08d 未签则回到 25）是否即为 R0a 冻结集？要删/要加的逐一列出并给理由。
   2. cookie + CSRF 单次刷新重试、同源 SSE、409 resync 三个语义是否接受？
@@ -166,7 +166,7 @@ D-08a–d 的六字段签收表单已写在 [D-08 决策单 §6](work-r0a-provid
 - ☑ 已签收（2026-10-27 会前逐条；11-10 DR1 追认）
 - 签字人：后端 John Shao + 平台 John Shao + 产品 John Shao（(b) 自证）；独立复核 Lily Zhu
 - 结论栏：**接受方案 B 口径**；Host 待补字段（`subject_id`/`role`/`revision`/席位布尔/组织字段）仍按 C31 在 E2 联调时逐项认领
-- 读什么：[管理只读映射](../design/work-r0a-admin-readonly-mapping-2026-10-25.md) §3.1/§4/§5；D1 §7.14；Host 端口契约
+- 读什么：[管理只读映射](design-baseline/work-r0a-admin-readonly-mapping-2026-10-25.md) §3.1/§4/§5；D1 §7.14；Host 端口契约
 - 会上要回答的问题：Host 侧需补的字段逐项确认——`subject_id`、`role`、`revision`、席位布尔、组织字段；缺哪个、谁在哪次发版补、联调日期。
 - 证据边界：已证——管理读 6 operation 进 OpenAPI；`work.audit_export` 作业、席位/token 配额聚合、`work_directory` 投影写入有设计物与冒烟负例；Host 五端口契约可执行 9/9。未证——P1-A 真实字段/权限映射（C31，pilot 闸）、staging 日志证明 token 不落 URL（S18）。
 - 不签的后果：管理面无法进入 E2；C31 的字段清单无人认领；审计导出授权测试（S10）没有可测口径。
@@ -178,7 +178,7 @@ D-08a–d 的六字段签收表单已写在 [D-08 决策单 §6](work-r0a-provid
 - 签字人：后端 John Shao + 安全 John Shao + 产品 John Shao（(b) 自证）；独立复核 Lily Zhu
 - 结论栏：**☑A 只拦新工作，在途 Run 由运营手工取消**（□B 转 R0b；□退回）—— **C（投影直接停止 Run）已拒绝，不列为可签选项**
 - 一起签的参数：投影同步**增量 5 分钟 + 每日一次全量校对**；`WorkDirectoryProjectionStale` 阈值 = 滞后 > **600 秒（2 个增量周期）**且持续 5 分钟，page；按组织关闭的开关不适用（A 本身不自动取消）
-- **A 的可执行面**：签约时发现 `request_cancel` 是 owner-only、`work_ops` 无取消命令，而转移所有权又要求任务静止——所以 A 必须配一条运营命令。已补 **`work.ops_cancel_run(org, run, actor, ticket_ref, reason)`**（只授 `work_ops`，工单号必填、原因用枚举码、复用同一状态机与 `cancel_signal` outbox、重复调用幂等），流程见[试点运营 Runbook §5.2](../design/work-r0a-pilot-operations-runbook-2026-10-26.md)
+- **A 的可执行面**：签约时发现 `request_cancel` 是 owner-only、`work_ops` 无取消命令，而转移所有权又要求任务静止——所以 A 必须配一条运营命令。已补 **`work.ops_cancel_run(org, run, actor, ticket_ref, reason)`**（只授 `work_ops`，工单号必填、原因用枚举码、复用同一状态机与 `cancel_signal` outbox、重复调用幂等），流程见[试点运营 Runbook §5.2](../ops/work-r0a-pilot-operations-runbook-2026-10-26.md)
 - 已接受风险：撤权到人工取消之间，在途 Run 继续消耗该组织 token 配额（进风险登记与客户接入说明）；设计侧原推荐 B 的落点（`EntitlementNarrowingHint`）保留但不消费
 - 读什么：D1 §7.14（现记录 `entitlement_lost` 但不改 Run）、D3 §11 作业清单与 `WorkDirectoryProjectionStale`、运行手册 §6.4
 - 会上要回答的问题：1) 选 A 还是 B；2) 投影同步周期上限取多少（新鲜度目标的唯一硬约束）；3) 告警阈值与同步周期是否绑定 D-07 一起签；4) 按组织关闭的开关默认值。

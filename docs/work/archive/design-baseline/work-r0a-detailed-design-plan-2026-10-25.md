@@ -1,10 +1,12 @@
+> 已归档（2026-11-14）。本文件是已实现 R0a 设计的基线快照，原文保留；详细设计以代码、迁移、契约、测试为权威，当前架构/安全/运维见 [docs/work/README.md](../../README.md)。
+
 # Work R0a 详细设计大纲与决策单
 
 > 状态：详细设计第 0 周输入，待架构/契约签收与 7 项 P0 决策确认；本文不替代架构、契约、DDL 或 UX 基线，不包含生产实现。
 >
 > 日期：2026-10-25
 >
-> 基线：[Work 系统架构 v2.10](work-system-architecture-2026-10-25.md)、[产品设计](work-product-design-2026-10-25.md)、[R0 UX](work-ux-design-r0-2026-10-25.md)、[DDL 草案](../archive/work-data-model-ddl-draft-2026-10-25.md)、[API 契约](../archive/work-api-contracts-2026-10-25.md)、[威胁模型](work-threat-model-2026-10-25.md)、[Runbook](work-operations-runbook-2026-10-25.md)、三条参考纵切与 [ADR-0008–0021](../../adr/)。
+> 基线：[Work 系统架构 v2.10](work-system-architecture-2026-10-25.md)、[产品设计](work-product-design-2026-10-25.md)、[R0 UX](work-ux-design-r0-2026-10-25.md)、[DDL 草案](../work-data-model-ddl-draft-2026-10-25.md)、[API 契约](../work-api-contracts-2026-10-25.md)、[威胁模型](../../design/work-threat-model-2026-10-25.md)、[Runbook](../../ops/work-operations-runbook-2026-10-25.md)、三条参考纵切与 [ADR-0008–0021](../../../adr/)。
 >
 > 适用阶段：R0a（云端主场景，3 家合作组织试点）。
 
@@ -44,23 +46,23 @@
 
 ### 0.3 W1 进展（2026-10-25）
 
-- **D1 已完成可执行草案**：[数据/权限/迁移设计](work-r0a-data-design-2026-10-25.md)、[schema/冒烟资产](../../plan/assets/work-r0a-design-2026-10-25/README.md)；PostgreSQL 16 冒烟 148/148 + 多连接竞态 9 组（D-08 修订、D-03 B 静态凭证、D-07 A 运营取消命令；D-08a 已于 2026-10-27 签收，D-08b 会前确认，D-08c/d 待 DR1 冻结），未应用生产。
-- **D2 已完成契约子集**：[API/事件设计](work-r0a-api-design-2026-10-25.md)、[OpenAPI](../../plan/assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、生成的 TypeScript 类型/运行时客户端、mock server、[Host 端口契约](../../plan/assets/work-r0a-design-2026-10-25/host-ports.mjs) 与设计包 34/34（合同 12 + 客户端 13 + 端口 9）；未做真实鉴权/持久化。
+- **D1 已完成可执行草案**：[数据/权限/迁移设计](work-r0a-data-design-2026-10-25.md)、[schema/冒烟资产](../../../plan/assets/work-r0a-design-2026-10-25/README.md)；PostgreSQL 16 冒烟 148/148 + 多连接竞态 9 组（D-08 修订、D-03 B 静态凭证、D-07 A 运营取消命令；D-08a 已于 2026-10-27 签收，D-08b 会前确认，D-08c/d 待 DR1 冻结），未应用生产。
+- **D2 已完成契约子集**：[API/事件设计](work-r0a-api-design-2026-10-25.md)、[OpenAPI](../../../plan/assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、生成的 TypeScript 类型/运行时客户端、mock server、[Host 端口契约](../../../plan/assets/work-r0a-design-2026-10-25/host-ports.mjs) 与设计包 34/34（合同 12 + 客户端 13 + 端口 9）；未做真实鉴权/持久化。
 - **DR1 尚未评审**：D1/D2 仍是草案；D3/D4 需在 DR1 后继续。
 
 ### 0.4 W2 进展（2026-10-25）
 
-- **D3 设计草案完成**：[控制面与持久编排设计](work-r0a-orchestration-design-2026-10-25.md)、[RunWorkflow/Activity 契约](../../plan/assets/work-r0a-orchestration-2026-10-25/RunWorkflow.contract.ts)、[18 项故障矩阵](../../plan/assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)。
-- **D3 参考纵切通过（2026-10-26 修订后复跑）**：Temporal dev + faux model 执行 F01/F02/F04/F07/F21/F23 + D3-R06–R09 **10/10** + normal 1/1、S1 **4/4** + 升级 1/1（[slice](../../plan/assets/work-temporal-slice-2026-10-25/README.md)）；S1-R06 未复跑；多节点/在途 server 重启/正式 worker versioning 与 DR2 未做。
-- **D4 设计草案完成**：[Runtime/出口设计](work-r0a-runtime-egress-design-2026-10-25.md)、[WorkAdapter 契约](../../plan/assets/work-r0a-runtime-2026-10-25/WorkAdapter.contract.ts)、[工具/沙箱/出口策略](../../plan/assets/work-r0a-runtime-2026-10-25/policy/)、[10/10 策略测试](../../plan/assets/work-r0a-runtime-2026-10-25/policy/evaluator.test.mjs)。
+- **D3 设计草案完成**：[控制面与持久编排设计](work-r0a-orchestration-design-2026-10-25.md)、[RunWorkflow/Activity 契约](../../../plan/assets/work-r0a-orchestration-2026-10-25/RunWorkflow.contract.ts)、[18 项故障矩阵](../../../plan/assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)。
+- **D3 参考纵切通过（2026-10-26 修订后复跑）**：Temporal dev + faux model 执行 F01/F02/F04/F07/F21/F23 + D3-R06–R09 **10/10** + normal 1/1、S1 **4/4** + 升级 1/1（[slice](../../../plan/assets/work-temporal-slice-2026-10-25/README.md)）；S1-R06 未复跑；多节点/在途 server 重启/正式 worker versioning 与 DR2 未做。
+- **D4 设计草案完成**：[Runtime/出口设计](work-r0a-runtime-egress-design-2026-10-25.md)、[WorkAdapter 契约](../../../plan/assets/work-r0a-runtime-2026-10-25/WorkAdapter.contract.ts)、[工具/沙箱/出口策略](../../../plan/assets/work-r0a-runtime-2026-10-25/policy/)、[10/10 策略测试](../../../plan/assets/work-r0a-runtime-2026-10-25/policy/evaluator.test.mjs)。
 - **D4 仅为设计**：未接真实 gVisor、Content Store、KMS、供应商条款或生产网关；DR2/D4 评审未执行。
 
 ### 0.5 W3 进展（2026-10-25）
 
-- **D5 设计草案完成**：[前端体验设计](work-r0a-frontend-design-2026-10-25.md)、[状态/路由/文案/UI 模型资产](../../plan/assets/work-r0a-frontend-2026-10-25/README.md)；UI 模型测试 11/11（2026-10-26 增至 14/14，含 canceled/archived 的 R0b 预留约束）。
+- **D5 设计草案完成**：[前端体验设计](work-r0a-frontend-design-2026-10-25.md)、[状态/路由/文案/UI 模型资产](../../../plan/assets/work-r0a-frontend-2026-10-25/README.md)；UI 模型测试 11/11（2026-10-26 增至 14/14，含 canceled/archived 的 R0b 预留约束）。
 - **D5 仅为设计**：未实现 React 页面/React Query/SSE 客户端/Playwright，未做可用性测试。
-- **D6 设计草案完成**：[安全/运维/迁移/试点设计](work-r0a-security-ops-migration-design-2026-10-25.md)、[安全/SLO/容量/试点资产](../../plan/assets/work-r0a-ops-2026-10-25/README.md)；8/8 校验通过。
-- **D6 当前 go/no-go = no-go**【2026-11-13 现读更正：本行的 `no-go` 与"18 个未关闭"均为 2026-10-26 快照口径，不是当前值；当前 go/no-go 由 `goNoGo()` 自己打印，唯一权威命令与当日读数见 [Work 项目文档](../work-project.md) §5.2 顶部标注，D6 顶部有同日更正。本行下方"未做生产演练/真实 gVisor/云 KMS"的证据边界不受本次更正影响，仍按原文成立】：30 个 blocking 中 18 个未关闭（C01/C02/C11/C14 提前签、C15 已 waived）；已完成 Temporal 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、RLS 池化、10 并发负载、Work DB 恢复、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke；未做生产演练/真实 gVisor/云 KMS（C14 已签降级，C15 waived）。
+- **D6 设计草案完成**：[安全/运维/迁移/试点设计](work-r0a-security-ops-migration-design-2026-10-25.md)、[安全/SLO/容量/试点资产](../../../plan/assets/work-r0a-ops-2026-10-25/README.md)；8/8 校验通过。
+- **D6 当前 go/no-go = no-go**【2026-11-13 现读更正：本行的 `no-go` 与"18 个未关闭"均为 2026-10-26 快照口径，不是当前值；当前 go/no-go 由 `goNoGo()` 自己打印，唯一权威命令与当日读数见 [Work 项目文档](../../work-project.md) §5.2 顶部标注，D6 顶部有同日更正。本行下方"未做生产演练/真实 gVisor/云 KMS"的证据边界不受本次更正影响，仍按原文成立】：30 个 blocking 中 18 个未关闭（C01/C02/C11/C14 提前签、C15 已 waived）；已完成 Temporal 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、RLS 池化、10 并发负载、Work DB 恢复、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke；未做生产演练/真实 gVisor/云 KMS（C14 已签降级，C15 waived）。
 
 ### 0.6 下一批优先项进展（2026-10-26）
 
@@ -72,10 +74,10 @@
 
 ### 0.7 W4 详细设计收口（2026-10-26）
 
-- **本轮复审前记录的契约缺口已闭合**：标题编辑、受控导出下载、CSRF/cookie 生命周期、冻结错误码目录（`r0a-errors-v3`：50 公开码 / 104 SQL 映射，CI 扫描 schema-draft）；outbox 按聚合顺序 + 指数退避 + 死信/审计重排；usage 对账容差与价表校验；供应链准入（cosign/SLSA/SBOM/Pi 固定版本）；用户删除/运维代删/所有权转移；生命周期事件；黄金任务、试点指标、切换状态机；[试点运营 Runbook](work-r0a-pilot-operations-runbook-2026-10-26.md)。
+- **本轮复审前记录的契约缺口已闭合**：标题编辑、受控导出下载、CSRF/cookie 生命周期、冻结错误码目录（`r0a-errors-v3`：50 公开码 / 104 SQL 映射，CI 扫描 schema-draft）；outbox 按聚合顺序 + 指数退避 + 死信/审计重排；usage 对账容差与价表校验；供应链准入（cosign/SLSA/SBOM/Pi 固定版本）；用户删除/运维代删/所有权转移；生命周期事件；黄金任务、试点指标、切换状态机；[试点运营 Runbook](../../ops/work-r0a-pilot-operations-runbook-2026-10-26.md)。
 - **证据**：D1 冒烟 148/148 + 竞态门禁 9/9（2026-10-26 D-08 修订；2026-10-27 静态凭证 +4）；API 29 path / 33 operation，设计包 34/34；Temporal 10/10 + S1 4/4；Runtime 10/10 + 19/19；UI 模型 14/14；日志扫描 8/8；静态凭证 4 项；ops/pilot/telemetry 28/28（21 record + 27 alert = 48 条规则；指标 28）。
-- **W4 产出**：[实施就绪包](../archive/work-r0a-implementation-readiness-2026-10-26.md)——**可评审草案**。2026-10-26 复审撤回“§0 六条在设计层全部满足”的结论：D1/D3 的 P0/P1 已修复并补负例，但 §0 #5（可用性验证；管理页方案同日已定 B 并落成设计物）未满足，另有 Temporal 托管（U3）与 §9.4 检查表（U4）；U2 方案 B 已于 2026-10-27 签收、U3 自托管 A 的 9 项承诺已于同日确认，U4 的 DR1 两行已于同日勾选；**只剩 U1（C25 可用性研究）开放**。排期仍从 DR4（建议 2026-12-04）起算。
-- **仍不可全面开工**：DR0–DR4 未形成正式会议纪要（结论已会前签，纪要待开）；D-01..D-07 已于 2026-10-27 **全部正式签收**（D-03 B、D-07 A）；go/no-go 仍 no-go（30 个 blocking 中 11 done / 15 partial / 3 todo / 1 waived；另 2 项非 blocking 已 waived）。**有条件开发准入已生效**：E1–E3 先行、E4–E6 只做契约/mock（见[开发准入单](../archive/work-r0a-development-entry-2026-10-27.md)），`canStartWork` 仍 false。
+- **W4 产出**：[实施就绪包](../work-r0a-implementation-readiness-2026-10-26.md)——**可评审草案**。2026-10-26 复审撤回“§0 六条在设计层全部满足”的结论：D1/D3 的 P0/P1 已修复并补负例，但 §0 #5（可用性验证；管理页方案同日已定 B 并落成设计物）未满足，另有 Temporal 托管（U3）与 §9.4 检查表（U4）；U2 方案 B 已于 2026-10-27 签收、U3 自托管 A 的 9 项承诺已于同日确认，U4 的 DR1 两行已于同日勾选；**只剩 U1（C25 可用性研究）开放**。排期仍从 DR4（建议 2026-12-04）起算。
+- **仍不可全面开工**：DR0–DR4 未形成正式会议纪要（结论已会前签，纪要待开）；D-01..D-07 已于 2026-10-27 **全部正式签收**（D-03 B、D-07 A）；go/no-go 仍 no-go（30 个 blocking 中 11 done / 15 partial / 3 todo / 1 waived；另 2 项非 blocking 已 waived）。**有条件开发准入已生效**：E1–E3 先行、E4–E6 只做契约/mock（见[开发准入单](../work-r0a-development-entry-2026-10-27.md)），`canStartWork` 仍 false。
 
 ## 1. R0a 范围冻结
 
@@ -229,9 +231,9 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **目标**：把 DDL 草案裁剪成 R0a 可执行迁移，并保证“业务函数是唯一写入口”。
 
-**设计输入**：[DDL 草案](../archive/work-data-model-ddl-draft-2026-10-25.md)、[架构 §5/§13/§14/§18](work-system-architecture-2026-10-25.md)、[ADR-0009/0011/0016/0017](../../adr/)。
+**设计输入**：[DDL 草案](../work-data-model-ddl-draft-2026-10-25.md)、[架构 §5/§13/§14/§18](work-system-architecture-2026-10-25.md)、[ADR-0009/0011/0016/0017](../../../adr/)。
 
-**当前进展（2026-10-25）**：已产出 [D1 设计说明](work-r0a-data-design-2026-10-25.md) 与 [可执行 schema/冒烟资产](../../plan/assets/work-r0a-design-2026-10-25/README.md)；独立 PostgreSQL 16 冒烟 34/34 通过（2026-10-26 D-08 修订后 148/148）。仍是草案，未评审、未应用生产。
+**当前进展（2026-10-25）**：已产出 [D1 设计说明](work-r0a-data-design-2026-10-25.md) 与 [可执行 schema/冒烟资产](../../../plan/assets/work-r0a-design-2026-10-25/README.md)；独立 PostgreSQL 16 冒烟 34/34 通过（2026-10-26 D-08 修订后 148/148）。仍是草案，未评审、未应用生产。
 
 **交付物**：
 
@@ -266,9 +268,9 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **目标**：冻结 R0a 公开接口子集，闭合当前契约缺口，并让客户端/mock/合同测试成为实现输入。
 
-**设计输入**：[OpenAPI](../../plan/assets/work-contracts-2026-10-25/openapi/work-openapi-v1.yaml)、[API 契约](../archive/work-api-contracts-2026-10-25.md)、[云端纵切](../archive/work-cloud-slice-2026-10-25/README.md)、[架构 §15](work-system-architecture-2026-10-25.md)。
+**设计输入**：[OpenAPI](../../../plan/assets/work-contracts-2026-10-25/openapi/work-openapi-v1.yaml)、[API 契约](../work-api-contracts-2026-10-25.md)、[云端纵切](../work-cloud-slice-2026-10-25/README.md)、[架构 §15](work-system-architecture-2026-10-25.md)。
 
-**当前进展（2026-10-25）**：已产出 [D2 设计说明](work-r0a-api-design-2026-10-25.md)、[R0a OpenAPI](../../plan/assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、生成的 TypeScript 类型与[运行时客户端](../../plan/assets/work-r0a-design-2026-10-25/r0a-client.mjs)、[mock server](../../plan/assets/work-r0a-design-2026-10-25/mock-server.mjs)、[10 组合同测试](../../plan/assets/work-r0a-design-2026-10-25/test/contract.test.mjs)与 [9 组 Host 端口测试](../../plan/assets/work-r0a-design-2026-10-25/test/host-ports.test.mjs)；OpenAPI 校验与 `tsc --noEmit` 通过，`ci-contract.mjs` 作为漂移门禁。远端 CI 与真实前端接入仍未完成。
+**当前进展（2026-10-25）**：已产出 [D2 设计说明](work-r0a-api-design-2026-10-25.md)、[R0a OpenAPI](../../../plan/assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、生成的 TypeScript 类型与[运行时客户端](../../../plan/assets/work-r0a-design-2026-10-25/r0a-client.mjs)、[mock server](../../../plan/assets/work-r0a-design-2026-10-25/mock-server.mjs)、[10 组合同测试](../../../plan/assets/work-r0a-design-2026-10-25/test/contract.test.mjs)与 [9 组 Host 端口测试](../../../plan/assets/work-r0a-design-2026-10-25/test/host-ports.test.mjs)；OpenAPI 校验与 `tsc --noEmit` 通过，`ci-contract.mjs` 作为漂移门禁。远端 CI 与真实前端接入仍未完成。
 
 **必须先闭合的契约缺口**：
 
@@ -306,7 +308,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **目标**：把“提交→派发→模型→预算→成果→采纳”做成可恢复、可对账、不可双重消费的持久流程。
 
-**设计输入**：[架构 §6/§7/§11/§14/§21](work-system-architecture-2026-10-25.md)、[云端纵切](../archive/work-cloud-slice-2026-10-25/README.md)、[DDL 草案](../archive/work-data-model-ddl-draft-2026-10-25.md)。
+**设计输入**：[架构 §6/§7/§11/§14/§21](work-system-architecture-2026-10-25.md)、[云端纵切](../work-cloud-slice-2026-10-25/README.md)、[DDL 草案](../work-data-model-ddl-draft-2026-10-25.md)。
 
 **当前进展（2026-10-25）**：D3 设计、契约与 Temporal dev 参考纵切已产出；F01/F02/F04/F07/F21/F23 + D3-R06–R09 10/10 + normal 1/1、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）；多节点/在途 server 重启/正式 worker versioning 与 DR2 未执行。
 
@@ -319,7 +321,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 5. **对账器与 Outbox**：悬挂 dispatching、unknown、终态 Run 清理、outbox 重放、事件投递、SSE 游标；定时任务与手动重放。
 6. **故障注入矩阵**：重复提交、单派发、预算并发、审批策略拒绝、取消竞态、供应商超时、worker 崩溃、DB/Temporal 偏移、outbox 重复、采纳时活动 Run/未知 Operation。
 7. **开关与停用**：组织级 feature flag、kill switch、组织停用/恢复；停用立即拒绝新动作并停止派发，不自动恢复旧许可。
-8. **契约与故障矩阵**：[RunWorkflow/Activity 契约](../../plan/assets/work-r0a-orchestration-2026-10-25/RunWorkflow.contract.ts)、[18 项故障矩阵](../../plan/assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)；F01/F02/F03/F04/F07/F21/F23 + D3 专项。
+8. **契约与故障矩阵**：[RunWorkflow/Activity 契约](../../../plan/assets/work-r0a-orchestration-2026-10-25/RunWorkflow.contract.ts)、[18 项故障矩阵](../../../plan/assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)；F01/F02/F03/F04/F07/F21/F23 + D3 专项。
 
 **完成标准**：
 
@@ -336,7 +338,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **目标**：让 Pi agent-core 在受限云端 Runtime 中执行文本任务，所有模型外发经网关授权、计量、可审计。
 
-**设计输入**：[架构 §3/§9/§12](work-system-architecture-2026-10-25.md)、[Harness 实验资产](../../plan/assets/harness-lab/README.md)、[威胁模型](work-threat-model-2026-10-25.md)。
+**设计输入**：[架构 §3/§9/§12](work-system-architecture-2026-10-25.md)、[Harness 实验资产](../../../plan/assets/harness-lab/README.md)、[威胁模型](../../design/work-threat-model-2026-10-25.md)。
 
 **当前进展（2026-10-25）**：D4 设计草案与策略资产已产出；WorkAdapter 契约通过类型检查，10/10 策略测试通过。真实沙箱/Content Store/KMS/供应商网关与条款仍未验证。
 
@@ -363,7 +365,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **目标**：把 R0 UX 中保真原型落成可实现的路由、组件、状态与文案规格，不增加假能力。
 
-**设计输入**：[R0 UX](work-ux-design-r0-2026-10-25.md)、[R0 原型](../../plan/assets/work-ux-r0/prototype.html)、[产品设计](work-product-design-2026-10-25.md)、D2。
+**设计输入**：[R0 UX](work-ux-design-r0-2026-10-25.md)、[R0 原型](../../../plan/assets/work-ux-r0/prototype.html)、[产品设计](work-product-design-2026-10-25.md)、D2。
 
 **当前进展（2026-10-25）**：D5 设计草案、状态矩阵、路由/文案与 UI 模型已产出；11/11 测试与类型检查通过（2026-10-26 增至 14/14）。React 页面/SSE/Playwright/真实可用性测试未执行。
 
@@ -376,7 +378,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 5. **文本成果编辑**：Markdown 预览/编辑、手动保存（不做跨设备自动保存）、版本冲突、采纳固定版本、导出；草稿与版本的区别。
 6. **文案与边界**：明确“云端/不访问本机/保存到任务/预算”的本次使用摘要；R0a 不显示套件/技能/连接器/项目/计划/分享；权限文案不得暗示不存在的逐次审批。
 7. **响应式与可访问性**：桌面三栏、平板两栏、手机只读；键盘/焦点、屏幕阅读器、对比度、减少动效。
-8. **可用性测试**：7–8 名设计合作伙伴（管理员 ≥3），覆盖云端文档/方案场景；任务完成、采纳、边界复述；R0a 判定任务集为 UT1–UT5，招募与排期见[U1 招募与执行排期单](../archive/work-r0a-usability-recruit-plan-2026-10-26.md)；不替代真实用户研究。
+8. **可用性测试**：7–8 名设计合作伙伴（管理员 ≥3），覆盖云端文档/方案场景；任务完成、采纳、边界复述；R0a 判定任务集为 UT1–UT5，招募与排期见[U1 招募与执行排期单](../work-r0a-usability-recruit-plan-2026-10-26.md)；不替代真实用户研究。
 
 **完成标准**：
 
@@ -393,7 +395,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **目标**：让 R0a 试点可安全运行、可恢复、可回滚、可支持，并明确未证明的边界。
 
-**设计输入**：[威胁模型](work-threat-model-2026-10-25.md)、[Runbook](work-operations-runbook-2026-10-25.md)、[架构 §17–§19](work-system-architecture-2026-10-25.md)、[容量烟雾](../../plan/assets/work-ops-2026-10-25/README.md)。
+**设计输入**：[威胁模型](../../design/work-threat-model-2026-10-25.md)、[Runbook](../../ops/work-operations-runbook-2026-10-25.md)、[架构 §17–§19](work-system-architecture-2026-10-25.md)、[容量烟雾](../../../plan/assets/work-ops-2026-10-25/README.md)。
 
 **当前进展（2026-10-26）**：D6 设计、安全控制/SLO/容量/试点清单已产出；8/8 + 遥测 10/10 + 日志扫描 8/8 校验通过，当前 no-go（30 个 blocking 中 18 个未关闭；C01/C02/C11/C14 提前签、C15 已 waived）。已完成 Temporal 10/10、S1 4/4 + `patched` 升级 1/1（file-backed server 重启为修订前结果，未复跑）、RLS 池化、10 并发负载、Work DB 恢复、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、SLO 规则即代码；多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/真实遥测未完成（C14 已签降级、C15 已 waived）。
 
@@ -557,7 +559,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **影响（已回写）**：D1 §7.14 与命令表（新增 `ops_cancel_run`）、D3 §11.5、D6 S17 行与遥测阈值、试点 Runbook §5.2、`security-controls.json` S17/S14。
 **未定后果（已消除）**：撤权新鲜度现在可向客户给出量化口径（一个增量周期 + 人工响应）；告警阈值有依据；E2 的目录同步作业只需写投影与上报滞后，不做取消。
-**签收**：后端 + 安全 + 产品 John Shao（(b) 自证），独立复核 Lily Zhu，2026-10-27；表单见 [R1-4](../archive/work-r0a-dr0-dr1-signoff-2026-10-26.md)。
+**签收**：后端 + 安全 + 产品 John Shao（(b) 自证），独立复核 Lily Zhu，2026-10-27；表单见 [R1-4](../work-r0a-dr0-dr1-signoff-2026-10-26.md)。
 
 ## 5. 交付顺序与评审闸门
 
@@ -571,7 +573,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 | W3 体验/运维 | D5 + D6 | 四界面规格、状态矩阵、SLO/告警、Runbook、切换回滚 | DR3 |
 | W4 实施就绪 | 汇总设计、测试计划、估算、依赖、风险 | 实施就绪包 | DR4 |
 
-波次是依赖顺序，不是工期承诺；W1 可与设计合作伙伴研究并行，但 R0a 开发启动仍需 §5.3 的研究与供应商闸门。当前 W1 的 D1/D2 草案、W2 的 D3/D4 草案、W3 的 D5/D6 草案与 W4 [实施就绪包](../archive/work-r0a-implementation-readiness-2026-10-26.md)均为可评审草案（U2 已签收、U3 已确认、U4 的 DR1 两行已勾选，仅 U1 开放，见就绪包 §6.1）；Temporal/真实沙箱/网关未接，演练/试点未做，DR2 未评审，D6 go/no-go 仍为 no-go。
+波次是依赖顺序，不是工期承诺；W1 可与设计合作伙伴研究并行，但 R0a 开发启动仍需 §5.3 的研究与供应商闸门。当前 W1 的 D1/D2 草案、W2 的 D3/D4 草案、W3 的 D5/D6 草案与 W4 [实施就绪包](../work-r0a-implementation-readiness-2026-10-26.md)均为可评审草案（U2 已签收、U3 已确认、U4 的 DR1 两行已勾选，仅 U1 开放，见就绪包 §6.1）；Temporal/真实沙箱/网关未接，演练/试点未做，DR2 未评审，D6 go/no-go 仍为 no-go。
 
 ### 5.2 评审闸门
 
@@ -587,7 +589,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 | 闸门 | 关闭条件 | 阻塞点 |
 |---|---|---|
-| 设计合作伙伴研究 | 7–8 名用户（管理员 ≥3）；两个场景在 3 家以上组织复现；判定任务集 UT1–UT5（见[U1 招募与执行排期单](../archive/work-r0a-usability-recruit-plan-2026-10-26.md)） | R0a 开发/UAT 范围确认 |
+| 设计合作伙伴研究 | 7–8 名用户（管理员 ≥3）；两个场景在 3 家以上组织复现；判定任务集 UT1–UT5（见[U1 招募与执行排期单](../work-r0a-usability-recruit-plan-2026-10-26.md)） | R0a 开发/UAT 范围确认 |
 | 供应商条款/价表 | 书面条款、数据驻留、训练/留存、配额、价格上界 | D4 provider 适配与预算价表 |
 | H02–H05/H12 | 从 mock/部分通过转为 R0a 真实 provider/运行时证据 | Runtime 与模型出口实现 |
 | 威胁模型/沙箱 | 安全评审签收；gVisor/等效 profile 证据或降级声明 | 真实用户内容试点 |
@@ -643,7 +645,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 ### 8.1 签收表
 
-签收议程与各决策的设计侧落实见[实施就绪包 §7](../archive/work-r0a-implementation-readiness-2026-10-26.md#7-评审议程与签收表)。
+签收议程与各决策的设计侧落实见[实施就绪包 §7](../work-r0a-implementation-readiness-2026-10-26.md#7-评审议程与签收表)。
 
 | 决策 | 推荐 | 决策人 | 日期 | 结论 | 备注 |
 |---|---|---|---|---|---|
@@ -729,13 +731,13 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 |---|---|---|
 | 范围/不做冻结，无 R0b+ 入口 | §1、§3；OpenAPI 29 path/33 operation 冻结集（D-08 扩范围，D-08c/d 已于 10-27 冻结） | **已勾选（R0-a 于 2026-10-27 签通过）**，11-03 出纪要 |
 | 7 项决策签收、未决项有负责人和日期 | §4、§8.1；就绪包 §6.1/§7；**D-01–D-07 已全部正式签收（D-07 = A）** | **已勾选**；DR0/DR1 只出纪要与复核修订项 |
-| 迁移空库应用、RLS/直接 DML 负例 | D1 冒烟 148/148（[资产](../../plan/assets/work-r0a-design-2026-10-25/README.md)） | **DR1 行已勾选（2026-10-27 复审通过）**；两项 C01 修订在 11-10 复核 |
+| 迁移空库应用、RLS/直接 DML 负例 | D1 冒烟 148/148（[资产](../../../plan/assets/work-r0a-design-2026-10-25/README.md)） | **DR1 行已勾选（2026-10-27 复审通过）**；两项 C01 修订在 11-10 复核 |
 | OpenAPI、客户端/mock/合同测试 | 34/34、`ci-contract`、错误码 104 SQL 码（D-08a–d 已签，33 operation 为冻结集） | **DR1 行已勾选（2026-10-27 复审通过）** |
 | 提交/派发/配额/成果/采纳/取消/重试/unknown 负例 | PG 148/148 + 竞态 9/9、Temporal 10/10、S1 4/4 | 满足，待 DR2 |
 | Runtime 工具/沙箱/出口/usage/价表 | 策略 10/10、usage/供应链 19/19；C15 已 waived、价目不再进入账本（PC-1/PC-2 作废、PC-3 降为客户接入说明）；**D-08b 已于 10-27 签收，D4 §7.5 已回写凭证路径**；gVisor 未证明（C14 已签降级） | 部分（真实沙箱/出口属 DR2/E5） |
 | UI 全状态、无假入口、可访问性 | UI 模型 14/14、状态矩阵；a11y 无实现可测 | 部分 |
 | SLO/告警/容量/恢复/切换/停用 | ops+pilot+telemetry 28/28 + promtool；试点环境未演练 | 部分 |
-| 威胁模型控制映射（S01–S18）与未关闭项 | [威胁模型](work-threat-model-2026-10-25.md)；**C11 于 2026-10-27 签映射口径 + 残余风险清单** | 映射已勾选；16 项 partial 的实施证据待 E2/E5/C31（DR3 复审状态列） |
+| 威胁模型控制映射（S01–S18）与未关闭项 | [威胁模型](../../design/work-threat-model-2026-10-25.md)；**C11 于 2026-10-27 签映射口径 + 残余风险清单** | 映射已勾选；16 项 partial 的实施证据待 E2/E5/C31（DR3 复审状态列） |
 | 3 家组织研究与 UAT 排期 | U1 执行包（UX §13.6）+ 招募与执行排期单（11-16 锁定名单、11-20～24 执行、11-27 报告）；C24/C25 todo | 未开始（招募单已发，待运营回填名单） |
 
 ### 9.5 术语

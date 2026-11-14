@@ -4,7 +4,7 @@
 > 行为由代码表达、由测试证明；接口由契约表达；选择由 ADR 解释。字段清单、SQL、状态枚举全集、错误码清单、测试数量一律不在本文复制。
 >
 > 入口与权威来源表见 [README.md](README.md)；当前状态与闸门读数见 [status.md](status.md)（机器来源 [status.json](status.json)）。
-> 目标架构长文见 [design/work-system-architecture-2026-10-25.md](design/work-system-architecture-2026-10-25.md)，R0b 增量见 [design/work-r0b-architecture-2026-10-30.md](design/work-r0b-architecture-2026-10-30.md)。本文与它们冲突时，以已签 ADR 与现网代码为准。
+> 目标架构长文见 [design/work-system-architecture-2026-10-25.md](archive/design-baseline/work-system-architecture-2026-10-25.md)，R0b 增量见 [design/work-r0b-architecture-2026-10-30.md](design/work-r0b-architecture-2026-10-30.md)。本文与它们冲突时，以已签 ADR 与现网代码为准。
 
 ## 1. 模块边界与目录结构
 
@@ -21,15 +21,14 @@ Work 是 monorepo 内的可剥离子树，不拆仓（[ADR-0025](decisions/0025-
 
 ### 1.1 部署单元按信任域划分
 
-13 个入口不按表拆服务（[ADR-0008](../adr/0008-modular-control-plane.md)、[ADR-0019](../adr/0019-security-boundaries-service-split.md)）：
+部署单元按信任域划分，不按表拆服务（[ADR-0008](../adr/0008-modular-control-plane.md)、[ADR-0019](../adr/0019-security-boundaries-service-split.md)）。完整入口清单见 `src/work/cmd/`（`go list ./cmd/...`），此处只列职责边界：
 
-- 对外命令与查询：`work-api`
-- 编排与投递：`work-worker`、`work-relay`、`work-reconcile`、`work-replay`
-- 内部授权与数据出口：`work-authz`、`work-content-proxy`、`work-egress`
-- 目录与供应商凭据：`work-directory-sync`、`work-provider-setup`
-- 治理与运维：`work-export`、`work-migrate`、`work-e2e-seed`
-
-`src/work/internal/` 的分层对应同一组边界：`api` 是 HTTP 面；`authz`/`capability`/`contentref`/`execbinding` 是内部授权与引用绑定；`runflow`/`fragment`/`advance`/`dispatch` 是编排；`runtime`/`egress`/`intent`/`canonical`/`receipt`/`finishing` 是执行与出口；`content`/`credentials` 保管正文与凭据；`relay`/`directory`/`host`/`migrate`/`db` 是基础设施与 Host 端口。
+| 信任域 | 职责 | 代码 |
+|---|---|---|
+| 对外命令/查询 | 唯一 HTTP 面 | `src/work/internal/api` |
+| 编排与投递 | Run 编排、outbox 唯一消费者、对账 | `src/work/internal/runflow`、`src/work/internal/relay` |
+| 内部授权/数据出口 | 白名单领域命令、正文代理、模型出口 | `src/work/internal/authz`、`src/work/internal/egress` |
+| 目录与凭据 | 投影同步、供应商凭据 | `src/work/internal/directory`、`src/work/internal/credentials` |
 
 **Node Runtime 与 egress 进程不连 PostgreSQL**（`src/work/internal/authz/authz.go` 包注释）。它们只能经 `work-authz` 的固定白名单领域命令访问事实，调用者类别由工作负载证书决定。
 
@@ -41,7 +40,7 @@ Work 是 monorepo 内的可剥离子树，不拆仓（[ADR-0025](decisions/0025-
 - Go 侧每请求验真、**零正向缓存**，Host 不可用即 fail closed（`src/work/internal/api/auth.go`、`src/work/internal/host/`）。租户由服务端解析，客户端 `org_id` 只做资源定位。
 - 投影唯一写入口是 `work_directory` 角色的同步命令；全量缺席只收窄为 `left`，不删除、不取消 Run（`src/work/internal/directory/`）。
 - 写请求另需 Go 签发的 HMAC 双提交 CSRF token；提交类入口还受目录新鲜度门约束（`work.directory_sync_fresh`）。
-- 已知结构缺陷：Host 席位挂在每条部门 Membership 上，而 Work 投影按人归并，结果是"最后修改的行赢"。归并方案见 [design/work-r0a-seat-projection-split-2026-10-31.md](design/work-r0a-seat-projection-split-2026-10-31.md)，属 R0b I1，**未实现**。
+- 已知结构缺陷：Host 席位挂在每条部门 Membership 上，而 Work 投影按人归并，结果是"最后修改的行赢"。归并方案见 [design/work-r0a-seat-projection-split-2026-10-31.md](archive/design-baseline/work-r0a-seat-projection-split-2026-10-31.md)，属 R0b I1，**未实现**。
 
 ### 1.3 进程拓扑与内部监听
 
@@ -63,8 +62,7 @@ Work 是 monorepo 内的可剥离子树，不拆仓（[ADR-0025](decisions/0025-
 
 - 内部授权、内容代理、出口与 Runtime 各有独立监听端口与独立工作负载身份，**全部只绑回环地址**，不暴露公网；端口与证书路径由 `src/work/deploy/ecs/*.env.example` 声明。
 - 鉴权方式按域不同：`work-authz` 与 Runtime 入口用双向 mTLS（证书决定调用者类别）；`work-content-proxy` 与 `work-egress` 用服务端 TLS 加不透明 bearer，bearer 每次在线复核。
-- 跨语言执行契约是 `advanceRuntime` 片段（`src/work/internal/fragment/`、`src/work/contracts/advance-request.execute.json`、`src/work/node/src/protocol.mjs`）：载荷只有标识符与存储引用，未知字段一律拒绝，错误只回枚举码。
-- 执行分 plan 与 execute 两个片段，两侧都显式携带已提交的 canonical 检查点头；三类不可变文档（模型请求、canonical 状态、模型回执）由 `src/work/internal/canonical/` 编解码，`src/work/internal/intent/` 冻结请求、`src/work/internal/receipt/` 校验回执绑定、`src/work/internal/finishing/` 从已确认回执向前收尾。
+- 跨语言执行契约是 `advanceRuntime` 片段（契约 `src/work/contracts/advance-request.execute.json`）：载荷只有标识符与存储引用，未知字段一律拒绝，错误只回枚举码。执行分 plan/execute 两片段，模型请求、canonical 状态、模型回执三类文档不可变；具体编解码与收尾流程见 `src/work/internal/`（canonical/intent/receipt/finishing）。
 
 ## 2. 核心领域对象关系
 

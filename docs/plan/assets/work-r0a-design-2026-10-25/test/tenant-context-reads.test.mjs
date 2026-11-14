@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const PLAN_DIR = join(HERE, '..', '..', '..');
-const WORK_DESIGN = join(PLAN_DIR, '..', 'work', 'design');
+const WORK_OPS = join(PLAN_DIR, '..', 'work', 'ops');
 const WORK_ROOT = join(PLAN_DIR, '..', '..', 'src', 'work');
 const CATALOG_DIR = join(WORK_ROOT, 'migrations', 'catalogs');
 
@@ -25,11 +25,10 @@ const forced = new Set((catalog.relations || [])
   .map((r) => r.name));
 
 const SOURCES = [
-  join(WORK_DESIGN, 'work-operations-runbook-2026-10-25.md'),
-  join(WORK_DESIGN, 'work-r0a-drill-checklist-2026-11-15.md'),
+  join(WORK_OPS, 'work-operations-runbook-2026-10-25.md'),
+  join(WORK_OPS, 'work-r0a-drill-checklist-2026-11-15.md'),
   join(PLAN_DIR, 'assets', 'work-r0a-design-2026-10-25', 'README.md'),
   join(PLAN_DIR, 'assets', 'work-r0a-ops-2026-10-25', 'README.md'),
-  join(WORK_DESIGN, 'work-r0a-data-design-2026-10-25.md'),
   ...readdirSync(join(WORK_ROOT, 'scripts')).map((n) => join(WORK_ROOT, 'scripts', n)),
   ...readdirSync(join(WORK_ROOT, 'deploy', 'ecs')).filter((n) => n.endsWith('.sh')).map((n) => join(WORK_ROOT, 'deploy', 'ecs', n)),
 ].filter((p) => { try { return readFileSync(p) && true; } catch { return false; } });
@@ -99,7 +98,7 @@ test('every aggregate over a force-RLS table declares how it sees rows', () => {
 });
 
 test('the runbook keeps the zero-rows-is-not-empty discipline', () => {
-  const rb = readFileSync(join(WORK_DESIGN, 'work-operations-runbook-2026-10-25.md'), 'utf8');
+  const rb = readFileSync(join(WORK_OPS, 'work-operations-runbook-2026-10-25.md'), 'utf8');
   assert.ok(rb.includes('零行不等于无数据'), 'the §5.2 warning naming the 2026-11-04 misjudgment was removed');
   assert.ok(/reltuples|n_live_tup/.test(rb), 'the cross-check via pg_class.reltuples / pg_stat_user_tables.n_live_tup disappeared');
   assert.ok(rb.includes('app.org_id'), 'the requirement to SET app.org_id for owner-view reads disappeared');

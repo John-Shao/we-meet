@@ -1,0 +1,30 @@
+{
+  "$note": "人工记录的生产/决策事实——scripts/work-status.mjs 无法从仓库资产推导的部分。改动任一项须更新 facts_as_of。动态试点门禁（pilot_gate）与仓库迁移 tip 由脚本现算，不在此手抄。",
+  "facts_as_of": "2026-11-14",
+  "product_stage": "r0a",
+  "current_gate": "r0a-pilot-readiness",
+  "implementation_tracks": {
+    "r0a": "deployed-pilot-environment",
+    "r0b": "partial-implementation-not-rolled-out"
+  },
+  "migration": {
+    "tip_deployed": 39,
+    "deployed_release": "work-release-0039"
+  },
+  "runtime_verified": false,
+  "runtime_note": "生产 Runtime 无容器隔离（裸 spawn），sandboxProof=false；真实供应商 E2E 未跑（仅一次 Qwen smoke）。",
+  "external_security_audit_done": false,
+  "content_store": "local-pilot-deployed-zero-real-requests",
+  "cloud_kms": "not-connected-scope-exception-D03B",
+  "production_prerequisites": [
+    "runtime-sandbox-isolation",
+    "real-provider-e2e",
+    "real-content-store-validation",
+    "0040-0043-rollout-authorization"
+  ],
+  "customer_data_blockers": [
+    "external-security-audit-J39",
+    "cloud-kms-reopen-condition"
+  ],
+  "customer_data_note": "接任何真实客户数据前必须完成外部安全审计（J39）；当前仅演示组织＋演示数据。"
+}

@@ -8,7 +8,7 @@
 >
 > 落地状态（2026-10-27）：D1/D2 的 D-08 修订稿已合并（PR #9，139/139、9/9、34/34）；D-03 B 静态凭证修订 + D-07 A 运营取消命令已在本地复跑 **148/148**、9/9，已提交（commit `e13cec318`）。D-08a 产品签收后 C15 已于 2026-10-27 waived（百炼 + 演示数据，P1–P5 不适用）；D4/D6 仍待 D-08b。
 >
-> 相关：[C15 结项单（阿里云百炼）](work-r0a-provider-terms-price-decision-request-2026-10-26.md)、[DR0/DR1 签收单](work-r0a-dr0-dr1-signoff-2026-10-26.md)、[D1 数据设计](../design/work-r0a-data-design-2026-10-25.md)、[D4 Runtime/出口](../design/work-r0a-runtime-egress-design-2026-10-25.md)、[价目快照](../../plan/assets/work-r0a-runtime-2026-10-25/usage/price-table.snapshot-2026-10-26.json)
+> 相关：[C15 结项单（阿里云百炼）](work-r0a-provider-terms-price-decision-request-2026-10-26.md)、[DR0/DR1 签收单](work-r0a-dr0-dr1-signoff-2026-10-26.md)、[D1 数据设计](design-baseline/work-r0a-data-design-2026-10-25.md)、[D4 Runtime/出口](design-baseline/work-r0a-runtime-egress-design-2026-10-25.md)、[价目快照](../../plan/assets/work-r0a-runtime-2026-10-25/usage/price-table.snapshot-2026-10-26.json)
 
 ## 0. 为什么要改
 
@@ -67,7 +67,7 @@
 ## 5. 风险与已接受代价
 
 - **我们持有客户 DeepSeek 密文**：密钥泄露即客户账单与数据风险。需要密钥泄露应急流程（批量吊销、客户通知时限），并进威胁模型 C11。
-- **范围扩大**：管理台写与 [P1-A 计划](../../plan/org-account-lifecycle-p1a-work-plan-2026-10-24.md)"`write` 不预置给任何内置角色"、[大纲](../design/work-r0a-detailed-design-plan-2026-10-25.md)"管理面只读复用 P1-A"口径冲突，本单即显式扩范围的书面依据（owner 写配置不等于预置 `org.work_grant.write`，两者权限码分开）；E2 工作量增加（配置写/吊销/轮换/探测 + 审计）。
+- **范围扩大**：管理台写与 [P1-A 计划](../../plan/org-account-lifecycle-p1a-work-plan-2026-10-24.md)"`write` 不预置给任何内置角色"、[大纲](design-baseline/work-r0a-detailed-design-plan-2026-10-25.md)"管理面只读复用 P1-A"口径冲突，本单即显式扩范围的书面依据（owner 写配置不等于预置 `org.work_grant.write`，两者权限码分开）；E2 工作量增加（配置写/吊销/轮换/探测 + 审计）。
 - **客户组织周期只告警不阻断**：Run 级硬上限能截住单个跑飞的 Run，但截不住大量正常 Run 叠加，客户账单仍可能超预期；这由客户在云厂商侧设预算告警承担，接入说明里要写明。
 - **证据回退**：§4 所列断言修订后须复跑；复跑前对应计数不得在状态文档中当作目标设计的证据。
 
@@ -89,7 +89,7 @@
 | ID | 读什么 | 已证 / 未证 | 不签的后果 | 逾期降级（ contingency，已于 2026-10-27 全部签收） |
 |---|---|---|---|---|
 | D-08a | 本单 §1 第 1–3 项、§2；C15 单 §2 | 已证：客户自带账号方向与演示组织方案已拍板；阿里云百炼范围已定，P1–P5 不适用，C15 已 waived；TPM 5M 快照仅作运营参考 | C15 已 waived；D1 的金额字段删除缺产品依据；D4/D6 不能改 | ✓ 已签（产品 + 法务） |
-| D-08b | 本单 §1 第 4 项、R7/R8；[D4 §7.5 按组织取凭证](../design/work-r0a-runtime-egress-design-2026-10-25.md)；S14 | 已证：数据层密文/指纹/吊销/审计与越权负例（148/148 中 D-08 断言、9/9 竞态）。未证：静态主密钥托管/派生/轮换、STS 换角色、客户 Key 泄露应急（E5 补） | D4 网关取凭证路径与 D6/S14 无基线，E5 无法排期 | ✓ 已签（B1–B10 全部通过，E5 补未证项） |
+| D-08b | 本单 §1 第 4 项、R7/R8；[D4 §7.5 按组织取凭证](design-baseline/work-r0a-runtime-egress-design-2026-10-25.md)；S14 | 已证：数据层密文/指纹/吊销/审计与越权负例（148/148 中 D-08 断言、9/9 竞态）。未证：静态主密钥托管/派生/轮换、STS 换角色、客户 Key 泄露应急（E5 补） | D4 网关取凭证路径与 D6/S14 无基线，E5 无法排期 | ✓ 已签（B1–B10 全部通过，E5 补未证项） |
 | D-08c | 本单 §1 第 5–6 项、R3–R6；C01/D1 冻结包 | 已证：token 配额、Run 级上限、软/硬周期、用量可见性均有冒烟与竞态。未证：Run 上限默认值、真实上游 usage 归一（E5 补） | C01 只能按旧 cents 口径冻结，冻结后立刻返工 | ✓ 已签并冻结 |
 | D-08d | 本单 §1 第 7 项、R1/R2/R9/R10；C02/D2 契约 | 已证：29 path/33 operation、owner-only、writeOnly、版本冲突、吊销（34/34）。未证：配置连通探测、近期重新认证的 IdP 能力（E5 补） | C02 的冻结集缺接入配置接口，客户无法自助接入，只能平台代配 | ✓ 已签并冻结 |
 

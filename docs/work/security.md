@@ -69,7 +69,7 @@
 `cross_org_write_sweep_pg_test.go`、`route_authorization_sweep_pg_test.go`、
 `function_privilege_sweep_pg_test.go`；`src/work/internal/directory/`；
 [Host wire 决策](design/work-r0a-host-wire-decision-2026-10-28.md) §3/§8；
-[D6](design/work-r0a-security-ops-migration-design-2026-10-25.md) S02/S17。
+[D6](archive/design-baseline/work-r0a-security-ops-migration-design-2026-10-25.md) S02/S17。
 
 ## 3. Host mTLS
 
@@ -87,7 +87,7 @@
 
 **权威代码/测试**：`src/backend/core/api/work_host.py`；`deploy/aliyun/` 与 Helm
 `workHost` 配置；[Host wire 决策](design/work-r0a-host-wire-decision-2026-10-28.md)
-§4/§6/§10；[运维 runbook](design/work-operations-runbook-2026-10-25.md) §5.5。
+§4/§6/§10；[运维 runbook](ops/work-operations-runbook-2026-10-25.md) §5.5。
 
 ## 4. CSRF
 
@@ -129,7 +129,7 @@
 `src/work/internal/contentproxy/`（`contentproxy_pg_test.go`、`tls_test.go`）；
 `src/work/internal/relay/shared_ref_shred_pg_test.go`；
 [pilot-checklist](../plan/assets/work-r0a-ops-2026-10-25/pilot-checklist.json) C09/C13；
-[D6](design/work-r0a-security-ops-migration-design-2026-10-25.md) S09。
+[D6](archive/design-baseline/work-r0a-security-ops-migration-design-2026-10-25.md) S09。
 
 ## 6. Runtime 沙箱
 
@@ -170,7 +170,7 @@
 `credentials_test.go`；`src/work/internal/api/provider_config_set.go`、
 `provider_config_revoke.go` 及对应测试；
 [pilot-checklist](../plan/assets/work-r0a-ops-2026-10-25/pilot-checklist.json) C13；
-[D6](design/work-r0a-security-ops-migration-design-2026-10-25.md) S03/S14；
+[D6](archive/design-baseline/work-r0a-security-ops-migration-design-2026-10-25.md) S03/S14；
 `docs/plan/assets/work-r0a-hardening-2026-10-25/kms-envelope.mjs`（仅参考）。
 
 ## 8. 审计
@@ -195,7 +195,7 @@
 `audit_export_gate_pg_test.go`、`audit_export_expiry_pg_test.go`、
 `audit_export_download_suspended_pg_test.go`、`immutability_pg_test.go`；
 `src/work/internal/relay/lease_crash_test.go`、`shared_ref_shred_pg_test.go`；
-[D6](design/work-r0a-security-ops-migration-design-2026-10-25.md) S09/S10/S14/S18；
+[D6](archive/design-baseline/work-r0a-security-ops-migration-design-2026-10-25.md) S09/S10/S14/S18；
 [威胁模型](design/work-threat-model-2026-10-25.md) B8。
 
 ## 9. 真实客户数据准入条件
@@ -220,14 +220,14 @@
 [status.json](status.json)；
 [pilot-checklist](../plan/assets/work-r0a-ops-2026-10-25/pilot-checklist.json) +
 `goNoGo()`（现读命令见 status.json 的 `pilot_gate_command`）；
-[D6](design/work-r0a-security-ops-migration-design-2026-10-25.md) §10。
+[D6](archive/design-baseline/work-r0a-security-ops-migration-design-2026-10-25.md) §10。
 
 ## 权威来源索引
 
 | 内容 | 来源 |
 |---|---|
 | 威胁与边界（B1–B8）、沙箱证明边界 | [威胁模型](design/work-threat-model-2026-10-25.md) |
-| S01–S18 控制映射、留存政策、go/no-go | [D6](design/work-r0a-security-ops-migration-design-2026-10-25.md) + [security-controls.json](../plan/assets/work-r0a-ops-2026-10-25/security-controls.json) |
+| S01–S18 控制映射、留存政策、go/no-go | [D6](archive/design-baseline/work-r0a-security-ops-migration-design-2026-10-25.md) + [security-controls.json](../plan/assets/work-r0a-ops-2026-10-25/security-controls.json) |
 | R0b 入口签收台账、J39 审计闸、自决口径 | [R0b 签收单](design/work-r0b-security-host-signoff-2026-10-31.md) |
 | mTLS/CSRF/目录同步 wire 与生产负例 | [Host wire 决策](design/work-r0a-host-wire-decision-2026-10-28.md) |
 | 受控出口 / unknown / 目录授权≠沙箱 / 服务拆分 | [ADR-0012](../adr/0012-controlled-egress.md)、[0013](../adr/0013-unknown-side-effects.md)、[0015](../adr/0015-directory-grant-not-sandbox.md)、[0019](../adr/0019-security-boundaries-service-split.md) |

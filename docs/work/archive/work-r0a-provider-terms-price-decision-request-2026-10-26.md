@@ -8,7 +8,7 @@
 >
 > 发出日期：2026-10-26 ｜ 期望答复日：**2026-12-04**（DR4 前）｜ 硬期限：**2026-12-11**，晚于此 E5 进关键路径
 > 答复方：商务（P5 配额续期）、后端（限流语义）；法务/安全只处理 S14 密钥边界，不涉 P1–P4
-> 相关：[D4 §10 供应商条款、价表与合规清单](../design/work-r0a-runtime-egress-design-2026-10-25.md)、[D6 S13/S14 控制](../design/work-r0a-security-ops-migration-design-2026-10-25.md)、[U3 决策征询单](work-r0a-temporal-hosting-decision-request-2026-10-26.md)
+> 相关：[D4 §10 供应商条款、价表与合规清单](design-baseline/work-r0a-runtime-egress-design-2026-10-25.md)、[D6 S13/S14 控制](design-baseline/work-r0a-security-ops-migration-design-2026-10-25.md)、[U3 决策征询单](work-r0a-temporal-hosting-decision-request-2026-10-26.md)
 > 阻塞项：C15（waived）、S13（out_of_scope）、S14（partial）；下游：E5 Runtime/出口、C24 试点组织合同、DR4 实施就绪
 
 ## 0. 范围变更（2026-10-27 生效）
@@ -66,7 +66,7 @@ P1–P5 按 2026-10-27 决定全部不适用（百炼托管、演示数据）；
 | # | 项 | 可接受的降级 |
 |---|---|---|
 | D1 | SLA 数字与赔偿条款 | 无 SLA 也要写明"供应商不可用时 Work 的用户侧行为"（受控失败 + 配额预留不重复扣） |
-| D2 | 供应商事故责任与状态页时效 | 写明值班如何判定"供应商侧故障"，与[运行手册 §5.1](../design/work-operations-runbook-2026-10-25.md) 的告警处置对齐 |
+| D2 | 供应商事故责任与状态页时效 | 写明值班如何判定"供应商侧故障"，与[运行手册 §5.1](../ops/work-operations-runbook-2026-10-25.md) 的告警处置对齐 |
 | D3 | 免费额度/试用政策 | 不作为容量与预算依据；预算只用已确认单价 |
 
 ## 4. 价表参考（历史；Work 已不按 cents 记账）
@@ -124,7 +124,7 @@ R0a 是云端文本任务：音频、图像、FIM、Batch/Flex/低延迟档**不
 | ~~法务审阅训练与删除条款~~ | — | — | **不适用（2026-10-27）**：P1–P4 不在范围 |
 | 安全审阅日志与密钥边界 | 安全 | 2026-12-04 | S14 证据更新 |
 | 冻结演示组织的阿里云接入配置（含配额/限流） | 后端 | 2026-12-04（DR4） | 配置不再是占位；阿里云可路由；S13 已 out_of_scope |
-| 把结论回写 [D4 §10](../design/work-r0a-runtime-egress-design-2026-10-25.md) 与 [Work 项目文档](../work-project.md) | 架构 | 结论到达后 2 个工作日 | C15 状态变化 |
+| 把结论回写 [D4 §10](design-baseline/work-r0a-runtime-egress-design-2026-10-25.md) 与 [Work 项目文档](../work-project.md) | 架构 | 结论到达后 2 个工作日 | C15 状态变化 |
 | PC-1/PC-2/PC-3 收尾 | 后端 + 产品 | 2026-11-17（DR2） | PC-1/PC-2 已作废；PC-3 降为客户接入说明与组织级限流，不再进 Work 账本 |
 | 按新模型 id 复跑 usage 归一 | 后端 | **延后**（2026-10-26 决定本轮不跑） | 触发条件：客户接入 DeepSeek/火山或冻结 usage 归一规则前；延期间 H02 旧 id（`deepseek-chat`）的证据**不得当作新 id 的协议结论** |
 

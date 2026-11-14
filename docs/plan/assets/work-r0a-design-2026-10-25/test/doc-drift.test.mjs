@@ -11,7 +11,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join, dirname, resolve, posix } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const REPO = join(HERE, '..', '..', '..', '..', '..');
@@ -66,15 +66,27 @@ test('the short-doc corpus is non-empty (a broken scan must not pass vacuously)'
   assert.ok(existsSync(MANIFEST) && existsSync(CATALOG) && existsSync(OPENAPI), 'authoritative sources missing');
 });
 
-test('status.json parses, carries required fields, and has a valid verification date', () => {
+test('status.json carries the split gate schema and a valid verification date', () => {
   const status = JSON.parse(read(join(WORK_DOCS, 'status.json')));
-  for (const key of ['stage', 'implementation', 'deployed', 'customer_data_allowed', 'blocking', 'last_verified_at', 'pilot_gate_command']) {
+  for (const key of ['product_stage', 'current_gate', 'implementation_tracks', 'pilot_gate', 'production_prerequisites', 'customer_data_gate', 'migration', 'facts_as_of']) {
     assert.ok(key in status, `status.json missing required field ${key}`);
   }
-  assert.match(status.last_verified_at, /^\d{4}-\d{2}-\d{2}$/, 'last_verified_at must be YYYY-MM-DD');
-  assert.ok(!Number.isNaN(Date.parse(status.last_verified_at)), 'last_verified_at is not a real date');
-  assert.ok(Array.isArray(status.blocking), 'blocking must be an array');
-  assert.ok(/goNoGo\(c,\s*s\)/.test(status.pilot_gate_command), 'pilot_gate_command must call goNoGo(c, s)');
+  assert.match(status.facts_as_of, /^\d{4}-\d{2}-\d{2}$/, 'facts_as_of must be YYYY-MM-DD');
+  assert.ok(!Number.isNaN(Date.parse(status.facts_as_of)), 'facts_as_of is not a real date');
+  // issue 3：试点门禁 / 生产前置 / 客户数据准入三类分开，不混在一个 blocking 数组。
+  assert.ok(Array.isArray(status.pilot_gate.blockers), 'pilot_gate.blockers must be an array');
+  assert.ok(Array.isArray(status.production_prerequisites), 'production_prerequisites must be an array');
+  assert.ok(Array.isArray(status.customer_data_gate.blockers), 'customer_data_gate.blockers must be an array');
+  assert.equal(typeof status.customer_data_gate.allowed, 'boolean', 'customer_data_gate.allowed must be boolean');
+  assert.ok(!('blocking' in status), 'the old mixed blocking array must be gone');
+  assert.ok(/goNoGo\(c,\s*s\)/.test(status.pilot_gate.command), 'pilot_gate.command must call goNoGo(c, s)');
+});
+
+test('status.json and status.md match the generator (no uncommitted drift)', async () => {
+  const { generate } = await import(pathToFileURL(join(REPO, 'scripts', 'work-status.mjs')).href);
+  const { json, md } = await generate();
+  assert.equal(read(join(WORK_DOCS, 'status.json')), json, 'status.json drifted from generator; run node scripts/work-status.mjs');
+  assert.equal(read(join(WORK_DOCS, 'status.md')), md, 'status.md drifted from generator; run node scripts/work-status.mjs');
 });
 
 test('every relative link in the short docs resolves to a real file or directory', () => {
@@ -151,8 +163,8 @@ test('the current README does not cite archived single docs as authority', () =>
   for (const m of readme.matchAll(/\]\(([^)\s]+)\)/g)) {
     const t = m[1].split('#')[0];
     if (!t.startsWith('archive/')) continue;
-    // 只允许归档索引（archive/ 或 archive/README.md），不允许把归档单篇当权威。
-    if (t !== 'archive/' && t !== 'archive/README.md') offenders.push(t);
+    // 允许归档目录索引（以 / 结尾）与各级 README；不允许把归档单篇 .md 当权威。
+    if (t.endsWith('.md') && !t.endsWith('README.md')) offenders.push(t);
   }
   assert.deepEqual(offenders, [], `README cites archived single docs as authority: ${offenders.join(', ')}`);
 });
@@ -201,4 +213,36 @@ test('backticked repo paths in the short docs exist (unless explicitly declared 
   }
   assert.ok(checked >= 50, `only ${checked} code paths checked - scan broke or corpus shrank`);
   assert.deepEqual(missing, [], `short docs cite repo paths that do not exist:\n${missing.join('\n')}`);
+});
+
+test('long design/ops docs keep valid relative links (light check, no prose pinning)', () => {
+  // 长文不做 prose 钉扎，但至少链接必须有效——这是评审要求的"长文轻检查"。
+  const files = [];
+  const walk = (d) => {
+    for (const n of readdirSync(d)) {
+      const p = join(d, n);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (n.endsWith('.md')) files.push(p);
+    }
+  };
+  for (const sub of ['design', 'ops']) {
+    const r = join(WORK_DOCS, sub);
+    if (existsSync(r)) walk(r);
+  }
+  assert.ok(files.length >= 10, `long-doc corpus too small: ${files.length}`);
+  const broken = [];
+  let checked = 0;
+  for (const f of files) {
+    for (const m of read(f).matchAll(/\]\(([^)\s]+)\)/g)) {
+      const t = m[1];
+      if (/^(https?:|mailto:|#|\/)/.test(t)) continue;
+      const p = t.split('#')[0];
+      if (!p) continue;
+      let dec; try { dec = decodeURIComponent(p); } catch { dec = p; }
+      checked++;
+      if (!existsSync(resolve(dirname(f), dec))) broken.push(`${rel(f)} -> ${t}`);
+    }
+  }
+  assert.ok(checked >= 100, `only ${checked} long-doc links checked - scan broke`);
+  assert.deepEqual(broken, [], `broken links in long design/ops docs:\n${broken.join('\n')}`);
 });

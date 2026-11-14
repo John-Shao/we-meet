@@ -1,3 +1,5 @@
+> 已归档（2026-11-14）。本文件是已实现 R0a 设计的基线快照，原文保留；详细设计以代码、迁移、契约、测试为权威，当前架构/安全/运维见 [docs/work/README.md](../../README.md)。
+
 # WeMeet 工作 R0 UX 设计蓝图
 
 > **代码引用说明（2026-11-13）**：本文 `work.css` 代码引用指向已删除的旧 Work 前端样式文件。该引用已去链接化、仅作历史定位。
@@ -8,7 +10,7 @@
 >
 > 状态：待可用性测试
 >
-> R0b 增量以 [体验与验收设计](work-r0b-experience-validation-2026-10-30.md) 和 [控制面治理合同](work-r0b-control-design-2026-10-30.md) 为准；旧原型中的金额预算/统一耗尽阻断、已删除的 P1-A 权限码、移动审批或换设备动作不能直接用于本期实现。首次使用、审批和治理仍需真实用户验证。
+> R0b 增量以 [体验与验收设计](../../design/work-r0b-experience-validation-2026-10-30.md) 和 [控制面治理合同](../../design/work-r0b-control-design-2026-10-30.md) 为准；旧原型中的金额预算/统一耗尽阻断、已删除的 P1-A 权限码、移动审批或换设备动作不能直接用于本期实现。首次使用、审批和治理仍需真实用户验证。
 >
 > 本版变更：工作首页与千问“新任务”外壳对齐——问候、`＋` 工具菜单、执行器/权限 chip、新建项目按 R3 门控；统一“工作/任务”用词；补齐首次使用、历史工作和管理面规格与管理面原型。
 >
@@ -16,9 +18,9 @@
 >
 > 产品依据：[WeMeet 工作产品设计方案](work-product-design-2026-10-25.md)
 >
-> 扩展 UX：[WeMeet 工作扩展 UX 设计（R1–R3）](work-ux-design-extensions-2026-10-25.md)
+> 扩展 UX：[WeMeet 工作扩展 UX 设计（R1–R3）](../../design/work-ux-design-extensions-2026-10-25.md)
 >
-> 可点击原型：[prototype.html](../../plan/assets/work-ux-r0/prototype.html)
+> 可点击原型：[prototype.html](../../../plan/assets/work-ux-r0/prototype.html)
 >
 > 设计系统：复用 WeMeet design tokens（品牌色 `#3370ff`、行动色 `#2860d9`、中性表面、现有字号与间距）
 
@@ -59,7 +61,7 @@
 | 可访问性 | 焦点、键盘、语义、对比度、减少动效 | 完成 |
 | 首次使用 | 三步引导、执行边界说明、模板预填、本机授权衔接 | 完成 |
 | 历史工作 | 只读归档、旧链接、导出、留存说明 | 完成 |
-| 管理面 | 席位、预算、能力策略、审计；[管理面原型](../../plan/assets/work-ux-admin/prototype.html) | 完成 |
+| 管理面 | 席位、预算、能力策略、审计；[管理面原型](../../../plan/assets/work-ux-admin/prototype.html) | 完成 |
 | 原型 | 可点击中保真 HTML，覆盖主要状态 | 完成 |
 | 可用性测试 | 7–8 人（管理员 ≥3）；R0 脚本 T1–T7，R0a 判定改用 D5 的 UT1–UT5；指标与脚本齐备 | 待执行（招募单已发） |
 
@@ -543,7 +545,7 @@
 
 ### 6.7 管理后台：工作治理
 
-管理面属于 WeMeet 管理后台，不在个人 Work 导航中；仅组织管理员或 `org.work_grant.write` 持有者可见。中保真原型：[管理面原型](../../plan/assets/work-ux-admin/prototype.html)。
+管理面属于 WeMeet 管理后台，不在个人 Work 导航中；仅组织管理员或 `org.work_grant.write` 持有者可见。中保真原型：[管理面原型](../../../plan/assets/work-ux-admin/prototype.html)。
 
 | 页面 | 核心内容 | 关键动作 |
 |---|---|---|
@@ -772,7 +774,7 @@
 
 ## 12. 原型说明
 
-**文件**：[assets/work-ux-r0/prototype.html](../../plan/assets/work-ux-r0/prototype.html)；管理面：[assets/work-ux-admin/prototype.html](../../plan/assets/work-ux-admin/prototype.html)
+**文件**：[assets/work-ux-r0/prototype.html](../../../plan/assets/work-ux-r0/prototype.html)；管理面：[assets/work-ux-admin/prototype.html](../../../plan/assets/work-ux-admin/prototype.html)
 
 打开方式：直接用浏览器打开；无外部依赖、无网络请求。
 
@@ -866,7 +868,7 @@
 | 排期 | 2026-11-16 招募完成；11-20～11-24 执行；11-27 报告；DR3 2026-12-01 复核 |
 | 负责人 | 产品 + 设计执行；前端/后端按修复清单回写 |
 
-**R0a 判定口径修正（2026-10-26）**：本节的 T1–T7 是 R0 全阶段脚本，其中 **T2 本机文件夹授权、T3 命令审批、T7 的“调整预算”不在 R0a 交付面**（R0a 只显示云端执行、无逐次审批、管理面只读）。R0a 的 U1 判定改用 D5 §11.2 的任务集（UT1–UT5），T2/T3 只作 R0b 前瞻观察、不计入完成率。招募名额、渠道、同意话术、档期与降级路径见 [U1 招募与执行排期单](../archive/work-r0a-usability-recruit-plan-2026-10-26.md)。
+**R0a 判定口径修正（2026-10-26）**：本节的 T1–T7 是 R0 全阶段脚本，其中 **T2 本机文件夹授权、T3 命令审批、T7 的“调整预算”不在 R0a 交付面**（R0a 只显示云端执行、无逐次审批、管理面只读）。R0a 的 U1 判定改用 D5 §11.2 的任务集（UT1–UT5），T2/T3 只作 R0b 前瞻观察、不计入完成率。招募名额、渠道、同意话术、档期与降级路径见 [U1 招募与执行排期单](../work-r0a-usability-recruit-plan-2026-10-26.md)。
 
 **边界**：本节只是执行包；未招募、未执行前 U1 不关闭，不得用内部走查替代设计伙伴数据。
 
@@ -958,10 +960,10 @@
 ### 16.3 证据与参考
 
 - [WeMeet 工作产品设计方案](work-product-design-2026-10-25.md)
-- [工作管理面原型](../../plan/assets/work-ux-admin/prototype.html)
-- [豆包/千问扩展能力统一调研](../../research/work-extension-unified-research-2026-10-25.md)
-- [新任务竞品调研](../../research/work-new-task-competitor-research-2026-10-25.md)
-- [WeMeet design tokens](../../../src/design-tokens)
+- [工作管理面原型](../../../plan/assets/work-ux-admin/prototype.html)
+- [豆包/千问扩展能力统一调研](../../../research/work-extension-unified-research-2026-10-25.md)
+- [新任务竞品调研](../../../research/work-new-task-competitor-research-2026-10-25.md)
+- [WeMeet design tokens](../../../../src/design-tokens)
 - Work 现有样式（work.css，已删除）
 
 ### 16.4 变更记录

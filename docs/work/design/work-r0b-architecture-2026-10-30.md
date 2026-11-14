@@ -5,7 +5,7 @@
 
 ## 1. 范围和权威顺序
 
-需求来源：[产品 §19.2 R0b](work-product-design-2026-10-25.md#r0b-本机场景与-mvp-打磨)、[R0 UX](work-ux-design-r0-2026-10-25.md)、[目标架构 §10–§18](work-system-architecture-2026-10-25.md)。R0a 已签增量优先于早期概念稿，尤其 [D-08](../archive/work-r0a-provider-account-metering-decision-2026-10-26.md) 的客户自带模型账号、只统计 token、客户周期 soft/演示周期 hard、Run 硬上限，以及 [Host wire](work-r0a-host-wire-decision-2026-10-28.md) 的身份/成员/席位权威。
+需求来源：[产品 §19.2 R0b](../archive/design-baseline/work-product-design-2026-10-25.md#r0b-本机场景与-mvp-打磨)、[R0 UX](../archive/design-baseline/work-ux-design-r0-2026-10-25.md)、[目标架构 §10–§18](../archive/design-baseline/work-system-architecture-2026-10-25.md)。R0a 已签增量优先于早期概念稿，尤其 [D-08](../archive/work-r0a-provider-account-metering-decision-2026-10-26.md) 的客户自带模型账号、只统计 token、客户周期 soft/演示周期 hard、Run 硬上限，以及 [Host wire](work-r0a-host-wire-decision-2026-10-28.md) 的身份/成员/席位权威。
 
 本文与三份详细设计构成一个交付包：
 
@@ -127,7 +127,7 @@ Electron 现有签名发行包装配 Agent、固定 Node、Pi bundle、工具 ma
 
 ### 5.3 继承实验的证据边界
 
-[目标架构 §3.8/§21.2](work-system-architecture-2026-10-25.md) 的 H01 是模拟干净环境/自签名部分通过，H06 是 AppContainer/permission 局部对照，H08 为 mock 端云适配。S2 的 F13 junction 切换确实逃逸，安全断言未通过；参考切片的字符串前缀检查、模拟 release 水位、清理后重算序号不进入生产设计。必须用真实 Rust Broker 和安装包重新验 H01/H06/H08/S2，不将历史“8/8”当沙箱证明。
+[目标架构 §3.8/§21.2](../archive/design-baseline/work-system-architecture-2026-10-25.md) 的 H01 是模拟干净环境/自签名部分通过，H06 是 AppContainer/permission 局部对照，H08 为 mock 端云适配。S2 的 F13 junction 切换确实逃逸，安全断言未通过；参考切片的字符串前缀检查、模拟 release 水位、清理后重算序号不进入生产设计。必须用真实 Rust Broker 和安装包重新验 H01/H06/H08/S2，不将历史“8/8”当沙箱证明。
 
 ## 6. 实施顺序与代码集成点
 

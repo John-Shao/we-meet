@@ -1,10 +1,12 @@
+> 已归档（2026-11-14）。本文件是已实现 R0a 设计的基线快照，原文保留；详细设计以代码、迁移、契约、测试为权威，当前架构/安全/运维见 [docs/work/README.md](../../README.md)。
+
 # Work R0a 管理只读与 P1-A 字段/权限映射
 
 > 状态：映射草案；结论是 **P1-A 不能直接充当 R0a 管理面**。**2026-10-26 决策：采用方案 B**（新增 R0a 管理读接口，P1-A 只提供读权限与主组织上下文），待 DR1 签收。同日二次修订：方案 B 的契约（管理读 6 接口）与 Work 侧存储（席位投影、cents 账本、异步导出作业、一次性下载凭证）已在 D1/D2 落地并有负例，缺口收敛为 Host 必须提供 `subject_id`/`role`/`revision`/席位布尔与组织字段；C31 保持 partial。
 >
 > 日期：2026-10-25
 >
-> 基线：[D2 API](work-r0a-api-design-2026-10-25.md)、[D6 试点清单](../../plan/assets/work-r0a-ops-2026-10-25/pilot-checklist.json)、现有 P1-A 实现 `src/backend/work/api_admin.py` / `urls.py`。
+> 基线：[D2 API](work-r0a-api-design-2026-10-25.md)、[D6 试点清单](../../../plan/assets/work-r0a-ops-2026-10-25/pilot-checklist.json)、现有 P1-A 实现 `src/backend/work/api_admin.py` / `urls.py`。
 
 ## 1. 现有 P1-A 接口
 
@@ -60,7 +62,7 @@ P1-A 的租户来自管理员主组织上下文，`X-Organization-Id` 只用于�
 
 ## 4. Host 端口契约与适配器（可执行）
 
-[host-ports.mjs](../../plan/assets/work-r0a-design-2026-10-25/host-ports.mjs) 把上述缺口变成端口契约，[we-meet-host-adapter.mjs](../../plan/assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs) 是其 WeMeet 实现，[stub-host.mjs](../../plan/assets/work-r0a-design-2026-10-25/stub-host.mjs) 是独立产品替身；由 [9 组端口测试](../../plan/assets/work-r0a-design-2026-10-25/test/host-ports.test.mjs) 验证：
+[host-ports.mjs](../../../plan/assets/work-r0a-design-2026-10-25/host-ports.mjs) 把上述缺口变成端口契约，[we-meet-host-adapter.mjs](../../../plan/assets/work-r0a-design-2026-10-25/we-meet-host-adapter.mjs) 是其 WeMeet 实现，[stub-host.mjs](../../../plan/assets/work-r0a-design-2026-10-25/stub-host.mjs) 是独立产品替身；由 [9 组端口测试](../../../plan/assets/work-r0a-design-2026-10-25/test/host-ports.test.mjs) 验证：
 
 | 行为 | 结论 |
 |---|---|

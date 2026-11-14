@@ -2,7 +2,7 @@
 
 > 状态：**John 主签；Lily 对 HW-01–HW-04 安全复核通过（2026-10-28；mTLS、CSRF、fail-closed）；HW-05 细节为 John 自决判定、未经外部复核**（2026-11-01 起无独立复核人，11-08 延迟复评）。 本文只冻结 wire 与边界，不实现 HTTP/SQL/codegen，也不代表真实 Host 或 mTLS 已接通。
 >
-> 上游：[Host 合同 v2](../../plan/assets/work-r0a-rebuild-2026-10-28/host-contract.json)、[D2' 公开契约 §8.3](work-r0a-api-design-2026-10-25.md#83-host-接入合同增量work-host-contract-v2设计已签已复核)、[重做计划 Phase 2](../archive/work-r0a-architecture-rebuild-plan-2026-10-28.md#phase-2go-控制面)。
+> 上游：[Host 合同 v2](../../plan/assets/work-r0a-rebuild-2026-10-28/host-contract.json)、[D2' 公开契约 §8.3](../archive/design-baseline/work-r0a-api-design-2026-10-25.md#83-host-接入合同增量work-host-contract-v2设计已签已复核)、[重做计划 Phase 2](../archive/work-r0a-architecture-rebuild-plan-2026-10-28.md#phase-2go-控制面)。
 
 ## 0. 结论
 
@@ -176,7 +176,7 @@ SELECT has_table_privilege(current_user, 'work.member', 'SELECT') AS member_sele
 - **负例（Work ECS → `https://meet.we-meet.online`，ingress `optional`）**：无证书 **403**（Django）；自签/不受信 **400**（ingress）；CA 签发但 CN 错误 **403** `client_identity_invalid`；有效证书 `GET /work-host/v2/orgs` **200**（1 org，字段 `org_id/name/status/home_region/revision/gaps`）；`/sessions/verify` 仅 POST：无 cookie、伪造 cookie、重复 `sessionid` 均 **401** `session_invalid`。
 - **Work 控制面**：systemd 部署在 Work ECS。`work-api` 以 `work-control` 用户监听 `127.0.0.1:8080`，DB 身份 `work_api_login`→`work_api`；目录同步 timer：incremental 每 10 分钟、full 每日 03:15，DB 身份 `work_control_login`→`work_directory`。环境文件 `/etc/work/work-api.env`、`/etc/work/work-directory.env`（root:work-control 640）。
 - **同步实测**：full `orgs_total=1/applied=1`、`members_total=14/applied=14`、audits 15；紧随其后的 incremental `orgs_stale=1`、`members_stale=14`、无写入。`work-api /healthz` 200、bootstrap 无 cookie 401。
-- **运维**：`systemctl status work-api work-directory-sync.timer work-directory-sync-full.timer`；`journalctl -u work-directory-sync-full -n 50`。轮换客户端证书：重签后更新 `/etc/work/certs/client.{crt,key}` 并 `systemctl restart work-api`；轮换 CA 需同步更新 meet 的 `work-host-ca` Secret 并重新发布。完整步骤、单 CA 硬切换限制与吊销缺口见 [运维 Runbook §5.5](work-operations-runbook-2026-10-25.md)。
+- **运维**：`systemctl status work-api work-directory-sync.timer work-directory-sync-full.timer`；`journalctl -u work-directory-sync-full -n 50`。轮换客户端证书：重签后更新 `/etc/work/certs/client.{crt,key}` 并 `systemctl restart work-api`；轮换 CA 需同步更新 meet 的 `work-host-ca` Secret 并重新发布。完整步骤、单 CA 硬切换限制与吊销缺口见 [运维 Runbook §5.5](../ops/work-operations-runbook-2026-10-25.md)。
 - **生产 mass-absence 闸门（2026-10-29）**：10 人临时组织，默认 full 同步返回 `mass_absence_requires_confirmation`（成员保持 `active`、席位不变）；显式 `WORK_DIRECTORY_ALLOW_MASS_ABSENCE=1` 后 10 人 `left`/撤座，审计 `blocked=1`、`applied=1`、`absent=10`。临时 org/用户/投影已删除，`work.audit_event` 保留 25 条该临时组织的 append-only 审计。
 - **真实 session bootstrap（2026-10-29）**：演示账号 13800000009 经 Keycloak 登录后，生产 `work-api` 返回 **200**（Default Organization，role=admin，work_seat=true，CSRF 已签发）；`realHostIntegrationVerified=true`。演示账号已授予 Work 席位。
 - **Work API 同源入口（2026-10-29）**：`work-api` 改为监听 `0.0.0.0:8080`（公网 8080 未开放）；Work ECS 新增 Service/Endpoints `work-api`→`172.16.0.7:8080` 与 Ingress（host `meet.we-meet.online`、path `/work/v1`）；meet 新增 Service/Endpoints `work-api-external`→`172.16.0.7:30080` 与 Ingress `meet-work-api`（`/work/v1`→该 Service，TLS `meet-tls`）。公网 `https://meet.we-meet.online/work/v1/bootstrap` 无会话 401，真实登录后 200（Default Organization，admin，seat=true，CSRF）。清单见 `deploy/aliyun/work-api-entry.yaml`、`src/work/deploy/ecs/work-api-entry.yaml`。

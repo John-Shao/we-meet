@@ -6,7 +6,7 @@
 >
 > 状态：**已完成** ✓
 >
-> 依据：[D3 编排设计](../design/work-r0a-orchestration-design-2026-10-25.md) §3 模块边界
+> 依据：[D3 编排设计](design-baseline/work-r0a-orchestration-design-2026-10-25.md) §3 模块边界
 
 ## 1. 集成概述
 

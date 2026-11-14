@@ -16,6 +16,9 @@ export const CONTRACT_PATH = path.join(HERE, 'telemetry-contract.json');
 export const SLO_PATH = path.join(HERE, 'slo-pilot.json');
 export const RULES_PATH = path.join(HERE, 'prometheus-rules.yaml');
 export const DOCS_ROOT = path.resolve(HERE, '..', '..', '..', 'work', 'design');
+// 运维参考（runbook/pilot-ops）在 ops/；已实现 R0a 设计基线在 archive/design-baseline/。SLO 告警的 runbook 引用三处都查。
+export const DOCS_ROOT_OPS = path.resolve(HERE, '..', '..', '..', 'work', 'ops');
+export const DOCS_ROOT_FALLBACK = path.resolve(HERE, '..', '..', '..', 'work', 'archive', 'design-baseline');
 
 const METRIC_NAME = /^work_[a-z0-9_]+$/;
 const RECORD_NAME = /^work:(?:slo|track)_[a-z0-9_]+:[a-z0-9_]+$/;
@@ -48,8 +51,8 @@ function checkRunbook(value, errors, field) {
     return;
   }
   const [filePart, anchor] = value.split('#');
-  const file = path.resolve(DOCS_ROOT, filePart);
-  if (!fs.existsSync(file)) {
+  const file = [DOCS_ROOT, DOCS_ROOT_OPS, DOCS_ROOT_FALLBACK].map((r) => path.resolve(r, filePart)).find((p) => fs.existsSync(p));
+  if (!file) {
     errors.push(`${field}: runbook file missing: ${filePart}`);
     return;
   }
