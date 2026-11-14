@@ -60,6 +60,11 @@ const IMPLEMENTED_ONLY = [
   'GET /work/v2/approvals',
   'GET /work/v2/approvals/{approvalId}',
   'POST /work/v2/approvals/{approvalId}/decisions',
+  // R0b M1b local save and acceptance faces (control-design §1.4 rows 73-74): the
+  // Bearer-plane user-save and adoption routes backed by 0043 create_local_user_artifact_version
+  // and the 0045 accept_local_task command.
+  'POST /work/v2/artifacts/{artifactId}/versions',
+  'POST /work/v2/tasks/{taskId}/acceptances',
 ];
 
 function readGoSurface() {

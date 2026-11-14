@@ -57,6 +57,7 @@ var publishedIncrements = []string{
 	"0042_local_actions_receipts_finish",
 	"0043_local_artifact_replica_finalize",
 	"0044_local_approval_reads",
+	"0045_local_acceptance",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

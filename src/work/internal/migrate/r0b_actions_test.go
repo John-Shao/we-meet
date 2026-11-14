@@ -400,11 +400,16 @@ func TestR0bApprovalDecisionConsumesItsNonceOnce(t *testing.T) {
 			time.Now().UTC().Add(10*time.Minute).Format(time.RFC3339) +
 			`","signature":"sha256:` + strings.Repeat("5", 64) + `"}`
 	}
+	// Capture the exact proof bytes once: proof() stamps expires_at from time.Now() at
+	// second precision, so regenerating it for the replay below could cross a second
+	// boundary and change the request_hash, turning the ordinary retry into a false
+	// idempotency_key_conflict. The replay must send the identical payload.
+	firstProof := proof(approvalID, opID, "approved")
 	decided := callJSON(t, api,
 		`SELECT work.decide_local_approval($1,$2,'bearer',$3,$4::uuid,$5,$6::jsonb)`,
 		a.org, a.subject,
 		a.scalarInt(t, "SELECT auth_epoch FROM work.device WHERE id = "+quoteLiteral(a.deviceID)),
-		approvalID, "req-b3-decide-1", proof(approvalID, opID, "approved"))
+		approvalID, "req-b3-decide-1", firstProof)
 	if decided["decision"] != "approved" {
 		t.Fatalf("decision = %#v", decided)
 	}
@@ -433,7 +438,7 @@ func TestR0bApprovalDecisionConsumesItsNonceOnce(t *testing.T) {
 		`SELECT work.decide_local_approval($1,$2,'bearer',$3,$4::uuid,$5,$6::jsonb)`,
 		a.org, a.subject,
 		a.scalarInt(t, "SELECT auth_epoch FROM work.device WHERE id = "+quoteLiteral(a.deviceID)),
-		approvalID, "req-b3-decide-1", proof(approvalID, opID, "approved"))
+		approvalID, "req-b3-decide-1", firstProof)
 	if replay["replayed"] != true {
 		t.Fatalf("same-request replay = %#v", replay)
 	}

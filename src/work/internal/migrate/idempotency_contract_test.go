@@ -129,6 +129,7 @@ func TestEveryClientRequestKeyCommandIsIdempotent(t *testing.T) {
 	// raising idempotency_key_conflict on a different payload (control §4.2 段末④, the same carrier
 	// and code 0027 chose). They are listed rather than exempted.
 	want := []string{
+		"accept_local_task=dedup+conflict",
 		"accept_task=dedup+conflict",
 		"acknowledge_run_ready=own_request_hash",
 		"advance_governance_event_cursor=dedup+conflict",

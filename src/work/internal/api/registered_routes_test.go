@@ -148,5 +148,7 @@ func guardURLFor(path string) string {
 func bearerPlaneRoute(path string) bool {
 	return strings.HasPrefix(path, "/work/v2/devices") ||
 		strings.HasPrefix(path, "/work/v2/workspace-grants") ||
-		strings.HasPrefix(path, "/work/v2/approvals")
+		strings.HasPrefix(path, "/work/v2/approvals") ||
+		strings.HasPrefix(path, "/work/v2/artifacts") ||
+		strings.HasPrefix(path, "/work/v2/tasks")
 }

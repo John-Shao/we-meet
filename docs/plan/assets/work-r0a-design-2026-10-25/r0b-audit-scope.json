@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 44,
-  "chainTipCatalog": "catalogs/0044_local_approval_reads.json",
+  "chainTip": 45,
+  "chainTipCatalog": "catalogs/0045_local_acceptance.json",
   "entries": [
     {
       "name": "GET /work/v2/admin/local-policy",
@@ -94,6 +94,15 @@
       "classification": "external-audit-required"
     },
     {
+      "name": "POST /work/v2/artifacts/{artifactId}/versions",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
       "name": "POST /work/v2/devices/pairings",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",
@@ -148,6 +157,15 @@
       "classification": "external-audit-required"
     },
     {
+      "name": "POST /work/v2/tasks/{taskId}/acceptances",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
       "name": "POST /work/v2/workspace-grants",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",
@@ -162,6 +180,15 @@
       "origin": "src/work/internal/api/bootstrap.go",
       "callableBy": [
         "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "accept_local_task",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0045_local_acceptance.sql",
+      "callableBy": [
+        "work_api"
       ],
       "classification": "external-audit-required"
     },
@@ -258,7 +285,7 @@
     {
       "name": "consume_governance_events",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0044_local_approval_reads.json",
+      "origin": "src/work/migrations/catalogs/0045_local_acceptance.json",
       "callableBy": [
         "work_governance_events"
       ],
@@ -339,7 +366,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0044_local_approval_reads.json",
+      "origin": "src/work/migrations/catalogs/0045_local_acceptance.json",
       "callableBy": [
         "work_api",
         "work_governance_events"
