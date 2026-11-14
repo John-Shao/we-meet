@@ -11,6 +11,7 @@
 
 pub mod b64;
 pub mod es256;
+pub mod journal;
 pub mod jwk;
 pub mod key;
 pub mod pairing;

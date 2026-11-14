@@ -12,12 +12,12 @@ base64ct = { version = "1", features = ["alloc"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rand_core = { version = "0.6", features = ["getrandom"] }
+aes-gcm = "0.10"
+uuid = { version = "1", features = ["v4"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = ["Win32_Security_Cryptography", "Win32_Foundation"] }
-
-[dev-dependencies]
-rusqlite = { version = "0.32", features = ["bundled"] }
 
 [profile.release]
 lto = "thin"
