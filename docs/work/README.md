@@ -15,7 +15,7 @@ Work 是 we-meet 的 AI 任务执行模块：用户写一个目标（Composer）
 | 阶段 | 范围 | 状态 |
 |---|---|---|
 | R0a | 云端文本任务：Composer、我的工作、任务工作区、成果验收、预算/审计、管理只读子集 | 已实现、已部署试点环境 |
-| R0b | 本机执行（设备面）、可委派权限、治理、审批、token 护栏 | 设计自查完成、外部审计未执行；迁移 0017–0043 在仓库，0040–0043 未 rollout |
+| R0b | 本机执行（设备面）、可委派权限、治理、审批、token 护栏 | 设计自查完成、外部审计未执行；M1a 设备迁移＋M1b REST 面已落仓库（迁移 0017–0045，0040–0045 未 rollout），M2–M5 未实现 |
 | R1–R5 | 套件/技能、连接器、项目/链式、富成果、协作/自动化 | 仅产品/UX/架构方向，未实现 |
 
 R0a **不含**：本机执行、连接器、项目/链式、手工审批 UI（审批函数内部保留给 R0b/R2/测试）。
@@ -30,7 +30,7 @@ R0a **不含**：本机执行、连接器、项目/链式、手工审批 UI（�
 | [operations.md](operations.md) | 可操作运维步骤：部署、迁移、备份、回滚、告警、go/no-go |
 | [status.json](status.json) / [status.md](status.md) | 当前状态（`scripts/work-status.mjs` 生成；事实输入 [status.inputs.json](status.inputs.json)） |
 | [decisions/](decisions/README.md) | 架构决策记录（ADR）索引 |
-| [design/](design/) | 未落地 R0b 设计（需评审）＋安全边界决策（host-wire/threat-model）；已实现 R0a 设计基线见 [archive/design-baseline/](archive/design-baseline/) |
+| [design/](design/) | R0b 详细设计（需评审）＋安全边界决策（host-wire/threat-model）；M1a/M1b 已落仓库，M2–M5 未实现，长文整体仍为签署权威（收敛条件见下）；已实现 R0a 设计基线见 [archive/design-baseline/](archive/design-baseline/) |
 | [ops/](ops/) | 运维参考长文（runbook/drill-checklist/glossary/pilot-ops）；[operations.md](operations.md) 是其精简操作入口 |
 | [archive/](archive/README.md) | 历史快照，只读追溯，不参与当前设计阅读 |
 | [work-project.md](work-project.md) | 项目纯索引：状态指向 status，开放裁定指向 decisions/open-rulings |
@@ -43,13 +43,15 @@ R0a **不含**：本机执行、连接器、项目/链式、手工审批 UI（�
 | Node Runtime | `src/work/node/` | Pi supervisor + 每 Run 子进程；模型出口经 work-egress |
 | Host 集成 | `src/backend/core/api/work_host.py` | Django，mTLS 会话验真与目录投影 |
 | 前端 | `src/frontend/src/features/work/r0a` | `/work` 路由 |
-| 迁移 | `src/work/migrations/` | baseline 0001/0002 + 增量 0003–0043，manifest.json |
+| 迁移 | `src/work/migrations/` | baseline 0001/0002 + 增量 0003–0045，manifest.json |
 | 部署 | `src/work/deploy/ecs/`、`deploy/aliyun/` | systemd unit、发布/rollout/verify 脚本、Temporal |
 | 契约/门禁资产 | `docs/plan/assets/work-*/` | OpenAPI、错误码、策略、pilot-checklist、CI 门禁 |
 
 ## 权威来源表
 
 凡是不在这张表里的重复说明，都应删除或归档——以代码/契约/测试为准。
+
+> **R0b 详细设计收敛条件（文档重构活义务，保持开放）**：design/ 的 R0b 长文覆盖整个 R0b，是 M2–M5（桌面端／设备网关／前端消费者／真签名验证）这些「代码尚不存在」部分的签署权威，故整体尚不能归档。M1a/M1b 已落仓库（未 rollout），其详细设计已由代码/迁移/契约/测试取代为权威。**关闭条件＝M2–M5 实现并 rollout 后，长文整体收敛为代码权威并按归档纪律移入 [archive/design-baseline/](archive/design-baseline/)**（与 R0a 基线同路径）；在此之前不归档、不删 prose。
 
 | 内容 | 权威来源 |
 |---|---|

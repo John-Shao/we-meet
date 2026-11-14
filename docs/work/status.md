@@ -32,7 +32,7 @@ node --input-type=module -e "const p='./docs/plan/assets/work-r0a-ops-2026-10-25
 - runtime-sandbox-isolation
 - real-provider-e2e
 - real-content-store-validation
-- 0040-0043-rollout-authorization
+- 0040-0045-rollout-authorization
 
 ## 真实客户数据准入
 

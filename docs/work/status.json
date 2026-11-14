@@ -27,7 +27,7 @@
     "runtime-sandbox-isolation",
     "real-provider-e2e",
     "real-content-store-validation",
-    "0040-0043-rollout-authorization"
+    "0040-0045-rollout-authorization"
   ],
   "customer_data_gate": {
     "allowed": false,
