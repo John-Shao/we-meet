@@ -10,11 +10,14 @@ account) invalidates every Bearer device session, lease and unconsumed permit th
 user holds. The cookie plane keeps its own session-key-hash revision; the two are
 namespaced by ``auth_plane`` and never satisfy each other.
 
-Scope note (§1.1 trigger matrix): this module currently covers login/logout only.
-The remaining revocation triggers — Keycloak back-channel session revocation,
-password/credential change, admin revocation and account switch — are a documented
-follow-up gap ("撤销不到"): until they also advance the epoch, those events do not
-yet invalidate Bearer sessions.
+Scope note (§1.1 trigger matrix): the Host receiver covers login, logout, account
+switch (the callback fresh-login branch) and Keycloak back-channel logout, which is
+the delivery path for session revocation, password/credential change and admin
+revocation. The back-channel triggers only fire once Keycloak emits logout tokens:
+that requires the client's ``backchannelLogout`` switch and ``backchannel.logout.url``
+to be configured, a production Keycloak configuration step pending authorization.
+Until then those events do not reach the Host and Bearer sessions are not invalidated
+by them ("撤销不到"); the receiver being present is not itself production closure.
 """
 
 from django.db.models import F

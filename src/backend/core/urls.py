@@ -263,6 +263,7 @@ from core.api.voiceprint_sampling import (
     SamplingValidationView,
 )
 from core.authentication.views import (
+    WorkOIDCBackChannelLogoutView,
     WorkOIDCLogoutCallbackView,
     WorkOIDCLogoutView,
 )
@@ -613,6 +614,11 @@ urlpatterns = [
                     "logout-callback/",
                     WorkOIDCLogoutCallbackView.as_view(),
                     name="oidc_logout_callback",
+                ),
+                path(
+                    "backchannel-logout/",
+                    WorkOIDCBackChannelLogoutView.as_view(),
+                    name="oidc_backchannel_logout",
                 ),
                 *oidc_urls,
                 path("directory/me/", DirectoryMeView.as_view(), name="directory_me"),
