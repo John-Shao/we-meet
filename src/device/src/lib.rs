@@ -5,12 +5,14 @@
 //! it batch by batch. Batch 1 lands device identity and the pairing signature
 //! domain: a non-exportable CNG P-256 key (Windows), the closed EC JWK, the
 //! server-matching thumbprint, ES256 R||S signing/verification and the
-//! `work-device-pair-v2` covered string. Journal, permits, named-pipe IPC and the
-//! sidecar supervisor land in later batches. Nothing here yet claims a production
-//! capability.
+//! `work-device-pair-v2` covered string. Later batches add the encrypted journal,
+//! frame signing, permit/lease/fence validation, the ACL-protected named-pipe IPC,
+//! the Node/Pi sidecar supervisor and the run-finish operation-set hash. Nothing
+//! here yet claims a production capability.
 
 pub mod b64;
 pub mod es256;
+pub mod finish;
 pub mod frame;
 pub mod ipc;
 pub mod journal;
@@ -18,6 +20,7 @@ pub mod jwk;
 pub mod key;
 pub mod pairing;
 pub mod permit;
+pub mod sidecar;
 pub mod thumbprint;
 
 #[cfg(windows)]
