@@ -13,7 +13,7 @@
 现状（2026-11-14 已核实；执行任何写操作前先现场重读）：
 
 - 现网最新包 `work-release-0039`，迁移台账 `tip_version=39`。
-- 增量 0040–0043（设备面 16 表）已落仓库、**未 rollout**；需要链尾 43 的新包＋窗口当场生产写授权＋同二进制重放预检（§3.4）。
+- 增量 0040–0045（设备面表族）已落仓库、**未 rollout**；需要链尾 45 的新包＋窗口当场生产写授权＋同二进制重放预检（§3.4）。
 - 八个核心 unit active；`work-directory-sync` 由 timer 驱动。
 - Content Store 为本地 pilot，零真实请求；云 KMS 未接（C13 未关闭）。
 - E8 试点未开始；**不允许真实客户数据**。
@@ -129,9 +129,9 @@ workload PKI 由 `init-workload-pki.sh` 生成（/etc/work/runtime-ca，幂等�
 
 ### 3.1 链结构与现网台账
 
-- baseline：0001（角色前置，不可执行）＋0002（初始 schema）；增量 0003–0043。
+- baseline：0001（角色前置，不可执行）＋0002（初始 schema）；增量 0003–0045。
 - 整链内嵌在 `work-migrate` 二进制（migrations/embed.go）；manifest.json＋catalogs 钉 checksum；账本表 `work.schema_migration`。
-- 现网 tip=39。0040–0043＝设备面 16 表；在装 work-migrate 对它们零命中，**必须先出链尾 43 的新包**，裁定为整包一次上（39→43）。
+- 现网 tip=39。0040–0045＝设备面表族；在装 work-migrate 对它们零命中，**必须先出链尾 45 的新包**，裁定为整包一次上（39→45；2026-11-14 主签单选扩包，取代 11-13 甲的 0040–0043／39→43，不含执行授权）。
 
 ### 3.2 读账本 [只读]
 
@@ -155,7 +155,7 @@ sudo ./rollout-r0a-0027.sh --release <发布目录> --migrations-only
 - `--migrations-only`：dump → 装 work-migrate → apply → status → 成对装 retention-scan 两件；**不停/不重启任何 unit、不换其它二进制**。函数体类增量当场生效；Go 侧 workflow 变化（如 reconcile 24h 上界）不生效，需完整 rollout 换 worker。
 - dump 自动落 `/var/backups/work/work-pre-0027-<stamp>.dump`（0600）；二进制逐项留 `.bak-<stamp>`。
 
-### 3.4 rollout 0040–0043 的三道前置
+### 3.4 rollout 0040–0045 的三道前置
 
 1. **工作树干净**：`RELEASE_DIRTY=0`；脏包不可复现，rollout 会打 WARN。
 2. **窗口当场生产写授权**：定序裁定不含执行授权。若包内含 authz 热加载改动（卡片 Y 前置 d），restart work-authz 会把 workloads.json 热加载变成现网行为——单独取授权或分开出包。
@@ -183,7 +183,7 @@ ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes johnshao@<work-ecs> 'cat > /var/tmp/pf
 
 ### 3.5 装后验证与链尾闸 [只读]
 
-- `sudo ./verify-r0a-0027.sh "<开始时刻>"`：`rows=N max=N`、清单 all present、函数体探针 true（claim_carries_takeover、terminal_release_guard、export_discovery_hardened、0040–0043 设备面探针等）。
+- `sudo ./verify-r0a-0027.sh "<开始时刻>"`：`rows=N max=N`、清单 all present、函数体探针 true（claim_carries_takeover、terminal_release_guard、export_discovery_hardened、0040–0045 设备面探针等）。
 - unit active 且无 STALE（进程仍跑被替换的旧 inode）；rollout 第 10 步自动查。
 - 链尾闸（随 rollout 安装后）：work-api 每次启动先跑 `ecs-migrate.sh status -require-up-to-date`。两种指纹方向相反：
   - `ledger_pending_increments`（账本落后于二进制）→ 向前补链（apply/完整 rollout）；

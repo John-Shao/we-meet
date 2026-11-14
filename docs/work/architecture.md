@@ -220,7 +220,7 @@ Temporal 使用独立持久化库与角色、独立 namespace 与任务队列，
 - **云 KMS 未接**：静态单层加密是已签范围例外（[ADR-0023](decisions/0023-static-single-layer-encryption.md)），接触客户数据须重开。
 - **外发内容治理未落地**：来源标签分类与秘密模式检测只存在于设计资产校验器，生产 egress 路径不执行（`src/work/internal/egress/doc.go` 已显式更正此前的假控制注释）。egress 实际强制的是请求文档哈希冻结、provider/model 匹配与单次发送。
 - **计量只统计 token，不计算费用**（[ADR-0022](decisions/0022-token-metering-not-money.md)）；客户自带模型账号，护栏取代金额账本。
-- **R0b 实现部分开始**：迁移 0017–0043 在仓库，0040–0043 未 rollout（现网台账 tip=39）；Go 侧只注册了少量 `/work/v2` 治理面（`src/work/internal/api/bootstrap.go`），设备面表族与 Rust Broker 未建，R0b 验收用例至今零执行。
+- **R0b 实现部分开始**：迁移 0017–0045 在仓库，0040–0045 未 rollout（现网台账 tip=39）；M1a 设备面表族与 M1b REST 面（Bearer 平面，`src/work/internal/api/bootstrap.go`）已落仓库并有 Go 用例，Rust Broker（M2）／设备网关（M3）／前端消费者（M4）／真签名验证（M5）未实现，R0b 现网验收用例至今零执行。
 - **席位按人归并未实现**，当前投影仍是"最后修改行赢"（§1.2）。
 
 ## 9. 变更纪律
