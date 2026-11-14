@@ -65,6 +65,10 @@ const IMPLEMENTED_ONLY = [
   // and the 0045 accept_local_task command.
   'POST /work/v2/artifacts/{artifactId}/versions',
   'POST /work/v2/tasks/{taskId}/acceptances',
+  // R0b M1b workspace-rebind face (control-design §1.4 row 65): the Bearer-plane rebind
+  // route backed by the 0041/0043 rebind_run_workspace command. Its /work/v2/runs sibling
+  // (reconciliations) is a cookie-plane R0a read and is not listed here.
+  'POST /work/v2/runs/{runId}/workspace-rebinds',
 ];
 
 function readGoSurface() {

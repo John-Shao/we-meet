@@ -157,6 +157,15 @@
       "classification": "external-audit-required"
     },
     {
+      "name": "POST /work/v2/runs/{runId}/workspace-rebinds",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
       "name": "POST /work/v2/tasks/{taskId}/acceptances",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",

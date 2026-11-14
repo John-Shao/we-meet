@@ -216,6 +216,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST "+ApprovalDecisionPath, s.decideApproval)
 	mux.HandleFunc("POST "+LocalArtifactVersionsPath, s.createLocalArtifactVersion)
 	mux.HandleFunc("POST "+LocalTaskAcceptancesPath, s.createLocalAcceptance)
+	mux.HandleFunc("POST "+WorkspaceRebindsPath, s.rebindRunWorkspace)
 	mux.HandleFunc("GET "+MeUsagePath, s.meUsage)
 	mux.HandleFunc("POST "+AdminAuditExportsPath, s.createAdminAuditExport)
 	mux.HandleFunc("GET "+AdminAuditExportPath, s.getAdminAuditExport)

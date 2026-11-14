@@ -150,5 +150,8 @@ func bearerPlaneRoute(path string) bool {
 		strings.HasPrefix(path, "/work/v2/workspace-grants") ||
 		strings.HasPrefix(path, "/work/v2/approvals") ||
 		strings.HasPrefix(path, "/work/v2/artifacts") ||
-		strings.HasPrefix(path, "/work/v2/tasks")
+		strings.HasPrefix(path, "/work/v2/tasks") ||
+		// The rebind face is Bearer-plane, but its /work/v2/runs sibling
+		// (reconciliations) is cookie-plane, so match the rebind suffix only.
+		strings.HasSuffix(path, "/workspace-rebinds")
 }

@@ -153,6 +153,12 @@
       "recovery_action": "refresh",
       "ui": "state_changed"
     },
+    "workspace_identity_changed": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": null,
+      "ui": "state_changed"
+    },
     "task_has_active_run": {
       "status": 409,
       "retryable": false,
@@ -622,7 +628,7 @@
     "version_not_found": "version_not_found",
     "work_seat_required": "work_seat_required",
     "workspace_grant_content_immutable": "invalid_request",
-    "workspace_identity_changed": "service_degraded",
+    "workspace_identity_changed": "workspace_identity_changed",
     "approval_nonce_reused": "service_degraded",
     "destination_not_allowed_for_local_only": "service_degraded",
     "device_dispatch_content_immutable": "invalid_request",
