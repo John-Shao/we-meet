@@ -17,6 +17,7 @@ use windows::Win32::Security::Cryptography::{
 
 use crate::jwk::EcP256Jwk;
 use crate::key::{DeviceKey, KeyError};
+use crate::upgrade::keyprov::KeyProvenance;
 
 /// A persisted, non-exportable CNG P-256 signing key.
 pub struct CngKey {
@@ -30,17 +31,24 @@ fn wide(text: &str) -> Vec<u16> {
 }
 
 impl CngKey {
-    /// Create and finalize a new persisted key under `name`, denying private
-    /// export. Fails if a key with that name already exists.
+    /// Create and finalize a new persisted key under `name` in the software CNG
+    /// provider, denying private export. Fails if the key name already exists.
     pub fn create(name: &str) -> Result<Self, KeyError> {
+        Self::create_with_provider(name, w!("Microsoft Software Key Storage Provider"))
+    }
+
+    /// Create a key under the provider selected by `provenance` (TPM when
+    /// available, else software CNG). Provenance never claims hardware attestation.
+    pub fn create_with_provenance(name: &str, provenance: KeyProvenance) -> Result<Self, KeyError> {
+        let provider_name = wide(provenance.provider_name());
+        Self::create_with_provider(name, PCWSTR(provider_name.as_ptr()))
+    }
+
+    fn create_with_provider(name: &str, provider_name: PCWSTR) -> Result<Self, KeyError> {
         unsafe {
             let mut provider = NCRYPT_PROV_HANDLE::default();
-            NCryptOpenStorageProvider(
-                &mut provider,
-                w!("Microsoft Software Key Storage Provider"),
-                0,
-            )
-            .map_err(|_| KeyError::Sign)?;
+            NCryptOpenStorageProvider(&mut provider, provider_name, 0)
+                .map_err(|_| KeyError::Sign)?;
             let mut key = NCRYPT_KEY_HANDLE::default();
             let name_w = wide(name);
             NCryptCreatePersistedKey(
@@ -67,16 +75,22 @@ impl CngKey {
         }
     }
 
-    /// Open an existing persisted key by name.
+    /// Open an existing persisted key by name from the software CNG provider.
     pub fn open(name: &str) -> Result<Self, KeyError> {
+        Self::open_with_provider(name, w!("Microsoft Software Key Storage Provider"))
+    }
+
+    /// Open an existing key from the provider selected by `provenance`.
+    pub fn open_with_provenance(name: &str, provenance: KeyProvenance) -> Result<Self, KeyError> {
+        let provider_name = wide(provenance.provider_name());
+        Self::open_with_provider(name, PCWSTR(provider_name.as_ptr()))
+    }
+
+    fn open_with_provider(name: &str, provider_name: PCWSTR) -> Result<Self, KeyError> {
         unsafe {
             let mut provider = NCRYPT_PROV_HANDLE::default();
-            NCryptOpenStorageProvider(
-                &mut provider,
-                w!("Microsoft Software Key Storage Provider"),
-                0,
-            )
-            .map_err(|_| KeyError::Sign)?;
+            NCryptOpenStorageProvider(&mut provider, provider_name, 0)
+                .map_err(|_| KeyError::Sign)?;
             let mut key = NCRYPT_KEY_HANDLE::default();
             let name_w = wide(name);
             NCryptOpenKey(
@@ -251,6 +265,23 @@ mod tests {
         };
         assert!(result.is_err(), "private export must be denied");
 
+        reopened.delete().expect("delete");
+    }
+
+    #[test]
+    fn provenance_software_fallback_creates_and_reopens() {
+        let name = unique_name();
+        let provenance = KeyProvenance::SoftwareCng;
+        assert!(!provenance.claims_hardware_attestation());
+        let created =
+            CngKey::create_with_provenance(&name, provenance).expect("create via provenance");
+        let jwk = created.public_jwk();
+        let sig = created.sign_es256(b"msg").expect("sign");
+        assert!(es256::verify(&jwk, b"msg", &crate::b64::encode(&sig)));
+        drop(created);
+        let reopened =
+            CngKey::open_with_provenance(&name, provenance).expect("open via provenance");
+        assert_eq!(reopened.public_jwk(), jwk);
         reopened.delete().expect("delete");
     }
 }
