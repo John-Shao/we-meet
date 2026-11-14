@@ -3,16 +3,18 @@
 Work's Bearer-plane auth epoch (control-design §1.1) must advance on Keycloak
 session revocation, password/credential change and admin revocation. Keycloak
 delivers those events as a back-channel logout token, but only when the client has
-``backchannelLogout`` enabled and a ``backchannel.logout.url`` pointing at the Host
-receiver (``/api/v1.0/backchannel-logout/``, see core.authentication.views). The
-production clients currently have neither, so the Host receiver never gets called.
+a ``backchannel.logout.url`` attribute pointing at the Host receiver
+(``/api/v1.0/backchannel-logout/``, see core.authentication.views). The production
+clients currently have no such URL, so the Host receiver never gets called.
 
 This script closes that emission-side gap. It is read-only by default and prints
 the planned change; ``--apply`` performs a GET -> merge -> PUT that touches ONLY
-``backchannelLogout`` and ``attributes["backchannel.logout.url"]``, preserving every
-other field. It never creates clients, never modifies unrelated clients, and never
-prints credentials or the admin token. Running it against production is a production
-write and requires separate authorization.
+``attributes["backchannel.logout.url"]``, preserving every other field. (This
+Keycloak version enables back-channel logout purely via that attribute; the
+top-level ``backchannelLogout`` is not a writable representation field.) It never
+creates clients, never modifies unrelated clients, and never prints credentials or
+the admin token. Running it against production is a production write and requires
+separate authorization.
 """
 import argparse
 import json
@@ -87,27 +89,28 @@ def main():
             raise ValueError('Expected exactly one ' + client_id + ' client')
         client_url = endpoint + '/' + urllib.parse.quote(matches[0]['id'], safe='')
         actual = request(client_url, token=token)
+        attrs_before = actual.get('attributes') or {}
         before = {
-            'backchannelLogout': actual.get('backchannelLogout'),
-            'backchannel.logout.url': (actual.get('attributes') or {}).get('backchannel.logout.url'),
+            'backchannel.logout.url': attrs_before.get('backchannel.logout.url'),
+            'backchannel.logout.session.required': attrs_before.get('backchannel.logout.session.required'),
         }
         if not args.apply:
             print(json.dumps({'client': client_id, 'mode': 'read-only', 'current': before,
-                              'planned': {'backchannelLogout': True, 'backchannel.logout.url': logout_url}},
+                              'planned': {'backchannel.logout.url': logout_url}},
                              ensure_ascii=False))
             continue
-        # GET -> merge -> PUT: touch only the two back-channel fields.
-        actual['backchannelLogout'] = True
+        # GET -> merge -> PUT: touch only backchannel.logout.url, which is what
+        # enables back-channel logout in this Keycloak version.
         attrs = actual.get('attributes') or {}
         attrs['backchannel.logout.url'] = logout_url
         actual['attributes'] = attrs
         request(client_url, body=actual, token=token, method='PUT')
         verified = request(client_url, token=token)
         after_attrs = verified.get('attributes') or {}
-        if verified.get('backchannelLogout') is not True or after_attrs.get('backchannel.logout.url') != logout_url:
+        if after_attrs.get('backchannel.logout.url') != logout_url:
             raise ValueError(client_id + ' back-channel logout did not verify after PUT')
         print(json.dumps({'client': client_id, 'mode': 'applied', 'before': before,
-                          'backchannelLogout': True, 'backchannel.logout.url': logout_url}, ensure_ascii=False))
+                          'backchannel.logout.url': logout_url}, ensure_ascii=False))
 
 
 if __name__ == '__main__':
