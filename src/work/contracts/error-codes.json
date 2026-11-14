@@ -10,7 +10,8 @@
     "Governance and resolution guards added after the R0a draft keep the status their SQLSTATE fallback produced, so registering them changes nothing observable; acceptance_blocked_unresolvable is defined by control design section 9 as a 409.",
     "Increments 0003-0016 raised 66 codes that were never listed here; they are now mapped to exactly what the SQLSTATE fallback already produced (48 to service_degraded, 18 to invalid_request), which is why no shipped response moved. The debt exemption list in the coverage guard is gone, so an unmapped raise can no longer slip through.",
     "The divergence among those 66 was resolved on 2026-11-02 by splitting the guard rather than re-stating one code: increment 0022 raises org_operator_suspended - public, 409, retryable false - when an operator suspended the organization, and keeps org_execution_disabled for status and execution_enabled states, which stay mapped to the retryable 503 they have always produced because those can change without a human acting. Control design section 9 still declares org_execution_disabled as a 409, and that row is about a different surface: the Host response to a seat grant that Work's POST /admin/seat-changes passes through at HTTP level, which never consults this map.",
-    "Governance-integrity guards introduced after increment 0016 raise SQLSTATE 23514/22023, whose fallback would be 400 invalid_request, and are deliberately mapped to service_degraded instead: access_restriction_content_immutable, cancellation_intent_content_immutable, cancellation_intent_terminal_state, execution_entitlement_content_immutable, governance_change_content_immutable, governance_event_cursor_content_immutable, governance_gap_report_content_immutable, local_execution_policy_content_immutable, operation_resolution_content_immutable, operation_resolution_watermark_terminal, directory_protocol_invalid. None of them is reachable in a shipped surface (each first appears in 0018-0021, where production stands at 0016), and each reports either an attempt to rewrite state that is immutable by design or a Host event stream that does not match the closed contract. Neither is input the caller could fix by correcting a field: resending the same request gets the same refusal, so 400 would tell a client to repair something they had no part in. TestIncrementGuardsKeepTheirFallbackStatus requires any such deviation to be named in this file, so a mapping cannot drift away from the fallback quietly."
+    "Governance-integrity guards introduced after increment 0016 raise SQLSTATE 23514/22023, whose fallback would be 400 invalid_request, and are deliberately mapped to service_degraded instead: access_restriction_content_immutable, cancellation_intent_content_immutable, cancellation_intent_terminal_state, execution_entitlement_content_immutable, governance_change_content_immutable, governance_event_cursor_content_immutable, governance_gap_report_content_immutable, local_execution_policy_content_immutable, operation_resolution_content_immutable, operation_resolution_watermark_terminal, directory_protocol_invalid. None of them is reachable in a shipped surface (each first appears in 0018-0021, where production stands at 0016), and each reports either an attempt to rewrite state that is immutable by design or a Host event stream that does not match the closed contract. Neither is input the caller could fix by correcting a field: resending the same request gets the same refusal, so 400 would tell a client to repair something they had no part in. TestIncrementGuardsKeepTheirFallbackStatus requires any such deviation to be named in this file, so a mapping cannot drift away from the fallback quietly.",
+    "local_policy_not_configured and local_policy_incomplete become public 409 (retryable false, recovery_action contact_operator) now that the R0b device pairing face is their first raising endpoint: control design section 9 defines both as 409 refusals of device pairing, grant registration and local task submission when the organization has not configured its directory classification policy. They were mapped to service_degraded only while no public endpoint raised them; registering them here is the decided change that section 9 authorizes, not a quiet status move."
   ],
   "public": {
     "invalid_request": {
@@ -378,6 +379,18 @@
       "retryable": false,
       "recovery_action": "refresh_state",
       "ui": "input_expired"
+    },
+    "local_policy_not_configured": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": "contact_operator",
+      "ui": "org_paused"
+    },
+    "local_policy_incomplete": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": "contact_operator",
+      "ui": "org_paused"
     }
   },
   "db_exception_map": {
@@ -480,8 +493,8 @@
     "invalid_wait_reason": "service_degraded",
     "latest_run_not_terminal": "run_not_quiescent",
     "local_execution_policy_content_immutable": "service_degraded",
-    "local_policy_incomplete": "service_degraded",
-    "local_policy_not_configured": "service_degraded",
+    "local_policy_incomplete": "local_policy_incomplete",
+    "local_policy_not_configured": "local_policy_not_configured",
     "not_found": "not_found",
     "only_held_reservations_can_be_released": "service_degraded",
     "operation_has_active_reservation": "service_degraded",

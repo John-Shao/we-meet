@@ -77,6 +77,52 @@ func TestEveryContractOperationEnforcesSessionAndCSRF(t *testing.T) {
 			noSession = append(noSession, op.method+" "+path+"="+http.StatusText(response.StatusCode))
 		}
 
+		// The Bearer plane holds a different second invariant (§1.1): the cookie
+		// session must not authenticate it, and a bearer credential without the
+		// shell identity is refused with the CSRF code. The cookie-plane double
+		// submit below does not apply to these routes.
+		if bearerPlaneRoute(op.path) {
+			if op.method == http.MethodGet {
+				continue
+			}
+			mutating++
+			cookieOnly, err := http.NewRequest(op.method, server.URL+path, strings.NewReader("{}"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			cookieOnly.Header.Set("Content-Type", "application/json")
+			cookieOnly.AddCookie(&http.Cookie{Name: host.SessionCookieName, Value: "session-value"})
+			cookieOnly.AddCookie(&http.Cookie{Name: api.CSRFCookieName, Value: csrf})
+			cookieResponse, err := http.DefaultClient.Do(cookieOnly)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cookieBody, _ := io.ReadAll(cookieResponse.Body)
+			cookieResponse.Body.Close()
+			if cookieResponse.StatusCode != http.StatusUnauthorized {
+				noCSRF = append(noCSRF, op.method+" "+path+"=cookie satisfied the bearer face: "+
+					http.StatusText(cookieResponse.StatusCode)+" "+string(cookieBody))
+			}
+			noShell, err := http.NewRequest(op.method, server.URL+path, strings.NewReader("{}"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			noShell.Header.Set("Content-Type", "application/json")
+			noShell.Header.Set("Authorization", "Bearer desktop-token")
+			shellResponse, err := http.DefaultClient.Do(noShell)
+			if err != nil {
+				t.Fatal(err)
+			}
+			shellBody, _ := io.ReadAll(shellResponse.Body)
+			shellResponse.Body.Close()
+			if shellResponse.StatusCode != http.StatusForbidden ||
+				!strings.Contains(string(shellBody), `"csrf_invalid"`) {
+				noCSRF = append(noCSRF, op.method+" "+path+"="+
+					http.StatusText(shellResponse.StatusCode)+" "+string(shellBody))
+			}
+			continue
+		}
+
 		// 2. Session present, double-submit missing. The CSRF cookie alone must not be enough.
 		if op.method == http.MethodGet {
 			continue

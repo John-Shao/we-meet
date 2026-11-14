@@ -73,6 +73,7 @@ func (e *domainError) Error() string { return e.code }
 type Server struct {
 	pool           *pgxpool.Pool
 	verifier       host.SessionVerifier
+	bearer         host.BearerVerifier
 	csrf           *CSRF
 	content        content.Store
 	logger         *log.Logger
@@ -81,6 +82,14 @@ type Server struct {
 	prober         ProviderProber
 	shutdown       chan struct{}
 	shutdownOnce   sync.Once
+}
+
+// SetBearerVerifier wires the desktop Bearer plane (control-design §1.1). It is
+// optional: until the Host v3 access transport is configured the device face fails
+// closed rather than falling back to the cookie plane, which must never satisfy a
+// bearer-only check.
+func (s *Server) SetBearerVerifier(v host.BearerVerifier) {
+	s.bearer = v
 }
 
 // SetProviderMasterKey supplies the 32-byte key that seals a submitted provider API
@@ -191,6 +200,12 @@ func (s *Server) Handler() http.Handler {
 	// that prefix, so R0b's registered faces are added beneath it even though the shipped
 	// R0a surface they sit beside lives under /work/v1.
 	mux.HandleFunc("GET "+RunReconciliationsPath, s.getRunReconciliations)
+	mux.HandleFunc("GET "+DevicesPath, s.listDevices)
+	mux.HandleFunc("POST "+DevicePairingsPath, s.createDevicePairing)
+	mux.HandleFunc("POST "+DevicePairingConfirmPath, s.confirmDevicePairing)
+	mux.HandleFunc("POST "+DeviceSessionTicketsPath, s.mintDeviceSessionTicket)
+	mux.HandleFunc("POST "+DeviceCertificateRenewalsPath, s.renewDeviceCertificate)
+	mux.HandleFunc("POST "+DeviceRevokePath, s.revokeDevice)
 	mux.HandleFunc("GET "+MeUsagePath, s.meUsage)
 	mux.HandleFunc("POST "+AdminAuditExportsPath, s.createAdminAuditExport)
 	mux.HandleFunc("GET "+AdminAuditExportPath, s.getAdminAuditExport)

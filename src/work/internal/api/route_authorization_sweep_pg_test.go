@@ -53,6 +53,11 @@ func TestMemberAndSeatlessSessionsAreRefusedAcrossTheRouteTable(t *testing.T) {
 	var adminOps, memberWrites []route
 	for _, entry := range registeredRoutes(t) {
 		op := route{entry.method, entry.path, ""}
+		// The Bearer device face is not a cookie-plane member write: its seat and
+		// ownership guards live in the SQL behind a bearer token, swept separately.
+		if bearerPlaneRoute(op.path) {
+			continue
+		}
 		if strings.Contains(op.path, "/admin/") {
 			adminOps = append(adminOps, op)
 			continue

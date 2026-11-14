@@ -28,10 +28,24 @@ type Claims struct {
 	OrgID           string
 	SessionRevision int64
 	VerifiedAt      time.Time
+	// AuthPlane namespaces SessionRevision: "cookie" carries the Web session
+	// revision, "bearer" the Host auth epoch maintained for the desktop login
+	// cycle (control-design §1.1). The two never satisfy each other's checks.
+	AuthPlane string
 }
 
 type SessionVerifier interface {
 	VerifySession(ctx context.Context, rawCookie, correlationID string) (Claims, error)
+}
+
+// BearerVerifier resolves the desktop shell's native access token to Work claims.
+// Host verifies the token per request (signature, exp, iss, aud, revocation) and
+// returns the same (org, subject) merge as the cookie plane; Work neither parses
+// the token nor caches claims (§2.2). The concrete Host transport is the v3 access
+// port; the API depends only on this interface so the device face is testable
+// before that transport lands.
+type BearerVerifier interface {
+	VerifyBearer(ctx context.Context, token, correlationID string) (Claims, error)
 }
 
 type Config struct {
@@ -192,6 +206,7 @@ func (c *Client) VerifySession(ctx context.Context, rawCookie, correlationID str
 		OrgID:           wire.OrgID,
 		SessionRevision: *wire.SessionRevision,
 		VerifiedAt:      verifiedAt,
+		AuthPlane:       "cookie",
 	}, nil
 }
 

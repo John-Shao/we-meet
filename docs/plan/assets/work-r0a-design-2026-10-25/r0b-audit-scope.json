@@ -13,6 +13,15 @@
       "classification": "external-audit-required"
     },
     {
+      "name": "GET /work/v2/devices",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
       "name": "GET /work/v2/runs/{runId}/reconciliations",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",
@@ -32,6 +41,51 @@
     },
     {
       "name": "POST /work/v2/admin/governance-event-cursor",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "POST /work/v2/devices/pairings",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "POST /work/v2/devices/pairings/{pairingId}/confirm",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "POST /work/v2/devices/{deviceId}/certificate-renewals",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "POST /work/v2/devices/{deviceId}/revoke",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "POST /work/v2/devices/{deviceId}/session-tickets",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",
       "callableBy": [

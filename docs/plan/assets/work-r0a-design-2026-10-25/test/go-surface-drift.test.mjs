@@ -37,6 +37,15 @@ const IMPLEMENTED_ONLY = [
   'PATCH /work/v2/admin/local-policy',
   'POST /work/v2/admin/governance-event-cursor',
   'GET /work/v2/runs/{runId}/reconciliations',
+  // R0b M1b device-identity face (control-design §1.4 rows 60-63): the Bearer-plane
+  // pairing, session-ticket, certificate-renewal, list and revoke routes backed by
+  // the 0040 domain commands.
+  'GET /work/v2/devices',
+  'POST /work/v2/devices/pairings',
+  'POST /work/v2/devices/pairings/{pairingId}/confirm',
+  'POST /work/v2/devices/{deviceId}/session-tickets',
+  'POST /work/v2/devices/{deviceId}/certificate-renewals',
+  'POST /work/v2/devices/{deviceId}/revoke',
 ];
 
 function readGoSurface() {

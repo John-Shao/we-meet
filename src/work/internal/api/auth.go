@@ -52,6 +52,67 @@ func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (host.Clai
 	return claims, correlationID, true
 }
 
+// authenticateBearer resolves the desktop shell's native Bearer token for the
+// /work/v2 device face (control-design §1.1 plane (b)). It never reads or creates
+// a cookie session: the cookie plane's session_revision and the bearer plane's
+// auth epoch are namespaced apart and must not satisfy each other.
+func (s *Server) authenticateBearer(w http.ResponseWriter, r *http.Request) (host.Claims, string, bool) {
+	correlationID := correlationIDFor(r.Header.Get("X-Correlation-ID"))
+	w.Header().Set("X-Correlation-ID", correlationID)
+	w.Header().Set("Cache-Control", "no-store")
+
+	// Authenticate before the plane's CSRF-like header check: a request with no
+	// credential is unauthorized (401), which is also what the route-guard sweep
+	// probes for. The shell-identity check below then refuses a credentialed but
+	// mis-attributed request with csrf_invalid (403).
+	token, ok := bearerToken(r)
+	if !ok {
+		writeAPIError(w, correlationID, apierr.New("unauthorized"))
+		return host.Claims{}, correlationID, false
+	}
+	// §1.1: double-submit CSRF does not apply to Bearer (a third-party site does
+	// not auto-attach the token). The shell must identify itself and the request
+	// must not be cross-site; either failing is refused with the same csrf_invalid.
+	if r.Header.Get("X-Work-Client") != "desktop" ||
+		r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+		writeAPIError(w, correlationID, apierr.New("csrf_invalid"))
+		return host.Claims{}, correlationID, false
+	}
+	if s.bearer == nil {
+		apiError := apierr.New("service_degraded")
+		s.logInternal(correlationID, apiError)
+		writeAPIError(w, correlationID, apiError)
+		return host.Claims{}, correlationID, false
+	}
+	claims, err := s.bearer.VerifyBearer(r.Context(), token, correlationID)
+	if err != nil {
+		apiError := hostFailure(err)
+		if apiError.Code == "service_degraded" {
+			s.logInternal(correlationID, apiError)
+		}
+		writeAPIError(w, correlationID, apiError)
+		return host.Claims{}, correlationID, false
+	}
+	claims.AuthPlane = "bearer"
+	return claims, correlationID, true
+}
+
+// bearerToken extracts a single non-empty Bearer credential, refusing anything
+// with whitespace so a split or padded Authorization header cannot smuggle a
+// second value into the Host verifier.
+func bearerToken(r *http.Request) (string, bool) {
+	const prefix = "Bearer "
+	value := r.Header.Get("Authorization")
+	if len(value) <= len(prefix) || !strings.EqualFold(value[:len(prefix)], prefix) {
+		return "", false
+	}
+	token := strings.TrimSpace(value[len(prefix):])
+	if token == "" || strings.ContainsAny(token, " \t\r\n") {
+		return "", false
+	}
+	return token, true
+}
+
 // verifyCSRF enforces the frozen double-submit contract: the token must be in
 // the work_csrf cookie, repeated in X-CSRF-Token, and valid for this session.
 func (s *Server) verifyCSRF(w http.ResponseWriter, r *http.Request, claims host.Claims, correlationID string) bool {

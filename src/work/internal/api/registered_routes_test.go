@@ -138,3 +138,13 @@ func registeredRoutes(t *testing.T) []registeredRoute {
 func guardURLFor(path string) string {
 	return regexp.MustCompile(`\{[^}]+\}`).ReplaceAllString(path, guardFixtureUUID)
 }
+
+// bearerPlaneRoute reports whether a path sits on the desktop Bearer plane
+// (control-design §1.1 plane (b)). The device face authenticates with a Host
+// bearer token and the shell identity, never the cookie session or its
+// double-submit CSRF, so the cookie-plane session/CSRF and seat/role sweeps do
+// not apply to it; TestBearerDeviceFaceEnforcesTokenAndShellIdentity sweeps it
+// with the invariants that plane actually holds.
+func bearerPlaneRoute(path string) bool {
+	return strings.HasPrefix(path, "/work/v2/devices")
+}

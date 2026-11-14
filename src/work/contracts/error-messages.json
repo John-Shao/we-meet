@@ -59,5 +59,7 @@
   "content_on_original_device": "这个成果版本只存放在原设备上，云端不代理正文；请在原设备上查看，或重新连接该设备。",
   "org_operator_suspended": "该组织被运维刻意停用，需由运维恢复后才能继续；这不是暂时故障，重试也不会通过。",
   "request_too_large": "请求体超过大小上限。",
-  "local_proof_expired": "这个保存凭证已过期，版本没有发布；请在本机重新确认后重试。"
+  "local_proof_expired": "这个保存凭证已过期，版本没有发布；请在本机重新确认后重试。",
+  "local_policy_not_configured": "本组织尚未配置目录分类策略，本机能力未开通；请联系管理员配置后再试。",
+  "local_policy_incomplete": "本组织的目录分类策略尚未就绪，本机能力暂不可用；请联系管理员完善配置后再试。"
 }
