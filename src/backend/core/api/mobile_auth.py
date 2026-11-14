@@ -36,6 +36,8 @@ from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 from volcengine.sms.SmsService import SmsService
 
+from core.authentication.epochs import bump_auth_epoch_by_sub
+
 logger = logging.getLogger(__name__)
 
 PHONE_REGEX = re.compile(r"^1[3-9]\d{9}$")
@@ -416,6 +418,10 @@ class VerifyOtpView(APIView):
                 {"error": "令牌获取失败，请稍后重试"},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
+
+        # Native Bearer login: advance the Work auth epoch so this login cycle
+        # gets a fresh session_revision (§1.1). Best-effort by Keycloak sub.
+        bump_auth_epoch_by_sub(sub=user_id)
 
         return Response(tokens)
 

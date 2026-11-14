@@ -13,6 +13,7 @@ from drf_spectacular.views import (
 )
 
 from core.api.work_host import (
+    WorkHostBearerVerifyView,
     WorkHostMemberListView,
     WorkHostOrgListView,
     WorkHostSessionVerifyView,
@@ -26,6 +27,11 @@ urlpatterns = [
         "work-host/v2/sessions/verify",
         WorkHostSessionVerifyView.as_view(),
         name="work-host-session-verify",
+    ),
+    path(
+        "work-host/v3/sessions/verify",
+        WorkHostBearerVerifyView.as_view(),
+        name="work-host-bearer-verify",
     ),
     path(
         "work-host/v2/orgs",

@@ -317,6 +317,20 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
             "Unselect this instead of deleting accounts."
         ),
     )
+    # Work Bearer-plane auth epoch (control-design §1.1). A per-user persistent
+    # counter the Host advances on login/logout so the desktop shell's native
+    # access token has a stable session_revision that is independent of the token
+    # itself (refreshing the token every 30s must NOT change it). The cookie plane
+    # keeps its own session_revision (session-key hash); the two are namespaced by
+    # auth_plane and never satisfy each other. Bumped via core.authentication.epochs.
+    auth_epoch = models.PositiveBigIntegerField(
+        _("Work auth epoch"),
+        default=0,
+        help_text=_(
+            "Monotonic per-user counter for the Work Bearer plane; advanced on "
+            "login/logout to invalidate desktop device sessions and proofs."
+        ),
+    )
     # Mobile app extension: extended profile fields editable by the user.
     intro = models.CharField(
         _("intro"),

@@ -262,6 +262,10 @@ from core.api.voiceprint_sampling import (
     SamplingPermitView,
     SamplingValidationView,
 )
+from core.authentication.views import (
+    WorkOIDCLogoutCallbackView,
+    WorkOIDCLogoutView,
+)
 from core.external_api import viewsets as external_viewsets
 
 # - Main endpoints
@@ -597,6 +601,19 @@ urlpatterns = [
                 path("capture-sessions/<uuid:capture_id>/audio/seal/", CaptureAudioSealView.as_view(), name="capture-audio-seal"),
                 path("capture-sessions/<uuid:capture_id>/audio/<uuid:chunk_id>/", CaptureAudioDownloadView.as_view(), name="capture-audio-download"),
                 *router.urls,
+                # Work auth-epoch logout hooks shadow the lasuite logout routes
+                # (same names, first match wins) so signing out advances the
+                # Bearer-plane epoch. See core.authentication.views.
+                path(
+                    "logout/",
+                    WorkOIDCLogoutView.as_view(),
+                    name="oidc_logout_custom",
+                ),
+                path(
+                    "logout-callback/",
+                    WorkOIDCLogoutCallbackView.as_view(),
+                    name="oidc_logout_callback",
+                ),
                 *oidc_urls,
                 path("directory/me/", DirectoryMeView.as_view(), name="directory_me"),
                 path(

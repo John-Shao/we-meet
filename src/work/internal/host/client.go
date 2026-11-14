@@ -18,6 +18,7 @@ import (
 const (
 	SessionCookieName = "sessionid"
 	sessionVerifyPath = "/work-host/v2/sessions/verify"
+	bearerVerifyPath  = "/work-host/v3/sessions/verify"
 	maxResponseBytes  = 8 << 10
 	maxClockSkew      = 5 * time.Second
 	maxVerifiedAge    = 60 * time.Second
@@ -157,10 +158,58 @@ func (c *Client) VerifySession(ctx context.Context, rawCookie, correlationID str
 	}
 	defer response.Body.Close()
 
+	claims, err := c.decodeVerifyResponse(response)
+	if err != nil {
+		return Claims{}, err
+	}
+	claims.AuthPlane = "cookie"
+	return claims, nil
+}
+
+// VerifyBearer resolves the desktop shell's native access token to Work claims
+// over the v3 access port (control-design §1.1 plane (b), §2.2). Host verifies the
+// token per request (signature, exp, iss, aud, revocation) and returns the bearer
+// plane's persistent auth epoch as session_revision; Work neither parses the token
+// nor caches the claims. The cookie plane can never satisfy this port.
+func (c *Client) VerifyBearer(ctx context.Context, token, correlationID string) (Claims, error) {
+	if strings.TrimSpace(token) == "" {
+		return Claims{}, newError("session_invalid", "bearer token is missing", nil)
+	}
+	if strings.ContainsAny(token, "\r\n") {
+		return Claims{}, newError("session_invalid", "bearer token contains invalid characters", nil)
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+bearerVerifyPath, nil)
+	if err != nil {
+		return Claims{}, newError("session_unverifiable", "build Host bearer request", err)
+	}
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Authorization", "Bearer "+token)
+	if correlationID != "" {
+		request.Header.Set("X-Work-Request-ID", correlationID)
+	}
+
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		return Claims{}, newError("session_unverifiable", "call Host bearer verifier", err)
+	}
+	defer response.Body.Close()
+
+	claims, err := c.decodeVerifyResponse(response)
+	if err != nil {
+		return Claims{}, err
+	}
+	claims.AuthPlane = "bearer"
+	return claims, nil
+}
+
+// decodeVerifyResponse parses the shared session/bearer verify wire shape. The
+// caller stamps AuthPlane so the two planes never share a revision namespace.
+func (c *Client) decodeVerifyResponse(response *http.Response) (Claims, error) {
 	switch response.StatusCode {
 	case http.StatusOK:
 	case http.StatusUnauthorized:
-		return Claims{}, newError("session_invalid", "Host rejected the session", nil)
+		return Claims{}, newError("session_invalid", "Host rejected the credential", nil)
 	default:
 		return Claims{}, newError("session_unverifiable", fmt.Sprintf("Host returned status %d", response.StatusCode), nil)
 	}
@@ -174,17 +223,17 @@ func (c *Client) VerifySession(ctx context.Context, rawCookie, correlationID str
 	decoder := json.NewDecoder(io.LimitReader(response.Body, maxResponseBytes))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&wire); err != nil {
-		return Claims{}, newError("session_unverifiable", "decode Host session response", err)
+		return Claims{}, newError("session_unverifiable", "decode Host verify response", err)
 	}
 	if err := ensureEOF(decoder); err != nil {
 		return Claims{}, err
 	}
 
 	if wire.SubjectID == "" || wire.OrgID == "" || wire.SessionRevision == nil || wire.VerifiedAt == "" {
-		return Claims{}, newError("host_field_gap", "Host session response is missing a required field", nil)
+		return Claims{}, newError("host_field_gap", "Host verify response is missing a required field", nil)
 	}
 	if len(wire.SubjectID) > 128 || len(wire.OrgID) > 128 {
-		return Claims{}, newError("host_field_gap", "Host session IDs exceed 128 bytes", nil)
+		return Claims{}, newError("host_field_gap", "Host verify IDs exceed 128 bytes", nil)
 	}
 	if *wire.SessionRevision < 0 {
 		return Claims{}, newError("session_invalid", "Host session revision is negative", nil)
@@ -195,7 +244,7 @@ func (c *Client) VerifySession(ctx context.Context, rawCookie, correlationID str
 	}
 	age := c.now().Sub(verifiedAt)
 	if age > maxVerifiedAge {
-		return Claims{}, newError("session_stale", "Host session verification is older than 60s", nil)
+		return Claims{}, newError("session_stale", "Host verification is older than 60s", nil)
 	}
 	if age < -maxClockSkew {
 		return Claims{}, newError("session_invalid", "Host verified_at is too far in the future", nil)
@@ -206,7 +255,6 @@ func (c *Client) VerifySession(ctx context.Context, rawCookie, correlationID str
 		OrgID:           wire.OrgID,
 		SessionRevision: *wire.SessionRevision,
 		VerifiedAt:      verifiedAt,
-		AuthPlane:       "cookie",
 	}, nil
 }
 

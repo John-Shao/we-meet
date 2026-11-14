@@ -11,6 +11,7 @@ data.
 
 import base64
 import hashlib
+import logging
 import os
 import re
 import urllib.parse
@@ -28,9 +29,13 @@ from django.views.decorators.http import require_GET, require_POST
 from cryptography import x509
 from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
 from cryptography.x509.oid import ExtendedKeyUsageOID
+from mozilla_django_oidc.contrib.drf import OIDCAuthentication
+from rest_framework import exceptions
 
 from core.api.directory import get_caller_organization
 from core.models import Membership, Organization
+
+logger = logging.getLogger(__name__)
 
 CLIENT_CERT_HEADER = "Ssl-Client-Cert"
 MEMBER_ROLE_MAP = {
@@ -175,6 +180,65 @@ class WorkHostSessionVerifyView(View):
                 "subject_id": subject_id,
                 "org_id": str(organization.id),
                 "session_revision": session_revision(session_key),
+                "verified_at": verified_at.replace("+00:00", "Z"),
+            }
+        )
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+@method_decorator(never_cache, name="dispatch")
+@method_decorator(require_POST, name="dispatch")
+class WorkHostBearerVerifyView(View):
+    """Verify a desktop native Bearer token for the Work control plane (v3).
+
+    Bearer-plane sibling of :class:`WorkHostSessionVerifyView` (control-design
+    §1.1 plane (b), §2.2): the same workload mTLS boundary, but the end-user
+    credential is the shell's native Keycloak access token — verified by the same
+    OIDC resource-server path ``/api/`` uses — not a Django session cookie. A
+    cookie can never satisfy this port and the returned ``session_revision`` is
+    the user's persistent ``auth_epoch``, never the cookie plane's session-key
+    hash. Work neither parses the token nor caches the claims.
+    """
+
+    def post(self, request):
+        """Return the verified Bearer identity or a fail-closed error."""
+        # Workload identity first, exactly like the cookie port: a caller that is
+        # not the Work control plane is refused before any user credential reads.
+        if not _verify_client_certificate(request):
+            return JsonResponse({"code": "client_identity_invalid"}, status=403)
+
+        try:
+            result = OIDCAuthentication().authenticate(request)
+        except exceptions.AuthenticationFailed:
+            return JsonResponse({"code": "session_invalid"}, status=401)
+        except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001
+            # Keycloak unreachable / unexpected verifier failure is a service
+            # degradation, not a user-auth rejection: fail closed as 503.
+            logger.exception("Work bearer token verification failed")
+            return JsonResponse({"code": "service_unavailable"}, status=503)
+        if result is None:
+            return JsonResponse({"code": "session_invalid"}, status=401)
+        user, _token = result
+        if not getattr(user, "is_active", False):
+            return JsonResponse({"code": "session_invalid"}, status=401)
+
+        # §2.2(b): the subject must be the directory's user.sub. Never fall back to
+        # user.id (the cookie port does), which would mint a subject the directory
+        # cannot contain and split one user across two identities.
+        subject_id = (getattr(user, "sub", None) or "").strip()
+        if not SUBJECT_PATTERN.fullmatch(subject_id):
+            return JsonResponse({"code": "subject_unreadable"}, status=401)
+
+        organization = get_caller_organization(user)
+        if organization is None:
+            return JsonResponse({"code": "session_invalid"}, status=401)
+
+        verified_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        return JsonResponse(
+            {
+                "subject_id": subject_id,
+                "org_id": str(organization.id),
+                "session_revision": user.auth_epoch,
                 "verified_at": verified_at.replace("+00:00", "Z"),
             }
         )

@@ -60,6 +60,9 @@ func run(ctx context.Context) error {
 	}
 	server.SetRuntimeVersion(requiredEnv("WORK_RUNTIME_VERSION"))
 	server.SetProviderMasterKey(contentKey)
+	// The same mTLS Host client verifies the desktop Bearer plane over the v3
+	// access port; the device face fails closed until this is wired (§1.1).
+	server.SetBearerVerifier(hostClient)
 	// Optional on purpose: an unconfigured gateway must not stop the whole control plane
 	// at boot. The write endpoint fails closed as 503 until it is wired, so a missing
 	// configuration can never produce an unprobed provider config.
