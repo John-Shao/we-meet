@@ -131,7 +131,7 @@ M5 EV 与验收（TestEV* 命名补齐 + S2/S4 签收单实测 + J39 审计）
 
 M3 开工前必须有"设备 agent 语言与打包形态征询单"落项，同卡片 E 一样带代价单选、7 日复评窗。
 
-**【2026-11-11 落项：卡片 L 主签单选＝L2（Rust，独立二进制）】**语言与打包形态已裁（windows-rs 承载 S4 五步算法、rusqlite 无 CGO），7 日复评窗至 2026-11-18；出处＝work-project.md §5.0 卡片 L 同日标注。本节五问只解决了第一问；安装路径（%ProgramData% vs %LOCALAPPDATA%）、journal 备份/回滚/防篡改、升级通道与签名、与桌面壳通信（本地 HTTP vs named pipe）四问仍开放，M3 开工前逐项裁。本落项不解除 M1a 冻结、不建 `src/device*`、不装工具链。
+**【2026-11-11 落项：卡片 L 主签单选＝L2（Rust，独立二进制）】**语言与打包形态已裁（windows-rs 承载 S4 五步算法、rusqlite 无 CGO），7 日复评窗至 2026-11-18；出处＝work-project.md §5.0 卡片 L 同日标注。本节五问只解决了第一问；安装路径（%ProgramData% vs %LOCALAPPDATA%）、journal 备份/回滚/防篡改、升级通道与签名、与桌面壳通信（本地 HTTP vs named pipe）四问仍开放，M3 开工前逐项裁。本落项不解除 M1a 冻结、不建 `src/device*`、不装工具链。 **【2026-11-14 M3 四问主签逐项单选裁完，开工前置清空】**Q1 安装路径＝**%LOCALAPPDATA%（每用户安装）**（吻合 user-mode 进程＋DPAPI CurrentUser DEK＋S4 每用户句柄；安装/升级无需管理员；代价＝企业批量部署需每用户安装或登录脚本推送）；Q2 journal＝**确认 device-design §6＋B03 §3 现规格**（SQLite WAL+FULL＋AES-256-GCM＋DPAPI CurrentUser DEK，不做独立备份，持久性边界＝控制面 PG 提交，丢失/损坏隔离＋换 journal_epoch＋冻结＋人工核对、禁自动重建空日志，防篡改＝加密＋ES256 签名 receipt＋服务端签署事实驱动清理）；Q3 升级通道＝**与桌面壳同包同步**（shell+agent+runtime 一个 release-manifest 矩阵，无 active Run 且全核对后切换、双槽激活＋失败回退原完整版本，release 签名/hash/SBOM 走 supply-chain 门，设备签名 ES256 密钥 CNG／TPM 可用则 TPM 否则软件回退、不宣称硬件证明；代价＝agent 热修随壳整包发布、节奏耦合）；Q4 壳通信＝**受 ACL 保护的命名管道**（device-design :18，token/SID/登录会话/PID/握手 nonce/协议 major 全匹配，AppContainer 仅获该 Run 管道权限，避开 :264 loopback 冒充；S2 隔离按 J1）。四问皆确认/细化 device-design 既有规格，无推翻。**M3 开工前置（语言 L2＋四问）自此全部裁完**；开工仍待主签另给开工指令，本标注不建 `src/device*`、不装工具链。
 
 ## 6. M4 前端 R0b + Ingress
 
