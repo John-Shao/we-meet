@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS action_journal (
     encrypted_action BLOB,
     result_hash      TEXT,
     result_ref       TEXT,
+    resolution_revision INTEGER,
     PRIMARY KEY (org_id, operation_id)
 );
 

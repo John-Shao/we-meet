@@ -13,6 +13,7 @@ pub mod crypto;
 pub mod dek;
 pub mod meta;
 pub mod record;
+pub mod recover;
 pub mod schema;
 
 use std::path::{Path, PathBuf};

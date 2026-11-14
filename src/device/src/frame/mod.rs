@@ -11,10 +11,13 @@
 //! (`DeviceGateway/Connect`), hello_ack/session assignment and the ticket-mint
 //! handshake land with the server-gateway batch.
 
+pub mod checkpoint;
 pub mod envelope;
 pub mod hello;
 pub mod intent;
 pub mod jcs;
 pub mod receipt;
+pub mod reconcile;
+pub mod resolution;
 pub mod sign;
 pub mod u64string;

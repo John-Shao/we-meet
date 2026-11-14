@@ -20,6 +20,8 @@ pub mod jwk;
 pub mod key;
 pub mod pairing;
 pub mod permit;
+pub mod reconcile;
+pub mod recovery;
 pub mod sidecar;
 pub mod thumbprint;
 
