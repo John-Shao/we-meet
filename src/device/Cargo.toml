@@ -1,0 +1,17 @@
+[package]
+name = "work-device"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Work R0b device-side Broker (M3). Authority: docs/work/design/work-r0b-device-design-2026-10-30.md"
+
+[dependencies]
+sha2 = "0.10"
+
+[dev-dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
