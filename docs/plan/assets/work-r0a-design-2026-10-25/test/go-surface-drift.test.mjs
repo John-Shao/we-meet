@@ -46,6 +46,15 @@ const IMPLEMENTED_ONLY = [
   'POST /work/v2/devices/{deviceId}/session-tickets',
   'POST /work/v2/devices/{deviceId}/certificate-renewals',
   'POST /work/v2/devices/{deviceId}/revoke',
+  // R0b M1b workspace-grant face (control-design §1.4 row 64): the Bearer-plane
+  // list, register and revoke routes backed by the 0040 grant commands.
+  'GET /work/v2/workspace-grants',
+  'POST /work/v2/workspace-grants',
+  'POST /work/v2/workspace-grants/{grantId}/revoke',
+  // R0b M1b readonly-grant management face (control-design §1.4 row 70): the
+  // cookie-plane list and revoke routes backed by the 0042 readonly-grant commands.
+  'GET /work/v2/readonly-grants',
+  'POST /work/v2/readonly-grants/{grantId}/revoke',
 ];
 
 function readGoSurface() {

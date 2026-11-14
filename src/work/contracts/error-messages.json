@@ -61,5 +61,6 @@
   "request_too_large": "请求体超过大小上限。",
   "local_proof_expired": "这个保存凭证已过期，版本没有发布；请在本机重新确认后重试。",
   "local_policy_not_configured": "本组织尚未配置目录分类策略，本机能力未开通；请联系管理员配置后再试。",
-  "local_policy_incomplete": "本组织的目录分类策略尚未就绪，本机能力暂不可用；请联系管理员完善配置后再试。"
+  "local_policy_incomplete": "本组织的目录分类策略尚未就绪，本机能力暂不可用；请联系管理员完善配置后再试。",
+  "classification_floor_required": "申报的分类低于服务端判定的下限，登记未生效；请按组织目录策略重新授权该目录后再试。"
 }

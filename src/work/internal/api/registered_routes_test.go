@@ -146,5 +146,6 @@ func guardURLFor(path string) string {
 // not apply to it; TestBearerDeviceFaceEnforcesTokenAndShellIdentity sweeps it
 // with the invariants that plane actually holds.
 func bearerPlaneRoute(path string) bool {
-	return strings.HasPrefix(path, "/work/v2/devices")
+	return strings.HasPrefix(path, "/work/v2/devices") ||
+		strings.HasPrefix(path, "/work/v2/workspace-grants")
 }

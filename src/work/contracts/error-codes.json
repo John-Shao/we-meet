@@ -11,7 +11,8 @@
     "Increments 0003-0016 raised 66 codes that were never listed here; they are now mapped to exactly what the SQLSTATE fallback already produced (48 to service_degraded, 18 to invalid_request), which is why no shipped response moved. The debt exemption list in the coverage guard is gone, so an unmapped raise can no longer slip through.",
     "The divergence among those 66 was resolved on 2026-11-02 by splitting the guard rather than re-stating one code: increment 0022 raises org_operator_suspended - public, 409, retryable false - when an operator suspended the organization, and keeps org_execution_disabled for status and execution_enabled states, which stay mapped to the retryable 503 they have always produced because those can change without a human acting. Control design section 9 still declares org_execution_disabled as a 409, and that row is about a different surface: the Host response to a seat grant that Work's POST /admin/seat-changes passes through at HTTP level, which never consults this map.",
     "Governance-integrity guards introduced after increment 0016 raise SQLSTATE 23514/22023, whose fallback would be 400 invalid_request, and are deliberately mapped to service_degraded instead: access_restriction_content_immutable, cancellation_intent_content_immutable, cancellation_intent_terminal_state, execution_entitlement_content_immutable, governance_change_content_immutable, governance_event_cursor_content_immutable, governance_gap_report_content_immutable, local_execution_policy_content_immutable, operation_resolution_content_immutable, operation_resolution_watermark_terminal, directory_protocol_invalid. None of them is reachable in a shipped surface (each first appears in 0018-0021, where production stands at 0016), and each reports either an attempt to rewrite state that is immutable by design or a Host event stream that does not match the closed contract. Neither is input the caller could fix by correcting a field: resending the same request gets the same refusal, so 400 would tell a client to repair something they had no part in. TestIncrementGuardsKeepTheirFallbackStatus requires any such deviation to be named in this file, so a mapping cannot drift away from the fallback quietly.",
-    "local_policy_not_configured and local_policy_incomplete become public 409 (retryable false, recovery_action contact_operator) now that the R0b device pairing face is their first raising endpoint: control design section 9 defines both as 409 refusals of device pairing, grant registration and local task submission when the organization has not configured its directory classification policy. They were mapped to service_degraded only while no public endpoint raised them; registering them here is the decided change that section 9 authorizes, not a quiet status move."
+    "local_policy_not_configured and local_policy_incomplete become public 409 (retryable false, recovery_action contact_operator) now that the R0b device pairing face is their first raising endpoint: control design section 9 defines both as 409 refusals of device pairing, grant registration and local task submission when the organization has not configured its directory classification policy. They were mapped to service_degraded only while no public endpoint raised them; registering them here is the decided change that section 9 authorizes, not a quiet status move.",
+    "classification_floor_required becomes public 409 (retryable false, recovery_action reauthorize_workspace) now that the R0b workspace-grant registration face is its first raising HTTP endpoint; control design section 9 defines it as a 409 refusal when a reported classification is below the server-derived floor. classification_unknown stays mapped to service_degraded and out of the public set by the standing round-23 ruling (classification refusals are not yet a public vocabulary); the grant face raises it but does not register it, so its first public registration remains a separate decided change."
   ],
   "public": {
     "invalid_request": {
@@ -391,6 +392,12 @@
       "retryable": false,
       "recovery_action": "contact_operator",
       "ui": "org_paused"
+    },
+    "classification_floor_required": {
+      "status": 409,
+      "retryable": false,
+      "recovery_action": "reauthorize_workspace",
+      "ui": "state_changed"
     }
   },
   "db_exception_map": {
@@ -420,7 +427,7 @@
     "canceled_task_cannot_succeed": "run_not_active",
     "cancellation_intent_content_immutable": "service_degraded",
     "cancellation_intent_terminal_state": "service_degraded",
-    "classification_floor_required": "service_degraded",
+    "classification_floor_required": "classification_floor_required",
     "classification_unknown": "service_degraded",
     "content_reference_binding_immutable": "invalid_request",
     "content_reference_binding_mismatch": "service_degraded",
