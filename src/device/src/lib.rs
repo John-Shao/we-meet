@@ -16,6 +16,7 @@ pub mod journal;
 pub mod jwk;
 pub mod key;
 pub mod pairing;
+pub mod permit;
 pub mod thumbprint;
 
 #[cfg(windows)]
