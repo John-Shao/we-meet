@@ -47,7 +47,7 @@ node --input-type=module -e "const p='./docs/plan/assets/work-r0a-ops-2026-10-25
 
 | 项 | 值 |
 |---|---|
-| 仓库迁移 tip | 43 |
+| 仓库迁移 tip | 44 |
 | 现网迁移 tip | 39 |
 | 现网发布包 | work-release-0039 |
 

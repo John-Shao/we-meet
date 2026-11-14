@@ -147,5 +147,6 @@ func guardURLFor(path string) string {
 // with the invariants that plane actually holds.
 func bearerPlaneRoute(path string) bool {
 	return strings.HasPrefix(path, "/work/v2/devices") ||
-		strings.HasPrefix(path, "/work/v2/workspace-grants")
+		strings.HasPrefix(path, "/work/v2/workspace-grants") ||
+		strings.HasPrefix(path, "/work/v2/approvals")
 }

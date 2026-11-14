@@ -78,7 +78,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (40, '0040_device_identity_and_workspace_grants'),
   (41, '0041_local_run_orchestration'),
   (42, '0042_local_actions_receipts_finish'),
-  (43, '0043_local_artifact_replica_finalize')) expected(version, name)
+  (43, '0043_local_artifact_replica_finalize'),
+  (44, '0044_local_approval_reads')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -828,6 +829,22 @@ psql_ro "select 'rebind_consumes_nonce_after_replace=' || case when (
 # The definer identity of the restated rebind is not re-asserted here: the 0041 section
 # above already reads prosecdef and the pinned search_path from the live tail, and that
 # row is what catches a #87 regression introduced by this restatement.
+
+# 0044 local approval reads: both owner-scoped definer reads exist, carry the pinned
+# search_path, and reach work_api only through EXECUTE (no table privilege). A read
+# face that lost SECURITY DEFINER would be unreachable for work_api (0024 grants no
+# table privilege), so the definer bit is the load-bearing assertion, not decoration.
+psql_ro "select 'approval_reads_are_definer_and_granted=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work'
+    and p.proname in ('list_local_approvals', 'get_local_approval')
+    and p.prosecdef
+    and p.proconfig @> ARRAY['search_path=work, pg_catalog']) = 2
+  and has_function_privilege('work_api',
+        'work.list_local_approvals(text,text,text,text,int)', 'EXECUTE')
+  and has_function_privilege('work_api',
+        'work.get_local_approval(text,text,uuid)', 'EXECUTE')
+  then 'true' else 'FALSE' end"
 
 echo
 if [[ "$FAILURES" -ne 0 ]]; then

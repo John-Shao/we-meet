@@ -483,6 +483,17 @@
       "catalog_checksum": "sha256:4f73c808926e76c14023accc23845c1e97e849f2dbce7012d325a2bec2d803a8",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 44,
+      "name": "0044_local_approval_reads",
+      "kind": "increment",
+      "file": "increments/0044_local_approval_reads.sql",
+      "checksum": "sha256:6758084561d7e9643e729f296b1945537982a7ec0defbbf12b32ff57eed31ae7",
+      "catalog": "catalogs/0044_local_approval_reads.json",
+      "catalog_checksum": "sha256:a2087af336836b1a063f87a7376c59a9c8340550e9be4c84b67433fcb9d7ffaa",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

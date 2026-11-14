@@ -1,10 +1,28 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 43,
-  "chainTipCatalog": "catalogs/0043_local_artifact_replica_finalize.json",
+  "chainTip": 44,
+  "chainTipCatalog": "catalogs/0044_local_approval_reads.json",
   "entries": [
     {
       "name": "GET /work/v2/admin/local-policy",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "GET /work/v2/approvals",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "GET /work/v2/approvals/{approvalId}",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",
       "callableBy": [
@@ -59,6 +77,15 @@
     },
     {
       "name": "POST /work/v2/admin/governance-event-cursor",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "POST /work/v2/approvals/{approvalId}/decisions",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",
       "callableBy": [
@@ -231,7 +258,7 @@
     {
       "name": "consume_governance_events",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0043_local_artifact_replica_finalize.json",
+      "origin": "src/work/migrations/catalogs/0044_local_approval_reads.json",
       "callableBy": [
         "work_governance_events"
       ],
@@ -292,6 +319,15 @@
       "classification": "external-audit-required"
     },
     {
+      "name": "get_local_approval",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0044_local_approval_reads.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
       "name": "get_local_policy",
       "surface": "sql-handler",
       "origin": "src/work/internal/api/admin_local_policy.go",
@@ -303,7 +339,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0043_local_artifact_replica_finalize.json",
+      "origin": "src/work/migrations/catalogs/0044_local_approval_reads.json",
       "callableBy": [
         "work_api",
         "work_governance_events"
@@ -332,6 +368,15 @@
       "name": "list_devices",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "list_local_approvals",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0044_local_approval_reads.sql",
       "callableBy": [
         "work_api"
       ],

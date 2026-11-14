@@ -55,6 +55,11 @@ const IMPLEMENTED_ONLY = [
   // cookie-plane list and revoke routes backed by the 0042 readonly-grant commands.
   'GET /work/v2/readonly-grants',
   'POST /work/v2/readonly-grants/{grantId}/revoke',
+  // R0b M1b local-approval face (control-design §1.4 rows 66-67): the Bearer-plane
+  // list, detail and decision routes backed by the 0044 reads and 0042 decide command.
+  'GET /work/v2/approvals',
+  'GET /work/v2/approvals/{approvalId}',
+  'POST /work/v2/approvals/{approvalId}/decisions',
 ];
 
 function readGoSurface() {

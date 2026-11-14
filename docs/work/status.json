@@ -38,7 +38,7 @@
     "note": "接任何真实客户数据前必须完成外部安全审计（J39）；当前仅演示组织＋演示数据。"
   },
   "migration": {
-    "tip_repo": 43,
+    "tip_repo": 44,
     "tip_deployed": 39,
     "deployed_release": "work-release-0039"
   },
