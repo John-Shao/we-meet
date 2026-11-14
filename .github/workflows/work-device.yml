@@ -1,0 +1,38 @@
+name: Work device gates
+
+on:
+  pull_request:
+    paths:
+      - 'src/device/**'
+      - '.github/workflows/work-device.yml'
+  push:
+    branches:
+      - aliyun-dev
+    paths:
+      - 'src/device/**'
+      - '.github/workflows/work-device.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  device-rust:
+    name: Device crate fmt, clippy and test (Windows CNG)
+    # The CNG device-key tests are Windows-only, so this job must run on Windows.
+    # The crate is target-agnostic (windows-rs links both MSVC and GNU); CI uses
+    # the runner's default MSVC host. rust-toolchain.toml pins stable + the GNU
+    # target + rustfmt/clippy, which rustup installs on first use.
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: src/device
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install the pinned toolchain
+        run: rustup show
+      - name: Format check
+        run: cargo fmt --check
+      - name: Clippy (deny warnings)
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Test (includes non-exportable CNG key tests)
+        run: cargo test

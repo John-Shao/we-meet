@@ -2,17 +2,30 @@
 //!
 //! Authority is the signed device design
 //! `docs/work/design/work-r0b-device-design-2026-10-30.md`; this crate implements
-//! it batch by batch. Batch 0 is the compiling skeleton only — device identity,
-//! journal, permits, named-pipe IPC and the sidecar supervisor land in later
-//! batches. Nothing here yet claims a production capability.
+//! it batch by batch. Batch 1 lands device identity and the pairing signature
+//! domain: a non-exportable CNG P-256 key (Windows), the closed EC JWK, the
+//! server-matching thumbprint, ES256 R||S signing/verification and the
+//! `work-device-pair-v2` covered string. Journal, permits, named-pipe IPC and the
+//! sidecar supervisor land in later batches. Nothing here yet claims a production
+//! capability.
+
+pub mod b64;
+pub mod es256;
+pub mod jwk;
+pub mod key;
+pub mod pairing;
+pub mod thumbprint;
+
+#[cfg(windows)]
+pub mod cng;
 
 /// Crate version, surfaced by the binary entry point.
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-/// SHA-256 hex of `bytes`. Placeholder proving the crypto dependency resolves;
-/// the real receipt/proof hashing lands with the identity batch.
+/// SHA-256 hex of `bytes`. Used by the thumbprint preimage and, later, receipt
+/// hashing.
 pub fn sha256_hex(bytes: &[u8]) -> String {
     use sha2::{Digest, Sha256};
     let digest = Sha256::digest(bytes);
