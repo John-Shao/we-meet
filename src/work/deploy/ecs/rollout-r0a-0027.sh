@@ -380,7 +380,10 @@ run env WORK_DATABASE_URL="$MIGRATOR_URL" /usr/local/bin/work-migrate status
 run systemctl restart work-api
 
 echo "== 5. binaries =="
-for bin in work-api work-relay work-worker work-authz work-content-proxy work-egress work-directory-sync work-reconcile work-export work-provider-setup; do
+# work-gateway (R0b GW3) is installed like the other resident binaries but has no systemd unit
+# yet and is not enabled here: it terminates device mTLS and needs the external device CA /
+# server certificate provisioning before it can serve, so installing the file does not start it.
+for bin in work-api work-relay work-worker work-authz work-content-proxy work-egress work-directory-sync work-reconcile work-export work-provider-setup work-gateway; do
   install_binary "$bin"
 done
 # Drill-side binaries. They are installed only because the package now declares them: the host copy
