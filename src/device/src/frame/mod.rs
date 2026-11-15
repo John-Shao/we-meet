@@ -17,6 +17,7 @@ pub mod hello;
 pub mod intent;
 pub mod jcs;
 pub mod receipt;
+pub mod receipt_ack;
 pub mod reconcile;
 pub mod resolution;
 pub mod sign;
