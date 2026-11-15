@@ -191,6 +191,15 @@ func (l *localArtifactFixture) prepareAction(t *testing.T, worker *pgx.Conn, ste
 	return opID, attemptID
 }
 
+// deviceTestReceiptSignature is a shape-valid ES256 placeholder: 86 base64url chars,
+// the form 0048 reconciled record_device_receipt to accept. These SQL-level domain
+// tests exercise the command's idempotency/seq-window/session-binding logic, not the
+// cryptography — record only shape-checks and hashes the signature (0042:1606, 0048),
+// and the real ES256 verification is the gateway's job (internal/devicesig +
+// internal/gateway receipt tests). So a value of the right shape is what these tests
+// need, not a real signature.
+var deviceTestReceiptSignature = strings.Repeat("a", 86)
+
 // recordReceipt appends one receipt for one action through record_device_receipt, the
 // shipped writer, so the receipt_ref finalize later resolves is the product's own
 // journal_epoch:seq rather than a value invented here.
@@ -208,7 +217,7 @@ func (l *localArtifactFixture) recordReceipt(t *testing.T, worker *pgx.Conn, opI
 		`,"state":` + jstr(state) + `,"outcome":` + jopt(outcome) +
 		`,"result_hash":null,"local_result_ref":` + jopt(localRef) +
 		`,"error_code":null,"usage":null,"usage_source":null,` +
-		`"signature":"sha256:` + strings.Repeat("a", 64) + `"}`
+		`"signature":"` + deviceTestReceiptSignature + `"}`
 	out := callJSON(t, worker, `SELECT work.record_device_receipt($1,$2::uuid,$3::uuid,$4::jsonb)`,
 		l.org, l.deviceID, l.journal, `[`+elem+`]`)
 	if conflicts, ok := out["conflicts"].([]any); !ok || len(conflicts) != 0 {

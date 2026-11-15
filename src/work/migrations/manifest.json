@@ -527,6 +527,17 @@
       "catalog_checksum": "sha256:1388cf8ccb8ecffa215f3b8de3faa3a6de4ebea5ddc1c38fe4b1371f66683ae8",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 48,
+      "name": "0048_device_receipt_signature_verify",
+      "kind": "increment",
+      "file": "increments/0048_device_receipt_signature_verify.sql",
+      "checksum": "sha256:2ff080bae1ebc3bfe982a8c2fe67686cdd34c68457109484e038ff03c2e61c03",
+      "catalog": "catalogs/0048_device_receipt_signature_verify.json",
+      "catalog_checksum": "sha256:2e324e8d4cce8dbc89d5d007ac9f1301e7a3ab977a626f81dc63dc92b99933db",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

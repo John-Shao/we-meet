@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 47,
-  "chainTipCatalog": "catalogs/0047_device_signing_key.json",
+  "chainTip": 48,
+  "chainTipCatalog": "catalogs/0048_device_receipt_signature_verify.json",
   "entries": [
     {
       "name": "GET /work/v2/admin/local-policy",
@@ -294,7 +294,7 @@
     {
       "name": "consume_governance_events",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0047_device_signing_key.json",
+      "origin": "src/work/migrations/catalogs/0048_device_receipt_signature_verify.json",
       "callableBy": [
         "work_governance_events"
       ],
@@ -393,7 +393,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0047_device_signing_key.json",
+      "origin": "src/work/migrations/catalogs/0048_device_receipt_signature_verify.json",
       "callableBy": [
         "work_api",
         "work_governance_events"

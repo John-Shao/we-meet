@@ -82,7 +82,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (44, '0044_local_approval_reads'),
   (45, '0045_local_acceptance'),
   (46, '0046_device_pairing_signature_verify'),
-  (47, '0047_device_signing_key')) expected(version, name)
+  (47, '0047_device_signing_key'),
+  (48, '0048_device_receipt_signature_verify')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the

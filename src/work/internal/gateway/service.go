@@ -24,8 +24,9 @@ import (
 // Server is the device gateway domain proxy. It terminates mTLS, verifies device
 // frame signatures with internal/devicesig before any domain command, and calls
 // the landed SQL as work_worker (m1a §12.8: gateway hello → activate_device_session,
-// work_api has no EXECUTE). GW3 implements the hello/hello_ack/session slice; the
-// receipt/permit/lease/command/resolution/finish frames are GW4.
+// work_api has no EXECUTE). GW3 implements the hello/hello_ack/session slice; GW4
+// adds the receipt uplink (verify → translate wire→SQL element → record_device_receipt
+// → receipt_ack). The permit/lease/command/resolution/finish frames remain deferred.
 type Server struct {
 	pool *pgxpool.Pool
 }
@@ -154,14 +155,59 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 		return err
 	}
 
-	// GW3 slice ends at hello_ack. Any further frame (heartbeat/receipt/permit/
-	// lease/command/resolution/finish) is GW4 and refused as unimplemented rather
-	// than silently dropped.
-	var next []byte
-	if err := stream.RecvMsg(&next); err != nil {
-		return err
+	// After hello_ack the stream carries device uplink frames. GW4 handles the
+	// receipt frame; the remaining frames (permit/lease/command/resolution/finish)
+	// are refused as unimplemented rather than silently dropped. The public key
+	// verified at hello is reused for the session's frames.
+	for {
+		var next []byte
+		if err := stream.RecvMsg(&next); err != nil {
+			return err
+		}
+		frame, err := parseEnvelope(next)
+		if err != nil {
+			return mapError(err)
+		}
+		if frame.DeviceID != deviceID {
+			return status.Error(codes.Unauthenticated, "unauthorized")
+		}
+		switch frame.Type {
+		case "receipt":
+			if err := s.handleReceipt(ctx, stream, orgID, deviceID, sessionID, pub, frame); err != nil {
+				return err
+			}
+		default:
+			return status.Error(codes.Unimplemented, "frame deferred to GW4")
+		}
 	}
-	return status.Error(codes.Unimplemented, "frame deferred to GW4")
+}
+
+// handleReceipt verifies the receipt frame's ES256 signature over the wire body,
+// translates the body into the closed SQL element, records it through the landed
+// domain command as work_worker, and returns the result as a receipt_ack. The
+// signature is checked BEFORE translation and BEFORE the domain command; SQL only
+// shape-checks and hashes it (0048), the cryptography is here (0040:1135).
+func (s *Server) handleReceipt(ctx context.Context, stream grpc.ServerStream, orgID, deviceID, sessionID string, pub *devicesig.PublicKey, env *Envelope) error {
+	sig, err := receiptSignature(env.Body)
+	if err != nil {
+		return mapError(err)
+	}
+	if !devicesig.VerifyFrame(pub, "receipt", env.Body, sig) {
+		return status.Error(codes.Unauthenticated, "unauthorized")
+	}
+	journalEpoch, element, err := receiptElement(env.Body)
+	if err != nil {
+		return mapError(err)
+	}
+	result, err := s.recordReceipt(ctx, orgID, deviceID, journalEpoch, element)
+	if err != nil {
+		return mapError(err)
+	}
+	ackRaw, err := receiptAckEnvelope(deviceID, sessionID, result)
+	if err != nil {
+		return status.Error(codes.Internal, "service_degraded")
+	}
+	return stream.SendMsg(ackRaw)
 }
 
 // signingKey reads the device public key through the 0047 definer getter as
@@ -191,6 +237,28 @@ func (s *Server) activateSession(ctx context.Context, orgID, deviceID, ticketHas
 		return tx.QueryRow(ctx,
 			`SELECT work.activate_device_session($1, $2::uuid, $3, $4::jsonb)`,
 			orgID, deviceID, ticketHash, helloJSON,
+		).Scan(&raw)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(raw), nil
+}
+
+// recordReceipt records one translated receipt element through the landed domain
+// command as work_worker (m1a §12.8). The wire carries one receipt per frame; the
+// command takes a batch, so the element is wrapped in a single-element array. The
+// returned recorded/conflicts/receipt_through_seq become the receipt_ack body.
+func (s *Server) recordReceipt(ctx context.Context, orgID, deviceID, journalEpoch string, element map[string]any) (json.RawMessage, error) {
+	receipts, err := json.Marshal([]any{element})
+	if err != nil {
+		return nil, fmt.Errorf("invalid_request: receipt element")
+	}
+	var raw []byte
+	err = workdb.WithWorkerOrgContext(ctx, s.pool, orgID, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx,
+			`SELECT work.record_device_receipt($1, $2::uuid, $3::uuid, $4::jsonb)`,
+			orgID, deviceID, journalEpoch, receipts,
 		).Scan(&raw)
 	})
 	if err != nil {

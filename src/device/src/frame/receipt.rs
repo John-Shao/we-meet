@@ -2,8 +2,8 @@
 //! historical execution identity (`original_execution`) and the result; the
 //! current outer session is transport-only (m1a :658). `state` is
 //! started/completed/unknown; completed carries succeeded/failed/
-//! rejected_not_executed via `error_code`/result. The signed bytes produced here
-//! are what `receipt_outbox` stores (batch 2).
+//! rejected_not_executed via `outcome` (device-design §3.1 receipt row). The
+//! signed bytes produced here are what `receipt_outbox` stores (batch 2).
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -43,6 +43,8 @@ pub struct ReceiptBody {
     pub original_execution: OriginalExecution,
     pub request_hash: String,
     pub state: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<String>,
     pub result_hash: String,
     pub local_result_ref: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -97,6 +99,7 @@ mod tests {
             },
             request_hash: "hash".into(),
             state: "completed".into(),
+            outcome: Some("succeeded".into()),
             result_hash: "result".into(),
             local_result_ref: "ref".into(),
             gateway_receipt_hash: None,
@@ -141,5 +144,16 @@ mod tests {
         assert!(value.get("gateway_receipt_hash").is_none());
         assert!(value.get("model_delivery").is_none());
         assert!(value.get("usage").is_none());
+    }
+
+    #[test]
+    fn completed_carries_outcome_started_omits_it() {
+        let completed = sample();
+        assert_eq!(completed.to_value()["outcome"], "succeeded");
+
+        let mut started = sample();
+        started.state = "started".into();
+        started.outcome = None;
+        assert!(started.to_value().get("outcome").is_none());
     }
 }
