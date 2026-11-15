@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 46,
-  "chainTipCatalog": "catalogs/0046_device_pairing_signature_verify.json",
+  "chainTip": 47,
+  "chainTipCatalog": "catalogs/0047_device_signing_key.json",
   "entries": [
     {
       "name": "GET /work/v2/admin/local-policy",
@@ -294,7 +294,7 @@
     {
       "name": "consume_governance_events",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0046_device_pairing_signature_verify.json",
+      "origin": "src/work/migrations/catalogs/0047_device_signing_key.json",
       "callableBy": [
         "work_governance_events"
       ],
@@ -333,6 +333,15 @@
       "origin": "src/work/migrations/increments/0046_device_pairing_signature_verify.sql",
       "callableBy": [
         "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "device_signing_key",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0047_device_signing_key.sql",
+      "callableBy": [
+        "work_worker"
       ],
       "classification": "external-audit-required"
     },
@@ -384,7 +393,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0046_device_pairing_signature_verify.json",
+      "origin": "src/work/migrations/catalogs/0047_device_signing_key.json",
       "callableBy": [
         "work_api",
         "work_governance_events"

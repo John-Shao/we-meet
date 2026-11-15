@@ -59,6 +59,7 @@ var publishedIncrements = []string{
 	"0044_local_approval_reads",
 	"0045_local_acceptance",
 	"0046_device_pairing_signature_verify",
+	"0047_device_signing_key",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

@@ -516,6 +516,17 @@
       "catalog_checksum": "sha256:52364d8890d65054c217f427b311e9b14e6e38af1aad62d42eb53ce125a40849",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 47,
+      "name": "0047_device_signing_key",
+      "kind": "increment",
+      "file": "increments/0047_device_signing_key.sql",
+      "checksum": "sha256:1842531113fe84392920b84216aa84fc4647f9d49075f78b51b7bef7c396a5a0",
+      "catalog": "catalogs/0047_device_signing_key.json",
+      "catalog_checksum": "sha256:1388cf8ccb8ecffa215f3b8de3faa3a6de4ebea5ddc1c38fe4b1371f66683ae8",
+      "transactional": true,
+      "executable": true
     }
   ]
 }
