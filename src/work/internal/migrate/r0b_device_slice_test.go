@@ -22,6 +22,14 @@ import (
 
 const deviceTestKeyJWK = `{"crv":"P-256","kty":"EC","x":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","y":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"}`
 
+// deviceTestConfirmSignature is a shape-valid ES256 placeholder: 86 base64url chars,
+// the form 0046 reconciled confirm_device_pairing to accept. These SQL-level domain
+// tests exercise the command's idempotency/CAS/challenge logic, not the cryptography —
+// confirm only shape-checks and binds the signature (0040:1135, 0046), and the real
+// ES256 verification is the Go layer's job (internal/devicesig + internal/api device
+// tests). So a value of the right shape is what these tests need, not a real signature.
+var deviceTestConfirmSignature = strings.Repeat("c", 86)
+
 // deviceFixture is one organization with a configured local policy, an active owner
 // member, and a Run parked in waiting(input) so the rebind path has something to act on.
 type deviceFixture struct {
@@ -161,7 +169,7 @@ func (f *deviceFixture) pairAndConfirm(t *testing.T, api *pgx.Conn, requestID st
 	}
 	deviceID, _ := pairing["device_id"].(string)
 	confirmed := callJSON(t, api,
-		`SELECT work.confirm_device_pairing($1,$2,'bearer',7,$3::uuid,$4,$5,'sha256:`+strings.Repeat("c", 64)+`')`,
+		`SELECT work.confirm_device_pairing($1,$2,'bearer',7,$3::uuid,$4,$5,'`+deviceTestConfirmSignature+`')`,
 		f.org, f.subject, pairing["pairing_id"], requestID+"-confirm", challenge)
 	if confirmed["status"] != "active" {
 		t.Fatalf("confirm status = %v, want active", confirmed["status"])
@@ -176,7 +184,7 @@ func TestR0bDeviceChallengeIsSingleUseAndReplayReturnsTheOriginal(t *testing.T) 
 
 	// The same confirm request_id replays the original result rather than consuming again.
 	replay := callJSON(t, api,
-		`SELECT work.confirm_device_pairing($1,$2,'bearer',7,$3::uuid,$4,$5,'sha256:`+strings.Repeat("c", 64)+`')`,
+		`SELECT work.confirm_device_pairing($1,$2,'bearer',7,$3::uuid,$4,$5,'`+deviceTestConfirmSignature+`')`,
 		f.org, f.subject, f.scalar(t, "SELECT id::text FROM work.device_pairing WHERE org_id = "+quoteLiteral(f.org)+" LIMIT 1"),
 		"req-pair-1-confirm", challenge)
 	if replay["replayed"] != true || replay["device_id"] != deviceID {
@@ -186,7 +194,7 @@ func TestR0bDeviceChallengeIsSingleUseAndReplayReturnsTheOriginal(t *testing.T) 
 	// A different request_id presenting the same challenge must fail: the challenge was
 	// consumed, and a consumed challenge is never reusable.
 	expectCode(t, api, "unauthorized",
-		`SELECT work.confirm_device_pairing($1,$2,'bearer',7,$3::uuid,$4,$5,'sha256:`+strings.Repeat("c", 64)+`')`,
+		`SELECT work.confirm_device_pairing($1,$2,'bearer',7,$3::uuid,$4,$5,'`+deviceTestConfirmSignature+`')`,
 		f.org, f.subject, f.scalar(t, "SELECT id::text FROM work.device_pairing WHERE org_id = "+quoteLiteral(f.org)+" LIMIT 1"),
 		"req-pair-2-confirm", challenge)
 
@@ -195,7 +203,7 @@ func TestR0bDeviceChallengeIsSingleUseAndReplayReturnsTheOriginal(t *testing.T) 
 		`SELECT work.pair_device($1,$2,'bearer',7,$3,'desk2','windows-x64',$4::jsonb)`,
 		f.org, f.subject, "req-pair-3", strings.Replace(deviceTestKeyJWK, "AAAA", "CCCC", 1))
 	expectCode(t, api, "invalid_request:signature",
-		`SELECT work.confirm_device_pairing($1,$2,'bearer',7,$3::uuid,$4,$5,'sha256:`+strings.Repeat("c", 64)+`')`,
+		`SELECT work.confirm_device_pairing($1,$2,'bearer',7,$3::uuid,$4,$5,'`+deviceTestConfirmSignature+`')`,
 		f.org, f.subject, pairing2["pairing_id"], "req-pair-3-confirm", strings.Repeat("f", 64))
 
 	if got := f.scalar(t, "SELECT count(*)::text FROM work.device WHERE org_id = "+quoteLiteral(f.org)); got != "2" {

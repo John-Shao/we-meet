@@ -9,6 +9,7 @@ import (
 
 	"github.com/we-meet/work/internal/apierr"
 	workdb "github.com/we-meet/work/internal/db"
+	"github.com/we-meet/work/internal/devicesig"
 )
 
 // The device-identity face (control-design §1.4 rows 60-63, device-design §2.1).
@@ -110,6 +111,33 @@ func (s *Server) confirmDevicePairing(w http.ResponseWriter, r *http.Request) {
 	var body devicePairingConfirmRequest
 	if err := decodeStrictJSON(w, r, &body); err != nil {
 		writeAPIError(w, correlationID, decodeError(err))
+		return
+	}
+	// Verify the device's real ES256 signature over the pairing covered string
+	// BEFORE the domain command: SQL only shape-checks and binds the signature
+	// (0040:1135); the Go layer owns the cryptography (P0 #1). The public key comes
+	// from the database via the definer getter, never the request body (m1a §12).
+	var pubJWK []byte
+	if err := workdb.WithWorkContext(r.Context(), s.pool,
+		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
+		workdb.RoleAPI, workdb.Options{ReadOnly: true},
+		func(tx pgx.Tx) error {
+			return tx.QueryRow(r.Context(),
+				`SELECT work.device_pairing_signing_key($1, $2, $3::uuid)`,
+				claims.OrgID, claims.SubjectID, pairingID,
+			).Scan(&pubJWK)
+		},
+	); err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
+	pub, parseErr := devicesig.ParseJWK(pubJWK)
+	if parseErr != nil {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	if !devicesig.VerifyPairing(pub, pairingID, body.Challenge, claims.OrgID, claims.SubjectID, body.Signature) {
+		writeAPIError(w, correlationID, apierr.New("unauthorized"))
 		return
 	}
 	var view json.RawMessage

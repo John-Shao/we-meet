@@ -1,9 +1,16 @@
 package api_test
 
 import (
+	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"io"
 	"log"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/we-meet/work/internal/api"
+	"github.com/we-meet/work/internal/devicesig"
 	"github.com/we-meet/work/internal/host"
 	"github.com/we-meet/work/internal/testpg"
 )
@@ -72,7 +80,42 @@ func seedDeviceLocalPolicy(t *testing.T, dbName string) {
 	}
 }
 
-const deviceTestJWK = `{"crv":"P-256","kty":"EC","x":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","y":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"}`
+// deviceTestJWK is a real on-curve P-256 key (the deterministic software key
+// from_bytes([7;32]) shared with the Rust device cross-language vectors). The
+// pairing confirm handler now verifies a real ES256 signature, so the test key
+// must be a valid curve point with a known private scalar (deviceTestPrivateKey).
+const deviceTestJWK = `{"crv":"P-256","kty":"EC","x":"HhhTL9R1TALzBB2cdc6zO4P_2BrHzk_ogsyxyYvFiW4","y":"pGwxHE4v9A3ZajZT5uRURdMt_khuztdcepDGoYiBwKM"}`
+
+// deviceTestPrivateKey is the private scalar matching deviceTestJWK.
+func deviceTestPrivateKey() *ecdsa.PrivateKey {
+	d := bytes.Repeat([]byte{7}, 32)
+	priv := new(ecdsa.PrivateKey)
+	priv.PublicKey.Curve = elliptic.P256()
+	priv.D = new(big.Int).SetBytes(d)
+	priv.X, priv.Y = priv.Curve.ScalarBaseMult(d)
+	return priv
+}
+
+// signDevicePairing produces the real ES256 R||S signature (base64url, no padding)
+// over the pairing covered string for the test claims, exactly as the device agent
+// does. The thumbprint is derived from the test JWK so it matches the in-DB value.
+func signDevicePairing(t *testing.T, pairingID, challenge string) string {
+	t.Helper()
+	pub, err := devicesig.ParseJWK([]byte(deviceTestJWK))
+	if err != nil {
+		t.Fatalf("parse test JWK: %v", err)
+	}
+	covered := devicesig.PairingCoveredString(pairingID, challenge, pub.Thumbprint, testOrg, testSubject)
+	digest := sha256.Sum256([]byte(covered))
+	r, s, err := ecdsa.Sign(rand.Reader, deviceTestPrivateKey(), digest[:])
+	if err != nil {
+		t.Fatalf("sign pairing: %v", err)
+	}
+	sig := make([]byte, 64)
+	r.FillBytes(sig[:32])
+	s.FillBytes(sig[32:])
+	return base64.RawURLEncoding.EncodeToString(sig)
+}
 
 func deviceRequest(t *testing.T, method, url, body string) *http.Response {
 	t.Helper()
@@ -114,7 +157,7 @@ func TestDevicePairingLifecycle(t *testing.T) {
 		t.Fatalf("pairing missing fields: %#v", pairing)
 	}
 
-	confirmBody := `{"client_request_id":"confirm-0001","challenge":"` + challenge + `","signature":"sha256:` + strings.Repeat("a", 64) + `"}`
+	confirmBody := `{"client_request_id":"confirm-0001","challenge":"` + challenge + `","signature":"` + signDevicePairing(t, pairingID, challenge) + `"}`
 	confirmPath := strings.ReplaceAll(api.DevicePairingConfirmPath, "{pairingId}", pairingID)
 	response = deviceRequest(t, http.MethodPost, server.URL+confirmPath, confirmBody)
 	if response.StatusCode != http.StatusOK {
@@ -147,6 +190,31 @@ func TestDevicePairingLifecycle(t *testing.T) {
 	revoked := decodeObject(t, response)
 	if revoked["status"] != "revoked" || revoked["device_id"] != deviceID {
 		t.Fatalf("revoke = %#v", revoked)
+	}
+}
+
+func TestDevicePairingConfirmRejectsBadSignature(t *testing.T) {
+	pool, dbName := newBootstrapDB(t, false, false)
+	seedDeviceLocalPolicy(t, dbName)
+	server := newDeviceServer(t, pool)
+
+	pairBody := `{"client_request_id":"pair-badsig","device_name":"desk","platform":"windows-x64","public_key_jwk":` + deviceTestJWK + `}`
+	pairing := decodeObject(t, deviceRequest(t, http.MethodPost, server.URL+api.DevicePairingsPath, pairBody))
+	pairingID, _ := pairing["pairing_id"].(string)
+	challenge, _ := pairing["challenge"].(string)
+	confirmPath := strings.ReplaceAll(api.DevicePairingConfirmPath, "{pairingId}", pairingID)
+
+	// A valid-shape but cryptographically wrong signature (86 base64url chars) is
+	// refused by the Go verification BEFORE the domain command: the device stays
+	// pending. This proves the wiring verifies, not just shape-checks.
+	wrongSig := strings.Repeat("A", 86)
+	badBody := `{"client_request_id":"confirm-badsig","challenge":"` + challenge + `","signature":"` + wrongSig + `"}`
+	assertAPICode(t, deviceRequest(t, http.MethodPost, server.URL+confirmPath, badBody), http.StatusUnauthorized, "unauthorized")
+
+	// The real signature still confirms afterwards (the bad attempt consumed nothing).
+	goodBody := `{"client_request_id":"confirm-badsig-ok","challenge":"` + challenge + `","signature":"` + signDevicePairing(t, pairingID, challenge) + `"}`
+	if confirmed := decodeObject(t, deviceRequest(t, http.MethodPost, server.URL+confirmPath, goodBody)); confirmed["status"] != "active" {
+		t.Fatalf("confirm after bad signature = %#v", confirmed)
 	}
 }
 
@@ -230,8 +298,9 @@ func TestDeviceSessionTicketAndCertificateRenewal(t *testing.T) {
 	deviceID, _ := pairing["device_id"].(string)
 	thumbprint, _ := pairing["public_key_thumbprint"].(string)
 	challenge, _ := pairing["challenge"].(string)
-	confirmPath := strings.ReplaceAll(api.DevicePairingConfirmPath, "{pairingId}", pairing["pairing_id"].(string))
-	confirmBody := `{"client_request_id":"confirm-0006","challenge":"` + challenge + `","signature":"sha256:` + strings.Repeat("b", 64) + `"}`
+	pairingID, _ := pairing["pairing_id"].(string)
+	confirmPath := strings.ReplaceAll(api.DevicePairingConfirmPath, "{pairingId}", pairingID)
+	confirmBody := `{"client_request_id":"confirm-0006","challenge":"` + challenge + `","signature":"` + signDevicePairing(t, pairingID, challenge) + `"}`
 	if confirmed := decodeObject(t, deviceRequest(t, http.MethodPost, server.URL+confirmPath, confirmBody)); confirmed["status"] != "active" {
 		t.Fatalf("confirm = %#v", confirmed)
 	}

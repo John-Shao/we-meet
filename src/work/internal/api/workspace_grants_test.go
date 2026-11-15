@@ -58,8 +58,9 @@ func pairConfirmMint(t *testing.T, serverURL, suffix string) (string, string) {
 	pairing := decodeObject(t, deviceRequest(t, http.MethodPost, serverURL+api.DevicePairingsPath, pairBody))
 	deviceID, _ := pairing["device_id"].(string)
 	challenge, _ := pairing["challenge"].(string)
-	confirmPath := strings.ReplaceAll(api.DevicePairingConfirmPath, "{pairingId}", pairing["pairing_id"].(string))
-	confirmBody := `{"client_request_id":"confirm-` + suffix + `","challenge":"` + challenge + `","signature":"sha256:` + strings.Repeat("a", 64) + `"}`
+	pairingID, _ := pairing["pairing_id"].(string)
+	confirmPath := strings.ReplaceAll(api.DevicePairingConfirmPath, "{pairingId}", pairingID)
+	confirmBody := `{"client_request_id":"confirm-` + suffix + `","challenge":"` + challenge + `","signature":"` + signDevicePairing(t, pairingID, challenge) + `"}`
 	deviceRequest(t, http.MethodPost, serverURL+confirmPath, confirmBody)
 	ticketPath := strings.ReplaceAll(api.DeviceSessionTicketsPath, "{deviceId}", deviceID)
 	ticketBody := `{"client_request_id":"ticket-` + suffix + `","public_key_thumbprint":"` + pairing["public_key_thumbprint"].(string) + `"}`
