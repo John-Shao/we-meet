@@ -68,11 +68,14 @@ test('the short-doc corpus is non-empty (a broken scan must not pass vacuously)'
 
 test('status.json carries the split gate schema and a valid verification date', () => {
   const status = JSON.parse(read(join(WORK_DOCS, 'status.json')));
-  for (const key of ['product_stage', 'current_gate', 'implementation_tracks', 'pilot_gate', 'production_prerequisites', 'customer_data_gate', 'migration', 'facts_as_of']) {
+  for (const key of ['product_stage', 'current_gate', 'implementation_tracks', 'pilot_gate', 'production_prerequisites', 'customer_data_gate', 'migration', 'facts_as_of', 'generated_at', 'rollout_scope_note', 'fact_evidence']) {
     assert.ok(key in status, `status.json missing required field ${key}`);
   }
   assert.match(status.facts_as_of, /^\d{4}-\d{2}-\d{2}$/, 'facts_as_of must be YYYY-MM-DD');
   assert.ok(!Number.isNaN(Date.parse(status.facts_as_of)), 'facts_as_of is not a real date');
+  // 生成日期与事实核实日期是两个字段，不得混为一谈（审查意见 6）。
+  assert.match(status.generated_at, /^\d{4}-\d{2}-\d{2}$/, 'generated_at must be YYYY-MM-DD');
+  assert.ok(!Number.isNaN(Date.parse(status.generated_at)), 'generated_at is not a real date');
   // issue 3：试点门禁 / 生产前置 / 客户数据准入三类分开，不混在一个 blocking 数组。
   assert.ok(Array.isArray(status.pilot_gate.blockers), 'pilot_gate.blockers must be an array');
   assert.ok(Array.isArray(status.production_prerequisites), 'production_prerequisites must be an array');
@@ -82,11 +85,94 @@ test('status.json carries the split gate schema and a valid verification date', 
   assert.ok(/goNoGo\(c,\s*s\)/.test(status.pilot_gate.command), 'pilot_gate.command must call goNoGo(c, s)');
 });
 
+test('every manual fact carries evidence that exists in the repo (审查意见 5)', () => {
+  const status = JSON.parse(read(join(WORK_DOCS, 'status.json')));
+  const inputs = JSON.parse(read(join(WORK_DOCS, 'status.inputs.json')));
+  const facts = ['runtime_verified', 'external_security_audit_done', 'content_store', 'cloud_kms', 'migration'];
+  for (const name of facts) {
+    const f = status.fact_evidence[name];
+    assert.ok(f, `fact_evidence missing ${name}`);
+    assert.ok(Array.isArray(f.evidence) && f.evidence.length > 0, `${name} has no evidence`);
+    assert.ok(typeof f.reason === 'string' && f.reason.trim(), `${name} has no reason`);
+    assert.match(f.verified_at, /^\d{4}-\d{2}-\d{2}$/, `${name}.verified_at must be a date`);
+    assert.ok(f.verified_at <= status.facts_as_of, `${name}.verified_at is later than facts_as_of`);
+    for (const p of f.evidence) assert.ok(existsSync(join(REPO, p)), `${name} evidence path missing: ${p}`);
+    // inputs 与生成物不得各说一套：证据/日期逐项一致。
+    const src = name === 'migration' ? inputs.migration : inputs[name];
+    assert.deepEqual(f.evidence, src.evidence, `${name} evidence drifted from inputs`);
+    assert.equal(f.verified_at, src.verified_at, `${name} verified_at drifted from inputs`);
+  }
+  // 标量字段仍是消费者读的那一份，值必须来自事实块的 value。
+  assert.equal(status.runtime_verified, inputs.runtime_verified.value);
+  assert.equal(status.external_security_audit_done, inputs.external_security_audit_done.value);
+  assert.equal(status.content_store, inputs.content_store.value);
+  assert.equal(status.cloud_kms, inputs.cloud_kms.value);
+  assert.equal(status.migration.tip_deployed, inputs.migration.tip_deployed);
+});
+
+test('the generator refuses drifting manual facts (mutation controls)', async () => {
+  const { validateInputs, normalizeForCompare } = await import(pathToFileURL(join(REPO, 'scripts', 'work-status.mjs')).href);
+  const inputs = JSON.parse(read(join(WORK_DOCS, 'status.inputs.json')));
+  const manifest = JSON.parse(read(MANIFEST));
+  const tip = Math.max(...manifest.baseline.map((b) => b.version), ...manifest.increments.map((i) => i.version));
+  const clone = () => JSON.parse(JSON.stringify(inputs));
+  // 正对照：现 inputs 必须过。
+  validateInputs(clone(), tip);
+  // 现网 tip 领先仓库＝不可能事实。
+  assert.throws(() => { const i = clone(); i.migration.tip_deployed = tip + 1; validateInputs(i, tip); }, /高于仓库 tip/);
+  // 前置 ID 内嵌版本号＝会漂移的命名（0040-0045-rollout-authorization 的原病）。
+  assert.throws(() => { const i = clone(); i.production_prerequisites.push('0040-0045-rollout-authorization'); validateInputs(i, tip); }, /不得内嵌迁移版本号/);
+  // 证据路径不存在＝无来源的手工文本。
+  assert.throws(() => { const i = clone(); i.runtime_verified.evidence = ['docs/work/definitely-absent.md']; validateInputs(i, tip); }, /证据路径不存在/);
+  // 核实日期晚于 facts_as_of＝时间口径自相矛盾。
+  assert.throws(() => { const i = clone(); i.cloud_kms.verified_at = '2099-01-01'; validateInputs(i, tip); }, /晚于 facts_as_of/);
+  // 缺 rollout 范围注记＝前置改名后范围无处可查。
+  assert.throws(() => { const i = clone(); delete i.rollout_scope_note; validateInputs(i, tip); }, /rollout_scope_note/);
+  // generated_at 不参与漂移比对，其余字段参与。
+  const a = JSON.stringify({ generated_at: '2026-11-16', facts_as_of: '2026-11-16', x: 1 });
+  const b = JSON.stringify({ generated_at: '2026-11-17', facts_as_of: '2026-11-16', x: 1 });
+  const c = JSON.stringify({ generated_at: '2026-11-16', facts_as_of: '2026-11-14', x: 1 });
+  assert.equal(normalizeForCompare(a), normalizeForCompare(b), 'generated_at must not cause drift');
+  assert.notEqual(normalizeForCompare(a), normalizeForCompare(c), 'substantive drift must still be caught');
+});
+
 test('status.json and status.md match the generator (no uncommitted drift)', async () => {
-  const { generate } = await import(pathToFileURL(join(REPO, 'scripts', 'work-status.mjs')).href);
+  const { generate, normalizeForCompare } = await import(pathToFileURL(join(REPO, 'scripts', 'work-status.mjs')).href);
   const { json, md } = await generate();
-  assert.equal(read(join(WORK_DOCS, 'status.json')), json, 'status.json drifted from generator; run node scripts/work-status.mjs');
+  assert.equal(normalizeForCompare(read(join(WORK_DOCS, 'status.json'))), normalizeForCompare(json), 'status.json drifted from generator; run node scripts/work-status.mjs');
   assert.equal(read(join(WORK_DOCS, 'status.md')), md, 'status.md drifted from generator; run node scripts/work-status.mjs');
+});
+
+test('short docs do not hardcode a stale migration inventory or tip (审查意见 1)', () => {
+  const manifest = JSON.parse(read(MANIFEST));
+  const inputs = JSON.parse(read(join(WORK_DOCS, 'status.inputs.json')));
+  const tip = Math.max(...manifest.baseline.map((b) => b.version), ...manifest.increments.map((i) => i.version));
+  const pad = (n) => String(n).padStart(4, '0');
+  const offenders = [];
+  for (const f of DOCS) {
+    const text = read(f);
+    // 入口 README 一律不写迁移版本号/范围，只指向 status.json（ADR 编号不算迁移版本）。
+    if (f.endsWith('README.md') && /(?:增量|迁移)\s*00\d{2}/.test(text)) {
+      offenders.push(`${rel(f)}: README 硬编码迁移版本/范围，应指向 status.json`);
+    }
+    // 任何"增量 0003–NNNN"式的清单范围，上界必须等于现链尾（已裁 rollout 包范围除外）。
+    for (const m of text.matchAll(/增量\s*00\d{2}\s*[–-]\s*(00\d{2})/g)) {
+      const line = text.split(/\r?\n/).find((l) => l.includes(m[0])) ?? '';
+      if (/已裁|rollout 包|裁定/.test(line)) continue;
+      if (m[1] !== pad(tip)) offenders.push(`${rel(f)}: 增量清单上界 ${m[1]} ≠ 仓库 tip ${pad(tip)}`);
+    }
+    // 仓库 tip 与现网 tip 的数字声明必须分别等于 manifest 与 inputs。
+    for (const m of text.matchAll(/仓库(?:迁移)?\s*tip\s*[=＝]?\s*(\d+)/g)) {
+      if (Number(m[1]) !== tip) offenders.push(`${rel(f)}: 仓库 tip ${m[1]} ≠ manifest ${tip}`);
+    }
+    for (const m of text.matchAll(/现网(?:迁移)?\s*tip\s*[=＝]?\s*(\d+)/g)) {
+      if (Number(m[1]) !== inputs.migration.tip_deployed) offenders.push(`${rel(f)}: 现网 tip ${m[1]} ≠ inputs ${inputs.migration.tip_deployed}`);
+    }
+  }
+  assert.deepEqual(offenders, [], `stale migration claims in short docs:\n${offenders.join('\n')}`);
+  // 判别力正/负对照：机器本身有牙，不是空转。
+  assert.ok(/status\.json/.test(read(join(WORK_DOCS, 'README.md'))), 'README must point at status.json for the tip');
+  assert.ok(tip >= 40, `manifest tip ${tip} too low - derivation broke`);
 });
 
 test('every relative link in the short docs resolves to a real file or directory', () => {

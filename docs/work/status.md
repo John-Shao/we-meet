@@ -1,6 +1,6 @@
 # Work 当前状态
 
-> 本文由 `scripts/work-status.mjs` 生成，勿手改。生产事实记录在 [status.inputs.json](status.inputs.json)；动态门禁与仓库迁移 tip 由脚本现算。人工改状态请改 inputs 后重跑脚本。最近核实：**2026-11-14**。
+> 本文由 `scripts/work-status.mjs` 生成，勿手改。生产事实记录在 [status.inputs.json](status.inputs.json)（每项带证据引用）；动态门禁与仓库迁移 tip 由脚本现算。人工改状态请改 inputs 后重跑脚本。最近核实：**2026-11-16**（生成日期另见 status.json 的 `generated_at`，两者不同义）。
 
 ## 阶段
 
@@ -32,7 +32,9 @@ node --input-type=module -e "const p='./docs/plan/assets/work-r0a-ops-2026-10-25
 - runtime-sandbox-isolation
 - real-provider-e2e
 - real-content-store-validation
-- 0040-0045-rollout-authorization
+- r0b-device-migrations-rollout-authorization
+
+rollout 范围：已裁 rollout 包＝增量 0040–0045（M1a/M1b 设备面表族，39→45；2026-11-14 主签单选扩包，取代 11-13 甲的 0040–0043／39→43，不含执行授权）。0046 起的增量属 M3 设备 agent/网关线，不在该已裁包内，要部署须另裁重切包。仓库现 tip 由脚本现算，不在此手抄。
 
 ## 真实客户数据准入
 
@@ -51,9 +53,21 @@ node --input-type=module -e "const p='./docs/plan/assets/work-r0a-ops-2026-10-25
 | 现网迁移 tip | 39 |
 | 现网发布包 | work-release-0039 |
 
-Runtime 已验证：否。生产 Runtime 无容器隔离（裸 spawn），sandboxProof=false；真实供应商 E2E 未跑（仅一次 Qwen smoke）。
+Runtime 已验证：否。生产 Runtime 无容器隔离（裸 spawn），sandbox-profile.json 现读 profile=process_only、sandboxProof=false；真实供应商 E2E 未跑（仅一次 Qwen smoke）。
 
 Content Store：local-pilot-deployed-zero-real-requests。云 KMS：not-connected-scope-exception-D03B。外部安全审计已执行：否。
+
+## 人工事实的证据引用
+
+每项事实的核实日期与证据路径（脚本校验路径存在；完整 reason 见 status.json 的 `fact_evidence`）。
+
+| 事实 | 核实日期 | 证据 |
+|---|---|---|
+| runtime_verified | 2026-11-16 | `docs/plan/assets/work-r0a-runtime-2026-10-25/policy/sandbox-profile.json`、`src/work/node/src/supervisor.mjs`、`docs/work/security.md` |
+| external_security_audit_done | 2026-11-16 | `docs/work/security.md`、`docs/work/decisions/0023-static-single-layer-encryption.md` |
+| content_store | 2026-11-16 | `src/work/internal/content/local.go`、`docs/work/security.md`、`docs/work/operations.md` |
+| cloud_kms | 2026-11-16 | `docs/work/decisions/0023-static-single-layer-encryption.md`、`docs/work/security.md` |
+| migration | 2026-11-14 | `docs/work/operations.md`、`src/work/deploy/ecs/verify-r0a-0027.sh` |
 
 ## 入口
 

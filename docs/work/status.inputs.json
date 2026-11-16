@@ -1,6 +1,6 @@
 {
-  "$note": "人工记录的生产/决策事实——scripts/work-status.mjs 无法从仓库资产推导的部分。改动任一项须更新 facts_as_of。动态试点门禁（pilot_gate）与仓库迁移 tip 由脚本现算，不在此手抄。",
-  "facts_as_of": "2026-11-14",
+  "$note": "人工记录的生产/决策事实——scripts/work-status.mjs 无法从仓库资产推导的部分。改动任一项须更新 facts_as_of 与该事实的 verified_at。每个事实带 reason/evidence/verified_at：evidence 是仓库内现存的证据路径（脚本校验存在性），verified_at 是该事实最近一次核实日期，不得晚于 facts_as_of。动态试点门禁（pilot_gate）与仓库迁移 tip 由脚本现算，不在此手抄。",
+  "facts_as_of": "2026-11-16",
   "product_stage": "r0a",
   "current_gate": "r0a-pilot-readiness",
   "implementation_tracks": {
@@ -9,19 +9,59 @@
   },
   "migration": {
     "tip_deployed": 39,
-    "deployed_release": "work-release-0039"
+    "deployed_release": "work-release-0039",
+    "reason": "现网台账 tip_version=39（work-release-0039）；0040 起未 rollout。现网台账属生产读数，本会话未重读，沿用 2026-11-14 核实值。",
+    "evidence": [
+      "docs/work/operations.md",
+      "src/work/deploy/ecs/verify-r0a-0027.sh"
+    ],
+    "verified_at": "2026-11-14"
   },
-  "runtime_verified": false,
-  "runtime_note": "生产 Runtime 无容器隔离（裸 spawn），sandboxProof=false；真实供应商 E2E 未跑（仅一次 Qwen smoke）。",
-  "external_security_audit_done": false,
-  "content_store": "local-pilot-deployed-zero-real-requests",
-  "cloud_kms": "not-connected-scope-exception-D03B",
+  "runtime_verified": {
+    "value": false,
+    "reason": "生产 Runtime 无容器隔离（裸 spawn），sandbox-profile.json 现读 profile=process_only、sandboxProof=false；真实供应商 E2E 未跑（仅一次 Qwen smoke）。",
+    "evidence": [
+      "docs/plan/assets/work-r0a-runtime-2026-10-25/policy/sandbox-profile.json",
+      "src/work/node/src/supervisor.mjs",
+      "docs/work/security.md"
+    ],
+    "verified_at": "2026-11-16"
+  },
+  "external_security_audit_done": {
+    "value": false,
+    "reason": "外部独立安全审计（J39）未执行；2026-11-01 起单人开发、无独立复核人，对外不得称「经独立复核/审计通过」。",
+    "evidence": [
+      "docs/work/security.md",
+      "docs/work/decisions/0023-static-single-layer-encryption.md"
+    ],
+    "verified_at": "2026-11-16"
+  },
+  "content_store": {
+    "value": "local-pilot-deployed-zero-real-requests",
+    "reason": "Content Store 是本地实现（internal/content/local.go），已上线但零真实请求；重加密与留存清扫未实现。",
+    "evidence": [
+      "src/work/internal/content/local.go",
+      "docs/work/security.md",
+      "docs/work/operations.md"
+    ],
+    "verified_at": "2026-11-16"
+  },
+  "cloud_kms": {
+    "value": "not-connected-scope-exception-D03B",
+    "reason": "云 KMS 未接，静态单层加密是已签范围例外（ADR-0023）；试点期单主密钥、不轮换，接触客户数据须重开。",
+    "evidence": [
+      "docs/work/decisions/0023-static-single-layer-encryption.md",
+      "docs/work/security.md"
+    ],
+    "verified_at": "2026-11-16"
+  },
   "production_prerequisites": [
     "runtime-sandbox-isolation",
     "real-provider-e2e",
     "real-content-store-validation",
-    "0040-0045-rollout-authorization"
+    "r0b-device-migrations-rollout-authorization"
   ],
+  "rollout_scope_note": "已裁 rollout 包＝增量 0040–0045（M1a/M1b 设备面表族，39→45；2026-11-14 主签单选扩包，取代 11-13 甲的 0040–0043／39→43，不含执行授权）。0046 起的增量属 M3 设备 agent/网关线，不在该已裁包内，要部署须另裁重切包。仓库现 tip 由脚本现算，不在此手抄。",
   "customer_data_blockers": [
     "external-security-audit-J39",
     "cloud-kms-reopen-condition"

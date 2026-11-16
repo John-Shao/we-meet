@@ -13,7 +13,7 @@
 现状（2026-11-14 已核实；执行任何写操作前先现场重读）：
 
 - 现网最新包 `work-release-0039`，迁移台账 `tip_version=39`。
-- 增量 0040–0045（设备面表族）已落仓库、**未 rollout**；需要链尾 45 的新包＋窗口当场生产写授权＋同二进制重放预检（§3.4）。
+- 已裁 rollout 包＝增量 0040–0045（M1a/M1b 设备面表族，39→45），已落仓库、**未 rollout**；需要链尾 45 的新包＋窗口当场生产写授权＋同二进制重放预检（§3.4）。0046 起的增量属 M3 设备 agent/网关线，**不在该已裁包内**，要部署须另裁重切包；仓库现 tip 见 [status.json](status.json)。
 - 八个核心 unit active；`work-directory-sync` 由 timer 驱动。
 - Content Store 为本地 pilot，零真实请求；云 KMS 未接（C13 未关闭）。
 - E8 试点未开始；**不允许真实客户数据**。
@@ -129,9 +129,9 @@ workload PKI 由 `init-workload-pki.sh` 生成（/etc/work/runtime-ca，幂等�
 
 ### 3.1 链结构与现网台账
 
-- baseline：0001（角色前置，不可执行）＋0002（初始 schema）；增量 0003–0045。
+- baseline：0001（角色前置，不可执行）＋0002（初始 schema）；增量清单与链尾以 `src/work/migrations/manifest.json` 为准，仓库现 tip 见 [status.json](status.json)。
 - 整链内嵌在 `work-migrate` 二进制（migrations/embed.go）；manifest.json＋catalogs 钉 checksum；账本表 `work.schema_migration`。
-- 现网 tip=39。0040–0045＝设备面表族；在装 work-migrate 对它们零命中，**必须先出链尾 45 的新包**，裁定为整包一次上（39→45；2026-11-14 主签单选扩包，取代 11-13 甲的 0040–0043／39→43，不含执行授权）。
+- 现网 tip=39。0040–0045＝设备面表族；在装 work-migrate 对它们零命中，**必须先出链尾 45 的新包**，裁定为整包一次上（39→45；2026-11-14 主签单选扩包，取代 11-13 甲的 0040–0043／39→43，不含执行授权）。 **【2026-11-16 补，原文逐字保留】**仓库链尾已推进到 0049（0046–0049 属 M3 设备 agent/网关线：配对签名验真、设备签名键 getter、receipt 签名形状、pending resolution 认领），**不在该已裁包内**；包范围仍是 39→45，重切须另裁。仓库现 tip 由 [status.json](status.json) 现算，本文不手抄。
 
 ### 3.2 读账本 [只读]
 

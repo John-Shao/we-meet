@@ -1,7 +1,8 @@
-# 已实现 R0a 设计基线（归档）
+# 已实现设计基线（归档）
 
-> 本目录是**已实现的 R0a 详细设计基线快照**，2026-11-14 从 `docs/work/design/` 归档。原文逐字保留，仅供追溯。
+> 本目录是**已实现的详细设计基线快照**：R0a 长文于 2026-11-14 从 `docs/work/design/` 归档；R0b M1a 设计单于 2026-11-16 按章节收敛归档（全文逐字快照）。原文逐字保留，仅供追溯。
 > 这些设计已由代码、迁移、契约和测试实现并取代——**详细设计以代码为权威**，本目录不再是活文档。当前架构/安全/运维见 [docs/work/README.md](../../README.md)。
+> **活义务不随快照归档**：M1a 的延后表、开放裁定（O-19）、边界与复评、未测控制缺口、批四重开条件仍在 [design/ 同名指针文](../../design/work-r0b-m1a-device-migration-design-2026-11-12.md)，那里是它们的现行权威。
 
 ## 内容
 
@@ -19,6 +20,7 @@
 | work-r0a-admin-readonly-mapping-2026-10-25.md | 管理只读与 P1-A 映射 |
 | work-r0a-seat-projection-split-2026-10-31.md | 席位按人归并拆分 |
 | work-ux-design-r0-2026-10-25.md | R0 UX 设计 |
+| work-r0b-m1a-device-migration-design-2026-11-12.md | R0b M1a 设备侧 migration 设计单全文快照（0040–0043 已落仓库；仍活五节在 design/ 指针文） |
 
 ## 仍活的设计
 

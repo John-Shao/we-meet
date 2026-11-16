@@ -21,6 +21,7 @@ on:
       - 'scripts/golden-tasks/**'
       - 'scripts/onboarding/**'
       - 'scripts/supply-chain/**'
+      - 'scripts/work-status.mjs'
       - 'src/work/**'
       - 'src/backend/meet/urls.py'
       - 'src/backend/core/api/work_host.py'
@@ -57,6 +58,7 @@ on:
       - 'scripts/golden-tasks/**'
       - 'scripts/onboarding/**'
       - 'scripts/supply-chain/**'
+      - 'scripts/work-status.mjs'
       - 'src/work/**'
       - 'src/backend/meet/urls.py'
       - 'src/backend/core/api/work_host.py'
@@ -89,6 +91,9 @@ jobs:
           node-version: '22'
       - name: Assembled schema matches its fragments
         run: python3 generate-schema.py && git diff --exit-code -- r0a-schema-draft.sql
+      - name: Status generation drift check
+        working-directory: .
+        run: node scripts/work-status.mjs --check
       - name: Run contract gate
         run: node scripts/ci-contract.mjs
       - name: Validate golden-task definitions
