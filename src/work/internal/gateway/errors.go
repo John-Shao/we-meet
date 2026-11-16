@@ -34,6 +34,12 @@ func mapError(err error) error {
 		return status.Error(codes.Aborted, code)
 	case strings.HasPrefix(code, "unknown_required_feature"):
 		return status.Error(codes.FailedPrecondition, code)
+	case code == "resync_required":
+		// An expired lease is never revived (0051 restates 0041's J12 rule). The device
+		// must reconcile and re-acquire, which is a state precondition, not a service
+		// failure: §582 maps version/precondition failures to FAILED_PRECONDITION and the
+		// catalog already registers resync_required (409, recovery_action=resync).
+		return status.Error(codes.FailedPrecondition, code)
 	case strings.HasPrefix(code, "invalid_request"):
 		return status.Error(codes.InvalidArgument, code)
 	case code == "org_context_mismatch" || code == "service_degraded":

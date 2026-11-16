@@ -9,6 +9,8 @@
 
 use std::time::{Duration, Instant};
 
+use crate::frame::lease::LeaseBody;
+
 /// Default lease TTL (device-design §3.3: 30s).
 pub const DEFAULT_LEASE_TTL: Duration = Duration::from_secs(30);
 /// Default heartbeat interval (device-design §3.3: 10s).
@@ -50,6 +52,31 @@ impl Lease {
         if self.mode == LeaseMode::Active {
             self.deadline = now + server_ttl.saturating_sub(round_trip);
         }
+    }
+
+    /// Apply a server `lease` downlink (device-design §3.1 heartbeat row: "仅在线性化续租
+    /// 成功后延长本地许可"). `sent_at` is the monotonic instant the heartbeat was sent and
+    /// `round_trip` the measured send→response elapsed time, so the new deadline is
+    /// `sent_at + (ttl - round_trip)` (§3.3) — never the wall clock, and never the server's
+    /// `expires_at` string.
+    ///
+    /// The frame is unsigned (§3.1 lists no signature for the lease row; mTLS plus the
+    /// hello-established session authenticate it, and 0051 binds the renewal to the lease's
+    /// original device/session server-side). The judgments left here are fence and mode: a
+    /// renewal naming a different fence is not this lease's renewal, and only an Active
+    /// lease is extended — a heartbeat never revives a history-return or invalidated lease.
+    /// Returns whether the deadline was extended.
+    pub fn apply_renewal(
+        &mut self,
+        sent_at: Instant,
+        round_trip: Duration,
+        body: &LeaseBody,
+    ) -> bool {
+        if body.fence != self.fence || self.mode != LeaseMode::Active {
+            return false;
+        }
+        self.heartbeat(sent_at, body.ttl(), round_trip);
+        true
     }
 
     /// Invalidate on sleep / clock discontinuity / OS resume. The caller must
@@ -162,5 +189,65 @@ mod tests {
         let lease = Lease::acquire(start, Duration::from_secs(5), Duration::from_secs(10), 2);
         assert_eq!(lease.deadline(), start);
         assert!(!lease.is_valid(start));
+    }
+
+    fn renewal(fence: u64, ttl_ms: u64) -> LeaseBody {
+        LeaseBody {
+            lease_id: "lease-1".into(),
+            run_id: "run-1".into(),
+            fence,
+            expires_at: "2026-11-16T00:00:30Z".into(),
+            ttl_ms,
+        }
+    }
+
+    #[test]
+    fn renewal_extends_only_for_the_matching_fence() {
+        let start = now();
+        let mut lease = Lease::acquire(start, Duration::from_secs(30), Duration::ZERO, 2);
+        let sent = start + Duration::from_secs(10);
+        assert!(lease.apply_renewal(sent, Duration::from_secs(1), &renewal(2, 30_000)));
+        assert_eq!(lease.deadline(), sent + Duration::from_secs(29));
+        // A renewal for another fence is not this lease's renewal: nothing moves.
+        let deadline = lease.deadline();
+        assert!(!lease.apply_renewal(sent, Duration::ZERO, &renewal(3, 30_000)));
+        assert_eq!(lease.deadline(), deadline);
+    }
+
+    #[test]
+    fn renewal_never_revives_history_return_or_invalid() {
+        let start = now();
+        let mut lease = Lease::acquire(start, Duration::from_secs(30), Duration::ZERO, 2);
+        lease.enter_history_return(start, Duration::from_secs(30), Duration::ZERO);
+        let deadline = lease.deadline();
+        assert!(!lease.apply_renewal(start, Duration::ZERO, &renewal(2, 30_000)));
+        assert_eq!(lease.deadline(), deadline);
+        assert_eq!(lease.mode(), LeaseMode::HistoryReturn);
+
+        lease.invalidate();
+        assert!(!lease.apply_renewal(start, Duration::ZERO, &renewal(2, 30_000)));
+        assert!(!lease.is_valid(start));
+    }
+
+    #[test]
+    fn renewal_uses_the_send_instant_not_the_response_instant() {
+        let start = now();
+        let mut lease = Lease::acquire(start, Duration::from_secs(30), Duration::ZERO, 2);
+        let sent = start + Duration::from_secs(10);
+        // The response arrives 2s later; the deadline is still measured from the send,
+        // so the round trip is subtracted rather than added (§3.3 conservative rule).
+        assert!(lease.apply_renewal(sent, Duration::from_secs(2), &renewal(2, 30_000)));
+        assert_eq!(lease.deadline(), sent + Duration::from_secs(28));
+        assert!(lease.deadline() < sent + Duration::from_secs(30));
+    }
+
+    #[test]
+    fn renewal_with_a_round_trip_over_the_ttl_expires_immediately() {
+        let start = now();
+        let mut lease = Lease::acquire(start, Duration::from_secs(30), Duration::ZERO, 2);
+        assert!(lease.apply_renewal(start, Duration::from_secs(40), &renewal(2, 30_000)));
+        assert_eq!(lease.deadline(), start);
+        assert!(!lease.is_valid(start));
+        assert!(!lease.allows_new_permits(start));
     }
 }

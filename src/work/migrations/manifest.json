@@ -560,6 +560,17 @@
       "catalog_checksum": "sha256:38caf8066154bc6cde6e17931387743576943714d95efc38fd826bc7a1eb9e24",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 51,
+      "name": "0051_device_lease_renewal_ownership",
+      "kind": "increment",
+      "file": "increments/0051_device_lease_renewal_ownership.sql",
+      "checksum": "sha256:a05c44460feabd76578f63f859961618529e716b321d6813026d99234e30132c",
+      "catalog": "catalogs/0051_device_lease_renewal_ownership.json",
+      "catalog_checksum": "sha256:6ed6331b87399387303893ea44688dd338aee417928f044e11f20bf2aa165c87",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

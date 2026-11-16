@@ -31,7 +31,8 @@ import (
 // adds the receipt uplink (verify → translate wire→SQL element → record_device_receipt
 // → receipt_ack). GW7 adds the server signing key (test-only software P-256) whose
 // public JWK rides hello_ack so the device can verify server-signed downlink frames
-// (operation_resolution first). The permit/lease/command/finish frames remain deferred.
+// (operation_resolution first). GW10 adds the heartbeat uplink and the unsigned lease
+// downlink (renew_device_lease, 0051). The permit/command/finish frames remain deferred.
 type Server struct {
 	pool      *pgxpool.Pool
 	serverKey *ecdsa.PrivateKey
@@ -181,9 +182,10 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 
 	// After hello_ack the stream carries device uplink frames. GW4 handles receipt,
 	// GW6 reconcile, GW7 the operation_resolution_ack that advances the delivery
-	// watermark, GW9 checkpoint_commit; the remaining frames (permit/lease/command/finish)
-	// are refused as unimplemented rather than silently dropped. The public key verified
-	// at hello is reused for the session's signed uplink frames.
+	// watermark, GW9 checkpoint_commit, GW10 heartbeat (lease renewal); the remaining
+	// frames (permit/command/finish) are refused as unimplemented rather than silently
+	// dropped. The public key verified at hello is reused for the session's signed uplink
+	// frames; heartbeat is unsigned by design (§3.1 lists no signature for it).
 	for {
 		var next []byte
 		if err := stream.RecvMsg(&next); err != nil {
@@ -211,6 +213,10 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 			}
 		case "checkpoint_commit":
 			if err := s.handleCheckpointCommit(ctx, stream, orgID, deviceID, sessionID, pub, frame); err != nil {
+				return err
+			}
+		case "heartbeat":
+			if err := s.handleHeartbeat(ctx, stream, orgID, deviceID, sessionID, frame); err != nil {
 				return err
 			}
 		default:

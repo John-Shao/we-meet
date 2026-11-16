@@ -16,6 +16,7 @@ pub mod envelope;
 pub mod hello;
 pub mod intent;
 pub mod jcs;
+pub mod lease;
 pub mod receipt;
 pub mod receipt_ack;
 pub mod reconcile;

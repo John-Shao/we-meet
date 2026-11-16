@@ -93,6 +93,15 @@ func (f *gwFixture) signFrame(t *testing.T, frameType, sessionID, bootID, agentI
 // tests record started receipts to exercise the uplink without re-testing it.
 func (f *gwFixture) seedAction(t *testing.T, sessionID string) (runID, opID, attemptID string, fence int64) {
 	t.Helper()
+	return f.seedActionWithInputHash(t, sessionID, strings.Repeat("b", 64))
+}
+
+// seedActionWithInputHash is seedAction with a caller-chosen input hash. work_input_active_hash
+// and run_workflow_id_key are both unique per org, so a test that needs TWO runs (e.g. two
+// leases for one heartbeat) must give each run a distinct input object; the workflow id is
+// derived from the run id for the same reason.
+func (f *gwFixture) seedActionWithInputHash(t *testing.T, sessionID, inputHash string) (runID, opID, attemptID string, fence int64) {
+	t.Helper()
 	ctx := gwContext(t)
 	seed, err := testpg.Open(ctx, testpg.AdminURLFor(f.dbName))
 	if err != nil {
@@ -115,14 +124,14 @@ func (f *gwFixture) seedAction(t *testing.T, sessionID string) (runID, opID, att
 		INSERT INTO work.task (id, org_id, owner_subject_id, state, snapshot_id, input_id, title)
 		VALUES ('%s','%s','%s','open','%s','%s','gw');
 		INSERT INTO work.run (id, org_id, task_id, attempt_no, state, wait_reason, snapshot_id, workflow_id, runtime_version, admission_access_epoch)
-		VALUES ('%s','%s','%s',1,'active',NULL,'%s','wf-gw','v1',0);
+		VALUES ('%s','%s','%s',1,'active',NULL,'%s','%s','v1',0);
 		UPDATE work.task SET active_run_id = '%s' WHERE id = '%s';
 		INSERT INTO work.operation (id, org_id, run_id, logical_key, kind, request_hash, state, dispatch_attempt_id)
 		VALUES ('%s','%s','%s','step#0','tool','%s','dispatching','%s');
-	`, gwOrg, gwSubject, inputID, gwOrg, gwSubject, strings.Repeat("b", 64),
+	`, gwOrg, gwSubject, inputID, gwOrg, gwSubject, inputHash,
 		snapshotID, gwOrg, taskID, strings.Repeat("a", 64),
 		taskID, gwOrg, gwSubject, snapshotID, inputID,
-		runID, gwOrg, taskID, snapshotID,
+		runID, gwOrg, taskID, snapshotID, "wf-gw-" + runID[:8],
 		runID, taskID,
 		opID, gwOrg, runID, strings.Repeat("d", 64), attemptID)
 	if err := testpg.ExecRaw(ctx, seed, script); err != nil {
