@@ -3,9 +3,11 @@ package gateway
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -176,6 +178,10 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 			if err := s.handleReceipt(ctx, stream, orgID, deviceID, sessionID, pub, frame); err != nil {
 				return err
 			}
+		case "reconcile":
+			if err := s.handleReconcile(ctx, stream, orgID, deviceID, sessionID, pub, frame); err != nil {
+				return err
+			}
 		default:
 			return status.Error(codes.Unimplemented, "frame deferred to GW4")
 		}
@@ -204,6 +210,83 @@ func (s *Server) handleReceipt(ctx context.Context, stream grpc.ServerStream, or
 		return mapError(err)
 	}
 	ackRaw, err := receiptAckEnvelope(deviceID, sessionID, result)
+	if err != nil {
+		return status.Error(codes.Internal, "service_degraded")
+	}
+	return stream.SendMsg(ackRaw)
+}
+
+// handleReconcile consumes a reconcile batch (device-design §3.1 reconcile row,
+// §6.3 recovery). Each nested signed_receipt_bytes entry is a full original
+// receipt envelope, verified and translated exactly like a live receipt frame;
+// the recovery identity only authenticates transport and never rewrites the
+// nested original_execution (§2.3). A bad nested signature or identity refuses
+// the whole batch (fail-closed); seq-window/binding refusals are per-receipt
+// conflicts surfaced by record_device_receipt. The batch result becomes a
+// reconcile_ack (same body shape as receipt_ack).
+func (s *Server) handleReconcile(ctx context.Context, stream grpc.ServerStream, orgID, deviceID, sessionID string, pub *devicesig.PublicKey, env *Envelope) error {
+	var body ReconcileBody
+	if err := json.Unmarshal(env.Body, &body); err != nil {
+		return mapError(fmt.Errorf("invalid_request: reconcile body"))
+	}
+	if len(body.SignedReceiptBytes) > maxReconcileBatch {
+		return status.Error(codes.ResourceExhausted, "rate_limited")
+	}
+	elements := make([]map[string]any, 0, len(body.SignedReceiptBytes))
+	for _, encoded := range body.SignedReceiptBytes {
+		raw, err := base64.RawURLEncoding.DecodeString(encoded)
+		if err != nil {
+			return mapError(fmt.Errorf("invalid_request: reconcile nested bytes"))
+		}
+		nested, err := parseEnvelope(raw)
+		if err != nil {
+			return mapError(err)
+		}
+		if nested.Type != "receipt" {
+			return mapError(fmt.Errorf("invalid_request: reconcile nested frame type"))
+		}
+		if nested.DeviceID != deviceID {
+			return status.Error(codes.Unauthenticated, "unauthorized")
+		}
+		sig, err := receiptSignature(nested.Body)
+		if err != nil {
+			return mapError(err)
+		}
+		if !devicesig.VerifyFrame(pub, "receipt", nested.Body, sig) {
+			return status.Error(codes.Unauthenticated, "unauthorized")
+		}
+		journalEpoch, element, err := receiptElement(nested.Body)
+		if err != nil {
+			return mapError(err)
+		}
+		if journalEpoch != body.JournalEpoch {
+			return mapError(fmt.Errorf("invalid_request: reconcile journal_epoch mismatch"))
+		}
+		elements = append(elements, element)
+	}
+
+	var result json.RawMessage
+	if len(elements) == 0 {
+		// Empty batch: the device has nothing from from_seq onward. Ack with the
+		// conservative watermark just below from_seq; nothing is recorded.
+		fromSeq, err := strconv.ParseUint(body.FromSeq, 10, 64)
+		if err != nil {
+			return mapError(fmt.Errorf("invalid_request: reconcile from_seq"))
+		}
+		through := uint64(0)
+		if fromSeq > 0 {
+			through = fromSeq - 1
+		}
+		result = json.RawMessage(fmt.Sprintf(
+			`{"recorded":[],"conflicts":[],"receipt_through_seq":%d}`, through))
+	} else {
+		var err error
+		result, err = s.recordReceiptBatch(ctx, orgID, deviceID, body.JournalEpoch, elements)
+		if err != nil {
+			return mapError(err)
+		}
+	}
+	ackRaw, err := reconcileAckEnvelope(deviceID, sessionID, result)
 	if err != nil {
 		return status.Error(codes.Internal, "service_degraded")
 	}
@@ -250,7 +333,14 @@ func (s *Server) activateSession(ctx context.Context, orgID, deviceID, ticketHas
 // command takes a batch, so the element is wrapped in a single-element array. The
 // returned recorded/conflicts/receipt_through_seq become the receipt_ack body.
 func (s *Server) recordReceipt(ctx context.Context, orgID, deviceID, journalEpoch string, element map[string]any) (json.RawMessage, error) {
-	receipts, err := json.Marshal([]any{element})
+	return s.recordReceiptBatch(ctx, orgID, deviceID, journalEpoch, []map[string]any{element})
+}
+
+// recordReceiptBatch records a translated receipt batch through record_device_receipt
+// as work_worker. The command shape-checks the batch (1..100), binds each
+// original_execution, enforces seq continuity and returns per-receipt conflicts.
+func (s *Server) recordReceiptBatch(ctx context.Context, orgID, deviceID, journalEpoch string, elements []map[string]any) (json.RawMessage, error) {
+	receipts, err := json.Marshal(elements)
 	if err != nil {
 		return nil, fmt.Errorf("invalid_request: receipt element")
 	}
