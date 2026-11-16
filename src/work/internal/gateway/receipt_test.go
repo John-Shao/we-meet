@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/we-meet/work/internal/devicesig"
 )
 
 // wireReceiptBody is a device-design §3.1 receipt body with the short
@@ -153,7 +155,11 @@ func TestReceiptSignatureExtract(t *testing.T) {
 
 func TestReceiptAckEnvelopeShape(t *testing.T) {
 	result := json.RawMessage(`{"recorded":[],"conflicts":[],"receipt_through_seq":1}`)
-	raw, err := receiptAckEnvelope("dev-1", "sess-1", result)
+	key, err := devicesig.GenerateSigningKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := receiptAckEnvelope("dev-1", "sess-1", result, key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +173,17 @@ func TestReceiptAckEnvelopeShape(t *testing.T) {
 	if env.DeviceID != "dev-1" || env.SessionID != "sess-1" || env.MessageID == "" {
 		t.Fatalf("envelope addressing = %#v", env)
 	}
-	if string(env.Body) != string(result) {
-		t.Fatalf("ack body = %s, want the record result", env.Body)
+	// The record result passes through and the gateway adds a server signature.
+	var body map[string]json.RawMessage
+	if err := json.Unmarshal(env.Body, &body); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"recorded", "conflicts", "receipt_through_seq", "signature"} {
+		if _, ok := body[k]; !ok {
+			t.Fatalf("ack body missing %q: %s", k, env.Body)
+		}
+	}
+	if string(body["receipt_through_seq"]) != "1" {
+		t.Fatalf("receipt_through_seq = %s", body["receipt_through_seq"])
 	}
 }

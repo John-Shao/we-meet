@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"crypto/ecdsa"
 	"encoding/json"
 )
 
@@ -26,17 +27,23 @@ type ReconcileBody struct {
 }
 
 // reconcileAckEnvelope wraps the record_device_receipt batch result (recorded,
-// conflicts, receipt_through_seq) into a reconcile_ack frame on the current
-// transport session. The body has the same shape as receipt_ack, so the device
-// consumes it with the same outbox-ack path (recovery/replay.rs apply_receipt_ack).
-func reconcileAckEnvelope(deviceID, sessionID string, result json.RawMessage) ([]byte, error) {
+// conflicts, receipt_through_seq) into a server-signed reconcile_ack frame on the
+// current transport session. The body has the same shape as receipt_ack, so the device
+// consumes it with the same outbox-ack path (recovery/replay.rs apply_receipt_ack); the
+// signature is over the reconcile_ack frame type, so a receipt_ack signature never
+// verifies here.
+func reconcileAckEnvelope(deviceID, sessionID string, result json.RawMessage, key *ecdsa.PrivateKey) ([]byte, error) {
+	body, err := signAckBody(key, "reconcile_ack", result)
+	if err != nil {
+		return nil, err
+	}
 	env := Envelope{
 		SchemaVersion: 2,
 		Type:          "reconcile_ack",
 		MessageID:     newMessageID(),
 		DeviceID:      deviceID,
 		SessionID:     sessionID,
-		Body:          result,
+		Body:          body,
 	}
 	return json.Marshal(env)
 }

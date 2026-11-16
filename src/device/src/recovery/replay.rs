@@ -9,6 +9,7 @@ use rusqlite::Connection;
 use crate::frame::receipt_ack::{ReceiptAckBody, ReceiptConflict};
 use crate::frame::reconcile::{ReconcileBody, MAX_RECEIPTS_PER_BATCH};
 use crate::journal::recover::{self, FinishRow, OutboxReceipt};
+use crate::jwk::EcP256Jwk;
 
 /// The un-acked receipt window (§3.1 :105).
 pub const UNACKED_WINDOW: u32 = 100;
@@ -49,18 +50,37 @@ pub struct ReceiptAckOutcome {
     pub conflicts: Vec<ReceiptConflict>,
 }
 
-/// Consume a receipt_ack (the record_device_receipt result) from the gateway.
-/// Every `recorded` seq — new or idempotently replayed — is marked acked so it
-/// leaves the replay window. This advances the `acked` flag only: it NEVER
-/// deletes a receipt. Durable release stays gated on the server-signed
-/// checkpoint_ack watermark (B03 §3.2, reconcile/watermark.rs); the ack is an
-/// unsigned mTLS transport confirmation (GW5 ruling, server signing deferred).
-/// Re-applying the same ack is idempotent (acked is already 1).
+/// A receipt_ack / reconcile_ack consumption failure.
+#[derive(Debug)]
+pub enum ReceiptAckError {
+    Signature,
+    Sql(rusqlite::Error),
+}
+
+impl From<rusqlite::Error> for ReceiptAckError {
+    fn from(err: rusqlite::Error) -> Self {
+        Self::Sql(err)
+    }
+}
+
+/// Consume a receipt_ack (the record_device_receipt result) from the gateway. The ack is
+/// server-signed (GW8); the signature is verified over the frame type the caller received
+/// (`receipt_ack` or `reconcile_ack`, which share this body) against the hello_ack server
+/// key BEFORE any row moves — fail-closed, no optional-signature shim (GW5 ruling). Every
+/// `recorded` seq — new or idempotently replayed — is then marked acked so it leaves the
+/// replay window. This advances the `acked` flag only: it NEVER deletes a receipt. Durable
+/// release stays gated on the server-signed checkpoint_ack watermark (B03 §3.2,
+/// reconcile/watermark.rs). Re-applying the same ack is idempotent (acked is already 1).
 pub fn apply_receipt_ack(
     conn: &Connection,
+    jwk: &EcP256Jwk,
     journal_epoch: &str,
+    frame_type: &str,
     ack: &ReceiptAckBody,
-) -> rusqlite::Result<ReceiptAckOutcome> {
+) -> Result<ReceiptAckOutcome, ReceiptAckError> {
+    if !ack.verify(jwk, frame_type) {
+        return Err(ReceiptAckError::Signature);
+    }
     let mut acked = 0u64;
     for rec in &ack.recorded {
         recover::mark_receipt_acked(conn, journal_epoch, rec.receipt_seq as i64)?;
@@ -98,6 +118,7 @@ mod tests {
     use super::*;
     use crate::frame::receipt_ack::RecordedReceipt;
     use crate::journal::{meta, record, schema};
+    use crate::key::DeviceKey;
 
     fn temp_conn() -> (Connection, std::path::PathBuf) {
         let path =
@@ -199,7 +220,23 @@ mod tests {
                 })
                 .collect(),
             receipt_through_seq: through,
+            signature: None,
         }
+    }
+
+    /// Sign an ack with a fresh server key and return its public JWK, so the consumer
+    /// verifies it exactly as it would a gateway-signed ack.
+    fn signed_ack(
+        server: &crate::key::SoftwareKey,
+        frame_type: &str,
+        recorded: &[u64],
+        conflicts: &[(u64, &str)],
+        through: u64,
+    ) -> (crate::jwk::EcP256Jwk, ReceiptAckBody) {
+        let mut body = ack(recorded, conflicts, through);
+        let sig = crate::frame::sign::sign_frame(server, frame_type, &body.to_value()).unwrap();
+        body.signature = Some(sig);
+        (server.public_jwk(), body)
     }
 
     #[test]
@@ -207,7 +244,9 @@ mod tests {
         let (conn, path) = temp_conn();
         seed_receipts(&conn, 3);
         assert_eq!(next_receipt_batch(&conn, "epoch-1").unwrap().len(), 3);
-        let outcome = apply_receipt_ack(&conn, "epoch-1", &ack(&[1, 2], &[], 2)).unwrap();
+        let server = crate::key::SoftwareKey::random();
+        let (jwk, body) = signed_ack(&server, "receipt_ack", &[1, 2], &[], 2);
+        let outcome = apply_receipt_ack(&conn, &jwk, "epoch-1", "receipt_ack", &body).unwrap();
         assert_eq!(outcome.acked, 2);
         assert!(outcome.conflicts.is_empty());
         // Only the un-acked third remains for replay.
@@ -222,12 +261,15 @@ mod tests {
     fn receipt_ack_surfaces_conflicts_and_keeps_them_unacked() {
         let (conn, path) = temp_conn();
         seed_receipts(&conn, 3);
-        let outcome = apply_receipt_ack(
-            &conn,
-            "epoch-1",
-            &ack(&[1], &[(2, "idempotency_key_conflict")], 1),
-        )
-        .unwrap();
+        let server = crate::key::SoftwareKey::random();
+        let (jwk, body) = signed_ack(
+            &server,
+            "receipt_ack",
+            &[1],
+            &[(2, "idempotency_key_conflict")],
+            1,
+        );
+        let outcome = apply_receipt_ack(&conn, &jwk, "epoch-1", "receipt_ack", &body).unwrap();
         assert_eq!(outcome.acked, 1);
         assert_eq!(outcome.conflicts.len(), 1);
         assert_eq!(outcome.conflicts[0].receipt_seq, 2);
@@ -249,7 +291,9 @@ mod tests {
         seed_receipts(&conn, 2);
         // Even a watermark covering both seqs only acks; rows survive until the
         // signed checkpoint_ack drives cleanup (reconcile/watermark.rs).
-        apply_receipt_ack(&conn, "epoch-1", &ack(&[1, 2], &[], 2)).unwrap();
+        let server = crate::key::SoftwareKey::random();
+        let (jwk, body) = signed_ack(&server, "receipt_ack", &[1, 2], &[], 2);
+        apply_receipt_ack(&conn, &jwk, "epoch-1", "receipt_ack", &body).unwrap();
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM receipt_outbox", [], |r| r.get(0))
             .unwrap();
@@ -270,10 +314,55 @@ mod tests {
     fn receipt_ack_reapply_is_idempotent() {
         let (conn, path) = temp_conn();
         seed_receipts(&conn, 2);
-        let body = ack(&[1, 2], &[], 2);
-        apply_receipt_ack(&conn, "epoch-1", &body).unwrap();
-        let outcome = apply_receipt_ack(&conn, "epoch-1", &body).unwrap();
+        let server = crate::key::SoftwareKey::random();
+        let (jwk, body) = signed_ack(&server, "receipt_ack", &[1, 2], &[], 2);
+        apply_receipt_ack(&conn, &jwk, "epoch-1", "receipt_ack", &body).unwrap();
+        let outcome = apply_receipt_ack(&conn, &jwk, "epoch-1", "receipt_ack", &body).unwrap();
         assert_eq!(outcome.acked, 2);
+        assert!(next_receipt_batch(&conn, "epoch-1").unwrap().is_empty());
+        drop(conn);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn unsigned_or_wrong_frame_type_ack_is_refused_fail_closed() {
+        let (conn, path) = temp_conn();
+        seed_receipts(&conn, 2);
+        let server = crate::key::SoftwareKey::random();
+        let jwk = server.public_jwk();
+
+        // An unsigned ack is refused and nothing is acked.
+        let unsigned = ack(&[1, 2], &[], 2);
+        assert!(matches!(
+            apply_receipt_ack(&conn, &jwk, "epoch-1", "receipt_ack", &unsigned),
+            Err(ReceiptAckError::Signature)
+        ));
+        // A genuine receipt_ack signature consumed as reconcile_ack is refused, because
+        // the signature covers {schema_version, type, body} with the frame type bound in.
+        let (_, body) = signed_ack(&server, "receipt_ack", &[1, 2], &[], 2);
+        assert!(matches!(
+            apply_receipt_ack(&conn, &jwk, "epoch-1", "reconcile_ack", &body),
+            Err(ReceiptAckError::Signature)
+        ));
+        // Nothing left the replay window on either refusal.
+        assert_eq!(next_receipt_batch(&conn, "epoch-1").unwrap().len(), 2);
+        // The same ack under its own frame type is accepted.
+        let outcome = apply_receipt_ack(&conn, &jwk, "epoch-1", "receipt_ack", &body).unwrap();
+        assert_eq!(outcome.acked, 2);
+        drop(conn);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn reconcile_ack_frame_type_consumes_the_same_body() {
+        let (conn, path) = temp_conn();
+        seed_receipts(&conn, 1);
+        let server = crate::key::SoftwareKey::random();
+        // The reconcile_ack carries the same body shape but a different frame type; the
+        // device consumes it here with the reconcile_ack type the frame arrived under.
+        let (jwk, body) = signed_ack(&server, "reconcile_ack", &[1], &[], 1);
+        let outcome = apply_receipt_ack(&conn, &jwk, "epoch-1", "reconcile_ack", &body).unwrap();
+        assert_eq!(outcome.acked, 1);
         assert!(next_receipt_batch(&conn, "epoch-1").unwrap().is_empty());
         drop(conn);
         let _ = std::fs::remove_file(&path);

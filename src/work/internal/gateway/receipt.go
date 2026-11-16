@@ -1,8 +1,11 @@
 package gateway
 
 import (
+	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
+
+	"github.com/we-meet/work/internal/devicesig"
 )
 
 // receiptExecNames maps the device-design §3.1 wire original_execution short names
@@ -93,18 +96,45 @@ func rawField(body map[string]json.RawMessage, key string) json.RawMessage {
 	return json.RawMessage("null")
 }
 
+// signAckBody signs a downlink ack body (the record_device_receipt result) with the
+// gateway server key and returns the body carrying a "signature" member. The signature
+// is the server's ES256 over {schema_version, type, body} with the signature stripped
+// (devicesig.SignedPayload); the device verifies it against the hello_ack
+// server_public_jwk. This closes the deferred ack signing GW5/GW6 left unsigned: the
+// device consume path now verifies fail-closed (no optional-signature shim).
+func signAckBody(key *ecdsa.PrivateKey, frameType string, result json.RawMessage) (json.RawMessage, error) {
+	sig, err := devicesig.SignFrame(key, frameType, result)
+	if err != nil {
+		return nil, err
+	}
+	var body map[string]json.RawMessage
+	if err := json.Unmarshal(result, &body); err != nil {
+		return nil, err
+	}
+	sigJSON, err := json.Marshal(sig)
+	if err != nil {
+		return nil, err
+	}
+	body["signature"] = sigJSON
+	return json.Marshal(body)
+}
+
 // receiptAckEnvelope wraps the record_device_receipt result (recorded, conflicts,
-// receipt_through_seq) into a receipt_ack frame addressed to the device on the
-// current transport session, mirroring hello_ack. The device advances its outbox
-// watermark from receipt_through_seq and resolves conflicts from the conflicts set.
-func receiptAckEnvelope(deviceID, sessionID string, result json.RawMessage) ([]byte, error) {
+// receipt_through_seq) into a server-signed receipt_ack frame addressed to the device
+// on the current transport session. The device verifies receipt_through_seq's ack
+// against the server key, then advances its outbox watermark and resolves conflicts.
+func receiptAckEnvelope(deviceID, sessionID string, result json.RawMessage, key *ecdsa.PrivateKey) ([]byte, error) {
+	body, err := signAckBody(key, "receipt_ack", result)
+	if err != nil {
+		return nil, err
+	}
 	env := Envelope{
 		SchemaVersion: 2,
 		Type:          "receipt_ack",
 		MessageID:     newMessageID(),
 		DeviceID:      deviceID,
 		SessionID:     sessionID,
-		Body:          result,
+		Body:          body,
 	}
 	return json.Marshal(env)
 }

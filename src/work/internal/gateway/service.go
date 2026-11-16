@@ -236,7 +236,7 @@ func (s *Server) handleReceipt(ctx context.Context, stream grpc.ServerStream, or
 	if err != nil {
 		return mapError(err)
 	}
-	ackRaw, err := receiptAckEnvelope(deviceID, sessionID, result)
+	ackRaw, err := receiptAckEnvelope(deviceID, sessionID, result, s.serverKey)
 	if err != nil {
 		return status.Error(codes.Internal, "service_degraded")
 	}
@@ -317,7 +317,7 @@ func (s *Server) handleReconcile(ctx context.Context, stream grpc.ServerStream, 
 			return mapError(err)
 		}
 	}
-	ackRaw, err := reconcileAckEnvelope(deviceID, sessionID, result)
+	ackRaw, err := reconcileAckEnvelope(deviceID, sessionID, result, s.serverKey)
 	if err != nil {
 		return status.Error(codes.Internal, "service_degraded")
 	}
