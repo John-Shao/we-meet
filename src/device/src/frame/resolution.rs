@@ -174,4 +174,30 @@ mod tests {
         };
         assert!(!bad.state_valid());
     }
+
+    // Cross-language vector: the Go gateway (internal/devicesig.SignFrame) signed
+    // this resolution body with a fixed server key; the device must verify it byte
+    // for byte. Proves the server-signing path (GW7) matches device verification.
+    #[test]
+    fn verifies_go_gateway_server_signature() {
+        let jwk = crate::jwk::validate_json(
+            r#"{"kty":"EC","crv":"P-256","x":"tUFRjLcJt4k8zRYMpM1YazK2uVW6O6bzmgiM-nkUBcQ","y":"hAiDAW1L5bBXS7qg_yLExLKrHP1Wo1WrjWD5IkXrvzA"}"#,
+        )
+        .unwrap();
+        let body: OperationResolutionBody = serde_json::from_str(
+            r#"{"resolve_id":"11111111-1111-4111-8111-111111111111","run_id":"22222222-2222-4222-8222-222222222222","operation_id":"33333333-3333-4333-8333-333333333333","attempt_id":"44444444-4444-4444-8444-444444444444","state":"failed","delivery_state":"delivered","settlement_state":"unknown","resolution_revision":"5"}"#,
+        )
+        .unwrap();
+        let sig = "YdyoqManItvFSo9wz6iMzepZA8N__1UKCXFKnTOcHyFwW1bdMPlJRGwdl8dXoAldX5o-mxKRprJdsnide0JB8w";
+        assert!(sign::verify_frame(&jwk, FRAME_TYPE, &body.to_value(), sig));
+        // Tampering with the conclusion invalidates the server signature.
+        let mut tampered = body.clone();
+        tampered.state = "succeeded".into();
+        assert!(!sign::verify_frame(
+            &jwk,
+            FRAME_TYPE,
+            &tampered.to_value(),
+            sig
+        ));
+    }
 }

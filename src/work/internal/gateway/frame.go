@@ -102,15 +102,27 @@ func helloCommand(env *Envelope, body *HelloBody) (map[string]any, error) {
 
 // helloAckEnvelope wraps the activate_device_session result (session_id,
 // server_time, generation, lease_ttl_ms, heartbeat_ms, resync_required) into a
-// hello_ack frame addressed to the device with the freshly allocated session.
-func helloAckEnvelope(deviceID, sessionID string, ack json.RawMessage) ([]byte, error) {
+// hello_ack frame addressed to the device with the freshly allocated session. It
+// also carries server_public_jwk (GW7): the gateway's server signing public key,
+// which the device provisions to verify server-signed downlink frames
+// (operation_resolution/permit/lease/command/finish_ack).
+func helloAckEnvelope(deviceID, sessionID string, ack, serverJWK json.RawMessage) ([]byte, error) {
+	var body map[string]json.RawMessage
+	if err := json.Unmarshal(ack, &body); err != nil {
+		return nil, err
+	}
+	body["server_public_jwk"] = serverJWK
+	bodyJSON, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
 	env := Envelope{
 		SchemaVersion: 2,
 		Type:          "hello_ack",
 		MessageID:     newMessageID(),
 		DeviceID:      deviceID,
 		SessionID:     sessionID,
-		Body:          ack,
+		Body:          bodyJSON,
 	}
 	raw, err := json.Marshal(env)
 	if err != nil {

@@ -79,7 +79,11 @@ func run(ctx context.Context) error {
 		grpc.Creds(credentials.NewTLS(tlsConfig)),
 		grpc.ForceServerCodec(gateway.FrameCodec()),
 	)
-	gateway.NewServer(pool).Register(grpcServer)
+	gw, err := gateway.NewServer(pool)
+	if err != nil {
+		return fmt.Errorf("gateway server: %w", err)
+	}
+	gw.Register(grpcServer)
 
 	go func() {
 		<-ctx.Done()

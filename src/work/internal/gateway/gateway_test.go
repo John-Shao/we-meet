@@ -187,7 +187,11 @@ func (f *gwFixture) startServer(t *testing.T) string {
 		grpc.Creds(credentials.NewTLS(deviceca.ServerTLSConfig(f.ca, f.serverCert))),
 		grpc.ForceServerCodec(gateway.FrameCodec()),
 	)
-	gateway.NewServer(f.pool).Register(srv)
+	gw, err := gateway.NewServer(f.pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gw.Register(srv)
 	go func() { _ = srv.Serve(lis) }()
 	t.Cleanup(srv.Stop)
 	return lis.Addr().String()
@@ -323,6 +327,35 @@ func TestHelloAllocatesSession(t *testing.T) {
 	}
 	if ack["lease_ttl_ms"] == nil || ack["heartbeat_ms"] == nil || ack["resync_required"] != true {
 		t.Fatalf("hello_ack body = %#v", ack)
+	}
+}
+
+// TestHelloAckCarriesServerJWK proves the gateway distributes its server signing
+// public key in hello_ack (GW7 foundation): the device parses this closed EC P-256
+// JWK to verify server-signed downlink frames (operation_resolution first). The
+// key must be a valid on-curve public key with no private member.
+func TestHelloAckCarriesServerJWK(t *testing.T) {
+	f := newGatewayFixture(t)
+	addr := f.startServer(t)
+	stream := f.connect(t, addr)
+	if err := stream.SendMsg(f.signHello(t, f.ticket, []string{"journal"}, nil)); err != nil {
+		t.Fatal(err)
+	}
+	ack := recvAck(t, stream)
+	jwkVal, ok := ack["server_public_jwk"]
+	if !ok || jwkVal == nil {
+		t.Fatalf("hello_ack missing server_public_jwk: %#v", ack)
+	}
+	jwkJSON, err := json.Marshal(jwkVal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pub, err := devicesig.ParseJWK(jwkJSON)
+	if err != nil {
+		t.Fatalf("server_public_jwk does not parse as a closed EC P-256 JWK: %v", err)
+	}
+	if pub.Thumbprint == "" {
+		t.Fatal("server_public_jwk parsed without a thumbprint")
 	}
 }
 

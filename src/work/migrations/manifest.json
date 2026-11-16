@@ -538,6 +538,17 @@
       "catalog_checksum": "sha256:2e324e8d4cce8dbc89d5d007ac9f1301e7a3ab977a626f81dc63dc92b99933db",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 49,
+      "name": "0049_pending_device_resolutions",
+      "kind": "increment",
+      "file": "increments/0049_pending_device_resolutions.sql",
+      "checksum": "sha256:c216288aed25ebb2ee6833e92737e70b3d6ee8f09982162299a62429e525946f",
+      "catalog": "catalogs/0049_pending_device_resolutions.json",
+      "catalog_checksum": "sha256:407b4b1f6a2116c86931c31ac4a7078ecf05a16bf6dee4ff992e1276272a8012",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

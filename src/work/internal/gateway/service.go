@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -28,13 +29,29 @@ import (
 // the landed SQL as work_worker (m1a §12.8: gateway hello → activate_device_session,
 // work_api has no EXECUTE). GW3 implements the hello/hello_ack/session slice; GW4
 // adds the receipt uplink (verify → translate wire→SQL element → record_device_receipt
-// → receipt_ack). The permit/lease/command/resolution/finish frames remain deferred.
+// → receipt_ack). GW7 adds the server signing key (test-only software P-256) whose
+// public JWK rides hello_ack so the device can verify server-signed downlink frames
+// (operation_resolution first). The permit/lease/command/finish frames remain deferred.
 type Server struct {
-	pool *pgxpool.Pool
+	pool      *pgxpool.Pool
+	serverKey *ecdsa.PrivateKey
+	serverJWK json.RawMessage
 }
 
-// NewServer builds a gateway bound to the work database pool.
-func NewServer(pool *pgxpool.Pool) *Server { return &Server{pool: pool} }
+// NewServer builds a gateway bound to the work database pool and generates its
+// test-only software P-256 signing key. Production server signing keys belong to
+// KMS/HSM with rotation and independent review (J39), deferred.
+func NewServer(pool *pgxpool.Pool) (*Server, error) {
+	key, err := devicesig.GenerateSigningKey()
+	if err != nil {
+		return nil, err
+	}
+	jwk, err := devicesig.PublicJWK(key)
+	if err != nil {
+		return nil, err
+	}
+	return &Server{pool: pool, serverKey: key, serverJWK: jwk}, nil
+}
 
 // deviceGatewayHandler is the interface the gRPC service descriptor checks the
 // implementation against (RegisterService requires HandlerType to be an interface).
@@ -149,18 +166,24 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 		return status.Error(codes.Internal, "service_degraded")
 	}
 	sessionID, _ := ackObj["session_id"].(string)
-	ackRaw, err := helloAckEnvelope(deviceID, sessionID, ack)
+	ackRaw, err := helloAckEnvelope(deviceID, sessionID, ack, s.serverJWK)
 	if err != nil {
 		return status.Error(codes.Internal, "service_degraded")
 	}
 	if err := stream.SendMsg(ackRaw); err != nil {
 		return err
 	}
+	// Session establish: re-push every un-acked resolution before the uplink loop
+	// (device-design §3.1 "每次 session 建立…先按未 ack 的 resolution 重发").
+	if err := s.pushPendingResolutions(ctx, stream, orgID, deviceID, sessionID); err != nil {
+		return err
+	}
 
-	// After hello_ack the stream carries device uplink frames. GW4 handles the
-	// receipt frame; the remaining frames (permit/lease/command/resolution/finish)
-	// are refused as unimplemented rather than silently dropped. The public key
-	// verified at hello is reused for the session's frames.
+	// After hello_ack the stream carries device uplink frames. GW4 handles receipt,
+	// GW6 reconcile, GW7 the operation_resolution_ack that advances the delivery
+	// watermark; the remaining frames (permit/lease/command/finish) are refused as
+	// unimplemented rather than silently dropped. The public key verified at hello is
+	// reused for the session's signed uplink frames.
 	for {
 		var next []byte
 		if err := stream.RecvMsg(&next); err != nil {
@@ -182,8 +205,12 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 			if err := s.handleReconcile(ctx, stream, orgID, deviceID, sessionID, pub, frame); err != nil {
 				return err
 			}
+		case "operation_resolution_ack":
+			if err := s.handleResolutionAck(ctx, orgID, deviceID, sessionID, frame); err != nil {
+				return err
+			}
 		default:
-			return status.Error(codes.Unimplemented, "frame deferred to GW4")
+			return status.Error(codes.Unimplemented, "frame deferred to a later gateway batch")
 		}
 	}
 }
@@ -213,7 +240,11 @@ func (s *Server) handleReceipt(ctx context.Context, stream grpc.ServerStream, or
 	if err != nil {
 		return status.Error(codes.Internal, "service_degraded")
 	}
-	return stream.SendMsg(ackRaw)
+	if err := stream.SendMsg(ackRaw); err != nil {
+		return err
+	}
+	// A completed receipt may have issued a fresh conclusion; re-push the queue.
+	return s.pushPendingResolutions(ctx, stream, orgID, deviceID, sessionID)
 }
 
 // handleReconcile consumes a reconcile batch (device-design §3.1 reconcile row,
@@ -290,7 +321,10 @@ func (s *Server) handleReconcile(ctx context.Context, stream grpc.ServerStream, 
 	if err != nil {
 		return status.Error(codes.Internal, "service_degraded")
 	}
-	return stream.SendMsg(ackRaw)
+	if err := stream.SendMsg(ackRaw); err != nil {
+		return err
+	}
+	return s.pushPendingResolutions(ctx, stream, orgID, deviceID, sessionID)
 }
 
 // signingKey reads the device public key through the 0047 definer getter as

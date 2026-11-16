@@ -83,7 +83,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (45, '0045_local_acceptance'),
   (46, '0046_device_pairing_signature_verify'),
   (47, '0047_device_signing_key'),
-  (48, '0048_device_receipt_signature_verify')) expected(version, name)
+  (48, '0048_device_receipt_signature_verify'),
+  (49, '0049_pending_device_resolutions')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -872,6 +873,24 @@ psql_ro "select 'local_acceptance_is_definer_and_granted=' || case when (
     where n.nspname = 'work' and t.relname = 'consumed_possession_nonce'
       and c.conname = 'consumed_possession_nonce_purpose_check'
       and pg_get_constraintdef(c.oid) like '%accept%')
+  then 'true' else 'FALSE' end"
+
+# 0049 claim pending device resolutions: the gateway's server-signed downlink claims the
+# un-acked resolution queue (pending->delivered) through this definer command, reachable by
+# work_worker only through EXECUTE (0024 grants no table privilege on operation_resolution /
+# device_run_binding / device_session). Losing the definer bit would make the queue
+# unreachable for the gateway; granting work_api would widen the read+write face beyond the
+# machine workload that owns the downlink.
+psql_ro "select 'pending_resolutions_is_definer_and_worker_only=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work'
+    and p.proname = 'claim_pending_device_resolutions'
+    and p.prosecdef
+    and p.proconfig @> ARRAY['search_path=work, pg_catalog']) = 1
+  and has_function_privilege('work_worker',
+        'work.claim_pending_device_resolutions(text,uuid,uuid)', 'EXECUTE')
+  and not has_function_privilege('work_api',
+        'work.claim_pending_device_resolutions(text,uuid,uuid)', 'EXECUTE')
   then 'true' else 'FALSE' end"
 
 echo

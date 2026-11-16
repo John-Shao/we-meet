@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 48,
-  "chainTipCatalog": "catalogs/0048_device_receipt_signature_verify.json",
+  "chainTip": 49,
+  "chainTipCatalog": "catalogs/0049_pending_device_resolutions.json",
   "entries": [
     {
       "name": "GET /work/v2/admin/local-policy",
@@ -247,6 +247,15 @@
       "classification": "external-audit-required"
     },
     {
+      "name": "claim_pending_device_resolutions",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0049_pending_device_resolutions.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
       "name": "claim_runtime_execution",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0028_runtime_execution_lease_takeover.sql",
@@ -294,7 +303,7 @@
     {
       "name": "consume_governance_events",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0048_device_receipt_signature_verify.json",
+      "origin": "src/work/migrations/catalogs/0049_pending_device_resolutions.json",
       "callableBy": [
         "work_governance_events"
       ],
@@ -393,7 +402,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0048_device_receipt_signature_verify.json",
+      "origin": "src/work/migrations/catalogs/0049_pending_device_resolutions.json",
       "callableBy": [
         "work_api",
         "work_governance_events"
