@@ -62,6 +62,7 @@ var publishedIncrements = []string{
 	"0047_device_signing_key",
 	"0048_device_receipt_signature_verify",
 	"0049_pending_device_resolutions",
+	"0050_device_checkpoint_binding_watermark",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

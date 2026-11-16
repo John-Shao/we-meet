@@ -549,6 +549,17 @@
       "catalog_checksum": "sha256:407b4b1f6a2116c86931c31ac4a7078ecf05a16bf6dee4ff992e1276272a8012",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 50,
+      "name": "0050_device_checkpoint_binding_watermark",
+      "kind": "increment",
+      "file": "increments/0050_device_checkpoint_binding_watermark.sql",
+      "checksum": "sha256:038dc4c0897c501d752d7abe861e6695623a60e580dcbdec4d45e06bb5b52226",
+      "catalog": "catalogs/0050_device_checkpoint_binding_watermark.json",
+      "catalog_checksum": "sha256:38caf8066154bc6cde6e17931387743576943714d95efc38fd826bc7a1eb9e24",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

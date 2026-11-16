@@ -181,9 +181,9 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 
 	// After hello_ack the stream carries device uplink frames. GW4 handles receipt,
 	// GW6 reconcile, GW7 the operation_resolution_ack that advances the delivery
-	// watermark; the remaining frames (permit/lease/command/finish) are refused as
-	// unimplemented rather than silently dropped. The public key verified at hello is
-	// reused for the session's signed uplink frames.
+	// watermark, GW9 checkpoint_commit; the remaining frames (permit/lease/command/finish)
+	// are refused as unimplemented rather than silently dropped. The public key verified
+	// at hello is reused for the session's signed uplink frames.
 	for {
 		var next []byte
 		if err := stream.RecvMsg(&next); err != nil {
@@ -207,6 +207,10 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 			}
 		case "operation_resolution_ack":
 			if err := s.handleResolutionAck(ctx, orgID, deviceID, sessionID, frame); err != nil {
+				return err
+			}
+		case "checkpoint_commit":
+			if err := s.handleCheckpointCommit(ctx, stream, orgID, deviceID, sessionID, pub, frame); err != nil {
 				return err
 			}
 		default:

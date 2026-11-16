@@ -84,7 +84,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (46, '0046_device_pairing_signature_verify'),
   (47, '0047_device_signing_key'),
   (48, '0048_device_receipt_signature_verify'),
-  (49, '0049_pending_device_resolutions')) expected(version, name)
+  (49, '0049_pending_device_resolutions'),
+  (50, '0050_device_checkpoint_binding_watermark')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -891,6 +892,21 @@ psql_ro "select 'pending_resolutions_is_definer_and_worker_only=' || case when (
         'work.claim_pending_device_resolutions(text,uuid,uuid)', 'EXECUTE')
   and not has_function_privilege('work_api',
         'work.claim_pending_device_resolutions(text,uuid,uuid)', 'EXECUTE')
+  then 'true' else 'FALSE' end"
+
+# 0050 restated record_device_checkpoint with two new identity arguments. Count pronames, not
+# oids: the old six-argument overload must be GONE (DROP + CREATE, not a second overload), and
+# the surviving one must be definer with the pinned search_path and worker-only EXECUTE.
+psql_ro "select 'checkpoint_command_is_bound_and_worker_only=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work'
+    and p.proname = 'record_device_checkpoint'
+    and p.prosecdef
+    and p.proconfig @> ARRAY['search_path=work, pg_catalog']) = 1
+  and has_function_privilege('work_worker',
+        'work.record_device_checkpoint(text,uuid,bigint,bigint,text,jsonb,uuid,uuid)', 'EXECUTE')
+  and not has_function_privilege('work_api',
+        'work.record_device_checkpoint(text,uuid,bigint,bigint,text,jsonb,uuid,uuid)', 'EXECUTE')
   then 'true' else 'FALSE' end"
 
 echo

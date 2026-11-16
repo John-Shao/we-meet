@@ -159,9 +159,10 @@ func TestR0bCheckpointConflictStopsTheRun(t *testing.T) {
 
 	cp := func(seq int, hash, requestID string) map[string]any {
 		return callJSON(t, worker,
-			`SELECT work.record_device_checkpoint($1,$2::uuid,1,2,$3,$4::jsonb)`,
+			`SELECT work.record_device_checkpoint($1,$2::uuid,1,2,$3,$4::jsonb,$5::uuid,$6::uuid)`,
 			o.org, o.runID, requestID,
-			`{"checkpoint_seq":`+strconv.Itoa(seq)+`,"checkpoint_hash":"`+hash+`","local_checkpoint_ref":"local/cp","receipt_through_seq":0,"pending_operation_set_hash":"`+strings.Repeat("c", 64)+`","device_signature":"sha256:`+strings.Repeat("d", 64)+`"}`)
+			`{"checkpoint_seq":`+strconv.Itoa(seq)+`,"checkpoint_hash":"`+hash+`","local_checkpoint_ref":"local/cp","receipt_through_seq":0,"pending_operation_set_hash":"`+strings.Repeat("c", 64)+`","device_signature":"`+strings.Repeat("d", 86)+`"}`,
+			o.deviceID, o.sessionID)
 	}
 	first := cp(1, strings.Repeat("1", 64), "req-cp-1")
 	if first["state"] != "recorded" {
@@ -184,9 +185,10 @@ func TestR0bCheckpointConflictStopsTheRun(t *testing.T) {
 	}
 	// seq=0 is not the device's to write.
 	expectCode(t, worker, "invalid_request",
-		`SELECT work.record_device_checkpoint($1,$2::uuid,1,2,$3,$4::jsonb)`,
+		`SELECT work.record_device_checkpoint($1,$2::uuid,1,2,$3,$4::jsonb,$5::uuid,$6::uuid)`,
 		o.org, o.runID, "req-cp-zero",
-		`{"checkpoint_seq":0,"checkpoint_hash":"`+strings.Repeat("3", 64)+`","local_checkpoint_ref":"local/cp","receipt_through_seq":0,"pending_operation_set_hash":"`+strings.Repeat("c", 64)+`","device_signature":"sha256:`+strings.Repeat("d", 64)+`"}`)
+		`{"checkpoint_seq":0,"checkpoint_hash":"`+strings.Repeat("3", 64)+`","local_checkpoint_ref":"local/cp","receipt_through_seq":0,"pending_operation_set_hash":"`+strings.Repeat("c", 64)+`","device_signature":"`+strings.Repeat("d", 86)+`"}`,
+		o.deviceID, o.sessionID)
 }
 
 func TestR0bRebindPointsAtTheLatestRecordedBaseline(t *testing.T) {
@@ -197,9 +199,10 @@ func TestR0bRebindPointsAtTheLatestRecordedBaseline(t *testing.T) {
 		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
 		o.org, o.runID, o.deviceID, o.sessionID, newUUID(t))
 	callJSON(t, worker,
-		`SELECT work.record_device_checkpoint($1,$2::uuid,1,2,$3,$4::jsonb)`,
+		`SELECT work.record_device_checkpoint($1,$2::uuid,1,2,$3,$4::jsonb,$5::uuid,$6::uuid)`,
 		o.org, o.runID, "req-rb-cp",
-		`{"checkpoint_seq":1,"checkpoint_hash":"`+strings.Repeat("4", 64)+`","local_checkpoint_ref":"local/cp1","receipt_through_seq":0,"pending_operation_set_hash":"`+strings.Repeat("c", 64)+`","device_signature":"sha256:`+strings.Repeat("d", 64)+`"}`)
+		`{"checkpoint_seq":1,"checkpoint_hash":"`+strings.Repeat("4", 64)+`","local_checkpoint_ref":"local/cp1","receipt_through_seq":0,"pending_operation_set_hash":"`+strings.Repeat("c", 64)+`","device_signature":"`+strings.Repeat("d", 86)+`"}`,
+		o.deviceID, o.sessionID)
 
 	// A second grant on the same root, then park the Run for reauthorization.
 	second := callJSON(t, api,
@@ -232,9 +235,10 @@ func TestR0bAcquireRefusesResumeOfferWithoutItsBaseline(t *testing.T) {
 		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
 		o.org, o.runID, o.deviceID, o.sessionID, newUUID(t))
 	callJSON(t, worker,
-		`SELECT work.record_device_checkpoint($1,$2::uuid,1,2,$3,$4::jsonb)`,
+		`SELECT work.record_device_checkpoint($1,$2::uuid,1,2,$3,$4::jsonb,$5::uuid,$6::uuid)`,
 		o.org, o.runID, "req-fc-cp",
-		`{"checkpoint_seq":1,"checkpoint_hash":"`+strings.Repeat("5", 64)+`","local_checkpoint_ref":"local/cp1","receipt_through_seq":0,"pending_operation_set_hash":"`+strings.Repeat("c", 64)+`","device_signature":"sha256:`+strings.Repeat("d", 64)+`"}`)
+		`{"checkpoint_seq":1,"checkpoint_hash":"`+strings.Repeat("5", 64)+`","local_checkpoint_ref":"local/cp1","receipt_through_seq":0,"pending_operation_set_hash":"`+strings.Repeat("c", 64)+`","device_signature":"`+strings.Repeat("d", 86)+`"}`,
+		o.deviceID, o.sessionID)
 
 	// A second binding that does not reference the available baseline must not start:
 	// device §3.2 forbids rerunning from the initial input when a checkpoint exists.

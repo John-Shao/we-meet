@@ -172,4 +172,25 @@ mod tests {
         let server = SoftwareKey::random();
         assert!(!ack("recorded").verify(&server.public_jwk()));
     }
+
+    #[test]
+    fn ack_wire_shape_is_closed_and_decimal_strings() {
+        // The gateway emits exactly this body (internal/gateway/checkpoint.go): the two
+        // seqs as decimal strings because SQL returns bigint numbers, and no `replayed`
+        // member — that is an internal idempotency fact, not part of the wire contract.
+        let value = ack("recorded").to_value();
+        assert_eq!(value["checkpoint_seq"], "3");
+        assert_eq!(value["receipt_through_seq"], "5");
+        let obj = value.as_object().unwrap();
+        assert_eq!(obj.len(), 4);
+        for key in ["run_id", "checkpoint_seq", "state", "receipt_through_seq"] {
+            assert!(obj.contains_key(key), "ack body missing {key}");
+        }
+        assert!(!obj.contains_key("replayed"));
+        let back: CheckpointAckBody =
+            serde_json::from_slice(&serde_json::to_vec(&value).unwrap()).unwrap();
+        assert_eq!(back.checkpoint_seq, 3);
+        assert_eq!(back.receipt_through_seq, 5);
+        assert!(back.is_recorded());
+    }
 }
