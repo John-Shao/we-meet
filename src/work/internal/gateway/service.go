@@ -32,7 +32,9 @@ import (
 // → receipt_ack). GW7 adds the server signing key (test-only software P-256) whose
 // public JWK rides hello_ack so the device can verify server-signed downlink frames
 // (operation_resolution first). GW10 adds the heartbeat uplink and the unsigned lease
-// downlink (renew_device_lease, 0051). The permit/command/finish frames remain deferred.
+// downlink (renew_device_lease, 0051). GW11 adds the offer spine: server-signed run_offer
+// re-push, run_ready uplink, and the server-signed run_start that follows a lease acquire
+// (0052). The permit/command/finish frames remain deferred.
 type Server struct {
 	pool      *pgxpool.Pool
 	serverKey *ecdsa.PrivateKey
@@ -175,17 +177,26 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 		return err
 	}
 	// Session establish: re-push every un-acked resolution before the uplink loop
-	// (device-design §3.1 "每次 session 建立…先按未 ack 的 resolution 重发").
+	// (device-design §3.1 "每次 session 建立…先按未 ack 的 resolution 重发"), then every
+	// live offer (GW11: the same push-and-re-push rule for run_offer, 0052 read-only getter).
 	if err := s.pushPendingResolutions(ctx, stream, orgID, deviceID, sessionID); err != nil {
+		return err
+	}
+	// The nonce cache holds each pushed binding's start_nonce for the lifetime of this
+	// stream, so a re-sent run_ready can still acquire the lease (0041 keys lease replay on
+	// that nonce) without minting a second one.
+	nonces := map[offerNonceKey]string{}
+	if err := s.pushPendingOffers(ctx, stream, orgID, deviceID, sessionID, nonces); err != nil {
 		return err
 	}
 
 	// After hello_ack the stream carries device uplink frames. GW4 handles receipt,
 	// GW6 reconcile, GW7 the operation_resolution_ack that advances the delivery
-	// watermark, GW9 checkpoint_commit, GW10 heartbeat (lease renewal); the remaining
-	// frames (permit/command/finish) are refused as unimplemented rather than silently
-	// dropped. The public key verified at hello is reused for the session's signed uplink
-	// frames; heartbeat is unsigned by design (§3.1 lists no signature for it).
+	// watermark, GW9 checkpoint_commit, GW10 heartbeat (lease renewal), GW11 run_ready and
+	// run_started; the remaining frames (permit/command/finish) are refused as unimplemented
+	// rather than silently dropped. The public key verified at hello is reused for the
+	// session's signed uplink frames; heartbeat is unsigned by design (§3.1 lists no
+	// signature for it).
 	for {
 		var next []byte
 		if err := stream.RecvMsg(&next); err != nil {
@@ -216,7 +227,15 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 				return err
 			}
 		case "heartbeat":
-			if err := s.handleHeartbeat(ctx, stream, orgID, deviceID, sessionID, frame); err != nil {
+			if err := s.handleHeartbeat(ctx, stream, orgID, deviceID, sessionID, frame, nonces); err != nil {
+				return err
+			}
+		case "run_ready":
+			if err := s.handleRunReady(ctx, stream, orgID, deviceID, sessionID, pub, frame, nonces); err != nil {
+				return err
+			}
+		case "run_started":
+			if err := s.handleRunStarted(pub, frame); err != nil {
 				return err
 			}
 		default:

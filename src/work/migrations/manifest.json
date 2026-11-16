@@ -571,6 +571,17 @@
       "catalog_checksum": "sha256:6ed6331b87399387303893ea44688dd338aee417928f044e11f20bf2aa165c87",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 52,
+      "name": "0052_pending_device_offers",
+      "kind": "increment",
+      "file": "increments/0052_pending_device_offers.sql",
+      "checksum": "sha256:f7e7766530944247e1bc402d778af4e26acfef80c3f800f4d7d5cb3a7a936811",
+      "catalog": "catalogs/0052_pending_device_offers.json",
+      "catalog_checksum": "sha256:796bcc41a15092558b595c3cbf9cdae1957ed85724fe896b6f69d97c189bcc2b",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

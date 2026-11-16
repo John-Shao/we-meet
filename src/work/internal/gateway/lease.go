@@ -111,7 +111,13 @@ func leaseEnvelope(deviceID, sessionID string, result json.RawMessage) ([]byte, 
 // matters is the certificate-mapped device and the hello-established session, which the
 // restated renew_device_lease compares against the lease's ORIGINAL device/session (0051).
 // Any refusal fails the whole frame, so the device never sees a partial extension.
-func (s *Server) handleHeartbeat(ctx context.Context, stream grpc.ServerStream, orgID, deviceID, sessionID string, env *Envelope) error {
+//
+// A heartbeat is also the offer poll (主签 2026-11-16 裁定＝搭在 heartbeat 上查): the repo has
+// no worker→gateway signal and a binding is created only after the device already holds a
+// session, so this is the one cadence the design already fixes (§3.3, 10s) at which the
+// gateway can notice a new offer. It runs AFTER the renewals, so a refused heartbeat pushes
+// nothing.
+func (s *Server) handleHeartbeat(ctx context.Context, stream grpc.ServerStream, orgID, deviceID, sessionID string, env *Envelope, nonces map[offerNonceKey]string) error {
 	body, seq, err := parseHeartbeat(env.Body)
 	if err != nil {
 		return mapError(err)
@@ -129,7 +135,7 @@ func (s *Server) handleHeartbeat(ctx context.Context, stream grpc.ServerStream, 
 			return err
 		}
 	}
-	return nil
+	return s.pushPendingOffers(ctx, stream, orgID, deviceID, sessionID, nonces)
 }
 
 // renewLeases renews every lease the heartbeat names in ONE work_worker transaction, so the

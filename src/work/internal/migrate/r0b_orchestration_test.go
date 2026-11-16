@@ -53,9 +53,10 @@ func newOrchestrationFixture(t *testing.T, org string) *orchestrationFixture {
 	o := &orchestrationFixture{deviceFixture: f, deviceID: deviceID, sessionID: sessionID,
 		grantID: grantID, revision: 1, op: newUUID(t)}
 	o.offer(t, worker, 1, "req-o-offer-1")
-	callJSON(t, worker, `SELECT work.acknowledge_run_ready($1,$2::uuid,1,$3,$4::jsonb)`,
+	callJSON(t, worker, `SELECT work.acknowledge_run_ready($1,$2::uuid,1,$3,$4::jsonb,$5::uuid,$6::uuid)`,
 		f.org, f.runID, "req-o-ready-1",
-		`{"binding_hash":"`+strings.Repeat("a", 64)+`","ready_or_reason":"ready","device_signature":"sha256:`+strings.Repeat("b", 64)+`"}`)
+		`{"binding_hash":"`+strings.Repeat("a", 64)+`","ready_or_reason":"ready","device_signature":"`+strings.Repeat("d", 86)+`"}`,
+		o.deviceID, o.sessionID)
 	mustExec(t, f.admin, "UPDATE work.run SET state = 'active', wait_reason = NULL WHERE id = "+quoteLiteral(f.runID))
 	// The operation admission trigger also requires task.active_run_id to point here.
 	mustExec(t, f.admin, "UPDATE work.task SET active_run_id = "+quoteLiteral(f.runID)+
@@ -248,9 +249,10 @@ func TestR0bAcquireRefusesResumeOfferWithoutItsBaseline(t *testing.T) {
 		`","tool_manifest_hash":"` + strings.Repeat("5", 64) + `","model_version":"m1","grant_set":[{"grant_id":"` + o.grantID + `","grant_revision":1}],"offer_ttl_seconds":120}`
 	callJSON(t, worker, `SELECT work.create_device_run_binding($1,$2::uuid,$3::uuid,$4::uuid,2,$5,$6::jsonb)`,
 		o.org, o.runID, o.deviceID, o.sessionID, "req-fc-offer2", offer2)
-	callJSON(t, worker, `SELECT work.acknowledge_run_ready($1,$2::uuid,2,$3,$4::jsonb)`,
+	callJSON(t, worker, `SELECT work.acknowledge_run_ready($1,$2::uuid,2,$3,$4::jsonb,$5::uuid,$6::uuid)`,
 		o.org, o.runID, "req-fc-ready2",
-		`{"binding_hash":"`+strings.Repeat("a", 64)+`","ready_or_reason":"ready","device_signature":"sha256:`+strings.Repeat("b", 64)+`"}`)
+		`{"binding_hash":"`+strings.Repeat("a", 64)+`","ready_or_reason":"ready","device_signature":"`+strings.Repeat("d", 86)+`"}`,
+		o.deviceID, o.sessionID)
 	mustExec(t, o.admin, "UPDATE work.run SET state = 'active', wait_reason = NULL WHERE id = "+quoteLiteral(o.runID))
 	expectCode(t, worker, "resync_required",
 		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,2,'execute',$5::uuid,30)`,

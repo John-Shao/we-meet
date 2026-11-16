@@ -7,6 +7,7 @@
 
 use rusqlite::Connection;
 
+use crate::frame::offer::RunOfferBody;
 use crate::journal::recover::{self, StartRow};
 
 /// A resume rejection.
@@ -40,6 +41,26 @@ pub struct ResumeOffer {
     pub start_nonce: String,
     pub expected_checkpoint_ref: Option<String>,
     pub expected_checkpoint_hash: Option<String>,
+}
+
+impl ResumeOffer {
+    /// Map a wire `run_offer` onto the local validation facts.
+    ///
+    /// `start_nonce` is NOT available here: §3.1 carries it only in `run_start`, so the caller
+    /// passes an empty string for [`validate_resume`] (which never reads it) and the real nonce
+    /// for [`register_resume`], whose UNIQUE `runtime_start.start_nonce` is what makes the start
+    /// single-use. `expected_checkpoint_ref` stays None because the control plane records only
+    /// the expected checkpoint's seq and hash on the binding, never a ref.
+    pub fn from_wire(offer: &RunOfferBody, start_nonce: &str) -> Self {
+        Self {
+            run_id: offer.run_id.clone(),
+            binding_revision: offer.binding_revision,
+            binding_hash: offer.binding_hash.clone(),
+            start_nonce: start_nonce.to_string(),
+            expected_checkpoint_ref: None,
+            expected_checkpoint_hash: offer.expected_checkpoint_hash.clone(),
+        }
+    }
 }
 
 /// Validate a resume offer against local journal facts. `journal_epoch` scopes the
@@ -229,6 +250,71 @@ mod tests {
         assert!(matches!(
             validate_resume(&conn, "epoch-1", &offer(1, "ch1")),
             Err(ResumeError::PriorReceiptsIncomplete)
+        ));
+        drop(conn);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The wire offer carries no start_nonce (§3.1 puts it only in run_start), so validation
+    /// runs with an empty nonce and registration uses the one from run_start. Both go through
+    /// the same mapping, and the ref stays None because the control plane records only the
+    /// expected checkpoint's seq and hash.
+    #[test]
+    fn wire_offer_maps_onto_resume_facts() {
+        use crate::frame::offer::{GrantRef, OriginalTarget, RunOfferBody};
+
+        let wire = RunOfferBody {
+            run_id: "run".into(),
+            binding_revision: 2,
+            binding_hash: "bh".into(),
+            task_id: "task".into(),
+            input_ref: "ref".into(),
+            input_hash: "ih".into(),
+            snapshot_descriptor_ref: None,
+            snapshot_hash: "sh".into(),
+            profile_id: "p1".into(),
+            profile_revision: 1,
+            runtime_digest: "rd".into(),
+            tool_manifest_hash: "tm".into(),
+            model_version: "m1".into(),
+            grant_set: vec![GrantRef {
+                grant_id: "g1".into(),
+                grant_revision: 1,
+            }],
+            expected_checkpoint_seq: Some(1),
+            expected_checkpoint_hash: Some("ch1".into()),
+            original_target: OriginalTarget {
+                device_id: "dev".into(),
+                session_id: "sess".into(),
+            },
+            offer_expiry: "2026-11-16T00:02:00Z".into(),
+            signature: None,
+        };
+        assert!(wire.is_resume());
+
+        let (conn, path) = temp_conn();
+        seed_checkpoint(&conn, "ch1");
+        // Validation before the nonce is known: the empty nonce is never read.
+        let pending = ResumeOffer::from_wire(&wire, "");
+        assert_eq!(pending.start_nonce, "");
+        assert_eq!(pending.expected_checkpoint_ref, None);
+        assert!(validate_resume(&conn, "epoch-1", &pending).is_ok());
+        // Registration with the nonce from run_start makes it single-use: runtime_start's
+        // UNIQUE start_nonce plus INSERT OR IGNORE means a reused nonce buys no second row.
+        let started = ResumeOffer::from_wire(&wire, "nonce-9");
+        register_resume(&conn, &started).unwrap();
+        assert!(recover::read_start(&conn, "run", 2).unwrap().is_some());
+        let mut replay = ResumeOffer::from_wire(&wire, "nonce-9");
+        replay.binding_revision = 3;
+        register_resume(&conn, &replay).unwrap();
+        assert!(
+            recover::read_start(&conn, "run", 3).unwrap().is_none(),
+            "a reused start_nonce must not buy a second runtime_start row"
+        );
+        // The same revision is now stale.
+        assert!(matches!(
+            validate_resume(&conn, "epoch-1", &pending),
+            Err(ResumeError::StaleRevision)
         ));
         drop(conn);
         let _ = std::fs::remove_file(&path);

@@ -466,10 +466,10 @@ func TestR0bFinalizeSuccessionGrantCountsBeforeAnyActionRuns(t *testing.T) {
 		remoteID + `","grant_revision":1}],"offer_ttl_seconds":120}`
 	callJSON(t, worker, `SELECT work.create_device_run_binding($1,$2::uuid,$3::uuid,$4::uuid,2,$5,$6::jsonb)`,
 		l.org, l.runID, l.deviceID, l.sessionID, "req-b4-offer-2", offer)
-	callJSON(t, worker, `SELECT work.acknowledge_run_ready($1,$2::uuid,2,$3,$4::jsonb)`,
+	callJSON(t, worker, `SELECT work.acknowledge_run_ready($1,$2::uuid,2,$3,$4::jsonb,$5::uuid,$6::uuid)`,
 		l.org, l.runID, "req-b4-ready-2",
-		`{"binding_hash":"`+hex64("binding")+`","ready_or_reason":"ready","device_signature":"sha256:`+
-			strings.Repeat("b", 64)+`"}`)
+		`{"binding_hash":"`+hex64("binding")+`","ready_or_reason":"ready","device_signature":"`+
+			strings.Repeat("d", 86)+`"}`, l.deviceID, l.sessionID)
 	mustExec(t, l.admin, "UPDATE work.run SET state = 'waiting', wait_reason = 'input' WHERE id = "+quoteLiteral(l.runID))
 	nonce := "nonce-b4-succ-1"
 	callJSON(t, api,

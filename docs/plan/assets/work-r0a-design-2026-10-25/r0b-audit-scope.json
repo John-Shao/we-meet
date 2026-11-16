@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 51,
-  "chainTipCatalog": "catalogs/0051_device_lease_renewal_ownership.json",
+  "chainTip": 52,
+  "chainTipCatalog": "catalogs/0052_pending_device_offers.json",
   "entries": [
     {
       "name": "GET /work/v2/admin/local-policy",
@@ -303,7 +303,7 @@
     {
       "name": "consume_governance_events",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0051_device_lease_renewal_ownership.json",
+      "origin": "src/work/migrations/catalogs/0052_pending_device_offers.json",
       "callableBy": [
         "work_governance_events"
       ],
@@ -402,7 +402,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0051_device_lease_renewal_ownership.json",
+      "origin": "src/work/migrations/catalogs/0052_pending_device_offers.json",
       "callableBy": [
         "work_api",
         "work_governance_events"
@@ -449,6 +449,15 @@
       "name": "list_pending_audit_exports",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0031_audit_export_stale_lease_discovery.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "list_pending_device_offers",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0052_pending_device_offers.sql",
       "callableBy": [
         "work_worker"
       ],
