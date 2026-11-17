@@ -74,7 +74,7 @@ func (a *actionFixture) actionBody(t *testing.T, stepKey, classification string)
 		`"grant_revision":1,"resource_selector_hash":"` + a.selectorHash + `",` +
 		`"classification":"` + classification + `","destination_id":null,` +
 		`"byte_upper_bound":1024,"token_upper_bound":64,` +
-		`"device_signature":"sha256:` + strings.Repeat("2", 64) + `"}`
+		`"device_signature":"` + strings.Repeat("2", 86) + `"}`
 }
 
 func (a *actionFixture) prepare(t *testing.T, worker *pgx.Conn, stepKey, classification string) map[string]any {
@@ -210,6 +210,25 @@ func TestR0bPrepareLandsTheActionCarrierWithTheServerClassification(t *testing.T
 			`SELECT work.prepare_local_operation($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7,$8::jsonb)`,
 			a.org, a.runID, a.deviceID, a.sessionID, a.leaseID, a.fence, a.checkpointSeq,
 			a.actionBody(t, "tool:2", "remote_excerpt_allowed"))
+	}
+}
+
+// TestR0bPrepareRejectsThePlaceholderSignatureShape proves 0054 reconciled device_signature with
+// the real device signature exactly as 0046/0048/0050/0052/0053 did: the internal sha256
+// placeholder is now invalid_request and nothing is written. The accepted form is covered by
+// every other prepare test in this file, which all sign with the 86-character ES256 shape.
+func TestR0bPrepareRejectsThePlaceholderSignatureShape(t *testing.T) {
+	a := newActionFixture(t, "org_gw13_prepare_shape")
+	worker := a.workerConn(t)
+	body := strings.Replace(a.actionBody(t, "tool:shape", a.grantClass),
+		`"device_signature":"`+strings.Repeat("2", 86)+`"`,
+		`"device_signature":"sha256:`+strings.Repeat("2", 64)+`"`, 1)
+	expectCode(t, worker, "invalid_request",
+		`SELECT work.prepare_local_operation($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7,$8::jsonb)`,
+		a.org, a.runID, a.deviceID, a.sessionID, a.leaseID, a.fence, a.checkpointSeq, body)
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.local_action WHERE org_id = "+
+		quoteLiteral(a.org)); got != 0 {
+		t.Fatalf("a shape refusal wrote %d action rows, want 0", got)
 	}
 }
 

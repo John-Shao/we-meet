@@ -38,6 +38,23 @@ func mapError(err error) error {
 		return status.Error(codes.ResourceExhausted, "rate_limited")
 	case code == "idempotency_key_conflict" || code == "idempotency_conflict":
 		return status.Error(codes.Aborted, code)
+	case code == "operation_key_conflict":
+		// prepare_local_operation's idempotency authority is (org, run, logical_key), not
+		// prepare_id (O-9 = jia): the same key with a DIFFERENT request_hash is a hash conflict,
+		// which §582 maps to ABORTED. The device must not retry it unchanged.
+		return status.Error(codes.Aborted, code)
+	case code == "stale_fence" || code == "run_has_unreconciled_operation" ||
+		code == "supersede_not_allowed" || code == "supersede_limit_exceeded" ||
+		code == "classification_floor_required" || code == "destination_not_allowed_for_local_only" ||
+		code == "local_policy_not_configured" || code == "local_policy_incomplete":
+		// State preconditions, not identity failures and not service faults: the caller is
+		// authenticated and allowed to ask, but the Run/lease/grant/policy state refuses this
+		// action now. §582 maps version/precondition failures to FAILED_PRECONDITION, which is
+		// the gRPC analogue of the 409 these codes carry in control-design §9. In particular
+		// run_has_unreconciled_operation means "wait for reconciliation", not "reconnect"
+		// (device-design §6.2), and destination_not_allowed_for_local_only is derived from the
+		// Run's taint rather than from the caller's permissions, so it is not PERMISSION_DENIED.
+		return status.Error(codes.FailedPrecondition, code)
 	case strings.HasPrefix(code, "unknown_required_feature"):
 		return status.Error(codes.FailedPrecondition, code)
 	case code == "resync_required":

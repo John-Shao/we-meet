@@ -193,10 +193,10 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 	// After hello_ack the stream carries device uplink frames. GW4 handles receipt,
 	// GW6 reconcile, GW7 the operation_resolution_ack that advances the delivery
 	// watermark, GW9 checkpoint_commit, GW10 heartbeat (lease renewal), GW11 run_ready and
-	// run_started; the remaining frames (permit/command/finish) are refused as unimplemented
-	// rather than silently dropped. The public key verified at hello is reused for the
-	// session's signed uplink frames; heartbeat is unsigned by design (§3.1 lists no
-	// signature for it).
+	// run_started, GW12 run_finish, GW13 action_prepare; the remaining frames (permit/command)
+	// are refused as unimplemented rather than silently dropped. The public key verified at
+	// hello is reused for the session's signed uplink frames; heartbeat is unsigned by design
+	// (§3.1 lists no signature for it).
 	for {
 		var next []byte
 		if err := stream.RecvMsg(&next); err != nil {
@@ -240,6 +240,10 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 			}
 		case "run_finish":
 			if err := s.handleRunFinish(ctx, stream, orgID, deviceID, sessionID, pub, frame); err != nil {
+				return err
+			}
+		case "action_prepare":
+			if err := s.handleActionPrepare(ctx, stream, orgID, deviceID, sessionID, pub, frame); err != nil {
 				return err
 			}
 		default:

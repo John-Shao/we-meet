@@ -11,6 +11,7 @@
 //! (`DeviceGateway/Connect`), hello_ack/session assignment and the ticket-mint
 //! handshake land with the server-gateway batch.
 
+pub mod action;
 pub mod checkpoint;
 pub mod envelope;
 pub mod finish;

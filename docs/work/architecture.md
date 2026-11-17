@@ -220,7 +220,7 @@ Temporal 使用独立持久化库与角色、独立 namespace 与任务队列，
 - **云 KMS 未接**：静态单层加密是已签范围例外（[ADR-0023](decisions/0023-static-single-layer-encryption.md)），接触客户数据须重开。
 - **外发内容治理未落地**：来源标签分类与秘密模式检测只存在于设计资产校验器，生产 egress 路径不执行（`src/work/internal/egress/doc.go` 已显式更正此前的假控制注释）。egress 实际强制的是请求文档哈希冻结、provider/model 匹配与单次发送。
 - **计量只统计 token，不计算费用**（[ADR-0022](decisions/0022-token-metering-not-money.md)）；客户自带模型账号，护栏取代金额账本。
-- **R0b 实现部分开始**：M1a 设备面表族与 M1b REST 面（Bearer 平面，`src/work/internal/api/bootstrap.go`）已落仓库并有 Go 用例，**未 rollout**；M3 设备 agent（Rust，`src/device/`）与服务端网关（`src/work/internal/gateway/`，真 ES256 验签＋receipt/reconcile/resolution/checkpoint 上行与 ack 签名链＋heartbeat/lease 续租面＋offer/ready/start 脊＋run_finish 收尾裁决面）已部分落仓库并有 Go＋Rust 用例，**未 rollout、未接生产消费与 live transport**；M2 桌面壳本机能力（Electron IPC/viewer/S2 隔离）、M4 前端消费者、M5 EV 与验收（TestEV*、S2/S4 签收单实测、J39 审计）未实现。R0b 现网验收用例至今零执行；仓库/现网迁移 tip 见 [status.json](status.json)。
+- **R0b 实现部分开始**：M1a 设备面表族与 M1b REST 面（Bearer 平面，`src/work/internal/api/bootstrap.go`）已落仓库并有 Go 用例，**未 rollout**；M3 设备 agent（Rust，`src/device/`）与服务端网关（`src/work/internal/gateway/`，真 ES256 验签＋receipt/reconcile/resolution/checkpoint 上行与 ack 签名链＋heartbeat/lease 续租面＋offer/ready/start 脊＋run_finish 收尾裁决面＋action_prepare 动作提出面）已部分落仓库并有 Go＋Rust 用例，**未 rollout、未接生产消费与 live transport**；M2 桌面壳本机能力（Electron IPC/viewer/S2 隔离）、M4 前端消费者、M5 EV 与验收（TestEV*、S2/S4 签收单实测、J39 审计）未实现。R0b 现网验收用例至今零执行；仓库/现网迁移 tip 见 [status.json](status.json)。
 - **席位按人归并未实现**，当前投影仍是"最后修改行赢"（§1.2）。
 
 ## 9. 变更纪律

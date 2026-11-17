@@ -66,6 +66,7 @@ var publishedIncrements = []string{
 	"0051_device_lease_renewal_ownership",
 	"0052_pending_device_offers",
 	"0053_local_run_finish_ownership",
+	"0054_local_action_prepare_signature",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

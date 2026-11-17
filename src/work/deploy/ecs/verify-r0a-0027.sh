@@ -88,7 +88,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (50, '0050_device_checkpoint_binding_watermark'),
   (51, '0051_device_lease_renewal_ownership'),
   (52, '0052_pending_device_offers'),
-  (53, '0053_local_run_finish_ownership')) expected(version, name)
+  (53, '0053_local_run_finish_ownership'),
+  (54, '0054_local_action_prepare_signature')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -993,6 +994,28 @@ psql_ro "select 'finish_deliverable_gate_exempts_only_rejected=' || case when (
     and c.conname = 'device_run_finish_deliverable_shape'
     and pg_get_constraintdef(c.oid) like '%rejected%'
     and pg_get_constraintdef(c.oid) like '%deliverable_versions_valid%') = 1
+  then 'true' else 'FALSE' end"
+
+# 0054 restated prepare_local_operation for the real device signature. A ledger row cannot show
+# that the placeholder is actually gone: the whole point of the increment is that a genuine
+# ES256 action_prepare (86 base64url characters) stops being refused as invalid_request, while
+# the old sha256 placeholder form is no longer accepted. Also assert the restatement kept the
+# definer + pinned search_path (CREATE OR REPLACE inherits neither) and the worker-only EXECUTE,
+# and that the lease/fence gates the new frame keys feed are still in the body.
+psql_ro "select 'local_action_prepare_demands_real_signature=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work'
+    and p.proname = 'prepare_local_operation'
+    and p.prosecdef
+    and p.proconfig @> ARRAY['search_path=work, pg_catalog']) = 1
+  and has_function_privilege('work_worker',
+        'work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)', 'EXECUTE')
+  and not has_function_privilege('work_api',
+        'work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)', 'EXECUTE')
+  and position('^[A-Za-z0-9_-]{86}' in pg_get_functiondef('work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure)) > 0
+  and position('^sha256:' in pg_get_functiondef('work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure)) = 0
+  and position('v_lease.purpose' in pg_get_functiondef('work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure)) > 0
+  and position('stale_fence' in pg_get_functiondef('work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure)) > 0
   then 'true' else 'FALSE' end"
 
 echo

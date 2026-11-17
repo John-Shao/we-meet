@@ -593,6 +593,17 @@
       "catalog_checksum": "sha256:f64211c6c7820e36867dbee9f4b87a362ac9a88ccd25693cd90ecaa7eb9601a0",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 54,
+      "name": "0054_local_action_prepare_signature",
+      "kind": "increment",
+      "file": "increments/0054_local_action_prepare_signature.sql",
+      "checksum": "sha256:6864ee4d098f491d423f684662fcc8399bad967ad1aecfea4924c61f4beb706c",
+      "catalog": "catalogs/0054_local_action_prepare_signature.json",
+      "catalog_checksum": "sha256:877b63bc626e6b5c284462b8fa723c3f0420768f1a347514c43e8ca966d7d54d",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

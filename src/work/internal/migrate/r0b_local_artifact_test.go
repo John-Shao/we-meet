@@ -179,7 +179,7 @@ func (l *localArtifactFixture) prepareAction(t *testing.T, worker *pgx.Conn, ste
 		`","grant_revision":` + rev + `,"resource_selector_hash":"` + hex64("selector|"+stepKey) +
 		`","classification":"` + l.grantClass(t, grantID) + `","destination_id":null,` +
 		`"byte_upper_bound":2048,"token_upper_bound":64,` +
-		`"device_signature":"sha256:` + strings.Repeat("2", 64) + `"}`
+		`"device_signature":"` + strings.Repeat("2", 86) + `"}`
 	out := callJSON(t, worker,
 		`SELECT work.prepare_local_operation($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7,$8::jsonb)`,
 		l.org, l.runID, l.deviceID, l.sessionID, l.leaseID, l.fence, l.checkpointSeq, body)
