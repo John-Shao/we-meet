@@ -7,7 +7,12 @@
 //! Scope (batch 5): transport + authentication + handshake + framing + method
 //! closure. Per-method payload schemas/handlers land with their feature batches;
 //! the AppContainer per-Run pipe ACL lands with the sidecar batch.
+//!
+//! GW18 wires the shell channel: [`dispatch`] is the closed reply vocabulary and the
+//! per-message routing decision (cross-platform), and [`service`] is the Windows named-pipe
+//! service loop that runs it. The ticket itself is pumped to the live link by [`crate::broker`].
 
+pub mod dispatch;
 pub mod frame;
 pub mod handshake;
 pub mod schema;
@@ -15,3 +20,5 @@ pub mod ticket;
 
 #[cfg(windows)]
 pub mod pipe;
+#[cfg(windows)]
+pub mod service;

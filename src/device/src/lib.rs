@@ -11,6 +11,7 @@
 //! here yet claims a production capability.
 
 pub mod b64;
+pub mod broker;
 pub mod es256;
 pub mod finish;
 pub mod frame;

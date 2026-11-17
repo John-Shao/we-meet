@@ -413,8 +413,11 @@ pub enum LinkEvent {
         /// The consecutive-failure count this disconnect belongs to.
         attempt: u32,
     },
-    /// No ticket is available, so the link cannot dial. §2.2 tickets are minted by the desktop
-    /// shell from its native Bearer session and delivered over IPC (GW17b).
+    /// This dial attempt needs a ticket and none is buffered. Emitted once per attempt, before the
+    /// link waits, and ONLY when the ticket channel is empty — the GW18 pump
+    /// ([`crate::broker`]) withdraws one single-use ticket from the slot on this signal, so a
+    /// spurious emission would spend a ticket the link does not need. §2.2 tickets are minted by
+    /// the desktop shell from its native Bearer session and delivered over the ACL-protected pipe.
     AwaitingTicket,
     /// The link was asked to stop and has stopped.
     Stopped,

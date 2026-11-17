@@ -46,6 +46,10 @@ pub enum PipeError {
     SessionMismatch,
     Io,
     Frame,
+    /// The one-time handshake was refused (nonce, protocol major, client kind or replay).
+    Handshake,
+    /// The ticket pump is gone, so there is nobody to hand a delivery to or to answer from.
+    Broker,
 }
 
 /// Read the user SID bytes from a process token.

@@ -99,6 +99,12 @@ impl Link {
         let mut leases = LeaseSet::default();
         let mut attempt: u32 = 0;
         loop {
+            // Tell the core this dial attempt needs a ticket, but ONLY when none is buffered. The
+            // GW18 pump withdraws from the single-use slot on exactly this signal, so emitting it
+            // with a ticket already queued would spend a second ticket the link does not need.
+            if tickets.is_empty() && events.send(LinkEvent::AwaitingTicket).await.is_err() {
+                return;
+            }
             let ticket = loop {
                 tokio::select! {
                     incoming = tickets.recv() => match incoming {
@@ -673,6 +679,11 @@ mod tests {
         drop(command_tx);
         let link = Link::new(config(), Arc::new(SoftwareKey::random()));
         link.run(ticket_rx, command_rx, event_tx).await;
+        // An empty channel announces the wait before the closed channel ends the loop.
+        assert!(matches!(
+            event_rx.recv().await,
+            Some(LinkEvent::AwaitingTicket)
+        ));
         assert!(matches!(event_rx.recv().await, Some(LinkEvent::Stopped)));
         assert!(event_rx.recv().await.is_none());
     }
@@ -685,6 +696,10 @@ mod tests {
         command_tx.send(LinkCommand::Stop).await.unwrap();
         let link = Link::new(config(), Arc::new(SoftwareKey::random()));
         link.run(ticket_rx, command_rx, event_tx).await;
+        assert!(matches!(
+            event_rx.recv().await,
+            Some(LinkEvent::AwaitingTicket)
+        ));
         assert!(matches!(event_rx.recv().await, Some(LinkEvent::Stopped)));
     }
 
@@ -711,6 +726,10 @@ mod tests {
         command_tx.send(LinkCommand::Stop).await.unwrap();
         let link = Link::new(config(), Arc::new(SoftwareKey::random()));
         link.run(ticket_rx, command_rx, event_tx).await;
+        assert!(matches!(
+            event_rx.recv().await,
+            Some(LinkEvent::AwaitingTicket)
+        ));
         match event_rx.recv().await {
             Some(LinkEvent::LeasesInvalidated { ids, cause }) => {
                 assert_eq!(ids, vec!["lease-1".to_string()]);
@@ -746,6 +765,40 @@ mod tests {
         // Stop only AFTER the disconnect is observed: with both channels ready tokio::select!
         // picks either branch, so pre-loading Stop would race the ticket and prove nothing.
         command_tx.send(LinkCommand::Stop).await.unwrap();
+        // The redial has no buffered ticket left, so it announces the wait before stopping.
+        assert!(matches!(
+            event_rx.recv().await,
+            Some(LinkEvent::AwaitingTicket)
+        ));
+        assert!(matches!(event_rx.recv().await, Some(LinkEvent::Stopped)));
+        handle.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_buffered_ticket_is_not_announced_as_a_wait() {
+        let (ticket_tx, ticket_rx) = mpsc::channel(1);
+        let (command_tx, command_rx) = mpsc::channel(1);
+        let (event_tx, mut event_rx) = mpsc::channel(8);
+        ticket_tx.send("ticket-1".into()).await.unwrap();
+        let mut cfg = config();
+        cfg.reconnect = super::super::Reconnect {
+            base: Duration::from_millis(1),
+            max: Duration::from_millis(2),
+        };
+        let link = Link::new(cfg, Arc::new(SoftwareKey::random()));
+        let handle = tokio::spawn(link.run(ticket_rx, command_rx, event_tx));
+        // The FIRST event is the dial failure, not a wait: a ticket was already queued, and
+        // announcing a wait would make the GW18 pump spend a second single-use ticket.
+        match event_rx.recv().await {
+            Some(LinkEvent::Disconnected { attempt, .. }) => assert_eq!(attempt, 1),
+            other => panic!("expected Disconnected without a prior wait, got {other:?}"),
+        }
+        command_tx.send(LinkCommand::Stop).await.unwrap();
+        // Only the next attempt, with the channel now empty, announces the wait.
+        assert!(matches!(
+            event_rx.recv().await,
+            Some(LinkEvent::AwaitingTicket)
+        ));
         assert!(matches!(event_rx.recv().await, Some(LinkEvent::Stopped)));
         handle.await.unwrap();
     }
