@@ -333,14 +333,19 @@ jobs:
             -v /data/media:/data \
             docker.io/pgsty/silo:RELEASE.2026-10-18T00-00-00Z server --console-address :9001 /data
 
-      # Tool to wait for a service to be ready
-      - name: Install Dockerize
-        run: |
-          curl -sSL https://github.com/jwilder/dockerize/releases/download/v0.8.0/dockerize-linux-amd64-v0.8.0.tar.gz | sudo tar -C /usr/local/bin -xzv
-
+      # docker-proxy accepts the published port before MinIO listens, so a TCP probe
+      # reports ready while `mc` inside the container still gets connection refused.
+      # Wait for the server itself to answer its health endpoint (same probe the E2E
+      # job uses) rather than for the port to be open.
       - name: Wait for MinIO to be ready
         run: |
-          dockerize -wait tcp://localhost:9000 -timeout 10s
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:9000/minio/health/ready >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 60 ]; then exit 1; fi
+            sleep 2
+          done
 
       - name: Configure MinIO
         run: |
