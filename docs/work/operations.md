@@ -44,9 +44,11 @@ unit 权威＝`src/work/deploy/ecs/*.service`（directory-sync 两个 unit 为�
 | work-runtime.service | Node/Pi runtime（Node≥22，/opt/work/runtime） | 127.0.0.1:8446 | work-runtime.env |
 | work-export.service | 审计导出 worker | 无 | work-worker.env＋work-export.env |
 | work-directory-sync.service / -full.service | 目录投影同步（oneshot） | 无 | work-directory-sync.env |
+| work-cancel.service | governance 取消意图消费者（oneshot，**生产写**） | 无 | work-worker.env＋work-cancel.env |
 | work-chain-check.service | 链尾启动闸（oneshot，root） | 无 | /root/work-secrets.env |
 
 - `work-chain-check` 由 `work-api.service` 的 `Requires=` 拉起（卡片 V）；**现网 work-api unit 仍是无此闸的旧版**，随下次 rollout 安装后生效（§3.5）。
+- `work-cancel`（0057／GW16）：一次 oneshot＝对 `WORK_CANCEL_ORGS` 里每个 org 跑一轮有界消费（≤100 Task、≤500 意图），超量保持 pending 且 next_attempt 不变，下一轮继续。它是 work_worker，逐 org 设租户上下文，**没有跨组织 claim**；不发帧、不写 Run 终态，只进已登记的 cancel_requested 路径并写 relay 的 cancel_signal 交接。**入包≠安装**：rollout 未点名它，现网尚未安装（与 0046–0057 同属 M3 线，不在已裁 rollout 包内）。死信告警＝`cancellation_intent.dead_lettered` 审计行（照 outbox 先例），**无 gauge**；重放只能由 work_ops 调 `requeue_cancellation_dead_letter`，consumed 不可重开。
 - Temporal 在 k8s 侧（资产 `deploy/aliyun/temporal/`），worker/relay 经 mTLS 连 `WORK_TEMPORAL_ADDRESS`（模板值 10.43.147.249:7233，namespace `work-r0a`）。
 
 Timer 清单（周期以 `systemctl list-timers` 现读为准）：
@@ -58,6 +60,7 @@ Timer 清单（周期以 `systemctl list-timers` 现读为准）：
 | work-runstream-scan.timer | 每 10 分钟 | 只读运行流读数 |
 | work-retention-scan.timer | 每小时（Persistent） | **生产写：到期清扫＋粉碎投递** |
 | work-c16-log-scan.timer | 每日（Persistent） | 只读日志扫描 |
+| work-cancel.timer | 每 5s（oneshot，不重叠） | **生产写：消费 cancellation_intent→cancel_requested** |
 | work-directory-sync.timer / -full.timer | 主机自管；设计值增量 300s/全量每日 | 生产写（投影） |
 | meet-db-backup@work.timer | 每 6 小时（00/06/12/18:35＋≤10min 随机） | 备份上传 |
 | meet-db-backup-check@work.timer | 每小时 | 备份校验 |
@@ -205,6 +208,7 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/healthz # [只读
 sudo systemctl list-timers 'work-*' 'meet-db-backup*'                 # [只读]
 journalctl -u work-reconcile-scan.service -o cat | tail               # [只读] orgs=N orphans=M scan_errors=K
 journalctl -u work-runstream-scan.service -o cat | tail               # [只读] BREACH/ok＋六条读数
+journalctl -u work-cancel.service -o cat | tail                       # [只读] orgs=N intents=M＋逐条 outcome/state
 ```
 
 ### 4.2 目录同步新鲜度
@@ -310,9 +314,11 @@ sudo WORK_BACKUP_IDENTITY=/root/work-backups/work-offsite-20261029.agekey \
 | work-runstream-scan（10min） | 无越限 | 调用失败/缺读数 | parked_runs>0 或 held_on_terminal>容差 | — |
 | work-retention-scan（hourly） | 干净（扫到 N 行属正常） | 调用失败/缺读数 | content_shred 卡住 >15min 宽限窗 | — |
 | work-c16-log-scan（daily） | 干净 | preflight 失败/正控未 fire | — | 发现正文/秘密 |
+| work-cancel（5s） | 一轮完成（含 0 条） | org 清单为空/claim 或退避写库失败 | — | — |
 
 - `parked_runs` 排除 waiting/quota（有意状态，24h 上限）；waiting/reconcile 不排除——那是"24 小时窗口决定要不要救"，每小时 BREACH 是设计内的钟，不是告警坏了。
 - `orphans=0` ≠ 没有停放 Run（workflow 仍 Running 的那类孤儿规则看不见）；`held_on_terminal` 容差现值 0，泄漏一笔即红。
+- work-cancel 的 rc 只报基础设施：意图死信**不**标红单元（告警是 `cancellation_intent.dead_lettered` 审计行，与 outbox 死信同口径），单条意图被拒也不标红——它进退避阶梯，十次或非可重试才死信。值班读死信：`SELECT count(*) FROM work.audit_event WHERE action='cancellation_intent.dead_lettered'` **[只读]**。
 - 判自动路径看 `runs_logged`/journal，不抄历史时刻；不要手跑 work-healthcheck.sh 去"消警"。
 
 ### 7.3 值班程序

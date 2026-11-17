@@ -91,7 +91,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (53, '0053_local_run_finish_ownership'),
   (54, '0054_local_action_prepare_signature'),
   (55, '0055_device_permit_mint_command_claim'),
-  (56, '0056_device_cancel_face')) expected(version, name)
+  (56, '0056_device_cancel_face'),
+  (57, '0057_cancellation_intent_consumer')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -339,13 +340,19 @@ echo "== deploy/ecs closure files (卡片 W: packaged != installed) =="
 # 同日补的 work-chain-check.service）加安装步骤，其余逐名走这里的读数。present＝主机上有这一份
 # （多数是初次装机手工放的，仓库此刻才有出处）；MISSING＝按本包重建的主机上会缺。两者都是部署状态，
 # 不进 FAILURES（与上面 drill 二进制、restore drill 同一口径：本脚本只报，不因此拒绝）。
+# 2026-11-17（0057／GW16）：work-cancel 三件同口径入包不入安装——它是 M3 线（0046–0057），不在
+# 已裁 rollout 包（0040–0045／39→45）内，rollout 没有它的安装步骤。这里逐名报在位性，让"包里有、
+# 主机还没装"出现在验收转写里；env 读的是安装态 /etc/work/work-cancel.env，不是 .example 模板。
 for pair in \
   "work-relay.service:/etc/systemd/system/work-relay.service" \
   "work-worker.service:/etc/systemd/system/work-worker.service" \
   "work-export.service:/etc/systemd/system/work-export.service" \
   "work-worker.env.example:/etc/work/work-worker.env" \
   "work-export.env.example:/etc/work/work-export.env" \
-  "work-health-alert.py:/usr/local/bin/work-health-alert.py"; do
+  "work-health-alert.py:/usr/local/bin/work-health-alert.py" \
+  "work-cancel.service:/etc/systemd/system/work-cancel.service" \
+  "work-cancel.timer:/etc/systemd/system/work-cancel.timer" \
+  "work-cancel.env.example:/etc/work/work-cancel.env"; do
   name="${pair%%:*}"
   host="${pair#*:}"
   printf '  %s -> %s = %s\n' "$name" "$host" "$(test -e "$host" && echo present || echo MISSING)"
@@ -1120,6 +1127,70 @@ psql_ro "select 'cancel_ack_settles_operations_without_writing_run_state=' || ca
   and position('^[A-Za-z0-9_-]{86}' in pg_get_functiondef('work.acknowledge_device_cancel(text,uuid,bigint,text,bigint,uuid,uuid,text)'::regprocedure)) > 0
   and position('revision_conflict' in pg_get_functiondef('work.acknowledge_device_cancel(text,uuid,bigint,text,bigint,uuid,uuid,text)'::regprocedure)) > 0
   and position('v_operation.state = ''dispatching'' AND p_stopped_or_unknown = ''unknown''' in pg_get_functiondef('work.acknowledge_device_cancel(text,uuid,bigint,text,bigint,uuid,uuid,text)'::regprocedure)) > 0
+  then 'true' else 'FALSE' end"
+
+# 0057 gave cancellation_intent's consumed/dead_letter states their first writers. The replay
+# edge is a ROW in work.state_transition, so no catalog section can show it: without it ops
+# replay is uncallable (no_delete plus the composite PK also forbid expressing a replay as a
+# fresh row). `consumed` must stay terminal - the guard refuses consumed->dead_letter and no
+# consumed->pending edge may exist, or a settled intent could be re-opened.
+psql_ro "select 'cancellation_replay_edge_registered_and_consumed_terminal=' || case when (
+  select count(*) from work.state_transition
+  where entity = 'cancellation_intent' and from_state = 'dead_letter' and to_state = 'pending') = 1
+  and (select count(*) from work.state_transition
+       where entity = 'cancellation_intent' and from_state = 'consumed') = 0
+  and (select count(*) from work.state_transition
+       where entity = 'cancellation_intent') = 3
+  and has_function_privilege('work_ops',
+        'work.requeue_cancellation_dead_letter(text,uuid,uuid,text,text)', 'EXECUTE')
+  and not has_function_privilege('work_worker',
+        'work.requeue_cancellation_dead_letter(text,uuid,uuid,text,text)', 'EXECUTE')
+  then 'true' else 'FALSE' end"
+
+# The consumer must re-check §6.1's predicate per scope inside the Task lock rather than
+# trusting the producer, must NOT test deny.state (a released deny still cancels its old Runs),
+# and must not become a Run terminal writer. All four scope branches are asserted present
+# because a missing one silently narrows or widens the cancel range.
+psql_ro "select 'cancellation_consumer_rechecks_scope_and_writes_no_terminal_state=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work'
+    and p.proname = 'consume_cancellation_intent'
+    and p.prosecdef
+    and p.proconfig @> ARRAY['search_path=work, pg_catalog']) = 1
+  and has_function_privilege('work_worker',
+        'work.consume_cancellation_intent(text,uuid,uuid)', 'EXECUTE')
+  and not has_function_privilege('work_api',
+        'work.consume_cancellation_intent(text,uuid,uuid)', 'EXECUTE')
+  and position('WHEN ''org''' in pg_get_functiondef('work.consume_cancellation_intent(text,uuid,uuid)'::regprocedure)) > 0
+  and position('WHEN ''member''' in pg_get_functiondef('work.consume_cancellation_intent(text,uuid,uuid)'::regprocedure)) > 0
+  and position('WHEN ''device''' in pg_get_functiondef('work.consume_cancellation_intent(text,uuid,uuid)'::regprocedure)) > 0
+  and position('WHEN ''grant''' in pg_get_functiondef('work.consume_cancellation_intent(text,uuid,uuid)'::regprocedure)) > 0
+  and position('admission_access_epoch' in pg_get_functiondef('work.consume_cancellation_intent(text,uuid,uuid)'::regprocedure)) > 0
+  and position('v_deny.state' in pg_get_functiondef('work.consume_cancellation_intent(text,uuid,uuid)'::regprocedure)) = 0
+  and position('SET state = ''canceled''' in pg_get_functiondef('work.consume_cancellation_intent(text,uuid,uuid)'::regprocedure)) = 0
+  and position('cancel_signal' in pg_get_functiondef('work.consume_cancellation_intent(text,uuid,uuid)'::regprocedure)) > 0
+  then 'true' else 'FALSE' end"
+
+# §6.1's ladder is 1s..60s with dead-letter at 10 and an alert; the outbox precedent's ceiling
+# is 300s, so a copy-paste of that ladder would silently retry five times longer than ruled.
+# The claim caps are DB facts too: a producer-side cap would drop cancellations (0023:103).
+psql_ro "select 'cancellation_ladder_and_claim_caps_match_the_ruling=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work'
+    and p.proname = 'fail_cancellation_intent'
+    and p.prosecdef
+    and p.proconfig @> ARRAY['search_path=work, pg_catalog']) = 1
+  and has_function_privilege('work_worker',
+        'work.fail_cancellation_intent(text,uuid,uuid,boolean)', 'EXECUTE')
+  and position('LEAST(power(2, v_attempts - 1), 60)' in pg_get_functiondef('work.fail_cancellation_intent(text,uuid,uuid,boolean)'::regprocedure)) > 0
+  and position('v_attempts >= 10' in pg_get_functiondef('work.fail_cancellation_intent(text,uuid,uuid,boolean)'::regprocedure)) > 0
+  and position('cancellation_intent.dead_lettered' in pg_get_functiondef('work.fail_cancellation_intent(text,uuid,uuid,boolean)'::regprocedure)) > 0
+  and position('LEAST(GREATEST(COALESCE(p_task_limit, 100), 1), 100)' in pg_get_functiondef('work.claim_pending_cancellation_intents(text,integer,integer)'::regprocedure)) > 0
+  and position('LEAST(GREATEST(COALESCE(p_intent_limit, 500), 1), 500)' in pg_get_functiondef('work.claim_pending_cancellation_intents(text,integer,integer)'::regprocedure)) > 0
+  and has_function_privilege('work_worker',
+        'work.claim_pending_cancellation_intents(text,integer,integer)', 'EXECUTE')
+  and not has_function_privilege('work_api',
+        'work.claim_pending_cancellation_intents(text,integer,integer)', 'EXECUTE')
   then 'true' else 'FALSE' end"
 
 echo

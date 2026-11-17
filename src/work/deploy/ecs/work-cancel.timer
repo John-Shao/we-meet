@@ -1,0 +1,15 @@
+[Unit]
+Description=Every-5-second Work cancellation-intent consumer pass
+
+# 5s 是轮询下限,不是退避:重试顺序与死信计数由 DB 的 next_attempt(§6.1 的 1s..60s 阶梯)
+# 决定,定时器只负责把到期的意图取走。oneshot 单元在运行期间处于 activating,systemd 不会
+# 重叠触发同一单元;claim 的 60s 可见性窗口另外覆盖进程崩溃的情形。
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5s
+RandomizedDelaySec=1s
+Persistent=true
+Unit=work-cancel.service
+
+[Install]
+WantedBy=timers.target

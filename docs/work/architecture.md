@@ -136,6 +136,7 @@ R0b 设备面（**未实现**）再加一层：Rust Broker 持真实文件句柄
 - 用户事件由 SSE 直接读持久事件表，不经外部总线；断线按游标补读，游标过期要求重同步。
 - 对账器（`src/work/cmd/work-reconcile` 与 `src/work/deploy/ecs/` 的定时扫描单元）只能调用同一领域命令，不人工改库绕过已批准内容与预算。
 - outbox 的事件种类是闭集，未知种类以**非重试**方式判失败。因此取消意图一类需要独立告警语义的载体不塞进 outbox，而是自己的表（R0b 迁移 0019 明确拒绝了"取消 outbox"方案）。
+- 取消意图的消费者是独立进程（`src/work/internal/cancellation` ＋ `src/work/cmd/work-cancel`，systemd oneshot timer，迁移 0057）：逐 org 配置清单、work_worker 租户上下文（无跨组织 claim），只调 claim/consume/fail 三条领域命令，进已登记的 `cancel_requested` 路径并写 relay 的 `cancel_signal` 交接；不发帧、不写 Run 终态，死信告警是审计行、重放只能由 work_ops 发起。**入包≠安装**：rollout 只装二进制，单元与 env 未安装（M3 线）。
 
 ### 4.4 提交、启动与收尾的持久性顺序
 
@@ -220,7 +221,7 @@ Temporal 使用独立持久化库与角色、独立 namespace 与任务队列，
 - **云 KMS 未接**：静态单层加密是已签范围例外（[ADR-0023](decisions/0023-static-single-layer-encryption.md)），接触客户数据须重开。
 - **外发内容治理未落地**：来源标签分类与秘密模式检测只存在于设计资产校验器，生产 egress 路径不执行（`src/work/internal/egress/doc.go` 已显式更正此前的假控制注释）。egress 实际强制的是请求文档哈希冻结、provider/model 匹配与单次发送。
 - **计量只统计 token，不计算费用**（[ADR-0022](decisions/0022-token-metering-not-money.md)）；客户自带模型账号，护栏取代金额账本。
-- **R0b 实现部分开始**：M1a 设备面表族与 M1b REST 面（Bearer 平面，`src/work/internal/api/bootstrap.go`）已落仓库并有 Go 用例，**未 rollout**；M3 设备 agent（Rust，`src/device/`）与服务端网关（`src/work/internal/gateway/`，真 ES256 验签＋receipt/reconcile/resolution/checkpoint 上行与 ack 签名链＋heartbeat/lease 续租面＋offer/ready/start 脊＋run_finish 收尾裁决面＋action_prepare 动作提出面＋command 许可下推面（独立 permit 签名键）＋cancel/cancel_ack 停止面（只落停止事实，不当 Run 终态写者））已部分落仓库并有 Go＋Rust 用例，**未 rollout、未接生产消费与 live transport**；M2 桌面壳本机能力（Electron IPC/viewer/S2 隔离）、M4 前端消费者、M5 EV 与验收（TestEV*、S2/S4 签收单实测、J39 审计）未实现。R0b 现网验收用例至今零执行；仓库/现网迁移 tip 见 [status.json](status.json)。
+- **R0b 实现部分开始**：M1a 设备面表族与 M1b REST 面（Bearer 平面，`src/work/internal/api/bootstrap.go`）已落仓库并有 Go 用例，**未 rollout**；M3 设备 agent（Rust，`src/device/`）与服务端网关（`src/work/internal/gateway/`，真 ES256 验签＋receipt/reconcile/resolution/checkpoint 上行与 ack 签名链＋heartbeat/lease 续租面＋offer/ready/start 脊＋run_finish 收尾裁决面＋action_prepare 动作提出面＋command 许可下推面（独立 permit 签名键）＋cancel/cancel_ack 停止面（只落停止事实，不当 Run 终态写者））已部分落仓库并有 Go＋Rust 用例，**未 rollout、未接生产消费与 live transport**；治理取消意图消费者（`src/work/internal/cancellation`＋`src/work/cmd/work-cancel`，0057）已落仓库并有 Go 用例，**未 rollout、systemd 单元与 env 未安装**；M2 桌面壳本机能力（Electron IPC/viewer/S2 隔离）、M4 前端消费者、M5 EV 与验收（TestEV*、S2/S4 签收单实测、J39 审计）未实现。R0b 现网验收用例至今零执行；仓库/现网迁移 tip 见 [status.json](status.json)。
 - **席位按人归并未实现**，当前投影仍是"最后修改行赢"（§1.2）。
 
 ## 9. 变更纪律

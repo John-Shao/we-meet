@@ -626,6 +626,17 @@
       "catalog_checksum": "sha256:c2f41a83a13c807dd66176bb07d5c016d98bf0e96b72d33ee7072c91e52e1a10",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 57,
+      "name": "0057_cancellation_intent_consumer",
+      "kind": "increment",
+      "file": "increments/0057_cancellation_intent_consumer.sql",
+      "checksum": "sha256:61b7f14fa1f63f6fbd68968120167317154fe60f21d865d0f22d80cb80e85423",
+      "catalog": "catalogs/0057_cancellation_intent_consumer.json",
+      "catalog_checksum": "sha256:29c0831fdcb83fe0c2e78483138b44ed031c4785437d75a70a23f267713b050b",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

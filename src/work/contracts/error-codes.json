@@ -432,6 +432,7 @@
     "audit_export_range_invalid": "audit_export_range_invalid",
     "canceled_task_cannot_succeed": "run_not_active",
     "cancellation_intent_content_immutable": "service_degraded",
+    "cancellation_intent_not_pending": "service_degraded",
     "cancellation_intent_terminal_state": "service_degraded",
     "classification_floor_required": "classification_floor_required",
     "classification_unknown": "service_degraded",

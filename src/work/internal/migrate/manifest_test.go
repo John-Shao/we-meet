@@ -69,6 +69,7 @@ var publishedIncrements = []string{
 	"0054_local_action_prepare_signature",
 	"0055_device_permit_mint_command_claim",
 	"0056_device_cancel_face",
+	"0057_cancellation_intent_consumer",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {
