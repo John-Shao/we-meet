@@ -26,6 +26,13 @@ pub struct CngKey {
     jwk: EcP256Jwk,
 }
 
+// The raw handles are process-scoped, not thread-affine: NCryptSignHash and NCryptExportKey
+// are safe to call concurrently on the same key, and the Broker holds one key in an Arc across
+// async tasks. Without these the key cannot be the `Arc<dyn DeviceKey + Send + Sync>` the link
+// requires, which would force a second, exportable signing key alongside the TLS identity.
+unsafe impl Send for CngKey {}
+unsafe impl Sync for CngKey {}
+
 fn wide(text: &str) -> Vec<u16> {
     text.encode_utf16().chain(std::iter::once(0)).collect()
 }

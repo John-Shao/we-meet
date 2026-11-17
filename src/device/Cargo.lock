@@ -1579,6 +1579,7 @@ dependencies = [
  "p256",
  "rand_core",
  "rusqlite",
+ "schannel",
  "serde",
  "serde_jcs",
  "serde_json",

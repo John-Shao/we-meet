@@ -35,9 +35,9 @@ use crate::key::DeviceKey;
 use super::codec::{FrameCodec, MAX_FRAME_BYTES};
 use super::tls::{DeviceTlsConnector, TlsError};
 use super::{
-    clock_discontinuity, is_lease_frame, parse_hello_ack, reconnect_delay, AckError, HelloAck,
-    LeaseLoss, LeaseSet, LinkCommand, LinkConfig, LinkEvent, CONNECT_PATH, PROTOCOL_MAJOR,
-    PROTOCOL_MINOR, REQUIRED_FEATURES,
+    clock_discontinuity, is_lease_frame, parse_hello_ack, reconnect_delay, AckError,
+    ClientIdentity, HelloAck, LeaseLoss, LeaseSet, LinkCommand, LinkConfig, LinkEvent,
+    CONNECT_PATH, PROTOCOL_MAJOR, PROTOCOL_MINOR, REQUIRED_FEATURES,
 };
 
 /// How many uplink frames may be queued for the gRPC writer before the loop waits. §3.1 caps
@@ -341,24 +341,52 @@ async fn establish(
     key: &(dyn DeviceKey + Send + Sync),
     ticket: &str,
 ) -> Result<Session, LinkError> {
-    let connector = DeviceTlsConnector::new(
-        &config.ca_pem,
-        &config.client_pkcs12,
-        &config.pkcs12_password,
-        &config.server_name,
-    )
-    .map_err(LinkError::Tls)?;
     let origin: Uri = config
         .endpoint
         .parse()
         .map_err(|err: http::uri::InvalidUri| LinkError::Transport(err.to_string()))?;
-    let channel = Endpoint::from_shared(config.endpoint.clone())
+    let endpoint = Endpoint::from_shared(config.endpoint.clone())
         .map_err(|err| LinkError::Transport(err.to_string()))?
         .connect_timeout(config.connect_timeout)
-        .tcp_nodelay(true)
-        .connect_with_connector(connector)
-        .await
-        .map_err(|err| LinkError::Transport(err.to_string()))?;
+        .tcp_nodelay(true);
+    // Both connectors erase into the same Channel, so the identity shape is chosen here and
+    // nowhere else. CngBound is the production Windows path and never touches private bytes.
+    let channel = match &config.identity {
+        ClientIdentity::Pkcs12 { der, password } => {
+            let connector =
+                DeviceTlsConnector::new(&config.ca_pem, der, password, &config.server_name)
+                    .map_err(LinkError::Tls)?;
+            endpoint
+                .connect_with_connector(connector)
+                .await
+                .map_err(|err| LinkError::Transport(err.to_string()))?
+        }
+        #[cfg(windows)]
+        ClientIdentity::CngBound {
+            cert_der_chain,
+            container,
+            provider,
+        } => {
+            let connector = super::schannel::CngTlsConnector::new(
+                &config.ca_pem,
+                cert_der_chain,
+                container,
+                provider,
+                &config.server_name,
+            )
+            .map_err(LinkError::Tls)?;
+            endpoint
+                .connect_with_connector(connector)
+                .await
+                .map_err(|err| LinkError::Transport(err.to_string()))?
+        }
+        #[cfg(not(windows))]
+        ClientIdentity::CngBound { .. } => {
+            return Err(LinkError::Transport(
+                "a CNG-bound identity requires Windows".into(),
+            ));
+        }
+    };
     let mut grpc = Grpc::with_origin(channel.clone(), origin)
         .max_decoding_message_size(MAX_FRAME_BYTES)
         .max_encoding_message_size(MAX_FRAME_BYTES);
@@ -501,8 +529,10 @@ mod tests {
             endpoint: "https://localhost:8443".into(),
             server_name: "localhost".into(),
             ca_pem: Vec::new(),
-            client_pkcs12: Vec::new(),
-            pkcs12_password: String::new(),
+            identity: ClientIdentity::Pkcs12 {
+                der: Vec::new(),
+                password: String::new(),
+            },
             device_id: "dev-1".into(),
             boot_id: "boot-1".into(),
             agent_instance_id: "agent-1".into(),

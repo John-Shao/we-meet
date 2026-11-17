@@ -100,11 +100,13 @@ mod win {
             endpoint: cfg.endpoint.clone(),
             server_name: cfg.server_name.clone(),
             ca_pem: cfg.ca_pem.into_bytes(),
-            client_pkcs12: match work_device::b64::decode(&cfg.client_pkcs12_base64) {
-                Ok(bytes) => bytes,
-                Err(_) => fail("client_pkcs12_base64 is not base64url"),
+            identity: work_device::transport::ClientIdentity::Pkcs12 {
+                der: match work_device::b64::decode(&cfg.client_pkcs12_base64) {
+                    Ok(bytes) => bytes,
+                    Err(_) => fail("client_pkcs12_base64 is not base64url"),
+                },
+                password: cfg.pkcs12_password.clone(),
             },
-            pkcs12_password: cfg.pkcs12_password.clone(),
             device_id: cfg.device_id.clone(),
             boot_id: cfg.boot_id.clone(),
             agent_instance_id: cfg.agent_instance_id.clone(),

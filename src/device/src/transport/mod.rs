@@ -30,6 +30,9 @@ pub mod codec;
 pub mod link;
 pub mod tls;
 
+#[cfg(windows)]
+pub mod schannel;
+
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
@@ -82,6 +85,23 @@ pub fn reconnect_delay(attempt: u32, policy: Reconnect) -> Duration {
     policy.base.saturating_mul(factor).min(policy.max)
 }
 
+/// The client identity the link presents at mTLS. Two shapes, because the platform stacks
+/// accept different material and §2.1 forbids the production key from ever being exported:
+/// `CngBound` is the production Windows shape (a CA-issued certificate plus the persisted
+/// key's container name, no private bytes); `Pkcs12` needs the private scalar and therefore
+/// exists ONLY for the test CA and the Linux cross-language interop.
+#[derive(Clone, Debug)]
+pub enum ClientIdentity {
+    /// A PKCS#12 archive and its password. Test/Linux only — see `tls.rs`.
+    Pkcs12 { der: Vec<u8>, password: String },
+    /// A CA-issued certificate chain (leaf first, DER) bound to a non-exportable CNG key.
+    CngBound {
+        cert_der_chain: Vec<Vec<u8>>,
+        container: String,
+        provider: String,
+    },
+}
+
 /// Everything the link needs to dial and to introduce itself. The ticket is NOT here: it is
 /// single-use with a 60s TTL (§2.2) and is supplied per attempt, because every reconnect mints
 /// a new session (see the module doc).
@@ -93,11 +113,8 @@ pub struct LinkConfig {
     pub server_name: String,
     /// The device CA root, PEM.
     pub ca_pem: Vec<u8>,
-    /// The device client identity, PKCS#12 (see tls.rs for the production CNG boundary and for
-    /// why PKCS#8 PEM is not an option: schannel's from_pkcs8 is RSA-only).
-    pub client_pkcs12: Vec<u8>,
-    /// The PKCS#12 archive password.
-    pub pkcs12_password: String,
+    /// The client identity presented at mTLS.
+    pub identity: ClientIdentity,
     /// The CA-bound device id; the envelope must carry exactly this (the gateway refuses a
     /// body that tries to override the certificate-mapped identity).
     pub device_id: String,
