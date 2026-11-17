@@ -238,6 +238,10 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 			if err := s.handleRunStarted(pub, frame); err != nil {
 				return err
 			}
+		case "run_finish":
+			if err := s.handleRunFinish(ctx, stream, orgID, deviceID, sessionID, pub, frame); err != nil {
+				return err
+			}
 		default:
 			return status.Error(codes.Unimplemented, "frame deferred to a later gateway batch")
 		}

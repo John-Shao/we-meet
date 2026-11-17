@@ -65,6 +65,7 @@ var publishedIncrements = []string{
 	"0050_device_checkpoint_binding_watermark",
 	"0051_device_lease_renewal_ownership",
 	"0052_pending_device_offers",
+	"0053_local_run_finish_ownership",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

@@ -13,6 +13,7 @@
 
 pub mod checkpoint;
 pub mod envelope;
+pub mod finish;
 pub mod hello;
 pub mod intent;
 pub mod jcs;

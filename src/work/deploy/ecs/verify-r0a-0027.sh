@@ -87,7 +87,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (49, '0049_pending_device_resolutions'),
   (50, '0050_device_checkpoint_binding_watermark'),
   (51, '0051_device_lease_renewal_ownership'),
-  (52, '0052_pending_device_offers')) expected(version, name)
+  (52, '0052_pending_device_offers'),
+  (53, '0053_local_run_finish_ownership')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -955,6 +956,43 @@ psql_ro "select 'run_ready_command_is_bound_and_worker_only=' || case when (
         'work.acknowledge_run_ready(text,uuid,bigint,text,jsonb,uuid,uuid)', 'EXECUTE')
   and not has_function_privilege('work_api',
         'work.acknowledge_run_ready(text,uuid,bigint,text,jsonb,uuid,uuid)', 'EXECUTE')
+  then 'true' else 'FALSE' end"
+
+# 0053 restated finish_local_run with two identity arguments. Four facts a ledger row cannot
+# show: the old seven-argument overload is GONE (DROP + CREATE, not a second overload); it is
+# definer with the pinned search_path and worker-only; BOTH gates are really in the body (the
+# caller's session epoch check, and the lease compared against the CALLER rather than only
+# against the binding, which is the whole point of the batch); and the internal sha256
+# placeholder shape no longer appears, i.e. device_signature now demands the real ES256 form.
+psql_ro "select 'run_finish_command_is_bound_and_worker_only=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work'
+    and p.proname = 'finish_local_run'
+    and p.prosecdef
+    and p.proconfig @> ARRAY['search_path=work, pg_catalog']) = 1
+  and has_function_privilege('work_worker',
+        'work.finish_local_run(text,uuid,uuid,uuid,bigint,bigint,jsonb,uuid,uuid)', 'EXECUTE')
+  and not has_function_privilege('work_api',
+        'work.finish_local_run(text,uuid,uuid,uuid,bigint,bigint,jsonb,uuid,uuid)', 'EXECUTE')
+  and pg_get_functiondef('work.finish_local_run(text,uuid,uuid,uuid,bigint,bigint,jsonb,uuid,uuid)'::regprocedure)
+      like '%v_lease.device_id <> p_device_id OR v_lease.session_id <> p_session_id%'
+  and position('v_session.auth_epoch' in pg_get_functiondef('work.finish_local_run(text,uuid,uuid,uuid,bigint,bigint,jsonb,uuid,uuid)'::regprocedure)) > 0
+  and position('^sha256:' in pg_get_functiondef('work.finish_local_run(text,uuid,uuid,uuid,bigint,bigint,jsonb,uuid,uuid)'::regprocedure)) = 0
+  then 'true' else 'FALSE' end"
+
+# 0053 change 3: the deliverable shape gate must exempt the REJECTED evidence row, otherwise a
+# completed proposal with an empty deliverable list dies on 23514 while inserting its own refusal
+# evidence and the device never receives the finish_precondition_failed verdict §6.4 step 4
+# defines. The accepted path must still carry the original criterion, so the exemption is read as
+# a disjunction rather than as a dropped constraint.
+psql_ro "select 'finish_deliverable_gate_exempts_only_rejected=' || case when (
+  select count(*) from pg_constraint c
+  join pg_class t on t.oid = c.conrelid
+  join pg_namespace n on n.oid = t.relnamespace
+  where n.nspname = 'work' and t.relname = 'device_run_finish'
+    and c.conname = 'device_run_finish_deliverable_shape'
+    and pg_get_constraintdef(c.oid) like '%rejected%'
+    and pg_get_constraintdef(c.oid) like '%deliverable_versions_valid%') = 1
   then 'true' else 'FALSE' end"
 
 echo

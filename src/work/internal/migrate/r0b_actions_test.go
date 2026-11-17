@@ -344,10 +344,10 @@ func TestR0bFinishRefusesAMismatchedOperationSetHash(t *testing.T) {
 	body := `{"outcome":"failed","reason_code":"model_error","final_checkpoint_seq":` +
 		fmt.Sprintf("%d", a.checkpointSeq) + `,"final_checkpoint_hash":"` + a.checkpointHash +
 		`","receipt_through_seq":0,"final_operation_set_hash":"` + strings.Repeat("e", 64) +
-		`","deliverable_versions":[],"device_signature":"sha256:` + strings.Repeat("4", 64) + `"}`
+		`","deliverable_versions":[],"device_signature":"` + strings.Repeat("4", 86) + `"}`
 	out := callJSON(t, worker,
-		`SELECT work.finish_local_run($1,$2::uuid,$3::uuid,$4::uuid,1,$5,$6::jsonb)`,
-		a.org, a.runID, finishID, a.leaseID, a.fence, body)
+		`SELECT work.finish_local_run($1,$2::uuid,$3::uuid,$4::uuid,1,$5,$6::jsonb,$7::uuid,$8::uuid)`,
+		a.org, a.runID, finishID, a.leaseID, a.fence, body, a.deviceID, a.sessionID)
 	if out["state"] != "rejected" || out["code"] != "finish_state_mismatch" {
 		t.Fatalf("finish = %#v, want rejected/finish_state_mismatch", out)
 	}
@@ -365,8 +365,8 @@ func TestR0bFinishRefusesAMismatchedOperationSetHash(t *testing.T) {
 	}
 	// Replaying the same finish_id returns the same verdict, not a second row.
 	replay := callJSON(t, worker,
-		`SELECT work.finish_local_run($1,$2::uuid,$3::uuid,$4::uuid,1,$5,$6::jsonb)`,
-		a.org, a.runID, finishID, a.leaseID, a.fence, body)
+		`SELECT work.finish_local_run($1,$2::uuid,$3::uuid,$4::uuid,1,$5,$6::jsonb,$7::uuid,$8::uuid)`,
+		a.org, a.runID, finishID, a.leaseID, a.fence, body, a.deviceID, a.sessionID)
 	if replay["replayed"] != true || replay["state"] != "rejected" {
 		t.Fatalf("finish replay = %#v", replay)
 	}

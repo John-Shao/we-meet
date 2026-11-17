@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 52,
-  "chainTipCatalog": "catalogs/0052_pending_device_offers.json",
+  "chainTip": 53,
+  "chainTipCatalog": "catalogs/0053_local_run_finish_ownership.json",
   "entries": [
     {
       "name": "GET /work/v2/admin/local-policy",
@@ -303,7 +303,7 @@
     {
       "name": "consume_governance_events",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0052_pending_device_offers.json",
+      "origin": "src/work/migrations/catalogs/0053_local_run_finish_ownership.json",
       "callableBy": [
         "work_governance_events"
       ],
@@ -402,7 +402,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0052_pending_device_offers.json",
+      "origin": "src/work/migrations/catalogs/0053_local_run_finish_ownership.json",
       "callableBy": [
         "work_api",
         "work_governance_events"

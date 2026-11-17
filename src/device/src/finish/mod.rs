@@ -3,9 +3,10 @@
 //! idempotent by `finish_id` — a re-send (lost ack, or after restart) returns the
 //! same finish_id and the same signed bytes, never a re-judgment. The durable
 //! record is the journal `runtime_finish` table (finish_id primary key); this is
-//! its in-memory projection. The `run_finish` uplink RPC lands with the gateway
-//! batch.
+//! its in-memory projection. The wire bodies live in `crate::frame::finish` and the
+//! server verdict is consumed by [`ack::apply_finish_ack`] (GW12).
 
+pub mod ack;
 pub mod ophash;
 pub mod outcome;
 

@@ -582,6 +582,17 @@
       "catalog_checksum": "sha256:796bcc41a15092558b595c3cbf9cdae1957ed85724fe896b6f69d97c189bcc2b",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 53,
+      "name": "0053_local_run_finish_ownership",
+      "kind": "increment",
+      "file": "increments/0053_local_run_finish_ownership.sql",
+      "checksum": "sha256:c0da32248840a1ba4a228760d3e80c986c4ef04438ab17d6736079cff1402d5b",
+      "catalog": "catalogs/0053_local_run_finish_ownership.json",
+      "catalog_checksum": "sha256:f64211c6c7820e36867dbee9f4b87a362ac9a88ccd25693cd90ecaa7eb9601a0",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

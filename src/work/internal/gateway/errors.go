@@ -28,6 +28,12 @@ func mapError(err error) error {
 		return status.Error(codes.PermissionDenied, "device_revoked")
 	case code == "not_found":
 		return status.Error(codes.NotFound, "not_found")
+	case code == "run_not_found":
+		// The Run does not exist (acquire_device_lease, record_device_checkpoint,
+		// finish_local_run). Without this it fell through to Internal/service_degraded, so a
+		// device could not tell "no such Run" from "server broken" — the same observability
+		// gap GW10 closed for resync_required. The code is already registered.
+		return status.Error(codes.NotFound, code)
 	case code == "rate_limited":
 		return status.Error(codes.ResourceExhausted, "rate_limited")
 	case code == "idempotency_key_conflict" || code == "idempotency_conflict":
