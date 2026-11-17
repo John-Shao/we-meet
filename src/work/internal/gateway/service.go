@@ -34,8 +34,9 @@ import (
 // (operation_resolution first). GW10 adds the heartbeat uplink and the unsigned lease
 // downlink (renew_device_lease, 0051). GW11 adds the offer spine: server-signed run_offer
 // re-push, run_ready uplink, and the server-signed run_start that follows a lease acquire
-// (0052). GW12 adds the run_finish adjudication face, GW13 the action_prepare face, and GW14
-// the command downlink with its INDEPENDENT permit signing key (0055).
+// (0052). GW12 adds the run_finish adjudication face, GW13 the action_prepare face, GW14
+// the command downlink with its INDEPENDENT permit signing key (0055), and GW15 the cancel
+// downlink plus the cancel_ack stop fact (0056).
 type Server struct {
 	pool      *pgxpool.Pool
 	serverKey *ecdsa.PrivateKey
@@ -216,16 +217,24 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 	if err := s.pushPendingCommands(ctx, stream, orgID, deviceID, sessionID, pushed); err != nil {
 		return err
 	}
+	// GW15: the cancel re-push is the fourth session-establish push. It is read-only and targets
+	// the Run through its latest binding, so a device that crashed before acknowledging still
+	// learns of the cancel here; the per-stream cache keeps a heartbeat from repeating it.
+	cancels := map[string]bool{}
+	if err := s.pushPendingCancels(ctx, stream, orgID, deviceID, sessionID, cancels); err != nil {
+		return err
+	}
 
 	// After hello_ack the stream carries device uplink frames. GW4 handles receipt,
 	// GW6 reconcile, GW7 the operation_resolution_ack that advances the delivery
 	// watermark, GW9 checkpoint_commit, GW10 heartbeat (lease renewal), GW11 run_ready and
-	// run_started, GW12 run_finish, GW13 action_prepare. The action spine is now closed end to
-	// end (prepare → permit mint → command); the still-deferred faces (cancel/cancel_ack,
-	// journal_release/journal_ack, run_sealed/run_sealed_ack — R0c) are refused as unimplemented
-	// rather than silently dropped, and command itself is a downlink only. The public key
-	// verified at hello is reused for the session's signed uplink frames; heartbeat is unsigned
-	// by design (§3.1 lists no signature for it).
+	// run_started, GW12 run_finish, GW13 action_prepare, GW15 cancel_ack. The action spine is
+	// closed end to end (prepare → permit mint → command) and so is the stop face (cancel →
+	// cancel_ack); the still-deferred faces (journal_release/journal_ack, run_sealed/
+	// run_sealed_ack — R0c) are refused as unimplemented rather than silently dropped, and
+	// command and cancel are downlinks only. The public key verified at hello is reused for the
+	// session's signed uplink frames; heartbeat is unsigned by design (§3.1 lists no signature
+	// for it).
 	for {
 		var next []byte
 		if err := stream.RecvMsg(&next); err != nil {
@@ -256,7 +265,7 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 				return err
 			}
 		case "heartbeat":
-			if err := s.handleHeartbeat(ctx, stream, orgID, deviceID, sessionID, frame, nonces, pushed); err != nil {
+			if err := s.handleHeartbeat(ctx, stream, orgID, deviceID, sessionID, frame, nonces, pushed, cancels); err != nil {
 				return err
 			}
 		case "run_ready":
@@ -268,11 +277,15 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 				return err
 			}
 		case "run_finish":
-			if err := s.handleRunFinish(ctx, stream, orgID, deviceID, sessionID, pub, frame); err != nil {
+			if err := s.handleRunFinish(ctx, stream, orgID, deviceID, sessionID, pub, frame, cancels); err != nil {
 				return err
 			}
 		case "action_prepare":
 			if err := s.handleActionPrepare(ctx, stream, orgID, deviceID, sessionID, pub, frame, pushed); err != nil {
+				return err
+			}
+		case "cancel_ack":
+			if err := s.handleCancelAck(ctx, orgID, deviceID, sessionID, pub, frame); err != nil {
 				return err
 			}
 		default:

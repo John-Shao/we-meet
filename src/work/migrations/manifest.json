@@ -615,6 +615,17 @@
       "catalog_checksum": "sha256:760198f0ba3a54eebd390a014ba3e26dc131ce7fb13dc3dcf694b9e7826c91b2",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 56,
+      "name": "0056_device_cancel_face",
+      "kind": "increment",
+      "file": "increments/0056_device_cancel_face.sql",
+      "checksum": "sha256:a4808921e59c61fb4a89d899d3dec4deda594ece5e9e4e246a7b39aa62590e80",
+      "catalog": "catalogs/0056_device_cancel_face.json",
+      "catalog_checksum": "sha256:c2f41a83a13c807dd66176bb07d5c016d98bf0e96b72d33ee7072c91e52e1a10",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

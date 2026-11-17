@@ -183,7 +183,14 @@ func finishAckEnvelope(deviceID, sessionID string, result json.RawMessage, key *
 // The idempotency key is the device's finish_id, NOT the envelope message_id: §3.4 step 3 and
 // §6.3 require a lost ack to be repaired by re-sending the SAME finish_id and the same signed
 // bytes, never by re-judging the outcome under a new one.
-func (s *Server) handleRunFinish(ctx context.Context, stream grpc.ServerStream, orgID, deviceID, sessionID string, pub *devicesig.PublicKey, env *Envelope) error {
+//
+// After the verdict the cancel re-push runs (GW15). §3.4 step 4 routes a rejected
+// run_cancel_requested into the cancel_ack flow, and cancel_ack needs the cancel_revision the
+// device only learns from the cancel downlink — pushing here rather than waiting for the next
+// heartbeat is what makes that route callable in the same round trip (GW14's command-after-
+// action_prepared precedent). The per-stream cache means an already-delivered cancel is not
+// repeated.
+func (s *Server) handleRunFinish(ctx context.Context, stream grpc.ServerStream, orgID, deviceID, sessionID string, pub *devicesig.PublicKey, env *Envelope, cancels map[string]bool) error {
 	var sig struct {
 		Signature string `json:"signature"`
 	}
@@ -205,7 +212,10 @@ func (s *Server) handleRunFinish(ctx context.Context, stream grpc.ServerStream, 
 	if err != nil {
 		return status.Error(codes.Internal, "service_degraded")
 	}
-	return stream.SendMsg(ackRaw)
+	if err := stream.SendMsg(ackRaw); err != nil {
+		return err
+	}
+	return s.pushPendingCancels(ctx, stream, orgID, deviceID, sessionID, cancels)
 }
 
 // finishRun forwards one translated proposal through finish_local_run as work_worker (0053).

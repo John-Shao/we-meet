@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 55,
-  "chainTipCatalog": "catalogs/0055_device_permit_mint_command_claim.json",
+  "chainTip": 56,
+  "chainTipCatalog": "catalogs/0056_device_cancel_face.json",
   "entries": [
     {
       "name": "GET /work/v2/admin/local-policy",
@@ -202,6 +202,15 @@
       "classification": "external-audit-required"
     },
     {
+      "name": "acknowledge_device_cancel",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0056_device_cancel_face.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
       "name": "acknowledge_run_ready",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0041_local_run_orchestration.sql",
@@ -312,7 +321,7 @@
     {
       "name": "consume_governance_events",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0055_device_permit_mint_command_claim.json",
+      "origin": "src/work/migrations/catalogs/0056_device_cancel_face.json",
       "callableBy": [
         "work_governance_events"
       ],
@@ -411,7 +420,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0055_device_permit_mint_command_claim.json",
+      "origin": "src/work/migrations/catalogs/0056_device_cancel_face.json",
       "callableBy": [
         "work_api",
         "work_governance_events"
@@ -458,6 +467,15 @@
       "name": "list_pending_audit_exports",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0031_audit_export_stale_lease_discovery.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "list_pending_device_cancels",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0056_device_cancel_face.sql",
       "callableBy": [
         "work_worker"
       ],

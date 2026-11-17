@@ -43,6 +43,16 @@ func mapError(err error) error {
 		// prepare_id (O-9 = jia): the same key with a DIFFERENT request_hash is a hash conflict,
 		// which §582 maps to ABORTED. The device must not retry it unchanged.
 		return status.Error(codes.Aborted, code)
+	case code == "revision_conflict":
+		// acknowledge_device_cancel compares the acked cancel_revision against the Run's
+		// current control_revision (0056). §582 maps a revision conflict to ABORTED: the device
+		// must re-read the cancel downlink rather than retry the same revision unchanged.
+		return status.Error(codes.Aborted, code)
+	case code == "run_cancel_requested":
+		// The Run has no cancel to acknowledge (0056), or finish_local_run_state refused a
+		// succeeded outcome under cancel_requested (0042:1808). Both are state preconditions:
+		// the caller is authenticated and allowed to ask, but the Run's state refuses it now.
+		return status.Error(codes.FailedPrecondition, code)
 	case code == "stale_fence" || code == "run_has_unreconciled_operation" ||
 		code == "supersede_not_allowed" || code == "supersede_limit_exceeded" ||
 		code == "classification_floor_required" || code == "destination_not_allowed_for_local_only" ||

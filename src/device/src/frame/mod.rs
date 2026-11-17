@@ -12,6 +12,7 @@
 //! handshake land with the server-gateway batch.
 
 pub mod action;
+pub mod cancel;
 pub mod checkpoint;
 pub mod command;
 pub mod envelope;

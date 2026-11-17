@@ -90,7 +90,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (52, '0052_pending_device_offers'),
   (53, '0053_local_run_finish_ownership'),
   (54, '0054_local_action_prepare_signature'),
-  (55, '0055_device_permit_mint_command_claim')) expected(version, name)
+  (55, '0055_device_permit_mint_command_claim'),
+  (56, '0056_device_cancel_face')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -1074,6 +1075,51 @@ psql_ro "select 'command_claim_is_bound_and_worker_only=' || case when (
   and position('v_session.auth_epoch' in pg_get_functiondef('work.claim_pending_device_commands(text,uuid,uuid,text)'::regprocedure)) > 0
   and position('device_revoked' in pg_get_functiondef('work.claim_pending_device_commands(text,uuid,uuid,text)'::regprocedure)) > 0
   and position('delivery_state' in pg_get_functiondef('work.claim_pending_device_commands(text,uuid,uuid,text)'::regprocedure)) = 0
+  then 'true' else 'FALSE' end"
+
+# 0056 added the device cancel face. A ledger row cannot show that the getter is genuinely
+# read-only (ruled: cancel_requested + control_revision is already a durable fact, so re-push
+# needs no delivered state), that its targeting is RUN-level through the latest binding rather
+# than session-level (a cancel must survive a reconnect), or that it is worker-only.
+psql_ro "select 'pending_cancel_getter_is_read_only_and_run_targeted=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work'
+    and p.proname = 'list_pending_device_cancels'
+    and p.prosecdef
+    and p.proconfig @> ARRAY['search_path=work, pg_catalog']) = 1
+  and has_function_privilege('work_worker',
+        'work.list_pending_device_cancels(text,uuid,uuid)', 'EXECUTE')
+  and not has_function_privilege('work_api',
+        'work.list_pending_device_cancels(text,uuid,uuid)', 'EXECUTE')
+  and position('UPDATE' in pg_get_functiondef('work.list_pending_device_cancels(text,uuid,uuid)'::regprocedure)) = 0
+  and position('INSERT' in pg_get_functiondef('work.list_pending_device_cancels(text,uuid,uuid)'::regprocedure)) = 0
+  and position('device_run_binding' in pg_get_functiondef('work.list_pending_device_cancels(text,uuid,uuid)'::regprocedure)) > 0
+  and position('MAX(b2.binding_revision)' in pg_get_functiondef('work.list_pending_device_cancels(text,uuid,uuid)'::regprocedure)) > 0
+  and position('cancel_requested' in pg_get_functiondef('work.list_pending_device_cancels(text,uuid,uuid)'::regprocedure)) > 0
+  then 'true' else 'FALSE' end"
+
+# The ack records the stop fact and settles Operations; it must NOT write run.state, because
+# 0042 made finish_local_run_state the local Run's only terminal writer and §3.1's semantics
+# are "stopped 只确认本地可控进程停止，不宣称外部动作未发生". Also assert the closed
+# stopped/unknown vocabulary, the real 86-character ES256 shape, the revision gate, and that
+# an 'unknown' assertion leaves an in-flight Operation dispatching rather than claiming a stop
+# the device never made.
+psql_ro "select 'cancel_ack_settles_operations_without_writing_run_state=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work'
+    and p.proname = 'acknowledge_device_cancel'
+    and p.prosecdef
+    and p.proconfig @> ARRAY['search_path=work, pg_catalog']) = 1
+  and has_function_privilege('work_worker',
+        'work.acknowledge_device_cancel(text,uuid,bigint,text,bigint,uuid,uuid,text)', 'EXECUTE')
+  and not has_function_privilege('work_api',
+        'work.acknowledge_device_cancel(text,uuid,bigint,text,bigint,uuid,uuid,text)', 'EXECUTE')
+  and position('UPDATE work.run' in pg_get_functiondef('work.acknowledge_device_cancel(text,uuid,bigint,text,bigint,uuid,uuid,text)'::regprocedure)) = 0
+  and position('work.cancel_operation' in pg_get_functiondef('work.acknowledge_device_cancel(text,uuid,bigint,text,bigint,uuid,uuid,text)'::regprocedure)) > 0
+  and position('NOT IN (''stopped'', ''unknown'')' in pg_get_functiondef('work.acknowledge_device_cancel(text,uuid,bigint,text,bigint,uuid,uuid,text)'::regprocedure)) > 0
+  and position('^[A-Za-z0-9_-]{86}' in pg_get_functiondef('work.acknowledge_device_cancel(text,uuid,bigint,text,bigint,uuid,uuid,text)'::regprocedure)) > 0
+  and position('revision_conflict' in pg_get_functiondef('work.acknowledge_device_cancel(text,uuid,bigint,text,bigint,uuid,uuid,text)'::regprocedure)) > 0
+  and position('v_operation.state = ''dispatching'' AND p_stopped_or_unknown = ''unknown''' in pg_get_functiondef('work.acknowledge_device_cancel(text,uuid,bigint,text,bigint,uuid,uuid,text)'::regprocedure)) > 0
   then 'true' else 'FALSE' end"
 
 echo
