@@ -30,11 +30,11 @@ import (
 // the quota re-verification are all SQL's, from server facts (work_worker has no SELECT on
 // local_action / workspace_grant / device_session, 0024).
 //
-// NOT served here: permit and command. The 28-key SignedPermit has no minter — consume_device_permit
-// takes it as an input the gateway cannot build, and §3.3 requires signing after the dispatch CAS.
-// The ruled direction (主签 2026-11-17) is to restate consume to mint internally and to add an
-// independent permit signing key; that is the next batch. An accepted action_prepare therefore
-// ends at an authorized or approval-waiting Operation, with nothing dispatched.
+// The permit and command faces are GW14 (command.go): 0055 restated consume_device_permit to
+// mint the 28-key document after the dispatch CAS and added the heartbeat-driven claim, so an
+// accepted prepare is now followed by a signed command whenever the action is dispatchable —
+// immediately on the readonly auto-approved path, on a later heartbeat once the user decides
+// an ask_each Approval through the M1b REST face.
 
 // actionPrepare is the wire action_prepare body. The uint64 fields are decimal strings (§3.1).
 // device/session come from the certificate-mapped transport identity and the hello-established
@@ -240,7 +240,12 @@ func actionPreparedEnvelope(deviceID, sessionID string, result json.RawMessage, 
 // as work_worker and answers with the server-signed result. A refusal is a gRPC status carrying
 // the business code (§582), not an ack body: unlike run_finish there is no verdict set here, and
 // the device must not treat a refused prepare as evidence that the action did not happen.
-func (s *Server) handleActionPrepare(ctx context.Context, stream grpc.ServerStream, orgID, deviceID, sessionID string, pub *devicesig.PublicKey, env *Envelope) error {
+//
+// After the ack the command claim runs unconditionally. The gateway does not decide whether
+// this action is dispatchable — the claim is the authority, and it returns nothing while the
+// Operation waits on an Approval. Running it here rather than only on the next heartbeat is
+// what makes the readonly auto-approved path deliver in the same round trip.
+func (s *Server) handleActionPrepare(ctx context.Context, stream grpc.ServerStream, orgID, deviceID, sessionID string, pub *devicesig.PublicKey, env *Envelope, pushed map[string]bool) error {
 	var sig struct {
 		Signature string `json:"signature"`
 	}
@@ -262,7 +267,10 @@ func (s *Server) handleActionPrepare(ctx context.Context, stream grpc.ServerStre
 	if err != nil {
 		return status.Error(codes.Internal, "service_degraded")
 	}
-	return stream.SendMsg(ackRaw)
+	if err := stream.SendMsg(ackRaw); err != nil {
+		return err
+	}
+	return s.pushPendingCommands(ctx, stream, orgID, deviceID, sessionID, pushed)
 }
 
 // prepareAction forwards one translated action through prepare_local_operation as work_worker.

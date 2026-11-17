@@ -604,6 +604,17 @@
       "catalog_checksum": "sha256:877b63bc626e6b5c284462b8fa723c3f0420768f1a347514c43e8ca966d7d54d",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 55,
+      "name": "0055_device_permit_mint_command_claim",
+      "kind": "increment",
+      "file": "increments/0055_device_permit_mint_command_claim.sql",
+      "checksum": "sha256:7db5f192764793961063a62821f393b3073c24aca25e5b61050fa8834b163bea",
+      "catalog": "catalogs/0055_device_permit_mint_command_claim.json",
+      "catalog_checksum": "sha256:760198f0ba3a54eebd390a014ba3e26dc131ce7fb13dc3dcf694b9e7826c91b2",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

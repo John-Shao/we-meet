@@ -24,7 +24,7 @@ mod tests {
         let mut permit = SignedPermit {
             v: 2,
             aud: AUD_DEVICE_TOOL.into(),
-            kid: "kid".into(),
+            kid: crate::thumbprint::device_key_thumbprint(&server_key.public_jwk()),
             jti: "jti-once".into(),
             org_id: "org".into(),
             subject_id: "sub".into(),
@@ -42,13 +42,13 @@ mod tests {
             access_epoch: 1,
             grant_id: "grant".into(),
             grant_revision: 1,
-            approval_id: "approval".into(),
-            decision_revision: 1,
+            approval_id: Some("approval".into()),
+            decision_revision: Some(1),
             scope_hash: "scope".into(),
             destination_id: None,
             max_bytes: 1024,
-            issued_at: 1000,
-            expires_at: 1005,
+            issued_at: "2026-11-17T12:00:00Z".into(),
+            expires_at: "2026-11-17T12:00:05Z".into(),
             signature: None,
         };
         let value = permit.to_value();
@@ -61,7 +61,7 @@ mod tests {
             device_id: "dev",
             session_id: "sess",
             run_fence: 2,
-            now_unix: 1001,
+            now_unix: crate::frame::rfc3339::parse_utc_seconds("2026-11-17T12:00:01Z").unwrap(),
             remaining_lease_secs: 30,
         };
         permit.validate(&ctx).unwrap();

@@ -202,24 +202,7 @@ func TestActionPrepareCreatesTheOperationAndIsServerSigned(t *testing.T) {
 // an Approval, consumes one action of the grant, and leaves the Run active.
 func TestActionPrepareReadonlyGrantAutoApproves(t *testing.T) {
 	r, grantID := startRunForAction(t)
-	ctx := gwContext(t)
-	seed, err := testpg.Open(ctx, testpg.AdminURLFor(r.f.dbName))
-	if err != nil {
-		t.Fatal(err)
-	}
-	readonlyID := uuid.NewString()
-	script := fmt.Sprintf(`
-		SET app.org_id = '%s';
-		INSERT INTO work.readonly_approval_grant
-			(org_id, id, owner_subject_id, run_id, device_id, workspace_grant_id, grant_revision,
-			 tool_set, resource_selector_hash, policy_epoch, access_epoch, expires_at, status)
-		VALUES ('%s','%s','%s','%s','%s','%s',1,
-			ARRAY['workspace.read'],'%s',1,0, now() + interval '1 hour','active');
-	`, gwOrg, gwOrg, readonlyID, gwSubject, r.runID, r.f.deviceID, grantID, strings.Repeat("c", 64))
-	if err := testpg.ExecRaw(ctx, seed, script); err != nil {
-		t.Fatal(err)
-	}
-	_ = seed.Close(ctx)
+	readonlyID := r.seedReadonlyGrant(t, grantID)
 
 	r.sendAction(t, r.actionBody(grantID, "tool:auto", 0))
 	_, ack, _ := recvTypedFrame(t, r.stream, "action_prepared")

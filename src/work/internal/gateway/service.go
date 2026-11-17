@@ -34,16 +34,23 @@ import (
 // (operation_resolution first). GW10 adds the heartbeat uplink and the unsigned lease
 // downlink (renew_device_lease, 0051). GW11 adds the offer spine: server-signed run_offer
 // re-push, run_ready uplink, and the server-signed run_start that follows a lease acquire
-// (0052). The permit/command/finish frames remain deferred.
+// (0052). GW12 adds the run_finish adjudication face, GW13 the action_prepare face, and GW14
+// the command downlink with its INDEPENDENT permit signing key (0055).
 type Server struct {
 	pool      *pgxpool.Pool
 	serverKey *ecdsa.PrivateKey
 	serverJWK json.RawMessage
+	// permitKey is the second, independent signing key §3.3 requires for execution permits.
+	// It is never the frame key: a permit is an authority to act, so its key and signing
+	// domain are separate from the one that signs receipts, offers and verdicts.
+	permitKey *ecdsa.PrivateKey
+	permitJWK json.RawMessage
+	permitKid string
 }
 
-// NewServer builds a gateway bound to the work database pool and generates its
-// test-only software P-256 signing key. Production server signing keys belong to
-// KMS/HSM with rotation and independent review (J39), deferred.
+// NewServer builds a gateway bound to the work database pool and generates its two
+// test-only software P-256 signing keys. Production signing keys belong to KMS/HSM with
+// rotation and independent review (J39), deferred.
 func NewServer(pool *pgxpool.Pool) (*Server, error) {
 	key, err := devicesig.GenerateSigningKey()
 	if err != nil {
@@ -53,7 +60,20 @@ func NewServer(pool *pgxpool.Pool) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Server{pool: pool, serverKey: key, serverJWK: jwk}, nil
+	permitKey, err := devicesig.GenerateSigningKey()
+	if err != nil {
+		return nil, err
+	}
+	permitJWK, err := devicesig.PublicJWK(permitKey)
+	if err != nil {
+		return nil, err
+	}
+	permitPub, err := devicesig.ParseJWK(permitJWK)
+	if err != nil {
+		return nil, err
+	}
+	return &Server{pool: pool, serverKey: key, serverJWK: jwk,
+		permitKey: permitKey, permitJWK: permitJWK, permitKid: permitPub.Thumbprint}, nil
 }
 
 // deviceGatewayHandler is the interface the gRPC service descriptor checks the
@@ -169,7 +189,7 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 		return status.Error(codes.Internal, "service_degraded")
 	}
 	sessionID, _ := ackObj["session_id"].(string)
-	ackRaw, err := helloAckEnvelope(deviceID, sessionID, ack, s.serverJWK)
+	ackRaw, err := helloAckEnvelope(deviceID, sessionID, ack, s.serverJWK, s.permitJWK)
 	if err != nil {
 		return status.Error(codes.Internal, "service_degraded")
 	}
@@ -189,14 +209,23 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 	if err := s.pushPendingOffers(ctx, stream, orgID, deviceID, sessionID, nonces); err != nil {
 		return err
 	}
+	// GW14: the command claim is the third session-establish push. Unlike the offer getter it
+	// MOVES state (it dispatches authorized actions), and the pushed cache keeps a heartbeat
+	// from re-delivering an instruction the device may already be executing.
+	pushed := map[string]bool{}
+	if err := s.pushPendingCommands(ctx, stream, orgID, deviceID, sessionID, pushed); err != nil {
+		return err
+	}
 
 	// After hello_ack the stream carries device uplink frames. GW4 handles receipt,
 	// GW6 reconcile, GW7 the operation_resolution_ack that advances the delivery
 	// watermark, GW9 checkpoint_commit, GW10 heartbeat (lease renewal), GW11 run_ready and
-	// run_started, GW12 run_finish, GW13 action_prepare; the remaining frames (permit/command)
-	// are refused as unimplemented rather than silently dropped. The public key verified at
-	// hello is reused for the session's signed uplink frames; heartbeat is unsigned by design
-	// (§3.1 lists no signature for it).
+	// run_started, GW12 run_finish, GW13 action_prepare. The action spine is now closed end to
+	// end (prepare → permit mint → command); the still-deferred faces (cancel/cancel_ack,
+	// journal_release/journal_ack, run_sealed/run_sealed_ack — R0c) are refused as unimplemented
+	// rather than silently dropped, and command itself is a downlink only. The public key
+	// verified at hello is reused for the session's signed uplink frames; heartbeat is unsigned
+	// by design (§3.1 lists no signature for it).
 	for {
 		var next []byte
 		if err := stream.RecvMsg(&next); err != nil {
@@ -227,7 +256,7 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 				return err
 			}
 		case "heartbeat":
-			if err := s.handleHeartbeat(ctx, stream, orgID, deviceID, sessionID, frame, nonces); err != nil {
+			if err := s.handleHeartbeat(ctx, stream, orgID, deviceID, sessionID, frame, nonces, pushed); err != nil {
 				return err
 			}
 		case "run_ready":
@@ -243,7 +272,7 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 				return err
 			}
 		case "action_prepare":
-			if err := s.handleActionPrepare(ctx, stream, orgID, deviceID, sessionID, pub, frame); err != nil {
+			if err := s.handleActionPrepare(ctx, stream, orgID, deviceID, sessionID, pub, frame, pushed); err != nil {
 				return err
 			}
 		default:

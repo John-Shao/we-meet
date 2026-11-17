@@ -135,30 +135,42 @@ func (a *actionFixture) runTaint(t *testing.T) string {
 }
 
 // authorizeAction moves a prepared Operation to authorized the way a decided approval
-// does. Both writes are needed: consume_device_permit refuses a permit whose approval_id
-// or decision_revision disagrees with the stored Approval, and that check sits before the
-// destination gate, so a half-moved action tests the approval comparison instead.
+// does, including resuming the Run: decide_local_approval calls resume_run when the Run is
+// waiting on approval (0042:2436-2437), and the command claim only dispatches actions of an
+// ACTIVE Run. Both writes are needed: consume_device_permit refuses an Approval that is not
+// approved or has expired, and that check sits before the destination gate, so a
+// half-moved action tests the approval gate instead.
 func (a *actionFixture) authorizeAction(t *testing.T, operationID string) {
 	t.Helper()
 	mustExec(t, a.admin, "UPDATE work.operation SET state = 'authorized' WHERE id = "+quoteLiteral(operationID))
 	mustExec(t, a.admin, "UPDATE work.approval SET status = 'approved', revision = revision + 1 WHERE id IN "+
 		"(SELECT approval_id FROM work.approval_operation WHERE operation_id = "+quoteLiteral(operationID)+")")
+	// resume_run RETURNS void, so it is executed rather than decoded.
+	if _, err := a.workerConn(t).Exec(testContext(t),
+		`SELECT work.resume_run($1,$2::uuid)`, a.org, a.runID); err != nil {
+		t.Fatalf("resume_run: %v", err)
+	}
 }
 
-func (a *actionFixture) consumePermit(t *testing.T, worker *pgx.Conn, opID, attemptID, body string) map[string]any {
+// permitTestKid stands in for the gateway's independent permit signing key id. 0055 made
+// consume MINT the permit, so the caller supplies only the kid; every other field is a
+// server fact the command reads itself.
+const permitTestKid = "permit-kid-gw14"
+
+func (a *actionFixture) consumePermit(t *testing.T, worker *pgx.Conn, opID, attemptID string) map[string]any {
 	t.Helper()
 	return callJSON(t, worker,
-		`SELECT work.consume_device_permit($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8,$9::jsonb)`,
+		`SELECT work.consume_device_permit($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8,$9)`,
 		a.org, opID, attemptID, a.deviceID, a.sessionID, a.leaseID, a.fence,
-		strings.Repeat("1", 64), body)
+		strings.Repeat("1", 64), permitTestKid)
 }
 
-func (a *actionFixture) refuseConsume(t *testing.T, worker *pgx.Conn, opID, attemptID, body, wantCode string) refusal {
+func (a *actionFixture) refuseConsume(t *testing.T, worker *pgx.Conn, opID, attemptID, wantCode string) refusal {
 	t.Helper()
 	return expectRefused(t, worker, wantCode, "P0001",
-		`SELECT work.consume_device_permit($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8,$9::jsonb)`,
+		`SELECT work.consume_device_permit($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8,$9)`,
 		a.org, opID, attemptID, a.deviceID, a.sessionID, a.leaseID, a.fence,
-		strings.Repeat("1", 64), body)
+		strings.Repeat("1", 64), permitTestKid)
 }
 
 // idOf is the one assertion every prepare answer needs before it is used as a premise:
@@ -257,64 +269,10 @@ func TestR0bPrepareBlocksOnAnUnreconciledOperation(t *testing.T) {
 	}
 }
 
-// permitBody is the closed SignedPermit key set (28 keys). scope_hash is recomputed with
-// the server's own helper over the server's own action row, which is what the command
-// compares against; a tampered scope is the negative case below.
-//
-// The action's kind, classification and destination are READ from work.local_action rather
-// than passed in, because consume_device_permit derives aud and scope_hash from that row
-// (0042:1391, 0042:1425). A hand-written pair that disagrees with the stored row refuses
-// for 'unauthorized' long before the branch a test is aimed at, and the test would then be
-// measuring the wrong gate.
-func (a *actionFixture) permitBody(t *testing.T, opID, attemptID, jti string, expires time.Time) string {
-	t.Helper()
-	row := a.scalar(t, "SELECT action_kind||'|'||classification||'|'||coalesce(destination_id,'') "+
-		"FROM work.local_action WHERE org_id = "+quoteLiteral(a.org)+" AND operation_id = "+quoteLiteral(opID))
-	parts := strings.SplitN(row, "|", 3)
-	if len(parts) != 3 || parts[0] == "" || parts[1] == "" {
-		t.Fatalf("no stored local_action row for operation %s, got %q", opID, row)
-	}
-	kind, classification, destination := parts[0], parts[1], parts[2]
-	aud, destinationField := "device-tool", "null"
-	if strings.HasPrefix(kind, "model.send") {
-		aud = "device-model-proxy"
-		if destination == "" {
-			t.Fatalf("stored action %s has no destination, so the permit cannot name one", kind)
-		}
-		destinationField = `"` + destination + `"`
-	}
-	scope := `{"action_kind":"` + kind + `","grant_id":"` + a.grantID + `","grant_revision":1,` +
-		`"resource_selector_hash":"` + a.selectorHash + `","classification":"` + classification +
-		`","destination_id":` + destinationField + `}`
-	scopeHash := a.scalar(t, "SELECT work.sha256_text("+quoteLiteral(scope)+")")
-	approvalID := a.scalar(t, "SELECT ao.approval_id::text FROM work.approval_operation ao WHERE ao.operation_id = "+
-		quoteLiteral(opID))
-	decisionRev := "0"
-	if approvalID != "" {
-		decisionRev = a.scalar(t, "SELECT revision::text FROM work.approval WHERE id = "+quoteLiteral(approvalID))
-	}
-	approvalField := "null"
-	if approvalID != "" {
-		approvalField = `"` + approvalID + `"`
-	}
-	return `{"v":1,"aud":"` + aud + `","kid":"k1","jti":"` + jti + `","org_id":"` + a.org +
-		`","subject_id":"` + a.subject + `","device_id":"` + a.deviceID + `","session_id":"` + a.sessionID +
-		`","agent_instance_id":"` + a.scalar(t, "SELECT agent_instance_id::text FROM work.device_session WHERE id = "+quoteLiteral(a.sessionID)) +
-		`","boot_id":"boot-o","generation":` + a.scalar(t, "SELECT generation::text FROM work.device_session WHERE id = "+quoteLiteral(a.sessionID)) + `,"run_id":"` + a.runID + `","operation_id":"` + opID +
-		`","dispatch_attempt_id":"` + attemptID + `","request_hash":"` + strings.Repeat("1", 64) +
-		`","fence":` + fmt.Sprintf("%d", a.fence) + `,"policy_epoch":` +
-		a.scalar(t, "SELECT effective_epoch::text FROM work.local_execution_policy WHERE org_id = "+quoteLiteral(a.org)) +
-		`,"access_epoch":` + a.scalar(t, "SELECT admission_access_epoch::text FROM work.run WHERE id = "+quoteLiteral(a.runID)) +
-		`,"grant_id":"` + a.grantID + `","grant_revision":1,"approval_id":` + approvalField +
-		`,"decision_revision":` + decisionRev + `,"scope_hash":"` + scopeHash +
-		`","destination_id":` + destinationField + `,"max_bytes":1024,"issued_at":"` +
-		time.Now().UTC().Add(-time.Second).Format(time.RFC3339) + `","expires_at":"` +
-		expires.UTC().Format(time.RFC3339) + `","signature":"sha256:` + strings.Repeat("3", 64) + `"}`
-}
-
-// The single-use authority is the jti UNIQUE plus the authorized -> dispatching CAS.
-// A replay returns the original command; a second, differently-signed permit for the
-// same action cannot win the CAS again.
+// The single-use authority is the dispatch primary key plus the authorized -> dispatching
+// CAS. 0055 made the permit server-minted, so a replay returns the ORIGINAL document and
+// jti (§3.3 forbids minting a second jti for the same action), and the CAS can only be spent
+// once per (operation, attempt).
 func TestR0bPermitIsSingleUseAndOnlyTheCASWinnerDispatches(t *testing.T) {
 	a := newActionFixture(t, "org_b3_permit")
 	worker := a.workerConn(t)
@@ -323,31 +281,76 @@ func TestR0bPermitIsSingleUseAndOnlyTheCASWinnerDispatches(t *testing.T) {
 	attemptID, _ := out["attempt_id"].(string)
 	// The approval path is exercised separately; here the Operation is authorized so the
 	// permit CAS is the thing under test.
-	mustExec(t, a.admin, "UPDATE work.operation SET state = 'authorized' WHERE id = "+quoteLiteral(opID))
-	mustExec(t, a.admin, "UPDATE work.approval SET status = 'approved', revision = revision + 1 WHERE id IN "+
-		"(SELECT approval_id FROM work.approval_operation WHERE operation_id = "+quoteLiteral(opID)+")")
+	a.authorizeAction(t, opID)
 
-	jti := newUUID(t)
-	body := a.permitBody(t, opID, attemptID, jti, time.Now().Add(4*time.Second))
-	first := callJSON(t, worker,
-		`SELECT work.consume_device_permit($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8,$9::jsonb)`,
-		a.org, opID, attemptID, a.deviceID, a.sessionID, a.leaseID, a.fence,
-		strings.Repeat("1", 64), body)
+	first := a.consumePermit(t, worker, opID, attemptID)
 	if first["command_id"] == nil || first["delivery_state"] != "not_applicable" {
 		t.Fatalf("first permit = %#v", first)
 	}
-	replay := callJSON(t, worker,
-		`SELECT work.consume_device_permit($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8,$9::jsonb)`,
-		a.org, opID, attemptID, a.deviceID, a.sessionID, a.leaseID, a.fence,
-		strings.Repeat("1", 64), body)
+	permit, _ := first["permit"].(map[string]any)
+	if len(permit) != 28 {
+		t.Fatalf("minted permit = %#v, want the closed 28 keys", permit)
+	}
+	if permit["kid"] != permitTestKid || permit["aud"] != "device-tool" {
+		t.Fatalf("minted kid/aud = %#v, want the supplied kid and the tool audience", permit)
+	}
+	if permit["approval_id"] == nil || permit["decision_revision"] == nil {
+		t.Fatalf("an approved action must carry its Approval identity: %#v", permit)
+	}
+	if permit["destination_id"] != nil {
+		t.Fatalf("a workspace.read permit must carry a null destination: %#v", permit)
+	}
+	// The uint64 fields cross as decimal strings (§3.1), and the timestamps as RFC3339.
+	for _, key := range []string{"fence", "generation", "policy_epoch", "access_epoch",
+		"grant_revision", "max_bytes"} {
+		if _, ok := permit[key].(string); !ok {
+			t.Fatalf("permit %s = %#v, want a decimal string", key, permit[key])
+		}
+	}
+	for _, key := range []string{"issued_at", "expires_at"} {
+		value, _ := permit[key].(string)
+		if _, err := time.Parse(time.RFC3339, value); err != nil {
+			t.Fatalf("permit %s = %q, want RFC3339: %v", key, value, err)
+		}
+	}
+	// scope_hash is the server's own recomputation, not a device claim.
+	scope := `{"action_kind":"workspace.read","grant_id":"` + a.grantID + `","grant_revision":1,` +
+		`"resource_selector_hash":"` + a.selectorHash + `","classification":"` + a.grantClass +
+		`","destination_id":null}`
+	if got := a.scalar(t, "SELECT work.sha256_text("+quoteLiteral(scope)+")"); permit["scope_hash"] != got {
+		t.Fatalf("minted scope_hash = %v, want the recomputed %s", permit["scope_hash"], got)
+	}
+	// The stored signature is the INTERNAL placeholder; the gateway signs the wire document.
+	if sig, _ := permit["signature"].(string); !strings.HasPrefix(sig, "sha256:") || len(sig) != 71 {
+		t.Fatalf("stored signature = %q, want the internal sha256 placeholder", sig)
+	}
+
+	replay := a.consumePermit(t, worker, opID, attemptID)
 	if replay["command_id"] != first["command_id"] || replay["replayed"] != true {
 		t.Fatalf("replay = %#v, want the original command %v", replay, first["command_id"])
 	}
-	// A different jti for the same action: the CAS is already spent.
-	expectCode(t, worker, "operation_not_authorizable",
-		`SELECT work.consume_device_permit($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8,$9::jsonb)`,
-		a.org, opID, attemptID, a.deviceID, a.sessionID, a.leaseID, a.fence,
-		strings.Repeat("1", 64), a.permitBody(t, opID, attemptID, newUUID(t), time.Now().Add(4*time.Second)))
+	if replay["permit_jti"] != first["permit_jti"] {
+		t.Fatalf("replay minted a second jti: %v vs %v", replay["permit_jti"], first["permit_jti"])
+	}
+	replayed, _ := replay["permit"].(map[string]any)
+	if replayed["jti"] != permit["jti"] || replayed["signature"] != permit["signature"] {
+		t.Fatalf("replay returned a different permit document: %#v", replayed)
+	}
+	// The stored document is the one the replay returns, byte for byte.
+	if got := a.scalar(t, "SELECT (permit = (SELECT permit FROM work.device_dispatch WHERE org_id = "+
+		quoteLiteral(a.org)+" AND operation_id = "+quoteLiteral(opID)+"))::text FROM work.device_dispatch "+
+		"WHERE org_id = "+quoteLiteral(a.org)+" AND operation_id = "+quoteLiteral(opID)); got != "true" {
+		t.Fatalf("stored permit differs from the returned one: %s", got)
+	}
+	// The CAS is the only door to dispatching: an action that is no longer authorized
+	// cannot be dispatched even with its approval decided. A still-pending approval is
+	// refused earlier by the approval gate, so it would not measure the CAS at all.
+	canceled := a.prepare(t, worker, "tool:2", a.grantClass)
+	canceledOp := idOf(t, canceled, "operation_id")
+	canceledAttempt := idOf(t, canceled, "attempt_id")
+	a.authorizeAction(t, canceledOp)
+	mustExec(t, a.admin, "UPDATE work.operation SET state = 'canceled' WHERE id = "+quoteLiteral(canceledOp))
+	a.refuseConsume(t, worker, canceledOp, canceledAttempt, "operation_not_authorizable")
 	if got := a.scalarInt(t, "SELECT count(*) FROM work.device_dispatch WHERE operation_id = "+
 		quoteLiteral(opID)); got != 1 {
 		t.Fatalf("dispatch rows = %d, want exactly 1", got)
@@ -540,7 +543,7 @@ func TestR0bPrepareRefusesANonDeviceDestinationOnceTheRunHasLocalOnlyInput(t *te
 // EV97, second of the two. The same predicate is re-evaluated at 0042:1462 from the
 // stored action row, because the taint can arrive after prepare: the device may hold an
 // authorized, un-dispatched action across a workspace.read. This test is the only thing
-// that proves the second reading is a reading - the permit body is built from the server's
+// that proves the second reading is a reading - 0055 mints the permit from the server's
 // own row, so nothing device-claimed is consulted here.
 func TestR0bPermitConsumptionReChecksTheDestinationFromServerFacts(t *testing.T) {
 	a := newActionFixture(t, "org_b3_dest_permit")
@@ -565,8 +568,7 @@ func TestR0bPermitConsumptionReChecksTheDestinationFromServerFacts(t *testing.T)
 	}
 
 	a.authorizeAction(t, opID)
-	body := a.permitBody(t, opID, attemptID, newUUID(t), time.Now().Add(4*time.Second))
-	a.refuseConsume(t, worker, opID, attemptID, body, "destination_not_allowed_for_local_only")
+	a.refuseConsume(t, worker, opID, attemptID, "destination_not_allowed_for_local_only")
 
 	// The refusal sits before the CAS, so the single-use authority is still unspent and
 	// the Operation has not moved: no dispatch row, no command, still authorized.
@@ -580,18 +582,15 @@ func TestR0bPermitConsumptionReChecksTheDestinationFromServerFacts(t *testing.T)
 			"after the gate, so a dispatching row here means the gate let it through)", got)
 	}
 
-	// Positive control: with the same taint, the same lease and a permit built the same
-	// way, a device_local model action does get its command. Without this, a permitBody
-	// that no longer matches the server's row would make the negative case pass for the
-	// wrong reason - it would refuse with 'unauthorized', and expectRefused would not see
-	// that code, but an unconditional RAISE earlier in the function would also be invisible.
+	// Positive control: with the same taint and the same lease, a device_local model action
+	// does get its command. Without this, an unconditional RAISE earlier in the function
+	// would make the negative case pass for the wrong reason.
 	ctrl := a.prepareBody(t, worker, a.modelActionBody(t, "model:local:1",
 		"model.send_device_local", "device_local"))
 	ctrlOp := idOf(t, ctrl, "operation_id")
 	ctrlAttempt := idOf(t, ctrl, "attempt_id")
 	a.authorizeAction(t, ctrlOp)
-	got := a.consumePermit(t, worker, ctrlOp, ctrlAttempt,
-		a.permitBody(t, ctrlOp, ctrlAttempt, newUUID(t), time.Now().Add(4*time.Second)))
+	got := a.consumePermit(t, worker, ctrlOp, ctrlAttempt)
 	if idOf(t, got, "command_id") == "" || got["delivery_state"] != "not_applicable" {
 		t.Fatalf("device_local permit under the same taint = %#v", got)
 	}

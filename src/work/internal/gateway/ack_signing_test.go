@@ -37,6 +37,16 @@ func recvFrameRaw(t *testing.T, stream grpc.ClientStream) (frameType string, bod
 // verify server-signed downlink acks.
 func (f *gwFixture) helloWithServerJWK(t *testing.T, stream grpc.ClientStream) (sessionID, journalEpoch, bootID, agentID string, generation int64, serverPub *devicesig.PublicKey) {
 	t.Helper()
+	sessionID, journalEpoch, bootID, agentID, generation, serverPub, _ = f.helloWithBothJWKs(t, stream)
+	return sessionID, journalEpoch, bootID, agentID, generation, serverPub
+}
+
+// helloWithBothJWKs is helloWithServerJWK plus the INDEPENDENT permit key (GW14). §3.3 requires
+// a separate permit signing key, so hello_ack carries two: server_public_jwk for frames and
+// permit_public_jwk for the nested permit document of a command. A test that only checks frames
+// must not accidentally accept a permit signed by the frame key, which is why both are returned.
+func (f *gwFixture) helloWithBothJWKs(t *testing.T, stream grpc.ClientStream) (sessionID, journalEpoch, bootID, agentID string, generation int64, serverPub, permitPub *devicesig.PublicKey) {
+	t.Helper()
 	journalEpoch = uuid.NewString()
 	bootID = "boot-" + uuid.NewString()
 	agentID = uuid.NewString()
@@ -51,15 +61,23 @@ func (f *gwFixture) helloWithServerJWK(t *testing.T, stream grpc.ClientStream) (
 	if g, ok := ack["generation"].(float64); ok {
 		generation = int64(g)
 	}
-	jwkJSON, err := json.Marshal(ack["server_public_jwk"])
-	if err != nil {
-		t.Fatal(err)
+	parse := func(member string) *devicesig.PublicKey {
+		raw, err := json.Marshal(ack[member])
+		if err != nil {
+			t.Fatal(err)
+		}
+		pub, err := devicesig.ParseJWK(raw)
+		if err != nil {
+			t.Fatalf("hello_ack %s does not parse: %v", member, err)
+		}
+		return pub
 	}
-	serverPub, err = devicesig.ParseJWK(jwkJSON)
-	if err != nil {
-		t.Fatalf("hello_ack server_public_jwk does not parse: %v", err)
+	serverPub = parse("server_public_jwk")
+	permitPub = parse("permit_public_jwk")
+	if serverPub.Thumbprint == permitPub.Thumbprint {
+		t.Fatal("hello_ack distributed the SAME key twice: the permit key must be independent")
 	}
-	return sessionID, journalEpoch, bootID, agentID, generation, serverPub
+	return sessionID, journalEpoch, bootID, agentID, generation, serverPub, permitPub
 }
 
 // TestReceiptAckIsServerSigned proves the receipt_ack downlink is now ES256-signed by

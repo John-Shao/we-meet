@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 54,
-  "chainTipCatalog": "catalogs/0054_local_action_prepare_signature.json",
+  "chainTip": 55,
+  "chainTipCatalog": "catalogs/0055_device_permit_mint_command_claim.json",
   "entries": [
     {
       "name": "GET /work/v2/admin/local-policy",
@@ -247,6 +247,15 @@
       "classification": "external-audit-required"
     },
     {
+      "name": "claim_pending_device_commands",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0055_device_permit_mint_command_claim.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
       "name": "claim_pending_device_resolutions",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0049_pending_device_resolutions.sql",
@@ -303,7 +312,7 @@
     {
       "name": "consume_governance_events",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0054_local_action_prepare_signature.json",
+      "origin": "src/work/migrations/catalogs/0055_device_permit_mint_command_claim.json",
       "callableBy": [
         "work_governance_events"
       ],
@@ -402,7 +411,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0054_local_action_prepare_signature.json",
+      "origin": "src/work/migrations/catalogs/0055_device_permit_mint_command_claim.json",
       "callableBy": [
         "work_api",
         "work_governance_events"

@@ -105,13 +105,20 @@ func helloCommand(env *Envelope, body *HelloBody) (map[string]any, error) {
 // hello_ack frame addressed to the device with the freshly allocated session. It
 // also carries server_public_jwk (GW7): the gateway's server signing public key,
 // which the device provisions to verify server-signed downlink frames
-// (operation_resolution/permit/lease/command/finish_ack).
-func helloAckEnvelope(deviceID, sessionID string, ack, serverJWK json.RawMessage) ([]byte, error) {
+// (operation_resolution/receipt_ack/run_offer/run_start/action_prepared/run_finish_ack/command).
+//
+// permit_public_jwk (GW14) is the SECOND, independent key §3.3 requires: the device verifies
+// the nested permit document of a command against it, never against server_public_jwk. Both
+// ride the unsigned hello_ack because the transport is mTLS and the session was just
+// established by the device's own signed hello — there is no earlier key to authenticate them
+// with, which is the same bootstrap hello_ack itself has.
+func helloAckEnvelope(deviceID, sessionID string, ack, serverJWK, permitJWK json.RawMessage) ([]byte, error) {
 	var body map[string]json.RawMessage
 	if err := json.Unmarshal(ack, &body); err != nil {
 		return nil, err
 	}
 	body["server_public_jwk"] = serverJWK
+	body["permit_public_jwk"] = permitJWK
 	bodyJSON, err := json.Marshal(body)
 	if err != nil {
 		return nil, err

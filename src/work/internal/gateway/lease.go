@@ -115,9 +115,10 @@ func leaseEnvelope(deviceID, sessionID string, result json.RawMessage) ([]byte, 
 // A heartbeat is also the offer poll (主签 2026-11-16 裁定＝搭在 heartbeat 上查): the repo has
 // no worker→gateway signal and a binding is created only after the device already holds a
 // session, so this is the one cadence the design already fixes (§3.3, 10s) at which the
-// gateway can notice a new offer. It runs AFTER the renewals, so a refused heartbeat pushes
-// nothing.
-func (s *Server) handleHeartbeat(ctx context.Context, stream grpc.ServerStream, orgID, deviceID, sessionID string, env *Envelope, nonces map[offerNonceKey]string) error {
+// gateway can notice a new offer. GW14 rides the same cadence for the command claim, because
+// an ask_each action becomes authorized only when the user decides it through the M1b REST
+// face. Both run AFTER the renewals, so a refused heartbeat pushes nothing.
+func (s *Server) handleHeartbeat(ctx context.Context, stream grpc.ServerStream, orgID, deviceID, sessionID string, env *Envelope, nonces map[offerNonceKey]string, pushed map[string]bool) error {
 	body, seq, err := parseHeartbeat(env.Body)
 	if err != nil {
 		return mapError(err)
@@ -135,7 +136,10 @@ func (s *Server) handleHeartbeat(ctx context.Context, stream grpc.ServerStream, 
 			return err
 		}
 	}
-	return s.pushPendingOffers(ctx, stream, orgID, deviceID, sessionID, nonces)
+	if err := s.pushPendingOffers(ctx, stream, orgID, deviceID, sessionID, nonces); err != nil {
+		return err
+	}
+	return s.pushPendingCommands(ctx, stream, orgID, deviceID, sessionID, pushed)
 }
 
 // renewLeases renews every lease the heartbeat names in ONE work_worker transaction, so the

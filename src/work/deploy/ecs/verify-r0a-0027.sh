@@ -89,7 +89,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (51, '0051_device_lease_renewal_ownership'),
   (52, '0052_pending_device_offers'),
   (53, '0053_local_run_finish_ownership'),
-  (54, '0054_local_action_prepare_signature')) expected(version, name)
+  (54, '0054_local_action_prepare_signature'),
+  (55, '0055_device_permit_mint_command_claim')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -1016,6 +1017,63 @@ psql_ro "select 'local_action_prepare_demands_real_signature=' || case when (
   and position('^sha256:' in pg_get_functiondef('work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure)) = 0
   and position('v_lease.purpose' in pg_get_functiondef('work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure)) > 0
   and position('stale_fence' in pg_get_functiondef('work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure)) > 0
+  then 'true' else 'FALSE' end"
+
+# 0055 made the permit server-minted. A ledger row cannot show that the OLD input-permit
+# overload is gone (DROP + CREATE, not a second overload), that the command now takes the
+# permit key id instead of a document, or that the mint really happens after the CAS. The
+# last fact is read as the order of two markers in the body: the CAS update precedes the
+# jti mint, which is what device-design §3.3 requires ("签发发生在 dispatch CAS 持久提交之后").
+psql_ro "select 'device_permit_is_minted_after_the_cas_and_worker_only=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work'
+    and p.proname = 'consume_device_permit'
+    and p.prosecdef
+    and p.proconfig @> ARRAY['search_path=work, pg_catalog']) = 1
+  and has_function_privilege('work_worker',
+        'work.consume_device_permit(text,uuid,uuid,uuid,uuid,uuid,bigint,text,text)', 'EXECUTE')
+  and not has_function_privilege('work_api',
+        'work.consume_device_permit(text,uuid,uuid,uuid,uuid,uuid,bigint,text,text)', 'EXECUTE')
+  and position('p_permit' in pg_get_functiondef('work.consume_device_permit(text,uuid,uuid,uuid,uuid,uuid,bigint,text,text)'::regprocedure)) = 0
+  and position('v_jti := gen_random_uuid()' in pg_get_functiondef('work.consume_device_permit(text,uuid,uuid,uuid,uuid,uuid,bigint,text,text)'::regprocedure)) > 0
+  and position('state = ''dispatching''' in pg_get_functiondef('work.consume_device_permit(text,uuid,uuid,uuid,uuid,uuid,bigint,text,text)'::regprocedure))
+      < position('v_jti := gen_random_uuid()' in pg_get_functiondef('work.consume_device_permit(text,uuid,uuid,uuid,uuid,uuid,bigint,text,text)'::regprocedure))
+  then 'true' else 'FALSE' end"
+
+# The permit document is durable evidence on the dispatch row, not a second single-use
+# authority: the column is NOT NULL, the closed 28-key validator is a real CHECK, and the
+# guard treats it as immutable like every other content column.
+psql_ro "select 'dispatch_permit_is_immutable_closed_evidence=' || case when (
+  select count(*) from pg_attribute a
+  join pg_class t on t.oid = a.attrelid
+  join pg_namespace n on n.oid = t.relnamespace
+  where n.nspname = 'work' and t.relname = 'device_dispatch'
+    and a.attname = 'permit' and a.attnotnull and not a.attisdropped) = 1
+  and (select count(*) from pg_constraint c
+       join pg_class t on t.oid = c.conrelid
+       join pg_namespace n on n.oid = t.relnamespace
+       where n.nspname = 'work' and t.relname = 'device_dispatch'
+         and c.conname = 'device_dispatch_permit_shape'
+         and pg_get_constraintdef(c.oid) like '%device_permit_valid%') = 1
+  and position('NEW.permit' in pg_get_functiondef('work.device_dispatch_guard()'::regprocedure)) > 0
+  then 'true' else 'FALSE' end"
+
+# The command claim is the heartbeat-driven entry point, so it must carry the same caller
+# gates as the rest of the device plane and must not advance delivery_state (only
+# not_applicable -> superseded is registered, and §3.1 has no command_ack frame).
+psql_ro "select 'command_claim_is_bound_and_worker_only=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work'
+    and p.proname = 'claim_pending_device_commands'
+    and p.prosecdef
+    and p.proconfig @> ARRAY['search_path=work, pg_catalog']) = 1
+  and has_function_privilege('work_worker',
+        'work.claim_pending_device_commands(text,uuid,uuid,text)', 'EXECUTE')
+  and not has_function_privilege('work_api',
+        'work.claim_pending_device_commands(text,uuid,uuid,text)', 'EXECUTE')
+  and position('v_session.auth_epoch' in pg_get_functiondef('work.claim_pending_device_commands(text,uuid,uuid,text)'::regprocedure)) > 0
+  and position('device_revoked' in pg_get_functiondef('work.claim_pending_device_commands(text,uuid,uuid,text)'::regprocedure)) > 0
+  and position('delivery_state' in pg_get_functiondef('work.claim_pending_device_commands(text,uuid,uuid,text)'::regprocedure)) = 0
   then 'true' else 'FALSE' end"
 
 echo

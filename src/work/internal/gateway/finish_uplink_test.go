@@ -28,6 +28,7 @@ type runUnderFinish struct {
 	bootID       string
 	agentID      string
 	serverPub    *devicesig.PublicKey
+	permitPub    *devicesig.PublicKey
 	runID        string
 	leaseID      string
 	fence        string
@@ -40,7 +41,7 @@ func startRunForFinish(t *testing.T) *runUnderFinish {
 	f := newGatewayFixture(t)
 	addr := f.startServer(t)
 	stream := f.connect(t, addr)
-	sessionID, _, bootID, agentID, _, serverPub := f.helloWithServerJWK(t, stream)
+	sessionID, _, bootID, agentID, _, serverPub, permitPub := f.helloWithBothJWKs(t, stream)
 	runID, _, _, _ := f.seedAction(t, sessionID)
 	f.seedOffer(t, sessionID, runID, 1)
 
@@ -79,7 +80,8 @@ func startRunForFinish(t *testing.T) *runUnderFinish {
 		t.Fatal(err)
 	}
 	r := &runUnderFinish{f: f, stream: stream, sessionID: sessionID, bootID: bootID,
-		agentID: agentID, serverPub: serverPub, runID: runID, leaseID: leaseID, fence: fence}
+		agentID: agentID, serverPub: serverPub, permitPub: permitPub,
+		runID: runID, leaseID: leaseID, fence: fence}
 	if err := admin.QueryRow(ctx,
 		`SELECT checkpoint_hash FROM work.device_checkpoint
 		 WHERE org_id=$1 AND run_id=$2::uuid AND checkpoint_seq=0`, gwOrg, runID).

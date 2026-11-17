@@ -13,6 +13,7 @@
 
 pub mod action;
 pub mod checkpoint;
+pub mod command;
 pub mod envelope;
 pub mod finish;
 pub mod hello;
@@ -24,5 +25,6 @@ pub mod receipt;
 pub mod receipt_ack;
 pub mod reconcile;
 pub mod resolution;
+pub mod rfc3339;
 pub mod sign;
 pub mod u64string;
