@@ -24,6 +24,7 @@ pub mod reconcile;
 pub mod recovery;
 pub mod sidecar;
 pub mod thumbprint;
+pub mod transport;
 pub mod upgrade;
 
 #[cfg(windows)]

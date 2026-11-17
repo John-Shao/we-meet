@@ -11,6 +11,7 @@
 pub mod frame;
 pub mod handshake;
 pub mod schema;
+pub mod ticket;
 
 #[cfg(windows)]
 pub mod pipe;

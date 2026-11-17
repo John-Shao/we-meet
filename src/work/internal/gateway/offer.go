@@ -85,12 +85,13 @@ func signedDownlink(key *ecdsa.PrivateKey, frameType, deviceID, sessionID string
 		return nil, err
 	}
 	env := Envelope{
-		SchemaVersion: 2,
-		Type:          frameType,
-		MessageID:     newMessageID(),
-		DeviceID:      deviceID,
-		SessionID:     sessionID,
-		Body:          body,
+		SchemaVersion:      2,
+		Type:               frameType,
+		MessageID:          newMessageID(),
+		DeviceID:           deviceID,
+		SessionID:          sessionID,
+		RecoveryGeneration: "0",
+		Body:               body,
 	}
 	return json.Marshal(env)
 }

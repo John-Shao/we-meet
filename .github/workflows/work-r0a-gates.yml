@@ -23,6 +23,9 @@ on:
       - 'scripts/supply-chain/**'
       - 'scripts/work-status.mjs'
       - 'src/work/**'
+      # GW17: the cross-language interop runs in this workflow's go-migrate job, so a
+      # device-side change must trigger it too — neither side alone proves the contract.
+      - 'src/device/**'
       - 'src/backend/meet/urls.py'
       - 'src/backend/core/api/work_host.py'
       - 'src/backend/core/models.py'
@@ -60,6 +63,9 @@ on:
       - 'scripts/supply-chain/**'
       - 'scripts/work-status.mjs'
       - 'src/work/**'
+      # GW17: the cross-language interop runs in this workflow's go-migrate job, so a
+      # device-side change must trigger it too — neither side alone proves the contract.
+      - 'src/device/**'
       - 'src/backend/meet/urls.py'
       - 'src/backend/core/api/work_host.py'
       - 'src/backend/core/models.py'
@@ -223,9 +229,21 @@ jobs:
         with:
           go-version-file: src/work/go.mod
           cache-dependency-path: src/work/go.sum
+      # GW17: the cross-language interop evidence lives in this Linux Go job, because the
+      # gateway fixture needs the real PostgreSQL chain and only this job has it. The Rust
+      # probe is built here and handed to the Go suite through WORK_DEVICE_INTEROP_BIN; without
+      # that variable TestDeviceLinkInterop skips, so the step below is what makes it run.
+      # native-tls carries the `vendored` feature so OpenSSL is built from source on Linux
+      # (same hermetic-C-dependency choice as rusqlite's bundled SQLite) — no apt packages.
+      - name: Build the Rust device link probe
+        working-directory: src/device
+        run: |
+          rustup show
+          cargo build --example device_link_probe
       - name: Run Go control-plane tests
         env:
           WORK_TEST_PG_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+          WORK_DEVICE_INTEROP_BIN: ${{ github.workspace }}/src/device/target/debug/examples/device_link_probe
         run: go test ./... -p 1 -count=1
 
   ops-telemetry:

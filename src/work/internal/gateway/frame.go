@@ -129,7 +129,11 @@ func helloAckEnvelope(deviceID, sessionID string, ack, serverJWK, permitJWK json
 		MessageID:     newMessageID(),
 		DeviceID:      deviceID,
 		SessionID:     sessionID,
-		Body:          bodyJSON,
+		// §3.1 carries recovery_generation as a uint64 DECIMAL STRING. The zero value of a Go
+		// string is "", which the device's strict u64string adapter refuses — every downlink
+		// envelope must state the generation explicitly.
+		RecoveryGeneration: "0",
+		Body:               bodyJSON,
 	}
 	raw, err := json.Marshal(env)
 	if err != nil {

@@ -96,12 +96,13 @@ func leaseEnvelope(deviceID, sessionID string, result json.RawMessage) ([]byte, 
 		return nil, err
 	}
 	env := Envelope{
-		SchemaVersion: 2,
-		Type:          "lease",
-		MessageID:     newMessageID(),
-		DeviceID:      deviceID,
-		SessionID:     sessionID,
-		Body:          body,
+		SchemaVersion:      2,
+		Type:               "lease",
+		MessageID:          newMessageID(),
+		DeviceID:           deviceID,
+		SessionID:          sessionID,
+		RecoveryGeneration: "0",
+		Body:               body,
 	}
 	return json.Marshal(env)
 }

@@ -67,12 +67,13 @@ func resolutionWireBody(row pendingResolution) map[string]any {
 // are unsigned (device-design §3.1); the device verifies {schema_version, type, body}.
 func resolutionEnvelope(deviceID, sessionID string, bodyJSON []byte) ([]byte, error) {
 	env := Envelope{
-		SchemaVersion: 2,
-		Type:          "operation_resolution",
-		MessageID:     newMessageID(),
-		DeviceID:      deviceID,
-		SessionID:     sessionID,
-		Body:          bodyJSON,
+		SchemaVersion:      2,
+		Type:               "operation_resolution",
+		MessageID:          newMessageID(),
+		DeviceID:           deviceID,
+		SessionID:          sessionID,
+		RecoveryGeneration: "0",
+		Body:               bodyJSON,
 	}
 	return json.Marshal(env)
 }

@@ -38,12 +38,13 @@ func reconcileAckEnvelope(deviceID, sessionID string, result json.RawMessage, ke
 		return nil, err
 	}
 	env := Envelope{
-		SchemaVersion: 2,
-		Type:          "reconcile_ack",
-		MessageID:     newMessageID(),
-		DeviceID:      deviceID,
-		SessionID:     sessionID,
-		Body:          body,
+		SchemaVersion:      2,
+		Type:               "reconcile_ack",
+		MessageID:          newMessageID(),
+		DeviceID:           deviceID,
+		SessionID:          sessionID,
+		RecoveryGeneration: "0",
+		Body:               body,
 	}
 	return json.Marshal(env)
 }

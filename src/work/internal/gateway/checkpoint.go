@@ -109,12 +109,13 @@ func checkpointAckEnvelope(deviceID, sessionID string, result json.RawMessage, k
 		return nil, err
 	}
 	env := Envelope{
-		SchemaVersion: 2,
-		Type:          "checkpoint_ack",
-		MessageID:     newMessageID(),
-		DeviceID:      deviceID,
-		SessionID:     sessionID,
-		Body:          body,
+		SchemaVersion:      2,
+		Type:               "checkpoint_ack",
+		MessageID:          newMessageID(),
+		DeviceID:           deviceID,
+		SessionID:          sessionID,
+		RecoveryGeneration: "0",
+		Body:               body,
 	}
 	return json.Marshal(env)
 }

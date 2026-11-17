@@ -163,12 +163,13 @@ func finishAckEnvelope(deviceID, sessionID string, result json.RawMessage, key *
 		return nil, err
 	}
 	env := Envelope{
-		SchemaVersion: 2,
-		Type:          "run_finish_ack",
-		MessageID:     newMessageID(),
-		DeviceID:      deviceID,
-		SessionID:     sessionID,
-		Body:          body,
+		SchemaVersion:      2,
+		Type:               "run_finish_ack",
+		MessageID:          newMessageID(),
+		DeviceID:           deviceID,
+		SessionID:          sessionID,
+		RecoveryGeneration: "0",
+		Body:               body,
 	}
 	return json.Marshal(env)
 }

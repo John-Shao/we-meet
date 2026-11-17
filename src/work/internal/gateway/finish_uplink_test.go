@@ -22,18 +22,18 @@ import (
 // acquire_device_lease wrote. Everything a real device would echo comes from the frames it
 // received, not from the test's own guesses.
 type runUnderFinish struct {
-	f            *gwFixture
-	stream       grpc.ClientStream
-	sessionID    string
-	bootID       string
-	agentID      string
-	serverPub    *devicesig.PublicKey
-	permitPub    *devicesig.PublicKey
-	runID        string
-	leaseID      string
-	fence        string
-	checkpoint   string
-	setHash      string
+	f          *gwFixture
+	stream     grpc.ClientStream
+	sessionID  string
+	bootID     string
+	agentID    string
+	serverPub  *devicesig.PublicKey
+	permitPub  *devicesig.PublicKey
+	runID      string
+	leaseID    string
+	fence      string
+	checkpoint string
+	setHash    string
 }
 
 func startRunForFinish(t *testing.T) *runUnderFinish {

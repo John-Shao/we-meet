@@ -87,6 +87,40 @@ pub fn parse_utc_seconds(text: &str) -> Option<u64> {
     Some(days as u64 * 86400 + hour as u64 * 3600 + minute as u64 * 60 + second as u64)
 }
 
+/// Render unix seconds as the exact `YYYY-MM-DDTHH:MM:SSZ` form [`parse_utc_seconds`] accepts.
+///
+/// The transport is the first writer of an envelope `sent_at`, so it needs the inverse of the
+/// parser. Years above 9999 are refused rather than emitted as a five-digit year the parser
+/// would reject — a timestamp the device cannot round-trip is not one it should send.
+pub fn format_utc_seconds(seconds: u64) -> Option<String> {
+    let days = (seconds / 86400) as i64;
+    let rem = seconds % 86400;
+    let (year, month, day) = civil_from_days(days);
+    if !(1970..=9999).contains(&year) {
+        return None;
+    }
+    Some(format!(
+        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}Z",
+        rem / 3600,
+        (rem % 3600) / 60,
+        rem % 60
+    ))
+}
+
+/// Proleptic Gregorian date for days since 1970-01-01 (Howard Hinnant's `civil_from_days`).
+fn civil_from_days(days: i64) -> (i64, u32, u32) {
+    let z = days + 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let doe = z - era * 146097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    (year, month, day)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,5 +193,39 @@ mod tests {
         let before = parse_utc_seconds("2026-12-31T23:59:59Z").unwrap();
         let after = parse_utc_seconds("2027-01-01T00:00:00Z").unwrap();
         assert_eq!(after - before, 1);
+    }
+
+    #[test]
+    fn format_is_the_exact_inverse_of_parse() {
+        for text in [
+            "1970-01-01T00:00:00Z",
+            "1970-01-02T00:00:00Z",
+            "2000-02-29T23:59:59Z",
+            "2024-02-29T12:34:56Z",
+            "2026-11-17T00:00:00Z",
+            "2026-12-31T23:59:59Z",
+            "2027-01-01T00:00:00Z",
+            "9999-12-31T23:59:59Z",
+        ] {
+            let seconds = parse_utc_seconds(text).unwrap();
+            assert_eq!(format_utc_seconds(seconds).as_deref(), Some(text));
+        }
+        // Every second of a leap day and of a year boundary round-trips, not just the samples.
+        let start = parse_utc_seconds("2024-02-28T23:59:58Z").unwrap();
+        for offset in 0..6 {
+            let text = format_utc_seconds(start + offset).unwrap();
+            assert_eq!(parse_utc_seconds(&text), Some(start + offset));
+        }
+    }
+
+    #[test]
+    fn format_refuses_a_year_the_parser_would_reject() {
+        assert_eq!(
+            format_utc_seconds(0).as_deref(),
+            Some("1970-01-01T00:00:00Z")
+        );
+        // 10000-01-01 is beyond the four-digit year the closed grammar allows.
+        let beyond = parse_utc_seconds("9999-12-31T23:59:59Z").unwrap() + 1;
+        assert_eq!(format_utc_seconds(beyond), None);
     }
 }

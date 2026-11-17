@@ -131,7 +131,7 @@ func (f *gwFixture) seedActionWithInputHash(t *testing.T, sessionID, inputHash s
 	`, gwOrg, gwSubject, inputID, gwOrg, gwSubject, inputHash,
 		snapshotID, gwOrg, taskID, strings.Repeat("a", 64),
 		taskID, gwOrg, gwSubject, snapshotID, inputID,
-		runID, gwOrg, taskID, snapshotID, "wf-gw-" + runID[:8],
+		runID, gwOrg, taskID, snapshotID, "wf-gw-"+runID[:8],
 		runID, taskID,
 		opID, gwOrg, runID, strings.Repeat("d", 64), attemptID)
 	if err := testpg.ExecRaw(ctx, seed, script); err != nil {
