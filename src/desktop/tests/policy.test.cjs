@@ -24,3 +24,22 @@ test('callback has exact destination, one state and one code', () => {
   assert.equal(callbackCode(`${CALLBACK}?state=s&code=c`, 's'), 'c')
   for (const url of [`${CALLBACK}?state=x&code=c`, `${CALLBACK}?state=s&state=s&code=c`, `${CALLBACK}?state=s&code=c&code=d`, `${CALLBACK}?state=s&code=c#x`, 'online.we-meet.desktop://evil/callback?state=s&code=c']) assert.throws(() => callbackCode(url, 's'))
 })
+test('the optional work section is a closed, secure gateway deployment', () => {
+  // Absent work leaves the driver dormant — the shipped default.
+  assert.equal(validateConfig(DEFAULT_CONFIG).work, undefined)
+  const work = { gatewayOrigin: 'https://gw.we-meet.online:8443', serverName: 'gw.we-meet.online', caPemPath: path.resolve('ca.pem') }
+  assert.deepEqual(validateConfig({ ...DEFAULT_CONFIG, work }).work, work)
+  for (const gatewayOrigin of ['http://gw.example.test', 'https://u:p@gw.example.test', 'file:///x']) {
+    assert.throws(() => validateConfig({ ...DEFAULT_CONFIG, work: { ...work, gatewayOrigin } }))
+  }
+  // Like the issuer, the gateway origin is normalized: a path is dropped, never forwarded.
+  assert.equal(validateConfig({ ...DEFAULT_CONFIG, work: { ...work, gatewayOrigin: 'https://gw.example.test/path' } }).work.gatewayOrigin, 'https://gw.example.test')
+  for (const serverName of ['', 'gw example', 'gw/example', 'a'.repeat(254), 42]) {
+    assert.throws(() => validateConfig({ ...DEFAULT_CONFIG, work: { ...work, serverName } }))
+  }
+  for (const caPemPath of ['ca.pem', 'relative/ca.pem', '', 42]) {
+    assert.throws(() => validateConfig({ ...DEFAULT_CONFIG, work: { ...work, caPemPath } }))
+  }
+  const dev = validateConfig({ ...DEFAULT_CONFIG, serviceOrigin: 'http://127.0.0.1:8000', work: { ...work, gatewayOrigin: 'http://localhost:9443' } }, true)
+  assert.equal(dev.work.gatewayOrigin, 'http://localhost:9443')
+})

@@ -41,6 +41,10 @@ import { bindScreenSource } from "./remote-control/source-binding";
 import { chooseCaptureSource } from "./remote-control/source-picker";
 import { ScreenPicker } from "./screen-picker/picker";
 import { nativeDescriptor } from "./remote-control/native-resources";
+import { WorkApi } from "./work/api";
+import { WorkDeviceDriver } from "./work/driver";
+import { DeviceStore } from "./work/store";
+import { workDeviceDescriptor } from "./work/broker";
 import type { RemoteDesktopEvent } from "./remote-control/bridge";
 
 if (!app.isPackaged && process.env.WEMEET_USER_DATA)
@@ -56,6 +60,14 @@ const config = validateConfig(
       : {}),
     ...(!app.isPackaged && process.env.WEMEET_OIDC_ISSUER
       ? { issuer: process.env.WEMEET_OIDC_ISSUER }
+      : {}),
+    ...(!app.isPackaged && process.env.WEMEET_WORK_GATEWAY_ORIGIN &&
+      process.env.WEMEET_WORK_SERVER_NAME && process.env.WEMEET_WORK_CA_PEM_PATH
+      ? { work: {
+          gatewayOrigin: process.env.WEMEET_WORK_GATEWAY_ORIGIN,
+          serverName: process.env.WEMEET_WORK_SERVER_NAME,
+          caPemPath: process.env.WEMEET_WORK_CA_PEM_PATH,
+        } }
       : {}),
   },
   !app.isPackaged,
@@ -86,7 +98,10 @@ let loginStarting = false;
 let loginTimer: NodeJS.Timeout | undefined;
 let remoteControl: RemoteDesktopRuntime | undefined;
 let screenPicker: ScreenPicker | undefined;
+let workDriver: WorkDeviceDriver | undefined;
+let startWorkDriver: () => Promise<void> = async () => {};
 const closeRemoteControl = (reason: string) => remoteControl?.close(reason) ?? Promise.resolve();
+const stopWorkDriver = () => workDriver?.stop() ?? Promise.resolve();
 
 const status = {
   version: app.getVersion(),
@@ -145,6 +160,7 @@ async function receiveCallback(raw?: string) {
     status.auth = "signed-in";
     status.message = "";
     await window?.loadURL(rendererOrigin);
+    void startWorkDriver();
   } catch {
     report("登录回跳无效或已过期，请重新发起登录。");
   }
@@ -163,8 +179,10 @@ async function resetWebSession() {
 async function logout(message = "") {
   clearTimeout(loginTimer);
   const remoteCleanup = closeRemoteControl("account_changed");
+  const workCleanup = stopWorkDriver();
   auth.clear();
   await remoteCleanup;
+  await workCleanup;
   status.auth = "signed-out";
   status.message = message;
   await resetWebSession();
@@ -189,6 +207,7 @@ async function confirmExit() {
   if (result.response === 1) {
     quitting = true;
     await closeRemoteControl("app_quit");
+    await stopWorkDriver();
     app.quit();
   }
 }
@@ -746,6 +765,76 @@ async function createWindow() {
       win.webContents.setZoomLevel(key === "0" ? 0 : Math.max(-3, Math.min(3, zoom + (key === "-" ? -0.5 : 0.5))));
     }
   });
+  // The Work device driver (M2): main-process only. No preload method and no renderer
+  // whitelist entry is added — the pairing gesture is a main-process dialog (§2.1 step 2,
+  // the §1.1 deviation is registered in the design), and driver failures surface through
+  // the existing desktop:status message channel.
+  if (config.work) {
+    const work = config.work;
+    const devicePath = path.join(app.getPath("userData"), "work-device-v1.enc");
+    const storeIo = {
+      read: () =>
+        existsSync(devicePath)
+          ? safeStorage.decryptString(readFileSync(devicePath))
+          : undefined,
+      write: (value: string) => {
+        if (
+          !safeStorage.isEncryptionAvailable() ||
+          (process.platform === "linux" &&
+            safeStorage.getSelectedStorageBackend() === "basic_text")
+        )
+          throw new Error("安全凭据存储不可用。");
+        mkdirSync(path.dirname(devicePath), { recursive: true });
+        writeFileSync(devicePath + ".tmp", safeStorage.encryptString(value));
+        renameSync(devicePath + ".tmp", devicePath);
+      },
+      clear: () => {
+        try { unlinkSync(devicePath); } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+        try { unlinkSync(devicePath + ".tmp"); } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+      },
+    };
+    const workResourceRoot = path.join(app.isPackaged ? process.resourcesPath : __dirname, "work-device");
+    const workDescriptor = (() => {
+      if (!app.isPackaged) return undefined;
+      try { return workDeviceDescriptor(JSON.parse(readFileSync(path.join(__dirname, "bundled-work-device.json"), "utf8"))); }
+      catch { return null; }
+    })();
+    startWorkDriver = async () => {
+      if (!auth.signedIn || !auth.subject || quitting) return;
+      await stopWorkDriver();
+      const subject = auth.subject;
+      workDriver = new WorkDeviceDriver({
+        auth,
+        api: new WorkApi(config.serviceOrigin, auth),
+        work,
+        binding: { issuer: config.issuer, clientId: config.clientId, serviceOrigin: config.serviceOrigin },
+        resourceRoot: workResourceRoot,
+        descriptor: workDescriptor,
+        configDir: path.join(app.getPath("userData"), "work-device"),
+        store: new DeviceStore(storeIo, { issuer: config.issuer, clientId: config.clientId, serviceOrigin: config.serviceOrigin, subject }),
+        askDeviceName: async (defaultName) => {
+          if (win.isDestroyed()) return undefined;
+          const result = await dialog.showMessageBox(win, {
+            type: "question",
+            title: "配对 Work 设备",
+            message: `将本机配对为 Work 设备「${defaultName}」？`,
+            detail: "配对后，本机可在当前账号已授权的范围内执行本机任务。设备私钥留在本机 Windows 密钥存储中，不会上传。",
+            buttons: ["取消", "确认配对"],
+            defaultId: 0,
+            cancelId: 0,
+          });
+          return result.response === 1 ? defaultName : undefined;
+        },
+        report,
+      });
+      await workDriver.start();
+    };
+    if (auth.signedIn) void startWorkDriver();
+  }
   await loadInitialPage(win, rendererOrigin);
 }
 
@@ -788,6 +877,8 @@ else {
     });
   app.on("window-all-closed", () => {
     quitting = true;
-    void closeRemoteControl("window_closed").finally(() => app.quit());
+    void closeRemoteControl("window_closed")
+      .then(() => stopWorkDriver())
+      .finally(() => app.quit());
   });
 }

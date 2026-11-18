@@ -43,6 +43,10 @@ use work_device::transport::{LinkCommand, LinkConfig, LinkEvent, Reconnect};
 struct BrokerConfig {
     /// Full pipe path, `\\.\pipe\...`.
     pipe_name: String,
+    /// The desktop main process that spawned this Broker. The pipe's OS auth already binds the
+    /// user SID and login session; this is the extra predicate that refuses every OTHER process
+    /// of that same user, so only the shell may deliver tickets/certificates (M2 ruling).
+    shell_pid: u32,
     /// `https://host:port` of the gateway listener.
     endpoint: String,
     /// Name verified against the gateway's server certificate.
@@ -141,8 +145,9 @@ fn run(path: &str) -> Result<(), String> {
 
     // The pipe loop is blocking by design and must never run inside the async runtime.
     let pipe_name = cfg.pipe_name.clone();
+    let shell_pid = cfg.shell_pid;
     let pipe = std::thread::spawn(move || {
-        work_device::ipc::service::serve_shell_pipe(&pipe_name, delivery_tx)
+        work_device::ipc::service::serve_shell_pipe(&pipe_name, shell_pid, delivery_tx)
     });
 
     let pump = rt.spawn(run_core_pump(

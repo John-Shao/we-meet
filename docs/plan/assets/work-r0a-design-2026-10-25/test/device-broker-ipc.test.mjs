@@ -78,7 +78,7 @@ test('the pipe loop dispatches and the pump is the single closure-then-slot path
   assert.match(broker, /ticket::deliver_message\(slot, message, Instant::now\(\)\)/);
   assert.equal(prod(read(BROKER)).split('ticket::deliver_message(').length - 1, 1,
     'a second deliver_message call site would let two paths disagree');
-  assert.match(broker, /fn handle_message\(identity: &mut Identity, slot: &mut TicketSlot, message: &Value\) -> Reply/);
+  assert.match(broker, /fn handle_message\(\s*identity: &mut Identity,\s*slot: &mut TicketSlot,\s*awaiting: bool,\s*message: &Value,?\s*\) -> Reply/);
   // Validation is NOT duplicated in the pipe loop: one path, so the two cannot disagree.
   assert.ok(!service.includes('ticket::parse'), 'the pipe loop re-validates the ticket itself');
   assert.ok(!service.includes('slot.deliver'), 'the pipe loop owns a slot it must not own');
@@ -229,7 +229,7 @@ test('the real Windows pipe is exercised, not a fake connection', () => {
   const service = read(SERVICE);
   const src = code(service);
   assert.match(src, /CreateFileW\(/);
-  assert.match(src, /serve_shell_pipe\(&server_name, delivery_tx\)/);
+  assert.match(src, /serve_shell_pipe\(&server_name, shell_pid, delivery_tx\)/);
   assert.match(src, /run_core_pump\(/);
   assert.match(src, /std::thread::spawn/);
   // The centerpiece: a delivery crosses pipe → dispatch → pump → slot → the link's ticket channel.
@@ -250,18 +250,19 @@ test('the broker probe cannot dial without the pipe and refuses other platforms'
   const config = probe.slice(probe.indexOf('struct ProbeConfig'), probe.indexOf('\n    }', probe.indexOf('struct ProbeConfig')));
   assert.ok(!/^\s*ticket:/m.test(config), 'the broker probe config carries a ticket, so the pipe is not proven');
   assert.match(config, /pipe_name: String/);
+  assert.match(config, /shell_pid: u32/);
   assert.match(src, /#\[cfg\(not\(windows\)\)\]\s*\n\s*fail\(/);
   assert.match(src, /use work_device::broker::\{run_core_pump, ReadyIdentity\};/);
   assert.match(src, /use work_device::ipc::service::serve_shell_pipe;/);
   assert.match(src, /use work_device::transport::link::Link;/);
-  assert.match(src, /serve_shell_pipe\(&pipe_name, delivery_tx\)/);
+  assert.match(src, /serve_shell_pipe\(&pipe_name, shell_pid, delivery_tx\)/);
   // No reimplementation of the device side.
   for (const forbidden of ['sign_es256', 'jcs::', 'hello_ack', 'schema_version']) {
     assert.ok(!src.includes(forbidden), `the broker probe re-implements ${forbidden}`);
   }
   // GW21 closed GW18's "no executable Broker entry" boundary: main.rs is now the real process,
   // so the assertion REVERSES. The probe stays a test artifact (never named in Cargo.toml).
-  assert.match(read(MAIN), /serve_shell_pipe\(&pipe_name, delivery_tx\)/);
+  assert.match(read(MAIN), /serve_shell_pipe\(&pipe_name, shell_pid, delivery_tx\)/);
   assert.match(read(MAIN), /run_core_pump\(/);
   assert.match(read(MAIN), /#\[serde\(deny_unknown_fields\)\]/);
   assert.ok(!read(join(DEVICE, 'Cargo.toml')).includes('device_broker_probe'));

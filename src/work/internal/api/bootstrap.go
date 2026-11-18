@@ -218,6 +218,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST "+DeviceCertificateRenewalsPath, s.renewDeviceCertificate)
 	mux.HandleFunc("POST "+DeviceCertificateRenewalConfirmPath, s.confirmDeviceCertificateRenewal)
 	mux.HandleFunc("POST "+DeviceRevokePath, s.revokeDevice)
+	mux.HandleFunc("GET "+DeviceIdentityPath, s.deviceIdentity)
 	mux.HandleFunc("GET "+WorkspaceGrantsPath, s.listWorkspaceGrants)
 	mux.HandleFunc("POST "+WorkspaceGrantsPath, s.registerWorkspaceGrant)
 	mux.HandleFunc("POST "+WorkspaceGrantRevokePath, s.revokeWorkspaceGrant)

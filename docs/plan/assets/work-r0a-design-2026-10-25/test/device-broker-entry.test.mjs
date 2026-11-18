@@ -41,12 +41,13 @@ const BROKER = join(DEVICE, 'src', 'broker.rs');
 const DISPATCH = join(DEVICE, 'src', 'ipc', 'dispatch.rs');
 const SCHEMA = join(DEVICE, 'src', 'ipc', 'schema.rs');
 const PIPE = join(DEVICE, 'src', 'ipc', 'pipe.rs');
+const SERVICE = join(DEVICE, 'src', 'ipc', 'service.rs');
 const LINK = join(DEVICE, 'src', 'transport', 'link.rs');
 const TRANSPORT = join(DEVICE, 'src', 'transport', 'mod.rs');
 const LIB = join(DEVICE, 'src', 'lib.rs');
 const INTEROP = join(ROOT, 'src', 'work', 'internal', 'api', 'device_broker_interop_test.go');
 
-for (const p of [MAIN, IDENTITY, RENEWAL, PAIRING, BROKER, DISPATCH, SCHEMA, PIPE, LINK, TRANSPORT,
+for (const p of [MAIN, IDENTITY, RENEWAL, PAIRING, BROKER, DISPATCH, SCHEMA, PIPE, SERVICE, LINK, TRANSPORT,
   LIB, INTEROP]) {
   assert.ok(existsSync(p), `missing ${p}`);
 }
@@ -68,7 +69,7 @@ test('the entry is a real process with a closed config and no HTTP client', () =
   // Ruling ②: one closed shape. An unknown key is a parse failure, not an ignored extra.
   assert.match(src, /#\[serde\(deny_unknown_fields\)\]/);
   const config = src.slice(src.indexOf('struct BrokerConfig'), src.indexOf('\n}', src.indexOf('struct BrokerConfig')));
-  for (const field of ['pipe_name', 'endpoint', 'server_name', 'ca_pem_path', 'container',
+  for (const field of ['pipe_name', 'shell_pid', 'endpoint', 'server_name', 'ca_pem_path', 'container',
     'provider', 'boot_id', 'agent_instance_id', 'journal_epoch', 'profile_id',
     'tool_manifest_hash', 'runtime_digest', 'last_receipt_seq', 'connect_timeout_ms',
     'reconnect_base_ms', 'reconnect_max_ms']) {
@@ -83,7 +84,7 @@ test('the entry is a real process with a closed config and no HTTP client', () =
     assert.ok(!src.includes(forbidden), `the Broker entry reached for ${forbidden}; REST is the shell's`);
   }
   // The blocking pipe loop stays off the async runtime, and the pump owns the identity.
-  assert.match(src, /std::thread::spawn\(move \|\| \{\s*\n\s*work_device::ipc::service::serve_shell_pipe\(&pipe_name, delivery_tx\)/);
+  assert.match(src, /std::thread::spawn\(move \|\| \{\s*\n\s*work_device::ipc::service::serve_shell_pipe\(&pipe_name, shell_pid, delivery_tx\)/);
   assert.match(src, /run_core_pump\(\s*\n\s*identity,\s*\n\s*TicketSlot::new\(""\)/);
   // The slot starts empty because the device id is only knowable from a CA-signed CN.
   assert.match(read(MAIN), /keyed by an empty string/);
@@ -274,10 +275,15 @@ test('the status method is read-only and the reply payload is a closed shape', (
   for (const forbidden of ['sign_pairing', 'sign_renewal', 'deliver_certificate', 'slot.take', 'withdraw']) {
     assert.ok(!status.includes(forbidden), `the read-only status arm calls ${forbidden}`);
   }
-  for (const key of ['has_certificate', 'device_id', 'cert_serial', 'cert_not_after', 'renewal_window_open']) {
+  for (const key of ['has_certificate', 'device_id', 'cert_serial', 'cert_not_after', 'renewal_window_open', 'awaiting_ticket']) {
     assert.ok(status.includes(`"${key}"`), `the status reply lost ${key}`);
   }
   assert.match(status, /renewal_window_open\(std::time::SystemTime::now\(\)\)/);
+  // M2 ruling 甲: the sixth fact is the PUMP's outstanding-request flag, passed in from the
+  // select loop — not a slot query. Count the full call statement so an arm that hardcodes
+  // false (or reads the slot) goes red.
+  assert.match(broker, /handle_message\(&mut identity, &mut slot, awaiting, &request\.message\)/);
+  assert.match(handle, /"awaiting_ticket": awaiting/);
   // An absent certificate reports null, not a fabricated serial or a zero date.
   assert.match(status, /unwrap_or\(Value::Null\)/);
   // The identity reply carries public material only. The arm is delimited from its own start,
@@ -322,6 +328,34 @@ test('a refusal reaches the shell before the pipe is disconnected', () => {
   assert.match(src, /use windows::Win32::Storage::FileSystem::\{\s*\n\s*FlushFileBuffers/);
   // The reason is written down where the next reader will find it, not only in this gate.
   assert.match(src, /DisconnectNamedPipe discards whatever the client has not read yet/);
+});
+
+test('only the configured shell process passes the pipe PID predicate', () => {
+  const src = read(PIPE);
+  // M2 ruling: same-user is not enough. accept() must compare the OS-reported client PID
+  // against the configured shell PID and disconnect on mismatch, BEFORE the handshake.
+  const accept = fnBody(code(src), 'pub fn accept(');
+  assert.match(accept, /GetNamedPipeClientProcessId\(self\.handle, &mut pid\)/);
+  assert.match(accept, /if pid != self\.expected_shell_pid \{/);
+  assert.match(accept, /return Err\(PipeError::PidMismatch\)/);
+  const mismatch = accept.indexOf('PidMismatch');
+  const sid = accept.indexOf('EqualSid');
+  assert.ok(mismatch >= 0 && (sid < 0 || mismatch < sid),
+    'the PID predicate must run before the SID gate so a same-user impostor is refused cheaply');
+  // The refusal is a real Windows test, not a paper assertion: a same-user client that is not
+  // the configured shell is refused twice, proving one refusal does not kill the channel.
+  assert.match(src, /fn a_same_user_client_that_is_not_the_configured_shell_is_refused/);
+  const refusal = fnBody(code(src), 'fn a_same_user_client_that_is_not_the_configured_shell_is_refused(');
+  assert.match(refusal, /own_pid\.wrapping_add\(1\)/);
+  assert.match(refusal, /Some\(PipeError::PidMismatch\)/);
+  // Two sequential refused attachments: one refusal must not kill the channel.
+  assert.equal(refusal.split('refused_client(&name, &server)').length - 1, 2);
+  // The config carries the predicate and the service loop hands it to the server.
+  assert.match(read(MAIN), /shell_pid: u32/);
+  const serve = fnBody(code(read(SERVICE)), 'pub fn serve_shell_pipe(');
+  assert.match(serve, /PipeServer::create\(name, shell_pid\)/);
+  // The Go shell client configures its OWN pid, because the test process is the shell there.
+  assert.match(read(INTEROP), /"shell_pid":\s*os\.Getpid\(\)/);
 });
 
 test('the platform seam is registered: no CI job claims the entry full chain', () => {

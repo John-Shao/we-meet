@@ -1,9 +1,10 @@
 //! Windows named-pipe server and client authentication (device-design §1: "受 ACL
 //! 保护的命名管道交互；管道客户端 token/SID、登录会话、PID、一次性握手 nonce 和
 //! 协议 major 都须匹配"). The pipe DACL grants only the current user SID; on
-//! accept the server verifies the client's PID, token SID and login session
-//! against the Broker's own user/session. The one-time nonce/protocol handshake
-//! ([`crate::ipc::handshake`]) runs over the framed channel after OS auth.
+//! accept the server verifies the client's PID against the configured shell PID,
+//! then its token SID and login session against the Broker's own user/session.
+//! The one-time nonce/protocol handshake ([`crate::ipc::handshake`]) runs over the
+//! framed channel after OS auth.
 //!
 //! The shell→Broker and Node→Broker channels are separate pipe instances with
 //! separate ACL/message sets; the AppContainer per-Run ACL lands with the sidecar
@@ -44,6 +45,11 @@ pub enum PipeError {
     Auth,
     SidMismatch,
     SessionMismatch,
+    /// The client process is not the shell the Broker was configured to serve (M2 ruling:
+    /// only the main process may deliver tickets/certificates). Same-user is not enough —
+    /// any process of the logged-in user passes the SID gate, so the configured shell PID
+    /// is the predicate that keeps a same-user impostor off the privileged message set.
+    PidMismatch,
     Io,
     Frame,
     /// The one-time handshake was refused (nonce, protocol major, client kind or replay).
@@ -149,11 +155,14 @@ pub struct PipeServer {
     handle: HANDLE,
     expected_sid: Vec<u8>,
     expected_session: u32,
+    expected_shell_pid: u32,
 }
 
 impl PipeServer {
-    /// Create a pipe instance whose DACL grants only the current user SID.
-    pub fn create(name: &str) -> Result<Self, PipeError> {
+    /// Create a pipe instance whose DACL grants only the current user SID. `shell_pid` is the
+    /// one process allowed to speak the shell message set; every other client PID is refused
+    /// even when it passes the SID/session gates.
+    pub fn create(name: &str, shell_pid: u32) -> Result<Self, PipeError> {
         unsafe {
             let expected_sid = current_user_sid()?;
             let expected_session = session_id(GetCurrentProcessId())?;
@@ -181,6 +190,7 @@ impl PipeServer {
                 handle,
                 expected_sid,
                 expected_session,
+                expected_shell_pid: shell_pid,
             })
         }
     }
@@ -198,6 +208,10 @@ impl PipeServer {
             }
             let mut pid: u32 = 0;
             GetNamedPipeClientProcessId(self.handle, &mut pid).map_err(|_| PipeError::Auth)?;
+            if pid != self.expected_shell_pid {
+                let _ = DisconnectNamedPipe(self.handle);
+                return Err(PipeError::PidMismatch);
+            }
             let client_sid = process_sid(pid)?;
             let sid_ok = EqualSid(
                 PSID(client_sid.as_ptr() as *mut c_void),
@@ -300,8 +314,8 @@ mod tests {
     #[test]
     fn same_user_client_connects_and_authenticates() {
         let name = unique_name();
-        let server = PipeServer::create(&name).expect("create pipe");
         let expected_pid = unsafe { GetCurrentProcessId() };
+        let server = PipeServer::create(&name, expected_pid).expect("create pipe");
 
         let client_name = name.clone();
         let (connected_tx, connected_rx) = std::sync::mpsc::channel();
@@ -337,7 +351,8 @@ mod tests {
     #[test]
     fn framed_echo_over_authenticated_pipe() {
         let name = unique_name();
-        let server = PipeServer::create(&name).expect("create pipe");
+        let server =
+            PipeServer::create(&name, unsafe { GetCurrentProcessId() }).expect("create pipe");
 
         let client_name = name.clone();
         let (connected_tx, connected_rx) = std::sync::mpsc::channel();
@@ -375,5 +390,65 @@ mod tests {
         drop(conn);
         let _ = done_tx.send(());
         client.join().unwrap();
+    }
+
+    #[test]
+    fn a_same_user_client_that_is_not_the_configured_shell_is_refused() {
+        // Between one client's close and the server's next accept the single instance is briefly
+        // unavailable (ERROR_PIPE_BUSY), so an attach retries until it lands — the same window
+        // the GW18 service-loop clients tolerate.
+        fn connect_retry(name: &str) -> HANDLE {
+            let name_w = wide(name);
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+            loop {
+                let handle = unsafe {
+                    CreateFileW(
+                        PCWSTR(name_w.as_ptr()),
+                        GENERIC_READ.0 | GENERIC_WRITE.0,
+                        FILE_SHARE_NONE,
+                        None,
+                        OPEN_EXISTING,
+                        FILE_FLAGS_AND_ATTRIBUTES(0),
+                        None,
+                    )
+                };
+                if let Ok(handle) = handle {
+                    return handle;
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "could not attach to {name}"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+        }
+        fn refused_client(name: &str, server: &PipeServer) {
+            let client_name = name.to_string();
+            let (done_tx, done_rx) = std::sync::mpsc::channel();
+            let client = std::thread::spawn(move || {
+                let handle = connect_retry(&client_name);
+                let _ = done_rx.recv();
+                unsafe {
+                    let _ = CloseHandle(handle);
+                }
+            });
+            // accept() must be in ConnectNamedPipe while the client attaches: a REUSED instance
+            // reports ERROR_PIPE_BUSY until the server listens again, so the attach retries
+            // against this call rather than a pre-accept "connected" signal.
+            assert_eq!(server.accept().err(), Some(PipeError::PidMismatch));
+            let _ = done_tx.send(());
+            client.join().unwrap();
+        }
+
+        let name = unique_name();
+        let own_pid = unsafe { GetCurrentProcessId() };
+        // The connecting client is this very process, so any other expected PID refuses it.
+        // The SID/session gates would all pass: the PID predicate is the only thing standing
+        // between a same-user impostor and the shell message set.
+        let server = PipeServer::create(&name, own_pid.wrapping_add(1)).expect("create pipe");
+        refused_client(&name, &server);
+        // One refused client must not take the channel down: the next attachment is still
+        // accepted and refused on the same predicate, not on a broken instance.
+        refused_client(&name, &server);
     }
 }

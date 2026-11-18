@@ -296,6 +296,61 @@ func TestDeviceFaceRequiresBearerPlane(t *testing.T) {
 	assertAPICode(t, crossSite, http.StatusForbidden, "csrf_invalid")
 }
 
+// The identity face (M2 ruling 乙) returns exactly the verified claims' (org, subject)
+// pair: the shell builds its §2.1 signing preimage from these two values, so the face
+// must hold the same Bearer-plane invariants as the device face and leak nothing else.
+func TestDeviceIdentityFace(t *testing.T) {
+	pool, _ := newBootstrapDB(t, false, false)
+	server := newDeviceServer(t, pool)
+	url := server.URL + api.DeviceIdentityPath
+
+	response := deviceRequest(t, http.MethodGet, url, "")
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("identity status = %d body=%s", response.StatusCode, readBody(response))
+	}
+	identity := decodeObject(t, response)
+	if len(identity) != 2 || identity["org_id"] != testOrg || identity["subject_id"] != testSubject {
+		t.Fatalf("identity = %#v, want exactly {org_id:%s subject_id:%s}", identity, testOrg, testSubject)
+	}
+
+	// A cookie session must not satisfy the Bearer plane, even with the shell header.
+	request, _ := http.NewRequest(http.MethodGet, url, nil)
+	request.Header.Set("X-Work-Client", "desktop")
+	request.AddCookie(&http.Cookie{Name: "sessionid", Value: "session-value"})
+	cookie, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertAPICode(t, cookie, http.StatusUnauthorized, "unauthorized")
+
+	// No credential at all.
+	noToken, err := http.Get(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertAPICode(t, noToken, http.StatusUnauthorized, "unauthorized")
+
+	// A bearer credential without the shell identity is the CSRF-code refusal.
+	request, _ = http.NewRequest(http.MethodGet, url, nil)
+	request.Header.Set("Authorization", "Bearer desktop-token")
+	noClient, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertAPICode(t, noClient, http.StatusForbidden, "csrf_invalid")
+
+	// Cross-site is refused even with the shell header.
+	request, _ = http.NewRequest(http.MethodGet, url, nil)
+	request.Header.Set("Authorization", "Bearer desktop-token")
+	request.Header.Set("X-Work-Client", "desktop")
+	request.Header.Set("Sec-Fetch-Site", "cross-site")
+	crossSite, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertAPICode(t, crossSite, http.StatusForbidden, "csrf_invalid")
+}
+
 func TestDevicePairingPolicyGate(t *testing.T) {
 	pool, _ := newBootstrapDB(t, false, false)
 	server := newDeviceServer(t, pool)

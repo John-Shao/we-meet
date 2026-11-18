@@ -49,6 +49,9 @@ const IMPLEMENTED_ONLY = [
   // not this second step, so it is an implementation-added public entry (a J39 surface).
   'POST /work/v2/devices/certificate-renewals/{pairingId}/confirm',
   'POST /work/v2/devices/{deviceId}/revoke',
+  // M2 ruling 乙: the Bearer-plane identity read the shell's signing preimage needs
+  // (org_id was unreachable on this plane). Implementation-added public entry, J39 surface.
+  'GET /work/v2/identity',
   // R0b M1b workspace-grant face (control-design §1.4 row 64): the Bearer-plane
   // list, register and revoke routes backed by the 0040 grant commands.
   'GET /work/v2/workspace-grants',

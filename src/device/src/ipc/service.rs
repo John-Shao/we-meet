@@ -31,12 +31,16 @@ use crate::ipc::pipe::{PipeConnection, PipeError, PipeServer};
 /// Serve the shell pipe until the ticket pump is gone.
 ///
 /// `name` is the full pipe path (`\\.\pipe\...`). The DACL grants only the Broker's own user SID
-/// and every accepted client is checked against the Broker's login session and PID.
+/// and every accepted client is checked against the configured shell PID, the Broker's login
+/// session and SID. `shell_pid` is the desktop main process that spawned this Broker; a same-user
+/// process that is not that shell is refused before the handshake (M2 ruling: only the main
+/// process may deliver tickets/certificates).
 pub fn serve_shell_pipe(
     name: &str,
+    shell_pid: u32,
     deliveries: mpsc::Sender<DeliveryRequest>,
 ) -> Result<(), PipeError> {
-    let server = PipeServer::create(name)?;
+    let server = PipeServer::create(name, shell_pid)?;
     loop {
         if deliveries.is_closed() {
             return Err(PipeError::Broker);
@@ -322,7 +326,9 @@ mod tests {
                 ready_tx,
             ));
             let server_name = name.clone();
-            let server = std::thread::spawn(move || serve_shell_pipe(&server_name, delivery_tx));
+            let shell_pid = unsafe { windows::Win32::System::Threading::GetCurrentProcessId() };
+            let server =
+                std::thread::spawn(move || serve_shell_pipe(&server_name, shell_pid, delivery_tx));
             Self {
                 name,
                 rt,

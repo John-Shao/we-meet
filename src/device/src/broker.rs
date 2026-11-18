@@ -116,7 +116,7 @@ pub async fn run_core_pump(
             request = deliveries.recv(), if deliveries_open => {
                 match request {
                     Some(request) => {
-                        let reply = handle_message(&mut identity, &mut slot, &request.message);
+                        let reply = handle_message(&mut identity, &mut slot, awaiting, &request.message);
                         // A dropped reply means the pipe client went away mid-call. The state has
                         // already recorded the delivery, which is the honest outcome: the ticket
                         // is pending whether or not the shell stayed to hear about it.
@@ -187,7 +187,12 @@ pub async fn run_core_pump(
 /// Route one already-closure-checked shell message to the state that owns it, and build the closed
 /// reply. The pipe loop never validates a payload itself, so this is the single place a method's
 /// key set is enforced.
-fn handle_message(identity: &mut Identity, slot: &mut TicketSlot, message: &Value) -> Reply {
+fn handle_message(
+    identity: &mut Identity,
+    slot: &mut TicketSlot,
+    awaiting: bool,
+    message: &Value,
+) -> Reply {
     let method = message.get("method").and_then(Value::as_str).unwrap_or("");
     if method == ticket::METHOD {
         return match ticket::deliver_message(slot, message, Instant::now()) {
@@ -285,6 +290,11 @@ fn handle_message(identity: &mut Identity, slot: &mut TicketSlot, message: &Valu
                     "renewal_window_open": held
                         .map(|c| c.renewal_window_open(std::time::SystemTime::now()))
                         .unwrap_or(false),
+                    // M2 ruling 甲: the shell mints a ticket only when the link is waiting for
+                    // one. The pump's own outstanding-request flag is the authority — reporting
+                    // the slot's contents instead would say "pending" for a ticket nobody asked
+                    // for and hide a reconnect that needs a fresh one.
+                    "awaiting_ticket": awaiting,
                 }),
             )
         }
@@ -990,6 +1000,7 @@ mod tests {
         assert_eq!(
             keys,
             [
+                "awaiting_ticket",
                 "cert_not_after",
                 "cert_serial",
                 "device_id",
@@ -1000,6 +1011,48 @@ mod tests {
         assert_eq!(data["has_certificate"], json!(false));
         assert_eq!(data["device_id"], Value::Null);
         assert_eq!(data["renewal_window_open"], json!(false));
+        assert_eq!(data["awaiting_ticket"], json!(false));
+    }
+
+    #[tokio::test]
+    async fn awaiting_ticket_reports_the_outstanding_request_not_the_slot_contents() {
+        let mut h = Harness::new();
+        async fn status(h: &mut Harness) -> Value {
+            h.deliver(json!({"method": "getDeviceCertificateStatus", "request_id": "st"}))
+                .await
+                .data
+                .unwrap()["awaiting_ticket"]
+                .clone()
+        }
+        // A pending ticket nobody asked for is NOT an outstanding request: the shell must not
+        // read "awaiting" from the slot's contents, or it would mint against a satisfied link.
+        assert_eq!(
+            h.deliver(delivery(TICKET, "row-1")).await.result,
+            "accepted"
+        );
+        assert_eq!(status(&mut h).await, json!(false));
+        // The link asks and the pending ticket satisfies it at once — still no outstanding wait.
+        h.ask().await;
+        assert_eq!(h.next_ticket().await.as_deref(), Some(TICKET));
+        assert_eq!(status(&mut h).await, json!(false));
+        // A second dial with an empty slot IS an outstanding wait, and only a fresh delivery
+        // clears it (M2 ruling 甲: the shell mints exactly when this reads true). ask() only
+        // ENQUEUES the link event, so the pump may answer a status call before it consumes it;
+        // poll to the settled state within a budget instead of assuming channel ordering.
+        h.ask().await;
+        let mut seen = json!(false);
+        for _ in 0..200 {
+            seen = status(&mut h).await;
+            if seen == json!(true) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        assert_eq!(seen, json!(true));
+        assert_eq!(h.deliver(delivery(OTHER, "row-2")).await.result, "accepted");
+        assert_eq!(h.next_ticket().await.as_deref(), Some(OTHER));
+        assert_eq!(status(&mut h).await, json!(false));
+        assert_eq!(h.finish().await, BridgeOutcome::LinkGone);
     }
 
     #[tokio::test]

@@ -98,6 +98,9 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 	journalEpoch := uuid.NewString()
 	config := map[string]any{
 		"pipe_name":          pipeName,
+		// The Go test process plays the shell and owns the pipe client, so its PID is the
+		// shell predicate the Broker's accept() compares every client against.
+		"shell_pid":          os.Getpid(),
 		"endpoint":           "https://localhost:" + strings.Split(gwAddr, ":")[1],
 		"server_name":        "localhost",
 		"ca_pem_path":        caPath,
@@ -217,6 +220,12 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 	if facts["renewal_window_open"] != false {
 		t.Fatalf("a fresh 24h certificate must not be in the renewal window: %#v", facts)
 	}
+	// M2 ruling 甲: the sixth fact is the pump's outstanding-ticket-request flag. Whether the
+	// link has already asked at this instant is a startup race, so only its TYPE is pinned here;
+	// the deterministic value (false once the session consumed the ticket) is asserted below.
+	if _, ok := facts["awaiting_ticket"].(bool); !ok {
+		t.Fatalf("awaiting_ticket is not a boolean: %#v", facts)
+	}
 	// The Broker reads NotAfter out of the DER it imported, through a Windows FILETIME. Comparing
 	// it to the certificate work-api actually issued is what discriminates a wrong epoch offset:
 	// a dropped zero still yields a plausible date, just 332 years out.
@@ -251,6 +260,12 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 	sessionID := waitForBrokerSession(t, dbName, deviceID, bootID, agentID, journalEpoch)
 	if sessionID == "" {
 		t.Fatalf("the Broker never established a session; stderr:\n%s", stderr.String())
+	}
+	// The session consumed the delivered ticket, so no request is outstanding: the shell must
+	// read false here and NOT mint another ticket against a satisfied link.
+	postSession := brokerCall(t, pipe, map[string]any{"method": "getDeviceCertificateStatus", "request_id": "st-session"})
+	if postSession["data"].(map[string]any)["awaiting_ticket"] != false {
+		t.Fatalf("a consumed ticket left the request outstanding: %#v", postSession["data"])
 	}
 	// Server-side truth: the row carries the identity the config gave the Broker, not something
 	// the Broker reported about itself.

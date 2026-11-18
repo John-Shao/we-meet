@@ -72,6 +72,8 @@ mod win {
         last_receipt_seq: u64,
         /// The pipe the Go shell client connects to.
         pipe_name: String,
+        /// The Go test process plays the shell, so its PID is the pipe's shell predicate.
+        shell_pid: u32,
         budget_ms: u64,
     }
 
@@ -159,7 +161,9 @@ mod win {
         // The real Windows pipe service loop on a dedicated blocking thread, exactly as a Broker
         // would run it: blocking_send/blocking_recv are only legal outside the async runtime.
         let pipe_name = cfg.pipe_name.clone();
-        let server = std::thread::spawn(move || serve_shell_pipe(&pipe_name, delivery_tx));
+        let shell_pid = cfg.shell_pid;
+        let server =
+            std::thread::spawn(move || serve_shell_pipe(&pipe_name, shell_pid, delivery_tx));
         let bridge = rt.spawn(run_core_pump(
             identity,
             TicketSlot::new(&cfg.device_id),

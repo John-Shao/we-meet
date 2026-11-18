@@ -88,6 +88,8 @@ func TestDeviceBrokerInterop(t *testing.T) {
 		"runtime_digest":        strings.Repeat("b", 64),
 		"last_receipt_seq":      0,
 		"pipe_name":             pipeName,
+		// The Go test process IS the shell client here, so its own PID is the predicate.
+		"shell_pid":             os.Getpid(),
 		"budget_ms":             40000,
 	}
 	// No "ticket" key: the probe structurally cannot dial without the pipe delivery.

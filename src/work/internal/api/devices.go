@@ -34,6 +34,12 @@ const (
 	// new public entry (a J39 surface) rather than widening the shipped pairing path.
 	DeviceCertificateRenewalConfirmPath = "/work/v2/devices/certificate-renewals/{pairingId}/confirm"
 	DeviceRevokePath                    = "/work/v2/devices/{deviceId}/revoke"
+	// The shell's signing preimage needs org_id/subject_id (device-design §2.1 step 3),
+	// and the Bearer plane had no face that returns them: subject is the OIDC sub the
+	// shell already holds, but org_id is the Host's caller organization, which only the
+	// verified claims carry. M2 ruling 乙 adds this read-only identity face rather than
+	// widening the frozen pairing response. It is a new public entry (a J39 surface).
+	DeviceIdentityPath = "/work/v2/identity"
 )
 
 type devicePairingRequest struct {
@@ -348,6 +354,22 @@ func (s *Server) revokeDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, view)
+}
+
+// deviceIdentity returns the verified Bearer claims' (org, subject) pair and nothing else.
+// The shell needs both to build the §2.1 signing preimage it hands to the Broker; the values
+// come straight from the Host-verified claims, never from a request body or a second lookup,
+// so this face cannot disagree with the identity the domain commands bind. No database work:
+// the claims are the authority, and a read that re-queried could race a membership change.
+func (s *Server) deviceIdentity(w http.ResponseWriter, r *http.Request) {
+	claims, _, ok := s.authenticateBearer(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"org_id":     claims.OrgID,
+		"subject_id": claims.SubjectID,
+	})
 }
 
 // confirmDeviceCertificateRenewal consumes the purpose='renew' challenge and issues the

@@ -1,9 +1,17 @@
 import path from "node:path";
 
+/** The Work device driver's deployment section (M2). Optional: a runtime config without it
+ * leaves the driver dormant, which is the shipped default until the gateway is deployed. */
+export interface WorkConfig {
+  gatewayOrigin: string;
+  serverName: string;
+  caPemPath: string;
+}
 export interface DesktopConfig {
   serviceOrigin: string;
   issuer: string;
   clientId: string;
+  work?: WorkConfig;
 }
 
 export const CALLBACK = "online.we-meet.desktop://oauth/callback";
@@ -42,10 +50,27 @@ export function validateConfig(
     throw new Error("Invalid service configuration");
   }
   const issuer = secure(value.issuer);
+  let work: WorkConfig | undefined;
+  if (value.work !== undefined) {
+    const gateway = secure(value.work.gatewayOrigin);
+    if (
+      typeof value.work.serverName !== "string" ||
+      !/^[a-zA-Z0-9._-]{1,253}$/.test(value.work.serverName) ||
+      typeof value.work.caPemPath !== "string" ||
+      !path.isAbsolute(value.work.caPemPath)
+    )
+      throw new Error("Invalid service configuration");
+    work = {
+      gatewayOrigin: gateway.origin,
+      serverName: value.work.serverName,
+      caPemPath: value.work.caPemPath,
+    };
+  }
   return {
     serviceOrigin: service.origin,
     issuer: issuer.href.replace(/\/$/, ""),
     clientId: value.clientId,
+    ...(work ? { work } : {}),
   };
 }
 
