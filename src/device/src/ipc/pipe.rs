@@ -21,7 +21,7 @@ use windows::Win32::Security::{
     PSECURITY_DESCRIPTOR, PSID, SECURITY_ATTRIBUTES, TOKEN_QUERY, TOKEN_USER,
 };
 use windows::Win32::Storage::FileSystem::{
-    ReadFile, WriteFile, FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX,
+    FlushFileBuffers, ReadFile, WriteFile, FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX,
 };
 use windows::Win32::System::Pipes::{
     ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, GetNamedPipeClientProcessId,
@@ -274,6 +274,12 @@ impl PipeConnection {
 impl Drop for PipeConnection {
     fn drop(&mut self) {
         unsafe {
+            // DisconnectNamedPipe discards whatever the client has not read yet, so a refusal
+            // written immediately before the close (a bad handshake, or the pump going away)
+            // would reach the shell as a broken pipe instead of the closed code §1 requires.
+            // FlushFileBuffers blocks until the peer has drained the buffer; a departed client
+            // fails it at once, which is the normal end and needs no reply.
+            let _ = FlushFileBuffers(self.handle);
             let _ = DisconnectNamedPipe(self.handle);
         }
     }

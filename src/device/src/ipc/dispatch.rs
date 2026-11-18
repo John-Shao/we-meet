@@ -1,20 +1,27 @@
 //! What the shell→Broker pipe loop does with one message, and what it answers
 //! (device-design §1: "IPC 返回明确错误而不是静默降级").
 //!
-//! GW18 lands the service loop. Of the fourteen closed shell methods only
-//! `deliverDeviceSessionTicket` has a handler; the other thirteen are IN the closure but not
-//! implemented. They are refused with `method_not_implemented`, never with `unknown_method`:
+//! GW18 landed the service loop with one handler out of fourteen closed shell methods. GW21 adds
+//! five more for §2.1's Broker side, so six now have handlers and thirteen remain IN the closure
+//! but unimplemented. Those are refused with `method_not_implemented`, never with `unknown_method`:
 //! the shell must be able to tell "this call is illegal" from "this call is legal but not landed
 //! yet". Conflating the two would make a legitimate caller look like an attacker, and would give
 //! the shell no way to decide whether to retry or to change the call.
 //!
-//! Every reply is closed: `accepted` carries exactly three keys, `refused` exactly four. The
-//! echoed `request_id`/`method` are the caller's own strings when they are strings and empty
+//! Every reply is closed: `refused` carries exactly four keys, `accepted` exactly three plus an
+//! optional `data` object. GW18's accepted reply had no payload slot at all, which §2.1 cannot
+//! work with — step 1 requires the public JWK/thumbprint to reach the main process, and the
+//! signing requests must return a signature. `data` is therefore present exactly for the methods
+//! that return facts, and each one's key set is closed (see [`crate::broker`]). It is never a
+//! free-form channel: no method puts a path, a command or a URL in it.
+//!
+//! The echoed `request_id`/`method` are the caller's own strings when they are strings and empty
 //! otherwise — the Broker never invents a correlation id, and a message too malformed to carry
 //! one still gets a reply rather than a silent drop.
 
 use serde_json::{json, Value};
 
+use crate::identity::IdentityError;
 use crate::ipc::schema::{validate_message, Channel, SchemaError};
 use crate::ipc::ticket::{self, TicketError};
 
@@ -26,6 +33,11 @@ pub const REFUSED: &str = "refused";
 /// The closed refusal codes. `unknown_method` and `method_not_implemented` are deliberately
 /// distinct (see the module doc); `handshake` is the connection-level refusal written before the
 /// one-time handshake is accepted, after which the pipe is disconnected.
+///
+/// GW21 adds two for the certificate face. `no_pairing` is distinct from `certificate_invalid`
+/// because the shell must be able to tell "you have not asked me to sign for any org yet, so I
+/// have nothing to bind this certificate against" (retry after pairing) from "this chain failed
+/// a gate" (do not retry the same bytes).
 pub const CODES: &[&str] = &[
     "unknown_method",
     "method_not_implemented",
@@ -34,10 +46,12 @@ pub const CODES: &[&str] = &[
     "foreign_device",
     "already_consumed",
     "handshake",
+    "no_pairing",
+    "certificate_invalid",
 ];
 
 /// One closed reply to one IPC message.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Reply {
     /// The caller's correlation id, echoed verbatim (empty when absent or not a string).
     pub request_id: String,
@@ -47,10 +61,13 @@ pub struct Reply {
     pub result: &'static str,
     /// A member of [`CODES`], present exactly when the call was refused.
     pub code: Option<&'static str>,
+    /// The closed fact payload, present exactly when an accepted method returns one. Never
+    /// present on a refusal, so a refused call cannot smuggle data past the shell's checks.
+    pub data: Option<Value>,
 }
 
 impl Reply {
-    /// An accepted call.
+    /// An accepted call that returns no facts.
     pub fn accepted(message: &Value) -> Self {
         let (request_id, method) = echo(message);
         Self {
@@ -58,7 +75,15 @@ impl Reply {
             method,
             result: ACCEPTED,
             code: None,
+            data: None,
         }
+    }
+
+    /// An accepted call that returns a closed fact payload.
+    pub fn accepted_with(message: &Value, data: Value) -> Self {
+        let mut reply = Self::accepted(message);
+        reply.data = Some(data);
+        reply
     }
 
     /// A refused call with a closed code.
@@ -70,6 +95,7 @@ impl Reply {
             method,
             result: REFUSED,
             code: Some(code),
+            data: None,
         }
     }
 
@@ -81,24 +107,25 @@ impl Reply {
             method: String::new(),
             result: REFUSED,
             code: Some("handshake"),
+            data: None,
         }
     }
 
-    /// The closed wire shape: three keys when accepted, four when refused.
+    /// The closed wire shape: four keys when refused, three when accepted without facts, and
+    /// three plus `data` when accepted with them.
     pub fn to_value(&self) -> Value {
-        match self.code {
-            None => json!({
-                "request_id": self.request_id,
-                "method": self.method,
-                "result": self.result,
-            }),
-            Some(code) => json!({
-                "request_id": self.request_id,
-                "method": self.method,
-                "result": self.result,
-                "code": code,
-            }),
+        let mut out = json!({
+            "request_id": self.request_id,
+            "method": self.method,
+            "result": self.result,
+        });
+        if let Some(code) = self.code {
+            out["code"] = json!(code);
         }
+        if let Some(data) = &self.data {
+            out["data"] = data.clone();
+        }
+        out
     }
 }
 
@@ -130,16 +157,40 @@ pub fn delivery_code(err: TicketError) -> &'static str {
     }
 }
 
+/// The wire code for an identity/certificate refusal.
+pub fn identity_code(err: IdentityError) -> &'static str {
+    match err {
+        IdentityError::Schema => "schema",
+        IdentityError::Shape => "shape",
+        IdentityError::NoPairing => "no_pairing",
+        IdentityError::CertificateInvalid | IdentityError::NotWindows => "certificate_invalid",
+        IdentityError::Sign => "shape",
+    }
+}
+
 /// What the pipe loop should do with one message.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Dispatch {
-    /// A ticket delivery: hand the message to the bridge, which runs the whole closed validation
-    /// then the slot ([`ticket::deliver_message`]) and answers from the result. Validation is NOT
-    /// duplicated here — one closure path, so the pipe loop and the slot cannot disagree.
-    Ticket,
-    /// Answer immediately; the message never reaches the slot.
+    /// A method the core pump owns: hand the message over, and it runs the whole closed
+    /// validation then answers from the result. Validation is NOT duplicated here — one closure
+    /// path, so the pipe loop and the owning state cannot disagree. GW18 called this `Ticket`
+    /// when the pump owned only the ticket slot; GW21's pump also owns the §2.1 identity, so the
+    /// variant names the owner rather than one of its methods.
+    Core,
+    /// Answer immediately; the message never reaches the pump.
     Answer(Reply),
 }
+
+/// The shell methods the core pump implements. Everything else in the closure is legal but
+/// unlanded, and is answered with `method_not_implemented`.
+pub const CORE_METHODS: &[&str] = &[
+    ticket::METHOD,
+    "getDeviceIdentity",
+    "signDevicePairing",
+    "signDeviceCertificateRenewal",
+    "deliverDeviceCertificate",
+    "getDeviceCertificateStatus",
+];
 
 /// Route one message on the shell channel. The closure check runs first, so a forbidden
 /// `command`/`path`/`url` field is a schema refusal even on a method that is otherwise known.
@@ -152,8 +203,9 @@ pub fn classify(message: &Value) -> Dispatch {
             Dispatch::Answer(Reply::refused(message, "schema"))
         }
         Ok(()) => {
-            if message.get("method").and_then(Value::as_str) == Some(ticket::METHOD) {
-                Dispatch::Ticket
+            let method = message.get("method").and_then(Value::as_str).unwrap_or("");
+            if CORE_METHODS.contains(&method) {
+                Dispatch::Core
             } else {
                 Dispatch::Answer(Reply::refused(message, "method_not_implemented"))
             }
@@ -181,8 +233,8 @@ mod tests {
     }
 
     #[test]
-    fn the_reply_closure_is_seven_codes_and_two_results() {
-        assert_eq!(CODES.len(), 7);
+    fn the_reply_closure_is_nine_codes_and_two_results() {
+        assert_eq!(CODES.len(), 9);
         let mut sorted = CODES.to_vec();
         sorted.sort_unstable();
         sorted.dedup();
@@ -249,14 +301,14 @@ mod tests {
 
     #[test]
     fn the_ticket_method_is_dispatched_to_the_bridge() {
-        assert_eq!(classify(&delivery()), Dispatch::Ticket);
+        assert_eq!(classify(&delivery()), Dispatch::Core);
     }
 
     #[test]
     fn every_other_closed_shell_method_is_not_implemented_not_unknown() {
         let mut count = 0;
         for method in SHELL_METHODS {
-            if *method == ticket::METHOD {
+            if CORE_METHODS.contains(method) {
                 continue;
             }
             count += 1;
@@ -269,12 +321,13 @@ mod tests {
                     assert_eq!(reply.request_id, "req-9");
                     assert_eq!(reply.method, *method);
                 }
-                Dispatch::Ticket => panic!("{method} must not reach the ticket slot"),
+                Dispatch::Core => panic!("{method} must not reach the ticket slot"),
             }
         }
-        // Thirteen of the fourteen are unlanded; the count is the closure minus the one handler.
+        // Thirteen of the nineteen are unlanded; the count is the closure minus the six handlers.
         assert_eq!(count, 13);
-        assert_eq!(SHELL_METHODS.len(), 14);
+        assert_eq!(SHELL_METHODS.len(), 19);
+        assert_eq!(CORE_METHODS.len(), 6);
     }
 
     #[test]
@@ -290,7 +343,7 @@ mod tests {
                 Dispatch::Answer(reply) => {
                     assert_eq!(reply.code, Some("unknown_method"), "{method}")
                 }
-                Dispatch::Ticket => panic!("{method} must not reach the slot"),
+                Dispatch::Core => panic!("{method} must not reach the slot"),
             }
         }
         // A viewer-channel method is unknown on the shell pipe, not merely unimplemented.
@@ -310,7 +363,7 @@ mod tests {
                     Dispatch::Answer(reply) => {
                         assert_eq!(reply.code, Some("schema"), "{method}/{field}")
                     }
-                    Dispatch::Ticket => panic!("{method}/{field} must not reach the slot"),
+                    Dispatch::Core => panic!("{method}/{field} must not reach the slot"),
                 }
             }
         }

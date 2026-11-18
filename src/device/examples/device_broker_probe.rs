@@ -12,7 +12,7 @@
 //! with a handed-over ticket: the only source is the pipe. The Go side plays the desktop shell
 //! (main process), connects to the real pipe, completes the one-time handshake, delivers a ticket
 //! minted in the real `device_session_ticket` shape (64 lowercase hex) and reads the closed reply.
-//! The probe then runs the SHIPPED `broker::run_ticket_bridge` and `transport::link::Link` — no
+//! The probe then runs the SHIPPED `broker::run_core_pump` and `transport::link::Link` — no
 //! reimplementation — and the Go side asserts the session row and the consumed ticket in PostgreSQL.
 //!
 //! NOT a production artifact: `examples/` is outside the release payload closure, the key is a
@@ -42,7 +42,8 @@ mod win {
     use serde_json::json;
     use tokio::sync::mpsc;
 
-    use work_device::broker::run_ticket_bridge;
+    use work_device::broker::{run_core_pump, ReadyIdentity};
+    use work_device::identity::{Identity, IdentityConfig};
     use work_device::ipc::service::serve_shell_pipe;
     use work_device::ipc::ticket::TicketSlot;
     use work_device::key::{DeviceKey, SoftwareKey};
@@ -95,7 +96,23 @@ mod win {
             Ok(key) => key,
             Err(_) => fail("device key scalar is not a valid P-256 private key"),
         };
+        let key = Arc::new(key);
         let device_jwk = key.public_jwk();
+        // GW21 gave the pump an Identity to own. This probe exercises the TICKET path with a
+        // software key and a PKCS#12 link identity, so the identity here is inert: no certificate
+        // is ever delivered and the published ReadyIdentity is never used. The container name is
+        // a label, not a real CNG container - the certificate path is proven by the GW21 probe.
+        let identity = match Identity::new(
+            IdentityConfig {
+                container: "gw18-ticket-probe".to_string(),
+                provider: "Microsoft Software Key Storage Provider".to_string(),
+                ca_pem: cfg.ca_pem.clone().into_bytes(),
+            },
+            key.clone(),
+        ) {
+            Ok(identity) => identity,
+            Err(err) => fail(&format!("identity: {err:?}")),
+        };
         let config = LinkConfig {
             endpoint: cfg.endpoint.clone(),
             server_name: cfg.server_name.clone(),
@@ -137,19 +154,22 @@ mod win {
         let (ticket_tx, ticket_rx) = mpsc::channel(1);
         let (core_tx, mut core_rx) = mpsc::channel(32);
         let (command_tx, command_rx) = mpsc::channel(4);
+        let (ready_tx, _ready_rx) = mpsc::channel::<ReadyIdentity>(4);
 
         // The real Windows pipe service loop on a dedicated blocking thread, exactly as a Broker
         // would run it: blocking_send/blocking_recv are only legal outside the async runtime.
         let pipe_name = cfg.pipe_name.clone();
         let server = std::thread::spawn(move || serve_shell_pipe(&pipe_name, delivery_tx));
-        let bridge = rt.spawn(run_ticket_bridge(
+        let bridge = rt.spawn(run_core_pump(
+            identity,
             TicketSlot::new(&cfg.device_id),
             delivery_rx,
             link_event_rx,
             ticket_tx,
             core_tx,
+            ready_tx,
         ));
-        let link = Link::new(config, Arc::new(key));
+        let link = Link::new(config, key.clone());
         let link_handle = rt.spawn(link.run(ticket_rx, command_rx, link_event_tx));
 
         let started = Instant::now();

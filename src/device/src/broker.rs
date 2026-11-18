@@ -22,15 +22,40 @@
 //! Scope (GW18, ruled): the ticket path only. Every other link event is forwarded to the core
 //! VERBATIM — no downlink is verified, journaled or dispatched here. A2 consumption stays deferred
 //! because the device side has no sync core yet, so a downlink router would have no caller.
+//!
+//! GW21 widens the OWNERSHIP, not the downlink scope. §2.1's Broker side (the CNG key, the two
+//! purpose-specific signing requests, the issued certificate) had no carrier in the closed IPC set
+//! and no owner anywhere. Rather than add a second dispatcher — which would mean two owners of
+//! Broker state and force a lock, breaking the single-ownership rule above — the same task now owns
+//! the [`Identity`] alongside the slot and routes by method. The downlink boundary is unchanged:
+//! every link event other than `AwaitingTicket` is still forwarded verbatim, and nothing here
+//! verifies, journals or dispatches a command.
+//!
+//! The link cannot be built before a certificate exists ([`ClientIdentity`] is a closed enum with
+//! no identity-less variant), so the pump does not own the link's lifecycle. On every successful
+//! certificate delivery it publishes a [`ReadyIdentity`] and the entry decides whether to start or
+//! restart the link. That keeps the pump's state exclusive and the link's restart policy visible in
+//! one place.
 
 use std::time::Instant;
 
-use serde_json::Value;
+use serde_json::{json, Value};
 use tokio::sync::{mpsc, oneshot};
 
-use crate::ipc::dispatch::{delivery_code, Reply};
+use crate::identity::{Identity, IdentityError};
+use crate::ipc::dispatch::{delivery_code, identity_code, Reply};
 use crate::ipc::ticket::{self, TicketSlot};
-use crate::transport::LinkEvent;
+use crate::transport::{ClientIdentity, LinkEvent};
+
+/// A certificate-backed identity the entry can dial with. Published after every successful
+/// delivery, including a renewal replacement, so the entry can restart the link on the new chain.
+#[derive(Clone, Debug)]
+pub struct ReadyIdentity {
+    /// The device id adopted from the CA-signed certificate's CN.
+    pub device_id: String,
+    /// The CNG-bound client identity (Windows production shape).
+    pub identity: ClientIdentity,
+}
 
 /// One framed shell message plus the channel the pipe loop waits on for its reply.
 pub struct DeliveryRequest {
@@ -70,16 +95,19 @@ enum Pump {
 /// `deliveries` comes from the pipe loop, `link_events` from the link, `tickets` goes back to the
 /// link, and `core_events` carries every event the pump does not consume. The pump consumes ONLY
 /// [`LinkEvent::AwaitingTicket`]; forwarding it would make the core treat a normal wait as a
-/// failure (the GW17 probe does exactly that).
+/// failure (the GW17 probe does exactly that). `ready` publishes a certificate-backed identity
+/// whenever one is successfully delivered.
 ///
 /// Backpressure is intentional: if the core stops reading `core_events`, the pump blocks and the
 /// pipe loop's reply waits with it. Nothing is dropped to keep the pipe moving.
-pub async fn run_ticket_bridge(
+pub async fn run_core_pump(
+    mut identity: Identity,
     mut slot: TicketSlot,
     mut deliveries: mpsc::Receiver<DeliveryRequest>,
     mut link_events: mpsc::Receiver<LinkEvent>,
     tickets: mpsc::Sender<String>,
     core_events: mpsc::Sender<LinkEvent>,
+    ready: mpsc::Sender<ReadyIdentity>,
 ) -> BridgeOutcome {
     let mut awaiting = false;
     let mut deliveries_open = true;
@@ -88,14 +116,27 @@ pub async fn run_ticket_bridge(
             request = deliveries.recv(), if deliveries_open => {
                 match request {
                     Some(request) => {
-                        let reply = match ticket::deliver_message(&mut slot, &request.message, Instant::now()) {
-                            Ok(()) => Reply::accepted(&request.message),
-                            Err(err) => Reply::refused(&request.message, delivery_code(err)),
-                        };
-                        // A dropped reply means the pipe client went away mid-call. The slot has
+                        let reply = handle_message(&mut identity, &mut slot, &request.message);
+                        // A dropped reply means the pipe client went away mid-call. The state has
                         // already recorded the delivery, which is the honest outcome: the ticket
                         // is pending whether or not the shell stayed to hear about it.
                         let _ = request.reply.send(reply);
+                        // Published only after a delivery actually held a certificate, so the
+                        // entry never dials with an identity the Broker refused.
+                        if let (Some(device_id), Ok(link_identity)) =
+                            (identity.device_id(), identity.link_identity())
+                        {
+                            if request.message.get("method").and_then(Value::as_str)
+                                == Some("deliverDeviceCertificate")
+                            {
+                                let _ = ready
+                                    .send(ReadyIdentity {
+                                        device_id: device_id.to_string(),
+                                        identity: link_identity,
+                                    })
+                                    .await;
+                            }
+                        }
                         if awaiting {
                             // This arm only runs while the delivery channel is open (the select
                             // guard), so a failed withdrawal just leaves the request outstanding.
@@ -143,6 +184,142 @@ pub async fn run_ticket_bridge(
     }
 }
 
+/// Route one already-closure-checked shell message to the state that owns it, and build the closed
+/// reply. The pipe loop never validates a payload itself, so this is the single place a method's
+/// key set is enforced.
+fn handle_message(identity: &mut Identity, slot: &mut TicketSlot, message: &Value) -> Reply {
+    let method = message.get("method").and_then(Value::as_str).unwrap_or("");
+    if method == ticket::METHOD {
+        return match ticket::deliver_message(slot, message, Instant::now()) {
+            Ok(()) => Reply::accepted(message),
+            Err(err) => Reply::refused(message, delivery_code(err)),
+        };
+    }
+
+    let fields: &[&str] = match method {
+        "getDeviceIdentity" | "getDeviceCertificateStatus" => &[],
+        "signDevicePairing" | "signDeviceCertificateRenewal" => {
+            &["pairing_id", "challenge", "org_id", "subject_id"]
+        }
+        "deliverDeviceCertificate" => &["device_id", "certificate_pem"],
+        // classify() only forwards CORE_METHODS, so this is unreachable; answering with a closed
+        // code keeps the pipe moving instead of panicking inside the pump.
+        _ => return Reply::refused(message, "unknown_method"),
+    };
+    if let Err(err) = closed_fields(message, fields) {
+        return Reply::refused(message, identity_code(err));
+    }
+    let text = |key: &str| message.get(key).and_then(Value::as_str).unwrap_or("");
+
+    match method {
+        "getDeviceIdentity" => {
+            let jwk = serde_json::to_value(identity.public_jwk()).unwrap_or(Value::Null);
+            Reply::accepted_with(
+                message,
+                json!({
+                    "public_key_jwk": jwk,
+                    "public_key_thumbprint": identity.thumbprint(),
+                    "container": identity.container(),
+                }),
+            )
+        }
+        "signDevicePairing" | "signDeviceCertificateRenewal" => {
+            let result = if method == "signDevicePairing" {
+                identity.sign_pairing(
+                    text("pairing_id"),
+                    text("challenge"),
+                    text("org_id"),
+                    text("subject_id"),
+                )
+            } else {
+                identity.sign_renewal(
+                    text("pairing_id"),
+                    text("challenge"),
+                    text("org_id"),
+                    text("subject_id"),
+                )
+            };
+            match result {
+                Ok(signature) => Reply::accepted_with(message, json!({ "signature": signature })),
+                Err(err) => Reply::refused(message, identity_code(err)),
+            }
+        }
+        "deliverDeviceCertificate" => {
+            match identity.deliver_certificate(text("device_id"), text("certificate_pem")) {
+                Ok(()) => {
+                    // The slot is keyed by the device id, which the Broker only learns from the
+                    // CA-signed CN. Re-key it on the first delivery so a ticket for this device is
+                    // no longer refused as foreign; a renewal keeps the same id and must not reset
+                    // the consumed set.
+                    if let Some(device_id) = identity.device_id() {
+                        if slot.device_id() != device_id {
+                            *slot = TicketSlot::new(device_id);
+                        }
+                    }
+                    let held = identity.certificate();
+                    Reply::accepted_with(
+                        message,
+                        json!({
+                            "cert_serial": held.map(|c| c.serial.clone()).unwrap_or_default(),
+                            "cert_not_after": held
+                                .and_then(|c| c.not_after_rfc3339())
+                                .unwrap_or_default(),
+                        }),
+                    )
+                }
+                Err(err) => Reply::refused(message, identity_code(err)),
+            }
+        }
+        "getDeviceCertificateStatus" => {
+            let held = identity.certificate();
+            Reply::accepted_with(
+                message,
+                json!({
+                    "has_certificate": held.is_some(),
+                    "device_id": identity.device_id().map(Value::from).unwrap_or(Value::Null),
+                    "cert_serial": held.map(|c| Value::from(c.serial.clone())).unwrap_or(Value::Null),
+                    "cert_not_after": held
+                        .and_then(|c| c.not_after_rfc3339())
+                        .map(Value::from)
+                        .unwrap_or(Value::Null),
+                    "renewal_window_open": held
+                        .map(|c| c.renewal_window_open(std::time::SystemTime::now()))
+                        .unwrap_or(false),
+                }),
+            )
+        }
+        _ => Reply::refused(message, "unknown_method"),
+    }
+}
+
+/// Enforce one method's closed key set: exactly `method`, `request_id` and the named payload
+/// fields, every value a string, every payload field non-empty. An unlisted key is a refusal, not
+/// something the handler ignores — the same rule the REST DTOs follow.
+fn closed_fields(message: &Value, fields: &[&str]) -> Result<(), IdentityError> {
+    let object = message.as_object().ok_or(IdentityError::Schema)?;
+    let mut allowed: Vec<&str> = vec!["method", "request_id"];
+    allowed.extend_from_slice(fields);
+    if object.len() != allowed.len() || !object.keys().all(|k| allowed.contains(&k.as_str())) {
+        return Err(IdentityError::Schema);
+    }
+    for key in allowed {
+        if !object.get(key).map(Value::is_string).unwrap_or(false) {
+            return Err(IdentityError::Schema);
+        }
+    }
+    for key in fields {
+        if object
+            .get(*key)
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .is_empty()
+        {
+            return Err(IdentityError::Shape);
+        }
+    }
+    Ok(())
+}
+
 /// Withdraw one ticket for the outstanding request, if the slot has one. The `awaiting` guard is
 /// what keeps a single-use ticket from being spent ahead of need: without a request this never
 /// touches the slot. `now` is a parameter so the expiry path is testable without waiting out the
@@ -175,6 +352,7 @@ async fn withdraw(
 mod tests {
     use super::*;
     use crate::frame::envelope::Envelope;
+    use crate::ipc::dispatch::{ACCEPTED, REFUSED};
     use crate::ipc::ticket::{TicketError, TICKET_TTL};
     use crate::key::{DeviceKey, SoftwareKey};
     use crate::permit::lease::LeaseMode;
@@ -203,6 +381,7 @@ mod tests {
         link_events: Option<mpsc::Sender<LinkEvent>>,
         tickets: Option<mpsc::Receiver<String>>,
         core_events: Option<mpsc::Receiver<LinkEvent>>,
+        ready: Option<mpsc::Receiver<ReadyIdentity>>,
         handle: tokio::task::JoinHandle<BridgeOutcome>,
     }
 
@@ -212,18 +391,22 @@ mod tests {
             let (link_tx, link_rx) = mpsc::channel(8);
             let (ticket_tx, ticket_rx) = mpsc::channel(1);
             let (core_tx, core_rx) = mpsc::channel(8);
-            let handle = tokio::spawn(run_ticket_bridge(
+            let (ready_tx, ready_rx) = mpsc::channel(4);
+            let handle = tokio::spawn(run_core_pump(
+                crate::identity::test_identity(),
                 TicketSlot::new("dev-1"),
                 delivery_rx,
                 link_rx,
                 ticket_tx,
                 core_tx,
+                ready_tx,
             ));
             Self {
                 deliveries: Some(delivery_tx),
                 link_events: Some(link_tx),
                 tickets: Some(ticket_rx),
                 core_events: Some(core_rx),
+                ready: Some(ready_rx),
                 handle,
             }
         }
@@ -655,5 +838,179 @@ mod tests {
             }
         }
         assert_eq!(h.finish().await, BridgeOutcome::LinkGone);
+    }
+
+    // ---- GW21: the §2.1 identity methods the pump now owns ----
+
+    async fn identity_data(h: &mut Harness) -> Value {
+        let reply = h
+            .deliver(json!({"method": "getDeviceIdentity", "request_id": "id-1"}))
+            .await;
+        assert_eq!(reply.result, ACCEPTED);
+        let data = reply.data.expect("identity facts");
+        let mut keys: Vec<&str> = data
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(|k| k.as_str())
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            ["container", "public_key_jwk", "public_key_thumbprint"]
+        );
+        data
+    }
+
+    #[tokio::test]
+    async fn get_device_identity_returns_only_public_material() {
+        let mut h = Harness::new();
+        let data = identity_data(&mut h).await;
+        let jwk = data["public_key_jwk"].as_object().unwrap();
+        let mut keys: Vec<&str> = jwk.keys().map(|k| k.as_str()).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["crv", "kty", "x", "y"], "no private field may leave");
+        assert_eq!(data["public_key_thumbprint"].as_str().unwrap().len(), 64);
+    }
+
+    #[tokio::test]
+    async fn the_two_signing_methods_use_different_domains() {
+        let mut h = Harness::new();
+        let data = identity_data(&mut h).await;
+        let thumbprint = data["public_key_thumbprint"].as_str().unwrap().to_string();
+        let jwk = data["public_key_jwk"].clone();
+        let body = |method: &str| {
+            json!({
+                "method": method, "request_id": "sig-1", "pairing_id": "pid",
+                "challenge": "chal", "org_id": "org", "subject_id": "sub",
+            })
+        };
+        let pair = h.deliver(body("signDevicePairing")).await;
+        let renew = h.deliver(body("signDeviceCertificateRenewal")).await;
+        assert_eq!(pair.result, ACCEPTED);
+        assert_eq!(renew.result, ACCEPTED);
+        let pair_sig = pair.data.unwrap()["signature"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let renew_sig = renew.data.unwrap()["signature"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert_ne!(pair_sig, renew_sig);
+        // Each signature verifies only under its own domain, over the same fields.
+        let pair_covered = crate::pairing::covered_string("pid", "chal", &thumbprint, "org", "sub");
+        let renew_covered =
+            crate::certrenewal::covered_string("pid", "chal", &thumbprint, "org", "sub");
+        let jwk = crate::jwk::validate_json(&jwk.to_string()).unwrap();
+        assert!(crate::es256::verify(
+            &jwk,
+            pair_covered.as_bytes(),
+            &pair_sig
+        ));
+        assert!(crate::es256::verify(
+            &jwk,
+            renew_covered.as_bytes(),
+            &renew_sig
+        ));
+        assert!(!crate::es256::verify(
+            &jwk,
+            renew_covered.as_bytes(),
+            &pair_sig
+        ));
+        assert!(!crate::es256::verify(
+            &jwk,
+            pair_covered.as_bytes(),
+            &renew_sig
+        ));
+    }
+
+    #[tokio::test]
+    async fn an_unlisted_payload_field_is_refused_not_ignored() {
+        let mut h = Harness::new();
+        let reply = h
+            .deliver(json!({
+                "method": "signDevicePairing", "request_id": "sig-2", "pairing_id": "pid",
+                "challenge": "chal", "org_id": "org", "subject_id": "sub", "extra": 1,
+            }))
+            .await;
+        assert_eq!(reply.result, REFUSED);
+        assert_eq!(reply.code, Some("schema"));
+        assert!(reply.data.is_none(), "a refusal carries no facts");
+    }
+
+    #[tokio::test]
+    async fn a_non_string_or_empty_payload_field_is_refused() {
+        let mut h = Harness::new();
+        for bad in [
+            json!({"method": "signDevicePairing", "request_id": "r", "pairing_id": 7,
+                   "challenge": "c", "org_id": "o", "subject_id": "s"}),
+            json!({"method": "signDevicePairing", "request_id": "r", "pairing_id": "",
+                   "challenge": "c", "org_id": "o", "subject_id": "s"}),
+        ] {
+            let reply = h.deliver(bad).await;
+            assert_eq!(reply.result, REFUSED);
+            assert!(matches!(reply.code, Some("schema") | Some("shape")));
+        }
+    }
+
+    #[tokio::test]
+    async fn a_certificate_before_any_signing_is_no_pairing_and_publishes_nothing() {
+        let mut h = Harness::new();
+        let reply = h
+            .deliver(json!({
+                "method": "deliverDeviceCertificate", "request_id": "cert-1",
+                "device_id": "dev-1",
+                "certificate_pem": "-----BEGIN CERTIFICATE-----\nAAEC\n-----END CERTIFICATE-----\n",
+            }))
+            .await;
+        assert_eq!(reply.result, REFUSED);
+        assert_eq!(reply.code, Some("no_pairing"));
+        assert!(
+            h.ready.as_mut().unwrap().try_recv().is_err(),
+            "a refused delivery must not publish an identity the entry could dial with"
+        );
+    }
+
+    #[tokio::test]
+    async fn certificate_status_reports_absence_with_every_key_present() {
+        let mut h = Harness::new();
+        let reply = h
+            .deliver(json!({"method": "getDeviceCertificateStatus", "request_id": "st-1"}))
+            .await;
+        assert_eq!(reply.result, ACCEPTED);
+        let data = reply.data.unwrap();
+        let mut keys: Vec<&str> = data
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(|k| k.as_str())
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            [
+                "cert_not_after",
+                "cert_serial",
+                "device_id",
+                "has_certificate",
+                "renewal_window_open"
+            ]
+        );
+        assert_eq!(data["has_certificate"], json!(false));
+        assert_eq!(data["device_id"], Value::Null);
+        assert_eq!(data["renewal_window_open"], json!(false));
+    }
+
+    #[tokio::test]
+    async fn the_read_only_methods_refuse_any_payload_field() {
+        let mut h = Harness::new();
+        for method in ["getDeviceIdentity", "getDeviceCertificateStatus"] {
+            let reply = h
+                .deliver(json!({"method": method, "request_id": "r", "device_id": "dev-1"}))
+                .await;
+            assert_eq!(reply.result, REFUSED, "{method}");
+            assert_eq!(reply.code, Some("schema"), "{method}");
+        }
     }
 }

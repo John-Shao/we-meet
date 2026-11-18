@@ -179,6 +179,12 @@ impl TicketSlot {
     }
 
     /// Whether a ticket is pending and still inside the holding window.
+    /// The device this slot accepts tickets for. The Broker only learns its own device id from a
+    /// CA-signed certificate, so the slot starts empty and is re-keyed on the first delivery.
+    pub fn device_id(&self) -> &str {
+        &self.device_id
+    }
+
     pub fn has_live_ticket(&mut self, now: Instant) -> bool {
         self.prune(now);
         match &self.pending {

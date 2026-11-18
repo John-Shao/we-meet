@@ -461,6 +461,11 @@ pub enum LinkCommand {
     },
     /// The OS or the clock proved a discontinuity: invalidate every lease and drop the session.
     Discontinuity(Discontinuity),
+    /// Replace the client identity the NEXT dial presents. GW21: a renewed certificate must take
+    /// effect without rebuilding the link, because the pump's channel ends are fixed for its
+    /// lifetime. The current session is not dropped — the old certificate stays valid until its
+    /// own NotAfter, and §2.1 renewals happen inside that last hour.
+    ReplaceIdentity(ClientIdentity),
     /// Stop the link.
     Stop,
 }

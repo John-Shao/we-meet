@@ -12,9 +12,11 @@
 
 pub mod b64;
 pub mod broker;
+pub mod certrenewal;
 pub mod es256;
 pub mod finish;
 pub mod frame;
+pub mod identity;
 pub mod ipc;
 pub mod journal;
 pub mod jwk;

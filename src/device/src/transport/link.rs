@@ -91,7 +91,7 @@ impl Link {
     /// `commands` carries the core's lease and discontinuity instructions; `events` reports
     /// everything back. Closing either input channel stops the loop.
     pub async fn run(
-        self,
+        mut self,
         mut tickets: mpsc::Receiver<String>,
         mut commands: mpsc::Receiver<LinkCommand>,
         events: mpsc::Sender<LinkEvent>,
@@ -128,6 +128,7 @@ impl Link {
                             leases.track(&lease_id, Instant::now(), ttl, round_trip, fence);
                         }
                         Some(LinkCommand::ReleaseLease { lease_id }) => { leases.release(&lease_id); }
+                        Some(LinkCommand::ReplaceIdentity(identity)) => { self.config.identity = identity; }
                     },
                 }
             };
@@ -200,7 +201,7 @@ impl Link {
     /// One established session: heartbeat, read downlinks, service commands, until something
     /// ends it. Returns why it ended.
     async fn drive(
-        &self,
+        &mut self,
         session: Session,
         leases: &mut LeaseSet,
         commands: &mut mpsc::Receiver<LinkCommand>,
@@ -298,6 +299,7 @@ impl Link {
                         leases.track(&lease_id, Instant::now(), ttl, round_trip, fence);
                     }
                     Some(LinkCommand::ReleaseLease { lease_id }) => { leases.release(&lease_id); }
+                    Some(LinkCommand::ReplaceIdentity(identity)) => { self.config.identity = identity; }
                     Some(LinkCommand::Discontinuity(cause)) => {
                         let ids = leases.invalidate_all();
                         if !ids.is_empty()

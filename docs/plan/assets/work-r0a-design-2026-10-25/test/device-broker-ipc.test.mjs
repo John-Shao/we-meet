@@ -70,10 +70,15 @@ test('the pipe loop dispatches and the pump is the single closure-then-slot path
   const broker = code(read(BROKER));
   // GW17's registered gap was exactly this: no loop called deliver_message.
   assert.match(service, /classify\(&message\)/);
-  assert.match(service, /Dispatch::Ticket/);
+  assert.match(service, /Dispatch::Core/);
   assert.match(service, /blocking_send\(DeliveryRequest/);
   assert.match(service, /blocking_recv\(\)/);
-  assert.match(broker, /ticket::deliver_message\(&mut slot, &request\.message, Instant::now\(\)\)/);
+  // GW21 moved the call into handle_message, which owns every method's closure-then-state path.
+  // The single-path property is unchanged: exactly one deliver_message call site in the pump.
+  assert.match(broker, /ticket::deliver_message\(slot, message, Instant::now\(\)\)/);
+  assert.equal(prod(read(BROKER)).split('ticket::deliver_message(').length - 1, 1,
+    'a second deliver_message call site would let two paths disagree');
+  assert.match(broker, /fn handle_message\(identity: &mut Identity, slot: &mut TicketSlot, message: &Value\) -> Reply/);
   // Validation is NOT duplicated in the pipe loop: one path, so the two cannot disagree.
   assert.ok(!service.includes('ticket::parse'), 'the pipe loop re-validates the ticket itself');
   assert.ok(!service.includes('slot.deliver'), 'the pipe loop owns a slot it must not own');
@@ -89,23 +94,24 @@ test('the reply vocabulary is closed and the two refusal kinds stay distinct', (
   const src = code(dispatch);
   const closure = dispatch.slice(dispatch.indexOf('pub const CODES'), dispatch.indexOf('];', dispatch.indexOf('pub const CODES')));
   for (const c of ['unknown_method', 'method_not_implemented', 'schema', 'shape',
-    'foreign_device', 'already_consumed', 'handshake']) {
+    'foreign_device', 'already_consumed', 'handshake', 'no_pairing', 'certificate_invalid']) {
     assert.ok(closure.includes(`"${c}"`), `${c} left the closed refusal set`);
   }
-  assert.match(dispatch, /assert_eq!\(CODES\.len\(\), 7\)/);
+  assert.match(dispatch, /assert_eq!\(CODES\.len\(\), 9\)/);
   // The routing decision: unknown ≠ unlanded ≠ malformed, and only the ticket method reaches the pump.
   const classify = fnBody(src, 'pub fn classify(');
   assert.match(classify, /SchemaError::UnknownMethod/);
   assert.match(classify, /"unknown_method"/);
   assert.match(classify, /SchemaError::MissingMethod\) \| Err\(SchemaError::ForbiddenField/);
   assert.match(classify, /"method_not_implemented"/);
-  assert.match(classify, /Some\(ticket::METHOD\)/);
+  assert.match(classify, /CORE_METHODS\.contains\(&method\)/);
   // Accepted carries three keys, refused four; the echo never invents a correlation id.
   assert.match(src, /"request_id": self\.request_id/);
   assert.match(dispatch, /assert_eq!\(keys, \["method", "request_id", "result"\]\)/);
   assert.match(dispatch, /assert_eq!\(keys, \["code", "method", "request_id", "result"\]\)/);
   assert.match(dispatch, /assert_eq!\(count, 13\)/);
-  assert.match(dispatch, /assert_eq!\(SHELL_METHODS\.len\(\), 14\)/);
+  assert.match(dispatch, /assert_eq!\(SHELL_METHODS\.len\(\), 19\)/);
+  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 6\)/);
 });
 
 test('a single-use ticket is withdrawn only while a link request is outstanding', () => {
@@ -116,7 +122,7 @@ test('a single-use ticket is withdrawn only while a link request is outstanding'
   assert.ok(guard >= 0 && take > guard,
     'the awaiting guard must precede the withdrawal, or a ticket is spent ahead of need');
   // The request flag is set ONLY by the link's wait signal, and cleared only on a successful supply.
-  const run = fnBody(src, 'pub async fn run_ticket_bridge(');
+  const run = fnBody(src, 'pub async fn run_core_pump(');
   const setAt = run.indexOf('awaiting = true');
   assert.ok(setAt >= 0, 'nothing ever sets the outstanding-request flag');
   assert.ok(run.slice(0, setAt).includes('Some(LinkEvent::AwaitingTicket)'),
@@ -153,7 +159,7 @@ test('the link announces a wait only when its ticket channel is empty', () => {
 
 test('the pump consumes the wait and forwards every other event verbatim', () => {
   const src = code(read(BROKER));
-  const run = fnBody(src, 'pub async fn run_ticket_bridge(');
+  const run = fnBody(src, 'pub async fn run_core_pump(');
   const waitArm = run.slice(run.indexOf('Some(LinkEvent::AwaitingTicket)'), run.indexOf('Some(LinkEvent::Stopped)'));
   assert.ok(!waitArm.includes('core_events.send'),
     'forwarding AwaitingTicket would make the core treat a normal wait as a failure');
@@ -224,7 +230,7 @@ test('the real Windows pipe is exercised, not a fake connection', () => {
   const src = code(service);
   assert.match(src, /CreateFileW\(/);
   assert.match(src, /serve_shell_pipe\(&server_name, delivery_tx\)/);
-  assert.match(src, /run_ticket_bridge\(/);
+  assert.match(src, /run_core_pump\(/);
   assert.match(src, /std::thread::spawn/);
   // The centerpiece: a delivery crosses pipe → dispatch → pump → slot → the link's ticket channel.
   assert.match(service, /async fn a_real_pipe_delivery_reaches_the_link_ticket_channel|fn a_real_pipe_delivery_reaches_the_link_ticket_channel/);
@@ -245,7 +251,7 @@ test('the broker probe cannot dial without the pipe and refuses other platforms'
   assert.ok(!/^\s*ticket:/m.test(config), 'the broker probe config carries a ticket, so the pipe is not proven');
   assert.match(config, /pipe_name: String/);
   assert.match(src, /#\[cfg\(not\(windows\)\)\]\s*\n\s*fail\(/);
-  assert.match(src, /use work_device::broker::run_ticket_bridge;/);
+  assert.match(src, /use work_device::broker::\{run_core_pump, ReadyIdentity\};/);
   assert.match(src, /use work_device::ipc::service::serve_shell_pipe;/);
   assert.match(src, /use work_device::transport::link::Link;/);
   assert.match(src, /serve_shell_pipe\(&pipe_name, delivery_tx\)/);
@@ -253,9 +259,11 @@ test('the broker probe cannot dial without the pipe and refuses other platforms'
   for (const forbidden of ['sign_es256', 'jcs::', 'hello_ack', 'schema_version']) {
     assert.ok(!src.includes(forbidden), `the broker probe re-implements ${forbidden}`);
   }
-  // Not a production artifact, and no executable Broker entry was claimed this batch.
-  assert.ok(!read(MAIN).includes('serve_shell_pipe'));
-  assert.ok(!read(MAIN).includes('run_ticket_bridge'));
+  // GW21 closed GW18's "no executable Broker entry" boundary: main.rs is now the real process,
+  // so the assertion REVERSES. The probe stays a test artifact (never named in Cargo.toml).
+  assert.match(read(MAIN), /serve_shell_pipe\(&pipe_name, delivery_tx\)/);
+  assert.match(read(MAIN), /run_core_pump\(/);
+  assert.match(read(MAIN), /#\[serde\(deny_unknown_fields\)\]/);
   assert.ok(!read(join(DEVICE, 'Cargo.toml')).includes('device_broker_probe'));
   assert.match(probe, /PROBE_REPORT /);
 });

@@ -6,14 +6,14 @@
 //!
 //! create → accept → OS auth → write the server hello → verify the client hello → then per message:
 //! read frame → decode JSON → [`classify`] → either answer immediately or hand the message to the
-//! ticket pump ([`crate::broker`]) and write the reply it returns.
+//! core pump ([`crate::broker`]) and write the reply it returns.
 //!
-//! Two ruled boundaries are visible here. (1) The thirteen shell methods that have no handler yet
+//! Two ruled boundaries are visible here. (1) The shell methods that have no handler yet
 //! are answered with `method_not_implemented`, never silently ignored and never conflated with
 //! `unknown_method` — §1 requires an explicit error rather than a silent downgrade. (2) The loop
-//! does NOT validate the ticket itself: it forwards the decoded message so the pump runs
-//! `ticket::deliver_message`, the single closure-then-slot path. Duplicating validation here would
-//! let the pipe and the slot disagree.
+//! does NOT validate any method itself: it forwards the decoded message so the pump runs the
+//! single closure-then-state path (`ticket::deliver_message` for a ticket, the §2.1 identity for
+//! the rest). Duplicating validation here would let the pipe and the owning state disagree.
 //!
 //! Blocking by design: this runs on a dedicated `std::thread`, never inside the async runtime, so
 //! `blocking_send`/`blocking_recv` are legal and the sync core keeps its shape. A refused client
@@ -92,7 +92,7 @@ pub fn serve_connection(
         };
         let reply = match classify(&message) {
             Dispatch::Answer(reply) => reply,
-            Dispatch::Ticket => {
+            Dispatch::Core => {
                 let (reply_tx, reply_rx) = oneshot::channel();
                 deliveries
                     .blocking_send(DeliveryRequest {
@@ -141,7 +141,7 @@ fn write_json(conn: &PipeConnection, value: &Value) -> Result<(), PipeError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::broker::{run_ticket_bridge, BridgeOutcome};
+    use crate::broker::{run_core_pump, BridgeOutcome};
     use crate::ipc::frame;
     use crate::ipc::handshake::PROTOCOL_MAJOR;
     use crate::ipc::schema::SHELL_METHODS;
@@ -294,6 +294,7 @@ mod tests {
         link_tx: Option<mpsc::Sender<LinkEvent>>,
         ticket_rx: Option<mpsc::Receiver<String>>,
         core_rx: Option<mpsc::Receiver<LinkEvent>>,
+        ready_rx: Option<mpsc::Receiver<crate::broker::ReadyIdentity>>,
         bridge: Option<tokio::task::JoinHandle<BridgeOutcome>>,
         server: Option<std::thread::JoinHandle<Result<(), PipeError>>>,
     }
@@ -310,12 +311,15 @@ mod tests {
                 .enable_all()
                 .build()
                 .unwrap();
-            let bridge = rt.spawn(run_ticket_bridge(
+            let (ready_tx, ready_rx) = mpsc::channel(4);
+            let bridge = rt.spawn(run_core_pump(
+                crate::identity::test_identity(),
                 TicketSlot::new("dev-1"),
                 delivery_rx,
                 link_rx,
                 ticket_tx,
                 core_tx,
+                ready_tx,
             ));
             let server_name = name.clone();
             let server = std::thread::spawn(move || serve_shell_pipe(&server_name, delivery_tx));
@@ -325,6 +329,7 @@ mod tests {
                 link_tx: Some(link_tx),
                 ticket_rx: Some(ticket_rx),
                 core_rx: Some(core_rx),
+                ready_rx: Some(ready_rx),
                 bridge: Some(bridge),
                 server: Some(server),
             }
@@ -418,12 +423,25 @@ mod tests {
     }
 
     #[test]
+    fn the_ticket_path_publishes_no_certificate_identity() {
+        let mut h = Harness::new();
+        let client = h.client();
+        client.write(&delivery(TICKET, "row-ready"));
+        let reply = client.read();
+        assert_eq!(reply["result"], "accepted");
+        assert!(
+            h.ready_rx.as_mut().unwrap().try_recv().is_err(),
+            "only a certificate delivery may publish an identity the entry could dial with"
+        );
+    }
+
+    #[test]
     fn every_unimplemented_shell_method_gets_an_explicit_refusal_over_the_pipe() {
         let h = Harness::new();
         let client = h.client();
         let mut count = 0;
         for method in SHELL_METHODS {
-            if *method == ticket::METHOD {
+            if crate::ipc::dispatch::CORE_METHODS.contains(method) {
                 continue;
             }
             count += 1;
