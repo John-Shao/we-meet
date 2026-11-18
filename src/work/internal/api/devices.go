@@ -1,7 +1,10 @@
 package api
 
 import (
+	"context"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"net/http"
 	"strconv"
 
@@ -10,6 +13,7 @@ import (
 	"github.com/we-meet/work/internal/apierr"
 	workdb "github.com/we-meet/work/internal/db"
 	"github.com/we-meet/work/internal/devicesig"
+	"github.com/we-meet/work/internal/host"
 )
 
 // The device-identity face (control-design §1.4 rows 60-63, device-design §2.1).
@@ -24,7 +28,12 @@ const (
 	DevicePairingConfirmPath      = "/work/v2/devices/pairings/{pairingId}/confirm"
 	DeviceSessionTicketsPath      = "/work/v2/devices/{deviceId}/session-tickets"
 	DeviceCertificateRenewalsPath = "/work/v2/devices/{deviceId}/certificate-renewals"
-	DeviceRevokePath              = "/work/v2/devices/{deviceId}/revoke"
+	// The renewal challenge is a device_pairing row with purpose='renew', so its
+	// confirm face mirrors the pairing confirm path. control-design §1.4 declares the
+	// challenge request but not this second step; GW20 adds it and registers it as a
+	// new public entry (a J39 surface) rather than widening the shipped pairing path.
+	DeviceCertificateRenewalConfirmPath = "/work/v2/devices/certificate-renewals/{pairingId}/confirm"
+	DeviceRevokePath                    = "/work/v2/devices/{deviceId}/revoke"
 )
 
 type devicePairingRequest struct {
@@ -113,6 +122,9 @@ func (s *Server) confirmDevicePairing(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, correlationID, decodeError(err))
 		return
 	}
+	if !s.requireDeviceCA(w, correlationID) {
+		return
+	}
 	// Verify the device's real ES256 signature over the pairing covered string
 	// BEFORE the domain command: SQL only shape-checks and binds the signature
 	// (0040:1135); the Go layer owns the cryptography (P0 #1). The public key comes
@@ -161,7 +173,24 @@ func (s *Server) confirmDevicePairing(w http.ResponseWriter, r *http.Request) {
 		s.writeAccessError(w, correlationID, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, view)
+	// §4.3: the CA signs OUTSIDE the transaction that just activated the device, and
+	// record_device_certificate is the second call 0040:1374-1377 promised. A replayed
+	// confirm returns the stored null triple, so issuance runs on every path and the
+	// record command's own audit replay hands back the SAME certificate the row holds.
+	var confirmed map[string]any
+	if err := json.Unmarshal(view, &confirmed); err != nil {
+		writeAPIError(w, correlationID, apierr.New("service_degraded"))
+		return
+	}
+	deviceID, _ := confirmed["device_id"].(string)
+	recorded, err := s.issueAndRecordDeviceCert(r.Context(), claims, deviceID, pairingID,
+		body.ClientRequestID, pub)
+	if err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
+	recorded["replayed"] = confirmed["replayed"]
+	writeJSON(w, http.StatusOK, recorded)
 }
 
 func (s *Server) mintDeviceSessionTicket(w http.ResponseWriter, r *http.Request) {
@@ -216,6 +245,9 @@ func (s *Server) renewDeviceCertificate(w http.ResponseWriter, r *http.Request) 
 	var body deviceCertificateRenewalRequest
 	if err := decodeStrictJSON(w, r, &body); err != nil {
 		writeAPIError(w, correlationID, decodeError(err))
+		return
+	}
+	if !s.requireDeviceCA(w, correlationID) {
 		return
 	}
 	var view json.RawMessage
@@ -316,4 +348,142 @@ func (s *Server) revokeDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, view)
+}
+
+// confirmDeviceCertificateRenewal consumes the purpose='renew' challenge and issues the
+// replacement certificate. It is the pairing confirm face's sibling with three
+// differences: the key comes from device_renewal_signing_key, the signature domain is
+// work-device-cert-renew-v2 (§2.1 forbids reusing a domain across pairing and renewal),
+// and the device is already active, so nothing is activated here. The request body is
+// the same three fields the pairing confirm takes.
+func (s *Server) confirmDeviceCertificateRenewal(w http.ResponseWriter, r *http.Request) {
+	claims, correlationID, ok := s.authenticateBearer(w, r)
+	if !ok {
+		return
+	}
+	pairingID := r.PathValue("pairingId")
+	if !validUUID(pairingID) {
+		writeAPIError(w, correlationID, apierr.New("not_found"))
+		return
+	}
+	var body devicePairingConfirmRequest
+	if err := decodeStrictJSON(w, r, &body); err != nil {
+		writeAPIError(w, correlationID, decodeError(err))
+		return
+	}
+	if !s.requireDeviceCA(w, correlationID) {
+		return
+	}
+	var pubJWK []byte
+	if err := workdb.WithWorkContext(r.Context(), s.pool,
+		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
+		workdb.RoleAPI, workdb.Options{ReadOnly: true},
+		func(tx pgx.Tx) error {
+			return tx.QueryRow(r.Context(),
+				`SELECT work.device_renewal_signing_key($1, $2, $3::uuid)`,
+				claims.OrgID, claims.SubjectID, pairingID,
+			).Scan(&pubJWK)
+		},
+	); err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
+	pub, parseErr := devicesig.ParseJWK(pubJWK)
+	if parseErr != nil {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	if !devicesig.VerifyCertRenewal(pub, pairingID, body.Challenge, claims.OrgID, claims.SubjectID, body.Signature) {
+		writeAPIError(w, correlationID, apierr.New("unauthorized"))
+		return
+	}
+	var view json.RawMessage
+	err := workdb.WithWorkContext(r.Context(), s.pool,
+		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
+		workdb.RoleAPI, workdb.Options{},
+		func(tx pgx.Tx) error {
+			var raw []byte
+			if err := tx.QueryRow(r.Context(),
+				`SELECT work.confirm_device_certificate_renewal($1, $2, 'bearer', $3, $4::uuid, $5, $6, $7)`,
+				claims.OrgID, claims.SubjectID, claims.SessionRevision, pairingID,
+				body.ClientRequestID, body.Challenge, body.Signature,
+			).Scan(&raw); err != nil {
+				return err
+			}
+			view = json.RawMessage(append([]byte(nil), raw...))
+			return nil
+		},
+	)
+	if err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
+	var confirmed map[string]any
+	if err := json.Unmarshal(view, &confirmed); err != nil {
+		writeAPIError(w, correlationID, apierr.New("service_degraded"))
+		return
+	}
+	deviceID, _ := confirmed["device_id"].(string)
+	recorded, err := s.issueAndRecordDeviceCert(r.Context(), claims, deviceID, pairingID,
+		body.ClientRequestID, pub)
+	if err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
+	recorded["replayed"] = confirmed["replayed"]
+	writeJSON(w, http.StatusOK, recorded)
+}
+
+// requireDeviceCA refuses the certificate face before any database work when no CA is
+// configured. The refusal has to precede the activation, not follow it: a device that is
+// active without a certificate cannot connect (mTLS needs the cert) and cannot be
+// re-paired (pair_device refuses a key that already has a live device), so activating
+// first would leave a row only an operator revoke can clear.
+func (s *Server) requireDeviceCA(w http.ResponseWriter, correlationID string) bool {
+	if s.deviceCA == nil {
+		writeAPIError(w, correlationID, apierr.New("service_degraded"))
+		return false
+	}
+	return true
+}
+
+// issueAndRecordDeviceCert signs the clientAuth certificate with the configured CA and
+// records it through the landed domain command. Signing stays outside every transaction
+// (§4.3), and the record is a SEPARATE call because device_guard only accepts a
+// certificate write on a row that is already active — the activating UPDATE cannot carry
+// it. The PEM chain (leaf first, then the CA) is what the device installs; the serial and
+// expiry are the two facts work.device records.
+func (s *Server) issueAndRecordDeviceCert(ctx context.Context, claims host.Claims, deviceID, pairingID, confirmRequestID string, pub *devicesig.PublicKey) (map[string]any, error) {
+	chain, err := s.deviceCA.IssueDeviceCert(deviceID, claims.OrgID, pub.Key)
+	if err != nil {
+		return nil, &domainError{code: "service_degraded"}
+	}
+	leaf, err := x509.ParseCertificate(chain.Certificate[0])
+	if err != nil {
+		return nil, &domainError{code: "service_degraded"}
+	}
+	var pemChain []byte
+	for _, der := range chain.Certificate {
+		pemChain = append(pemChain, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})...)
+	}
+	var raw []byte
+	err = workdb.WithWorkContext(ctx, s.pool,
+		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
+		workdb.RoleAPI, workdb.Options{},
+		func(tx pgx.Tx) error {
+			return tx.QueryRow(ctx,
+				`SELECT work.record_device_certificate($1, $2, 'bearer', $3, $4::uuid, $5::uuid, $6, $7, $8, $9)`,
+				claims.OrgID, claims.SubjectID, claims.SessionRevision, deviceID, pairingID,
+				confirmRequestID+"|cert", leaf.SerialNumber.String(), leaf.NotAfter, string(pemChain),
+			).Scan(&raw)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	var recorded map[string]any
+	if err := json.Unmarshal(raw, &recorded); err != nil {
+		return nil, &domainError{code: "service_degraded"}
+	}
+	return recorded, nil
 }

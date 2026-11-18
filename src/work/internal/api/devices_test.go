@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/we-meet/work/internal/api"
+	"github.com/we-meet/work/internal/deviceca"
 	"github.com/we-meet/work/internal/devicesig"
 	"github.com/we-meet/work/internal/host"
 	"github.com/we-meet/work/internal/testpg"
@@ -41,14 +42,27 @@ func (s *stubBearerVerifier) VerifyBearer(_ context.Context, token, _ string) (h
 
 func newDeviceServer(t *testing.T, pool *pgxpool.Pool) *httptest.Server {
 	t.Helper()
+	server := newDeviceAPIServer(t, pool)
+	ca, err := deviceca.NewCA()
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.SetDeviceCA(ca)
+	httpServer := httptest.NewServer(server.Handler())
+	t.Cleanup(httpServer.Close)
+	return httpServer
+}
+
+// newDeviceAPIServer builds the same server WITHOUT a device CA, so a test can prove the
+// certificate face fails closed when the deployment has not wired one (GW20).
+func newDeviceAPIServer(t *testing.T, pool *pgxpool.Pool) *api.Server {
+	t.Helper()
 	server, err := api.NewServer(pool, &stubVerifier{claims: testClaims()}, testCSRF(t), log.New(io.Discard, "", 0))
 	if err != nil {
 		t.Fatal(err)
 	}
 	server.SetBearerVerifier(&stubBearerVerifier{claims: testClaims()})
-	httpServer := httptest.NewServer(server.Handler())
-	t.Cleanup(httpServer.Close)
-	return httpServer
+	return server
 }
 
 // seedDeviceLocalPolicy configures the organization's directory classification
@@ -110,6 +124,26 @@ func signDevicePairing(t *testing.T, pairingID, challenge string) string {
 	r, s, err := ecdsa.Sign(rand.Reader, deviceTestPrivateKey(), digest[:])
 	if err != nil {
 		t.Fatalf("sign pairing: %v", err)
+	}
+	sig := make([]byte, 64)
+	r.FillBytes(sig[:32])
+	s.FillBytes(sig[32:])
+	return base64.RawURLEncoding.EncodeToString(sig)
+}
+
+// signDeviceRenewal signs the renewal covered string, which uses a DIFFERENT domain from
+// pairing (§2.1 forbids reusing a signature domain across purposes).
+func signDeviceRenewal(t *testing.T, pairingID, challenge string) string {
+	t.Helper()
+	pub, err := devicesig.ParseJWK([]byte(deviceTestJWK))
+	if err != nil {
+		t.Fatalf("parse test JWK: %v", err)
+	}
+	covered := devicesig.CertRenewalCoveredString(pairingID, challenge, pub.Thumbprint, testOrg, testSubject)
+	digest := sha256.Sum256([]byte(covered))
+	r, s, err := ecdsa.Sign(rand.Reader, deviceTestPrivateKey(), digest[:])
+	if err != nil {
+		t.Fatalf("sign renewal: %v", err)
 	}
 	sig := make([]byte, 64)
 	r.FillBytes(sig[:32])
@@ -320,9 +354,10 @@ func TestDeviceSessionTicketAndCertificateRenewal(t *testing.T) {
 	wrongKey := `{"client_request_id":"ticket-0007","public_key_thumbprint":"` + strings.Repeat("c", 64) + `"}`
 	assertAPICode(t, deviceRequest(t, http.MethodPost, server.URL+ticketPath, wrongKey), http.StatusBadRequest, "invalid_request")
 
-	// Renewal is refused until the CA has issued a certificate: confirm leaves
-	// cert_not_after null (the CA signs outside the transaction), and renew requires
-	// an active certificate within its last hour (device-design §2.1 step 4).
+	// Renewal is refused outside the certificate's last hour (device-design §2.1 step 4).
+	// GW20 made confirm actually issue the certificate, so this refusal is now the
+	// 24h-vs-1h window rather than the old cert_not_after IS NULL dead end; that NULL
+	// branch became the re-issuance path (0058) and has its own test.
 	renewPath := strings.ReplaceAll(api.DeviceCertificateRenewalsPath, "{deviceId}", deviceID)
 	assertAPICode(t, deviceRequest(t, http.MethodPost, server.URL+renewPath, `{"client_request_id":"renew-0006"}`),
 		http.StatusBadRequest, "invalid_request")

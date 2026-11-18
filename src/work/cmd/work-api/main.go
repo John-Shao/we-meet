@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"github.com/we-meet/work/internal/api"
 	"github.com/we-meet/work/internal/content"
 	workdb "github.com/we-meet/work/internal/db"
+	"github.com/we-meet/work/internal/deviceca"
 	"github.com/we-meet/work/internal/egressclient"
 	"github.com/we-meet/work/internal/host"
 )
@@ -63,6 +65,26 @@ func run(ctx context.Context) error {
 	// The same mTLS Host client verifies the desktop Bearer plane over the v3
 	// access port; the device face fails closed until this is wired (§1.1).
 	server.SetBearerVerifier(hostClient)
+	// Optional on purpose, the same shape as the egress prober below: an unconfigured
+	// device CA must not stop the whole control plane at boot. The certificate face
+	// fails closed as 503 BEFORE any database write until it is wired, so a missing CA
+	// can never activate a device that could not hold a certificate. Production CA
+	// custody, rotation and the TPM-vs-software-CNG policy remain the J39 sign-off item.
+	if caFile := strings.TrimSpace(os.Getenv("WORK_DEVICE_CA")); caFile != "" {
+		certPEM, err := os.ReadFile(caFile)
+		if err != nil {
+			return fmt.Errorf("read device CA cert: %w", err)
+		}
+		keyPEM, err := os.ReadFile(requiredEnv("WORK_DEVICE_CA_KEY"))
+		if err != nil {
+			return fmt.Errorf("read device CA key: %w", err)
+		}
+		deviceCA, err := deviceca.LoadCA(certPEM, keyPEM)
+		if err != nil {
+			return err
+		}
+		server.SetDeviceCA(deviceCA)
+	}
 	// Optional on purpose: an unconfigured gateway must not stop the whole control plane
 	// at boot. The write endpoint fails closed as 503 until it is wired, so a missing
 	// configuration can never produce an unprobed provider config.

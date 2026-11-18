@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 57,
-  "chainTipCatalog": "catalogs/0057_cancellation_intent_consumer.json",
+  "chainTip": 58,
+  "chainTipCatalog": "catalogs/0058_device_certificate_issuance.json",
   "entries": [
     {
       "name": "GET /work/v2/admin/local-policy",
@@ -95,6 +95,15 @@
     },
     {
       "name": "POST /work/v2/artifacts/{artifactId}/versions",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "POST /work/v2/devices/certificate-renewals/{pairingId}/confirm",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",
       "callableBy": [
@@ -301,6 +310,15 @@
       "classification": "external-audit-required"
     },
     {
+      "name": "confirm_device_certificate_renewal",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0058_device_certificate_issuance.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
       "name": "confirm_device_pairing",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
@@ -339,7 +357,7 @@
     {
       "name": "consume_governance_events",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0057_cancellation_intent_consumer.json",
+      "origin": "src/work/migrations/catalogs/0058_device_certificate_issuance.json",
       "callableBy": [
         "work_governance_events"
       ],
@@ -376,6 +394,15 @@
       "name": "device_pairing_signing_key",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0046_device_pairing_signature_verify.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "device_renewal_signing_key",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0058_device_certificate_issuance.sql",
       "callableBy": [
         "work_api"
       ],
@@ -447,7 +474,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0057_cancellation_intent_consumer.json",
+      "origin": "src/work/migrations/catalogs/0058_device_certificate_issuance.json",
       "callableBy": [
         "work_api",
         "work_governance_events"
@@ -593,6 +620,15 @@
       "name": "rebind_run_workspace",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "record_device_certificate",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0058_device_certificate_issuance.sql",
       "callableBy": [
         "work_api"
       ],

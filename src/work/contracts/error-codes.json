@@ -449,6 +449,7 @@
     "content_slot_conflict": "service_degraded",
     "cursor_advance_not_allowed": "cursor_advance_not_allowed",
     "dedup_task_missing": "service_degraded",
+    "device_cert_must_advance": "invalid_request",
     "device_cert_requires_active": "invalid_request",
     "device_checkpoint_content_immutable": "invalid_request",
     "device_content_immutable": "invalid_request",

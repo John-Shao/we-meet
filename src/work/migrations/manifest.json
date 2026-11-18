@@ -637,6 +637,17 @@
       "catalog_checksum": "sha256:29c0831fdcb83fe0c2e78483138b44ed031c4785437d75a70a23f267713b050b",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 58,
+      "name": "0058_device_certificate_issuance",
+      "kind": "increment",
+      "file": "increments/0058_device_certificate_issuance.sql",
+      "checksum": "sha256:ceef78a7490446643d3283600b4188a7326b86bc705066910d6572b1cb9bb96f",
+      "catalog": "catalogs/0058_device_certificate_issuance.json",
+      "catalog_checksum": "sha256:a99ef7adcfe3cfe0dde452a87825447f4f2ab4eadb12d0935515b35dfcae0d7b",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

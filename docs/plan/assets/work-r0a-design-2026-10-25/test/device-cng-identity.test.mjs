@@ -14,6 +14,11 @@
 // Deliberately NOT asserted: that a certificate is ever issued in production. It is not —
 // confirm_device_pairing returns certificate_pem:null and cert_serial has no writer, so the
 // renewal face is permanently refused. That gap is registered, not closed here.
+// 【2026-11-18 GW20 更正：上面这句自 GW20 起不再成立。0058 落了 record_device_certificate
+// （cert_serial/cert_not_after 的第一个写入者）与 confirm_device_certificate_renewal
+// （purpose='renew' 的第一个消费者），work-api 从配置注入 CA 并在 confirm 提交后事务外签发、
+// 第二次调用回填，响应不再恒 null；续期面也不再恒拒。0046 的 confirm 命令本身仍返回 null 三元组
+// （CA 在事务外签名），变的是 Go 层随后把它填上。本文件下方那条断言已按此改写，原文保留以存其旧。】
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
@@ -255,11 +260,20 @@ test('the GW17 exportable test path is intact and still labelled test-only', () 
   assert.match(tls, /minimum-protocol-version|TLS 1\.3 floor/);
 });
 
-test('no migration was added: the certificate issuance chain is still open', () => {
+test('GW19a added no migration; the issuance chain it left open is closed by 0058', () => {
   const increments = join(ROOT, 'src', 'work', 'migrations', 'increments');
   const files = readdirSync(increments).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort();
-  assert.equal(files.at(-1).slice(0, 4), '0057', 'GW19a must not add a migration');
-  // The gap this batch deliberately did NOT close stays visible in the schema.
+  // GW19a's own claim was "no migration in this batch". GW20 legitimately adds 0058, so
+  // the durable invariant is that every increment on disk is registered, not a frozen tip.
+  assert.ok(files.includes('0057_cancellation_intent_consumer.sql'), 'GW19a landed on top of 0057');
+  const manifest = JSON.parse(read(join(ROOT, 'src', 'work', 'migrations', 'manifest.json')));
+  const registered = manifest.increments.map((m) => m.file.split('/').at(-1));
+  assert.deepEqual(files, registered, 'every increment on disk must be registered in manifest order');
+  // 0046 is deliberately untouched: the pairing confirm COMMAND still returns the null
+  // triple, because the CA signs outside the transaction. What changed in GW20 is that a
+  // second call (record_device_certificate) now fills it, so the response is no longer null.
   const confirm = read(join(increments, '0046_device_pairing_signature_verify.sql'));
   assert.match(confirm, /'cert_serial', null, 'cert_not_after', null, 'certificate_pem', null/);
+  const issuance = read(join(increments, '0058_device_certificate_issuance.sql'));
+  assert.match(issuance, /CREATE FUNCTION work\.record_device_certificate\(/);
 });

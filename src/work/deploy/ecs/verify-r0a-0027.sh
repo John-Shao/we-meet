@@ -92,7 +92,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (54, '0054_local_action_prepare_signature'),
   (55, '0055_device_permit_mint_command_claim'),
   (56, '0056_device_cancel_face'),
-  (57, '0057_cancellation_intent_consumer')) expected(version, name)
+  (57, '0057_cancellation_intent_consumer'),
+  (58, '0058_device_certificate_issuance')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -340,7 +341,7 @@ echo "== deploy/ecs closure files (卡片 W: packaged != installed) =="
 # 同日补的 work-chain-check.service）加安装步骤，其余逐名走这里的读数。present＝主机上有这一份
 # （多数是初次装机手工放的，仓库此刻才有出处）；MISSING＝按本包重建的主机上会缺。两者都是部署状态，
 # 不进 FAILURES（与上面 drill 二进制、restore drill 同一口径：本脚本只报，不因此拒绝）。
-# 2026-11-17（0057／GW16）：work-cancel 三件同口径入包不入安装——它是 M3 线（0046–0057），不在
+# 2026-11-17（0057／GW16）：work-cancel 三件同口径入包不入安装——它是 M3 线（0046–0058），不在
 # 已裁 rollout 包（0040–0045／39→45）内，rollout 没有它的安装步骤。这里逐名报在位性，让"包里有、
 # 主机还没装"出现在验收转写里；env 读的是安装态 /etc/work/work-cancel.env，不是 .example 模板。
 for pair in \

@@ -17,6 +17,7 @@ import (
 	"github.com/we-meet/work/internal/apierr"
 	"github.com/we-meet/work/internal/content"
 	workdb "github.com/we-meet/work/internal/db"
+	"github.com/we-meet/work/internal/deviceca"
 	"github.com/we-meet/work/internal/host"
 )
 
@@ -80,8 +81,18 @@ type Server struct {
 	runtimeVersion string
 	providerMaster []byte
 	prober         ProviderProber
+	deviceCA       *deviceca.CA
 	shutdown       chan struct{}
 	shutdownOnce   sync.Once
+}
+
+// SetDeviceCA wires the certificate authority that issues the clientAuth device
+// certificate at pairing confirm and at renewal (device-design §2.1 steps 3-4). It is
+// optional in the same sense SetBearerVerifier is: without it the certificate face fails
+// closed before any database write, because activating a device that can never hold a
+// certificate would leave a row that cannot connect and cannot be re-paired.
+func (s *Server) SetDeviceCA(ca *deviceca.CA) {
+	s.deviceCA = ca
 }
 
 // SetBearerVerifier wires the desktop Bearer plane (control-design §1.1). It is
@@ -205,6 +216,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST "+DevicePairingConfirmPath, s.confirmDevicePairing)
 	mux.HandleFunc("POST "+DeviceSessionTicketsPath, s.mintDeviceSessionTicket)
 	mux.HandleFunc("POST "+DeviceCertificateRenewalsPath, s.renewDeviceCertificate)
+	mux.HandleFunc("POST "+DeviceCertificateRenewalConfirmPath, s.confirmDeviceCertificateRenewal)
 	mux.HandleFunc("POST "+DeviceRevokePath, s.revokeDevice)
 	mux.HandleFunc("GET "+WorkspaceGrantsPath, s.listWorkspaceGrants)
 	mux.HandleFunc("POST "+WorkspaceGrantsPath, s.registerWorkspaceGrant)

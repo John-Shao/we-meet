@@ -70,6 +70,7 @@ var publishedIncrements = []string{
 	"0055_device_permit_mint_command_claim",
 	"0056_device_cancel_face",
 	"0057_cancellation_intent_consumer",
+	"0058_device_certificate_issuance",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

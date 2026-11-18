@@ -1,12 +1,14 @@
-// Package deviceca is a TEST-ONLY self-signed device CA for the R0b gateway batch
-// (GW3). It issues the clientAuth device certificates and the gateway server
-// certificate used to exercise mTLS in tests and local development.
+// Package deviceca issues the clientAuth device certificates and the gateway server
+// certificate for the R0b device plane. It has two entry points: NewCA generates a
+// self-signed TEST-ONLY CA for tests and local development, and LoadCA (GW20) reads a CA
+// from deployment configuration so work-api can issue the certificate device-design §2.1
+// step 3 requires at pairing confirm and at renewal.
 //
-// This is NOT a production CA. Production device CA / certificate rotation / the
-// enterprise TPM-vs-software-CNG policy are a separate sign-off item (device-design
-// §2.1 step 4, §2.1:55 installation matrix; control-design §6 lists 设备CA/证书轮换
-// as a J39 independent-review surface) and are explicitly deferred. Nothing here
-// claims production security or hardware attestation.
+// Loading a configured CA is NOT production custody. Where the key lives, who may read
+// it, how it rotates and the enterprise TPM-vs-software-CNG policy are a separate
+// sign-off item (device-design §2.1 step 4, §2.1:55 installation matrix; control-design
+// §10 lists 设备CA/证书轮换 as a J39 independent-review surface) and remain deferred.
+// Nothing here claims production security or hardware attestation.
 package deviceca
 
 import (

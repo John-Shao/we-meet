@@ -45,6 +45,9 @@ const IMPLEMENTED_ONLY = [
   'POST /work/v2/devices/pairings/{pairingId}/confirm',
   'POST /work/v2/devices/{deviceId}/session-tickets',
   'POST /work/v2/devices/{deviceId}/certificate-renewals',
+  // GW20: the renewal challenge's confirm step. §1.4 declares the challenge request but
+  // not this second step, so it is an implementation-added public entry (a J39 surface).
+  'POST /work/v2/devices/certificate-renewals/{pairingId}/confirm',
   'POST /work/v2/devices/{deviceId}/revoke',
   // R0b M1b workspace-grant face (control-design §1.4 row 64): the Bearer-plane
   // list, register and revoke routes backed by the 0040 grant commands.

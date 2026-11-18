@@ -385,7 +385,7 @@ echo "== 5. binaries =="
 # server certificate provisioning before it can serve, so installing the file does not start it.
 # work-cancel (R0b GW16, 0057) is the same shape: the file lands, but neither its .service/.timer
 # nor /etc/work/work-cancel.env is installed or enabled here, so nothing consumes intents. It is
-# M3 line (0046-0057), outside the ruled rollout package; verify reports the three as MISSING.
+# M3 line (0046-0058), outside the ruled rollout package; verify reports the three as MISSING.
 for bin in work-api work-relay work-worker work-authz work-content-proxy work-egress work-directory-sync work-reconcile work-export work-provider-setup work-gateway work-cancel; do
   install_binary "$bin"
 done

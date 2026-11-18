@@ -128,12 +128,17 @@ func TestEveryClientRequestKeyCommandIsIdempotent(t *testing.T) {
 	// audit receipt for the three commands with no table of their own - and compares request_hash,
 	// raising idempotency_key_conflict on a different payload (control §4.2 段末④, the same carrier
 	// and code 0027 chose). They are listed rather than exempted.
+	// 0058 added two more in the same family: confirm_device_certificate_renewal replays on the
+	// audit receipt of device.cert.renew_confirm, and record_device_certificate on the receipt of
+	// device.cert.recorded - the latter deliberately hashes only (device_id, pairing_id), so an
+	// honest retry after a lost response re-signs yet still replays the recorded certificate.
 	want := []string{
 		"accept_local_task=dedup+conflict",
 		"accept_task=dedup+conflict",
 		"acknowledge_run_ready=own_request_hash",
 		"advance_governance_event_cursor=dedup+conflict",
 		"apply_execution_entitlement=own_request_hash",
+		"confirm_device_certificate_renewal=own_request_hash",
 		"confirm_device_pairing=own_request_hash",
 		"create_audit_export=own_request_hash",
 		"create_device_run_binding=own_request_hash",
@@ -144,6 +149,7 @@ func TestEveryClientRequestKeyCommandIsIdempotent(t *testing.T) {
 		"mint_device_session_ticket=own_request_hash",
 		"pair_device=own_request_hash",
 		"rebind_run_workspace=own_request_hash",
+		"record_device_certificate=own_request_hash",
 		"record_device_checkpoint=own_request_hash",
 		"register_workspace_grant=own_request_hash",
 		"renew_device_certificate=own_request_hash",
