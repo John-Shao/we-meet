@@ -151,7 +151,9 @@ export class WorkDeviceDriver {
 
       if (this.record) {
         try {
-          await this.deliver(this.record.deviceId, this.record.certificatePem);
+          // A fresh Broker has no signing history, so the stored chain goes through the
+          // re-delivery carrier with the record's org declared explicitly (M2b ruling 甲).
+          await this.redeliver(this.record.deviceId, this.record.certificatePem, this.record.orgId);
         } catch (error) {
           // An expired or foreign chain cannot be re-delivered; the renewal face is the
           // re-issuance path (0058 ruling ②). Anything else is fatal for this record.
@@ -312,6 +314,10 @@ export class WorkDeviceDriver {
 
   private async deliver(deviceId: string, certificatePem: string): Promise<void> {
     await this.call("deliverDeviceCertificate", { device_id: deviceId, certificate_pem: certificatePem });
+  }
+
+  private async redeliver(deviceId: string, certificatePem: string, orgId: string): Promise<void> {
+    await this.call("redeliverDeviceCertificate", { device_id: deviceId, certificate_pem: certificatePem, org_id: orgId });
   }
 
   private async call(method: Parameters<BrokerPipe["call"]>[0], fields: Record<string, string> = {}): Promise<BrokerReply> {

@@ -50,7 +50,9 @@ const brokerBinEnv = "WORK_DEVICE_BIN"
 //	-> the Broker dials and the gateway maps the certificate to (device, org)
 //	-> the renewal window opens -> REST renewals -> signDeviceCertificateRenewal
 //	-> REST renewal confirm -> deliverDeviceCertificate replaces the chain
-//	-> a near-expiry leaf opens the Broker's OWN last-hour window.
+//	-> a near-expiry leaf opens the Broker's OWN last-hour window
+//	-> (M2b) the process is killed and a fresh one re-delivers the stored chain with the org
+//	   declared explicitly, then dials a new session under the SAME journal epoch.
 //
 // Every certificate in the chain above comes out of work-api's confirm response, so the chain the
 // Broker imports is the one the server recorded; only the last step's near-expiry leaf is minted by
@@ -354,6 +356,94 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 	}
 	if got := facts["cert_not_after"]; got != certNotAfter(t, shortPEM) {
 		t.Fatalf("the Broker read NotAfter %v, the delivered certificate says %s", got, certNotAfter(t, shortPEM))
+	}
+
+	// Step 9 (M2b): the shell RESTART. Kill the Broker, keep the persisted CNG container, and
+	// spawn a fresh process with the same container and journal_epoch but a new pipe/boot/agent.
+	// The fresh process has no signing history: the signed-org delivery gate must still refuse
+	// (no_pairing), while the re-delivery carrier with the org declared explicitly imports the
+	// chain the server recorded and dials a new session under the SAME journal epoch.
+	_ = pipe.Close()
+	_ = cmd.Process.Kill()
+	_, _ = cmd.Process.Wait()
+	pipeName2 := `\\.\pipe\work-device-gw21-` + uuid.NewString()
+	bootID2 := "boot-" + uuid.NewString()
+	agentID2 := uuid.NewString()
+	config["pipe_name"] = pipeName2
+	config["boot_id"] = bootID2
+	config["agent_instance_id"] = agentID2
+	raw2, err := json.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configPath2 := filepath.Join(dir, "broker-restart.json")
+	if err := os.WriteFile(configPath2, raw2, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var stderr2 syncBuffer
+	cmd2 := exec.Command(bin, configPath2)
+	cmd2.Stderr = &stderr2
+	if err := cmd2.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = cmd2.Process.Kill()
+		_, _ = cmd2.Process.Wait()
+	})
+	pipe2 := openBrokerPipe(t, pipeName2)
+	t.Cleanup(func() { _ = pipe2.Close() })
+	hello2 := readBrokerFrame(t, pipe2)
+	writeBrokerFrame(t, pipe2, map[string]any{
+		"nonce": hello2["nonce"], "protocol_major": 2, "client_kind": "shell",
+	})
+	// The old carrier keeps its semantics: without a signing history it refuses no_pairing.
+	stale := brokerRaw(t, pipe2, map[string]any{
+		"method": "deliverDeviceCertificate", "request_id": "cert-r0",
+		"device_id": deviceID, "certificate_pem": newPEM,
+	})
+	if stale["result"] != "refused" || stale["code"] != "no_pairing" {
+		t.Fatalf("a fresh Broker accepted a delivery without signing history: %#v", stale)
+	}
+	// A foreign org declaration fails the CA-signed OU gate and binds nothing.
+	foreign := brokerRaw(t, pipe2, map[string]any{
+		"method": "redeliverDeviceCertificate", "request_id": "cert-r1",
+		"device_id": deviceID, "certificate_pem": newPEM, "org_id": uuid.NewString(),
+	})
+	if foreign["result"] != "refused" || foreign["code"] != "certificate_invalid" {
+		t.Fatalf("a re-delivery for another org was not refused: %#v", foreign)
+	}
+	redelivered := brokerRaw(t, pipe2, map[string]any{
+		"method": "redeliverDeviceCertificate", "request_id": "cert-r2",
+		"device_id": deviceID, "certificate_pem": newPEM, "org_id": testOrg,
+	})
+	if redelivered["result"] != "accepted" {
+		t.Fatalf("restart re-delivery refused: %#v; broker stderr:\n%s", redelivered, stderr2.String())
+	}
+	if got := redelivered["data"].(map[string]any)["cert_serial"]; got != newSerial {
+		t.Fatalf("the re-delivered chain reads serial %v, the server recorded %s", got, newSerial)
+	}
+	// The re-delivered identity dials: a freshly minted ticket is consumed by a NEW session
+	// row carrying the same journal epoch and the restart's boot/agent identity.
+	ticketBody2 := fmt.Sprintf(`{"client_request_id":"gw21-ticket-restart","public_key_thumbprint":%q}`, pub.Thumbprint)
+	minted2 := decodeObject(t, deviceRequest(t, http.MethodPost, rest.URL+ticketPath, ticketBody2))
+	ticket2, _ := minted2["ticket"].(string)
+	ticketRowID2, _ := minted2["session_ticket_id"].(string)
+	if ticket2 == "" || ticketRowID2 == "" {
+		t.Fatalf("restart ticket = %#v", minted2)
+	}
+	brokerCall(t, pipe2, map[string]any{
+		"method": "deliverDeviceSessionTicket", "request_id": "tick-2",
+		"device_id": deviceID, "session_ticket_id": ticketRowID2, "ticket": ticket2,
+	})
+	sessionID2 := waitForBrokerSession(t, dbName, deviceID, bootID2, agentID2, journalEpoch)
+	if sessionID2 == "" {
+		t.Fatalf("the restarted Broker never established a session; stderr:\n%s", stderr2.String())
+	}
+	if sessionID2 == sessionID {
+		t.Fatalf("the restart reused the old session row %s", sessionID)
+	}
+	if got := ticketState(t, dbName, ticketRowID2); got != "consumed" {
+		t.Fatalf("restart ticket state = %s, want consumed", got)
 	}
 }
 

@@ -12,7 +12,8 @@
     "The divergence among those 66 was resolved on 2026-11-02 by splitting the guard rather than re-stating one code: increment 0022 raises org_operator_suspended - public, 409, retryable false - when an operator suspended the organization, and keeps org_execution_disabled for status and execution_enabled states, which stay mapped to the retryable 503 they have always produced because those can change without a human acting. Control design section 9 still declares org_execution_disabled as a 409, and that row is about a different surface: the Host response to a seat grant that Work's POST /admin/seat-changes passes through at HTTP level, which never consults this map.",
     "Governance-integrity guards introduced after increment 0016 raise SQLSTATE 23514/22023, whose fallback would be 400 invalid_request, and are deliberately mapped to service_degraded instead: access_restriction_content_immutable, cancellation_intent_content_immutable, cancellation_intent_terminal_state, execution_entitlement_content_immutable, governance_change_content_immutable, governance_event_cursor_content_immutable, governance_gap_report_content_immutable, local_execution_policy_content_immutable, operation_resolution_content_immutable, operation_resolution_watermark_terminal, directory_protocol_invalid. None of them is reachable in a shipped surface (each first appears in 0018-0021, where production stands at 0016), and each reports either an attempt to rewrite state that is immutable by design or a Host event stream that does not match the closed contract. Neither is input the caller could fix by correcting a field: resending the same request gets the same refusal, so 400 would tell a client to repair something they had no part in. TestIncrementGuardsKeepTheirFallbackStatus requires any such deviation to be named in this file, so a mapping cannot drift away from the fallback quietly.",
     "local_policy_not_configured and local_policy_incomplete become public 409 (retryable false, recovery_action contact_operator) now that the R0b device pairing face is their first raising endpoint: control design section 9 defines both as 409 refusals of device pairing, grant registration and local task submission when the organization has not configured its directory classification policy. They were mapped to service_degraded only while no public endpoint raised them; registering them here is the decided change that section 9 authorizes, not a quiet status move.",
-    "classification_floor_required becomes public 409 (retryable false, recovery_action reauthorize_workspace) now that the R0b workspace-grant registration face is its first raising HTTP endpoint; control design section 9 defines it as a 409 refusal when a reported classification is below the server-derived floor. classification_unknown stays mapped to service_degraded and out of the public set by the standing round-23 ruling (classification refusals are not yet a public vocabulary); the grant face raises it but does not register it, so its first public registration remains a separate decided change."
+    "classification_floor_required becomes public 409 (retryable false, recovery_action reauthorize_workspace) now that the R0b workspace-grant registration face is its first raising HTTP endpoint; control design section 9 defines it as a 409 refusal when a reported classification is below the server-derived floor. classification_unknown stays mapped to service_degraded and out of the public set by the standing round-23 ruling (classification refusals are not yet a public vocabulary); the grant face raises it but does not register it, so its first public registration remains a separate decided change.",
+    "device_revoked becomes public 403 (retryable false, recovery_action re_pair_device, ui permission_denied) now that the R0b device session-ticket mint face is its first HTTP endpoint the desktop driver reaches: activate_device_session (0040) raises it when the device row is no longer active, and the shell's mint poll is the only revocation detection path an established session has (its ticket is already consumed, so it never re-pairs on its own). It was mapped to service_degraded, whose 503 envelope swallowed the raw code and left the driver's device_revoked branch unreachable, so a revoked device kept polling forever instead of clearing its stored certificate and stopping. Registering it here is the decided change the M2b ruling authorizes, not a quiet status move; the identity db_exception_map entry is the guard raising its own public code verbatim. recovery_action re_pair_device is a new member of the section 9 closed set, declared in place there: the recovery is a fresh pairing gesture, not a retry of the same request and not a re-login. device_revoked_at_immutable stays mapped to invalid_request (its 23514 fallback) and out of this change."
   ],
   "public": {
     "invalid_request": {
@@ -404,6 +405,12 @@
       "retryable": false,
       "recovery_action": "reauthorize_workspace",
       "ui": "state_changed"
+    },
+    "device_revoked": {
+      "status": 403,
+      "retryable": false,
+      "recovery_action": "re_pair_device",
+      "ui": "permission_denied"
     }
   },
   "db_exception_map": {
@@ -455,7 +462,7 @@
     "device_content_immutable": "invalid_request",
     "device_pairing_consumed_immutable": "invalid_request",
     "device_pairing_content_immutable": "invalid_request",
-    "device_revoked": "service_degraded",
+    "device_revoked": "device_revoked",
     "device_revoked_at_immutable": "invalid_request",
     "device_run_binding_content_immutable": "invalid_request",
     "device_session_content_immutable": "invalid_request",

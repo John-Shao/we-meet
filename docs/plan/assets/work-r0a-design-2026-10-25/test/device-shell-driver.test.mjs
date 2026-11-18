@@ -112,7 +112,7 @@ test('the pipe client matches the Broker framing, handshake, method and code clo
   const tsBlock = pipe.split('new Set<BrokerMethod>([')[1].split('])')[0];
   const tsMethods = [...tsBlock.matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1]).sort();
   assert.deepEqual(tsMethods, rustMethods);
-  assert.equal(rustMethods.length, 6);
+  assert.equal(rustMethods.length, 7);
   // Refusal codes: same closed vocabulary on both sides.
   const codesBlock = rustDispatch.split('pub const CODES: &[&str] = &[')[1].split('];')[0];
   const rustCodes = [...codesBlock.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]).sort();
@@ -165,8 +165,15 @@ test('the certificate is account-bound, persisted and re-delivered; mint and ren
   for (const field of ['issuer', 'clientId', 'serviceOrigin', 'subject']) {
     assert.ok(store.includes(`record.${field} !== this.binding.${field}`), `binding fence ${field} missing`);
   }
-  // Re-delivery on start; an undeliverable chain goes through the renewal re-issuance path.
-  assert.ok(driver.includes('await this.deliver(this.record.deviceId, this.record.certificatePem)'));
+  // Re-delivery on start goes through the restart carrier with the record's org declared
+  // explicitly (a fresh Broker has no signing history); an undeliverable chain goes through
+  // the renewal re-issuance path.
+  assert.ok(driver.includes('await this.redeliver(this.record.deviceId, this.record.certificatePem, this.record.orgId)'));
+  assert.ok(driver.includes('"redeliverDeviceCertificate", { device_id: deviceId, certificate_pem: certificatePem, org_id: orgId }'));
+  const rustBroker = read(join(DEVICE, 'src', 'broker.rs'));
+  assert.ok(rustBroker.includes('"redeliverDeviceCertificate" => &["device_id", "certificate_pem", "org_id"]'));
+  const rustIdentity = read(join(DEVICE, 'src', 'identity.rs'));
+  assert.ok(rustIdentity.includes('pub fn redeliver_certificate('));
   assert.ok(driver.includes('error.code === "certificate_invalid"'));
   assert.ok(driver.includes('await this.renew()'));
   // The poll predicates: window first, then the pump's outstanding-request flag.
@@ -187,7 +194,7 @@ test('the supervisor verifies before spawn and the packaging hook pins the FINAL
   assert.ok(!broker.includes('--probe'), 'the closed entry has no probe mode; the hash pin replaces it');
   const builder = read(BUILDER);
   assert.ok(builder.includes("require('./scripts/work-device-package.cjs')"));
-  assert.ok(builder.includes('withWorkDevice(withRemoteInput(withRuntime(config, runtime), __dirname), __dirname)'));
+  assert.ok(builder.includes('withWorkDevice(withRemoteInput(config, __dirname), __dirname)'));
   const pkg = JSON.parse(read(PACKAGE));
   assert.equal(pkg.scripts['build:work-device'], 'node scripts/build-work-device.cjs');
   for (const chain of ['package', 'package:prepared', 'package:release']) {
@@ -202,6 +209,13 @@ test('the supervisor verifies before spawn and the packaging hook pins the FINAL
   assert.ok(hook.includes('verifyPackagedWorkDevice'));
   const build = read(BUILD_SCRIPT);
   assert.ok(build.includes("'build', '--release', '--bin', 'work-device'"));
+  // The legacy local-agent runtime composition was removed with the legacy Work module
+  // (5749407fa); the chain must not resurrect it, and the manifest must verify the Broker payload.
+  const manifestScript = read(join(DESKTOP, 'scripts', 'release-manifest.mjs'));
+  assert.ok(!/runtime-package|bundledRuntime|packagedRuntime/.test(manifestScript));
+  assert.ok(!/runtime-package|bundled-runtime/.test(builder));
+  assert.ok(manifestScript.includes('verifyPackagedWorkDevice'));
+  assert.ok(manifestScript.includes('packagedWorkDevice'));
 });
 
 test('main.ts wires the safeStorage record, the main-process dialog and the lifecycle stops', () => {

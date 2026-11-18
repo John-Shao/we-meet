@@ -208,7 +208,7 @@ test('the shell closure carries the ticket method and the broker agrees on its n
   const member = '"deliverDeviceSessionTicket"';
   const closure = schema.slice(schema.indexOf('pub const SHELL_METHODS'), schema.indexOf('];', schema.indexOf('pub const SHELL_METHODS')));
   assert.ok(closure.includes(member), 'deliverDeviceSessionTicket left the shell closure');
-  assert.match(schema, /assert_eq!\(SHELL_METHODS\.len\(\), 19\)/);
+  assert.match(schema, /assert_eq!\(SHELL_METHODS\.len\(\), 20\)/);
   const method = ticket.match(/pub const METHOD: &str = "([^"]+)"/);
   assert.ok(method, 'ticket.rs no longer names its method');
   assert.equal(`"${method[1]}"`, member);

@@ -2,8 +2,9 @@
 //! (device-design §1: "IPC 返回明确错误而不是静默降级").
 //!
 //! GW18 landed the service loop with one handler out of fourteen closed shell methods. GW21 adds
-//! five more for §2.1's Broker side, so six now have handlers and thirteen remain IN the closure
-//! but unimplemented. Those are refused with `method_not_implemented`, never with `unknown_method`:
+//! five more for §2.1's Broker side and M2b adds the restart re-delivery carrier, so seven now
+//! have handlers and thirteen remain IN the closure but unimplemented. Those are refused with
+//! `method_not_implemented`, never with `unknown_method`:
 //! the shell must be able to tell "this call is illegal" from "this call is legal but not landed
 //! yet". Conflating the two would make a legitimate caller look like an attacker, and would give
 //! the shell no way to decide whether to retry or to change the call.
@@ -189,6 +190,7 @@ pub const CORE_METHODS: &[&str] = &[
     "signDevicePairing",
     "signDeviceCertificateRenewal",
     "deliverDeviceCertificate",
+    "redeliverDeviceCertificate",
     "getDeviceCertificateStatus",
 ];
 
@@ -324,10 +326,10 @@ mod tests {
                 Dispatch::Core => panic!("{method} must not reach the ticket slot"),
             }
         }
-        // Thirteen of the nineteen are unlanded; the count is the closure minus the six handlers.
+        // Thirteen of the twenty are unlanded; the count is the closure minus the seven handlers.
         assert_eq!(count, 13);
-        assert_eq!(SHELL_METHODS.len(), 19);
-        assert_eq!(CORE_METHODS.len(), 6);
+        assert_eq!(SHELL_METHODS.len(), 20);
+        assert_eq!(CORE_METHODS.len(), 7);
     }
 
     #[test]

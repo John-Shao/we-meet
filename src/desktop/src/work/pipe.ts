@@ -13,10 +13,11 @@ const LENGTH_PREFIX = 4;
 /** The shell→Broker methods M2 drives (ipc/schema.rs CORE_METHODS). The other thirteen closed
  * members are legal but unlanded; this client never calls them. */
 export type BrokerMethod = "getDeviceIdentity" | "signDevicePairing" | "signDeviceCertificateRenewal" |
-  "deliverDeviceCertificate" | "getDeviceCertificateStatus" | "deliverDeviceSessionTicket";
+  "deliverDeviceCertificate" | "redeliverDeviceCertificate" | "getDeviceCertificateStatus" |
+  "deliverDeviceSessionTicket";
 const METHODS: ReadonlySet<string> = new Set<BrokerMethod>(["getDeviceIdentity", "signDevicePairing",
-  "signDeviceCertificateRenewal", "deliverDeviceCertificate", "getDeviceCertificateStatus",
-  "deliverDeviceSessionTicket"]);
+  "signDeviceCertificateRenewal", "deliverDeviceCertificate", "redeliverDeviceCertificate",
+  "getDeviceCertificateStatus", "deliverDeviceSessionTicket"]);
 /** The closed refusal codes (ipc/dispatch.rs CODES). */
 const CODES = new Set(["unknown_method", "method_not_implemented", "schema", "shape", "foreign_device",
   "already_consumed", "handshake", "no_pairing", "certificate_invalid"]);

@@ -126,9 +126,10 @@ pub async fn run_core_pump(
                         if let (Some(device_id), Ok(link_identity)) =
                             (identity.device_id(), identity.link_identity())
                         {
-                            if request.message.get("method").and_then(Value::as_str)
-                                == Some("deliverDeviceCertificate")
-                            {
+                            if matches!(
+                                request.message.get("method").and_then(Value::as_str),
+                                Some("deliverDeviceCertificate" | "redeliverDeviceCertificate")
+                            ) {
                                 let _ = ready
                                     .send(ReadyIdentity {
                                         device_id: device_id.to_string(),
@@ -207,6 +208,7 @@ fn handle_message(
             &["pairing_id", "challenge", "org_id", "subject_id"]
         }
         "deliverDeviceCertificate" => &["device_id", "certificate_pem"],
+        "redeliverDeviceCertificate" => &["device_id", "certificate_pem", "org_id"],
         // classify() only forwards CORE_METHODS, so this is unreachable; answering with a closed
         // code keeps the pipe moving instead of panicking inside the pump.
         _ => return Reply::refused(message, "unknown_method"),
@@ -249,8 +251,17 @@ fn handle_message(
                 Err(err) => Reply::refused(message, identity_code(err)),
             }
         }
-        "deliverDeviceCertificate" => {
-            match identity.deliver_certificate(text("device_id"), text("certificate_pem")) {
+        "deliverDeviceCertificate" | "redeliverDeviceCertificate" => {
+            let result = if method == "deliverDeviceCertificate" {
+                identity.deliver_certificate(text("device_id"), text("certificate_pem"))
+            } else {
+                identity.redeliver_certificate(
+                    text("device_id"),
+                    text("certificate_pem"),
+                    text("org_id"),
+                )
+            };
+            match result {
                 Ok(()) => {
                     // The slot is keyed by the device id, which the Broker only learns from the
                     // CA-signed CN. Re-key it on the first delivery so a ticket for this device is
@@ -980,6 +991,52 @@ mod tests {
             h.ready.as_mut().unwrap().try_recv().is_err(),
             "a refused delivery must not publish an identity the entry could dial with"
         );
+    }
+
+    #[tokio::test]
+    async fn redelivery_without_signing_history_runs_the_chain_gates_not_the_signed_org_gate() {
+        let mut h = Harness::new();
+        // The restart path: a fresh pump has signed nothing, yet the stored chain must reach the
+        // certificate gates themselves. A chain that fails them is certificate_invalid, never
+        // no_pairing, and publishes nothing.
+        let reply = h
+            .deliver(json!({
+                "method": "redeliverDeviceCertificate", "request_id": "cert-r1",
+                "device_id": "dev-1",
+                "certificate_pem": "-----BEGIN CERTIFICATE-----\nAAEC\n-----END CERTIFICATE-----\n",
+                "org_id": "org-1",
+            }))
+            .await;
+        assert_eq!(reply.result, REFUSED);
+        assert_eq!(reply.code, Some("certificate_invalid"));
+        assert!(
+            h.ready.as_mut().unwrap().try_recv().is_err(),
+            "a refused re-delivery must not publish an identity the entry could dial with"
+        );
+    }
+
+    #[tokio::test]
+    async fn redelivery_payload_is_closed_about_the_org_declaration() {
+        let mut h = Harness::new();
+        let pem = "-----BEGIN CERTIFICATE-----\nAAEC\n-----END CERTIFICATE-----\n";
+        // Missing org_id: the declaration is mandatory, not optional.
+        let reply = h
+            .deliver(json!({
+                "method": "redeliverDeviceCertificate", "request_id": "cert-r2",
+                "device_id": "dev-1", "certificate_pem": pem,
+            }))
+            .await;
+        assert_eq!(reply.result, REFUSED);
+        assert!(matches!(reply.code, Some("schema") | Some("shape")));
+        // An unlisted field is refused, not ignored.
+        let reply = h
+            .deliver(json!({
+                "method": "redeliverDeviceCertificate", "request_id": "cert-r3",
+                "device_id": "dev-1", "certificate_pem": pem, "org_id": "org-1", "extra": 1,
+            }))
+            .await;
+        assert_eq!(reply.result, REFUSED);
+        assert_eq!(reply.code, Some("schema"));
     }
 
     #[tokio::test]

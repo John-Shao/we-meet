@@ -110,8 +110,8 @@ test('the reply vocabulary is closed and the two refusal kinds stay distinct', (
   assert.match(dispatch, /assert_eq!\(keys, \["method", "request_id", "result"\]\)/);
   assert.match(dispatch, /assert_eq!\(keys, \["code", "method", "request_id", "result"\]\)/);
   assert.match(dispatch, /assert_eq!\(count, 13\)/);
-  assert.match(dispatch, /assert_eq!\(SHELL_METHODS\.len\(\), 19\)/);
-  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 6\)/);
+  assert.match(dispatch, /assert_eq!\(SHELL_METHODS\.len\(\), 20\)/);
+  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 7\)/);
 });
 
 test('a single-use ticket is withdrawn only while a link request is outstanding', () => {

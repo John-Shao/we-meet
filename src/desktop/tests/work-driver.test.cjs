@@ -53,6 +53,7 @@ function harness(t, overrides = {}) {
     signDevicePairing: { data: { signature: "pair-sig" } },
     signDeviceCertificateRenewal: { data: { signature: "renew-sig" } },
     deliverDeviceCertificate: {},
+    redeliverDeviceCertificate: {},
     deliverDeviceSessionTicket: {},
     getDeviceCertificateStatus: { data: { device_id: deviceId, cert_serial: confirmed.cert_serial, cert_not_after: confirmed.cert_not_after, renewal_window_open: false, awaiting_ticket: false } },
   };
@@ -161,10 +162,13 @@ test("a stored certificate is re-delivered on restart without a new gesture or p
     certificatePem: pem, certSerial: "12345678901234567890", certNotAfter: "2026-11-19T00:00:00Z", journalEpoch,
   });
   const delivered = [];
-  h.pipeResponses.deliverDeviceCertificate = (method, fields) => { delivered.push(fields); return {}; };
+  h.pipeResponses.redeliverDeviceCertificate = (method, fields) => { delivered.push(fields); return {}; };
   await h.driver.start();
   assert.equal(h.driver.currentState, "running");
-  assert.deepEqual(delivered, [{ device_id: deviceId, certificate_pem: pem }]);
+  // The restart carrier declares the record's org explicitly: a fresh Broker has no signing
+  // history, so the signed-org delivery gate cannot be the re-delivery path.
+  assert.deepEqual(delivered, [{ device_id: deviceId, certificate_pem: pem, org_id: orgId }]);
+  assert.equal(h.events.filter((e) => e === "pipe:deliverDeviceCertificate").length, 0);
   assert.equal(h.gestures.length, 0);
   assert.equal(h.events.filter((e) => e === "api:pair").length, 0);
   assert.equal(h.configs[0].config.journal_epoch, journalEpoch);
@@ -191,10 +195,10 @@ test("an undeliverable stored certificate goes through the renewal re-issuance p
     ...binding, subject, orgId, deviceId, container: containerFor(binding, subject),
     certificatePem: pem, certSerial: "12345678901234567890", certNotAfter: "2026-11-19T00:00:00Z", journalEpoch: randomUUID(),
   });
-  let deliveries = 0;
+  h.pipeResponses.redeliverDeviceCertificate = () => {
+    throw new BrokerPipeError("certificate_invalid");
+  };
   h.pipeResponses.deliverDeviceCertificate = (method, fields) => {
-    deliveries++;
-    if (deliveries === 1) throw new BrokerPipeError("certificate_invalid");
     assert.equal(fields.certificate_pem, renewedPem);
     return {};
   };

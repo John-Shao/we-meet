@@ -236,7 +236,33 @@ impl Identity {
         if device_id.is_empty() {
             return Err(IdentityError::Shape);
         }
-        let org_id = self.signed_org.as_deref().ok_or(IdentityError::NoPairing)?;
+        let org_id = self.signed_org.clone().ok_or(IdentityError::NoPairing)?;
+        self.hold_validated(device_id, certificate_pem, &org_id)
+    }
+
+    /// §2.1 restart re-delivery (M2b): a fresh Broker process has no signing history, so the
+    /// stored chain cannot go through `deliver_certificate`'s signed-org gate. The shell declares
+    /// the org explicitly instead; the CA-signed OU must equal that declaration and every other
+    /// gate is identical. The org binding is set only after the whole chain validates, so a
+    /// refused re-delivery leaves the identity exactly as it was.
+    pub fn redeliver_certificate(
+        &mut self,
+        device_id: &str,
+        certificate_pem: &str,
+        org_id: &str,
+    ) -> Result<(), IdentityError> {
+        if device_id.is_empty() || org_id.is_empty() {
+            return Err(IdentityError::Shape);
+        }
+        self.hold_validated(device_id, certificate_pem, org_id)
+    }
+
+    fn hold_validated(
+        &mut self,
+        device_id: &str,
+        certificate_pem: &str,
+        org_id: &str,
+    ) -> Result<(), IdentityError> {
         let der_chain = pem_certificates(certificate_pem.as_bytes())?;
         if der_chain.is_empty() {
             return Err(IdentityError::Shape);
@@ -250,6 +276,7 @@ impl Identity {
         )?;
         self.held = Some(held);
         self.device_id = Some(device_id.to_string());
+        self.signed_org = Some(org_id.to_string());
         Ok(())
     }
 
@@ -626,6 +653,43 @@ mod tests {
             .unwrap(),
             IdentityError::NoPairing
         );
+        assert!(id.certificate().is_none());
+    }
+
+    #[test]
+    fn redelivery_empty_fields_are_refused_and_leave_no_org_behind() {
+        let mut id = identity();
+        let pem = "-----BEGIN CERTIFICATE-----\nAAEC\n-----END CERTIFICATE-----\n";
+        assert_eq!(
+            id.redeliver_certificate("", pem, "org").err().unwrap(),
+            IdentityError::Shape
+        );
+        assert_eq!(
+            id.redeliver_certificate("dev", pem, "").err().unwrap(),
+            IdentityError::Shape
+        );
+        assert!(id.signed_org.is_none());
+        assert!(id.certificate().is_none());
+    }
+
+    #[test]
+    fn redelivery_without_signing_history_runs_the_chain_gates_and_binds_nothing_on_refusal() {
+        let mut id = identity();
+        // No sign_pairing first: the restart path must reach the certificate gates themselves,
+        // not the signed-org gate. A chain that fails them binds no org and holds nothing.
+        let err = id
+            .redeliver_certificate(
+                "dev",
+                "-----BEGIN CERTIFICATE-----\nAAEC\n-----END CERTIFICATE-----\n",
+                "org",
+            )
+            .err()
+            .unwrap();
+        assert!(matches!(
+            err,
+            IdentityError::CertificateInvalid | IdentityError::NotWindows
+        ));
+        assert!(id.signed_org.is_none());
         assert!(id.certificate().is_none());
     }
 

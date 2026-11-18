@@ -7,7 +7,7 @@
 
 use serde_json::Value;
 
-/// The shell→Broker IPC method closure (device-design §1 :20, 19 members).
+/// The shell→Broker IPC method closure (device-design §1 :20, 20 members).
 /// `deliverDeviceSessionTicket` was added in GW17: §2.2 requires a single-use device-session
 /// ticket minted from the main process's native Bearer session, and the closed set had no member
 /// that could carry it to the Broker — the same "required but no carrier" gap GW12/GW15 found on
@@ -19,6 +19,11 @@ use serde_json::Value;
 /// when the renewal window opens. The two signing methods are separate on purpose: §2.1 forbids
 /// reusing a signature domain across purposes, so the Broker builds each preimage itself from
 /// closed fields and the shell can never make it sign arbitrary bytes.
+///
+/// M2b adds `redeliverDeviceCertificate`: §2.1's restart path re-delivers the stored chain to a
+/// FRESH Broker process, which has no signing history, so `deliverDeviceCertificate`'s signed-org
+/// gate refused it (`no_pairing`) and the shell lost its record. The re-delivery carrier declares
+/// the org explicitly; the CA-signed OU must equal it. The design line is annotated in place.
 pub const SHELL_METHODS: &[&str] = &[
     "chooseWorkspace",
     "inspectWorkspace",
@@ -38,6 +43,7 @@ pub const SHELL_METHODS: &[&str] = &[
     "signDevicePairing",
     "signDeviceCertificateRenewal",
     "deliverDeviceCertificate",
+    "redeliverDeviceCertificate",
     "getDeviceCertificateStatus",
 ];
 
@@ -109,8 +115,8 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn shell_closure_has_nineteen_members() {
-        assert_eq!(SHELL_METHODS.len(), 19);
+    fn shell_closure_has_twenty_members() {
+        assert_eq!(SHELL_METHODS.len(), 20);
     }
 
     #[test]

@@ -110,7 +110,7 @@ test('the link waits for a certificate and a renewal replaces the identity, not 
   // The pump publishes only after a delivery actually held a certificate.
   const broker = code(read(BROKER));
   const publish = broker.slice(broker.indexOf('if let (Some(device_id), Ok(link_identity))'), broker.indexOf('if awaiting {'));
-  assert.match(publish, /Some\("deliverDeviceCertificate"\)/);
+  assert.match(publish, /Some\("deliverDeviceCertificate" \| "redeliverDeviceCertificate"\)/);
   assert.match(publish, /ready\s*\n?\s*\.send\(ReadyIdentity/);
 });
 
@@ -141,11 +141,24 @@ test('every certificate gate runs before anything is stored, in the order the de
   // A certificate before any signing has no org to bind against: that is a distinct closed code,
   // so the shell knows to pair first rather than retry the same bytes.
   const noPairing = deliver.indexOf('IdentityError::NoPairing');
-  const validate = deliver.indexOf('validate_chain(');
-  const store = deliver.indexOf('self.held = Some(held)');
-  assert.ok(noPairing >= 0 && validate > noPairing && store > validate,
-    'the certificate is stored before it is validated, or validated before the org is known');
-  assert.match(deliver, /self\.device_id = Some\(device_id\.to_string\(\)\)/);
+  const handoff = deliver.indexOf('self.hold_validated(');
+  assert.ok(noPairing >= 0 && handoff > noPairing,
+    'the signed-org gate must run before the chain is handed to the shared validation');
+  // M2b: the restart carrier declares the org explicitly; empty declarations are refused before
+  // any validation, and it shares the SAME validate-then-store path as the signing-history one.
+  const redeliver = fnBody(src, 'pub fn redeliver_certificate(');
+  const shape = redeliver.indexOf('IdentityError::Shape');
+  const rehandoff = redeliver.indexOf('self.hold_validated(');
+  assert.ok(shape >= 0 && rehandoff > shape,
+    'an empty device/org declaration must be refused before the re-delivery validates anything');
+  const hold = fnBody(src, 'fn hold_validated(');
+  const validate = hold.indexOf('validate_chain(');
+  const store = hold.indexOf('self.held = Some(held)');
+  assert.ok(validate >= 0 && store > validate,
+    'the certificate is stored before it is validated');
+  assert.match(hold, /self\.device_id = Some\(device_id\.to_string\(\)\)/);
+  assert.ok(hold.indexOf('self.signed_org = Some(') > store,
+    'the org binding is set only after the whole chain validates');
   // The org is remembered only after a SUCCESSFUL signature.
   const signFor = fnBody(src, 'fn sign_for(');
   const signAt = signFor.indexOf('let signature = sign(');
@@ -302,7 +315,7 @@ test('the status method is read-only and the reply payload is a closed shape', (
   assert.match(closed, /object\.keys\(\)\.all\(\|k\| allowed\.contains\(&k\.as_str\(\)\)\)/);
   assert.match(closed, /Value::is_string/);
   // The slot is re-keyed on the first delivery, and a renewal must not reset the consumed set.
-  const deliverArm = handle.slice(handle.indexOf('"deliverDeviceCertificate" => {'), handle.indexOf('"getDeviceCertificateStatus" => {'));
+  const deliverArm = handle.slice(handle.indexOf('"deliverDeviceCertificate" | "redeliverDeviceCertificate" => {'), handle.indexOf('"getDeviceCertificateStatus" => {'));
   assert.match(deliverArm, /if slot\.device_id\(\) != device_id \{\s*\n\s*\*slot = TicketSlot::new\(device_id\);/);
   // Accepted with a payload is four keys; the payload never appears on a refusal.
   const dispatch = read(DISPATCH);
@@ -311,11 +324,11 @@ test('the status method is read-only and the reply payload is a closed shape', (
   assert.match(dispatch, /assert_eq!\(CODES\.len\(\), 9\)/);
   const schema = read(SCHEMA);
   for (const method of ['getDeviceIdentity', 'signDevicePairing', 'signDeviceCertificateRenewal',
-    'deliverDeviceCertificate', 'getDeviceCertificateStatus']) {
+    'deliverDeviceCertificate', 'redeliverDeviceCertificate', 'getDeviceCertificateStatus']) {
     assert.ok(schema.includes(`"${method}"`), `${method} left the shell closure`);
   }
-  assert.match(schema, /assert_eq!\(SHELL_METHODS\.len\(\), 19\)/);
-  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 6\)/);
+  assert.match(schema, /assert_eq!\(SHELL_METHODS\.len\(\), 20\)/);
+  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 7\)/);
 });
 
 test('a refusal reaches the shell before the pipe is disconnected', () => {
