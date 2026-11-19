@@ -33,6 +33,7 @@ use work_device::broker::{run_core_pump, ReadyIdentity};
 use work_device::identity::{Identity, IdentityConfig};
 use work_device::ipc::ticket::TicketSlot;
 use work_device::key::DeviceKey;
+use work_device::synccore::spawn_sync_core;
 use work_device::transport::link::Link;
 use work_device::transport::{LinkCommand, LinkConfig, LinkEvent, Reconnect};
 
@@ -59,7 +60,10 @@ struct BrokerConfig {
     provider: String,
     boot_id: String,
     agent_instance_id: String,
-    journal_epoch: String,
+    /// Base directory for the per-device journal databases. The Broker forms
+    /// `<journal_dir>/<device_id>.db` once the certificate reveals the device id (CN); the journal
+    /// owns its epoch (device_meta), NOT this config — hello carries `Journal::journal_epoch()`.
+    journal_dir: String,
     profile_id: String,
     tool_manifest_hash: String,
     runtime_digest: String,
@@ -142,6 +146,9 @@ fn run(path: &str) -> Result<(), String> {
     let (core_tx, mut core_rx) = mpsc::channel(32);
     let (command_tx, command_rx) = mpsc::channel(4);
     let (ready_tx, mut ready_rx) = mpsc::channel::<ReadyIdentity>(4);
+    // The sync core (batch 1c) signs uplink frames and sends them here; the link stamps the
+    // session identity and writes them to the gateway. The core thread owns this sender.
+    let (uplink_tx, uplink_rx) = mpsc::channel::<work_device::transport::UplinkFrame>(64);
 
     // The pipe loop is blocking by design and must never run inside the async runtime.
     let pipe_name = cfg.pipe_name.clone();
@@ -172,20 +179,50 @@ fn run(path: &str) -> Result<(), String> {
                 return Err("the core pump stopped before any certificate was delivered".to_string())
             }
         };
-        let link = spawn_link(&cfg, ca_pem, first, key, ticket_rx, command_rx, link_event_tx);
+        // Batch 1c (E4 甲): the sync core thread is the journal's sole owner. It opens the
+        // per-device journal, publishes the epoch (hello carries it, §6.1 device_meta) and serves
+        // forwarded downlinks. The rendezvous recv below blocks this worker only until the journal
+        // is open — a one-time startup handoff, like the GW18 blocking pipe thread.
+        //
+        // Batch 1d: the sidecar inputs are derived from the install layout (node runtime + bundle
+        // next to the executable, staging under the journal base), NOT new config fields — the
+        // closed BrokerConfig stays 17 fields. The real signed bundle provisioning is batch 2;
+        // batch 1d/1g evidence uses a fixture node + bundle at this layout.
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+            .unwrap_or_default();
+        let spawn_template = work_device::sidecar::spawn::SpawnConfig {
+            node_path: exe_dir.join("node.exe").to_string_lossy().into_owned(),
+            bundle_path: exe_dir
+                .join("work-device-bundle")
+                .join("main.js")
+                .to_string_lossy()
+                .into_owned(),
+            manifest_hash: cfg.tool_manifest_hash.clone(),
+            runtime_digest: cfg.runtime_digest.clone(),
+            staging_dir: std::path::Path::new(&cfg.journal_dir)
+                .join("staging")
+                .to_string_lossy()
+                .into_owned(),
+        };
+        let (core_input_tx, journal_epoch) = spawn_sync_core(
+            cfg.journal_dir.clone(),
+            first.clone(),
+            key.clone(),
+            uplink_tx,
+            spawn_template,
+        )?;
+        let link = spawn_link(&cfg, ca_pem, first, key, ticket_rx, command_rx, uplink_rx, journal_epoch, link_event_tx);
         loop {
             tokio::select! {
                 event = core_rx.recv() => match event {
-                    // A2 is not wired: downlinks are logged, never journaled or dispatched.
-                    Some(LinkEvent::Downlink(env)) => {
-                        eprintln!("work-device: downlink {} (not consumed)", env.frame_type);
+                    Some(LinkEvent::Stopped) => { link.abort(); break; }
+                    // A2 consumption lives in the sync core; the entry only forwards.
+                    Some(other) => {
+                        if core_input_tx.send(other).await.is_err() { link.abort(); break; }
                     }
-                    Some(LinkEvent::SessionEstablished(_)) => {
-                        eprintln!("work-device: session established");
-                    }
-                    Some(LinkEvent::Stopped) => { link.abort(); return Ok(()) }
-                    Some(other) => eprintln!("work-device: link event {other:?}"),
-                    None => { link.abort(); return Ok(()) }
+                    None => { link.abort(); break; }
                 },
                 renewed = ready_rx.recv() => match renewed {
                     Some(ready) => {
@@ -196,13 +233,16 @@ fn run(path: &str) -> Result<(), String> {
                             .is_err()
                         {
                             link.abort();
-                            return Ok(());
+                            break;
                         }
                     }
-                    None => { link.abort(); return Ok(()) }
+                    None => { link.abort(); break; }
                 },
             }
         }
+        // Closing the event channel stops the sync core thread, which drops the journal owner lock.
+        drop(core_input_tx);
+        Ok(())
     });
 
     // The pipe thread only observes the pump's disappearance on its next accept, so a shutdown
@@ -221,6 +261,8 @@ fn spawn_link(
     key: Arc<dyn DeviceKey + Send + Sync>,
     tickets: mpsc::Receiver<String>,
     commands: mpsc::Receiver<LinkCommand>,
+    uplinks: mpsc::Receiver<work_device::transport::UplinkFrame>,
+    journal_epoch: String,
     events: mpsc::Sender<LinkEvent>,
 ) -> tokio::task::JoinHandle<()> {
     let config = LinkConfig {
@@ -231,7 +273,7 @@ fn spawn_link(
         device_id: ready.device_id,
         boot_id: cfg.boot_id.clone(),
         agent_instance_id: cfg.agent_instance_id.clone(),
-        journal_epoch: cfg.journal_epoch.clone(),
+        journal_epoch,
         profile_id: cfg.profile_id.clone(),
         tool_manifest_hash: cfg.tool_manifest_hash.clone(),
         runtime_digest: cfg.runtime_digest.clone(),
@@ -244,7 +286,7 @@ fn spawn_link(
         },
     };
     let link = Link::new(config, key);
-    tokio::spawn(link.run(tickets, commands, events))
+    tokio::spawn(link.run(tickets, commands, uplinks, events))
 }
 
 /// Open the persisted key, creating it on first run. The provider comes from the config so a

@@ -40,6 +40,10 @@
 
 **E7｜停止/取消语义 —— 裁定＝甲（2026-11-19，按设计原口径）**。cancel→Job kill→LocalStop→5 键 ack（ack 不写 Run 终态，GW15）；Spawned→unknown 可接受（DD:101 GW15 登记⑤原口径：Spawned/Running 一律 unknown，只 SidecarState::Exited 授权 Confirmed）；lease 失效 kill 本面接（DD:127 GW17④登记的「实际停止归 Node 批」在此闭合）；OS 电源/会话权威监听器（DD:127②）仍延后登记。**不取乙**（另裁）：设计原口径已自洽，无新偏离。
 
+**F5｜permit 身份闸 subject_id 来源（批1 实施中发现）—— 裁定＝甲（2026-11-19）：扩 redeliver 携 subject**。PermitContext 身份闸校验 permit.subject_id == ctx（signed.rs），但设备证书只载 CN=device_id＋OU=org_id（deviceca/ca.go），**无 subject**；新配对经 signDevicePairing 携 subject，重启重递路径却无 subject 锚。甲＝Identity 增 signed_subject，redeliverDeviceCertificate 闭集扩 subject_id（第 8 字段），桌面台账已持 subject，同步核从 Identity 读 org＋subject 建 RecordContext/PermitContext。**代价如实登记**：改 IPC 闭集（Rust dispatch/schema＋桌面 driver/pipe＋资产门禁＋Go 互操作）；重启路径 subject 为壳声明（无 CA 绑定，与 org 声明同信任级，但 org 另有 OU 校验）。**不取乙**（证书加 subject extension）：须改 CA 签发形状＋迁移＋已发证书重签，范围超出消费脊，且 subject 是会话/身份事实而非设备证书属性。
+
+**F6｜journal owner 锁重启语义（批1 实施中发现）—— 裁定＝甲（2026-11-19）：OS 建议锁（进程死释放）**。原 §6.1「崩溃留锁待人工恢复」与 kill-only Broker 重启冲突：create_new 持久锁文件在硬杀后残留，第二 Broker open 得 Locked 而退出（Go 互操作重启取证实测复现）。甲＝Windows 用 LockFileEx 独占建议锁（持于打开句柄，进程退出由 OS 释放），活并发 Agent 仍拒，kill/崩溃重启可重获；preserve-the-scene 由 Journal::open 对不可读 ledger fail-closed 独立保证（与锁无关，绝不空重建）。非 Windows（仅 CI 构建＋单测）保留 create_new 持久锁。**不取乙**（启动清残留锁）：清锁无法区分「死 owner 残留」与「活并发 owner」，会放行第二并发 Agent，违反独占语义。DD §6.1 原位注记此修正（原文逐字保留）。
+
 ## 4. 实现批切片（裁完后定稿）
 
 设计单定稿后分三实现批（每批独立取证＋授权）：

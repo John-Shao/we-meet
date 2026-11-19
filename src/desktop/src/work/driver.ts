@@ -36,7 +36,7 @@ export interface BrokerConfigFile {
   provider: string;
   boot_id: string;
   agent_instance_id: string;
-  journal_epoch: string;
+  journal_dir: string;
   profile_id: string;
   tool_manifest_hash: string;
   runtime_digest: string;
@@ -105,7 +105,6 @@ export class WorkDeviceDriver {
   private orgId = "";
   private subject = "";
   private container = "";
-  private journalEpoch = "";
   private timer?: ReturnType<typeof setInterval>;
   private polling = false;
   private epoch = -1;
@@ -136,9 +135,6 @@ export class WorkDeviceDriver {
       this.container = containerFor(this.deps.binding, this.subject);
       const stored = this.deps.store.load();
       this.record = stored && stored.container === this.container && stored.orgId === this.orgId ? stored : undefined;
-      // One journal epoch per device record, stable across Broker restarts (the config and the
-      // stored record must carry the SAME value, or a restart would change the hello identity).
-      this.journalEpoch = this.record?.journalEpoch ?? randomUUID();
 
       const config = this.buildConfig();
       const configPath = path.join(this.deps.configDir, "broker.json");
@@ -153,7 +149,7 @@ export class WorkDeviceDriver {
         try {
           // A fresh Broker has no signing history, so the stored chain goes through the
           // re-delivery carrier with the record's org declared explicitly (M2b ruling 甲).
-          await this.redeliver(this.record.deviceId, this.record.certificatePem, this.record.orgId);
+          await this.redeliver(this.record.deviceId, this.record.certificatePem, this.record.orgId, this.record.subject);
         } catch (error) {
           // An expired or foreign chain cannot be re-delivered; the renewal face is the
           // re-issuance path (0058 ruling ②). Anything else is fatal for this record.
@@ -211,7 +207,10 @@ export class WorkDeviceDriver {
       provider: PROVIDER,
       boot_id: bootId(),
       agent_instance_id: randomUUID(),
-      journal_epoch: this.journalEpoch,
+      // The Broker owns the journal epoch (device_meta); the shell only provides a stable base
+      // directory under its per-user config dir. The Broker forms <journal_dir>/<device_id>.db
+      // once the certificate reveals the device id, so a restart recovers the same epoch.
+      journal_dir: path.join(this.deps.configDir, "journal"),
       profile_id: "profile-m2-minimal",
       tool_manifest_hash: PLACEHOLDER_DIGEST,
       runtime_digest: PLACEHOLDER_DIGEST,
@@ -246,7 +245,7 @@ export class WorkDeviceDriver {
       ...this.deps.binding, subject: this.subject, orgId: this.orgId,
       deviceId: confirmed.device_id, container: this.container,
       certificatePem: confirmed.certificate_pem, certSerial: confirmed.cert_serial,
-      certNotAfter: confirmed.cert_not_after, journalEpoch: this.journalEpoch,
+      certNotAfter: confirmed.cert_not_after,
     };
     this.deps.store.save(this.record);
     return true;
@@ -316,8 +315,8 @@ export class WorkDeviceDriver {
     await this.call("deliverDeviceCertificate", { device_id: deviceId, certificate_pem: certificatePem });
   }
 
-  private async redeliver(deviceId: string, certificatePem: string, orgId: string): Promise<void> {
-    await this.call("redeliverDeviceCertificate", { device_id: deviceId, certificate_pem: certificatePem, org_id: orgId });
+  private async redeliver(deviceId: string, certificatePem: string, orgId: string, subjectId: string): Promise<void> {
+    await this.call("redeliverDeviceCertificate", { device_id: deviceId, certificate_pem: certificatePem, org_id: orgId, subject_id: subjectId });
   }
 
   private async call(method: Parameters<BrokerPipe["call"]>[0], fields: Record<string, string> = {}): Promise<BrokerReply> {

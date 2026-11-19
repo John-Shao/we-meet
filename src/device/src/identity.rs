@@ -114,6 +114,10 @@ pub struct Identity {
     ca_der: Vec<u8>,
     /// The org from the most recent signing request. A certificate's OU must equal it.
     signed_org: Option<String>,
+    /// The subject from the most recent signing request. The certificate carries no subject field
+    /// (CN=device, OU=org only), so the permit identity gate's `subject_id` is anchored here: set
+    /// by `sign_pairing`, and declared explicitly on restart re-delivery (F5 甲, 2026-11-19).
+    signed_subject: Option<String>,
     /// The device id adopted from a CA-signed certificate whose CN matched the shell's claim.
     device_id: Option<String>,
     held: Option<HeldCertificate>,
@@ -139,6 +143,7 @@ impl Identity {
             key,
             ca_der,
             signed_org: None,
+            signed_subject: None,
             device_id: None,
             held: None,
         })
@@ -162,6 +167,18 @@ impl Identity {
     /// The device id adopted from the held certificate, if any.
     pub fn device_id(&self) -> Option<&str> {
         self.device_id.as_deref()
+    }
+
+    /// The org bound by the most recent signing/re-delivery, if any. The permit identity gate
+    /// reads this (the certificate OU is verified against it).
+    pub fn signed_org(&self) -> Option<&str> {
+        self.signed_org.as_deref()
+    }
+
+    /// The subject bound by the most recent signing/re-delivery, if any. The certificate carries
+    /// no subject, so this is the permit identity gate's `subject_id` anchor (F5 甲).
+    pub fn signed_subject(&self) -> Option<&str> {
+        self.signed_subject.as_deref()
     }
 
     /// The held certificate, if any.
@@ -221,8 +238,9 @@ impl Identity {
         }
         let signature = sign(self.key.as_ref(), pairing_id, challenge, org_id, subject_id)?;
         // Remembered only after a successful signature: a refused request must not leave an org
-        // behind that a later certificate could bind against.
+        // or subject behind that a later certificate could bind against.
         self.signed_org = Some(org_id.to_string());
+        self.signed_subject = Some(subject_id.to_string());
         Ok(signature)
     }
 
@@ -237,24 +255,31 @@ impl Identity {
             return Err(IdentityError::Shape);
         }
         let org_id = self.signed_org.clone().ok_or(IdentityError::NoPairing)?;
-        self.hold_validated(device_id, certificate_pem, &org_id)
+        let subject_id = self
+            .signed_subject
+            .clone()
+            .ok_or(IdentityError::NoPairing)?;
+        self.hold_validated(device_id, certificate_pem, &org_id, &subject_id)
     }
 
     /// §2.1 restart re-delivery (M2b): a fresh Broker process has no signing history, so the
     /// stored chain cannot go through `deliver_certificate`'s signed-org gate. The shell declares
     /// the org explicitly instead; the CA-signed OU must equal that declaration and every other
-    /// gate is identical. The org binding is set only after the whole chain validates, so a
-    /// refused re-delivery leaves the identity exactly as it was.
+    /// gate is identical. The subject is declared too (F5 甲): the certificate carries no subject
+    /// field, so the permit identity gate's `subject_id` anchor must be re-supplied on restart.
+    /// Both bindings are set only after the whole chain validates, so a refused re-delivery leaves
+    /// the identity exactly as it was.
     pub fn redeliver_certificate(
         &mut self,
         device_id: &str,
         certificate_pem: &str,
         org_id: &str,
+        subject_id: &str,
     ) -> Result<(), IdentityError> {
-        if device_id.is_empty() || org_id.is_empty() {
+        if device_id.is_empty() || org_id.is_empty() || subject_id.is_empty() {
             return Err(IdentityError::Shape);
         }
-        self.hold_validated(device_id, certificate_pem, org_id)
+        self.hold_validated(device_id, certificate_pem, org_id, subject_id)
     }
 
     fn hold_validated(
@@ -262,6 +287,7 @@ impl Identity {
         device_id: &str,
         certificate_pem: &str,
         org_id: &str,
+        subject_id: &str,
     ) -> Result<(), IdentityError> {
         let der_chain = pem_certificates(certificate_pem.as_bytes())?;
         if der_chain.is_empty() {
@@ -277,6 +303,7 @@ impl Identity {
         self.held = Some(held);
         self.device_id = Some(device_id.to_string());
         self.signed_org = Some(org_id.to_string());
+        self.signed_subject = Some(subject_id.to_string());
         Ok(())
     }
 
@@ -617,6 +644,7 @@ mod tests {
         let covered = crate::pairing::covered_string("pid", "chal", &id.thumbprint(), "org", "sub");
         assert!(crate::es256::verify(&jwk, covered.as_bytes(), &sig));
         assert_eq!(id.signed_org.as_deref(), Some("org"));
+        assert_eq!(id.signed_subject.as_deref(), Some("sub"));
     }
 
     #[test]
@@ -638,7 +666,12 @@ mod tests {
             id.sign_pairing("pid", "chal", "", "sub").err().unwrap(),
             IdentityError::Shape
         );
+        assert_eq!(
+            id.sign_pairing("pid", "chal", "org", "").err().unwrap(),
+            IdentityError::Shape
+        );
         assert!(id.signed_org.is_none());
+        assert!(id.signed_subject.is_none());
     }
 
     #[test]
@@ -661,14 +694,25 @@ mod tests {
         let mut id = identity();
         let pem = "-----BEGIN CERTIFICATE-----\nAAEC\n-----END CERTIFICATE-----\n";
         assert_eq!(
-            id.redeliver_certificate("", pem, "org").err().unwrap(),
+            id.redeliver_certificate("", pem, "org", "sub")
+                .err()
+                .unwrap(),
             IdentityError::Shape
         );
         assert_eq!(
-            id.redeliver_certificate("dev", pem, "").err().unwrap(),
+            id.redeliver_certificate("dev", pem, "", "sub")
+                .err()
+                .unwrap(),
+            IdentityError::Shape
+        );
+        assert_eq!(
+            id.redeliver_certificate("dev", pem, "org", "")
+                .err()
+                .unwrap(),
             IdentityError::Shape
         );
         assert!(id.signed_org.is_none());
+        assert!(id.signed_subject.is_none());
         assert!(id.certificate().is_none());
     }
 
@@ -676,12 +720,13 @@ mod tests {
     fn redelivery_without_signing_history_runs_the_chain_gates_and_binds_nothing_on_refusal() {
         let mut id = identity();
         // No sign_pairing first: the restart path must reach the certificate gates themselves,
-        // not the signed-org gate. A chain that fails them binds no org and holds nothing.
+        // not the signed-org gate. A chain that fails them binds no org/subject and holds nothing.
         let err = id
             .redeliver_certificate(
                 "dev",
                 "-----BEGIN CERTIFICATE-----\nAAEC\n-----END CERTIFICATE-----\n",
                 "org",
+                "sub",
             )
             .err()
             .unwrap();
@@ -690,6 +735,7 @@ mod tests {
             IdentityError::CertificateInvalid | IdentityError::NotWindows
         ));
         assert!(id.signed_org.is_none());
+        assert!(id.signed_subject.is_none());
         assert!(id.certificate().is_none());
     }
 

@@ -36,7 +36,7 @@ use super::codec::{FrameCodec, MAX_FRAME_BYTES};
 use super::tls::{DeviceTlsConnector, TlsError};
 use super::{
     clock_discontinuity, is_lease_frame, parse_hello_ack, reconnect_delay, AckError,
-    ClientIdentity, HelloAck, LeaseLoss, LeaseSet, LinkCommand, LinkConfig, LinkEvent,
+    ClientIdentity, HelloAck, LeaseLoss, LeaseSet, LinkCommand, LinkConfig, LinkEvent, UplinkFrame,
     CONNECT_PATH, PROTOCOL_MAJOR, PROTOCOL_MINOR, REQUIRED_FEATURES,
 };
 
@@ -88,12 +88,15 @@ impl Link {
     }
 
     /// Run until stopped. `tickets` supplies one fresh single-use ticket per dial attempt;
-    /// `commands` carries the core's lease and discontinuity instructions; `events` reports
-    /// everything back. Closing either input channel stops the loop.
+    /// `commands` carries the core's lease and discontinuity instructions; `uplinks` carries the
+    /// core's already-signed frames to send on the current session; `events` reports everything
+    /// back. Closing the ticket or command channel stops the loop; closing the uplink channel only
+    /// disables uplink sending (the core may legitimately have nothing to send).
     pub async fn run(
         mut self,
         mut tickets: mpsc::Receiver<String>,
         mut commands: mpsc::Receiver<LinkCommand>,
+        mut uplinks: mpsc::Receiver<UplinkFrame>,
         events: mpsc::Sender<LinkEvent>,
     ) {
         let mut leases = LeaseSet::default();
@@ -161,7 +164,7 @@ impl Link {
             }
 
             let outcome = self
-                .drive(session, &mut leases, &mut commands, &events)
+                .drive(session, &mut leases, &mut commands, &mut uplinks, &events)
                 .await;
             // Whatever ended the session, the leases it owned are now unrenewable: 0051 binds a
             // renewal to the lease's ORIGINAL session, and a reconnect mints a new one.
@@ -205,6 +208,7 @@ impl Link {
         session: Session,
         leases: &mut LeaseSet,
         commands: &mut mpsc::Receiver<LinkCommand>,
+        uplinks: &mut mpsc::Receiver<UplinkFrame>,
         events: &mpsc::Sender<LinkEvent>,
     ) -> Drive {
         let Session {
@@ -220,6 +224,9 @@ impl Link {
         let mut last_mono = Instant::now();
         let mut last_wall = SystemTime::now();
         let mut last_heartbeat_sent: Option<Instant> = None;
+        // The core may close the uplink channel when it has nothing to send; that disables the
+        // uplink arm rather than ending the session (a downlink-only session is legitimate).
+        let mut uplinks_open = true;
 
         loop {
             tokio::select! {
@@ -309,6 +316,25 @@ impl Link {
                         }
                         return Drive::Lost(format!("discontinuity: {cause:?}"));
                     }
+                },
+                frame = uplinks.recv(), if uplinks_open => match frame {
+                    Some(frame) => {
+                        // The body is already signed by the core under its own frame type; the link
+                        // only stamps the transport identity of THIS session (§3.1: a reconnect
+                        // re-sends the same signed bytes under a new session_id, never re-signs).
+                        let env = match uplink_envelope(&self.config, &ack.session_id, &frame.frame_type, frame.body) {
+                            Ok(env) => env,
+                            Err(err) => return Drive::Lost(err.to_string()),
+                        };
+                        let raw = match serde_json::to_vec(&env) {
+                            Ok(raw) => raw,
+                            Err(err) => return Drive::Lost(format!("uplink encode: {err}")),
+                        };
+                        if uplink.send(Bytes::from(raw)).await.is_err() {
+                            return Drive::Lost("uplink closed".into());
+                        }
+                    }
+                    None => { uplinks_open = false; }
                 },
             }
         }
@@ -549,6 +575,37 @@ mod tests {
         }
     }
 
+    /// An uplink channel whose sender is already dropped: the drive arm sees `None`, disables
+    /// itself, and the link keeps running. The dial/stop/discontinuity tests below produce no
+    /// uplinks, so this exercises the graceful-close path without a live session.
+    fn no_uplinks() -> mpsc::Receiver<UplinkFrame> {
+        let (tx, rx) = mpsc::channel(1);
+        drop(tx);
+        rx
+    }
+
+    #[test]
+    fn an_uplink_frame_stamps_the_session_and_preserves_the_signed_body() {
+        // The core signs the body under its own frame type; the link must carry it verbatim and
+        // only stamp the transport identity. A cancel_ack-shaped body with a signature survives.
+        let body = json!({
+            "run_id": "run-1",
+            "cancel_revision": "3",
+            "stopped_or_unknown": "stopped",
+            "last_receipt_seq": "7",
+            "signature": "a".repeat(86),
+        });
+        let env = uplink_envelope(&config(), "sess-9", "cancel_ack", body.clone()).unwrap();
+        assert_eq!(env.frame_type, "cancel_ack");
+        assert_eq!(env.session_id, "sess-9");
+        assert_eq!(env.device_id, "dev-1");
+        assert_eq!(
+            env.body, body,
+            "the signed body must pass through unchanged"
+        );
+        assert!(crate::frame::rfc3339::parse_utc_seconds(&env.sent_at).is_some());
+    }
+
     #[test]
     fn hello_is_signed_under_its_own_frame_type_and_carries_the_identity() {
         let key = SoftwareKey::random();
@@ -710,7 +767,8 @@ mod tests {
         drop(ticket_tx);
         drop(command_tx);
         let link = Link::new(config(), Arc::new(SoftwareKey::random()));
-        link.run(ticket_rx, command_rx, event_tx).await;
+        link.run(ticket_rx, command_rx, no_uplinks(), event_tx)
+            .await;
         // An empty channel announces the wait before the closed channel ends the loop.
         assert!(matches!(
             event_rx.recv().await,
@@ -727,7 +785,8 @@ mod tests {
         let (event_tx, mut event_rx) = mpsc::channel(8);
         command_tx.send(LinkCommand::Stop).await.unwrap();
         let link = Link::new(config(), Arc::new(SoftwareKey::random()));
-        link.run(ticket_rx, command_rx, event_tx).await;
+        link.run(ticket_rx, command_rx, no_uplinks(), event_tx)
+            .await;
         assert!(matches!(
             event_rx.recv().await,
             Some(LinkEvent::AwaitingTicket)
@@ -757,7 +816,8 @@ mod tests {
             .unwrap();
         command_tx.send(LinkCommand::Stop).await.unwrap();
         let link = Link::new(config(), Arc::new(SoftwareKey::random()));
-        link.run(ticket_rx, command_rx, event_tx).await;
+        link.run(ticket_rx, command_rx, no_uplinks(), event_tx)
+            .await;
         assert!(matches!(
             event_rx.recv().await,
             Some(LinkEvent::AwaitingTicket)
@@ -786,7 +846,7 @@ mod tests {
             max: Duration::from_millis(2),
         };
         let link = Link::new(cfg, Arc::new(SoftwareKey::random()));
-        let handle = tokio::spawn(link.run(ticket_rx, command_rx, event_tx));
+        let handle = tokio::spawn(link.run(ticket_rx, command_rx, no_uplinks(), event_tx));
         match event_rx.recv().await {
             Some(LinkEvent::Disconnected { reason, attempt }) => {
                 assert_eq!(attempt, 1);
@@ -818,7 +878,7 @@ mod tests {
             max: Duration::from_millis(2),
         };
         let link = Link::new(cfg, Arc::new(SoftwareKey::random()));
-        let handle = tokio::spawn(link.run(ticket_rx, command_rx, event_tx));
+        let handle = tokio::spawn(link.run(ticket_rx, command_rx, no_uplinks(), event_tx));
         // The FIRST event is the dial failure, not a wait: a ticket was already queued, and
         // announcing a wait would make the GW18 pump spend a second single-use ticket.
         match event_rx.recv().await {

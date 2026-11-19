@@ -470,6 +470,20 @@ pub enum LinkCommand {
     Stop,
 }
 
+/// An uplink frame the sync core produced and already signed under its own frame type. The link
+/// stamps the transport identity (device/boot/agent/session/sent_at) and sends it on the current
+/// session; it does NOT sign the body — the core signs receipts and verdicts with the SAME device
+/// key the mTLS certificate binds (§2.1, §3.1). Keeping the signature in the core means a frame's
+/// signed bytes are fixed before the link sees them, so a reconnect re-sends identical bytes under
+/// a new session_id rather than re-signing (§3.4 step 3: re-send the same finish_id and bytes).
+#[derive(Clone, Debug)]
+pub struct UplinkFrame {
+    /// The frame domain the body was signed under (e.g. "cancel_ack", "run_ready", "run_started").
+    pub frame_type: String,
+    /// The signed frame body. The link carries it verbatim into the envelope.
+    pub body: Value,
+}
+
 /// Whether a downlink frame is the one the link consumes itself.
 pub fn is_lease_frame(env: &Envelope) -> bool {
     env.frame_type == LEASE_FRAME_TYPE

@@ -95,9 +95,11 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 	pipeName := `\\.\pipe\work-device-gw21-` + uuid.NewString()
 	bootID := "boot-" + uuid.NewString()
 	agentID := uuid.NewString()
-	// journal_epoch is a uuid column (0040:406), not a counter: the Broker passes the config
-	// string straight into the hello, so a non-uuid here surfaces as a server-side cast failure.
-	journalEpoch := uuid.NewString()
+	// Execution-face batch 1b: the Broker owns the journal epoch. The config gives a base directory;
+	// the Broker forms <journal_dir>/<device_id>.db once the certificate reveals the device id, and
+	// hello carries the journal's own epoch (device_meta). The test reads that epoch back from the
+	// session row and asserts it stays stable across a restart (the journal is recovered, not rebuilt).
+	journalDir := filepath.Join(dir, "journal")
 	config := map[string]any{
 		"pipe_name":          pipeName,
 		// The Go test process plays the shell and owns the pipe client, so its PID is the
@@ -110,7 +112,7 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 		"provider":           "Microsoft Software Key Storage Provider",
 		"boot_id":            bootID,
 		"agent_instance_id":  agentID,
-		"journal_epoch":      journalEpoch,
+		"journal_dir":        journalDir,
 		"profile_id":         "profile-1",
 		"tool_manifest_hash": strings.Repeat("a", 64),
 		"runtime_digest":     strings.Repeat("b", 64),
@@ -259,7 +261,7 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 		"device_id": deviceID, "session_ticket_id": ticketRowID, "ticket": ticket,
 	})
 
-	sessionID := waitForBrokerSession(t, dbName, deviceID, bootID, agentID, journalEpoch)
+	sessionID, journalEpoch := waitForBrokerSession(t, dbName, deviceID, bootID, agentID)
 	if sessionID == "" {
 		t.Fatalf("the Broker never established a session; stderr:\n%s", stderr.String())
 	}
@@ -278,9 +280,14 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 		testOrg, sessionID).Scan(&rowBoot, &rowAgent, &rowEpoch, &rowState); err != nil {
 		t.Fatal(err)
 	}
-	if rowBoot != bootID || rowAgent != agentID || rowEpoch != journalEpoch || rowState != "active" {
-		t.Fatalf("session identity = %q/%q/%q/%q, config gave %q/%q/%q",
-			rowBoot, rowAgent, rowEpoch, rowState, bootID, agentID, journalEpoch)
+	if rowBoot != bootID || rowAgent != agentID || rowState != "active" {
+		t.Fatalf("session identity = %q/%q/%q, config gave %q/%q",
+			rowBoot, rowAgent, rowState, bootID, agentID)
+	}
+	// The epoch is the journal's own (device_meta), not a config string: it must be a valid uuid
+	// and equal the value read back when the session was first observed.
+	if _, err := uuid.Parse(rowEpoch); err != nil || rowEpoch != journalEpoch {
+		t.Fatalf("session journal_epoch = %q (discovered %q), want a stable uuid from the journal", rowEpoch, journalEpoch)
 	}
 	if got := ticketState(t, dbName, ticketRowID); got != "consumed" {
 		t.Fatalf("ticket state = %s, want consumed", got)
@@ -359,10 +366,11 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 	}
 
 	// Step 9 (M2b): the shell RESTART. Kill the Broker, keep the persisted CNG container, and
-	// spawn a fresh process with the same container and journal_epoch but a new pipe/boot/agent.
+	// spawn a fresh process with the same container and journal_dir but a new pipe/boot/agent.
 	// The fresh process has no signing history: the signed-org delivery gate must still refuse
 	// (no_pairing), while the re-delivery carrier with the org declared explicitly imports the
-	// chain the server recorded and dials a new session under the SAME journal epoch.
+	// chain the server recorded and dials a new session under the SAME journal epoch (batch 1b:
+	// the journal is recovered from <journal_dir>/<device_id>.db, so the epoch is stable).
 	_ = pipe.Close()
 	_ = cmd.Process.Kill()
 	_, _ = cmd.Process.Wait()
@@ -407,14 +415,14 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 	// A foreign org declaration fails the CA-signed OU gate and binds nothing.
 	foreign := brokerRaw(t, pipe2, map[string]any{
 		"method": "redeliverDeviceCertificate", "request_id": "cert-r1",
-		"device_id": deviceID, "certificate_pem": newPEM, "org_id": uuid.NewString(),
+		"device_id": deviceID, "certificate_pem": newPEM, "org_id": uuid.NewString(), "subject_id": testSubject,
 	})
 	if foreign["result"] != "refused" || foreign["code"] != "certificate_invalid" {
 		t.Fatalf("a re-delivery for another org was not refused: %#v", foreign)
 	}
 	redelivered := brokerRaw(t, pipe2, map[string]any{
 		"method": "redeliverDeviceCertificate", "request_id": "cert-r2",
-		"device_id": deviceID, "certificate_pem": newPEM, "org_id": testOrg,
+		"device_id": deviceID, "certificate_pem": newPEM, "org_id": testOrg, "subject_id": testSubject,
 	})
 	if redelivered["result"] != "accepted" {
 		t.Fatalf("restart re-delivery refused: %#v; broker stderr:\n%s", redelivered, stderr2.String())
@@ -435,12 +443,17 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 		"method": "deliverDeviceSessionTicket", "request_id": "tick-2",
 		"device_id": deviceID, "session_ticket_id": ticketRowID2, "ticket": ticket2,
 	})
-	sessionID2 := waitForBrokerSession(t, dbName, deviceID, bootID2, agentID2, journalEpoch)
+	sessionID2, journalEpoch2 := waitForBrokerSession(t, dbName, deviceID, bootID2, agentID2)
 	if sessionID2 == "" {
 		t.Fatalf("the restarted Broker never established a session; stderr:\n%s", stderr2.String())
 	}
 	if sessionID2 == sessionID {
 		t.Fatalf("the restart reused the old session row %s", sessionID)
+	}
+	// Batch 1b: the journal is recovered from <journal_dir>/<device_id>.db, so the epoch is STABLE
+	// across the restart even though the session row, boot and agent identity are all new.
+	if journalEpoch2 != journalEpoch {
+		t.Fatalf("restart changed the journal epoch %q -> %q; the journal must be recovered, not rebuilt", journalEpoch, journalEpoch2)
 	}
 	if got := ticketState(t, dbName, ticketRowID2); got != "consumed" {
 		t.Fatalf("restart ticket state = %s, want consumed", got)
@@ -620,23 +633,27 @@ func brokerDB(t *testing.T, dbName string) *pgx.Conn {
 	return conn
 }
 
-func waitForBrokerSession(t *testing.T, dbName, deviceID, bootID, agentID, journalEpoch string) string {
+// waitForBrokerSession polls for the active session row this Broker dial created, matched by the
+// device and the dial's boot/agent identity. Execution-face batch 1b: the journal epoch is owned by
+// the Broker's journal (device_meta), NOT supplied by the config, so it is READ BACK from the row
+// here rather than used as a filter — the caller asserts it is a uuid and, across a restart, stable.
+func waitForBrokerSession(t *testing.T, dbName, deviceID, bootID, agentID string) (string, string) {
 	t.Helper()
 	conn := brokerDB(t, dbName)
 	deadline := time.Now().Add(40 * time.Second)
 	for time.Now().Before(deadline) {
-		var id string
+		var id, epoch string
 		err := conn.QueryRow(context.Background(), `
-			SELECT id::text FROM work.device_session
+			SELECT id::text, journal_epoch::text FROM work.device_session
 			WHERE org_id = $1 AND device_id = $2::uuid AND state = 'active'
-			  AND boot_id = $3 AND agent_instance_id = $4 AND journal_epoch = $5::uuid
-			ORDER BY created_at DESC LIMIT 1`, testOrg, deviceID, bootID, agentID, journalEpoch).Scan(&id)
+			  AND boot_id = $3 AND agent_instance_id = $4
+			ORDER BY created_at DESC LIMIT 1`, testOrg, deviceID, bootID, agentID).Scan(&id, &epoch)
 		if err == nil && id != "" {
-			return id
+			return id, epoch
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	return ""
+	return "", ""
 }
 
 func ticketState(t *testing.T, dbName, rowID string) string {

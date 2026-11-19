@@ -88,15 +88,16 @@ test("a refused reply carries only the closed code vocabulary", windows, async (
   await expectCode(pipe.call("deliverDeviceCertificate", { device_id: "d", certificate_pem: "p" }), "certificate_invalid");
 });
 
-test("the restart re-delivery carrier is closed and carries the org declaration", windows, async (t) => {
+test("the restart re-delivery carrier is closed and carries the org and subject declarations", windows, async (t) => {
   const { name, state, listening } = startBroker(t);
   await listening;
   const pipe = await BrokerPipe.connect(name);
   t.after(() => pipe.close());
-  const reply = await pipe.call("redeliverDeviceCertificate", { device_id: "d", certificate_pem: "p", org_id: "o" });
+  const reply = await pipe.call("redeliverDeviceCertificate", { device_id: "d", certificate_pem: "p", org_id: "o", subject_id: "s" });
   assert.deepEqual(reply, { data: { echoed: true } });
   assert.equal(state.messages[0].method, "redeliverDeviceCertificate");
   assert.equal(state.messages[0].org_id, "o");
+  assert.equal(state.messages[0].subject_id, "s");
 });
 
 test("an unclosed refusal code or a malformed accepted reply is a schema failure", windows, async (t) => {

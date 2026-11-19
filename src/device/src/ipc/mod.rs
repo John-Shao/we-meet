@@ -19,6 +19,8 @@ pub mod schema;
 pub mod ticket;
 
 #[cfg(windows)]
+pub mod nodepipe;
+#[cfg(windows)]
 pub mod pipe;
 #[cfg(windows)]
 pub mod service;

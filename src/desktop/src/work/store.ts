@@ -15,7 +15,6 @@ export interface DeviceRecord {
   certificatePem: string;
   certSerial: string;
   certNotAfter: string;
-  journalEpoch: string;
 }
 export interface DeviceStoreIo {
   read(): string | undefined;
@@ -30,11 +29,11 @@ export function parseDeviceRecord(raw: string | undefined): DeviceRecord | undef
   try { value = JSON.parse(raw) as Record<string, unknown>; } catch { return undefined; }
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const keys = ["issuer", "clientId", "serviceOrigin", "subject", "orgId", "deviceId", "container",
-    "certificatePem", "certSerial", "certNotAfter", "journalEpoch"];
+    "certificatePem", "certSerial", "certNotAfter"];
   if (Object.keys(value).sort().join(",") !== [...keys].sort().join(",")) return undefined;
   for (const key of keys) if (typeof value[key] !== "string" || !(value[key] as string)) return undefined;
   const record = value as unknown as DeviceRecord;
-  if (!uuid.test(record.deviceId) || !uuid.test(record.journalEpoch) ||
+  if (!uuid.test(record.deviceId) ||
     !/^[1-9][0-9]{0,38}$/.test(record.certSerial) ||
     !record.certificatePem.includes("-----BEGIN CERTIFICATE-----") ||
     Number.isNaN(Date.parse(record.certNotAfter))) return undefined;

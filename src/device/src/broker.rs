@@ -53,6 +53,12 @@ use crate::transport::{ClientIdentity, LinkEvent};
 pub struct ReadyIdentity {
     /// The device id adopted from the CA-signed certificate's CN.
     pub device_id: String,
+    /// The org bound by signing/re-delivery (certificate OU). The sync core's permit identity
+    /// gate reads this (F5 甲).
+    pub org_id: String,
+    /// The subject bound by signing/re-delivery. The certificate carries no subject, so this is
+    /// the permit identity gate's `subject_id` anchor (F5 甲).
+    pub subject_id: String,
     /// The CNG-bound client identity (Windows production shape).
     pub identity: ClientIdentity,
 }
@@ -133,6 +139,8 @@ pub async fn run_core_pump(
                                 let _ = ready
                                     .send(ReadyIdentity {
                                         device_id: device_id.to_string(),
+                                        org_id: identity.signed_org().unwrap_or("").to_string(),
+                                        subject_id: identity.signed_subject().unwrap_or("").to_string(),
                                         identity: link_identity,
                                     })
                                     .await;
@@ -208,7 +216,7 @@ fn handle_message(
             &["pairing_id", "challenge", "org_id", "subject_id"]
         }
         "deliverDeviceCertificate" => &["device_id", "certificate_pem"],
-        "redeliverDeviceCertificate" => &["device_id", "certificate_pem", "org_id"],
+        "redeliverDeviceCertificate" => &["device_id", "certificate_pem", "org_id", "subject_id"],
         // classify() only forwards CORE_METHODS, so this is unreachable; answering with a closed
         // code keeps the pipe moving instead of panicking inside the pump.
         _ => return Reply::refused(message, "unknown_method"),
@@ -259,6 +267,7 @@ fn handle_message(
                     text("device_id"),
                     text("certificate_pem"),
                     text("org_id"),
+                    text("subject_id"),
                 )
             };
             match result {
@@ -1005,6 +1014,7 @@ mod tests {
                 "device_id": "dev-1",
                 "certificate_pem": "-----BEGIN CERTIFICATE-----\nAAEC\n-----END CERTIFICATE-----\n",
                 "org_id": "org-1",
+                "subject_id": "sub-1",
             }))
             .await;
         assert_eq!(reply.result, REFUSED);
@@ -1016,14 +1026,23 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn redelivery_payload_is_closed_about_the_org_declaration() {
+    async fn redelivery_payload_is_closed_about_the_org_and_subject_declarations() {
         let mut h = Harness::new();
         let pem = "-----BEGIN CERTIFICATE-----\nAAEC\n-----END CERTIFICATE-----\n";
         // Missing org_id: the declaration is mandatory, not optional.
         let reply = h
             .deliver(json!({
                 "method": "redeliverDeviceCertificate", "request_id": "cert-r2",
-                "device_id": "dev-1", "certificate_pem": pem,
+                "device_id": "dev-1", "certificate_pem": pem, "subject_id": "sub-1",
+            }))
+            .await;
+        assert_eq!(reply.result, REFUSED);
+        assert!(matches!(reply.code, Some("schema") | Some("shape")));
+        // Missing subject_id (F5 甲): the permit identity anchor is mandatory too.
+        let reply = h
+            .deliver(json!({
+                "method": "redeliverDeviceCertificate", "request_id": "cert-r2s",
+                "device_id": "dev-1", "certificate_pem": pem, "org_id": "org-1",
             }))
             .await;
         assert_eq!(reply.result, REFUSED);
@@ -1032,7 +1051,8 @@ mod tests {
         let reply = h
             .deliver(json!({
                 "method": "redeliverDeviceCertificate", "request_id": "cert-r3",
-                "device_id": "dev-1", "certificate_pem": pem, "org_id": "org-1", "extra": 1,
+                "device_id": "dev-1", "certificate_pem": pem, "org_id": "org-1",
+                "subject_id": "sub-1", "extra": 1,
             }))
             .await;
         assert_eq!(reply.result, REFUSED);

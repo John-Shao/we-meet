@@ -26,6 +26,7 @@ pub mod permit;
 pub mod reconcile;
 pub mod recovery;
 pub mod sidecar;
+pub mod synccore;
 pub mod thumbprint;
 pub mod transport;
 pub mod upgrade;

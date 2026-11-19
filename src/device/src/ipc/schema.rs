@@ -23,7 +23,10 @@ use serde_json::Value;
 /// M2b adds `redeliverDeviceCertificate`: §2.1's restart path re-delivers the stored chain to a
 /// FRESH Broker process, which has no signing history, so `deliverDeviceCertificate`'s signed-org
 /// gate refused it (`no_pairing`) and the shell lost its record. The re-delivery carrier declares
-/// the org explicitly; the CA-signed OU must equal it. The design line is annotated in place.
+/// the org explicitly; the CA-signed OU must equal it. F5 甲 (2026-11-19) adds the subject to the
+/// same carrier: the certificate carries no subject field (CN=device, OU=org only), so the permit
+/// identity gate's `subject_id` anchor must be re-supplied on restart. The design line is annotated
+/// in place.
 pub const SHELL_METHODS: &[&str] = &[
     "chooseWorkspace",
     "inspectWorkspace",

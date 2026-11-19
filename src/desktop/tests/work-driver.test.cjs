@@ -128,7 +128,9 @@ test("a fresh device pairs in the §2.1 order: gesture before any pairing reques
   const { config } = h.configs[0];
   assert.equal(config.shell_pid, process.pid);
   assert.equal(config.container, record.container);
-  assert.equal(config.journal_epoch, record.journalEpoch);
+  // The Broker owns the journal epoch now; the shell only hands it a stable base directory.
+  assert.ok(config.journal_dir.endsWith("journal"));
+  assert.equal(record.journalEpoch, undefined);
   assert.equal(config.endpoint, "https://gw.example.test:8443");
   assert.equal(config.server_name, "gw.example.test");
   assert.match(config.pipe_name, /^\\\\\.\\pipe\\work-device-[0-9a-f-]{36}$/);
@@ -156,22 +158,22 @@ test("a cancelled name gesture leaves zero pairing rows and returns to idle", as
 
 test("a stored certificate is re-delivered on restart without a new gesture or pairing", async (t) => {
   const h = harness(t);
-  const journalEpoch = randomUUID();
   h.io.value = JSON.stringify({
     ...binding, subject, orgId, deviceId, container: containerFor(binding, subject),
-    certificatePem: pem, certSerial: "12345678901234567890", certNotAfter: "2026-11-19T00:00:00Z", journalEpoch,
+    certificatePem: pem, certSerial: "12345678901234567890", certNotAfter: "2026-11-19T00:00:00Z",
   });
   const delivered = [];
   h.pipeResponses.redeliverDeviceCertificate = (method, fields) => { delivered.push(fields); return {}; };
   await h.driver.start();
   assert.equal(h.driver.currentState, "running");
-  // The restart carrier declares the record's org explicitly: a fresh Broker has no signing
-  // history, so the signed-org delivery gate cannot be the re-delivery path.
-  assert.deepEqual(delivered, [{ device_id: deviceId, certificate_pem: pem, org_id: orgId }]);
+  // The restart carrier declares the record's org and subject explicitly: a fresh Broker has no
+  // signing history, so the signed-org delivery gate cannot be the re-delivery path, and the
+  // certificate carries no subject field for the permit identity gate (F5 甲).
+  assert.deepEqual(delivered, [{ device_id: deviceId, certificate_pem: pem, org_id: orgId, subject_id: subject }]);
   assert.equal(h.events.filter((e) => e === "pipe:deliverDeviceCertificate").length, 0);
   assert.equal(h.gestures.length, 0);
   assert.equal(h.events.filter((e) => e === "api:pair").length, 0);
-  assert.equal(h.configs[0].config.journal_epoch, journalEpoch);
+  assert.ok(h.configs[0].config.journal_dir.endsWith("journal"));
 });
 
 test("a record of another container or org is not re-delivered; the device pairs fresh", async (t) => {
@@ -179,7 +181,7 @@ test("a record of another container or org is not re-delivered; the device pairs
     const h = harness(t);
     h.io.value = JSON.stringify({
       ...binding, subject, orgId, deviceId, container: containerFor(binding, subject),
-      certificatePem: pem, certSerial: "12345678901234567890", certNotAfter: "2026-11-19T00:00:00Z", journalEpoch: randomUUID(),
+      certificatePem: pem, certSerial: "12345678901234567890", certNotAfter: "2026-11-19T00:00:00Z",
       ...patch,
     });
     await h.driver.start();
@@ -193,7 +195,7 @@ test("an undeliverable stored certificate goes through the renewal re-issuance p
   const h = harness(t);
   h.io.value = JSON.stringify({
     ...binding, subject, orgId, deviceId, container: containerFor(binding, subject),
-    certificatePem: pem, certSerial: "12345678901234567890", certNotAfter: "2026-11-19T00:00:00Z", journalEpoch: randomUUID(),
+    certificatePem: pem, certSerial: "12345678901234567890", certNotAfter: "2026-11-19T00:00:00Z",
   });
   h.pipeResponses.redeliverDeviceCertificate = () => {
     throw new BrokerPipeError("certificate_invalid");

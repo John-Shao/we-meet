@@ -117,7 +117,16 @@ async fn main() {
         fail("ticket channel closed before the link started");
     }
     let link = Link::new(config, Arc::new(key));
-    let handle = tokio::spawn(link.run(ticket_rx, command_rx, event_tx));
+    let handle = tokio::spawn(link.run(
+        ticket_rx,
+        command_rx,
+        {
+            let (tx, rx) = mpsc::channel(1);
+            drop(tx);
+            rx
+        },
+        event_tx,
+    ));
 
     let started = Instant::now();
     let budget = Duration::from_millis(cfg.budget_ms);

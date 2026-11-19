@@ -134,10 +134,11 @@ test('the config file the shell writes is field-for-field the Rust BrokerConfig'
   assert.ok(driver.includes('shell_pid: process.pid'));
   assert.ok(driver.includes('provider: PROVIDER'));
   assert.ok(driver.includes('"Microsoft Software Key Storage Provider"'));
-  // One journal epoch per device record, shared by config and stored record.
-  assert.ok(driver.includes('this.journalEpoch = this.record?.journalEpoch ?? randomUUID()'));
-  assert.ok(driver.includes('journal_epoch: this.journalEpoch'));
-  assert.ok(driver.includes('journalEpoch: this.journalEpoch'));
+  // Execution-face batch 1b: the Broker owns the journal epoch (device_meta); the shell only hands
+  // it a stable base directory and no longer generates or stores an epoch.
+  assert.ok(driver.includes('journal_dir: path.join(this.deps.configDir, "journal")'));
+  assert.ok(!driver.includes('this.journalEpoch'), 'the shell must not generate a journal epoch');
+  assert.ok(!driver.includes('journal_epoch'), 'the config carries journal_dir, not journal_epoch');
   // A2/A3 placeholders are registered as placeholders, not facts.
   assert.ok(read(DRIVER).includes('closed placeholders'));
 });
@@ -158,7 +159,7 @@ test('the device-name gesture precedes any pairing request and a cancel pairs no
 
 test('the certificate is account-bound, persisted and re-delivered; mint and renewal are predicate-driven', () => {
   const keys = ['issuer', 'clientId', 'serviceOrigin', 'subject', 'orgId', 'deviceId', 'container',
-    'certificatePem', 'certSerial', 'certNotAfter', 'journalEpoch'];
+    'certificatePem', 'certSerial', 'certNotAfter'];
   const storeKeys = store.split('const keys = [')[1].split('];')[0];
   assert.deepEqual([...storeKeys.matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1]).sort(), [...keys].sort());
   assert.ok(!/token/i.test(store), 'tokens stay in DesktopAuth, never in the device record');
@@ -168,10 +169,10 @@ test('the certificate is account-bound, persisted and re-delivered; mint and ren
   // Re-delivery on start goes through the restart carrier with the record's org declared
   // explicitly (a fresh Broker has no signing history); an undeliverable chain goes through
   // the renewal re-issuance path.
-  assert.ok(driver.includes('await this.redeliver(this.record.deviceId, this.record.certificatePem, this.record.orgId)'));
-  assert.ok(driver.includes('"redeliverDeviceCertificate", { device_id: deviceId, certificate_pem: certificatePem, org_id: orgId }'));
+  assert.ok(driver.includes('await this.redeliver(this.record.deviceId, this.record.certificatePem, this.record.orgId, this.record.subject)'));
+  assert.ok(driver.includes('"redeliverDeviceCertificate", { device_id: deviceId, certificate_pem: certificatePem, org_id: orgId, subject_id: subjectId }'));
   const rustBroker = read(join(DEVICE, 'src', 'broker.rs'));
-  assert.ok(rustBroker.includes('"redeliverDeviceCertificate" => &["device_id", "certificate_pem", "org_id"]'));
+  assert.ok(rustBroker.includes('"redeliverDeviceCertificate" => &["device_id", "certificate_pem", "org_id", "subject_id"]'));
   const rustIdentity = read(join(DEVICE, 'src', 'identity.rs'));
   assert.ok(rustIdentity.includes('pub fn redeliver_certificate('));
   assert.ok(driver.includes('error.code === "certificate_invalid"'));

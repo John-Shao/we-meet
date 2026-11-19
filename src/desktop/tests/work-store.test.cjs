@@ -11,7 +11,6 @@ const record = () => ({
   certificatePem: "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n",
   certSerial: "12345678901234567890",
   certNotAfter: "2026-11-19T00:00:00Z",
-  journalEpoch: "12345678-1234-1234-1234-123456789012",
 });
 const memoryIo = () => {
   const state = { value: undefined, writes: 0, clears: 0 };
@@ -62,7 +61,6 @@ test("the record key set is closed and every member is a non-empty string", () =
 test("identifiers, serial, PEM marker and expiry are shape-checked", () => {
   for (const [key, bad] of [
     ["deviceId", "not-a-uuid"],
-    ["journalEpoch", "not-a-uuid"],
     ["certSerial", "0123"],
     ["certSerial", "12x"],
     ["certSerial", "1".repeat(40)],

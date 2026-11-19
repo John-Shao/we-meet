@@ -132,7 +132,9 @@ test('the probe drives the shipped Link and re-implements none of the device sid
   const src = code(probe);
   assert.match(src, /use work_device::transport::link::Link;/);
   assert.match(src, /Link::new\(config, Arc::new\(key\)\)/);
-  assert.match(src, /link\.run\(ticket_rx, command_rx, event_tx\)/);
+  // 批1a (F1甲): Link gained an independent uplink receiver between commands and events.
+  // The probe produces no uplinks, so it hands Link a closed channel (tx dropped immediately).
+  assert.match(src, /link\.run\(\s*ticket_rx,\s*command_rx,\s*\{[\s\S]*?mpsc::channel\(1\)[\s\S]*?drop\(tx\);[\s\S]*?\},\s*event_tx,?\s*\)/);
   // No envelope, no signature and no canonicalizer of its own: those are the crate's job.
   for (const forbidden of ['schema_version', 'sign_es256', 'jcs::', 'hello_ack']) {
     assert.ok(!src.includes(forbidden), `the probe re-implements ${forbidden} instead of using the crate`);

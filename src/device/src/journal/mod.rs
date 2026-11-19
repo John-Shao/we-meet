@@ -28,7 +28,9 @@ pub struct Journal {
     dek: [u8; 32],
     device_id: String,
     journal_epoch: String,
-    lock_path: PathBuf,
+    // Held for its Drop side effect (releases the owner lock); never read directly.
+    #[allow(dead_code)]
+    lock: OwnerLock,
 }
 
 /// A journal open/create failure.
@@ -60,13 +62,95 @@ fn lock_path(db_path: &Path) -> PathBuf {
     PathBuf::from(name)
 }
 
-fn acquire_lock(lock_path: &Path) -> Result<(), JournalError> {
-    std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(lock_path)
+/// The journal owner lock (F6 甲, 2026-11-19). Its purpose is to reject a second CONCURRENT
+/// Agent, not to forbid a restart after the owner dies. On Windows it is an OS advisory lock
+/// (LockFileEx) held on an open handle: the OS releases it when the process exits (clean or
+/// killed), so a kill-only Broker restart re-acquires it, while a live concurrent Agent is still
+/// refused. Preserve-the-scene is independent of this lock: `open` fails closed on an unreadable
+/// ledger and never rebuilds it empty. On non-Windows (CI build + unit tests only) the persistent
+/// create_new file lock is retained; there is no kill-restart path there.
+struct OwnerLock {
+    #[cfg(windows)]
+    handle: windows::Win32::Foundation::HANDLE,
+    #[cfg(not(windows))]
+    path: PathBuf,
+}
+
+impl Drop for OwnerLock {
+    fn drop(&mut self) {
+        #[cfg(windows)]
+        unsafe {
+            // Closing the handle releases the LockFileEx byte-range lock.
+            let _ = windows::Win32::Foundation::CloseHandle(self.handle);
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+}
+
+fn acquire_lock(lock_path: &Path) -> Result<OwnerLock, JournalError> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        use windows::core::PCWSTR;
+        use windows::Win32::Foundation::{GENERIC_READ, GENERIC_WRITE, INVALID_HANDLE_VALUE};
+        use windows::Win32::Storage::FileSystem::{
+            CreateFileW, LockFileEx, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ, FILE_SHARE_WRITE,
+            LOCKFILE_EXCLUSIVE_LOCK, LOCKFILE_FAIL_IMMEDIATELY, OPEN_ALWAYS,
+        };
+        use windows::Win32::System::IO::OVERLAPPED;
+        let wide: Vec<u16> = lock_path
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+        let handle = unsafe {
+            CreateFileW(
+                PCWSTR(wide.as_ptr()),
+                (GENERIC_READ | GENERIC_WRITE).0,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                None,
+                OPEN_ALWAYS,
+                FILE_ATTRIBUTE_NORMAL,
+                None,
+            )
+        }
         .map_err(|_| JournalError::Locked)?;
-    Ok(())
+        if handle == INVALID_HANDLE_VALUE {
+            return Err(JournalError::Locked);
+        }
+        let mut overlapped: OVERLAPPED = unsafe { std::mem::zeroed() };
+        let locked = unsafe {
+            LockFileEx(
+                handle,
+                LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY,
+                0,
+                1,
+                0,
+                &mut overlapped,
+            )
+        };
+        if locked.is_err() {
+            unsafe {
+                let _ = windows::Win32::Foundation::CloseHandle(handle);
+            }
+            return Err(JournalError::Locked);
+        }
+        Ok(OwnerLock { handle })
+    }
+    #[cfg(not(windows))]
+    {
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(lock_path)
+            .map_err(|_| JournalError::Locked)?;
+        Ok(OwnerLock {
+            path: lock_path.to_path_buf(),
+        })
+    }
 }
 
 impl Journal {
@@ -76,22 +160,15 @@ impl Journal {
         device_id: &str,
         wrap: &dyn KeyWrap,
     ) -> Result<Journal, JournalError> {
-        let lock = lock_path(db_path);
-        acquire_lock(&lock)?;
-        match Self::create_inner(db_path, device_id, wrap, lock.clone()) {
-            Ok(journal) => Ok(journal),
-            Err(err) => {
-                let _ = std::fs::remove_file(&lock);
-                Err(err)
-            }
-        }
+        let lock = acquire_lock(&lock_path(db_path))?;
+        Self::create_inner(db_path, device_id, wrap, lock)
     }
 
     fn create_inner(
         db_path: &Path,
         device_id: &str,
         wrap: &dyn KeyWrap,
-        lock: PathBuf,
+        lock: OwnerLock,
     ) -> Result<Journal, JournalError> {
         let conn = Connection::open(db_path)?;
         schema::apply(&conn)?;
@@ -110,7 +187,7 @@ impl Journal {
             dek,
             device_id: device_id.to_string(),
             journal_epoch,
-            lock_path: lock,
+            lock,
         })
     }
 
@@ -121,22 +198,15 @@ impl Journal {
         device_id: &str,
         wrap: &dyn KeyWrap,
     ) -> Result<Journal, JournalError> {
-        let lock = lock_path(db_path);
-        acquire_lock(&lock)?;
-        match Self::open_inner(db_path, device_id, wrap, lock.clone()) {
-            Ok(journal) => Ok(journal),
-            Err(err) => {
-                let _ = std::fs::remove_file(&lock);
-                Err(err)
-            }
-        }
+        let lock = acquire_lock(&lock_path(db_path))?;
+        Self::open_inner(db_path, device_id, wrap, lock)
     }
 
     fn open_inner(
         db_path: &Path,
         device_id: &str,
         wrap: &dyn KeyWrap,
-        lock: PathBuf,
+        lock: OwnerLock,
     ) -> Result<Journal, JournalError> {
         let conn = Connection::open(db_path)?;
         let wrapped = meta::wrapped_dek(&conn, device_id).map_err(|_| JournalError::NotFound)?;
@@ -147,7 +217,7 @@ impl Journal {
             dek,
             device_id: device_id.to_string(),
             journal_epoch,
-            lock_path: lock,
+            lock,
         })
     }
 
@@ -183,9 +253,9 @@ impl Journal {
 
 impl Drop for Journal {
     fn drop(&mut self) {
-        // Release the owner lock on clean shutdown. A crash leaves the lock in
-        // place, requiring manual recovery — aligned with preserve-the-scene.
-        let _ = std::fs::remove_file(&self.lock_path);
+        // The OwnerLock field drops after this body, releasing the OS advisory lock (Windows) or
+        // removing the lock file (non-Windows). A killed process releases the Windows lock by OS
+        // handle close, so a restart re-acquires it (F6 甲); the ledger itself is never rebuilt.
     }
 }
 
@@ -241,8 +311,11 @@ mod tests {
         }
         let result = Journal::open(&path, "dev", &dek::TestWrap);
         assert!(matches!(result, Err(JournalError::NotFound)));
-        // The failed open must not leave a stale lock behind.
-        assert!(!lock_path(&path).exists());
+        // The failed open must RELEASE the owner lock (F6 甲): a retry fails NotFound again, never
+        // Locked. On Windows the lock file persists but the OS lock is released; on non-Windows the
+        // file is removed — either way the next open is not blocked by a stale lock.
+        let retry = Journal::open(&path, "dev", &dek::TestWrap);
+        assert!(matches!(retry, Err(JournalError::NotFound)));
         cleanup(&path);
     }
 

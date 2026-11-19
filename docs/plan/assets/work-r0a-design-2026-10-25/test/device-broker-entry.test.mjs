@@ -70,14 +70,17 @@ test('the entry is a real process with a closed config and no HTTP client', () =
   assert.match(src, /#\[serde\(deny_unknown_fields\)\]/);
   const config = src.slice(src.indexOf('struct BrokerConfig'), src.indexOf('\n}', src.indexOf('struct BrokerConfig')));
   for (const field of ['pipe_name', 'shell_pid', 'endpoint', 'server_name', 'ca_pem_path', 'container',
-    'provider', 'boot_id', 'agent_instance_id', 'journal_epoch', 'profile_id',
+    'provider', 'boot_id', 'agent_instance_id', 'journal_dir', 'profile_id',
     'tool_manifest_hash', 'runtime_digest', 'last_receipt_seq', 'connect_timeout_ms',
     'reconnect_base_ms', 'reconnect_max_ms']) {
     assert.match(config, new RegExp(`^\\s*${field}: `, 'm'), `${field} left the closed config`);
   }
-  // The only path the config names is the CA anchor, read once at startup. Ruling ③ keeps the
-  // certificate itself in memory, so there is no certificate path to widen the attack surface.
-  assert.equal(config.split('_path:').length - 1, 1, 'the config grew a second path field');
+  // The only *_path field is the CA anchor, read once at startup. Ruling ③ keeps the certificate
+  // itself in memory, so there is no certificate path. Execution-face batch 1b adds journal_dir: a
+  // base DIRECTORY for the per-device journal databases (<journal_dir>/<device_id>.db), a deliberate
+  // second filesystem location whose epoch the Broker owns (device_meta) — not a certificate path.
+  assert.equal(config.split('_path:').length - 1, 1, 'the config grew a second *_path field');
+  assert.match(config, /^\s*journal_dir: /m, 'the journal base directory must be configured');
   assert.ok(!/cert(ificate)?_path/.test(config), 'the config persists the certificate, which ruling ③ forbids');
   // Ruling ①: REST belongs to the desktop main process. This binary signs and reports, it never calls.
   for (const forbidden of ['reqwest', 'hyper', 'ureq', 'http::', 'https://', '/devices/', 'POST']) {
@@ -146,11 +149,14 @@ test('every certificate gate runs before anything is stored, in the order the de
     'the signed-org gate must run before the chain is handed to the shared validation');
   // M2b: the restart carrier declares the org explicitly; empty declarations are refused before
   // any validation, and it shares the SAME validate-then-store path as the signing-history one.
+  // F5 甲 (2026-11-19): the carrier also declares the subject — the certificate has no subject
+  // field, so the permit identity gate's subject_id anchor must be re-supplied on restart.
   const redeliver = fnBody(src, 'pub fn redeliver_certificate(');
   const shape = redeliver.indexOf('IdentityError::Shape');
   const rehandoff = redeliver.indexOf('self.hold_validated(');
   assert.ok(shape >= 0 && rehandoff > shape,
-    'an empty device/org declaration must be refused before the re-delivery validates anything');
+    'an empty device/org/subject declaration must be refused before the re-delivery validates anything');
+  assert.match(redeliver, /subject_id\.is_empty\(\)/);
   const hold = fnBody(src, 'fn hold_validated(');
   const validate = hold.indexOf('validate_chain(');
   const store = hold.indexOf('self.held = Some(held)');
@@ -159,11 +165,15 @@ test('every certificate gate runs before anything is stored, in the order the de
   assert.match(hold, /self\.device_id = Some\(device_id\.to_string\(\)\)/);
   assert.ok(hold.indexOf('self.signed_org = Some(') > store,
     'the org binding is set only after the whole chain validates');
-  // The org is remembered only after a SUCCESSFUL signature.
+  assert.ok(hold.indexOf('self.signed_subject = Some(') > store,
+    'the subject binding is set only after the whole chain validates');
+  // The org and subject are remembered only after a SUCCESSFUL signature.
   const signFor = fnBody(src, 'fn sign_for(');
   const signAt = signFor.indexOf('let signature = sign(');
   const rememberAt = signFor.indexOf('self.signed_org = Some(');
   assert.ok(signAt >= 0 && rememberAt > signAt, 'a refused signing request leaves an org behind');
+  assert.ok(signFor.indexOf('self.signed_subject = Some(') > signAt,
+    'a refused signing request leaves a subject behind');
 
   const chain = fnBody(src, 'fn validate_chain(');
   const gates = [

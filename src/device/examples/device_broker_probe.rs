@@ -174,7 +174,16 @@ mod win {
             ready_tx,
         ));
         let link = Link::new(config, key.clone());
-        let link_handle = rt.spawn(link.run(ticket_rx, command_rx, link_event_tx));
+        let link_handle = rt.spawn(link.run(
+            ticket_rx,
+            command_rx,
+            {
+                let (tx, rx) = mpsc::channel(1);
+                drop(tx);
+                rx
+            },
+            link_event_tx,
+        ));
 
         let started = Instant::now();
         let budget = Duration::from_millis(cfg.budget_ms);
