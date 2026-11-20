@@ -480,6 +480,10 @@ pub enum LinkCommand {
     /// lifetime. The current session is not dropped — the old certificate stays valid until its
     /// own NotAfter, and §2.1 renewals happen inside that last hour.
     ReplaceIdentity(ClientIdentity),
+    /// Advance the receipt watermark the heartbeat reports. The sync core owns the journal watermark
+    /// (it advances on a verified receipt_ack/reconcile_ack); the link's heartbeat must carry the LIVE
+    /// value, never the static hello baseline, or renew_device_lease refuses the regression (0051).
+    ReceiptWatermark(u64),
     /// Stop the link.
     Stop,
 }

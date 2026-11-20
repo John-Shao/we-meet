@@ -212,6 +212,31 @@ pub fn pending_finishes(conn: &Connection) -> rusqlite::Result<Vec<FinishRow>> {
     rows.collect()
 }
 
+/// The Run a finish_id belongs to, across ANY ack_state (the ack names only finish_id; a re-delivered
+/// verdict for an already-accepted/rejected proposal still maps to its Run).
+pub fn run_id_for_finish(conn: &Connection, finish_id: &str) -> rusqlite::Result<Option<String>> {
+    conn.query_row(
+        "SELECT run_id FROM runtime_finish WHERE finish_id = ?1",
+        params![finish_id],
+        |r| r.get(0),
+    )
+    .optional()
+}
+
+/// The Run an operation belongs to (the reconcile uplink names original_run_id for a receipt batch).
+pub fn run_id_for_operation(
+    conn: &Connection,
+    org_id: &str,
+    operation_id: &str,
+) -> rusqlite::Result<Option<String>> {
+    conn.query_row(
+        "SELECT run_id FROM action_journal WHERE org_id = ?1 AND operation_id = ?2",
+        params![org_id, operation_id],
+        |r| r.get(0),
+    )
+    .optional()
+}
+
 /// A `runtime_start` resume binding row.
 #[derive(Clone, Debug)]
 pub struct StartRow {

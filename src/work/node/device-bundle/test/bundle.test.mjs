@@ -239,3 +239,25 @@ test('model unknown ends without retry or tool execution', pipeTest, async () =>
   assertLoop(result, ['model_request', 'loop_end'], 1);
   assert.equal(finalMessages(result).at(-1).stopReason, 'error');
 });
+
+// DD:250 closed-set tool_calls validation: a malformed call ends the turn in error with NO tool
+// execution and NO silent {} projection — never an undefined-field call reaching the Broker.
+for (const [name, toolCalls] of [
+  ['missing id', [{ type: 'function', function: { name: 'artifact.write', arguments: JSON.stringify(writeArgs) } }]],
+  ['empty id', [{ id: '', type: 'function', function: { name: 'artifact.write', arguments: JSON.stringify(writeArgs) } }]],
+  ['missing name', [{ id: 'tc-1', type: 'function', function: { arguments: JSON.stringify(writeArgs) } }]],
+  ['empty name', [{ id: 'tc-1', type: 'function', function: { name: '', arguments: JSON.stringify(writeArgs) } }]],
+  ['invalid JSON arguments', [{ id: 'tc-1', type: 'function', function: { name: 'artifact.write', arguments: '{not json' } }]],
+  ['array arguments', [{ id: 'tc-1', type: 'function', function: { name: 'artifact.write', arguments: '[1,2]' } }]],
+  ['object-shaped tool_calls', { id: 'tc-1', type: 'function', function: { name: 'artifact.write', arguments: '{}' } }],
+  ['non-object call', ['tc-1']],
+]) {
+  test(`malformed tool_calls (${name}) fails closed without execution`, pipeTest, async () => {
+    const result = await runOnce({ model: () => modelReply([], toolCalls) });
+    assertLoop(result, ['model_request', 'loop_end'], 1);
+    const last = finalMessages(result).at(-1);
+    assert.equal(last.stopReason, 'error');
+    assert.match(last.errorMessage, /invalid_tool_calls/);
+    assert.equal(result.received.filter((f) => f.type === 'tool_call').length, 0);
+  });
+}

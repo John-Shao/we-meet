@@ -13,6 +13,7 @@
 //! CreateProcess into AppContainer+Job is batch 1d; the lease-invalidation Job kill is batch 1f.
 //! Nothing here claims a production execution capability yet.
 
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -21,7 +22,10 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 
 use crate::broker::ReadyIdentity;
-use crate::frame::{action, cancel, checkpoint, command, finish, offer, receipt_ack, resolution};
+use crate::finish::orchestrate::{self, FinishInput};
+use crate::frame::{
+    action, cancel, checkpoint, command, finish, offer, receipt_ack, reconcile, resolution,
+};
 use crate::journal::record::{self, ActionRow};
 use crate::journal::recover::{self, StartRow};
 use crate::journal::{dek, Journal, JournalError};
@@ -112,20 +116,38 @@ pub fn spawn_sync_core(
                     break;
                 }
             }
+            // The Node loop-end reply is the finish candidate signal (§3.4 step 1). Take the result
+            // out before mutating the core (the receiver borrow must end first).
+            let ended = core.run_end_rx.as_mut().and_then(|rx| rx.try_recv().ok());
+            if let Some(result) = ended {
+                core.on_run_ended(result);
+            }
             if let Ok((op, reply_tx)) = journal_op_rx.try_recv() {
                 core.expire_lease(Instant::now());
-                let reply = {
-                    let producer = crate::journalop::Producer {
-                        key: core.key.as_ref(),
-                        uplinks: &core.uplinks,
-                        instance: &core.instance,
-                    };
-                    crate::journalop::execute(core.journal(), &producer, op)
+                let reply = match op {
+                    // The sync core owns the per-Run deliverable set (DD:137 own execution facts).
+                    crate::journalop::JournalOp::RecordDeliverable { run_id, version_id } => {
+                        core.deliverables
+                            .entry(run_id)
+                            .or_default()
+                            .push(version_id);
+                        crate::journalop::JournalReply::DeliverableRecorded
+                    }
+                    other => {
+                        let producer = crate::journalop::Producer {
+                            key: core.key.as_ref(),
+                            uplinks: &core.uplinks,
+                            instance: &core.instance,
+                        };
+                        crate::journalop::execute(core.journal(), &producer, other)
+                    }
                 };
                 // Receipt production advances the device-wide watermark cancel_ack/heartbeat carry;
                 // re-read it from device_meta so a produced seq is never stale (E4 甲 single owner).
                 core.last_receipt_seq = current_receipt_seq(core.journal(), &core.device_id);
                 let _ = reply_tx.send(reply);
+                // A new receipt/deliverable may make a pending finish judgeable.
+                core.attempt_finish();
             }
         }
     });
@@ -210,6 +232,42 @@ struct SyncCore {
     #[cfg(windows)]
     io_deadline: Option<Arc<std::sync::Mutex<Option<Instant>>>>,
     last_receipt_seq: u64,
+    // ---- batch 3: the five-step finish + reconcile state (device-design §3.4/§6.3) ----
+    // The active Run binding captured at start (the finish proposal names these).
+    active_run: Option<ActiveRun>,
+    // The serve_run loop-end reply (kept, not dropped): its resolution is the finish candidate signal.
+    run_end_rx: Option<tokio::sync::oneshot::Receiver<Result<(), String>>>,
+    // Sealed deliverable versions the Broker wrote per Run (RecordDeliverable; DD:137 own facts).
+    deliverables: HashMap<String, Vec<String>>,
+    // Model dispatches still pending/undelivered per Run (reconciled from resolution delivery_state).
+    undelivered: HashMap<String, HashSet<String>>,
+    // The latest checkpoint seq the server has RECORDED per Run (finish references a recorded row).
+    recorded_checkpoint: HashMap<String, u64>,
+    // A Run whose loop ended and awaits a finish judgment (re-evaluated as resolutions/acks arrive).
+    finish_pending: Option<FinishPending>,
+    // The finish_id whose ack is awaited (a durable proposal exists; replay re-sends it verbatim).
+    awaiting_finish_ack: Option<String>,
+    // Runs stopped from proposing (stale_fence / terminal) — never re-judged (§3.4 step 4).
+    finish_stopped: HashSet<String>,
+}
+
+/// The active Run binding the finish proposal names (captured at run_start).
+#[derive(Clone)]
+struct ActiveRun {
+    run_id: String,
+    binding_revision: u64,
+    fence: u64,
+    lease_id: String,
+}
+
+/// A Run whose Node loop ended, awaiting a finish judgment over the reconciled journal facts.
+#[derive(Clone)]
+struct FinishPending {
+    run_id: String,
+    binding_revision: u64,
+    fence: u64,
+    lease_id: String,
+    loop_ended_normally: bool,
 }
 
 impl SyncCore {
@@ -261,6 +319,14 @@ impl SyncCore {
             #[cfg(windows)]
             io_deadline: None,
             last_receipt_seq,
+            active_run: None,
+            run_end_rx: None,
+            deliverables: HashMap::new(),
+            undelivered: HashMap::new(),
+            recorded_checkpoint: HashMap::new(),
+            finish_pending: None,
+            awaiting_finish_ack: None,
+            finish_stopped: HashSet::new(),
         }
     }
 
@@ -284,6 +350,9 @@ impl SyncCore {
                 self.generation = ack.generation;
                 self.lease_ttl = ack.lease_ttl;
                 eprintln!("work-device: session established, sync core provisioned");
+                // §6.3 (ruling 甲): a fresh session reconciles — re-upload un-acked receipts verbatim
+                // and replay un-acked finish proposals before any new lease/offer is considered.
+                self.reconcile_uplink();
             }
             LinkEvent::LeaseRenewal(state) => {
                 if self.lease_id.as_deref() != Some(state.lease_id.as_str())
@@ -553,7 +622,11 @@ impl SyncCore {
                 self.journal.journal_epoch(),
                 &resume_offer,
             ) {
-                Ok(()) => {}
+                Ok(()) => {
+                    // §6.3 (ruling 甲): a validated resume re-uploads the Run's un-acked receipts
+                    // verbatim before re-entering execution.
+                    self.reconcile_uplink();
+                }
                 Err(
                     resume::ResumeError::MissingCheckpoint
                     | resume::ResumeError::CheckpointMismatch,
@@ -761,7 +834,7 @@ impl SyncCore {
                     let live =
                         crate::nodeservice::shared_commands(std::mem::take(&mut self.dispatched));
                     self.active_commands = Some((start.run_id.clone(), live.clone()));
-                    let (reply_tx, _reply_rx) = tokio::sync::oneshot::channel();
+                    let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
                     let sent = self.node_service.blocking_send(
                         crate::nodeservice::NodeRequest::StartRun {
                             ctx,
@@ -784,6 +857,9 @@ impl SyncCore {
                         eprintln!("work-device: node service gone, run not started");
                         return;
                     }
+                    // Keep the loop-end reply (batch 3): its resolution is the finish candidate
+                    // signal the sync core polls in its event loop (§3.4 step 1).
+                    self.run_end_rx = Some(reply_rx);
                 }
                 Err(err) => {
                     eprintln!("work-device: sidecar spawn refused: {err:?}");
@@ -796,6 +872,13 @@ impl SyncCore {
             return;
         }
         self.sidecar = Some(sidecar);
+        // Capture the Run binding the finish proposal will name (batch 3, §3.4).
+        self.active_run = Some(ActiveRun {
+            run_id: start.run_id.clone(),
+            binding_revision: start.run_binding_id,
+            fence: start.fence,
+            lease_id: start.lease_id.clone(),
+        });
         if self.expire_lease(Instant::now()) {
             return;
         }
@@ -833,9 +916,27 @@ impl SyncCore {
                 return;
             }
         };
+        // §3.4 step 2: a resolution carrying delivery_state pending/undelivered means the model
+        // dispatch still blocks `completed` (superseded/delivered clears it). Track it per Run so the
+        // finish judge sees the same blocking fact the server's finish_local_run gate enforces.
+        let run_id = res.run_id.clone();
+        let operation_id = res.operation_id.clone();
+        let blocking = matches!(res.delivery_state.as_str(), "pending" | "undelivered");
         match resolution_consume::consume(self.journal.connection(), server_jwk, &self.org_id, &res)
         {
-            Ok(ack) => self.uplink(resolution::ACK_FRAME_TYPE, ack.to_value()),
+            Ok(ack) => {
+                if ack.state == "applied" {
+                    let set = self.undelivered.entry(run_id).or_default();
+                    if blocking {
+                        set.insert(operation_id);
+                    } else {
+                        set.remove(&operation_id);
+                    }
+                }
+                self.uplink(resolution::ACK_FRAME_TYPE, ack.to_value());
+                // A resolution may terminalize the last operation → the finish becomes judgeable.
+                self.attempt_finish();
+            }
             Err(err) => eprintln!("work-device: resolution consume refused: {err:?}"),
         }
     }
@@ -848,6 +949,19 @@ impl SyncCore {
                 return;
             }
         };
+        if !ack.verify(server_jwk) {
+            eprintln!("work-device: checkpoint_ack signature refused");
+            return;
+        }
+        // Track the latest RECORDED checkpoint seq per Run: the finish references a recorded row
+        // (0059 compares final_checkpoint_seq/hash against it), so it waits for this ack.
+        if ack.is_recorded() {
+            let entry = self
+                .recorded_checkpoint
+                .entry(ack.run_id.clone())
+                .or_insert(0);
+            *entry = (*entry).max(ack.checkpoint_seq);
+        }
         match watermark::apply_receipt_watermark(
             self.journal.connection(),
             server_jwk,
@@ -857,6 +971,7 @@ impl SyncCore {
             Ok(watermark) => eprintln!("work-device: checkpoint_ack watermark {watermark}"),
             Err(err) => eprintln!("work-device: checkpoint_ack refused: {err:?}"),
         }
+        self.attempt_finish();
     }
 
     fn consume_finish_ack(&mut self, server_jwk: &crate::jwk::EcP256Jwk, body: Value) {
@@ -867,34 +982,111 @@ impl SyncCore {
                 return;
             }
         };
-        if !ack.verify(server_jwk) {
-            eprintln!("work-device: finish_ack signature refused");
-            return;
-        }
-        // The finish proposal must already be persisted (batch 3 produces it); record the ack.
-        let run_id = match self.finish_run_id(&ack.finish_id) {
-            Some(run_id) => run_id,
-            None => {
+        // The ack names only finish_id; map it to its Run across any ack_state (a re-delivered verdict
+        // for an already-recorded proposal still resolves). apply_finish_ack verifies the server
+        // signature AND verdict consistency fail-closed before any row moves (GW8 precedent).
+        let run_id = match recover::run_id_for_finish(self.journal.connection(), &ack.finish_id) {
+            Ok(Some(run_id)) => run_id,
+            Ok(None) => {
                 eprintln!(
                     "work-device: finish_ack for an unknown finish_id {}",
                     ack.finish_id
                 );
                 return;
             }
+            Err(err) => {
+                eprintln!("work-device: finish_ack lookup failed: {err:?}");
+                return;
+            }
         };
-        let terminal = ack.terminal_run_revision.map(|v| v as i64);
-        if let Err(err) = replay::ack_finish(
+        let outcome = match crate::finish::ack::apply_finish_ack(
             self.journal.connection(),
+            server_jwk,
             &run_id,
-            &ack.finish_id,
-            &ack.state,
-            terminal,
+            &ack,
         ) {
-            eprintln!("work-device: finish_ack record failed: {err:?}");
-            return;
-        }
-        if ack.state == "accepted" && self.sidecar.as_ref().is_some_and(|s| s.run_id() == run_id) {
-            self.retire_run_lease();
+            Ok(outcome) => outcome,
+            Err(err) => {
+                eprintln!("work-device: finish_ack refused: {err:?}");
+                return;
+            }
+        };
+        match outcome {
+            crate::finish::ack::FinishAckOutcome::Accepted {
+                terminal_run_revision,
+            } => {
+                eprintln!(
+                    "work-device: run_finish accepted, terminal_run_revision={terminal_run_revision}"
+                );
+                self.awaiting_finish_ack = None;
+                self.finish_pending = None;
+                self.finish_stopped.insert(run_id.clone());
+                // §3.4 step 4: accepted records the terminal revision, releases the lease, then the
+                // cleanup watermark (B03 §3.2) — never journal_release/run_sealed (card E=B).
+                if self.sidecar.as_ref().is_some_and(|s| s.run_id() == run_id) {
+                    self.retire_run_lease();
+                }
+                if self.active_run.as_ref().is_some_and(|r| r.run_id == run_id) {
+                    self.active_run = None;
+                }
+                let all_resolved =
+                    recover::unreconciled_unknown_count(self.journal.connection(), &run_id)
+                        .unwrap_or(1)
+                        == 0;
+                let gate = watermark::TombstoneGate {
+                    finish_accepted: true,
+                    final_operation_set_hash_verified: true,
+                    receipt_through_seq_continuous: true,
+                    all_resolutions_received: all_resolved,
+                };
+                match watermark::cleanup_tombstones(self.journal.connection(), &run_id, &gate) {
+                    Ok(n) if n > 0 => eprintln!("work-device: cleaned {n} action tombstones"),
+                    _ => {}
+                }
+            }
+            crate::finish::ack::FinishAckOutcome::Rejected { code } => {
+                eprintln!("work-device: run_finish rejected: {code}");
+                self.awaiting_finish_ack = None;
+                // §3.4 step 4: a refusal never rewrites local facts. Repair means a NEW finish_id over
+                // the CURRENT facts; stale_fence stops proposing at all.
+                match code.as_str() {
+                    "stale_fence" => {
+                        self.finish_pending = None;
+                        self.finish_stopped.insert(run_id);
+                    }
+                    "run_cancel_requested" => {
+                        // The Run is cancel_requested; the cancel downlink drives cancel_ack. Stop
+                        // proposing a completed finish.
+                        self.finish_pending = None;
+                    }
+                    "finish_state_mismatch" | "finish_precondition_failed" => {
+                        // Re-reconcile (re-upload un-acked receipts / await resolutions), then re-judge
+                        // over the current facts with a NEW finish_id — never blind-retry the same one.
+                        self.reconcile_uplink();
+                        if !self.finish_stopped.contains(&run_id) {
+                            if let Some(active) =
+                                self.active_run.clone().filter(|r| r.run_id == run_id)
+                            {
+                                self.finish_pending = Some(FinishPending {
+                                    run_id: active.run_id,
+                                    binding_revision: active.binding_revision,
+                                    fence: active.fence,
+                                    lease_id: active.lease_id,
+                                    loop_ended_normally: true,
+                                });
+                            }
+                        }
+                        self.attempt_finish();
+                    }
+                    _ => {}
+                }
+            }
+            crate::finish::ack::FinishAckOutcome::UnknownFinish => {
+                eprintln!(
+                    "work-device: finish_ack unknown finish_id {}",
+                    ack.finish_id
+                );
+            }
         }
     }
 
@@ -923,6 +1115,11 @@ impl SyncCore {
                     self.last_receipt_seq = self
                         .last_receipt_seq
                         .max(current_receipt_seq(&self.journal, &self.device_id));
+                    // The heartbeat must report the live watermark, not the static hello baseline,
+                    // or renew_device_lease refuses the regression after a recorded receipt (0051).
+                    let _ = self
+                        .link_commands
+                        .blocking_send(LinkCommand::ReceiptWatermark(self.last_receipt_seq));
                 }
                 eprintln!(
                     "work-device: {frame_type} acked {} conflicts {}",
@@ -1017,6 +1214,12 @@ impl SyncCore {
         if let Some(sidecar) = self.sidecar.as_mut() {
             let _ = sidecar.mark_exited();
         }
+        // A killed Run (cancel/lease loss/expiry) is finished by the server's cancel/timeout path, not
+        // a device proposal: drop the live loop-end signal and pending judgment. A durable un-acked
+        // finish proposal still replays on the next session (reconcile_uplink).
+        self.run_end_rx = None;
+        self.finish_pending = None;
+        self.awaiting_finish_ack = None;
     }
 
     fn remaining_lease_secs(&self) -> u64 {
@@ -1035,12 +1238,147 @@ impl SyncCore {
         }
     }
 
-    fn finish_run_id(&self, finish_id: &str) -> Option<String> {
-        let pending = replay::pending_finishes(self.journal.connection()).ok()?;
-        pending
+    /// The Node loop ended (the serve_run reply resolved): the finish candidate signal (§3.4 step 1).
+    /// A canceled/killed/expired Run is finished by the server's cancel/timeout path, not a device
+    /// proposal; only a Run that still holds active authority judges a finish from its journal facts.
+    fn on_run_ended(&mut self, result: Result<(), String>) {
+        self.run_end_rx = None;
+        if !self.session_accepts_work || self.lease_mode != LeaseMode::Active {
+            return;
+        }
+        let Some(active) = self.active_run.clone() else {
+            return;
+        };
+        let loop_ended_normally = result.is_ok();
+        if let Err(err) = &result {
+            eprintln!("work-device: Node loop ended abnormally: {err}");
+        }
+        self.finish_pending = Some(FinishPending {
+            run_id: active.run_id,
+            binding_revision: active.binding_revision,
+            fence: active.fence,
+            lease_id: active.lease_id,
+            loop_ended_normally,
+        });
+        self.attempt_finish();
+    }
+
+    /// Judge and propose a finish if the Run is ready (§3.4 steps 2-3). Re-evaluated as resolutions,
+    /// checkpoint acks and receipt acks arrive: it waits while operations are non-terminal/unreceipted
+    /// or the final checkpoint is not yet recorded, replays a durable un-acked proposal verbatim, and
+    /// otherwise produces a NEW signed proposal. Never re-judges a stopped/terminal Run.
+    fn attempt_finish(&mut self) {
+        let Some(pending) = self.finish_pending.clone() else {
+            return;
+        };
+        if self.finish_stopped.contains(&pending.run_id) || self.awaiting_finish_ack.is_some() {
+            return;
+        }
+        if recover::is_run_terminal(self.journal.connection(), &pending.run_id).unwrap_or(false) {
+            self.finish_pending = None;
+            return;
+        }
+        // A durable un-acked proposal exists (e.g. after restart) → replay it verbatim, never re-judge.
+        let existing = replay::pending_finishes(self.journal.connection())
+            .unwrap_or_default()
             .into_iter()
-            .find(|f| f.finish_id == finish_id)
-            .map(|f| f.run_id)
+            .find(|r| r.run_id == pending.run_id);
+        if let Some(row) = existing {
+            let frame = orchestrate::replay_frame(&row);
+            eprintln!("work-device: replay run_finish {}", row.finish_id);
+            self.awaiting_finish_ack = Some(row.finish_id);
+            self.uplink(&frame.frame_type, frame.body);
+            return;
+        }
+        // The finish references the latest checkpoint the server has RECORDED (0059 gate).
+        let latest =
+            recover::latest_checkpoint(self.journal.connection(), &pending.run_id).unwrap_or(None);
+        let Some(cp) = latest else {
+            return;
+        };
+        let recorded = self
+            .recorded_checkpoint
+            .get(&pending.run_id)
+            .copied()
+            .unwrap_or(0);
+        if recorded < cp.checkpoint_seq as u64 {
+            return;
+        }
+        let input = FinishInput {
+            run_id: pending.run_id.clone(),
+            org_id: self.org_id.clone(),
+            journal_epoch: self.journal.journal_epoch().to_string(),
+            binding_revision: pending.binding_revision,
+            fence: pending.fence,
+            lease_id: pending.lease_id.clone(),
+            loop_ended_normally: pending.loop_ended_normally,
+            deliverables: self
+                .deliverables
+                .get(&pending.run_id)
+                .cloned()
+                .unwrap_or_default(),
+            has_pending_model_dispatch: self
+                .undelivered
+                .get(&pending.run_id)
+                .map(|s| !s.is_empty())
+                .unwrap_or(false),
+            model_error: false,
+            tool_limit_hit: false,
+            runtime_limit_exceeded: false,
+            runtime_unresumable: false,
+            checkpoint_lost: false,
+            input_missing: false,
+            final_checkpoint_seq: cp.checkpoint_seq as u64,
+            final_checkpoint_hash: cp.checkpoint_hash.clone(),
+            receipt_through_seq: current_receipt_seq(&self.journal, &self.device_id),
+        };
+        match orchestrate::judge_and_propose(self.journal.connection(), self.key.as_ref(), &input) {
+            Ok(orchestrate::FinishAttempt::Proposed(proposal)) => {
+                eprintln!(
+                    "work-device: run_finish proposed {} ({:?})",
+                    proposal.finish_id, proposal.outcome
+                );
+                self.awaiting_finish_ack = Some(proposal.finish_id);
+                self.uplink(&proposal.frame.frame_type, proposal.frame.body);
+            }
+            Ok(orchestrate::FinishAttempt::Wait) => {}
+            Err(err) => eprintln!("work-device: finish production failed: {err:?}"),
+        }
+    }
+
+    /// §6.3 reconcile (ruling 甲 fresh-session/resume driven): re-upload un-acked receipts with their
+    /// original signed bytes nested verbatim, and replay un-acked finish proposals (same finish_id,
+    /// same bytes). The reconcile_ack/receipt_ack consumption (wired) advances the watermark; durable
+    /// cleanup stays gated on the server-signed facts, never local inference.
+    fn reconcile_uplink(&mut self) {
+        let epoch = self.journal.journal_epoch().to_string();
+        let batch =
+            replay::next_receipt_batch(self.journal.connection(), &epoch).unwrap_or_default();
+        if !batch.is_empty() {
+            let from_seq = batch[0].receipt_seq as u64;
+            let run_id = recover::run_id_for_operation(
+                self.journal.connection(),
+                &self.org_id,
+                &batch[0].operation_id,
+            )
+            .ok()
+            .flatten()
+            .or_else(|| self.active_run.as_ref().map(|r| r.run_id.clone()))
+            .unwrap_or_default();
+            let body = replay::reconcile_batch(&run_id, &epoch, from_seq, &batch);
+            eprintln!(
+                "work-device: reconcile re-upload {} receipts from seq {from_seq}",
+                batch.len()
+            );
+            self.uplink(reconcile::FRAME_TYPE, body.to_value());
+        }
+        let pending = replay::pending_finishes(self.journal.connection()).unwrap_or_default();
+        for row in pending {
+            let frame = orchestrate::replay_frame(&row);
+            eprintln!("work-device: replay run_finish {}", row.finish_id);
+            self.awaiting_finish_ack = Some(row.finish_id);
+            self.uplink(&frame.frame_type, frame.body);
+        }
     }
 }
 
@@ -1615,6 +1953,287 @@ mod tests {
                 }
             });
         }
+    }
+
+    /// A provisioned core whose uplink frames are captured (the finish/reconcile production assertions
+    /// read them). Mirrors `provisioned_core` but retains the uplink receiver.
+    fn core_with_uplinks(
+        dir: &std::path::Path,
+        device: SoftwareKey,
+        server: &SoftwareKey,
+        permit: &SoftwareKey,
+    ) -> (SyncCore, mpsc::Receiver<UplinkFrame>) {
+        let db_path = dir.join(format!("{DEVICE}.db"));
+        let journal = Journal::create(&db_path, DEVICE, &dek::TestWrap).unwrap();
+        let (uplink_tx, uplink_rx) = mpsc::channel::<UplinkFrame>(8);
+        let (link_cmd_tx, _link_cmd_rx) = mpsc::channel::<LinkCommand>(4);
+        let (journal_handle, _journal_op_rx) = crate::journalop::channel();
+        #[cfg(windows)]
+        let (node_service_tx, _node_service_rx) = tokio::sync::mpsc::channel(8);
+        let mut core = SyncCore::new(
+            journal,
+            ready(),
+            Arc::new(device),
+            uplink_tx,
+            link_cmd_tx,
+            spawn_template(),
+            journal_handle,
+            instance_facts(),
+            #[cfg(windows)]
+            node_service_tx,
+        );
+        core.server_jwk = Some(server.public_jwk());
+        core.permit_jwk = Some(permit.public_jwk());
+        core.session_id = Some("sess".to_string());
+        core.generation = 1;
+        core.lease_deadline = Some(Instant::now() + Duration::from_secs(30));
+        core.lease_id = Some("lease-1".into());
+        core.lease_mode = LeaseMode::Active;
+        core.session_accepts_work = true;
+        core.run_fence = 2;
+        (core, uplink_rx)
+    }
+
+    /// Seed one succeeded artifact.write operation with its completed receipt + a recorded checkpoint,
+    /// the journal facts a completed finish judges from.
+    fn seed_completed_write(core: &mut SyncCore) {
+        let rctx = core.journal.context(&core.org_id, &core.subject_id);
+        let dek = *core.journal.dek();
+        record::append_action(
+            core.journal.connection(),
+            &dek,
+            &rctx,
+            &ActionRow {
+                org_id: &core.org_id,
+                operation_id: "op-1",
+                run_id: "run",
+                attempt: "attempt-1",
+                step_key: "tool:0:0",
+                logical_key: "tool:0:0#0",
+                supersedes: None,
+                request_hash: "hash",
+                fence: 2,
+                session_id: "sess",
+                generation: 1,
+                permit_jti: "jti-1",
+                state: "succeeded",
+                result_hash: None,
+                result_ref: None,
+            },
+            b"body",
+        )
+        .unwrap();
+        let env = serde_json::json!({
+            "schema_version": 2, "type": "receipt", "device_id": DEVICE,
+            "body": { "operation_id": "op-1", "state": "completed", "result_hash": "a".repeat(64) },
+        });
+        record::insert_receipt(
+            core.journal.connection(),
+            core.journal.journal_epoch(),
+            1,
+            &record::ReceiptRow {
+                operation_id: "op-1",
+                state: "completed",
+                signed_bytes: &serde_json::to_vec(&env).unwrap(),
+                signed_hash: "h",
+            },
+        )
+        .unwrap();
+        // Mirror produce_receipt's durable result_hash stamp (the finish facts read the journal row,
+        // not the transient outbox).
+        core.journal
+            .connection()
+            .execute(
+                "UPDATE action_journal SET result_hash = ?1, result_ref = 'run:op-1'
+                 WHERE org_id = ?2 AND run_id = 'run' AND operation_id = 'op-1'",
+                rusqlite::params!["a".repeat(64), core.org_id],
+            )
+            .unwrap();
+        recover::persist_checkpoint(
+            core.journal.connection(),
+            &dek,
+            &rctx,
+            &recover::CheckpointRow {
+                run_id: "run".into(),
+                checkpoint_seq: 1,
+                schema_version: crate::journal::schema::SCHEMA_VERSION,
+                runtime_digest: "digest".into(),
+                checkpoint_hash: "c".repeat(64),
+                pending_operation_set_hash: "p".repeat(64),
+                prior_receipt_ref: Some("1".into()),
+            },
+            b"canonical",
+        )
+        .unwrap();
+        core.active_run = Some(ActiveRun {
+            run_id: "run".into(),
+            binding_revision: 1,
+            fence: 2,
+            lease_id: "lease-1".into(),
+        });
+        core.deliverables.insert("run".into(), vec!["v-1".into()]);
+        core.recorded_checkpoint.insert("run".into(), 1);
+    }
+
+    #[test]
+    fn loop_end_proposes_a_completed_finish_from_journal_facts() {
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let device = SoftwareKey::random();
+        let device_jwk = device.public_jwk();
+        let server = SoftwareKey::random();
+        let permit = SoftwareKey::random();
+        let (mut core, mut uplink_rx) = core_with_uplinks(&dir, device, &server, &permit);
+        seed_completed_write(&mut core);
+        core.on_run_ended(Ok(()));
+        let frame = uplink_rx.try_recv().expect("a run_finish uplink");
+        assert_eq!(frame.frame_type, finish::FINISH_FRAME_TYPE);
+        assert_eq!(frame.body["outcome"], "completed");
+        assert_eq!(frame.body["deliverable_versions"][0], "v-1");
+        assert_eq!(frame.body["final_checkpoint_seq"], "1");
+        assert_eq!(frame.body["fence"], "2");
+        let expected = crate::finish::facts::final_operation_set_hash(
+            core.journal.connection(),
+            &core.org_id,
+            "run",
+            core.journal.journal_epoch(),
+        )
+        .unwrap();
+        assert_eq!(frame.body["final_operation_set_hash"], expected);
+        let sig = frame.body["signature"].as_str().unwrap();
+        assert!(sign::verify_frame(
+            &device_jwk,
+            finish::FINISH_FRAME_TYPE,
+            &frame.body,
+            sig
+        ));
+        // The durable proposal exists and awaits its ack.
+        assert_eq!(
+            recover::pending_finishes(core.journal.connection())
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(core.awaiting_finish_ack.is_some());
+        drop(core);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn an_undelivered_dispatch_blocks_a_completed_finish() {
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let server = SoftwareKey::random();
+        let permit = SoftwareKey::random();
+        let (mut core, mut uplink_rx) =
+            core_with_uplinks(&dir, SoftwareKey::random(), &server, &permit);
+        seed_completed_write(&mut core);
+        core.undelivered
+            .entry("run".into())
+            .or_default()
+            .insert("model:0".into());
+        core.on_run_ended(Ok(()));
+        let frame = uplink_rx.try_recv().expect("a run_finish uplink");
+        assert_eq!(frame.body["outcome"], "failed");
+        assert!(frame.body["deliverable_versions"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+        drop(core);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_verified_receipt_ack_advances_the_heartbeat_watermark() {
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let server = SoftwareKey::random();
+        let permit = SoftwareKey::random();
+        let (mut core, _uplink_rx) =
+            core_with_uplinks(&dir, SoftwareKey::random(), &server, &permit);
+        seed_completed_write(&mut core);
+        // insert_receipt seeds the outbox row directly; production receipt production also advances
+        // device_meta.next_receipt_seq, which current_receipt_seq reads (next-1). Mirror that here.
+        core.journal
+            .connection()
+            .execute(
+                "UPDATE device_meta SET next_receipt_seq = 2 WHERE device_id = ?1",
+                rusqlite::params![core.device_id],
+            )
+            .unwrap();
+        let (tx, mut rx) = mpsc::channel(4);
+        core.link_commands = tx;
+        // A server-signed receipt_ack recording the seeded receipt at seq 1.
+        let mut ack = receipt_ack::ReceiptAckBody {
+            recorded: vec![crate::frame::receipt_ack::RecordedReceipt {
+                receipt_seq: 1,
+                operation_id: "op-1".into(),
+                state: "completed".into(),
+                resolution_revision: None,
+                replayed: false,
+            }],
+            conflicts: Vec::new(),
+            receipt_through_seq: 1,
+            signature: None,
+        };
+        ack.signature =
+            Some(sign::sign_frame(&server, receipt_ack::FRAME_TYPE, &ack.to_value()).unwrap());
+        core.consume_receipt_ack(
+            &server.public_jwk(),
+            receipt_ack::FRAME_TYPE,
+            ack.to_value(),
+        );
+        assert_eq!(core.last_receipt_seq, 1);
+        // The link must learn the live watermark, or its next heartbeat regresses below the lease's
+        // recorded seq and renew_device_lease refuses it (0051), killing the session mid-Run.
+        assert!(matches!(
+            rx.try_recv(),
+            Ok(LinkCommand::ReceiptWatermark(1))
+        ));
+        drop(core);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn reconcile_replays_an_unacked_finish_verbatim() {
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let server = SoftwareKey::random();
+        let permit = SoftwareKey::random();
+        let (mut core, mut uplink_rx) =
+            core_with_uplinks(&dir, SoftwareKey::random(), &server, &permit);
+        // A durable un-acked proposal (e.g. persisted before a restart).
+        let body = serde_json::json!({
+            "finish_id": "finish-1", "run_id": "run", "binding_revision": "1", "fence": "2",
+            "lease_id": "lease-1", "outcome": "completed", "reason_code": null,
+            "final_checkpoint_seq": "1", "final_checkpoint_hash": "c".repeat(64),
+            "receipt_through_seq": "1", "final_operation_set_hash": "d".repeat(64),
+            "deliverable_versions": ["v-1"], "signature": "sig",
+        });
+        recover::persist_finish(
+            core.journal.connection(),
+            &recover::FinishRow {
+                run_id: "run".into(),
+                finish_id: "finish-1".into(),
+                outcome: "completed".into(),
+                reason: None,
+                final_checkpoint_seq: Some(1),
+                final_checkpoint_hash: Some("c".repeat(64)),
+                signed_bytes: serde_json::to_vec(&body).unwrap(),
+                signed_hash: "h".into(),
+                ack_state: None,
+                terminal_run_revision: None,
+            },
+        )
+        .unwrap();
+        core.reconcile_uplink();
+        let frame = uplink_rx.try_recv().expect("a replayed run_finish");
+        assert_eq!(frame.frame_type, finish::FINISH_FRAME_TYPE);
+        // Same finish_id, same signed bytes — never re-judged or re-signed.
+        assert_eq!(frame.body, body);
+        assert_eq!(core.awaiting_finish_ack.as_deref(), Some("finish-1"));
+        drop(core);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

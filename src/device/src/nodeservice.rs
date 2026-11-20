@@ -319,14 +319,27 @@ impl WorkspaceExecutor {
         }
         // 4. Handle-relative execution.
         match self.run_tool(&grant_id, tool_name, args) {
-            Ok(content) => nodemsg::tool_result(
-                tool_call_id,
-                content.clone(),
-                content,
-                json!({}),
-                false,
-                false,
-            ),
+            Ok(content) => {
+                // DD:137 — a successful artifact.write is a sealed deliverable the Broker itself
+                // wrote; record its version so the finish names it in deliverable_versions (judged
+                // from the Broker's execution facts, never Node's self-reported list).
+                if is_write {
+                    if let Some(version_id) = content["version_id"].as_str() {
+                        let _ = ctx.journal.request(JournalOp::RecordDeliverable {
+                            run_id: ctx.run_id.clone(),
+                            version_id: version_id.to_string(),
+                        });
+                    }
+                }
+                nodemsg::tool_result(
+                    tool_call_id,
+                    content.clone(),
+                    content,
+                    json!({}),
+                    false,
+                    false,
+                )
+            }
             Err(err) => exec_refusal(tool_call_id, err),
         }
     }

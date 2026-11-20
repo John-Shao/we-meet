@@ -133,6 +133,7 @@ impl Link {
                         }
                         Some(LinkCommand::ReleaseLease { lease_id }) => { leases.release(&lease_id); }
                         Some(LinkCommand::ReplaceIdentity(identity)) => { self.config.identity = identity; }
+                        Some(LinkCommand::ReceiptWatermark(seq)) => { self.config.last_receipt_seq = seq; }
                     },
                 }
             };
@@ -334,6 +335,7 @@ impl Link {
                             }
                             Some(LinkCommand::ReleaseLease { lease_id }) => { leases.release(&lease_id); }
                             Some(LinkCommand::ReplaceIdentity(identity)) => { self.config.identity = identity; }
+                            Some(LinkCommand::ReceiptWatermark(seq)) => { self.config.last_receipt_seq = seq; }
                             Some(LinkCommand::Discontinuity(cause)) => {
                                 return Some(Drive::Invalidate(cause.into(), format!("discontinuity: {cause:?}")));
                             }

@@ -311,6 +311,39 @@ function convertToLlm(messages) {
   }));
 }
 
+// DD:250 compat tool_calls closed-set validation. The device_local proxy passes the Chat Completions
+// message verbatim (§5.2), so tool_calls carry the OpenAI {id, function:{name, arguments(JSON string)}}
+// shape; pi-agent-core's AgentToolCall block is flat {id, name, arguments(object)}. Normalize AND
+// validate fail-closed: a call missing a non-empty id/name, or whose arguments are not a JSON object
+// (invalid JSON string, or a non-object), is a protocol violation — never silently projected to {} or
+// passed through with undefined fields. The per-tool additionalProperties=false schema is enforced
+// downstream at the execute boundary; this seam guarantees the closed tool_call shape itself.
+function normalizeToolCalls(raw) {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) throw new ProtocolError('tool_calls_not_array');
+  const out = [];
+  for (const c of raw) {
+    if (!isRecord(c)) throw new ProtocolError('tool_call_not_object');
+    const fn = isRecord(c.function) ? c.function : {};
+    const id = c.id;
+    const name = fn.name ?? c.name;
+    if (typeof id !== 'string' || id.length === 0) throw new ProtocolError('tool_call_id_required');
+    if (typeof name !== 'string' || name.length === 0) throw new ProtocolError('tool_call_name_required');
+    const rawArgs = fn.arguments ?? c.arguments;
+    let args;
+    if (typeof rawArgs === 'string') {
+      try { args = JSON.parse(rawArgs); } catch { throw new ProtocolError('tool_call_arguments_invalid'); }
+    } else if (rawArgs === undefined || rawArgs === null) {
+      args = {};
+    } else {
+      args = rawArgs;
+    }
+    if (!isRecord(args)) throw new ProtocolError('tool_call_arguments_invalid');
+    out.push({ id, name, arguments: args });
+  }
+  return out;
+}
+
 async function main() {
   const pipeName = process.argv[2];
   if (typeof pipeName !== 'string' || !pipeName.startsWith('\\\\.\\pipe\\')) {
@@ -359,18 +392,22 @@ async function main() {
       const am = isRecord(reply.body.assistant_message) ? reply.body.assistant_message : {};
       // The device_local proxy passes the Chat Completions message verbatim (§5.2), so tool_calls carry
       // the OpenAI {id, function:{name, arguments(JSON string)}} shape. pi-agent-core's AgentToolCall
-      // block is flat {id, name, arguments(object)} — normalize here (the compat tool_calls seam, §6.2).
-      const toolCalls = (Array.isArray(am.tool_calls) ? am.tool_calls : []).map((c) => {
-        const fn = isRecord(c.function) ? c.function : {};
-        const rawArgs = fn.arguments ?? c.arguments;
-        let args = {};
-        if (typeof rawArgs === 'string') {
-          try { args = JSON.parse(rawArgs); } catch { args = {}; }
-        } else if (isRecord(rawArgs)) {
-          args = rawArgs;
-        }
-        return { id: c.id, name: fn.name ?? c.name, arguments: args };
-      });
+      // block is flat {id, name, arguments(object)} — normalize AND validate fail-closed (DD:250): a
+      // malformed call (missing id/name, non-object arguments) ends the turn in error, never a silent
+      // {} projection or an undefined-field call reaching the executor.
+      let toolCalls;
+      try {
+        toolCalls = normalizeToolCalls(am.tool_calls);
+      } catch (e) {
+        const message = assistantMessage({
+          stopReason: 'error',
+          errorMessage: `invalid_tool_calls:${e instanceof Error ? e.message : 'unknown'}`,
+        });
+        stream.push({ type: 'start', partial: { ...message } });
+        stream.push({ type: 'error', reason: 'error', error: message });
+        stream.end(message);
+        return;
+      }
       const message = assistantMessage({
         // The loop executes tools only when the turn ends in toolUse (pi-ai StopReason).
         stopReason: toolCalls.length > 0 ? 'toolUse' : 'stop',

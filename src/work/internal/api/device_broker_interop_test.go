@@ -523,6 +523,7 @@ func startBrokerGateway(t *testing.T, dbName string, ca *deviceca.CA) string {
 	srv := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(deviceca.ServerTLSConfig(ca, serverCert))),
 		grpc.ForceServerCodec(gateway.FrameCodec()),
+		grpc.StreamInterceptor(diagStreamInterceptor(t)),
 	)
 	gw, err := gateway.NewServer(pool)
 	if err != nil {
@@ -537,6 +538,41 @@ func startBrokerGateway(t *testing.T, dbName string, ca *deviceca.CA) string {
 type syncBuffer struct {
 	mu  sync.Mutex
 	buf strings.Builder
+}
+
+// diagStreamInterceptor logs every received uplink frame type and the terminating stream error when
+// WORK_INTEROP_DIAG is set, to locate which frame a real-exe Run uplinks that the gateway refuses.
+func diagStreamInterceptor(t *testing.T) grpc.StreamServerInterceptor {
+	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		if os.Getenv("WORK_INTEROP_DIAG") == "" {
+			return handler(srv, ss)
+		}
+		wrapped := &diagStream{ServerStream: ss, t: t}
+		err := handler(srv, wrapped)
+		t.Logf("DIAG stream %s ended: %v (last recv type=%q body=%s)", info.FullMethod, err, wrapped.lastType, wrapped.lastRaw)
+		return err
+	}
+}
+
+type diagStream struct {
+	grpc.ServerStream
+	t        *testing.T
+	lastType string
+	lastRaw  string
+}
+
+func (d *diagStream) RecvMsg(m any) error {
+	err := d.ServerStream.RecvMsg(m)
+	if raw, ok := m.(*[]byte); ok && raw != nil && len(*raw) > 0 {
+		var env struct {
+			Type string `json:"type"`
+		}
+		_ = json.Unmarshal(*raw, &env)
+		d.lastType = env.Type
+		d.lastRaw = string(*raw)
+		d.t.Logf("DIAG recv frame type=%q (%d bytes)", env.Type, len(*raw))
+	}
+	return err
 }
 
 func (b *syncBuffer) Write(p []byte) (int, error) {

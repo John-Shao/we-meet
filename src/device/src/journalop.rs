@@ -91,6 +91,11 @@ pub enum JournalOp {
         subject_id: String,
         facts: Box<ActionPrepareFacts>,
     },
+    /// Record one sealed deliverable version the Broker itself wrote (a successful `artifact.write`).
+    /// DD:137 — the finish judges deliverables from the Broker's own execution facts, not Node's
+    /// self-reported list. The sync core intercepts this op (it owns the per-Run deliverable set the
+    /// finish names in `deliverable_versions`); it writes no journal row.
+    RecordDeliverable { run_id: String, version_id: String },
 }
 
 /// The owned `action_prepare` proposal facts the Node thread supplies (execution-face §6.3 C). The
@@ -195,6 +200,12 @@ pub enum JournalReply {
     CheckpointProduced,
     /// ProposeAction signed and uplinked an action_prepare (the command returns via the downlink).
     Proposed,
+    /// ProposeAction was refused by the unknown-blocking guard (§6.2 :296): the Run has an
+    /// unreconciled `unknown`, so no new action/permit may proceed until it resolves. The caller
+    /// treats this as waiting-for-reconcile, never a reconnect or a proof of non-execution.
+    Blocked(String),
+    /// RecordDeliverable noted a sealed deliverable version (the sync core intercepts this op).
+    DeliverableRecorded,
     /// Any other registration failure.
     Failed(RecordError),
 }
@@ -318,6 +329,18 @@ pub fn execute(
             plaintext,
         } => produce_checkpoint(journal, producer, &org_id, &subject_id, &facts, &plaintext),
         JournalOp::ProposeAction { facts, .. } => {
+            // §6.2 :296 unknown-blocking guard: while the Run has an unreconciled `unknown`, the
+            // server rejects new action_prepare/permits; the device mirrors it here (the sole journal
+            // owner) and refuses to propose, treating it as waiting-for-reconcile. Lease renewal,
+            // receipt/checkpoint uplink and resolution receive are NOT blocked.
+            match crate::reconcile::guard::check_action_prepare(journal.connection(), &facts.run_id)
+            {
+                Ok(crate::reconcile::guard::GuardDecision::Block(code)) => {
+                    return JournalReply::Blocked(code.to_string());
+                }
+                Ok(crate::reconcile::guard::GuardDecision::Allow) => {}
+                Err(err) => return JournalReply::Failed(RecordError::Sql(err)),
+            }
             let mut body = action::ActionPrepareBody {
                 prepare_id: uuid::Uuid::new_v4().to_string(),
                 run_id: facts.run_id.clone(),
@@ -356,6 +379,10 @@ pub fn execute(
             }
             JournalReply::Proposed
         }
+        // The sync core intercepts RecordDeliverable in its event loop (it owns the per-Run
+        // deliverable set); this fallback keeps the match exhaustive for direct callers and writes
+        // no journal row.
+        JournalOp::RecordDeliverable { .. } => JournalReply::DeliverableRecorded,
     }
 }
 
@@ -430,6 +457,23 @@ fn produce_receipt(
                 signed_hash: &signed_hash,
             },
         )?;
+        // The outbox is transient (the checkpoint_ack watermark releases acked receipts, B03 §3.2),
+        // so the finish facts cannot read it. Persist the completed receipt's result_hash onto the
+        // durable action_journal row: NULL means no completed receipt yet, a set value (even empty)
+        // means receipted. This mirrors the server's device_receipt.result_hash subquery (0042:641).
+        if facts.state == "completed" {
+            tx.execute(
+                "UPDATE action_journal SET result_hash = ?1, result_ref = ?2
+                 WHERE org_id = ?3 AND run_id = ?4 AND operation_id = ?5",
+                rusqlite::params![
+                    facts.result_hash,
+                    facts.local_result_ref,
+                    org_id,
+                    facts.run_id,
+                    facts.operation_id
+                ],
+            )?;
+        }
         tx.commit()?;
         Ok((seq as u64, signed_hash, body_value))
     })();

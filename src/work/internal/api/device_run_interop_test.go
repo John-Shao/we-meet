@@ -143,6 +143,17 @@ func requireBrokerBin(t *testing.T) string {
 // decides the approval keeps the sidecar alive awaiting the command (the cancel/lease kill window).
 func startFixtureBroker(t *testing.T, bin string) *runFixture {
 	t.Helper()
+	return startFixtureBrokerScenario(t, bin, nil, "v1")
+}
+
+// startFixtureBrokerScenario is startFixtureBroker with an explicit fixture-model scenario and
+// artifact version id. A nil scenario uses the default artifact.write turn + stop turn (the write
+// spine); a stop-only scenario drives a model-only Run that finishes failed/no_deliverable (batch 3
+// finish evidence, ruling 甲). versionID is the artifact.write version_id: "v1" for the batch 2 write
+// proof (out/v1.md), a UUID for the batch 3 completed-finish refusal (the server's deliverable shape
+// CHECK casts to uuid; an unpublished UUID reaches finish_precondition_failed, not service_degraded).
+func startFixtureBrokerScenario(t *testing.T, bin string, scenario []map[string]any, versionID string) *runFixture {
+	t.Helper()
 	// The fixture layout: node.exe + work-device-bundle/ next to the executable (main.rs derives the
 	// sidecar inputs from current_exe's dir). The profile carries the REAL computed digests.
 	exeDir := filepath.Dir(bin)
@@ -309,20 +320,22 @@ func startFixtureBroker(t *testing.T, bin string) *runFixture {
 	fixtureNode := filepath.Join(exeDir, "node.exe")
 	scenarioPath := filepath.Join(dir, "scenario.json")
 	writeArgs := map[string]any{
-		"grant_id": grantID, "artifact_id": "a", "version_id": "v1", "format": "md",
+		"grant_id": grantID, "artifact_id": "a", "version_id": versionID, "format": "md",
 		"body_ref": inputRef, "content_hash": contentHash, "byte_count": byteCount,
 	}
 	writeArgsJSON, err := json.Marshal(writeArgs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	scenario := []map[string]any{
-		{"role": "assistant", "content": "", "tool_calls": []map[string]any{
-			{"id": "call-1", "type": "function", "function": map[string]any{
-				"name": "artifact.write", "arguments": string(writeArgsJSON),
+	if scenario == nil {
+		scenario = []map[string]any{
+			{"role": "assistant", "content": "", "tool_calls": []map[string]any{
+				{"id": "call-1", "type": "function", "function": map[string]any{
+					"name": "artifact.write", "arguments": string(writeArgsJSON),
+				}},
 			}},
-		}},
-		{"role": "assistant", "content": "Artifact written."},
+			{"role": "assistant", "content": "Artifact written."},
+		}
 	}
 	scenarioRaw, err := json.Marshal(scenario)
 	if err != nil {
@@ -718,4 +731,176 @@ func waitForLeaseKill(t *testing.T, stderr *syncBuffer) {
 		time.Sleep(200 * time.Millisecond)
 	}
 	t.Fatalf("the Broker never invalidated leases / killed the sidecar; stderr:\n%s", stderr.String())
+}
+
+// TestDeviceFixtureRunFinishFailedIsAccepted is the batch 3 accepted-finish evidence (ruling 甲,
+// fully device-driven): a model-only Run (the fixture model answers a single stop turn) ends the loop
+// normally with no dispatched operation and no sealed deliverable. The Broker judges failed/no_deliverable
+// ONLY from journal facts, computes the empty-set operation hash, signs and persists the proposal,
+// uplinks run_finish, and the server adjudicates accepted and writes the terminal set. The device then
+// consumes the server-signed accepted verdict and retires the Run. No server artifact publication is
+// seeded — a completed-accepted finish is unreachable until finalize_local_artifact is wired (residual).
+func TestDeviceFixtureRunFinishFailedIsAccepted(t *testing.T) {
+	bin := requireBrokerBin(t)
+	f := startFixtureBrokerScenario(t, bin, []map[string]any{
+		{"role": "assistant", "content": "Nothing to write."},
+	}, "v1")
+	runID := seedFixtureRun(t, f.dbName, f.deviceID, f.sessionID, f.bootID, f.grantID, f.rootIdentityHash,
+		f.profile.ProfileID, f.profile.RuntimeDigest, f.profile.ToolManifestHash, strings.Repeat("2", 64))
+
+	finishID := waitForRunFinishVerdict(t, f.dbName, runID, "accepted", "")
+	waitForRunTerminal(t, f.dbName, runID, "failed", "no_deliverable")
+	waitForStderrContains(t, f.stderr, "run_finish accepted")
+
+	ctx := context.Background()
+	conn := brokerDB(t, f.dbName)
+	// The accepted verdict row: failed/no_deliverable, no deliverables, a positive terminal revision.
+	var outcome, reason string
+	var revision int64
+	var deliverables string
+	if err := conn.QueryRow(ctx, `
+		SELECT outcome, reason_code, terminal_run_revision, deliverable_versions::text
+		FROM work.device_run_finish WHERE org_id=$1 AND run_id=$2::uuid AND finish_id=$3::uuid`,
+		testOrg, runID, finishID).Scan(&outcome, &reason, &revision, &deliverables); err != nil {
+		t.Fatalf("accepted verdict row: %v", err)
+	}
+	if outcome != "failed" || reason != "no_deliverable" {
+		t.Fatalf("verdict = %s/%s, want failed/no_deliverable", outcome, reason)
+	}
+	if revision <= 0 {
+		t.Fatalf("terminal_run_revision = %d, want positive", revision)
+	}
+	if deliverables != "[]" {
+		t.Fatalf("a failed finish named deliverables: %s", deliverables)
+	}
+	// The terminal write set finish_local_run_state owns: lease released, binding finished/3.
+	var leaseState, bindingState string
+	var bindingRevision int64
+	if err := conn.QueryRow(ctx, `SELECT state FROM work.execution_lease WHERE org_id=$1 AND run_id=$2::uuid`,
+		testOrg, runID).Scan(&leaseState); err != nil {
+		t.Fatalf("lease row: %v", err)
+	}
+	if leaseState != "released" {
+		t.Fatalf("lease state = %s, want released", leaseState)
+	}
+	if err := conn.QueryRow(ctx, `
+		SELECT state, binding_revision FROM work.device_run_binding WHERE org_id=$1 AND run_id=$2::uuid`,
+		testOrg, runID).Scan(&bindingState, &bindingRevision); err != nil {
+		t.Fatalf("binding row: %v", err)
+	}
+	if bindingState != "finished" || bindingRevision < 1 {
+		t.Fatalf("binding = %s/%d, want finished at a positive revision", bindingState, bindingRevision)
+	}
+	// Exactly one accepted verdict for the Run (the one-accepted unique index).
+	var accepted int
+	if err := conn.QueryRow(ctx, `
+		SELECT count(*) FROM work.device_run_finish WHERE org_id=$1 AND run_id=$2::uuid AND state='accepted'`,
+		testOrg, runID).Scan(&accepted); err != nil {
+		t.Fatal(err)
+	}
+	if accepted != 1 {
+		t.Fatalf("accepted verdict rows = %d, want 1", accepted)
+	}
+}
+
+// TestDeviceFixtureRunFinishCompletedIsRejectedWithoutPublication is the batch 3 rejected-finish
+// evidence (ruling 甲): the write Run seals a deliverable and the Broker proposes completed naming it,
+// but the server has no published artifact_version row (finalize_local_artifact is unwired in the live
+// flow), so finish_local_run refuses finish_precondition_failed and the Run stays active. The device
+// consumes the server-signed rejected verdict without rewriting its local facts and re-reconciles.
+func TestDeviceFixtureRunFinishCompletedIsRejectedWithoutPublication(t *testing.T) {
+	bin := requireBrokerBin(t)
+	// A UUID deliverable passes the server's deliverable shape CHECK but has no published
+	// artifact_version row, so the completed proposal reaches finish_precondition_failed (a verdict),
+	// not a CHECK violation (service_degraded).
+	f := startFixtureBrokerScenario(t, bin, nil, uuid.NewString())
+	runID := seedFixtureRun(t, f.dbName, f.deviceID, f.sessionID, f.bootID, f.grantID, f.rootIdentityHash,
+		f.profile.ProfileID, f.profile.RuntimeDigest, f.profile.ToolManifestHash, strings.Repeat("2", 64))
+	approvalID, operationID, paramsHash, approvalRevision := waitForPendingApproval(t, f.dbName, runID, f.stderr)
+	decideFixtureApproval(t, f.dbName, f.sessionID, f.deviceID, runID, approvalID, operationID, paramsHash, approvalRevision)
+	waitForCompletedReceipt(t, f.dbName, operationID)
+
+	// The device proposes completed (it sealed a deliverable); the server refuses precondition.
+	finishID := waitForRunFinishVerdict(t, f.dbName, runID, "rejected", "finish_precondition_failed")
+	waitForStderrContains(t, f.stderr, "run_finish rejected: finish_precondition_failed")
+
+	ctx := context.Background()
+	conn := brokerDB(t, f.dbName)
+	var outcome, deliverables string
+	if err := conn.QueryRow(ctx, `
+		SELECT outcome, deliverable_versions::text FROM work.device_run_finish
+		WHERE org_id=$1 AND run_id=$2::uuid AND finish_id=$3::uuid`,
+		testOrg, runID, finishID).Scan(&outcome, &deliverables); err != nil {
+		t.Fatalf("rejected verdict row: %v", err)
+	}
+	if outcome != "completed" {
+		t.Fatalf("the device proposed outcome = %s, want completed (it sealed a deliverable)", outcome)
+	}
+	if deliverables == "[]" {
+		t.Fatalf("the completed proposal named no deliverable: %s", deliverables)
+	}
+	// A refusal writes no terminal set: the Run stays active.
+	var runState string
+	if err := conn.QueryRow(ctx, `SELECT state FROM work.run WHERE org_id=$1 AND id=$2::uuid`,
+		testOrg, runID).Scan(&runState); err != nil {
+		t.Fatal(err)
+	}
+	if runState != "active" {
+		t.Fatalf("Run state after a refusal = %s, want active", runState)
+	}
+}
+
+// waitForRunFinishVerdict polls for the newest device_run_finish row of the given state (and reject
+// code for a refusal), returning its finish_id. The verdict is the server's adjudication, read back
+// independently of the device's own journal.
+func waitForRunFinishVerdict(t *testing.T, dbName, runID, state, rejectCode string) string {
+	t.Helper()
+	conn := brokerDB(t, dbName)
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		var finishID string
+		err := conn.QueryRow(context.Background(), `
+			SELECT finish_id::text FROM work.device_run_finish
+			WHERE org_id=$1 AND run_id=$2::uuid AND state=$3
+			  AND ($4 = '' OR reject_code = $4)
+			ORDER BY created_at DESC LIMIT 1`, testOrg, runID, state, rejectCode).Scan(&finishID)
+		if err == nil && finishID != "" {
+			return finishID
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	dumpRunDiagnostics(t, dbName, runID, &syncBuffer{})
+	t.Fatalf("no %s/%s run_finish verdict for run %s", state, rejectCode, runID)
+	return ""
+}
+
+// waitForRunTerminal polls for the Run's terminal state + reason (finish_local_run_state's write).
+func waitForRunTerminal(t *testing.T, dbName, runID, state, reason string) {
+	t.Helper()
+	conn := brokerDB(t, dbName)
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		var gotState, gotReason string
+		err := conn.QueryRow(context.Background(), `
+			SELECT state, COALESCE(terminal_reason,'') FROM work.run WHERE org_id=$1 AND id=$2::uuid`,
+			testOrg, runID).Scan(&gotState, &gotReason)
+		if err == nil && gotState == state && gotReason == reason {
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	t.Fatalf("run %s never reached terminal %s/%s", runID, state, reason)
+}
+
+// waitForStderrContains polls the Broker's operational stderr for a marker line.
+func waitForStderrContains(t *testing.T, stderr *syncBuffer, marker string) {
+	t.Helper()
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(stderr.String(), marker) {
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	t.Fatalf("the Broker never logged %q; stderr:\n%s", marker, stderr.String())
 }

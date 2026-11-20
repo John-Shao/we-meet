@@ -7,7 +7,9 @@
 //! server verdict is consumed by [`ack::apply_finish_ack`] (GW12).
 
 pub mod ack;
+pub mod facts;
 pub mod ophash;
+pub mod orchestrate;
 pub mod outcome;
 
 use std::collections::HashMap;
