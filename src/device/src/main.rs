@@ -150,6 +150,12 @@ fn run(path: &str) -> Result<(), String> {
     // session identity and writes them to the gateway. The core thread owns this sender.
     let (uplink_tx, uplink_rx) = mpsc::channel::<work_device::transport::UplinkFrame>(64);
 
+    // The long-lived Node service thread (execution-face §6.1) owns the grant/endpoint registries +
+    // executor + proxy. Created once at startup, BEFORE the pump, so the shell confirmation face can
+    // route to it even before the first certificate; the sync core shares the same sender for StartRun.
+    #[cfg(windows)]
+    let node_service = work_device::nodeservice::spawn_node_service();
+
     // The pipe loop is blocking by design and must never run inside the async runtime.
     let pipe_name = cfg.pipe_name.clone();
     let shell_pid = cfg.shell_pid;
@@ -165,6 +171,8 @@ fn run(path: &str) -> Result<(), String> {
         ticket_tx,
         core_tx,
         ready_tx,
+        #[cfg(windows)]
+        node_service.clone(),
     ));
 
     eprintln!(
@@ -206,13 +214,22 @@ fn run(path: &str) -> Result<(), String> {
                 .to_string_lossy()
                 .into_owned(),
         };
-        let (core_input_tx, journal_epoch) = spawn_sync_core(
+        let core_spawn = spawn_sync_core(
             cfg.journal_dir.clone(),
             first.clone(),
             key.clone(),
             uplink_tx,
+            command_tx.clone(),
             spawn_template,
+            work_device::journalop::InstanceFacts {
+                agent_instance_id: cfg.agent_instance_id.clone(),
+                boot_id: cfg.boot_id.clone(),
+            },
+            #[cfg(windows)]
+            node_service.clone(),
         )?;
+        let core_input_tx = core_spawn.events;
+        let journal_epoch = core_spawn.epoch;
         let link = spawn_link(&cfg, ca_pem, first, key, ticket_rx, command_rx, uplink_rx, journal_epoch, link_event_tx);
         loop {
             tokio::select! {

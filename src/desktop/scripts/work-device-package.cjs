@@ -6,7 +6,7 @@ const fs = require('node:fs/promises')
 const path = require('node:path')
 const { randomUUID } = require('node:crypto')
 const { isDeepStrictEqual } = require('node:util')
-const { WORK_DEVICE_FILE, workDeviceDescriptor, verifyWorkDevice } = require('../dist/work/broker.js')
+const { WORK_DEVICE_FILE, WORK_DEVICE_NODE_FILE, WORK_DEVICE_BUNDLE_DIR, workDeviceDescriptor, verifyWorkDevice } = require('../dist/work/broker.js')
 
 async function stageWorkDevice(root, { sign }) {
   root = path.resolve(root)
@@ -15,24 +15,34 @@ async function stageWorkDevice(root, { sign }) {
   await fs.mkdir(staging, { recursive: true })
   const info = await fs.lstat(staging)
   if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Invalid work device staging directory')
-  const unsigned = path.join(staging, `work-device-signing-${randomUUID()}.exe`)
-  try {
-    // The temporary name is not in signExts exclusions; only the finalized fixed filename
-    // is excluded from Electron Builder's later copy/sign pass.
-    await fs.copyFile(built.executable, unsigned)
-    await sign(unsigned)
-    const bytes = await fs.readFile(unsigned)
-    const { createHash } = require('node:crypto')
-    const sha256 = createHash('sha256').update(bytes).digest('hex')
-    await fs.copyFile(unsigned, path.join(staging, WORK_DEVICE_FILE))
-    await fs.writeFile(path.join(staging, 'manifest.json'), JSON.stringify({ file: WORK_DEVICE_FILE, sha256 }, null, 2) + '\n')
-    await fs.unlink(unsigned)
-    const result = await verifyWorkDevice(staging)
-    await fs.writeFile(path.join(root, 'dist/bundled-work-device.json'), JSON.stringify(result.descriptor, null, 2) + '\n')
-    return result.descriptor
-  } finally {
-    await fs.unlink(unsigned).catch(error => { if (error.code !== 'ENOENT') throw error })
+  const { createHash } = require('node:crypto')
+  const sha256 = bytes => createHash('sha256').update(bytes).digest('hex')
+  // Sign an executable under a temporary name (not in signExts exclusions), hash the FINAL bytes,
+  // then place it at its fixed filename (which IS excluded from the builder's later copy/sign pass).
+  const signFinalized = async (src, destName) => {
+    const unsigned = path.join(staging, `work-device-signing-${randomUUID()}${path.extname(destName)}`)
+    try {
+      await fs.copyFile(src, unsigned)
+      await sign(unsigned)
+      const bytes = await fs.readFile(unsigned)
+      await fs.copyFile(unsigned, path.join(staging, destName))
+      return sha256(bytes)
+    } finally {
+      await fs.unlink(unsigned).catch(error => { if (error.code !== 'ENOENT') throw error })
+    }
   }
+  const exeSha = await signFinalized(built.executable, WORK_DEVICE_FILE)
+  const nodeSha = await signFinalized(path.join(root, 'dist/work-device', WORK_DEVICE_NODE_FILE), WORK_DEVICE_NODE_FILE)
+  // The bundle is data (signed-file manifest pins its bytes via runtime_digest); copy it verbatim.
+  await fs.cp(path.join(root, 'dist/work-device', WORK_DEVICE_BUNDLE_DIR), path.join(staging, WORK_DEVICE_BUNDLE_DIR), { recursive: true })
+  const profile = JSON.parse(await fs.readFile(path.join(staging, WORK_DEVICE_BUNDLE_DIR, 'dev-fixture-profile.json'), 'utf8'))
+  await fs.writeFile(path.join(staging, 'manifest.json'), JSON.stringify({
+    file: WORK_DEVICE_FILE, sha256: exeSha, nodeSha256: nodeSha,
+    runtimeDigest: profile.runtime_digest, toolManifestHash: profile.tool_manifest_hash,
+  }, null, 2) + '\n')
+  const result = await verifyWorkDevice(staging)
+  await fs.writeFile(path.join(root, 'dist/bundled-work-device.json'), JSON.stringify(result.descriptor, null, 2) + '\n')
+  return result.descriptor
 }
 
 function withWorkDevice(config, root) {
@@ -40,13 +50,14 @@ function withWorkDevice(config, root) {
   const resources = config.win?.extraResources ?? []
   if (!Array.isArray(resources) || [...(config.extraResources ?? []), ...resources].some(entry => entry.to === 'work-device')) throw new Error('Duplicate work device resources')
   const signExts = config.win?.signExts ?? []
-  if (!Array.isArray(signExts) || signExts.some(rule => typeof rule !== 'string' || (!rule.startsWith('!') && WORK_DEVICE_FILE.endsWith(rule)))) throw new Error('Work device signing rules would invalidate the finalized digest')
+  const finalized = [WORK_DEVICE_FILE, WORK_DEVICE_NODE_FILE]
+  if (!Array.isArray(signExts) || signExts.some(rule => typeof rule !== 'string' || (!rule.startsWith('!') && finalized.some(file => file.endsWith(rule))))) throw new Error('Work device signing rules would invalidate the finalized digest')
   return {
     ...config,
     files: [...(config.files ?? []), '!dist/work-device/**/*', '!dist/work-device-package/**/*'],
     win: { ...config.win,
-      signExts: [...signExts, `!${WORK_DEVICE_FILE}`],
-      extraResources: [...resources, { from: 'dist/work-device-package', to: 'work-device', filter: [WORK_DEVICE_FILE, 'manifest.json'] }],
+      signExts: [...signExts, `!${WORK_DEVICE_FILE}`, `!${WORK_DEVICE_NODE_FILE}`],
+      extraResources: [...resources, { from: 'dist/work-device-package', to: 'work-device', filter: [WORK_DEVICE_FILE, WORK_DEVICE_NODE_FILE, 'manifest.json', `${WORK_DEVICE_BUNDLE_DIR}/**`] }],
     },
     beforePack: async context => {
       if (config.beforePack) await config.beforePack(context)

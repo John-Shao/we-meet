@@ -172,6 +172,7 @@ mod win {
             ticket_tx,
             core_tx,
             ready_tx,
+            work_device::nodeservice::spawn_node_service(),
         ));
         let link = Link::new(config, key.clone());
         let link_handle = rt.spawn(link.run(

@@ -13,12 +13,14 @@
 pub mod b64;
 pub mod broker;
 pub mod certrenewal;
+pub mod digest;
 pub mod es256;
 pub mod finish;
 pub mod frame;
 pub mod identity;
 pub mod ipc;
 pub mod journal;
+pub mod journalop;
 pub mod jwk;
 pub mod key;
 pub mod pairing;
@@ -28,11 +30,24 @@ pub mod recovery;
 pub mod sidecar;
 pub mod synccore;
 pub mod thumbprint;
+pub mod tools;
 pub mod transport;
 pub mod upgrade;
 
 #[cfg(windows)]
 pub mod cng;
+#[cfg(windows)]
+pub mod endpoint;
+#[cfg(windows)]
+pub mod grant;
+#[cfg(windows)]
+pub mod listener;
+#[cfg(windows)]
+pub mod modelproxy;
+#[cfg(windows)]
+pub mod nodeservice;
+#[cfg(windows)]
+pub mod tool_exec;
 
 /// Crate version, surfaced by the binary entry point.
 pub fn version() -> &'static str {

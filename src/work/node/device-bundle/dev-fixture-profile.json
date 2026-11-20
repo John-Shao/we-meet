@@ -1,0 +1,18 @@
+{
+  "profile_id": "profile-dev-fixture-v1",
+  "compat_profile_version": 1,
+  "canonical_schema": "device-tool-schemas-v1",
+  "node_version": ">=22",
+  "model_route": {
+    "provider": "device-local",
+    "model": "fixture-model",
+    "config_revision": 1
+  },
+  "tool_manifest_hash": "a2b58c4b9193f88d5b1c513d424e53895acf6a1970a4e10050320b17e090ca40",
+  "runtime_digest": "f03b2f3da37c9a0316a0b06dd0069967a8a5733522d5abf5431c609e5bb61117",
+  "listener_requirement": {
+    "allowed_signers": [],
+    "allow_user_pinned_hash": true,
+    "allowed_service_sids": []
+  }
+}

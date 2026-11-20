@@ -59,7 +59,7 @@ mod tests {
                 org_id: "org",
                 operation_id: op,
                 run_id: "run",
-                attempt: 1,
+                attempt: "attempt-1",
                 step_key: "step",
                 logical_key: op,
                 supersedes: None,

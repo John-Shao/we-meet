@@ -51,6 +51,11 @@ secrets-*.txt
 
 # npm
 node_modules
+# The device Node executor bundle vendors pi-agent-core/pi-ai dist verbatim (execution-face
+# E2 甲, #184): runtime_digest pins these exact bytes and the bundle is self-contained with no
+# install-time npm (ARCH:126), so this one tree ships in git rather than being npm-installed.
+!src/work/node/device-bundle/node_modules/
+!src/work/node/device-bundle/node_modules/**
 
 # Mails
 src/backend/core/templates/mail/

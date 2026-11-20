@@ -7,7 +7,7 @@
 
 use serde_json::Value;
 
-/// The shell→Broker IPC method closure (device-design §1 :20, 20 members).
+/// The shell→Broker IPC method closure (device-design §1 :20, 22 members).
 /// `deliverDeviceSessionTicket` was added in GW17: §2.2 requires a single-use device-session
 /// ticket minted from the main process's native Bearer session, and the closed set had no member
 /// that could carry it to the Broker — the same "required but no carrier" gap GW12/GW15 found on
@@ -27,8 +27,17 @@ use serde_json::Value;
 /// same carrier: the certificate carries no subject field (CN=device, OU=org only), so the permit
 /// identity gate's `subject_id` anchor must be re-supplied on restart. The design line is annotated
 /// in place.
+///
+/// 批2 (2026-11-19, 主签单选乙) adds `confirmWorkspaceRoot` and `confirmLocalModel`: §4.2's root
+/// acquisition and §5.4's model probe are two-phase — `chooseWorkspace`/`probeLocalModel` bind/probe
+/// and return confirmation facts plus a single-use token (the handle/identity stays on the Node
+/// service thread), the shell shows the native dialog, then the user's confirm/cancel decision rides
+/// these two carriers back. The closed set had no member for that decision (the design单 §6.1 names
+/// them), the same "required but no carrier" gap GW17/GW21/M2b closed by expanding the closure. The
+/// renderer whitelist line (DD §1 :20) is annotated in place; its thirteen members do not grow.
 pub const SHELL_METHODS: &[&str] = &[
     "chooseWorkspace",
+    "confirmWorkspaceRoot",
     "inspectWorkspace",
     "revokeWorkspace",
     "rebindRunWorkspace",
@@ -39,6 +48,7 @@ pub const SHELL_METHODS: &[&str] = &[
     "resendUndeliveredModelRequest",
     "configureLocalModel",
     "probeLocalModel",
+    "confirmLocalModel",
     "rotateLocalModelCredential",
     "revokeLocalModelBinding",
     "deliverDeviceSessionTicket",
@@ -118,8 +128,8 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn shell_closure_has_twenty_members() {
-        assert_eq!(SHELL_METHODS.len(), 20);
+    fn shell_closure_has_twenty_two_members() {
+        assert_eq!(SHELL_METHODS.len(), 22);
     }
 
     #[test]

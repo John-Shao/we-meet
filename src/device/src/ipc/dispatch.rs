@@ -2,8 +2,9 @@
 //! (device-design §1: "IPC 返回明确错误而不是静默降级").
 //!
 //! GW18 landed the service loop with one handler out of fourteen closed shell methods. GW21 adds
-//! five more for §2.1's Broker side and M2b adds the restart re-delivery carrier, so seven now
-//! have handlers and thirteen remain IN the closure but unimplemented. Those are refused with
+//! five more for §2.1's Broker side and M2b adds the restart re-delivery carrier; 批2 (主签单选乙)
+//! adds the four §4.2/§5.4 confirmation carriers, so eleven now have handlers and eleven remain IN
+//! the closure but unimplemented. Those are refused with
 //! `method_not_implemented`, never with `unknown_method`:
 //! the shell must be able to tell "this call is illegal" from "this call is legal but not landed
 //! yet". Conflating the two would make a legitimate caller look like an attacker, and would give
@@ -184,6 +185,11 @@ pub enum Dispatch {
 
 /// The shell methods the core pump implements. Everything else in the closure is legal but
 /// unlanded, and is answered with `method_not_implemented`.
+///
+/// 批2 (主签单选乙) adds the four confirmation carriers: `chooseWorkspace`/`probeLocalModel` prepare
+/// (bind root / probe identity, return facts + a single-use token), and `confirmWorkspaceRoot`/
+/// `confirmLocalModel` carry the user's confirm/cancel decision back. The pump forwards these to the
+/// Node service thread that owns the registries (§6.1); the `!Send` handles never cross threads.
 pub const CORE_METHODS: &[&str] = &[
     ticket::METHOD,
     "getDeviceIdentity",
@@ -192,6 +198,11 @@ pub const CORE_METHODS: &[&str] = &[
     "deliverDeviceCertificate",
     "redeliverDeviceCertificate",
     "getDeviceCertificateStatus",
+    "chooseWorkspace",
+    "confirmWorkspaceRoot",
+    "probeLocalModel",
+    "confirmLocalModel",
+    "stageLocalInput",
 ];
 
 /// Route one message on the shell channel. The closure check runs first, so a forbidden
@@ -326,10 +337,10 @@ mod tests {
                 Dispatch::Core => panic!("{method} must not reach the ticket slot"),
             }
         }
-        // Thirteen of the twenty are unlanded; the count is the closure minus the seven handlers.
-        assert_eq!(count, 13);
-        assert_eq!(SHELL_METHODS.len(), 20);
-        assert_eq!(CORE_METHODS.len(), 7);
+        // Ten of the twenty-two are unlanded; the count is the closure minus the twelve handlers.
+        assert_eq!(count, 10);
+        assert_eq!(SHELL_METHODS.len(), 22);
+        assert_eq!(CORE_METHODS.len(), 12);
     }
 
     #[test]

@@ -210,7 +210,12 @@ test('the shell closure carries the ticket method and the broker agrees on its n
   const member = '"deliverDeviceSessionTicket"';
   const closure = schema.slice(schema.indexOf('pub const SHELL_METHODS'), schema.indexOf('];', schema.indexOf('pub const SHELL_METHODS')));
   assert.ok(closure.includes(member), 'deliverDeviceSessionTicket left the shell closure');
-  assert.match(schema, /assert_eq!\(SHELL_METHODS\.len\(\), 20\)/);
+  // 批2 (主签单选乙, #190) grew the closure to 22: confirmWorkspaceRoot (§4.2) + confirmLocalModel (§5.4)
+  // carry the user's native-dialog decision back; the handle/identity stays on the Node service thread.
+  assert.match(schema, /assert_eq!\(SHELL_METHODS\.len\(\), 22\)/);
+  for (const confirm of ['"confirmWorkspaceRoot"', '"confirmLocalModel"']) {
+    assert.ok(closure.includes(confirm), `${confirm} left the shell closure`);
+  }
   const method = ticket.match(/pub const METHOD: &str = "([^"]+)"/);
   assert.ok(method, 'ticket.rs no longer names its method');
   assert.equal(`"${method[1]}"`, member);

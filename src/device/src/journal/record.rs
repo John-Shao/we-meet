@@ -7,6 +7,7 @@
 
 use rusqlite::{params, Connection};
 
+use crate::frame::sign::SignError;
 use crate::journal::{crypto, meta};
 
 /// The identity bound into every record's AAD.
@@ -37,6 +38,9 @@ impl RecordContext<'_> {
 pub enum RecordError {
     Crypto(crypto::CryptoError),
     Sql(rusqlite::Error),
+    /// A receipt/checkpoint body could not be signed (the production path signs inside the journal
+    /// transaction so the allocated seq is bound into the signature atomically).
+    Sign(SignError),
 }
 
 impl From<crypto::CryptoError> for RecordError {
@@ -48,6 +52,12 @@ impl From<crypto::CryptoError> for RecordError {
 impl From<rusqlite::Error> for RecordError {
     fn from(err: rusqlite::Error) -> Self {
         Self::Sql(err)
+    }
+}
+
+impl From<SignError> for RecordError {
+    fn from(err: SignError) -> Self {
+        Self::Sign(err)
     }
 }
 
@@ -78,7 +88,7 @@ pub struct ActionRow<'a> {
     pub org_id: &'a str,
     pub operation_id: &'a str,
     pub run_id: &'a str,
-    pub attempt: i64,
+    pub attempt: &'a str,
     pub step_key: &'a str,
     pub logical_key: &'a str,
     pub supersedes: Option<&'a str>,
@@ -161,6 +171,20 @@ pub fn append_receipt(
     row: &ReceiptRow,
 ) -> Result<i64, RecordError> {
     let seq = meta::allocate_receipt_seq(conn, device_id)?;
+    insert_receipt(conn, journal_epoch, seq, row)?;
+    Ok(seq)
+}
+
+/// Insert a receipt under an already-allocated seq. The production path allocates the seq, binds it
+/// into the signed body and inserts within ONE transaction (so a failed sign/insert never burns a
+/// seq — receipt continuity is a reconcile gate, §3.1). `append_receipt` is the allocate+insert
+/// convenience for callers that supply pre-signed bytes without binding the seq themselves.
+pub fn insert_receipt(
+    conn: &Connection,
+    journal_epoch: &str,
+    seq: i64,
+    row: &ReceiptRow,
+) -> Result<(), RecordError> {
     conn.execute(
         "INSERT INTO receipt_outbox
             (journal_epoch, receipt_seq, operation_id, state, signed_bytes, signed_hash, acked)
@@ -174,7 +198,7 @@ pub fn append_receipt(
             row.signed_hash,
         ],
     )?;
-    Ok(seq)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -206,7 +230,7 @@ mod tests {
             org_id: "org",
             operation_id,
             run_id: "run",
-            attempt: 1,
+            attempt: "attempt-1",
             step_key: "step",
             logical_key: "step#0",
             supersedes: None,

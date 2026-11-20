@@ -829,6 +829,66 @@ async function createWindow() {
           });
           return result.response === 1 ? defaultName : undefined;
         },
+        // §1.1: only the main process may trigger the system folder selector; the renderer's path
+        // string is never the root. The Broker binds the actual object the selector returned.
+        selectWorkspaceDirectory: async () => {
+          if (win.isDestroyed()) return undefined;
+          const result = await dialog.showOpenDialog(win, {
+            title: "选择 Work 工作目录",
+            properties: ["openDirectory"],
+          });
+          return result.canceled || result.filePaths.length === 0 ? undefined : result.filePaths[0];
+        },
+        // §4.2 step 3/5: show the ACTUAL location the Broker opened (not the selector path), the
+        // volume label, and the two warnings. Cancel produces no grant (the Broker closes the handle).
+        confirmWorkspaceRoot: async (facts) => {
+          if (win.isDestroyed()) return false;
+          const warnings: string[] = [];
+          if (facts.differsFromSelected) warnings.push("实际位置与所选不同（上级目录可能被重定向）。");
+          if (facts.otherUserWritable) warnings.push("其他本机用户可修改此目录。");
+          const result = await dialog.showMessageBox(win, {
+            type: warnings.length > 0 ? "warning" : "question",
+            title: "授权 Work 工作目录",
+            message: `授权本机任务访问目录「${facts.actualLocation}」？`,
+            detail: [
+              `实际位置：${facts.actualLocation}`,
+              `卷标：${facts.volumeLabel || "(无)"}`,
+              `所选路径：${facts.selectedPath}`,
+              ...warnings,
+              "授权后本机任务可在该目录内读取/搜索文件，并在成果目录创建新版本。私钥与正文留在本机。",
+            ].join("\n"),
+            buttons: ["取消", "确认授权"],
+            defaultId: 0,
+            cancelId: 0,
+          });
+          return result.response === 1;
+        },
+        // §5.4 step 3: show the listener process name / path / signer / running account. The account
+        // is rendered as its SID (a name translation is a later native face); the LAN-open warning is
+        // the §5.4 末段 hint. Cancel produces no binding.
+        confirmLocalModel: async (facts) => {
+          if (win.isDestroyed()) return false;
+          const warnings: string[] = [];
+          if (facts.listensOnAllInterfaces) warnings.push("该模型服务对局域网开放。");
+          const result = await dialog.showMessageBox(win, {
+            type: warnings.length > 0 ? "warning" : "question",
+            title: "确认本机模型服务",
+            message: `将本机任务的本机模型请求发往「${facts.processName}」？`,
+            detail: [
+              `进程名：${facts.processName}`,
+              `映像路径：${facts.imagePath}`,
+              `签名者：${facts.signerThumbprint ?? "(未签名)"}`,
+              `运行账户 (SID)：${facts.ownerSid}`,
+              `映像 SHA-256：${facts.imageSha256}`,
+              ...warnings,
+              "确认后本机模型请求只发往该已确认的 loopback 服务；正文留在本机。",
+            ].join("\n"),
+            buttons: ["取消", "确认"],
+            defaultId: 0,
+            cancelId: 0,
+          });
+          return result.response === 1;
+        },
         report,
       });
       await workDriver.start();

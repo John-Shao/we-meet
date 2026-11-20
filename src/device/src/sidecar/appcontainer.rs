@@ -34,10 +34,12 @@ unsafe fn take_sid(sid: PSID) -> Vec<u8> {
     bytes
 }
 
-/// An AppContainer profile bound to a Run.
+/// An AppContainer profile bound to a Run. Dropping it deletes the profile (Run end / Broker exit /
+/// lease kill), so a sidecar that exits without an explicit `delete` still leaves no profile behind.
 pub struct AppContainer {
     name: String,
     sid: Vec<u8>,
+    deleted: std::cell::Cell<bool>,
 }
 
 impl AppContainer {
@@ -52,6 +54,7 @@ impl AppContainer {
             Ok(Self {
                 name: name.to_string(),
                 sid: sid_bytes,
+                deleted: std::cell::Cell::new(false),
             })
         }
     }
@@ -76,14 +79,27 @@ impl AppContainer {
         &self.name
     }
 
-    /// Delete the profile (Run end).
-    pub fn delete(self) -> Result<(), AppContainerError> {
+    /// Delete the profile (Run end). Idempotent: a second call (or the Drop after an explicit
+    /// delete) is a no-op, so the profile is removed exactly once.
+    pub fn delete(&self) -> Result<(), AppContainerError> {
+        if self.deleted.get() {
+            return Ok(());
+        }
         unsafe {
             let name_w = wide(&self.name);
             DeleteAppContainerProfile(PCWSTR(name_w.as_ptr()))
                 .map_err(|_| AppContainerError::Delete)?;
         }
+        self.deleted.set(true);
         Ok(())
+    }
+}
+
+impl Drop for AppContainer {
+    fn drop(&mut self) {
+        // A sidecar that exits without an explicit delete (Run stop / Broker exit / lease kill)
+        // still leaves no profile behind. Errors are ignored: the profile may already be gone.
+        let _ = self.delete();
     }
 }
 
@@ -112,5 +128,16 @@ mod tests {
         let a = AppContainer::derive_sid(&name).expect("derive a");
         let b = AppContainer::derive_sid(&name).expect("derive b");
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn drop_deletes_the_profile_so_it_can_be_recreated() {
+        let name = unique_name();
+        let container = AppContainer::create(&name).expect("create appcontainer");
+        drop(container);
+        // If Drop leaked the profile, recreating the same name would fail (already exists).
+        let again = AppContainer::create(&name).expect("recreate after drop proves deletion");
+        again.delete().expect("explicit delete");
+        // The explicit delete is idempotent with the subsequent Drop.
     }
 }

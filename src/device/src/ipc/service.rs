@@ -324,6 +324,7 @@ mod tests {
                 ticket_tx,
                 core_tx,
                 ready_tx,
+                crate::nodeservice::spawn_node_service(),
             ));
             let server_name = name.clone();
             let shell_pid = unsafe { windows::Win32::System::Threading::GetCurrentProcessId() };
@@ -459,7 +460,7 @@ mod tests {
             assert_eq!(reply["method"], *method);
             assert_eq!(reply.as_object().unwrap().len(), 4);
         }
-        assert_eq!(count, 13);
+        assert_eq!(count, 10);
         // The channel is still usable afterwards: a refusal is not a disconnect.
         client.write(&delivery(TICKET, "row-1"));
         assert_eq!(client.read()["result"], "accepted");
@@ -628,7 +629,7 @@ mod tests {
         assert_eq!(client.read()["result"], "accepted");
         drop(client);
         let next = h.client();
-        next.write(&json!({"method": "chooseWorkspace", "request_id": "r"}));
+        next.write(&json!({"method": "inspectWorkspace", "request_id": "r"}));
         assert_eq!(next.read()["code"], "method_not_implemented");
         drop(next);
         assert_eq!(h.shutdown(), Err(PipeError::Broker));

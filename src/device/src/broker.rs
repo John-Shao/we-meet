@@ -106,6 +106,7 @@ enum Pump {
 ///
 /// Backpressure is intentional: if the core stops reading `core_events`, the pump blocks and the
 /// pipe loop's reply waits with it. Nothing is dropped to keep the pipe moving.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_core_pump(
     mut identity: Identity,
     mut slot: TicketSlot,
@@ -114,6 +115,7 @@ pub async fn run_core_pump(
     tickets: mpsc::Sender<String>,
     core_events: mpsc::Sender<LinkEvent>,
     ready: mpsc::Sender<ReadyIdentity>,
+    #[cfg(windows)] node_service: mpsc::Sender<crate::nodeservice::NodeRequest>,
 ) -> BridgeOutcome {
     let mut awaiting = false;
     let mut deliveries_open = true;
@@ -122,7 +124,19 @@ pub async fn run_core_pump(
             request = deliveries.recv(), if deliveries_open => {
                 match request {
                     Some(request) => {
-                        let reply = handle_message(&mut identity, &mut slot, awaiting, &request.message);
+                        let method = request.message.get("method").and_then(Value::as_str).unwrap_or("");
+                        // The §4.2/§5.4 confirmation carriers and §1.1 stageLocalInput are forwarded to
+                        // the Node service thread that owns the registries/executor (the `!Send` handles
+                        // and sealed bodies stay there); every other core method is answered from the
+                        // identity/slot this task owns.
+                        let reply = if CONFIRMATION_METHODS.contains(&method) || method == "stageLocalInput" {
+                            #[cfg(windows)]
+                            { confirmation_reply(&node_service, &request.message).await }
+                            #[cfg(not(windows))]
+                            { Reply::refused(&request.message, "method_not_implemented") }
+                        } else {
+                            handle_message(&mut identity, &mut slot, awaiting, &request.message)
+                        };
                         // A dropped reply means the pipe client went away mid-call. The state has
                         // already recorded the delivery, which is the honest outcome: the ticket
                         // is pending whether or not the shell stayed to hear about it.
@@ -350,6 +364,338 @@ fn closed_fields(message: &Value, fields: &[&str]) -> Result<(), IdentityError> 
     Ok(())
 }
 
+/// The §4.2/§5.4 confirmation carriers the pump forwards to the Node service thread (批2 主签单选乙).
+/// `chooseWorkspace`/`probeLocalModel` prepare; `confirmWorkspaceRoot`/`confirmLocalModel` carry the
+/// user's confirm/cancel decision back. The handle/identity stays on the Node thread; only owned
+/// (Send) facts and the decision cross the channel.
+const CONFIRMATION_METHODS: &[&str] = &[
+    "chooseWorkspace",
+    "confirmWorkspaceRoot",
+    "probeLocalModel",
+    "confirmLocalModel",
+];
+
+/// Forward one confirmation message to the Node service thread and build the closed reply. The
+/// prepare methods return the confirmation facts plus a single-use token; the confirm methods return
+/// the registered grant/binding hash on approve, or an accepted no-facts reply on cancel (no grant).
+/// A bind/probe/identity failure is a closed `shape` refusal — the Broker could not bind/probe the
+/// target — never a silent accept. Schema (key-set/type) violations are `schema`.
+#[cfg(windows)]
+async fn confirmation_reply(
+    node: &mpsc::Sender<crate::nodeservice::NodeRequest>,
+    message: &Value,
+) -> Reply {
+    use crate::nodeservice::NodeRequest;
+
+    let method = message.get("method").and_then(Value::as_str).unwrap_or("");
+    let text = |key: &str| message.get(key).and_then(Value::as_str).unwrap_or("");
+    match method {
+        "chooseWorkspace" => {
+            if let Err(code) = confirm_keys(message, &["selected_path"]) {
+                return Reply::refused(message, code);
+            }
+            let selected_path = text("selected_path");
+            if selected_path.is_empty() {
+                return Reply::refused(message, "shape");
+            }
+            let (tx, rx) = oneshot::channel();
+            if node
+                .send(NodeRequest::PrepareRoot {
+                    selected_path: selected_path.to_string(),
+                    reply: tx,
+                })
+                .await
+                .is_err()
+            {
+                return Reply::refused(message, "shape");
+            }
+            match rx.await {
+                Ok(Ok((token, c))) => Reply::accepted_with(
+                    message,
+                    json!({
+                        "confirmation_token": token,
+                        "selected_path": c.selected_path,
+                        "actual_location": c.actual_location,
+                        "volume_label": c.volume_label,
+                        "differs_from_selected": c.differs_from_selected,
+                        "other_user_writable": c.other_user_writable,
+                    }),
+                ),
+                _ => Reply::refused(message, "shape"),
+            }
+        }
+        "confirmWorkspaceRoot" => {
+            if let Err(code) = confirm_keys(
+                message,
+                &["confirmation_token", "grant_id", "artifact_dir", "approved"],
+            ) {
+                return Reply::refused(message, code);
+            }
+            let token = text("confirmation_token");
+            let grant_id = text("grant_id");
+            let approved = match message.get("approved").and_then(Value::as_bool) {
+                Some(b) => b,
+                None => return Reply::refused(message, "schema"),
+            };
+            let artifact_dir = match string_array(message.get("artifact_dir")) {
+                Some(v) => v,
+                None => return Reply::refused(message, "schema"),
+            };
+            if token.is_empty() || grant_id.is_empty() {
+                return Reply::refused(message, "shape");
+            }
+            let (tx, rx) = oneshot::channel();
+            if node
+                .send(NodeRequest::ConfirmRoot {
+                    token: token.to_string(),
+                    grant_id: grant_id.to_string(),
+                    artifact_dir,
+                    approved,
+                    reply: tx,
+                })
+                .await
+                .is_err()
+            {
+                return Reply::refused(message, "shape");
+            }
+            match rx.await {
+                Ok(Some(hash)) => Reply::accepted_with(
+                    message,
+                    json!({ "grant_id": grant_id, "root_identity_hash": hash }),
+                ),
+                // Cancel, or a token already spent: either way no grant exists. The token is
+                // single-use (the Node thread removes it), so a replay produces no grant.
+                Ok(None) => Reply::accepted(message),
+                Err(_) => Reply::refused(message, "shape"),
+            }
+        }
+        "probeLocalModel" => {
+            if let Err(code) = confirm_keys(message, &["port"]) {
+                return Reply::refused(message, code);
+            }
+            let port = match parse_port(text("port")) {
+                Some(p) => p,
+                None => return Reply::refused(message, "shape"),
+            };
+            let (tx, rx) = oneshot::channel();
+            if node
+                .send(NodeRequest::PrepareModel { port, reply: tx })
+                .await
+                .is_err()
+            {
+                return Reply::refused(message, "shape");
+            }
+            match rx.await {
+                Ok(Ok((token, c))) => Reply::accepted_with(
+                    message,
+                    json!({
+                        "confirmation_token": token,
+                        "process_name": c.process_name,
+                        "image_path": c.image_path,
+                        "signer_thumbprint": c.signer_thumbprint.map(Value::from).unwrap_or(Value::Null),
+                        "owner_sid": hex_encode(&c.owner_sid),
+                        "image_sha256": c.image_sha256,
+                        "listens_on_all_interfaces": c.listens_on_all_interfaces,
+                    }),
+                ),
+                _ => Reply::refused(message, "shape"),
+            }
+        }
+        "confirmLocalModel" => {
+            if let Err(code) = confirm_keys(
+                message,
+                &[
+                    "confirmation_token",
+                    "profile_id",
+                    "port",
+                    "listener_requirement",
+                    "approved",
+                ],
+            ) {
+                return Reply::refused(message, code);
+            }
+            let token = text("confirmation_token");
+            let profile_id = text("profile_id");
+            let approved = match message.get("approved").and_then(Value::as_bool) {
+                Some(b) => b,
+                None => return Reply::refused(message, "schema"),
+            };
+            let port = match parse_port(text("port")) {
+                Some(p) => p,
+                None => return Reply::refused(message, "shape"),
+            };
+            let requirement = match parse_requirement(message.get("listener_requirement")) {
+                Some(r) => r,
+                None => return Reply::refused(message, "schema"),
+            };
+            if token.is_empty() || profile_id.is_empty() {
+                return Reply::refused(message, "shape");
+            }
+            // The Broker is the current-user authority for the §5.4 owner_sid comparison; if its own
+            // SID is unreadable the binding cannot be verified, so refuse rather than guess.
+            let current_user_sid = match crate::listener::current_user_sid() {
+                Ok(sid) => sid,
+                Err(_) => return Reply::refused(message, "shape"),
+            };
+            let (tx, rx) = oneshot::channel();
+            if node
+                .send(NodeRequest::ConfirmModel {
+                    token: token.to_string(),
+                    profile_id: profile_id.to_string(),
+                    port,
+                    requirement,
+                    current_user_sid,
+                    approved,
+                    reply: tx,
+                })
+                .await
+                .is_err()
+            {
+                return Reply::refused(message, "shape");
+            }
+            match rx.await {
+                Ok(Some(Ok(hash))) => Reply::accepted_with(
+                    message,
+                    json!({ "profile_id": profile_id, "binding_hash": hash }),
+                ),
+                // identity_mismatch / unpublishable requirement: the binding did not verify.
+                Ok(Some(Err(_))) => Reply::refused(message, "shape"),
+                Ok(None) => Reply::accepted(message),
+                Err(_) => Reply::refused(message, "shape"),
+            }
+        }
+        "stageLocalInput" => {
+            // §1.1: the shell exchanges the Composer目标文本 for a local_input_ref + metadata, then
+            // clears the text. The bytes are sealed on the Node thread; only the ref/hash/size cross back.
+            if let Err(code) = confirm_keys(message, &["text"]) {
+                return Reply::refused(message, code);
+            }
+            let text = text("text");
+            if text.is_empty() {
+                return Reply::refused(message, "shape");
+            }
+            let (tx, rx) = oneshot::channel();
+            if node
+                .send(NodeRequest::StageInput {
+                    text: text.to_string(),
+                    reply: tx,
+                })
+                .await
+                .is_err()
+            {
+                return Reply::refused(message, "shape");
+            }
+            match rx.await {
+                Ok((input_ref, content_hash, byte_count)) => Reply::accepted_with(
+                    message,
+                    json!({
+                        "local_input_ref": input_ref,
+                        "content_hash": content_hash,
+                        "byte_count": byte_count.to_string(),
+                    }),
+                ),
+                Err(_) => Reply::refused(message, "shape"),
+            }
+        }
+        _ => Reply::refused(message, "unknown_method"),
+    }
+}
+
+/// Enforce a confirmation method's closed key set: exactly `method`, `request_id` and the named
+/// payload fields. Unlike [`closed_fields`] this does NOT require every value to be a string —
+/// `approved` is a bool, `artifact_dir` an array, `listener_requirement` an object — so types are
+/// checked per-field in the handler. An unlisted or missing key is a `schema` refusal.
+fn confirm_keys(message: &Value, fields: &[&str]) -> Result<(), &'static str> {
+    let object = message.as_object().ok_or("schema")?;
+    let mut allowed: Vec<&str> = vec!["method", "request_id"];
+    allowed.extend_from_slice(fields);
+    if object.len() != allowed.len() || !object.keys().all(|k| allowed.contains(&k.as_str())) {
+        return Err("schema");
+    }
+    Ok(())
+}
+
+/// A JSON array of non-empty strings (the artifact dir's relative segments), or None.
+fn string_array(value: Option<&Value>) -> Option<Vec<String>> {
+    let arr = value?.as_array()?;
+    let mut out = Vec::with_capacity(arr.len());
+    for item in arr {
+        let s = item.as_str()?;
+        if s.is_empty() {
+            return None;
+        }
+        out.push(s.to_string());
+    }
+    Some(out)
+}
+
+/// A loopback port as a decimal string (the wire convention for integers), 1..=65535.
+fn parse_port(text: &str) -> Option<u16> {
+    let port: u16 = text.parse().ok()?;
+    if port == 0 {
+        None
+    } else {
+        Some(port)
+    }
+}
+
+/// The closed `listener_requirement` object: allowed_signers (string array), allow_user_pinned_hash
+/// (bool), allowed_service_sids (hex-string array). Three-empty is legal here but the Node thread's
+/// `confirm` refuses to publish it (§5.4 step 5).
+#[cfg(windows)]
+fn parse_requirement(value: Option<&Value>) -> Option<crate::listener::ListenerRequirement> {
+    let obj = value?.as_object()?;
+    let mut allowed: Vec<&str> = vec![
+        "allowed_signers",
+        "allow_user_pinned_hash",
+        "allowed_service_sids",
+    ];
+    allowed.sort_unstable();
+    let mut keys: Vec<&str> = obj.keys().map(|k| k.as_str()).collect();
+    keys.sort_unstable();
+    if keys != allowed {
+        return None;
+    }
+    let allowed_signers = string_array(obj.get("allowed_signers"))?;
+    let allow_user_pinned_hash = obj.get("allow_user_pinned_hash")?.as_bool()?;
+    let sid_strings = string_array(obj.get("allowed_service_sids"))?;
+    let mut allowed_service_sids = Vec::with_capacity(sid_strings.len());
+    for s in sid_strings {
+        allowed_service_sids.push(hex_decode(&s)?);
+    }
+    Some(crate::listener::ListenerRequirement {
+        allowed_signers,
+        allow_user_pinned_hash,
+        allowed_service_sids,
+    })
+}
+
+/// Lowercase hex encoding of a SID byte buffer (the wire form for binary identity facts).
+#[cfg(windows)]
+fn hex_encode(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        out.push_str(&format!("{b:02x}"));
+    }
+    out
+}
+
+/// Decode a lowercase/uppercase hex string into bytes, or None on odd length / non-hex.
+#[cfg(windows)]
+fn hex_decode(text: &str) -> Option<Vec<u8>> {
+    if !text.len().is_multiple_of(2) {
+        return None;
+    }
+    let mut out = Vec::with_capacity(text.len() / 2);
+    let bytes = text.as_bytes();
+    for pair in bytes.chunks(2) {
+        let hi = (pair[0] as char).to_digit(16)?;
+        let lo = (pair[1] as char).to_digit(16)?;
+        out.push((hi * 16 + lo) as u8);
+    }
+    Some(out)
+}
+
 /// Withdraw one ticket for the outstanding request, if the slot has one. The `awaiting` guard is
 /// what keeps a single-use ticket from being spent ahead of need: without a request this never
 /// touches the slot. `now` is a parameter so the expiry path is testable without waiting out the
@@ -430,6 +776,8 @@ mod tests {
                 ticket_tx,
                 core_tx,
                 ready_tx,
+                #[cfg(windows)]
+                crate::nodeservice::spawn_node_service(),
             ));
             Self {
                 deliveries: Some(delivery_tx),
@@ -1142,5 +1490,272 @@ mod tests {
             assert_eq!(reply.result, REFUSED, "{method}");
             assert_eq!(reply.code, Some("schema"), "{method}");
         }
+    }
+
+    // ---- 批2 (主签单选乙): the §4.2/§5.4 confirmation face routed to the Node service thread ----
+
+    struct TempRoot(String);
+    impl TempRoot {
+        fn new(tag: &str) -> Self {
+            let dir = std::env::temp_dir()
+                .join(format!("work-broker-conf-{tag}-{}", uuid::Uuid::new_v4()));
+            std::fs::create_dir_all(&dir).unwrap();
+            TempRoot(dir.to_string_lossy().into_owned())
+        }
+    }
+    impl Drop for TempRoot {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn data_keys(reply: &Reply) -> Vec<String> {
+        let mut keys: Vec<String> = reply
+            .data
+            .as_ref()
+            .expect("accepted confirmation carries facts")
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
+        keys.sort_unstable();
+        keys
+    }
+
+    #[tokio::test]
+    async fn choose_workspace_prepares_facts_then_confirm_registers_a_grant() {
+        let tmp = TempRoot::new("grant");
+        let mut h = Harness::new();
+        let prepare = h
+            .deliver(json!({
+                "method": "chooseWorkspace", "request_id": "cw-1", "selected_path": tmp.0,
+            }))
+            .await;
+        assert_eq!(prepare.result, ACCEPTED, "{prepare:?}");
+        assert_eq!(
+            data_keys(&prepare),
+            [
+                "actual_location",
+                "confirmation_token",
+                "differs_from_selected",
+                "other_user_writable",
+                "selected_path",
+                "volume_label"
+            ]
+        );
+        let token = prepare.data.unwrap()["confirmation_token"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        let confirm = h
+            .deliver(json!({
+                "method": "confirmWorkspaceRoot", "request_id": "cw-2",
+                "confirmation_token": token, "grant_id": "g-1",
+                "artifact_dir": ["WeMeet成果"], "approved": true,
+            }))
+            .await;
+        assert_eq!(confirm.result, ACCEPTED, "{confirm:?}");
+        assert_eq!(data_keys(&confirm), ["grant_id", "root_identity_hash"]);
+        let hash = confirm.data.unwrap()["root_identity_hash"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert!(!hash.is_empty());
+
+        // The token is single-use: a replay confirms nothing (no grant), never re-registers.
+        let replay = h
+            .deliver(json!({
+                "method": "confirmWorkspaceRoot", "request_id": "cw-3",
+                "confirmation_token": token, "grant_id": "g-2",
+                "artifact_dir": ["WeMeet成果"], "approved": true,
+            }))
+            .await;
+        assert_eq!(replay.result, ACCEPTED);
+        assert!(replay.data.is_none(), "a spent token produces no grant");
+        assert_eq!(h.finish().await, BridgeOutcome::LinkGone);
+    }
+
+    #[tokio::test]
+    async fn stage_local_input_seals_the_text_and_returns_only_metadata() {
+        let mut h = Harness::new();
+        let reply = h
+            .deliver(json!({
+                "method": "stageLocalInput", "request_id": "si-1", "text": "artifact body",
+            }))
+            .await;
+        assert_eq!(reply.result, ACCEPTED, "{reply:?}");
+        // §1.1: only the ref + hash/size metadata cross back, never the本机正文.
+        assert_eq!(
+            data_keys(&reply),
+            ["byte_count", "content_hash", "local_input_ref"]
+        );
+        let data = reply.data.unwrap();
+        assert_eq!(data["byte_count"], "13");
+        assert!(data["content_hash"]
+            .as_str()
+            .unwrap()
+            .starts_with("sha256:"));
+        assert!(!data["local_input_ref"].as_str().unwrap().is_empty());
+
+        // The closed key set refuses an extra field; empty text is a shape refusal.
+        let extra = h
+            .deliver(json!({
+                "method": "stageLocalInput", "request_id": "si-2", "text": "x", "path": "/etc",
+            }))
+            .await;
+        assert_eq!(extra.code, Some("schema"));
+        let empty = h
+            .deliver(json!({
+                "method": "stageLocalInput", "request_id": "si-3", "text": "",
+            }))
+            .await;
+        assert_eq!(empty.code, Some("shape"));
+        assert_eq!(h.finish().await, BridgeOutcome::LinkGone);
+    }
+
+    #[tokio::test]
+    async fn cancelling_a_root_confirmation_produces_no_grant() {
+        let tmp = TempRoot::new("cancel");
+        let mut h = Harness::new();
+        let prepare = h
+            .deliver(json!({
+                "method": "chooseWorkspace", "request_id": "c-1", "selected_path": tmp.0,
+            }))
+            .await;
+        let token = prepare.data.unwrap()["confirmation_token"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let cancel = h
+            .deliver(json!({
+                "method": "confirmWorkspaceRoot", "request_id": "c-2",
+                "confirmation_token": token, "grant_id": "g-x",
+                "artifact_dir": ["out"], "approved": false,
+            }))
+            .await;
+        assert_eq!(cancel.result, ACCEPTED);
+        assert!(cancel.data.is_none(), "cancel closes the handle, no grant");
+        assert_eq!(h.finish().await, BridgeOutcome::LinkGone);
+    }
+
+    #[tokio::test]
+    async fn confirmation_payloads_are_closed() {
+        let tmp = TempRoot::new("schema");
+        let mut h = Harness::new();
+        // An unlisted field on the prepare carrier is a schema refusal, not ignored.
+        let reply = h
+            .deliver(json!({
+                "method": "chooseWorkspace", "request_id": "s-1",
+                "selected_path": tmp.0, "extra": 1,
+            }))
+            .await;
+        assert_eq!(reply.code, Some("schema"));
+        // approved must be a bool, not a string.
+        let prepare = h
+            .deliver(json!({
+                "method": "chooseWorkspace", "request_id": "s-2", "selected_path": tmp.0,
+            }))
+            .await;
+        let token = prepare.data.unwrap()["confirmation_token"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let reply = h
+            .deliver(json!({
+                "method": "confirmWorkspaceRoot", "request_id": "s-3",
+                "confirmation_token": token, "grant_id": "g", "artifact_dir": ["out"],
+                "approved": "true",
+            }))
+            .await;
+        assert_eq!(reply.code, Some("schema"));
+        // A non-loopback / zero port is refused, never probed.
+        let reply = h
+            .deliver(json!({"method": "probeLocalModel", "request_id": "s-4", "port": "0"}))
+            .await;
+        assert_eq!(reply.code, Some("shape"));
+        // A binding root that does not exist is a shape refusal (the Broker could not bind it).
+        let reply = h
+            .deliver(json!({
+                "method": "chooseWorkspace", "request_id": "s-5",
+                "selected_path": format!("{}\\does-not-exist", tmp.0),
+            }))
+            .await;
+        assert_eq!(reply.code, Some("shape"));
+        assert_eq!(h.finish().await, BridgeOutcome::LinkGone);
+    }
+
+    #[tokio::test]
+    async fn probe_then_confirm_a_local_model_binding_through_the_fixture() {
+        use std::net::{TcpListener, TcpStream};
+        use std::process::{Command, Stdio};
+        let probe = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = probe.local_addr().unwrap().port();
+        drop(probe);
+        let fixture = format!(
+            "{}/../work/node/device-bundle/fixture-server.mjs",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let mut child = Command::new("node")
+            .arg(&fixture)
+            .arg(port.to_string())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn fixture");
+        let mut ready = false;
+        for _ in 0..100 {
+            if TcpStream::connect(("127.0.0.1", port)).is_ok() {
+                ready = true;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        assert!(ready, "fixture did not listen");
+
+        let mut h = Harness::new();
+        let prepare = h
+            .deliver(json!({
+                "method": "probeLocalModel", "request_id": "m-1", "port": port.to_string(),
+            }))
+            .await;
+        assert_eq!(prepare.result, ACCEPTED, "{prepare:?}");
+        assert_eq!(
+            data_keys(&prepare),
+            [
+                "confirmation_token",
+                "image_path",
+                "image_sha256",
+                "listens_on_all_interfaces",
+                "owner_sid",
+                "process_name",
+                "signer_thumbprint"
+            ]
+        );
+        let token = prepare.data.unwrap()["confirmation_token"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let confirm = h
+            .deliver(json!({
+                "method": "confirmLocalModel", "request_id": "m-2",
+                "confirmation_token": token, "profile_id": "profile-dev-fixture-v1",
+                "port": port.to_string(),
+                "listener_requirement": {
+                    "allowed_signers": [], "allow_user_pinned_hash": true, "allowed_service_sids": []
+                },
+                "approved": true,
+            }))
+            .await;
+        assert_eq!(confirm.result, ACCEPTED, "{confirm:?}");
+        assert_eq!(data_keys(&confirm), ["binding_hash", "profile_id"]);
+        assert!(!confirm.data.unwrap()["binding_hash"]
+            .as_str()
+            .unwrap()
+            .is_empty());
+        assert_eq!(h.finish().await, BridgeOutcome::LinkGone);
+        let _ = child.kill();
+        let _ = child.wait();
     }
 }

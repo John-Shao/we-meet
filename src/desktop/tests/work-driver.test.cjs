@@ -3,6 +3,7 @@
 // "re-deliver before poll" are facts, not accidents of separate counters.
 const assert = require("node:assert/strict");
 const { randomUUID } = require("node:crypto");
+const { mkdirSync, writeFileSync, rmSync } = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { test } = require("node:test");
@@ -56,6 +57,10 @@ function harness(t, overrides = {}) {
     redeliverDeviceCertificate: {},
     deliverDeviceSessionTicket: {},
     getDeviceCertificateStatus: { data: { device_id: deviceId, cert_serial: confirmed.cert_serial, cert_not_after: confirmed.cert_not_after, renewal_window_open: false, awaiting_ticket: false } },
+    chooseWorkspace: { data: { confirmation_token: "tok-root", selected_path: "C:\\selected", actual_location: "C:\\selected", volume_label: "OS", differs_from_selected: false, other_user_writable: false } },
+    confirmWorkspaceRoot: { data: { grant_id: "g-1", root_identity_hash: "root-hash" } },
+    probeLocalModel: { data: { confirmation_token: "tok-model", process_name: "node.exe", image_path: "C:\\node.exe", signer_thumbprint: null, owner_sid: "010500000000000515000000", image_sha256: "ab".repeat(32), listens_on_all_interfaces: false } },
+    confirmLocalModel: { data: { profile_id: "p-1", binding_hash: "bind-hash" } },
   };
   const configs = [];
   let stops = 0, closes = 0;
@@ -90,14 +95,36 @@ function harness(t, overrides = {}) {
   };
   const reports = [];
   const gestures = [];
+  // 批2-5: the driver reads the dev fixture profile from resourceRoot/work-device-bundle. Stage a
+  // minimal valid one (bare sha256-hex pins) so buildConfig succeeds without the real shipped bundle.
+  const resourceRoot = path.join(os.tmpdir(), `work-driver-res-${randomUUID()}`);
+  mkdirSync(path.join(resourceRoot, "work-device-bundle"), { recursive: true });
+  if (!overrides.noProfile) {
+    writeFileSync(path.join(resourceRoot, "work-device-bundle", "dev-fixture-profile.json"), JSON.stringify({
+      profile_id: "profile-dev-fixture-v1", tool_manifest_hash: "a".repeat(64), runtime_digest: "b".repeat(64),
+    }));
+  }
+  t.after(() => rmSync(resourceRoot, { recursive: true, force: true }));
   const deps = {
     auth, api, work: { gatewayOrigin: "https://gw.example.test:8443", serverName: "gw.example.test", caPemPath: path.join(os.tmpdir(), "ca.pem") },
-    binding, resourceRoot: "injected", configDir: path.join(os.tmpdir(), `work-driver-test-${randomUUID()}`),
+    binding, resourceRoot, configDir: path.join(os.tmpdir(), `work-driver-test-${randomUUID()}`),
     store,
     askDeviceName: async (defaultName) => {
       events.push("gesture");
       gestures.push(defaultName);
       return overrides.gesture ? overrides.gesture(defaultName) : defaultName;
+    },
+    selectWorkspaceDirectory: async () => {
+      events.push("gesture:selectDir");
+      return overrides.selectDir ? overrides.selectDir() : "C:\\selected";
+    },
+    confirmWorkspaceRoot: async (facts) => {
+      events.push("gesture:confirmRoot");
+      return overrides.confirmRoot ? overrides.confirmRoot(facts) : true;
+    },
+    confirmLocalModel: async (facts) => {
+      events.push("gesture:confirmModel");
+      return overrides.confirmModel ? overrides.confirmModel(facts) : true;
     },
     report: (message) => reports.push(message),
     brokerFactory,
@@ -105,7 +132,7 @@ function harness(t, overrides = {}) {
   };
   const driver = new WorkDeviceDriver(deps);
   t.after(() => driver.stop());
-  return { driver, events, auth, io, store, configs, reports, gestures, pipeResponses, apiResponses, counters: () => ({ stops, closes }) };
+  return { driver, events, auth, io, store, configs, reports, gestures, pipeResponses, apiResponses, resourceRoot, counters: () => ({ stops, closes }) };
 }
 
 test("a fresh device pairs in the §2.1 order: gesture before any pairing request", async (t) => {
@@ -303,4 +330,118 @@ test("stop clears the poll timer and releases the Broker", async (t) => {
   const before = h.events.length;
   await delay(50);
   assert.equal(h.events.length, before);
+});
+
+// ---- 批2 (主签单选乙): the §4.2/§5.4 confirmation flow + native dialog gestures ----
+
+test("chooseWorkspace runs selector → prepare → dialog → confirm and returns the root identity hash", async (t) => {
+  const h = harness(t);
+  await h.driver.start();
+  let confirmFields;
+  h.pipeResponses.confirmWorkspaceRoot = (method, fields) => { confirmFields = fields; return { data: { grant_id: fields.grant_id, root_identity_hash: "root-hash" } }; };
+  const result = await h.driver.chooseWorkspace("g-1", ["WeMeet成果"]);
+  assert.deepEqual(result, { grantId: "g-1", rootIdentityHash: "root-hash" });
+  // The selector gesture precedes the prepare call; the dialog precedes the confirm call.
+  const flow = h.events.filter((e) => e.startsWith("gesture:") || e === "pipe:chooseWorkspace" || e === "pipe:confirmWorkspaceRoot");
+  assert.deepEqual(flow, ["gesture:selectDir", "pipe:chooseWorkspace", "gesture:confirmRoot", "pipe:confirmWorkspaceRoot"]);
+  assert.equal(confirmFields.confirmation_token, "tok-root");
+  assert.equal(confirmFields.grant_id, "g-1");
+  assert.deepEqual(confirmFields.artifact_dir, ["WeMeet成果"]);
+  assert.equal(confirmFields.approved, true);
+});
+
+test("cancelling the folder selector produces no grant and never calls the Broker", async (t) => {
+  const h = harness(t, { selectDir: () => undefined });
+  await h.driver.start();
+  const result = await h.driver.chooseWorkspace("g-1", ["out"]);
+  assert.equal(result, undefined);
+  assert.ok(!h.events.includes("pipe:chooseWorkspace"));
+  assert.ok(!h.events.includes("pipe:confirmWorkspaceRoot"));
+});
+
+test("cancelling the root dialog still sends approved:false so the Broker closes the handle", async (t) => {
+  const h = harness(t, { confirmRoot: () => false });
+  await h.driver.start();
+  let confirmFields;
+  h.pipeResponses.confirmWorkspaceRoot = (method, fields) => { confirmFields = fields; return {}; };
+  const result = await h.driver.chooseWorkspace("g-1", ["out"]);
+  assert.equal(result, undefined);
+  assert.equal(confirmFields.approved, false);
+  assert.equal(confirmFields.confirmation_token, "tok-root");
+});
+
+test("the root dialog receives the actual location and the two §4.2 warnings", async (t) => {
+  let seen;
+  const h = harness(t, { confirmRoot: (facts) => { seen = facts; return true; } });
+  await h.driver.start();
+  h.pipeResponses.chooseWorkspace = { data: { confirmation_token: "tok", selected_path: "C:\\selected", actual_location: "D:\\redirected", volume_label: "Data", differs_from_selected: true, other_user_writable: true } };
+  await h.driver.chooseWorkspace("g", ["out"]);
+  assert.equal(seen.actualLocation, "D:\\redirected");
+  assert.equal(seen.selectedPath, "C:\\selected");
+  assert.equal(seen.differsFromSelected, true);
+  assert.equal(seen.otherUserWritable, true);
+  assert.equal(seen.volumeLabel, "Data");
+});
+
+test("configureLocalModel runs probe → dialog → confirm and returns the binding hash", async (t) => {
+  const h = harness(t);
+  await h.driver.start();
+  let confirmFields;
+  h.pipeResponses.confirmLocalModel = (method, fields) => { confirmFields = fields; return { data: { profile_id: fields.profile_id, binding_hash: "bind-hash" } }; };
+  const requirement = { allowedSigners: [], allowUserPinnedHash: true, allowedServiceSids: [] };
+  const result = await h.driver.configureLocalModel("p-1", 11434, requirement);
+  assert.deepEqual(result, { profileId: "p-1", bindingHash: "bind-hash" });
+  const flow = h.events.filter((e) => e.startsWith("gesture:") || e === "pipe:probeLocalModel" || e === "pipe:confirmLocalModel");
+  assert.deepEqual(flow, ["pipe:probeLocalModel", "gesture:confirmModel", "pipe:confirmLocalModel"]);
+  assert.equal(confirmFields.confirmation_token, "tok-model");
+  assert.equal(confirmFields.port, "11434");
+  assert.equal(confirmFields.approved, true);
+  assert.deepEqual(confirmFields.listener_requirement, { allowed_signers: [], allow_user_pinned_hash: true, allowed_service_sids: [] });
+});
+
+test("cancelling the model dialog sends approved:false and produces no binding", async (t) => {
+  const h = harness(t, { confirmModel: () => false });
+  await h.driver.start();
+  let confirmFields;
+  h.pipeResponses.confirmLocalModel = (method, fields) => { confirmFields = fields; return {}; };
+  const result = await h.driver.configureLocalModel("p-1", 11434, { allowedSigners: [], allowUserPinnedHash: true, allowedServiceSids: [] });
+  assert.equal(result, undefined);
+  assert.equal(confirmFields.approved, false);
+});
+
+test("a malformed confirmation reply is a shape refusal, never a silent dialog", async (t) => {
+  const h = harness(t);
+  await h.driver.start();
+  h.pipeResponses.chooseWorkspace = { data: { confirmation_token: "tok" } };
+  await assert.rejects(() => h.driver.chooseWorkspace("g", ["out"]), (e) => e.code === "shape");
+  assert.ok(!h.events.includes("gesture:confirmRoot"));
+});
+
+// ---- 批2-5: the config digests come from the shipped dev fixture profile, never a placeholder ----
+
+test("the config carries the dev fixture profile's real hashes and profile_id", async (t) => {
+  const h = harness(t);
+  await h.driver.start();
+  const { config } = h.configs[0];
+  assert.equal(config.profile_id, "profile-dev-fixture-v1");
+  assert.equal(config.tool_manifest_hash, "a".repeat(64));
+  assert.equal(config.runtime_digest, "b".repeat(64));
+});
+
+test("a missing bundle profile is a hard failure, not a placeholder fallback", async (t) => {
+  const h = harness(t, { noProfile: true });
+  await h.driver.start();
+  assert.equal(h.driver.currentState, "failed");
+  assert.ok(h.reports.some((m) => m.includes("启动失败")));
+  assert.equal(h.configs.length, 0);
+});
+
+test("an invalid bundle profile (non-hex digest) is refused", async (t) => {
+  const h = harness(t);
+  writeFileSync(path.join(h.resourceRoot, "work-device-bundle", "dev-fixture-profile.json"), JSON.stringify({
+    profile_id: "profile-dev-fixture-v1", tool_manifest_hash: "not-hex", runtime_digest: "b".repeat(64),
+  }));
+  await h.driver.start();
+  assert.equal(h.driver.currentState, "failed");
+  assert.equal(h.configs.length, 0);
 });

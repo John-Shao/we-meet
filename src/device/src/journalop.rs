@@ -1,0 +1,936 @@
+//! The journal-op channel (execution-face §6.1, batch 2 ruling 甲). The Node↔Broker pipe service loop
+//! runs on its OWN blocking thread so the sync core stays responsive to cancel/lease (E7 甲 prompt
+//! kill). But the journal has a SINGLE owner — the sync core thread (E4 甲, no cross-thread lock). So
+//! the Node thread never touches the journal directly: it sends a [`JournalOp`] over this channel and
+//! blocks on a one-shot reply; the sync core executes the op against its own journal in its event loop
+//! (multiplexed with downlinks) and answers. This keeps every journal transaction on one thread while
+//! letting the Node thread drive model/tool I/O concurrently.
+
+use serde_json::Value;
+use tokio::sync::{mpsc, oneshot};
+
+use crate::frame::{action, checkpoint, envelope, receipt, rfc3339};
+use crate::journal::record::{self, ActionRow, RecordError};
+use crate::journal::{meta, recover};
+use crate::key::DeviceKey;
+use crate::transport::UplinkFrame;
+
+/// The device runtime instance facts bound into a receipt's historical envelope. They come from the
+/// closed BrokerConfig (`agent_instance_id`/`boot_id`, the same facts the link stamps on every
+/// envelope) and are provisioned to the sync core at startup. Owned/Send so the Node thread never
+/// needs them — the sync core fills them when it signs.
+pub struct InstanceFacts {
+    pub agent_instance_id: String,
+    pub boot_id: String,
+}
+
+/// The signing/uplink context the sync core supplies to journal-op production. The sync core is the
+/// journal's sole owner AND holds the device key + the uplink sender (E4 甲), so receipt/checkpoint
+/// production (allocate seq → sign → append → uplink) runs here, never on the Node thread. Pure ops
+/// (register/read a permit jti) ignore it.
+pub struct Producer<'a> {
+    pub key: &'a dyn DeviceKey,
+    pub uplinks: &'a mpsc::Sender<UplinkFrame>,
+    pub instance: &'a InstanceFacts,
+}
+
+/// A journal operation the Node service thread requests of the sync core. Each variant is one atomic
+/// journal transaction the sync core runs as the sole owner. The payloads are owned (moved across the
+/// channel) so no reference escapes the Node thread.
+pub enum JournalOp {
+    /// Register a command/tool permit jti (DD:123): append the sealed action body in one transaction.
+    /// A consumed jti surfaces as `RecordError::Sql` (the UNIQUE constraint), which the caller maps to
+    /// "return the journal, never re-execute".
+    RegisterAction {
+        org_id: String,
+        subject_id: String,
+        row: Box<ActionRowOwned>,
+        plaintext: Vec<u8>,
+    },
+    /// Read a previously registered action body (the consumed-jti path returns the journal).
+    ReadAction {
+        org_id: String,
+        subject_id: String,
+        operation_id: String,
+    },
+    /// Read a sealed checkpoint body back under the identity-bound AAD (recovery/reconcile, and the
+    /// local-only device_local model turn fact the model receipt seals into the checkpoint plaintext).
+    ReadCheckpoint {
+        org_id: String,
+        subject_id: String,
+        run_id: String,
+        checkpoint_seq: i64,
+    },
+    /// Produce a signed receipt (A3 uplink, execution-face §5/E5 甲): the sync core allocates the
+    /// next receipt seq, binds it into the body, signs with the device key, appends the original
+    /// signed envelope to `receipt_outbox` and uplinks the receipt — all in one journal transaction
+    /// on the sole owner thread. The Node thread supplies only the execution facts (owned/Send).
+    AppendReceipt {
+        org_id: String,
+        subject_id: String,
+        facts: Box<ReceiptFacts>,
+    },
+    /// Persist an encrypted checkpoint and uplink a signed `checkpoint_commit` (A3, DD:133 the
+    /// checkpoint precedes prepare/finish). The sealed canonical body stays local; the commit
+    /// carries only hashes + an opaque ref (never ciphertext).
+    PersistCheckpoint {
+        org_id: String,
+        subject_id: String,
+        facts: Box<CheckpointFacts>,
+        plaintext: Vec<u8>,
+    },
+    /// Propose one action (A2 write spine, execution-face §6.3 C): the sync core signs an
+    /// `action_prepare` with the device key and uplinks it. The Node thread supplies the owned
+    /// proposal facts (it owns the grant registry + tool args); the sync core holds the key + uplink
+    /// sender (E4 甲). The server's prepare→permit→command round-trip returns the command downlink,
+    /// which `consume_command` feeds to the live per-Run command map the executor waits on. This op
+    /// only signs + uplinks (fire-and-forget); it does NOT wait for the command (that would deadlock
+    /// the sync core, which processes the downlinks).
+    ProposeAction {
+        org_id: String,
+        subject_id: String,
+        facts: Box<ActionPrepareFacts>,
+    },
+}
+
+/// The owned `action_prepare` proposal facts the Node thread supplies (execution-face §6.3 C). The
+/// sync core fills `prepare_id` and signs; every other field is a closed `ActionPrepareBody` member.
+/// Fresh actions only this period (supersede is batch-3 reconcile scope), so the three supersede keys
+/// are null. `grant_revision` comes from the offer's grant_set; `classification` is the device's claim
+/// the server cross-checks against the grant; `resource_selector_hash` is derived from the tool args.
+pub struct ActionPrepareFacts {
+    pub run_id: String,
+    pub lease_id: String,
+    pub fence: u64,
+    pub step_key: String,
+    pub logical_key: String,
+    pub checkpoint_seq: u64,
+    pub checkpoint_hash: String,
+    pub request_hash: String,
+    pub action_kind: String,
+    pub tool_schema: String,
+    pub local_payload_ref: String,
+    pub grant_id: String,
+    pub grant_revision: u64,
+    pub resource_selector_hash: String,
+    pub classification: String,
+    pub destination_id: Option<String>,
+    pub byte_upper_bound: u64,
+    pub token_upper_bound: u64,
+}
+
+/// The execution facts the Node thread supplies for one receipt. The identity facts the sync core
+/// owns (device/agent_instance/boot/journal_epoch) and the allocated seq are filled at production;
+/// `org`/`subject` ride the op envelope. `session_id`/`generation`/`fence` are the verified-session
+/// facts forwarded at StartRun (E5 甲: RecordContext from the verified session, not the cert OU alone).
+pub struct ReceiptFacts {
+    pub operation_id: String,
+    pub run_id: String,
+    pub session_id: String,
+    pub generation: u64,
+    pub attempt: String,
+    pub fence: u64,
+    pub request_hash: String,
+    pub state: String,
+    pub outcome: Option<String>,
+    pub result_hash: String,
+    pub local_result_ref: String,
+    pub model_delivery: Option<String>,
+    pub usage: Option<Value>,
+    pub usage_source: Option<String>,
+    pub error_code: String,
+}
+
+/// The checkpoint facts the Node thread supplies. `checkpoint_seq` is the Run-local monotonic
+/// sequence the executor assigns; the commit's `receipt_through_seq` is the receipt watermark the
+/// checkpoint covers (the sync core's last produced seq at production time).
+pub struct CheckpointFacts {
+    pub run_id: String,
+    pub checkpoint_seq: i64,
+    pub schema_version: u32,
+    pub runtime_digest: String,
+    pub checkpoint_hash: String,
+    pub pending_operation_set_hash: String,
+    pub prior_receipt_ref: Option<String>,
+    pub binding_revision: u64,
+    pub fence: u64,
+    pub local_checkpoint_ref: String,
+}
+
+/// The owned mirror of [`ActionRow`] (which borrows its strings). The Node thread builds this from the
+/// command/tool facts; the sync core reborrow it into an `ActionRow` against its own journal context.
+pub struct ActionRowOwned {
+    pub org_id: String,
+    pub operation_id: String,
+    pub run_id: String,
+    pub attempt: String,
+    pub step_key: String,
+    pub logical_key: String,
+    pub supersedes: Option<String>,
+    pub request_hash: String,
+    pub fence: i64,
+    pub session_id: String,
+    pub generation: i64,
+    pub permit_jti: String,
+    pub state: String,
+    pub result_hash: Option<String>,
+    pub result_ref: Option<String>,
+}
+
+/// The sync core's reply to a [`JournalOp`].
+#[derive(Debug)]
+pub enum JournalReply {
+    /// RegisterAction succeeded (the jti is now consumed).
+    Registered,
+    /// RegisterAction hit the consumed-jti UNIQUE constraint; the body is returned via ReadAction.
+    JtiConsumed,
+    /// ReadAction returned the sealed body (or an error).
+    Action(Result<Vec<u8>, RecordError>),
+    /// ReadCheckpoint returned the sealed checkpoint body (or an error).
+    CheckpointBody(Result<Vec<u8>, RecordError>),
+    /// AppendReceipt produced and uplinked a signed receipt; carries its allocated seq + integrity
+    /// hash so the caller can advance its watermark / reference the receipt.
+    ReceiptProduced { seq: u64, signed_hash: String },
+    /// PersistCheckpoint sealed the body and uplinked a signed checkpoint_commit.
+    CheckpointProduced,
+    /// ProposeAction signed and uplinked an action_prepare (the command returns via the downlink).
+    Proposed,
+    /// Any other registration failure.
+    Failed(RecordError),
+}
+
+/// A cloneable handle the Node service thread holds to request journal ops of the sync core.
+#[derive(Clone)]
+pub struct JournalHandle {
+    tx: mpsc::Sender<(JournalOp, oneshot::Sender<JournalReply>)>,
+}
+
+impl JournalHandle {
+    /// Send an op and block until the sync core answers. Returns `None` if the sync core is gone (the
+    /// Broker is shutting down), which the Node thread treats as a closed pipe.
+    pub fn request(&self, op: JournalOp) -> Option<JournalReply> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx.blocking_send((op, reply_tx)).ok()?;
+        reply_rx.blocking_recv().ok()
+    }
+}
+
+/// Create the channel pair: the handle for the Node thread, the receiver the sync core multiplexes.
+pub fn channel() -> (
+    JournalHandle,
+    mpsc::Receiver<(JournalOp, oneshot::Sender<JournalReply>)>,
+) {
+    let (tx, rx) = mpsc::channel(64);
+    (JournalHandle { tx }, rx)
+}
+
+/// Execute one journal op against the sync core's journal (the sole owner). The sync core calls this
+/// from its event loop; it never runs on the Node thread. `device_id`/`journal_epoch`/`schema_version`
+/// come from the journal itself via the record context the caller builds. `producer` carries the
+/// device key + uplink sender + instance facts the receipt/checkpoint production arms need (the pure
+/// register/read arms ignore it).
+pub fn execute(
+    journal: &crate::journal::Journal,
+    producer: &Producer,
+    op: JournalOp,
+) -> JournalReply {
+    match op {
+        JournalOp::RegisterAction {
+            org_id,
+            subject_id,
+            row,
+            plaintext,
+        } => {
+            let rctx = journal.context(&org_id, &subject_id);
+            let supersedes = row.supersedes.as_deref();
+            let result_hash = row.result_hash.as_deref();
+            let result_ref = row.result_ref.as_deref();
+            let borrowed = ActionRow {
+                org_id: &row.org_id,
+                operation_id: &row.operation_id,
+                run_id: &row.run_id,
+                attempt: &row.attempt,
+                step_key: &row.step_key,
+                logical_key: &row.logical_key,
+                supersedes,
+                request_hash: &row.request_hash,
+                fence: row.fence,
+                session_id: &row.session_id,
+                generation: row.generation,
+                permit_jti: &row.permit_jti,
+                state: &row.state,
+                result_hash,
+                result_ref,
+            };
+            let conn = journal.connection();
+            let outcome = (|| -> Result<(), RecordError> {
+                let tx = conn.unchecked_transaction()?;
+                record::append_action(&tx, journal.dek(), &rctx, &borrowed, &plaintext)?;
+                tx.commit()?;
+                Ok(())
+            })();
+            match outcome {
+                Ok(()) => JournalReply::Registered,
+                Err(RecordError::Sql(_)) => JournalReply::JtiConsumed,
+                Err(err) => JournalReply::Failed(err),
+            }
+        }
+        JournalOp::ReadAction {
+            org_id,
+            subject_id,
+            operation_id,
+        } => {
+            let rctx = journal.context(&org_id, &subject_id);
+            let body = record::read_action(
+                journal.connection(),
+                journal.dek(),
+                &rctx,
+                &org_id,
+                &operation_id,
+            );
+            JournalReply::Action(body)
+        }
+        JournalOp::ReadCheckpoint {
+            org_id,
+            subject_id,
+            run_id,
+            checkpoint_seq,
+        } => {
+            let rctx = journal.context(&org_id, &subject_id);
+            let body = recover::read_checkpoint(
+                journal.connection(),
+                journal.dek(),
+                &rctx,
+                &run_id,
+                checkpoint_seq,
+            );
+            JournalReply::CheckpointBody(body)
+        }
+        JournalOp::AppendReceipt {
+            org_id,
+            subject_id,
+            facts,
+        } => produce_receipt(journal, producer, &org_id, &subject_id, &facts),
+        JournalOp::PersistCheckpoint {
+            org_id,
+            subject_id,
+            facts,
+            plaintext,
+        } => produce_checkpoint(journal, producer, &org_id, &subject_id, &facts, &plaintext),
+        JournalOp::ProposeAction { facts, .. } => {
+            let mut body = action::ActionPrepareBody {
+                prepare_id: uuid::Uuid::new_v4().to_string(),
+                run_id: facts.run_id.clone(),
+                lease_id: facts.lease_id.clone(),
+                fence: facts.fence,
+                step_key: facts.step_key.clone(),
+                logical_key: facts.logical_key.clone(),
+                supersedes_operation_id: None,
+                supersede_reason: None,
+                supersede_assertion: None,
+                checkpoint_seq: facts.checkpoint_seq,
+                checkpoint_hash: facts.checkpoint_hash.clone(),
+                request_hash: facts.request_hash.clone(),
+                action_kind: facts.action_kind.clone(),
+                tool_schema: facts.tool_schema.clone(),
+                local_payload_ref: facts.local_payload_ref.clone(),
+                grant_id: facts.grant_id.clone(),
+                grant_revision: facts.grant_revision,
+                resource_selector_hash: facts.resource_selector_hash.clone(),
+                classification: facts.classification.clone(),
+                destination_id: facts.destination_id.clone(),
+                byte_upper_bound: facts.byte_upper_bound,
+                token_upper_bound: facts.token_upper_bound,
+                signature: None,
+            };
+            if let Err(err) = body.sign(producer.key) {
+                eprintln!("work-device: action_prepare sign failed: {err:?}");
+                return JournalReply::Failed(RecordError::Sign(err));
+            }
+            let frame = UplinkFrame {
+                frame_type: action::ACTION_PREPARE_FRAME_TYPE.to_string(),
+                body: body.to_value(),
+            };
+            if producer.uplinks.blocking_send(frame).is_err() {
+                eprintln!("work-device: action_prepare uplink channel closed");
+            }
+            JournalReply::Proposed
+        }
+    }
+}
+
+/// Produce one signed receipt on the sync core (the sole journal owner + key holder). The seq is
+/// allocated, bound into the body, signed, and the original signed ENVELOPE appended to the outbox
+/// within ONE transaction — a failed sign/insert rolls back the allocation so receipt seqs stay
+/// continuous (a reconcile gate, §3.1). The stored bytes are the full historical envelope (the
+/// reconcile path re-uploads them verbatim, gateway/reconcile.go); the live uplink carries the signed
+/// body, which the link re-wraps in the current transport envelope. `device_local` receipts carry no
+/// `gateway_receipt_hash` (egress-only, DD:264); model usage is stamped `usage_source='device_adapter'`.
+fn produce_receipt(
+    journal: &crate::journal::Journal,
+    producer: &Producer,
+    org_id: &str,
+    subject_id: &str,
+    facts: &ReceiptFacts,
+) -> JournalReply {
+    let conn = journal.connection();
+    let outcome = (|| -> Result<(u64, String, Value), RecordError> {
+        let tx = conn.unchecked_transaction()?;
+        let seq = meta::allocate_receipt_seq(&tx, journal.device_id())?;
+        let mut body = receipt::ReceiptBody {
+            journal_epoch: journal.journal_epoch().to_string(),
+            receipt_seq: seq as u64,
+            original_execution: receipt::OriginalExecution {
+                org: org_id.to_string(),
+                subject: subject_id.to_string(),
+                device: journal.device_id().to_string(),
+                session: facts.session_id.clone(),
+                agent_instance: producer.instance.agent_instance_id.clone(),
+                boot: producer.instance.boot_id.clone(),
+                generation: facts.generation,
+                run: facts.run_id.clone(),
+                operation: facts.operation_id.clone(),
+                attempt: facts.attempt.clone(),
+                fence: facts.fence,
+            },
+            request_hash: facts.request_hash.clone(),
+            state: facts.state.clone(),
+            outcome: facts.outcome.clone(),
+            result_hash: facts.result_hash.clone(),
+            local_result_ref: facts.local_result_ref.clone(),
+            gateway_receipt_hash: None,
+            model_delivery: facts.model_delivery.clone(),
+            usage: facts.usage.clone(),
+            usage_source: facts.usage_source.clone(),
+            error_code: facts.error_code.clone(),
+            signature: None,
+        };
+        body.sign(producer.key)?;
+        let body_value = body.to_value();
+        // The historical envelope kept in the outbox (transport fields are NOT signed; the body
+        // signature covers {schema_version, type, body}, frame/sign.rs). session/agent/boot/generation
+        // are the execution-time facts, so a later reconcile re-upload keeps them verbatim.
+        let mut env =
+            envelope::Envelope::new(receipt::FRAME_TYPE, journal.device_id(), body_value.clone());
+        env.session_id = facts.session_id.clone();
+        env.agent_instance_id = producer.instance.agent_instance_id.clone();
+        env.boot_id = producer.instance.boot_id.clone();
+        env.recovery_generation = facts.generation;
+        env.sent_at = now_rfc3339();
+        let signed_bytes = serde_json::to_vec(&env).expect("receipt envelope serializes");
+        let signed_hash = format!("sha256:{}", crate::sha256_hex(&signed_bytes));
+        record::insert_receipt(
+            &tx,
+            journal.journal_epoch(),
+            seq,
+            &record::ReceiptRow {
+                operation_id: &facts.operation_id,
+                state: &facts.state,
+                signed_bytes: &signed_bytes,
+                signed_hash: &signed_hash,
+            },
+        )?;
+        tx.commit()?;
+        Ok((seq as u64, signed_hash, body_value))
+    })();
+    match outcome {
+        Ok((seq, signed_hash, body_value)) => {
+            let frame = UplinkFrame {
+                frame_type: receipt::FRAME_TYPE.to_string(),
+                body: body_value,
+            };
+            if producer.uplinks.blocking_send(frame).is_err() {
+                eprintln!("work-device: receipt uplink channel closed (seq {seq})");
+            }
+            JournalReply::ReceiptProduced { seq, signed_hash }
+        }
+        Err(err) => JournalReply::Failed(err),
+    }
+}
+
+/// Persist an encrypted checkpoint and uplink a signed `checkpoint_commit`. The canonical body is
+/// sealed under the DEK with the identity-bound AAD (recover::persist_checkpoint); the commit carries
+/// only hashes + an opaque local ref, never ciphertext (device-design §3.4). `receipt_through_seq` is
+/// the receipt watermark this checkpoint covers — the highest seq the device has produced so far.
+fn produce_checkpoint(
+    journal: &crate::journal::Journal,
+    producer: &Producer,
+    org_id: &str,
+    subject_id: &str,
+    facts: &CheckpointFacts,
+    plaintext: &[u8],
+) -> JournalReply {
+    let rctx = journal.context(org_id, subject_id);
+    let row = recover::CheckpointRow {
+        run_id: facts.run_id.clone(),
+        checkpoint_seq: facts.checkpoint_seq,
+        schema_version: facts.schema_version,
+        runtime_digest: facts.runtime_digest.clone(),
+        checkpoint_hash: facts.checkpoint_hash.clone(),
+        pending_operation_set_hash: facts.pending_operation_set_hash.clone(),
+        prior_receipt_ref: facts.prior_receipt_ref.clone(),
+    };
+    if let Err(err) =
+        recover::persist_checkpoint(journal.connection(), journal.dek(), &rctx, &row, plaintext)
+    {
+        return JournalReply::Failed(err);
+    }
+    let receipt_through_seq = current_receipt_seq(journal);
+    let mut commit = checkpoint::CheckpointCommitBody {
+        run_id: facts.run_id.clone(),
+        binding_revision: facts.binding_revision,
+        fence: facts.fence,
+        checkpoint_seq: facts.checkpoint_seq as u64,
+        checkpoint_hash: facts.checkpoint_hash.clone(),
+        local_checkpoint_ref: facts.local_checkpoint_ref.clone(),
+        receipt_through_seq,
+        pending_operation_set_hash: facts.pending_operation_set_hash.clone(),
+        signature: None,
+    };
+    if let Err(err) = commit.sign(producer.key) {
+        return JournalReply::Failed(err.into());
+    }
+    let frame = UplinkFrame {
+        frame_type: checkpoint::COMMIT_FRAME_TYPE.to_string(),
+        body: commit.to_value(),
+    };
+    if producer.uplinks.blocking_send(frame).is_err() {
+        eprintln!(
+            "work-device: checkpoint uplink channel closed ({})",
+            facts.run_id
+        );
+    }
+    JournalReply::CheckpointProduced
+}
+
+/// The highest receipt seq the device has produced (next_receipt_seq - 1), read from device_meta so
+/// the checkpoint watermark reflects every allocated seq, including this Run's just-produced ones.
+fn current_receipt_seq(journal: &crate::journal::Journal) -> u64 {
+    let next: i64 = journal
+        .connection()
+        .query_row(
+            "SELECT next_receipt_seq FROM device_meta WHERE device_id = ?1",
+            rusqlite::params![journal.device_id()],
+            |row| row.get(0),
+        )
+        .unwrap_or(1);
+    next.saturating_sub(1).max(0) as u64
+}
+
+/// The current wall clock as the strict RFC3339 UTC seconds the envelope `sent_at` carries (the same
+/// format the link stamps, frame/rfc3339.rs). Falls back to the epoch on a clock error.
+fn now_rfc3339() -> String {
+    let seconds = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    rfc3339::format_utc_seconds(seconds).unwrap_or_else(|| "1970-01-01T00:00:00Z".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::journal::{dek, Journal};
+
+    fn owned_row(jti: &str, op: &str) -> ActionRowOwned {
+        ActionRowOwned {
+            org_id: "org".into(),
+            operation_id: op.into(),
+            run_id: "run".into(),
+            attempt: "attempt-1".into(),
+            step_key: "step#0".into(),
+            logical_key: "step#0".into(),
+            supersedes: None,
+            request_hash: "hash".into(),
+            fence: 1,
+            session_id: "sess".into(),
+            generation: 1,
+            permit_jti: jti.into(),
+            state: "started".into(),
+            result_hash: None,
+            result_ref: None,
+        }
+    }
+
+    /// The signing/uplink context for a pure-op test (no uplink is emitted, so the receiver may drop).
+    fn producer_parts() -> (
+        crate::key::SoftwareKey,
+        mpsc::Sender<UplinkFrame>,
+        InstanceFacts,
+    ) {
+        let (tx, _rx) = mpsc::channel(8);
+        (
+            crate::key::SoftwareKey::random(),
+            tx,
+            InstanceFacts {
+                agent_instance_id: "agent".into(),
+                boot_id: "boot".into(),
+            },
+        )
+    }
+
+    fn receipt_facts(operation_id: &str, state: &str) -> ReceiptFacts {
+        ReceiptFacts {
+            operation_id: operation_id.into(),
+            run_id: "run".into(),
+            session_id: "sess".into(),
+            generation: 1,
+            attempt: "attempt-1".into(),
+            fence: 1,
+            request_hash: "sha256:req".into(),
+            state: state.into(),
+            outcome: if state == "completed" {
+                Some("succeeded".into())
+            } else {
+                None
+            },
+            result_hash: "sha256:result".into(),
+            local_result_ref: "ref".into(),
+            model_delivery: None,
+            usage: None,
+            usage_source: None,
+            error_code: String::new(),
+        }
+    }
+
+    #[test]
+    fn register_then_read_round_trips_and_consumed_jti_is_reported() {
+        let path = std::env::temp_dir().join(format!("work-journalop-{}.db", uuid::Uuid::new_v4()));
+        let journal = Journal::create(&path, "dev", &dek::TestWrap).unwrap();
+        let (key, up_tx, instance) = producer_parts();
+        let producer = Producer {
+            key: &key,
+            uplinks: &up_tx,
+            instance: &instance,
+        };
+        let op = JournalOp::RegisterAction {
+            org_id: "org".into(),
+            subject_id: "sub".into(),
+            row: Box::new(owned_row("jti-1", "op-1")),
+            plaintext: b"sealed body".to_vec(),
+        };
+        assert!(matches!(
+            execute(&journal, &producer, op),
+            JournalReply::Registered
+        ));
+        // The same jti again reports consumed (never re-registers).
+        let again = JournalOp::RegisterAction {
+            org_id: "org".into(),
+            subject_id: "sub".into(),
+            row: Box::new(owned_row("jti-1", "op-1")),
+            plaintext: b"sealed body".to_vec(),
+        };
+        assert!(matches!(
+            execute(&journal, &producer, again),
+            JournalReply::JtiConsumed
+        ));
+        let read = JournalOp::ReadAction {
+            org_id: "org".into(),
+            subject_id: "sub".into(),
+            operation_id: "op-1".into(),
+        };
+        match execute(&journal, &producer, read) {
+            JournalReply::Action(Ok(body)) => assert_eq!(body, b"sealed body"),
+            _ => panic!("expected the sealed body"),
+        }
+        drop(journal);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(path.with_extension("db-wal"));
+        let _ = std::fs::remove_file(path.with_extension("db-shm"));
+    }
+
+    #[test]
+    fn the_handle_round_trips_an_op_over_the_channel() {
+        let path =
+            std::env::temp_dir().join(format!("work-journalop-ch-{}.db", uuid::Uuid::new_v4()));
+        let (handle, mut rx) = channel();
+        // A stand-in sync core: the journal is created AND owned inside this thread (Journal is not
+        // Send — the sync core is its sole owner, exactly the production ownership shape).
+        let server_path = path.clone();
+        let server = std::thread::spawn(move || {
+            let journal = Journal::create(&server_path, "dev", &dek::TestWrap).unwrap();
+            let (key, up_tx, instance) = producer_parts();
+            let producer = Producer {
+                key: &key,
+                uplinks: &up_tx,
+                instance: &instance,
+            };
+            let (op, reply_tx) = rx.blocking_recv().unwrap();
+            let reply = execute(&journal, &producer, op);
+            let _ = reply_tx.send(reply);
+            drop(journal);
+            let _ = std::fs::remove_file(&server_path);
+            let _ = std::fs::remove_file(server_path.with_extension("db-wal"));
+            let _ = std::fs::remove_file(server_path.with_extension("db-shm"));
+        });
+        let reply = handle.request(JournalOp::RegisterAction {
+            org_id: "org".into(),
+            subject_id: "sub".into(),
+            row: Box::new(owned_row("jti-ch", "op-ch")),
+            plaintext: b"body".to_vec(),
+        });
+        assert!(matches!(reply, Some(JournalReply::Registered)));
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn append_receipt_signs_allocates_seq_and_stores_the_original_envelope() {
+        let path =
+            std::env::temp_dir().join(format!("work-journalop-rcpt-{}.db", uuid::Uuid::new_v4()));
+        let journal = Journal::create(&path, "dev", &dek::TestWrap).unwrap();
+        let key = crate::key::SoftwareKey::random();
+        let jwk = key.public_jwk();
+        let (up_tx, mut up_rx) = mpsc::channel(8);
+        let instance = InstanceFacts {
+            agent_instance_id: "agent".into(),
+            boot_id: "boot".into(),
+        };
+        let producer = Producer {
+            key: &key,
+            uplinks: &up_tx,
+            instance: &instance,
+        };
+        let op = JournalOp::AppendReceipt {
+            org_id: "org".into(),
+            subject_id: "sub".into(),
+            facts: Box::new(receipt_facts("op-1", "completed")),
+        };
+        let seq = match execute(&journal, &producer, op) {
+            JournalReply::ReceiptProduced { seq, signed_hash } => {
+                assert_eq!(seq, 1);
+                assert!(signed_hash.starts_with("sha256:"));
+                seq
+            }
+            other => panic!("expected ReceiptProduced, got {other:?}"),
+        };
+        // The live uplink carries the signed body; the signature verifies over the historical identity.
+        let frame = up_rx.blocking_recv().unwrap();
+        assert_eq!(frame.frame_type, receipt::FRAME_TYPE);
+        assert_eq!(frame.body["receipt_seq"], "1");
+        assert_eq!(frame.body["original_execution"]["operation"], "op-1");
+        assert_eq!(frame.body["original_execution"]["agent_instance"], "agent");
+        let sig = frame.body["signature"].as_str().unwrap();
+        assert!(crate::frame::sign::verify_frame(
+            &jwk,
+            receipt::FRAME_TYPE,
+            &frame.body,
+            sig
+        ));
+        // The outbox stores the FULL historical envelope (reconcile re-uploads it verbatim).
+        let pending =
+            recover::unacked_receipts(journal.connection(), journal.journal_epoch(), 10).unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].receipt_seq, seq as i64);
+        let env: envelope::Envelope = serde_json::from_slice(&pending[0].signed_bytes).unwrap();
+        assert_eq!(env.frame_type, receipt::FRAME_TYPE);
+        assert_eq!(env.session_id, "sess");
+        assert_eq!(env.boot_id, "boot");
+        assert_eq!(env.body["original_execution"]["session"], "sess");
+        let env_sig = env.body["signature"].as_str().unwrap();
+        assert!(crate::frame::sign::verify_frame(
+            &jwk,
+            receipt::FRAME_TYPE,
+            &env.body,
+            env_sig
+        ));
+        assert_eq!(
+            pending[0].signed_hash,
+            format!("sha256:{}", crate::sha256_hex(&pending[0].signed_bytes))
+        );
+        drop(journal);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(path.with_extension("db-wal"));
+        let _ = std::fs::remove_file(path.with_extension("db-shm"));
+    }
+
+    #[test]
+    fn propose_action_signs_and_uplinks_a_closed_action_prepare() {
+        let path =
+            std::env::temp_dir().join(format!("work-journalop-prop-{}.db", uuid::Uuid::new_v4()));
+        let journal = Journal::create(&path, "dev", &dek::TestWrap).unwrap();
+        let key = crate::key::SoftwareKey::random();
+        let jwk = key.public_jwk();
+        let (up_tx, mut up_rx) = mpsc::channel(8);
+        let instance = InstanceFacts {
+            agent_instance_id: "agent".into(),
+            boot_id: "boot".into(),
+        };
+        let producer = Producer {
+            key: &key,
+            uplinks: &up_tx,
+            instance: &instance,
+        };
+        let facts = ActionPrepareFacts {
+            run_id: "run".into(),
+            lease_id: "lease".into(),
+            fence: 2,
+            step_key: "tool:0:0".into(),
+            logical_key: "tool:0:0#0".into(),
+            checkpoint_seq: 1,
+            checkpoint_hash: "a".repeat(64),
+            request_hash: "b".repeat(64),
+            action_kind: "artifact.write".into(),
+            tool_schema: "write-v1".into(),
+            local_payload_ref: "local/tool:0:0".into(),
+            grant_id: "grant".into(),
+            grant_revision: 1,
+            resource_selector_hash: "c".repeat(64),
+            classification: "local_only".into(),
+            destination_id: None,
+            byte_upper_bound: 1048576,
+            token_upper_bound: 4096,
+        };
+        let op = JournalOp::ProposeAction {
+            org_id: "org".into(),
+            subject_id: "sub".into(),
+            facts: Box::new(facts),
+        };
+        assert!(matches!(
+            execute(&journal, &producer, op),
+            JournalReply::Proposed
+        ));
+        let frame = up_rx.blocking_recv().unwrap();
+        assert_eq!(frame.frame_type, action::ACTION_PREPARE_FRAME_TYPE);
+        assert_eq!(frame.body["logical_key"], "tool:0:0#0");
+        assert_eq!(frame.body["step_key"], "tool:0:0");
+        assert_eq!(frame.body["lease_id"], "lease");
+        assert_eq!(frame.body["fence"], "2");
+        assert_eq!(frame.body["grant_id"], "grant");
+        assert_eq!(frame.body["action_kind"], "artifact.write");
+        // A fresh action carries all three supersede keys null (0042's all-or-none rule).
+        assert!(frame.body["supersedes_operation_id"].is_null());
+        assert!(frame.body["supersede_reason"].is_null());
+        assert!(frame.body["supersede_assertion"].is_null());
+        assert!(!frame.body["prepare_id"].as_str().unwrap().is_empty());
+        let sig = frame.body["signature"].as_str().unwrap();
+        assert!(crate::frame::sign::verify_frame(
+            &jwk,
+            action::ACTION_PREPARE_FRAME_TYPE,
+            &frame.body,
+            sig
+        ));
+        // The body is shape-consistent (the closed sets SQL enforces before writing).
+        let body: action::ActionPrepareBody = serde_json::from_value(frame.body).unwrap();
+        assert!(body.shape_consistent());
+        drop(journal);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(path.with_extension("db-wal"));
+        let _ = std::fs::remove_file(path.with_extension("db-shm"));
+    }
+
+    #[test]
+    fn device_local_receipt_stamps_usage_source_and_omits_egress_fields() {
+        let path =
+            std::env::temp_dir().join(format!("work-journalop-usage-{}.db", uuid::Uuid::new_v4()));
+        let journal = Journal::create(&path, "dev", &dek::TestWrap).unwrap();
+        let key = crate::key::SoftwareKey::random();
+        let instance = InstanceFacts {
+            agent_instance_id: "agent".into(),
+            boot_id: "boot".into(),
+        };
+        let (up_tx2, mut up_rx) = mpsc::channel(8);
+        let producer = Producer {
+            key: &key,
+            uplinks: &up_tx2,
+            instance: &instance,
+        };
+        let mut facts = receipt_facts("model:0", "completed");
+        facts.usage = Some(serde_json::json!({ "total_tokens": 15 }));
+        facts.usage_source = Some("device_adapter".into());
+        let op = JournalOp::AppendReceipt {
+            org_id: "org".into(),
+            subject_id: "sub".into(),
+            facts: Box::new(facts),
+        };
+        assert!(matches!(
+            execute(&journal, &producer, op),
+            JournalReply::ReceiptProduced { .. }
+        ));
+        let frame = up_rx.blocking_recv().unwrap();
+        assert_eq!(frame.body["usage_source"], "device_adapter");
+        assert_eq!(frame.body["usage"]["total_tokens"], 15);
+        // device_local carries no egress-only fields (DD:264).
+        assert!(frame.body.get("gateway_receipt_hash").is_none());
+        assert!(frame.body.get("model_delivery").is_none());
+        drop(journal);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(path.with_extension("db-wal"));
+        let _ = std::fs::remove_file(path.with_extension("db-shm"));
+    }
+
+    #[test]
+    fn checkpoint_persists_sealed_body_and_uplinks_a_commit_at_the_receipt_watermark() {
+        let path =
+            std::env::temp_dir().join(format!("work-journalop-cp-{}.db", uuid::Uuid::new_v4()));
+        let journal = Journal::create(&path, "dev", &dek::TestWrap).unwrap();
+        let key = crate::key::SoftwareKey::random();
+        let jwk = key.public_jwk();
+        let (up_tx, mut up_rx) = mpsc::channel(8);
+        let instance = InstanceFacts {
+            agent_instance_id: "agent".into(),
+            boot_id: "boot".into(),
+        };
+        let producer = Producer {
+            key: &key,
+            uplinks: &up_tx,
+            instance: &instance,
+        };
+        // Two receipts advance the watermark to 2.
+        for op_id in ["op-1", "op-2"] {
+            let op = JournalOp::AppendReceipt {
+                org_id: "org".into(),
+                subject_id: "sub".into(),
+                facts: Box::new(receipt_facts(op_id, "completed")),
+            };
+            assert!(matches!(
+                execute(&journal, &producer, op),
+                JournalReply::ReceiptProduced { .. }
+            ));
+            let _ = up_rx.blocking_recv().unwrap();
+        }
+        let facts = CheckpointFacts {
+            run_id: "run".into(),
+            checkpoint_seq: 1,
+            schema_version: crate::journal::schema::SCHEMA_VERSION,
+            runtime_digest: "digest".into(),
+            checkpoint_hash: "sha256:cp".into(),
+            pending_operation_set_hash: "sha256:pending".into(),
+            prior_receipt_ref: Some("2".into()),
+            binding_revision: 1,
+            fence: 1,
+            local_checkpoint_ref: "run:1".into(),
+        };
+        let op = JournalOp::PersistCheckpoint {
+            org_id: "org".into(),
+            subject_id: "sub".into(),
+            facts: Box::new(facts),
+            plaintext: b"canonical checkpoint body".to_vec(),
+        };
+        assert!(matches!(
+            execute(&journal, &producer, op),
+            JournalReply::CheckpointProduced
+        ));
+        let frame = up_rx.blocking_recv().unwrap();
+        assert_eq!(frame.frame_type, checkpoint::COMMIT_FRAME_TYPE);
+        assert_eq!(frame.body["checkpoint_seq"], "1");
+        assert_eq!(frame.body["receipt_through_seq"], "2");
+        assert_eq!(frame.body["local_checkpoint_ref"], "run:1");
+        let sig = frame.body["signature"].as_str().unwrap();
+        assert!(crate::frame::sign::verify_frame(
+            &jwk,
+            checkpoint::COMMIT_FRAME_TYPE,
+            &frame.body,
+            sig
+        ));
+        // The sealed body round-trips under the identity-bound AAD; no plaintext reached the commit.
+        let rctx = journal.context("org", "sub");
+        let opened =
+            recover::read_checkpoint(journal.connection(), journal.dek(), &rctx, "run", 1).unwrap();
+        assert_eq!(opened, b"canonical checkpoint body");
+        assert!(frame.body.get("ciphertext").is_none());
+        drop(journal);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(path.with_extension("db-wal"));
+        let _ = std::fs::remove_file(path.with_extension("db-shm"));
+    }
+}

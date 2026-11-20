@@ -11,4 +11,6 @@ pub mod spawn;
 #[cfg(windows)]
 pub mod appcontainer;
 #[cfg(windows)]
+pub mod fileacl;
+#[cfg(windows)]
 pub mod job;

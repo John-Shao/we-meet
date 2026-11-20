@@ -31,7 +31,7 @@ use crate::reconcile::{resolution as resolution_consume, watermark};
 use crate::recovery::{replay, resume};
 use crate::sidecar::lifecycle::{Sidecar, SidecarState};
 use crate::sidecar::spawn::SpawnConfig;
-use crate::transport::{LinkEvent, UplinkFrame};
+use crate::transport::{LinkCommand, LinkEvent, UplinkFrame};
 
 /// Spawn the sync core thread. It opens (or creates) the per-device journal, publishes the journal
 /// epoch back to the caller (hello carries it, §6.1 device_meta), then serves forwarded link events
@@ -40,15 +40,35 @@ use crate::transport::{LinkEvent, UplinkFrame};
 ///
 /// `spawn_template` carries the fixed sidecar inputs (node/bundle paths, staging base, digests);
 /// `consume_start` derives the per-Run staging dir from it. The real signed bundle is batch 2.
+/// The sync-core spawn result. `events` forwards downlinks; `epoch` is the journal epoch hello carries.
+/// On Windows the long-lived Node service sender is also returned so the shell dispatch can route
+/// workspace/model confirmation requests to the thread that owns the registries (execution-face §6.1).
+pub struct SyncCoreSpawn {
+    pub events: mpsc::Sender<LinkEvent>,
+    pub epoch: String,
+    #[cfg(windows)]
+    pub node_service: tokio::sync::mpsc::Sender<crate::nodeservice::NodeRequest>,
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn spawn_sync_core(
     journal_dir: String,
     ready: ReadyIdentity,
     key: Arc<dyn DeviceKey + Send + Sync>,
     uplinks: mpsc::Sender<UplinkFrame>,
+    link_commands: mpsc::Sender<LinkCommand>,
     spawn_template: SpawnConfig,
-) -> Result<(mpsc::Sender<LinkEvent>, String), String> {
+    instance: crate::journalop::InstanceFacts,
+    #[cfg(windows)] node_service: tokio::sync::mpsc::Sender<crate::nodeservice::NodeRequest>,
+) -> Result<SyncCoreSpawn, String> {
     let (event_tx, mut event_rx) = mpsc::channel::<LinkEvent>(64);
+    let (journal_handle, mut journal_op_rx) = crate::journalop::channel();
     let (epoch_tx, epoch_rx) = std::sync::mpsc::sync_channel::<Result<String, String>>(0);
+    // The long-lived Node service thread owns the grant/endpoint registries + executor + proxy (§6.1).
+    // The entry creates it once at startup (before the pump) so the shell confirmation face can route
+    // to it even before the first certificate; this core shares the same sender for StartRun.
+    #[cfg(windows)]
+    let node_service_for_core = node_service.clone();
     std::thread::spawn(move || {
         let journal = match open_or_create_journal(&journal_dir, &ready.device_id) {
             Ok(journal) => journal,
@@ -61,15 +81,56 @@ pub fn spawn_sync_core(
         if epoch_tx.send(Ok(epoch)).is_err() {
             return;
         }
-        let mut core = SyncCore::new(journal, ready, key, uplinks, spawn_template);
-        while let Some(event) = event_rx.blocking_recv() {
-            core.handle(event);
+        let mut core = SyncCore::new(
+            journal,
+            ready,
+            key,
+            uplinks,
+            link_commands,
+            spawn_template,
+            journal_handle,
+            instance,
+            #[cfg(windows)]
+            node_service_for_core,
+        );
+        // Batch 2 ruling 甲: the Node pipe service loop runs on its OWN thread and requests journal
+        // ops over `journal_op_rx`; this thread stays the journal's sole owner (E4 甲). The loop stays
+        // a pure blocking thread (no async runtime, so `blocking_send` uplinks are valid): it waits on
+        // downlinks with a short timeout and drains pending journal ops each tick. The 50ms tick bounds
+        // cancel/lease reaction latency (E7 甲 prompt kill) without a cross-thread journal lock.
+        loop {
+            match event_rx.try_recv() {
+                Ok(event) => core.handle(event),
+                Err(mpsc::error::TryRecvError::Empty) => {
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+                Err(mpsc::error::TryRecvError::Disconnected) => break,
+            }
+            while let Ok((op, reply_tx)) = journal_op_rx.try_recv() {
+                let reply = {
+                    let producer = crate::journalop::Producer {
+                        key: core.key.as_ref(),
+                        uplinks: &core.uplinks,
+                        instance: &core.instance,
+                    };
+                    crate::journalop::execute(core.journal(), &producer, op)
+                };
+                // Receipt production advances the device-wide watermark cancel_ack/heartbeat carry;
+                // re-read it from device_meta so a produced seq is never stale (E4 甲 single owner).
+                core.last_receipt_seq = current_receipt_seq(core.journal(), &core.device_id);
+                let _ = reply_tx.send(reply);
+            }
         }
     });
     let epoch = epoch_rx.recv().map_err(|_| {
         "the sync core thread died before publishing the journal epoch".to_string()
     })??;
-    Ok((event_tx, epoch))
+    Ok(SyncCoreSpawn {
+        events: event_tx,
+        epoch,
+        #[cfg(windows)]
+        node_service,
+    })
 }
 
 /// Open the per-device journal, creating it on first pairing. Moved here from the entry (batch 1c):
@@ -98,31 +159,57 @@ struct SyncCore {
     org_id: String,
     subject_id: String,
     uplinks: mpsc::Sender<UplinkFrame>,
+    // The link's command channel: consume_start tracks the Run's lease here so the link renewes it
+    // on heartbeat and invalidates it (Job kill) when the session ends (E7 甲, §3.3).
+    link_commands: mpsc::Sender<LinkCommand>,
     // Session-provisioned authority (hello_ack). Until a session exists no downlink can verify.
     server_jwk: Option<crate::jwk::EcP256Jwk>,
     permit_jwk: Option<crate::jwk::EcP256Jwk>,
     session_id: Option<String>,
     generation: u64,
     lease_deadline: Option<Instant>,
+    // The lease TTL hello_ack granted; consume_start tracks the Run lease with this TTL (§3.3 30s).
+    lease_ttl: std::time::Duration,
     // The current Run binding (offer -> start). run_fence is the permit identity gate's fence.
     offer: Option<offer::RunOfferBody>,
     run_fence: u64,
     sidecar: Option<Sidecar>,
     #[cfg_attr(not(windows), allow(dead_code))]
     spawn_template: SpawnConfig,
+    // The journal-op handle the Node service thread clones to request journal ops of this core (甲).
+    #[allow(dead_code)]
+    journal_handle: crate::journalop::JournalHandle,
+    // The device runtime instance facts (BrokerConfig agent_instance_id/boot_id) bound into every
+    // produced receipt's historical envelope (A3, the same facts the link stamps on transport).
+    instance: crate::journalop::InstanceFacts,
     // The spawned process tree (Windows). Dropping it kills the Job tree (batch 1f lease kill).
     #[cfg(windows)]
     process: Option<crate::sidecar::spawn::SidecarProcess>,
+    // The long-lived Node service sender (Windows): consume_start fires StartRun at it (§6.1).
+    #[cfg(windows)]
+    node_service: tokio::sync::mpsc::Sender<crate::nodeservice::NodeRequest>,
+    // Commands verified + jti-registered "hold for dispatch", forwarded to the Node tool loop at start.
+    #[cfg(windows)]
+    dispatched: Vec<crate::nodeservice::DispatchedCommand>,
+    // The live per-Run command map (A2 write spine): (run_id, shared map) for the active Run, so a
+    // command consumed mid-Run reaches the running executor (§6.3 C). None until consume_start.
+    #[cfg(windows)]
+    active_commands: Option<(String, crate::nodeservice::SharedCommands)>,
     last_receipt_seq: u64,
 }
 
 impl SyncCore {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         journal: Journal,
         ready: ReadyIdentity,
         key: Arc<dyn DeviceKey + Send + Sync>,
         uplinks: mpsc::Sender<UplinkFrame>,
+        link_commands: mpsc::Sender<LinkCommand>,
         spawn_template: SpawnConfig,
+        journal_handle: crate::journalop::JournalHandle,
+        instance: crate::journalop::InstanceFacts,
+        #[cfg(windows)] node_service: tokio::sync::mpsc::Sender<crate::nodeservice::NodeRequest>,
     ) -> Self {
         let last_receipt_seq = current_receipt_seq(&journal, &ready.device_id);
         Self {
@@ -132,19 +219,33 @@ impl SyncCore {
             org_id: ready.org_id,
             subject_id: ready.subject_id,
             uplinks,
+            link_commands,
             server_jwk: None,
             permit_jwk: None,
             session_id: None,
             generation: 0,
             lease_deadline: None,
+            lease_ttl: std::time::Duration::from_secs(30),
             offer: None,
             run_fence: 0,
             sidecar: None,
             spawn_template,
+            journal_handle,
+            instance,
             #[cfg(windows)]
             process: None,
+            #[cfg(windows)]
+            node_service,
+            #[cfg(windows)]
+            dispatched: Vec::new(),
+            #[cfg(windows)]
+            active_commands: None,
             last_receipt_seq,
         }
+    }
+
+    fn journal(&self) -> &Journal {
+        &self.journal
     }
 
     fn handle(&mut self, event: LinkEvent) {
@@ -154,6 +255,7 @@ impl SyncCore {
                 self.permit_jwk = Some(ack.permit_jwk.clone());
                 self.session_id = Some(ack.session_id.clone());
                 self.generation = ack.generation;
+                self.lease_ttl = ack.lease_ttl;
                 self.lease_deadline = Some(Instant::now() + ack.lease_ttl);
                 eprintln!("work-device: session established, sync core provisioned");
             }
@@ -246,9 +348,9 @@ impl SyncCore {
             return;
         }
         // The full command (dispatch_attempt_id, tool_schema, local_payload_ref, permit) is sealed
-        // verbatim as the action body; the indexed columns carry the queryable identity. attempt=1
-        // and state="started" follow the landed jti precedent (permit/mod.rs); supersede/re-dispatch
-        // is batch 3 reconcile scope.
+        // verbatim as the action body; the indexed columns carry the queryable identity. attempt is
+        // the server's uuid dispatch_attempt_id (the receipt gate binds to it); state="started"
+        // follows the landed jti precedent; supersede/re-dispatch is batch 3 reconcile scope.
         let plaintext = match serde_json::to_vec(&cmd) {
             Ok(bytes) => bytes,
             Err(err) => {
@@ -261,7 +363,7 @@ impl SyncCore {
             org_id: &self.org_id,
             operation_id: &cmd.operation_id,
             run_id: &cmd.run_id,
-            attempt: 1,
+            attempt: &cmd.dispatch_attempt_id,
             step_key: &cmd.logical_key,
             logical_key: &cmd.logical_key,
             supersedes: None,
@@ -289,6 +391,32 @@ impl SyncCore {
                     "work-device: command {} jti registered (hold for dispatch, batch 2)",
                     cmd.operation_id
                 );
+                // Feed the verified command to the Node tool loop. If a Run is active for this
+                // run_id, insert into the live per-Run map so the running executor sees it mid-Run
+                // (A2 write spine, §6.3 C); otherwise buffer it for the next StartRun.
+                #[cfg(windows)]
+                {
+                    let dispatched = crate::nodeservice::DispatchedCommand {
+                        operation_id: cmd.operation_id.clone(),
+                        logical_key: cmd.logical_key.clone(),
+                        tool_name: cmd.tool_schema.clone(),
+                        request_hash: cmd.request_hash.clone(),
+                        permit_jti: cmd.permit.jti.clone(),
+                        fence: cmd.permit.fence,
+                        generation: cmd.permit.generation,
+                        dispatch_attempt_id: cmd.dispatch_attempt_id.clone(),
+                    };
+                    match &self.active_commands {
+                        Some((run_id, live)) if run_id == &cmd.run_id => {
+                            live.lock()
+                                .unwrap()
+                                .insert(dispatched.logical_key.clone(), dispatched);
+                        }
+                        _ => {
+                            self.dispatched.push(dispatched);
+                        }
+                    }
+                }
             }
             Err(record::RecordError::Sql(_)) => {
                 // The jti is already consumed: return the journal, do not execute again (DD:123).
@@ -449,8 +577,110 @@ impl SyncCore {
                 .to_string_lossy()
                 .into_owned();
             config.runtime_digest = start.runtime_digest.clone();
-            match crate::sidecar::spawn::spawn_sidecar(&config, &start.run_id) {
-                Ok(process) => self.process = Some(process),
+            // DD:113 spawn-time digest gate (execution-face §6.4): re-hash the bundle's signed files
+            // and refuse a drifted/substituted bundle BEFORE CreateProcess, so only the single sidecar
+            // of the designated digest ever starts. The pin came down with the offer (start.runtime_digest).
+            let bundle_dir = std::path::Path::new(&config.bundle_path)
+                .parent()
+                .unwrap_or(std::path::Path::new("."));
+            if let Err(err) = crate::digest::verify_bundle(bundle_dir, &config.runtime_digest) {
+                eprintln!("work-device: bundle digest refused ({err:?}), run not started");
+                return;
+            }
+            // The per-Run Node↔Broker pipe name is fixed before spawn (the bundle gets it as argv[2]).
+            let pipe_name = format!(
+                "\\\\.\\pipe\\work-device-node-{}-{}",
+                start.run_id,
+                uuid::Uuid::new_v4()
+            );
+            match crate::sidecar::spawn::spawn_sidecar(&config, &start.run_id, &pipe_name) {
+                Ok(mut process) => {
+                    // Fire StartRun at the long-lived Node service thread (§6.1). Fire-and-forget: the
+                    // Run's pipe loop runs on that thread while this sync core stays responsive to
+                    // cancel/lease (E7 甲). The profile/model/bounds are the dev fixture profile this
+                    // period (E3 乙); the production ExecutionProfile binding lands with #184/M4.
+                    let container_sid = process.container_sid().to_vec();
+                    let sidecar_pid = process.pid();
+                    // The pipe was created while the sidecar was suspended (no connect race); take
+                    // its handle so the Node-service thread can rebuild the server and accept.
+                    let pipe_handle = match process.take_node_pipe_handle() {
+                        Some(handle) => handle,
+                        None => {
+                            eprintln!("work-device: sidecar spawned without a node pipe handle");
+                            return;
+                        }
+                    };
+                    self.process = Some(process);
+                    // Operational supervision fact: the spawned sidecar pid (the Job kill-on-close
+                    // target for cancel/lease loss; the interop kill evidence parses this line).
+                    eprintln!("work-device: sidecar spawned pid={sidecar_pid}");
+                    let bootstrap = crate::ipc::nodepipe::RunBootstrap {
+                        run_id: start.run_id.clone(),
+                        binding_revision: start.run_binding_id,
+                        start_nonce: start.start_nonce.clone(),
+                        profile_id: "profile-dev-fixture-v1".into(),
+                        compat_profile_version: 1,
+                        tool_manifest_hash: self.spawn_template.manifest_hash.clone(),
+                        runtime_digest: start.runtime_digest.clone(),
+                        model_provider: "device-local".into(),
+                        model_name: "fixture-model".into(),
+                        model_config_revision: 1,
+                        sealed_input_refs: Vec::new(),
+                        max_turns: 8,
+                        max_tokens: 4096,
+                        max_bytes: 1_048_576,
+                        deadline: start.expiry.clone(),
+                    };
+                    let ctx = crate::nodeservice::RunContext {
+                        run_id: start.run_id.clone(),
+                        org_id: self.org_id.clone(),
+                        subject_id: self.subject_id.clone(),
+                        session_id: start.session_id.clone(),
+                        fence: start.fence,
+                        generation: start.generation,
+                        profile_id: "profile-dev-fixture-v1".into(),
+                        journal: self.journal_handle.clone(),
+                        lease_id: start.lease_id.clone(),
+                        // The seq=0 baseline acquire_device_lease writes is the binding's
+                        // input_hash (0041); a fresh offer leaves expected_checkpoint_hash null,
+                        // so the first action_prepare prepares against input_hash at seq=0. A
+                        // resume offer carries the latest recorded checkpoint instead.
+                        baseline_checkpoint_hash: offer_body
+                            .expected_checkpoint_hash
+                            .clone()
+                            .unwrap_or_else(|| offer_body.input_hash.clone()),
+                        grant_set: offer_body.grant_set.clone(),
+                    };
+                    // The live per-Run command map (A2 write spine): seed it with the commands
+                    // consumed before start, then keep it so consume_command can feed mid-Run
+                    // commands to the running executor. The pre-start buffer is now drained.
+                    let live =
+                        crate::nodeservice::shared_commands(std::mem::take(&mut self.dispatched));
+                    self.active_commands = Some((start.run_id.clone(), live.clone()));
+                    let (reply_tx, _reply_rx) = tokio::sync::oneshot::channel();
+                    let sent = self.node_service.blocking_send(
+                        crate::nodeservice::NodeRequest::StartRun {
+                            ctx,
+                            bootstrap: Box::new(bootstrap),
+                            pipe_handle,
+                            container_sid,
+                            sidecar_pid,
+                            commands: live,
+                            reply: reply_tx,
+                        },
+                    );
+                    if sent.is_err() {
+                        unsafe {
+                            let _ = windows::Win32::Foundation::CloseHandle(
+                                windows::Win32::Foundation::HANDLE(
+                                    pipe_handle as *mut std::ffi::c_void,
+                                ),
+                            );
+                        }
+                        eprintln!("work-device: node service gone, run not started");
+                        return;
+                    }
+                }
                 Err(err) => {
                     eprintln!("work-device: sidecar spawn refused: {err:?}");
                     return;
@@ -462,6 +692,15 @@ impl SyncCore {
             return;
         }
         self.sidecar = Some(sidecar);
+        // §3.3: the Run's lease comes from run_start. Track it in the link so heartbeat renewes it
+        // and a session end invalidates it (LeasesInvalidated -> Job kill, E7 甲). Without this the
+        // link holds no lease, never renewes, and a revoked device's session loss kills nothing.
+        let _ = self.link_commands.blocking_send(LinkCommand::TrackLease {
+            lease_id: start.lease_id.clone(),
+            fence: start.fence,
+            ttl: self.lease_ttl,
+            round_trip: std::time::Duration::ZERO,
+        });
         let (checkpoint_ref, checkpoint_hash) = self.latest_checkpoint_ref(&start.run_id);
         let mut started = offer::RunStartedBody {
             start_nonce: start.start_nonce.clone(),
@@ -717,6 +956,13 @@ mod tests {
         }
     }
 
+    fn instance_facts() -> crate::journalop::InstanceFacts {
+        crate::journalop::InstanceFacts {
+            agent_instance_id: "agent".into(),
+            boot_id: "boot".into(),
+        }
+    }
+
     fn signed_cancel(
         server: &SoftwareKey,
         run_id: &str,
@@ -739,14 +985,20 @@ mod tests {
         let permit = SoftwareKey::random();
         let dir = temp_dir();
         let (uplink_tx, mut uplink_rx) = mpsc::channel::<UplinkFrame>(8);
-        let (event_tx, epoch) = spawn_sync_core(
+        let __spawn = spawn_sync_core(
             dir.to_str().unwrap().to_string(),
             ready(),
             Arc::new(device),
             uplink_tx,
+            mpsc::channel::<LinkCommand>(4).0,
             spawn_template(),
+            instance_facts(),
+            #[cfg(windows)]
+            crate::nodeservice::spawn_node_service(),
         )
         .unwrap();
+        let event_tx = __spawn.events;
+        let epoch = __spawn.epoch;
         assert!(
             !epoch.is_empty(),
             "the core must publish the journal epoch for hello"
@@ -784,14 +1036,20 @@ mod tests {
         let server = SoftwareKey::random();
         let dir = temp_dir();
         let (uplink_tx, mut uplink_rx) = mpsc::channel::<UplinkFrame>(8);
-        let (event_tx, _epoch) = spawn_sync_core(
+        let __spawn = spawn_sync_core(
             dir.to_str().unwrap().to_string(),
             ready(),
             Arc::new(device),
             uplink_tx,
+            mpsc::channel::<LinkCommand>(4).0,
             spawn_template(),
+            instance_facts(),
+            #[cfg(windows)]
+            crate::nodeservice::spawn_node_service(),
         )
         .unwrap();
+        let event_tx = __spawn.events;
+        let _epoch = __spawn.epoch;
         // No SessionEstablished: the cancel cannot be verified, so nothing is uplinked.
         event_tx
             .blocking_send(LinkEvent::Downlink(Box::new(signed_cancel(
@@ -831,12 +1089,21 @@ mod tests {
         let db_path = dir.join(format!("{DEVICE}.db"));
         let journal = Journal::create(&db_path, DEVICE, &dek::TestWrap).unwrap();
         let (uplink_tx, _uplink_rx) = mpsc::channel::<UplinkFrame>(8);
+        let (link_cmd_tx, _link_cmd_rx) = mpsc::channel::<LinkCommand>(4);
+        let (journal_handle, _journal_op_rx) = crate::journalop::channel();
+        #[cfg(windows)]
+        let (node_service_tx, _node_service_rx) = tokio::sync::mpsc::channel(8);
         let mut core = SyncCore::new(
             journal,
             ready(),
             Arc::new(device),
             uplink_tx,
+            link_cmd_tx,
             spawn_template(),
+            journal_handle,
+            instance_facts(),
+            #[cfg(windows)]
+            node_service_tx,
         );
         core.server_jwk = Some(server.public_jwk());
         core.permit_jwk = Some(permit.public_jwk());
@@ -1007,6 +1274,52 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// A2 write spine (§6.3 C): a command consumed while a Run is active feeds the live per-Run map
+    /// the executor reads (mid-Run), NOT the pre-start buffer; with no active Run it buffers for the
+    /// next StartRun. This is the seam that lets a write authorized after start reach the sidecar.
+    #[test]
+    #[cfg(windows)]
+    fn a_command_feeds_the_live_run_map_when_active_and_buffers_otherwise() {
+        let device = SoftwareKey::random();
+        let server = SoftwareKey::random();
+        let permit = SoftwareKey::random();
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut core = provisioned_core(&dir, device, &server, &permit);
+        let server_jwk = server.public_jwk();
+
+        // No active Run yet: the command buffers for the next StartRun.
+        let pre = signed_command(&server, &permit, "jti-live-pre", "op-pre");
+        core.consume_command(&server_jwk, pre.to_value());
+        assert_eq!(core.dispatched.len(), 1, "pre-start command must buffer");
+        assert!(core.active_commands.is_none());
+
+        // Start a Run: the live map is seeded from the buffer (drained) and kept for mid-Run feeds.
+        let live = crate::nodeservice::shared_commands(std::mem::take(&mut core.dispatched));
+        core.active_commands = Some(("run".to_string(), live.clone()));
+        assert!(
+            live.lock().unwrap().contains_key("step#0"),
+            "the buffer seeds the live map"
+        );
+
+        // A command consumed mid-Run reaches the live map directly, not the buffer.
+        let mid = signed_command(&server, &permit, "jti-live-mid", "op-mid");
+        core.consume_command(&server_jwk, mid.to_value());
+        assert!(
+            core.dispatched.is_empty(),
+            "mid-Run command must not buffer"
+        );
+        let map = live.lock().unwrap();
+        let fed = map
+            .get("step#0")
+            .expect("the mid-Run command fed the live map");
+        assert_eq!(fed.operation_id, "op-mid");
+        assert_eq!(fed.permit_jti, "jti-live-mid");
+        drop(map);
+        drop(core);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn an_unsigned_cancel_is_refused_and_uplinks_nothing() {
         let device = SoftwareKey::random();
@@ -1014,14 +1327,20 @@ mod tests {
         let permit = SoftwareKey::random();
         let dir = temp_dir();
         let (uplink_tx, mut uplink_rx) = mpsc::channel::<UplinkFrame>(8);
-        let (event_tx, _epoch) = spawn_sync_core(
+        let __spawn = spawn_sync_core(
             dir.to_str().unwrap().to_string(),
             ready(),
             Arc::new(device),
             uplink_tx,
+            mpsc::channel::<LinkCommand>(4).0,
             spawn_template(),
+            instance_facts(),
+            #[cfg(windows)]
+            crate::nodeservice::spawn_node_service(),
         )
         .unwrap();
+        let event_tx = __spawn.events;
+        let _epoch = __spawn.epoch;
         event_tx
             .blocking_send(LinkEvent::SessionEstablished(Box::new(hello(
                 &server, &permit,

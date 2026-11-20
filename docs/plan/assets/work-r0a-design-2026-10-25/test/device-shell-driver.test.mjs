@@ -112,7 +112,7 @@ test('the pipe client matches the Broker framing, handshake, method and code clo
   const tsBlock = pipe.split('new Set<BrokerMethod>([')[1].split('])')[0];
   const tsMethods = [...tsBlock.matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1]).sort();
   assert.deepEqual(tsMethods, rustMethods);
-  assert.equal(rustMethods.length, 7);
+  assert.equal(rustMethods.length, 12);
   // Refusal codes: same closed vocabulary on both sides.
   const codesBlock = rustDispatch.split('pub const CODES: &[&str] = &[')[1].split('];')[0];
   const rustCodes = [...codesBlock.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]).sort();
@@ -139,8 +139,12 @@ test('the config file the shell writes is field-for-field the Rust BrokerConfig'
   assert.ok(driver.includes('journal_dir: path.join(this.deps.configDir, "journal")'));
   assert.ok(!driver.includes('this.journalEpoch'), 'the shell must not generate a journal epoch');
   assert.ok(!driver.includes('journal_epoch'), 'the config carries journal_dir, not journal_epoch');
-  // A2/A3 placeholders are registered as placeholders, not facts.
-  assert.ok(read(DRIVER).includes('closed placeholders'));
+  // 批2-5 (execution-face §6.4/§6.5, E3 乙): the digest placeholders are gone. The config reads the
+  // shipped dev fixture profile's computed hashes; a missing/invalid profile is a hard failure (the
+  // shell never falls back to a placeholder the Broker would refuse at spawn).
+  assert.ok(driver.includes('dev-fixture-profile.json'), 'the config digests come from the dev fixture profile');
+  assert.ok(!driver.includes('PLACEHOLDER_DIGEST'), 'no placeholder digest remains');
+  assert.ok(driver.includes('work_device_bundle_profile_missing'), 'a missing profile is a hard failure');
 });
 
 test('the device-name gesture precedes any pairing request and a cancel pairs nothing', () => {
@@ -207,9 +211,16 @@ test('the supervisor verifies before spawn and the packaging hook pins the FINAL
   assert.ok(hook.includes('bundled-work-device.json'));
   assert.ok(hook.includes("to: 'work-device'"));
   assert.ok(hook.includes('!${WORK_DEVICE_FILE}'));
+  // 批2-7: the pinned Node runtime is finalized + excluded from re-signing too, and the bundle ships.
+  assert.ok(hook.includes('!${WORK_DEVICE_NODE_FILE}'), 'the pinned Node runtime must also be excluded from re-signing');
+  assert.ok(hook.includes('nodeSha256'), 'the manifest pins the Node runtime hash');
+  assert.ok(hook.includes('runtimeDigest') && hook.includes('toolManifestHash'), 'the manifest pins the bundle digests');
+  assert.ok(hook.includes('${WORK_DEVICE_BUNDLE_DIR}/**'), 'the signed bundle ships in extraResources');
   assert.ok(hook.includes('verifyPackagedWorkDevice'));
   const build = read(BUILD_SCRIPT);
   assert.ok(build.includes("'build', '--release', '--bin', 'work-device'"));
+  assert.ok(build.includes('fetchNodeRuntime'), 'the build stages the pinned Node runtime');
+  assert.ok(build.includes('stageBundle'), 'the build stages the signed device bundle');
   // The legacy local-agent runtime composition was removed with the legacy Work module
   // (5749407fa); the chain must not resurrect it, and the manifest must verify the Broker payload.
   const manifestScript = read(join(DESKTOP, 'scripts', 'release-manifest.mjs'));

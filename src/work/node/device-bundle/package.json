@@ -1,0 +1,18 @@
+{
+  "name": "@we-meet/work-device-bundle",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Device Node executor bundle (execution-face E2 甲): pi-agent-core multi-turn loop with model/tool seams routed through the Broker pipe. No provider transport, no path, no network.",
+  "main": "main.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "1.4.0",
+    "@earendil-works/pi-ai": "1.4.0"
+  }
+}

@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS action_journal (
     org_id           TEXT NOT NULL,
     operation_id     TEXT NOT NULL,
     run_id           TEXT,
-    attempt          INTEGER,
+    attempt          TEXT,
     step_key         TEXT,
     logical_key      TEXT,
     supersedes       TEXT,

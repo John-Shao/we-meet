@@ -28,8 +28,10 @@ pub struct OriginalExecution {
     pub generation: u64,
     pub run: String,
     pub operation: String,
-    #[serde(with = "u64string")]
-    pub attempt: u64,
+    /// The server's uuid `dispatch_attempt_id` (0048:149 binds the receipt to the operation's
+    /// dispatch attempt). A string, not a numeric counter — the device echoes the command's
+    /// dispatch_attempt_id verbatim so record_device_receipt's attempt_id equality gate passes.
+    pub attempt: String,
     #[serde(with = "u64string")]
     pub fence: u64,
 }
@@ -94,7 +96,7 @@ mod tests {
                 generation: 1,
                 run: "run".into(),
                 operation: "op".into(),
-                attempt: 1,
+                attempt: "11111111-1111-1111-1111-111111111111".into(),
                 fence: 1,
             },
             request_hash: "hash".into(),

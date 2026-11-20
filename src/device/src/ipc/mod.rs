@@ -15,6 +15,7 @@
 pub mod dispatch;
 pub mod frame;
 pub mod handshake;
+pub mod nodemsg;
 pub mod schema;
 pub mod ticket;
 

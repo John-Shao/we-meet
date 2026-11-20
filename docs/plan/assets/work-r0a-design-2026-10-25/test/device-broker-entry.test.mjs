@@ -337,8 +337,8 @@ test('the status method is read-only and the reply payload is a closed shape', (
     'deliverDeviceCertificate', 'redeliverDeviceCertificate', 'getDeviceCertificateStatus']) {
     assert.ok(schema.includes(`"${method}"`), `${method} left the shell closure`);
   }
-  assert.match(schema, /assert_eq!\(SHELL_METHODS\.len\(\), 20\)/);
-  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 7\)/);
+  assert.match(schema, /assert_eq!\(SHELL_METHODS\.len\(\), 22\)/);
+  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 12\)/);
 });
 
 test('a refusal reaches the shell before the pipe is disconnected', () => {

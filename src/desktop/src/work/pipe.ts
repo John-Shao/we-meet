@@ -10,14 +10,16 @@ import net from "node:net";
 export const PROTOCOL_MAJOR = 2;
 export const MAX_FRAME_BYTES = 64 * 1024;
 const LENGTH_PREFIX = 4;
-/** The shell→Broker methods M2 drives (ipc/schema.rs CORE_METHODS). The other thirteen closed
- * members are legal but unlanded; this client never calls them. */
+/** The shell→Broker methods M2 drives plus the 批2 confirmation face (ipc/schema.rs CORE_METHODS).
+ * The other eleven closed members are legal but unlanded; this client never calls them. */
 export type BrokerMethod = "getDeviceIdentity" | "signDevicePairing" | "signDeviceCertificateRenewal" |
   "deliverDeviceCertificate" | "redeliverDeviceCertificate" | "getDeviceCertificateStatus" |
-  "deliverDeviceSessionTicket";
+  "deliverDeviceSessionTicket" | "chooseWorkspace" | "confirmWorkspaceRoot" | "probeLocalModel" |
+  "confirmLocalModel" | "stageLocalInput";
 const METHODS: ReadonlySet<string> = new Set<BrokerMethod>(["getDeviceIdentity", "signDevicePairing",
   "signDeviceCertificateRenewal", "deliverDeviceCertificate", "redeliverDeviceCertificate",
-  "getDeviceCertificateStatus", "deliverDeviceSessionTicket"]);
+  "getDeviceCertificateStatus", "deliverDeviceSessionTicket", "chooseWorkspace", "confirmWorkspaceRoot",
+  "probeLocalModel", "confirmLocalModel", "stageLocalInput"]);
 /** The closed refusal codes (ipc/dispatch.rs CODES). */
 const CODES = new Set(["unknown_method", "method_not_implemented", "schema", "shape", "foreign_device",
   "already_consumed", "handshake", "no_pairing", "certificate_invalid"]);
@@ -91,8 +93,10 @@ export class BrokerPipe {
     });
   }
 
-  /** One closed call: send {method, request_id, ...fields}, await the echoed reply. */
-  async call(method: BrokerMethod, fields: Record<string, string> = {}, timeoutMs = 8000): Promise<BrokerReply> {
+  /** One closed call: send {method, request_id, ...fields}, await the echoed reply. Fields are
+   * strings for the §2.1 carriers; the 批2 confirmation carriers also pass a bool (approved), an
+   * array (artifact_dir) and an object (listener_requirement), so the value type is unknown. */
+  async call(method: BrokerMethod, fields: Record<string, unknown> = {}, timeoutMs = 8000): Promise<BrokerReply> {
     if (this.closed || this.failure) throw this.failure ?? new BrokerPipeError("pipe_closed");
     if (!METHODS.has(method)) throw new BrokerPipeError("unknown_method");
     for (const forbidden of ["command", "path", "url"]) {

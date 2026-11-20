@@ -18,8 +18,8 @@ use windows::Win32::Foundation::{
 };
 use windows::Win32::Security::{
     AddAccessAllowedAce, EqualSid, GetLengthSid, GetTokenInformation, InitializeAcl,
-    InitializeSecurityDescriptor, SetSecurityDescriptorDacl, TokenUser, ACL, ACL_REVISION,
-    PSECURITY_DESCRIPTOR, PSID, SECURITY_ATTRIBUTES, TOKEN_QUERY, TOKEN_USER,
+    InitializeSecurityDescriptor, SetSecurityDescriptorDacl, TokenAppContainerSid, TokenUser, ACL,
+    ACL_REVISION, PSECURITY_DESCRIPTOR, PSID, SECURITY_ATTRIBUTES, TOKEN_QUERY, TOKEN_USER,
 };
 use windows::Win32::Storage::FileSystem::{
     FlushFileBuffers, ReadFile, WriteFile, FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX,
@@ -30,7 +30,8 @@ use windows::Win32::System::Pipes::{
 };
 use windows::Win32::System::RemoteDesktop::ProcessIdToSessionId;
 use windows::Win32::System::Threading::{
-    GetCurrentProcessId, OpenProcess, OpenProcessToken, PROCESS_QUERY_LIMITED_INFORMATION,
+    GetCurrentProcess, GetCurrentProcessId, OpenProcess, OpenProcessToken,
+    PROCESS_QUERY_LIMITED_INFORMATION,
 };
 
 use crate::ipc::frame;
@@ -64,7 +65,13 @@ struct SecurityBuffers {
     sd: Vec<u8>,
 }
 
-/// Build a DACL granting only the AppContainer SID GENERIC_ALL.
+/// Build a DACL granting the AppContainer SID plus the creating user's SID GENERIC_ALL.
+///
+/// An AppContainer token carries the AppContainer SID in its RESTRICTED SID list, so the Windows
+/// access check requires the DACL to grant BOTH a normal SID and a restricted SID. The AppContainer
+/// SID alone (restricted) fails the normal-SID pass and the sidecar's connect returns EPERM. The
+/// creating user's SID is a normal SID the sidecar token also carries; granting it satisfies that
+/// pass. The accept() PID/SID/session predicates still gate which client is actually admitted.
 unsafe fn build_security(sid: &[u8]) -> Result<SecurityBuffers, NodePipeError> {
     let mut acl = vec![0u8; 1024];
     let acl_ptr = acl.as_mut_ptr() as *mut ACL;
@@ -74,6 +81,14 @@ unsafe fn build_security(sid: &[u8]) -> Result<SecurityBuffers, NodePipeError> {
         ACL_REVISION,
         GENERIC_ALL.0,
         PSID(sid.as_ptr() as *mut c_void),
+    )
+    .map_err(|_| NodePipeError::Acl)?;
+    let user_sid = current_user_sid()?;
+    AddAccessAllowedAce(
+        acl_ptr,
+        ACL_REVISION,
+        GENERIC_ALL.0,
+        PSID(user_sid.as_ptr() as *mut c_void),
     )
     .map_err(|_| NodePipeError::Acl)?;
     let mut sd = vec![0u8; 64];
@@ -111,13 +126,46 @@ unsafe fn token_user_sid(token: HANDLE) -> Result<Vec<u8>, NodePipeError> {
     Ok(std::slice::from_raw_parts(sid.0 as *const u8, sid_len).to_vec())
 }
 
-unsafe fn process_sid(pid: u32) -> Result<Vec<u8>, NodePipeError> {
+unsafe fn current_user_sid() -> Result<Vec<u8>, NodePipeError> {
+    let mut token = HANDLE::default();
+    OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token)
+        .map_err(|_| NodePipeError::Acl)?;
+    let sid = token_user_sid(token);
+    let _ = CloseHandle(token);
+    sid
+}
+
+/// The AppContainer SID a process token carries. An AppContainer process's `TokenUser` is the
+/// creating USER SID (S-1-5-21-…), NOT the AppContainer SID (S-1-15-2-…); the latter is queried
+/// via `TokenAppContainerSid`, whose output buffer is the SID itself. The Node pipe binds this SID
+/// (the one the DACL grants and the spawn recorded), so it must read this class, not TokenUser.
+unsafe fn process_appcontainer_sid(pid: u32) -> Result<Vec<u8>, NodePipeError> {
     let proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
         .map_err(|_| NodePipeError::Auth)?;
     let mut token = HANDLE::default();
     let result = OpenProcessToken(proc, TOKEN_QUERY, &mut token)
         .map_err(|_| NodePipeError::Auth)
-        .and_then(|()| token_user_sid(token));
+        .and_then(|()| {
+            let mut len: u32 = 0;
+            let _ = GetTokenInformation(token, TokenAppContainerSid, None, 0, &mut len);
+            if len == 0 {
+                return Err(NodePipeError::Auth);
+            }
+            let mut buf = vec![0u8; len as usize];
+            GetTokenInformation(
+                token,
+                TokenAppContainerSid,
+                Some(buf.as_mut_ptr() as *mut c_void),
+                len,
+                &mut len,
+            )
+            .map_err(|_| NodePipeError::Auth)?;
+            // TokenAppContainerSid returns a TOKEN_APPCONTAINER_SID { PSID } — the buffer's first
+            // pointer-sized field points at the SID (not the SID inline). Dereference it to copy.
+            let sid_ptr = *(buf.as_ptr() as *const PSID);
+            let sid_len = GetLengthSid(sid_ptr) as usize;
+            Ok(std::slice::from_raw_parts(sid_ptr.0 as *const u8, sid_len).to_vec())
+        });
     let _ = CloseHandle(token);
     let _ = CloseHandle(proc);
     result
@@ -178,6 +226,35 @@ impl NodePipeServer {
         }
     }
 
+    /// Consume the server, returning its raw pipe handle WITHOUT closing it. The spawn creates the
+    /// pipe while the sidecar is suspended (so the pipe exists before Node's first connect) and hands
+    /// the handle to the Node-service thread, which rebuilds the server via [`from_raw_handle`].
+    pub fn into_raw_handle(self) -> HANDLE {
+        let handle = self.handle;
+        std::mem::forget(self);
+        handle
+    }
+
+    /// Rebuild a server around a handle created elsewhere (the spawn). The session predicate is
+    /// recomputed from the current process (the Broker), identical to [`create`].
+    ///
+    /// # Safety
+    /// `handle` must be a live Node-pipe server handle created by [`create`] for this Run's SID/PID,
+    /// not yet accepted or closed; ownership transfers to the returned server (its Drop closes it).
+    pub unsafe fn from_raw_handle(
+        handle: HANDLE,
+        container_sid: &[u8],
+        sidecar_pid: u32,
+    ) -> Result<Self, NodePipeError> {
+        let expected_session = session_id(GetCurrentProcessId())?;
+        Ok(Self {
+            handle,
+            expected_sid: container_sid.to_vec(),
+            expected_session,
+            expected_pid: sidecar_pid,
+        })
+    }
+
     /// Block until the sidecar connects, then verify PID/SID/login-session. The PID predicate is
     /// the recorded spawn fact; the SID predicate binds the AppContainer the DACL already granted.
     pub fn accept(&self) -> Result<NodePipeConnection, NodePipeError> {
@@ -193,7 +270,7 @@ impl NodePipeServer {
                 let _ = DisconnectNamedPipe(self.handle);
                 return Err(NodePipeError::PidMismatch);
             }
-            let client_sid = process_sid(pid)?;
+            let client_sid = process_appcontainer_sid(pid)?;
             let sid_ok = EqualSid(
                 PSID(client_sid.as_ptr() as *mut c_void),
                 PSID(self.expected_sid.as_ptr() as *mut c_void),
@@ -206,6 +283,25 @@ impl NodePipeServer {
             if session_id(pid)? != self.expected_session {
                 let _ = DisconnectNamedPipe(self.handle);
                 return Err(NodePipeError::SessionMismatch);
+            }
+            Ok(NodePipeConnection {
+                handle: self.handle,
+            })
+        }
+    }
+
+    /// Test-only accept: connect WITHOUT the PID/AppContainer-SID/login-session identity gate. The
+    /// production [`accept`] requires a real AppContainer sidecar process; unit tests drive an
+    /// in-process mock client to exercise the handshake + service-loop logic in isolation. The identity
+    /// gate itself stays covered by `a_client_that_is_not_the_spawned_sidecar_pid_is_refused` (the PID
+    /// predicate), the DACL regression, and the Go interop (a real AppContainer sidecar end-to-end).
+    #[cfg(test)]
+    pub fn accept_unverified(&self) -> Result<NodePipeConnection, NodePipeError> {
+        unsafe {
+            match ConnectNamedPipe(self.handle, None) {
+                Ok(()) => {}
+                Err(e) if e.code() == HRESULT::from_win32(ERROR_PIPE_CONNECTED.0) => {}
+                Err(_) => return Err(NodePipeError::Connect),
             }
             Ok(NodePipeConnection {
                 handle: self.handle,
@@ -477,13 +573,27 @@ mod tests {
     }
 
     #[test]
+    fn pipe_dacl_grants_a_normal_sid_for_the_restricted_appcontainer_token() {
+        // An AppContainer token carries its SID in the RESTRICTED SID list, so the access check
+        // needs the DACL to grant a normal SID too; without it the sidecar connect returns EPERM.
+        // build_security must therefore emit two ACEs (the AppContainer SID + the creating user).
+        let appcontainer_sid = current_sid();
+        let sec = unsafe { build_security(&appcontainer_sid).expect("build security") };
+        let acl = unsafe { &*(sec._acl.as_ptr() as *const ACL) };
+        assert_eq!(
+            acl.AceCount, 2,
+            "the DACL must grant the AppContainer SID AND a normal SID"
+        );
+    }
+
+    #[test]
     fn a_node_client_handshakes_and_receives_bootstrap() {
         let name = unique_name();
         let pid = unsafe { GetCurrentProcessId() };
         let server = NodePipeServer::create(&name, &current_sid(), pid).expect("create node pipe");
         let client_name = name.clone();
         let client = std::thread::spawn(move || client_exchange(&client_name, "node"));
-        let conn = server.accept().expect("accept sidecar");
+        let conn = server.accept_unverified().expect("accept sidecar");
         conn.handshake_node().expect("node handshake");
         conn.send_bootstrap(&bootstrap()).expect("send bootstrap");
         let received = client.join().unwrap();
@@ -500,7 +610,7 @@ mod tests {
         let server = NodePipeServer::create(&name, &current_sid(), pid).expect("create node pipe");
         let client_name = name.clone();
         let client = std::thread::spawn(move || client_exchange(&client_name, "shell"));
-        let conn = server.accept().expect("accept sidecar");
+        let conn = server.accept_unverified().expect("accept sidecar");
         assert_eq!(conn.handshake_node(), Err(NodePipeError::WrongKind));
         // Drop the connection BEFORE joining: the client is parked reading a bootstrap that a
         // refused kind never sends, so the disconnect is what unblocks it.

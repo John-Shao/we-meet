@@ -16,19 +16,66 @@ import { lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 
 export const WORK_DEVICE_FILE = "work-device.exe";
-export interface WorkDeviceDescriptor { protocolVersion: 1; platform: "win32"; arch: "x64"; sha256: string }
+export const WORK_DEVICE_NODE_FILE = "node.exe";
+export const WORK_DEVICE_BUNDLE_DIR = "work-device-bundle";
+/** The pinned payload descriptor (批2-7: the sidecar runtime + bundle ship beside the Broker).
+ * protocolVersion 2 pins the executable, the pinned Node runtime, and the bundle's two digest hashes
+ * (runtime_digest = sha256(JCS(signed-file manifest)); tool_manifest_hash = sha256(JCS(tool schemas))).
+ * The bundle bytes are re-hashed from disk at verify time, mirroring the Broker's own spawn-time gate
+ * (src/device/src/digest.rs verify_bundle), so a drifted/substituted bundle is refused before spawn. */
+export interface WorkDeviceDescriptor {
+  protocolVersion: 2; platform: "win32"; arch: "x64";
+  sha256: string; nodeSha256: string; runtimeDigest: string; toolManifestHash: string;
+}
 const hash = (value: unknown) => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 
 export function workDeviceDescriptor(value: unknown): WorkDeviceDescriptor {
   const d = value as WorkDeviceDescriptor;
-  if (!d || Object.keys(d).sort().join(",") !== "arch,platform,protocolVersion,sha256" ||
-    d.protocolVersion !== 1 || d.platform !== "win32" || d.arch !== "x64" || !hash(d.sha256)) {
+  if (!d || Object.keys(d).sort().join(",") !== "arch,nodeSha256,platform,protocolVersion,runtimeDigest,sha256,toolManifestHash" ||
+    d.protocolVersion !== 2 || d.platform !== "win32" || d.arch !== "x64" ||
+    !hash(d.sha256) || !hash(d.nodeSha256) || !hash(d.runtimeDigest) || !hash(d.toolManifestHash)) {
     throw new Error("work_device_manifest_invalid");
   }
   return { ...d };
 }
 
-/** Verify the staged payload: exact inventory, pinned hash, no symlinks. */
+// RFC 8785 JCS for the manifest/schema shapes (strings, integers, booleans, arrays, null): sort keys
+// recursively, compact JSON, UTF-8 — byte-identical to device-bundle/build-manifest.mjs and the
+// device's frame::jcs (the bundle-digest gate cross-checks the two canonicalizers).
+function canonicalize(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalize).join(",")}]`;
+  if (value && typeof value === "object") {
+    const keys = Object.keys(value).sort();
+    return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalize((value as Record<string, unknown>)[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+const jcsHash = (value: unknown) => createHash("sha256").update(Buffer.from(canonicalize(value), "utf8")).digest("hex");
+
+/** Re-verify the bundle directory against its pinned digests (mirrors digest.rs verify_bundle):
+ * re-hash every signed file from disk (refusing drift/missing/path-escape), recompute
+ * sha256(JCS(files)) and sha256(JCS(tool-schemas)), and require both to equal the manifest's stored
+ * values AND the descriptor pins. */
+async function verifyBundle(bundleDir: string, runtimeDigest: string, toolManifestHash: string): Promise<void> {
+  let manifest: { files?: unknown; runtime_digest?: unknown; tool_manifest_hash?: unknown };
+  try { manifest = JSON.parse((await readFile(path.join(bundleDir, "bundle-manifest.json"))).toString("utf8")); } catch { throw new Error("work_device_integrity_failed"); }
+  if (!manifest || !Array.isArray(manifest.files) || !hash(manifest.runtime_digest) || !hash(manifest.tool_manifest_hash)) throw new Error("work_device_integrity_failed");
+  for (const entry of manifest.files) {
+    const rel = (entry as { path?: unknown }).path;
+    const expected = (entry as { sha256?: unknown }).sha256;
+    if (typeof rel !== "string" || typeof expected !== "string" || !hash(expected)) throw new Error("work_device_integrity_failed");
+    if (rel.startsWith("/") || rel.includes("\\") || rel.split("/").some((s) => s === ".." || s === "")) throw new Error("work_device_integrity_failed");
+    let bytes;
+    try { bytes = await readFile(path.join(bundleDir, rel)); } catch { throw new Error("work_device_integrity_failed"); }
+    if (createHash("sha256").update(bytes).digest("hex") !== expected) throw new Error("work_device_integrity_failed");
+  }
+  if (jcsHash(manifest.files) !== manifest.runtime_digest || manifest.runtime_digest !== runtimeDigest) throw new Error("work_device_integrity_failed");
+  let schemas: unknown;
+  try { schemas = JSON.parse((await readFile(path.join(bundleDir, "tool-schemas.json"))).toString("utf8")); } catch { throw new Error("work_device_integrity_failed"); }
+  if (jcsHash(schemas) !== manifest.tool_manifest_hash || manifest.tool_manifest_hash !== toolManifestHash) throw new Error("work_device_integrity_failed");
+}
+
+/** Verify the staged payload: exact inventory, pinned hashes, no symlinks, bundle bytes re-hashed. */
 export async function verifyWorkDevice(root: string, expected?: WorkDeviceDescriptor | null): Promise<{ executable: string; descriptor: WorkDeviceDescriptor }> {
   if (expected === null) throw new Error("work_device_manifest_invalid");
   const absolute = path.resolve(root);
@@ -37,20 +84,33 @@ export async function verifyWorkDevice(root: string, expected?: WorkDeviceDescri
   if (!folder.isDirectory() || folder.isSymbolicLink()) throw new Error("work_device_manifest_invalid");
   const manifestPath = path.join(absolute, "manifest.json");
   const executable = path.join(absolute, WORK_DEVICE_FILE);
-  for (const [file, limit] of [[manifestPath, 65536], [executable, 64 * 1024 * 1024]] as const) {
+  const nodeFile = path.join(absolute, WORK_DEVICE_NODE_FILE);
+  const bundleDir = path.join(absolute, WORK_DEVICE_BUNDLE_DIR);
+  for (const [file, limit] of [[manifestPath, 65536], [executable, 64 * 1024 * 1024], [nodeFile, 128 * 1024 * 1024]] as const) {
     let info;
     try { info = await lstat(file); } catch { throw new Error("work_device_manifest_invalid"); }
     if (!info.isFile() || info.isSymbolicLink() || info.size < 1 || info.size > limit) throw new Error("work_device_manifest_invalid");
   }
-  if ((await readdir(absolute)).sort().join(",") !== `manifest.json,${WORK_DEVICE_FILE}`) throw new Error("work_device_inventory_invalid");
-  let manifest: { file?: unknown; sha256?: unknown };
+  let bundleInfo;
+  try { bundleInfo = await lstat(bundleDir); } catch { throw new Error("work_device_manifest_invalid"); }
+  if (!bundleInfo.isDirectory() || bundleInfo.isSymbolicLink()) throw new Error("work_device_manifest_invalid");
+  if ((await readdir(absolute)).sort().join(",") !== `manifest.json,${WORK_DEVICE_NODE_FILE},${WORK_DEVICE_BUNDLE_DIR},${WORK_DEVICE_FILE}`) throw new Error("work_device_inventory_invalid");
+  let manifest: { file?: unknown; sha256?: unknown; nodeSha256?: unknown; runtimeDigest?: unknown; toolManifestHash?: unknown };
   try { manifest = JSON.parse((await readFile(manifestPath)).toString("utf8")); } catch { throw new Error("work_device_manifest_invalid"); }
-  if (!manifest || manifest.file !== WORK_DEVICE_FILE || !hash(manifest.sha256)) throw new Error("work_device_manifest_invalid");
-  const descriptor: WorkDeviceDescriptor = { protocolVersion: 1, platform: "win32", arch: "x64", sha256: manifest.sha256 as string };
-  const digest = createHash("sha256").update(await readFile(executable)).digest("hex");
-  if (digest !== descriptor.sha256 || (expected && expected.sha256 !== descriptor.sha256)) {
+  if (!manifest || manifest.file !== WORK_DEVICE_FILE || !hash(manifest.sha256) || !hash(manifest.nodeSha256) || !hash(manifest.runtimeDigest) || !hash(manifest.toolManifestHash)) throw new Error("work_device_manifest_invalid");
+  const descriptor: WorkDeviceDescriptor = {
+    protocolVersion: 2, platform: "win32", arch: "x64",
+    sha256: manifest.sha256 as string, nodeSha256: manifest.nodeSha256 as string,
+    runtimeDigest: manifest.runtimeDigest as string, toolManifestHash: manifest.toolManifestHash as string,
+  };
+  const exeDigest = createHash("sha256").update(await readFile(executable)).digest("hex");
+  const nodeDigest = createHash("sha256").update(await readFile(nodeFile)).digest("hex");
+  if (exeDigest !== descriptor.sha256 || nodeDigest !== descriptor.nodeSha256 ||
+    (expected && (expected.sha256 !== descriptor.sha256 || expected.nodeSha256 !== descriptor.nodeSha256 ||
+      expected.runtimeDigest !== descriptor.runtimeDigest || expected.toolManifestHash !== descriptor.toolManifestHash))) {
     throw new Error("work_device_integrity_failed");
   }
+  await verifyBundle(bundleDir, descriptor.runtimeDigest, descriptor.toolManifestHash);
   return { executable, descriptor };
 }
 
