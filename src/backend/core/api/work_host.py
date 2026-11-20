@@ -214,7 +214,7 @@ class WorkHostBearerVerifyView(View):
         except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001
             # Keycloak unreachable / unexpected verifier failure is a service
             # degradation, not a user-auth rejection: fail closed as 503.
-            logger.exception("Work bearer token verification failed")
+            logger.error("Work bearer token verification failed")
             return JsonResponse({"code": "service_unavailable"}, status=503)
         if result is None:
             return JsonResponse({"code": "session_invalid"}, status=401)

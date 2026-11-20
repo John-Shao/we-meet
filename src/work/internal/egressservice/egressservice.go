@@ -230,6 +230,7 @@ type Dependencies struct {
 	Providers  ProviderResolver
 	Commands   EgressCommands
 	References ReferenceResolver
+	Outputs    egress.OutputStager
 	Executions ExecutionBindings
 	Content    content.Store
 	Factory    ProviderFactory
@@ -248,6 +249,7 @@ type Server struct {
 	providers  ProviderResolver
 	commands   EgressCommands
 	references ReferenceResolver
+	outputs    egress.OutputStager
 	executions ExecutionBindings
 	store      content.Store
 	factory    ProviderFactory
@@ -259,7 +261,7 @@ type Server struct {
 func New(config Config, deps Dependencies) (*Server, error) {
 	if deps.Authorizer == nil || deps.Providers == nil || deps.Commands == nil ||
 		deps.References == nil || deps.Executions == nil || deps.Content == nil ||
-		deps.Factory == nil {
+		deps.Factory == nil || deps.Outputs == nil {
 		return nil, errors.New("egressservice: authorizer, provider resolver, egress commands, reference registry, execution bindings, content store and provider factory are required")
 	}
 	if !uuidPattern.MatchString(config.GatewayID) {
@@ -274,6 +276,7 @@ func New(config Config, deps Dependencies) (*Server, error) {
 		providers:  deps.Providers,
 		commands:   deps.Commands,
 		references: deps.References,
+		outputs:    deps.Outputs,
 		executions: deps.Executions,
 		store:      deps.Content,
 		factory:    deps.Factory,

@@ -47,6 +47,9 @@ var (
 )
 
 func TestMain(m *testing.M) {
+	if os.Getenv("WORK_RECOVERY_CHILD") == "1" {
+		os.Exit(m.Run())
+	}
 	if os.Getenv("WORK_TEST_PG_URL") == "" {
 		os.Exit(m.Run())
 	}
@@ -475,7 +478,7 @@ type pgHarness struct {
 	commands *recordingCommands
 }
 
-func newPGHarness(t *testing.T) *pgHarness {
+func newPGHarness(t *testing.T, configure ...func(*Server)) *pgHarness {
 	t.Helper()
 	harness := &pgHarness{
 		provider: &fakeProvider{response: egressSuccess()},
@@ -490,12 +493,16 @@ func newPGHarness(t *testing.T) *pgHarness {
 		Providers:  &providerctx.Resolver{Pool: pgPool, Master: pgMaster},
 		Commands:   harness.commands,
 		References: contentref.NewRegistry(pgPool),
+		Outputs:    &egress.OutputRecovery{Pool: pgPool, Content: pgContent},
 		Executions: &PGBindings{Pool: pgPool},
 		Content:    pgContent,
 		Factory:    harness.factory.build,
 	})
 	if err != nil {
 		t.Fatalf("new server: %v", err)
+	}
+	for _, apply := range configure {
+		apply(server)
 	}
 	harness.server = httptest.NewServer(server.Handler())
 	t.Cleanup(harness.server.Close)

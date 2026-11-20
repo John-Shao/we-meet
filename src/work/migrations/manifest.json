@@ -648,6 +648,28 @@
       "catalog_checksum": "sha256:a99ef7adcfe3cfe0dde452a87825447f4f2ab4eadb12d0935515b35dfcae0d7b",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 59,
+      "name": "0059_device_execution_review",
+      "kind": "increment",
+      "file": "increments/0059_device_execution_review.sql",
+      "checksum": "sha256:7fb4e0fe8978a1dd5225d7f1cc2dc487d68d099016eb54247e3c0dce7c8855c0",
+      "catalog": "catalogs/0059_device_execution_review.json",
+      "catalog_checksum": "sha256:7e6fbd30170747eab01fb8feab36db81d8bccc9a240a90d850f224e21fdaa565",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 60,
+      "name": "0060_egress_output_recovery",
+      "kind": "increment",
+      "file": "increments/0060_egress_output_recovery.sql",
+      "checksum": "sha256:bdfc22b57efb6b4a8c4cf67f05b4a60b2505f61ccdeb26c08265820475da84df",
+      "catalog": "catalogs/0060_egress_output_recovery.json",
+      "catalog_checksum": "sha256:5eda1c4afd26c8c5710c9ef05645dd14009c44b0571e3eeda42e9b2385958115",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

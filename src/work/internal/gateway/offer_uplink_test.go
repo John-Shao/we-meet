@@ -3,6 +3,7 @@ package gateway_test
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -242,7 +243,8 @@ func TestRunReadyAcquiresLeaseAndSendsRunStart(t *testing.T) {
 		"binding_hash":     bindingHash,
 		"ready_or_reason":  "ready",
 	}
-	if err := stream.SendMsg(f.signFrame(t, "run_ready", sessionID, bootID, agentID, ready)); err != nil {
+	readyBytes := f.signFrame(t, "run_ready", sessionID, bootID, agentID, ready)
+	if err := stream.SendMsg(readyBytes); err != nil {
 		t.Fatal(err)
 	}
 	startJSON, start, startSession := recvTypedFrame(t, stream, "run_start")
@@ -270,6 +272,19 @@ func TestRunReadyAcquiresLeaseAndSendsRunStart(t *testing.T) {
 	}
 	if devicesig.VerifyFrame(serverPub, "run_offer", startJSON, sig) {
 		t.Fatal("a run_start signature verified as run_offer (frame type not bound)")
+	}
+	// Same signed ready bytes on the same stream replay the complete original start.
+	if err := stream.SendMsg(readyBytes); err != nil {
+		t.Fatal(err)
+	}
+	replayJSON, replayStart, _ := recvTypedFrame(t, stream, "run_start")
+	if !devicesig.VerifyFrame(serverPub, "run_start", replayJSON, replayStart["signature"].(string)) {
+		t.Fatal("replayed start signature is invalid")
+	}
+	delete(start, "signature")
+	delete(replayStart, "signature")
+	if !reflect.DeepEqual(start, replayStart) {
+		t.Fatalf("ready replay changed start: %#v vs %#v", start, replayStart)
 	}
 
 	ctx := gwContext(t)

@@ -27,6 +27,7 @@ import (
 	"github.com/we-meet/work/internal/content"
 	"github.com/we-meet/work/internal/contentref"
 	workdb "github.com/we-meet/work/internal/db"
+	"github.com/we-meet/work/internal/egress"
 	"github.com/we-meet/work/internal/egressservice"
 	"github.com/we-meet/work/internal/providerctx"
 )
@@ -90,6 +91,7 @@ func run(ctx context.Context) error {
 		Prober:     &providerctx.Probe{Pool: pool, Master: masterKey},
 		Commands:   gate,
 		References: contentref.NewRegistry(pool),
+		Outputs:    &egress.OutputRecovery{Pool: pool, Content: store},
 		Executions: &egressservice.PGBindings{Pool: pool},
 		Content:    store,
 		Factory:    egressservice.HTTPProviderFactory,

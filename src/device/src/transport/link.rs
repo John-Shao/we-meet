@@ -2,7 +2,7 @@
 //!
 //! Dial mTLS → send the signed hello with a single-use ticket → parse hello_ack → heartbeat on
 //! the server's cadence → apply lease renewals → forward every other downlink verbatim. On a
-//! clock discontinuity, an OS resume, or a lost stream the held leases are invalidated and the
+//! lease expiry, clock discontinuity, OS resume, or lost stream the held leases are invalidated and the
 //! session is dropped; the loop then redials with a FRESH ticket, because
 //! `work.activate_device_session` always mints a new session (see the parent module doc).
 //!
@@ -15,6 +15,7 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use bytes::Bytes;
+use futures_util::{Stream, StreamExt};
 use http::uri::PathAndQuery;
 use http::Uri;
 use serde_json::Value;
@@ -127,8 +128,8 @@ impl Link {
                                 return;
                             }
                         }
-                        Some(LinkCommand::TrackLease { lease_id, fence, ttl, round_trip }) => {
-                            leases.track(&lease_id, Instant::now(), ttl, round_trip, fence);
+                        Some(LinkCommand::TrackLease { lease_id, fence, sent_at, ttl, round_trip }) => {
+                            leases.track(&lease_id, sent_at, ttl, round_trip, fence);
                         }
                         Some(LinkCommand::ReleaseLease { lease_id }) => { leases.release(&lease_id); }
                         Some(LinkCommand::ReplaceIdentity(identity)) => { self.config.identity = identity; }
@@ -186,7 +187,7 @@ impl Link {
                     return;
                 }
                 Drive::CoreGone => return,
-                Drive::Lost(reason) => {
+                Drive::Lost(reason) | Drive::Invalidate(_, reason) => {
                     attempt += 1;
                     if events
                         .send(LinkEvent::Disconnected { reason, attempt })
@@ -214,9 +215,28 @@ impl Link {
         let Session {
             _channel,
             uplink,
-            mut downlink,
+            downlink,
             ack,
         } = session;
+        self.drive_session(ack, uplink, downlink, leases, commands, uplinks, events)
+            .await
+    }
+
+    /// The established-stream loop, also exercised with a held-open in-memory downlink in tests.
+    #[allow(clippy::too_many_arguments)]
+    async fn drive_session<S>(
+        &mut self,
+        ack: HelloAck,
+        uplink: mpsc::Sender<Bytes>,
+        mut downlink: S,
+        leases: &mut LeaseSet,
+        commands: &mut mpsc::Receiver<LinkCommand>,
+        uplinks: &mut mpsc::Receiver<UplinkFrame>,
+        events: &mpsc::Sender<LinkEvent>,
+    ) -> Drive
+    where
+        S: Stream<Item = Result<Bytes, tonic::Status>> + Unpin,
+    {
         let mut tick = tokio::time::interval(ack.heartbeat_interval);
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         // interval's first tick fires immediately; the hello was this session's first uplink.
@@ -229,115 +249,145 @@ impl Link {
         let mut uplinks_open = true;
 
         loop {
-            tokio::select! {
-                _ = tick.tick() => {
-                    let now = Instant::now();
-                    let monotonic = now.duration_since(last_mono);
-                    let wall = SystemTime::now().duration_since(last_wall).ok();
-                    if clock_discontinuity(monotonic, wall) {
-                        let ids = leases.invalidate_all();
-                        if !ids.is_empty()
-                            && events.send(LinkEvent::LeasesInvalidated { ids, cause: LeaseLoss::ClockJump }).await.is_err()
-                        {
-                            return Drive::CoreGone;
-                        }
-                        return Drive::Lost("clock discontinuity".into());
-                    }
-                    last_mono = now;
-                    last_wall = SystemTime::now();
-                    let body = heartbeat_body(&self.config, leases, now);
-                    let env = match uplink_envelope(&self.config, &ack.session_id, HEARTBEAT_FRAME_TYPE, body.to_value()) {
-                        Ok(env) => env,
-                        Err(err) => return Drive::Lost(err.to_string()),
-                    };
-                    let raw = match serde_json::to_vec(&env) {
-                        Ok(raw) => raw,
-                        Err(err) => return Drive::Lost(format!("heartbeat encode: {err}")),
-                    };
-                    if uplink.send(Bytes::from(raw)).await.is_err() {
-                        return Drive::Lost("uplink closed".into());
-                    }
-                    // Every lease renewal the server sends in answer to this heartbeat is
-                    // measured from THIS send instant, not from each frame's arrival (§3.3).
-                    last_heartbeat_sent = Some(now);
+            let deadline = leases.next_deadline();
+            // Enclose the whole I/O step, including backpressured sends. Expiry must not wait
+            // for another heartbeat, downlink, or space in the transport writer's queue.
+            let outcome = tokio::select! {
+                biased;
+                _ = wait_for_deadline(deadline) => {
+                    Some(Drive::Invalidate(LeaseLoss::Expired, "lease expired".into()))
                 }
-                message = downlink.message() => {
-                    let raw = match message {
-                        Ok(Some(raw)) => raw,
-                        Ok(None) => return Drive::Lost("gateway closed the stream".into()),
-                        Err(status) => return Drive::Lost(status.to_string()),
-                    };
-                    let env: Envelope = match serde_json::from_slice(&raw) {
-                        Ok(env) => env,
-                        Err(err) => return Drive::Lost(format!("downlink envelope: {err}")),
-                    };
-                    if !downlink_acceptable(&env, &self.config.device_id, &ack.session_id) {
-                        return Drive::Lost("downlink identity mismatch".into());
-                    }
-                    if is_lease_frame(&env) {
-                        let body: LeaseBody = match serde_json::from_value(env.body.clone()) {
-                            Ok(body) => body,
-                            Err(err) => return Drive::Lost(format!("lease body: {err}")),
-                        };
-                        let now = Instant::now();
-                        let sent = last_heartbeat_sent.unwrap_or(now);
-                        let round_trip = now.duration_since(sent);
-                        match leases.apply_renewal(sent, round_trip, &body) {
-                            Some(state) => {
-                                if events.send(LinkEvent::LeaseRenewal(state)).await.is_err() {
-                                    return Drive::CoreGone;
-                                }
+                outcome = async {
+                    tokio::select! {
+                        _ = tick.tick() => {
+                            let now = Instant::now();
+                            let monotonic = now.duration_since(last_mono);
+                            let wall = SystemTime::now().duration_since(last_wall).ok();
+                            if clock_discontinuity(monotonic, wall) {
+                                return Some(Drive::Invalidate(LeaseLoss::ClockJump, "clock discontinuity".into()));
                             }
-                            // A renewal for a lease the link does not hold is forwarded, never
-                            // treated as an acquisition (§3.1: leases come from run_start).
-                            None => {
-                                if events.send(LinkEvent::Downlink(Box::new(env))).await.is_err() {
-                                    return Drive::CoreGone;
+                            last_mono = now;
+                            last_wall = SystemTime::now();
+                            let body = heartbeat_body(&self.config, leases, now);
+                            let env = match uplink_envelope(&self.config, &ack.session_id, HEARTBEAT_FRAME_TYPE, body.to_value()) {
+                                Ok(env) => env,
+                                Err(err) => return Some(Drive::Lost(err.to_string())),
+                            };
+                            let raw = match serde_json::to_vec(&env) {
+                                Ok(raw) => raw,
+                                Err(err) => return Some(Drive::Lost(format!("heartbeat encode: {err}"))),
+                            };
+                            if uplink.send(Bytes::from(raw)).await.is_err() {
+                                return Some(Drive::Lost("uplink closed".into()));
+                            }
+                            // Every lease renewal the server sends in answer to this heartbeat is
+                            // measured from THIS send instant, not from each frame's arrival (§3.3).
+                            last_heartbeat_sent = Some(now);
+                        }
+                        message = downlink.next() => {
+                            // A ready downlink can race the timer; do not consume a late renewal/frame.
+                            if deadline.is_some_and(|d| Instant::now() >= d) {
+                                return Some(Drive::Invalidate(LeaseLoss::Expired, "lease expired".into()));
+                            }
+                            let raw = match message {
+                                Some(Ok(raw)) => raw,
+                                None => return Some(Drive::Lost("gateway closed the stream".into())),
+                                Some(Err(status)) => return Some(Drive::Lost(status.to_string())),
+                            };
+                            let env: Envelope = match serde_json::from_slice(&raw) {
+                                Ok(env) => env,
+                                Err(err) => return Some(Drive::Lost(format!("downlink envelope: {err}"))),
+                            };
+                            if !downlink_acceptable(&env, &self.config.device_id, &ack.session_id) {
+                                return Some(Drive::Lost("downlink identity mismatch".into()));
+                            }
+                            if is_lease_frame(&env) {
+                                let body: LeaseBody = match serde_json::from_value(env.body.clone()) {
+                                    Ok(body) => body,
+                                    Err(err) => return Some(Drive::Lost(format!("lease body: {err}"))),
+                                };
+                                let now = Instant::now();
+                                let sent = last_heartbeat_sent.unwrap_or(now);
+                                let round_trip = now.duration_since(sent);
+                                match leases.apply_renewal(sent, round_trip, &body) {
+                                    Some(state) => {
+                                        if events.send(LinkEvent::LeaseRenewal(state)).await.is_err() {
+                                            return Some(Drive::CoreGone);
+                                        }
+                                    }
+                                    // A renewal for a lease the link does not hold is forwarded, never
+                                    // treated as an acquisition (§3.1: leases come from run_start).
+                                    None => {
+                                        if events.send(LinkEvent::Downlink(Box::new(env))).await.is_err() {
+                                            return Some(Drive::CoreGone);
+                                        }
+                                    }
                                 }
+                            } else if events.send(LinkEvent::Downlink(Box::new(env))).await.is_err() {
+                                return Some(Drive::CoreGone);
                             }
                         }
-                    } else if events.send(LinkEvent::Downlink(Box::new(env))).await.is_err() {
+                        command = commands.recv() => match command {
+                            Some(LinkCommand::Stop) | None => return Some(Drive::Stop),
+                            Some(LinkCommand::TrackLease { lease_id, fence, sent_at, ttl, round_trip }) => {
+                                leases.track(&lease_id, sent_at, ttl, round_trip, fence);
+                            }
+                            Some(LinkCommand::ReleaseLease { lease_id }) => { leases.release(&lease_id); }
+                            Some(LinkCommand::ReplaceIdentity(identity)) => { self.config.identity = identity; }
+                            Some(LinkCommand::Discontinuity(cause)) => {
+                                return Some(Drive::Invalidate(cause.into(), format!("discontinuity: {cause:?}")));
+                            }
+                        },
+                        frame = uplinks.recv(), if uplinks_open => match frame {
+                            Some(frame) => {
+                                // The body is already signed by the core under its own frame type; the link
+                                // only stamps the transport identity of THIS session (§3.1: a reconnect
+                                // re-sends the same signed bytes under a new session_id, never re-signs).
+                                let env = match uplink_envelope(&self.config, &ack.session_id, &frame.frame_type, frame.body) {
+                                    Ok(env) => env,
+                                    Err(err) => return Some(Drive::Lost(err.to_string())),
+                                };
+                                let raw = match serde_json::to_vec(&env) {
+                                    Ok(raw) => raw,
+                                    Err(err) => return Some(Drive::Lost(format!("uplink encode: {err}"))),
+                                };
+                                if uplink.send(Bytes::from(raw)).await.is_err() {
+                                    return Some(Drive::Lost("uplink closed".into()));
+                                }
+                            }
+                            None => { uplinks_open = false; }
+                        },
+                    }
+                    None
+                } => outcome,
+            };
+            match outcome {
+                Some(Drive::Invalidate(cause, reason)) => {
+                    // Do not drain ids inside the cancellable I/O step: reporting must not lose
+                    // an invalidation when the deadline wins a backpressured event send.
+                    let ids = leases.invalidate_all();
+                    if !ids.is_empty()
+                        && events
+                            .send(LinkEvent::LeasesInvalidated { ids, cause })
+                            .await
+                            .is_err()
+                    {
                         return Drive::CoreGone;
                     }
+                    return Drive::Lost(reason);
                 }
-                command = commands.recv() => match command {
-                    Some(LinkCommand::Stop) | None => return Drive::Stop,
-                    Some(LinkCommand::TrackLease { lease_id, fence, ttl, round_trip }) => {
-                        leases.track(&lease_id, Instant::now(), ttl, round_trip, fence);
-                    }
-                    Some(LinkCommand::ReleaseLease { lease_id }) => { leases.release(&lease_id); }
-                    Some(LinkCommand::ReplaceIdentity(identity)) => { self.config.identity = identity; }
-                    Some(LinkCommand::Discontinuity(cause)) => {
-                        let ids = leases.invalidate_all();
-                        if !ids.is_empty()
-                            && events.send(LinkEvent::LeasesInvalidated { ids, cause: cause.into() }).await.is_err()
-                        {
-                            return Drive::CoreGone;
-                        }
-                        return Drive::Lost(format!("discontinuity: {cause:?}"));
-                    }
-                },
-                frame = uplinks.recv(), if uplinks_open => match frame {
-                    Some(frame) => {
-                        // The body is already signed by the core under its own frame type; the link
-                        // only stamps the transport identity of THIS session (§3.1: a reconnect
-                        // re-sends the same signed bytes under a new session_id, never re-signs).
-                        let env = match uplink_envelope(&self.config, &ack.session_id, &frame.frame_type, frame.body) {
-                            Ok(env) => env,
-                            Err(err) => return Drive::Lost(err.to_string()),
-                        };
-                        let raw = match serde_json::to_vec(&env) {
-                            Ok(raw) => raw,
-                            Err(err) => return Drive::Lost(format!("uplink encode: {err}")),
-                        };
-                        if uplink.send(Bytes::from(raw)).await.is_err() {
-                            return Drive::Lost("uplink closed".into());
-                        }
-                    }
-                    None => { uplinks_open = false; }
-                },
+                Some(outcome) => return outcome,
+                None => {}
             }
         }
+    }
+}
+
+/// No held Run lease means no expiry timer. hello_ack's session TTL is not an acquisition.
+async fn wait_for_deadline(deadline: Option<Instant>) {
+    match deadline {
+        Some(deadline) => tokio::time::sleep_until(deadline.into()).await,
+        None => std::future::pending::<()>().await,
     }
 }
 
@@ -349,6 +399,8 @@ enum Drive {
     CoreGone,
     /// The stream or the protocol broke; redial with a fresh ticket.
     Lost(String),
+    /// Internal step result: report the held ids before ending the session.
+    Invalidate(LeaseLoss, String),
 }
 
 /// One established Connect stream.
@@ -710,11 +762,228 @@ mod tests {
         let later = start + Duration::from_secs(10);
         let body = heartbeat_body(&config(), &mut leases, later);
         assert_eq!(body.lease_ids, vec!["long".to_string()]);
-        // The expired lease was pruned, so a later heartbeat does not name it either.
-        assert_eq!(leases.len(), 1);
+        // Expired ids are omitted, but retained until the expiry/session-loss event reports them.
+        assert_eq!(leases.len(), 2);
+        assert_eq!(
+            leases.invalidate_all(),
+            vec!["long".to_string(), "short".to_string()]
+        );
         let value = body.to_value();
         assert_eq!(value["last_receipt_seq"], "7");
         assert!(value["monotonic_ms"].is_string());
+    }
+
+    fn session_ack() -> HelloAck {
+        HelloAck {
+            session_id: "sess-1".into(),
+            server_time: String::new(),
+            generation: 1,
+            lease_ttl: Duration::from_secs(30),
+            // Deliberately later than the test lease: expiry must not depend on a heartbeat.
+            heartbeat_interval: Duration::from_secs(10),
+            resync_required: true,
+            server_jwk: SoftwareKey::random().public_jwk(),
+            permit_jwk: SoftwareKey::random().public_jwk(),
+        }
+    }
+
+    fn renewal_bytes() -> Bytes {
+        let body = LeaseBody {
+            lease_id: "lease-1".into(),
+            run_id: "run-1".into(),
+            fence: 2,
+            expires_at: "2026-11-19T00:00:30Z".into(),
+            ttl_ms: 30_000,
+        };
+        let mut env = Envelope::new("lease", "dev-1", serde_json::to_value(body).unwrap());
+        env.session_id = "sess-1".into();
+        Bytes::from(serde_json::to_vec(&env).unwrap())
+    }
+
+    #[tokio::test]
+    async fn held_open_stream_without_renewal_expires_before_heartbeat() {
+        let (down_tx, down_rx) = mpsc::channel::<Result<Bytes, tonic::Status>>(1);
+        let (_cmd_tx, mut cmd_rx) = mpsc::channel(1);
+        let (event_tx, mut event_rx) = mpsc::channel(8);
+        let (up_tx, mut up_rx) = mpsc::channel(8);
+        let mut link = Link::new(config(), Arc::new(SoftwareKey::random()));
+        let mut leases = LeaseSet::default();
+        leases.track(
+            "lease-1",
+            Instant::now(),
+            Duration::from_millis(50),
+            Duration::ZERO,
+            2,
+        );
+        let mut uplinks = no_uplinks();
+        let outcome = tokio::time::timeout(
+            Duration::from_secs(2),
+            link.drive_session(
+                session_ack(),
+                up_tx,
+                ReceiverStream::new(down_rx),
+                &mut leases,
+                &mut cmd_rx,
+                &mut uplinks,
+                &event_tx,
+            ),
+        )
+        .await
+        .expect("expiry must not wait for heartbeat/socket close");
+        assert!(matches!(outcome, Drive::Lost(reason) if reason == "lease expired"));
+        match event_rx.try_recv().unwrap() {
+            LinkEvent::LeasesInvalidated {
+                ids,
+                cause: LeaseLoss::Expired,
+            } => {
+                assert_eq!(ids, vec!["lease-1".to_string()]);
+            }
+            other => panic!("expected expiry, got {other:?}"),
+        }
+        assert!(leases.is_empty());
+        assert!(up_rx.try_recv().is_err(), "no heartbeat was needed");
+        assert!(
+            down_tx.send(Ok(renewal_bytes())).await.is_err(),
+            "expired session must end"
+        );
+    }
+
+    #[tokio::test]
+    async fn queued_late_renewal_loses_to_expiry_and_cannot_revive_the_session() {
+        let (down_tx, down_rx) = mpsc::channel(1);
+        down_tx.send(Ok(renewal_bytes())).await.unwrap();
+        let (_cmd_tx, mut cmd_rx) = mpsc::channel(1);
+        let (event_tx, mut event_rx) = mpsc::channel(8);
+        let (up_tx, _up_rx) = mpsc::channel(8);
+        let mut link = Link::new(config(), Arc::new(SoftwareKey::random()));
+        let mut leases = LeaseSet::default();
+        leases.track("lease-1", Instant::now(), Duration::ZERO, Duration::ZERO, 2);
+        let mut uplinks = no_uplinks();
+        let outcome = tokio::time::timeout(
+            Duration::from_secs(2),
+            link.drive_session(
+                session_ack(),
+                up_tx,
+                ReceiverStream::new(down_rx),
+                &mut leases,
+                &mut cmd_rx,
+                &mut uplinks,
+                &event_tx,
+            ),
+        )
+        .await
+        .unwrap();
+        assert!(matches!(outcome, Drive::Lost(_)));
+        assert!(matches!(
+            event_rx.try_recv(),
+            Ok(LinkEvent::LeasesInvalidated {
+                cause: LeaseLoss::Expired,
+                ..
+            })
+        ));
+        assert!(
+            event_rx.try_recv().is_err(),
+            "late renewal must not be reported as extended"
+        );
+    }
+
+    #[tokio::test]
+    async fn timely_renewal_rearms_the_session_expiry_timer() {
+        let (down_tx, down_rx) = mpsc::channel(1);
+        down_tx.send(Ok(renewal_bytes())).await.unwrap();
+        let (cmd_tx, mut cmd_rx) = mpsc::channel(1);
+        let (event_tx, mut event_rx) = mpsc::channel(8);
+        let (up_tx, _up_rx) = mpsc::channel(8);
+        let mut link = Link::new(config(), Arc::new(SoftwareKey::random()));
+        let ack = session_ack();
+        let start = Instant::now();
+        let old_deadline = start + Duration::from_secs(1);
+        let task = tokio::spawn(async move {
+            let mut leases = LeaseSet::default();
+            leases.track("lease-1", start, Duration::from_secs(1), Duration::ZERO, 2);
+            let mut uplinks = no_uplinks();
+            let result = link
+                .drive_session(
+                    ack,
+                    up_tx,
+                    ReceiverStream::new(down_rx),
+                    &mut leases,
+                    &mut cmd_rx,
+                    &mut uplinks,
+                    &event_tx,
+                )
+                .await;
+            (result, leases)
+        });
+        let event = tokio::time::timeout(Duration::from_secs(2), event_rx.recv())
+            .await
+            .unwrap();
+        match event {
+            Some(LinkEvent::LeaseRenewal(state)) => {
+                assert!(state.extended);
+                assert!(state.deadline > old_deadline);
+            }
+            other => panic!("expected timely renewal, got {other:?}"),
+        }
+        // Cross the OLD deadline on the same held-open stream; only the renewed deadline counts.
+        tokio::time::sleep_until((old_deadline + Duration::from_millis(20)).into()).await;
+        assert!(event_rx.try_recv().is_err());
+        cmd_tx.send(LinkCommand::Stop).await.unwrap();
+        let (outcome, leases) = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(matches!(outcome, Drive::Stop));
+        assert_eq!(leases.live_ids(Instant::now()), vec!["lease-1".to_string()]);
+        drop(down_tx);
+    }
+
+    #[tokio::test]
+    async fn blocked_transport_writer_does_not_starve_lease_expiry() {
+        let (_down_tx, down_rx) = mpsc::channel::<Result<Bytes, tonic::Status>>(1);
+        let (_cmd_tx, mut cmd_rx) = mpsc::channel(1);
+        let (event_tx, mut event_rx) = mpsc::channel(8);
+        let (up_tx, _up_rx) = mpsc::channel(1);
+        up_tx.send(Bytes::new()).await.unwrap(); // Simulate an undrained socket writer.
+        let (frames_tx, mut frames_rx) = mpsc::channel(1);
+        frames_tx
+            .send(UplinkFrame {
+                frame_type: "run_ready".into(),
+                body: json!({}),
+            })
+            .await
+            .unwrap();
+        let mut link = Link::new(config(), Arc::new(SoftwareKey::random()));
+        let mut leases = LeaseSet::default();
+        leases.track(
+            "lease-1",
+            Instant::now(),
+            Duration::from_millis(50),
+            Duration::ZERO,
+            2,
+        );
+        let result = tokio::time::timeout(
+            Duration::from_secs(2),
+            link.drive_session(
+                session_ack(),
+                up_tx,
+                ReceiverStream::new(down_rx),
+                &mut leases,
+                &mut cmd_rx,
+                &mut frames_rx,
+                &event_tx,
+            ),
+        )
+        .await
+        .unwrap();
+        assert!(matches!(result, Drive::Lost(_)));
+        assert!(matches!(
+            event_rx.try_recv(),
+            Ok(LinkEvent::LeasesInvalidated {
+                cause: LeaseLoss::Expired,
+                ..
+            })
+        ));
     }
 
     #[test]
@@ -803,6 +1072,7 @@ mod tests {
             .send(LinkCommand::TrackLease {
                 lease_id: "lease-1".into(),
                 fence: 2,
+                sent_at: Instant::now(),
                 ttl: Duration::from_secs(30),
                 round_trip: Duration::ZERO,
             })

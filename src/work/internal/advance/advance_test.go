@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -161,6 +162,64 @@ func newMutualTLSServer(t *testing.T, handler http.HandlerFunc) (*advance.Client
 		t.Fatal(err)
 	}
 	return client, server
+}
+
+func TestAdvanceAcceptsNodeStatusOnlyResults(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("Node is required for the cross-language runtime test")
+	}
+	module, err := filepath.Abs("../../node/src/server.mjs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const script = `
+import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+const { advanceResult } = await import(pathToFileURL(process.argv[1]).href);
+const request = JSON.parse(readFileSync(0, 'utf8'));
+process.stdout.write(JSON.stringify(advanceResult(request, { status: process.argv[2] })));
+`
+	for _, mode := range []string{"plan", "execute"} {
+		for _, status := range []string{"timed_out", "lease_lost", "capability_expired", "capability_refresh_failed", "completed", "failed", "crashed", "protocol_violation"} {
+			t.Run(mode+"/"+status, func(t *testing.T) {
+				request := executeRequest()
+				if mode == "plan" {
+					request.Mode, request.Checkpoint, request.Intent, request.Permit = "plan", nil, nil, nil
+				}
+				payload, err := json.Marshal(request)
+				if err != nil {
+					t.Fatal(err)
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				command := exec.CommandContext(ctx, node, "--input-type=module", "-e", script, module, status)
+				command.Stdin = strings.NewReader(string(payload))
+				body, err := command.Output()
+				if err != nil {
+					t.Fatalf("Node result producer: %v", err)
+				}
+				client, _ := newMutualTLSServer(t, func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write(body)
+				})
+				result, err := client.Advance(ctx, request)
+				if err != nil {
+					t.Fatalf("Go rejected Node result %s: %v", body, err)
+				}
+				wantState, wantReason := fragment.StateFailed, "runtime_fault"
+				if status == "timed_out" {
+					wantReason = "deadline_exceeded"
+				}
+				if mode == "execute" {
+					wantState, wantReason = fragment.StateWaitingReconcile, "provider_unknown"
+				}
+				if result.State != wantState || result.Reason != wantReason {
+					t.Fatalf("state/reason = %s/%s, want %s/%s", result.State, result.Reason, wantState, wantReason)
+				}
+			})
+		}
+	}
 }
 
 func TestAdvanceRoundTripsFragmentOverMutualTLS(t *testing.T) {

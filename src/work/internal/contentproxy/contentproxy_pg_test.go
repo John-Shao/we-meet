@@ -467,7 +467,21 @@ func TestReadRejectsInvalidCapabilities(t *testing.T) {
 		tn := seedPlanTenant(t, "org_proxy_expired")
 		reference := registerCandidate(t, tn, []byte("secret-bytes-expired"))
 		token, generation := issueCapability(t, tn, capability.AudienceContent, 150*time.Millisecond)
-		time.Sleep(500 * time.Millisecond)
+		// Expiry is enforced by the database clock, not the test host's clock.
+		if _, err := pgAdmin.Exec(proxyContext(t),
+			`SELECT pg_sleep(GREATEST(0, EXTRACT(EPOCH FROM expires_at - clock_timestamp())))
+			 FROM work.runtime_capability
+			 WHERE org_id = $1 AND execution_id = $2 AND generation = $3`,
+			tn.org, tn.execID, generation); err != nil {
+			t.Fatal(err)
+		}
+		var expired bool
+		if err := pgAdmin.QueryRow(proxyContext(t),
+			`SELECT expires_at <= clock_timestamp() FROM work.runtime_capability
+			 WHERE org_id = $1 AND execution_id = $2 AND generation = $3`,
+			tn.org, tn.execID, generation).Scan(&expired); err != nil || !expired {
+			t.Fatalf("capability expiry precondition: expired=%t err=%v", expired, err)
+		}
 		response := getContent(t, base, reference.RefID, tn.org, tn.execID, token, generation)
 		assertExactError(t, response, http.StatusUnauthorized, codeCapabilityInvalid)
 	})

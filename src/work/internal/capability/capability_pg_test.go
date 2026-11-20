@@ -517,7 +517,21 @@ func TestAuthorizeRejectsExpiredCapability(t *testing.T) {
 	if err != nil || !allowed {
 		t.Fatalf("fresh capability allowed=%t err=%v", allowed, err)
 	}
-	time.Sleep(500 * time.Millisecond)
+	// Expiry is enforced by the database clock, not the test host's clock.
+	if _, err := testAdmin.Exec(ctx,
+		`SELECT pg_sleep(GREATEST(0, EXTRACT(EPOCH FROM expires_at - clock_timestamp())))
+		 FROM work.runtime_capability
+		 WHERE org_id = $1 AND execution_id = $2 AND generation = $3`,
+		fr.org, fr.planExec, generation); err != nil {
+		t.Fatal(err)
+	}
+	var expired bool
+	if err := testAdmin.QueryRow(ctx,
+		`SELECT expires_at <= clock_timestamp() FROM work.runtime_capability
+		 WHERE org_id = $1 AND execution_id = $2 AND generation = $3`,
+		fr.org, fr.planExec, generation).Scan(&expired); err != nil || !expired {
+		t.Fatalf("capability expiry precondition: expired=%t err=%v", expired, err)
+	}
 	allowed, err = issuer.Authorize(ctx, fr.org, fr.planExec, capability.AudienceContent, generation, token)
 	if err != nil {
 		t.Fatalf("authorize after expiry: %v", err)

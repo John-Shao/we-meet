@@ -41,7 +41,8 @@ func (f *gwFixture) seedPendingResolution(t *testing.T, sessionID, runID, opID s
 		   tool_manifest_hash, model_version, grant_set, start_nonce, offer_expiry, state)
 		VALUES ('%s','%s',1,'%s','%s','%s','ref','%s','%s','p1',1,'%s','%s','m1',
 		        '[{"grant_id":"%s","grant_revision":1}]'::jsonb,'%s',
-		        now() + interval '2 minutes','active');
+		        now() + interval '2 minutes','active')
+		ON CONFLICT (org_id, run_id, binding_revision) DO NOTHING;
 		INSERT INTO work.operation_resolution
 		  (org_id, run_id, operation_id, resolution_revision, resolve_id, attempt_id,
 		   state, delivery_state, settlement_state, signature, resolution_delivery)
@@ -117,7 +118,7 @@ func TestResolutionDownlinkPushAndAck(t *testing.T) {
 		t.Fatalf("hello_ack server_public_jwk does not parse: %v", err)
 	}
 
-	runID, opID, attemptID, fence := f.seedAction(t, sessionID)
+	runID, opID, attemptID, fence := f.seedReceiptAction(t, sessionID)
 	resolveID := f.seedPendingResolution(t, sessionID, runID, opID)
 
 	// A started receipt records cleanly and triggers the post-record re-push.
@@ -204,7 +205,7 @@ func TestResolutionAckRejectsBadState(t *testing.T) {
 	addr := f.startServer(t)
 	stream := f.connect(t, addr)
 	sessionID, journalEpoch, bootID, agentID, generation := f.helloSession(t, stream)
-	runID, opID, attemptID, fence := f.seedAction(t, sessionID)
+	runID, opID, attemptID, fence := f.seedReceiptAction(t, sessionID)
 	resolveID := f.seedPendingResolution(t, sessionID, runID, opID)
 	exec := receiptExec(gwOrg, gwSubject, f.deviceID, sessionID, agentID, bootID, generation, runID, opID, attemptID, fence)
 	if err := stream.SendMsg(f.signReceipt(t, journalEpoch, sessionID, bootID, agentID, exec, 1, "started", nil)); err != nil {

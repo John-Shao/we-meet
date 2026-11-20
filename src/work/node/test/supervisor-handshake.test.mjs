@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+import { fileURLToPath } from 'node:url';
 import { MAX_FRAME_BYTES } from '../src/protocol.mjs';
 import { Supervisor } from '../src/supervisor.mjs';
 import { isAlive, recordingSpawn, waitFor } from '../test-support/helpers.mjs';
@@ -90,6 +91,55 @@ test('generates a fresh nonce per spawn, passes the payload opaquely, and comple
     assert.equal(isAlive(record.pid), false);
   }
   await supervisor.shutdown();
+});
+
+test('untrusted child stderr is drained without leaking bodies, paths or capabilities', { timeout: 15000 }, async (t) => {
+  const controller = recordingSpawn({
+    childScript: fileURLToPath(new URL('../test-support/child-capability-stub.mjs', import.meta.url)),
+    env: { WORK_STUB_STDERR_FLOOD: '1' },
+  });
+  const supervisor = makeSupervisor(controller.spawn, { runTimeoutMs: 8000 });
+  const payload = {
+    body: 'TASK_BODY_STDERR_SENTINEL_9f2c',
+    path: '/private/work/PATH_STDERR_SENTINEL_7a1/task.txt',
+  };
+  const token = 'CAPABILITY_STDERR_SENTINEL_5e19';
+  const captured = [];
+  const stderrWrite = t.mock.method(process.stderr, 'write', (chunk, encoding, callback) => {
+    captured.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
+    const done = typeof encoding === 'function' ? encoding : callback;
+    if (done) queueMicrotask(done);
+    return true;
+  });
+
+  try {
+    const result = await supervisor.start({
+      ...runRequest('stderr-run', payload),
+      capabilities: {
+        content: { baseUrl: 'http://127.0.0.1:8444', token, generation: 1, expiresAt: Date.now() + 30_000 },
+      },
+    });
+    // The fixture reports completion only after flushing more than 4 MiB of stderr.
+    assert.equal(result.status, 'completed');
+    assert.equal(result.exitCode, 0);
+    const record = controller.records[0];
+    assert.equal(record.exited, true);
+    assert.equal(isAlive(record.pid), false);
+    assert.equal(supervisor.activeCount, 0);
+
+    const stderr = captured.join('');
+    for (const marker of [payload.body, payload.path, token]) {
+      const midpoint = Math.floor(marker.length / 2);
+      for (const piece of [marker, marker.slice(0, midpoint), marker.slice(midpoint)]) {
+        assert.equal(stderr.includes(piece), false, 'parent stderr leaked sensitive child bytes');
+        assert.equal(JSON.stringify(result).includes(piece), false);
+      }
+    }
+    assert.equal(stderr.length, 0, 'untrusted stderr must be discarded, not logged');
+  } finally {
+    await supervisor.shutdown({ force: true });
+    stderrWrite.mock.restore();
+  }
 });
 
 test('a child-reported failure is reported as failed with its exit code', { timeout: 10000 }, async () => {

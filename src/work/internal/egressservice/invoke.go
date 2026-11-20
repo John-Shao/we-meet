@@ -198,6 +198,24 @@ func (s *Server) handleInvoke(w http.ResponseWriter, r *http.Request) {
 		Provider:  provider,
 		Content:   s.store,
 		GatewayID: s.config.GatewayID,
+		StageOutput: func(ctx context.Context, result egress.ExchangeResult) error {
+			body, err := s.store.Get(ctx, presented.org, result.ReceiptContentRef)
+			if err != nil {
+				return err
+			}
+			hash, err := canonical.BodyHash(body)
+			if err != nil {
+				return err
+			}
+			return s.outputs.Stage(ctx, presented.org, binding.OperationID, egress.OutputManifest{
+				ExecutionID: binding.ExecutionID, AttemptID: binding.AttemptID, RequestHash: documentHash,
+				GatewayInvocationID: decision.GatewayInvocation, WriterGatewayID: s.config.GatewayID,
+				ReceiptSlotID: result.ReceiptSlotID, AnswerRefID: result.Content.RefID,
+				AnswerLocator: result.ContentRef, AnswerHash: result.Content.Hash, AnswerBytes: result.ContentBytes,
+				ReceiptLocator: result.ReceiptContentRef, ReceiptHash: result.Receipt.Reference.Hash,
+				ReceiptBodyHash: hash, ReceiptBytes: result.ReceiptBytes, LogicalKey: string(document.LogicalKey),
+			})
+		},
 	}
 	result, executeErr := exchange.Execute(ctx, egress.ExchangeRequest{
 		Binding:                document.Binding,
@@ -219,7 +237,7 @@ func (s *Server) handleInvoke(w http.ResponseWriter, r *http.Request) {
 		// commits the canonical successor.
 		if err := s.registerOutputs(ctx, presented.org, binding, string(document.LogicalKey), result); err != nil {
 			stage("registration_failed")
-			writeError(w, http.StatusServiceUnavailable, codeContentRegistrationFailed)
+			writeExchangeResult(w, result, &egress.PersistenceError{Code: codeContentRegistrationFailed}, answerRefID, evidenceRefID)
 			return
 		}
 	} else {

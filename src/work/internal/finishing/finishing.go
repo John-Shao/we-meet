@@ -26,6 +26,7 @@ import (
 	"github.com/we-meet/work/internal/canonical"
 	"github.com/we-meet/work/internal/content"
 	workdb "github.com/we-meet/work/internal/db"
+	"github.com/we-meet/work/internal/egress"
 	"github.com/we-meet/work/internal/receipt"
 )
 
@@ -84,8 +85,9 @@ var (
 // available through errors.Is/errors.As for callers, but is never rendered, so
 // task text, prompts, receipts and key material cannot leak through logs.
 type Error struct {
-	Code string
-	Err  error
+	Code            string
+	Err             error
+	VerifiedSuccess bool
 }
 
 func (e *Error) Error() string { return e.Code }
@@ -165,6 +167,9 @@ func (f *Finisher) FinishFromReceipt(ctx context.Context, orgID, operationID str
 		return Outcome{}, ErrContentStore
 	}
 
+	if err := (&egress.OutputRecovery{Pool: f.Pool, Content: f.Content}).Restore(ctx, orgID, operationID); err != nil {
+		return Outcome{}, err
+	}
 	gate, operation, execution, err := f.load(ctx, orgID, operationID)
 	if err != nil {
 		return Outcome{}, err
@@ -212,6 +217,9 @@ func (f *Finisher) FinishFromReceipt(ctx context.Context, orgID, operationID str
 
 	requestBody, err := f.Content.Get(ctx, orgID, execution.intentRef)
 	if err != nil {
+		if verified.Outcome == canonical.OutcomeSucceeded && !errors.Is(err, context.Canceled) {
+			return Outcome{}, fail("intent_document_unavailable", egress.ErrOutputRecoveryUnavailable)
+		}
 		return Outcome{}, fail("intent_document_unavailable", err)
 	}
 	request, err := canonical.ParseModelRequest(requestBody)
@@ -281,7 +289,7 @@ func (f *Finisher) FinishFromReceipt(ctx context.Context, orgID, operationID str
 		request.Route.Provider, request.Route.Model, usageDate,
 		inputTokens, outputTokens, cachedInputTokens, settlementTokens)
 	if err != nil {
-		return Outcome{}, err
+		return Outcome{}, &Error{Code: "finish_command_failed", Err: err, VerifiedSuccess: true}
 	}
 	switch result.Outcome {
 	case "confirmed", "already_confirmed":

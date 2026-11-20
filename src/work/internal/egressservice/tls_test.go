@@ -113,6 +113,7 @@ func newTLSTestServer(t *testing.T) (*Server, *testCertificateAuthority) {
 		References: newFakeReferences(),
 		Executions: &fakeBindings{},
 		Content:    newMemoryStore(),
+		Outputs:    &fakeOutputStager{},
 		Factory:    (&fakeFactory{}).build,
 	})
 	if err != nil {
@@ -191,6 +192,7 @@ func TestTLSConfigRequiresAllMaterial(t *testing.T) {
 		References: newFakeReferences(),
 		Executions: &fakeBindings{},
 		Content:    newMemoryStore(),
+		Outputs:    &fakeOutputStager{},
 		Factory:    (&fakeFactory{}).build,
 	})
 	if err != nil {

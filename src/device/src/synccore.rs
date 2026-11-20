@@ -26,6 +26,7 @@ use crate::journal::record::{self, ActionRow};
 use crate::journal::recover::{self, StartRow};
 use crate::journal::{dek, Journal, JournalError};
 use crate::key::DeviceKey;
+use crate::permit::lease::{Lease, LeaseMode};
 use crate::permit::signed::PermitContext;
 use crate::reconcile::{resolution as resolution_consume, watermark};
 use crate::recovery::{replay, resume};
@@ -96,17 +97,23 @@ pub fn spawn_sync_core(
         // Batch 2 ruling 甲: the Node pipe service loop runs on its OWN thread and requests journal
         // ops over `journal_op_rx`; this thread stays the journal's sole owner (E4 甲). The loop stays
         // a pure blocking thread (no async runtime, so `blocking_send` uplinks are valid): it waits on
-        // downlinks with a short timeout and drains pending journal ops each tick. The 50ms tick bounds
-        // cancel/lease reaction latency (E7 甲 prompt kill) without a cross-thread journal lock.
+        // downlinks with a short idle sleep and serves one journal op each tick. Neither a busy
+        // journal producer nor downlinks can starve the other. Check the monotonic Run deadline
+        // independently of link events. Blocking OS/journal calls are not a hard real-time bound.
         loop {
+            core.expire_lease(Instant::now());
             match event_rx.try_recv() {
                 Ok(event) => core.handle(event),
                 Err(mpsc::error::TryRecvError::Empty) => {
                     std::thread::sleep(std::time::Duration::from_millis(1));
                 }
-                Err(mpsc::error::TryRecvError::Disconnected) => break,
+                Err(mpsc::error::TryRecvError::Disconnected) => {
+                    core.lose_execution_authority();
+                    break;
+                }
             }
-            while let Ok((op, reply_tx)) = journal_op_rx.try_recv() {
+            if let Ok((op, reply_tx)) = journal_op_rx.try_recv() {
+                core.expire_lease(Instant::now());
                 let reply = {
                     let producer = crate::journalop::Producer {
                         key: core.key.as_ref(),
@@ -167,11 +174,16 @@ struct SyncCore {
     permit_jwk: Option<crate::jwk::EcP256Jwk>,
     session_id: Option<String>,
     generation: u64,
+    // A hello provisions keys/cadence, not a Run lease. Only a verified start acquires these.
     lease_deadline: Option<Instant>,
-    // The lease TTL hello_ack granted; consume_start tracks the Run lease with this TTL (§3.3 30s).
+    lease_id: Option<String>,
+    lease_mode: LeaseMode,
+    // Expiry/session loss forbids queued command/start from restoring the old authority.
+    session_accepts_work: bool,
     lease_ttl: std::time::Duration,
     // The current Run binding (offer -> start). run_fence is the permit identity gate's fence.
     offer: Option<offer::RunOfferBody>,
+    ready_sent_at: Option<Instant>,
     run_fence: u64,
     sidecar: Option<Sidecar>,
     #[cfg_attr(not(windows), allow(dead_code))]
@@ -195,6 +207,8 @@ struct SyncCore {
     // command consumed mid-Run reaches the running executor (§6.3 C). None until consume_start.
     #[cfg(windows)]
     active_commands: Option<(String, crate::nodeservice::SharedCommands)>,
+    #[cfg(windows)]
+    io_deadline: Option<Arc<std::sync::Mutex<Option<Instant>>>>,
     last_receipt_seq: u64,
 }
 
@@ -225,8 +239,12 @@ impl SyncCore {
             session_id: None,
             generation: 0,
             lease_deadline: None,
+            lease_id: None,
+            lease_mode: LeaseMode::Invalid,
+            session_accepts_work: false,
             lease_ttl: std::time::Duration::from_secs(30),
             offer: None,
+            ready_sent_at: None,
             run_fence: 0,
             sidecar: None,
             spawn_template,
@@ -240,6 +258,8 @@ impl SyncCore {
             dispatched: Vec::new(),
             #[cfg(windows)]
             active_commands: None,
+            #[cfg(windows)]
+            io_deadline: None,
             last_receipt_seq,
         }
     }
@@ -249,33 +269,64 @@ impl SyncCore {
     }
 
     fn handle(&mut self, event: LinkEvent) {
+        self.expire_lease(Instant::now());
         match event {
             LinkEvent::SessionEstablished(ack) => {
+                if self.session_id.as_deref() != Some(ack.session_id.as_str()) {
+                    // A new session cannot renew an old Run's lease. Repeated hello metadata for
+                    // the same session must not undo expiry, either.
+                    self.lose_execution_authority();
+                    self.session_accepts_work = true;
+                }
                 self.server_jwk = Some(ack.server_jwk.clone());
                 self.permit_jwk = Some(ack.permit_jwk.clone());
                 self.session_id = Some(ack.session_id.clone());
                 self.generation = ack.generation;
                 self.lease_ttl = ack.lease_ttl;
-                self.lease_deadline = Some(Instant::now() + ack.lease_ttl);
                 eprintln!("work-device: session established, sync core provisioned");
             }
             LinkEvent::LeaseRenewal(state) => {
-                if state.extended {
-                    self.lease_deadline = Some(state.deadline);
+                if self.lease_id.as_deref() != Some(state.lease_id.as_str())
+                    || state.fence != self.run_fence
+                    || self.lease_deadline.is_none()
+                    || self.lease_mode == LeaseMode::Invalid
+                {
+                    return;
                 }
+                match state.mode {
+                    LeaseMode::Invalid => self.lose_execution_authority(),
+                    LeaseMode::HistoryReturn => {
+                        // History remains uploadable; it never authorizes a running executor or
+                        // a new permit. extended=false alone is NOT invalidation.
+                        self.lease_mode = LeaseMode::HistoryReturn;
+                        self.lease_deadline = Some(state.deadline);
+                        self.offer = None;
+                        self.ready_sent_at = None;
+                        self.kill_sidecar();
+                    }
+                    LeaseMode::Active if state.extended && self.lease_mode == LeaseMode::Active => {
+                        self.lease_deadline = Some(state.deadline);
+                        #[cfg(windows)]
+                        if let Some(deadline) = &self.io_deadline {
+                            *deadline.lock().unwrap() = Some(state.deadline);
+                        }
+                    }
+                    LeaseMode::Active => {}
+                }
+                self.expire_lease(Instant::now());
             }
             LinkEvent::LeasesInvalidated { ids, cause } => {
-                // E7 甲 (batch 1f): an invalidated lease kills the sidecar Job tree and invalidates
-                // the local lease so no new permit can validate (remaining_lease_secs == 0).
-                self.lease_deadline = None;
-                self.kill_sidecar();
+                // The link ends the whole session, including any start still queued for tracking.
+                self.lose_execution_authority();
                 eprintln!("work-device: leases invalidated {ids:?} ({cause:?}), sidecar killed");
             }
             LinkEvent::Downlink(env) => self.route_downlink(&env.frame_type, env.body.clone()),
             LinkEvent::Disconnected { reason, attempt } => {
+                self.lose_execution_authority();
                 eprintln!("work-device: link disconnected (attempt {attempt}): {reason}");
             }
-            LinkEvent::AwaitingTicket | LinkEvent::Stopped => {}
+            LinkEvent::Stopped => self.lose_execution_authority(),
+            LinkEvent::AwaitingTicket => {}
         }
     }
 
@@ -310,6 +361,11 @@ impl SyncCore {
     /// A re-sent command whose jti is already consumed returns the journal, never re-executes.
     /// Batch 1c holds the registered action for dispatch (the Node executor is batch 2).
     fn consume_command(&mut self, server_jwk: &crate::jwk::EcP256Jwk, body: Value) {
+        self.expire_lease(Instant::now());
+        if !self.session_accepts_work || self.lease_mode != LeaseMode::Active {
+            eprintln!("work-device: command without an active Run lease, refused");
+            return;
+        }
         let cmd: command::CommandBody = match serde_json::from_value(body) {
             Ok(cmd) => cmd,
             Err(err) => {
@@ -456,7 +512,7 @@ impl SyncCore {
         // DD:101: a verified cancel stops the local sidecar (Job kill-on-close), then the stop fact
         // is read from the resulting lifecycle state. `stopped` confirms only the local process
         // stop, never claims no external effect.
-        self.kill_sidecar();
+        self.retire_run_lease();
         let state = self
             .sidecar
             .as_ref()
@@ -474,6 +530,10 @@ impl SyncCore {
     /// DD:113 — verify the offer; a resume offer must validate against local journal facts before
     /// ready. Store the offer so run_start can match it, then uplink run_ready.
     fn consume_offer(&mut self, server_jwk: &crate::jwk::EcP256Jwk, body: Value) {
+        self.expire_lease(Instant::now());
+        if !self.session_accepts_work {
+            return;
+        }
         let offer_body: offer::RunOfferBody = match serde_json::from_value(body) {
             Ok(body) => body,
             Err(err) => {
@@ -516,6 +576,9 @@ impl SyncCore {
             eprintln!("work-device: run_ready sign failed: {err:?}");
             return;
         }
+        // Measure from before queueing run_ready, so queue/signalling delay consumes, never
+        // adds to, the acquiring exchange's budget. hello's arrival is not this exchange.
+        self.ready_sent_at = Some(Instant::now());
         self.uplink(offer::READY_FRAME_TYPE, ready.to_value());
     }
 
@@ -523,6 +586,11 @@ impl SyncCore {
     /// then bring up the single sidecar lifecycle and uplink run_started. The real CreateProcess
     /// into AppContainer+Job is batch 1d; batch 1c advances the lifecycle state machine only.
     fn consume_start(&mut self, server_jwk: &crate::jwk::EcP256Jwk, body: Value) {
+        self.expire_lease(Instant::now());
+        if !self.session_accepts_work {
+            eprintln!("work-device: start under expired/lost session authority, refused");
+            return;
+        }
         let start: offer::RunStartBody = match serde_json::from_value(body) {
             Ok(body) => body,
             Err(err) => {
@@ -541,8 +609,31 @@ impl SyncCore {
                 return;
             }
         };
-        if !start.matches_offer(&offer_body) {
-            eprintln!("work-device: start does not match the stored offer");
+        if !start.matches_offer(&offer_body)
+            || self.session_id.as_deref() != Some(start.session_id.as_str())
+            || offer_body.original_target.session_id != start.session_id
+        {
+            eprintln!("work-device: start does not match the stored offer/session");
+            return;
+        }
+        // Replayed run_start must never spawn a second sidecar, including after a crash.
+        match recover::read_start(
+            self.journal.connection(),
+            &start.run_id,
+            start.run_binding_id as i64,
+        ) {
+            Ok(None) => {}
+            Ok(Some(_)) | Err(_) => return,
+        }
+        let sent_at = match self.ready_sent_at {
+            Some(sent_at) => sent_at,
+            None => return,
+        };
+        let received_at = Instant::now();
+        let round_trip = received_at.saturating_duration_since(sent_at);
+        let lease = Lease::acquire(sent_at, self.lease_ttl, round_trip, start.fence);
+        if !lease.is_valid(received_at) {
+            eprintln!("work-device: start exchange exhausted the Run lease, refused");
             return;
         }
         let row = StartRow {
@@ -560,6 +651,9 @@ impl SyncCore {
         }
         self.run_fence = start.fence;
         self.generation = start.generation;
+        self.lease_id = Some(start.lease_id.clone());
+        self.lease_mode = lease.mode();
+        self.lease_deadline = Some(lease.deadline());
         // DD:113: start_nonce is persisted above BEFORE the sidecar spawns. Batch 1d spawns the
         // single sidecar into a fresh AppContainer+Job (kill-on-close); the real signed bundle and
         // tool loop are batch 2. A spawn refusal leaves no run_started and no live process.
@@ -593,8 +687,15 @@ impl SyncCore {
                 start.run_id,
                 uuid::Uuid::new_v4()
             );
+            if self.expire_lease(Instant::now()) {
+                return;
+            }
             match crate::sidecar::spawn::spawn_sidecar(&config, &start.run_id, &pipe_name) {
                 Ok(mut process) => {
+                    if self.expire_lease(Instant::now()) {
+                        // The local process has not been handed off; dropping it closes its Job.
+                        return;
+                    }
                     // Fire StartRun at the long-lived Node service thread (§6.1). Fire-and-forget: the
                     // Run's pipe loop runs on that thread while this sync core stays responsive to
                     // cancel/lease (E7 甲). The profile/model/bounds are the dev fixture profile this
@@ -631,6 +732,8 @@ impl SyncCore {
                         max_bytes: 1_048_576,
                         deadline: start.expiry.clone(),
                     };
+                    let io_deadline = Arc::new(std::sync::Mutex::new(self.lease_deadline));
+                    self.io_deadline = Some(io_deadline.clone());
                     let ctx = crate::nodeservice::RunContext {
                         run_id: start.run_id.clone(),
                         org_id: self.org_id.clone(),
@@ -650,6 +753,7 @@ impl SyncCore {
                             .clone()
                             .unwrap_or_else(|| offer_body.input_hash.clone()),
                         grant_set: offer_body.grant_set.clone(),
+                        io_deadline,
                     };
                     // The live per-Run command map (A2 write spine): seed it with the commands
                     // consumed before start, then keep it so consume_command can feed mid-Run
@@ -692,14 +796,18 @@ impl SyncCore {
             return;
         }
         self.sidecar = Some(sidecar);
+        if self.expire_lease(Instant::now()) {
+            return;
+        }
         // §3.3: the Run's lease comes from run_start. Track it in the link so heartbeat renewes it
         // and a session end invalidates it (LeasesInvalidated -> Job kill, E7 甲). Without this the
         // link holds no lease, never renewes, and a revoked device's session loss kills nothing.
         let _ = self.link_commands.blocking_send(LinkCommand::TrackLease {
             lease_id: start.lease_id.clone(),
             fence: start.fence,
+            sent_at,
             ttl: self.lease_ttl,
-            round_trip: std::time::Duration::ZERO,
+            round_trip,
         });
         let (checkpoint_ref, checkpoint_hash) = self.latest_checkpoint_ref(&start.run_id);
         let mut started = offer::RunStartedBody {
@@ -783,6 +891,10 @@ impl SyncCore {
             terminal,
         ) {
             eprintln!("work-device: finish_ack record failed: {err:?}");
+            return;
+        }
+        if ack.state == "accepted" && self.sidecar.as_ref().is_some_and(|s| s.run_id() == run_id) {
+            self.retire_run_lease();
         }
     }
 
@@ -852,12 +964,55 @@ impl SyncCore {
         }
     }
 
+    /// Independent monotonic expiry, called on idle ticks and before consuming work/renewals.
+    /// Clearing the deadline is a latched loss, not a chance for a late renewal to acquire it.
+    fn expire_lease(&mut self, now: Instant) -> bool {
+        if self.lease_deadline.is_some_and(|deadline| now >= deadline) {
+            self.lose_execution_authority();
+            eprintln!("work-device: Run lease expired, sidecar killed");
+            return true;
+        }
+        false
+    }
+
+    fn clear_run_authority(&mut self) -> Option<String> {
+        self.lease_deadline = None;
+        self.lease_mode = LeaseMode::Invalid;
+        self.offer = None;
+        self.ready_sent_at = None;
+        self.kill_sidecar();
+        self.lease_id.take()
+    }
+
+    fn lose_execution_authority(&mut self) {
+        self.session_accepts_work = false;
+        // Do not ReleaseLease here: the link still owes an invalidation event for its held ids.
+        let _ = self.clear_run_authority();
+    }
+
+    /// A canceled/finished Run is intentionally released, unlike an unreported expiry.
+    fn retire_run_lease(&mut self) {
+        if let Some(lease_id) = self.clear_run_authority() {
+            let _ = self
+                .link_commands
+                .blocking_send(LinkCommand::ReleaseLease { lease_id });
+        }
+    }
+
     /// Stop the sidecar: dropping the owned process closes the Job Object (kill-on-close terminates
     /// the whole tree) and the lifecycle advances to Exited. Idempotent — a second kill is a no-op.
+    /// This does NOT cancel already-started Broker I/O on the separate Node-service thread.
     fn kill_sidecar(&mut self) {
         #[cfg(windows)]
         {
+            if let Some(deadline) = self.io_deadline.take() {
+                *deadline.lock().unwrap() = None;
+            }
             self.process = None;
+            self.dispatched.clear();
+            if let Some((_, commands)) = self.active_commands.take() {
+                commands.lock().unwrap().clear();
+            }
         }
         if let Some(sidecar) = self.sidecar.as_mut() {
             let _ = sidecar.mark_exited();
@@ -865,6 +1020,9 @@ impl SyncCore {
     }
 
     fn remaining_lease_secs(&self) -> u64 {
+        if self.lease_mode != LeaseMode::Active {
+            return 0;
+        }
         self.lease_deadline
             .map(|d| d.saturating_duration_since(Instant::now()).as_secs())
             .unwrap_or(0)
@@ -1110,8 +1268,375 @@ mod tests {
         core.session_id = Some("sess".to_string());
         core.generation = 1;
         core.lease_deadline = Some(Instant::now() + Duration::from_secs(30));
+        core.lease_id = Some("lease-1".into());
+        core.lease_mode = LeaseMode::Active;
+        core.session_accepts_work = true;
         core.run_fence = 2;
         core
+    }
+
+    fn with_running_core(test: impl FnOnce(&mut SyncCore, &SoftwareKey, &SoftwareKey)) {
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let server = SoftwareKey::random();
+        let permit = SoftwareKey::random();
+        let mut core = provisioned_core(&dir, SoftwareKey::random(), &server, &permit);
+        let mut sidecar = Sidecar::new("run", 1, "nonce-1", "digest");
+        sidecar.mark_running().unwrap();
+        core.sidecar = Some(sidecar);
+        test(&mut core, &server, &permit);
+        drop(core);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    fn renewal_event(deadline: Instant) -> crate::transport::LeaseState {
+        crate::transport::LeaseState {
+            lease_id: "lease-1".into(),
+            extended: true,
+            fence: 2,
+            mode: LeaseMode::Active,
+            deadline,
+        }
+    }
+
+    fn signed_offer_start(server: &SoftwareKey) -> (offer::RunOfferBody, offer::RunStartBody) {
+        let mut offer = offer::RunOfferBody {
+            run_id: "run".into(),
+            binding_revision: 1,
+            binding_hash: "binding".into(),
+            task_id: "task".into(),
+            input_ref: "input".into(),
+            input_hash: "input-hash".into(),
+            snapshot_descriptor_ref: None,
+            snapshot_hash: "snapshot".into(),
+            profile_id: "profile".into(),
+            profile_revision: 1,
+            runtime_digest: "digest".into(),
+            tool_manifest_hash: "manifest".into(),
+            model_version: "model".into(),
+            grant_set: Vec::new(),
+            expected_checkpoint_seq: None,
+            expected_checkpoint_hash: None,
+            original_target: offer::OriginalTarget {
+                device_id: DEVICE.into(),
+                session_id: "sess".into(),
+            },
+            offer_expiry: "2026-11-19T00:00:30Z".into(),
+            signature: None,
+        };
+        offer.signature =
+            Some(sign::sign_frame(server, offer::OFFER_FRAME_TYPE, &offer.to_value()).unwrap());
+        let mut start = offer::RunStartBody {
+            run_binding_id: 1,
+            run_id: "run".into(),
+            payload_hash: "payload".into(),
+            session_id: "sess".into(),
+            fence: 2,
+            generation: 1,
+            lease_id: "lease-2".into(),
+            runtime_digest: "digest".into(),
+            start_nonce: "nonce-2".into(),
+            expiry: "2026-11-19T00:00:30Z".into(),
+            signature: None,
+        };
+        start.signature =
+            Some(sign::sign_frame(server, offer::START_FRAME_TYPE, &start.to_value()).unwrap());
+        (offer, start)
+    }
+
+    #[test]
+    fn repeated_start_does_not_replace_a_running_sidecar_or_lease() {
+        with_running_core(|core, server, _| {
+            let (offer, start) = signed_offer_start(server);
+            core.offer = Some(offer.clone());
+            core.ready_sent_at = Some(Instant::now());
+            recover::persist_start(
+                core.journal.connection(),
+                &StartRow {
+                    run_id: start.run_id.clone(),
+                    binding_revision: start.run_binding_id as i64,
+                    binding_hash: offer.binding_hash,
+                    start_nonce: start.start_nonce.clone(),
+                    state: "started".into(),
+                    expected_checkpoint_ref: None,
+                    expected_checkpoint_hash: None,
+                },
+            )
+            .unwrap();
+            let deadline = core.lease_deadline;
+            let lease_id = core.lease_id.clone();
+            let nonce = core.sidecar.as_ref().unwrap().start_nonce().to_string();
+            core.consume_start(&server.public_jwk(), start.to_value());
+            assert_eq!(core.lease_deadline, deadline);
+            assert_eq!(core.lease_id, lease_id);
+            assert_eq!(core.sidecar.as_ref().unwrap().start_nonce(), nonce);
+            assert_eq!(
+                core.sidecar.as_ref().unwrap().state(),
+                SidecarState::Running
+            );
+        });
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn renewal_updates_broker_io_deadline_and_stop_revokes_it() {
+        with_running_core(|core, _, _| {
+            let shared = Arc::new(std::sync::Mutex::new(core.lease_deadline));
+            core.io_deadline = Some(shared.clone());
+            let renewed = core.lease_deadline.unwrap() + Duration::from_secs(10);
+            core.handle(LinkEvent::LeaseRenewal(renewal_event(renewed)));
+            assert_eq!(*shared.lock().unwrap(), Some(renewed));
+            core.expire_lease(renewed);
+            assert_eq!(*shared.lock().unwrap(), None);
+        });
+    }
+
+    #[test]
+    fn natural_expiry_without_link_events_kills_the_sidecar() {
+        with_running_core(|core, _, _| {
+            let deadline = core.lease_deadline.unwrap();
+            assert!(!core.expire_lease(deadline - Duration::from_nanos(1)));
+            assert_eq!(
+                core.sidecar.as_ref().unwrap().state(),
+                SidecarState::Running
+            );
+            assert!(core.expire_lease(deadline));
+            assert_eq!(core.sidecar.as_ref().unwrap().state(), SidecarState::Exited);
+            assert_eq!(core.remaining_lease_secs(), 0);
+            assert!(!core.session_accepts_work);
+            assert!(!core.expire_lease(deadline), "expiry is idempotent");
+        });
+    }
+
+    #[test]
+    fn timely_renewal_keeps_the_sidecar_running_past_the_old_deadline() {
+        with_running_core(|core, _, _| {
+            let old_deadline = core.lease_deadline.unwrap();
+            let new_deadline = old_deadline + Duration::from_secs(20);
+            core.handle(LinkEvent::LeaseRenewal(renewal_event(new_deadline)));
+            assert!(!core.expire_lease(old_deadline));
+            assert_eq!(
+                core.sidecar.as_ref().unwrap().state(),
+                SidecarState::Running
+            );
+            assert_eq!(core.lease_deadline, Some(new_deadline));
+            assert!(core.expire_lease(new_deadline));
+        });
+    }
+
+    #[test]
+    fn late_renewal_hello_command_and_start_cannot_restore_expired_authority() {
+        with_running_core(|core, server, permit| {
+            // Let handle's own entry check observe expiry, not a supplied invalidation event.
+            core.lease_deadline = Some(Instant::now());
+            core.handle(LinkEvent::LeaseRenewal(renewal_event(
+                Instant::now() + Duration::from_secs(60),
+            )));
+            core.handle(LinkEvent::SessionEstablished(Box::new(hello(
+                server, permit,
+            ))));
+            assert!(core.lease_deadline.is_none());
+            assert_eq!(core.sidecar.as_ref().unwrap().state(), SidecarState::Exited);
+            let cmd = signed_command(server, permit, "late-jti", "late-op");
+            core.consume_command(&server.public_jwk(), cmd.to_value());
+            let (offer, start) = signed_offer_start(server);
+            core.consume_offer(&server.public_jwk(), offer.to_value());
+            core.consume_start(&server.public_jwk(), start.to_value());
+            for table in ["action_journal", "runtime_start"] {
+                let count: i64 = core
+                    .journal
+                    .connection()
+                    .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
+                    .unwrap();
+                assert_eq!(count, 0, "expired authority reached {table}");
+            }
+        });
+    }
+
+    #[test]
+    fn hello_provisions_cadence_but_only_start_acquires_a_run_lease() {
+        with_running_core(|core, server, permit| {
+            core.lose_execution_authority();
+            core.session_id = None;
+            core.handle(LinkEvent::SessionEstablished(Box::new(hello(
+                server, permit,
+            ))));
+            assert!(core.lease_deadline.is_none());
+            assert_eq!(core.remaining_lease_secs(), 0);
+            core.handle(LinkEvent::LeaseRenewal(renewal_event(
+                Instant::now() + Duration::from_secs(60),
+            )));
+            assert!(
+                core.lease_deadline.is_none(),
+                "unheld renewal is not acquisition"
+            );
+            let (offer, start) = signed_offer_start(server);
+            core.consume_offer(&server.public_jwk(), offer.to_value());
+            let sent = Instant::now() - Duration::from_secs(2);
+            core.ready_sent_at = Some(sent);
+            core.consume_start(&server.public_jwk(), start.to_value());
+            // Windows may refuse the intentionally absent bundle, but the verified/persisted
+            // acquisition must use ready's send instant, never hello time or spawn completion.
+            assert_eq!(core.lease_id.as_deref(), Some("lease-2"));
+            assert!(core.lease_deadline.unwrap() <= sent + Duration::from_secs(28));
+        });
+    }
+
+    #[test]
+    fn refused_or_unrelated_renewal_does_not_revoke_a_live_lease() {
+        with_running_core(|core, _, _| {
+            let deadline = core.lease_deadline.unwrap();
+            let mut state = renewal_event(deadline + Duration::from_secs(60));
+            state.extended = false;
+            core.handle(LinkEvent::LeaseRenewal(state));
+            let mut state = renewal_event(deadline + Duration::from_secs(60));
+            state.lease_id = "other-lease".into();
+            core.handle(LinkEvent::LeaseRenewal(state));
+            let mut state = renewal_event(deadline + Duration::from_secs(60));
+            state.fence = 3;
+            core.handle(LinkEvent::LeaseRenewal(state));
+            assert_eq!(core.lease_deadline, Some(deadline));
+            assert_eq!(
+                core.sidecar.as_ref().unwrap().state(),
+                SidecarState::Running
+            );
+        });
+    }
+
+    #[test]
+    fn history_return_stops_execution_without_closing_history_consumption() {
+        with_running_core(|core, server, permit| {
+            let mut state = renewal_event(core.lease_deadline.unwrap());
+            state.mode = LeaseMode::HistoryReturn;
+            state.extended = false;
+            core.handle(LinkEvent::LeaseRenewal(state));
+            assert_eq!(core.lease_mode, LeaseMode::HistoryReturn);
+            assert!(core.lease_deadline.is_some());
+            assert_eq!(core.remaining_lease_secs(), 0);
+            assert_eq!(core.sidecar.as_ref().unwrap().state(), SidecarState::Exited);
+            core.handle(LinkEvent::LeaseRenewal(renewal_event(
+                Instant::now() + Duration::from_secs(60),
+            )));
+            assert_eq!(core.lease_mode, LeaseMode::HistoryReturn);
+            let cmd = signed_command(server, permit, "history-jti", "history-op");
+            core.consume_command(&server.public_jwk(), cmd.to_value());
+            let count: i64 = core
+                .journal
+                .connection()
+                .query_row("SELECT COUNT(*) FROM action_journal", [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(count, 0);
+            // Signed control/history routes remain reachable; there is no blanket router shutdown.
+            let (tx, mut rx) = mpsc::channel(1);
+            core.uplinks = tx;
+            core.handle(LinkEvent::Downlink(Box::new(signed_cancel(
+                server, "run", 9,
+            ))));
+            assert_eq!(
+                rx.try_recv().unwrap().frame_type,
+                cancel::CANCEL_ACK_FRAME_TYPE
+            );
+        });
+    }
+
+    #[test]
+    fn invalid_or_already_exhausted_renewal_kills_the_sidecar() {
+        for invalid in [false, true] {
+            with_running_core(|core, _, _| {
+                let mut state = renewal_event(Instant::now());
+                if invalid {
+                    state.mode = LeaseMode::Invalid;
+                    state.extended = false;
+                    state.deadline = Instant::now() + Duration::from_secs(60);
+                }
+                core.handle(LinkEvent::LeaseRenewal(state));
+                assert_eq!(core.sidecar.as_ref().unwrap().state(), SidecarState::Exited);
+                assert!(core.lease_deadline.is_none());
+            });
+        }
+    }
+
+    #[test]
+    fn only_an_accepted_finish_releases_the_current_run_lease() {
+        for accepted in [false, true] {
+            with_running_core(|core, server, _| {
+                recover::persist_finish(
+                    core.journal.connection(),
+                    &recover::FinishRow {
+                        run_id: "run".into(),
+                        finish_id: "finish-1".into(),
+                        outcome: "failed".into(),
+                        reason: Some("no_deliverable".into()),
+                        final_checkpoint_seq: None,
+                        final_checkpoint_hash: None,
+                        signed_bytes: vec![1],
+                        signed_hash: "hash".into(),
+                        ack_state: None,
+                        terminal_run_revision: None,
+                    },
+                )
+                .unwrap();
+                let mut ack = finish::RunFinishAckBody {
+                    finish_id: "finish-1".into(),
+                    state: if accepted { "accepted" } else { "rejected" }.into(),
+                    code: if accepted {
+                        None
+                    } else {
+                        Some("finish_state_mismatch".into())
+                    },
+                    terminal_run_revision: if accepted { Some(1) } else { None },
+                    expected_operation_set_hash: "hash".into(),
+                    unresolved_operations: Vec::new(),
+                    signature: None,
+                };
+                ack.signature = Some(
+                    sign::sign_frame(server, finish::FINISH_ACK_FRAME_TYPE, &ack.to_value())
+                        .unwrap(),
+                );
+                let (tx, mut rx) = mpsc::channel(1);
+                core.link_commands = tx;
+                core.consume_finish_ack(&server.public_jwk(), ack.to_value());
+                if accepted {
+                    assert!(
+                        matches!(rx.try_recv(), Ok(LinkCommand::ReleaseLease { lease_id }) if lease_id == "lease-1")
+                    );
+                    core.handle(LinkEvent::LeaseRenewal(renewal_event(
+                        Instant::now() + Duration::from_secs(60),
+                    )));
+                    assert!(core.lease_deadline.is_none());
+                    assert_eq!(core.sidecar.as_ref().unwrap().state(), SidecarState::Exited);
+                } else {
+                    assert!(rx.try_recv().is_err());
+                    assert!(core.lease_deadline.is_some());
+                    assert_eq!(
+                        core.sidecar.as_ref().unwrap().state(),
+                        SidecarState::Running
+                    );
+                }
+            });
+        }
+    }
+
+    #[test]
+    fn cancel_and_session_loss_cannot_be_undone_by_renewal() {
+        for cause in [None, Some(crate::transport::LeaseLoss::SessionLost)] {
+            with_running_core(|core, server, _| {
+                match cause {
+                    None => core.handle(LinkEvent::Downlink(Box::new(signed_cancel(
+                        server, "run", 1,
+                    )))),
+                    Some(cause) => core.handle(LinkEvent::LeasesInvalidated {
+                        ids: vec!["lease-1".into()],
+                        cause,
+                    }),
+                }
+                core.handle(LinkEvent::LeaseRenewal(renewal_event(
+                    Instant::now() + Duration::from_secs(60),
+                )));
+                assert!(core.lease_deadline.is_none());
+                assert_eq!(core.sidecar.as_ref().unwrap().state(), SidecarState::Exited);
+            });
+        }
     }
 
     /// A command + nested permit bound to the provisioned identity (org/sub/DEVICE/sess, fence 2),

@@ -698,6 +698,8 @@ pub fn write_artifact_new(
     expected_hash: &str,
     expected_size: u64,
 ) -> Result<FileIdentity, ExecError> {
+    // NtCreateFile would follow intermediate junctions in a multi-component ObjectName.
+    crate::tools::validate_file_name(file_name).map_err(|_| ExecError::SpecialFile)?;
     if !dir_chain.identity.is_dir() {
         return Err(ExecError::SpecialFile);
     }
@@ -922,6 +924,89 @@ mod tests {
         // A second create-new of the same name is a workspace_changed collision, never an overwrite.
         let again = write_artifact_new(&dir, "out.md", &body, body.hash(), body.len());
         assert_eq!(again.unwrap_err(), ExecError::WorkspaceChanged);
+    }
+
+    #[test]
+    fn artifact_write_refuses_unsafe_names_before_creating_any_file() {
+        let tmp = TempDir::new("write-name");
+        std::fs::create_dir_all(tmp.join("out/sub")).unwrap();
+        let root = bind_root(tmp.path()).unwrap();
+        let dir = walk(&root, &segs("out"), true).unwrap();
+        let body = SealedBuffer::seal(b"artifact".to_vec());
+        let mut bad_names: Vec<String> = [
+            "",
+            "sub/evil.md",
+            "sub\\evil.md",
+            "../evil.md",
+            "..\\evil.md",
+            "/evil.md",
+            "C:evil.md",
+            "evil:ads",
+            "evil\0.md",
+            ".",
+            "..",
+            "CON",
+            "nul.txt",
+            "COM1.md",
+            "LPT9.json",
+            "evil.",
+            "evil ",
+        ]
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+        bad_names.push("a".repeat(32768));
+        // 32768 UTF-16 units used to wrap Length to zero (or to a valid short prefix).
+        bad_names.push(format!("evil.md{}", "a".repeat(32768)));
+        bad_names.push("\u{10000}".repeat(16384));
+        for name in bad_names {
+            assert_eq!(
+                write_artifact_new(&dir, &name, &body, body.hash(), body.len()).unwrap_err(),
+                ExecError::SpecialFile,
+            );
+        }
+        assert_eq!(std::fs::read_dir(tmp.path()).unwrap().count(), 1);
+        assert_eq!(std::fs::read_dir(tmp.join("out")).unwrap().count(), 1);
+        assert_eq!(std::fs::read_dir(tmp.join("out/sub")).unwrap().count(), 0);
+        write_artifact_new(&dir, "v1.md", &body, body.hash(), body.len()).unwrap();
+        assert_eq!(std::fs::read(tmp.join("out/v1.md")).unwrap(), body.bytes());
+    }
+
+    #[test]
+    fn artifact_write_never_follows_a_junction_in_the_file_name() {
+        let tmp = TempDir::new("write-junction");
+        let outside = TempDir::new("write-outside");
+        let link = tmp.join("escape");
+        assert!(
+            make_junction(&link, outside.path()),
+            "junction fixture must be created"
+        );
+        // Positive control: the junction really reaches the outside directory via ordinary I/O.
+        std::fs::write(outside.join("sentinel.txt"), b"outside").unwrap();
+        assert_eq!(
+            std::fs::read(tmp.join("escape/sentinel.txt")).unwrap(),
+            b"outside"
+        );
+        let root = bind_root(tmp.path()).unwrap();
+        let dir = walk(&root, &[], true).unwrap();
+        let body = SealedBuffer::seal(b"artifact".to_vec());
+        for name in ["escape/evil.md", "escape\\evil.md", "escape\\sentinel.txt"] {
+            assert_eq!(
+                write_artifact_new(&dir, name, &body, body.hash(), body.len()).unwrap_err(),
+                ExecError::SpecialFile,
+            );
+        }
+        assert_eq!(std::fs::read_dir(outside.path()).unwrap().count(), 1);
+        assert_eq!(
+            std::fs::read(outside.join("sentinel.txt")).unwrap(),
+            b"outside"
+        );
+        write_artifact_new(&dir, "v1.md", &body, body.hash(), body.len()).unwrap();
+        assert_eq!(std::fs::read(tmp.join("v1.md")).unwrap(), body.bytes());
+        assert_eq!(
+            write_artifact_new(&dir, "v1.md", &body, body.hash(), body.len()).unwrap_err(),
+            ExecError::WorkspaceChanged,
+        );
     }
 
     #[test]

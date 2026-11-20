@@ -48,6 +48,16 @@ const (
 	testModel          = "qwen3.8-flash"
 )
 
+type fakeOutputStager struct {
+	err       error
+	manifests []egress.OutputManifest
+}
+
+func (s *fakeOutputStager) Stage(_ context.Context, _, _ string, manifest egress.OutputManifest) error {
+	s.manifests = append(s.manifests, manifest)
+	return s.err
+}
+
 type fakeAuthorizer struct {
 	allowed    bool
 	err        error
@@ -294,6 +304,7 @@ func newHarness(t *testing.T) *harness {
 		References: h.references,
 		Executions: h.bindings,
 		Content:    h.store,
+		Outputs:    &fakeOutputStager{},
 		Factory:    h.factory.build,
 	})
 	if err != nil {
@@ -1018,6 +1029,7 @@ func TestNewRequiresDependenciesAndGatewayIdentity(t *testing.T) {
 		References: newFakeReferences(),
 		Executions: &fakeBindings{},
 		Content:    newMemoryStore(),
+		Outputs:    &fakeOutputStager{},
 		Factory:    (&fakeFactory{}).build,
 	}
 	variants := map[string]Dependencies{
@@ -1027,6 +1039,7 @@ func TestNewRequiresDependenciesAndGatewayIdentity(t *testing.T) {
 		"references": deps,
 		"executions": deps,
 		"content":    deps,
+		"outputs":    deps,
 		"factory":    deps,
 	}
 	for name := range variants {
@@ -1044,6 +1057,8 @@ func TestNewRequiresDependenciesAndGatewayIdentity(t *testing.T) {
 			broken.Executions = nil
 		case "content":
 			broken.Content = nil
+		case "outputs":
+			broken.Outputs = nil
 		case "factory":
 			broken.Factory = nil
 		}

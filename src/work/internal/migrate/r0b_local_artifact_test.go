@@ -188,6 +188,11 @@ func (l *localArtifactFixture) prepareAction(t *testing.T, worker *pgx.Conn, ste
 	if opID == "" || attemptID == "" {
 		t.Fatalf("prepare %s returned %#v", stepKey, out)
 	}
+	l.authorizeAction(t, opID)
+	callJSON(t, worker,
+		`SELECT work.consume_device_permit($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8,$9)`,
+		l.org, opID, attemptID, l.deviceID, l.sessionID, l.leaseID, l.fence,
+		hex64("b4-action|"+stepKey), permitTestKid)
 	return opID, attemptID
 }
 
@@ -213,7 +218,7 @@ func (l *localArtifactFixture) recordReceipt(t *testing.T, worker *pgx.Conn, opI
 		`,"operation_id":` + jstr(opID) + `,"attempt_id":` + jstr(attemptID) +
 		`,"fence":` + strconv.FormatInt(l.fence, 10) + `}`
 	elem := `{"receipt_seq":` + strconv.Itoa(seq) + `,"original_execution":` + exec +
-		`,"request_hash":` + jstr(hex64("b4-receipt|"+stepKey+"|"+state)) +
+		`,"request_hash":` + jstr(hex64("b4-action|"+stepKey)) +
 		`,"state":` + jstr(state) + `,"outcome":` + jopt(outcome) +
 		`,"result_hash":null,"local_result_ref":` + jopt(localRef) +
 		`,"error_code":null,"usage":null,"usage_source":null,` +
@@ -458,8 +463,9 @@ func TestR0bFinalizeSuccessionGrantCountsBeforeAnyActionRuns(t *testing.T) {
 		t.Fatalf("pre-rebind derivation = %v, want remote_excerpt_allowed", before["classification"])
 	}
 
-	// Re-point the Run's workspace at the narrowed grant. The binding's grant_set has to
-	// name the old grant, so a fresh revision is offered first, then the run is parked.
+	// Re-point the Run's workspace at the narrowed grant. Real permit consumption has
+	// resumed the Run, so park it before offering the fresh binding revision.
+	mustExec(t, l.admin, "UPDATE work.run SET state = 'waiting', wait_reason = 'input' WHERE id = "+quoteLiteral(l.runID))
 	offer := `{"input_ref":"ref","input_hash":"` + hex64("input") + `","snapshot_hash":"` + strings.Repeat("3", 64) +
 		`","profile_id":"p1","profile_revision":1,"runtime_digest":"` + strings.Repeat("4", 64) +
 		`","tool_manifest_hash":"` + strings.Repeat("5", 64) + `","model_version":"m1","grant_set":[{"grant_id":"` +
@@ -498,58 +504,23 @@ func TestR0bFinalizeSuccessionGrantCountsBeforeAnyActionRuns(t *testing.T) {
 			hex64("b4-d"), "local/out/b.md", l.deviceID, receiptRef, "remote_excerpt_allowed", 2048))
 }
 
-// TestR0bFinalizeEmptyInputSetIsAFloorNotAGuess pins the COALESCE branch. The state is
-// constructed rather than reached: today the device cannot produce a receipt without an
-// action row, because prepare writes both. What is pinned is the semantics of the branch
-// (the strictest value, not the claim), so that widening the arms later has to pass it.
-func TestR0bFinalizeEmptyInputSetIsAFloorNotAGuess(t *testing.T) {
+// An Operation alone can no longer manufacture the receipt used to reach the
+// empty-input finalize branch: local execution must have a real dispatch first.
+func TestR0bFinalizeEmptyInputSetCannotForgeReceipt(t *testing.T) {
 	l := newLocalArtifactFixture(t, "org_b4_finalize_empty")
-	admin := l.admin
-	worker := l.workerConn(t)
-
-	// An operation with a receipt and no local_action row. The fixture's own Run works
-	// here and is the cheaper construction: it never had a prepare call, so it holds no
-	// local_action rows, and finalize accepts a Run in 'waiting' as well as 'active'. A
-	// second open Run on one Task is not constructible at all - work_run_one_open_per_task
-	// is a partial unique index over queued/active/waiting/cancel_requested.
-	opID := newUUID(t)
-	attemptID := newUUID(t)
-	mustExec(t, admin, "INSERT INTO work.operation (id, org_id, run_id, logical_key, kind, request_hash, "+
-		"state, dispatch_attempt_id) VALUES ("+quoteLiteral(opID)+", "+quoteLiteral(l.org)+", "+
-		quoteLiteral(l.runID)+", 'artifact:empty#0', 'artifact', "+quoteLiteral(hex64("b4-empty-op"))+
-		", 'dispatching', "+quoteLiteral(attemptID)+")")
-	localRef := "local/out/empty.md"
-	receiptRef := l.recordReceipt(t, worker, opID, attemptID, "artifact:empty", "started", "", localRef, 1)
-
-	if got := countRows(t, admin, "SELECT count(*) FROM work.local_action WHERE org_id = "+quoteLiteral(l.org)+
-		" AND operation_id IN (SELECT id FROM work.operation WHERE run_id = "+quoteLiteral(l.runID)+")"); got != 0 {
-		t.Fatalf("local_action rows in the empty Run = %d, want 0", got)
+	attempt := newUUID(t)
+	mustExec(t, l.admin, "UPDATE work.operation SET dispatch_attempt_id="+quoteLiteral(attempt)+" WHERE id="+quoteLiteral(l.op))
+	body, journal := reviewReceipt(t, l.actionFixture, l.op, attempt, l.sessionID)
+	body["state"], body["outcome"] = "started", nil
+	out := reviewRecord(t, l.actionFixture, l.deviceID, journal, body)
+	if len(out["conflicts"].([]any)) != 1 || len(out["recorded"].([]any)) != 0 {
+		t.Fatalf("an undispatched Operation manufactured artifact evidence: %#v", out)
 	}
-
-	// The floor is what makes the loose claim refuse: v_inputs is [], COALESCE answers
-	// 'local_only' and rank(claimed) < rank(result). Had the branch guessed the claim or
-	// returned NULL, this call would have landed a version instead.
-	before := l.writeCounts(t)
-	got := l.finalizeRefused(t, worker, l.runID, opID, l.versionPayload(newUUID(t), "null", "reports/e.md",
-		hex64("b4-empty"), localRef, l.deviceID, receiptRef, "remote_excerpt_allowed", 512))
-	if got.code != "classification_floor_required" {
-		t.Fatalf("empty-set loose claim = %q (%s), want classification_floor_required", got.code, got.state)
-	}
-	if counts := l.writeCounts(t); counts != before {
-		t.Fatalf("the floor refusal changed the write set: %s -> %s", before, counts)
-	}
-
-	out := l.finalize(t, worker, l.runID, opID, l.versionPayload(newUUID(t), "null", "reports/e.md",
-		hex64("b4-empty"), localRef, l.deviceID, receiptRef, "local_only", 512))
-	if out["classification"] != "local_only" || out["version_no"] != float64(1) {
-		t.Fatalf("empty-set derivation = %#v, want a local_only version 1", out)
-	}
-	if got := mustScalar(t, admin, "SELECT (jsonb_array_length(metadata -> 'classification_derivation' -> 'inputs'))::text "+
-		"|| '/' || (metadata -> 'classification_derivation' ->> 'result') || '/' || "+
-		"COALESCE(metadata -> 'classification_derivation' ->> 'output_root_classification', 'SQL-NULL') "+
-		"FROM work.audit_event WHERE org_id = "+quoteLiteral(l.org)+" AND action = 'artifact.local_finalize' LIMIT 1"); got != "0/local_only/SQL-NULL" {
-		t.Fatalf("persisted derivation = %q, want an empty input set floored to local_only "+
-			"with no output root (the operation had no artifact.write local_action row)", got)
+	got := l.finalizeRefused(t, l.workerConn(t), l.runID, l.op,
+		l.versionPayload(newUUID(t), "null", "reports/e.md", hex64("b4-empty"),
+			"local/out/empty.md", l.deviceID, journal+":1", "local_only", 512))
+	if got.code != "not_found" {
+		t.Fatalf("finalize without dispatch receipt: %#v", got)
 	}
 }
 

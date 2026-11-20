@@ -93,7 +93,9 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (55, '0055_device_permit_mint_command_claim'),
   (56, '0056_device_cancel_face'),
   (57, '0057_cancellation_intent_consumer'),
-  (58, '0058_device_certificate_issuance')) expected(version, name)
+  (58, '0058_device_certificate_issuance'),
+  (59, '0059_device_execution_review'),
+  (60, '0060_egress_output_recovery')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the

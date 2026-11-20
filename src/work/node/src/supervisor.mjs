@@ -380,12 +380,8 @@ export class Supervisor {
         this.#violation(entry, 'frame_reader_failed');
       }
     });
-    // Forward child stderr to the parent's stderr so a quiet child failure is
-    // visible in the service journal. The child never prints tokens or bodies.
-    child.stderr.on('data', (chunk) => {
-      const text = Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
-      process.stderr.write(`work runtime child run=${String(entry.runId).slice(0, 8)} stderr: ${text}`);
-    });
+    // Drain untrusted stderr without logging bodies, paths or tokens.
+    child.stderr.resume();
     child.stdin.on('error', () => {});
     child.stdio[3].on('error', () => {
       if (entry.settled || entry.outcome !== null) return;

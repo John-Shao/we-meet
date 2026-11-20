@@ -781,6 +781,9 @@ func (a *Activities) commitHead(
 		).Scan(&revision)
 	})
 	if err != nil {
+		if recoverablePersistence(err) || errors.Is(err, context.Canceled) {
+			return 0, &recoveryReadError{code: "advance_execution_command_failed", cause: err}
+		}
 		return 0, executionCommandError(err)
 	}
 	return revision, nil
@@ -811,20 +814,32 @@ func (a *Activities) putCanonicalState(
 			return canonical.Reference{}, fmt.Errorf("advance_state_conflict")
 		}
 		body, readErr := a.Content.Get(ctx, orgID, current.ContentRef)
-		if readErr != nil || !bytes.Equal(body, raw) {
+		if readErr != nil {
+			return canonical.Reference{}, &recoveryReadError{code: "advance_state_unavailable", cause: readErr}
+		}
+		if !bytes.Equal(body, raw) {
 			return canonical.Reference{}, fmt.Errorf("advance_state_conflict")
 		}
 		return canonical.Reference{RefID: refID, Hash: hash}, nil
 	}
 	if !errors.Is(err, contentref.ErrNotFound) {
+		if recoverablePersistence(err) || errors.Is(err, context.Canceled) {
+			return canonical.Reference{}, &recoveryReadError{code: "advance_state_unavailable", cause: err}
+		}
 		return canonical.Reference{}, fmt.Errorf("advance_state_unavailable")
 	}
 	put, err := a.Content.Put(ctx, orgID, raw)
-	if err != nil || put.ContentRef == "" || put.Bytes != int64(len(raw)) {
+	if err != nil {
+		return canonical.Reference{}, &recoveryReadError{code: "advance_state_unavailable", cause: err}
+	}
+	if put.ContentRef == "" || put.Bytes != int64(len(raw)) {
 		return canonical.Reference{}, fmt.Errorf("advance_state_unavailable")
 	}
 	stored, err := a.Content.Get(ctx, orgID, put.ContentRef)
-	if err != nil || !bytes.Equal(stored, raw) {
+	if err != nil {
+		return canonical.Reference{}, &recoveryReadError{code: "advance_state_unavailable", cause: err}
+	}
+	if !bytes.Equal(stored, raw) {
 		return canonical.Reference{}, fmt.Errorf("advance_state_unavailable")
 	}
 	storedHash, err := canonical.HashDocumentBytes(stored)
@@ -840,6 +855,9 @@ func (a *Activities) putCanonicalState(
 		WriterKind: contentref.WriterControlPlane, SlotState: contentref.SlotCommitted,
 	}
 	if err := registry.Register(ctx, desired); err != nil {
+		if recoverablePersistence(err) || errors.Is(err, context.Canceled) {
+			return canonical.Reference{}, &recoveryReadError{code: "advance_state_unavailable", cause: err}
+		}
 		if errors.Is(err, contentref.ErrSlotConflict) {
 			current, resolveErr := registry.Resolve(ctx, orgID, refID)
 			if resolveErr == nil && current.ContentHash == hash && current.ExecutionID == executionID {
@@ -863,6 +881,9 @@ func (a *Activities) loadCanonicalState(
 	registry := contentref.NewRegistry(a.Pool)
 	current, err := registry.Resolve(ctx, orgID, ref.RefID)
 	if err != nil {
+		if recoverablePersistence(err) || errors.Is(err, context.Canceled) {
+			return canonical.CanonicalState{}, &recoveryReadError{code: "advance_head_unavailable", cause: err}
+		}
 		return canonical.CanonicalState{}, fmt.Errorf("advance_head_unavailable")
 	}
 	if current.Kind != contentref.KindCheckpointCandidate || current.ContentHash != ref.Hash ||
@@ -871,7 +892,7 @@ func (a *Activities) loadCanonicalState(
 	}
 	body, err := a.Content.Get(ctx, orgID, current.ContentRef)
 	if err != nil {
-		return canonical.CanonicalState{}, fmt.Errorf("advance_head_unavailable")
+		return canonical.CanonicalState{}, &recoveryReadError{code: "advance_head_unavailable", cause: err}
 	}
 	state, err := canonical.ParseCanonicalState(body)
 	if err != nil {
@@ -937,7 +958,7 @@ func (a *Activities) FinishAdvance(
 	finisher := &finishing.Finisher{Pool: a.Pool, Content: a.Content}
 	outcome, err := finisher.FinishFromReceipt(ctx, prepared.OrgID, execution.OperationID)
 	if err != nil {
-		return AdvanceFinishOutput{Status: AdvanceStatusFailed, ErrCode: finishErrorCode(err)}, nil
+		return finishReceiptFailure(err)
 	}
 	if outcome.Status == finishing.StatusRejected {
 		return AdvanceFinishOutput{Status: AdvanceStatusFailed, ErrCode: fragment.ReasonProviderRejected}, nil
@@ -954,14 +975,14 @@ func (a *Activities) FinishAdvance(
 
 	facts, err := a.loadFinishFacts(ctx, prepared.OrgID, execution)
 	if err != nil {
-		return AdvanceFinishOutput{Status: AdvanceStatusFailed, ErrCode: "finish_binding_mismatch"}, nil
+		return finishFailure(err, "finish_binding_mismatch")
 	}
 	if facts.ReceiptHash != outcome.ReceiptHash {
 		return AdvanceFinishOutput{Status: AdvanceStatusFailed, ErrCode: "finish_receipt_mismatch"}, nil
 	}
 	receiptBody, err := a.Content.Get(ctx, prepared.OrgID, facts.ReceiptRef)
 	if err != nil {
-		return AdvanceFinishOutput{Status: AdvanceStatusFailed, ErrCode: "finish_receipt_unavailable"}, nil
+		return finishFailure(&recoveryReadError{code: "finish_receipt_unavailable", cause: err}, "finish_receipt_unavailable")
 	}
 	verified, err := receipt.Verify(receiptBody, receipt.Expectation{
 		OrgID: prepared.OrgID, TaskID: prepared.TaskID, RunID: prepared.RunID,
@@ -984,23 +1005,23 @@ func (a *Activities) FinishAdvance(
 	answerRef, answerLocator, answerBody, err := a.loadAnswer(ctx, prepared.OrgID,
 		execution.ExecutionID, *verified.Content, verified.Receipt.ContentBytes)
 	if err != nil {
-		return AdvanceFinishOutput{Status: AdvanceStatusFailed, ErrCode: "finish_content_unavailable"}, nil
+		return finishFailure(err, "finish_content_unavailable")
 	}
 	artifactID, versionNo, err := a.publishAdvanceArtifact(ctx, prepared, execution,
 		answerLocator.ContentRef, answerRef, facts.ReceiptHash, answerBody)
 	if err != nil {
-		return AdvanceFinishOutput{}, err
+		return finishFailure(err, "advance_artifact_publish_failed")
 	}
 
 	current, err := a.readAdvanceHead(ctx, prepared.OrgID, prepared.RunID)
 	if err != nil {
-		return AdvanceFinishOutput{Status: AdvanceStatusFailed, ErrCode: "finish_head_unavailable"}, nil
+		return finishFailure(err, "finish_head_unavailable")
 	}
 	if current.Revision > head.Revision {
 		state, err := a.loadCanonicalState(ctx, prepared.OrgID,
 			canonical.Reference{RefID: current.Ref, Hash: current.Hash})
 		if err != nil {
-			return AdvanceFinishOutput{Status: AdvanceStatusFailed, ErrCode: "finish_head_invalid"}, nil
+			return finishFailure(err, "finish_head_invalid")
 		}
 		if !advanceStateMatches(state, current.Revision, head, facts, *verified.Content) {
 			return AdvanceFinishOutput{Status: AdvanceStatusFailed, ErrCode: "finish_head_conflict"}, nil
@@ -1016,7 +1037,7 @@ func (a *Activities) FinishAdvance(
 	baseRef := canonical.Reference{RefID: current.Ref, Hash: current.Hash}
 	base, err := a.loadCanonicalState(ctx, prepared.OrgID, baseRef)
 	if err != nil {
-		return AdvanceFinishOutput{Status: AdvanceStatusFailed, ErrCode: "finish_head_invalid"}, nil
+		return finishFailure(err, "finish_head_invalid")
 	}
 	if base.Revision != head.Revision {
 		return AdvanceFinishOutput{Status: AdvanceStatusFailed, ErrCode: "finish_head_conflict"}, nil
@@ -1045,7 +1066,7 @@ func (a *Activities) FinishAdvance(
 	}
 	nextRef, err := a.putCanonicalState(ctx, prepared.OrgID, next, execution.ExecutionID, next.Revision)
 	if err != nil {
-		return AdvanceFinishOutput{Status: AdvanceStatusFailed, ErrCode: "finish_head_write_failed"}, nil
+		return finishFailure(err, "finish_head_write_failed")
 	}
 	revision, err := a.commitHead(ctx, prepared.OrgID, prepared.RunID, execution.ExecutionID,
 		&current, nextRef, prepared.RuntimeVersion)
@@ -1077,7 +1098,7 @@ func (a *Activities) FinishAdvance(
 				}, nil
 			}
 		}
-		return AdvanceFinishOutput{Status: AdvanceStatusFailed, ErrCode: "finish_head_conflict"}, nil
+		return finishFailure(err, "finish_head_conflict")
 	}
 	return AdvanceFinishOutput{
 		Status: AdvanceStatusSucceeded, ArtifactID: artifactID, VersionNo: versionNo,
@@ -1134,12 +1155,18 @@ func (a *Activities) loadAnswer(
 	}
 	registry := contentref.NewRegistry(a.Pool)
 	current, err := registry.Resolve(ctx, orgID, ref.RefID)
+	if recoverablePersistence(err) || errors.Is(err, context.Canceled) {
+		return canonical.Reference{}, contentref.Reference{}, nil, &recoveryReadError{code: "advance_answer_unavailable", cause: err}
+	}
 	if err != nil || current.Kind != contentref.KindAnswer ||
 		current.ExecutionID != executionID || current.ContentHash != ref.Hash {
 		return canonical.Reference{}, contentref.Reference{}, nil, fmt.Errorf("advance_answer_unavailable")
 	}
 	body, err := a.Content.Get(ctx, orgID, current.ContentRef)
-	if err != nil || int64(len(body)) != expectedBytes {
+	if err != nil {
+		return canonical.Reference{}, contentref.Reference{}, nil, &recoveryReadError{code: "advance_answer_unavailable", cause: err}
+	}
+	if int64(len(body)) != expectedBytes {
 		return canonical.Reference{}, contentref.Reference{}, nil, fmt.Errorf("advance_answer_unavailable")
 	}
 	hash, err := canonical.BodyHash(body)
@@ -1176,6 +1203,9 @@ func (a *Activities) publishAdvanceArtifact(
 			advanceMediaType, string(provenance),
 		).Scan(&artifactID, &versionNo)
 	}); err != nil {
+		if recoverablePersistence(err) || errors.Is(err, context.Canceled) {
+			return "", 0, &recoveryReadError{code: "advance_artifact_publish_failed", cause: err}
+		}
 		return "", 0, activityFailure(err, "advance_artifact_publish_failed")
 	}
 	return artifactID, versionNo, nil

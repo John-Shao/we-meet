@@ -88,7 +88,7 @@ func TestReceiptAckIsServerSigned(t *testing.T) {
 	addr := f.startServer(t)
 	stream := f.connect(t, addr)
 	sessionID, journalEpoch, bootID, agentID, generation, serverPub := f.helloWithServerJWK(t, stream)
-	runID, opID, attemptID, fence := f.seedAction(t, sessionID)
+	runID, opID, attemptID, fence := f.seedReceiptAction(t, sessionID)
 
 	exec := receiptExec(gwOrg, gwSubject, f.deviceID, sessionID, agentID, bootID, generation, runID, opID, attemptID, fence)
 	if err := stream.SendMsg(f.signReceipt(t, journalEpoch, sessionID, bootID, agentID, exec, 1, "started", nil)); err != nil {

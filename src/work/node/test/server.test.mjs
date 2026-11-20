@@ -10,11 +10,12 @@ import {
   CONTRACT_VERSION,
   MAX_BODY_BYTES,
   ROUTE,
+  advanceResult,
   createAdvanceServer,
 } from '../src/server.mjs';
 import { Supervisor } from '../src/supervisor.mjs';
 import { createFakeAuthz } from '../test-support/fake-authz.mjs';
-import { recordingSpawn, waitFor } from '../test-support/helpers.mjs';
+import { assertAdvanceResult, recordingSpawn, waitFor } from '../test-support/helpers.mjs';
 import { createTLSFixture } from '../test-support/tls.mjs';
 
 const EXECUTION_ID = '11111111-1111-4111-8111-111111111111';
@@ -205,6 +206,36 @@ test('a valid client and fragment reach the child and return advance_result', { 
   }
 });
 
+for (const [status, reason] of [
+  ['timed_out', 'deadline_exceeded'],
+  ['lease_lost', 'runtime_fault'],
+  ['capability_expired', 'runtime_fault'],
+  ['capability_refresh_failed', 'runtime_fault'],
+  ['completed', 'runtime_fault'],
+  ['failed', 'runtime_fault'],
+  ['crashed', 'runtime_fault'],
+  ['protocol_violation', 'runtime_fault'],
+]) {
+  for (const mode of ['plan', 'execute']) {
+    test(`status-only ${status} in ${mode} returns a signed outcome`, () => {
+      const checkpoints = mode === 'plan' ? [null, { refId: REF_ID, hash: HASH }] : [{ refId: REF_ID, hash: HASH }];
+      for (const checkpoint of checkpoints) {
+        const request = mode === 'plan' ? baseFragment({ checkpoint }) : executeFragment({ checkpoint });
+        const result = JSON.parse(JSON.stringify(advanceResult(request, {
+          status,
+          diagnostics: { code: 'PRIVATE_DIAGNOSTIC_SENTINEL' },
+        })));
+        const outcome = assertAdvanceResult(result, { contractVersion: CONTRACT_VERSION, executionId: EXECUTION_ID });
+        assert.deepEqual(outcome, mode === 'plan' ? {
+          state: 'FAILED', checkpoint, reason,
+        } : {
+          state: 'WAITING_RECONCILE', checkpoint, operationId: OPERATION_ID, reason: 'provider_unknown',
+        });
+      }
+    });
+  }
+}
+
 test('a valid plan fragment returns a schema-valid advance_result', { timeout: 15000 }, async () => {
   const controller = recordingSpawn({ behavior: 'ok' });
   const running = await startServer(controller);
@@ -215,7 +246,8 @@ test('a valid plan fragment returns a schema-valid advance_result', { timeout: 1
     assert.equal(result.kind, 'advance_result');
     assert.equal(result.executionId, EXECUTION_ID);
     assert.equal(result.state, 'FAILED');
-    assert.equal(result.errorCode, 'runtime_fault');
+    assertAdvanceResult(result, { contractVersion: CONTRACT_VERSION, executionId: EXECUTION_ID });
+    assert.equal(result.reason, 'runtime_fault');
     assert.equal(Object.hasOwn(result, 'operationId'), false);
     assert.equal(controller.records.length, 1);
   } finally {
@@ -356,7 +388,8 @@ test('a malformed outcome from the supervisor falls back to the conservative map
     assert.equal(response.body.includes('CHECKPOINTED'), false);
     const result = JSON.parse(response.body);
     assert.equal(result.state, 'FAILED');
-    assert.equal(result.errorCode, 'runtime_fault');
+    assertAdvanceResult(result, { contractVersion: CONTRACT_VERSION, executionId: EXECUTION_ID });
+    assert.equal(result.reason, 'runtime_fault');
     assert.equal(Object.hasOwn(result, 'receipt'), false);
   } finally {
     server.closeAllConnections?.();

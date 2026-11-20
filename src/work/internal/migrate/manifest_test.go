@@ -71,6 +71,8 @@ var publishedIncrements = []string{
 	"0056_device_cancel_face",
 	"0057_cancellation_intent_consumer",
 	"0058_device_certificate_issuance",
+	"0059_device_execution_review",
+	"0060_egress_output_recovery",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

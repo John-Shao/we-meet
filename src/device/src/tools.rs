@@ -86,6 +86,16 @@ pub fn validate_relative_path(path: &str) -> Result<Vec<String>, ToolError> {
     Ok(segments)
 }
 
+// NT names must stay within one verified directory and fit UNICODE_STRING's u16 byte length.
+pub fn validate_file_name(name: &str) -> Result<(), ToolError> {
+    if validate_relative_path(name)?.len() != 1
+        || name.encode_utf16().count() > usize::from(u16::MAX) / 2
+    {
+        return Err(ToolError::BadPath);
+    }
+    Ok(())
+}
+
 /// The TOCTOU-closed sealed buffer (§4.2 step 5): the Broker reads a verified handle ONCE into this
 /// immutable buffer, checks expected hash/size, then hands THIS buffer to Node/searcher — never a
 /// second read of the source. Approval previews seal the same buffer bound to its hash; execution
@@ -214,6 +224,9 @@ pub fn validate_args(tool: &str, args: &Value) -> Result<String, ToolError> {
             if !TEXT_EXTENSIONS.contains(&format.as_str()) {
                 return Err(ToolError::BadFormat);
             }
+            let version_id = obj["version_id"].as_str().unwrap();
+            validate_file_name(version_id)?;
+            validate_file_name(&format!("{version_id}.{format}"))?;
         }
         _ => return Err(ToolError::Schema),
     }
@@ -281,6 +294,63 @@ mod tests {
             .collect::<Vec<_>>()
             .join("/");
         assert!(validate_relative_path(&deep).is_err());
+    }
+
+    #[test]
+    fn artifact_version_and_file_name_require_one_safe_component() {
+        let mut args = json!({ "grant_id": "g", "artifact_id": "a", "version_id": "v1",
+            "format": "md", "body_ref": "b", "content_hash": "sha256:x", "byte_count": "1" });
+        for valid in ["v1", "release-1", "版本1"] {
+            args["version_id"] = json!(valid);
+            assert!(validate_args(ARTIFACT_WRITE, &args).is_ok());
+            assert!(validate_file_name(&format!("{valid}.md")).is_ok());
+        }
+        for bad in [
+            "",
+            "a/b",
+            "a\\b",
+            "../v1",
+            "..\\v1",
+            "/abs",
+            "C:evil",
+            "v1:ads",
+            "v1\0tail",
+            ".",
+            "..",
+            "CON",
+            "nul.txt",
+            "COM1",
+            "LPT9.json",
+            "v1.",
+            "v1 ",
+        ] {
+            args["version_id"] = json!(bad);
+            assert_eq!(
+                validate_args(ARTIFACT_WRITE, &args),
+                Err(ToolError::BadPath),
+                "{bad:?}"
+            );
+            assert_eq!(validate_file_name(bad), Err(ToolError::BadPath), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn artifact_file_name_checks_utf16_byte_length_without_truncation() {
+        // Only the NT representation limit is imposed here; the filesystem applies its own limit.
+        assert!(validate_file_name(&"a".repeat(32767)).is_ok());
+        assert_eq!(
+            validate_file_name(&"a".repeat(32768)),
+            Err(ToolError::BadPath)
+        );
+        let astral = "\u{10000}".repeat(16384);
+        assert_eq!(validate_file_name(&astral), Err(ToolError::BadPath));
+        let args = json!({ "grant_id": "g", "artifact_id": "a", "version_id": "a".repeat(32765),
+            "format": "md", "body_ref": "b", "content_hash": "sha256:x", "byte_count": "1" });
+        // The extension must also fit; checking just version_id would miss this overflow.
+        assert_eq!(
+            validate_args(ARTIFACT_WRITE, &args),
+            Err(ToolError::BadPath)
+        );
     }
 
     #[test]

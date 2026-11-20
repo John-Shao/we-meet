@@ -1,6 +1,18 @@
+import assert from 'node:assert/strict';
 import { spawn as nodeSpawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
+import { validateOutcome } from '../src/protocol.mjs';
+
+export function assertAdvanceResult(result, { contractVersion, executionId }) {
+  const { kind, contractVersion: version, executionId: id, ...outcome } = result;
+  assert.deepEqual({ kind, contractVersion: version, executionId: id }, {
+    kind: 'advance_result', contractVersion, executionId,
+  });
+  // Remove only the envelope so unknown outcome fields cannot evade validation.
+  assert.deepEqual(validateOutcome(outcome), outcome);
+  return outcome;
+}
 
 // Every supervisor test drives the stub, never the real Pi child.
 const STUB_CHILD = fileURLToPath(new URL('../src/child-stub.mjs', import.meta.url));

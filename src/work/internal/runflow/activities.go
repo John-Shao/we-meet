@@ -715,7 +715,7 @@ func (a *Activities) WaitRun(ctx context.Context, input WaitRunInput) error {
 		return tx.QueryRow(ctx, `SELECT state FROM work.run WHERE id = $1 AND org_id = $2`,
 			input.RunID, input.OrgID).Scan(&state)
 	}); err != nil {
-		return activityFailure(err, "wait_run_failed")
+		return waitRunFailure(err, input.Recovery)
 	}
 	if state == "cancel_requested" || terminalRun(state) {
 		return nil
@@ -725,7 +725,7 @@ func (a *Activities) WaitRun(ctx context.Context, input WaitRunInput) error {
 			input.OrgID, input.RunID, input.Reason)
 		return err
 	})
-	return activityFailure(err, "wait_run_failed")
+	return waitRunFailure(err, input.Recovery)
 }
 
 // ResumeRun flips a waiting Run back to active so the advance workflow can re-read

@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 58,
-  "chainTipCatalog": "catalogs/0058_device_certificate_issuance.json",
+  "chainTip": 60,
+  "chainTipCatalog": "catalogs/0060_egress_output_recovery.json",
   "entries": [
     {
       "name": "GET /work/v2/admin/local-policy",
@@ -366,7 +366,7 @@
     {
       "name": "consume_governance_events",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0058_device_certificate_issuance.json",
+      "origin": "src/work/migrations/catalogs/0060_egress_output_recovery.json",
       "callableBy": [
         "work_governance_events"
       ],
@@ -483,7 +483,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0058_device_certificate_issuance.json",
+      "origin": "src/work/migrations/catalogs/0060_egress_output_recovery.json",
       "callableBy": [
         "work_api",
         "work_governance_events"
@@ -748,6 +748,15 @@
       "origin": "src/work/internal/api/admin_local_policy.go",
       "callableBy": [
         "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "stage_egress_output",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0060_egress_output_recovery.sql",
+      "callableBy": [
+        "work_worker"
       ],
       "classification": "external-audit-required"
     }

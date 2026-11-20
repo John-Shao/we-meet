@@ -95,7 +95,7 @@ func TestReconcileRecordsBatch(t *testing.T) {
 	addr := f.startServer(t)
 	stream := f.connect(t, addr)
 	sessionID, journalEpoch, bootID, agentID, generation := f.helloSession(t, stream)
-	runID, opID, attemptID, fence := f.seedAction(t, sessionID)
+	runID, opID, attemptID, fence := f.seedReceiptAction(t, sessionID)
 	exec := receiptExec(gwOrg, gwSubject, f.deviceID, sessionID, agentID, bootID, generation, runID, opID, attemptID, fence)
 
 	r1 := f.signReceipt(t, journalEpoch, sessionID, bootID, agentID, exec, 1, "started", nil)
@@ -140,7 +140,7 @@ func TestReconcileRejectsBadNestedSignature(t *testing.T) {
 	addr := f.startServer(t)
 	stream := f.connect(t, addr)
 	sessionID, journalEpoch, bootID, agentID, generation := f.helloSession(t, stream)
-	runID, opID, attemptID, fence := f.seedAction(t, sessionID)
+	runID, opID, attemptID, fence := f.seedReceiptAction(t, sessionID)
 	exec := receiptExec(gwOrg, gwSubject, f.deviceID, sessionID, agentID, bootID, generation, runID, opID, attemptID, fence)
 	r1 := f.signReceipt(t, journalEpoch, sessionID, bootID, agentID, exec, 1, "started", nil)
 
@@ -167,7 +167,7 @@ func TestReconcileRejectsMismatchedNestedDevice(t *testing.T) {
 	addr := f.startServer(t)
 	stream := f.connect(t, addr)
 	sessionID, journalEpoch, bootID, agentID, generation := f.helloSession(t, stream)
-	runID, opID, attemptID, fence := f.seedAction(t, sessionID)
+	runID, opID, attemptID, fence := f.seedReceiptAction(t, sessionID)
 	exec := receiptExec(gwOrg, gwSubject, f.deviceID, sessionID, agentID, bootID, generation, runID, opID, attemptID, fence)
 	r1 := f.signReceipt(t, journalEpoch, sessionID, bootID, agentID, exec, 1, "started", nil)
 
@@ -228,7 +228,7 @@ func TestReconcileSeqWindowConflict(t *testing.T) {
 	addr := f.startServer(t)
 	stream := f.connect(t, addr)
 	sessionID, journalEpoch, bootID, agentID, generation := f.helloSession(t, stream)
-	runID, opID, attemptID, fence := f.seedAction(t, sessionID)
+	runID, opID, attemptID, fence := f.seedReceiptAction(t, sessionID)
 	exec := receiptExec(gwOrg, gwSubject, f.deviceID, sessionID, agentID, bootID, generation, runID, opID, attemptID, fence)
 	// seq 5 while the window expects 1.
 	r5 := f.signReceipt(t, journalEpoch, sessionID, bootID, agentID, exec, 5, "started", nil)
@@ -254,7 +254,7 @@ func TestReconcileJournalEpochMismatch(t *testing.T) {
 	addr := f.startServer(t)
 	stream := f.connect(t, addr)
 	sessionID, journalEpoch, bootID, agentID, generation := f.helloSession(t, stream)
-	runID, opID, attemptID, fence := f.seedAction(t, sessionID)
+	runID, opID, attemptID, fence := f.seedReceiptAction(t, sessionID)
 	otherEpoch := uuid.NewString()
 	exec := receiptExec(gwOrg, gwSubject, f.deviceID, sessionID, agentID, bootID, generation, runID, opID, attemptID, fence)
 	r1 := f.signReceipt(t, otherEpoch, sessionID, bootID, agentID, exec, 1, "started", nil)

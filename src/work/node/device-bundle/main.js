@@ -166,6 +166,16 @@ class BrokerLink {
     this.send(value);
     for (;;) {
       const f = await this.nextFrame();
+      // A proceed gate is intermediate, not the tool result. A blocked gate pauses the batch.
+      if (value.type === 'tool_call' && f.type === 'tool_permit_gate') {
+        const gate = validateBody(f.type, f.body);
+        if (gate.tool_call_id !== value.body.tool_call_id) throw new ProtocolError('unexpected_response');
+        if (gate.decision === 'proceed' && gate.terminate === false) continue;
+        if (gate.decision !== 'blocked' || gate.terminate !== true) throw new ProtocolError('unexpected_response');
+        return frame('tool_blocked', {
+          tool_call_id: gate.tool_call_id, reason: gate.reason, terminate: true, is_error: true,
+        });
+      }
       if (expect.includes(f.type)) {
         validateBody(f.type, f.body);
         return f;
@@ -253,9 +263,16 @@ function makeTools(link, counters) {
     replay: 'never',
     async execute(toolCallId, params) {
       const logicalKey = `tool:${counters.turn}:${counters.call++}`;
-      const reply = await link.request(toolCall(toolCallId, spec.name, params ?? {}, logicalKey), [
-        'tool_result', 'tool_unknown',
-      ]);
+      let reply;
+      try {
+        reply = await link.request(toolCall(toolCallId, spec.name, params ?? {}, logicalKey), [
+          'tool_result', 'tool_unknown',
+        ]);
+      } catch {
+        // The SDK turns thrown execute errors into non-terminating results. An uncertain RPC must
+        // instead stop the whole batch, never retry or continue with another tool/model request.
+        reply = { type: 'tool_unknown', body: { reason: 'client_error' } };
+      }
       if (reply.type === 'tool_blocked') {
         return {
           content: [{ type: 'text', text: `blocked:${reply.body.reason}` }],
@@ -274,7 +291,8 @@ function makeTools(link, counters) {
       }
       const b = reply.body;
       return {
-        content: Array.isArray(b.content) ? b.content : [],
+        content: Array.isArray(b.content) ? b.content
+          : [{ type: 'text', text: JSON.stringify(b.content) }],
         structuredContent: b.structured_content,
         details: b.details,
         isError: b.is_error === true,
@@ -299,7 +317,15 @@ async function main() {
     throw new ProtocolError('pipe_name_required');
   }
   const { link, bootstrap } = await connectAndBootstrap(pipeName);
-  const counters = { turn: 0, call: 0 };
+  // Bootstrap u64 values cross the protocol as decimal strings, not lossy JS numbers. No fallback
+  // or local token policy: enforce only the Broker-supplied turn bound, failing closed if invalid.
+  if (typeof bootstrap.max_turns !== 'string' || !/^[0-9]+$/.test(bootstrap.max_turns)
+    || BigInt(bootstrap.max_turns) > 18446744073709551615n) {
+    link.socket.destroy();
+    throw new ProtocolError('invalid_max_turns');
+  }
+  const maxTurns = BigInt(bootstrap.max_turns);
+  const counters = { turn: 0n, call: 0 };
   const tools = makeTools(link, counters);
 
   // StreamFn: one model turn via the Broker pipe. Never throws; failures encode stopReason='error'.
@@ -348,7 +374,8 @@ async function main() {
       const message = assistantMessage({
         // The loop executes tools only when the turn ends in toolUse (pi-ai StopReason).
         stopReason: toolCalls.length > 0 ? 'toolUse' : 'stop',
-        content: Array.isArray(am.content) ? am.content : [],
+        content: typeof am.content === 'string' ? [{ type: 'text', text: am.content }]
+          : Array.isArray(am.content) ? am.content : [],
         toolCalls,
         usage: isRecord(reply.body.usage) ? reply.body.usage : ZERO_USAGE,
       });
@@ -369,27 +396,34 @@ async function main() {
     streamFn,
     convertToLlm,
     toolExecution: 'sequential',
-    // finishTurn end is only a candidate (DD:137); the Broker judges outcome from journal facts.
-    finishTurn: () => ({ action: 'end' }),
+    // Leave successful tool turns to the SDK's natural loop; no-tool turns stop naturally. Explicit
+    // end is only for a terminated batch or the sealed turn bound, and remains a candidate (DD:137).
+    finishTurn: () => terminate || counters.turn >= maxTurns ? { action: 'end' } : undefined,
   });
 
   // The bootstrap carries sealed input refs; the initial prompt is the Broker-sealed input the Node
   // reads only through the pipe (DD:194). For the fixture loop the first user turn is empty content
-  // the Broker fills; the loop drives model→tool turns until finishTurn end.
+  // the Broker fills; successful tools naturally feed the next model turn.
   let terminate = false;
   const unsubscribe = agent.subscribe((event) => {
-    if (event.type === 'tool_execution_end' && event.result?.terminate === true) terminate = true;
+    if (event.type === 'tool_execution_end' && event.result?.terminate === true) {
+      terminate = true;
+      // Vendored sequential execution checks abort after emitting the tool result, before the next
+      // call. Its batch terminate uses every(), so finishTurn must also stop mixed success/terminate.
+      agent.abort();
+    }
   });
   try {
-    await agent.prompt([{ role: 'user', content: [{ type: 'text', text: 'begin' }] }]);
-    await agent.waitForIdle();
+    if (maxTurns > 0n) {
+      await agent.prompt([{ role: 'user', content: [{ type: 'text', text: 'begin' }] }]);
+      await agent.waitForIdle();
+    }
   } finally {
     unsubscribe();
   }
   // loop_end is a candidate; the transcript final state never enters an uplink frame (DD:137).
   link.send(loopEnd({ messages: agent.state.messages.slice() }, counters.turn));
   link.socket.end();
-  void terminate;
 }
 
 main().catch((err) => {

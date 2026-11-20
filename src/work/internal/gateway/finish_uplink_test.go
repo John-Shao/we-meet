@@ -2,6 +2,7 @@ package gateway_test
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -153,7 +154,11 @@ func TestRunFinishIsAdjudicatedAndServerSigned(t *testing.T) {
 	f := r.f
 
 	// 1. A wrong set hash: rejected, and the ack carries what the device needs to repair it.
-	r.send(t, r.finishBody(uuid.NewString(), "failed", "model_error", strings.Repeat("e", 64), []string{}))
+	rejectedBytes := f.signFrame(t, "run_finish", r.sessionID, r.bootID, r.agentID,
+		r.finishBody(uuid.NewString(), "failed", "model_error", strings.Repeat("e", 64), []string{}))
+	if err := r.stream.SendMsg(rejectedBytes); err != nil {
+		t.Fatal(err)
+	}
 	bodyJSON, ack, ackSession := recvTypedFrame(t, r.stream, "run_finish_ack")
 	if ackSession != r.sessionID {
 		t.Fatalf("run_finish_ack session = %v, want %s", ackSession, r.sessionID)
@@ -177,6 +182,17 @@ func TestRunFinishIsAdjudicatedAndServerSigned(t *testing.T) {
 	}
 	if got := r.scalar(t, `SELECT state FROM work.run WHERE org_id=$1 AND id=$2::uuid`, gwOrg, r.runID); got != "active" {
 		t.Fatalf("Run state after a refusal = %q, want active (no terminal write)", got)
+	}
+
+	// The rejected verdict is just as replayable as success, including its repair list.
+	if err := r.stream.SendMsg(rejectedBytes); err != nil {
+		t.Fatal(err)
+	}
+	_, rejectedReplay, _ := recvTypedFrame(t, r.stream, "run_finish_ack")
+	delete(ack, "signature")
+	delete(rejectedReplay, "signature")
+	if !reflect.DeepEqual(ack, rejectedReplay) {
+		t.Fatalf("rejected replay changed business fields: %#v vs %#v", ack, rejectedReplay)
 	}
 
 	// 2. The repaired proposal, under a NEW finish_id (§3.4 step 4: never re-judge under the
@@ -242,8 +258,10 @@ func TestRunFinishIsAdjudicatedAndServerSigned(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, replay, _ := recvTypedFrame(t, r.stream, "run_finish_ack")
-	if replay["state"] != "accepted" || replay["terminal_run_revision"] != accepted["terminal_run_revision"] {
-		t.Fatalf("replay = %#v, want the original verdict and revision %v", replay, accepted["terminal_run_revision"])
+	delete(accepted, "signature")
+	delete(replay, "signature")
+	if !reflect.DeepEqual(accepted, replay) {
+		t.Fatalf("accepted replay changed business fields: %#v vs %#v", accepted, replay)
 	}
 	if got := r.scalar(t, `SELECT count(*)::text FROM work.device_run_finish WHERE org_id=$1 AND run_id=$2::uuid`, gwOrg, r.runID); got != "2" {
 		t.Fatalf("verdict rows after a replay = %s, want still 2", got)

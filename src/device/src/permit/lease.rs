@@ -46,12 +46,27 @@ impl Lease {
         }
     }
 
-    /// Renew on a successful heartbeat. Only an active lease is extended; the
-    /// new deadline is again `now + (server_ttl - round_trip)`.
-    pub fn heartbeat(&mut self, now: Instant, server_ttl: Duration, round_trip: Duration) {
-        if self.mode == LeaseMode::Active {
-            self.deadline = now + server_ttl.saturating_sub(round_trip);
+    /// Renew on a successful heartbeat. The response must arrive BEFORE the old
+    /// deadline; being Active alone does not mean an unobserved expiry can revive.
+    /// The new deadline remains `sent_at + (server_ttl - round_trip)` (§3.3).
+    pub fn heartbeat(
+        &mut self,
+        sent_at: Instant,
+        server_ttl: Duration,
+        round_trip: Duration,
+    ) -> bool {
+        if self.mode != LeaseMode::Active {
+            return false;
         }
+        if sent_at
+            .checked_add(round_trip)
+            .is_none_or(|received_at| received_at >= self.deadline)
+        {
+            self.invalidate();
+            return false;
+        }
+        self.deadline = sent_at + server_ttl.saturating_sub(round_trip);
+        true
     }
 
     /// Apply a server `lease` downlink (device-design §3.1 heartbeat row: "仅在线性化续租
@@ -75,8 +90,7 @@ impl Lease {
         if body.fence != self.fence || self.mode != LeaseMode::Active {
             return false;
         }
-        self.heartbeat(sent_at, body.ttl(), round_trip);
-        true
+        self.heartbeat(sent_at, body.ttl(), round_trip)
     }
 
     /// Invalidate on sleep / clock discontinuity / OS resume. The caller must
@@ -244,10 +258,26 @@ mod tests {
     #[test]
     fn renewal_with_a_round_trip_over_the_ttl_expires_immediately() {
         let start = now();
-        let mut lease = Lease::acquire(start, Duration::from_secs(30), Duration::ZERO, 2);
+        let mut lease = Lease::acquire(start, Duration::from_secs(60), Duration::ZERO, 2);
+        // Still within the OLD lease, but the new TTL has no usable budget left.
         assert!(lease.apply_renewal(start, Duration::from_secs(40), &renewal(2, 30_000)));
         assert_eq!(lease.deadline(), start);
         assert!(!lease.is_valid(start));
         assert!(!lease.allows_new_permits(start));
+    }
+
+    #[test]
+    fn renewal_at_or_after_expiry_never_revives_an_active_lease() {
+        let start = now();
+        for delay in [10, 11] {
+            let mut lease = Lease::acquire(start, Duration::from_secs(30), Duration::ZERO, 2);
+            let deadline = lease.deadline();
+            let sent = start + Duration::from_secs(20);
+            assert!(!lease.apply_renewal(sent, Duration::from_secs(delay), &renewal(2, 30_000)));
+            assert_eq!(lease.deadline(), deadline);
+            assert_eq!(lease.mode(), LeaseMode::Invalid);
+            // Even a subsequently supplied earlier timestamp cannot revive the invalid state.
+            assert!(!lease.heartbeat(start, Duration::from_secs(60), Duration::ZERO));
+        }
     }
 }

@@ -60,9 +60,10 @@ type RunControl struct {
 }
 
 type WaitRunInput struct {
-	RunID  string `json:"run_id"`
-	OrgID  string `json:"org_id"`
-	Reason string `json:"reason"`
+	RunID    string `json:"run_id"`
+	OrgID    string `json:"org_id"`
+	Reason   string `json:"reason"`
+	Recovery bool   `json:"recovery,omitempty"`
 }
 
 type ExecuteStepInput struct {

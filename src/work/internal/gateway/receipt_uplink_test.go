@@ -144,6 +144,64 @@ func (f *gwFixture) seedActionWithInputHash(t *testing.T, sessionID, inputHash s
 	return runID, opID, attemptID, fence
 }
 
+// seedReceiptAction buys a real dispatch through prepare/consume. The simpler
+// seedAction graph remains useful to offer/lease tests that must start without a lease.
+func (f *gwFixture) seedReceiptAction(t *testing.T, sessionID string) (runID, opID, attemptID string, fence int64) {
+	t.Helper()
+	runID, _, _, fence = f.seedAction(t, sessionID)
+	ctx := gwContext(t)
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(f.dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(ctx)
+	var boot string
+	if err = admin.QueryRow(ctx, `SELECT boot_id FROM work.device_session WHERE id=$1::uuid`, sessionID).Scan(&boot); err != nil {
+		t.Fatal(err)
+	}
+	grant := f.seedLocalPolicyAndGrant(t, sessionID, boot)
+	nonce := f.seedOffer(t, sessionID, runID, 1)
+	if _, err = admin.Exec(ctx, `UPDATE work.device_run_binding SET state='ready' WHERE org_id=$1 AND run_id=$2::uuid`, gwOrg, runID); err != nil {
+		t.Fatal(err)
+	}
+	worker, err := testpg.Open(ctx, testpg.WorkerURL(f.dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close(ctx)
+	if err = testpg.ExecRaw(ctx, worker, "SET app.org_id='"+gwOrg+"'; SET app.subject_id='"+gwSubject+"'"); err != nil {
+		t.Fatal(err)
+	}
+	var leaseID, checkpoint string
+	if err = worker.QueryRow(ctx, `SELECT x->>'lease_id', x->>'checkpoint_hash' FROM
+		(SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30) x) q`,
+		gwOrg, runID, f.deviceID, sessionID, nonce).Scan(&leaseID, &checkpoint); err != nil {
+		t.Fatal(err)
+	}
+	r := &runUnderFinish{f: f, runID: runID, sessionID: sessionID, bootID: boot, leaseID: leaseID, fence: fmt.Sprint(fence), checkpoint: checkpoint}
+	r.seedReadonlyGrant(t, grant)
+	action := r.actionBody(grant, "receipt:action", 0)
+	for _, key := range []string{"run_id", "lease_id", "fence", "checkpoint_seq"} {
+		delete(action, key)
+	}
+	action["supersede_no"], action["device_signature"] = 0, strings.Repeat("a", 86)
+	action["request_hash"] = strings.Repeat("e", 64)
+	raw, err := json.Marshal(action)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = worker.QueryRow(ctx, `SELECT x->>'operation_id', x->>'attempt_id' FROM
+		(SELECT work.prepare_local_operation($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,0,$7::jsonb) x) q`,
+		gwOrg, runID, f.deviceID, sessionID, leaseID, fence, string(raw)).Scan(&opID, &attemptID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = worker.Exec(ctx, `SELECT work.consume_device_permit($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8,'receipt-fixture')`,
+		gwOrg, opID, attemptID, f.deviceID, sessionID, leaseID, fence, strings.Repeat("e", 64)); err != nil {
+		t.Fatal(err)
+	}
+	return
+}
+
 // receiptExec builds the wire original_execution (short names) bound to the
 // hello-allocated session and the seeded action.
 func receiptExec(org, subject, deviceID, sessionID, agentID, bootID string, generation int64, runID, opID, attemptID string, fence int64) map[string]any {
@@ -236,7 +294,7 @@ func TestReceiptUplinkRecords(t *testing.T) {
 	addr := f.startServer(t)
 	stream := f.connect(t, addr)
 	sessionID, journalEpoch, bootID, agentID, generation := f.helloSession(t, stream)
-	runID, opID, attemptID, fence := f.seedAction(t, sessionID)
+	runID, opID, attemptID, fence := f.seedReceiptAction(t, sessionID)
 
 	exec := receiptExec(gwOrg, gwSubject, f.deviceID, sessionID, agentID, bootID, generation, runID, opID, attemptID, fence)
 	if err := stream.SendMsg(f.signReceipt(t, journalEpoch, sessionID, bootID, agentID, exec, 1, "started", nil)); err != nil {
@@ -290,7 +348,7 @@ func TestReceiptUplinkReplayIsIdempotent(t *testing.T) {
 	addr := f.startServer(t)
 	stream := f.connect(t, addr)
 	sessionID, journalEpoch, bootID, agentID, generation := f.helloSession(t, stream)
-	runID, opID, attemptID, fence := f.seedAction(t, sessionID)
+	runID, opID, attemptID, fence := f.seedReceiptAction(t, sessionID)
 	exec := receiptExec(gwOrg, gwSubject, f.deviceID, sessionID, agentID, bootID, generation, runID, opID, attemptID, fence)
 
 	receipt := f.signReceipt(t, journalEpoch, sessionID, bootID, agentID, exec, 1, "started", nil)
@@ -320,7 +378,7 @@ func TestReceiptRejectsBadSignature(t *testing.T) {
 	addr := f.startServer(t)
 	stream := f.connect(t, addr)
 	sessionID, journalEpoch, bootID, agentID, generation := f.helloSession(t, stream)
-	runID, opID, attemptID, fence := f.seedAction(t, sessionID)
+	runID, opID, attemptID, fence := f.seedReceiptAction(t, sessionID)
 	exec := receiptExec(gwOrg, gwSubject, f.deviceID, sessionID, agentID, bootID, generation, runID, opID, attemptID, fence)
 	receipt := f.signReceipt(t, journalEpoch, sessionID, bootID, agentID, exec, 1, "started", nil)
 
@@ -345,7 +403,7 @@ func TestReceiptRejectsMismatchedDeviceID(t *testing.T) {
 	addr := f.startServer(t)
 	stream := f.connect(t, addr)
 	sessionID, journalEpoch, bootID, agentID, generation := f.helloSession(t, stream)
-	runID, opID, attemptID, fence := f.seedAction(t, sessionID)
+	runID, opID, attemptID, fence := f.seedReceiptAction(t, sessionID)
 	exec := receiptExec(gwOrg, gwSubject, f.deviceID, sessionID, agentID, bootID, generation, runID, opID, attemptID, fence)
 	receipt := f.signReceipt(t, journalEpoch, sessionID, bootID, agentID, exec, 1, "started", nil)
 
@@ -367,7 +425,7 @@ func TestReceiptRejectsRevokedDevice(t *testing.T) {
 	addr := f.startServer(t)
 	stream := f.connect(t, addr)
 	sessionID, journalEpoch, bootID, agentID, generation := f.helloSession(t, stream)
-	runID, opID, attemptID, fence := f.seedAction(t, sessionID)
+	runID, opID, attemptID, fence := f.seedReceiptAction(t, sessionID)
 
 	ctx := gwContext(t)
 	seed, err := testpg.Open(ctx, testpg.AdminURLFor(f.dbName))

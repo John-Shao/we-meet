@@ -27,6 +27,13 @@ const (
 
 const advanceLogicalKey = "model:1"
 
+// AdvanceErrRecoveryUnavailable is returned only after FinishAdvance has durable,
+// trusted success evidence and an internal, idempotent finishing step is temporarily
+// unavailable. It is not a general classification of finish failures.
+const AdvanceErrRecoveryUnavailable = "finish_recovery_unavailable"
+
+const advanceFinishRecoveryVersion = "advance-finish-recovery-wait-v1"
+
 // AdvanceErrQuotaExhausted is reserve_quota's saturation code. Unlike every other
 // prepare failure it is curable without a new Run, so the workflow parks on
 // wait_reason='quota' (which is what makes display_state='quota_exhausted' in
@@ -309,39 +316,79 @@ func RunWorkflowAdvance(ctx workflow.Context, input Input) error {
 // finishCheckpointed finishes the trusted receipt, publishes the answer as the
 // Run artifact, and commits revision 1 of the canonical state. A receipt whose
 // usage is unavailable is confirmed but not settled: the Run waits for
-// reconciliation and retries finishing after resume.
+// reconciliation and retries finishing after resume. Only the explicit recovery
+// error may park an exhausted activity failure; it never re-drives the model.
 func finishCheckpointed(
 	ctx workflow.Context, input Input, prepared AdvancePrepared,
 	head AdvanceHead, execution AdvanceExecution,
 	cancelCh, resumeCh workflow.ReceiveChannel,
 ) error {
+	var recoveryDeadline workflow.Future
 	for {
 		if cancelRequested(ctx, cancelCh) {
 			return abortAdvance(ctx, input, execution, "canceled", "run_canceled")
 		}
 		var finished AdvanceFinishOutput
-		if err := workflow.ExecuteActivity(ctx, ActivityFinishAdvance, AdvanceFinishInput{
-			Prepared: prepared, Head: head, Execution: execution,
-		}).Get(ctx, &finished); err != nil {
-			return abortAdvance(ctx, input, execution, "failed", "finish_failed")
+		err, interrupted := executeFinishCheckpointActivity(ctx, recoveryDeadline, cancelCh,
+			ActivityFinishAdvance, AdvanceFinishInput{
+				Prepared: prepared, Head: head, Execution: execution,
+			}, &finished)
+		switch interrupted {
+		case "cancel":
+			return abortAdvance(ctx, input, execution, "canceled", "run_canceled")
+		case "timeout":
+			return abortAdvance(ctx, input, execution, "failed", AdvanceReasonReconcileTimeout)
 		}
-		switch finished.Status {
-		case AdvanceStatusSucceeded:
+		if err != nil {
+			if isCanceled(err) && workflow.GetVersion(ctx, advanceFinishRecoveryVersion, workflow.DefaultVersion, 1) != workflow.DefaultVersion {
+				return abortAdvance(ctx, input, execution, "canceled", "run_canceled")
+			}
+			var appErr *temporal.ApplicationError
+			if !errors.As(err, &appErr) || appErr.Type() != AdvanceErrRecoveryUnavailable ||
+				appErr.NonRetryable() {
+				return abortAdvance(ctx, input, execution, "failed", "finish_failed")
+			}
+			// Keep the old immediate-fail commands for histories without this marker.
+			// No version marker or new timer is added to ordinary finish/usage paths.
+			if workflow.GetVersion(ctx, advanceFinishRecoveryVersion, workflow.DefaultVersion, 1) == workflow.DefaultVersion {
+				return abortAdvance(ctx, input, execution, "failed", "finish_failed")
+			}
+			if recoveryDeadline == nil {
+				// Start at the first exhausted recovery failure, before WaitRun. This
+				// same timer covers every resume and subsequent usage-unavailable park,
+				// including time spent retrying internal activities after resume.
+				timerCtx, cancelTimer := workflow.WithCancel(ctx)
+				defer cancelTimer()
+				recoveryDeadline = workflow.NewTimer(timerCtx, advanceReconcileWaitLimit)
+			}
+		}
+		switch {
+		case err == nil && finished.Status == AdvanceStatusSucceeded:
 			return finishAdvanceRun(ctx, input, "succeeded", "")
-		case AdvanceStatusUsageUnavailable:
-			if err := workflow.ExecuteActivity(ctx, ActivityWaitRun, WaitRunInput{
-				RunID: input.RunID, OrgID: input.OrgID, Reason: "reconcile",
-			}).Get(ctx, nil); err != nil {
+		case err != nil || finished.Status == AdvanceStatusUsageUnavailable:
+			waitErr, interrupted := waitFinishCheckpoint(ctx, recoveryDeadline, cancelCh,
+				WaitRunInput{
+					RunID: input.RunID, OrgID: input.OrgID, Reason: "reconcile",
+				})
+			switch interrupted {
+			case "cancel":
+				return abortAdvance(ctx, input, execution, "canceled", "run_canceled")
+			case "timeout":
+				return abortAdvance(ctx, input, execution, "failed", AdvanceReasonReconcileTimeout)
+			}
+			if waitErr != nil {
 				return abortAdvance(ctx, input, execution, "failed", "reconcile_wait_failed")
 			}
-			// Same bound as the park above, so "usage unavailable" cannot hold a Run
-			// open forever either. Created fresh per iteration on purpose: this one is
-			// inside the finish loop, so the bound restarts with each new park rather
-			// than being measured once from the first saturation - the quota branch
-			// measures from the first, this one measures from each, and the difference
-			// is deliberate (a resume here re-drives finish, it does not re-reserve).
-			usageDeadline := workflow.NewTimer(ctx, advanceReconcileWaitLimit)
-			switch awaitQuotaOrSignal(ctx, usageDeadline, cancelCh, resumeCh) {
+			var signal string
+			if recoveryDeadline != nil {
+				signal = awaitAdvanceRecovery(ctx, recoveryDeadline, cancelCh, resumeCh, nil)
+			} else {
+				// Preserve the original usage-only decision and command order: its
+				// 24h timer starts AFTER WaitRun and restarts on every new park.
+				usageDeadline := workflow.NewTimer(ctx, advanceReconcileWaitLimit)
+				signal = awaitQuotaOrSignal(ctx, usageDeadline, cancelCh, resumeCh)
+			}
+			switch signal {
 			case "cancel":
 				return abortAdvance(ctx, input, execution, "canceled", "run_canceled")
 			case "timeout":
@@ -349,7 +396,7 @@ func finishCheckpointed(
 			default:
 				continue
 			}
-		case AdvanceStatusCanceled:
+		case finished.Status == AdvanceStatusCanceled:
 			return abortAdvance(ctx, input, execution, "canceled", "run_canceled")
 		default:
 			code := finished.ErrCode
@@ -359,6 +406,100 @@ func finishCheckpointed(
 			return abortAdvance(ctx, input, execution, "failed", code)
 		}
 	}
+}
+
+func waitFinishCheckpoint(
+	ctx workflow.Context, deadline workflow.Future, cancelCh workflow.ReceiveChannel,
+	input WaitRunInput,
+) (error, string) {
+	input.Recovery = deadline != nil
+	for {
+		err, interrupted := executeFinishCheckpointActivity(ctx, deadline, cancelCh, ActivityWaitRun, input, nil)
+		if deadline == nil || err == nil || interrupted != "" {
+			return err, interrupted
+		}
+		var appErr *temporal.ApplicationError
+		if errors.As(err, &appErr) {
+			if appErr.Type() != "wait_run_unavailable" || appErr.NonRetryable() {
+				return err, ""
+			}
+		} else if !temporal.IsTimeoutError(err) {
+			return err, ""
+		}
+		timerCtx, cancelTimer := workflow.WithCancel(ctx)
+		backoff := workflow.NewTimer(timerCtx, time.Minute)
+		signal := awaitAdvanceRecovery(ctx, deadline, cancelCh, nil, backoff)
+		cancelTimer()
+		if signal != "ready" {
+			return nil, signal
+		}
+	}
+}
+
+// executeFinishCheckpointActivity leaves legacy activity commands unchanged. Once
+// recovery starts, cancel/expiry also interrupts WaitRun or a resumed FinishAdvance,
+// rather than allowing activity retries to extend the recovery window.
+func executeFinishCheckpointActivity(
+	ctx workflow.Context, deadline workflow.Future, cancelCh workflow.ReceiveChannel,
+	name string, input, output any,
+) (error, string) {
+	if deadline == nil {
+		return workflow.ExecuteActivity(ctx, name, input).Get(ctx, output), ""
+	}
+	if cancelRequested(ctx, cancelCh) {
+		return nil, "cancel"
+	}
+	if deadline.IsReady() {
+		return nil, "timeout"
+	}
+	activityCtx, cancelActivity := workflow.WithCancel(ctx)
+	defer cancelActivity()
+	future := workflow.ExecuteActivity(activityCtx, name, input)
+	if signal := awaitAdvanceRecovery(ctx, deadline, cancelCh, nil, future); signal != "ready" {
+		return nil, signal
+	}
+	return future.Get(ctx, output), ""
+}
+
+// awaitAdvanceRecovery never consumes resume while an internal activity is in
+// flight. Cancel and an expired deadline take priority over queued resume signals,
+// so repeated resumes cannot starve the absolute recovery bound.
+func awaitAdvanceRecovery(
+	ctx workflow.Context, deadline workflow.Future,
+	cancelCh, resumeCh workflow.ReceiveChannel, activity workflow.Future,
+) string {
+	if cancelRequested(ctx, cancelCh) {
+		return "cancel"
+	}
+	if deadline.IsReady() {
+		return "timeout"
+	}
+	selector := workflow.NewSelector(ctx)
+	signal := ""
+	selector.AddFuture(deadline, func(workflow.Future) { signal = "timeout" })
+	selector.AddReceive(cancelCh, func(ch workflow.ReceiveChannel, _ bool) {
+		var payload any
+		ch.Receive(ctx, &payload)
+		signal = "cancel"
+	})
+	if resumeCh != nil {
+		selector.AddReceive(resumeCh, func(ch workflow.ReceiveChannel, _ bool) {
+			var payload any
+			ch.Receive(ctx, &payload)
+			signal = "resume"
+		})
+	}
+	if activity != nil {
+		selector.AddFuture(activity, func(workflow.Future) { signal = "ready" })
+	}
+	selector.Select(ctx)
+	if signal == "cancel" || cancelRequested(ctx, cancelCh) {
+		return "cancel"
+	}
+	if deadline.IsReady() {
+		return "timeout"
+	}
+	return signal
 }
 
 func finishAdvanceRun(ctx workflow.Context, input Input, outcome, reason string) error {

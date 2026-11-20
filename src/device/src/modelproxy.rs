@@ -9,8 +9,12 @@
 //! `org_remote`/`org_private` are out of scope this period (card E=B); this proxy is `device_local`
 //! only and never reaches a device-external destination.
 
-use std::io::{Read, Write};
-use std::net::TcpStream;
+use std::cell::Cell;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 
 use serde_json::Value;
 
@@ -29,6 +33,7 @@ pub enum ProxyError {
     BadResponse,
     /// An I/O error mid-call: the effect is unknown, never silently retried (§5.2 step 5).
     Io,
+    LeaseExpired,
 }
 
 impl From<IdentityError> for ProxyError {
@@ -61,44 +66,75 @@ pub struct ModelReply {
 pub fn invoke(
     endpoint: &DeviceLocalEndpoint,
     request_doc: &Value,
+    io_deadline: &Arc<Mutex<Option<Instant>>>,
 ) -> Result<ModelReply, ProxyError> {
-    let dest = LoopbackAddr::V4([127, 0, 0, 1]);
-    let mut stream =
-        TcpStream::connect(("127.0.0.1", endpoint.port)).map_err(|_| ProxyError::Connect)?;
-    let local = stream.local_addr().map_err(|_| ProxyError::Connect)?;
-    let local_addr = match local.ip() {
-        std::net::IpAddr::V4(v4) => LoopbackAddr::V4(v4.octets()),
-        std::net::IpAddr::V6(_) => return Err(ProxyError::Connect),
+    let live = || {
+        io_deadline
+            .lock()
+            .unwrap()
+            .is_some_and(|deadline| Instant::now() < deadline)
     };
-    let local_port = local.port();
-
-    // §5.4: verify the listening process identity before sending any request byte.
-    let identity = listener::resolve_listener(&dest, endpoint.port, &local_addr, local_port)?;
-    listener::verify_binding(
-        &identity,
-        &endpoint.record,
-        &endpoint.requirement,
-        &endpoint.current_user_sid,
-    )?;
-
-    // Only now write the request. Connection: close keeps each call a fresh, re-verified connection.
-    let body = serde_json::to_vec(request_doc).map_err(|_| ProxyError::BadResponse)?;
-    let request = format!(
-        "POST /v1/chat/completions HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-        endpoint.port,
-        body.len()
-    );
-    stream
-        .write_all(request.as_bytes())
-        .map_err(|_| ProxyError::Io)?;
-    stream.write_all(&body).map_err(|_| ProxyError::Io)?;
-    stream.flush().map_err(|_| ProxyError::Io)?;
-
-    let mut response = Vec::new();
-    stream
-        .read_to_end(&mut response)
-        .map_err(|_| ProxyError::Io)?;
-    parse_reply(&response)
+    if !live() {
+        return Err(ProxyError::LeaseExpired);
+    }
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|_| ProxyError::Connect)?;
+    let sending = Cell::new(false);
+    runtime.block_on(async {
+        let exchange = async {
+            let dest = LoopbackAddr::V4([127, 0, 0, 1]);
+            let mut stream = TcpStream::connect(("127.0.0.1", endpoint.port))
+                .await
+                .map_err(|_| ProxyError::Connect)?;
+            let local = stream.local_addr().map_err(|_| ProxyError::Connect)?;
+            let local_addr = match local.ip() {
+                std::net::IpAddr::V4(v4) => LoopbackAddr::V4(v4.octets()),
+                std::net::IpAddr::V6(_) => return Err(ProxyError::Connect),
+            };
+            let identity = listener::resolve_listener(&dest, endpoint.port, &local_addr, local.port())?;
+            listener::verify_binding(
+                &identity,
+                &endpoint.record,
+                &endpoint.requirement,
+                &endpoint.current_user_sid,
+            )?;
+            let body = serde_json::to_vec(request_doc).map_err(|_| ProxyError::BadResponse)?;
+            let request = format!(
+                "POST /v1/chat/completions HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                endpoint.port,
+                body.len()
+            );
+            // Identity inspection is synchronous; recheck before the first possible send.
+            if !live() {
+                return Err(ProxyError::LeaseExpired);
+            }
+            sending.set(true);
+            stream.write_all(request.as_bytes()).await.map_err(|_| ProxyError::Io)?;
+            stream.write_all(&body).await.map_err(|_| ProxyError::Io)?;
+            stream.flush().await.map_err(|_| ProxyError::Io)?;
+            let mut response = Vec::new();
+            stream.read_to_end(&mut response).await.map_err(|_| ProxyError::Io)?;
+            parse_reply(&response)
+        };
+        tokio::select! {
+            biased;
+            _ = async {
+                loop {
+                    let remaining = io_deadline.lock().unwrap()
+                        .and_then(|deadline| deadline.checked_duration_since(Instant::now()));
+                    match remaining {
+                        Some(remaining) if !remaining.is_zero() => {
+                            tokio::time::sleep(remaining.min(Duration::from_millis(10))).await;
+                        }
+                        _ => break,
+                    }
+                }
+            } => Err(if sending.get() { ProxyError::Io } else { ProxyError::LeaseExpired }),
+            result = exchange => result,
+        }
+    })
 }
 
 /// Split the HTTP response, refuse redirects/non-200, and adapt the Chat Completions message into the
@@ -153,6 +189,157 @@ mod tests {
     use super::*;
     use crate::listener::ListenerRequirement;
     use serde_json::json;
+    use std::io::{Read, Write};
+
+    fn deadline() -> Arc<Mutex<Option<Instant>>> {
+        Arc::new(Mutex::new(Some(Instant::now() + Duration::from_secs(30))))
+    }
+
+    fn pinned_listener() -> (std::net::TcpListener, DeviceLocalEndpoint) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let probe = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+        let (accepted, _) = listener.accept().unwrap();
+        let identity = listener::resolve_listener(
+            &LoopbackAddr::V4([127, 0, 0, 1]),
+            port,
+            &LoopbackAddr::V4([127, 0, 0, 1]),
+            probe.local_addr().unwrap().port(),
+        )
+        .unwrap();
+        drop((probe, accepted));
+        let sid = crate::listener::tests_support::current_sid();
+        assert_eq!(identity.owner_sid, sid);
+        (
+            listener,
+            DeviceLocalEndpoint {
+                port,
+                record: ListenerRecord {
+                    owner_sid: identity.owner_sid,
+                    image_path: identity.image_path,
+                    signer_thumbprint: identity.signer_thumbprint,
+                    image_sha256: identity.image_sha256,
+                },
+                requirement: ListenerRequirement {
+                    allowed_signers: vec![],
+                    allow_user_pinned_hash: true,
+                    allowed_service_sids: vec![],
+                },
+                current_user_sid: sid,
+            },
+        )
+    }
+
+    fn read_request(stream: &mut std::net::TcpStream) {
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let mut header = Vec::new();
+        while !header.ends_with(b"\r\n\r\n") {
+            let mut byte = [0];
+            stream.read_exact(&mut byte).unwrap();
+            header.push(byte[0]);
+            assert!(header.len() < 4096);
+        }
+        let header = String::from_utf8(header).unwrap();
+        assert!(header.starts_with("POST /v1/chat/completions HTTP/1.1\r\n"));
+        let length: usize = header
+            .lines()
+            .find_map(|line| line.strip_prefix("Content-Length: "))
+            .unwrap()
+            .parse()
+            .unwrap();
+        let mut body = vec![0; length];
+        stream.read_exact(&mut body).unwrap();
+        assert_eq!(
+            serde_json::from_slice::<Value>(&body).unwrap(),
+            json!({ "v": 1 })
+        );
+    }
+
+    #[test]
+    fn expired_or_revoked_lease_never_connects() {
+        let (listener, endpoint) = pinned_listener();
+        listener.set_nonblocking(true).unwrap();
+        for value in [None, Some(Instant::now() - Duration::from_secs(1))] {
+            let lease = Arc::new(Mutex::new(value));
+            assert_eq!(
+                invoke(&endpoint, &json!({ "v": 1 }), &lease).unwrap_err(),
+                ProxyError::LeaseExpired
+            );
+            assert_eq!(
+                listener.accept().unwrap_err().kind(),
+                std::io::ErrorKind::WouldBlock
+            );
+        }
+    }
+
+    #[test]
+    fn stalled_response_is_disconnected_on_expiry_or_revocation_without_retry() {
+        for revoke in [false, true] {
+            let (listener, endpoint) = pinned_listener();
+            let lease = deadline();
+            let (sent, received) = std::sync::mpsc::channel();
+            let server = std::thread::spawn(move || {
+                let (mut stream, _) = listener.accept().unwrap();
+                read_request(&mut stream);
+                sent.send(()).unwrap();
+                let mut byte = [0];
+                assert_eq!(
+                    stream.read(&mut byte).unwrap(),
+                    0,
+                    "broker must close the in-flight socket"
+                );
+                listener.set_nonblocking(true).unwrap();
+                assert_eq!(
+                    listener.accept().unwrap_err().kind(),
+                    std::io::ErrorKind::WouldBlock
+                );
+            });
+            let pending_lease = lease.clone();
+            let call =
+                std::thread::spawn(move || invoke(&endpoint, &json!({ "v": 1 }), &pending_lease));
+            received.recv_timeout(Duration::from_secs(10)).unwrap();
+            let stopped_at = Instant::now();
+            *lease.lock().unwrap() = if revoke {
+                None
+            } else {
+                Some(stopped_at + Duration::from_millis(100))
+            };
+            assert_eq!(call.join().unwrap().unwrap_err(), ProxyError::Io);
+            assert!(stopped_at.elapsed() < Duration::from_secs(2));
+            server.join().unwrap();
+        }
+    }
+
+    #[test]
+    fn renewal_keeps_the_same_in_flight_connection_alive_past_the_old_deadline() {
+        let (listener, endpoint) = pinned_listener();
+        let lease = deadline();
+        let renewed_lease = lease.clone();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            read_request(&mut stream);
+            let old_deadline = Instant::now() + Duration::from_millis(200);
+            *renewed_lease.lock().unwrap() = Some(old_deadline);
+            std::thread::sleep(Duration::from_millis(50));
+            *renewed_lease.lock().unwrap() = Some(Instant::now() + Duration::from_secs(5));
+            std::thread::sleep(
+                old_deadline.saturating_duration_since(Instant::now()) + Duration::from_millis(50),
+            );
+            assert!(Instant::now() > old_deadline);
+            stream.write_all(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n{\"choices\":[{\"message\":{\"content\":\"renewed\"}}]}").unwrap();
+            drop(stream);
+            listener.set_nonblocking(true).unwrap();
+            assert_eq!(
+                listener.accept().unwrap_err().kind(),
+                std::io::ErrorKind::WouldBlock
+            );
+        });
+        let result = invoke(&endpoint, &json!({ "v": 1 }), &lease).unwrap();
+        assert_eq!(result.assistant_message["content"], "renewed");
+        server.join().unwrap();
+    }
 
     #[test]
     fn parse_reply_adapts_a_chat_completions_message_and_hashes_it() {
@@ -227,7 +414,7 @@ mod tests {
             },
             current_user_sid: sid,
         };
-        let err = invoke(&endpoint, &json!({ "v": 1 })).unwrap_err();
+        let err = invoke(&endpoint, &json!({ "v": 1 }), &deadline()).unwrap_err();
         assert!(matches!(err, ProxyError::Identity(IdentityError::Mismatch)));
         let _ = server.join();
     }
@@ -303,7 +490,8 @@ mod tests {
         };
 
         // First call drives an artifact.write tool call; the gate passes (same fixture image hash).
-        let first = invoke(&endpoint, &json!({ "v": 1, "messages": [] })).expect("first invoke");
+        let first = invoke(&endpoint, &json!({ "v": 1, "messages": [] }), &deadline())
+            .expect("first invoke");
         assert_eq!(
             first.assistant_message["tool_calls"][0]["function"]["name"],
             "artifact.write"
@@ -311,7 +499,8 @@ mod tests {
         assert!(first.answer_hash.starts_with("sha256:"));
         assert_eq!(first.usage["total_tokens"], 15);
         // Second call stops deterministically.
-        let second = invoke(&endpoint, &json!({ "v": 1, "messages": [] })).expect("second invoke");
+        let second = invoke(&endpoint, &json!({ "v": 1, "messages": [] }), &deadline())
+            .expect("second invoke");
         assert_eq!(second.assistant_message["content"], "Artifact written.");
 
         let _ = child.kill();

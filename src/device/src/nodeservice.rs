@@ -43,6 +43,16 @@ pub struct RunContext {
     pub baseline_checkpoint_hash: String,
     /// The offer's grant_set (grant_id → grant_revision); the action_prepare names the grant's revision.
     pub grant_set: Vec<crate::frame::offer::GrantRef>,
+    pub io_deadline: Arc<Mutex<Option<std::time::Instant>>>,
+}
+
+impl RunContext {
+    fn allows_io(&self) -> bool {
+        self.io_deadline
+            .lock()
+            .unwrap()
+            .is_some_and(|deadline| std::time::Instant::now() < deadline)
+    }
 }
 
 /// A dispatched command's facts (the sync core verified its permit + registered its jti "hold for
@@ -222,11 +232,14 @@ impl WorkspaceExecutor {
     /// Invoke the Run's device_local model endpoint through the §5.4 gate. Returns the model_response
     /// frame on success, model_blocked on an identity/permit refusal, model_unknown on an I/O unknown.
     pub fn invoke_model(&self, ctx: &RunContext, request_doc: &Value) -> Value {
+        if !ctx.allows_io() {
+            return nodemsg::model_blocked("lease_expired", true);
+        }
         let entry = match self.endpoints.get(&ctx.profile_id) {
             Some(entry) => entry,
             None => return nodemsg::model_blocked("model_binding_missing", true),
         };
-        match modelproxy::invoke(&entry.endpoint, request_doc) {
+        match modelproxy::invoke(&entry.endpoint, request_doc, &ctx.io_deadline) {
             Ok(reply) => nodemsg::model_response(
                 reply.assistant_message,
                 &reply.answer_hash,
@@ -234,6 +247,7 @@ impl WorkspaceExecutor {
                 reply.usage,
                 &reply.provider_request_id,
             ),
+            Err(ProxyError::LeaseExpired) => nodemsg::model_blocked("lease_expired", true),
             Err(ProxyError::Identity(_)) => nodemsg::model_blocked("identity_mismatch", true),
             Err(ProxyError::Connect) | Err(ProxyError::RedirectOrStatus) => {
                 nodemsg::model_blocked("model_endpoint_refused", true)
@@ -257,6 +271,15 @@ impl WorkspaceExecutor {
         tool_call_id: &str,
         cmd: Option<&DispatchedCommand>,
     ) -> Value {
+        if !ctx.allows_io() {
+            return nodemsg::tool_blocked(tool_call_id, "lease_expired", true, true);
+        }
+        // A logical-key match locates a command but does not bind its approved arguments.
+        if let Some(cmd) = cmd {
+            if !command_matches_request(ctx, cmd, tool_name, args) {
+                return nodemsg::tool_blocked(tool_call_id, "command_binding_mismatch", true, true);
+            }
+        }
         // 1. Closed-schema validation (additionalProperties=false, bounds).
         let grant_id = match tools::validate_args(tool_name, args) {
             Ok(id) => id,
@@ -289,6 +312,10 @@ impl WorkspaceExecutor {
                     );
                 }
             }
+        }
+        // Journal registration can block past the lease deadline.
+        if !ctx.allows_io() {
+            return nodemsg::tool_blocked(tool_call_id, "lease_expired", true, true);
         }
         // 4. Handle-relative execution.
         match self.run_tool(&grant_id, tool_name, args) {
@@ -511,6 +538,32 @@ impl WorkspaceExecutor {
     }
 }
 
+// Match action_prepare's SHA256(JCS(args)); a canonicalization failure cannot bind substitute bytes.
+fn tool_request_hash(args: &Value) -> Option<String> {
+    crate::frame::jcs::canonicalize(args)
+        .ok()
+        .map(|bytes| crate::sha256_hex(&bytes))
+}
+
+fn command_matches_request(
+    ctx: &RunContext,
+    cmd: &DispatchedCommand,
+    tool_name: &str,
+    args: &Value,
+) -> bool {
+    let tool_schema = match tool_name {
+        tools::ARTIFACT_WRITE => "write-v1",
+        tools::WORKSPACE_READ => "read-v1",
+        tools::WORKSPACE_SEARCH => "search-v1",
+        tools::WORKSPACE_LIST => "list-v1",
+        _ => return false,
+    };
+    cmd.tool_name == tool_schema
+        && cmd.fence == ctx.fence
+        && cmd.generation == ctx.generation
+        && tool_request_hash(args).as_deref() == Some(cmd.request_hash.as_str())
+}
+
 enum PermitGate {
     Proceed,
     Consumed,
@@ -731,6 +784,9 @@ fn serve_run(
     let mut latest_checkpoint_hash = ctx.baseline_checkpoint_hash.clone();
     loop {
         let raw = conn.read_frame().map_err(|e| format!("node read: {e:?}"))?;
+        if !ctx.allows_io() {
+            return Err("node lease expired".into());
+        }
         let value: Value =
             serde_json::from_slice(&raw).map_err(|e| format!("node frame json: {e}"))?;
         let ty = value["type"].as_str().ok_or("node frame missing type")?;
@@ -784,6 +840,7 @@ fn serve_run(
                     ctx,
                     bootstrap,
                     cmd.as_ref(),
+                    tool_name,
                     args,
                     logical_key,
                     &reply,
@@ -827,6 +884,9 @@ fn propose_and_await_command(
     commands: &SharedCommands,
     wait: std::time::Duration,
 ) -> Option<DispatchedCommand> {
+    if !ctx.allows_io() {
+        return None;
+    }
     let grant_id = match tools::validate_args(tool_name, args) {
         Ok(g) => g,
         Err(err) => {
@@ -846,7 +906,7 @@ fn propose_and_await_command(
         .unwrap_or(1);
     // The device proposes the request/resource hashes from the validated args (bare sha256-hex, the
     // command request_hash shape); the server stores them verbatim on the ask_each write path.
-    let args_hash = crate::sha256_hex(&crate::frame::jcs::canonicalize(args).unwrap_or_default());
+    let args_hash = tool_request_hash(args)?;
     let tool_schema = match tool_name {
         tools::ARTIFACT_WRITE => "write-v1",
         tools::WORKSPACE_READ => "read-v1",
@@ -885,7 +945,7 @@ fn propose_and_await_command(
         return None;
     }
     let deadline = std::time::Instant::now() + wait;
-    while std::time::Instant::now() < deadline {
+    while std::time::Instant::now() < deadline && ctx.allows_io() {
         if let Some(cmd) = commands.lock().unwrap().get(server_key).cloned() {
             return Some(cmd);
         }
@@ -1141,18 +1201,27 @@ fn produce_model_receipt(
 /// request_hash; a read uses the Run-unique logical_key + the canonical args hash. success→completed/
 /// succeeded; an isError result→completed/failed; a side-effect unknown (io_unknown/tool_unknown)→
 /// unknown (replay:'never', awaits resolution DD:104); pending_approval records NOTHING (the action
-/// awaits a future command, no execution decision yet); any other refusal→completed/rejected_not_executed.
+/// awaits a future command, no execution decision yet). A command binding mismatch also records
+/// NOTHING: the call does not represent that operation. Other refusals→completed/rejected_not_executed.
 #[allow(clippy::too_many_arguments)]
 fn produce_tool_receipt(
     ctx: &RunContext,
     bootstrap: &crate::ipc::nodepipe::RunBootstrap,
     cmd: Option<&DispatchedCommand>,
+    tool_name: &str,
     args: &Value,
     logical_key: &str,
     reply: &Value,
     checkpoint_seq: &mut i64,
     latest_checkpoint_hash: &mut String,
 ) {
+    // A tampered call is not an execution decision on the authorized operation. In particular,
+    // never turn its tool_blocked into a rejected receipt that could poison the legitimate retry.
+    if let Some(cmd) = cmd {
+        if !command_matches_request(ctx, cmd, tool_name, args) {
+            return;
+        }
+    }
     let ty = reply["type"].as_str().unwrap_or("");
     let body = &reply["body"];
     let operation_id = cmd
@@ -1303,6 +1372,20 @@ mod tests {
         tokio::sync::mpsc::Receiver<crate::transport::UplinkFrame>,
         std::thread::JoinHandle<()>,
     ) {
+        let (handle, up_rx, server, _count) = journal_server_counted();
+        (handle, up_rx, server)
+    }
+
+    /// Count every journal operation, not just uplinks: binding refusals must not register jtis,
+    /// record receipts, or advance checkpoints (and a later legitimate request must still work).
+    fn journal_server_counted() -> (
+        JournalHandle,
+        tokio::sync::mpsc::Receiver<crate::transport::UplinkFrame>,
+        std::thread::JoinHandle<()>,
+        Arc<std::sync::atomic::AtomicUsize>,
+    ) {
+        let count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let server_count = count.clone();
         let (handle, mut rx) = crate::journalop::channel();
         let (up_tx, up_rx) = tokio::sync::mpsc::channel(64);
         let path = std::env::temp_dir().join(format!("work-nodesvc-j-{}.db", uuid::Uuid::new_v4()));
@@ -1319,6 +1402,7 @@ mod tests {
                 instance: &instance,
             };
             while let Some((op, reply)) = rx.blocking_recv() {
+                server_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 let r = crate::journalop::execute(&journal, &producer, op);
                 let _ = reply.send(r);
             }
@@ -1327,7 +1411,7 @@ mod tests {
             let _ = std::fs::remove_file(path.with_extension("db-wal"));
             let _ = std::fs::remove_file(path.with_extension("db-shm"));
         });
-        (handle, up_rx, server)
+        (handle, up_rx, server, count)
     }
 
     fn ctx(handle: JournalHandle) -> RunContext {
@@ -1343,6 +1427,9 @@ mod tests {
             lease_id: "lease".into(),
             baseline_checkpoint_hash: String::new(),
             grant_set: vec![],
+            io_deadline: Arc::new(Mutex::new(Some(
+                std::time::Instant::now() + std::time::Duration::from_secs(300),
+            ))),
         }
     }
 
@@ -1352,6 +1439,29 @@ mod tests {
         exec.confirm_root(&token, "g1", vec!["out".into()], true)
             .unwrap();
         exec
+    }
+
+    #[test]
+    fn expired_or_revoked_run_cannot_start_broker_io() {
+        let tmp = TempDir::new("expired-io");
+        std::fs::create_dir_all(tmp.join("docs")).unwrap();
+        let mut exec = executor_with_grant(&tmp);
+        let (handle, _uplinks, server, count) = journal_server_counted();
+        let ctx = ctx(handle);
+        let args = json!({"grant_id":"g1", "relative_dir":"docs", "limit":"1"});
+        for deadline in [Some(std::time::Instant::now()), None] {
+            *ctx.io_deadline.lock().unwrap() = deadline;
+            let reply = exec.execute_tool(&ctx, tools::WORKSPACE_LIST, &args, "tc", None);
+            assert_eq!(reply["body"]["reason"], "lease_expired");
+            assert_eq!(
+                exec.invoke_model(&ctx, &json!({}))["body"]["reason"],
+                "lease_expired"
+            );
+            assert_eq!(count.load(std::sync::atomic::Ordering::SeqCst), 0);
+        }
+        drop(ctx);
+        drop(exec);
+        server.join().unwrap();
     }
 
     #[test]
@@ -1440,22 +1550,22 @@ mod tests {
         let body = b"artifact body".to_vec();
         exec.seal_body("body-1".into(), body.clone());
         let sealed = crate::tools::SealedBuffer::seal(body);
+        let args = json!({
+            "grant_id": "g1", "artifact_id": "a", "version_id": "v1", "format": "md",
+            "body_ref": "body-1", "content_hash": sealed.hash(), "byte_count": "13"
+        });
         let (handle, server) = journal_server();
         let ctx = ctx(handle);
         let cmd = DispatchedCommand {
             operation_id: "op-1".into(),
             logical_key: "tool:0:0".into(),
-            tool_name: "artifact.write".into(),
-            request_hash: "sha256:req".into(),
+            tool_name: "write-v1".into(),
+            request_hash: tool_request_hash(&args).unwrap(),
             permit_jti: "jti-1".into(),
             fence: 2,
             generation: 1,
             dispatch_attempt_id: "attempt-1".into(),
         };
-        let args = json!({
-            "grant_id": "g1", "artifact_id": "a", "version_id": "v1", "format": "md",
-            "body_ref": "body-1", "content_hash": sealed.hash(), "byte_count": "13"
-        });
         let reply = exec.execute_tool(&ctx, "artifact.write", &args, "tc-1", Some(&cmd));
         assert_eq!(reply["type"], "tool_result", "{reply}");
         assert_eq!(reply["body"]["content"]["written"], true);
@@ -1469,6 +1579,191 @@ mod tests {
         assert_eq!(again["type"], "tool_blocked");
         assert_eq!(again["body"]["reason"], "already_consumed");
 
+        drop(ctx);
+        drop(exec);
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn tampered_command_binding_has_no_journal_or_io_and_original_request_still_succeeds() {
+        let tmp = TempDir::new("binding");
+        let other = TempDir::new("binding-other");
+        std::fs::create_dir_all(tmp.join("out")).unwrap();
+        std::fs::create_dir_all(other.join("out")).unwrap();
+        let mut exec = executor_with_grant(&tmp);
+        let (token, _) = exec.prepare_root(other.path()).unwrap();
+        exec.confirm_root(&token, "g2", vec!["out".into()], true)
+            .unwrap();
+        let (body_ref, content_hash, byte_count) = exec.stage_input("approved body");
+        let (other_ref, other_hash, other_size) = exec.stage_input("changed body");
+        let args = json!({
+            "grant_id": "g1", "artifact_id": "a", "version_id": "v1", "format": "md",
+            "body_ref": body_ref, "content_hash": content_hash, "byte_count": byte_count.to_string()
+        });
+        let (handle, mut up_rx, server, count) = journal_server_counted();
+        let ctx = ctx(handle);
+        let cmd = DispatchedCommand {
+            operation_id: "op-1".into(),
+            logical_key: "tool:0:0#0".into(),
+            tool_name: "write-v1".into(),
+            request_hash: tool_request_hash(&args).unwrap(),
+            permit_jti: "jti-1".into(),
+            fence: ctx.fence,
+            generation: ctx.generation,
+            dispatch_attempt_id: "attempt-1".into(),
+        };
+        let bootstrap = bootstrap();
+        let mut cp = 0;
+        let mut latest = "baseline".to_string();
+        for change in [
+            "body",
+            "version",
+            "grant",
+            "tool",
+            "fence",
+            "generation",
+            "read_tool",
+        ] {
+            let mut tampered_args = args.clone();
+            let mut tampered_cmd = cmd.clone();
+            let mut tool_name = tools::ARTIFACT_WRITE;
+            match change {
+                "body" => {
+                    // A different sealed body with internally consistent hash/size is still NOT approved.
+                    tampered_args["body_ref"] = json!(other_ref);
+                    tampered_args["content_hash"] = json!(other_hash);
+                    tampered_args["byte_count"] = json!(other_size.to_string());
+                }
+                "version" => tampered_args["version_id"] = json!("v2"),
+                "grant" => tampered_args["grant_id"] = json!("g2"),
+                "tool" => tampered_cmd.tool_name = "list-v1".into(),
+                "fence" => tampered_cmd.fence += 1,
+                "generation" => tampered_cmd.generation += 1,
+                "read_tool" => {
+                    tool_name = tools::WORKSPACE_LIST;
+                    tampered_args =
+                        json!({ "grant_id": "g1", "relative_dir": "out", "limit": "1" });
+                }
+                _ => unreachable!(),
+            }
+            let reply =
+                exec.execute_tool(&ctx, tool_name, &tampered_args, "tc", Some(&tampered_cmd));
+            assert_eq!(reply["type"], "tool_blocked", "{change}: {reply}");
+            assert_eq!(
+                reply["body"]["reason"], "command_binding_mismatch",
+                "{change}"
+            );
+            // Exercise the same receipt producer used by serve_run, including its operation binding.
+            produce_tool_receipt(
+                &ctx,
+                &bootstrap,
+                Some(&tampered_cmd),
+                tool_name,
+                &tampered_args,
+                "tool:0:0",
+                &reply,
+                &mut cp,
+                &mut latest,
+            );
+            assert_eq!(
+                count.load(std::sync::atomic::Ordering::SeqCst),
+                0,
+                "{change}"
+            );
+            assert!(up_rx.try_recv().is_err());
+            assert_eq!(cp, 0);
+            assert_eq!(latest, "baseline");
+            assert!(exec.executed_permits.is_empty());
+            assert_eq!(std::fs::read_dir(tmp.join("out")).unwrap().count(), 0);
+            assert_eq!(std::fs::read_dir(other.join("out")).unwrap().count(), 0);
+        }
+        // Refusals did not consume the approved command or poison it with a terminal receipt.
+        let reply = exec.execute_tool(&ctx, tools::ARTIFACT_WRITE, &args, "original", Some(&cmd));
+        assert_eq!(reply["type"], "tool_result", "{reply}");
+        assert_eq!(
+            std::fs::read(tmp.join("out/v1.md")).unwrap(),
+            b"approved body"
+        );
+        produce_tool_receipt(
+            &ctx,
+            &bootstrap,
+            Some(&cmd),
+            tools::ARTIFACT_WRITE,
+            &args,
+            "tool:0:0",
+            &reply,
+            &mut cp,
+            &mut latest,
+        );
+        assert_eq!(cp, 1);
+        let receipt = up_rx.blocking_recv().unwrap();
+        assert_eq!(receipt.body["outcome"], "succeeded");
+        assert_eq!(receipt.body["request_hash"], cmd.request_hash);
+        let _checkpoint = up_rx.blocking_recv().unwrap();
+        let before_replay = count.load(std::sync::atomic::Ordering::SeqCst);
+        let again = exec.execute_tool(&ctx, tools::ARTIFACT_WRITE, &args, "replay", Some(&cmd));
+        assert_eq!(again["body"]["reason"], "already_consumed");
+        assert_eq!(
+            count.load(std::sync::atomic::Ordering::SeqCst),
+            before_replay
+        );
+        assert_eq!(
+            std::fs::read(tmp.join("out/v1.md")).unwrap(),
+            b"approved body"
+        );
+        assert_eq!(std::fs::read_dir(other.join("out")).unwrap().count(), 0);
+        drop(ctx);
+        drop(exec);
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn unsafe_artifact_versions_are_rejected_before_permit_registration_or_io() {
+        let tmp = TempDir::new("unsafe-version");
+        std::fs::create_dir_all(tmp.join("out/sub")).unwrap();
+        let mut exec = executor_with_grant(&tmp);
+        let (body_ref, hash, size) = exec.stage_input("body");
+        let (handle, _up_rx, server, count) = journal_server_counted();
+        let ctx = ctx(handle);
+        for version in [
+            "sub/evil",
+            "sub\\evil",
+            "../evil",
+            "..\\evil",
+            "C:evil",
+            "v:ads",
+            "v\0tail",
+            ".",
+            "..",
+            "CON",
+            "NUL.txt",
+            "LPT9",
+            "v.",
+            "v ",
+        ] {
+            let args = json!({
+                "grant_id": "g1", "artifact_id": "a", "version_id": version, "format": "md",
+                "body_ref": body_ref, "content_hash": hash, "byte_count": size.to_string()
+            });
+            // Even an exactly bound command cannot turn a version identifier into a path.
+            let cmd = DispatchedCommand {
+                operation_id: "op-1".into(),
+                logical_key: "tool:0:0#0".into(),
+                tool_name: "write-v1".into(),
+                request_hash: tool_request_hash(&args).unwrap(),
+                permit_jti: "jti-1".into(),
+                fence: ctx.fence,
+                generation: ctx.generation,
+                dispatch_attempt_id: "attempt-1".into(),
+            };
+            let reply = exec.execute_tool(&ctx, tools::ARTIFACT_WRITE, &args, "tc", Some(&cmd));
+            assert_eq!(reply["body"]["reason"], "bad_path", "{version:?}: {reply}");
+        }
+        assert_eq!(count.load(std::sync::atomic::Ordering::SeqCst), 0);
+        assert!(exec.executed_permits.is_empty());
+        assert_eq!(std::fs::read_dir(tmp.path()).unwrap().count(), 1);
+        assert_eq!(std::fs::read_dir(tmp.join("out")).unwrap().count(), 1);
+        assert_eq!(std::fs::read_dir(tmp.join("out/sub")).unwrap().count(), 0);
         drop(ctx);
         drop(exec);
         server.join().unwrap();
@@ -1515,8 +1810,8 @@ mod tests {
         let cmd = DispatchedCommand {
             operation_id: "op-1".into(),
             logical_key: "tool:0:0#0".into(),
-            tool_name: "artifact.write".into(),
-            request_hash: "sha256:req".into(),
+            tool_name: "write-v1".into(),
+            request_hash: tool_request_hash(&write_args()).unwrap(),
             permit_jti: "jti-1".into(),
             fence: 2,
             generation: 1,
@@ -1633,22 +1928,22 @@ mod tests {
         let (input_ref, content_hash, byte_count) = exec.stage_input("artifact body");
         assert!(content_hash.starts_with("sha256:"));
         assert_eq!(byte_count, 13);
+        let args = json!({
+            "grant_id": "g1", "artifact_id": "a", "version_id": "v1", "format": "md",
+            "body_ref": input_ref, "content_hash": content_hash, "byte_count": byte_count.to_string()
+        });
         let (handle, server) = journal_server();
         let ctx = ctx(handle);
         let cmd = DispatchedCommand {
             operation_id: "op-1".into(),
             logical_key: "tool:0:0".into(),
-            tool_name: "artifact.write".into(),
-            request_hash: "sha256:req".into(),
+            tool_name: "write-v1".into(),
+            request_hash: tool_request_hash(&args).unwrap(),
             permit_jti: "jti-1".into(),
             fence: 2,
             generation: 1,
             dispatch_attempt_id: "attempt-1".into(),
         };
-        let args = json!({
-            "grant_id": "g1", "artifact_id": "a", "version_id": "v1", "format": "md",
-            "body_ref": input_ref, "content_hash": content_hash, "byte_count": byte_count.to_string()
-        });
         let reply = exec.execute_tool(&ctx, "artifact.write", &args, "tc-1", Some(&cmd));
         assert_eq!(reply["type"], "tool_result", "{reply}");
         assert_eq!(reply["body"]["content"]["written"], true);
@@ -1989,11 +2284,69 @@ mod tests {
     }
 
     #[test]
-    fn model_unknown_records_a_local_unknown_turn_awaiting_resolution() {
+    fn model_cancellation_records_a_local_unknown_turn_awaiting_resolution() {
+        use std::io::{Read, Write};
+        use std::time::Duration;
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let mut exec = WorkspaceExecutor::new();
+        let (token, _) = exec.prepare_model(port).unwrap();
+        let (probe, _) = listener.accept().unwrap();
+        drop(probe);
+        exec.confirm_model(
+            &token,
+            "profile-dev-fixture-v1",
+            port,
+            ListenerRequirement {
+                allowed_signers: vec![],
+                allow_user_pinned_hash: true,
+                allowed_service_sids: vec![],
+            },
+            crate::listener::current_user_sid().unwrap(),
+            true,
+        )
+        .unwrap()
+        .unwrap();
         let (handle, mut up_rx, server) = journal_server_with_uplinks();
         let ctx = ctx(handle);
+        let lease = ctx.io_deadline.clone();
+        let endpoint = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(10)))
+                .unwrap();
+            let mut header = Vec::new();
+            while !header.ends_with(b"\r\n\r\n") {
+                let mut byte = [0];
+                stream.read_exact(&mut byte).unwrap();
+                header.push(byte[0]);
+                assert!(header.len() < 4096);
+            }
+            let mut body = [0; 7];
+            stream.read_exact(&mut body).unwrap();
+            assert_eq!(&body, b"{\"v\":1}");
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n")
+                .unwrap();
+            *lease.lock().unwrap() = None;
+            let mut byte = [0];
+            match stream.read(&mut byte) {
+                Ok(0) => {}
+                Err(err) if err.kind() == std::io::ErrorKind::ConnectionReset => {}
+                other => panic!("expected the canceled connection to close, got {other:?}"),
+            }
+            listener.set_nonblocking(true).unwrap();
+            assert_eq!(
+                listener.accept().unwrap_err().kind(),
+                std::io::ErrorKind::WouldBlock
+            );
+        });
         let bootstrap = test_bootstrap();
-        let reply = nodemsg::model_unknown("model_io_unknown");
+        let reply = exec.invoke_model(&ctx, &json!({ "v": 1 }));
+        assert_eq!(reply["type"], "model_unknown", "{reply}");
+        assert_eq!(reply["body"]["reason"], "model_io_unknown");
+        endpoint.join().unwrap();
         let mut cp = 0;
         produce_model_receipt(
             &ctx,
@@ -2071,17 +2424,17 @@ mod tests {
         let (handle, mut up_rx, server) = journal_server_with_uplinks();
         let ctx = ctx(handle);
         let bootstrap = test_bootstrap();
+        let args = write_args();
         let cmd = DispatchedCommand {
             operation_id: "op-w".into(),
             logical_key: "tool:0:0".into(),
-            tool_name: "artifact.write".into(),
-            request_hash: "sha256:cmd".into(),
+            tool_name: "write-v1".into(),
+            request_hash: tool_request_hash(&args).unwrap(),
             permit_jti: "jti".into(),
             fence: 2,
             generation: 1,
             dispatch_attempt_id: "attempt-1".into(),
         };
-        let args = json!({ "grant_id": "g1", "relative_path": "out/a.txt" });
         let ok = nodemsg::tool_result(
             "tc",
             json!({ "written": true }),
@@ -2095,6 +2448,7 @@ mod tests {
             &ctx,
             &bootstrap,
             Some(&cmd),
+            tools::ARTIFACT_WRITE,
             &args,
             "tool:0:0",
             &ok,
@@ -2104,7 +2458,7 @@ mod tests {
         assert_eq!(cp, 1);
         let receipt = up_rx.blocking_recv().unwrap();
         assert_eq!(receipt.body["original_execution"]["operation"], "op-w");
-        assert_eq!(receipt.body["request_hash"], "sha256:cmd");
+        assert_eq!(receipt.body["request_hash"], cmd.request_hash);
         assert_eq!(receipt.body["outcome"], "succeeded");
         let _commit = up_rx.blocking_recv().unwrap();
         // pending_approval pauses the loop: NO receipt, NO checkpoint, the sequence does not advance.
@@ -2113,6 +2467,7 @@ mod tests {
             &ctx,
             &bootstrap,
             Some(&cmd),
+            tools::ARTIFACT_WRITE,
             &args,
             "tool:0:1",
             &pending,

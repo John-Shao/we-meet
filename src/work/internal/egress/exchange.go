@@ -130,7 +130,8 @@ type Exchange struct {
 	// GatewayID is the authenticated writer identity (uuid) taken from the
 	// egress workload certificate context. §8.1: writerGatewayId is verified
 	// against authentication, never trusted because it appears in a body.
-	GatewayID string
+	GatewayID   string
+	StageOutput func(context.Context, ExchangeResult) error
 }
 
 // Execute runs the send path for one model step:
@@ -301,6 +302,11 @@ func (e *Exchange) recordSuccess(
 	}
 	result.ReceiptContentRef = receiptObject.ContentRef
 	result.ReceiptBytes = int64(len(receiptBody))
+	if e.StageOutput != nil {
+		if err := e.StageOutput(ctx, result); err != nil {
+			return result, &PersistenceError{Step: stepReceipt, Code: "output_manifest_unavailable"}
+		}
+	}
 	attachRequest := ReceiptRequest{
 		OrgID:             request.Binding.OrgID,
 		OperationID:       request.Delivery.OperationID,

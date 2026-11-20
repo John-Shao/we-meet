@@ -55,7 +55,8 @@ for (const p of [INC, DEVICES, BOOTSTRAP, LOAD, RENEWAL_SIG, PAIRING_SIG, MAIN, 
 
 test('0058 is landed as a full increment: catalog, manifest and both hand-copies', () => {
   const manifest = JSON.parse(read(join(MIGRATIONS, 'manifest.json')));
-  const tail = manifest.increments.at(-1);
+  const tail = manifest.increments.find((entry) => entry.version === 58);
+  assert.ok(tail, 'the certificate issuance increment is missing');
   assert.equal(tail.version, 58);
   assert.equal(tail.name, '0058_device_certificate_issuance');
   assert.equal(tail.checksum, sha256(INC), 'the increment body moved without re-pinning its checksum');
@@ -68,7 +69,7 @@ test('0058 is landed as a full increment: catalog, manifest and both hand-copies
   assert.match(read(join(WORK, 'deploy', 'ecs', 'verify-r0a-0027.sh')),
     /\(58, '0058_device_certificate_issuance'\)/);
   const scope = JSON.parse(read(join(HERE, '..', 'r0b-audit-scope.json')));
-  assert.equal(scope.chainTip, 58);
+  assert.equal(scope.chainTip, Math.max(...manifest.increments.map((entry) => entry.version)));
   const names = scope.entries.map((e) => e.name);
   for (const entry of ['record_device_certificate', 'confirm_device_certificate_renewal',
     'device_renewal_signing_key', 'POST /work/v2/devices/certificate-renewals/{pairingId}/confirm']) {

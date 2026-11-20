@@ -23,7 +23,25 @@ const state = { bootstrap: null, payload: null, run: false, written: false };
 let finished = false;
 let hanging = false;
 
-function finish() {
+async function floodStderr() {
+  const payload = JSON.parse(state.payload);
+  const capabilities = JSON.parse(state.bootstrap);
+  const markers = [payload.body, payload.path, capabilities.content.token];
+  const write = (chunk) => new Promise((resolve, reject) => {
+    process.stderr.write(chunk, (error) => error ? reject(error) : resolve());
+  });
+  const text = `${state.payload}\n${state.bootstrap}\n`;
+  const block = text.repeat(Math.ceil(64 * 1024 / Buffer.byteLength(text)));
+  // Exceed pipe capacity, then split sensitive values across separate writes.
+  for (let index = 0; index < 64; index += 1) await write(block);
+  for (const marker of markers) {
+    const midpoint = Math.floor(marker.length / 2);
+    await write(marker.slice(0, midpoint));
+    await write(`${marker.slice(midpoint)}\n`);
+  }
+}
+
+async function finish() {
   if (finished) return;
   finished = true;
   if (hang) {
@@ -33,6 +51,7 @@ function finish() {
     setInterval(() => {}, 1000);
     return;
   }
+  if (process.env.WORK_STUB_STDERR_FLOOD === '1') await floodStderr();
   writeFrame(process.stdout, { v: PROTOCOL_VERSION, type: 'result', status: 'completed' }, () => {
     process.exit(0);
   });

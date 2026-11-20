@@ -158,10 +158,11 @@ def test_rejects_invalid_token(client):
 
 
 @MTLS
-def test_verifier_outage_is_service_unavailable(client):
+def test_verifier_outage_is_service_unavailable(client, caplog):
+    sensitive_detail = "upstream response: bearer-secret-sentinel"
     patcher = mock.patch("core.api.work_host.OIDCAuthentication")
     mock_auth = patcher.start()
-    mock_auth.return_value.authenticate.side_effect = HTTPError("keycloak down")
+    mock_auth.return_value.authenticate.side_effect = HTTPError(sensitive_detail)
     try:
         response = client.post(
             URL, HTTP_AUTHORIZATION="Bearer t", **cert_headers(CLIENT_PEM)
@@ -171,6 +172,11 @@ def test_verifier_outage_is_service_unavailable(client):
 
     assert response.status_code == 503
     assert response.json() == {"code": "service_unavailable"}
+    records = [record for record in caplog.records if record.name == "core.api.work_host"]
+    assert len(records) == 1
+    assert records[0].getMessage() == "Work bearer token verification failed"
+    assert records[0].exc_info is None
+    assert sensitive_detail not in caplog.text
 
 
 @MTLS

@@ -321,12 +321,6 @@ function readBody(req) {
  * A malformed outcome throws ProtocolError; the handler treats that as a
  * protocol_violation (the supervisor has already killed the child) and falls
  * back to the conservative mapping instead of guessing a result.
- *
- * `lease_lost`, `capability_expired` and `capability_refresh_failed` are
- * distinct authority settlements: they map to FAILED with their own errorCode
- * for a plan fragment. An execute fragment may already have consumed its gate,
- * so it keeps the signed WAITING_RECONCILE / provider_unknown mapping instead
- * of inventing a terminal business result.
  */
 export function advanceResult(request, settled) {
   const base = {
@@ -365,24 +359,15 @@ export function advanceResult(request, settled) {
   }
   switch (settled.status) {
     case 'timed_out':
-      return { ...base, state: 'FAILED', checkpoint, errorCode: 'deadline_exceeded' };
+      return { ...base, state: 'FAILED', checkpoint, reason: 'deadline_exceeded' };
     case 'lease_lost':
-      // The parent lost the execution lease. This is never a success and never
-      // a business failure: the child was reaped before it could finish.
-      return { ...base, state: 'FAILED', checkpoint, errorCode: 'lease_lost' };
     case 'capability_expired':
-      // An authority settlement, e.g. a lease owner that can prove the token
-      // is unusable. The scheduled 25s stop was replaced by fd 5 refresh.
-      return { ...base, state: 'FAILED', checkpoint, errorCode: 'capability_expired' };
     case 'capability_refresh_failed':
-      // The refresh loop could not issue or deliver the next generation, so
-      // the child was stopped before it could call with an expiring token.
-      return { ...base, state: 'FAILED', checkpoint, errorCode: 'capability_refresh_failed' };
     case 'completed':
     case 'failed':
     case 'crashed':
     case 'protocol_violation':
-      return { ...base, state: 'FAILED', checkpoint, errorCode: 'runtime_fault' };
+      return { ...base, state: 'FAILED', checkpoint, reason: 'runtime_fault' };
     default:
       return null;
   }

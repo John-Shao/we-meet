@@ -267,8 +267,8 @@ pub enum Discontinuity {
     ClockJump,
 }
 
-/// Why every held lease became unusable. A lost session is a third cause besides the two clock
-/// discontinuities: `execution_lease.session_id` is immutable and `renew_device_lease` binds the
+/// Why every held lease became unusable. Besides expiry and clock discontinuities, a lost
+/// session invalidates leases: `execution_lease.session_id` is immutable and `renew_device_lease` binds the
 /// renewal to the lease's ORIGINAL device AND session (0051), so a reconnect's new hello session
 /// can never renew the old lease — it must reconcile and re-acquire (§6.3, GW10 boundary).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -279,6 +279,8 @@ pub enum LeaseLoss {
     ClockJump,
     /// The session that owned the leases ended.
     SessionLost,
+    /// A held lease reached its monotonic deadline; the owning session must end.
+    Expired,
 }
 
 impl From<Discontinuity> for LeaseLoss {
@@ -324,10 +326,11 @@ impl LeaseSet {
         round_trip: Duration,
         fence: u64,
     ) {
-        self.leases.insert(
-            lease_id.to_string(),
-            Lease::acquire(sent_at, server_ttl, round_trip, fence),
-        );
+        // Re-delivering TrackLease is not a new acquisition and cannot erase an unreported
+        // expiry or reset its deadline. Re-authorization acquires a different lease id.
+        self.leases
+            .entry(lease_id.to_string())
+            .or_insert_with(|| Lease::acquire(sent_at, server_ttl, round_trip, fence));
     }
 
     /// Stop keeping a lease alive (the Run finished or was canceled). Without this a released
@@ -372,11 +375,20 @@ impl LeaseSet {
         ids
     }
 
-    /// The ids to name in the next heartbeat: only leases still usable at `now`. An expired or
-    /// invalidated lease drops out instead of being named and refused.
-    pub fn live_ids(&mut self, now: Instant) -> Vec<String> {
-        self.leases.retain(|_, lease| lease.is_valid(now));
-        self.leases.keys().cloned().collect()
+    /// The ids to name in the next heartbeat: only leases still usable at `now`.
+    /// Filtering must NOT forget expired ids: they still need an invalidation event, even if
+    /// a heartbeat races the expiry timer. Only release or reported invalidation removes them.
+    pub fn live_ids(&self, now: Instant) -> Vec<String> {
+        self.leases
+            .iter()
+            .filter(|(_, lease)| lease.is_valid(now))
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+
+    /// The nearest held deadline, including an already expired lease awaiting reporting.
+    pub fn next_deadline(&self) -> Option<Instant> {
+        self.leases.values().map(Lease::deadline).min()
     }
 
     /// How many leases are held, live or not.
@@ -449,6 +461,8 @@ pub enum LinkCommand {
         lease_id: String,
         /// The fence from run_start.
         fence: u64,
+        /// The acquiring exchange's original send instant, not the command's dequeue time.
+        sent_at: Instant,
         /// The server-granted TTL.
         ttl: Duration,
         /// The measured round trip of the exchange that acquired it.
@@ -753,17 +767,36 @@ mod tests {
     }
 
     #[test]
-    fn live_ids_drop_expired_leases_and_release_drops_finished_ones() {
+    fn live_ids_preserve_expired_ids_until_reported_and_release_drops_finished_ones() {
         let start = Instant::now();
         let mut set = LeaseSet::default();
         set.track("short", start, Duration::from_secs(5), Duration::ZERO, 1);
         set.track("long", start, Duration::from_secs(30), Duration::ZERO, 1);
         let later = start + Duration::from_secs(10);
         assert_eq!(set.live_ids(later), vec!["long".to_string()]);
-        assert_eq!(set.len(), 1);
+        assert_eq!(set.len(), 2);
+        // Even a duplicate tracking command must not erase the expired, unreported lease.
+        set.track("short", later, Duration::from_secs(30), Duration::ZERO, 1);
+        assert_eq!(set.next_deadline(), Some(start + Duration::from_secs(5)));
         assert!(set.release("long"));
         assert!(!set.release("long"));
+        assert_eq!(set.invalidate_all(), vec!["short".to_string()]);
+        assert!(set.next_deadline().is_none());
         assert!(set.is_empty());
+    }
+
+    #[test]
+    fn a_late_renewal_does_not_hide_an_expired_id() {
+        let start = Instant::now();
+        let mut set = LeaseSet::default();
+        set.track("short", start, Duration::from_secs(5), Duration::ZERO, 1);
+        let state = set
+            .apply_renewal(start, Duration::from_secs(5), &renewal("short", 1, 30_000))
+            .unwrap();
+        assert!(!state.extended);
+        assert_eq!(state.mode, LeaseMode::Invalid);
+        assert!(set.live_ids(start + Duration::from_secs(5)).is_empty());
+        assert_eq!(set.invalidate_all(), vec!["short".to_string()]);
     }
 
     #[test]

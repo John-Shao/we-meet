@@ -649,6 +649,12 @@
     "artifact_replica_content_mismatch": "invalid_request",
     "artifact_too_large": "artifact_too_large",
     "content_on_original_device": "content_on_original_device",
+    "egress_output_binding_mismatch": "service_degraded",
+    "egress_output_conflict": "service_degraded",
+    "egress_output_gate_mismatch": "service_degraded",
+    "egress_output_immutable": "service_degraded",
+    "egress_output_receipt_mismatch": "service_degraded",
+    "egress_output_task_deleted": "service_degraded",
     "local_proof_expired": "local_proof_expired"
   }
 }

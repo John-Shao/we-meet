@@ -63,6 +63,7 @@ func newProbeHarness(t *testing.T, candidate providerctx.Context, claimErr error
 		References: harness.refs,
 		Executions: &fakeBindings{},
 		Content:    harness.store,
+		Outputs:    &fakeOutputStager{},
 		Factory:    harness.factory.build,
 		Prober:     harness.prober,
 	})
@@ -105,6 +106,7 @@ func TestProbeRouteIsAbsentUntilWired(t *testing.T) {
 		References: newFakeReferences(),
 		Executions: &fakeBindings{},
 		Content:    newMemoryStore(),
+		Outputs:    &fakeOutputStager{},
 		Factory:    (&fakeFactory{}).build,
 	})
 	if err != nil {

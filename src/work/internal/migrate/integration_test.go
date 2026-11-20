@@ -717,7 +717,12 @@ func relationExists(t *testing.T, dbName, name string) bool {
 }
 
 func adminURL(dbName string) string {
-	return replaceDatabase(testAdminURL, "postgres", "postgres", dbName)
+	parsed, err := url.Parse(testAdminURL)
+	if err != nil {
+		panic(err)
+	}
+	parsed.Path = "/" + dbName
+	return parsed.String()
 }
 
 func migratorURL(dbName string) string {

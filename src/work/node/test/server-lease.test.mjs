@@ -9,7 +9,7 @@ import test, { after, before } from 'node:test';
 
 import { CONTRACT_VERSION, ROUTE, createAdvanceServer } from '../src/server.mjs';
 import { Supervisor } from '../src/supervisor.mjs';
-import { isAlive, recordingSpawn, waitFor } from '../test-support/helpers.mjs';
+import { assertAdvanceResult, isAlive, recordingSpawn, waitFor } from '../test-support/helpers.mjs';
 import { createFakeAuthz } from '../test-support/fake-authz.mjs';
 import { createTLSFixture } from '../test-support/tls.mjs';
 
@@ -351,7 +351,8 @@ test('a renewal returning expired kills the child and settles lease_lost', { tim
     assert.equal(response.status, 200, response.body);
     const result = JSON.parse(response.body);
     assert.equal(result.state, 'FAILED');
-    assert.equal(result.errorCode, 'lease_lost');
+    assertAdvanceResult(result, { contractVersion: CONTRACT_VERSION, executionId: EXECUTION_ID });
+    assert.equal(result.reason, 'runtime_fault');
     assert.equal(result.kind, 'advance_result');
 
     const record = controller.records[0];
@@ -390,7 +391,7 @@ test('a lease loss during execute reconciles instead of reporting success', { ti
     // answer is reconciliation, never a fabricated success or failure.
     assert.equal(result.state, 'WAITING_RECONCILE');
     assert.equal(result.reason, 'provider_unknown');
-    assert.equal(Object.hasOwn(result, 'errorCode'), false);
+    assertAdvanceResult(result, { contractVersion: CONTRACT_VERSION, executionId: EXECUTION_ID });
     assert.equal(controller.records[0].exited, true);
     assert.equal(isAlive(controller.records[0].pid), false);
   } finally {
@@ -428,7 +429,8 @@ for (const [name, renewResponse] of [
       assert.equal(response.status, 200, response.body);
       const result = JSON.parse(response.body);
       assert.equal(result.state, 'FAILED');
-      assert.equal(result.errorCode, 'lease_lost');
+      assertAdvanceResult(result, { contractVersion: CONTRACT_VERSION, executionId: EXECUTION_ID });
+      assert.equal(result.reason, 'runtime_fault');
       const record = controller.records[0];
       assert.equal(record.exited, true);
       assert.equal(isAlive(record.pid), false);
@@ -528,7 +530,8 @@ test('a refresh 4xx stops further sends and settles capability_refresh_failed', 
     assert.equal(response.status, 200, response.body);
     const result = JSON.parse(response.body);
     assert.equal(result.state, 'FAILED');
-    assert.equal(result.errorCode, 'capability_refresh_failed');
+    assertAdvanceResult(result, { contractVersion: CONTRACT_VERSION, executionId: EXECUTION_ID });
+    assert.equal(result.reason, 'runtime_fault');
     assert.equal(response.body.includes('caller_not_permitted'), false);
 
     assert.equal(controller.records[0].exited, true);

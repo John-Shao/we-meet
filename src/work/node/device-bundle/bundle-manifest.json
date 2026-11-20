@@ -6,7 +6,7 @@
     },
     {
       "path": "main.js",
-      "sha256": "b428b15fb96afa05b17b8917239c3528a2393e6a67b5b009d9eae1b1d1554607"
+      "sha256": "60837b547b4c31d0e31e882b245da115dfaf75421d964b07f060e25cac8e4ac3"
     },
     {
       "path": "node_modules/@earendil-works/pi-agent-core/README.md",
@@ -9217,6 +9217,6 @@
       "sha256": "efde5dbeee835b1add36252e1d0caf9e771e284dd02e1b35e65b2179f85a687c"
     }
   ],
-  "runtime_digest": "f03b2f3da37c9a0316a0b06dd0069967a8a5733522d5abf5431c609e5bb61117",
+  "runtime_digest": "1921f3afdefb726a70ddd6bf597069045e2f203948b06346584f30de0ae93130",
   "tool_manifest_hash": "a2b58c4b9193f88d5b1c513d424e53895acf6a1970a4e10050320b17e090ca40"
 }
