@@ -304,6 +304,26 @@ mod tests {
     use super::*;
     use windows::Win32::Security::Authorization::SetNamedSecurityInfoW;
     use windows::Win32::Security::{AddAccessAllowedAce, InitializeAcl, WinWorldSid, ACL_REVISION};
+    use windows::Win32::Storage::FileSystem::GetLongPathNameW;
+
+    /// Expand 8.3 short-name components to long form. The production §4.2 input is the native folder
+    /// dialog, which returns long-form paths; `std::env::temp_dir` can carry short names on CI (a
+    /// long-username profile such as `RUNNER~1`), so the test normalizes its temp dir to long form to
+    /// mimic production input rather than tripping the short-name vs final-path comparison.
+    fn long_path(path: &str) -> String {
+        let path_w = wide_null(path);
+        let mut buf = vec![0u16; 1024];
+        loop {
+            let len = unsafe { GetLongPathNameW(PCWSTR(path_w.as_ptr()), Some(&mut buf)) };
+            if len == 0 {
+                return path.to_string();
+            }
+            if (len as usize) <= buf.len() {
+                return String::from_utf16_lossy(&buf[..len as usize]);
+            }
+            buf = vec![0u16; len as usize];
+        }
+    }
 
     struct TempDir(String);
     impl TempDir {
@@ -311,7 +331,7 @@ mod tests {
             let dir =
                 std::env::temp_dir().join(format!("work-grant-{tag}-{}", uuid::Uuid::new_v4()));
             std::fs::create_dir_all(&dir).unwrap();
-            TempDir(dir.to_string_lossy().into_owned())
+            TempDir(long_path(&dir.to_string_lossy()))
         }
         fn path(&self) -> &str {
             &self.0
