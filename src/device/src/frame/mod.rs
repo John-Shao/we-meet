@@ -22,6 +22,7 @@ pub mod intent;
 pub mod jcs;
 pub mod lease;
 pub mod offer;
+pub mod publish;
 pub mod receipt;
 pub mod receipt_ack;
 pub mod reconcile;

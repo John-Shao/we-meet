@@ -325,9 +325,41 @@ impl WorkspaceExecutor {
                 // from the Broker's execution facts, never Node's self-reported list).
                 if is_write {
                     if let Some(version_id) = content["version_id"].as_str() {
-                        let _ = ctx.journal.request(JournalOp::RecordDeliverable {
+                        // Batch 4: carry the full publication facts (the sync core builds the
+                        // local_publish payload from these). content_hash is the sealed buffer's
+                        // `sha256:` form stripped to bare hex (0043:218); logical_name derives from
+                        // the args' artifact_id (lead ruling 甲); local_ref = run_id:operation_id
+                        // matches the completed receipt's local_result_ref (0043:425).
+                        let sealed_hash = content["content_hash"].as_str().unwrap_or("");
+                        let bare_hash = sealed_hash
+                            .strip_prefix("sha256:")
+                            .unwrap_or(sealed_hash)
+                            .to_string();
+                        let byte_count = content["byte_count"]
+                            .as_str()
+                            .and_then(|s| s.parse::<u64>().ok())
+                            .unwrap_or(0);
+                        // is_write already required a dispatched command at the permit gate; bind
+                        // it again here (the permit-gate binding went out of scope).
+                        let Some(cmd) = cmd else {
+                            return nodemsg::tool_blocked(
+                                tool_call_id,
+                                "pending_approval",
+                                true,
+                                false,
+                            );
+                        };
+                        let facts = crate::journalop::DeliverableFacts {
                             run_id: ctx.run_id.clone(),
+                            operation_id: cmd.operation_id.clone(),
                             version_id: version_id.to_string(),
+                            logical_name: args["artifact_id"].as_str().unwrap_or("").to_string(),
+                            format: args["format"].as_str().unwrap_or("txt").to_string(),
+                            content_hash: bare_hash,
+                            byte_count,
+                        };
+                        let _ = ctx.journal.request(JournalOp::RecordDeliverable {
+                            facts: Box::new(facts),
                         });
                     }
                 }

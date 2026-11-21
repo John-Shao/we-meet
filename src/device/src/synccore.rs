@@ -24,7 +24,7 @@ use tokio::sync::mpsc;
 use crate::broker::ReadyIdentity;
 use crate::finish::orchestrate::{self, FinishInput};
 use crate::frame::{
-    action, cancel, checkpoint, command, finish, offer, receipt_ack, reconcile, resolution,
+    action, cancel, checkpoint, command, finish, offer, publish, receipt_ack, reconcile, resolution,
 };
 use crate::journal::record::{self, ActionRow};
 use crate::journal::recover::{self, StartRow};
@@ -125,13 +125,36 @@ pub fn spawn_sync_core(
             if let Ok((op, reply_tx)) = journal_op_rx.try_recv() {
                 core.expire_lease(Instant::now());
                 let reply = match op {
-                    // The sync core owns the per-Run deliverable set (DD:137 own execution facts).
-                    crate::journalop::JournalOp::RecordDeliverable { run_id, version_id } => {
+                    // The sync core owns the per-Run deliverable set (DD:137 own execution facts)
+                    // and the per-version publication facts (batch 4 local_publish payload).
+                    crate::journalop::JournalOp::RecordDeliverable { facts } => {
                         core.deliverables
-                            .entry(run_id)
+                            .entry(facts.run_id.clone())
                             .or_default()
-                            .push(version_id);
+                            .push(facts.version_id.clone());
+                        core.deliverable_facts
+                            .insert(facts.version_id.clone(), *facts);
                         crate::journalop::JournalReply::DeliverableRecorded
+                    }
+                    // Capture the completed receipt's seq per operation so batch 4's local_publish
+                    // can name receipt_ref = journal_epoch:seq (the device's own receipt identity).
+                    crate::journalop::JournalOp::AppendReceipt { ref facts, .. } => {
+                        let op_id = facts.operation_id.clone();
+                        let completed = facts.state == "completed";
+                        let producer = crate::journalop::Producer {
+                            key: core.key.as_ref(),
+                            uplinks: &core.uplinks,
+                            instance: &core.instance,
+                        };
+                        let reply = crate::journalop::execute(core.journal(), &producer, op);
+                        if completed {
+                            if let crate::journalop::JournalReply::ReceiptProduced { seq, .. } =
+                                &reply
+                            {
+                                core.receipt_seq_by_op.insert(op_id, *seq);
+                            }
+                        }
+                        reply
                     }
                     other => {
                         let producer = crate::journalop::Producer {
@@ -249,6 +272,16 @@ struct SyncCore {
     awaiting_finish_ack: Option<String>,
     // Runs stopped from proposing (stale_fence / terminal) — never re-judged (§3.4 step 4).
     finish_stopped: HashSet<String>,
+    // ---- batch 4: local publication state (device-design §7.1 step 4; 0059 completed precondition) ----
+    // Per-version sealed deliverable facts the local_publish payload is built from (RecordDeliverable).
+    deliverable_facts: HashMap<String, crate::journalop::DeliverableFacts>,
+    // The completed receipt seq per operation (AppendReceipt reply), so receipt_ref = epoch:seq.
+    receipt_seq_by_op: HashMap<String, u64>,
+    // Versions the server has confirmed published per Run (verified publish_ack). A completed finish
+    // waits until every sealed deliverable of the Run is published (0059 needs the published rows).
+    published: HashMap<String, HashSet<String>>,
+    // Versions whose local_publish is in flight (sent, ack pending) — never re-sent each tick.
+    publish_pending: HashSet<String>,
 }
 
 /// The active Run binding the finish proposal names (captured at run_start).
@@ -327,6 +360,10 @@ impl SyncCore {
             finish_pending: None,
             awaiting_finish_ack: None,
             finish_stopped: HashSet::new(),
+            deliverable_facts: HashMap::new(),
+            receipt_seq_by_op: HashMap::new(),
+            published: HashMap::new(),
+            publish_pending: HashSet::new(),
         }
     }
 
@@ -417,6 +454,7 @@ impl SyncCore {
             resolution::FRAME_TYPE => self.consume_resolution(&server_jwk, body),
             checkpoint::ACK_FRAME_TYPE => self.consume_checkpoint_ack(&server_jwk, body),
             finish::FINISH_ACK_FRAME_TYPE => self.consume_finish_ack(&server_jwk, body),
+            publish::PUBLISH_ACK_FRAME_TYPE => self.consume_publish_ack(&server_jwk, body),
             receipt_ack::FRAME_TYPE | crate::frame::reconcile::FRAME_TYPE => {
                 self.consume_receipt_ack(&server_jwk, frame_type, body)
             }
@@ -1304,6 +1342,56 @@ impl SyncCore {
         if recorded < cp.checkpoint_seq as u64 {
             return;
         }
+        // Batch 4 publication gate: a `completed` finish needs published `artifact_version` rows
+        // (0059 precondition). Publish each sealed deliverable via local_publish after its receipt
+        // is durable, before judging completed; finalize is idempotent (same artifact+hash+run
+        // replays, 0043:543) so a restart re-publish is safe. Only gate a Run that would be
+        // completed (loop ended normally, deliverables, no undelivered dispatch which forces
+        // failed); a failed finish names no deliverables and needs no publication.
+        let has_pending_dispatch = self
+            .undelivered
+            .get(&pending.run_id)
+            .map(|s| !s.is_empty())
+            .unwrap_or(false);
+        if pending.loop_ended_normally && !has_pending_dispatch {
+            let deliverables = self
+                .deliverables
+                .get(&pending.run_id)
+                .cloned()
+                .unwrap_or_default();
+            let epoch = self.journal.journal_epoch().to_string();
+            let receipted = crate::finish::facts::all_operations_terminal(
+                self.journal.connection(),
+                &self.org_id,
+                &pending.run_id,
+            )
+            .unwrap_or(false)
+                && crate::finish::facts::operations_receipted(
+                    self.journal.connection(),
+                    &self.org_id,
+                    &pending.run_id,
+                    &epoch,
+                )
+                .unwrap_or(false);
+            if !deliverables.is_empty() && receipted {
+                let published = self
+                    .published
+                    .get(&pending.run_id)
+                    .cloned()
+                    .unwrap_or_default();
+                if !deliverables.iter().all(|v| published.contains(v)) {
+                    let unpublished: Vec<String> = deliverables
+                        .iter()
+                        .filter(|v| !published.contains(*v) && !self.publish_pending.contains(*v))
+                        .cloned()
+                        .collect();
+                    for v in unpublished {
+                        self.send_local_publish(&pending.run_id, &v);
+                    }
+                    return; // wait for the verified publish_ack before judging completed
+                }
+            }
+        }
         let input = FinishInput {
             run_id: pending.run_id.clone(),
             org_id: self.org_id.clone(),
@@ -1344,6 +1432,80 @@ impl SyncCore {
             Ok(orchestrate::FinishAttempt::Wait) => {}
             Err(err) => eprintln!("work-device: finish production failed: {err:?}"),
         }
+    }
+
+    /// Batch 4: uplink a signed `local_publish` for one sealed deliverable version, asking the
+    /// control plane to finalize it into a published local_only artifact_version (0043). The payload
+    /// is built from the Broker's own execution facts (RecordDeliverable) + the completed receipt's
+    /// seq (AppendReceipt) + the identity facts the sync core owns. logical_name derives from the
+    /// args' artifact_id (lead ruling 甲); artifact_id is null (merge by logical_name). Fire-and-
+    /// forget: the verified publish_ack marks the version published; finalize idempotency makes a
+    /// re-send (restart) replay rather than conflict.
+    fn send_local_publish(&mut self, run_id: &str, version_id: &str) {
+        let Some(facts) = self.deliverable_facts.get(version_id).cloned() else {
+            return;
+        };
+        let Some(seq) = self.receipt_seq_by_op.get(&facts.operation_id).copied() else {
+            return; // the completed receipt's seq is not yet known
+        };
+        let epoch = self.journal.journal_epoch().to_string();
+        let mut body = publish::LocalPublishBody {
+            run_id: run_id.to_string(),
+            operation_id: facts.operation_id.clone(),
+            version_id: version_id.to_string(),
+            artifact_id: None,
+            logical_name: facts.logical_name.clone(),
+            format: facts.format.clone(),
+            content_hash: facts.content_hash.clone(),
+            byte_count: facts.byte_count,
+            local_ref: format!("{}:{}", run_id, facts.operation_id),
+            device_id: self.device_id.clone(),
+            classification_claimed: "local_only".to_string(),
+            receipt_ref: format!("{}:{}", epoch, seq),
+            signature: None,
+        };
+        if !body.payload_consistent() {
+            eprintln!("work-device: local_publish payload inconsistent for {version_id}");
+            return;
+        }
+        if let Err(err) = body.sign(self.key.as_ref()) {
+            eprintln!("work-device: local_publish sign failed: {err:?}");
+            return;
+        }
+        self.publish_pending.insert(version_id.to_string());
+        eprintln!("work-device: local_publish {version_id} (run {run_id})");
+        self.uplink(publish::PUBLISH_FRAME_TYPE, body.to_value());
+    }
+
+    /// Batch 4: consume a server-signed `publish_ack`. Fail-closed verify (GW8 precedent); only a
+    /// verified local_only publication marks the version published, which lets the completed finish
+    /// proceed (0059 needs the published row). An unsigned/unverifiable ack never moves the set.
+    fn consume_publish_ack(&mut self, server_jwk: &crate::jwk::EcP256Jwk, body: Value) {
+        let ack: publish::PublishAckBody = match serde_json::from_value(body) {
+            Ok(a) => a,
+            Err(err) => {
+                eprintln!("work-device: publish_ack shape refused: {err}");
+                return;
+            }
+        };
+        if !ack.verify(server_jwk) {
+            eprintln!("work-device: publish_ack signature refused");
+            return;
+        }
+        if !ack.is_published_local() {
+            eprintln!("work-device: publish_ack is not a local_only publication");
+            return;
+        }
+        self.publish_pending.remove(&ack.version_id);
+        self.published
+            .entry(ack.run_id.clone())
+            .or_default()
+            .insert(ack.version_id.clone());
+        eprintln!(
+            "work-device: publish_ack accepted {} (run {})",
+            ack.version_id, ack.run_id
+        );
+        self.attempt_finish();
     }
 
     /// §6.3 reconcile (ruling 甲 fresh-session/resume driven): re-upload un-acked receipts with their
@@ -2072,6 +2234,12 @@ mod tests {
             lease_id: "lease-1".into(),
         });
         core.deliverables.insert("run".into(), vec!["v-1".into()]);
+        // Batch 4: the completed finish names only PUBLISHED versions (0059). Mark v-1 published
+        // (a verified publish_ack already arrived) so the finish judgment proceeds.
+        core.published
+            .entry("run".into())
+            .or_default()
+            .insert("v-1".into());
         core.recorded_checkpoint.insert("run".into(), 1);
     }
 
@@ -2139,6 +2307,110 @@ mod tests {
             .as_array()
             .unwrap()
             .is_empty());
+        drop(core);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_completed_finish_publishes_deliverables_before_proposing() {
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let device = SoftwareKey::random();
+        let device_jwk = device.public_jwk();
+        let server = SoftwareKey::random();
+        let permit = SoftwareKey::random();
+        let (mut core, mut uplink_rx) = core_with_uplinks(&dir, device, &server, &permit);
+        seed_completed_write(&mut core);
+        // Un-publish v-1 and supply the publication facts: the gate must publish before judging.
+        core.published.get_mut("run").unwrap().remove("v-1");
+        core.deliverable_facts.insert(
+            "v-1".into(),
+            crate::journalop::DeliverableFacts {
+                run_id: "run".into(),
+                operation_id: "op-1".into(),
+                version_id: "v-1".into(),
+                logical_name: "a".into(),
+                format: "md".into(),
+                content_hash: "a".repeat(64),
+                byte_count: 5,
+            },
+        );
+        core.receipt_seq_by_op.insert("op-1".into(), 1);
+        core.on_run_ended(Ok(()));
+        // The first uplink is local_publish, NOT run_finish (publication precedes completed finish).
+        let frame = uplink_rx.try_recv().expect("a local_publish uplink");
+        assert_eq!(frame.frame_type, publish::PUBLISH_FRAME_TYPE);
+        assert_eq!(frame.body["version_id"], "v-1");
+        assert_eq!(frame.body["logical_name"], "a"); // derived from args artifact_id (ruling 甲)
+        assert_eq!(frame.body["content_hash"], "a".repeat(64)); // bare hex
+        assert!(frame.body["artifact_id"].is_null()); // merge by logical_name
+        assert_eq!(frame.body["local_ref"], "run:op-1"); // == receipt local_result_ref (run_id:operation_id)
+        assert_eq!(frame.body["classification_claimed"], "local_only");
+        let epoch = core.journal.journal_epoch().to_string();
+        assert_eq!(frame.body["receipt_ref"], format!("{epoch}:1"));
+        assert!(sign::verify_frame(
+            &device_jwk,
+            publish::PUBLISH_FRAME_TYPE,
+            &frame.body,
+            frame.body["signature"].as_str().unwrap()
+        ));
+        assert!(core.publish_pending.contains("v-1"));
+        // No finish is proposed while publication is in flight.
+        assert!(uplink_rx.try_recv().is_err());
+        assert!(core.awaiting_finish_ack.is_none());
+        // A verified publish_ack marks v-1 published and lets the completed finish proceed.
+        let mut ack = publish::PublishAckBody {
+            run_id: "run".into(),
+            operation_id: "op-1".into(),
+            version_id: "v-1".into(),
+            artifact_id: "44444444-4444-4444-4444-444444444444".into(),
+            version_no: 1,
+            location: "local_only".into(),
+            classification: "local_only".into(),
+            publish_ack: format!("sha256:{}", "c".repeat(64)),
+            signature: None,
+        };
+        ack.signature = Some(
+            sign::sign_frame(&server, publish::PUBLISH_ACK_FRAME_TYPE, &ack.to_value()).unwrap(),
+        );
+        core.consume_publish_ack(&server.public_jwk(), ack.to_value());
+        assert!(core.published.get("run").unwrap().contains("v-1"));
+        assert!(!core.publish_pending.contains("v-1"));
+        let finish_frame = uplink_rx
+            .try_recv()
+            .expect("a run_finish uplink after publication");
+        assert_eq!(finish_frame.frame_type, finish::FINISH_FRAME_TYPE);
+        assert_eq!(finish_frame.body["outcome"], "completed");
+        assert_eq!(finish_frame.body["deliverable_versions"][0], "v-1");
+        drop(core);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn an_unsigned_publish_ack_never_marks_published() {
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let server = SoftwareKey::random();
+        let permit = SoftwareKey::random();
+        let (mut core, _uplink_rx) =
+            core_with_uplinks(&dir, SoftwareKey::random(), &server, &permit);
+        let ack = publish::PublishAckBody {
+            run_id: "run".into(),
+            operation_id: "op-1".into(),
+            version_id: "v-1".into(),
+            artifact_id: "44444444-4444-4444-4444-444444444444".into(),
+            version_no: 1,
+            location: "local_only".into(),
+            classification: "local_only".into(),
+            publish_ack: format!("sha256:{}", "c".repeat(64)),
+            signature: None, // unsigned: fail-closed
+        };
+        core.consume_publish_ack(&server.public_jwk(), ack.to_value());
+        assert!(!core
+            .published
+            .get("run")
+            .map(|s| s.contains("v-1"))
+            .unwrap_or(false));
         drop(core);
         let _ = std::fs::remove_dir_all(dir);
     }

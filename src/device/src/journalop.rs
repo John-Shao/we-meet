@@ -94,8 +94,27 @@ pub enum JournalOp {
     /// Record one sealed deliverable version the Broker itself wrote (a successful `artifact.write`).
     /// DD:137 — the finish judges deliverables from the Broker's own execution facts, not Node's
     /// self-reported list. The sync core intercepts this op (it owns the per-Run deliverable set the
-    /// finish names in `deliverable_versions`); it writes no journal row.
-    RecordDeliverable { run_id: String, version_id: String },
+    /// finish names in `deliverable_versions`, and the per-version facts batch 4's `local_publish`
+    /// payload is built from); it writes no journal row.
+    RecordDeliverable { facts: Box<DeliverableFacts> },
+}
+
+/// The owned facts of one sealed `artifact.write` deliverable (batch 4 publication). The Node thread
+/// supplies them from the command + tool args + sealed-buffer result; the sync core fills the
+/// identity facts it owns (device_id/journal_epoch) and the completed receipt's seq at publication
+/// time. `logical_name` is derived from the args' `artifact_id` (lead ruling 甲 2026-11-21: a stable
+/// per-artifact server UUID, so the tool schema/tool_manifest_hash stay unchanged); `content_hash`
+/// is bare 64-hex (the `sha256:` sealed-buffer form stripped, 0043:218); `local_ref` is
+/// `run_id:operation_id`, equal to the completed receipt's `local_result_ref` (0043:425 cross-check).
+#[derive(Clone, Debug)]
+pub struct DeliverableFacts {
+    pub run_id: String,
+    pub operation_id: String,
+    pub version_id: String,
+    pub logical_name: String,
+    pub format: String,
+    pub content_hash: String,
+    pub byte_count: u64,
 }
 
 /// The owned `action_prepare` proposal facts the Node thread supplies (execution-face §6.3 C). The

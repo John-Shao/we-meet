@@ -803,51 +803,105 @@ func TestDeviceFixtureRunFinishFailedIsAccepted(t *testing.T) {
 	}
 }
 
-// TestDeviceFixtureRunFinishCompletedIsRejectedWithoutPublication is the batch 3 rejected-finish
-// evidence (ruling 甲): the write Run seals a deliverable and the Broker proposes completed naming it,
-// but the server has no published artifact_version row (finalize_local_artifact is unwired in the live
-// flow), so finish_local_run refuses finish_precondition_failed and the Run stays active. The device
-// consumes the server-signed rejected verdict without rewriting its local facts and re-reconciles.
-func TestDeviceFixtureRunFinishCompletedIsRejectedWithoutPublication(t *testing.T) {
+// TestDeviceFixtureRunFinishCompletedIsAccepted is the batch 4 completed-accepted evidence (ruling 甲,
+// fully device-driven): the write Run seals a deliverable, and BEFORE proposing completed the Broker
+// uplinks a signed local_publish for it (the publication gate, 0059 needs published rows). The server
+// finalizes it into a published local_only artifact_version (0043) and answers a server-signed
+// publish_ack the device verifies; only then does the Broker judge completed ONLY from journal facts,
+// sign and persist the proposal, and uplink run_finish. The server adjudicates accepted (the published
+// row exists) and writes the terminal set. This closes the batch-3 residual: completed-accepted was
+// unreachable while finalize_local_artifact had no production caller.
+func TestDeviceFixtureRunFinishCompletedIsAccepted(t *testing.T) {
 	bin := requireBrokerBin(t)
-	// A UUID deliverable passes the server's deliverable shape CHECK but has no published
-	// artifact_version row, so the completed proposal reaches finish_precondition_failed (a verdict),
-	// not a CHECK violation (service_degraded).
-	f := startFixtureBrokerScenario(t, bin, nil, uuid.NewString())
+	versionID := uuid.NewString()
+	f := startFixtureBrokerScenario(t, bin, nil, versionID)
 	runID := seedFixtureRun(t, f.dbName, f.deviceID, f.sessionID, f.bootID, f.grantID, f.rootIdentityHash,
 		f.profile.ProfileID, f.profile.RuntimeDigest, f.profile.ToolManifestHash, strings.Repeat("2", 64))
 	approvalID, operationID, paramsHash, approvalRevision := waitForPendingApproval(t, f.dbName, runID, f.stderr)
 	decideFixtureApproval(t, f.dbName, f.sessionID, f.deviceID, runID, approvalID, operationID, paramsHash, approvalRevision)
 	waitForCompletedReceipt(t, f.dbName, operationID)
 
-	// The device proposes completed (it sealed a deliverable); the server refuses precondition.
-	finishID := waitForRunFinishVerdict(t, f.dbName, runID, "rejected", "finish_precondition_failed")
-	waitForStderrContains(t, f.stderr, "run_finish rejected: finish_precondition_failed")
+	// Publication precedes the completed finish: the device uplinks local_publish, the server
+	// finalizes a published local_only version, and the device consumes the verified publish_ack.
+	waitForStderrContains(t, f.stderr, "publish_ack accepted")
+	waitForPublishedVersion(t, f.dbName, versionID, runID, operationID)
+
+	// Only now does the device propose completed; the server accepts it (the published row exists).
+	// A completed finish maps to the Run terminal state succeeded (0042:2125), with no reason.
+	finishID := waitForRunFinishVerdict(t, f.dbName, runID, "accepted", "")
+	waitForRunTerminal(t, f.dbName, runID, "succeeded", "")
+	waitForStderrContains(t, f.stderr, "run_finish accepted")
 
 	ctx := context.Background()
 	conn := brokerDB(t, f.dbName)
-	var outcome, deliverables string
+	// The accepted verdict row: completed, no reason, a positive terminal revision, naming the
+	// published deliverable.
+	var outcome, reason, deliverables string
+	var revision int64
 	if err := conn.QueryRow(ctx, `
-		SELECT outcome, deliverable_versions::text FROM work.device_run_finish
-		WHERE org_id=$1 AND run_id=$2::uuid AND finish_id=$3::uuid`,
-		testOrg, runID, finishID).Scan(&outcome, &deliverables); err != nil {
-		t.Fatalf("rejected verdict row: %v", err)
+		SELECT outcome, COALESCE(reason_code,''), terminal_run_revision, deliverable_versions::text
+		FROM work.device_run_finish WHERE org_id=$1 AND run_id=$2::uuid AND finish_id=$3::uuid`,
+		testOrg, runID, finishID).Scan(&outcome, &reason, &revision, &deliverables); err != nil {
+		t.Fatalf("accepted verdict row: %v", err)
 	}
-	if outcome != "completed" {
-		t.Fatalf("the device proposed outcome = %s, want completed (it sealed a deliverable)", outcome)
+	if outcome != "completed" || reason != "" {
+		t.Fatalf("verdict = %s/%s, want completed with no reason", outcome, reason)
 	}
-	if deliverables == "[]" {
-		t.Fatalf("the completed proposal named no deliverable: %s", deliverables)
+	if revision <= 0 {
+		t.Fatalf("terminal_run_revision = %d, want positive", revision)
 	}
-	// A refusal writes no terminal set: the Run stays active.
-	var runState string
-	if err := conn.QueryRow(ctx, `SELECT state FROM work.run WHERE org_id=$1 AND id=$2::uuid`,
-		testOrg, runID).Scan(&runState); err != nil {
+	if !strings.Contains(deliverables, versionID) {
+		t.Fatalf("completed finish did not name the published deliverable %s: %s", versionID, deliverables)
+	}
+	// The terminal write set finish_local_run_state owns: lease released, binding finished/3.
+	var leaseState, bindingState string
+	var bindingRevision int64
+	if err := conn.QueryRow(ctx, `SELECT state FROM work.execution_lease WHERE org_id=$1 AND run_id=$2::uuid`,
+		testOrg, runID).Scan(&leaseState); err != nil {
+		t.Fatalf("lease row: %v", err)
+	}
+	if leaseState != "released" {
+		t.Fatalf("lease state = %s, want released", leaseState)
+	}
+	if err := conn.QueryRow(ctx, `
+		SELECT state, binding_revision FROM work.device_run_binding WHERE org_id=$1 AND run_id=$2::uuid`,
+		testOrg, runID).Scan(&bindingState, &bindingRevision); err != nil {
+		t.Fatalf("binding row: %v", err)
+	}
+	if bindingState != "finished" || bindingRevision < 1 {
+		t.Fatalf("binding = %s/%d, want finished at a positive revision", bindingState, bindingRevision)
+	}
+	// Exactly one accepted verdict for the Run (the one-accepted unique index).
+	var accepted int
+	if err := conn.QueryRow(ctx, `
+		SELECT count(*) FROM work.device_run_finish WHERE org_id=$1 AND run_id=$2::uuid AND state='accepted'`,
+		testOrg, runID).Scan(&accepted); err != nil {
 		t.Fatal(err)
 	}
-	if runState != "active" {
-		t.Fatalf("Run state after a refusal = %s, want active", runState)
+	if accepted != 1 {
+		t.Fatalf("accepted verdict rows = %d, want 1", accepted)
 	}
+}
+
+// waitForPublishedVersion polls for the published local_only artifact_version finalize_local_artifact
+// wrote from the device's local_publish, bound to the Run/operation it was finalized from. This is the
+// server-side publication truth the completed finish precondition reads (0059).
+func waitForPublishedVersion(t *testing.T, dbName, versionID, runID, operationID string) {
+	t.Helper()
+	conn := brokerDB(t, dbName)
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		var row string
+		err := conn.QueryRow(context.Background(), `
+			SELECT state || '/' || location || '/' || (provenance ->> 'run_id') || '/' || (provenance ->> 'operation_id')
+			FROM work.artifact_version WHERE org_id=$1 AND version_id=$2::uuid`,
+			testOrg, versionID).Scan(&row)
+		if err == nil && row == "published/local_only/"+runID+"/"+operationID {
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	t.Fatalf("no published local_only artifact_version for %s (local_publish never finalized)", versionID)
 }
 
 // waitForRunFinishVerdict polls for the newest device_run_finish row of the given state (and reject

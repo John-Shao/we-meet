@@ -56,7 +56,8 @@ func mapError(err error) error {
 	case code == "stale_fence" || code == "run_has_unreconciled_operation" ||
 		code == "supersede_not_allowed" || code == "supersede_limit_exceeded" ||
 		code == "classification_floor_required" || code == "destination_not_allowed_for_local_only" ||
-		code == "local_policy_not_configured" || code == "local_policy_incomplete":
+		code == "local_policy_not_configured" || code == "local_policy_incomplete" ||
+		code == "run_not_active" || code == "artifact_deleted":
 		// State preconditions, not identity failures and not service faults: the caller is
 		// authenticated and allowed to ask, but the Run/lease/grant/policy state refuses this
 		// action now. §582 maps version/precondition failures to FAILED_PRECONDITION, which is
@@ -73,6 +74,11 @@ func mapError(err error) error {
 		// failure: §582 maps version/precondition failures to FAILED_PRECONDITION and the
 		// catalog already registers resync_required (409, recovery_action=resync).
 		return status.Error(codes.FailedPrecondition, code)
+	case code == "classification_unknown":
+		// finalize_local_artifact (0043:481) refuses a classification_claimed outside the closed
+		// set {local_only, remote_excerpt_allowed} (or an input classification outside it). A bad
+		// value, not a state precondition: INVALID_ARGUMENT, distinct from the floor refusal above.
+		return status.Error(codes.InvalidArgument, code)
 	case strings.HasPrefix(code, "invalid_request"):
 		return status.Error(codes.InvalidArgument, code)
 	case code == "org_context_mismatch" || code == "service_degraded":
