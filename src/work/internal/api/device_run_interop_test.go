@@ -948,9 +948,10 @@ server.listen(port, '127.0.0.1', () => process.stdout.write('stall fixture liste
 // a Broker that wrote a sealed deliverable + completed receipt but crashed BEFORE publication recovers
 // the facts from its durable journal (local_content carrier + runtime_start fence/lease_id) on restart,
 // re-publishes via local_publish, and the server finalizes a published local_only artifact_version —
-// without re-executing the Run. finalize idempotency keeps exactly one version row. The completed finish
-// the recovery would propose is the server's session-gated refusal (lease/binding bound to the dead
-// session, 0042:855-870); cross-session finish acceptance is the deferred GW10/M4-M5 boundary.
+// without re-executing the Run. finalize idempotency keeps exactly one version row. The completed
+// finish the recovery proposes afterwards is no longer in scope here: since 0061 it is accepted
+// cross-session, which TestDeviceFixtureRunCrossSessionFinishIsAccepted asserts. This test stays the
+// publication evidence and stops at the published row.
 func TestDeviceFixtureRunRestartRepublishesSealedDeliverable(t *testing.T) {
 	bin := requireBrokerBin(t)
 	stallDir := t.TempDir()
@@ -1001,6 +1002,120 @@ func TestDeviceFixtureRunRestartRepublishesSealedDeliverable(t *testing.T) {
 		t.Fatalf("artifact_version rows = %d, want 1 (finalize idempotency)", versions)
 	}
 	_ = pipe2
+}
+
+// TestDeviceFixtureRunCrossSessionFinishIsAccepted is the batch-6 evidence (0061): the same crash
+// window as the batch-5 restart test — sealed deliverable + completed receipt durable, Broker killed
+// BEFORE publication — but it follows the recovery through to the hand-back. Broker #2 restarts on a
+// NEW session, re-publishes from the durable journal, then finds that the Run's only lease belongs to
+// the dead session. Under 0059 that was the end of the road: the finish gate compared the binding's
+// (guard-immutable, superseded) session against the lease's and refused, and the reconcile_finish
+// mint the device would need was itself blocked by work_execution_lease_one_active_per_run. With
+// 0061 the device uplinks lease_acquire, the mint expires the superseded session's execute lease and
+// grants a reconcile_finish lease on the LIVE session, and the run_finish signed under it is
+// ADJUDICATED ACCEPTED — the Run goes terminal without the model loop ever running again.
+//
+// This is the real executable, the real gateway and the real PostgreSQL chain: every assertion below
+// is read back from the server, not from the Broker's own log.
+func TestDeviceFixtureRunCrossSessionFinishIsAccepted(t *testing.T) {
+	bin := requireBrokerBin(t)
+	stallDir := t.TempDir()
+	stallPath := filepath.Join(stallDir, "stall-fixture.mjs")
+	if err := os.WriteFile(stallPath, []byte(stallFixtureScript), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	versionID := uuid.NewString()
+	f := startFixtureBrokerFull(t, bin, nil, versionID, stallPath)
+	runID := seedFixtureRun(t, f.dbName, f.deviceID, f.sessionID, f.bootID, f.grantID, f.rootIdentityHash,
+		f.profile.ProfileID, f.profile.RuntimeDigest, f.profile.ToolManifestHash, strings.Repeat("2", 64))
+	approvalID, operationID, paramsHash, approvalRevision := waitForPendingApproval(t, f.dbName, runID, f.stderr)
+	decideFixtureApproval(t, f.dbName, f.sessionID, f.deviceID, runID, approvalID, operationID, paramsHash, approvalRevision)
+	waitForCompletedReceipt(t, f.dbName, operationID)
+	_ = f.cmd.Process.Kill()
+	_, _ = f.cmd.Process.Wait()
+	if strings.Contains(f.stderr.String(), "run_finish accepted") {
+		t.Fatalf("Broker #1 finished before the crash; the stall window failed:\n%s", f.stderr.String())
+	}
+
+	newBootID := "boot-" + uuid.NewString()
+	_, stderr2, cmd2, session2, _ := restartBroker(t, f, bin, newBootID)
+	t.Cleanup(func() { _ = cmd2.Process.Kill(); _, _ = cmd2.Process.Wait() })
+	t.Cleanup(func() { t.Logf("DIAG broker#2 stderr:\n%s", stderr2.String()) })
+
+	// The recovery, in the order the gates require: re-publish from the durable carrier, then ask for
+	// the hand-back lease, then finish. Each marker is the Broker's own account; the server rows below
+	// are what is actually asserted.
+	waitForStderrContains(t, stderr2, "publish_ack accepted")
+	waitForPublishedVersion(t, f.dbName, versionID, runID, operationID)
+	waitForStderrContains(t, stderr2, "lease_acquire run")
+	waitForStderrContains(t, stderr2, "run_finish accepted")
+
+	finishID := waitForRunFinishVerdict(t, f.dbName, runID, "accepted", "")
+	waitForRunTerminal(t, f.dbName, runID, "succeeded", "")
+
+	ctx := context.Background()
+	conn := brokerDB(t, f.dbName)
+	// The accepted verdict was adjudicated under a reconcile_finish lease belonging to the RESTART's
+	// session — not the execute lease the crash left behind, and not the dead session.
+	var purpose, leaseSession string
+	if err := conn.QueryRow(ctx, `
+		SELECT l.purpose, l.session_id::text
+		FROM work.device_run_finish s JOIN work.execution_lease l
+		  ON l.org_id = s.org_id AND l.id = s.lease_id
+		WHERE s.org_id=$1 AND s.run_id=$2::uuid AND s.finish_id=$3::uuid`,
+		testOrg, runID, finishID).Scan(&purpose, &leaseSession); err != nil {
+		t.Fatalf("accepted verdict lease: %v", err)
+	}
+	if purpose != "reconcile_finish" {
+		t.Fatalf("accepted finish lease purpose = %q, want reconcile_finish", purpose)
+	}
+	if leaseSession != session2 {
+		t.Fatalf("accepted finish lease session = %s, want the restart session %s", leaseSession, session2)
+	}
+	// 0061 change 2, visible in the ledger: the superseded execute lease was expired to reclaim the
+	// slot and the terminal write released the reconcile lease, so no active lease survives on the Run.
+	var leaseStates string
+	if err := conn.QueryRow(ctx, `
+		SELECT string_agg(purpose || '=' || state, ',' ORDER BY purpose)
+		FROM work.execution_lease WHERE org_id=$1 AND run_id=$2::uuid`,
+		testOrg, runID).Scan(&leaseStates); err != nil {
+		t.Fatal(err)
+	}
+	if leaseStates != "execute=expired,reconcile_finish=released" {
+		t.Fatalf("lease states = %q, want execute=expired,reconcile_finish=released", leaseStates)
+	}
+	// The device proposed the completed finish exactly once for this Run and the server wrote exactly
+	// one accepted verdict, so the hand-back did not double-finish anything.
+	var accepted, rows int
+	if err := conn.QueryRow(ctx, `
+		SELECT count(*) FILTER (WHERE state='accepted'), count(*)
+		FROM work.device_run_finish WHERE org_id=$1 AND run_id=$2::uuid`, testOrg, runID).
+		Scan(&accepted, &rows); err != nil {
+		t.Fatal(err)
+	}
+	if accepted != 1 || rows != 1 {
+		t.Fatalf("finish rows = %d total / %d accepted, want 1/1", rows, accepted)
+	}
+	// The recoveries that must NOT repeat across the restart: one published version, and the Run's
+	// operation set is the same terminal set the dead session left (the finish is a hand-back, not a
+	// re-execution).
+	var versions, operations int
+	if err := conn.QueryRow(ctx, `
+		SELECT count(*) FROM work.artifact_version WHERE org_id=$1 AND version_id=$2::uuid`,
+		testOrg, versionID).Scan(&versions); err != nil {
+		t.Fatal(err)
+	}
+	if versions != 1 {
+		t.Fatalf("artifact_version rows = %d, want 1 (finalize idempotency)", versions)
+	}
+	if err := conn.QueryRow(ctx, `
+		SELECT count(*) FROM work.operation WHERE org_id=$1 AND run_id=$2::uuid`,
+		testOrg, runID).Scan(&operations); err != nil {
+		t.Fatal(err)
+	}
+	if operations != 1 {
+		t.Fatalf("operation rows = %d after the restart, want the single pre-crash operation (no re-execution)", operations)
+	}
 }
 
 // restartBroker spawns a second Broker process over the fixture's persisted journal_dir, CNG container

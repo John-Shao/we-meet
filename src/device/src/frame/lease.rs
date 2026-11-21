@@ -19,6 +19,13 @@ use crate::frame::u64string;
 pub const HEARTBEAT_FRAME_TYPE: &str = "heartbeat";
 /// The lease frame type tag (unsigned downlink).
 pub const LEASE_FRAME_TYPE: &str = "lease";
+/// The lease_acquire frame type tag (unsigned uplink, batch 6). The device asks for a
+/// same-session reconcile_finish lease after a reconnect so it can hand its history back and
+/// propose run_finish once its original execute lease is gone (§3.3/J12; the gap 0053 registered
+/// and 0061 closes). Like heartbeat it carries NO signature: the gateway mints the lease through
+/// acquire_device_lease under the certificate-mapped transport identity and answers on the same
+/// unsigned `lease` downlink the heartbeat renewal already uses.
+pub const LEASE_ACQUIRE_FRAME_TYPE: &str = "lease_acquire";
 
 /// The heartbeat body: the device's monotonic clock reading at send time, the leases it
 /// wants extended, and its receipt watermark. `monotonic_ms` is never a server deadline —
@@ -36,6 +43,24 @@ impl HeartbeatBody {
     /// Render the body as a JSON value.
     pub fn to_value(&self) -> Value {
         serde_json::to_value(self).expect("heartbeat serializes")
+    }
+}
+
+/// The lease_acquire body: the Run the device wants a reconcile_finish lease for, and the binding
+/// revision the lease is minted at (the same one the durable run_start recorded, so acquire binds
+/// it to this device's binding row). No signature (§3.1 lease-row sibling). binding_revision is a
+/// decimal string on the wire, matching every other §3.1 uint64 boundary.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct LeaseAcquireBody {
+    pub run_id: String,
+    #[serde(with = "u64string")]
+    pub binding_revision: u64,
+}
+
+impl LeaseAcquireBody {
+    /// Render the body as a JSON value.
+    pub fn to_value(&self) -> Value {
+        serde_json::to_value(self).expect("lease_acquire serializes")
     }
 }
 
@@ -85,6 +110,26 @@ mod tests {
             expires_at: "2026-11-16T00:00:30Z".into(),
             ttl_ms: 30_000,
         }
+    }
+
+    #[test]
+    fn lease_acquire_wire_shape_is_closed_unsigned_decimal_string() {
+        let body = LeaseAcquireBody {
+            run_id: "run-1".into(),
+            binding_revision: 7,
+        };
+        let value = body.to_value();
+        let obj = value.as_object().unwrap();
+        let mut keys: Vec<&str> = obj.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["binding_revision", "run_id"]);
+        // The uint64 boundary renders binding_revision as a decimal string, never a JSON number.
+        assert_eq!(obj["binding_revision"], "7");
+        assert_eq!(obj["run_id"], "run-1");
+        assert!(!obj.contains_key("signature"));
+        let round_trip: LeaseAcquireBody = serde_json::from_value(value).unwrap();
+        assert_eq!(round_trip.binding_revision, 7);
+        assert_eq!(round_trip.run_id, "run-1");
     }
 
     #[test]

@@ -5,7 +5,7 @@
 //! server-signed and monotonic; the device never cleans up from local inference,
 //! and never crosses an unknown or missing seq (§6.4).
 
-use rusqlite::Connection;
+use rusqlite::{params, Connection};
 
 use crate::frame::checkpoint::CheckpointAckBody;
 use crate::journal::recover;
@@ -29,6 +29,9 @@ impl From<rusqlite::Error> for WatermarkError {
 /// signature, requires a valid `recorded` state, then releases the contiguous
 /// acknowledged receipts at or below the watermark. A `conflict` ack carries no
 /// usable watermark and releases nothing. Returns the number released.
+///
+/// Batch 6: the recorded ack is also stamped durably (`mark_recorded`), because which checkpoint the
+/// server recorded is the fact the finish gate reads and a restart used to lose it.
 pub fn apply_receipt_watermark(
     conn: &Connection,
     jwk: &EcP256Jwk,
@@ -44,11 +47,42 @@ pub fn apply_receipt_watermark(
     if !ack.is_recorded() {
         return Ok(0);
     }
+    mark_recorded(conn, &ack.run_id, ack.checkpoint_seq)?;
     Ok(recover::cleanup_receipts_through(
         conn,
         journal_epoch,
         ack.receipt_through_seq as i64,
     )?)
+}
+
+/// Stamp the journal checkpoint row the server acked as `recorded`. Only a verified recorded ack
+/// reaches here, and the stamp is on the exact (run, seq) the ack names, so an ack for a seq this
+/// journal never produced marks nothing rather than inventing a watermark.
+fn mark_recorded(
+    conn: &Connection,
+    run_id: &str,
+    checkpoint_seq: u64,
+) -> Result<(), WatermarkError> {
+    conn.execute(
+        "UPDATE checkpoint SET acked = 1 WHERE run_id = ?1 AND checkpoint_seq = ?2",
+        params![run_id, checkpoint_seq as i64],
+    )?;
+    Ok(())
+}
+
+/// Every Run's highest durably acked checkpoint, the resume rebuild source for the finish's
+/// recorded-checkpoint gate. Monotonic by construction: the stamp names the acked row itself, so the
+/// max over acked rows cannot go backwards and a stale ack cannot lower it.
+pub fn recorded_watermarks(conn: &Connection) -> Result<Vec<(String, u64)>, WatermarkError> {
+    let mut stmt = conn.prepare(
+        "SELECT run_id, MAX(checkpoint_seq) FROM checkpoint WHERE acked = 1 GROUP BY run_id",
+    )?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? as u64))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
 }
 
 /// The tombstone cleanup gate (B03 §3.2): the finish is accepted (with its

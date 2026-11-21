@@ -1,7 +1,7 @@
 {
   "$schema_note": "由 scripts/work-status.mjs 生成，勿手改。生产事实在 status.inputs.json（带证据引用）；动态门禁与仓库迁移 tip 现算。generated_at 是生成日期，facts_as_of 是事实核实日期，两者不同义。",
   "generated_by": "scripts/work-status.mjs",
-  "generated_at": "2026-11-20",
+  "generated_at": "2026-11-21",
   "facts_as_of": "2026-11-16",
   "product_stage": "r0a",
   "current_gate": "r0a-pilot-readiness",
@@ -40,7 +40,7 @@
     "note": "接任何真实客户数据前必须完成外部安全审计（J39）；当前仅演示组织＋演示数据。"
   },
   "migration": {
-    "tip_repo": 60,
+    "tip_repo": 61,
     "tip_deployed": 39,
     "deployed_release": "work-release-0039"
   },

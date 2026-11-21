@@ -227,7 +227,8 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 
 	// After hello_ack the stream carries device uplink frames. GW4 handles receipt,
 	// GW6 reconcile, GW7 the operation_resolution_ack that advances the delivery
-	// watermark, GW9 checkpoint_commit, GW10 heartbeat (lease renewal), GW11 run_ready and
+	// watermark, GW9 checkpoint_commit, GW10 heartbeat (lease renewal), batch 6 lease_acquire
+	// (reconcile_finish mint), GW11 run_ready and
 	// run_started, GW12 run_finish, GW13 action_prepare, GW15 cancel_ack. The action spine is
 	// closed end to end (prepare → permit mint → command) and so is the stop face (cancel →
 	// cancel_ack); the still-deferred faces (journal_release/journal_ack, run_sealed/
@@ -266,6 +267,10 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 			}
 		case "heartbeat":
 			if err := s.handleHeartbeat(ctx, stream, orgID, deviceID, sessionID, frame, nonces, pushed, cancels); err != nil {
+				return err
+			}
+		case "lease_acquire":
+			if err := s.handleLeaseAcquire(ctx, stream, orgID, deviceID, sessionID, frame); err != nil {
 				return err
 			}
 		case "run_ready":

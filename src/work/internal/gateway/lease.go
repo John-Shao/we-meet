@@ -173,3 +173,77 @@ func (s *Server) renewLeases(ctx context.Context, orgID, deviceID, sessionID str
 	}
 	return results, nil
 }
+
+// leaseAcquireBody is the wire lease_acquire uplink (batch 6, GW12 follow-on): the device's
+// request for a same-session reconcile_finish lease after a reconnect, so it can hand its
+// history back and propose run_finish when its original execute lease is gone (§3.3/J12; the
+// gap 0053's header registered and 0061 closes). Like heartbeat it carries NO signature and NO
+// identity (§3.1 lease/heartbeat rows list none): the device/session are the certificate-mapped
+// transport identity, which acquire_device_lease binds to the lease it mints. run_id is a uuid;
+// binding_revision is the decimal-string uint64 the §3.1 boundary uses for every counter.
+type leaseAcquireBody struct {
+	RunID           string `json:"run_id"`
+	BindingRevision string `json:"binding_revision"`
+}
+
+// parseLeaseAcquire validates the closed body. binding_revision is parsed as a signed 64-bit
+// integer because it binds to a SQL bigint parameter; 0059 requires it >=1, so a zero or
+// negative value is refused here rather than after reaching the database.
+func parseLeaseAcquire(bodyJSON []byte) (string, int64, error) {
+	var body leaseAcquireBody
+	if err := json.Unmarshal(bodyJSON, &body); err != nil {
+		return "", 0, fmt.Errorf("invalid_request: lease_acquire body")
+	}
+	if _, err := uuid.Parse(body.RunID); err != nil {
+		return "", 0, fmt.Errorf("invalid_request: lease_acquire run_id")
+	}
+	revision, err := strconv.ParseInt(body.BindingRevision, 10, 64)
+	if err != nil || revision < 1 {
+		return "", 0, fmt.Errorf("invalid_request: lease_acquire binding_revision")
+	}
+	return body.RunID, revision, nil
+}
+
+// reconcileLease mints (or replays) a reconcile_finish lease for the CALLING device's live
+// session through acquire_device_lease. purpose='reconcile_finish' and start_nonce NULL are the
+// two arguments 0059 made the reconcile-mint distinct: a fresh mint needs only run.state='active'
+// plus binding.device_id == caller, binds the lease to the caller's session, and writes no
+// run_start and no seq=0 checkpoint baseline. The command answers the whole adjudication in the
+// DB; any refusal here terminates the stream, so the device never holds a half-minted lease.
+func (s *Server) reconcileLease(ctx context.Context, orgID, deviceID, sessionID, runID string, revision int64) (json.RawMessage, error) {
+	var raw []byte
+	err := workdb.WithWorkerOrgContext(ctx, s.pool, orgID, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx,
+			`SELECT work.acquire_device_lease($1, $2::uuid, $3::uuid, $4::uuid, $5, 'reconcile_finish', NULL, $6)`,
+			orgID, runID, deviceID, sessionID, revision, leaseTTLSeconds,
+		).Scan(&raw)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(raw), nil
+}
+
+// handleLeaseAcquire consumes one lease_acquire uplink and answers one lease downlink — the
+// same closed five-key body the heartbeat renewal sends, which is why the device reads both
+// through the same path. UNSIGNED by the same ruling as heartbeat (§3.1 lists no signature for
+// the lease frames; the ownership judgment is 0059's plus 0061, in the DB). The device uses the
+// returned lease_id/fence to finish under its NEW session: 0061 lets finish_local_run skip the
+// binding-vs-lease session equality for a reconcile_finish lease while keeping every caller
+// check, so the cross-session finish the gap registered now succeeds.
+func (s *Server) handleLeaseAcquire(ctx context.Context, stream grpc.ServerStream, orgID, deviceID, sessionID string, env *Envelope) error {
+	runID, revision, err := parseLeaseAcquire(env.Body)
+	if err != nil {
+		return mapError(err)
+	}
+	result, err := s.reconcileLease(ctx, orgID, deviceID, sessionID, runID, revision)
+	if err != nil {
+		return mapError(err)
+	}
+	raw, err := leaseEnvelope(deviceID, sessionID, result)
+	if err != nil {
+		return status.Error(codes.Internal, "service_degraded")
+	}
+	return stream.SendMsg(raw)
+}
+

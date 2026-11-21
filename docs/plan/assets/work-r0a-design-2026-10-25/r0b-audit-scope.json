@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 60,
-  "chainTipCatalog": "catalogs/0060_egress_output_recovery.json",
+  "chainTip": 61,
+  "chainTipCatalog": "catalogs/0061_local_finish_cross_session_reconcile.json",
   "entries": [
     {
       "name": "GET /work/v2/admin/local-policy",
@@ -366,7 +366,7 @@
     {
       "name": "consume_governance_events",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0060_egress_output_recovery.json",
+      "origin": "src/work/migrations/catalogs/0061_local_finish_cross_session_reconcile.json",
       "callableBy": [
         "work_governance_events"
       ],
@@ -483,7 +483,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0060_egress_output_recovery.json",
+      "origin": "src/work/migrations/catalogs/0061_local_finish_cross_session_reconcile.json",
       "callableBy": [
         "work_api",
         "work_governance_events"

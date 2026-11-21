@@ -36,6 +36,14 @@ pub fn apply(conn: &Connection) -> rusqlite::Result<()> {
         "runtime_start",
         &[("fence", "INTEGER"), ("lease_id", "TEXT")],
     )?;
+    // Batch 6: which checkpoint the server acked as `recorded` is itself a durable fact — the finish
+    // has to reference it (0059 gate) and a restart used to lose it, which left the recovered Run
+    // stuck below its own recorded checkpoint. Plain column, so SCHEMA_VERSION stays 2.
+    ensure_columns(
+        conn,
+        "checkpoint",
+        &[("acked", "INTEGER NOT NULL DEFAULT 0")],
+    )?;
     Ok(())
 }
 
@@ -107,6 +115,7 @@ CREATE TABLE IF NOT EXISTS checkpoint (
     checkpoint_hash          TEXT,
     pending_operation_set_hash TEXT,
     prior_receipt_ref        TEXT,
+    acked                    INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (run_id, checkpoint_seq)
 );
 

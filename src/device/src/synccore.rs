@@ -24,7 +24,8 @@ use tokio::sync::mpsc;
 use crate::broker::ReadyIdentity;
 use crate::finish::orchestrate::{self, FinishInput};
 use crate::frame::{
-    action, cancel, checkpoint, command, finish, offer, publish, receipt_ack, reconcile, resolution,
+    action, cancel, checkpoint, command, finish, lease, offer, publish, receipt_ack, reconcile,
+    resolution,
 };
 use crate::journal::record::{self, ActionRow};
 use crate::journal::recover::{self, StartRow};
@@ -310,6 +311,12 @@ struct SyncCore {
     published: HashMap<String, HashSet<String>>,
     // Versions whose local_publish is in flight (sent, ack pending) — never re-sent each tick.
     publish_pending: HashSet<String>,
+    // ---- batch 6: cross-session reconcile lease (the J12 finish-only lease 0061 makes reachable) ----
+    // A finish rebuilt by resume_pending_finish after a restart is bound to the dead session's lease,
+    // so finish_local_run would refuse it. This latches while the device waits for a same-session
+    // reconcile_finish lease: resume requests one (lease_acquire), and the finish proposal must not
+    // be judged until the granted lease's lease_id/fence is patched in.
+    reconcile_lease_pending: bool,
 }
 
 /// The active Run binding the finish proposal names (captured at run_start).
@@ -384,6 +391,16 @@ impl SyncCore {
                 },
             );
         }
+        // Batch 6: the recorded-checkpoint watermark is a server-signed fact, not session state, so
+        // it is rebuilt from the journal's acked rows. Without it a restart loses the only evidence
+        // of which checkpoint the control plane recorded, and attempt_finish stops at its
+        // recorded-checkpoint gate — before the hand-back lease request — and never finishes.
+        let mut recorded_checkpoint: HashMap<String, u64> = HashMap::new();
+        for (run_id, seq) in
+            watermark::recorded_watermarks(journal.connection()).unwrap_or_default()
+        {
+            recorded_checkpoint.insert(run_id, seq);
+        }
         Self {
             journal,
             key,
@@ -423,7 +440,7 @@ impl SyncCore {
             run_end_rx: None,
             deliverables,
             undelivered: HashMap::new(),
-            recorded_checkpoint: HashMap::new(),
+            recorded_checkpoint,
             finish_pending: None,
             awaiting_finish_ack: None,
             finish_stopped: HashSet::new(),
@@ -431,6 +448,7 @@ impl SyncCore {
             receipt_seq_by_op,
             published,
             publish_pending: HashSet::new(),
+            reconcile_lease_pending: false,
         }
     }
 
@@ -526,6 +544,10 @@ impl SyncCore {
                 self.consume_receipt_ack(&server_jwk, frame_type, body)
             }
             action::ACTION_PREPARED_FRAME_TYPE => self.consume_action_prepared(&server_jwk, body),
+            // Batch 6: the lease downlink reaches here only when it grants a reconcile_finish lease
+            // the link does not hold (link.rs forwards an unmatched lease verbatim); a heartbeat
+            // renewal is applied inside the link and never routed here.
+            lease::LEASE_FRAME_TYPE => self.consume_reconcile_lease(body),
             other => eprintln!("work-device: downlink {other} not consumed (closed router)"),
         }
     }
@@ -1270,6 +1292,63 @@ impl SyncCore {
         }
     }
 
+    /// Batch 6: request a same-session reconcile_finish lease for a resumed Run whose original
+    /// execute lease died with the old session. UNSIGNED like heartbeat; acquire_device_lease mints
+    /// it (or replays the one already held) under the transport identity, and answers on the lease
+    /// downlink. Re-issuing while one is outstanding is safe — the reconcile mint is idempotent.
+    fn send_lease_acquire(&self, run_id: &str, binding_revision: u64) {
+        let body = lease::LeaseAcquireBody {
+            run_id: run_id.to_string(),
+            binding_revision,
+        };
+        eprintln!("work-device: lease_acquire run {run_id} revision {binding_revision}");
+        self.uplink(lease::LEASE_ACQUIRE_FRAME_TYPE, body.to_value());
+    }
+
+    /// Batch 6: consume the lease downlink that grants the reconcile_finish lease resume_pending_finish
+    /// requested. Only the awaited Run's lease is accepted; the new lease_id/fence replaces the dead
+    /// session's values in both finish_pending and active_run, the latch clears, and the finish is
+    /// re-judged so attempt_finish signs the proposal against THIS session's lease (0061 then lets
+    /// finish_local_run skip the binding-vs-lease session equality for a reconcile_finish lease).
+    fn consume_reconcile_lease(&mut self, body: Value) {
+        if !self.reconcile_lease_pending {
+            eprintln!("work-device: lease downlink with no reconcile request pending, ignored");
+            return;
+        }
+        let granted: lease::LeaseBody = match serde_json::from_value(body) {
+            Ok(body) => body,
+            Err(err) => {
+                eprintln!("work-device: reconcile lease body refused: {err}");
+                return;
+            }
+        };
+        let Some(pending) = self.finish_pending.as_ref() else {
+            self.reconcile_lease_pending = false;
+            return;
+        };
+        if pending.run_id != granted.run_id {
+            eprintln!(
+                "work-device: reconcile lease run {} does not match pending {}",
+                granted.run_id, pending.run_id
+            );
+            return;
+        }
+        eprintln!(
+            "work-device: reconcile lease granted for run {} (lease {})",
+            granted.run_id, granted.lease_id
+        );
+        if let Some(active) = self.active_run.as_mut() {
+            active.lease_id = granted.lease_id.clone();
+            active.fence = granted.fence;
+        }
+        if let Some(pending) = self.finish_pending.as_mut() {
+            pending.lease_id = granted.lease_id;
+            pending.fence = granted.fence;
+        }
+        self.reconcile_lease_pending = false;
+        self.attempt_finish();
+    }
+
     /// Independent monotonic expiry, called on idle ticks and before consuming work/renewals.
     /// Clearing the deadline is a latched loss, not a chance for a late renewal to acquire it.
     fn expire_lease(&mut self, now: Instant) -> bool {
@@ -1329,6 +1408,7 @@ impl SyncCore {
         self.run_end_rx = None;
         self.finish_pending = None;
         self.awaiting_finish_ack = None;
+        self.reconcile_lease_pending = false;
     }
 
     fn remaining_lease_secs(&self) -> u64 {
@@ -1463,6 +1543,14 @@ impl SyncCore {
             .copied()
             .unwrap_or(0);
         if recorded < cp.checkpoint_seq as u64 {
+            return;
+        }
+        // Batch 6: only the run_finish proposal itself needs THIS session's reconcile_finish lease
+        // (re-publish and the recorded-checkpoint gate above are not lease-bound and already ran).
+        // Until the lease is patched in, request it (idempotent) and stop, so the proposal is signed
+        // against the new lease_id/fence under a NEW finish_id — never a verbatim stale replay.
+        if self.reconcile_lease_pending {
+            self.send_lease_acquire(&pending.run_id, pending.binding_revision);
             return;
         }
         let input = FinishInput {
@@ -1669,6 +1757,11 @@ impl SyncCore {
                 loop_ended_normally: true,
             });
             eprintln!("work-device: resume rebuilds finish judgment for run {run_id} (re-publish)");
+            // Batch 6: the restored finish_pending carries the DEAD session's lease. Latch that the
+            // proposal must wait for this session's reconcile_finish lease, then run attempt_finish:
+            // re-publish proceeds (not lease-bound), and the proposal requests the lease and stops
+            // until consume_reconcile_lease patches the lease_id/fence in.
+            self.reconcile_lease_pending = true;
             self.attempt_finish();
             return;
         }
@@ -2475,6 +2568,244 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Batch 6: the recorded-checkpoint watermark is durable, so a restart keeps the fact the finish
+    /// gate reads. That gate sits BEFORE the hand-back lease request, so losing it stopped a
+    /// recovered Run short of `lease_acquire` — exactly what a real crash-then-restart produced.
+    /// Same seeded journal as the batch-5 restart test, plus a server-signed recorded ack; after
+    /// reopening, the recovered finish re-publishes, requests its reconcile lease, and proposes against
+    /// that new lease.
+    #[test]
+    fn a_restarted_run_keeps_its_recorded_checkpoint_and_reaches_the_hand_back() {
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join(format!("{DEVICE}.db"));
+        let server = SoftwareKey::random();
+        let permit = SoftwareKey::random();
+        seed_hand_back_journal(&db_path, &server, "recorded");
+        let (mut core, mut uplink_rx) = core_after_restart(&dir, &server, &permit);
+        assert_eq!(
+            core.recorded_checkpoint.get("run"),
+            Some(&1),
+            "the acked checkpoint must come back from the journal"
+        );
+        core.resume_pending_finish();
+        let frame = uplink_rx
+            .try_recv()
+            .expect("a re-publish local_publish uplink");
+        assert_eq!(frame.frame_type, publish::PUBLISH_FRAME_TYPE);
+        core.consume_publish_ack(&server.public_jwk(), publish_ack(&server, "v1").to_value());
+        // The recorded gate now passes on the rebuilt watermark, so the very next step is the
+        // hand-back lease request rather than silence below the gate.
+        let acquire = uplink_rx
+            .try_recv()
+            .expect("a lease_acquire uplink, not the recorded-checkpoint gate");
+        assert_eq!(acquire.frame_type, lease::LEASE_ACQUIRE_FRAME_TYPE);
+        assert_eq!(acquire.body["run_id"], "run");
+        assert_eq!(acquire.body["binding_revision"], "1");
+        core.consume_reconcile_lease(
+            lease::LeaseBody {
+                lease_id: "reconcile-lease".into(),
+                run_id: "run".into(),
+                fence: 9,
+                expires_at: "2026-11-21T00:00:30Z".into(),
+                ttl_ms: 30_000,
+            }
+            .to_value(),
+        );
+        let finish_frame = uplink_rx
+            .try_recv()
+            .expect("a run_finish uplink after the reconcile lease");
+        assert_eq!(finish_frame.frame_type, finish::FINISH_FRAME_TYPE);
+        assert_eq!(finish_frame.body["outcome"], "completed");
+        assert_eq!(finish_frame.body["lease_id"], "reconcile-lease");
+        // The checkpoint the restart remembered is the one the proposal references.
+        assert_eq!(finish_frame.body["final_checkpoint_seq"], "1");
+        drop(core);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Batch 6, the fail-closed half: only a `recorded` ack stamps the journal. A conflict ack leaves
+    /// the restarted Run with no watermark, so it re-publishes (not checkpoint-bound) and then stops
+    /// at the recorded gate instead of proposing a finish that references an unrecorded checkpoint.
+    #[test]
+    fn a_conflict_checkpoint_ack_stamps_nothing_and_holds_the_finish() {
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join(format!("{DEVICE}.db"));
+        let server = SoftwareKey::random();
+        let permit = SoftwareKey::random();
+        seed_hand_back_journal(&db_path, &server, "conflict");
+        let (mut core, mut uplink_rx) = core_after_restart(&dir, &server, &permit);
+        assert_eq!(core.recorded_checkpoint.get("run"), None);
+        core.resume_pending_finish();
+        let frame = uplink_rx
+            .try_recv()
+            .expect("a re-publish local_publish uplink");
+        assert_eq!(frame.frame_type, publish::PUBLISH_FRAME_TYPE);
+        core.consume_publish_ack(&server.public_jwk(), publish_ack(&server, "v1").to_value());
+        assert!(
+            uplink_rx.try_recv().is_err(),
+            "an unrecorded checkpoint must not reach lease_acquire or run_finish"
+        );
+        assert!(core.finish_pending.is_some());
+        drop(core);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Seed a Run whose work is finished and sealed but never published, whose checkpoint the server
+    /// acked with `ack_state`, and whose binding facts carry the DEAD session's lease — the scene a
+    /// crash leaves for the batch-6 hand-back.
+    fn seed_hand_back_journal(db_path: &std::path::Path, server: &SoftwareKey, ack_state: &str) {
+        let journal = Journal::create(db_path, DEVICE, &dek::TestWrap).unwrap();
+        recover::persist_start(
+            journal.connection(),
+            &recover::StartRow {
+                run_id: "run".into(),
+                binding_revision: 1,
+                binding_hash: "binding".into(),
+                start_nonce: "nonce-1".into(),
+                state: "started".into(),
+                expected_checkpoint_ref: None,
+                expected_checkpoint_hash: None,
+                fence: Some(2),
+                lease_id: Some("lease-dead-session".into()),
+            },
+        )
+        .unwrap();
+        let rctx = journal.context("org", "sub");
+        let dek = *journal.dek();
+        record::append_action(
+            journal.connection(),
+            &dek,
+            &rctx,
+            &ActionRow {
+                org_id: "org",
+                operation_id: "op-1",
+                run_id: "run",
+                attempt: "attempt-1",
+                step_key: "tool:0:0",
+                logical_key: "tool:0:0#0",
+                supersedes: None,
+                request_hash: "hash",
+                fence: 2,
+                session_id: "sess-dead",
+                generation: 1,
+                permit_jti: "jti-1",
+                state: "succeeded",
+                result_hash: None,
+                result_ref: None,
+            },
+            b"body",
+        )
+        .unwrap();
+        journal
+            .connection()
+            .execute(
+                "UPDATE action_journal SET result_hash = ?1, result_ref = 'run:op-1'
+                 WHERE org_id = 'org' AND run_id = 'run' AND operation_id = 'op-1'",
+                rusqlite::params!["a".repeat(64)],
+            )
+            .unwrap();
+        recover::persist_checkpoint(
+            journal.connection(),
+            &dek,
+            &rctx,
+            &recover::CheckpointRow {
+                run_id: "run".into(),
+                checkpoint_seq: 1,
+                schema_version: crate::journal::schema::SCHEMA_VERSION,
+                runtime_digest: "digest".into(),
+                checkpoint_hash: "c".repeat(64),
+                pending_operation_set_hash: "p".repeat(64),
+                prior_receipt_ref: Some("1".into()),
+            },
+            b"canonical",
+        )
+        .unwrap();
+        let mut ack = checkpoint::CheckpointAckBody {
+            run_id: "run".into(),
+            checkpoint_seq: 1,
+            state: ack_state.into(),
+            receipt_through_seq: 1,
+            signature: None,
+        };
+        ack.signature =
+            Some(sign::sign_frame(server, checkpoint::ACK_FRAME_TYPE, &ack.to_value()).unwrap());
+        watermark::apply_receipt_watermark(
+            journal.connection(),
+            &server.public_jwk(),
+            journal.journal_epoch(),
+            &ack,
+        )
+        .unwrap();
+        crate::journal::local_content::record(
+            journal.connection(),
+            &crate::journal::local_content::DeliverableRow {
+                run_id: "run".into(),
+                operation_id: "op-1".into(),
+                version_id: "v1".into(),
+                logical_name: "a".into(),
+                format: "md".into(),
+                content_hash: "c".repeat(64),
+                byte_count: 9,
+                receipt_seq: None,
+                publish_state: "sealed".into(),
+            },
+        )
+        .unwrap();
+        crate::journal::local_content::stamp_receipt_seq(journal.connection(), "op-1", 1).unwrap();
+    }
+
+    /// Reopen the seeded journal the way a restarted Broker does and build its sync core: no live
+    /// Run, no lease, no session-established facts yet — only what the durable carrier restores.
+    fn core_after_restart(
+        dir: &std::path::Path,
+        server: &SoftwareKey,
+        permit: &SoftwareKey,
+    ) -> (SyncCore, mpsc::Receiver<UplinkFrame>) {
+        let db_path = dir.join(format!("{DEVICE}.db"));
+        let journal = Journal::open(&db_path, DEVICE, &dek::TestWrap).unwrap();
+        let (uplink_tx, uplink_rx) = mpsc::channel::<UplinkFrame>(8);
+        let (link_cmd_tx, _link_cmd_rx) = mpsc::channel::<LinkCommand>(4);
+        let (journal_handle, _journal_op_rx) = crate::journalop::channel();
+        #[cfg(windows)]
+        let (node_service_tx, _node_service_rx) = tokio::sync::mpsc::channel(8);
+        let mut core = SyncCore::new(
+            journal,
+            ready(),
+            Arc::new(SoftwareKey::random()),
+            uplink_tx,
+            link_cmd_tx,
+            spawn_template(),
+            journal_handle,
+            instance_facts(),
+            #[cfg(windows)]
+            node_service_tx,
+        );
+        core.server_jwk = Some(server.public_jwk());
+        core.permit_jwk = Some(permit.public_jwk());
+        (core, uplink_rx)
+    }
+
+    /// A server-signed local_only publish_ack for one version of the seeded Run.
+    fn publish_ack(server: &SoftwareKey, version_id: &str) -> publish::PublishAckBody {
+        let mut ack = publish::PublishAckBody {
+            run_id: "run".into(),
+            operation_id: "op-1".into(),
+            version_id: version_id.into(),
+            artifact_id: "44444444-4444-4444-4444-444444444444".into(),
+            version_no: 1,
+            location: "local_only".into(),
+            classification: "local_only".into(),
+            publish_ack: format!("sha256:{}", "c".repeat(64)),
+            signature: None,
+        };
+        ack.signature = Some(
+            sign::sign_frame(server, publish::PUBLISH_ACK_FRAME_TYPE, &ack.to_value()).unwrap(),
+        );
+        ack
+    }
+
     /// Seed one succeeded artifact.write operation with its completed receipt + a recorded checkpoint,
     /// the journal facts a completed finish judges from.
     fn seed_completed_write(core: &mut SyncCore) {
@@ -2753,6 +3084,97 @@ mod tests {
         assert_eq!(finish_frame.frame_type, finish::FINISH_FRAME_TYPE);
         assert_eq!(finish_frame.body["outcome"], "completed");
         assert_eq!(finish_frame.body["deliverable_versions"][0], "v-1");
+        drop(core);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_resumed_finish_waits_for_its_reconcile_lease_before_proposing() {
+        // Batch 6: a finish rebuilt after a restart must not propose against the dead session's
+        // lease. Re-publish proceeds (not lease-bound); the proposal itself stops at a lease_acquire
+        // request until the gateway answers with a same-session reconcile_finish lease, then the
+        // proposal is signed against the NEW lease_id/fence under a NEW finish_id (not a replay).
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let device = SoftwareKey::random();
+        let server = SoftwareKey::random();
+        let permit = SoftwareKey::random();
+        let (mut core, mut uplink_rx) = core_with_uplinks(&dir, device, &server, &permit);
+        seed_completed_write(&mut core);
+        core.published.get_mut("run").unwrap().remove("v-1");
+        core.deliverable_facts.insert(
+            "v-1".into(),
+            crate::journalop::DeliverableFacts {
+                run_id: "run".into(),
+                operation_id: "op-1".into(),
+                version_id: "v-1".into(),
+                logical_name: "a".into(),
+                format: "md".into(),
+                content_hash: "a".repeat(64),
+                byte_count: 5,
+            },
+        );
+        core.receipt_seq_by_op.insert("op-1".into(), 1);
+        core.on_run_ended(Ok(()));
+        // Simulate the resume latch: the finish_pending lease is the dead session's.
+        core.reconcile_lease_pending = true;
+        // Re-publish still precedes the proposal and is not gated by the reconcile lease.
+        let frame = uplink_rx.try_recv().expect("a local_publish uplink");
+        assert_eq!(frame.frame_type, publish::PUBLISH_FRAME_TYPE);
+        assert!(core.publish_pending.contains("v-1"));
+        let mut ack = publish::PublishAckBody {
+            run_id: "run".into(),
+            operation_id: "op-1".into(),
+            version_id: "v-1".into(),
+            artifact_id: "44444444-4444-4444-4444-444444444444".into(),
+            version_no: 1,
+            location: "local_only".into(),
+            classification: "local_only".into(),
+            publish_ack: format!("sha256:{}", "c".repeat(64)),
+            signature: None,
+        };
+        ack.signature = Some(
+            sign::sign_frame(&server, publish::PUBLISH_ACK_FRAME_TYPE, &ack.to_value()).unwrap(),
+        );
+        core.consume_publish_ack(&server.public_jwk(), ack.to_value());
+        // Publication done; the proposal must now request the reconcile lease, not propose.
+        let acquire = uplink_rx
+            .try_recv()
+            .expect("a lease_acquire uplink instead of run_finish");
+        assert_eq!(acquire.frame_type, lease::LEASE_ACQUIRE_FRAME_TYPE);
+        assert_eq!(acquire.body["run_id"], "run");
+        // binding_revision crosses as a decimal string (§3.1 uint64 boundary), and there is NO
+        // signature member on this unsigned frame.
+        assert!(acquire.body["binding_revision"]
+            .as_str()
+            .map(|s| !s.is_empty())
+            .unwrap_or(false));
+        assert!(!acquire.body.as_object().unwrap().contains_key("signature"));
+        assert!(core.reconcile_lease_pending);
+        assert!(core.finish_pending.is_some());
+        // The gateway answers with a same-session reconcile_finish lease carrying a fresh lease_id
+        // and fence; consume_reconcile_lease patches them into the pending finish and re-runs it.
+        let granted = lease::LeaseBody {
+            lease_id: "new-reconcile-lease".into(),
+            run_id: "run".into(),
+            fence: 9,
+            expires_at: "2026-11-21T00:00:30Z".into(),
+            ttl_ms: 30_000,
+        };
+        core.consume_reconcile_lease(granted.to_value());
+        assert!(!core.reconcile_lease_pending);
+        assert_eq!(
+            core.finish_pending.as_ref().unwrap().lease_id,
+            "new-reconcile-lease"
+        );
+        let finish_frame = uplink_rx
+            .try_recv()
+            .expect("a run_finish uplink after the reconcile lease");
+        assert_eq!(finish_frame.frame_type, finish::FINISH_FRAME_TYPE);
+        assert_eq!(finish_frame.body["outcome"], "completed");
+        // The crux: the proposal names THIS session's reconcile lease, not the dead session's.
+        assert_eq!(finish_frame.body["lease_id"], "new-reconcile-lease");
+        assert_eq!(finish_frame.body["fence"], "9");
         drop(core);
         let _ = std::fs::remove_dir_all(dir);
     }

@@ -670,6 +670,17 @@
       "catalog_checksum": "sha256:5eda1c4afd26c8c5710c9ef05645dd14009c44b0571e3eeda42e9b2385958115",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 61,
+      "name": "0061_local_finish_cross_session_reconcile",
+      "kind": "increment",
+      "file": "increments/0061_local_finish_cross_session_reconcile.sql",
+      "checksum": "sha256:2bbe210bb8bc4697618d20a5017b57e5ec364fbf34c596b7c34e0b09f45915c4",
+      "catalog": "catalogs/0061_local_finish_cross_session_reconcile.json",
+      "catalog_checksum": "sha256:1719ed946626582e2bea73c588741ce685ca53b9d05204b7a2145bac00141ddd",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

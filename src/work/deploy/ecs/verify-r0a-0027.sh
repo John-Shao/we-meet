@@ -95,7 +95,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (57, '0057_cancellation_intent_consumer'),
   (58, '0058_device_certificate_issuance'),
   (59, '0059_device_execution_review'),
-  (60, '0060_egress_output_recovery')) expected(version, name)
+  (60, '0060_egress_output_recovery'),
+  (61, '0061_local_finish_cross_session_reconcile')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -1006,6 +1007,38 @@ psql_ro "select 'finish_deliverable_gate_exempts_only_rejected=' || case when (
     and c.conname = 'device_run_finish_deliverable_shape'
     and pg_get_constraintdef(c.oid) like '%rejected%'
     and pg_get_constraintdef(c.oid) like '%deliverable_versions_valid%') = 1
+  then 'true' else 'FALSE' end"
+
+# 0061 relaxes ONE clause of finish_local_run and nothing else: the binding-vs-lease session
+# equality, which 0053/0059 asserted unconditionally, becomes purpose-gated so a reconcile_finish
+# lease minted after a reconnect (bound to the caller's fresh session, while device_run_binding
+# still names the superseded session of the SAME device) can hand its history back. A ledger row
+# cannot show the relaxation actually happened rather than the file merely running, so read the
+# live body for three facts: the purpose-gated session clause is present; the old UNCONDITIONAL
+# conjunction that tied the binding's session to the lease is GONE; and the caller gate 0053 added
+# (lease vs p_device_id/p_session_id) still holds, so the relax is bounded to the calling device
+# and never to a foreign one.
+psql_ro "select 'run_finish_cross_session_reconcile_gated=' || case when
+    pg_get_functiondef('work.finish_local_run(text,uuid,uuid,uuid,bigint,bigint,jsonb,uuid,uuid)'::regprocedure)
+      like '%v_lease.purpose = ''execute'' AND v_binding.session_id <> v_lease.session_id%'
+  and position('v_binding.device_id <> v_lease.device_id OR v_binding.session_id <> v_lease.session_id' in
+      pg_get_functiondef('work.finish_local_run(text,uuid,uuid,uuid,bigint,bigint,jsonb,uuid,uuid)'::regprocedure)) = 0
+  and pg_get_functiondef('work.finish_local_run(text,uuid,uuid,uuid,bigint,bigint,jsonb,uuid,uuid)'::regprocedure)
+      like '%v_lease.device_id <> p_device_id OR v_lease.session_id <> p_session_id%'
+  -- 0061 change 2: the reconcile_finish mint reclaims the run's active-lease slot, otherwise the
+  -- relaxation above cannot be reached (the mint dies on work_execution_lease_one_active_per_run).
+  and pg_get_functiondef('work.acquire_device_lease(text,uuid,uuid,uuid,bigint,text,uuid,int)'::regprocedure)
+      like '%AND purpose = ''execute'' AND device_id = p_device_id%'
+  and pg_get_functiondef('work.acquire_device_lease(text,uuid,uuid,uuid,bigint,text,uuid,int)'::regprocedure)
+      like '%SET state = ''expired''%dead.state <> ''active''%'
+  -- 0061 change 3: the mint's REPLAY branch re-checked the binding against the caller's session with
+  -- no purpose gate (0059:587-590), so the second lease_acquire of a cross-session hand-back was
+  -- refused even though the fresh mint never demanded that equality. Assert the gated form is in and
+  -- the un-gated equality is out.
+  and pg_get_functiondef('work.acquire_device_lease(text,uuid,uuid,uuid,bigint,text,uuid,int)'::regprocedure)
+      like '%OR (v_lease.purpose = ''execute''%'
+  and position('OR v_binding.session_id IS DISTINCT FROM p_session_id THEN' in -- schema-ref-exempt: 匹配 pg_get_functiondef 正文的常量串（PL/pgSQL 形参名），不是值班可执行的表引用
+      pg_get_functiondef('work.acquire_device_lease(text,uuid,uuid,uuid,bigint,text,uuid,int)'::regprocedure)) = 0
   then 'true' else 'FALSE' end"
 
 # 0054 restated prepare_local_operation for the real device signature. A ledger row cannot show
