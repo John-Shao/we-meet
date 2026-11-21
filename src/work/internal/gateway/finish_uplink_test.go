@@ -25,6 +25,7 @@ import (
 type runUnderFinish struct {
 	f          *gwFixture
 	stream     grpc.ClientStream
+	addr       string
 	sessionID  string
 	bootID     string
 	agentID    string
@@ -80,7 +81,7 @@ func startRunForFinish(t *testing.T) *runUnderFinish {
 	if err := testpg.ExecRaw(ctx, admin, "SET app.org_id = '"+gwOrg+"'"); err != nil {
 		t.Fatal(err)
 	}
-	r := &runUnderFinish{f: f, stream: stream, sessionID: sessionID, bootID: bootID,
+	r := &runUnderFinish{f: f, stream: stream, addr: addr, sessionID: sessionID, bootID: bootID,
 		agentID: agentID, serverPub: serverPub, permitPub: permitPub,
 		runID: runID, leaseID: leaseID, fence: fence}
 	if err := admin.QueryRow(ctx,
@@ -358,5 +359,52 @@ func TestRunFinishRejectsBadShape(t *testing.T) {
 		}
 		var raw []byte
 		wantCode(t, stream.RecvMsg(&raw), codes.InvalidArgument)
+	}
+}
+
+// TestRunFinishVerbatimReplayUnderNewSessionReaccepts is the batch-5 ruling-甲 restart-replay proof:
+// a restart mints a NEW session (0040 activate_device_session always supersedes), and the durable finish
+// the device re-uploads verbatim (same finish_id, same signed bytes) is RE-ACCEPTED — 0053's idempotency
+// lookup by (org, run, finish_id) precedes the lease/session gate, so the stored verdict replays regardless
+// of the calling session. The ack business fields are identical (only the server signature differs). This
+// is the server-side truth behind the device's reconcile replay (lib-proven) and the real-exe restart.
+func TestRunFinishVerbatimReplayUnderNewSessionReaccepts(t *testing.T) {
+	r := startRunForFinish(t)
+	f := r.f
+	// A finish accepted under session 1 — the durable proposal a restart would replay verbatim.
+	finishID := uuid.NewString()
+	verbatim := f.signFrame(t, "run_finish", r.sessionID, r.bootID, r.agentID,
+		r.finishBody(finishID, "failed", "model_error", r.setHash, []string{}))
+	if err := r.stream.SendMsg(verbatim); err != nil {
+		t.Fatal(err)
+	}
+	_, ack, _ := recvTypedFrame(t, r.stream, "run_finish_ack")
+	if ack["state"] != "accepted" || ack["finish_id"] != finishID {
+		t.Fatalf("session-1 finish = %#v, want accepted %s", ack, finishID)
+	}
+	// Restart: a fresh ticket + hello mints session 2, superseding session 1.
+	ticket2 := uuid.NewString()
+	f.seedSecondTicket(t, ticket2)
+	stream2 := f.connect(t, r.addr)
+	session2, _, _, _ := f.helloWithTicket(t, stream2, ticket2)
+	if session2 == r.sessionID {
+		t.Fatalf("hello reused session %s; a restart must mint a new one", session2)
+	}
+	// Re-upload the SAME signed bytes verbatim on the new session: the idempotency lookup replays the
+	// stored accepted verdict (same finish_id, same business fields), never a fresh adjudication.
+	if err := stream2.SendMsg(verbatim); err != nil {
+		t.Fatal(err)
+	}
+	_, replay, replaySession := recvTypedFrame(t, stream2, "run_finish_ack")
+	if replaySession != session2 {
+		t.Fatalf("replay ack session = %v, want the new session %s", replaySession, session2)
+	}
+	if replay["state"] != "accepted" || replay["finish_id"] != finishID {
+		t.Fatalf("verbatim replay = %#v, want accepted %s", replay, finishID)
+	}
+	delete(ack, "signature")
+	delete(replay, "signature")
+	if !reflect.DeepEqual(ack, replay) {
+		t.Fatalf("cross-session replay changed business fields: %#v vs %#v", ack, replay)
 	}
 }

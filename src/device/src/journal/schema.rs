@@ -14,6 +14,43 @@ pub fn apply(conn: &Connection) -> rusqlite::Result<()> {
     let _mode: String = conn.query_row("PRAGMA journal_mode=WAL", [], |row| row.get(0))?;
     conn.pragma_update(None, "synchronous", "FULL")?;
     conn.execute_batch(SCHEMA)?;
+    // Batch 5: the local_content carrier gained plain columns after the table was
+    // first created. Add any missing ones idempotently (SQLite has no ADD COLUMN
+    // IF NOT EXISTS); the table is plain (no AAD), so SCHEMA_VERSION stays 2.
+    ensure_columns(
+        conn,
+        "local_content",
+        &[
+            ("run_id", "TEXT"),
+            ("operation_id", "TEXT"),
+            ("logical_name", "TEXT"),
+            ("format", "TEXT"),
+            ("byte_count", "INTEGER"),
+            ("receipt_seq", "INTEGER"),
+        ],
+    )?;
+    // Batch 5: runtime_start carries the binding's fence/lease_id so a restart can rebuild the
+    // finish judgment that re-publishes sealed deliverables (plain columns, SCHEMA_VERSION stays 2).
+    ensure_columns(
+        conn,
+        "runtime_start",
+        &[("fence", "INTEGER"), ("lease_id", "TEXT")],
+    )?;
+    Ok(())
+}
+
+/// Add columns absent from `table` (idempotent ALTER). `cols` is (name, decl).
+fn ensure_columns(conn: &Connection, table: &str, cols: &[(&str, &str)]) -> rusqlite::Result<()> {
+    let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
+    let existing: std::collections::HashSet<String> = stmt
+        .query_map([], |r| r.get::<_, String>(1))?
+        .collect::<rusqlite::Result<_>>()?;
+    drop(stmt);
+    for (name, decl) in cols {
+        if !existing.contains(*name) {
+            conn.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {name} {decl};"))?;
+        }
+    }
     Ok(())
 }
 
@@ -81,6 +118,8 @@ CREATE TABLE IF NOT EXISTS runtime_start (
     state                  TEXT,
     expected_checkpoint_ref  TEXT,
     expected_checkpoint_hash TEXT,
+    fence                  INTEGER,
+    lease_id               TEXT,
     PRIMARY KEY (run_id, binding_revision)
 );
 
@@ -114,7 +153,13 @@ CREATE TABLE IF NOT EXISTS local_content (
     classification             TEXT,
     clipboard_derived          INTEGER,
     clipboard_source_version_ids TEXT,
-    sync_state                 TEXT
+    sync_state                 TEXT,
+    run_id                     TEXT,
+    operation_id               TEXT,
+    logical_name               TEXT,
+    format                     TEXT,
+    byte_count                 INTEGER,
+    receipt_seq                INTEGER
 );
 ";
 

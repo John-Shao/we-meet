@@ -105,6 +105,8 @@ pub fn register_resume(conn: &Connection, offer: &ResumeOffer) -> rusqlite::Resu
             state: "ready".into(),
             expected_checkpoint_ref: offer.expected_checkpoint_ref.clone(),
             expected_checkpoint_hash: offer.expected_checkpoint_hash.clone(),
+            fence: None,
+            lease_id: None,
         },
     )
 }

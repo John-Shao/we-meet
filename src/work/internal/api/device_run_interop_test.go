@@ -118,6 +118,16 @@ type runFixture struct {
 	exeDir           string
 	profile          fixtureProfile
 	port             int
+	// Restart support (batch 5): the fields a second Broker process needs to reuse the same journal,
+	// CNG container and device certificate, re-delivering the cert and minting a fresh session ticket.
+	certPEM      string
+	configPath   string
+	caPath       string
+	restURL      string
+	gwAddr       string
+	journalDir   string
+	fixtureCmd   *exec.Cmd
+	scenarioPath string
 }
 
 // requireBrokerBin skips on non-Windows / when the shipped binary env is unset, else returns its path.
@@ -153,6 +163,15 @@ func startFixtureBroker(t *testing.T, bin string) *runFixture {
 // proof (out/v1.md), a UUID for the batch 3 completed-finish refusal (the server's deliverable shape
 // CHECK casts to uuid; an unpublished UUID reaches finish_precondition_failed, not service_degraded).
 func startFixtureBrokerScenario(t *testing.T, bin string, scenario []map[string]any, versionID string) *runFixture {
+	t.Helper()
+	return startFixtureBrokerFull(t, bin, scenario, versionID, "")
+}
+
+// startFixtureBrokerFull is startFixtureBrokerScenario with an explicit fixture-model script override.
+// An empty fixtureScript uses the bundled fixture-server.mjs; the batch-5 restart evidence passes a
+// stall script (serves the write turn then hangs the next model request) to hold the Run alive after
+// the completed receipt is durable but before publication, a deterministic crash window.
+func startFixtureBrokerFull(t *testing.T, bin string, scenario []map[string]any, versionID, fixtureScript string) *runFixture {
 	t.Helper()
 	// The fixture layout: node.exe + work-device-bundle/ next to the executable (main.rs derives the
 	// sidecar inputs from current_exe's dir). The profile carries the REAL computed digests.
@@ -345,6 +364,9 @@ func startFixtureBrokerScenario(t *testing.T, bin string, scenario []map[string]
 		t.Fatal(err)
 	}
 	fixtureServer := filepath.Join(exeDir, "work-device-bundle", "fixture-server.mjs")
+	if fixtureScript != "" {
+		fixtureServer = fixtureScript
+	}
 	fixtureCmd := exec.Command(fixtureNode, fixtureServer, fmt.Sprintf("%d", port), scenarioPath)
 	var fixtureErr syncBuffer
 	fixtureCmd.Stderr = &fixtureErr
@@ -379,6 +401,8 @@ func startFixtureBrokerScenario(t *testing.T, bin string, scenario []map[string]
 		rootDir: rootDir, rootIdentityHash: rootIdentityHash, inputRef: inputRef,
 		contentHash: contentHash, byteCount: byteCount, stderr: stderr, cmd: cmd,
 		container: container, dir: dir, exeDir: exeDir, profile: profile, port: port,
+		certPEM: certPEM, configPath: configPath, caPath: caPath, restURL: rest.URL,
+		gwAddr: gwAddr, journalDir: journalDir, fixtureCmd: fixtureCmd, scenarioPath: scenarioPath,
 	}
 }
 
@@ -881,6 +905,171 @@ func TestDeviceFixtureRunFinishCompletedIsAccepted(t *testing.T) {
 	if accepted != 1 {
 		t.Fatalf("accepted verdict rows = %d, want 1", accepted)
 	}
+}
+
+// stallFixtureScript serves the scenario's FIRST message (the artifact.write turn) then hangs every
+// later model request forever. Run by the pinned node.exe, it passes the §5.4 listener-identity gate
+// (same node image hash + current-user SID; the script content is not pinned). The hang holds the Run
+// alive AFTER the completed receipt is durable but BEFORE the loop ends / publication — a deterministic
+// crash window for the batch-5 restart evidence (no second operation is created, so the Run's operation
+// set stays terminal+receipted and the publication gate can re-publish on restart).
+const stallFixtureScript = `import http from 'node:http';
+import fs from 'node:fs';
+const port = Number(process.argv[2]);
+const scenario = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+let served = false;
+const server = http.createServer((req, res) => {
+  if (req.method === 'POST' && req.url === '/v1/chat/completions') {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      void body;
+      if (!served) {
+        served = true;
+        const message = scenario[0];
+        const doc = { id: 'stall-1', object: 'chat.completion',
+          choices: [{ index: 0, message, finish_reason: message.tool_calls ? 'tool_calls' : 'stop' }],
+          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } };
+        const bytes = Buffer.from(JSON.stringify(doc), 'utf8');
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': bytes.length, Connection: 'close' });
+        res.end(bytes);
+      }
+      // Later requests hang forever: the model loop blocks here, holding the crash window open.
+    });
+  } else {
+    res.writeHead(404, { Connection: 'close' });
+    res.end();
+  }
+});
+server.listen(port, '127.0.0.1', () => process.stdout.write('stall fixture listening ' + port + '\n'));
+`
+
+// TestDeviceFixtureRunRestartRepublishesSealedDeliverable is the batch-5 ruling-甲 restart evidence:
+// a Broker that wrote a sealed deliverable + completed receipt but crashed BEFORE publication recovers
+// the facts from its durable journal (local_content carrier + runtime_start fence/lease_id) on restart,
+// re-publishes via local_publish, and the server finalizes a published local_only artifact_version —
+// without re-executing the Run. finalize idempotency keeps exactly one version row. The completed finish
+// the recovery would propose is the server's session-gated refusal (lease/binding bound to the dead
+// session, 0042:855-870); cross-session finish acceptance is the deferred GW10/M4-M5 boundary.
+func TestDeviceFixtureRunRestartRepublishesSealedDeliverable(t *testing.T) {
+	bin := requireBrokerBin(t)
+	stallDir := t.TempDir()
+	stallPath := filepath.Join(stallDir, "stall-fixture.mjs")
+	if err := os.WriteFile(stallPath, []byte(stallFixtureScript), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	versionID := uuid.NewString()
+	f := startFixtureBrokerFull(t, bin, nil, versionID, stallPath)
+	runID := seedFixtureRun(t, f.dbName, f.deviceID, f.sessionID, f.bootID, f.grantID, f.rootIdentityHash,
+		f.profile.ProfileID, f.profile.RuntimeDigest, f.profile.ToolManifestHash, strings.Repeat("2", 64))
+	approvalID, operationID, paramsHash, approvalRevision := waitForPendingApproval(t, f.dbName, runID, f.stderr)
+	decideFixtureApproval(t, f.dbName, f.sessionID, f.deviceID, runID, approvalID, operationID, paramsHash, approvalRevision)
+	// The completed receipt is durable (server device_receipt row) ⇒ the device stamped result_hash +
+	// receipt_seq and recorded the sealed local_content row. The stall fixture now hangs the next model
+	// request, so the loop never ends and publication never fires: a stable pre-publish crash window.
+	waitForCompletedReceipt(t, f.dbName, operationID)
+	// Crash Broker #1 before publication. The Windows owner lock releases on process death, so the
+	// restart re-acquires it; the journal (same epoch) and CNG container (same device key) persist.
+	_ = f.cmd.Process.Kill()
+	_, _ = f.cmd.Process.Wait()
+	if strings.Contains(f.stderr.String(), "publish_ack accepted") {
+		t.Fatalf("Broker #1 published before the crash; the stall window failed:\n%s", f.stderr.String())
+	}
+
+	// Restart Broker #2 over the SAME journal + container + certificate, a fresh boot_id and session.
+	newBootID := "boot-" + uuid.NewString()
+	pipe2, stderr2, cmd2, session2, epoch2 := restartBroker(t, f, bin, newBootID)
+	t.Cleanup(func() { _ = cmd2.Process.Kill(); _, _ = cmd2.Process.Wait() })
+	t.Cleanup(func() { t.Logf("DIAG broker#2 stderr:\n%s", stderr2.String()) })
+	if epoch2 != f.journalEpoch {
+		t.Fatalf("restart journal epoch = %s, want the persisted %s (a new journal was created)", epoch2, f.journalEpoch)
+	}
+	if session2 == f.sessionID {
+		t.Fatalf("restart reused the dead session %s; hello must mint a new one", session2)
+	}
+	// The recovery re-publishes the sealed deliverable; the server finalizes a published version.
+	waitForStderrContains(t, stderr2, "publish_ack accepted")
+	waitForPublishedVersion(t, f.dbName, versionID, runID, operationID)
+	// finalize idempotency: exactly one artifact_version row for the version (re-publish replays).
+	var versions int
+	if err := brokerDB(t, f.dbName).QueryRow(context.Background(),
+		`SELECT count(*) FROM work.artifact_version WHERE org_id=$1 AND version_id=$2::uuid`,
+		testOrg, versionID).Scan(&versions); err != nil {
+		t.Fatal(err)
+	}
+	if versions != 1 {
+		t.Fatalf("artifact_version rows = %d, want 1 (finalize idempotency)", versions)
+	}
+	_ = pipe2
+}
+
+// restartBroker spawns a second Broker process over the fixture's persisted journal_dir, CNG container
+// and device certificate, with a fresh pipe + boot_id. It re-delivers the certificate (the shell's
+// restart gesture, M2b redeliverDeviceCertificate), mints and delivers a fresh session ticket, and
+// waits for the new active session. Returns the new shell pipe, stderr, process, session id and epoch.
+func restartBroker(t *testing.T, f *runFixture, bin, newBootID string) (*os.File, *syncBuffer, *exec.Cmd, string, string) {
+	t.Helper()
+	raw, err := os.ReadFile(f.configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var config map[string]any
+	if err := json.Unmarshal(raw, &config); err != nil {
+		t.Fatal(err)
+	}
+	pipeName := `\\.\pipe\work-device-restart-` + uuid.NewString()
+	config["pipe_name"] = pipeName
+	config["boot_id"] = newBootID
+	configPath2 := filepath.Join(f.dir, "broker-restart.json")
+	raw2, err := json.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath2, raw2, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stderr := &syncBuffer{}
+	cmd := exec.Command(bin, configPath2)
+	cmd.Stderr = stderr
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	pipe := openBrokerPipe(t, pipeName)
+	t.Cleanup(func() { _ = pipe.Close() })
+	hello := readBrokerFrame(t, pipe)
+	writeBrokerFrame(t, pipe, map[string]any{
+		"nonce": hello["nonce"], "protocol_major": 2, "client_kind": "shell",
+	})
+	// The CNG container persists the device key, so the identity is unchanged; re-deliver the same
+	// certificate (the restart gesture) and mint a fresh ticket for a new session.
+	identity := brokerCall(t, pipe, map[string]any{"method": "getDeviceIdentity", "request_id": "id-r"})
+	data := identity["data"].(map[string]any)
+	jwkRaw, err := json.Marshal(data["public_key_jwk"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	pub, err := devicesig.ParseJWK(jwkRaw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	brokerCall(t, pipe, map[string]any{
+		"method": "redeliverDeviceCertificate", "request_id": "cert-r",
+		"device_id": f.deviceID, "certificate_pem": f.certPEM, "org_id": testOrg, "subject_id": testSubject,
+	})
+	ticketPath := strings.ReplaceAll(api.DeviceSessionTicketsPath, "{deviceId}", f.deviceID)
+	ticketBody := fmt.Sprintf(`{"client_request_id":"restart-ticket","public_key_thumbprint":%q}`, pub.Thumbprint)
+	minted := decodeObject(t, deviceRequest(t, http.MethodPost, f.restURL+ticketPath, ticketBody))
+	ticket, _ := minted["ticket"].(string)
+	ticketRowID, _ := minted["session_ticket_id"].(string)
+	brokerCall(t, pipe, map[string]any{
+		"method": "deliverDeviceSessionTicket", "request_id": "tick-r",
+		"device_id": f.deviceID, "session_ticket_id": ticketRowID, "ticket": ticket,
+	})
+	sessionID, epoch := waitForBrokerSession(t, f.dbName, f.deviceID, newBootID, f.agentID)
+	if sessionID == "" {
+		t.Fatalf("Broker #2 never established a session; stderr:\n%s", stderr.String())
+	}
+	return pipe, stderr, cmd, sessionID, epoch
 }
 
 // waitForPublishedVersion polls for the published local_only artifact_version finalize_local_artifact

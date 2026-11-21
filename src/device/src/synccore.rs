@@ -132,6 +132,24 @@ pub fn spawn_sync_core(
                             .entry(facts.run_id.clone())
                             .or_default()
                             .push(facts.version_id.clone());
+                        // Batch 5: persist the sealed deliverable so a restart rebuilds the
+                        // publication facts without re-executing the Run (local_content carrier).
+                        let row = crate::journal::local_content::DeliverableRow {
+                            run_id: facts.run_id.clone(),
+                            operation_id: facts.operation_id.clone(),
+                            version_id: facts.version_id.clone(),
+                            logical_name: facts.logical_name.clone(),
+                            format: facts.format.clone(),
+                            content_hash: facts.content_hash.clone(),
+                            byte_count: facts.byte_count,
+                            receipt_seq: None,
+                            publish_state: "sealed".to_string(),
+                        };
+                        if let Err(err) =
+                            crate::journal::local_content::record(core.journal().connection(), &row)
+                        {
+                            eprintln!("work-device: local_content record failed: {err:?}");
+                        }
                         core.deliverable_facts
                             .insert(facts.version_id.clone(), *facts);
                         crate::journalop::JournalReply::DeliverableRecorded
@@ -151,7 +169,17 @@ pub fn spawn_sync_core(
                             if let crate::journalop::JournalReply::ReceiptProduced { seq, .. } =
                                 &reply
                             {
-                                core.receipt_seq_by_op.insert(op_id, *seq);
+                                core.receipt_seq_by_op.insert(op_id.clone(), *seq);
+                                // Batch 5: stamp the seq durably so local_publish can still name
+                                // receipt_ref after a restart (the outbox row is cleaned by the
+                                // checkpoint_ack watermark, B03 §3.2).
+                                if let Err(err) = crate::journal::local_content::stamp_receipt_seq(
+                                    core.journal().connection(),
+                                    &op_id,
+                                    *seq,
+                                ) {
+                                    eprintln!("work-device: receipt_seq stamp failed: {err:?}");
+                                }
                             }
                         }
                         reply
@@ -317,6 +345,45 @@ impl SyncCore {
         #[cfg(windows)] node_service: tokio::sync::mpsc::Sender<crate::nodeservice::NodeRequest>,
     ) -> Self {
         let last_receipt_seq = current_receipt_seq(&journal, &ready.device_id);
+        // Batch 5: rebuild the publication state from the durable local_content carrier so a
+        // restart resumes without re-executing the Run. deliverables/facts come from every sealed
+        // row; published from publish_state='published'; receipt_seq_by_op from the stamped seq
+        // (survives the transient outbox cleanup). finish_pending/active_run are NOT restored here:
+        // a real restart mints a new session and the lease/binding stay bound to the old one
+        // (0042:855-870), so a durable finish only re-uploads verbatim via reconcile_uplink.
+        let mut deliverables: HashMap<String, Vec<String>> = HashMap::new();
+        let mut deliverable_facts: HashMap<String, crate::journalop::DeliverableFacts> =
+            HashMap::new();
+        let mut published: HashMap<String, HashSet<String>> = HashMap::new();
+        let mut receipt_seq_by_op: HashMap<String, u64> = HashMap::new();
+        for row in crate::journal::local_content::load_all(journal.connection()).unwrap_or_default()
+        {
+            deliverables
+                .entry(row.run_id.clone())
+                .or_default()
+                .push(row.version_id.clone());
+            if row.publish_state == "published" {
+                published
+                    .entry(row.run_id.clone())
+                    .or_default()
+                    .insert(row.version_id.clone());
+            }
+            if let Some(seq) = row.receipt_seq {
+                receipt_seq_by_op.insert(row.operation_id.clone(), seq);
+            }
+            deliverable_facts.insert(
+                row.version_id.clone(),
+                crate::journalop::DeliverableFacts {
+                    run_id: row.run_id,
+                    operation_id: row.operation_id,
+                    version_id: row.version_id,
+                    logical_name: row.logical_name,
+                    format: row.format,
+                    content_hash: row.content_hash,
+                    byte_count: row.byte_count,
+                },
+            );
+        }
         Self {
             journal,
             key,
@@ -354,15 +421,15 @@ impl SyncCore {
             last_receipt_seq,
             active_run: None,
             run_end_rx: None,
-            deliverables: HashMap::new(),
+            deliverables,
             undelivered: HashMap::new(),
             recorded_checkpoint: HashMap::new(),
             finish_pending: None,
             awaiting_finish_ack: None,
             finish_stopped: HashSet::new(),
-            deliverable_facts: HashMap::new(),
-            receipt_seq_by_op: HashMap::new(),
-            published: HashMap::new(),
+            deliverable_facts,
+            receipt_seq_by_op,
+            published,
             publish_pending: HashSet::new(),
         }
     }
@@ -755,6 +822,8 @@ impl SyncCore {
             state: "started".into(),
             expected_checkpoint_ref: None,
             expected_checkpoint_hash: offer_body.expected_checkpoint_hash.clone(),
+            fence: Some(start.fence as i64),
+            lease_id: Some(start.lease_id.clone()),
         };
         if let Err(err) = recover::persist_start(self.journal.connection(), &row) {
             eprintln!("work-device: persist_start failed: {err:?}");
@@ -1098,8 +1167,11 @@ impl SyncCore {
                         self.finish_pending = None;
                     }
                     "finish_state_mismatch" | "finish_precondition_failed" => {
-                        // Re-reconcile (re-upload un-acked receipts / await resolutions), then re-judge
-                        // over the current facts with a NEW finish_id — never blind-retry the same one.
+                        // Re-reconcile (re-upload un-acked receipts / await resolutions) and reset the
+                        // pending judgment over the current facts. Batch 5 (event-driven backoff): do
+                        // NOT re-judge immediately — that spun against an unchanged server state. The
+                        // next fact trigger (receipt_ack/resolution/publish_ack/checkpoint_ack or a
+                        // journal op) re-runs attempt_finish with a NEW finish_id; never blind-retry.
                         self.reconcile_uplink();
                         if !self.finish_stopped.contains(&run_id) {
                             if let Some(active) =
@@ -1114,7 +1186,6 @@ impl SyncCore {
                                 });
                             }
                         }
-                        self.attempt_finish();
                     }
                     _ => {}
                 }
@@ -1328,26 +1399,14 @@ impl SyncCore {
             self.uplink(&frame.frame_type, frame.body);
             return;
         }
-        // The finish references the latest checkpoint the server has RECORDED (0059 gate).
-        let latest =
-            recover::latest_checkpoint(self.journal.connection(), &pending.run_id).unwrap_or(None);
-        let Some(cp) = latest else {
-            return;
-        };
-        let recorded = self
-            .recorded_checkpoint
-            .get(&pending.run_id)
-            .copied()
-            .unwrap_or(0);
-        if recorded < cp.checkpoint_seq as u64 {
-            return;
-        }
         // Batch 4 publication gate: a `completed` finish needs published `artifact_version` rows
         // (0059 precondition). Publish each sealed deliverable via local_publish after its receipt
         // is durable, before judging completed; finalize is idempotent (same artifact+hash+run
         // replays, 0043:543) so a restart re-publish is safe. Only gate a Run that would be
         // completed (loop ended normally, deliverables, no undelivered dispatch which forces
-        // failed); a failed finish names no deliverables and needs no publication.
+        // failed); a failed finish names no deliverables and needs no publication. Batch 5: this
+        // runs BEFORE the recorded-checkpoint gate so a restart re-publishes sealed deliverables
+        // even though the recorded-checkpoint watermark (a server ack fact) is not rebuilt locally.
         let has_pending_dispatch = self
             .undelivered
             .get(&pending.run_id)
@@ -1391,6 +1450,20 @@ impl SyncCore {
                     return; // wait for the verified publish_ack before judging completed
                 }
             }
+        }
+        // The finish references the latest checkpoint the server has RECORDED (0059 gate).
+        let latest =
+            recover::latest_checkpoint(self.journal.connection(), &pending.run_id).unwrap_or(None);
+        let Some(cp) = latest else {
+            return;
+        };
+        let recorded = self
+            .recorded_checkpoint
+            .get(&pending.run_id)
+            .copied()
+            .unwrap_or(0);
+        if recorded < cp.checkpoint_seq as u64 {
+            return;
         }
         let input = FinishInput {
             run_id: pending.run_id.clone(),
@@ -1501,6 +1574,13 @@ impl SyncCore {
             .entry(ack.run_id.clone())
             .or_default()
             .insert(ack.version_id.clone());
+        // Batch 5: persist the publication fact so a restart skips this version (no redundant uplink).
+        if let Err(err) = crate::journal::local_content::mark_published(
+            self.journal.connection(),
+            &ack.version_id,
+        ) {
+            eprintln!("work-device: publish_state mark failed: {err:?}");
+        }
         eprintln!(
             "work-device: publish_ack accepted {} (run {})",
             ack.version_id, ack.run_id
@@ -1540,6 +1620,57 @@ impl SyncCore {
             eprintln!("work-device: replay run_finish {}", row.finish_id);
             self.awaiting_finish_ack = Some(row.finish_id);
             self.uplink(&frame.frame_type, frame.body);
+        }
+        // Batch 5 (ruling 甲): a restart that left sealed-but-unpublished deliverables rebuilds the
+        // finish judgment from the durable binding facts and re-publishes them. The completed finish
+        // it then proposes is refused unauthorized (the lease/binding stay bound to the dead session,
+        // 0042:855-870) — cross-session finish acceptance is the deferred GW10/M4-M5 boundary.
+        self.resume_pending_finish();
+    }
+
+    /// Rebuild a pending finish for a Run whose sealed deliverables were never published before a
+    /// restart. Only fires when no live Run/pending judgment exists (a fresh restart): it restores
+    /// active_run + finish_pending from the durable runtime_start fence/lease_id and the local_content
+    /// carrier, then re-judges (the publication gate re-publishes unpublished versions). A Run whose
+    /// deliverables are all published, or that is already terminal, is skipped.
+    fn resume_pending_finish(&mut self) {
+        if self.active_run.is_some() || self.finish_pending.is_some() {
+            return;
+        }
+        let run_ids: Vec<String> = self.deliverables.keys().cloned().collect();
+        for run_id in run_ids {
+            if recover::is_run_terminal(self.journal.connection(), &run_id).unwrap_or(true) {
+                continue;
+            }
+            let versions = self.deliverables.get(&run_id).cloned().unwrap_or_default();
+            let published = self.published.get(&run_id).cloned().unwrap_or_default();
+            if versions.iter().all(|v| published.contains(v)) {
+                continue; // nothing left to re-publish
+            }
+            let Some(start) =
+                recover::latest_start(self.journal.connection(), &run_id).unwrap_or(None)
+            else {
+                continue;
+            };
+            let (Some(fence), Some(lease_id)) = (start.fence, start.lease_id.clone()) else {
+                continue;
+            };
+            self.active_run = Some(ActiveRun {
+                run_id: run_id.clone(),
+                binding_revision: start.binding_revision as u64,
+                fence: fence as u64,
+                lease_id: lease_id.clone(),
+            });
+            self.finish_pending = Some(FinishPending {
+                run_id: run_id.clone(),
+                binding_revision: start.binding_revision as u64,
+                fence: fence as u64,
+                lease_id,
+                loop_ended_normally: true,
+            });
+            eprintln!("work-device: resume rebuilds finish judgment for run {run_id} (re-publish)");
+            self.attempt_finish();
+            return;
         }
     }
 }
@@ -1860,6 +1991,8 @@ mod tests {
                     state: "started".into(),
                     expected_checkpoint_ref: None,
                     expected_checkpoint_hash: None,
+                    fence: Some(start.fence as i64),
+                    lease_id: Some(start.lease_id.clone()),
                 },
             )
             .unwrap();
@@ -2156,6 +2289,192 @@ mod tests {
         (core, uplink_rx)
     }
 
+    /// Batch 5 D: a restart rebuilds the publication state from the durable local_content carrier.
+    /// Record a sealed deliverable, stamp its completed receipt seq and mark it published, then
+    /// reopen the SAME journal and construct a fresh core: the four in-memory sets must be restored
+    /// without re-executing the Run (published version skipped on resume, seq survives outbox cleanup).
+    #[test]
+    fn resume_rebuilds_publication_state_from_local_content() {
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join(format!("{DEVICE}.db"));
+        {
+            let journal = Journal::create(&db_path, DEVICE, &dek::TestWrap).unwrap();
+            let row = crate::journal::local_content::DeliverableRow {
+                run_id: "run".into(),
+                operation_id: "op-1".into(),
+                version_id: "v1".into(),
+                logical_name: "a".into(),
+                format: "md".into(),
+                content_hash: "c".repeat(64),
+                byte_count: 9,
+                receipt_seq: None,
+                publish_state: "sealed".into(),
+            };
+            crate::journal::local_content::record(journal.connection(), &row).unwrap();
+            crate::journal::local_content::stamp_receipt_seq(journal.connection(), "op-1", 4)
+                .unwrap();
+            crate::journal::local_content::mark_published(journal.connection(), "v1").unwrap();
+        }
+        // Reopen (the restart path) and build a fresh core from the recovered journal.
+        let journal = Journal::open(&db_path, DEVICE, &dek::TestWrap).unwrap();
+        let (uplink_tx, _uplink_rx) = mpsc::channel::<UplinkFrame>(8);
+        let (link_cmd_tx, _link_cmd_rx) = mpsc::channel::<LinkCommand>(4);
+        let (journal_handle, _journal_op_rx) = crate::journalop::channel();
+        #[cfg(windows)]
+        let (node_service_tx, _node_service_rx) = tokio::sync::mpsc::channel(8);
+        let core = SyncCore::new(
+            journal,
+            ready(),
+            Arc::new(SoftwareKey::random()),
+            uplink_tx,
+            link_cmd_tx,
+            spawn_template(),
+            journal_handle,
+            instance_facts(),
+            #[cfg(windows)]
+            node_service_tx,
+        );
+        assert_eq!(
+            core.deliverables.get("run").unwrap(),
+            &vec!["v1".to_string()]
+        );
+        let facts = core.deliverable_facts.get("v1").unwrap();
+        assert_eq!(facts.operation_id, "op-1");
+        assert_eq!(facts.content_hash, "c".repeat(64));
+        assert_eq!(facts.byte_count, 9);
+        assert_eq!(core.receipt_seq_by_op.get("op-1"), Some(&4));
+        assert!(core.published.get("run").unwrap().contains("v1"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Batch 5 D/F (ruling 甲): a restart that left a sealed-but-unpublished deliverable rebuilds the
+    /// finish judgment from the durable runtime_start fence/lease_id + local_content carrier and
+    /// re-publishes it (a local_publish uplink), without re-executing the Run. The completed finish it
+    /// would propose is the server's session-gated refusal (deferred GW10/M4-M5), not asserted here.
+    #[test]
+    fn restart_republishes_a_sealed_deliverable_from_durable_facts() {
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join(format!("{DEVICE}.db"));
+        {
+            let journal = Journal::create(&db_path, DEVICE, &dek::TestWrap).unwrap();
+            recover::persist_start(
+                journal.connection(),
+                &recover::StartRow {
+                    run_id: "run".into(),
+                    binding_revision: 1,
+                    binding_hash: "binding".into(),
+                    start_nonce: "nonce-1".into(),
+                    state: "started".into(),
+                    expected_checkpoint_ref: None,
+                    expected_checkpoint_hash: None,
+                    fence: Some(2),
+                    lease_id: Some("lease-1".into()),
+                },
+            )
+            .unwrap();
+            let rctx = journal.context("org", "sub");
+            let dek = *journal.dek();
+            record::append_action(
+                journal.connection(),
+                &dek,
+                &rctx,
+                &ActionRow {
+                    org_id: "org",
+                    operation_id: "op-1",
+                    run_id: "run",
+                    attempt: "attempt-1",
+                    step_key: "tool:0:0",
+                    logical_key: "tool:0:0#0",
+                    supersedes: None,
+                    request_hash: "hash",
+                    fence: 2,
+                    session_id: "sess",
+                    generation: 1,
+                    permit_jti: "jti-1",
+                    state: "succeeded",
+                    result_hash: None,
+                    result_ref: None,
+                },
+                b"body",
+            )
+            .unwrap();
+            journal
+                .connection()
+                .execute(
+                    "UPDATE action_journal SET result_hash = ?1, result_ref = 'run:op-1'
+                     WHERE org_id = 'org' AND run_id = 'run' AND operation_id = 'op-1'",
+                    rusqlite::params!["a".repeat(64)],
+                )
+                .unwrap();
+            recover::persist_checkpoint(
+                journal.connection(),
+                &dek,
+                &rctx,
+                &recover::CheckpointRow {
+                    run_id: "run".into(),
+                    checkpoint_seq: 1,
+                    schema_version: crate::journal::schema::SCHEMA_VERSION,
+                    runtime_digest: "digest".into(),
+                    checkpoint_hash: "c".repeat(64),
+                    pending_operation_set_hash: "p".repeat(64),
+                    prior_receipt_ref: Some("1".into()),
+                },
+                b"canonical",
+            )
+            .unwrap();
+            let row = crate::journal::local_content::DeliverableRow {
+                run_id: "run".into(),
+                operation_id: "op-1".into(),
+                version_id: "v1".into(),
+                logical_name: "a".into(),
+                format: "md".into(),
+                content_hash: "c".repeat(64),
+                byte_count: 9,
+                receipt_seq: None,
+                publish_state: "sealed".into(),
+            };
+            crate::journal::local_content::record(journal.connection(), &row).unwrap();
+            crate::journal::local_content::stamp_receipt_seq(journal.connection(), "op-1", 1)
+                .unwrap();
+        }
+        // Restart: reopen the journal and build a fresh core (no live Run, no recorded-checkpoint ack).
+        let journal = Journal::open(&db_path, DEVICE, &dek::TestWrap).unwrap();
+        let (uplink_tx, mut uplink_rx) = mpsc::channel::<UplinkFrame>(8);
+        let (link_cmd_tx, _link_cmd_rx) = mpsc::channel::<LinkCommand>(4);
+        let (journal_handle, _journal_op_rx) = crate::journalop::channel();
+        #[cfg(windows)]
+        let (node_service_tx, _node_service_rx) = tokio::sync::mpsc::channel(8);
+        let mut core = SyncCore::new(
+            journal,
+            ready(),
+            Arc::new(SoftwareKey::random()),
+            uplink_tx,
+            link_cmd_tx,
+            spawn_template(),
+            journal_handle,
+            instance_facts(),
+            #[cfg(windows)]
+            node_service_tx,
+        );
+        assert!(core.active_run.is_none());
+        core.resume_pending_finish();
+        let frame = uplink_rx
+            .try_recv()
+            .expect("a re-publish local_publish uplink");
+        assert_eq!(frame.frame_type, publish::PUBLISH_FRAME_TYPE);
+        assert_eq!(frame.body["version_id"], "v1");
+        assert_eq!(frame.body["run_id"], "run");
+        assert_eq!(frame.body["operation_id"], "op-1");
+        // receipt_ref names the durable stamped seq (epoch:1), surviving the outbox cleanup.
+        let epoch = core.journal.journal_epoch().to_string();
+        assert_eq!(frame.body["receipt_ref"], format!("{epoch}:1"));
+        assert!(core.publish_pending.contains("v1"));
+        drop(core);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// Seed one succeeded artifact.write operation with its completed receipt + a recorded checkpoint,
     /// the journal facts a completed finish judges from.
     fn seed_completed_write(core: &mut SyncCore) {
@@ -2283,6 +2602,58 @@ mod tests {
             1
         );
         assert!(core.awaiting_finish_ack.is_some());
+        drop(core);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// Batch 5 E (event-driven backoff): a rejected finish_precondition_failed verdict re-reconciles
+    /// and resets the pending judgment, but does NOT immediately re-propose (the removed spin). A new
+    /// finish_id only appears on the next fact trigger (here an explicit attempt_finish).
+    #[test]
+    fn rejected_finish_backs_off_until_the_next_fact_trigger() {
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let server = SoftwareKey::random();
+        let permit = SoftwareKey::random();
+        let (mut core, mut uplink_rx) =
+            core_with_uplinks(&dir, SoftwareKey::random(), &server, &permit);
+        seed_completed_write(&mut core);
+        // First proposal: a durable completed finish awaiting its ack.
+        core.on_run_ended(Ok(()));
+        let first = uplink_rx.try_recv().expect("first run_finish uplink");
+        assert_eq!(first.frame_type, finish::FINISH_FRAME_TYPE);
+        let first_id = first.body["finish_id"].as_str().unwrap().to_string();
+        // The server rejects it (precondition failed). apply_finish_ack marks the row rejected, so
+        // reconcile_uplink will not replay it; the removed spin must not re-propose immediately.
+        let mut ack = finish::RunFinishAckBody {
+            finish_id: first_id.clone(),
+            state: "rejected".into(),
+            code: Some("finish_precondition_failed".into()),
+            terminal_run_revision: None,
+            expected_operation_set_hash: "hash".into(),
+            unresolved_operations: Vec::new(),
+            signature: None,
+        };
+        ack.signature = Some(
+            sign::sign_frame(&server, finish::FINISH_ACK_FRAME_TYPE, &ack.to_value()).unwrap(),
+        );
+        core.consume_finish_ack(&server.public_jwk(), ack.to_value());
+        // No immediate re-proposal: drain every uplink the rejection produced and assert none is a
+        // run_finish (reconcile may re-upload un-acked receipts, which is not a finish spin).
+        while let Ok(frame) = uplink_rx.try_recv() {
+            assert_ne!(
+                frame.frame_type,
+                finish::FINISH_FRAME_TYPE,
+                "rejected finish spun an immediate re-proposal"
+            );
+        }
+        assert!(core.awaiting_finish_ack.is_none());
+        assert!(core.finish_pending.is_some(), "pending judgment was reset");
+        // The next fact trigger re-judges over the current facts with a NEW finish_id.
+        core.attempt_finish();
+        let second = uplink_rx.try_recv().expect("re-judged run_finish uplink");
+        assert_eq!(second.frame_type, finish::FINISH_FRAME_TYPE);
+        assert_ne!(second.body["finish_id"].as_str().unwrap(), first_id);
         drop(core);
         let _ = std::fs::remove_dir_all(dir);
     }

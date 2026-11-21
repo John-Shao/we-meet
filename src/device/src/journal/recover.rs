@@ -247,6 +247,10 @@ pub struct StartRow {
     pub state: String,
     pub expected_checkpoint_ref: Option<String>,
     pub expected_checkpoint_hash: Option<String>,
+    /// Batch 5: the binding's fence/lease_id, persisted so a restart can rebuild the finish
+    /// judgment that re-publishes sealed deliverables. None on rows written before batch 5.
+    pub fence: Option<i64>,
+    pub lease_id: Option<String>,
 }
 
 /// Persist a resume binding. Idempotent on retry; `start_nonce` stays UNIQUE.
@@ -254,8 +258,8 @@ pub fn persist_start(conn: &Connection, row: &StartRow) -> rusqlite::Result<()> 
     conn.execute(
         "INSERT OR IGNORE INTO runtime_start
             (run_id, binding_revision, binding_hash, start_nonce, state,
-             expected_checkpoint_ref, expected_checkpoint_hash)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+             expected_checkpoint_ref, expected_checkpoint_hash, fence, lease_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
             row.run_id,
             row.binding_revision,
@@ -264,6 +268,8 @@ pub fn persist_start(conn: &Connection, row: &StartRow) -> rusqlite::Result<()> 
             row.state,
             row.expected_checkpoint_ref,
             row.expected_checkpoint_hash,
+            row.fence,
+            row.lease_id,
         ],
     )?;
     Ok(())
@@ -277,7 +283,7 @@ pub fn read_start(
 ) -> rusqlite::Result<Option<StartRow>> {
     conn.query_row(
         "SELECT run_id, binding_revision, binding_hash, start_nonce, state,
-                expected_checkpoint_ref, expected_checkpoint_hash
+                expected_checkpoint_ref, expected_checkpoint_hash, fence, lease_id
          FROM runtime_start WHERE run_id = ?1 AND binding_revision = ?2",
         params![run_id, binding_revision],
         |r| {
@@ -289,6 +295,8 @@ pub fn read_start(
                 state: r.get(4)?,
                 expected_checkpoint_ref: r.get(5)?,
                 expected_checkpoint_hash: r.get(6)?,
+                fence: r.get(7)?,
+                lease_id: r.get(8)?,
             })
         },
     )
@@ -299,7 +307,7 @@ pub fn read_start(
 pub fn latest_start(conn: &Connection, run_id: &str) -> rusqlite::Result<Option<StartRow>> {
     conn.query_row(
         "SELECT run_id, binding_revision, binding_hash, start_nonce, state,
-                expected_checkpoint_ref, expected_checkpoint_hash
+                expected_checkpoint_ref, expected_checkpoint_hash, fence, lease_id
          FROM runtime_start WHERE run_id = ?1 ORDER BY binding_revision DESC LIMIT 1",
         params![run_id],
         |r| {
@@ -311,6 +319,8 @@ pub fn latest_start(conn: &Connection, run_id: &str) -> rusqlite::Result<Option<
                 state: r.get(4)?,
                 expected_checkpoint_ref: r.get(5)?,
                 expected_checkpoint_hash: r.get(6)?,
+                fence: r.get(7)?,
+                lease_id: r.get(8)?,
             })
         },
     )

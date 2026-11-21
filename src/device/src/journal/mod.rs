@@ -11,6 +11,7 @@
 
 pub mod crypto;
 pub mod dek;
+pub mod local_content;
 pub mod meta;
 pub mod record;
 pub mod recover;
@@ -209,6 +210,9 @@ impl Journal {
         lock: OwnerLock,
     ) -> Result<Journal, JournalError> {
         let conn = Connection::open(db_path)?;
+        // Idempotent schema/migration pass on open too, so a journal created before
+        // a plain-column extension (batch 5 local_content) gains the new columns.
+        schema::apply(&conn)?;
         let wrapped = meta::wrapped_dek(&conn, device_id).map_err(|_| JournalError::NotFound)?;
         let dek = wrap.unwrap(&wrapped)?;
         let journal_epoch = meta::journal_epoch(&conn, device_id)?;
