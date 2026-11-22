@@ -3,6 +3,7 @@
 日期：2026-11-22
 状态：现读单，**不是裁定、不是实现授权**。主签 2026-11-22 单选＝甲（先出选型现读单），本单只回答 ADR-0026 的第①②③问并给出可裁的分叉。
 **同日追加（2026-11-22）：本单落笔后主签另裁 P1＝甲（托管 `crypto.Signer` 适配 spike），上两行逐字保留；该裁定只定"先做哪个"，见 §6 原位注记——不得据此读成任何替换已开工、已装依赖或已部署。**
+**同日追加二（2026-11-22）：主签另裁 P2＝甲（纯文件＋现有密钥面，只加 ACL，不外移），上一条逐字保留；该裁定定的是托管后端的形状＝OS 级密钥文件纪律，不等于密钥已外移或硬件/云托管，仍不含开工与部署授权。P3／P4 仍开放。**
 范围：设备面证书签发（`deviceca`）与其信任锚分发。不涉及 journal 加密、不涉及设备执行语义、不涉及现网部署。
 权威来源：`src/work/internal/deviceca/`、`src/work/cmd/work-api/main.go`、`src/work/cmd/work-gateway/main.go`、`src/work/internal/api/devices.go`、`src/work/migrations/increments/0058_device_certificate_issuance.sql`、`src/device/src/transport/{mod.rs,link.rs}`、`docs/work/design/work-r0b-device-design-2026-10-30.md` §2.1、`docs/work/design/work-r0b-control-design-2026-10-30.md` §10。
 
@@ -55,6 +56,11 @@
 - **P1 第一步做哪个**：甲＝A（KMS/PKCS#11 Signer 适配 spike，缺口最贴、形态冲击最小，推荐）／乙＝B（cfssl 库替换模板）／丙＝C（step-ca 服务，含层级与轮换）／丁＝先只裁"信任锚与链形状的未来口径"（C3/C4），组件选型留后。
   - **2026-11-22 原位注记｜P1 已裁＝甲**（主签单选，原文逐字保留在上条）：第一步落点为**托管 `crypto.Signer` 适配器**，即本单 §2 的候选 A、§4 建议顺序的第一格；据此 §7 所要求的 ADR-0026 排序行补记已以原位注记方式落笔（见 [ADR-0026](../decisions/0026-component-reuse-first.md) 设备 PKI 行）。**此裁定只裁"先做哪个"，不含开工授权、不含依赖引入、不含现网部署**；spike 批须另请开工与提交授权，且开工前须按本单 §7 重读组件版本与许可快照。P2（托管后端）／P3（层级）／P4（CRL/OCSP）仍未裁——注意 P1＝甲使 P2 从"若走 A 再说"变成**当前阻塞项**：托管后端未定时，spike 只能先把接口骨架与一个可替换的假后端做出来（`crypto.Signer` 的 `Public()`/`Sign()` 形状与 0058 serial 语义不依赖后端），真后端调用面须等 P2 落定才可写。
 - **P2 若走 A**：托管后端＝阿里云 KMS／PKCS#11 硬件／纯文件＋现有密钥面（只加 ACL，不外移）——此问决定 J39 复核面的形状。
+  - **2026-11-22 原位注记｜P2 已裁＝甲（纯文件＋现有密钥面，只加 ACL，不外移）**（上条原文逐字保留）：
+    - **含义须如实钉死**：CA 私钥仍由 work-api 进程从 `WORK_DEVICE_CA_KEY` 指向的文件读入并持有（现读 C5 **不变**，`load.go:19-49`＋`cmd/work-api/main.go:73-86`）。本裁定**不**把密钥移出进程、**不**引入云 KMS／PKCS#11／TPM 依赖，因此 J39 的"设备CA/证书托管与轮换"复核面形状定为**OS 级密钥文件纪律**（owner／group／mode＋装载路径），不是硬件或云托管。把"选甲"读成"托管已解决"即为误读。
+    - **仓库既有同族做法可参照**：`src/work/deploy/ecs/init-workload-pki.sh:37-51` 已经用 `umask 077` ＋目录 `750` ＋`ca.key` `600` ＋`ca.crt` `644` 管一个文件态 CA 私钥——注意那是 **workload CA（服务间 mTLS，卡片 Y）**，不是设备 CA，本单不把两者混为一谈，只指出纪律形状已有先例可循；且 `test/device-cert-issuance.test.mjs:242-243,265` 已钉住"env 文件只放路径、不得内联 CA 私钥"。
+    - **对 spike 的直接后果**：上条 P1 注记里"真后端调用面须等 P2 落定才可写"的限制自本裁定起解除（该句原文逐字保留）；被裁的后端就是文件装载路径，所以真后端调用面**可以**写，接口缝为把 `CA.Key *ecdsa.PrivateKey`（`ca.go:33`）换成 `crypto.Signer`——`x509.CreateCertificate` 的签发者参数本就是该接口（`ca.go:92` 传 `c.Key`），C1–C4 的模板、链形状、serial、台账、信任锚分发逐字不动。ACL 落点在部署面（属生产写，仍须单独 rollout 授权），不属本单。
+    - **纪律回写**：ADR-0026 第②问把 PKI 划为安全关键路径并默认选开源，本格由主签以部署策略裁为"不外移"，属该问所述"可验证硬约束／策略约束"的使用，须连同两个被否方案（乙＝阿里云 KMS、丙＝PKCS#11／TPM）一并记入 ADR 同族文档，以免日后被读成随手自研。P3（层级）与 P4（CRL/OCSP）仍开放。
 - **P3 层级**：是否引入 root＋intermediate（决定 C4 链形状、C3 信任锚分发、0058 是否加列）。
 - **P4 撤销控制**：维持"DB 判活＋24h 上限"，还是额外采纳 CRL/OCSP（新控制，须重裁）。
 
