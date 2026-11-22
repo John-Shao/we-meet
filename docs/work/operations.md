@@ -162,6 +162,8 @@ sudo ./rollout-r0a-0027.sh --release <发布目录> --migrations-only
 
 ### 3.4 rollout 0040–0045 的三道前置
 
+> 2026-11-22 注记：标题里的"三道"是 0040–0045 时期的计数，标题原文保留不改；现读为五道——第 4 条随整包 0040–0062 重切新增，第 5 条随卡片 W 追加二（W2＝甲）新增。
+
 1. **工作树干净**：`RELEASE_DIRTY=0`；脏包不可复现，rollout 会打 WARN。
 2. **窗口当场生产写授权**：定序裁定不含执行授权。若包内含 authz 热加载改动（卡片 Y 前置 d），restart work-authz 会把 workloads.json 热加载变成现网行为——单独取授权或分开出包。
 3. **同二进制重放预检**（换 work-worker 前必做，旧 runbook §5.32）：
@@ -186,6 +188,18 @@ sudo ./rollout-r0a-0027.sh --release <发布目录> --migrations-only
    ```
 
    读数为 0 → 可跑第一步；非 0 → 本窗口不跑该链，另批处置（回滚不可用"删列"绕过，0024 房屋规则下也不给表权限）。同一条判据也覆盖 `0059:11`（那条带 DEFAULT，安全，仅记录）。
+
+5. **备份三件主机哈希装前比对（2026-11-22 随卡片 W 追加二／W2＝甲 新增，只读前置）**：第二步换 work-api 前（脚本 units 段会覆盖这三件），先按**剥 CR 口径**读主机原件并与仓库钉比对，任一不符不开写：
+
+   ```bash
+   for f in /opt/meet-db-backup/work-content-backup.py \
+            /etc/systemd/system/work-content-backup.service \
+            /etc/systemd/system/work-content-backup.timer; do
+     if [ -e "$f" ]; then sudo tr -d '\r' < "$f" | sha256sum; else echo "MISSING $f"; fi
+   done
+   ```
+
+   仓库钉：`.py`＝`393aae65d1ab82b18a75394c112081ba591cf7a9dc8d39ee37484702494fa31c`（另两件的字节钉在 `release-payload-closure.test.mjs`）。**判据边界**：`verify-r0a-0027.sh` 已逐名报 present/MISSING 与 `host_sha16`（剥 CR），但脚本内**没有**"读数与仓库钉不等即中止"的动作 ⇒ 本条的 fail-closed 目前靠现场手工比对，机械化须在 rollout 批获授权时补脚本；在那之前不得声称两侧一致已被机器保证。`.service`／`.timer` 若是首次安装（主机无原件）按 MISSING 记录并继续，这不属不一致。
 
 **两步排程（R2 甲＋R3 乙＋排程甲的合并结果）**：`--migrations-only` 与 `--enable-advance`／`--runtime-bundle` 互斥（`rollout-r0a-0027.sh:73-80` 直接拒绝），故整包 0040–0062 在同一窗口内**分两次调用**：第一步只跑 migration（含上列四道前置），第二步在"同二进制重放预检全绿＋在途 Run 已 drain 到零"之后换 work-worker＋work-api 并落 V/W/Y。两次调用各自需要一笔独立的现场生产写授权；第一步完成不等于第二步已获授权。
 
