@@ -33,6 +33,7 @@
 | 0023 | 静态单层凭证加密，云 KMS 缓接（D-03 B） | [本目录](0023-static-single-layer-encryption.md) |
 | 0024 | 撤席位只拦新工作，在途 Run 运营取消（D-07 A） | [本目录](0024-seat-revocation-block-new-work.md) |
 | 0025 | 不拆仓，Work 集中于 src/work 子树（RB-06） | [本目录](0025-monorepo-work-subtree.md) |
+| 0026 | 组件复用优先：自研前必答三问，安全关键路径默认选开源（甲＝先立纪律，零代码） | [本目录](0026-component-reuse-first.md) |
 
 ## 模板
 

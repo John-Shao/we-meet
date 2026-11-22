@@ -26,6 +26,8 @@
 
 ## 3. 开放裁定项（2026-11-19 主签逐项单选已答，定稿）
 
+**【2026-11-22 格式追加（主签单选＝甲"先立纪律，零代码"；本节既有 E1–E7 原文逐字保留、不重开）：自本日起，本面（及同族设计单）新批次的每一项"开放裁定项"必须先答三问再给选项——① 是否存在具名开源候选覆盖同一契约（不是"有相关库"，是"它的接口＝我们要的语义"）；② 该能力是否落在安全关键路径（密码构造／PKI／授权决策／沙箱／序列化规范／幂等与重放语义），落在则默认选开源，只有给出可验证的硬约束（平台／打包形态／许可／外部审计可达性）才允许自研，并把被拒方案与代价写进同批设计单；③ 替换成本随时间升还是降，未沉没者优先。判据、四处分级与保留自研的理由的权威载体是 [ADR-0026](../decisions/0026-component-reuse-first.md)（活义务卡片 RB-07 在 [open-rulings.md](../decisions/open-rulings.md)）。本追加不改动 E1–E7 的任何已裁结论：E2 复用 pi-agent-core 正是第 ① 问的既有正例，E1/E6 的 device_local 模型面与 §4 的 AppContainer/Job 属第 ② 问下"被硬约束挡住"的保留项。】**
+
 **E1｜模型面与 completion 口径 —— 裁定＝甲（2026-11-19）**。纳入 device_local model 面（DD:264），completion 按 DD:138 原口径（model 驱动循环至 ≥1 artifact.write 成功版本）；device-egress（DD:241-262）按 E=B 移出。request doc（DD:239）/response（DD:250）shape 为 device_local 存活句，本单 §5 重述（消 DD:98 stale「§5.3 第 258 行」引用——device_local usage 条款实在 DD:264，258 是 egress gate-fact 表行）。**不取乙**（tool-only 最小执行器＋另裁 completion）：无 model 则无驱动循环至 artifact.write 者，DD:138 完成门不可达，须偏离设计另立判据，本批不引入该偏离。
 
 **E2｜Node bundle 形态 —— 裁定＝甲（2026-11-19）**。复用 pi-agent-core（与云端 R0a 同核 @earendil-works/pi-agent-core 1.4.0）＋本机 compat profile（tool_calls 另实现并验证，DD:250「现有适配器丢弃 tool_calls 且消息只有 role/content」）。设备 bundle 固定签名、无安装时 npm（ARCH:126），pi-agent-core/pi-ai 字节随包 vendored，runtime_digest 钉这些字节（§6.4）。**不取乙**（自定义最小 tool-loop）：云端 child-pi.mjs 已证 pi-agent-core 适配模式可行，复用同核减少两套循环语义漂移；compat profile 的 tool_calls 缺口是已知须另实现项，不是弃核理由。

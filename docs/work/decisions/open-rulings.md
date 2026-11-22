@@ -35,3 +35,5 @@
 | 有效续租不因旧截止点打断同一次模型调用 | `modelproxy::tests::renewal_keeps_the_same_in_flight_connection_alive_past_the_old_deadline` | 同一连接跨过旧截止点后收到有效结果，无第二连接 |
 | 已发调用的中断不能记成未执行或成功 | `nodeservice::tests::model_cancellation_records_a_local_unknown_turn_awaiting_resolution` | 已确认 endpoint 收到完整请求并返回响应头后撤销，真实 `invoke_model` 返回 unknown，真实 journal 检查点回读为 unknown、outcome=null；模型事实仅本地，不等于服务端 I5 核账闭合 |
 | 所有 Broker 在途 I/O 都可在失权后有界结束 | `tool_exec.rs` 的同步 NT/文件调用及 `listener::resolve_listener` 的同步身份检查 | 仍未闭合；文件副作用不可撤回，身份检查返回前无法承诺取消时限；本轮未更改这些调用，不声称已完成整个设备残口 |
+
+**卡片 RB-07｜组件复用优先＝甲（先立纪律，零代码）**：判据与四处排序记入 [ADR-0026](0026-component-reuse-first.md)——新造通用能力前必须在当批设计单"开放裁定项"回答三问（具名开源候选是否覆盖同一契约／是否在安全关键路径（若是默认选开源，除非给出可验证硬约束）／替换成本随时间升还是降）。**本卡片是活义务而不是已完成事项**：① 未选任何替换方案、未装任何依赖、未改一行代码，替换仍须逐批另请开工与提交授权；② 表内组件版本与许可是 2026-11-22 现读快照，任何替换批开工前须重读；③ 优先级排序为设备 PKI（生产 CA 尚未定＝未沉没）→ 契约形状校验与类型生成 → 设备 journal 加密（须与"rusqlite 无 CGO"的打包裁定一起重裁，不得只换库）→ 工具面协议让位于标准接口（属 R2 前置，本期不动）；④ 明确保留自研的两处已记理由（Windows AppContainer/Job/每 Run SID 与 accept 处身份闸无可嵌入成熟件；授权决策留在 SQL＋RLS 以免事实源一分为二）。**复评窗 2026-12-06，或 0046–0062 rollout 重切包裁定时，先到为准**；J39 外部审计若指认某处自研密码/PKI 构造，该项即时升优先并须新建 ADR 记录替换。
