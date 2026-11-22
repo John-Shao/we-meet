@@ -22,6 +22,19 @@ func keyPEM(t *testing.T, key any) []byte {
 	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
 }
 
+// generatedCAPECSAKey reaches the concrete key behind a CA produced by NewCA. Test-only:
+// the production type holds only a crypto.Signer, so re-encoding a configured key in a
+// test needs the concrete key back, and asserting it is exactly what the file backend is
+// expected to round-trip.
+func generatedCAPECSAKey(t *testing.T, ca *CA) *ecdsa.PrivateKey {
+	t.Helper()
+	key, ok := ca.Signer.(*ecdsa.PrivateKey)
+	if !ok {
+		t.Fatalf("NewCA produced a %T, not an *ecdsa.PrivateKey", ca.Signer)
+	}
+	return key
+}
+
 // expiredCAPEM self-signs a CA whose validity is already over, so the loader's expiry
 // refusal is exercised against a real certificate rather than a mutated struct.
 func expiredCAPEM(t *testing.T) ([]byte, []byte) {
@@ -51,15 +64,21 @@ func TestLoadCARoundTripsAConfiguredCA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	loaded, err := LoadCA(ca.CertPEM, keyPEM(t, ca.Key))
+	caKey := generatedCAPECSAKey(t, ca)
+	loaded, err := LoadCA(ca.CertPEM, keyPEM(t, caKey))
 	if err != nil {
 		t.Fatalf("LoadCA: %v", err)
 	}
 	if string(loaded.Cert.Raw) != string(ca.Cert.Raw) {
 		t.Fatal("loaded CA certificate differs from the configured one")
 	}
-	if !loaded.Key.Equal(ca.Key) {
+	// The interface is the seam, so the round trip is proved on what a signer exposes:
+	// the loaded backend's public key must be the certificate's own.
+	if !publicKeysMatch(loaded.Signer.Public(), ca.Signer.Public()) {
 		t.Fatal("loaded CA key differs from the configured one")
+	}
+	if _, ok := loaded.Signer.(*ecdsa.PrivateKey); !ok {
+		t.Fatalf("the file backend returned a %T, not the parsed EC key", loaded.Signer)
 	}
 	// The loaded CA must still issue a device certificate that chains to it: loading is
 	// not a parse-only exercise, it is the production issuance path.
@@ -80,7 +99,7 @@ func TestLoadCARoundTripsAConfiguredCA(t *testing.T) {
 	}
 
 	// SEC1 is the other encoding an operator's key file may carry.
-	sec1, err := x509.MarshalECPrivateKey(ca.Key)
+	sec1, err := x509.MarshalECPrivateKey(caKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,10 +113,10 @@ func TestLoadCARefusesUnusableMaterial(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	good := keyPEM(t, ca.Key)
+	good := keyPEM(t, generatedCAPECSAKey(t, ca))
 
 	for _, tc := range []struct {
-		name     string
+		name      string
 		cert, key []byte
 	}{
 		{"empty cert", nil, good},

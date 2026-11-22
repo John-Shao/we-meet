@@ -491,7 +491,7 @@ func shortLivedDeviceCert(t *testing.T, ca *deviceca.CA, deviceID string, pub *e
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 	}
-	der, err := x509.CreateCertificate(rand.Reader, template, ca.Cert, pub, ca.Key)
+	der, err := x509.CreateCertificate(rand.Reader, template, ca.Cert, pub, ca.Signer)
 	if err != nil {
 		t.Fatal(err)
 	}

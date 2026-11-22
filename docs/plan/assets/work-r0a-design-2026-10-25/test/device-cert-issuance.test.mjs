@@ -228,7 +228,24 @@ test('a configured CA is loaded, validated, and never generated in process by wo
   assert.match(load, /func LoadCA\(certPEM, keyPEM \[\]byte\) \(\*CA, error\)/);
   assert.match(load, /if !cert\.IsCA \|\| cert\.KeyUsage&x509\.KeyUsageCertSign == 0 \{/);
   assert.match(load, /if !time\.Now\(\)\.Before\(cert\.NotAfter\) \{/);
-  assert.match(load, /if !key\.PublicKey\.Equal\(cert\.PublicKey\) \{/);
+  assert.match(load, /if !publicKeysMatch\(signer\.Public\(\), cert\.PublicKey\) \{/);
+  // 2026-11-22 custody seam: the match is made through the signer interface now, so the
+  // loader no longer names a key type at all. Key parsing lives in signer.go, and doing it
+  // again here would put two custody boundaries in the same package.
+  assert.ok(!/ParsePKCS8PrivateKey|ParseECPrivateKey/.test(load),
+    'load.go must not parse key material itself; signer.go is the custody boundary');
+  const signerSrc = goCode(read(join(WORK, 'internal', 'deviceca', 'signer.go')));
+  assert.match(signerSrc, /func fileSignerFromPEM\(keyPEM \[\]byte\) \(crypto\.Signer, error\)/);
+  assert.match(signerSrc, /func publicKeysMatch\(a, b crypto\.PublicKey\) bool \{/);
+  const caSrc = goCode(read(join(WORK, 'internal', 'deviceca', 'ca.go')));
+  assert.match(caSrc, /Signer\s+crypto\.Signer/);
+  assert.ok(!/Key\s+\*ecdsa\.PrivateKey/.test(caSrc),
+    'the CA must not hold a concrete private key again; that field is the seam this batch made');
+  assert.match(caSrc, /x509\.CreateCertificate\(rand\.Reader, template, c\.Cert, pub, c\.Signer\)/);
+  // The one invariant the seam is allowed to have: issuing through the interface equals
+  // issuing with a concrete key, field by field.
+  assert.match(read(join(WORK, 'internal', 'deviceca', 'signer_test.go')),
+    /func TestFileBackendSignsTheSameCertificateTemplate\(t \*testing\.T\) \{/);
   const main = goCode(read(MAIN));
   assert.match(main, /os\.Getenv\("WORK_DEVICE_CA"\)/);
   assert.match(main, /requiredEnv\("WORK_DEVICE_CA_KEY"\)/);
@@ -243,6 +260,10 @@ test('a configured CA is loaded, validated, and never generated in process by wo
   assert.match(env, /^#WORK_DEVICE_CA_KEY=\/etc\/work\/device-ca\.key$/m);
   assert.ok(!/BEGIN [A-Z ]*PRIVATE KEY/.test(env), 'the env template must not carry key material');
   assert.match(env, /J39 sign-off item and are NOT settled by wiring these two variables/);
+  // Access control is the deployment's job (2026-11-22 ruling: plain file key plane, ACL
+  // deployment-side, no process-side mode check), so the shape has to be written down.
+  assert.match(env, /0600 and root-owned/);
+  assert.match(env, /performs no mode check of its own/);
 });
 
 test('the new evidence runs in CI: no platform or environment skip on the certificate tests', () => {

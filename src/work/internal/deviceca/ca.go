@@ -9,9 +9,16 @@
 // sign-off item (device-design §2.1 step 4, §2.1:55 installation matrix; control-design
 // §10 lists 设备CA/证书轮换 as a J39 independent-review surface) and remain deferred.
 // Nothing here claims production security or hardware attestation.
+//
+// The custody rule the project ruled for now (2026-11-22: P1 = the adapter seam first,
+// P2 = pure file key plane with deployment-side access control) is expressed as one
+// boundary: signer.go turns configured key material into the crypto.Signer a CA issues
+// with. The private key still lives in this process's memory; naming the boundary is
+// what makes a later backend a different constructor instead of a different template.
 package deviceca
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -27,10 +34,17 @@ import (
 // DeviceCertTTL is the device certificate lifetime (device-design §2.1 step 4: 24h).
 const DeviceCertTTL = 24 * time.Hour
 
-// CA is a self-signed certificate authority used only for tests/local development.
+// CA is a certificate authority together with the backend that signs with its key.
+// NewCA's self-signed CA is used only for tests/local development; a configured CA
+// arrives through LoadCA.
 type CA struct {
-	Cert    *x509.Certificate
-	Key     *ecdsa.PrivateKey
+	Cert *x509.Certificate
+	// Signer is the issuing key. It is a crypto.Signer rather than a concrete private
+	// key so that "where the key comes from" is a named boundary (see signer.go): the
+	// file backend LoadCA uses holds the parsed key in this process's memory, which is
+	// what P2 = pure file key plane rules, and a future custody backend is a different
+	// constructor here rather than a different certificate template.
+	Signer  crypto.Signer
 	CertPEM []byte
 }
 
@@ -61,7 +75,7 @@ func NewCA() (*CA, error) {
 	if err != nil {
 		return nil, fmt.Errorf("deviceca: parse CA: %w", err)
 	}
-	return &CA{Cert: cert, Key: key, CertPEM: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})}, nil
+	return &CA{Cert: cert, Signer: key, CertPEM: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})}, nil
 }
 
 // Pool returns a cert pool trusting this CA, for mTLS peer verification.
@@ -89,7 +103,7 @@ func (c *CA) IssueDeviceCert(deviceID, orgID string, pub *ecdsa.PublicKey) (tls.
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 	}
-	der, err := x509.CreateCertificate(rand.Reader, template, c.Cert, pub, c.Key)
+	der, err := x509.CreateCertificate(rand.Reader, template, c.Cert, pub, c.Signer)
 	if err != nil {
 		return tls.Certificate{}, fmt.Errorf("deviceca: sign device cert: %w", err)
 	}
@@ -116,7 +130,7 @@ func (c *CA) IssueServerCert(hosts []string) (tls.Certificate, error) {
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		DNSNames:     hosts,
 	}
-	der, err := x509.CreateCertificate(rand.Reader, template, c.Cert, &key.PublicKey, c.Key)
+	der, err := x509.CreateCertificate(rand.Reader, template, c.Cert, &key.PublicKey, c.Signer)
 	if err != nil {
 		return tls.Certificate{}, fmt.Errorf("deviceca: sign server cert: %w", err)
 	}
