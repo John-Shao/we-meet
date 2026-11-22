@@ -16,7 +16,7 @@
 
 | 自研面 | 现读事实 | 分级 |
 |---|---|---|
-| 设备 PKI：自研证书签发/记录/续期＋test-only CA | `src/work/migrations/increments/0058_device_certificate_issuance.sql`、`src/work/internal/gateway/`；生产 CA 与 keys 仍属 J39 未决 | **该换**（step-ca／cfssl 一类；生产 CA 尚未定＝未沉没，第 3 问判为优先）。**2026-11-22 现读细化，见 [设备 PKI 复用选型现读单](../design/work-r0b-device-pki-reuse-selection-2026-11-22.md)：缺口在"密钥托管＋层级/轮换"而非"证书模板装配"，故第一步落点建议是托管适配器，本行的"该换"结论不变、排序不变** |
+| 设备 PKI：自研证书签发/记录/续期＋test-only CA | `src/work/migrations/increments/0058_device_certificate_issuance.sql`、`src/work/internal/gateway/`；生产 CA 与 keys 仍属 J39 未决 | **该换**（step-ca／cfssl 一类；生产 CA 尚未定＝未沉没，第 3 问判为优先）。**2026-11-22 现读细化，见 [设备 PKI 复用选型现读单](../design/work-r0b-device-pki-reuse-selection-2026-11-22.md)：缺口在"密钥托管＋层级/轮换"而非"证书模板装配"，故第一步落点建议是托管适配器，本行的"该换"结论不变、排序不变**。**2026-11-22 同日主签另裁 P1＝甲：第一步落点在密钥托管（`crypto.Signer` 适配器）而非模板装配；上格原文逐字保留，不据本裁定声称任何替换已开工、已装依赖或已部署——spike 批仍须另请开工与提交授权** |
 | 契约工具链：自研 OpenAPI→客户端生成器＋服务端手写形状校验＋自研漂移门禁 | `src/frontend/scripts/gen-work-api.mjs` 与产物 `src/frontend/src/features/work/r0a/api/generated/r0a-client.mjs`、`src/work/internal/api/` 各 handler、`docs/plan/assets/work-r0a-design-2026-10-25/scripts/ci-contract.mjs` | **半该换**（契约先行保留；请求/响应形状校验与类型生成有成熟件，属可削的内部维护量） |
 | 设备 journal 静态加密：应用层 AES-256-GCM＋DPAPI DEK＋自定 AAD/epoch 方案 | `src/device/src/journal/`（依赖 `aes-gcm`、`rusqlite` bundled，见 `src/device/Cargo.toml`） | **该重看，但要连着打包裁定一起动**（SQLCipher／SQLite 加密扩展与"rusqlite 无 CGO"的既有裁定冲突，单换库会连带安装与升级通道形态；不得只换库不回写裁定） |
 | 设备工具面与 Node↔Broker 消息协议 | `src/device/src/frame/`、`src/device/src/finish/`、`src/device/src/reconcile/` | **本期保留，R2 前重看**（fence/lease/签名 receipt 语义开源未覆盖；"工具如何被发现与调用"这层在接第三方工具时应让位于标准协议，否则每个工具作者都得读我们的协议） |
@@ -57,5 +57,5 @@ Work 的平台层事实上已是开源优先：编排用 Temporal（ADR-0010，�
 - 被分级的自研面：`src/device/src/journal/`、`src/device/src/frame/`、`src/device/src/finish/`、`src/device/src/reconcile/`、`src/work/internal/gateway/`、`src/work/internal/api/`、`src/work/migrations/increments/0058_device_certificate_issuance.sql`、`src/frontend/scripts/gen-work-api.mjs`、`docs/plan/assets/work-r0a-design-2026-10-25/scripts/ci-contract.mjs`
 - 供应链工具：`scripts/supply-chain/generate-sbom.sh`、`scripts/supply-chain/sign.sh`、`src/work/deploy/ecs/verify-r0a-0027.sh`
 - 活义务载体：[open-rulings.md](open-rulings.md)（本 ADR 的候选排序作为其中一条开放项存续，替换批落地后再收敛）
-- 第一项候选的现读产出：[设备 PKI 复用选型现读单](../design/work-r0b-device-pki-reuse-selection-2026-11-22.md)（2026-11-22，零代码；含 C1–C8 契约现读、候选许可与版本现读、P1–P4 待裁分叉）
+- 第一项候选的现读产出：[设备 PKI 复用选型现读单](../design/work-r0b-device-pki-reuse-selection-2026-11-22.md)（2026-11-22，零代码；含 C1–C8 契约现读、候选许可与版本现读、P1–P4 待裁分叉；同日另裁 P1＝甲，P2–P4 仍开放，以该单 §6 原位注记为准）
 - 相关决策：ADR-0009（Postgres 为事实源）、ADR-0010（Temporal 编排）、ADR-0012（受控出口）、ADR-0015（目录授权不等于沙箱）、ADR-0020（pi-agent-core adapter）、[ADR-0023](0023-static-single-layer-encryption.md)（静态单层加密的范围例外）

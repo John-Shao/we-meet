@@ -2,6 +2,7 @@
 
 日期：2026-11-22
 状态：现读单，**不是裁定、不是实现授权**。主签 2026-11-22 单选＝甲（先出选型现读单），本单只回答 ADR-0026 的第①②③问并给出可裁的分叉。
+**同日追加（2026-11-22）：本单落笔后主签另裁 P1＝甲（托管 `crypto.Signer` 适配 spike），上两行逐字保留；该裁定只定"先做哪个"，见 §6 原位注记——不得据此读成任何替换已开工、已装依赖或已部署。**
 范围：设备面证书签发（`deviceca`）与其信任锚分发。不涉及 journal 加密、不涉及设备执行语义、不涉及现网部署。
 权威来源：`src/work/internal/deviceca/`、`src/work/cmd/work-api/main.go`、`src/work/cmd/work-gateway/main.go`、`src/work/internal/api/devices.go`、`src/work/migrations/increments/0058_device_certificate_issuance.sql`、`src/device/src/transport/{mod.rs,link.rs}`、`docs/work/design/work-r0b-device-design-2026-10-30.md` §2.1、`docs/work/design/work-r0b-control-design-2026-10-30.md` §10。
 
@@ -52,6 +53,7 @@
 ## 6. 待裁分叉（主签单选后即可定批；裁定不含执行授权）
 
 - **P1 第一步做哪个**：甲＝A（KMS/PKCS#11 Signer 适配 spike，缺口最贴、形态冲击最小，推荐）／乙＝B（cfssl 库替换模板）／丙＝C（step-ca 服务，含层级与轮换）／丁＝先只裁"信任锚与链形状的未来口径"（C3/C4），组件选型留后。
+  - **2026-11-22 原位注记｜P1 已裁＝甲**（主签单选，原文逐字保留在上条）：第一步落点为**托管 `crypto.Signer` 适配器**，即本单 §2 的候选 A、§4 建议顺序的第一格；据此 §7 所要求的 ADR-0026 排序行补记已以原位注记方式落笔（见 [ADR-0026](../decisions/0026-component-reuse-first.md) 设备 PKI 行）。**此裁定只裁"先做哪个"，不含开工授权、不含依赖引入、不含现网部署**；spike 批须另请开工与提交授权，且开工前须按本单 §7 重读组件版本与许可快照。P2（托管后端）／P3（层级）／P4（CRL/OCSP）仍未裁——注意 P1＝甲使 P2 从"若走 A 再说"变成**当前阻塞项**：托管后端未定时，spike 只能先把接口骨架与一个可替换的假后端做出来（`crypto.Signer` 的 `Public()`/`Sign()` 形状与 0058 serial 语义不依赖后端），真后端调用面须等 P2 落定才可写。
 - **P2 若走 A**：托管后端＝阿里云 KMS／PKCS#11 硬件／纯文件＋现有密钥面（只加 ACL，不外移）——此问决定 J39 复核面的形状。
 - **P3 层级**：是否引入 root＋intermediate（决定 C4 链形状、C3 信任锚分发、0058 是否加列）。
 - **P4 撤销控制**：维持"DB 判活＋24h 上限"，还是额外采纳 CRL/OCSP（新控制，须重裁）。
