@@ -61,6 +61,7 @@
     - **仓库既有同族做法可参照**：`src/work/deploy/ecs/init-workload-pki.sh:37-51` 已经用 `umask 077` ＋目录 `750` ＋`ca.key` `600` ＋`ca.crt` `644` 管一个文件态 CA 私钥——注意那是 **workload CA（服务间 mTLS，卡片 Y）**，不是设备 CA，本单不把两者混为一谈，只指出纪律形状已有先例可循；且 `test/device-cert-issuance.test.mjs:242-243,265` 已钉住"env 文件只放路径、不得内联 CA 私钥"。
     - **对 spike 的直接后果**：上条 P1 注记里"真后端调用面须等 P2 落定才可写"的限制自本裁定起解除（该句原文逐字保留）；被裁的后端就是文件装载路径，所以真后端调用面**可以**写，接口缝为把 `CA.Key *ecdsa.PrivateKey`（`ca.go:33`）换成 `crypto.Signer`——`x509.CreateCertificate` 的签发者参数本就是该接口（`ca.go:92` 传 `c.Key`），C1–C4 的模板、链形状、serial、台账、信任锚分发逐字不动。ACL 落点在部署面（属生产写，仍须单独 rollout 授权），不属本单。
     - **纪律回写**：ADR-0026 第②问把 PKI 划为安全关键路径并默认选开源，本格由主签以部署策略裁为"不外移"，属该问所述"可验证硬约束／策略约束"的使用，须连同两个被否方案（乙＝阿里云 KMS、丙＝PKCS#11／TPM）一并记入 ADR 同族文档，以免日后被读成随手自研。P3（层级）与 P4（CRL/OCSP）仍开放。
+    - **后续产出（2026-11-22 同日，主签另裁＝甲 先出 spike 设计单）**：第一步的零代码设计单已落，见 [设备 CA 托管适配 spike 设计单](work-r0b-device-ca-signer-spike-design-2026-11-22.md)——它把本单 §5 的"影响面"细化成现读半径 S-1–S-9（含 `CA.Key` 的四处测试调用点与 `device-cert-issuance.test.mjs:228-245` 的门禁文本 pin），并把实现形状交给 S1–S4 四个待裁分叉。设计单本身不是开工授权。
 - **P3 层级**：是否引入 root＋intermediate（决定 C4 链形状、C3 信任锚分发、0058 是否加列）。
 - **P4 撤销控制**：维持"DB 判活＋24h 上限"，还是额外采纳 CRL/OCSP（新控制，须重裁）。
 

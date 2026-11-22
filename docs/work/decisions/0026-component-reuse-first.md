@@ -57,5 +57,6 @@ Work 的平台层事实上已是开源优先：编排用 Temporal（ADR-0010，�
 - 被分级的自研面：`src/device/src/journal/`、`src/device/src/frame/`、`src/device/src/finish/`、`src/device/src/reconcile/`、`src/work/internal/gateway/`、`src/work/internal/api/`、`src/work/migrations/increments/0058_device_certificate_issuance.sql`、`src/frontend/scripts/gen-work-api.mjs`、`docs/plan/assets/work-r0a-design-2026-10-25/scripts/ci-contract.mjs`
 - 供应链工具：`scripts/supply-chain/generate-sbom.sh`、`scripts/supply-chain/sign.sh`、`src/work/deploy/ecs/verify-r0a-0027.sh`
 - 活义务载体：[open-rulings.md](open-rulings.md)（本 ADR 的候选排序作为其中一条开放项存续，替换批落地后再收敛）
-- 第一项候选的现读产出：[设备 PKI 复用选型现读单](../design/work-r0b-device-pki-reuse-selection-2026-11-22.md)（2026-11-22，零代码；含 C1–C8 契约现读、候选许可与版本现读、P1–P4 待裁分叉；同日另裁 P1＝甲，P2–P4 仍开放，以该单 §6 原位注记为准）
+- 第一项候选的现读产出：[设备 PKI 复用选型现读单](../design/work-r0b-device-pki-reuse-selection-2026-11-22.md)（2026-11-22，零代码；含 C1–C8 契约现读、候选许可与版本现读、P1–P4 待裁分叉；同日另裁 P1＝甲，P2–P4 仍开放，以该单 §6 原位注记为准；**该行写作时尚未裁 P2，P2 已于同日另裁＝甲，见下一行与选型单 §6 注记**）
+- 第一步（P1＝甲＋P2＝甲）的 spike 设计单：[设备 CA 托管适配 spike 设计单](../design/work-r0b-device-ca-signer-spike-design-2026-11-22.md)（2026-11-22，零代码；S-1–S-9 现读半径、不变量清单、取证口径、S1–S4 待裁分叉；本单不是开工授权）
 - 相关决策：ADR-0009（Postgres 为事实源）、ADR-0010（Temporal 编排）、ADR-0012（受控出口）、ADR-0015（目录授权不等于沙箱）、ADR-0020（pi-agent-core adapter）、[ADR-0023](0023-static-single-layer-encryption.md)（静态单层加密的范围例外）
