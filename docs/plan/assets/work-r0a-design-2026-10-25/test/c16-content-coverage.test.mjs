@@ -8,6 +8,12 @@
 // 2026-11-14 row in docs/plan/work-project.md §9). The mechanical reopen trigger is test 5 below: the
 // day a content-shaped key=%s log line exists in src/work, the gain stops being prospective. Every row below is a reading, so a future widening turns this gate red and makes whoever does
 // it update the table and the ruling row in the same commit.
+//
+// 【2026-11-22 卡片 #96 复评窗到期，主签重裁＝甲（规则一字未动），新窗 2026-12-06】上面那句"re-adjudication was asked and answered on
+// 2026-11-14: 甲"照原文留着，本行只补两件事：一是日历窗到期后重读的结果仍是同一判据（7 条全绿、覆盖面 1/10、扫描集 43 文件／3435 行
+// fail=0、生产侧带这七个正文键名的 key=%s 站点 0），二是记录在案的四条选项里有两条被重新测准了——"乙＝只放宽引号内串"按其字面是空操作
+// （可选引号前缀之后的字符类本来就排除引号），而"值首字符不得为数字"这一臂能把 test 3 那两条证据行误报清零、覆盖面仍 5/10，代价是数字
+// 开头的真实正文不再命中。两条读数都只登记在卡片里，本门一条断言未增删，只有 REOPEN 这句提示语换成了新窗日期。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -20,7 +26,7 @@ const ROOT = join(HERE, '..', '..', '..', '..', '..');
 const HARD_DIR = join(ROOT, 'docs', 'plan', 'assets', 'work-r0a-hardening-2026-10-25');
 const SCANNER = join(HARD_DIR, 'log-scan.mjs');
 const WORKFLOW = join(ROOT, '.github', 'workflows', 'work-r0a-gates.yml');
-const REOPEN = '复评窗 2026-11-20';
+const REOPEN = '复评窗 2026-12-06';
 
 const scannerText = readFileSync(SCANNER, 'utf8');
 
