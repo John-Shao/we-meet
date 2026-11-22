@@ -362,17 +362,21 @@ for pair in \
   host="${pair#*:}"
   printf '  %s -> %s = %s\n' "$name" "$host" "$(test -e "$host" && echo present || echo MISSING)"
 done
-# content-backup 三件是同日裁定的另一组：仓库已删除出处，主机那条每 6 小时的备份照旧在跑（本脚本
-# 只读取，不动 timer）。这里报在位性，是为了让"仓库没有出处、主机那份是唯一的份"这件事出现在
-# 验收转写里，而不只写在文档里——缺与不缺都不改变退出码，也不构成停它的授权。
+# content-backup 三件的读数（2026-11-22 卡片 W 重开，W1＝甲／W2＝甲）：2026-11-13 那笔删除让这三件在
+# 仓库没有出处，本脚本当时报在位性是为了让"主机那份是唯一的份"进入验收转写；三件已回植 deploy/ecs，
+# rollout 也逐名装了，所以这里改成同时报在位性与主机那份的哈希——主机文件是 CRLF 版，剥 CR 再算才和
+# 仓库 blob、和 release-payload-closure 门里那三枚字面钉可比。本脚本仍只读取，不动 timer，也不构成
+# 停它或起它的授权；缺与不缺都不改变退出码（部署状态，不是打包缺陷）。
 for pair in \
   "work-content-backup.service:/etc/systemd/system/work-content-backup.service" \
   "work-content-backup.timer:/etc/systemd/system/work-content-backup.timer" \
   "work-content-backup.py:/opt/meet-db-backup/work-content-backup.py"; do
   name="${pair%%:*}"
   host="${pair#*:}"
-  printf '  %s -> %s = %s (host-managed, no repo carrier since 卡片 W)\n' \
-    "$name" "$host" "$(test -e "$host" && echo present || echo MISSING)"
+  # 空输入的 sha 会被读成"和仓库一致"，所以取不到文件就报短横，不报哈希。
+  host_sha16="$(test -e "$host" && tr -d '\r' <"$host" | sha256sum | cut -c1-16 || printf '-')"
+  printf '  %s -> %s = %s sha16(cr-stripped)=%s\n' \
+    "$name" "$host" "$(test -e "$host" && echo present || echo MISSING)" "$host_sha16"
 done
 
 echo

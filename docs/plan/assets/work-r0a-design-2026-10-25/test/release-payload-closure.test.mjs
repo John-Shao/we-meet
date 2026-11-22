@@ -14,12 +14,21 @@
 // 持有它的出处（后果与执行边界写在 work-project.md 卡片 W 的同日裁定段）。本文件对 `.py` 后缀的正向
 // 对照因此只剩 work-health-alert.py，而"删除是一笔决定、不是漂移"由下面那条缺席断言看守。
 //
+// 【2026-11-22 卡片 W 重开，主签 W1＝甲／W2＝甲／W3＝甲】上面这段的"已按主签裁定删除"照原文留着，但它
+// 的前提今天过期：那笔删除当时记的理由是"备份执行体已废弃、仓库不该再持有它"，而现读显示主机那条每 6
+// 小时的备份一直在跑、卡片自己的复评窗（2026-11-20）也已到期，所以"删掉出处"换不到任何安全收益，只把
+// 一份含远端删除逻辑（RETENTION_DAYS=30）的执行体留在没有 diff 可评审的地方。三件已按 9bb50f94c~1 的
+// blob 逐字节回植。于是本文件里对这三件的反向钉（"名字一复活就红"）翻成正向钉：仓库有文件、rollout
+// 逐名装、verify 逐名报读数，外加 W2＝甲 的字节哈希钉。W2＝甲 只钉仓库侧——主机那份的哈希要靠现场
+// 只读探针（verify 现在会把剥 CR 后的 sha16 一起报出来），没取到读数之前谁也不能声称两侧一致。
+//
 // What this guard pins: the package is a closure over the tree it is built from, ordered before
 // SHA256SUMS so everything it adds has provenance, and every path a packaged unit or a rollout step
 // reaches for is inside it. What it does NOT pin: whether the host has these files installed -
 // packaging is not installing, and the install radius is a separate decision (work-project.md 卡片 W).
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -78,11 +87,44 @@ test('every unit, env template and host script in deploy/ecs reaches the package
   // （主机那一份继续跑，仓库不再给出处——执行边界见 work-project.md 卡片 W 的"执行边界"段），
   // `.py` 后缀这条机制改由下面 work-health-alert.py 那行负责。这里改钉"删除是一笔已裁的决定"：
   // 名字一复活就红，逼着回来重开卡片，而不是让包悄悄多带一条含远端删除逻辑（RETENTION_DAYS=30）的脚本。
+  // 【2026-11-22 卡片 W 重开，W1＝甲】上一段的前因（"删除"是已裁决定、复活要先重开卡）今天走完了它自己的
+  // 流程：卡片重开了，三件按历史 blob 逐字节回植。所以本行回到它 2026-11-13 之前的形状——正向钉在闭包里；
+  // "含远端删除逻辑的脚本不能悄悄进包"这条担心改由下面的字节哈希钉接手：内容一变就红，比缺席断言更窄。
   assert.ok(
-    !inventory.includes('work-content-backup.py'),
-    'work-content-backup.py is back in deploy/ecs - 卡片 W ruled it out of the repo, re-open the card before shipping it',
+    byClosure.includes('work-content-backup.py'),
+    'work-content-backup.py is in deploy/ecs but no package can deliver it - 卡片 W 重开后它靠闭包随包，不该再手抄',
   );
   assert.ok(byClosure.includes('work-health-alert.py'), 'the pager helper must be inside the closure');
+});
+
+// W2＝甲（主签 2026-11-22）：卡片 W 重开的三件钉仓库侧字节。为什么是哈希而不是"内容像不像"：这三件
+// 里有一支会往对象存储写包并按 RETENTION_DAYS=30 删远端旧对象，一次改动的评审面应该是 diff，而 diff
+// 的前提是"仓库里那份就是被执行的那份"。历史上它们被删掉之后再回植，最容易出的错是"回植成另一个样子"，
+// 所以钉的是 9bb50f94c~1 那三个 blob 的 sha256，逐字节相等才算回植。
+// 行尾口径（同一批现读出来的）：仓库 blob 是 LF（.py 2767 字节／73 行、CR 计数 0），主机手工那份是
+// 2840 字节——差值恰为 73，即每行多一个 CR。所以比对主机侧必须先剥 CR：`tr -d '\r' < file | sha256sum`。
+// 这三枚钉只覆盖仓库侧；主机那一份是否一致要靠现场只读取数（verify 现在把剥 CR 后的 sha16 一起报出来），
+// 没有读数就没有"一致"这句话。
+const CONTENT_BACKUP_BYTES = [
+  ['work-content-backup.py', '393aae65d1ab82b18a75394c112081ba591cf7a9dc8d39ee37484702494fa31c', 2767],
+  ['work-content-backup.service', '10917b2f0e17e3cb71aef29066351b520068a5b3e98b4dfd427abb49e7d6c759', 412],
+  ['work-content-backup.timer', '575417c6927a808dfd637dbc7844c4b5361c015e462ec448eb913ac788323083', 230],
+];
+
+test('the re-opened content-backup trio is byte-identical to the deleted blobs', () => {
+  for (const [name, sha, bytes] of CONTENT_BACKUP_BYTES) {
+    const path = join(ECS, name);
+    assert.ok(existsSync(path), `${name} is missing from deploy/ecs - 卡片 W 重开（W1＝甲）把它回植到这里`);
+    const body = readFileSync(path);
+    assert.equal(
+      createHash('sha256').update(body).digest('hex'),
+      sha,
+      `${name} is not the 9bb50f94c~1 blob it was restored from - 回植要逐字节，改动请写明理由并换钉`,
+    );
+    assert.equal(body.length, bytes, `${name} is ${body.length} bytes, expected ${bytes}`);
+    // CRLF 混进仓库就等于主机比对永远不一致（钉在 LF 上，主机那份是 CRLF 版）。
+    assert.ok(!body.includes('\r'), `${name} carries CR bytes - the pin is on the LF blob, keep it LF`);
+  }
 });
 
 test('a deliberate exclusion names a real file and carries a reason', () => {
@@ -212,7 +254,12 @@ test('the units with no repo carrier are exactly the registered list', () => {
 // 其余名字按裁定走 verify 的 present/MISSING 读数。这条守卫把"每个闭包名都得有一条可见性说法"钉成
 // 机器断言：要么 rollout 逐名 install（字面名，不是 `$unit` 循环），要么 verify 逐名报读数。两头都
 // 没有＝这个名字在包里静默旅行——那正是本卡登记的那段半径，"包里有"这句话从来覆盖不到它。
-const HOST_MANAGED_WITHOUT_REPO_CARRIER = [
+// 【2026-11-22 卡片 W 重开，主签 W1＝甲】下面这组名字当时的注册是"主机在跑、仓库无出处"，配的是三条
+// 反向钉（文件不许回植、rollout 不许装、verify 必须报）。今天 W1＝甲 要的正是安装路径，所以注册翻成
+// 正向：仓库有文件＋rollout 逐名装＋verify 逐名报读数，三条同时成立才算数。名单本身留着而不是删掉，
+// 因为这条守卫的机制对这三件照旧适用，只是答案从"只有读数"变成"既装也报"；名字一被删，这段扫描就对
+// 它们失去视野，那才是真的把状态变更藏起来。
+const CONTENT_BACKUP_REINSTATED = [
   'work-content-backup.service', 'work-content-backup.timer', 'work-content-backup.py',
 ];
 
@@ -259,11 +306,44 @@ test('every file the closure delivers is installed by name or reported by verify
     );
   }
 
-  // 删除的三件：主机在跑、仓库无出处。注册要同时满足三条，任何一条变了都说明这段状态变了，回来重开卡。
-  for (const name of HOST_MANAGED_WITHOUT_REPO_CARRIER) {
-    assert.ok(!existsSync(join(ECS, name)), `${name} is back in deploy/ecs - 卡片 W ruled it out, re-open the card`);
-    assert.ok(reported.has(name), `verify stopped reporting ${name}, which the host still runs with no repo carrier`);
-    assert.ok(!installedLiteral.has(name), `rollout installs ${name} again - a new host unit is not this card's radius`);
+  // 回植的三件：仓库有出处、rollout 逐名装、verify 逐名报读数。缺任何一条就是"安装路径"这件事又回到
+  // 手工放置那一格——W1＝甲 要的不是把文件放回目录，是让它有包、有装、有读数。
+  for (const name of CONTENT_BACKUP_REINSTATED) {
+    assert.ok(existsSync(join(ECS, name)), `${name} is gone from deploy/ecs again - 卡片 W 重开（W1＝甲）把它回植在这里`);
+    assert.ok(
+      installedLiteral.has(name),
+      `rollout no longer installs ${name} by name - 三件又变成主机上那份没有 diff 可评审的手工件`,
+    );
+    assert.ok(reported.has(name), `verify stopped reporting ${name}, which the host runs on a six-hour timer`);
   }
+  // 装的模式也要钉：这支 .py 读的是 OSS 存储凭据路径与收件人公钥，现网既有 0700 root:root（#57 的 drill
+  // 同口径）。installedLiteral 只把名字从 install 行里抽出来，所以 0700 改成 0644 它看不见——这里补一条。
+  assert.match(
+    rolloutText,
+    /^run install -m 0700 -o root -g root "\$RELEASE\/work-content-backup\.py" \/opt\/meet-db-backup\/work-content-backup\.py$/m,
+    'the content-backup .py is no longer installed 0700 root:root - 现网既有模式，别在无人注意时放宽',
+  );
+  // "安装路径"包含这条 timer 真的被立起来：只装 unit 不 enable/start，按本包重建的主机上它是死的，而
+  // 上面的逐名装、下面的 verify 读数与闭包门全都照样绿（2026-11-22 突变实测到的缺口，就地补上）。
+  // 逐名钉而不是靠本文件那条 systemctl 扫描：扫描只把名字收进 touched，然后只对 NO_REPO_CARRIER 里
+  // 登记过的名字提问，对"有仓库出处却没人 enable"这一类不作判断。
+  for (const verb of ['enable', 'start']) {
+    assert.ok(
+      new RegExp(`^run systemctl ${verb} work-content-backup\\.timer$`, 'm').test(rolloutText),
+      `rollout no longer runs \`systemctl ${verb} work-content-backup.timer\` - 三件装上了但那条 6 小时备份在新机上不会跑`,
+    );
+  }
+  // W2＝甲 的取数口径：主机那份是 CRLF 版（.py 2840 字节 vs 仓库 2767，差值＝行数），所以 verify 报的
+  // 哈希必须先剥 CR，否则和上面的字节钉、和仓库 blob 永远不可比。取不到文件时报短横而不是空输入的哈希，
+  // 免得"MISSING"旁边跟着一串十六进制被读成一致。
+  assert.match(section, /tr -d '\\r'/, "verify's content-backup readings no longer strip CR before hashing");
+  assert.match(section, /sha256sum/, 'verify no longer hashes the host copies of the trio - 主机侧读数没了，一致性只能靠嘴说');
+  // 还开着的那一格要能被机器看见，而不是只写在卡片的中文里：这支 .py 的执行体依赖仍在仓库外。
+  const contentBackupPy = readFileSync(join(ECS, 'work-content-backup.py'), 'utf8');
+  assert.match(contentBackupPy, /^import backup\b/m, 'the restored script no longer imports the host-only backup module');
+  assert.ok(
+    !existsSync(join(ECS, 'backup.py')),
+    'deploy/ecs now carries backup.py - the out-of-repo dependency 卡片 W 重开时登记的那一格已闭合，改这条断言并更新卡片',
+  );
   assert.match(readFileSync(DOC, 'utf8'), /执行边界（不得读宽）/, 'the deletion has no recorded execution boundary in 卡片 W');
 });

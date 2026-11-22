@@ -221,6 +221,10 @@ cp "$ROOT/scripts/ecs-migrate.sh" "$OUT/"
 # work-health-alert.py 一支。本目录的活数字别从这里读，两条取数法：
 #   构建时 → 本脚本自己末尾打印的 scanned=／added=；
 #   构建前 → ls src/work/deploy/ecs/*.service src/work/deploy/ecs/*.timer src/work/deploy/ecs/*.env.example src/work/deploy/ecs/*.py | wc -l
+# 【2026-11-22 卡片 W 重开，W1＝甲】上面"从本目录删除"与"交付的 .py 只有 work-health-alert.py 一支"
+# 两句自今天起过期：三件按 9bb50f94c~1 的 blob 逐字节回植本目录（原文逐字保留，不改写旧裁定），闭包
+# 靠后缀循环自动带上它们，所以本段今天交付的 .py 是 work-health-alert.py 与 work-content-backup.py 两支。
+# 上面那两条取数法照旧有效，读出来的数会因为回植而 +3，这是预期的。
 # 这里改成从目录推：包里没有、目录里有的，逐名要么补进包，要么进下面的跳过名单并写理由。
 # 名单为空＝今天 deploy/ecs 下每个 unit／env／py 都该进包；将来要少装一个，必须在这里写明为什么，
 # 而 release-payload-closure 门会核对每条理由（包括"rollout 已不再安装它"这种过期前提）。

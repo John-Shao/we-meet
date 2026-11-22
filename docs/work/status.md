@@ -34,7 +34,7 @@ node --input-type=module -e "const p='./docs/plan/assets/work-r0a-ops-2026-10-25
 - real-content-store-validation
 - r0b-device-migrations-rollout-authorization
 
-rollout 范围：已裁 rollout 包＝增量 0040–0062（整包一次，39→62；2026-11-22 主签重切，取代 2026-11-14 的 0040–0045／39→45，取代关系照原文留档）。重切理由＝包尾不是可配参数：make-release.sh:90 从 increments 现读链尾、verify-r0a-0027.sh:100 已钉到 0062、work-api 的 Requires=work-chain-check 由 work-migrate status -require-up-to-date 按二进制所携链尾判定。不含执行授权；执行＝同窗口两步依次授权（第一步 --migrations-only，第二步重放预检全绿且 in-flight Run drain 到零后再换 worker＋api 并落卡片 V/W/Y）。硬前置新增一条：0055:80 的 permit jsonb NOT NULL 无默认，现网 work.device_dispatch 必须实测为空集。仓库现 tip 由脚本现算，不在此手抄。
+rollout 范围：已裁 rollout 包＝增量 0040–0062（整包一次，39→62；2026-11-22 主签重切，取代 2026-11-14 的 0040–0045／39→45，取代关系照原文留档）。重切理由＝包尾不是可配参数：make-release.sh:90 从 increments 现读链尾、verify-r0a-0027.sh:100 已钉到 0062、work-api 的 Requires=work-chain-check 由 work-migrate status -require-up-to-date 按二进制所携链尾判定。不含执行授权；执行＝同窗口两步依次授权（第一步 --migrations-only，第二步重放预检全绿且 in-flight Run drain 到零后再换 worker＋api 并落卡片 V/W/Y）。卡片 W 的备份三件已于同日重开（W1/W2/W3＝甲）：逐字节回植＋rollout 逐名安装步＋闭包自动随包，主机侧哈希属现场取数项。硬前置新增一条：0055:80 的 permit jsonb NOT NULL 无默认，现网 work.device_dispatch 必须实测为空集。仓库现 tip 由脚本现算，不在此手抄。
 
 ## 真实客户数据准入
 

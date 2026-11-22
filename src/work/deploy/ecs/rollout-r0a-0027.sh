@@ -498,6 +498,29 @@ run install -m 0644 -o root -g root "$RELEASE/retention-preflight-d0.sql" /usr/l
 # 既有的 0700 root:root；verify 会比对主机副本与包内副本的 sha，不一致只 WARN 不覆盖判断。
 run install -d -m 0755 -o root -g root /opt/meet-db-backup
 run install -m 0700 -o root -g root "$RELEASE/work-db-restore-drill.py" /opt/meet-db-backup/work-db-restore-drill.py
+# 卡片 W 重开（主签 2026-11-22，W1＝甲）：正文备份三件回植 deploy/ecs，安装出处补在这几行。
+# 2026-11-13 那笔删除把"仓库有出处"这一格也一起删掉了——主机的 work-content-backup 每 6 小时照旧在跑，
+# 而它是主机上一份没有 diff 可评审的手工件；改一行、删一个远端对象，都不会在评审里出现。这里把它
+# 变回"包里带、装前留 .bak、装后逐名报读数"。三件字节等于 9bb50f94c~1 的 blob，哈希由
+# release-payload-closure 门钉住；主机那份是 CRLF 版（2840 字节，73 行行尾多一个 CR），所以覆盖
+# 会把行尾换成 LF——语义相同，但主机侧比对要剥 CR 再算，否则钉会自己红。
+# 逐名写、不用 for 循环：门按字面名核对"unit 调用的东西 rollout 装不装"（:436-438 同一条理由）。
+for path in /etc/systemd/system/work-content-backup.service /etc/systemd/system/work-content-backup.timer \
+  /opt/meet-db-backup/work-content-backup.py; do
+  if [[ -f "$path" ]]; then
+    run cp -p "$path" "$path.bak-$STAMP"
+  fi
+done
+run install -m 0700 -o root -g root "$RELEASE/work-content-backup.py" /opt/meet-db-backup/work-content-backup.py
+run install -m 0644 -o root -g root "$RELEASE/work-content-backup.service" /etc/systemd/system/work-content-backup.service
+run install -m 0644 -o root -g root "$RELEASE/work-content-backup.timer" /etc/systemd/system/work-content-backup.timer
+# 现网这两件早已 enabled＋active，所以下面两条在现网是 no-op；只有按本包重建的主机才靠它们立起来。
+# 需要看得见的一条效果：unit 的 Persistent=true 意味着第一次 start 会立刻补跑一次备份，即上传一份
+# age 包并按 RETENTION_DAYS=30 删远端旧对象——这不是新语义，是把主机本来每 6 小时就在做的事换成有
+# 出处的执行体。执行这一步仍是现场授权的事，本批只落仓库。
+# 诚实边界（同一张卡里还开着的那一格）：.py 第一行 import 的是 /opt/meet-db-backup/backup 这个主机自管
+# 模块，配置读 /etc/meet-db-backup/work/storage.json 与 recipient.txt，三者都不在本仓库；按本包重建的
+# 主机装得上这三件、跑不起来这条备份。补那三样不在 W1 的半径里。
 for unit in work-runstream-scan.service work-runstream-scan.timer; do
   run install -m 0644 -o root -g root "$RELEASE/$unit" "/etc/systemd/system/$unit"
 done
@@ -506,6 +529,9 @@ run systemctl daemon-reload
 run systemctl enable work-runstream-scan.timer work-c16-log-scan.timer
 run systemctl start work-runstream-scan.timer
 run systemctl start work-c16-log-scan.timer
+# 卡片 W 重开：正文备份 timer 的 enable/start 单逐名写两行（和上面四条同批、同一轮 daemon-reload 之后）。
+run systemctl enable work-content-backup.timer
+run systemctl start work-content-backup.timer
 
 echo "== 8. Node runtime =="
 if [[ -n "$RUNTIME_BUNDLE" && -f "$RUNTIME_BUNDLE" ]]; then
