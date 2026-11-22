@@ -318,7 +318,7 @@ impl WorkspaceExecutor {
             return nodemsg::tool_blocked(tool_call_id, "lease_expired", true, true);
         }
         // 4. Handle-relative execution.
-        match self.run_tool(&grant_id, tool_name, args) {
+        match self.run_tool(&grant_id, tool_name, args, &|| ctx.allows_io()) {
             Ok(content) => {
                 // DD:137 — a successful artifact.write is a sealed deliverable the Broker itself
                 // wrote; record its version so the finish names it in deliverable_versions (judged
@@ -430,6 +430,7 @@ impl WorkspaceExecutor {
         grant_id: &str,
         tool_name: &str,
         args: &Value,
+        live: tool_exec::LiveGate<'_>,
     ) -> Result<Value, ExecError> {
         let entry = self.grants.get(grant_id).ok_or(ExecError::NotFound)?;
         let obj = args.as_object().ok_or(ExecError::SpecialFile)?;
@@ -441,8 +442,8 @@ impl WorkspaceExecutor {
                 } else {
                     tools::validate_relative_path(dir).map_err(|_| ExecError::SpecialFile)?
                 };
-                let chain = tool_exec::walk(&entry.root, &segments, true)?;
-                let listing = tool_exec::list_dir(&chain)?;
+                let chain = tool_exec::walk(&entry.root, &segments, true, live)?;
+                let listing = tool_exec::list_dir(&chain, live)?;
                 let limit = obj
                     .get("limit")
                     .and_then(|v| v.as_str())
@@ -493,7 +494,7 @@ impl WorkspaceExecutor {
                     .ok_or(ExecError::NotFound)?;
                 let segments = tools::validate_relative_path(&mapped.relative_path)
                     .map_err(|_| ExecError::SpecialFile)?;
-                let chain = tool_exec::walk(&grant.root, &segments, false)?;
+                let chain = tool_exec::walk(&grant.root, &segments, false, live)?;
                 // expected_identity binds the file ID Node was given at list time; the opened object
                 // must still be that same object (a swap since list is source_changed, never new bytes).
                 let listed_id = mapped.file_id.to_string();
@@ -503,7 +504,7 @@ impl WorkspaceExecutor {
                 if chain.identity.file_id != mapped.file_id {
                     return Err(ExecError::SourceChanged);
                 }
-                let sealed = tool_exec::read_sealed(&chain, max_bytes)?;
+                let sealed = tool_exec::read_sealed(&chain, max_bytes, live)?;
                 let text = String::from_utf8_lossy(sealed.bytes()).into_owned();
                 Ok(json!({
                     "content": [{ "type": "text", "text": text }],
@@ -524,7 +525,7 @@ impl WorkspaceExecutor {
                     .and_then(|v| v.as_str())
                     .and_then(|s| s.parse::<u64>().ok())
                     .unwrap_or(100);
-                let result = tool_exec::search(&entry.root, &segments, query, limit)?;
+                let result = tool_exec::search(&entry.root, &segments, query, limit, live)?;
                 let hits: Vec<Value> = result
                     .hits
                     .iter()
@@ -563,13 +564,14 @@ impl WorkspaceExecutor {
                 let format = obj["format"].as_str().unwrap_or("txt");
                 let file_name = format!("{version_id}.{format}");
                 // The artifact dir is the grant's confirmed output directory; verify all ancestors.
-                let dir_chain = tool_exec::walk(&entry.root, &entry.artifact_dir, true)?;
+                let dir_chain = tool_exec::walk(&entry.root, &entry.artifact_dir, true, live)?;
                 let id = tool_exec::write_artifact_new(
                     &dir_chain,
                     &file_name,
                     &sealed,
                     content_hash,
                     byte_count,
+                    live,
                 )?;
                 Ok(json!({
                     "written": true,
@@ -635,6 +637,8 @@ fn exec_refusal(tool_call_id: &str, err: ExecError) -> Value {
         ExecError::Bound => ("bound_exceeded", true),
         ExecError::NotFound => ("not_found", true),
         ExecError::SpecialFile => ("special_file", true),
+        // One cause, one string: the pre-execution gate above and a chunk-boundary expiry share it.
+        ExecError::LeaseExpired => ("lease_expired", true),
         _ => ("io_unknown", true),
     };
     nodemsg::tool_blocked(tool_call_id, reason, false, is_error)
@@ -1507,6 +1511,19 @@ mod tests {
         drop(ctx);
         drop(exec);
         server.join().unwrap();
+    }
+
+    #[test]
+    fn a_chunk_boundary_expiry_reuses_the_pre_execution_gate_reason() {
+        let reply = exec_refusal("tc-1", ExecError::LeaseExpired);
+        assert_eq!(reply["body"]["reason"], "lease_expired");
+        assert_eq!(reply["body"]["is_error"], true);
+        assert_eq!(reply["body"]["terminate"], false);
+        // The catch-all still owns genuine unexpected I/O failures.
+        assert_eq!(
+            exec_refusal("tc-2", ExecError::Io)["body"]["reason"],
+            "io_unknown"
+        );
     }
 
     #[test]

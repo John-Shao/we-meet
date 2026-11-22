@@ -66,8 +66,26 @@ pub enum ExecError {
     WorkspaceChanged,
     /// A numeric bound was exceeded (no silent truncation, DD:182/183).
     Bound,
+    /// The Run's lease expired or was revoked mid-execution. Bytes already written stay written:
+    /// file side effects are not undone, and the round is recorded as unknown, never as success.
+    LeaseExpired,
     /// An underlying I/O or NT call failed.
     Io,
+}
+
+/// Cooperative cancellation gate for the synchronous execution core. Production passes a closure
+/// over the Run's shared `io_deadline` (the same state `modelproxy` polls); tests pass counting
+/// closures so a mid-way expiry is deterministic instead of racing a real clock. `false` means the
+/// Run no longer holds a lease, and the next chunk boundary refuses. A single blocked NT call is
+/// still not interruptible - this bounds the space *between* calls, not inside one.
+pub type LiveGate<'a> = &'a dyn Fn() -> bool;
+
+fn ensure_live(live: LiveGate<'_>) -> Result<(), ExecError> {
+    if live() {
+        Ok(())
+    } else {
+        Err(ExecError::LeaseExpired)
+    }
 }
 
 impl From<ExecError> for ToolError {
@@ -364,7 +382,13 @@ impl std::fmt::Debug for Chain {
 /// Walk `segments` from the bound root, opening each component parent-handle-relative and verifying
 /// it stays on the root volume. `final_dir` selects whether the last component is a directory or a
 /// regular file. The returned chain holds the whole parent path open.
-pub fn walk(root: &RootHandle, segments: &[String], final_dir: bool) -> Result<Chain, ExecError> {
+pub fn walk(
+    root: &RootHandle,
+    segments: &[String],
+    final_dir: bool,
+    live: LiveGate<'_>,
+) -> Result<Chain, ExecError> {
+    ensure_live(live)?;
     if segments.is_empty() {
         // The root itself is the target directory.
         return Ok(Chain {
@@ -377,6 +401,7 @@ pub fn walk(root: &RootHandle, segments: &[String], final_dir: bool) -> Result<C
     let mut parent = root.handle();
     let mut identity = root.identity;
     for (i, seg) in segments.iter().enumerate() {
+        ensure_live(live)?;
         let is_last = i == segments.len() - 1;
         let want_dir = if is_last { final_dir } else { true };
         let opened = open_relative(parent, seg, want_dir)?;
@@ -398,8 +423,12 @@ pub fn walk(root: &RootHandle, segments: &[String], final_dir: bool) -> Result<C
 /// Read a verified regular file ONCE into a sealed immutable buffer (§4.2 step 5). Refuses hardlink
 /// count > 1, special files, and over-bound sizes (no silent truncation). The caller hands THIS
 /// buffer onward and verifies expected hash/size against it — never a second source read.
-pub fn read_sealed(chain: &Chain, max_bytes: u64) -> Result<SealedBuffer, ExecError> {
-    read_sealed_inner(chain.handle(), chain.identity, max_bytes)
+pub fn read_sealed(
+    chain: &Chain,
+    max_bytes: u64,
+    live: LiveGate<'_>,
+) -> Result<SealedBuffer, ExecError> {
+    read_sealed_inner(chain.handle(), chain.identity, max_bytes, live)
 }
 
 /// The sealed-read core on a verified handle + identity (shared by read and search).
@@ -407,7 +436,9 @@ fn read_sealed_inner(
     handle: HANDLE,
     id: FileIdentity,
     max_bytes: u64,
+    live: LiveGate<'_>,
 ) -> Result<SealedBuffer, ExecError> {
+    ensure_live(live)?;
     if id.is_dir() || id.is_reparse() {
         return Err(ExecError::SpecialFile);
     }
@@ -421,6 +452,7 @@ fn read_sealed_inner(
     let mut chunk = [0u8; 65536];
     let mut remaining = id.size;
     while remaining > 0 {
+        ensure_live(live)?;
         let want = remaining.min(chunk.len() as u64) as u32;
         let mut read: u32 = 0;
         unsafe {
@@ -459,19 +491,21 @@ pub struct DirEntry {
 
 /// Enumerate a verified directory handle via `NtQueryDirectoryFile` (§4.2: never reopen by path).
 /// `.`/`..` are skipped. Reparse entries are flagged (the caller refuses to traverse them).
-pub fn list_dir(chain: &Chain) -> Result<Vec<DirEntry>, ExecError> {
+pub fn list_dir(chain: &Chain, live: LiveGate<'_>) -> Result<Vec<DirEntry>, ExecError> {
+    ensure_live(live)?;
     if !chain.identity.is_dir() {
         return Err(ExecError::SpecialFile);
     }
-    enumerate_dir(chain.handle())
+    enumerate_dir(chain.handle(), live)
 }
 
 /// Handle-relative directory enumeration core (shared by list and search).
-fn enumerate_dir(handle: HANDLE) -> Result<Vec<DirEntry>, ExecError> {
+fn enumerate_dir(handle: HANDLE, live: LiveGate<'_>) -> Result<Vec<DirEntry>, ExecError> {
     let mut entries = Vec::new();
     let mut buffer = vec![0u8; 65536];
     let mut restart = true;
     loop {
+        ensure_live(live)?;
         let mut iosb: IO_STATUS_BLOCK = unsafe { std::mem::zeroed() };
         let status = unsafe {
             NtQueryDirectoryFile(
@@ -580,8 +614,10 @@ pub fn search(
     start: &[String],
     query: &str,
     limit: u64,
+    live: LiveGate<'_>,
 ) -> Result<SearchResult, ExecError> {
-    let start_chain = walk(root, start, true)?;
+    ensure_live(live)?;
+    let start_chain = walk(root, start, true, live)?;
     let mut state = SearchState {
         query: query.to_string(),
         limit: limit as usize,
@@ -591,7 +627,7 @@ pub fn search(
         incomplete: false,
         reason: None,
     };
-    search_dir(root, start_chain.handle(), start, 0, &mut state)?;
+    search_dir(root, start_chain.handle(), start, 0, &mut state, live)?;
     Ok(SearchResult {
         hits: state.hits,
         incomplete: state.incomplete,
@@ -607,7 +643,9 @@ fn search_dir(
     rel: &[String],
     depth: usize,
     state: &mut SearchState,
+    live: LiveGate<'_>,
 ) -> Result<(), ExecError> {
+    ensure_live(live)?;
     if state.full() {
         state.stop("bound");
         return Ok(());
@@ -616,8 +654,9 @@ fn search_dir(
         state.stop("depth");
         return Ok(());
     }
-    let entries = enumerate_dir(dir_handle)?;
+    let entries = enumerate_dir(dir_handle, live)?;
     for entry in entries {
+        ensure_live(live)?;
         if state.full() {
             state.stop("bound");
             break;
@@ -637,7 +676,7 @@ fn search_dir(
             if query_identity(child.raw())?.volume_serial != root.volume_serial() {
                 return Err(ExecError::VolumeMismatch);
             }
-            search_dir(root, child.raw(), &child_rel, depth + 1, state)?;
+            search_dir(root, child.raw(), &child_rel, depth + 1, state, live)?;
         } else {
             let ext = entry
                 .name
@@ -659,7 +698,8 @@ fn search_dir(
                 return Err(ExecError::VolumeMismatch);
             }
             let sealed =
-                match read_sealed_inner(child.raw(), id, crate::tools::SEARCH_MAX_FILE_BYTES) {
+                match read_sealed_inner(child.raw(), id, crate::tools::SEARCH_MAX_FILE_BYTES, live)
+                {
                     Ok(s) => s,
                     // Over-size / hardlink / special files are skipped, never substituted or truncated.
                     Err(ExecError::Bound)
@@ -697,7 +737,9 @@ pub fn write_artifact_new(
     body: &SealedBuffer,
     expected_hash: &str,
     expected_size: u64,
+    live: LiveGate<'_>,
 ) -> Result<FileIdentity, ExecError> {
+    ensure_live(live)?;
     // NtCreateFile would follow intermediate junctions in a multi-component ObjectName.
     crate::tools::validate_file_name(file_name).map_err(|_| ExecError::SpecialFile)?;
     if !dir_chain.identity.is_dir() {
@@ -745,6 +787,7 @@ pub fn write_artifact_new(
     let mut written_total = 0u64;
     let bytes = body.bytes();
     while written_total < bytes.len() as u64 {
+        ensure_live(live)?;
         let slice = &bytes[written_total as usize..];
         let mut written: u32 = 0;
         unsafe { WriteFile(owned.raw(), Some(slice), Some(&mut written), None) }
@@ -788,6 +831,109 @@ mod tests {
         validate_relative_path(path).unwrap()
     }
 
+    /// A gate that allows `allow` calls and then refuses, so a mid-way expiry is deterministic
+    /// (no wall clock in the assertion). Mirrors how production reads `io_deadline` per boundary.
+    fn counting_gate(allow: usize) -> impl Fn() -> bool {
+        let seen = std::cell::Cell::new(0usize);
+        move || {
+            let n = seen.get() + 1;
+            seen.set(n);
+            n <= allow
+        }
+    }
+
+    #[test]
+    fn walk_refuses_at_the_first_segment_once_the_run_lease_is_gone() {
+        let tmp = TempDir::new("gate-walk");
+        std::fs::create_dir_all(tmp.join("a/b")).unwrap();
+        std::fs::write(tmp.join("a/b/f.txt"), b"x").unwrap();
+        let root = bind_root(tmp.path()).unwrap();
+        assert_eq!(
+            walk(&root, &segs("a/b/f.txt"), false, &|| false).unwrap_err(),
+            ExecError::LeaseExpired
+        );
+        // Entry boundary passes, the first segment boundary refuses: no component is opened.
+        assert_eq!(
+            walk(&root, &segs("a/b/f.txt"), false, &counting_gate(1)).unwrap_err(),
+            ExecError::LeaseExpired
+        );
+        // A live lease still walks the whole path.
+        let chain = walk(&root, &segs("a/b/f.txt"), false, &|| true).unwrap();
+        assert_eq!(chain.identity.size, 1);
+    }
+
+    #[test]
+    fn sealed_read_stops_between_chunks_once_the_run_lease_is_gone() {
+        let tmp = TempDir::new("gate-read");
+        let body = vec![b'y'; 200 * 1024];
+        std::fs::write(tmp.join("big.txt"), &body).unwrap();
+        let root = bind_root(tmp.path()).unwrap();
+        let chain = walk(&root, &segs("big.txt"), false, &|| true).unwrap();
+        // Entry + first 64 KiB chunk pass, the second chunk boundary refuses.
+        assert_eq!(
+            read_sealed(&chain, 1 << 20, &counting_gate(2)).unwrap_err(),
+            ExecError::LeaseExpired
+        );
+        let fresh = walk(&root, &segs("big.txt"), false, &|| true).unwrap();
+        let sealed = read_sealed(&fresh, 1 << 20, &|| true).unwrap();
+        assert_eq!(sealed.len(), body.len() as u64);
+    }
+
+    #[test]
+    fn list_dir_stops_between_enumeration_batches_once_the_run_lease_is_gone() {
+        let tmp = TempDir::new("gate-list");
+        std::fs::write(tmp.join("a.txt"), b"a").unwrap();
+        std::fs::write(tmp.join("b.txt"), b"b").unwrap();
+        let root = bind_root(tmp.path()).unwrap();
+        let chain = walk(&root, &[], true, &|| true).unwrap();
+        // Entry + first NtQueryDirectoryFile batch pass, the next batch boundary refuses.
+        assert_eq!(
+            list_dir(&chain, &counting_gate(2)).unwrap_err(),
+            ExecError::LeaseExpired
+        );
+        assert_eq!(list_dir(&chain, &|| true).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn artifact_write_stops_between_chunks_and_keeps_what_it_already_created() {
+        let tmp = TempDir::new("gate-write");
+        let root = bind_root(tmp.path()).unwrap();
+        let dir = walk(&root, &[], true, &|| true).unwrap();
+        let body = SealedBuffer::seal(vec![b'z'; 200 * 1024]);
+        // Entry boundary passes, the first write boundary refuses: the create-new already happened,
+        // so the empty file stays on disk. Side effects are never rolled back (the round is unknown).
+        assert_eq!(
+            write_artifact_new(
+                &dir,
+                "out.bin",
+                &body,
+                body.hash(),
+                body.len(),
+                &counting_gate(1)
+            )
+            .unwrap_err(),
+            ExecError::LeaseExpired
+        );
+        assert_eq!(std::fs::read(tmp.join("out.bin")).unwrap().len(), 0);
+        let id =
+            write_artifact_new(&dir, "ok.bin", &body, body.hash(), body.len(), &|| true).unwrap();
+        assert_eq!(id.size, 200 * 1024);
+        assert_eq!(std::fs::read(tmp.join("ok.bin")).unwrap().len(), 200 * 1024);
+    }
+
+    #[test]
+    fn search_refuses_before_it_scans_anything_once_the_run_lease_is_gone() {
+        let tmp = TempDir::new("gate-search");
+        std::fs::write(tmp.join("a.txt"), b"needle").unwrap();
+        let root = bind_root(tmp.path()).unwrap();
+        assert_eq!(
+            search(&root, &[], "needle", 100, &|| false).unwrap_err(),
+            ExecError::LeaseExpired
+        );
+        let result = search(&root, &[], "needle", 100, &|| true).unwrap();
+        assert_eq!(result.hits.len(), 1);
+    }
+
     #[test]
     fn bind_root_rejects_unc_and_binds_local_ntfs() {
         assert!(matches!(
@@ -811,8 +957,8 @@ mod tests {
         std::fs::create_dir_all(tmp.join("docs/sub")).unwrap();
         std::fs::write(tmp.join("docs/sub/a.txt"), b"hello world").unwrap();
         let root = bind_root(tmp.path()).unwrap();
-        let chain = walk(&root, &segs("docs/sub/a.txt"), false).unwrap();
-        let sealed = read_sealed(&chain, 262_144).unwrap();
+        let chain = walk(&root, &segs("docs/sub/a.txt"), false, &|| true).unwrap();
+        let sealed = read_sealed(&chain, 262_144, &|| true).unwrap();
         assert_eq!(sealed.bytes(), b"hello world");
         assert!(sealed.verify(sealed.hash(), 11).is_ok());
     }
@@ -822,7 +968,7 @@ mod tests {
         let tmp = TempDir::new("missing");
         let root = bind_root(tmp.path()).unwrap();
         assert_eq!(
-            walk(&root, &segs("nope/a.txt"), false).unwrap_err(),
+            walk(&root, &segs("nope/a.txt"), false, &|| true).unwrap_err(),
             ExecError::NotFound
         );
     }
@@ -832,8 +978,11 @@ mod tests {
         let tmp = TempDir::new("bound");
         std::fs::write(tmp.join("big.txt"), vec![b'x'; 100]).unwrap();
         let root = bind_root(tmp.path()).unwrap();
-        let chain = walk(&root, &segs("big.txt"), false).unwrap();
-        assert_eq!(read_sealed(&chain, 50).unwrap_err(), ExecError::Bound);
+        let chain = walk(&root, &segs("big.txt"), false, &|| true).unwrap();
+        assert_eq!(
+            read_sealed(&chain, 50, &|| true).unwrap_err(),
+            ExecError::Bound
+        );
     }
 
     #[test]
@@ -842,8 +991,8 @@ mod tests {
         std::fs::create_dir_all(tmp.join("d")).unwrap();
         std::fs::write(tmp.join("f.txt"), b"abc").unwrap();
         let root = bind_root(tmp.path()).unwrap();
-        let chain = walk(&root, &[], true).unwrap();
-        let entries = list_dir(&chain).unwrap();
+        let chain = walk(&root, &[], true, &|| true).unwrap();
+        let entries = list_dir(&chain, &|| true).unwrap();
         let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
         assert!(names.contains(&"d"));
         assert!(names.contains(&"f.txt"));
@@ -861,7 +1010,7 @@ mod tests {
         std::fs::write(tmp.join("a/b/deep.txt"), b"another needle line").unwrap();
         std::fs::write(tmp.join("a/skip.exe"), b"needle in binary").unwrap();
         let root = bind_root(tmp.path()).unwrap();
-        let result = search(&root, &[], "needle", 100).unwrap();
+        let result = search(&root, &[], "needle", 100, &|| true).unwrap();
         assert!(!result.incomplete);
         let paths: Vec<&str> = result
             .hits
@@ -884,7 +1033,7 @@ mod tests {
         let tmp = TempDir::new("searchlimit");
         std::fs::write(tmp.join("f.txt"), b"x\nx\nx\nx\n").unwrap();
         let root = bind_root(tmp.path()).unwrap();
-        let result = search(&root, &[], "x", 2).unwrap();
+        let result = search(&root, &[], "x", 2, &|| true).unwrap();
         assert_eq!(result.hits.len(), 2);
         assert!(result.incomplete);
         assert_eq!(result.reason, Some("limit"));
@@ -902,7 +1051,7 @@ mod tests {
         }
         std::fs::write(tmp.join("inside.txt"), b"needle inside").unwrap();
         let root = bind_root(tmp.path()).unwrap();
-        let result = search(&root, &[], "needle", 100).unwrap();
+        let result = search(&root, &[], "needle", 100, &|| true).unwrap();
         let paths: Vec<&str> = result
             .hits
             .iter()
@@ -916,13 +1065,14 @@ mod tests {
     fn artifact_write_is_create_new_and_refuses_collision() {
         let tmp = TempDir::new("write");
         let root = bind_root(tmp.path()).unwrap();
-        let dir = walk(&root, &[], true).unwrap();
+        let dir = walk(&root, &[], true, &|| true).unwrap();
         let body = SealedBuffer::seal(b"artifact body".to_vec());
-        let id = write_artifact_new(&dir, "out.md", &body, body.hash(), body.len()).unwrap();
+        let id =
+            write_artifact_new(&dir, "out.md", &body, body.hash(), body.len(), &|| true).unwrap();
         assert_eq!(id.size, 13);
         assert_eq!(std::fs::read(tmp.join("out.md")).unwrap(), b"artifact body");
         // A second create-new of the same name is a workspace_changed collision, never an overwrite.
-        let again = write_artifact_new(&dir, "out.md", &body, body.hash(), body.len());
+        let again = write_artifact_new(&dir, "out.md", &body, body.hash(), body.len(), &|| true);
         assert_eq!(again.unwrap_err(), ExecError::WorkspaceChanged);
     }
 
@@ -931,7 +1081,7 @@ mod tests {
         let tmp = TempDir::new("write-name");
         std::fs::create_dir_all(tmp.join("out/sub")).unwrap();
         let root = bind_root(tmp.path()).unwrap();
-        let dir = walk(&root, &segs("out"), true).unwrap();
+        let dir = walk(&root, &segs("out"), true, &|| true).unwrap();
         let body = SealedBuffer::seal(b"artifact".to_vec());
         let mut bad_names: Vec<String> = [
             "",
@@ -961,14 +1111,15 @@ mod tests {
         bad_names.push("\u{10000}".repeat(16384));
         for name in bad_names {
             assert_eq!(
-                write_artifact_new(&dir, &name, &body, body.hash(), body.len()).unwrap_err(),
+                write_artifact_new(&dir, &name, &body, body.hash(), body.len(), &|| true)
+                    .unwrap_err(),
                 ExecError::SpecialFile,
             );
         }
         assert_eq!(std::fs::read_dir(tmp.path()).unwrap().count(), 1);
         assert_eq!(std::fs::read_dir(tmp.join("out")).unwrap().count(), 1);
         assert_eq!(std::fs::read_dir(tmp.join("out/sub")).unwrap().count(), 0);
-        write_artifact_new(&dir, "v1.md", &body, body.hash(), body.len()).unwrap();
+        write_artifact_new(&dir, "v1.md", &body, body.hash(), body.len(), &|| true).unwrap();
         assert_eq!(std::fs::read(tmp.join("out/v1.md")).unwrap(), body.bytes());
     }
 
@@ -988,11 +1139,12 @@ mod tests {
             b"outside"
         );
         let root = bind_root(tmp.path()).unwrap();
-        let dir = walk(&root, &[], true).unwrap();
+        let dir = walk(&root, &[], true, &|| true).unwrap();
         let body = SealedBuffer::seal(b"artifact".to_vec());
         for name in ["escape/evil.md", "escape\\evil.md", "escape\\sentinel.txt"] {
             assert_eq!(
-                write_artifact_new(&dir, name, &body, body.hash(), body.len()).unwrap_err(),
+                write_artifact_new(&dir, name, &body, body.hash(), body.len(), &|| true)
+                    .unwrap_err(),
                 ExecError::SpecialFile,
             );
         }
@@ -1001,10 +1153,11 @@ mod tests {
             std::fs::read(outside.join("sentinel.txt")).unwrap(),
             b"outside"
         );
-        write_artifact_new(&dir, "v1.md", &body, body.hash(), body.len()).unwrap();
+        write_artifact_new(&dir, "v1.md", &body, body.hash(), body.len(), &|| true).unwrap();
         assert_eq!(std::fs::read(tmp.join("v1.md")).unwrap(), body.bytes());
         assert_eq!(
-            write_artifact_new(&dir, "v1.md", &body, body.hash(), body.len()).unwrap_err(),
+            write_artifact_new(&dir, "v1.md", &body, body.hash(), body.len(), &|| true)
+                .unwrap_err(),
             ExecError::WorkspaceChanged,
         );
     }
@@ -1013,9 +1166,10 @@ mod tests {
     fn artifact_write_refuses_a_hash_mismatch_before_writing() {
         let tmp = TempDir::new("hash");
         let root = bind_root(tmp.path()).unwrap();
-        let dir = walk(&root, &[], true).unwrap();
+        let dir = walk(&root, &[], true, &|| true).unwrap();
         let body = SealedBuffer::seal(b"real".to_vec());
-        let err = write_artifact_new(&dir, "x.txt", &body, "sha256:wrong", 4).unwrap_err();
+        let err =
+            write_artifact_new(&dir, "x.txt", &body, "sha256:wrong", 4, &|| true).unwrap_err();
         assert_eq!(err, ExecError::SourceChanged);
         assert!(!std::path::Path::new(&tmp.join("x.txt")).exists());
     }
@@ -1056,7 +1210,7 @@ mod tests {
         }
         let root = bind_root(tmp.path()).unwrap();
         // Walking through the junction component must refuse, never read the outside file.
-        let err = walk(&root, &segs("sub/secret.txt"), false).unwrap_err();
+        let err = walk(&root, &segs("sub/secret.txt"), false, &|| true).unwrap_err();
         assert_eq!(err, ExecError::Reparse);
     }
 
@@ -1076,9 +1230,9 @@ mod tests {
             return;
         }
         let root = bind_root(tmp.path()).unwrap();
-        let chain = walk(&root, &segs("link.txt"), false).unwrap();
+        let chain = walk(&root, &segs("link.txt"), false, &|| true).unwrap();
         assert_eq!(
-            read_sealed(&chain, 262_144).unwrap_err(),
+            read_sealed(&chain, 262_144, &|| true).unwrap_err(),
             ExecError::Hardlink
         );
     }
@@ -1091,10 +1245,10 @@ mod tests {
         let root = bind_root(tmp.path()).unwrap();
         // Open the chain, THEN rename the root directory on disk. The held handles must still read
         // the originally bound object (authorization binds the handle, not the path string).
-        let chain = walk(&root, &segs("sub/a.txt"), false).unwrap();
+        let chain = walk(&root, &segs("sub/a.txt"), false, &|| true).unwrap();
         let renamed = format!("{}-moved", tmp.path());
         let moved = std::fs::rename(tmp.path(), &renamed).is_ok();
-        let sealed = read_sealed(&chain, 262_144).unwrap();
+        let sealed = read_sealed(&chain, 262_144, &|| true).unwrap();
         assert_eq!(sealed.bytes(), b"bound content");
         if moved {
             let _ = std::fs::rename(&renamed, tmp.path());
