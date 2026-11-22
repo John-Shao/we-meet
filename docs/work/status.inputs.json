@@ -61,7 +61,7 @@
     "real-content-store-validation",
     "r0b-device-migrations-rollout-authorization"
   ],
-  "rollout_scope_note": "已裁 rollout 包＝增量 0040–0045（M1a/M1b 设备面表族，39→45；2026-11-14 主签单选扩包，取代 11-13 甲的 0040–0043／39→43，不含执行授权）。0046 起的增量属 M3 设备 agent/网关线，不在该已裁包内，要部署须另裁重切包。仓库现 tip 由脚本现算，不在此手抄。",
+  "rollout_scope_note": "已裁 rollout 包＝增量 0040–0062（整包一次，39→62；2026-11-22 主签重切，取代 2026-11-14 的 0040–0045／39→45，取代关系照原文留档）。重切理由＝包尾不是可配参数：make-release.sh:90 从 increments 现读链尾、verify-r0a-0027.sh:100 已钉到 0062、work-api 的 Requires=work-chain-check 由 work-migrate status -require-up-to-date 按二进制所携链尾判定。不含执行授权；执行＝同窗口两步依次授权（第一步 --migrations-only，第二步重放预检全绿且 in-flight Run drain 到零后再换 worker＋api 并落卡片 V/W/Y）。硬前置新增一条：0055:80 的 permit jsonb NOT NULL 无默认，现网 work.device_dispatch 必须实测为空集。仓库现 tip 由脚本现算，不在此手抄。",
   "customer_data_blockers": [
     "external-security-audit-J39",
     "cloud-kms-reopen-condition"

@@ -14,6 +14,7 @@
 
 - 现网最新包 `work-release-0039`，迁移台账 `tip_version=39`。
 - 已裁 rollout 包＝增量 0040–0045（M1a/M1b 设备面表族，39→45），已落仓库、**未 rollout**；需要链尾 45 的新包＋窗口当场生产写授权＋同二进制重放预检（§3.4）。0046 起的增量属 M3 设备 agent/网关线，**不在该已裁包内**，要部署须另裁重切包；仓库现 tip 见 [status.json](status.json)。
+  - **2026-11-22 重切裁定（主签四项单选＝R1 甲／R2 甲／R3 乙／R4 丙，加两步排程与在途 Run 处置各甲；上条原文逐字保留）**：包范围改为**整包 0040–0062（39→62）一次**，理由＝包尾不是可配参数（`make-release.sh:90` 从 `migrations/increments` 现读推导链尾，`verify-r0a-0027.sh:100` 已钉到 `(62,'0062_run_history_handback')`，`work-api.service:14-15` 的 `Requires=work-chain-check.service` 由 `work-migrate status -require-up-to-date` 判定"该二进制所携带链尾"），照 39→45 字面执行只能从旧 commit 出包、等于把几周前代码投放现网。**排程＝同窗口两步、依次授权**：第一步 `--migrations-only`（备份＋装 work-migrate＋跑到 62，不换 worker/api），第二步同二进制重放预检全绿后再换 work-worker＋work-api 并落 V/W/Y 三件；`rollout-r0a-0027.sh:73-80` 禁止 `--migrations-only` 与 `--enable-advance`／`--runtime-bundle` 同用，故两步不可合并成一次调用，**两笔独立生产写授权**。**在途 Run＝先 drain 到零再换 worker**（脚本 `:332` 硬要求：新 worker 不能续跑旧在途 Run）。**本节"只跑 migration 即零现网影响"有一条例外，如实记**：0060 会 `CREATE OR REPLACE work.list_content_refs(text)`，而该函数是**在跑的**出口孤儿报表读路径在用（`internal/egressservice`），变化是纯增两节 UNION 读新表 `egress_output_recovery`（新 worker 未上线前恒空）⇒ 语义安全但不是零影响。**另一条新增硬前置（§3.4 第 4 条）**：`0055:80` 是 `ALTER TABLE work.device_dispatch ADD COLUMN permit jsonb NOT NULL` 且**无 DEFAULT**，现网该表若有任意行则整链在该步 23502 失败；必须**当场实测为空集**，不得按"设备面从未部署 ⇒ 应当为空"写进包。**W 的执行边界（并窗也并不到这一段）**：本脚本会装 `work-chain-check.service`（`:438`，并在 `:303-308` 带 secrets 不可读即中止的守卫，故 V 可随窗生效）、会装并重启 `work-authz`（`:389/414/417/422/441/447`，故 Y 的热加载可随窗成立），但 `install_env` 从未点名 `work-content-backup`，脚本内也没有它的 `.service/.timer/.py` 安装步 ⇒ **卡片 W 的备份三件仍无仓库安装出处**，本轮并窗只覆盖"发布闭包＋逐名 present/MISSING 校验＋work-api 安装步骤"这一段；三件要么另批补安装步（仓库改动，须单独授权），要么继续按"不得读宽"停在手工放置状态。**本节仍只登记裁定，不构成执行授权；现网 tip 仍 39。**
 - 八个核心 unit active；`work-directory-sync` 由 timer 驱动。
 - Content Store 为本地 pilot，零真实请求；云 KMS 未接（C13 未关闭）。
 - E8 试点未开始；**不允许真实客户数据**。
@@ -175,6 +176,17 @@ sudo ./rollout-r0a-0027.sh --release <发布目录> --migrations-only
    - 全部 `replay ok` → 正常 rollout；任一 nondeterministic → 本批只 `--migrations-only`，换 worker 另批授权，该 Run 先定性再处置（§5.16 口径），不手工动 workflow 历史。
    - Running=0 → 记"无对象可重放"，直接换二进制。
    - 导出 JSON 含组织数据：用后取回并删除，不在主机过夜。
+
+4. **设备派发行为空集（2026-11-22 随整包 0040–0062 重切新增，实测前置）**：`0055:80` 加的是 `ALTER TABLE work.device_dispatch ADD COLUMN permit jsonb NOT NULL` 且无 DEFAULT，现网该表若已有任意行，链会在该步以 23502 中止并把已应用段落留在半途。 ⇒ 第一步开始前必须在窗口当场数过：
+
+   ```bash
+   # [只读] 现网设备派发行数必须为 0，否则本包不可在本窗口跑
+   runuser -u postgres -- psql -d work -tAc "select count(*) from work.device_dispatch"
+   ```
+
+   读数为 0 → 可跑第一步；非 0 → 本窗口不跑该链，另批处置（回滚不可用"删列"绕过，0024 房屋规则下也不给表权限）。同一条判据也覆盖 `0059:11`（那条带 DEFAULT，安全，仅记录）。
+
+**两步排程（R2 甲＋R3 乙＋排程甲的合并结果）**：`--migrations-only` 与 `--enable-advance`／`--runtime-bundle` 互斥（`rollout-r0a-0027.sh:73-80` 直接拒绝），故整包 0040–0062 在同一窗口内**分两次调用**：第一步只跑 migration（含上列四道前置），第二步在"同二进制重放预检全绿＋在途 Run 已 drain 到零"之后换 work-worker＋work-api 并落 V/W/Y。两次调用各自需要一笔独立的现场生产写授权；第一步完成不等于第二步已获授权。
 
 **只读前置取数**（rollout 前另有两个主机侧只读探针，跑完即删，判据取脚本自身退出码 `HOST_SCRIPT_RC=0`）：`docs/plan/assets/work-r0a-ops-2026-10-25/preflight/rollout-preflight-ledger-read.sh`（台账/在途 Run/预留/outbox）与 `rollout-preflight-package-shape-read.sh`（发布包形状/在装件比对）。取数形状：
 
