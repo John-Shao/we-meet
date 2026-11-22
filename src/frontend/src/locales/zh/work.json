@@ -120,6 +120,7 @@
     "loadMore": "加载更多",
     "updatedAt": "更新于 {{time}}",
     "runState": "执行：{{state}}",
+    "handback": "正在交回历史并收尾",
     "artifact": "成果 v{{version}}"
   },
   "status": {

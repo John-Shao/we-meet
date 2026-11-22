@@ -74,6 +74,7 @@ var publishedIncrements = []string{
 	"0059_device_execution_review",
 	"0060_egress_output_recovery",
 	"0061_local_finish_cross_session_reconcile",
+	"0062_run_history_handback",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

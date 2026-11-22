@@ -681,6 +681,17 @@
       "catalog_checksum": "sha256:1719ed946626582e2bea73c588741ce685ca53b9d05204b7a2145bac00141ddd",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 62,
+      "name": "0062_run_history_handback",
+      "kind": "increment",
+      "file": "increments/0062_run_history_handback.sql",
+      "checksum": "sha256:f9f1d5cb4218f2cdc4f1ecc65c5bd5c6daab8c28985f24d2506b269215be98ab",
+      "catalog": "catalogs/0062_run_history_handback.json",
+      "catalog_checksum": "sha256:6592ceda1359d2ce0d967db02c2043c34f4c6c57ea0a3b6a97c5407f85873712",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

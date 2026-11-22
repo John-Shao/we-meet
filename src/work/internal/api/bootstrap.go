@@ -211,6 +211,7 @@ func (s *Server) Handler() http.Handler {
 	// that prefix, so R0b's registered faces are added beneath it even though the shipped
 	// R0a surface they sit beside lives under /work/v1.
 	mux.HandleFunc("GET "+RunReconciliationsPath, s.getRunReconciliations)
+	mux.HandleFunc("GET "+RunHistoryHandbackPath, s.getRunHistoryHandback)
 	mux.HandleFunc("GET "+DevicesPath, s.listDevices)
 	mux.HandleFunc("POST "+DevicePairingsPath, s.createDevicePairing)
 	mux.HandleFunc("POST "+DevicePairingConfirmPath, s.confirmDevicePairing)

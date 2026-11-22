@@ -30,6 +30,9 @@ const HAND_OWNED_DEEP_LINKS = [
   'fetchWorkArtifactWorkspace',
   'fetchWorkArtifactContent',
   'workTaskArtifactContentUrl',
+  // §1.4's v2 hand-back read (0062): an R0b face the R0a contract does not declare, registered as
+  // IMPLEMENTED_ONLY on the Go side by the same reason.
+  'fetchWorkRunHistoryHandback',
 ]
 
 // operationId -> the export that calls it, or null with the reason it is not called.

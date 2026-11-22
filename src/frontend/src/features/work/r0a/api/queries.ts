@@ -26,6 +26,7 @@ import {
   fetchWorkBootstrap,
   fetchWorkInbox,
   fetchWorkRunOperations,
+  fetchWorkRunHistoryHandback,
   fetchWorkTask,
   fetchWorkTasks,
   fetchWorkTemplates,
@@ -53,7 +54,32 @@ const workKeys = {
     ['work', 'artifact-workspace', taskId, artifactId] as const,
   artifactContent: (taskId: string, artifactId: string, versionNo: number) =>
     ['work', 'artifact-content', taskId, artifactId, versionNo] as const,
+  handback: (runId: string) => ['work', 'run-history-handback', runId] as const,
 }
+
+/**
+ * device-design §3.3's display fact for one run: is it handing its history back and wrapping up.
+ *
+ * Asked only while the run is `active`, because 0059's mint requires exactly that state — a run in
+ * `waiting`/`queued`/terminal can have no live `reconcile_finish` lease, so the question would
+ * always answer false and the read would be pure traffic. The 15s refresh is not a poll for its own
+ * sake: §3.3 fixes the device heartbeat at 10s and the lease TTL at 30s, so re-reading within one
+ * TTL is what keeps the sentence from outliving the hand-back it describes. A failure reads as "not
+ * handing back" (retry false) rather than as a stuck-task copy, which is the safer of the two
+ * wrong answers the UI can give.
+ */
+export const useWorkRunHistoryHandback = (
+  runId: string | undefined,
+  runState: string | undefined
+) =>
+  useQuery({
+    queryKey: workKeys.handback(runId ?? ''),
+    queryFn: () => fetchWorkRunHistoryHandback(runId!),
+    enabled: !!runId && runState === 'active',
+    staleTime: 5_000,
+    refetchInterval: 15_000,
+    retry: false,
+  })
 
 // invalidateWorkTaskLists covers both task projections at once. The inbox is the
 // same tasks seen from "what needs you", so any mutation that changes a task's

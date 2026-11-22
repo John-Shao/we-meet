@@ -120,6 +120,7 @@
     "loadMore": "Load more",
     "updatedAt": "Updated {{time}}",
     "runState": "Run: {{state}}",
+    "handback": "Handing history back and wrapping up",
     "artifact": "Result v{{version}}"
   },
   "status": {

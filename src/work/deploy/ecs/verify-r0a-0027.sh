@@ -96,7 +96,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (58, '0058_device_certificate_issuance'),
   (59, '0059_device_execution_review'),
   (60, '0060_egress_output_recovery'),
-  (61, '0061_local_finish_cross_session_reconcile')) expected(version, name)
+  (61, '0061_local_finish_cross_session_reconcile'),
+  (62, '0062_run_history_handback')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -1039,6 +1040,34 @@ psql_ro "select 'run_finish_cross_session_reconcile_gated=' || case when
       like '%OR (v_lease.purpose = ''execute''%'
   and position('OR v_binding.session_id IS DISTINCT FROM p_session_id THEN' in -- schema-ref-exempt: 匹配 pg_get_functiondef 正文的常量串（PL/pgSQL 形参名），不是值班可执行的表引用
       pg_get_functiondef('work.acquire_device_lease(text,uuid,uuid,uuid,bigint,text,uuid,int)'::regprocedure)) = 0
+  then 'true' else 'FALSE' end"
+
+# 0062 adds the ONE server fact device-design §3.3 needs so the hand-back does not read as a stuck
+# task: a live reconcile_finish lease on this Run. A ledger row proves the file ran, not that the
+# projection says what §3.3 means, so read the live body for four things. ① the judgment is exactly
+# purpose='reconcile_finish' AND state='active' AND expires_at > now() — the three together are what
+# makes 0040:876-877's one-active-lease-per-run index turn "a hand-back lease exists" into "this run
+# is handing back", and a predicate missing expires_at would report the hand-back forever because
+# 0051/J12 lets an expired lease sit in the table; ② the response is the two keys §3.3 asks about
+# and nothing else; ③ the definer actually carries SECURITY DEFINER plus the pinned search_path
+# (CREATE OR REPLACE inherits neither, and without them the read of the work_owner-only lease table
+# fails as work_api); ④ ownership is answered as not-found in BOTH branches - missing Run and foreign
+# Task - so the face never confirms that somebody else's Run exists.
+psql_ro "select 'run_history_handback_projects_the_lease=' || case when
+    pg_get_functiondef('work.run_history_handback(text,uuid,text)'::regprocedure)
+      like '%AND l.state = ''active''%'
+  and pg_get_functiondef('work.run_history_handback(text,uuid,text)'::regprocedure)
+      like '%AND l.purpose = ''reconcile_finish''%'
+  and pg_get_functiondef('work.run_history_handback(text,uuid,text)'::regprocedure)
+      like '%AND l.expires_at > now()%'
+  and pg_get_functiondef('work.run_history_handback(text,uuid,text)'::regprocedure)
+      like '%jsonb_build_object(%run_id%, %history_handback%''%'
+  and pg_get_functiondef('work.run_history_handback(text,uuid,text)'::regprocedure) like '%SECURITY DEFINER%'
+  and pg_get_functiondef('work.run_history_handback(text,uuid,text)'::regprocedure)
+      like '%SET search_path = work, pg_catalog%'
+  and (select (length(v_def) - length(replace(v_def, E'RAISE EXCEPTION ''task_not_found''', '')))
+              / length(E'RAISE EXCEPTION ''task_not_found''')
+       from (values (pg_get_functiondef('work.run_history_handback(text,uuid,text)'::regprocedure))) as f(v_def)) = 2
   then 'true' else 'FALSE' end"
 
 # 0054 restated prepare_local_operation for the real device signature. A ledger row cannot show

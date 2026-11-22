@@ -516,3 +516,73 @@ test('old /work links reach the read-only history view without a create surface'
 
   expect(errors).toEqual([])
 })
+
+// device-design §3.3 in a real browser: a run that is handing its history back must read as
+// "正在交回历史并收尾", and the same card must read as ordinary progress when the server says it is
+// not. The v2 face is the only thing the two navigations differ by, which is the point - the run
+// state stays `active` in both (control-design §4.2 forbids a run state for a hand-back), so the
+// sentence is the only signal the owner gets.
+const runningSummary = () => ({
+  task_id: 'browser-task',
+  title: '浏览器测试任务',
+  task_state: 'open',
+  display_state: 'running',
+  permission_mode: 'ask_each',
+  active_run_id: 'browser-run',
+  latest_run_id: 'browser-run',
+  latest_run: {
+    id: 'browser-run',
+    task_id: 'browser-task',
+    attempt_no: 1,
+    state: 'active',
+    wait_reason: null,
+    terminal_reason: null,
+    control_revision: 0,
+    runtime_version: 'r0b-exec-1',
+    created_at: '2026-11-21T00:00:00Z',
+    updated_at: '2026-11-21T00:00:00Z',
+  },
+  latest_artifact: null,
+  revision: 2,
+  pending_acceptance: false,
+  blocking_operations: 0,
+  quota: { reserved_tokens: 1000, settled_tokens: 0 },
+  created_at: '2026-11-21T00:00:00Z',
+  updated_at: '2026-11-21T00:00:00Z',
+})
+
+test('a run handing its history back says so on the card, and stops when the face stops', async ({
+  page,
+}) => {
+  const errors = await mockBackend(page)
+  let handback = true
+  const reads: string[] = []
+
+  await page.route('**/work/v1/tasks?*', (route) =>
+    fulfill(route, { items: [runningSummary()], next_cursor: null })
+  )
+  await page.route('**/work/v2/**', (route) => {
+    reads.push(new URL(route.request().url()).pathname)
+    return fulfill(route, {
+      run_id: 'browser-run',
+      history_handback: handback,
+    })
+  })
+
+  await page.goto('/work/items?view=all')
+  await expect.poll(() => reads.length, { timeout: 10_000 }).toBeGreaterThan(0)
+  await expect(page.getByTestId('run-history-handback')).toHaveText(
+    '正在交回历史并收尾'
+  )
+  // The card still shows the run's own state beside the sentence: an addition, not a replacement.
+  await expect(page.getByText('浏览器测试任务')).toBeVisible()
+  expect(reads).toEqual(['/work/v2/runs/browser-run/history-handback'])
+
+  handback = false
+  await page.reload()
+  await expect.poll(() => reads.length, { timeout: 10_000 }).toBe(2)
+  await expect(page.getByTestId('run-history-handback')).toHaveCount(0)
+  await expect(page.getByText('浏览器测试任务')).toBeVisible()
+
+  expect(errors).toEqual([])
+})

@@ -207,6 +207,34 @@ export const fetchWorkTask = (taskId: string) =>
   unwrap<WorkTaskDetail>(api().getTask({ path: { taskId } }))
 
 /**
+ * §1.4's `GET /work/v2/runs/{runId}/history-handback` (0062): the one server fact device-design
+ * §3.3 needs so a run whose execution lease died with a superseded session reads as
+ * "正在交回历史并收尾" rather than as a stuck task. It answers true only while a live
+ * `reconcile_finish` lease exists on the run.
+ *
+ * Hand-owned like the artifact deep links below, and for the same structural reason: this is an
+ * R0b v2 face, so the R0a contract client has no operation for it. It is registered as
+ * IMPLEMENTED_ONLY in `test/go-surface-drift.test.mjs` and in `client.operations.test.ts`'s
+ * hand-owned list. The response is the function's two keys and nothing else, and the run's own
+ * `state` is deliberately not touched here — control-design §4.2 forbids inventing a run state for
+ * a hand-back, which is why this is an extra read next to the state rather than a new state value.
+ */
+export const fetchWorkRunHistoryHandback = async (
+  runId: string
+): Promise<boolean> => {
+  const response = await fetch(
+    `/work/v2/runs/${encodeURIComponent(runId)}/history-handback`,
+    {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    }
+  )
+  if (!response.ok) throw await parseError(response)
+  const document = (await response.json()) as { history_handback?: unknown }
+  return document.history_handback === true
+}
+
+/**
  * Task-scoped artifact deep link. Not a contract operation: the drift gate keeps it visible as
  * IMPLEMENTED_ONLY (test/go-surface-drift.test.mjs), so the path is genuinely hand-owned here and
  * is the reason this file cannot be fully generated.

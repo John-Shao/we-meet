@@ -3,6 +3,7 @@ import { Link } from 'wouter'
 
 import { css } from '@/styled-system/css'
 import type { WorkTaskSummary } from '../api/types'
+import { useWorkRunHistoryHandback } from '../api/queries'
 import { muted } from '../ui'
 import { TaskStatusBadge } from './TaskStatusBadge'
 
@@ -20,6 +21,15 @@ const cardLink = css({
 
 export const TaskCard = ({ task }: { task: WorkTaskSummary }) => {
   const { t, i18n } = useTranslation('work')
+  // device-design §3.3: a run whose execution lease died with a superseded session is still allowed
+  // to hand its history back and finish, and the card must say so instead of letting the same run
+  // read as stuck. Rendered only on the server's yes (data === true): while the read is in flight or
+  // has failed, the line stays absent, which is the copy §3.3 does NOT forbid - an assumed
+  // "正在交回历史" would be the harder mistake to take back.
+  const handback = useWorkRunHistoryHandback(
+    task.latest_run?.id,
+    task.latest_run?.state
+  )
   const updated = new Date(task.updated_at).toLocaleString(i18n.language, {
     dateStyle: 'medium',
     timeStyle: 'short',
@@ -56,6 +66,11 @@ export const TaskCard = ({ task }: { task: WorkTaskSummary }) => {
                 defaultValue: task.latest_run.state,
               }),
             })}
+          </span>
+        ) : null}
+        {handback.data === true ? (
+          <span className={muted} data-testid="run-history-handback">
+            {t('items.handback')}
           </span>
         ) : null}
         {task.latest_artifact ? (

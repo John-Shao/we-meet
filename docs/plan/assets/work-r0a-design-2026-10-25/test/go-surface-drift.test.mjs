@@ -37,6 +37,11 @@ const IMPLEMENTED_ONLY = [
   'PATCH /work/v2/admin/local-policy',
   'POST /work/v2/admin/governance-event-cursor',
   'GET /work/v2/runs/{runId}/reconciliations',
+  // R0b execution-face batch 7: device-design §3.3's display obligation needs one server fact the
+  // browser can read — whether the run has a live reconcile_finish lease (0062). It is a §1.4 row
+  // under /work/v2 like the face beside it, and it deliberately does NOT add a key to the Run
+  // schema closed above: §4.2 forbids inventing a run state for a hand-back.
+  'GET /work/v2/runs/{runId}/history-handback',
   // R0b M1b device-identity face (control-design §1.4 rows 60-63): the Bearer-plane
   // pairing, session-ticket, certificate-renewal, list and revoke routes backed by
   // the 0040 domain commands.

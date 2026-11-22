@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 61,
-  "chainTipCatalog": "catalogs/0061_local_finish_cross_session_reconcile.json",
+  "chainTip": 62,
+  "chainTipCatalog": "catalogs/0062_run_history_handback.json",
   "entries": [
     {
       "name": "GET /work/v2/admin/local-policy",
@@ -50,6 +50,15 @@
     },
     {
       "name": "GET /work/v2/readonly-grants",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "GET /work/v2/runs/{runId}/history-handback",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",
       "callableBy": [
@@ -366,7 +375,7 @@
     {
       "name": "consume_governance_events",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0061_local_finish_cross_session_reconcile.json",
+      "origin": "src/work/migrations/catalogs/0062_run_history_handback.json",
       "callableBy": [
         "work_governance_events"
       ],
@@ -483,7 +492,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0061_local_finish_cross_session_reconcile.json",
+      "origin": "src/work/migrations/catalogs/0062_run_history_handback.json",
       "callableBy": [
         "work_api",
         "work_governance_events"
@@ -728,6 +737,15 @@
       "name": "revoke_workspace_grant",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "run_history_handback",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0062_run_history_handback.sql",
       "callableBy": [
         "work_api"
       ],
