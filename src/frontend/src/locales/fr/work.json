@@ -373,7 +373,41 @@
     "credentialRotate": "Tourner la clé",
     "credentialRevoke": "Révoquer le credential",
     "credentialRevoked": "Credential révoqué.",
-    "providerHint": "L’enregistrement envoie une requête réelle minimale de contrôle ; en cas d’échec la configuration précédente reste en vigueur."
+    "providerHint": "L’enregistrement envoie une requête réelle minimale de contrôle ; en cas d’échec la configuration précédente reste en vigueur.",
+    "localPolicy": {
+      "title": "Politique d’exécution locale",
+      "description": "Configuration de l’organisation qui décide si les actions locales peuvent quitter un appareil. Le verdict ci-dessous est calculé par le serveur.",
+      "loadFailed": "Impossible de lire la politique d’exécution locale.",
+      "notConfigured": "Aucune politique d’exécution locale n’est configurée ; le premier enregistrement crée la révision 1.",
+      "gateLabel": "Verdict du serveur",
+      "gate": {
+        "ready": "Prête",
+        "local_policy_not_configured": "Non configurée",
+        "local_policy_incomplete": "Incomplète"
+      },
+      "allowedTools": "Outils autorisés",
+      "allowedDestinations": "Destinations autorisées",
+      "rules": "Règles de classification (JSON)",
+      "default": "Classification par défaut",
+      "floor": "Plancher de classification",
+      "confirmed": "Classification par défaut confirmée par un administrateur",
+      "confirmedOneWay": "La confirmation est irréversible : elle ne peut pas être annulée après l’enregistrement.",
+      "maxActions": "Limite d’actions en lecture seule",
+      "ttl": "Durée de validité de l’autorisation en lecture seule",
+      "inputLimit": "Limite d’entrée (octets)",
+      "outputLimit": "Limite de sortie (octets)",
+      "save": "Enregistrer la politique",
+      "saved": "Enregistré ; révision {{revision}}.",
+      "conflict": "Un autre administrateur a modifié la politique (révision actuelle {{revision}}). Le formulaire a été actualisé ; vérifiez puis enregistrez à nouveau.",
+      "saveFailed": "La politique n’a pas été enregistrée.",
+      "rulesInvalid": "Les règles de classification doivent être un tableau JSON.",
+      "numbersRequired": "Renseignez toutes les limites numériques et la durée de validité.",
+      "mobileNotice": "Modifiez la politique d’exécution locale sur un écran plus large.",
+      "classification": {
+        "local_only": "Local uniquement",
+        "remote_excerpt_allowed": "Extrait distant autorisé"
+      }
+    }
   },
   "operationState": {
     "prepared": "Prepared",

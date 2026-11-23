@@ -373,7 +373,41 @@
     "credentialRotate": "Rotate key",
     "credentialRevoke": "Revoke credential",
     "credentialRevoked": "The credential is revoked.",
-    "providerHint": "Saving sends one minimal real request as a connectivity probe; a failed probe leaves the previous configuration in effect."
+    "providerHint": "Saving sends one minimal real request as a connectivity probe; a failed probe leaves the previous configuration in effect.",
+    "localPolicy": {
+      "title": "Local execution policy",
+      "description": "The organization-level configuration that decides whether local actions may leave a device. The verdict below is computed by the server.",
+      "loadFailed": "Could not read the local execution policy.",
+      "notConfigured": "No local execution policy is configured yet; the first save creates revision 1.",
+      "gateLabel": "Server verdict",
+      "gate": {
+        "ready": "Ready",
+        "local_policy_not_configured": "Not configured",
+        "local_policy_incomplete": "Incomplete"
+      },
+      "allowedTools": "Allowed tools",
+      "allowedDestinations": "Allowed destinations",
+      "rules": "Classification rules (JSON)",
+      "default": "Default classification",
+      "floor": "Classification floor",
+      "confirmed": "Default classification confirmed by an administrator",
+      "confirmedOneWay": "Confirmation is one-way: it cannot be undone once saved.",
+      "maxActions": "Read-only action limit",
+      "ttl": "Read-only grant lifetime",
+      "inputLimit": "Input limit (bytes)",
+      "outputLimit": "Output limit (bytes)",
+      "save": "Save policy",
+      "saved": "Saved; now at revision {{revision}}.",
+      "conflict": "Another administrator changed the policy (current revision {{revision}}). The form was refreshed; review and save again.",
+      "saveFailed": "The policy was not saved.",
+      "rulesInvalid": "Classification rules must be a JSON array.",
+      "numbersRequired": "Fill in every numeric bound and the read-only lifetime.",
+      "mobileNotice": "Edit the local execution policy on a wider screen.",
+      "classification": {
+        "local_only": "Local only",
+        "remote_excerpt_allowed": "Remote excerpt allowed"
+      }
+    }
   },
   "operationState": {
     "prepared": "Prepared",

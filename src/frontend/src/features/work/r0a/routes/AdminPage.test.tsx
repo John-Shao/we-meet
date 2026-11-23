@@ -47,7 +47,7 @@ vi.mock('react-i18next', () => ({
 }))
 vi.mock('../api/queries', () => ({
   useWorkBootstrap: () => ({
-    data: { org: { role } },
+    data: { org: { role }, phases: ['R0a'] },
     isLoading: false,
     isError: false,
   }),

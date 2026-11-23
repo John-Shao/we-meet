@@ -96,6 +96,30 @@ const overview = {
 
 const mockAdmin = async (page: Page) => {
   const errors: string[] = []
+  const patches: { body: Record<string, unknown>; csrf?: string }[] = []
+  let policy = {
+    org_id: 'browser-org',
+    configured: true,
+    gate: 'ready',
+    allowed_tools: ['workspace.read'],
+    allowed_destinations: ['device_local'],
+    classification_rules: [
+      {
+        classification: 'local_only',
+        max_confirmable: 'local_only',
+        matcher: { path_prefix: '/docs' },
+      },
+    ],
+    classification_default: 'local_only',
+    classification_default_confirmed: true,
+    classification_floor: 'local_only',
+    readonly_max_actions: 5,
+    readonly_ttl: '01:00:00',
+    input_limit_bytes: 1024,
+    output_limit_bytes: 2048,
+    effective_epoch: 3,
+    revision: 3,
+  }
   page.on('pageerror', (error) => errors.push(error.message))
   await page.addInitScript(() => {
     localStorage.setItem('i18nextLng', 'zh')
@@ -142,7 +166,7 @@ const mockAdmin = async (page: Page) => {
           work_seat: true,
         },
         permissions: [],
-        phases: ['R0a'],
+        phases: ['R0a', 'R0b'],
         execution_targets: [],
         allowed_permission_modes: ['ask_each'],
         limits: {
@@ -209,13 +233,28 @@ const mockAdmin = async (page: Page) => {
     }
     return fulfill(route, { items: [], next_cursor: null })
   })
-  return errors
+  await page.route('**/work/v2/**', async (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (path.endsWith('/admin/local-policy')) {
+      if (route.request().method() === 'PATCH') {
+        const body = route.request().postDataJSON() as Record<string, unknown>
+        patches.push({
+          body,
+          csrf: route.request().headers()['x-csrf-token'],
+        })
+        policy = { ...policy, revision: Number(body.revision) + 1 }
+      }
+      return fulfill(route, policy)
+    }
+    return fulfill(route, { code: 'unmocked_endpoint' }, 404)
+  })
+  return { errors, patches }
 }
 
 test('admin seats table keeps its columns apart at a phone viewport', async ({
   page,
 }) => {
-  const errors = await mockAdmin(page)
+  const { errors } = await mockAdmin(page)
   await page.goto('/admin/work')
   await expect(page.getByRole('heading', { name: '席位列表' })).toBeVisible()
   await expect(
@@ -261,13 +300,22 @@ test('admin seats table keeps its columns apart at a phone viewport', async ({
   await expect(
     page.getByText('审计导出请在更宽的屏幕发起。', { exact: true })
   ).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: '本地执行策略' })
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '保存策略', exact: true })
+  ).toHaveCount(0)
+  await expect(
+    page.getByText('本地执行策略请在更宽的屏幕上编辑。', { exact: true })
+  ).toBeVisible()
   expect(errors).toEqual([])
 })
 
 test('audit export stays available, and the quota period is labelled, on a wide screen', async ({
   page,
 }) => {
-  const errors = await mockAdmin(page)
+  const { errors } = await mockAdmin(page)
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/admin/work')
   await expect(
@@ -278,10 +326,47 @@ test('audit export stays available, and the quota period is labelled, on a wide 
   expect(errors).toEqual([])
 })
 
+test('local execution policy shows the server verdict and saves against its revision', async ({
+  page,
+}) => {
+  const { errors, patches } = await mockAdmin(page)
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/admin/work')
+
+  await expect(
+    page.getByRole('heading', { name: '本地执行策略' })
+  ).toBeVisible()
+  await expect(page.locator('p').filter({ hasText: '服务端判词' })).toHaveText(
+    /已就绪.*版本: 3/
+  )
+
+  await page.getByRole('button', { name: '保存策略', exact: true }).click()
+  await expect(page.getByText('已保存，当前版本 4。')).toBeVisible()
+
+  expect(patches).toHaveLength(1)
+  expect(patches[0].csrf).toBe('mock-csrf')
+  expect(patches[0].body).toMatchObject({
+    revision: 3,
+    allowed_tools: ['workspace.read'],
+    allowed_destinations: ['device_local'],
+    classification_default: 'local_only',
+    classification_default_confirmed: true,
+    classification_floor: 'local_only',
+    readonly_max_actions: 5,
+    readonly_ttl: '01:00:00',
+    input_limit_bytes: 1024,
+    output_limit_bytes: 2048,
+  })
+  expect(
+    String(patches[0].body.client_request_id ?? '').length
+  ).toBeGreaterThanOrEqual(8)
+  expect(errors).toEqual([])
+})
+
 test('the artifact workspace stays read-only on a phone even for an editable task', async ({
   page,
 }) => {
-  const errors = await mockAdmin(page)
+  const { errors } = await mockAdmin(page)
 
   await page.goto('/work/items/browser-task/artifacts/browser-artifact')
   // exact: the task title contains the same words, and a substring match would let a

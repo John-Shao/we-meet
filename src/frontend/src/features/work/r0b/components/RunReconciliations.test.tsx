@@ -98,7 +98,9 @@ describe('RunReconciliations', () => {
     render(<RunReconciliations runId="run-1" />)
     expect(screen.getByText('task.reconciliations')).toBeTruthy()
     expect(
-      screen.getByText('operationState.unresolved:{"defaultValue":"unresolved"}')
+      screen.getByText(
+        'operationState.unresolved:{"defaultValue":"unresolved"}'
+      )
     ).toBeTruthy()
     expect(
       screen.getByText('task.reconciliationsWaited:{"seconds":42}')

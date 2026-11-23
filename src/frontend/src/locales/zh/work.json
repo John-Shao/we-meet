@@ -373,7 +373,41 @@
     "credentialRotate": "轮换密钥",
     "credentialRevoke": "吊销凭证",
     "credentialRevoked": "凭证已吊销。",
-    "providerHint": "保存前服务端会发一次最小真实请求做连通探测，失败不生效。"
+    "providerHint": "保存前服务端会发一次最小真实请求做连通探测，失败不生效。",
+    "localPolicy": {
+      "title": "本地执行策略",
+      "description": "决定本地动作能否离开设备的组织级配置；下方判词由服务端计算。",
+      "loadFailed": "读取本地执行策略失败。",
+      "notConfigured": "尚未配置本地执行策略；首次保存会创建第 1 版。",
+      "gateLabel": "服务端判词",
+      "gate": {
+        "ready": "已就绪",
+        "local_policy_not_configured": "未配置",
+        "local_policy_incomplete": "配置不完整"
+      },
+      "allowedTools": "允许的工具",
+      "allowedDestinations": "允许的目的地",
+      "rules": "分类规则（JSON）",
+      "default": "默认分类",
+      "floor": "分类下限",
+      "confirmed": "默认分类已由管理员确认",
+      "confirmedOneWay": "确认不可撤销：保存后无法再取消。",
+      "maxActions": "只读动作上限",
+      "ttl": "只读授权有效期",
+      "inputLimit": "输入上限（字节）",
+      "outputLimit": "输出上限（字节）",
+      "save": "保存策略",
+      "saved": "已保存，当前版本 {{revision}}。",
+      "conflict": "策略已被其他管理员修改（当前版本 {{revision}}）。已重新读取，请复核后再保存。",
+      "saveFailed": "策略未保存。",
+      "rulesInvalid": "分类规则必须是 JSON 数组。",
+      "numbersRequired": "请填写全部数值上限与只读有效期。",
+      "mobileNotice": "本地执行策略请在更宽的屏幕上编辑。",
+      "classification": {
+        "local_only": "仅本地",
+        "remote_excerpt_allowed": "允许远端摘录"
+      }
+    }
   },
   "operationState": {
     "prepared": "已准备",

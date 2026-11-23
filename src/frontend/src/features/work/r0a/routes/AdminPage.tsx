@@ -5,6 +5,7 @@ import { Button } from '@/primitives/Button'
 import { PageState } from '@/components/PageState'
 import { css } from '@/styled-system/css'
 import { AdminProviderPanel } from '../components/AdminProviderPanel'
+import { AdminLocalPolicyPanel } from '../../r0b/components/AdminLocalPolicyPanel'
 import {
   useAdminAuditExport,
   useAdminOverview,
@@ -397,6 +398,8 @@ export const AdminPage = () => {
           )}
         </section>
       )}
+
+      <AdminLocalPolicyPanel />
 
       <section className={card}>
         <h2 className={css({ margin: 0, textStyle: 'titleMedium' })}>

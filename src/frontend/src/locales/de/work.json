@@ -373,7 +373,41 @@
     "credentialRotate": "Schlüssel rotieren",
     "credentialRevoke": "Nachweis widerrufen",
     "credentialRevoked": "Nachweis widerrufen.",
-    "providerHint": "Beim Speichern wird ein minimaler echter Request als Prüfung gesendet; bei Fehler bleibt die bisherige Konfiguration bestehen."
+    "providerHint": "Beim Speichern wird ein minimaler echter Request als Prüfung gesendet; bei Fehler bleibt die bisherige Konfiguration bestehen.",
+    "localPolicy": {
+      "title": "Richtlinie für lokale Ausführung",
+      "description": "Organisationsweite Konfiguration, die entscheidet, ob lokale Aktionen ein Gerät verlassen dürfen. Das Urteil unten berechnet der Server.",
+      "loadFailed": "Die Richtlinie für lokale Ausführung konnte nicht gelesen werden.",
+      "notConfigured": "Es ist noch keine Richtlinie für lokale Ausführung konfiguriert; das erste Speichern erzeugt Revision 1.",
+      "gateLabel": "Server-Urteil",
+      "gate": {
+        "ready": "Bereit",
+        "local_policy_not_configured": "Nicht konfiguriert",
+        "local_policy_incomplete": "Unvollständig"
+      },
+      "allowedTools": "Erlaubte Werkzeuge",
+      "allowedDestinations": "Erlaubte Ziele",
+      "rules": "Klassifizierungsregeln (JSON)",
+      "default": "Standardklassifizierung",
+      "floor": "Klassifizierungsuntergrenze",
+      "confirmed": "Standardklassifizierung von einem Administrator bestätigt",
+      "confirmedOneWay": "Die Bestätigung ist einseitig: Nach dem Speichern kann sie nicht zurückgenommen werden.",
+      "maxActions": "Obergrenze für Nur-Lese-Aktionen",
+      "ttl": "Gültigkeitsdauer der Nur-Lese-Berechtigung",
+      "inputLimit": "Eingabegrenze (Bytes)",
+      "outputLimit": "Ausgabegrenze (Bytes)",
+      "save": "Richtlinie speichern",
+      "saved": "Gespeichert; jetzt Revision {{revision}}.",
+      "conflict": "Ein anderer Administrator hat die Richtlinie geändert (aktuelle Revision {{revision}}). Das Formular wurde neu geladen; bitte prüfen und erneut speichern.",
+      "saveFailed": "Die Richtlinie wurde nicht gespeichert.",
+      "rulesInvalid": "Klassifizierungsregeln müssen ein JSON-Array sein.",
+      "numbersRequired": "Bitte alle numerischen Grenzen und die Gültigkeitsdauer ausfüllen.",
+      "mobileNotice": "Bearbeiten Sie die Richtlinie für lokale Ausführung auf einem breiteren Bildschirm.",
+      "classification": {
+        "local_only": "Nur lokal",
+        "remote_excerpt_allowed": "Remote-Auszug erlaubt"
+      }
+    }
   },
   "operationState": {
     "prepared": "Prepared",

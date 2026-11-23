@@ -115,6 +115,16 @@ export const setWorkCSRFToken = (token: string | null) => {
   csrfToken = token
 }
 
+/**
+ * The double-submit token the hand-owned R0b mutations must echo in X-CSRF-Token
+ * (`csrf.go:16-17`). `refresh` forces a bootstrap round trip and is only for the
+ * retry-once recovery after a `csrf_invalid` refusal; bootstrap itself is a GET.
+ */
+export const getWorkCSRFToken = async (refresh = false): Promise<string> => {
+  if (!refresh && csrfToken) return csrfToken
+  return (await fetchWorkBootstrap()).csrf_token
+}
+
 const envelopeOf = (error: unknown): Record<string, unknown> => {
   const data =
     error instanceof ContractApiError

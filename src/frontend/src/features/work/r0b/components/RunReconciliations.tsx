@@ -59,9 +59,7 @@ export const RunReconciliations = ({
       {data.blocking.new_run || data.blocking.acceptance ? (
         <p className={muted}>
           {[
-            data.blocking.new_run
-              ? t('task.reconciliationsBlockNewRun')
-              : null,
+            data.blocking.new_run ? t('task.reconciliationsBlockNewRun') : null,
             data.blocking.acceptance
               ? t('task.reconciliationsBlockAcceptance')
               : null,

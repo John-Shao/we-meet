@@ -617,31 +617,29 @@ test('R0b: a waiting operation shows its wait clock, J38 state and blocked outco
       body: event('snapshot-r0b'),
     })
   )
-  await page.route(
-    '**/work/v2/runs/browser-run/reconciliations',
-    (route) =>
-      fulfill(route, {
-        org_id: 'browser-org',
-        run_id: 'browser-run',
-        task_id: 'browser-task',
-        run_state: 'active',
-        wait_reason: 'reconcile',
-        blocking: { new_run: true, acceptance: true },
-        items: [
-          {
-            operation_id: 'browser-operation-tool',
-            kind: 'tool',
-            operation_state: 'unknown',
-            reconcile_requested_at: '2026-11-22T10:00:00Z',
-            waited_seconds: 42,
-            resolution_state: 'pending',
-            evidence_sources: ['receipt'],
-            ticket_id: 'OPS-7',
-            has_authoritative_evidence: false,
-            contact_path: 'wait_for_reconciliation',
-          },
-        ],
-      })
+  await page.route('**/work/v2/runs/browser-run/reconciliations', (route) =>
+    fulfill(route, {
+      org_id: 'browser-org',
+      run_id: 'browser-run',
+      task_id: 'browser-task',
+      run_state: 'active',
+      wait_reason: 'reconcile',
+      blocking: { new_run: true, acceptance: true },
+      items: [
+        {
+          operation_id: 'browser-operation-tool',
+          kind: 'tool',
+          operation_state: 'unknown',
+          reconcile_requested_at: '2026-11-22T10:00:00Z',
+          waited_seconds: 42,
+          resolution_state: 'pending',
+          evidence_sources: ['receipt'],
+          ticket_id: 'OPS-7',
+          has_authoritative_evidence: false,
+          contact_path: 'wait_for_reconciliation',
+        },
+      ],
+    })
   )
 
   await page.goto('/work/items/browser-task')

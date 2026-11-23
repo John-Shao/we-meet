@@ -373,7 +373,41 @@
     "credentialRotate": "Sleutel roteren",
     "credentialRevoke": "Credentieel intrekken",
     "credentialRevoked": "Credentieel ingetrokken.",
-    "providerHint": "Bij opslaan wordt één minimale echte controle-aanroep gedaan; bij falen blijft de vorige configuratie geldig."
+    "providerHint": "Bij opslaan wordt één minimale echte controle-aanroep gedaan; bij falen blijft de vorige configuratie geldig.",
+    "localPolicy": {
+      "title": "Beleid voor lokale uitvoering",
+      "description": "Organisatiebrede configuratie die bepaalt of lokale acties een apparaat mogen verlaten. Het oordeel hieronder wordt door de server berekend.",
+      "loadFailed": "Het beleid voor lokale uitvoering kon niet worden gelezen.",
+      "notConfigured": "Er is nog geen beleid voor lokale uitvoering geconfigureerd; de eerste opslag maakt revisie 1.",
+      "gateLabel": "Oordeel van de server",
+      "gate": {
+        "ready": "Gereed",
+        "local_policy_not_configured": "Niet geconfigureerd",
+        "local_policy_incomplete": "Onvolledig"
+      },
+      "allowedTools": "Toegestane hulpmiddelen",
+      "allowedDestinations": "Toegestane bestemmingen",
+      "rules": "Classificatieregels (JSON)",
+      "default": "Standaardclassificatie",
+      "floor": "Ondergrens voor classificatie",
+      "confirmed": "Standaardclassificatie bevestigd door een beheerder",
+      "confirmedOneWay": "Bevestiging is eenmalig: na opslaan kan dit niet worden teruggedraaid.",
+      "maxActions": "Limiet voor alleen-lezen-acties",
+      "ttl": "Geldigheidsduur van alleen-lezen-machtiging",
+      "inputLimit": "Invoerlimiet (bytes)",
+      "outputLimit": "Uitvoerlimiet (bytes)",
+      "save": "Beleid opslaan",
+      "saved": "Opgeslagen; nu revisie {{revision}}.",
+      "conflict": "Een andere beheerder heeft het beleid gewijzigd (huidige revisie {{revision}}). Het formulier is vernieuwd; controleer en sla opnieuw op.",
+      "saveFailed": "Het beleid is niet opgeslagen.",
+      "rulesInvalid": "Classificatieregels moeten een JSON-array zijn.",
+      "numbersRequired": "Vul alle numerieke grenzen en de geldigheidsduur in.",
+      "mobileNotice": "Bewerk het beleid voor lokale uitvoering op een breder scherm.",
+      "classification": {
+        "local_only": "Alleen lokaal",
+        "remote_excerpt_allowed": "Extern fragment toegestaan"
+      }
+    }
   },
   "operationState": {
     "prepared": "Prepared",

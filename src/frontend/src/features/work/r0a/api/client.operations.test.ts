@@ -17,10 +17,11 @@ import { OPERATIONS } from './generated/r0a-client.mjs'
  * that targets nothing and a removed export that still has a declared operation both fail here.
  */
 
-// Not call-layer members: the module's error type and two helpers the components use directly.
+// Not call-layer members: the module's error type and three helpers the components use directly.
 const NON_TRANSPORT_EXPORTS = [
   'WorkApiError',
   'setWorkCSRFToken',
+  'getWorkCSRFToken',
   'workErrorMessage',
 ]
 
