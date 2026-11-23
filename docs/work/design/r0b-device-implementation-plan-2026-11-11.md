@@ -143,6 +143,8 @@ M3 开工前必须有"设备 agent 语言与打包形态征询单"落项，同�
   - `reconciliations` 用户可见（control §69 说"J16 说'用户看得见在等什么'，此前既无状态行也无查询口"）
 - **Ingress `/work/v2`**：`deploy/aliyun/work-api-entry.yaml:44` 追加一条 `- path: /work/v2 Prefix`——登记项 A 与 M4 一起部署，半径仅 meet k3s Ingress 对象，独立可回滚。
 
+**【2026-11-23 M4 批1：phases 骨架＋reconciliations 用户可见已落仓库（主签单选＝甲）】** ① bootstrap `phases` 放宽为 `["R0a","R0b"]`，同步 OpenAPI enum、生成 client/types、`contract.test.mjs` 与 slice mock；② 新增 `src/frontend/src/features/work/r0b/`：手写 `GET /work/v2/runs/{runId}/reconciliations` 客户端与 `RunReconciliations` 组件，任务页在 R0b phase 下显示未知/未决 Operation 的等待时长、J38 三档、权威证据与接触路径；③ `deploy/aliyun/work-api-entry.yaml` 增加 `/work/v2 Prefix`。**边界**：本批不新增迁移/权限码，不做 local-policy、governance cursor、Bearer 面浏览器化；Ingress 与前端改动均**未部署**，现网 tip 仍 39。批后取证＝Go 全量 PG、frontend vitest/lint/tsc、Work e2e、ci-contract。
+
 ## 7. M5 EV 与验收
 
 - **EV 命名测试补齐**：现在 43 个 `TestR0b*`、0 个 `TestEV*`。closure §五 的"EV 测试代码 80%"是按测试数量算的（12/15 覆盖），不顶替按 EV 编号（29 条）算的判据。arch `:154` 原文"EV 全部是规格，至今零执行——这是当前最大的证据缺口"、"29 条 EV 门里 15 条在体验 §8 任何 I 行都未排程"。

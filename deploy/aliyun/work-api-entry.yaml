@@ -48,3 +48,10 @@ spec:
                 name: work-api-external
                 port:
                   number: 80
+          - path: /work/v2
+            pathType: Prefix
+            backend:
+              service:
+                name: work-api-external
+                port:
+                  number: 80

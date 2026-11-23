@@ -972,7 +972,7 @@ async function handle(req, res, state) {
         work_seat: memberOf(state, state.subjectId)?.work_seat ?? false,
       },
       permissions: ['work.task.create', 'work.artifact.read'],
-      phases: ['R0a'],
+      phases: ['R0a', 'R0b'],
       execution_targets: [{ kind: 'cloud', profile: 'text-v1' }],
       allowed_permission_modes: ['ask_each', 'auto_readonly'],
       limits: {

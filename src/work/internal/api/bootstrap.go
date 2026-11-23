@@ -279,7 +279,7 @@ func (s *Server) bootstrap(w http.ResponseWriter, r *http.Request) {
 			WorkSeat: view.WorkSeat,
 		},
 		Permissions:            []string{permissionCreate, permissionRead},
-		Phases:                 []string{"R0a"},
+		Phases:                 []string{"R0a", "R0b"},
 		ExecutionTargets:       []Target{{Kind: "cloud", Profile: "text-v1"}},
 		AllowedPermissionModes: modes,
 		Limits: Limits{

@@ -100,7 +100,7 @@ func TestBootstrapReturnsFrozenShape(t *testing.T) {
 	if len(body.Permissions) != 2 || body.Permissions[0] != "work.task.create" {
 		t.Fatalf("permissions = %#v", body.Permissions)
 	}
-	if len(body.Phases) != 1 || body.Phases[0] != "R0a" {
+	if len(body.Phases) != 2 || body.Phases[0] != "R0a" || body.Phases[1] != "R0b" {
 		t.Fatalf("phases = %#v", body.Phases)
 	}
 	if len(body.ExecutionTargets) != 1 || body.ExecutionTargets[0] != (api.Target{Kind: "cloud", Profile: "text-v1"}) {

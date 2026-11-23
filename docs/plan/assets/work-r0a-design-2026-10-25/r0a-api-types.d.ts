@@ -573,7 +573,7 @@ export interface components {
             subject_id: string;
             org: components["schemas"]["Org"];
             permissions: string[];
-            phases: "R0a"[];
+            phases: ("R0a" | "R0b")[];
             execution_targets: components["schemas"]["Target"][];
             allowed_permission_modes: components["schemas"]["PermissionMode"][];
             limits: components["schemas"]["Limits"];

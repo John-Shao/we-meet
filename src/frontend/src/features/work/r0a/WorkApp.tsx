@@ -93,11 +93,12 @@ const WorkApp = () => {
     )
   }
 
-  // D5 requires the workspace to render only when the org is actually in the
-  // R0a phase and holds a work seat; a successful bootstrap alone is not enough,
-  // and an unseated account must not see a fake entry point.
+  // D5 requires the workspace to render only when the org holds a work seat and
+  // advertises at least one implemented phase. R0b now shares this shell; the
+  // R0b-only additions gate themselves on phases.includes('R0b').
+  const phases = bootstrapQ.data.phases
   if (
-    !bootstrapQ.data.phases.includes('R0a') ||
+    (!phases.includes('R0a') && !phases.includes('R0b')) ||
     !bootstrapQ.data.org.work_seat
   ) {
     return (

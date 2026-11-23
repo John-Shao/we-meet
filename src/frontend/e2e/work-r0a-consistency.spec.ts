@@ -117,7 +117,7 @@ const mockBackend = async (page: Page) => {
           work_seat: true,
         },
         permissions: [],
-        phases: ['R0a'],
+        phases: ['R0a', 'R0b'],
         execution_targets: [],
         allowed_permission_modes: ['ask_each', 'auto_readonly'],
         limits: {
@@ -207,6 +207,21 @@ const mockBackend = async (page: Page) => {
         contentType: 'text/markdown',
         body: '# Mock final artifact\n\nThe reconnect gap event was recovered.',
       })
+    return fulfill(route, { code: 'unmocked_endpoint' }, 404)
+  })
+  await page.route('**/work/v2/**', (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (path.endsWith('/reconciliations')) {
+      return fulfill(route, {
+        org_id: 'browser-org',
+        run_id: 'browser-run',
+        task_id: 'browser-task',
+        run_state: 'active',
+        wait_reason: null,
+        blocking: { new_run: false, acceptance: false },
+        items: [],
+      })
+    }
     return fulfill(route, { code: 'unmocked_endpoint' }, 404)
   })
   return errors
@@ -584,5 +599,66 @@ test('a run handing its history back says so on the card, and stops when the fac
   await expect(page.getByTestId('run-history-handback')).toHaveCount(0)
   await expect(page.getByText('浏览器测试任务')).toBeVisible()
 
+  expect(errors).toEqual([])
+})
+
+test('R0b: a waiting operation shows its wait clock, J38 state and blocked outcomes', async ({
+  page,
+}) => {
+  const errors = await mockBackend(page)
+  const task = snapshot('snapshot-r0b')
+  task.summary.latest_run_id = 'browser-run'
+  await page.route('**/work/v1/tasks/browser-task', (route) =>
+    fulfill(route, task)
+  )
+  await page.route('**/work/v1/tasks/browser-task/events', (route) =>
+    route.fulfill({
+      contentType: 'text/event-stream',
+      body: event('snapshot-r0b'),
+    })
+  )
+  await page.route(
+    '**/work/v2/runs/browser-run/reconciliations',
+    (route) =>
+      fulfill(route, {
+        org_id: 'browser-org',
+        run_id: 'browser-run',
+        task_id: 'browser-task',
+        run_state: 'active',
+        wait_reason: 'reconcile',
+        blocking: { new_run: true, acceptance: true },
+        items: [
+          {
+            operation_id: 'browser-operation-tool',
+            kind: 'tool',
+            operation_state: 'unknown',
+            reconcile_requested_at: '2026-11-22T10:00:00Z',
+            waited_seconds: 42,
+            resolution_state: 'pending',
+            evidence_sources: ['receipt'],
+            ticket_id: 'OPS-7',
+            has_authoritative_evidence: false,
+            contact_path: 'wait_for_reconciliation',
+          },
+        ],
+      })
+  )
+
+  await page.goto('/work/items/browser-task')
+  await expect(
+    page.getByRole('heading', { name: '正在核账', exact: true })
+  ).toBeVisible()
+  await expect(page.getByText('已等待 42 秒', { exact: true })).toBeVisible()
+  await expect(page.getByText('等待核账', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText('在核账完成前不能新建运行。 · 在核账完成前不能采纳成果。', {
+      exact: true,
+    })
+  ).toBeVisible()
+  await expect(
+    page.getByText('证据来源：receipt', { exact: true })
+  ).toBeVisible()
+  await expect(page.getByText('工单 OPS-7', { exact: true })).toBeVisible()
+  await expect(page.getByText('正在恢复', { exact: true })).toBeVisible()
   expect(errors).toEqual([])
 })

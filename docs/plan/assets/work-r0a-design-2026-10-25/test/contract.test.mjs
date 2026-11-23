@@ -114,7 +114,7 @@ test('bootstrap, templates, session and CSRF', async () => {
   const bootstrap = await request('GET', '/work/v1/bootstrap');
   assert.equal(bootstrap.response.status, 200);
   assert.equal(bootstrap.data.csrf_token, csrf);
-  assert.deepEqual(bootstrap.data.phases, ['R0a']);
+  assert.deepEqual(bootstrap.data.phases, ['R0a', 'R0b']);
   assert.deepEqual(bootstrap.data.allowed_permission_modes, ['ask_each', 'auto_readonly']);
   assert.equal(bootstrap.data.limits.max_goal_chars, 2000);
   assert.match(bootstrap.response.headers.get('set-cookie') ?? '', /we_meet_session=test-session/);
