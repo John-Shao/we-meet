@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'docs/plan/assets/work-r0a-design-2026-10-25/**'
+      - 'docs/plan/assets/work-r0b-browser-2026-11-23/**'
       - 'docs/work/*.md'
       - 'docs/work/*.json'
       - 'docs/work/decisions/**'
@@ -44,6 +45,7 @@ on:
       - aliyun-dev
     paths:
       - 'docs/plan/assets/work-r0a-design-2026-10-25/**'
+      - 'docs/plan/assets/work-r0b-browser-2026-11-23/**'
       - 'docs/work/*.md'
       - 'docs/work/*.json'
       - 'docs/work/decisions/**'
@@ -102,6 +104,9 @@ jobs:
         run: node scripts/work-status.mjs --check
       - name: Run contract gate
         run: node scripts/ci-contract.mjs
+      - name: Run R0b browser contract gate
+        working-directory: .
+        run: node --test docs/plan/assets/work-r0b-browser-2026-11-23/test/*.test.mjs
       - name: Validate golden-task definitions
         working-directory: .
         run: node scripts/golden-tasks/run-golden-tasks.mjs --dry-run

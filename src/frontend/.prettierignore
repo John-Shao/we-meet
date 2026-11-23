@@ -4,3 +4,8 @@
 # compares them against the contract byte-for-byte, so reformatting them
 # here would only create drift.
 src/features/work/r0a/api/generated/
+# r0b-client.mjs / r0b-api-types.d.ts / r0b-client.d.mts come from
+# work-r0b-browser-openapi.yaml via scripts/gen-work-r0b-api.mjs; npm run
+# check:work-r0b-api compares them byte-for-byte, so formatting belongs to
+# the generator.
+src/features/work/r0b/api/generated/

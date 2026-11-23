@@ -1,0 +1,398 @@
+openapi: 3.1.0
+info:
+  title: WeMeet Work R0b browser-consumer API
+  version: 0.1.0
+  description: |
+    R0b 浏览器消费面的冻结契约：只含 Web 应用经 HttpOnly cookie 会话调用的
+    /work/v2 面 —— reconciliations、history-handback、admin/local-policy、
+    readonly-grants（列表与撤销）。
+
+    Bearer 平面的设备、审批、工作区与本地保存面不在本契约内：它们由桌面壳
+    消费，仍逐条登记在 go-surface-drift.test.mjs 的 IMPLEMENTED_ONLY 里。
+    变更请求另带 X-CSRF-Token（double-submit）；正文只经受控内容面返回，
+    事件、错误与日志不含正文。
+
+    本文件是这四个消费面的路径/方法/参数/CSRF 权威：手写客户端与生成客户端
+    都从它派生，r0b-browser-contract.test.mjs 把每一条核到 Go 路由注册上。
+servers:
+  - url: /
+security:
+  - cookieAuth: []
+tags:
+  - name: Runs
+  - name: Admin
+  - name: ReadonlyGrants
+
+paths:
+  /work/v2/runs/{runId}/reconciliations:
+    get:
+      tags: [Runs]
+      operationId: getRunReconciliations
+      summary: Run 的核账等待面：在等什么、谁签了什么（J16/R12C-2）
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "200":
+          description: 等待与核账投影；全部为元数据，不含成果正文
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunReconciliations" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /work/v2/runs/{runId}/history-handback:
+    get:
+      tags: [Runs]
+      operationId: getRunHistoryHandback
+      summary: Run 是否正在交回历史并收尾（device-design §3.3；只在活 reconcile_finish 租约下为真）
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "200":
+          description: 一个布尔事实；没有活交回租约时返回 false
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HistoryHandback" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /work/v2/admin/local-policy:
+    get:
+      tags: [Admin]
+      operationId: getAdminLocalPolicy
+      summary: 组织本地执行策略与服务端判词（owner/admin 读）
+      responses:
+        "200":
+          description: 策略列＋configured＋gate；未配置时只含 org_id/configured/gate
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LocalPolicy" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    patch:
+      tags: [Admin]
+      operationId: setAdminLocalPolicy
+      summary: 整份写入本地执行策略（revision CAS；只 owner/admin）
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LocalPolicyWriteRequest" }
+      responses:
+        "200":
+          description: 写入后的策略行，含新 revision 与判词
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LocalPolicy" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /work/v2/readonly-grants:
+    get:
+      tags: [ReadonlyGrants]
+      operationId: listReadonlyGrants
+      summary: 当前所有者自己的同类只读许可（可按 run 过滤；含已撤销/过期历史行）
+      parameters:
+        - $ref: "#/components/parameters/RunIdQuery"
+      responses:
+        "200":
+          description: 许可行列表；只返回 owner_subject_id 为调用者的行
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReadonlyGrantList" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /work/v2/readonly-grants/{grantId}/revoke:
+    post:
+      tags: [ReadonlyGrants]
+      operationId: revokeReadonlyGrant
+      summary: 撤销一条只读许可（revision CAS＋审计请求号；不撤回已派发动作）
+      parameters:
+        - $ref: "#/components/parameters/GrantId"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReadonlyGrantRevokeRequest" }
+      responses:
+        "200":
+          description: 撤销后的许可事实；replayed 表示同请求重放
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReadonlyGrantRevoked" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+components:
+  parameters:
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+      description: work.run 的 id。
+    GrantId:
+      name: grantId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+      description: work.readonly_approval_grant 的 id。
+    RunIdQuery:
+      name: run_id
+      in: query
+      required: false
+      schema: { type: string, format: uuid }
+      description: 只列该 Run 的许可；省略则列调用者全部 Run 的许可。
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: { type: string, minLength: 16 }
+      description: double-submit token；与 bootstrap 返回的 csrf_token 一致。
+
+  responses:
+    BadRequest:
+      description: 请求形状或字段不合法
+    Unauthorized:
+      description: 未认证
+    Forbidden:
+      description: 已认证但无该面权限（admin 面要求 owner/admin）
+    NotFound:
+      description: 对象不存在，或不属于调用者
+    Conflict:
+      description: revision CAS 或幂等键冲突
+    ServiceUnavailable:
+      description: 依赖不可用，稍后重试
+
+  schemas:
+    RunReconciliations:
+      type: object
+      description: work.list_run_reconciliations 的封闭文档（0021:551）。
+      required: [org_id, run_id, task_id, run_state, wait_reason, blocking, items]
+      properties:
+        org_id: { type: string }
+        run_id: { type: string, format: uuid }
+        task_id: { type: string, format: uuid }
+        run_state: { type: string }
+        wait_reason: { type: [string, "null"] }
+        blocking:
+          type: object
+          required: [new_run, acceptance]
+          properties:
+            new_run: { type: boolean }
+            acceptance: { type: boolean }
+        items:
+          type: array
+          items:
+            type: object
+            required:
+              - operation_id
+              - kind
+              - operation_state
+              - reconcile_requested_at
+              - waited_seconds
+              - resolution_state
+              - evidence_sources
+              - ticket_id
+              - has_authoritative_evidence
+              - contact_path
+            properties:
+              operation_id: { type: string, format: uuid }
+              kind: { type: string }
+              operation_state: { type: string }
+              reconcile_requested_at: { type: [string, "null"], format: date-time }
+              waited_seconds: { type: [integer, "null"] }
+              resolution_state:
+                type: string
+                enum: [pending, downgraded_readonly, evidence_exhausted]
+              evidence_sources:
+                type: array
+                items: { type: string }
+              ticket_id: { type: [string, "null"] }
+              has_authoritative_evidence: { type: boolean }
+              contact_path:
+                type: string
+                enum: [wait_for_reconciliation, wait_for_late_evidence, operator_ticket]
+
+    HistoryHandback:
+      type: object
+      description: 0061/0062：是否有一条活的 reconcile_finish 租约在交回历史。
+      required: [run_id, history_handback]
+      properties:
+        run_id: { type: string, format: uuid }
+        history_handback: { type: boolean }
+
+    LocalPolicy:
+      type: object
+      description: |
+        work.get_local_policy 的封闭文档（0020:420-449）：配置行本身（减去时间戳）
+        ＋configured＋服务端 gate 判词。未配置时只有 org_id/configured/gate。
+      required: [org_id, configured, gate]
+      properties:
+        org_id: { type: string }
+        configured: { type: boolean }
+        gate:
+          type: string
+          enum: [ready, local_policy_not_configured, local_policy_incomplete]
+        allowed_tools:
+          type: array
+          items:
+            type: string
+            enum:
+              - workspace.list
+              - workspace.read
+              - workspace.search
+              - artifact.write
+              - model.send_remote
+              - model.send_device_local
+        allowed_destinations:
+          type: array
+          items:
+            type: string
+            enum: [device_local, org_private, org_remote]
+        classification_rules:
+          type: array
+          items: { type: object }
+        classification_default:
+          type: string
+          enum: [local_only, remote_excerpt_allowed]
+        classification_default_confirmed: { type: boolean }
+        classification_floor:
+          type: string
+          enum: [local_only, remote_excerpt_allowed]
+        readonly_max_actions: { type: integer, minimum: 0 }
+        readonly_ttl: { type: string, description: PostgreSQL interval，例如 01:00:00 }
+        input_limit_bytes: { type: integer, minimum: 1 }
+        output_limit_bytes: { type: integer, minimum: 1 }
+        effective_epoch: { type: integer, minimum: 0 }
+        revision: { type: integer, minimum: 0 }
+
+    LocalPolicyWriteRequest:
+      type: object
+      description: 0020:217-355 的 PATCH 体：整份闭合文档＋CAS 锚点＋审计请求号。
+      required:
+        - revision
+        - client_request_id
+        - allowed_tools
+        - allowed_destinations
+        - classification_rules
+        - classification_default
+        - classification_floor
+        - readonly_max_actions
+        - readonly_ttl
+        - input_limit_bytes
+        - output_limit_bytes
+      properties:
+        revision: { type: integer, minimum: 0, description: 首次写入为 0 }
+        client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        allowed_tools:
+          type: array
+          items: { type: string }
+        allowed_destinations:
+          type: array
+          items: { type: string }
+        classification_rules:
+          type: array
+          items: { type: object }
+        classification_default:
+          type: string
+          enum: [local_only, remote_excerpt_allowed]
+        classification_default_confirmed: { type: boolean }
+        classification_floor:
+          type: string
+          enum: [local_only, remote_excerpt_allowed]
+        readonly_max_actions: { type: integer, minimum: 0 }
+        readonly_ttl: { type: string }
+        input_limit_bytes: { type: integer, minimum: 1 }
+        output_limit_bytes: { type: integer, minimum: 1 }
+
+    ReadonlyGrantList:
+      type: object
+      description: work.list_readonly_grants 的封闭文档（0042:2583-2619）。
+      required: [grants]
+      properties:
+        grants:
+          type: array
+          items: { $ref: "#/components/schemas/ReadonlyGrant" }
+
+    ReadonlyGrant:
+      type: object
+      description: 一行只读许可；撤销/过期/作废行照旧返回（0042:2513-2517）。
+      required:
+        - id
+        - owner_subject_id
+        - run_id
+        - device_id
+        - workspace_grant_id
+        - grant_revision
+        - tool_set
+        - resource_selector_hash
+        - policy_epoch
+        - access_epoch
+        - approval_id
+        - expires_at
+        - status
+        - consumed_count
+        - revision
+        - created_at
+        - updated_at
+      properties:
+        id: { type: string, format: uuid }
+        owner_subject_id: { type: string }
+        run_id: { type: string, format: uuid }
+        device_id: { type: string, format: uuid }
+        workspace_grant_id: { type: string, format: uuid }
+        grant_revision: { type: integer, minimum: 1 }
+        tool_set:
+          type: array
+          items:
+            type: string
+            enum: [workspace.list, workspace.read, workspace.search]
+        resource_selector_hash:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+        policy_epoch: { type: integer, minimum: 0 }
+        access_epoch: { type: integer, minimum: 0 }
+        approval_id: { type: [string, "null"], format: uuid }
+        expires_at: { type: string, format: date-time }
+        status:
+          type: string
+          enum: [active, revoked, expired, invalidated]
+        consumed_count: { type: integer, minimum: 0 }
+        revision: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    ReadonlyGrantRevokeRequest:
+      type: object
+      description: 0042:2518-2580 的撤销体。
+      required: [client_request_id, expected_revision]
+      properties:
+        client_request_id: { type: string, minLength: 1 }
+        expected_revision: { type: integer, minimum: 0 }
+
+    ReadonlyGrantRevoked:
+      type: object
+      description: 撤销后的事实；replayed=true 表示同一请求号的重放。
+      required: [grant_id, status, revision, replayed]
+      properties:
+        grant_id: { type: string, format: uuid }
+        status: { type: string, enum: [revoked] }
+        revision: { type: integer, minimum: 0 }
+        replayed: { type: boolean }
+
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: work_session

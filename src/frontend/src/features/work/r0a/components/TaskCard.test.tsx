@@ -38,7 +38,7 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
-vi.mock('../api/queries', () => ({
+vi.mock('../../r0b/api/queries', () => ({
   useWorkRunHistoryHandback: (
     runId: string | undefined,
     runState: string | undefined
