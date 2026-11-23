@@ -162,7 +162,7 @@ sudo ./rollout-r0a-0027.sh --release <发布目录> --migrations-only
 
 ### 3.4 rollout 0040–0045 的三道前置
 
-> 2026-11-22 注记：标题里的"三道"是 0040–0045 时期的计数，标题原文保留不改；现读为五道——第 4 条随整包 0040–0062 重切新增，第 5 条随卡片 W 追加二（W2＝甲）新增。
+> 2026-11-22 注记：标题里的"三道"是 0040–0045 时期的计数，标题原文保留不改；现读为五道——第 4 条随整包 0040–0062 重切新增，第 5 条随卡片 W 追加二（W2＝甲）新增。2026-11-23 追加：现读为七道——第 6 条随卡片 V、第 7 条随卡片 Y 的现网核对项新增（均为只读前置）。
 
 1. **工作树干净**：`RELEASE_DIRTY=0`；脏包不可复现，rollout 会打 WARN。
 2. **窗口当场生产写授权**：定序裁定不含执行授权。若包内含 authz 热加载改动（卡片 Y 前置 d），restart work-authz 会把 workloads.json 热加载变成现网行为——单独取授权或分开出包。
@@ -201,7 +201,31 @@ sudo ./rollout-r0a-0027.sh --release <发布目录> --migrations-only
 
    仓库钉：`.py`＝`393aae65d1ab82b18a75394c112081ba591cf7a9dc8d39ee37484702494fa31c`（另两件的字节钉在 `release-payload-closure.test.mjs`）。**判据边界**：`verify-r0a-0027.sh` 已逐名报 present/MISSING 与 `host_sha16`（剥 CR），但脚本内**没有**"读数与仓库钉不等即中止"的动作 ⇒ 本条的 fail-closed 目前靠现场手工比对，机械化须在 rollout 批获授权时补脚本；在那之前不得声称两侧一致已被机器保证。`.service`／`.timer` 若是首次安装（主机无原件）按 MISSING 记录并继续，这不属不一致。
 
-**两步排程（R2 甲＋R3 乙＋排程甲的合并结果）**：`--migrations-only` 与 `--enable-advance`／`--runtime-bundle` 互斥（`rollout-r0a-0027.sh:73-80` 直接拒绝），故整包 0040–0062 在同一窗口内**分两次调用**：第一步只跑 migration（含上列四道前置），第二步在"同二进制重放预检全绿＋在途 Run 已 drain 到零"之后换 work-worker＋work-api 并落 V/W/Y。两次调用各自需要一笔独立的现场生产写授权；第一步完成不等于第二步已获授权。
+6. **work-api 链尾闸的现网读数（2026-11-23 随卡片 V 现网核对项新增，只读前置，第二步换 api 后当场取）**：卡片 V 的仓库面（`work-chain-check.service`＋`work-api.service` 的 `Requires=`/`After=`＋rollout 逐名安装步）已落，但"现网 work-api 是否真的带闸启动"只能当场读。重启 work-api 后取：
+
+   ```bash
+   # [只读] unit 片段里必须看得到 Requires=/After=work-chain-check.service
+   sudo systemctl cat work-api.service | grep -E '^(Requires|After)=.*work-chain-check\.service'
+   # [只读] oneshot 闸必须在本轮重启后成功跑过一次
+   sudo systemctl status work-chain-check.service --no-pager
+   sudo journalctl -u work-chain-check.service -n 20 --no-pager
+   ```
+
+   判据：`cat` 同时看得到 `Requires=` 与 `After=`，且 `status`／`journal` 显示 oneshot 成功执行过。**`enabled` 不是判据**——该 unit 故意不带 `[Install]`，只能由 `work-api` 拉起。任一条读不到 → 本窗口不把卡片 V 读成现网闭合，只记录读数并停在"仓库面已落"。
+
+7. **work-authz 现网二进制身份与启动时间（2026-11-23 随卡片 Y 前置 d 新增，只读前置，重启前后各读一次）**：卡片 Y 的前置 d 是"未换二进制、未重启 work-authz ⇒ 现网仍跑启动期一次性读的旧二进制"。第二步 rollout 会在 `systemctl restart work-authz ...` 时换上新二进制，所以重启后必须当场确认跑的是新件、且启动时间晚于本次重启：
+
+   ```bash
+   # [只读] 重启前后各跑一次，记下 MainPID / 启动时间（含单调时钟）/ 可执行文件 sha256
+   sudo systemctl show work-authz -p MainPID -p ExecMainStartTimestamp -p ExecMainStartTimestampMonotonic
+   pid=$(sudo systemctl show work-authz -p MainPID --value)
+   exe=$(sudo readlink -f "/proc/$pid/exe"); echo "$exe"; sudo sha256sum "$exe"
+   sudo sha256sum /usr/local/bin/work-authz
+   ```
+
+   判据：重启后 `MainPID` 变化、`ExecMainStartTimestampMonotonic` 晚于本次重启、`/proc/<pid>/exe` 解析为 `/usr/local/bin/work-authz` 且其 sha256 等于本包新装件。三条全中才可把"热加载面已随新二进制生效"读成现网事实；否则仍按启动期一次性读的旧进程记，不得声称撤销面已成立。`workloads.json` 改动本身是生产写，不属本条只读核对；5 秒轮询是否真的捡起新名单，须另做受控写验证，本条不声称。
+
+**两步排程（R2 甲＋R3 乙＋排程甲的合并结果）**：`--migrations-only` 与 `--enable-advance`／`--runtime-bundle` 互斥（`rollout-r0a-0027.sh:73-80` 直接拒绝），故整包 0040–0062 在同一窗口内**分两次调用**：第一步只跑 migration（含上列第 1–5 条前置），第二步在"同二进制重放预检全绿＋在途 Run 已 drain 到零"之后换 work-worker＋work-api 并落 V/W/Y（第 6–7 条在第二步当场取）。两次调用各自需要一笔独立的现场生产写授权；第一步完成不等于第二步已获授权。
 
 **只读前置取数**（rollout 前另有两个主机侧只读探针，跑完即删，判据取脚本自身退出码 `HOST_SCRIPT_RC=0`）：`docs/plan/assets/work-r0a-ops-2026-10-25/preflight/rollout-preflight-ledger-read.sh`（台账/在途 Run/预留/outbox）与 `rollout-preflight-package-shape-read.sh`（发布包形状/在装件比对）。取数形状：
 
