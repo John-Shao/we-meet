@@ -232,7 +232,22 @@
     "reconciliationsState.evidence_exhausted": "Belege erschöpft",
     "reconciliationsContact.wait_for_reconciliation": "Wiederherstellung läuft",
     "reconciliationsContact.wait_for_late_evidence": "Wartet auf verspätete Belege",
-    "reconciliationsContact.operator_ticket": "Betreiber-Ticket erforderlich"
+    "reconciliationsContact.operator_ticket": "Betreiber-Ticket erforderlich",
+    "readonlyGrants": "Nur-Lese-Berechtigungen",
+    "readonlyGrantsExpires": "Läuft {{time}} ab",
+    "readonlyGrantsConsumed": "{{times}} Mal genutzt",
+    "readonlyGrantsRevoke": "Widerrufen",
+    "readonlyGrantsConfirmRevoke": "Widerruf bestätigen",
+    "readonlyGrantsCancel": "Abbrechen",
+    "readonlyGrantsRevoked": "Die Nur-Lese-Berechtigung wurde widerrufen.",
+    "readonlyGrantsConflict": "Die Berechtigung wurde geändert oder ist nicht mehr aktiv; die Liste wurde aktualisiert.",
+    "readonlyGrantsFailed": "Die Berechtigung wurde nicht widerrufen.",
+    "readonlyGrantsState": {
+      "active": "Aktiv",
+      "revoked": "Widerrufen",
+      "expired": "Abgelaufen",
+      "invalidated": "Ungültig"
+    }
   },
   "artifact": {
     "backToTask": "Back to task",

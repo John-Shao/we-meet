@@ -232,7 +232,22 @@
     "reconciliationsState.evidence_exhausted": "证据已耗尽",
     "reconciliationsContact.wait_for_reconciliation": "正在恢复",
     "reconciliationsContact.wait_for_late_evidence": "等待迟到的证据",
-    "reconciliationsContact.operator_ticket": "需要运维工单"
+    "reconciliationsContact.operator_ticket": "需要运维工单",
+    "readonlyGrants": "只读许可",
+    "readonlyGrantsExpires": "{{time}} 到期",
+    "readonlyGrantsConsumed": "已使用 {{times}} 次",
+    "readonlyGrantsRevoke": "撤销",
+    "readonlyGrantsConfirmRevoke": "确认撤销",
+    "readonlyGrantsCancel": "取消",
+    "readonlyGrantsRevoked": "已撤销该只读许可。",
+    "readonlyGrantsConflict": "该许可已被修改或已不再有效；已刷新列表。",
+    "readonlyGrantsFailed": "撤销失败。",
+    "readonlyGrantsState": {
+      "active": "有效",
+      "revoked": "已撤销",
+      "expired": "已过期",
+      "invalidated": "已作废"
+    }
   },
   "artifact": {
     "backToTask": "返回任务",

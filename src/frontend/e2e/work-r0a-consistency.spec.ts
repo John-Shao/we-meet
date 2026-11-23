@@ -222,6 +222,9 @@ const mockBackend = async (page: Page) => {
         items: [],
       })
     }
+    if (path.endsWith('/readonly-grants')) {
+      return fulfill(route, { grants: [] })
+    }
     return fulfill(route, { code: 'unmocked_endpoint' }, 404)
   })
   return errors
@@ -658,5 +661,84 @@ test('R0b: a waiting operation shows its wait clock, J38 state and blocked outco
   ).toBeVisible()
   await expect(page.getByText('工单 OPS-7', { exact: true })).toBeVisible()
   await expect(page.getByText('正在恢复', { exact: true })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test('R0b: an active readonly grant can be revoked from the task page', async ({
+  page,
+}) => {
+  const errors = await mockBackend(page)
+  const task = snapshot('snapshot-grants')
+  task.summary.latest_run_id = 'browser-run'
+  await page.route('**/work/v1/tasks/browser-task', (route) =>
+    fulfill(route, task)
+  )
+  await page.route('**/work/v1/tasks/browser-task/events', (route) =>
+    route.fulfill({
+      contentType: 'text/event-stream',
+      body: event('snapshot-grants'),
+    })
+  )
+
+  let grantStatus = 'active'
+  const revokes: { body: Record<string, unknown>; csrf?: string }[] = []
+  await page.route('**/work/v2/readonly-grants**', (route) => {
+    if (route.request().method() === 'POST') {
+      revokes.push({
+        body: route.request().postDataJSON() as Record<string, unknown>,
+        csrf: route.request().headers()['x-csrf-token'],
+      })
+      grantStatus = 'revoked'
+      return fulfill(route, {
+        grant_id: 'browser-grant',
+        status: 'revoked',
+        revision: 3,
+        replayed: false,
+      })
+    }
+    return fulfill(route, {
+      grants: [
+        {
+          id: 'browser-grant',
+          owner_subject_id: 'browser-user',
+          run_id: 'browser-run',
+          device_id: 'browser-device',
+          workspace_grant_id: 'browser-workspace-grant',
+          grant_revision: 1,
+          tool_set: ['workspace.read'],
+          resource_selector_hash: 'a'.repeat(64),
+          policy_epoch: 1,
+          access_epoch: 1,
+          approval_id: null,
+          expires_at: '2026-11-23T12:00:00Z',
+          status: grantStatus,
+          consumed_count: 2,
+          revision: 3,
+          created_at: '2026-11-23T10:00:00Z',
+          updated_at: '2026-11-23T10:00:00Z',
+        },
+      ],
+    })
+  })
+
+  await page.goto('/work/items/browser-task')
+  await expect(
+    page.getByRole('heading', { name: '只读许可', exact: true })
+  ).toBeVisible()
+  await expect(page.getByText('workspace.read', { exact: true })).toBeVisible()
+  await expect(page.getByText('有效', { exact: true })).toBeVisible()
+  await expect(page.getByText('已使用 2 次', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: '撤销', exact: true }).click()
+  await page.getByRole('button', { name: '确认撤销', exact: true }).click()
+  await expect(page.getByText('已撤销该只读许可。')).toBeVisible()
+  await expect(page.getByText('已撤销', { exact: true })).toBeVisible()
+
+  expect(revokes).toHaveLength(1)
+  expect(revokes[0].csrf).toBe('mock-csrf')
+  expect(revokes[0].body).toMatchObject({ expected_revision: 3 })
+  expect(
+    String(revokes[0].body.client_request_id ?? '').length
+  ).toBeGreaterThanOrEqual(8)
   expect(errors).toEqual([])
 })

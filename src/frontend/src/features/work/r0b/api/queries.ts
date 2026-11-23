@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
   fetchWorkLocalPolicy,
+  fetchWorkReadonlyGrants,
   fetchWorkRunReconciliations,
+  revokeWorkReadonlyGrant,
   setWorkLocalPolicy,
 } from './client'
 
@@ -10,6 +12,8 @@ const r0bKeys = {
   reconciliations: (runId: string) =>
     ['work', 'r0b', 'reconciliations', runId] as const,
   localPolicy: ['work', 'r0b', 'local-policy'] as const,
+  readonlyGrants: (runId: string) =>
+    ['work', 'r0b', 'readonly-grants', runId] as const,
 }
 
 /**
@@ -49,6 +53,37 @@ export const useSetWorkLocalPolicy = () => {
     mutationFn: setWorkLocalPolicy,
     onSuccess: (policy) => {
       queryClient.setQueryData(r0bKeys.localPolicy, policy)
+    },
+  })
+}
+
+/** The owner's own grants for one run; expired and revoked rows are part of the answer. */
+export const useWorkReadonlyGrants = (
+  runId: string | undefined,
+  enabled: boolean
+) =>
+  useQuery({
+    queryKey: r0bKeys.readonlyGrants(runId ?? ''),
+    queryFn: () => fetchWorkReadonlyGrants(runId),
+    enabled: enabled && !!runId,
+    staleTime: 10_000,
+    retry: false,
+  })
+
+export const useRevokeWorkReadonlyGrant = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      grantId,
+      body,
+    }: {
+      grantId: string
+      body: { client_request_id: string; expected_revision: number }
+    }) => revokeWorkReadonlyGrant(grantId, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ['work', 'r0b', 'readonly-grants'],
+      })
     },
   })
 }

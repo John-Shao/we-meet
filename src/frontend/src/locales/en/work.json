@@ -232,7 +232,22 @@
     "reconciliationsState.evidence_exhausted": "Evidence exhausted",
     "reconciliationsContact.wait_for_reconciliation": "Recovery in progress",
     "reconciliationsContact.wait_for_late_evidence": "Waiting for late evidence",
-    "reconciliationsContact.operator_ticket": "Needs an operator ticket"
+    "reconciliationsContact.operator_ticket": "Needs an operator ticket",
+    "readonlyGrants": "Read-only grants",
+    "readonlyGrantsExpires": "Expires {{time}}",
+    "readonlyGrantsConsumed": "Used {{times}} times",
+    "readonlyGrantsRevoke": "Revoke",
+    "readonlyGrantsConfirmRevoke": "Confirm revoke",
+    "readonlyGrantsCancel": "Cancel",
+    "readonlyGrantsRevoked": "The read-only grant was revoked.",
+    "readonlyGrantsConflict": "The grant changed or is no longer active; the list was refreshed.",
+    "readonlyGrantsFailed": "The grant was not revoked.",
+    "readonlyGrantsState": {
+      "active": "Active",
+      "revoked": "Revoked",
+      "expired": "Expired",
+      "invalidated": "Invalidated"
+    }
   },
   "artifact": {
     "backToTask": "Back to task",

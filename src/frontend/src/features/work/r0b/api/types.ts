@@ -92,3 +92,51 @@ export interface WorkLocalPolicyWrite {
   input_limit_bytes: number
   output_limit_bytes: number
 }
+
+// 0040:1037 status closed set. Expired and revoked rows stay listed on purpose
+// (0042:2513-2517): the audit question "which grant exempted this action" outlives
+// the grant.
+export type ReadonlyGrantStatus =
+  | 'active'
+  | 'revoked'
+  | 'expired'
+  | 'invalidated'
+
+// 0042:2603-2612 list_readonly_grants, one object per row.
+export interface WorkReadonlyGrant {
+  id: string
+  owner_subject_id: string
+  run_id: string
+  device_id: string
+  workspace_grant_id: string
+  grant_revision: number
+  tool_set: string[]
+  resource_selector_hash: string
+  policy_epoch: number
+  access_epoch: number
+  approval_id: string | null
+  expires_at: string
+  status: ReadonlyGrantStatus
+  consumed_count: number
+  revision: number
+  created_at: string
+  updated_at: string
+}
+
+export interface WorkReadonlyGrantList {
+  grants: WorkReadonlyGrant[]
+}
+
+// 0042:2518-2580 revoke_readonly_grant: revision CAS plus the audit request id that
+// the receipt index deduplicates on.
+export interface WorkReadonlyGrantRevoke {
+  client_request_id: string
+  expected_revision: number
+}
+
+export interface WorkReadonlyGrantRevoked {
+  grant_id: string
+  status: 'revoked'
+  revision: number
+  replayed: boolean
+}

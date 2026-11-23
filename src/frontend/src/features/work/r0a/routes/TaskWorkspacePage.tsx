@@ -32,6 +32,7 @@ import { useTaskEventStream } from '../hooks/useTaskEventStream'
 import { ArtifactPanel } from '../components/ArtifactPanel'
 import { RunOperations } from '../components/RunOperations'
 import { RunReconciliations } from '../../r0b/components/RunReconciliations'
+import { RunReadonlyGrants } from '../../r0b/components/RunReadonlyGrants'
 import { TaskStatusBadge } from '../components/TaskStatusBadge'
 import {
   card,
@@ -510,6 +511,7 @@ export const TaskWorkspacePage = () => {
             ) : null}
           </section>
           <RunReconciliations runId={detail.summary.latest_run_id} />
+          <RunReadonlyGrants runId={detail.summary.latest_run_id} />
           <RunOperations runId={detail.summary.latest_run_id} />
         </div>
 

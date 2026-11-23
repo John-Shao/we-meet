@@ -15,12 +15,12 @@ Work 是 we-meet 的 AI 任务执行模块：用户写一个目标（Composer）
 | 阶段 | 范围 | 状态 |
 |---|---|---|
 | R0a | 云端文本任务：Composer、我的工作、任务工作区、成果验收、预算/审计、管理只读子集 | 已实现、已部署试点环境 |
-| R0b | 本机执行（设备面）、可委派权限、治理、审批、token 护栏 | 设计自查完成、外部审计未执行；M1a/M1b/M1c 设备迁移与 REST 面、M3 设备 agent 八批＋网关 GW1–GW21、M2a/M2b 桌面壳设备驱动、执行面批 0–7 均已落仓库（未 rollout、未接生产消费）；M4 前两批（phases 骨架＋reconciliations 用户可见＋Ingress 路径；admin/local-policy 读写面）已落仓库，M4 其余消费者与 M5 EV/审计未实现；迁移 tip 见 [status.json](status.json) |
+| R0b | 本机执行（设备面）、可委派权限、治理、审批、token 护栏 | 设计自查完成、外部审计未执行；M1a/M1b/M1c 设备迁移与 REST 面、M3 设备 agent 八批＋网关 GW1–GW21、M2a/M2b 桌面壳设备驱动、执行面批 0–7 均已落仓库（未 rollout、未接生产消费）；M4 前三批（phases 骨架＋reconciliations 用户可见＋Ingress 路径；admin/local-policy 读写面；readonly-grants 列表与撤销）已落仓库，M4 其余消费者与 M5 EV/审计未实现；迁移 tip 见 [status.json](status.json) |
 | R1–R5 | 套件/技能、连接器、项目/链式、富成果、协作/自动化 | 仅产品/UX/架构方向，未实现 |
 
 > **2026-11-20 更正**：本页早期的「M2 未实现／M3 仅部分」不能替代后续分批登记；桌面壳与设备执行脊的已落范围、夹具证据和仍延后项以 [执行面设计单](design/work-r0b-execution-face-design-2026-11-19.md) 的批次登记为准。本页下方同类阶段概括也按此读取，不据此扩大生产准入或 rollout 授权；迁移与生产状态仍只取 [status.json](status.json)。
 >
-> **2026-11-23 更正**：上方阶段表与 design 行已按已落批次改写（M1a/M1b/M1c、M3 GW1–GW21、M2a/M2b、执行面批 0–7、M4 前两批）；仍不扩大生产准入或 rollout 授权，迁移与生产状态只取 [status.json](status.json)。
+> **2026-11-23 更正**：上方阶段表与 design 行已按已落批次改写（M1a/M1b/M1c、M3 GW1–GW21、M2a/M2b、执行面批 0–7、M4 前三批）；仍不扩大生产准入或 rollout 授权，迁移与生产状态只取 [status.json](status.json)。
 
 R0a **不含**：本机执行、连接器、项目/链式、手工审批 UI（审批函数内部保留给 R0b/R2/测试）。
 
@@ -34,7 +34,7 @@ R0a **不含**：本机执行、连接器、项目/链式、手工审批 UI（�
 | [operations.md](operations.md) | 可操作运维步骤：部署、迁移、备份、回滚、告警、go/no-go |
 | [status.json](status.json) / [status.md](status.md) | 当前状态（`scripts/work-status.mjs` 生成；事实输入 [status.inputs.json](status.inputs.json)） |
 | [decisions/](decisions/README.md) | 架构决策记录（ADR）索引 |
-| [design/](design/) | R0b 详细设计（需评审）＋安全边界决策（host-wire/threat-model）；M1a/M1b/M1c、M3（GW1–GW21）、M2a/M2b 与执行面批 0–7 已落仓库，M4 前两批已落仓库，M4 其余与 M5 未实现；长文**按章节收敛**（已实现章节移入归档，未实现章节仍为签署权威，条件见下）；已实现 R0a 设计基线见 [archive/design-baseline/](archive/design-baseline/) |
+| [design/](design/) | R0b 详细设计（需评审）＋安全边界决策（host-wire/threat-model）；M1a/M1b/M1c、M3（GW1–GW21）、M2a/M2b 与执行面批 0–7 已落仓库，M4 前三批已落仓库，M4 其余与 M5 未实现；长文**按章节收敛**（已实现章节移入归档，未实现章节仍为签署权威，条件见下）；已实现 R0a 设计基线见 [archive/design-baseline/](archive/design-baseline/) |
 | [ops/](ops/) | 运维参考长文（runbook/drill-checklist/glossary/pilot-ops）；[operations.md](operations.md) 是其精简操作入口 |
 | [archive/](archive/README.md) | 历史快照，只读追溯，不参与当前设计阅读 |
 | [work-project.md](work-project.md) | 项目纯索引：状态指向 status，开放裁定指向 decisions/open-rulings |

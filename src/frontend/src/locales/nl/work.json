@@ -232,7 +232,22 @@
     "reconciliationsState.evidence_exhausted": "Bewijs uitgeput",
     "reconciliationsContact.wait_for_reconciliation": "Herstel loopt",
     "reconciliationsContact.wait_for_late_evidence": "Wacht op laat bewijs",
-    "reconciliationsContact.operator_ticket": "Operatorticket nodig"
+    "reconciliationsContact.operator_ticket": "Operatorticket nodig",
+    "readonlyGrants": "Alleen-lezen-machtigingen",
+    "readonlyGrantsExpires": "Verloopt {{time}}",
+    "readonlyGrantsConsumed": "{{times}} keer gebruikt",
+    "readonlyGrantsRevoke": "Intrekken",
+    "readonlyGrantsConfirmRevoke": "Intrekken bevestigen",
+    "readonlyGrantsCancel": "Annuleren",
+    "readonlyGrantsRevoked": "De alleen-lezen-machtiging is ingetrokken.",
+    "readonlyGrantsConflict": "De machtiging is gewijzigd of niet meer actief; de lijst is vernieuwd.",
+    "readonlyGrantsFailed": "De machtiging is niet ingetrokken.",
+    "readonlyGrantsState": {
+      "active": "Actief",
+      "revoked": "Ingetrokken",
+      "expired": "Verlopen",
+      "invalidated": "Ongeldig"
+    }
   },
   "artifact": {
     "backToTask": "Back to task",
