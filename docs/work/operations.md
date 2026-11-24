@@ -251,6 +251,8 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 `PF_RELEASE_DIR` 可指定 exact 包目录；不指定时仍取 `/root/work-release-*` 最新目录。`work.device_dispatch` 不存在按 0 行的安全情形通过，存在但查不到行数则中止。卡片 V／Y 的**重启后**读数仍按第 6／7 条在窗口内另取，本 preflight 不替代、也不声称已闭合。
 
+**2026-11-24 工作主机现场只读结果**：`lavm-t7fmveau9b` 的 ledger preflight `HOST_SCRIPT_RC=0`——tip 39／rows 39，`device_dispatch` 不存在（按 0 行安全情形），但有 `open_runs=1`（active）与 `held_reservations=1`；package preflight `HOST_SCRIPT_RC=1`——最新包仍是 `/root/work-release-0039`，枚举全部 `/root/work-release-*` 后最高 tail 仍为 39，0062 包未就位。W2 三件主机文件剥 CR 后与仓库钉逐字相等；V 的 `work-api.service` 仍无 `Requires=`／`After=` 链尾闸且 `work-chain-check.service` 不存在；Y 的 `work-authz` 仍是 2026-11-11 18:43:44 启动的旧进程。**当前判定＝只能进入“出包／上传”准备，不能进入任何生产写步骤；第二步还须先把 active Run drain 到 0。**
+
 ### 3.5 装后验证与链尾闸 [只读]
 
 - `sudo ./verify-r0a-0027.sh "<开始时刻>"`：`rows=N max=N`、清单 all present、函数体探针 true（claim_carries_takeover、terminal_release_guard、export_discovery_hardened、0040–0045 设备面探针等）。

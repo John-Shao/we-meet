@@ -199,3 +199,5 @@ M3 开工前必须有"设备 agent 语言与打包形态征询单"落项，同�
 M4 的六个浏览器 cookie 消费面已冻结并生成客户端（M4-1..M4-4）；本批不新增 UI、不改 migration、不执行 rollout，只把 0040–0062 的两份主机只读 preflight 从“打印读数”升级为 fail-closed：台账 tip／`device_dispatch` 空集／在途 Run 清零由 ledger 脚本判定，包尾／出处／`SHA256SUMS`／二进制与 backup 三件闭包／主机 backup 剥 CR 全等由 package 脚本判定。两步分别使用 `EXPECTED_LEDGER_TIP=39 REQUIRE_DRAINED=0` 与 `EXPECTED_LEDGER_TIP=62 REQUIRE_DRAINED=1`；两份脚本各自退出 0 才开写。V／Y 的重启后现场读数、W 的仓外备份依赖与 0040–0062 生产执行均不在本批闭合。
 
 本批验证：R0a 设计资产全量 **339/0**（新增 12 条 fail-closed 运行时用例，原 4 条只读门禁同步扩到 helper SQL 提取），`ci-contract` **24/0**，R0b browser contract **6/6**，`work-status --check` 与 `git diff --check` 通过。两枚反向突变各自精确变红——把 `pf_finish` 改成永远成功使退出码负例红；把主机 backup 哈希相等改成恒真使 mismatch 负例红；恢复后 16/16 复跑通过。未连接生产主机、未取现场读数、未执行任何 rollout。
+
+2026-11-24 现场只读追加：ledger preflight `HOST_SCRIPT_RC=0`（tip 39／`device_dispatch` 不存在＝0 行安全情形），package preflight `HOST_SCRIPT_RC=1`（主机最高包尾仍 39，0062 包未就位）；W2 主机三件剥 CR 哈希与仓库三钉逐字相等，V 仍无链尾闸 unit，Y 仍是 2026-11-11 启动的旧 `work-authz`。当前有 1 个 active Run／1 个 held reservation，第二步 runtime swap 前必须先 drain。现场全程只读，未执行 rollout；本节前一句“未连接生产主机”只描述代码批次本身，现场追加以本段为准。
