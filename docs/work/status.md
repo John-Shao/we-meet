@@ -1,6 +1,6 @@
 # Work 当前状态
 
-> 本文由 `scripts/work-status.mjs` 生成，勿手改。生产事实记录在 [status.inputs.json](status.inputs.json)（每项带证据引用）；动态门禁与仓库迁移 tip 由脚本现算。人工改状态请改 inputs 后重跑脚本。最近核实：**2026-11-16**（生成日期另见 status.json 的 `generated_at`，两者不同义）。
+> 本文由 `scripts/work-status.mjs` 生成，勿手改。生产事实记录在 [status.inputs.json](status.inputs.json)（每项带证据引用）；动态门禁与仓库迁移 tip 由脚本现算。人工改状态请改 inputs 后重跑脚本。最近核实：**2026-11-24**（生成日期另见 status.json 的 `generated_at`，两者不同义）。
 
 ## 阶段
 
@@ -9,7 +9,7 @@
 | 产品阶段 | r0a |
 | 当前闸门 | r0a-pilot-readiness |
 | r0a | deployed-pilot-environment |
-| r0b | partial-implementation-not-rolled-out |
+| r0b | pilot-runtime-rolled-out-real-provider-unverified |
 
 ## 试点门禁（动态，现算）
 
@@ -32,9 +32,8 @@ node --input-type=module -e "const p='./docs/plan/assets/work-r0a-ops-2026-10-25
 - runtime-sandbox-isolation
 - real-provider-e2e
 - real-content-store-validation
-- r0b-device-migrations-rollout-authorization
 
-rollout 范围：已裁 rollout 包＝增量 0040–0062（整包一次，39→62；2026-11-22 主签重切，取代 2026-11-14 的 0040–0045／39→45，取代关系照原文留档）。重切理由＝包尾不是可配参数：make-release.sh:90 从 increments 现读链尾、verify-r0a-0027.sh:100 已钉到 0062、work-api 的 Requires=work-chain-check 由 work-migrate status -require-up-to-date 按二进制所携链尾判定。不含执行授权；执行＝同窗口两步依次授权（第一步 --migrations-only，第二步重放预检全绿且 in-flight Run drain 到零后再换 worker＋api 并落卡片 V/W/Y）。卡片 W 的备份三件已于同日重开（W1/W2/W3＝甲）：逐字节回植＋rollout 逐名安装步＋闭包自动随包，主机侧哈希属现场取数项。硬前置新增一条：0055:80 的 permit jsonb NOT NULL 无默认，现网 work.device_dispatch 必须实测为空集。仓库现 tip 由脚本现算，不在此手抄。
+rollout 范围：已裁 rollout 包＝增量 0040–0062（整包一次，39→62；2026-11-22 主签重切，取代 2026-11-14 的 0040–0045／39→45，取代关系照原文留档）。2026-11-24 已由主签逐步授权并执行：第一步 --migrations-only、第二步 --enable-advance 均 rc=0，台账 62，worker／api／authz 等 15 个二进制与 V／W／Y 安装面已落，Node runtime 未换；W 新脚本已于 12:46:05 实际成功备份。真实供应商 E2E、J39、C13 与包内 verify-r0a-0027.sh 两条过期断言仍未闭合；1 条 failed Run 的 held reservation 未释放，W 的重建可移植性仍受仓外三件限制。
 
 ## 真实客户数据准入
 
@@ -50,10 +49,10 @@ rollout 范围：已裁 rollout 包＝增量 0040–0062（整包一次，39→6
 | 项 | 值 |
 |---|---|
 | 仓库迁移 tip | 62 |
-| 现网迁移 tip | 39 |
-| 现网发布包 | work-release-0039 |
+| 现网迁移 tip | 62 |
+| 现网发布包 | work-release-0062 |
 
-Runtime 已验证：否。生产 Runtime 无容器隔离（裸 spawn），sandbox-profile.json 现读 profile=process_only、sandboxProof=false；真实供应商 E2E 未跑（仅一次 Qwen smoke）。
+Runtime 已验证：否。0062 runtime 已替换并完成 healthz／Host orgs 200 与 reconcile 空扫描，但生产 Runtime 仍无容器隔离（裸 spawn），真实供应商 E2E 未跑；官方 verify-r0a-0027.sh 另有两条已定位的过期断言，不能据 rc=1 误读为迁移失败。
 
 Content Store：local-pilot-deployed-zero-real-requests。云 KMS：not-connected-scope-exception-D03B。外部安全审计已执行：否。
 
@@ -63,11 +62,11 @@ Content Store：local-pilot-deployed-zero-real-requests。云 KMS：not-connecte
 
 | 事实 | 核实日期 | 证据 |
 |---|---|---|
-| runtime_verified | 2026-11-16 | `docs/plan/assets/work-r0a-runtime-2026-10-25/policy/sandbox-profile.json`、`src/work/node/src/supervisor.mjs`、`docs/work/security.md` |
+| runtime_verified | 2026-11-24 | `docs/plan/assets/work-r0a-runtime-2026-10-25/policy/sandbox-profile.json`、`src/work/node/src/supervisor.mjs`、`docs/work/security.md`、`docs/work/operations.md` |
 | external_security_audit_done | 2026-11-16 | `docs/work/security.md`、`docs/work/decisions/0023-static-single-layer-encryption.md` |
 | content_store | 2026-11-16 | `src/work/internal/content/local.go`、`docs/work/security.md`、`docs/work/operations.md` |
 | cloud_kms | 2026-11-16 | `docs/work/decisions/0023-static-single-layer-encryption.md`、`docs/work/security.md` |
-| migration | 2026-11-14 | `docs/work/operations.md`、`src/work/deploy/ecs/verify-r0a-0027.sh` |
+| migration | 2026-11-24 | `docs/work/operations.md`、`src/work/deploy/ecs/verify-r0a-0027.sh` |
 
 ## 入口
 

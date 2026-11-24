@@ -1,31 +1,32 @@
 {
   "$note": "人工记录的生产/决策事实——scripts/work-status.mjs 无法从仓库资产推导的部分。改动任一项须更新 facts_as_of 与该事实的 verified_at。每个事实带 reason/evidence/verified_at：evidence 是仓库内现存的证据路径（脚本校验存在性），verified_at 是该事实最近一次核实日期，不得晚于 facts_as_of。动态试点门禁（pilot_gate）与仓库迁移 tip 由脚本现算，不在此手抄。",
-  "facts_as_of": "2026-11-16",
+  "facts_as_of": "2026-11-24",
   "product_stage": "r0a",
   "current_gate": "r0a-pilot-readiness",
   "implementation_tracks": {
     "r0a": "deployed-pilot-environment",
-    "r0b": "partial-implementation-not-rolled-out"
+    "r0b": "pilot-runtime-rolled-out-real-provider-unverified"
   },
   "migration": {
-    "tip_deployed": 39,
-    "deployed_release": "work-release-0039",
-    "reason": "现网台账 tip_version=39（work-release-0039）；0040 起未 rollout。现网台账属生产读数，本会话未重读，沿用 2026-11-14 核实值。",
+    "tip_deployed": 62,
+    "deployed_release": "work-release-0062",
+    "reason": "现网台账 tip_version=62／rows=62；0040–0062 已于 2026-11-24 分两步执行，migrations-only 与 runtime swap 均 rc=0。",
     "evidence": [
       "docs/work/operations.md",
       "src/work/deploy/ecs/verify-r0a-0027.sh"
     ],
-    "verified_at": "2026-11-14"
+    "verified_at": "2026-11-24"
   },
   "runtime_verified": {
     "value": false,
-    "reason": "生产 Runtime 无容器隔离（裸 spawn），sandbox-profile.json 现读 profile=process_only、sandboxProof=false；真实供应商 E2E 未跑（仅一次 Qwen smoke）。",
+    "reason": "0062 runtime 已替换并完成 healthz／Host orgs 200 与 reconcile 空扫描，但生产 Runtime 仍无容器隔离（裸 spawn），真实供应商 E2E 未跑；官方 verify-r0a-0027.sh 另有两条已定位的过期断言，不能据 rc=1 误读为迁移失败。",
     "evidence": [
       "docs/plan/assets/work-r0a-runtime-2026-10-25/policy/sandbox-profile.json",
       "src/work/node/src/supervisor.mjs",
-      "docs/work/security.md"
+      "docs/work/security.md",
+      "docs/work/operations.md"
     ],
-    "verified_at": "2026-11-16"
+    "verified_at": "2026-11-24"
   },
   "external_security_audit_done": {
     "value": false,
@@ -58,10 +59,9 @@
   "production_prerequisites": [
     "runtime-sandbox-isolation",
     "real-provider-e2e",
-    "real-content-store-validation",
-    "r0b-device-migrations-rollout-authorization"
+    "real-content-store-validation"
   ],
-  "rollout_scope_note": "已裁 rollout 包＝增量 0040–0062（整包一次，39→62；2026-11-22 主签重切，取代 2026-11-14 的 0040–0045／39→45，取代关系照原文留档）。重切理由＝包尾不是可配参数：make-release.sh:90 从 increments 现读链尾、verify-r0a-0027.sh:100 已钉到 0062、work-api 的 Requires=work-chain-check 由 work-migrate status -require-up-to-date 按二进制所携链尾判定。不含执行授权；执行＝同窗口两步依次授权（第一步 --migrations-only，第二步重放预检全绿且 in-flight Run drain 到零后再换 worker＋api 并落卡片 V/W/Y）。卡片 W 的备份三件已于同日重开（W1/W2/W3＝甲）：逐字节回植＋rollout 逐名安装步＋闭包自动随包，主机侧哈希属现场取数项。硬前置新增一条：0055:80 的 permit jsonb NOT NULL 无默认，现网 work.device_dispatch 必须实测为空集。仓库现 tip 由脚本现算，不在此手抄。",
+  "rollout_scope_note": "已裁 rollout 包＝增量 0040–0062（整包一次，39→62；2026-11-22 主签重切，取代 2026-11-14 的 0040–0045／39→45，取代关系照原文留档）。2026-11-24 已由主签逐步授权并执行：第一步 --migrations-only、第二步 --enable-advance 均 rc=0，台账 62，worker／api／authz 等 15 个二进制与 V／W／Y 安装面已落，Node runtime 未换；W 新脚本已于 12:46:05 实际成功备份。真实供应商 E2E、J39、C13 与包内 verify-r0a-0027.sh 两条过期断言仍未闭合；1 条 failed Run 的 held reservation 未释放，W 的重建可移植性仍受仓外三件限制。",
   "customer_data_blockers": [
     "external-security-audit-J39",
     "cloud-kms-reopen-condition"
