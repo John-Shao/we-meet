@@ -33,7 +33,7 @@ node --input-type=module -e "const p='./docs/plan/assets/work-r0a-ops-2026-10-25
 - real-provider-e2e
 - real-content-store-validation
 
-rollout 范围：已裁 rollout 包＝增量 0040–0062（整包一次，39→62；2026-11-22 主签重切，取代 2026-11-14 的 0040–0045／39→45，取代关系照原文留档）。2026-11-24 已由主签逐步授权并执行：第一步 --migrations-only、第二步 --enable-advance 均 rc=0，台账 62，worker／api／authz 等 15 个二进制与 V／W／Y 安装面已落，Node runtime 未换；W 新脚本已于 12:46:05 实际成功备份。真实供应商 E2E、J39、C13 与包内 verify-r0a-0027.sh 两条过期断言仍未闭合；1 条 failed Run 的 held reservation 未释放，W 的重建可移植性仍受仓外三件限制。
+rollout 范围：已裁 rollout 包＝增量 0040–0062（整包一次，39→62；2026-11-22 主签重切，取代 2026-11-14 的 0040–0045／39→45，取代关系照原文留档）。2026-11-24 已由主签逐步授权并执行：第一步 --migrations-only、第二步 --enable-advance 均 rc=0，台账 62，worker／api／authz 等 15 个二进制与 V／W／Y 安装面已落，Node runtime 未换；W 新脚本已于 12:46:05 实际成功备份。c73adea2a 重建包已上传到 /root/work-release-0062-c73adea2a，75 条 SHA256SUMS 全 OK，ledger／package preflight 与官方 verifier 均 rc=0；15 个运行时二进制与旧包逐字节相同。真实供应商 E2E、J39、C13 仍未闭合；1 条 failed Run 的 held reservation 未释放，W 的重建可移植性仍受仓外三件限制。
 
 ## 真实客户数据准入
 
@@ -50,9 +50,9 @@ rollout 范围：已裁 rollout 包＝增量 0040–0062（整包一次，39→6
 |---|---|
 | 仓库迁移 tip | 62 |
 | 现网迁移 tip | 62 |
-| 现网发布包 | work-release-0062 |
+| 现网发布包 | work-release-0062-c73adea2a |
 
-Runtime 已验证：否。0062 runtime 已替换并完成 healthz／Host orgs 200 与 reconcile 空扫描，但生产 Runtime 仍无容器隔离（裸 spawn），真实供应商 E2E 未跑；官方 verify-r0a-0027.sh 另有两条已定位的过期断言，不能据 rc=1 误读为迁移失败。
+Runtime 已验证：否。0062 runtime 已替换并完成 healthz／Host orgs 200、reconcile 空扫描与官方 verifier rc=0，但生产 Runtime 仍无容器隔离（裸 spawn），真实供应商 E2E 未跑。
 
 Content Store：local-pilot-deployed-zero-real-requests。云 KMS：not-connected-scope-exception-D03B。外部安全审计已执行：否。
 
