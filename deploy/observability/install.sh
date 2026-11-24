@@ -113,7 +113,7 @@ install -m 0644 "$RELEASE/grafana/grafana.ini" /etc/work-observability/grafana/
 install -m 0644 "$RELEASE/grafana/provisioning/datasources/work.yaml" /etc/work-observability/grafana/provisioning/datasources/
 install -m 0644 "$RELEASE/grafana/provisioning/dashboards/work.yaml" /etc/work-observability/grafana/provisioning/dashboards/
 install -m 0644 "$RELEASE/grafana/dashboards/work-overview.json" /etc/work-observability/grafana/dashboards/
-install -m 0644 "$RELEASE"/systemd/*.service /etc/systemd/system/
+install -m 0644 "$RELEASE"/systemd/work-observability-*.service /etc/systemd/system/
 
 install -d -m 0750 -o work-observability -g work-observability /var/lib/work-observability /var/lib/work-observability/prometheus /var/lib/work-observability/alertmanager /var/lib/work-observability/grafana /var/lib/work-observability/demo /var/lib/work-observability/webhook
 install -d -m 0750 -o work-observability -g work-observability /var/log/work-observability /var/log/work-observability/grafana

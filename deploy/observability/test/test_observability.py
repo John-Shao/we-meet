@@ -76,9 +76,10 @@ class ObservabilityConfigTests(unittest.TestCase):
                 self.assertEqual(target["datasource"]["uid"], "work-prometheus")
 
     def test_units_are_hardened_and_loopback_only(self):
-        units = list((ROOT / "systemd").glob("*.service"))
+        units = list((ROOT / "systemd").glob("work-observability-*.service"))
         self.assertEqual(len(units), 5)
-        for path in units:
+        self.assertEqual(len(list((ROOT / "systemd").glob("work-c17-*.service"))), 1)
+        for path in units + list((ROOT / "systemd").glob("work-c17-*.service")):
             text = path.read_text()
             self.assertIn("User=work-observability", text)
             self.assertIn("NoNewPrivileges=true", text)
@@ -112,11 +113,47 @@ class ObservabilityConfigTests(unittest.TestCase):
             "grafana/provisioning/datasources/work.yaml", "grafana/provisioning/dashboards/work.yaml",
             "grafana-dashboards/work-overview.json", "demo-metrics.py", "demo-webhook.py",
             "install.sh", "verify.sh", "exercise-demo.sh", "rollback.sh", "versions.env",
+            "c17-observation-probe.sh", "apply-observation-window.sh",
+            "rollback-observation-window.sh", "verify-observation-window.sh",
+            "systemd/work-c17-observation-probe.service", "systemd/work-c17-observation-probe.timer",
             "third-party-licenses/prometheus-LICENSE", "third-party-licenses/prometheus-NOTICE",
             "third-party-licenses/alertmanager-LICENSE", "third-party-licenses/alertmanager-NOTICE",
             "third-party-licenses/grafana-LICENSE",
         ):
             self.assertTrue((ROOT / name).is_file(), name)
+
+    def test_observation_probe_requires_expected_401(self):
+        script = 'curl() { printf \'%s\' "$MOCK_HTTP_STATUS"; }\n' + (ROOT / "c17-observation-probe.sh").read_text()
+        env = {**os.environ, "MOCK_HTTP_STATUS": "401"}
+        accepted = subprocess.run([bash_executable()], input=script, env=env, capture_output=True, text=True)
+        self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
+        env["MOCK_HTTP_STATUS"] = "500"
+        refused = subprocess.run([bash_executable()], input=script, env=env, capture_output=True, text=True)
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("expected 401, got 500", refused.stderr)
+
+    def test_observation_window_is_read_only_and_uses_30d_retention(self):
+        service = (ROOT / "systemd/work-c17-observation-probe.service").read_text()
+        timer = (ROOT / "systemd/work-c17-observation-probe.timer").read_text()
+        apply = (ROOT / "apply-observation-window.sh").read_text()
+        rollback = (ROOT / "rollback-observation-window.sh").read_text()
+        verify = (ROOT / "verify-observation-window.sh").read_text()
+        install = (ROOT / "install.sh").read_text()
+        self.assertIn("Type=oneshot", service)
+        self.assertIn("ExecStart=/usr/local/bin/work-c17-observation-probe", service)
+        self.assertIn("OnUnitActiveSec=60s", timer)
+        self.assertIn("Persistent=true", timer)
+        self.assertIn("--storage.tsdb.retention.time=30d", apply)
+        self.assertIn("systemctl restart work-observability-prometheus", apply)
+        self.assertIn('install -m 0755 "$RELEASE/rollback-observation-window.sh" "$ROLLBACK_BIN"', apply)
+        self.assertIn('install -m 0755 "$RELEASE/verify-observation-window.sh" "$VERIFY_BIN"', apply)
+        self.assertNotIn("systemctl restart work-api", apply)
+        self.assertNotIn("systemctl stop work-api", apply)
+        self.assertNotIn("systemctl restart work-api", rollback)
+        self.assertIn("systemctl restart work-observability-prometheus", rollback)
+        self.assertIn('[[ "$retention" == "30d" ]]', verify)
+        self.assertIn('[[ "$api_active_enter" == "$WORK_C17_API_ACTIVE_ENTER" ]]', verify)
+        self.assertIn('"$RELEASE"/systemd/work-observability-*.service', install)
 
     def test_install_failure_restores_api_and_removes_partial_stack(self):
         with tempfile.TemporaryDirectory() as temp:

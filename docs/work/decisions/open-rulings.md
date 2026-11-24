@@ -8,6 +8,8 @@
 
 **C17 现场验收追加（2026-11-24）**：commit `a05ba12e8` 干净包安装后，五个 observability unit active、六个端口 loopback-only、Prometheus targets 3/3 up、Grafana dashboard/datasource 可读、`verify.sh` rc=0；未认证 API 探针产生 `/work/v1/bootstrap` 真实序列，demo webhook 已收到 firing/resolved 回执。`work-api` 仅一次停止/启动，备份 `/var/backups/work-observability/20261124-132115`，在途 Run 0。Prometheus 附加的 `job`/`instance` 曾被 webhook 误拒，当前补丁按固定 scrape 标签放行并热更新 webhook，未再重启 API。**残余义务不变**：真实 SLO 告警仍丢弃，TTFT 及其余指标仍未测，C17 不得据此关闭。
 
+**C17 只读观测窗裁定（2026-11-24）**：主签选择 30 天窗、Prometheus retention 30d、定时无认证 GET 探针。窗口 `2026-11-24T15:36:10Z` 至 `2026-12-24T15:36:10Z`，每 60 秒探 `/work/v1/bootstrap` 并断言 401；开启时 `verify-observation-window.sh` rc=0，`work-api` 启动时间未变。该窗只提供 `org_id="unknown"` 的合成可用性样本，不代表 demo/真实组织；提交 P95、SSE、TTFT 与 DB/Node/RUM 继续 `not_measured`，窗口未满不得标 met/missed。
+
 **卡片 V｜work-api 启动链尾闸（＝甲）**：仓库面已落（`work-chain-check.service` 同伴 root 单元＋`work-migrate status -require-up-to-date`＋`work-api.service` 的 `Requires=`/`After=`）。**现网未闭合**：现网 work-api 仍跑没有 `Requires=` 的旧 unit；生效需那笔单独的 rollout 授权。
 
 **卡片 W｜发布闭包与安装名（＝分两组）**：仓库面已落（make-release 闭包＋verify 逐名报 present/MISSING＋work-api.service 安装步骤）。content-backup 三件按丙执行，执行边界（不得读宽）：三处名单未同批改完前不执行删除。**现网生效属生产写授权**，未执行。

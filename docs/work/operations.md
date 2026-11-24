@@ -388,6 +388,8 @@ sudo WORK_BACKUP_IDENTITY=/root/work-backups/work-offsite-20261029.agekey \
 
 > **2026-11-24 C17 安装验收补记**：commit `a05ba12e8` 的干净独立包已安装；五个 observability unit 均 active，六个端口均只绑 `127.0.0.1`，Prometheus targets 3/3 up，Grafana health、dashboard `work-r0a-overview` 与 datasource `work-prometheus` 已读到，`verify.sh` rc=0。无客户数据的 `/work/v1/bootstrap` 未认证探针返回 401，并在 Prometheus 形成 `/work/v1/bootstrap` 真实序列（`/healthz` 仍被 SLO 规则排除）。演示告警已取得 webhook firing 与 resolved 两条回执，失败文件已清除。`work-api` 只做了一次停止/启动，当前二进制 sha256 为 `b4b82e8e7baea3ed11e778c75a057a88390fab7ba8be0880ac4c3e5004f41a68`，备份在 `/var/backups/work-observability/20261124-132115`，在途 Run 为 0。现场发现 Prometheus 自动附加 `job`/`instance` 导致 webhook 400，已在当前补丁中按固定值 `work-demo`/`127.0.0.1:19092` 放行并热更新 webhook，未再重启 `work-api`。**仍不闭合**：真实 SLO 告警依旧 `demo-discard`，TTFT 与其余 DB／Node／RUM 指标仍未测，不能据此宣称 C17 或 12 项 SLO 已实测完成。
 
+> **2026-11-24 C17 只读观测窗开启**：主签裁定＝30 天窗＋Prometheus retention 30d＋定时无认证 GET 探针。窗口为 `2026-11-24T15:36:10Z` 至 `2026-12-24T15:36:10Z`；`work-c17-observation-probe.timer` 每 60 秒请求 `/work/v1/bootstrap` 并要求 401，`verify-observation-window.sh` rc=0，retention=30d、timer active、bootstrap 序列已出现。`work-api` 启动时间仍为 `2026-11-24 21:21:48 CST`，观测窗未重启 API。**口径限制**：这是 `org_id="unknown"` 的合成控制面可用性样本，不代表 demo/真实组织流量；提交 P95、SSE、TTFT、DB/Node/RUM 仍 `not_measured`，30 天结束前不得把任何 SLO 标 met/missed。
+
 ### 7.2 扫描 unit 退出码（值班读法）
 
 | Unit | rc=0 | rc=1 | rc=2 | rc=4 |

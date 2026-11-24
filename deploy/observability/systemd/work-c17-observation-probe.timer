@@ -1,0 +1,12 @@
+[Unit]
+Description=Work C17 read-only observation probe timer
+
+[Timer]
+OnBootSec=60s
+OnUnitActiveSec=60s
+AccuracySec=5s
+Persistent=true
+Unit=work-c17-observation-probe.service
+
+[Install]
+WantedBy=timers.target
