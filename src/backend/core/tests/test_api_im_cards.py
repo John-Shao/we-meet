@@ -326,9 +326,12 @@ def test_an_unknown_mid_gets_no_bucket_at_all(card):
 
     # 真卡片有桶,而且桶键里是 **installation**,不是 mid —— 同一个机器人的
     # 两张卡必须共用一个桶,否则每发一张新卡就等于给对方开一次新额度。
+    #
+    # 逐字核对而不是 ``str(MID) not in key``:installation 是 uuid,十六进制位
+    # 里偶然出现 "717" 就会让子串断言假红(实际发生过一次),而完整相等既能证明
+    # 键里是 installation、也证明 mid 没有参与建键。
     key = throttle.get_cache_key(mock.Mock(), mock.Mock(kwargs={"pk": str(MID)}))
-    assert key and str(card.installation_id) in key
-    assert str(MID) not in key
+    assert key == f"throttle_card_click_install_{card.installation_id}"
 
 
 def test_only_click_is_throttled_states_is_not():
