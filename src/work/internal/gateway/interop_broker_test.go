@@ -89,8 +89,8 @@ func TestDeviceBrokerInterop(t *testing.T) {
 		"last_receipt_seq":      0,
 		"pipe_name":             pipeName,
 		// The Go test process IS the shell client here, so its own PID is the predicate.
-		"shell_pid":             os.Getpid(),
-		"budget_ms":             40000,
+		"shell_pid": os.Getpid(),
+		"budget_ms": 40000,
 	}
 	// No "ticket" key: the probe structurally cannot dial without the pipe delivery.
 	if _, ok := config["ticket"]; ok {
@@ -135,12 +135,12 @@ func TestDeviceBrokerInterop(t *testing.T) {
 	})
 
 	// An unlanded shell method must be answered explicitly, not ignored and not called unknown.
-	writePipeFrame(t, pipe, map[string]any{"method": "chooseWorkspace", "request_id": requestID})
+	writePipeFrame(t, pipe, map[string]any{"method": "inspectWorkspace", "request_id": requestID})
 	refusal := readPipeFrame(t, pipe)
 	if refusal["result"] != "refused" || refusal["code"] != "method_not_implemented" {
 		t.Fatalf("unimplemented method reply = %#v, want refused/method_not_implemented", refusal)
 	}
-	if refusal["request_id"] != requestID || refusal["method"] != "chooseWorkspace" {
+	if refusal["request_id"] != requestID || refusal["method"] != "inspectWorkspace" {
 		t.Fatalf("refusal did not echo the caller's correlation: %#v", refusal)
 	}
 	// An unknown method is a DIFFERENT code, so the shell can tell illegal from unlanded.

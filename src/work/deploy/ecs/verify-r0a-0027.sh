@@ -780,15 +780,15 @@ psql_ro "select 'replica_and_nonce_append_only=' || case when (
   where t.tgname in ('artifact_replica_append_only',
     'consumed_possession_nonce_append_only') and not t.tgisinternal) = 2
   then 'true' else 'FALSE' end"
-# O-17 was decided as 乙: one general table, purposes closed to the two possession
-# writes. The closed set is compared as its whole definition, so a third purpose - the
-# approval frame being the obvious candidate - turns this red. The nonce column
-# deliberately has no shape CHECK, so nothing here asserts one.
+# O-17 was decided as 乙: one general table. 0045 later added the possession-proof
+# 'accept' purpose, so the closed set is the three current writers. Compare the whole
+# definition: a fourth purpose turns this red. The nonce column deliberately has no
+# shape CHECK, so nothing here asserts one.
 psql_ro "select 'nonce_purpose_closed_set=' || case when (
   select count(*) from pg_constraint
   where conname = 'consumed_possession_nonce_purpose_check' and contype = 'c'
     and pg_get_constraintdef(oid) =
-      'CHECK ((purpose = ANY (ARRAY[''user_version''::text, ''workspace_rebind''::text])))') = 1
+      'CHECK ((purpose = ANY (ARRAY[''user_version''::text, ''workspace_rebind''::text, ''accept''::text])))') = 1
   then 'true' else 'FALSE' end"
 psql_ro "select 'nonce_key_is_org_and_nonce=' || case when (
   select count(*) from pg_index i join pg_class c on c.oid = i.indexrelid
@@ -1048,31 +1048,33 @@ psql_ro "select 'run_finish_cross_session_reconcile_gated=' || case when
 
 # 0062 adds the ONE server fact device-design §3.3 needs so the hand-back does not read as a stuck
 # task: a live reconcile_finish lease on this Run. A ledger row proves the file ran, not that the
-# projection says what §3.3 means, so read the live body for four things. ① the judgment is exactly
-# purpose='reconcile_finish' AND state='active' AND expires_at > now() — the three together are what
-# makes 0040:876-877's one-active-lease-per-run index turn "a hand-back lease exists" into "this run
-# is handing back", and a predicate missing expires_at would report the hand-back forever because
-# 0051/J12 lets an expired lease sit in the table; ② the response is the two keys §3.3 asks about
-# and nothing else; ③ the definer actually carries SECURITY DEFINER plus the pinned search_path
-# (CREATE OR REPLACE inherits neither, and without them the read of the work_owner-only lease table
-# fails as work_api); ④ ownership is answered as not-found in BOTH branches - missing Run and foreign
-# Task - so the face never confirms that somebody else's Run exists.
-psql_ro "select 'run_history_handback_projects_the_lease=' || case when
-    pg_get_functiondef('work.run_history_handback(text,uuid,text)'::regprocedure)
-      like '%AND l.state = ''active''%'
-  and pg_get_functiondef('work.run_history_handback(text,uuid,text)'::regprocedure)
-      like '%AND l.purpose = ''reconcile_finish''%'
-  and pg_get_functiondef('work.run_history_handback(text,uuid,text)'::regprocedure)
-      like '%AND l.expires_at > now()%'
-  and pg_get_functiondef('work.run_history_handback(text,uuid,text)'::regprocedure)
-      like '%jsonb_build_object(%run_id%, %history_handback%''%'
-  and pg_get_functiondef('work.run_history_handback(text,uuid,text)'::regprocedure) like '%SECURITY DEFINER%'
-  and pg_get_functiondef('work.run_history_handback(text,uuid,text)'::regprocedure)
-      like '%SET search_path = work, pg_catalog%'
-  and (select (length(v_def) - length(replace(v_def, E'RAISE EXCEPTION ''task_not_found''', '')))
-              / length(E'RAISE EXCEPTION ''task_not_found''')
-       from (values (pg_get_functiondef('work.run_history_handback(text,uuid,text)'::regprocedure))) as f(v_def)) = 2
-  then 'true' else 'FALSE' end"
+# projection says what §3.3 means, so read catalog attributes and prosrc for four things. ① the
+# judgment is exactly purpose='reconcile_finish' AND state='active' AND expires_at > now() — the
+# three together are what makes 0040:876-877's one-active-lease-per-run index turn "a hand-back lease
+# exists" into "this run is handing back", and a predicate missing expires_at would report the
+# hand-back forever because 0051/J12 lets an expired lease sit in the table; ② the response is the
+# two keys §3.3 asks about and nothing else; ③ the definer actually carries SECURITY DEFINER plus
+# the pinned search_path (CREATE OR REPLACE inherits neither, and without them the read of the
+# work_owner-only lease table fails as work_api); ④ ownership is answered as not-found in BOTH
+# branches - missing Run and foreign Task - so the face never confirms that somebody else's Run
+# exists. Catalog attributes avoid depending on pg_get_functiondef's printable formatting.
+psql_ro "select 'run_history_handback_projects_the_lease=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work'
+    and p.proname = 'run_history_handback'
+    and pg_get_function_identity_arguments(p.oid) =
+        'p_org_id text, p_run_id uuid, p_actor_subject_id text'
+    and p.prosecdef
+    and p.proconfig @> array['search_path=work, pg_catalog']
+    and p.prosrc like '%AND l.state = ''active''%'
+    and p.prosrc like '%AND l.purpose = ''reconcile_finish''%'
+    and p.prosrc like '%AND l.expires_at > now()%'
+    and p.prosrc like '%jsonb_build_object(%'
+    and p.prosrc like '%''run_id'', run_row.id%'
+    and p.prosrc like '%''history_handback'', v_handback%'
+    and (length(p.prosrc) - length(replace(p.prosrc, 'RAISE EXCEPTION ''task_not_found''', '')))
+        / length('RAISE EXCEPTION ''task_not_found''') = 2
+) = 1 then 'true' else 'FALSE' end"
 
 # 0054 restated prepare_local_operation for the real device signature. A ledger row cannot show
 # that the placeholder is actually gone: the whole point of the increment is that a genuine

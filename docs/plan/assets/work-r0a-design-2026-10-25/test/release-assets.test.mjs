@@ -351,6 +351,44 @@ test('the verify script carries no stale increment list of its own', () => {
   assert.doesNotMatch(verifyText, /missing in \d+\.\.\d+/, 'verify 的读数标签里又写死了编号区间');
 });
 
+test('the verifier checks the current nonce and hand-back semantics, not stale text shapes', () => {
+  const verifyText = readFileSync(join(WORK_DIR, 'deploy/ecs/verify-r0a-0027.sh'), 'utf8');
+  const nonceProbe = verifyText
+    .split("select 'nonce_purpose_closed_set=")[1]
+    ?.split('\npsql_ro ')[0];
+  assert.ok(nonceProbe, 'nonce purpose probe is missing');
+
+  const acceptance = readFileSync(
+    join(WORK_DIR, 'migrations/increments/0045_local_acceptance.sql'),
+    'utf8',
+  );
+  const nonceConstraint = /CHECK \(purpose IN \(([^)]+)\)\)/.exec(acceptance)?.[1];
+  assert.ok(nonceConstraint, '0045 nonce purpose constraint is missing');
+  const expectedPurposes = [...nonceConstraint.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  const verifyArray = /ARRAY\[([^\]]+)\]/.exec(nonceProbe)?.[1];
+  assert.ok(verifyArray, 'verifier nonce purpose array is missing');
+  const verifiedPurposes = [...verifyArray.matchAll(/''([^']+)''::text/g)].map((m) => m[1]);
+  assert.deepEqual(verifiedPurposes, expectedPurposes, 'verifier nonce purpose set drifted from 0045');
+  assert.ok(verifiedPurposes.includes('accept'), '0045 acceptance purpose must be in the live closed set');
+
+  const handbackProbe = verifyText
+    .split("select 'run_history_handback_projects_the_lease=")[1]
+    ?.split('\npsql_ro ')[0];
+  assert.ok(handbackProbe, 'run_history_handback probe is missing');
+  assert.match(handbackProbe, /p\.prosecdef/, 'hand-back must read SECURITY DEFINER from pg_proc');
+  assert.match(
+    handbackProbe,
+    /p\.proconfig @> array\['search_path=work, pg_catalog'\]/,
+    'hand-back must read the pinned search_path from pg_proc',
+  );
+  assert.match(handbackProbe, /p\.prosrc like '%AND l\.purpose = ''reconcile_finish''%'/);
+  assert.match(handbackProbe, /p\.prosrc like '%AND l\.state = ''active''%'/);
+  assert.match(handbackProbe, /p\.prosrc like '%AND l\.expires_at > now\(\)%'/);
+  assert.match(handbackProbe, /p\.prosrc like '%''run_id'', run_row\.id%'/);
+  assert.match(handbackProbe, /p\.prosrc like '%''history_handback'', v_handback%'/);
+  assert.doesNotMatch(handbackProbe, /pg_get_functiondef/, 'hand-back must not depend on printable function formatting');
+});
+
 // #79=B 的静态镜像守卫。真语义在 internal/authz/terminal_reservation_release_pg_test.go 的活库用例里，
 // 那些用例在 CI 确实会跑（work-r0a-gates.yml:198-226 的 go-migrate job 设了 WORK_TEST_PG_URL 并跑
 // go test ./... -p 1 -count=1）。这条仍然要有，理由是实在的两点：它在没有数据库的 ci-contract 路径上
