@@ -74,6 +74,19 @@ func (s *stuckStream) attach(t *testing.T) {
 	<-s.started
 }
 
+func TestLoopbackListenAddr(t *testing.T) {
+	for _, address := range []string{"127.0.0.1:19091", "[::1]:19091"} {
+		if !loopbackListenAddr(address) {
+			t.Fatalf("expected loopback address %q", address)
+		}
+	}
+	for _, address := range []string{"localhost:19091", "0.0.0.0:19091", "192.0.2.1:19091", "19091", ":19091"} {
+		if loopbackListenAddr(address) {
+			t.Fatalf("unexpected loopback address %q", address)
+		}
+	}
+}
+
 // TestStreamOutlivesBareShutdown is the hazard this fix removes: Shutdown closes the
 // listener first and then waits for active requests, so one attached stream makes the
 // grace window expire with the API already unreachable. The error reached main as a

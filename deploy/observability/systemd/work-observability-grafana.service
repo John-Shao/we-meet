@@ -1,0 +1,22 @@
+[Unit]
+Description=Work C17 Grafana
+After=network-online.target work-observability-prometheus.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=work-observability
+Group=work-observability
+EnvironmentFile=/etc/work-observability/observability.env
+WorkingDirectory=/opt/work-observability/current/grafana/usr/share/grafana
+ExecStart=/opt/work-observability/current/grafana/usr/share/grafana/bin/grafana server --homepath=/opt/work-observability/current/grafana/usr/share/grafana --config=/etc/work-observability/grafana/grafana.ini
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/work-observability/grafana /var/log/work-observability/grafana
+
+[Install]
+WantedBy=multi-user.target

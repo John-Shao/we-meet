@@ -1,0 +1,21 @@
+[Unit]
+Description=Work C17 demo metrics probe
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=work-observability
+Group=work-observability
+EnvironmentFile=/etc/work-observability/observability.env
+ExecStart=/usr/bin/python3 /opt/work-observability/current/bin/demo-metrics.py
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/var/lib/work-observability/demo
+
+[Install]
+WantedBy=multi-user.target

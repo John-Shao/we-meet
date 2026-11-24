@@ -4,6 +4,8 @@
 > 卡片全文与历史代价见 [归档快照](../archive/work-project-full-2026-11-14.md) §5.0；复评窗未到的卡片不归档。
 > 多个 CI 门禁钉住本文件的卡片锚点（V/W/X 与 C16 局限声明）——改卡片标题或关键措辞须同步门禁。
 
+**C17 观测面试点追加（2026-11-24）｜首批＝独立观测栈＋work-api 埋点，TTFT 暂不测，已授权独立包安装与单次 API 重启**：主签三项单选＝甲（栈＋API 埋点）／甲（TTFT 暂不测）／甲（授权独立观测包装机），随后补裁＝本机演示 webhook＋授权单次 `work-api` 重启。**本批边界**：`work-api` 新增独立 Prometheus registry 与 loopback `WORK_METRICS_ADDR`，首批真实序列只为 `work_api_requests_total`、`work_api_request_duration_seconds`（Prometheus 导出 `_bucket`）与 `work_sse_events_total{kind=delivered|resync_required}`；路由用 ServeMux 模板，组织只取 Host 已验证 claims，未认证请求固定 `org_id="unknown"`，不记录 URL 参数、query 或正文。独立观测包放在 `deploy/observability/`，含 Prometheus 2.54.1／Alertmanager 0.28.1／Grafana 13.3.1 的 pinned 版本与 sha256、五个 systemd unit、Grafana provisioning、本机演示指标与 webhook、安装／验收／回滚脚本；全部只绑 `127.0.0.1`，Grafana 走 SSH tunnel，Alertmanager 默认 `demo-discard`，只有 `alert_class=demo` 的具名演示告警投本机 webhook，不接真实值班邮箱或外部 webhook。控制 API 可用性规则排除 `/healthz`，避免健康检查稀释 SLO。**明确不买到的**：TTFT 仍 `not_measured`（当前供应商链路非流式，不能拿总耗时冒充首 token）；其余 DB／Node／RUM 指标仍无产生者；本批不改 0062 runtime 包、不迁移数据库、不重启其他 Work 服务、不接真实客户数据；单次 `work-api` 重启失败时恢复旧二进制与旧 env。**现网状态以安装后的现场读数为准**；在读到 unit active、loopback listeners、Prometheus targets up、Grafana datasource/dashboard、Alertmanager→webhook firing/resolved 回执与真实 API 序列之前，不得写“C17 已生效”或“12 项 SLO 已实测”。
+
 **卡片 V｜work-api 启动链尾闸（＝甲）**：仓库面已落（`work-chain-check.service` 同伴 root 单元＋`work-migrate status -require-up-to-date`＋`work-api.service` 的 `Requires=`/`After=`）。**现网未闭合**：现网 work-api 仍跑没有 `Requires=` 的旧 unit；生效需那笔单独的 rollout 授权。
 
 **卡片 W｜发布闭包与安装名（＝分两组）**：仓库面已落（make-release 闭包＋verify 逐名报 present/MISSING＋work-api.service 安装步骤）。content-backup 三件按丙执行，执行边界（不得读宽）：三处名单未同批改完前不执行删除。**现网生效属生产写授权**，未执行。

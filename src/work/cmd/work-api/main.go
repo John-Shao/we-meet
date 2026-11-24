@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -116,10 +117,25 @@ func run(ctx context.Context) error {
 
 	shutdownCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	errCh := make(chan error, 1)
+	errCh := make(chan error, 2)
 	go func() {
 		errCh <- httpServer.ListenAndServe()
 	}()
+	var metricsServer *http.Server
+	if metricsAddr := strings.TrimSpace(os.Getenv("WORK_METRICS_ADDR")); metricsAddr != "" {
+		if !loopbackListenAddr(metricsAddr) {
+			return fmt.Errorf("WORK_METRICS_ADDR must be a loopback address")
+		}
+		metricsServer = &http.Server{
+			Addr:              metricsAddr,
+			Handler:           server.MetricsHandler(),
+			ReadHeaderTimeout: 5 * time.Second,
+			IdleTimeout:       30 * time.Second,
+		}
+		go func() {
+			errCh <- metricsServer.ListenAndServe()
+		}()
+	}
 	select {
 	case err := <-errCh:
 		if errors.Is(err, http.ErrServerClosed) {
@@ -128,7 +144,23 @@ func run(ctx context.Context) error {
 		return err
 	case <-shutdownCtx.Done():
 		server.BeginShutdown()
+		if metricsServer != nil {
+			_ = drainUntil(metricsServer, 5*time.Second)
+		}
 		return drainUntil(httpServer, shutdownGrace)
+	}
+}
+
+func loopbackListenAddr(address string) bool {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return false
+	}
+	switch strings.ToLower(host) {
+	case "127.0.0.1", "::1":
+		return true
+	default:
+		return false
 	}
 }
 

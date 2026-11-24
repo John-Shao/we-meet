@@ -82,6 +82,7 @@ type Server struct {
 	providerMaster []byte
 	prober         ProviderProber
 	deviceCA       *deviceca.CA
+	metrics        *apiMetrics
 	shutdown       chan struct{}
 	shutdownOnce   sync.Once
 }
@@ -164,8 +165,13 @@ func NewServerWithContent(
 		csrf:     csrf,
 		content:  store,
 		logger:   logger,
+		metrics:  newAPIMetrics(),
 		shutdown: make(chan struct{}),
 	}, nil
+}
+
+func (s *Server) MetricsHandler() http.Handler {
+	return s.metrics.handler()
 }
 
 func (s *Server) Handler() http.Handler {
@@ -236,7 +242,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET "+AdminAuditExportPath, s.getAdminAuditExport)
 	mux.HandleFunc("POST "+AdminAuditExportTicketPath, s.issueAdminAuditExportTicket)
 	mux.HandleFunc("GET "+AdminAuditExportContentPath, s.downloadAdminAuditExport)
-	return mux
+	return s.metrics.middleware(mux)
 }
 
 func (s *Server) bootstrap(w http.ResponseWriter, r *http.Request) {

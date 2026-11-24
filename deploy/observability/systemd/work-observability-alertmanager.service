@@ -1,0 +1,21 @@
+[Unit]
+Description=Work C17 Alertmanager
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=work-observability
+Group=work-observability
+EnvironmentFile=/etc/work-observability/observability.env
+ExecStart=/opt/work-observability/current/bin/alertmanager --config.file=/etc/work-observability/alertmanager/alertmanager.yml --storage.path=/var/lib/work-observability/alertmanager --web.listen-address=127.0.0.1:19093 --cluster.listen-address= --log.level=info
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/work-observability/alertmanager
+
+[Install]
+WantedBy=multi-user.target

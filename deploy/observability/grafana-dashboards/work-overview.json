@@ -4,38 +4,116 @@
   "schemaVersion": 39,
   "version": 1,
   "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "tags": ["work", "r0a", "c17"],
+  "timezone": "browser",
+  "editable": false,
+  "graphTooltip": 1,
   "panels": [
     {
+      "id": 1,
       "type": "timeseries",
       "title": "API requests by status",
+      "datasource": { "type": "prometheus", "uid": "work-prometheus" },
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
       "targets": [
-        { "expr": "sum by (status_class) (rate(work_api_requests_total[5m]))" }
+        {
+          "datasource": { "type": "prometheus", "uid": "work-prometheus" },
+          "expr": "sum by (status_class) (rate(work_api_requests_total[5m]))",
+          "legendFormat": "{{status_class}}",
+          "refId": "A"
+        }
       ]
     },
     {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Control API availability",
+      "datasource": { "type": "prometheus", "uid": "work-prometheus" },
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "work-prometheus" },
+          "expr": "work:slo_control_api_availability:ratio_5m",
+          "legendFormat": "{{org_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Submit accepted latency P95",
+      "datasource": { "type": "prometheus", "uid": "work-prometheus" },
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "work-prometheus" },
+          "expr": "work:slo_submit_accept_latency:p95_5m",
+          "legendFormat": "{{org_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
       "type": "timeseries",
       "title": "Outbox lag",
+      "datasource": { "type": "prometheus", "uid": "work-prometheus" },
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
       "targets": [
-        { "expr": "histogram_quantile(0.95, sum(rate(work_outbox_lag_seconds_bucket[5m])) by (le))" }
+        {
+          "datasource": { "type": "prometheus", "uid": "work-prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(work_outbox_lag_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "A"
+        }
       ]
     },
     {
-      "type": "timeseries",
-      "title": "Quota reconciliation diff (track-only)",
-      "targets": [
-        { "expr": "abs(work_quota_reconciliation_diff_tokens)" }
-      ]
-    },
-    {
+      "id": 5,
       "type": "stat",
       "title": "Unsettled reservations",
-      "targets": [{ "expr": "work_quota_unsettled_reservations" }]
+      "datasource": { "type": "prometheus", "uid": "work-prometheus" },
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "work-prometheus" },
+          "expr": "work_quota_unsettled_reservations",
+          "legendFormat": "{{org_id}}",
+          "refId": "A"
+        }
+      ]
     },
     {
+      "id": 6,
       "type": "timeseries",
       "title": "SSE events",
+      "datasource": { "type": "prometheus", "uid": "work-prometheus" },
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
       "targets": [
-        { "expr": "sum(rate(work_sse_events_total[5m]))" }
+        {
+          "datasource": { "type": "prometheus", "uid": "work-prometheus" },
+          "expr": "sum by (kind) (rate(work_sse_events_total[5m]))",
+          "legendFormat": "{{kind}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "C17 demo alert probe (not SLO evidence)",
+      "description": "Controlled local demo state used only to prove Prometheus -> Alertmanager -> webhook delivery.",
+      "datasource": { "type": "prometheus", "uid": "work-prometheus" },
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 6 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "work-prometheus" },
+          "expr": "work_demo_failures_total",
+          "legendFormat": "demo",
+          "refId": "A"
+        }
       ]
     }
   ]

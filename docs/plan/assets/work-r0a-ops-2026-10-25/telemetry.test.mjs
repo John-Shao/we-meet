@@ -32,6 +32,19 @@ test('telemetry contract covers every SLO and keeps targets aligned', () => {
   assert.ok(slos.metrics.every((metric) => ids.has(metric.id)));
 });
 
+test('control API availability excludes health checks from its traffic denominator', () => {
+  const availability = contract.slos.find((entry) => entry.id === 'control_api_availability');
+  const expressions = [
+    ...availability.recording.map((rule) => rule.expr),
+    ...availability.alerts.map((alert) => alert.expr),
+  ];
+  for (const expression of expressions) {
+    const rates = expression.match(/rate\(work_api_requests_total[^)]*\)/g) ?? [];
+    assert.ok(rates.length > 0, expression);
+    assert.ok(rates.every((rate) => rate.includes('route!="/healthz"')), expression);
+  }
+});
+
 test('track-only SLOs never page as SLO alerts but can keep operational alerts', () => {
   const trackOnly = contract.slos.filter((entry) => entry.track_only);
   assert.equal(trackOnly.length, 4);

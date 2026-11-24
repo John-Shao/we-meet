@@ -1,0 +1,13 @@
+groups:
+  - name: work-observability-demo
+    rules:
+      - alert: WorkObservabilityDemoFailure
+        expr: work_demo_failures_total{org_id="demo"} == 1
+        for: 5s
+        labels:
+          severity: ticket
+          alert_class: demo
+          org_id: demo
+        annotations:
+          summary: "C17 local demo alert pipeline probe"
+          runbook: "docs/work/operations.md"

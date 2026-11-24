@@ -1,0 +1,21 @@
+apiVersion: 1
+
+datasources:
+  - name: Work Prometheus
+    uid: work-prometheus
+    type: prometheus
+    access: proxy
+    url: http://127.0.0.1:19090
+    isDefault: true
+    editable: false
+    jsonData:
+      httpMethod: POST
+      timeInterval: 15s
+  - name: Work Alertmanager
+    uid: work-alertmanager
+    type: alertmanager
+    access: proxy
+    url: http://127.0.0.1:19093
+    editable: false
+    jsonData:
+      implementation: prometheus

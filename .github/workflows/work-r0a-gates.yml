@@ -39,6 +39,7 @@ on:
       - 'src/backend/pyproject.toml'
       - 'src/backend/uv.lock'
       - 'deploy/aliyun/work-roles.sql'
+      - 'deploy/observability/**'
       - '.github/workflows/work-r0a-gates.yml'
   push:
     branches:
@@ -80,6 +81,7 @@ on:
       - 'src/backend/pyproject.toml'
       - 'src/backend/uv.lock'
       - 'deploy/aliyun/work-roles.sql'
+      - 'deploy/observability/**'
       - '.github/workflows/work-r0a-gates.yml'
 
 permissions:
@@ -273,6 +275,30 @@ jobs:
           docker run --rm -v "$GITHUB_WORKSPACE:/w:ro" --entrypoint sh prom/prometheus:v2.54.1 \
             -c "promtool check rules /w/docs/plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml \
                  && promtool test rules /w/docs/plan/assets/work-r0a-ops-2026-10-25/prometheus-rules.test.yml"
+
+  observability-assets:
+    name: C17 observability assets and demo pipeline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install PyYAML for config checks
+        run: python3 -m pip install --quiet pyyaml
+      - name: Test observability config and demo services
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s deploy/observability/test -p 'test_*.py' -v
+      - name: Check shell syntax
+        run: for f in deploy/observability/*.sh; do bash -n "$f"; done
+      - name: Validate Prometheus config and rules
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/w:ro" --entrypoint sh prom/prometheus:v2.54.1 \
+            -c "cd /w/deploy/observability && promtool check config prometheus/prometheus.yml \
+                 && promtool check rules prometheus-rules.yaml demo-rules.yaml"
+      - name: Validate Alertmanager config
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/w:ro" --entrypoint amtool prom/alertmanager:v0.28.1 \
+            check-config /w/deploy/observability/alertmanager/alertmanager.yml
 
   orchestration-contract:
     name: Orchestration and background-job contracts parse

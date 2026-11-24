@@ -98,6 +98,69 @@ func TestTaskEventsStreamsNewEventsAndReplaysCursor(t *testing.T) {
 	assertAPICode(t, unauthorizedResponse, http.StatusUnauthorized, "unauthorized")
 }
 
+func TestTaskEventsMetricsCountDeliveredAndResync(t *testing.T) {
+	pool, dbName := newBootstrapDB(t, true, true)
+	seedTaskGraph(t, dbName)
+	server, err := api.NewServerWithContent(pool, &stubVerifier{claims: testClaims()},
+		testCSRF(t), newTestContentStore(t), log.New(io.Discard, "", 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	httpServer := httptest.NewServer(server.Handler())
+	t.Cleanup(httpServer.Close)
+	token := bootstrapCSRF(t, httpServer.URL)
+	created := createTaskForTest(t, httpServer.URL, token, "events-metrics-0001", "事件指标目标", "")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	stream := openEventStream(t, ctx, httpServer.URL, created.TaskID, "")
+	if stream.StatusCode != http.StatusOK {
+		t.Fatalf("stream status = %d", stream.StatusCode)
+	}
+	reader := bufio.NewReader(stream.Body)
+	response := taskRequest(t, http.MethodPatch,
+		httpServer.URL+"/work/v1/tasks/"+created.TaskID, token,
+		`{"client_request_id":"events-metrics-0001","expected_revision":1,"title":"事件指标标题"}`)
+	response.Body.Close()
+	if event := readSSEEvent(t, reader); event.Event != "task.updated" {
+		t.Fatalf("event = %#v", event)
+	}
+	stream.Body.Close()
+
+	resyncRequest, err := http.NewRequest(http.MethodGet,
+		httpServer.URL+"/work/v1/tasks/"+created.TaskID+"/events", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resyncRequest.AddCookie(&http.Cookie{Name: "sessionid", Value: "session-value"})
+	resyncRequest.Header.Set("Last-Event-ID", "99999999-9999-4999-8999-999999999999")
+	resyncResponse, err := http.DefaultClient.Do(resyncRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resyncResponse.StatusCode != http.StatusConflict {
+		t.Fatalf("resync status = %d", resyncResponse.StatusCode)
+	}
+	resyncResponse.Body.Close()
+
+	metricsResponse := httptest.NewRecorder()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		metricsResponse.Body.Reset()
+		server.MetricsHandler().ServeHTTP(metricsResponse, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+		body := metricsResponse.Body.String()
+		delivered := strings.Contains(body, `work_sse_events_total{kind="delivered",org_id="org_a"} 1`)
+		resynced := strings.Contains(body, `work_sse_events_total{kind="resync_required",org_id="org_a"} 1`)
+		if delivered && resynced {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("metrics missing delivered=%v resync=%v:\n%s", delivered, resynced, body)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func TestTaskEventsSurviveServerWriteTimeout(t *testing.T) {
 	pool, _ := newBootstrapDB(t, true, true)
 	contentStore := newTestContentStore(t)

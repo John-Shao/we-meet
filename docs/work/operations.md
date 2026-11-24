@@ -384,6 +384,8 @@ sudo WORK_BACKUP_IDENTITY=/root/work-backups/work-offsite-20261029.agekey \
 - 真实投递链只有两条：① work-healthcheck.timer → work-health-alert.py 邮件（观察名单 unit 转红才发）；② 各扫描 unit 退出码标红＋值班手工读数。
 - SLO：`slo-pilot.json` 12 项指标全部 not_measured；目标是内部测量口径，不是客户合同。
 
+> **2026-11-24 C17 开工原位注记（原文三段保留，判读以本段为准）**：主签已裁首批＝独立观测栈＋`work-api` 埋点，TTFT 暂不测，并授权独立观测包安装与单次 `work-api` 重启。仓库面已新增 `deploy/observability/` 独立包（Prometheus 2.54.1／Alertmanager 0.28.1／Grafana 13.3.1，版本与 sha256 固定）、五个只绑 loopback 的 unit、Grafana provisioning、本机演示 webhook 与安装／验收／回滚脚本；`work-api` 新增 `WORK_METRICS_ADDR` 与首批三条真实序列。**告警路由边界**：Alertmanager 默认 `demo-discard`，只有 `alert_class=demo` 且具名 demo 告警进入本机 webhook；真实 SLO 告警不会被投递，不能读成值班告警已接通。控制 API 可用性规则排除 `/healthz`，避免健康检查稀释 SLO。**当前仍未安装**：上文“任何一条 alert 都不会自己响”在安装前继续成立；安装后必须以 `verify.sh`、Prometheus targets、Grafana datasource/dashboard 与 webhook firing/resolved 回执为准。TTFT 仍不测，12 项 SLO 不因本批自动翻绿。
+
 ### 7.2 扫描 unit 退出码（值班读法）
 
 | Unit | rc=0 | rc=1 | rc=2 | rc=4 |

@@ -1,0 +1,22 @@
+[Unit]
+Description=Work C17 Prometheus
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=work-observability
+Group=work-observability
+EnvironmentFile=/etc/work-observability/observability.env
+WorkingDirectory=/etc/work-observability
+ExecStart=/opt/work-observability/current/bin/prometheus --config.file=/etc/work-observability/prometheus/prometheus.yml --storage.tsdb.path=/var/lib/work-observability/prometheus --web.listen-address=127.0.0.1:19090 --log.level=info
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/work-observability/prometheus
+
+[Install]
+WantedBy=multi-user.target

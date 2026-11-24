@@ -49,6 +49,7 @@ func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (host.Clai
 		writeAPIError(w, correlationID, apiError)
 		return host.Claims{}, correlationID, false
 	}
+	observeRequestOrg(r, claims.OrgID)
 	return claims, correlationID, true
 }
 
@@ -94,6 +95,7 @@ func (s *Server) authenticateBearer(w http.ResponseWriter, r *http.Request) (hos
 		return host.Claims{}, correlationID, false
 	}
 	claims.AuthPlane = "bearer"
+	observeRequestOrg(r, claims.OrgID)
 	return claims, correlationID, true
 }
 

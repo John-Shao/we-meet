@@ -252,25 +252,25 @@
       "recording": [
         {
           "record": "work:slo_control_api_availability:ratio_5m",
-          "expr": "(sum by (org_id) (rate(work_api_requests_total{status_class!=\"5xx\"}[5m]))) / clamp_min(sum by (org_id) (rate(work_api_requests_total[5m])), 1e-9)"
+          "expr": "(sum by (org_id) (rate(work_api_requests_total{route!=\"/healthz\",status_class!=\"5xx\"}[5m]))) / clamp_min(sum by (org_id) (rate(work_api_requests_total{route!=\"/healthz\"}[5m])), 1e-9)"
         },
         {
           "record": "work:slo_control_api_availability:ratio_1h",
-          "expr": "(sum by (org_id) (rate(work_api_requests_total{status_class!=\"5xx\"}[1h]))) / clamp_min(sum by (org_id) (rate(work_api_requests_total[1h])), 1e-9)"
+          "expr": "(sum by (org_id) (rate(work_api_requests_total{route!=\"/healthz\",status_class!=\"5xx\"}[1h]))) / clamp_min(sum by (org_id) (rate(work_api_requests_total{route!=\"/healthz\"}[1h])), 1e-9)"
         },
         {
           "record": "work:slo_control_api_availability:ratio_6h",
-          "expr": "(sum by (org_id) (rate(work_api_requests_total{status_class!=\"5xx\"}[6h]))) / clamp_min(sum by (org_id) (rate(work_api_requests_total[6h])), 1e-9)"
+          "expr": "(sum by (org_id) (rate(work_api_requests_total{route!=\"/healthz\",status_class!=\"5xx\"}[6h]))) / clamp_min(sum by (org_id) (rate(work_api_requests_total{route!=\"/healthz\"}[6h])), 1e-9)"
         },
         {
           "record": "work:slo_control_api_availability:ratio_1d",
-          "expr": "(sum by (org_id) (rate(work_api_requests_total{status_class!=\"5xx\"}[1d]))) / clamp_min(sum by (org_id) (rate(work_api_requests_total[1d])), 1e-9)"
+          "expr": "(sum by (org_id) (rate(work_api_requests_total{route!=\"/healthz\",status_class!=\"5xx\"}[1d]))) / clamp_min(sum by (org_id) (rate(work_api_requests_total{route!=\"/healthz\"}[1d])), 1e-9)"
         }
       ],
       "alerts": [
         {
           "name": "WorkControlApiAvailabilityFastBurn",
-          "expr": "(1 - work:slo_control_api_availability:ratio_5m > 0.0144) and (1 - work:slo_control_api_availability:ratio_1h > 0.0144) and (sum by (org_id) (rate(work_api_requests_total[5m])) > 0)",
+          "expr": "(1 - work:slo_control_api_availability:ratio_5m > 0.0144) and (1 - work:slo_control_api_availability:ratio_1h > 0.0144) and (sum by (org_id) (rate(work_api_requests_total{route!=\"/healthz\"}[5m])) > 0)",
           "for": "2m",
           "severity": "page",
           "slo_alert": true,
@@ -279,7 +279,7 @@
         },
         {
           "name": "WorkControlApiAvailabilitySlowBurn",
-          "expr": "(1 - work:slo_control_api_availability:ratio_6h > 0.006) and (1 - work:slo_control_api_availability:ratio_1d > 0.006) and (sum by (org_id) (rate(work_api_requests_total[5m])) > 0)",
+          "expr": "(1 - work:slo_control_api_availability:ratio_6h > 0.006) and (1 - work:slo_control_api_availability:ratio_1d > 0.006) and (sum by (org_id) (rate(work_api_requests_total{route!=\"/healthz\"}[5m])) > 0)",
           "for": "30m",
           "severity": "ticket",
           "slo_alert": true,

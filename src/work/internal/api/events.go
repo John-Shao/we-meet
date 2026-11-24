@@ -70,6 +70,7 @@ func (s *Server) streamTaskEvents(w http.ResponseWriter, r *http.Request) {
 			if resync.currentEventID != "" {
 				w.Header().Set(currentCursorHeader, resync.currentEventID)
 			}
+			s.metrics.observeSSE(claims.OrgID, "resync_required")
 			writeAPIError(w, correlationID, apierr.New("resync_required"))
 			return
 		}
@@ -211,22 +212,33 @@ func (s *Server) drainTaskEvents(
 	taskID string,
 	cursor *int64,
 ) error {
+	delivered := 0
 	for {
 		events, err := s.readTaskEvents(ctx, claims, taskID, *cursor, sseBatchLimit)
 		if err != nil {
 			return err
 		}
+		if len(events) == 0 {
+			return nil
+		}
 		for _, event := range events {
 			if err := writeTaskEvent(w, event); err != nil {
 				return err
 			}
+			delivered++
 			*cursor = event.Seq
 		}
+		if err := controller.Flush(); err != nil {
+			return err
+		}
+		if delivered > 0 {
+			s.metrics.addSSE(claims.OrgID, "delivered", delivered)
+			delivered = 0
+		}
 		if len(events) < sseBatchLimit {
-			break
+			return nil
 		}
 	}
-	return controller.Flush()
 }
 
 func (s *Server) readTaskEvents(ctx context.Context, claims host.Claims, taskID string, afterSeq int64, limit int) ([]TaskEvent, error) {
