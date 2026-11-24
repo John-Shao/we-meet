@@ -1,4 +1,4 @@
-// The 0040-0043 rollout pre-flight readings are taken by two shell scripts that run as root on
+// The 0040-0062 rollout pre-flight readings are taken by two shell scripts that run as root on
 // the production host. "Root on production" plus "read-only" is a claim, not a fact, until a
 // machine checks it - so this gate refuses the scripts the moment they gain a state-changing
 // command, and keeps a positive control (the real rollout script) to prove the scan has teeth.
@@ -52,13 +52,18 @@ function writeHits(text) {
   return hits;
 }
 
-// The SQL these scripts run has to be a read, not a read-shaped write. Only the lines that
-// actually invoke psql count - `grep -a -c "$n"` shares the `-c "…"` shape and is not SQL.
+// SQL can reach psql directly or through the read_number/sql_value helpers. Join shell
+// continuations first, then collect every SQL-shaped literal at those call sites; a helper
+// must not become a blind spot in the read-only claim.
 function sqlCallSites(text) {
   return text
+    .replace(/\\\n/g, ' ')
     .split('\n')
-    .filter((line) => /^\s*(\$P|sudo -u postgres psql)\b/.test(line))
-    .flatMap((line) => [...line.matchAll(/-c\s+"([^"]+)"/g)].map((match) => match[1].trim()));
+    .flatMap((line) =>
+      [...line.matchAll(/(?:sudo -u postgres psql[^\n]*?\s-c\s+|read_number\s+\S+\s+|sql_value\s+)"([^"]+)"/g)]
+        .map((match) => match[1].trim())
+        .filter((sql) => /^(select|with|insert|update|delete|alter|create|drop|grant|revoke|truncate|copy|vacuum|set|do)\b/i.test(sql)),
+    );
 }
 
 test('the pre-flight scripts have a repo home and are host-safe to run', () => {
@@ -107,6 +112,9 @@ test('the readings are printed by the scripts themselves', () => {
     'MIGRATION_TAIL=',
     'RELEASE_DIRTY=',
     'package_migrations_dir=',
+    'device_dispatch_rows=',
+    'declared_binaries=',
+    'PF RESULT=',
     'embed ',
     'active=',
   ];
@@ -115,7 +123,7 @@ test('the readings are printed by the scripts themselves', () => {
   // or a `for f in LABEL …` list would otherwise satisfy the check without printing anything.
   const lines = text.split('\n');
   const notPrinted = labels.filter(
-    (label) => !lines.some((line) => line.includes(label) && (/\becho\b/.test(line) || /select '/.test(line))),
+    (label) => !lines.some((line) => line.includes(label) && (/\b(echo|printf)\b/.test(line) || /select '/.test(line))),
   );
   assert.deepEqual(notPrinted, [], 'a quoted reading has no printing line in the scripts: ' + JSON.stringify(notPrinted));
 });

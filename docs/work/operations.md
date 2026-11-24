@@ -201,6 +201,8 @@ sudo ./rollout-r0a-0027.sh --release <发布目录> --migrations-only
 
    仓库钉：`.py`＝`393aae65d1ab82b18a75394c112081ba591cf7a9dc8d39ee37484702494fa31c`（另两件的字节钉在 `release-payload-closure.test.mjs`）。**判据边界**：`verify-r0a-0027.sh` 已逐名报 present/MISSING 与 `host_sha16`（剥 CR），但脚本内**没有**"读数与仓库钉不等即中止"的动作 ⇒ 本条的 fail-closed 目前靠现场手工比对，机械化须在 rollout 批获授权时补脚本；在那之前不得声称两侧一致已被机器保证。`.service`／`.timer` 若是首次安装（主机无原件）按 MISSING 记录并继续，这不属不一致。
 
+   > 2026-11-24 追加：W2 的装前比对已在**只读 preflight** 中机械化——`rollout-preflight-package-shape-read.sh` 对三件逐名做剥 CR 后的主机／发布包 sha256 全等比较，任一不符即非零退出；主机缺件仍按首次安装记录并通过。该脚本先验 `SHA256SUMS`，所以“与包相等”同时意味着“与包所证明的仓库字节相等”。**边界未变**：`rollout-r0a-0027.sh` 自身仍无这道中止，现场必须把两份 preflight 的 `HOST_SCRIPT_RC` 都取到 0 才能开写；本机未取主机读数，卡片 W 的现网半句仍未闭合。
+
 6. **work-api 链尾闸的现网读数（2026-11-23 随卡片 V 现网核对项新增，只读前置，第二步换 api 后当场取）**：卡片 V 的仓库面（`work-chain-check.service`＋`work-api.service` 的 `Requires=`/`After=`＋rollout 逐名安装步）已落，但"现网 work-api 是否真的带闸启动"只能当场读。重启 work-api 后取：
 
    ```bash
@@ -234,6 +236,20 @@ ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes johnshao@<work-ecs> 'cat > /var/tmp/pf
 ```
 
 读数现取（tip_version/open_runs/RELEASE_DIRTY 等由脚本打印），不在本文手抄；现网迁移 tip 与发布包见 [status.md](status.md)。
+
+**2026-11-24 起：两份脚本按 0040–0062 fail-closed 运行**。脚本仍只读、仍跑完即删，但不再“打印完永远成功”：包尾不是 62、`RELEASE_DIRTY` 非 0、`SHA256SUMS` 不通过、声明二进制或 backup 三件缺包、主机 backup 剥 CR 后不等、台账 tip 不符、`device_dispatch` 非空、SQL 探针读不到，都会打印 `PF FAIL` 并以 1 退出。两步分别这样取数（两次都要求 ledger 与 package 两份脚本各自 `HOST_SCRIPT_RC=0`）：
+
+```bash
+# 第一步 migrations-only：现网应从 39 起；在途 Run 记录但不阻断这一步
+EXPECTED_LEDGER_TIP=39 REQUIRE_DRAINED=0 bash /var/tmp/rollout-preflight-ledger-read.sh
+EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
+
+# 第二步换 worker/api 前：台账应已到 62，且在途 Run 必须为 0
+EXPECTED_LEDGER_TIP=62 REQUIRE_DRAINED=1 bash /var/tmp/rollout-preflight-ledger-read.sh
+EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
+```
+
+`PF_RELEASE_DIR` 可指定 exact 包目录；不指定时仍取 `/root/work-release-*` 最新目录。`work.device_dispatch` 不存在按 0 行的安全情形通过，存在但查不到行数则中止。卡片 V／Y 的**重启后**读数仍按第 6／7 条在窗口内另取，本 preflight 不替代、也不声称已闭合。
 
 ### 3.5 装后验证与链尾闸 [只读]
 
