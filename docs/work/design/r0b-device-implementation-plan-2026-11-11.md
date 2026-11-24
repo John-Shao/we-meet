@@ -201,3 +201,5 @@ M4 的六个浏览器 cookie 消费面已冻结并生成客户端（M4-1..M4-4�
 本批验证：R0a 设计资产全量 **339/0**（新增 12 条 fail-closed 运行时用例，原 4 条只读门禁同步扩到 helper SQL 提取），`ci-contract` **24/0**，R0b browser contract **6/6**，`work-status --check` 与 `git diff --check` 通过。两枚反向突变各自精确变红——把 `pf_finish` 改成永远成功使退出码负例红；把主机 backup 哈希相等改成恒真使 mismatch 负例红；恢复后 16/16 复跑通过。未连接生产主机、未取现场读数、未执行任何 rollout。
 
 2026-11-24 现场只读追加：ledger preflight `HOST_SCRIPT_RC=0`（tip 39／`device_dispatch` 不存在＝0 行安全情形），package preflight `HOST_SCRIPT_RC=1`（主机最高包尾仍 39，0062 包未就位）；W2 主机三件剥 CR 哈希与仓库三钉逐字相等，V 仍无链尾闸 unit，Y 仍是 2026-11-11 启动的旧 `work-authz`。当前有 1 个 active Run／1 个 held reservation，第二步 runtime swap 前必须先 drain。现场全程只读，未执行 rollout；本节前一句“未连接生产主机”只描述代码批次本身，现场追加以本段为准。
+
+2026-11-24 出包上传追加：从 `72d7dcbe3` 构建 0062 包（dirty 0／tail 62／15 二进制／78 文件），上传解包到工作主机 `/root/work-release-0062`，主机 75 条 `SHA256SUMS` 全 `OK`，exact 目录 package preflight `HOST_SCRIPT_RC=0`。**发布包已就绪，但 rollout 仍未执行**；active Run drain、两步生产写授权、V／Y 重启后读数与 W 的现网安装生效继续开放。

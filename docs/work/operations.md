@@ -253,6 +253,8 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 **2026-11-24 工作主机现场只读结果**：`lavm-t7fmveau9b` 的 ledger preflight `HOST_SCRIPT_RC=0`——tip 39／rows 39，`device_dispatch` 不存在（按 0 行安全情形），但有 `open_runs=1`（active）与 `held_reservations=1`；package preflight `HOST_SCRIPT_RC=1`——最新包仍是 `/root/work-release-0039`，枚举全部 `/root/work-release-*` 后最高 tail 仍为 39，0062 包未就位。W2 三件主机文件剥 CR 后与仓库钉逐字相等；V 的 `work-api.service` 仍无 `Requires=`／`After=` 链尾闸且 `work-chain-check.service` 不存在；Y 的 `work-authz` 仍是 2026-11-11 18:43:44 启动的旧进程。**当前判定＝只能进入“出包／上传”准备，不能进入任何生产写步骤；第二步还须先把 active Run drain 到 0。**
 
+**2026-11-24 0062 包已出并上传（仍非 rollout）**：从 `72d7dcbe3` 构建 `/tmp/work-release-0062`，`RELEASE_DIRTY=0`／`MIGRATION_TAIL=62`／15 个二进制／78 个包内文件；上传归档 sha256 `f302912ed0a92b7cee769c83f33878c2261684e5e94fb88100e4542cf2a7bd43`，主机解包到 `/root/work-release-0062` 后 75 条 `SHA256SUMS` 全 `OK`。对 exact 目录重跑 package preflight＝`HOST_SCRIPT_RC=0`，backup 三件主机／包剥 CR 哈希逐字相等；`work-migrate`／`work-api`／`work-authz` 的包件与已装件不同，`work-relay` 相同，均只是安装前对照。**更新判定＝发布包已就绪；仍未迁移、未换二进制、未重启，active Run 与两步生产写授权仍是后续硬前置。**
+
 ### 3.5 装后验证与链尾闸 [只读]
 
 - `sudo ./verify-r0a-0027.sh "<开始时刻>"`：`rows=N max=N`、清单 all present、函数体探针 true（claim_carries_takeover、terminal_release_guard、export_discovery_hardened、0040–0045 设备面探针等）。
