@@ -368,7 +368,7 @@ class DemoWebhookTests(unittest.TestCase):
                 "status": "firing",
                 "startsAt": "2026-11-24T00:00:00Z",
                 "endsAt": "0001-01-01T00:00:00Z",
-                "labels": {"alertname": "WorkObservabilityDemoFailure", "severity": "ticket", "alert_class": "demo", "org_id": "demo"},
+                "labels": {"alertname": "WorkObservabilityDemoFailure", "severity": "ticket", "alert_class": "demo", "org_id": "demo", "job": "work-demo", "instance": "127.0.0.1:19092"},
                 "annotations": {"summary": "C17 local demo alert pipeline probe", "runbook": "docs/work/operations.md"},
             }],
         }
@@ -395,6 +395,17 @@ class DemoWebhookTests(unittest.TestCase):
             "status": "firing",
             "labels": {"alertname": "WorkObservabilityDemoFailure", "severity": "ticket", "alert_class": "demo", "org_id": "demo"},
             "annotations": {"summary": "private"},
+        }]}
+        with self.assertRaises(HTTPError) as caught:
+            self.post(payload)
+        self.assertEqual(caught.exception.code, 400)
+        self.assertFalse(self.data_file.exists())
+
+    def test_wrong_scrape_label_is_refused_and_not_written(self):
+        payload = {"alerts": [{
+            "status": "firing",
+            "labels": {"alertname": "WorkObservabilityDemoFailure", "severity": "ticket", "alert_class": "demo", "org_id": "demo", "job": "other", "instance": "127.0.0.1:19092"},
+            "annotations": {"summary": "C17 local demo alert pipeline probe", "runbook": "docs/work/operations.md"},
         }]}
         with self.assertRaises(HTTPError) as caught:
             self.post(payload)

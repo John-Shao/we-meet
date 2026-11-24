@@ -386,6 +386,8 @@ sudo WORK_BACKUP_IDENTITY=/root/work-backups/work-offsite-20261029.agekey \
 
 > **2026-11-24 C17 开工原位注记（原文三段保留，判读以本段为准）**：主签已裁首批＝独立观测栈＋`work-api` 埋点，TTFT 暂不测，并授权独立观测包安装与单次 `work-api` 重启。仓库面已新增 `deploy/observability/` 独立包（Prometheus 2.54.1／Alertmanager 0.28.1／Grafana 13.3.1，版本与 sha256 固定）、五个只绑 loopback 的 unit、Grafana provisioning、本机演示 webhook 与安装／验收／回滚脚本；`work-api` 新增 `WORK_METRICS_ADDR` 与首批三条真实序列。**告警路由边界**：Alertmanager 默认 `demo-discard`，只有 `alert_class=demo` 且具名 demo 告警进入本机 webhook；真实 SLO 告警不会被投递，不能读成值班告警已接通。控制 API 可用性规则排除 `/healthz`，避免健康检查稀释 SLO。**当前仍未安装**：上文“任何一条 alert 都不会自己响”在安装前继续成立；安装后必须以 `verify.sh`、Prometheus targets、Grafana datasource/dashboard 与 webhook firing/resolved 回执为准。TTFT 仍不测，12 项 SLO 不因本批自动翻绿。
 
+> **2026-11-24 C17 安装验收补记**：commit `a05ba12e8` 的干净独立包已安装；五个 observability unit 均 active，六个端口均只绑 `127.0.0.1`，Prometheus targets 3/3 up，Grafana health、dashboard `work-r0a-overview` 与 datasource `work-prometheus` 已读到，`verify.sh` rc=0。无客户数据的 `/work/v1/bootstrap` 未认证探针返回 401，并在 Prometheus 形成 `/work/v1/bootstrap` 真实序列（`/healthz` 仍被 SLO 规则排除）。演示告警已取得 webhook firing 与 resolved 两条回执，失败文件已清除。`work-api` 只做了一次停止/启动，当前二进制 sha256 为 `b4b82e8e7baea3ed11e778c75a057a88390fab7ba8be0880ac4c3e5004f41a68`，备份在 `/var/backups/work-observability/20261124-132115`，在途 Run 为 0。现场发现 Prometheus 自动附加 `job`/`instance` 导致 webhook 400，已在当前补丁中按固定值 `work-demo`/`127.0.0.1:19092` 放行并热更新 webhook，未再重启 `work-api`。**仍不闭合**：真实 SLO 告警依旧 `demo-discard`，TTFT 与其余 DB／Node／RUM 指标仍未测，不能据此宣称 C17 或 12 项 SLO 已实测完成。
+
 ### 7.2 扫描 unit 退出码（值班读法）
 
 | Unit | rc=0 | rc=1 | rc=2 | rc=4 |

@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 MAX_BODY = 1024 * 1024
-ALLOWED_LABELS = {"alertname", "severity", "alert_class", "org_id"}
+ALLOWED_LABELS = {"alertname", "severity", "alert_class", "org_id", "job", "instance"}
 ALLOWED_ANNOTATIONS = {
     "summary": "C17 local demo alert pipeline probe",
     "runbook": "docs/work/operations.md",
@@ -61,6 +61,8 @@ class Handler(BaseHTTPRequestHandler):
                 or labels.get("alert_class") != "demo"
                 or labels.get("org_id") != "demo"
                 or labels.get("severity") != "ticket"
+                or labels.get("job") != "work-demo"
+                or labels.get("instance") != "127.0.0.1:19092"
                 or alert.get("status") not in {"firing", "resolved"}
             ):
                 self.send_error(400)
