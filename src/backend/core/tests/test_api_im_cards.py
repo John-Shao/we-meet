@@ -10,15 +10,15 @@ import json
 from datetime import timedelta
 from unittest import mock
 
-import pytest
 from django.core.cache import cache
 from django.db import IntegrityError
 from django.utils import timezone
+
+import pytest
 from rest_framework.test import APIClient
 
-from core.api import throttling
-
 from core import models
+from core.api import throttling
 from core.factories import UserFactory
 from core.services.jusi_im import JusiImMessageResponse
 
@@ -28,14 +28,34 @@ CID = "11111111-1111-4111-8111-111111111111"
 MID = 717
 
 BUTTONS = {
-    "b0": {"text": "同意上线", "style": "primary", "action": "callback",
-           "block": "a0", "resolve": "once"},
-    "b1": {"text": "驳回", "style": "danger", "action": "callback",
-           "block": "a0", "resolve": "once"},
-    "b2": {"text": "重跑", "style": "default", "action": "callback",
-           "block": "a1", "resolve": "each"},
-    "b3": {"text": "查看日志", "style": "default", "action": "url",
-           "block": "a2", "resolve": "once"},
+    "b0": {
+        "text": "同意上线",
+        "style": "primary",
+        "action": "callback",
+        "block": "a0",
+        "resolve": "once",
+    },
+    "b1": {
+        "text": "驳回",
+        "style": "danger",
+        "action": "callback",
+        "block": "a0",
+        "resolve": "once",
+    },
+    "b2": {
+        "text": "重跑",
+        "style": "default",
+        "action": "callback",
+        "block": "a1",
+        "resolve": "each",
+    },
+    "b3": {
+        "text": "查看日志",
+        "style": "default",
+        "action": "url",
+        "block": "a2",
+        "resolve": "once",
+    },
 }
 
 
@@ -80,13 +100,11 @@ def _im(request):
         return
     # 广播住在 services/card_state 而不是 viewset 上 —— 因为**有两个触发点**:
     # 点击那一刻,以及出站回调带回上游文案之后(见 tasks/bot_callback)。
-    with mock.patch(
-        "core.api.im_cards.ImCardViewSet._require_membership"
-    ) as membership, mock.patch(
-        "core.services.card_state.im_bots.make_admin_client"
-    ) as factory, mock.patch(
-        "core.services.card_state.im_bots.post_as"
-    ) as post_as:
+    with (
+        mock.patch("core.api.im_cards.ImCardViewSet._require_membership") as membership,
+        mock.patch("core.services.card_state.im_bots.make_admin_client") as factory,
+        mock.patch("core.services.card_state.im_bots.post_as") as post_as,
+    ):
         membership.return_value = mock.Mock()
         factory.return_value = mock.Mock()
         post_as.return_value = JusiImMessageResponse(
@@ -162,7 +180,9 @@ def test_a_second_person_hitting_the_same_once_block_gets_409(card, member):
     assert response.json()["state"]["resolved"]["a0"]["button_id"] == "b0"
 
 
-def test_the_mutual_exclusion_is_a_database_constraint_not_a_read_then_write(card, member):
+def test_the_mutual_exclusion_is_a_database_constraint_not_a_read_then_write(
+    card, member
+):
     """「先查再写」在两个 worker 之间必然漏,所以互斥必须落在**数据库**上。
 
     用 bulk_create 绕开 BaseModel.save() 的 full_clean —— 否则测到的是
@@ -173,11 +193,17 @@ def test_the_mutual_exclusion_is_a_database_constraint_not_a_read_then_write(car
         card=card, block="a0", button_id="b0", user=member, resolves=True
     )
     with pytest.raises(IntegrityError):
-        models.ImCardAction.objects.bulk_create([
-            models.ImCardAction(
-                card=card, block="a0", button_id="b1", user=UserFactory(), resolves=True
-            )
-        ])
+        models.ImCardAction.objects.bulk_create(
+            [
+                models.ImCardAction(
+                    card=card,
+                    block="a0",
+                    button_id="b1",
+                    user=UserFactory(),
+                    resolves=True,
+                )
+            ]
+        )
 
 
 def test_blocks_resolve_independently(card, member, _im):
@@ -195,7 +221,9 @@ def test_an_each_block_never_resolves_and_never_broadcasts(card, member, _im):
     for _ in range(3):
         assert click(UserFactory(), button_id="b2").status_code == 200
     assert models.ImCardAction.objects.filter(button_id="b2").count() == 3
-    assert models.ImCardAction.objects.filter(button_id="b2", resolves=True).count() == 0
+    assert (
+        models.ImCardAction.objects.filter(button_id="b2", resolves=True).count() == 0
+    )
     _im.assert_not_called()
 
 
@@ -273,11 +301,16 @@ def test_states_ignores_unknown_mids_rather_than_erroring(card, member):
 def test_states_requires_a_list(card, member):
     api = APIClient()
     api.force_login(member)
-    assert api.post("/api/v1.0/im/cards/states/", {"mids": MID}, format="json").status_code == 400
+    assert (
+        api.post("/api/v1.0/im/cards/states/", {"mids": MID}, format="json").status_code
+        == 400
+    )
 
 
 def test_anonymous_callers_are_rejected(card):
-    assert APIClient().post(f"/api/v1.0/im/cards/{MID}/click/", {"button_id": "b0"}).status_code in (401, 403)
+    assert APIClient().post(
+        f"/api/v1.0/im/cards/{MID}/click/", {"button_id": "b0"}
+    ).status_code in (401, 403)
 
 
 # ---- 限流:限的是我们打给第三方的量 ---------------------------------------------
