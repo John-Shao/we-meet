@@ -169,6 +169,8 @@ Host 允许同一用户在一个组织里按部门有多条 Membership（`meet_m
 
 **Work 侧**：目录列表改为每个 subject 一项、按 user 分页，响应形状不变，`sync_member_projection` 签名不变。Work 同步把同一次列表中重复出现的 subject 视为 `directory_protocol_invalid` 并保留旧水位（现有 `sync.go` 只按 subject 去重收集 present，不报错），防止归并缺陷再次被静默覆盖。R0a 投影同样受此缺陷影响，这项修正同时适用于现有 Host 目录列表，不另开兼容路径。本期不支持一人跨多个组织（P1-A 已定），归并只在单个组织内进行。
 
+**【2026-11-25 落地登记（原文逐字保留）：** `internal/directory.Sync` 在读取完整成员列表后先做重复 subject 预检；任一重复即记录 `directory_protocol_invalid` 并在任何 `SyncMember`、组织水位推进或 full 模式 `MarkAbsent` 之前返回失败。旧水位因此保持不变，下一次周期重试同一窗口。`TestSyncDuplicateSubjectFailsBeforeAnyProjectionWrite` 断言零成员写、零组织推进写、零缺席收窄与水位不变；`internal/directory` 整包通过。Host 侧按人归并本身仍未实现，本登记不宣称该缺口已关闭。
+
 ## 3. 席位权威写入与组织开停
 
 ### 3.1 Host 新增写端口

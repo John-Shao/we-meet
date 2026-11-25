@@ -259,6 +259,37 @@ func TestSyncRejectsHostRevisionRegression(t *testing.T) {
 	}
 }
 
+func TestSyncDuplicateSubjectFailsBeforeAnyProjectionWrite(t *testing.T) {
+	discovery := &fakeDiscovery{
+		orgs: []host.Org{healthyOrg("org_1", 5)},
+		members: map[string][]host.Member{
+			"org_1": {
+				{SubjectID: "sub_1", Status: "active", Role: "member", Revision: 4},
+				{SubjectID: "sub_2", Status: "active", Role: "member", Revision: 5},
+				{SubjectID: "sub_1", Status: "active", Role: "owner", Revision: 5},
+			},
+		},
+	}
+	writer := &fakeWriter{watermarks: map[string]int64{"org_1": 3}}
+
+	report, err := directory.Sync(context.Background(), discovery, writer, directory.Options{Full: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.OrgsFailed != 1 || report.MembersFailed != 1 || report.MembersTotal != 3 || report.MembersApplied != 0 {
+		t.Fatalf("report = %#v", report)
+	}
+	if len(report.Errors) != 1 || report.Errors[0].Code != "directory_protocol_invalid" || report.Errors[0].SubjectID != "sub_1" {
+		t.Fatalf("errors = %#v", report.Errors)
+	}
+	if len(writer.orgs) != 0 || len(writer.members) != 0 || len(writer.absentCalls) != 0 {
+		t.Fatalf("duplicate snapshot was partially applied: orgs=%#v members=%#v absent=%#v", writer.orgs, writer.members, writer.absentCalls)
+	}
+	if writer.watermarks["org_1"] != 3 {
+		t.Fatalf("watermark = %d, want 3", writer.watermarks["org_1"])
+	}
+}
+
 func TestSyncMemberFailureDoesNotAdvanceWatermark(t *testing.T) {
 	discovery := &fakeDiscovery{
 		orgs: []host.Org{healthyOrg("org_1", 5)},

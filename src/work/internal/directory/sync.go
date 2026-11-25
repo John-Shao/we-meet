@@ -191,11 +191,31 @@ func syncOrganization(
 		return false
 	}
 
-	present := make([]string, 0, len(members))
+	report.MembersTotal += len(members)
 	seen := make(map[string]bool, len(members))
+	duplicate := false
+	for _, member := range members {
+		if member.SubjectID == "" || !seen[member.SubjectID] {
+			seen[member.SubjectID] = true
+			continue
+		}
+		duplicate = true
+		report.MembersFailed++
+		record(ItemError{
+			Scope:     "member",
+			OrgID:     org.OrgID,
+			SubjectID: member.SubjectID,
+			Code:      "directory_protocol_invalid",
+			Message:   "Host returned the same subject more than once in one member list",
+		})
+	}
+	if duplicate {
+		return false
+	}
+
+	present := make([]string, 0, len(members))
 	membersOK := true
 	for _, member := range members {
-		report.MembersTotal++
 		if member.OrgID != org.OrgID {
 			report.MembersFailed++
 			membersOK = false
@@ -208,8 +228,7 @@ func syncOrganization(
 			})
 			continue
 		}
-		if member.SubjectID != "" && !seen[member.SubjectID] {
-			seen[member.SubjectID] = true
+		if member.SubjectID != "" {
 			present = append(present, member.SubjectID)
 		}
 		if reason := memberGap(member); reason != "" {
