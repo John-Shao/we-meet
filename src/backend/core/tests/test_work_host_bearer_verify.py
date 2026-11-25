@@ -61,6 +61,7 @@ def test_returns_verified_bearer(client):
     assert data["session_revision"] == 7
     assert data["verified_at"].endswith("Z")
     assert "cookie" not in data
+    assert "Set-Cookie" not in response.headers
 
 
 @MTLS
@@ -70,10 +71,14 @@ def test_session_revision_tracks_auth_epoch(client):
 
     patcher = _authenticate(user)
     try:
-        first = client.post(URL, HTTP_AUTHORIZATION="Bearer t", **cert_headers(CLIENT_PEM))
+        first = client.post(
+            URL, HTTP_AUTHORIZATION="Bearer t", **cert_headers(CLIENT_PEM)
+        )
         user.auth_epoch = 42
         user.save(update_fields=["auth_epoch"])
-        second = client.post(URL, HTTP_AUTHORIZATION="Bearer t", **cert_headers(CLIENT_PEM))
+        second = client.post(
+            URL, HTTP_AUTHORIZATION="Bearer t", **cert_headers(CLIENT_PEM)
+        )
     finally:
         patcher.stop()
 
@@ -97,9 +102,7 @@ def test_rejects_invalid_client_certificate(client, headers):
 
     patcher = _authenticate(user)
     try:
-        response = client.post(
-            URL, HTTP_AUTHORIZATION="Bearer native-token", **headers
-        )
+        response = client.post(URL, HTTP_AUTHORIZATION="Bearer native-token", **headers)
     finally:
         patcher.stop()
 
@@ -172,7 +175,9 @@ def test_verifier_outage_is_service_unavailable(client, caplog):
 
     assert response.status_code == 503
     assert response.json() == {"code": "service_unavailable"}
-    records = [record for record in caplog.records if record.name == "core.api.work_host"]
+    records = [
+        record for record in caplog.records if record.name == "core.api.work_host"
+    ]
     assert len(records) == 1
     assert records[0].getMessage() == "Work bearer token verification failed"
     assert records[0].exc_info is None

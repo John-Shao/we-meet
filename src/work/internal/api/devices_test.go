@@ -190,6 +190,9 @@ func TestDevicePairingLifecycle(t *testing.T) {
 	if pairingID == "" || deviceID == "" || challenge == "" {
 		t.Fatalf("pairing missing fields: %#v", pairing)
 	}
+	if len(response.Cookies()) != 0 {
+		t.Fatalf("Bearer pairing response set cookies: %#v", response.Cookies())
+	}
 
 	confirmBody := `{"client_request_id":"confirm-0001","challenge":"` + challenge + `","signature":"` + signDevicePairing(t, pairingID, challenge) + `"}`
 	confirmPath := strings.ReplaceAll(api.DevicePairingConfirmPath, "{pairingId}", pairingID)
@@ -224,6 +227,38 @@ func TestDevicePairingLifecycle(t *testing.T) {
 	revoked := decodeObject(t, response)
 	if revoked["status"] != "revoked" || revoked["device_id"] != deviceID {
 		t.Fatalf("revoke = %#v", revoked)
+	}
+
+	ctx := context.Background()
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(ctx)
+	rows, err := admin.Query(ctx, `SELECT COALESCE(metadata ->> 'auth_plane', metadata -> 'response' ->> 'auth_plane')
+		FROM work.audit_event
+		WHERE org_id = $1 AND action IN ('device.pairing_created', 'device.pair.confirm')
+		ORDER BY created_at`, testOrg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	audited := 0
+	for rows.Next() {
+		var plane string
+		if err := rows.Scan(&plane); err != nil {
+			t.Fatal(err)
+		}
+		if plane != "bearer" {
+			t.Fatalf("device audit auth_plane = %q, want bearer", plane)
+		}
+		audited++
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if audited != 2 {
+		t.Fatalf("Bearer device audit rows = %d, want pairing and confirmation", audited)
 	}
 }
 

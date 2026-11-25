@@ -93,6 +93,27 @@ test('refresh coalesces, revoked grants clear state, transient errors preserve i
   assert.equal(expired, 1)
 })
 
+test('refresh starts inside the 30s window without moving the account epoch', async () => {
+  const config = { serviceOrigin: 'https://meet.test', issuer: 'https://id.test', clientId: 'desktop' }
+  let calls = 0
+  const fetcher = async url => {
+    if (url.endsWith('openid-configuration')) return Response.json({ issuer: config.issuer, authorization_endpoint: config.issuer + '/auth', token_endpoint: config.issuer + '/token', jwks_uri: config.issuer + '/jwks' })
+    calls++
+    return Response.json({ access_token: 'new', refresh_token: 'new-refresh', token_type: 'Bearer', expires_in: 300 })
+  }
+  const saved = remaining => JSON.stringify({ ...config, tokens: { access: 'old', refresh: 'old-refresh', subject: 'u', expiresAt: Date.now() + remaining } })
+  const nearExpiry = new DesktopAuth(config, store(saved(29_000)), fetcher)
+  assert.equal(nearExpiry.epoch, 0)
+  assert.equal(await nearExpiry.access(), 'new')
+  assert.equal(calls, 1)
+  assert.equal(nearExpiry.epoch, 0)
+
+  const healthy = new DesktopAuth(config, store(saved(31_000)), fetcher)
+  assert.equal(await healthy.access(), 'old')
+  assert.equal(calls, 1)
+  assert.equal(healthy.epoch, 0)
+})
+
 test('issuer mismatch and endpoint substitution are rejected before opening a browser', async () => {
   const config = { serviceOrigin: 'https://meet.test', issuer: 'https://id.test', clientId: 'desktop' }
   for (const issuer of ['https://evil.test', config.issuer]) {

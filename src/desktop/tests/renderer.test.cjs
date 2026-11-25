@@ -10,13 +10,13 @@ test('bundle routing, token isolation, API failures and stale-account responses'
   const root = mkdtempSync(path.join(tmpdir(), 'we-meet-renderer-test-'))
   writeFileSync(path.join(root, 'index.html'), '<html>test</html>')
   writeFileSync(path.join(root, 'main.js'), 'test')
-  let handler, call, offline = false, network, changeAccount = false
+  let handler, call, offline = false, network, changeAccount = false, calls = 0
   const auth = { epoch: 0, access: async () => 'native-token' }
   const session = { protocol: { handle: (_, h) => { handler = h } }, fetch: async (url, init) => {
-    call = { url, init }
+    call = { url, init }; calls++
     if (offline) throw new Error('offline')
     if (changeAccount) auth.epoch++
-    return new Response('ok')
+    return new Response('ok', { headers: { 'set-cookie': 'session=must-not-stick; Path=/', 'content-encoding': 'gzip', 'content-length': '99' } })
   } }
   installRenderer(session, root, origin, auth, online => { network = online }, session.fetch)
   const req = (url, init) => Object.assign(new Request(origin + url, init), { initiatorOrigin: origin })
@@ -24,11 +24,19 @@ test('bundle routing, token isolation, API failures and stale-account responses'
   assert.match(call.url, /index\.html$/)
   await handler(req('/main.js')); assert.match(call.url, /main\.js$/)
   assert.equal((await handler(req('/missing.js'))).status, 404)
-  await handler(req('/api/v1.0/users/me/', { headers: { authorization: 'Bearer old-renderer', cookie: 'old=account' } }))
+  const apiResponse = await handler(req('/api/v1.0/users/me/', { headers: { authorization: 'Bearer old-renderer', cookie: 'old=account' } }))
+  assert.equal(apiResponse.headers.get('set-cookie'), null)
+  assert.equal(apiResponse.headers.get('content-encoding'), null)
+  assert.equal(apiResponse.headers.get('content-length'), null)
   assert.equal(call.init.headers.get('authorization'), 'Bearer native-token')
   assert.equal(call.init.headers.get('cookie'), null)
+  assert.equal(call.init.credentials, 'omit')
   assert.equal(call.init.redirect, 'manual')
   assert.equal(network, true)
+  const beforeWorkRoute = calls
+  const workWrite = req('/work/v2/identity', { method: 'POST', body: '{}' })
+  assert.equal((await handler(workWrite)).status, 405)
+  assert.equal(calls, beforeWorkRoute, 'Work routes stay on the main-process Bearer face')
   const foreign = req('/api/v1.0/users/me/'); foreign.initiatorOrigin = 'https://evil.test'
   assert.equal((await handler(foreign)).status, 403)
   changeAccount = true
