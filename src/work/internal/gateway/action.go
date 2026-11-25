@@ -292,5 +292,14 @@ func (s *Server) prepareAction(ctx context.Context, orgID, deviceID, sessionID s
 	if err != nil {
 		return nil, err
 	}
+	var outcome struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(raw, &outcome); err != nil {
+		return nil, fmt.Errorf("invalid_request: prepare result")
+	}
+	if outcome.Error == "supersede_limit_exceeded" {
+		return nil, fmt.Errorf("supersede_limit_exceeded")
+	}
 	return json.RawMessage(raw), nil
 }

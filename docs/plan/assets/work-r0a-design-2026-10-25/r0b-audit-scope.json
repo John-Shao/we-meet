@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 70,
-  "chainTipCatalog": "catalogs/0070_independent_model_result_reconciliation.json",
+  "chainTip": 71,
+  "chainTipCatalog": "catalogs/0071_supersede_limit_waiting_input.json",
   "entries": [
     {
       "name": "GET /work/v2/admin/local-policy",
@@ -501,7 +501,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0070_independent_model_result_reconciliation.json",
+      "origin": "src/work/migrations/catalogs/0071_supersede_limit_waiting_input.json",
       "callableBy": [
         "work_api",
         "work_governance_events"

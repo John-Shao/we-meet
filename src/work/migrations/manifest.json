@@ -780,6 +780,17 @@
       "catalog_checksum": "sha256:8e9bcd486358b8fe8d0f784c3d4347c244c480cf2a8379dc55add80581dc1c71",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 71,
+      "name": "0071_supersede_limit_waiting_input",
+      "kind": "increment",
+      "file": "increments/0071_supersede_limit_waiting_input.sql",
+      "checksum": "sha256:f4066aeb74c19d842c13d64fbdcfb10892249a53804f19109b9ef922a8fb3fc6",
+      "catalog": "catalogs/0071_supersede_limit_waiting_input.json",
+      "catalog_checksum": "sha256:1799f2a7667419305ec7eab9a02b5bc22a5322a1866aa8f70a357f47396c3719",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

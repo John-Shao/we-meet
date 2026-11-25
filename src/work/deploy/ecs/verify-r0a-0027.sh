@@ -105,7 +105,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (67, '0067_gap_report_rejects_consumed_interval'),
   (68, '0068_governance_cursor_getter'),
   (69, '0069_atomic_run_binding_activation'),
-  (70, '0070_independent_model_result_reconciliation')) expected(version, name)
+  (70, '0070_independent_model_result_reconciliation'),
+  (71, '0071_supersede_limit_waiting_input')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -1293,6 +1294,33 @@ psql_ro "select 'independent_model_result_reconciliation=' || case when (
     'work.record_device_model_result_frame(text,uuid,jsonb)'::regprocedure)) > 0
   and position('work.record_device_receipt(' in pg_get_functiondef(
     'work.record_device_model_result_frame(text,uuid,jsonb)'::regprocedure)) = 0
+  then 'true' else 'FALSE' end"
+
+# 0071 makes supersedes executable: old actions terminate before replacements, every supersede
+# requires fresh approval, resend needs undelivered evidence, and active overflow commits
+# waiting(input) plus a closed error result in the same transaction.
+psql_ro "select 'supersede_limit_waiting_input=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work' and p.proname = 'prepare_local_operation'
+    and p.prosecdef and p.proconfig @> ARRAY['search_path=work, pg_catalog']) = 1
+  and position('work.sha256_text(v_assertion::text)' in pg_get_functiondef(
+    'work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure)) > 0
+  and position('work.cancel_operation(' in pg_get_functiondef(
+    'work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure))
+      < position('work.create_operation(' in pg_get_functiondef(
+    'work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure))
+  and position('AND NOT v_is_supersede' in pg_get_functiondef(
+    'work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure)) > 0
+  and position('delivery_state = ''undelivered''' in pg_get_functiondef(
+    'work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure)) > 0
+  and exists (select 1 from work.state_transition
+              where entity='device_dispatch' and from_state='undelivered' and to_state='superseded')
+  and position('run.supersede_limit_wait' in pg_get_functiondef(
+    'work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure)) > 0
+  and position('wait_reason = ''input''' in pg_get_functiondef(
+    'work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure)) > 0
+  and position('''error'', ''supersede_limit_exceeded''' in pg_get_functiondef(
+    'work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure)) > 0
   then 'true' else 'FALSE' end"
 
 # The permit document is durable evidence on the dispatch row, not a second single-use

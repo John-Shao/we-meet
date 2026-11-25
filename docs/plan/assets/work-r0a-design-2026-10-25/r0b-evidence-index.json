@@ -156,14 +156,21 @@
       "requirement": "动作取代的 assertion 闭集、并发单赢家、同 step_key 单未终态、5/6 次主动与被动预算、waiting(input) 和 UI 计数一致。",
       "status": "partial",
       "gaps": [
-        "未覆盖并发单赢家、两桶预算、workspace_rebound 错标拒绝及第 6 次 UI 出口。",
-        "未验证 changed_fields 全闭集和各被动桶不占主动桶。"
+        "服务端并发单赢家、两桶预算、workspace_rebound 误标、changed_fields 闭集与第六次 waiting(input) 已覆盖；界面 n/5 计数与第六次“重新预览或结束 Run”出口尚未实现/取证。"
       ],
       "evidence": [
         { "path": "src/work/internal/migrate/r0b_transition_test.go", "test": "TestR0bSupersedeShapeAndOneOpenStep" },
         { "path": "src/work/internal/gateway/action_uplink_test.go", "test": "a supersede without its assertion is refused" },
         { "path": "src/device/src/frame/action.rs", "test": "supersede_triple_is_all_or_nothing" },
-        { "path": "src/device/src/frame/action.rs", "test": "assertion_reason_and_changed_fields_pair_the_closed_way" }
+        { "path": "src/device/src/frame/action.rs", "test": "assertion_reason_and_changed_fields_pair_the_closed_way" },
+        { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bSupersedeBucketsAreIndependentAndSixthActiveIsRefused" },
+        { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bPassiveSupersedeLimitsDoNotConsumeTheActiveBucket" },
+        { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bSupersedeAssertionRejectsChangedFieldsOutsideTheClosedSet" },
+        { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bWorkspaceReboundRequiresSuccessionAndRejectsReauthorizedMislabel" },
+        { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bSupersedeNeverConsumesReadonlyAutoApproval" },
+        { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bDispatchingSupersedeIsRefusedBeforeTheUniqueIndex" },
+        { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bConcurrentSupersedeHasExactlyOneWinner" },
+        { "path": "src/work/internal/gateway/action_uplink_test.go", "test": "TestActionPrepareSixthActiveSupersedeParksRunForInput" }
       ]
     },
     {

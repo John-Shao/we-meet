@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -224,6 +225,71 @@ func TestActionPrepareReadonlyGrantAutoApproves(t *testing.T) {
 	}
 	if got := r.scalar(t, `SELECT count(*)::text FROM work.audit_event WHERE org_id=$1 AND action='operation.auto_approved'`, gwOrg); got != "1" {
 		t.Fatalf("auto_approved audit rows = %s, want 1", got)
+	}
+}
+
+// TestActionPrepareSixthActiveSupersedeParksRunForInput proves the gateway preserves the
+// FailedPrecondition code while committing the separate waiting(input) state transition.
+func TestActionPrepareSixthActiveSupersedeParksRunForInput(t *testing.T) {
+	r, grantID := startRunForAction(t)
+	const stepKey = "tool:limit"
+	before := r.scalar(t, `SELECT count(*)::text FROM work.operation WHERE org_id=$1 AND run_id=$2::uuid`,
+		gwOrg, r.runID)
+	r.sendAction(t, r.actionBody(grantID, stepKey, 0))
+	_, ack, _ := recvTypedFrame(t, r.stream, "action_prepared")
+	oldOperation := ack["operation_id"].(string)
+	oldHash := strings.Repeat("1", 64)
+	for supersedeNo := 1; supersedeNo <= 5; supersedeNo++ {
+		newHash := fmt.Sprintf("%064x", supersedeNo+1)
+		body := r.actionBody(grantID, stepKey, supersedeNo)
+		body["supersedes_operation_id"] = oldOperation
+		body["supersede_reason"] = "tool_params_changed"
+		body["request_hash"] = newHash
+		body["supersede_assertion"] = map[string]any{
+			"v": 1, "run_id": r.runID, "old_operation_id": oldOperation,
+			"new_operation_id": uuid.NewString(), "old_request_hash": oldHash,
+			"new_request_hash": newHash, "reason": "tool_params_changed",
+			"changed_fields": []string{"params"}, "device_id": r.f.deviceID,
+			"session_id": r.sessionID, "auth_plane": "bearer", "auth_epoch": "0",
+			"nonce": uuid.NewString(), "expires_at": time.Now().Add(5 * time.Minute).UTC().Format(time.RFC3339),
+		}
+		r.sendAction(t, body)
+		_, ack, _ = recvTypedFrame(t, r.stream, "action_prepared")
+		oldOperation = ack["operation_id"].(string)
+		oldHash = newHash
+	}
+	if got := r.scalar(t, `SELECT (count(*) = $3::bigint + 6)::text FROM work.operation WHERE org_id=$1 AND run_id=$2::uuid`,
+		gwOrg, r.runID, before); got != "true" {
+		t.Fatalf("Operations before the sixth supersede = %s, want before+6 (%s+6)", got, before)
+	}
+
+	newHash := strings.Repeat("8", 64)
+	body := r.actionBody(grantID, stepKey, 6)
+	body["supersedes_operation_id"] = oldOperation
+	body["supersede_reason"] = "tool_params_changed"
+	body["request_hash"] = newHash
+	body["supersede_assertion"] = map[string]any{
+		"v": 1, "run_id": r.runID, "old_operation_id": oldOperation,
+		"new_operation_id": uuid.NewString(), "old_request_hash": oldHash,
+		"new_request_hash": newHash, "reason": "tool_params_changed",
+		"changed_fields": []string{"params"}, "device_id": r.f.deviceID,
+		"session_id": r.sessionID, "auth_plane": "bearer", "auth_epoch": "0",
+		"nonce": uuid.NewString(), "expires_at": time.Now().Add(5 * time.Minute).UTC().Format(time.RFC3339),
+	}
+	r.sendAction(t, body)
+	var raw []byte
+	err := r.stream.RecvMsg(&raw)
+	wantCode(t, err, codes.FailedPrecondition)
+	if !strings.Contains(err.Error(), "supersede_limit_exceeded") {
+		t.Fatalf("sixth supersede error = %v", err)
+	}
+	if got := r.scalar(t, `SELECT state || '/' || wait_reason FROM work.run WHERE org_id=$1 AND id=$2::uuid`,
+		gwOrg, r.runID); got != "waiting/input" {
+		t.Fatalf("Run after sixth supersede = %s, want waiting/input", got)
+	}
+	if got := r.scalar(t, `SELECT (count(*) = $3::bigint + 6)::text FROM work.operation WHERE org_id=$1 AND run_id=$2::uuid`,
+		gwOrg, r.runID, before); got != "true" {
+		t.Fatalf("sixth supersede created an Operation: count check=%s, before=%s", got, before)
 	}
 }
 

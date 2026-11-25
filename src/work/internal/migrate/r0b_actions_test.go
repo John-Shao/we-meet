@@ -1,12 +1,18 @@
 package migrate
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // actionFixture is the orchestration fixture plus the execute lease and the seq=0
@@ -86,6 +92,108 @@ func (a *actionFixture) actionBody(t *testing.T, stepKey, classification string)
 		`"classification":"` + classification + `","destination_id":null,` +
 		`"byte_upper_bound":1024,"token_upper_bound":64,` +
 		`"device_signature":"` + strings.Repeat("2", 86) + `"}`
+}
+
+func bareDocHash(t *testing.T, label string) string {
+	t.Helper()
+	sum := sha256.Sum256([]byte(label))
+	return hex.EncodeToString(sum[:])
+}
+
+func (a *actionFixture) supersedeBody(
+	t *testing.T,
+	oldOperationID, reason, requestHash string,
+	changedFields []string,
+) string {
+	t.Helper()
+	stepKey := a.scalar(t, "SELECT step_key FROM work.operation WHERE org_id = "+
+		quoteLiteral(a.org)+" AND id = "+quoteLiteral(oldOperationID))
+	supersedeNo := a.scalarInt(t, "SELECT supersede_no FROM work.operation WHERE org_id = "+
+		quoteLiteral(a.org)+" AND id = "+quoteLiteral(oldOperationID)) + 1
+	oldHash := a.scalar(t, "SELECT request_hash FROM work.operation WHERE org_id = "+
+		quoteLiteral(a.org)+" AND id = "+quoteLiteral(oldOperationID))
+	var body map[string]any
+	if err := json.Unmarshal([]byte(a.actionBody(t, stepKey, a.grantClass)), &body); err != nil {
+		t.Fatal(err)
+	}
+	body["prepare_id"] = newUUID(t)
+	body["supersede_no"] = supersedeNo
+	body["logical_key"] = fmt.Sprintf("%s#%d", stepKey, supersedeNo)
+	body["supersedes_operation_id"] = oldOperationID
+	body["supersede_reason"] = reason
+	body["request_hash"] = requestHash
+	body["supersede_assertion"] = map[string]any{
+		"v":                1,
+		"run_id":           a.runID,
+		"old_operation_id": oldOperationID,
+		"new_operation_id": newUUID(t),
+		"old_request_hash": oldHash,
+		"new_request_hash": requestHash,
+		"reason":           reason,
+		"changed_fields":   changedFields,
+		"device_id":        a.deviceID,
+		"session_id":       a.sessionID,
+		"auth_plane":       "bearer",
+		"auth_epoch":       "0",
+		"nonce":            newUUID(t),
+		"expires_at":       time.Now().Add(5 * time.Minute).UTC().Format(time.RFC3339),
+	}
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(encoded)
+}
+
+func (a *actionFixture) prepareSupersede(
+	t *testing.T,
+	worker *pgx.Conn,
+	oldOperationID, reason string,
+	changedFields []string,
+) map[string]any {
+	t.Helper()
+	body := a.supersedeBody(t, oldOperationID, reason,
+		bareDocHash(t, oldOperationID+reason+strings.Join(changedFields, ",")), changedFields)
+	var shapeOK bool
+	if err := a.admin.QueryRow(testContext(t),
+		`SELECT work.local_action_prepare_valid($1::jsonb)`, body).Scan(&shapeOK); err != nil {
+		t.Fatal(err)
+	}
+	if !shapeOK {
+		t.Fatalf("supersede body failed the closed shape: %s", body)
+	}
+	var maxCheckpoint int64
+	if err := a.admin.QueryRow(testContext(t),
+		`SELECT COALESCE(max(checkpoint_seq),-1) FROM work.device_checkpoint
+		 WHERE org_id=$1 AND run_id=$2::uuid AND state='recorded'`, a.org, a.runID,
+	).Scan(&maxCheckpoint); err != nil {
+		t.Fatal(err)
+	}
+	if maxCheckpoint != a.checkpointSeq {
+		t.Fatalf("checkpoint moved: fixture=%d db=%d", a.checkpointSeq, maxCheckpoint)
+	}
+	var checkpointHash string
+	if err := a.admin.QueryRow(testContext(t),
+		`SELECT checkpoint_hash FROM work.device_checkpoint
+		 WHERE org_id=$1 AND run_id=$2::uuid AND checkpoint_seq=$3`,
+		a.org, a.runID, a.checkpointSeq).Scan(&checkpointHash); err != nil {
+		t.Fatal(err)
+	}
+	if checkpointHash != a.checkpointHash {
+		t.Fatalf("checkpoint hash moved: fixture=%s db=%s", a.checkpointHash, checkpointHash)
+	}
+	var raw []byte
+	if err := worker.QueryRow(testContext(t),
+		`SELECT work.prepare_local_operation($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7,$8::jsonb)`,
+		a.org, a.runID, a.deviceID, a.sessionID, a.leaseID, a.fence, a.checkpointSeq, body,
+	).Scan(&raw); err != nil {
+		t.Fatalf("supersede %s as %s: %v; body=%s", oldOperationID, reason, err, body)
+	}
+	var out map[string]any
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatal(err)
+	}
+	return out
 }
 
 func (a *actionFixture) prepare(t *testing.T, worker *pgx.Conn, stepKey, classification string) map[string]any {
@@ -608,5 +716,337 @@ func TestR0bPermitConsumptionReChecksTheDestinationFromServerFacts(t *testing.T)
 	if n := countRows(t, a.admin, "SELECT count(*) FROM work.device_dispatch WHERE org_id = "+
 		quoteLiteral(a.org)+" AND operation_id = "+quoteLiteral(ctrlOp)); n != 1 {
 		t.Fatalf("dispatch rows for the control = %d, want exactly 1", n)
+	}
+}
+
+func TestR0bSupersedeBucketsAreIndependentAndSixthActiveIsRefused(t *testing.T) {
+	a := newActionFixture(t, "org_r0b_supersede_buckets")
+	worker := a.workerConn(t)
+	old := idOf(t, a.prepare(t, worker, "tool:budget", a.grantClass), "operation_id")
+	reservationID := reserveDeviceModelQuota(t, a, old)
+	reasons := []string{
+		"approval_expired", "approval_expired", "approval_expired",
+		"reauthorized", "reauthorized",
+		"tool_params_changed", "tool_params_changed", "tool_params_changed",
+		"tool_params_changed", "tool_params_changed",
+	}
+	for index, reason := range reasons {
+		fields := []string{"none"}
+		switch reason {
+		case "reauthorized":
+			fields = []string{"grant"}
+		case "tool_params_changed":
+			fields = []string{"params"}
+		}
+		out := a.prepareSupersede(t, worker, old, reason, fields)
+		newOperation := idOf(t, out, "operation_id")
+		if newOperation == old {
+			t.Fatalf("supersede %d reused old Operation %s", index, old)
+		}
+		if got := a.scalar(t, "SELECT state FROM work.operation WHERE org_id = "+
+			quoteLiteral(a.org)+" AND id = "+quoteLiteral(old)); got != "canceled" {
+			t.Fatalf("supersede %d old Operation state = %q, want canceled", index, got)
+		}
+		if got := a.scalar(t, "SELECT status FROM work.approval a JOIN work.approval_operation ao "+
+			"ON ao.org_id=a.org_id AND ao.approval_id=a.id WHERE ao.org_id = "+
+			quoteLiteral(a.org)+" AND ao.operation_id = "+quoteLiteral(old)); got != "expired" {
+			t.Fatalf("supersede %d old Approval state = %q, want expired", index, got)
+		}
+		if index == 0 {
+			if got := a.scalar(t, "SELECT state FROM work.quota_reservation WHERE org_id = "+
+				quoteLiteral(a.org)+" AND id = "+quoteLiteral(reservationID)); got != "released" {
+				t.Fatalf("held reservation after supersede = %q, want released", got)
+			}
+		}
+		if got := a.scalarInt(t, "SELECT supersede_no FROM work.operation WHERE org_id = "+
+			quoteLiteral(a.org)+" AND id = "+quoteLiteral(newOperation)); got != index+1 {
+			t.Fatalf("supersede %d number = %d, want %d", index, got, index+1)
+		}
+		old = newOperation
+	}
+	for reason, want := range map[string]int{
+		"tool_params_changed": 5,
+		"approval_expired":    3,
+		"reauthorized":        2,
+		"source_changed":      0,
+		"resend_undelivered":  0,
+		"workspace_rebound":   0,
+	} {
+		if got := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+
+			quoteLiteral(a.org)+" AND run_id = "+quoteLiteral(a.runID)+
+			" AND supersede_reason = "+quoteLiteral(reason)); got != want {
+			t.Fatalf("%s count = %d, want %d", reason, got, want)
+		}
+	}
+	before := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+
+		quoteLiteral(a.org)+" AND run_id = "+quoteLiteral(a.runID))
+	body := a.supersedeBody(t, old, "tool_params_changed", bareDocHash(t, "sixth"), []string{"params"})
+	overflow := a.prepareBody(t, worker, body)
+	if overflow["error"] != "supersede_limit_exceeded" || overflow["wait_reason"] != "input" {
+		t.Fatalf("active overflow result = %#v", overflow)
+	}
+	if after := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+
+		quoteLiteral(a.org)+" AND run_id = "+quoteLiteral(a.runID)); after != before {
+		t.Fatalf("sixth active supersede created an Operation: before=%d after=%d", before, after)
+	}
+	if got := a.scalar(t, "SELECT state || '/' || wait_reason FROM work.run WHERE org_id = "+
+		quoteLiteral(a.org)+" AND id = "+quoteLiteral(a.runID)); got != "waiting/input" {
+		t.Fatalf("Run after active overflow = %q, want waiting/input", got)
+	}
+}
+
+func TestR0bPassiveSupersedeLimitsDoNotConsumeTheActiveBucket(t *testing.T) {
+	for _, reason := range []string{"approval_expired", "source_changed"} {
+		t.Run(reason, func(t *testing.T) {
+			a := newActionFixture(t, "org_r0b_passive_"+reason)
+			worker := a.workerConn(t)
+			old := idOf(t, a.prepare(t, worker, "tool:passive", a.grantClass), "operation_id")
+			fields := []string{"none"}
+			if reason == "source_changed" {
+				fields = []string{"source_identity"}
+			}
+			for range 3 {
+				old = idOf(t, a.prepareSupersede(t, worker, old, reason, fields), "operation_id")
+			}
+			body := a.supersedeBody(t, old, reason, bareDocHash(t, reason+"overflow"), fields)
+			a.refusePrepareBody(t, worker, body, "supersede_not_allowed")
+			if got := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+
+				quoteLiteral(a.org)+" AND run_id = "+quoteLiteral(a.runID)+
+				" AND supersede_reason IN ('workspace_rebound','tool_params_changed')"); got != 0 {
+				t.Fatalf("passive overflow consumed the active bucket: %d", got)
+			}
+		})
+	}
+
+	t.Run("resend_undelivered", func(t *testing.T) {
+		a := newActionFixture(t, "org_r0b_passive_resend")
+		worker := a.workerConn(t)
+		old := idOf(t, a.prepare(t, worker, "tool:resend", a.grantClass), "operation_id")
+		a.authorizeAction(t, old)
+		mustExec(t, a.admin, "UPDATE work.operation SET state='dispatching' WHERE org_id = "+
+			quoteLiteral(a.org)+" AND id = "+quoteLiteral(old))
+		mustExec(t, a.admin, "UPDATE work.operation SET state='succeeded' WHERE org_id = "+
+			quoteLiteral(a.org)+" AND id = "+quoteLiteral(old))
+		withoutProof := a.supersedeBody(t, old, "resend_undelivered",
+			bareDocHash(t, "resend-without-proof"), []string{"none"})
+		a.refusePrepareBody(t, worker, withoutProof, "supersede_not_allowed")
+		mustExec(t, a.admin, fmt.Sprintf(`
+			INSERT INTO work.device_dispatch
+			  (org_id,operation_id,attempt_id,device_id,session_id,journal_epoch,
+			   command_id,permit_jti,request_hash,fence,expires_at,delivery_state,permit)
+			SELECT la.org_id,la.operation_id,la.attempt_id,%s,%s,
+			       s.journal_epoch,gen_random_uuid(),gen_random_uuid(),la.request_hash,%d,
+			       now() + interval '1 minute','undelivered',
+			       (SELECT jsonb_object_agg(k, null) FROM unnest(ARRAY[
+			         'v','aud','kid','jti','org_id','subject_id','device_id','session_id',
+			         'agent_instance_id','boot_id','generation','run_id','operation_id',
+			         'dispatch_attempt_id','request_hash','fence','policy_epoch','access_epoch',
+			         'grant_id','grant_revision','approval_id','decision_revision','scope_hash',
+			         'destination_id','max_bytes','issued_at','expires_at','signature']) AS k)
+			FROM work.local_action la
+			JOIN work.device_session s ON s.org_id=la.org_id AND s.id=%s
+			WHERE la.org_id=%s AND la.operation_id=%s
+		`, quoteLiteral(a.deviceID), quoteLiteral(a.sessionID), a.fence,
+			quoteLiteral(a.sessionID), quoteLiteral(a.org), quoteLiteral(old)))
+		original := old
+		old = idOf(t, a.prepareSupersede(t, worker, old, "resend_undelivered", []string{"none"}),
+			"operation_id")
+		if got := a.scalar(t, "SELECT state FROM work.operation WHERE org_id = "+
+			quoteLiteral(a.org)+" AND id = "+quoteLiteral(original)); got != "succeeded" {
+			t.Fatalf("resend changed the settled old Operation to %q", got)
+		}
+		body := a.supersedeBody(t, old, "resend_undelivered", bareDocHash(t, "resend-overflow"),
+			[]string{"none"})
+		a.refusePrepareBody(t, worker, body, "supersede_not_allowed")
+		if got := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+
+			quoteLiteral(a.org)+" AND run_id = "+quoteLiteral(a.runID)+
+			" AND supersede_reason IN ('workspace_rebound','tool_params_changed')"); got != 0 {
+			t.Fatalf("resend overflow consumed the active bucket: %d", got)
+		}
+	})
+}
+
+func TestR0bSupersedeAssertionRejectsChangedFieldsOutsideTheClosedSet(t *testing.T) {
+	cases := []struct {
+		name   string
+		reason string
+		fields []string
+	}{
+		{"destination is not a changed field", "tool_params_changed", []string{"destination"}},
+		{"unknown field", "tool_params_changed", []string{"provider"}},
+		{"empty set", "tool_params_changed", []string{}},
+		{"duplicate field", "tool_params_changed", []string{"params", "params"}},
+		{"reason mismatch", "source_changed", []string{"params"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newActionFixture(t, "org_r0b_changed_"+newUUID(t))
+			worker := a.workerConn(t)
+			old := idOf(t, a.prepare(t, worker, "tool:changed", a.grantClass), "operation_id")
+			before := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+
+				quoteLiteral(a.org)+" AND run_id = "+quoteLiteral(a.runID))
+			body := a.supersedeBody(t, old, tc.reason, bareDocHash(t, tc.name), tc.fields)
+			a.refusePrepareBody(t, worker, body, "supersede_not_allowed")
+			if got := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+
+				quoteLiteral(a.org)+" AND run_id = "+quoteLiteral(a.runID)); got != before {
+				t.Fatalf("refused assertion created Operations: before=%d after=%d", before, got)
+			}
+		})
+	}
+}
+
+func TestR0bWorkspaceReboundRequiresSuccessionAndRejectsReauthorizedMislabel(t *testing.T) {
+	a := newActionFixture(t, "org_r0b_rebound_label")
+	worker := a.workerConn(t)
+	old := idOf(t, a.prepare(t, worker, "tool:rebound", a.grantClass), "operation_id")
+	newGrant := newUUID(t)
+	mustExec(t, a.admin, fmt.Sprintf(`
+		INSERT INTO work.workspace_grant
+		  (org_id,id,device_id,session_id,owner_subject_id,boot_id,root_ref,root_identity_hash,
+		   allowed_tools,classification,matched_rule_index,grant_revision,expires_at,state,
+		   client_request_id,request_hash,revision)
+		SELECT org_id,%s,device_id,session_id,owner_subject_id,boot_id,gen_random_uuid(),
+		       root_identity_hash,allowed_tools,classification,matched_rule_index,grant_revision+1,
+		       expires_at,state,client_request_id || '-' || %s,request_hash,revision+1
+		FROM work.workspace_grant WHERE org_id=%s AND id=%s;
+		INSERT INTO work.workspace_grant_succession
+		  (org_id,run_id,old_grant_id,new_grant_id,proof_hash,binding_revision,client_request_id,request_hash)
+		VALUES (%s,%s,%s,%s,%s,2,%s,%s);
+	`, quoteLiteral(newGrant), quoteLiteral(newGrant), quoteLiteral(a.org), quoteLiteral(a.grantID),
+		quoteLiteral(a.org), quoteLiteral(a.runID), quoteLiteral(a.grantID), quoteLiteral(newGrant),
+		quoteLiteral(strings.Repeat("a", 64)), quoteLiteral("req-succession-"+newGrant),
+		quoteLiteral(strings.Repeat("b", 64))))
+
+	mislabeled := a.supersedeBody(t, old, "reauthorized", bareDocHash(t, "mislabel"), []string{"grant"})
+	var mislabeledBody map[string]any
+	if err := json.Unmarshal([]byte(mislabeled), &mislabeledBody); err != nil {
+		t.Fatal(err)
+	}
+	mislabeledBody["grant_id"] = newGrant
+	mislabeledBody["grant_revision"] = "2"
+	mislabeledJSON, err := json.Marshal(mislabeledBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.refusePrepareBody(t, worker, string(mislabeledJSON), "supersede_not_allowed")
+
+	valid := a.supersedeBody(t, old, "workspace_rebound", bareDocHash(t, "rebound"),
+		[]string{"grant", "entry_ref"})
+	var validBody map[string]any
+	if err := json.Unmarshal([]byte(valid), &validBody); err != nil {
+		t.Fatal(err)
+	}
+	validBody["grant_id"] = newGrant
+	validBody["grant_revision"] = "2"
+	validJSON, err := json.Marshal(validBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := a.prepareBody(t, worker, string(validJSON))
+	if got := a.scalar(t, "SELECT supersede_reason FROM work.operation WHERE org_id = "+
+		quoteLiteral(a.org)+" AND id = "+quoteLiteral(idOf(t, out, "operation_id"))); got != "workspace_rebound" {
+		t.Fatalf("valid rebound reason = %q", got)
+	}
+}
+
+func TestR0bSupersedeNeverConsumesReadonlyAutoApproval(t *testing.T) {
+	a := newActionFixture(t, "org_r0b_supersede_readonly")
+	worker := a.workerConn(t)
+	old := idOf(t, a.prepare(t, worker, "tool:readonly", a.grantClass), "operation_id")
+	readonlyID := newUUID(t)
+	mustExec(t, a.admin, `INSERT INTO work.readonly_approval_grant
+		(org_id,id,owner_subject_id,run_id,device_id,workspace_grant_id,grant_revision,
+		 tool_set,resource_selector_hash,policy_epoch,access_epoch,expires_at,status)
+		VALUES (`+quoteLiteral(a.org)+`, `+quoteLiteral(readonlyID)+`, `+quoteLiteral(a.subject)+`, `+
+		quoteLiteral(a.runID)+`, `+quoteLiteral(a.deviceID)+`, `+quoteLiteral(a.grantID)+`, 1,
+		 ARRAY['workspace.read'], `+quoteLiteral(a.selectorHash)+`, 1, 0,
+		 now() + interval '1 hour', 'active')`)
+	out := a.prepareSupersede(t, worker, old, "tool_params_changed", []string{"params"})
+	if out["auto_approved"] != false || out["state"] != "waiting_approval" || out["approval_id"] == nil {
+		t.Fatalf("supersede bypassed fresh approval through readonly grant: %#v", out)
+	}
+	if got := a.scalarInt(t, "SELECT consumed_count FROM work.readonly_approval_grant WHERE org_id = "+
+		quoteLiteral(a.org)+" AND id = "+quoteLiteral(readonlyID)); got != 0 {
+		t.Fatalf("supersede consumed readonly grant %d times", got)
+	}
+}
+
+func TestR0bDispatchingSupersedeIsRefusedBeforeTheUniqueIndex(t *testing.T) {
+	a := newActionFixture(t, "org_r0b_supersede_dispatching")
+	worker := a.workerConn(t)
+	old := idOf(t, a.prepare(t, worker, "tool:dispatching", a.grantClass), "operation_id")
+	a.authorizeAction(t, old)
+	mustExec(t, a.admin, "UPDATE work.operation SET state='dispatching' WHERE org_id = "+
+		quoteLiteral(a.org)+" AND id = "+quoteLiteral(old))
+	before := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+
+		quoteLiteral(a.org)+" AND run_id = "+quoteLiteral(a.runID))
+	body := a.supersedeBody(t, old, "tool_params_changed", bareDocHash(t, "dispatching"),
+		[]string{"params"})
+	a.refusePrepareBody(t, worker, body, "supersede_not_allowed")
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+
+		quoteLiteral(a.org)+" AND run_id = "+quoteLiteral(a.runID)); got != before {
+		t.Fatalf("dispatching supersede created an Operation: before=%d after=%d", before, got)
+	}
+	if got := a.scalar(t, "SELECT state FROM work.operation WHERE org_id = "+
+		quoteLiteral(a.org)+" AND id = "+quoteLiteral(old)); got != "dispatching" {
+		t.Fatalf("refused dispatching supersede changed old state to %q", got)
+	}
+}
+
+func TestR0bConcurrentSupersedeHasExactlyOneWinner(t *testing.T) {
+	a := newActionFixture(t, "org_r0b_supersede_race")
+	old := idOf(t, a.prepare(t, a.workerConn(t), "tool:race", a.grantClass), "operation_id")
+	before := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+
+		quoteLiteral(a.org)+" AND run_id = "+quoteLiteral(a.runID))
+	first := workerConn(t, a.dbName, a.org)
+	second := workerConn(t, a.dbName, a.org)
+	bodies := []string{
+		a.supersedeBody(t, old, "tool_params_changed", bareDocHash(t, "race-a"), []string{"params"}),
+		a.supersedeBody(t, old, "tool_params_changed", bareDocHash(t, "race-b"), []string{"params"}),
+	}
+	conns := []*pgx.Conn{first, second}
+	start := make(chan struct{})
+	ctx := testContext(t)
+	var wg sync.WaitGroup
+	results := make([]map[string]any, 2)
+	errs := make([]error, 2)
+	for index := range 2 {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			var raw []byte
+			errs[i] = conns[i].QueryRow(ctx,
+				`SELECT work.prepare_local_operation($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7,$8::jsonb)`,
+				a.org, a.runID, a.deviceID, a.sessionID, a.leaseID, a.fence, a.checkpointSeq, bodies[i],
+			).Scan(&raw)
+			if errs[i] == nil {
+				errs[i] = json.Unmarshal(raw, &results[i])
+			}
+		}(index)
+	}
+	close(start)
+	wg.Wait()
+	wins := 0
+	for index := range results {
+		if errs[index] == nil {
+			wins++
+			continue
+		}
+		var pgErr *pgconn.PgError
+		if !errors.As(errs[index], &pgErr) || pgErr.Code != "P0001" {
+			t.Fatalf("concurrent supersede %d error = %v", index, errs[index])
+		}
+	}
+	if wins != 1 {
+		t.Fatalf("concurrent supersede winners = %d, results=%#v errors=%#v", wins, results, errs)
+	}
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+
+		quoteLiteral(a.org)+" AND run_id = "+quoteLiteral(a.runID)); got != before+1 {
+		t.Fatalf("Operations after concurrent supersede = %d, want %d", got, before+1)
+	}
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+
+		quoteLiteral(a.org)+" AND supersedes_operation_id = "+quoteLiteral(old)); got != 1 {
+		t.Fatalf("supersede children after race = %d, want 1", got)
 	}
 }
