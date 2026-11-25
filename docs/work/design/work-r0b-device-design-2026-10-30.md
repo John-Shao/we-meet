@@ -122,6 +122,8 @@ run_started响应丢失只查询同binding/start_nonce的本地状态，不重�
 
 **【2026-11-25 主签裁定（已裁定、待实施；原文逐字保留）：** 创建 binding、将 Run 从 `queued`（或恢复 `waiting`）激活为 `active`、创建 execute lease 与 seq=0 checkpoint 基线必须在同一数据库事务完成；`run_start` 只在该事务提交后签发。设备收到 start 时不再承担“服务端可能尚未激活”的竞态；同一请求重放只返回原 binding/lease/基线，不启动第二 sidecar。
 
+**【2026-11-25 0069 落地登记（原文逐字保留）：** 设备侧合同不变：`run_offer` 仍不含 start_nonce，`run_ready` 仍先于 `run_start`。服务端预创建 lease 在 ready 前不能 prepare/consume；非 ready 回答会撤销预激活并回到 waiting/input，已签发 start 后拒绝非 ready 回滚。gateway 对 legacy `ready` 与 0069 `active` 两种 ack 状态都发送同一闭合 `run_start`，真库与 gateway 用例均已覆盖。
+
 ### 3.3 SignedPermit
 
 许可包含 `v, aud, kid, jti, org_id, subject_id, device_id, session_id, agent_instance_id, boot_id, generation, run_id, operation_id, dispatch_attempt_id, execution_id?, request_hash, fence, policy_epoch, access_epoch, grant_id/revision, approval_id/decision_revision, scope_hash, destination_id, max_bytes, issued_at, expires_at`。签名规则同 §2，服务端独立 permit signing key；`aud` 闭集为 `device-tool`、`device-model-proxy`、`device-egress`，不能互用；只有 `device-egress` 带 execution_id（§5.3）。纯本地读 destination_id=null；模型调用绑定 endpoint profile，不接受运行时 URL。（**【2026-11-10 卡片 E=B：`aud` 闭集去 `device-egress`（S1 入口砍），剩 `device-tool`／`device-model-proxy`（device_local）；本期本机 Run 的模型目的地闭集收敛为 `device_local`（B03 载体 §3.1）。**】）

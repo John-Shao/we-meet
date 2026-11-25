@@ -24,14 +24,10 @@ func renewLease(t *testing.T, o *orchestrationFixture, leaseID string, ttl int, 
 
 func acquireLease(t *testing.T, o *orchestrationFixture) string {
 	t.Helper()
-	lease := callJSON(t, o.workerConn(t),
-		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
-		o.org, o.runID, o.deviceID, o.sessionID, newUUID(t))
-	id, _ := lease["lease_id"].(string)
-	if id == "" {
-		t.Fatalf("acquire_device_lease returned no lease_id: %#v", lease)
+	if o.leaseID == "" {
+		t.Fatal("create_device_run_binding returned no lease_id")
 	}
-	return id
+	return o.leaseID
 }
 
 func TestR0bLeaseRenewalExtendsAndKeepsTheWatermarkMonotonic(t *testing.T) {
@@ -48,8 +44,7 @@ func TestR0bLeaseRenewalExtendsAndKeepsTheWatermarkMonotonic(t *testing.T) {
 		quoteLiteral(leaseID))
 
 	first := renewLease(t, o, leaseID, 30, 5, o.deviceID, o.sessionID)
-	// The fixture parks the Run active directly, so run.fence is still 1; the renewal
-	// must echo the Run's fence, never a device-side counter (§3.2).
+	// Recovery waiting→active does not advance fence; renewal echoes that server fence.
 	runFence := o.scalar(t, "SELECT fence::text FROM work.run WHERE id = "+quoteLiteral(o.runID))
 	if first["lease_id"] != leaseID || first["run_id"] != o.runID ||
 		first["fence"] != float64(1) || runFence != "1" || first["purpose"] != "execute" ||

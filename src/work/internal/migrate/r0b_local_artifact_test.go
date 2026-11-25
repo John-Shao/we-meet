@@ -553,13 +553,14 @@ func TestR0bFinalizeSuccessionGrantCountsBeforeAnyActionRuns(t *testing.T) {
 		t.Fatalf("pre-rebind derivation = %v, want remote_excerpt_allowed", before["classification"])
 	}
 
-	// Re-point the Run's workspace at the narrowed grant. Real permit consumption has
-	// resumed the Run, so park it before offering the fresh binding revision.
+	// Bind the remote grant first so the rebind's old_grant_id is present in the latest
+	// binding, then park the atomically activated Run for the succession rebind.
 	mustExec(t, l.admin, "UPDATE work.run SET state = 'waiting', wait_reason = 'input' WHERE id = "+quoteLiteral(l.runID))
 	offer := `{"input_ref":"ref","input_hash":"` + hex64("input") + `","snapshot_hash":"` + strings.Repeat("3", 64) +
 		`","profile_id":"p1","profile_revision":1,"runtime_digest":"` + strings.Repeat("4", 64) +
 		`","tool_manifest_hash":"` + strings.Repeat("5", 64) + `","model_version":"m1","grant_set":[{"grant_id":"` +
-		remoteID + `","grant_revision":1}],"offer_ttl_seconds":120}`
+		remoteID + `","grant_revision":1}],"expected_checkpoint_seq":` + strconv.FormatInt(l.checkpointSeq, 10) +
+		`,"expected_checkpoint_hash":"` + l.checkpointHash + `","offer_ttl_seconds":120}`
 	callJSON(t, worker, `SELECT work.create_device_run_binding($1,$2::uuid,$3::uuid,$4::uuid,2,$5,$6::jsonb)`,
 		l.org, l.runID, l.deviceID, l.sessionID, "req-b4-offer-2", offer)
 	callJSON(t, worker, `SELECT work.acknowledge_run_ready($1,$2::uuid,2,$3,$4::jsonb,$5::uuid,$6::uuid)`,
@@ -1967,8 +1968,9 @@ func TestR0bRebindConsumesItsNonceOnceAndRollsItBackOnRefusal(t *testing.T) {
 		t.Fatalf("succession rows after the refused replay = %d, want 1", got)
 	}
 
-	// A different nonce re-opens the Run: the table spends nonces, not runs. This is also
-	// the control that keeps the case above from being read as "rebind is now locked".
+	// A different nonce re-opens the Run: the table spends nonces, not runs. 0069 activates
+	// each successful rebind, so park it again before the next succession.
+	mustExec(t, l.admin, "UPDATE work.run SET state = 'waiting', wait_reason = 'input' WHERE id = "+quoteLiteral(l.runID))
 	next := callJSON(t, api, rebindSQL, l.org, l.subject, l.runID, "req-b4-rebind-4", second, third,
 		proof(second, third, "nonce-b4-rebind-4", strings.Repeat("8", 64)))
 	if next["binding_revision"] != float64(3) || next["replayed"] != false {

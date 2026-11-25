@@ -1,6 +1,7 @@
 package migrate
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 	"testing"
@@ -25,9 +26,11 @@ type orchestrationFixture struct {
 	grantID   string
 	revision  int
 	op        string
+	nonce     string
+	leaseID   string
 }
 
-func newOrchestrationFixture(t *testing.T, org string) *orchestrationFixture {
+func newOrchestrationFixtureAtOffer(t *testing.T, org string) *orchestrationFixture {
 	t.Helper()
 	f := newDeviceFixture(t, org)
 	api := f.apiConn(t)
@@ -52,15 +55,10 @@ func newOrchestrationFixture(t *testing.T, org string) *orchestrationFixture {
 
 	o := &orchestrationFixture{deviceFixture: f, deviceID: deviceID, sessionID: sessionID,
 		grantID: grantID, revision: 1, op: newUUID(t)}
-	o.offer(t, worker, 1, "req-o-offer-1")
-	callJSON(t, worker, `SELECT work.acknowledge_run_ready($1,$2::uuid,1,$3,$4::jsonb,$5::uuid,$6::uuid)`,
-		f.org, f.runID, "req-o-ready-1",
-		`{"binding_hash":"`+strings.Repeat("a", 64)+`","ready_or_reason":"ready","device_signature":"`+strings.Repeat("d", 86)+`"}`,
-		o.deviceID, o.sessionID)
-	mustExec(t, f.admin, "UPDATE work.run SET state = 'active', wait_reason = NULL WHERE id = "+quoteLiteral(f.runID))
-	// The operation admission trigger also requires task.active_run_id to point here.
+	// Atomic activation requires the submitted Run to be the Task's current Run.
 	mustExec(t, f.admin, "UPDATE work.task SET active_run_id = "+quoteLiteral(f.runID)+
 		", latest_run_id = "+quoteLiteral(f.runID)+" WHERE id = "+quoteLiteral(f.taskID))
+	o.offer(t, worker, 1, "req-o-offer-1")
 	// The operation admission trigger requires an active Run, so it is seeded last.
 	mustExec(t, f.admin, "INSERT INTO work.operation (id, org_id, run_id, logical_key, kind, request_hash, state) VALUES ("+
 		quoteLiteral(o.op)+", "+quoteLiteral(f.org)+", "+quoteLiteral(f.runID)+", 'tool:1:0', 'tool', '"+
@@ -68,32 +66,238 @@ func newOrchestrationFixture(t *testing.T, org string) *orchestrationFixture {
 	return o
 }
 
+func newOrchestrationFixture(t *testing.T, org string) *orchestrationFixture {
+	t.Helper()
+	o := newOrchestrationFixtureAtOffer(t, org)
+	callJSON(t, o.workerConn(t), `SELECT work.acknowledge_run_ready($1,$2::uuid,1,$3,$4::jsonb,$5::uuid,$6::uuid)`,
+		o.org, o.runID, "req-o-ready-1",
+		`{"binding_hash":"`+strings.Repeat("a", 64)+`","ready_or_reason":"ready","device_signature":"`+strings.Repeat("d", 86)+`"}`,
+		o.deviceID, o.sessionID)
+	return o
+}
+
 func (o *orchestrationFixture) offer(t *testing.T, worker *pgx.Conn, revision int, requestID string) {
 	t.Helper()
+	expected := ""
+	if revision > 1 {
+		seq := o.scalar(t, "SELECT COALESCE(MAX(checkpoint_seq),0)::text FROM work.device_checkpoint WHERE org_id = "+
+			quoteLiteral(o.org)+" AND run_id = "+quoteLiteral(o.runID)+" AND state = 'recorded'")
+		hash := o.scalar(t, "SELECT checkpoint_hash FROM work.device_checkpoint WHERE org_id = "+
+			quoteLiteral(o.org)+" AND run_id = "+quoteLiteral(o.runID)+" AND checkpoint_seq = "+seq+" AND state = 'recorded'")
+		expected = `,"expected_checkpoint_seq":` + seq + `,"expected_checkpoint_hash":"` + hash + `"`
+	}
+	body := `{"input_ref":"ref","input_hash":"` + strings.Repeat("7", 64) +
+		`","snapshot_hash":"` + strings.Repeat("3", 64) + `","profile_id":"p1","profile_revision":1,` +
+		`"runtime_digest":"` + strings.Repeat("4", 64) + `","tool_manifest_hash":"` + strings.Repeat("5", 64) +
+		`","model_version":"m1","grant_set":[{"grant_id":"` + o.grantID + `","grant_revision":1}]` +
+		expected + `,"offer_ttl_seconds":120}`
+	out := callJSON(t, worker,
+		`SELECT work.create_device_run_binding($1,$2::uuid,$3::uuid,$4::uuid,$5,$6,$7::jsonb)`,
+		o.org, o.runID, o.deviceID, o.sessionID, revision, requestID, body)
+	o.nonce, _ = out["start_nonce"].(string)
+	o.leaseID, _ = out["lease_id"].(string)
+}
+
+func TestR0bRunStartRequiresCommittedReady(t *testing.T) {
+	o := newOrchestrationFixtureAtOffer(t, "org_r0b_orch_ready_gate")
+	worker := o.workerConn(t)
+	expectCode(t, worker, "run_not_active",
+		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
+		o.org, o.runID, o.deviceID, o.sessionID, o.nonce)
+	if got := o.scalar(t, "SELECT count(*)::text FROM work.audit_event WHERE org_id = "+quoteLiteral(o.org)+" AND action = 'device_lease.acquired'"); got != "0" {
+		t.Fatalf("run_start signed before ready: %s audit rows", got)
+	}
+	callJSON(t, worker, `SELECT work.acknowledge_run_ready($1,$2::uuid,1,$3,$4::jsonb,$5::uuid,$6::uuid)`,
+		o.org, o.runID, "req-o-ready-gate",
+		`{"binding_hash":"`+strings.Repeat("a", 64)+`","ready_or_reason":"ready","device_signature":"`+strings.Repeat("d", 86)+`"}`,
+		o.deviceID, o.sessionID)
+	first := callJSON(t, worker,
+		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
+		o.org, o.runID, o.deviceID, o.sessionID, o.nonce)
+	if first["run_start"] == nil || first["replayed"] != false || first["lease_id"] != o.leaseID {
+		t.Fatalf("first start after ready = %#v", first)
+	}
+}
+
+func TestR0bConcurrentFirstStartSerializes(t *testing.T) {
+	o := newOrchestrationFixtureAtOffer(t, "org_r0b_orch_start_race")
+	worker := o.workerConn(t)
+	callJSON(t, worker, `SELECT work.acknowledge_run_ready($1,$2::uuid,1,$3,$4::jsonb,$5::uuid,$6::uuid)`,
+		o.org, o.runID, "req-start-race-ready",
+		`{"binding_hash":"`+strings.Repeat("a", 64)+`","ready_or_reason":"ready","device_signature":"`+strings.Repeat("d", 86)+`"}`,
+		o.deviceID, o.sessionID)
+	type result struct {
+		raw []byte
+		err error
+	}
+	results := make(chan result, 2)
+	for range 2 {
+		conn := o.workerConn(t)
+		go func() {
+			var raw []byte
+			err := conn.QueryRow(testContext(t), `SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
+				o.org, o.runID, o.deviceID, o.sessionID, o.nonce).Scan(&raw)
+			results <- result{raw: raw, err: err}
+		}()
+	}
+	firstStart := false
+	leaseIDs := map[string]bool{}
+	for range 2 {
+		got := <-results
+		if got.err != nil {
+			t.Fatalf("concurrent first start: %v", got.err)
+		}
+		var body map[string]any
+		if err := json.Unmarshal(got.raw, &body); err != nil {
+			t.Fatal(err)
+		}
+		leaseID, _ := body["lease_id"].(string)
+		leaseIDs[leaseID] = true
+		if body["replayed"] == false {
+			if firstStart {
+				t.Fatalf("two first-start responses: %#v", body)
+			}
+			firstStart = true
+		}
+	}
+	if !firstStart || len(leaseIDs) != 1 {
+		t.Fatalf("concurrent starts = first:%v leases:%#v", firstStart, leaseIDs)
+	}
+	if got := o.scalar(t, "SELECT count(*)::text FROM work.audit_event WHERE org_id = "+quoteLiteral(o.org)+" AND action = 'device_lease.acquired'"); got != "1" {
+		t.Fatalf("first-start audit rows = %s, want 1", got)
+	}
+}
+
+func TestR0bQueuedBindingActivationAdvancesFenceOnce(t *testing.T) {
+	o := newOrchestrationFixtureAtOffer(t, "org_r0b_orch_queued")
+	worker := o.workerConn(t)
+	newTask := newUUID(t)
+	newRun := newUUID(t)
+	newSnapshot := newUUID(t)
+	var snapshotID, inputID string
+	if err := o.admin.QueryRow(testContext(t), "SELECT snapshot_id::text, input_id::text FROM work.task WHERE id = "+quoteLiteral(o.taskID)).Scan(&snapshotID, &inputID); err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, o.admin, "INSERT INTO work.task (id, org_id, owner_subject_id, state, snapshot_id, input_id, title) VALUES ("+
+		quoteLiteral(newTask)+", "+quoteLiteral(o.org)+", "+quoteLiteral(o.subject)+", 'open', "+
+		quoteLiteral(snapshotID)+", "+quoteLiteral(inputID)+", 'queued activation')")
+	mustExec(t, o.admin, "INSERT INTO work.capability_snapshot (id, org_id, task_id, resolver_version, snapshot_hash, tool_allowlist, model_route, scope_caps, manifest) VALUES ("+
+		quoteLiteral(newSnapshot)+", "+quoteLiteral(o.org)+", "+quoteLiteral(newTask)+", 'v1', '"+
+		strings.Repeat("c", 64)+"', ARRAY['workspace.read'], '{}'::jsonb, '{}'::jsonb, '{}'::jsonb)")
+	mustExec(t, o.admin, "UPDATE work.task SET snapshot_id = "+quoteLiteral(newSnapshot)+" WHERE id = "+quoteLiteral(newTask))
+	mustExec(t, o.admin, "INSERT INTO work.run (id, org_id, task_id, attempt_no, state, snapshot_id, workflow_id, runtime_version) VALUES ("+
+		quoteLiteral(newRun)+", "+quoteLiteral(o.org)+", "+quoteLiteral(newTask)+", 1, 'queued', "+
+		quoteLiteral(newSnapshot)+", "+quoteLiteral("wf-queued-"+newRun)+", 'v1')")
+	mustExec(t, o.admin, "UPDATE work.task SET active_run_id = "+quoteLiteral(newRun)+", latest_run_id = "+quoteLiteral(newRun)+" WHERE id = "+quoteLiteral(newTask))
 	body := `{"input_ref":"ref","input_hash":"` + strings.Repeat("7", 64) +
 		`","snapshot_hash":"` + strings.Repeat("3", 64) + `","profile_id":"p1","profile_revision":1,` +
 		`"runtime_digest":"` + strings.Repeat("4", 64) + `","tool_manifest_hash":"` + strings.Repeat("5", 64) +
 		`","model_version":"m1","grant_set":[{"grant_id":"` + o.grantID + `","grant_revision":1}],"offer_ttl_seconds":120}`
-	callJSON(t, worker,
-		`SELECT work.create_device_run_binding($1,$2::uuid,$3::uuid,$4::uuid,$5,$6,$7::jsonb)`,
-		o.org, o.runID, o.deviceID, o.sessionID, revision, requestID, body)
+	callJSON(t, worker, `SELECT work.acknowledge_run_ready($1,$2::uuid,1,$3,$4::jsonb,$5::uuid,$6::uuid)`,
+		o.org, o.runID, "req-other-run-ready",
+		`{"binding_hash":"`+strings.Repeat("a", 64)+`","ready_or_reason":"ready","device_signature":"`+strings.Repeat("d", 86)+`"}`,
+		o.deviceID, o.sessionID)
+	badBody := strings.Replace(body, `"offer_ttl_seconds"`, `"expected_checkpoint_seq":1,"expected_checkpoint_hash":"`+strings.Repeat("9", 64)+`","offer_ttl_seconds"`, 1)
+	expectCode(t, worker, "resync_required", `SELECT work.create_device_run_binding($1,$2::uuid,$3::uuid,$4::uuid,1,$5,$6::jsonb)`,
+		o.org, newRun, o.deviceID, o.sessionID, "req-queued-bad-checkpoint", badBody)
+	if got := o.scalar(t, "SELECT state FROM work.run WHERE id = "+quoteLiteral(newRun)); got != "queued" {
+		t.Fatalf("bad checkpoint moved Run to %s, want queued", got)
+	}
+	out := callJSON(t, worker, `SELECT work.create_device_run_binding($1,$2::uuid,$3::uuid,$4::uuid,1,$5,$6::jsonb)`,
+		o.org, newRun, o.deviceID, o.sessionID, "req-queued-offer", body)
+	if out["state"] != "active" || out["lease_id"] == nil {
+		t.Fatalf("queued binding activation = %#v", out)
+	}
+	again := callJSON(t, worker, `SELECT work.create_device_run_binding($1,$2::uuid,$3::uuid,$4::uuid,1,$5,$6::jsonb)`,
+		o.org, newRun, o.deviceID, o.sessionID, "req-queued-offer", body)
+	if again["replayed"] != true || again["lease_id"] != out["lease_id"] {
+		t.Fatalf("queued binding replay = %#v, want original lease", again)
+	}
+	nonce, _ := out["start_nonce"].(string)
+	expectCode(t, worker, "run_not_active",
+		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
+		o.org, newRun, o.deviceID, o.sessionID, nonce)
+	callJSON(t, worker, `SELECT work.acknowledge_run_ready($1,$2::uuid,1,$3,$4::jsonb,$5::uuid,$6::uuid)`,
+		o.org, newRun, "req-queued-ready",
+		`{"binding_hash":"`+strings.Repeat("a", 64)+`","ready_or_reason":"ready","device_signature":"`+strings.Repeat("d", 86)+`"}`,
+		o.deviceID, o.sessionID)
+	started := callJSON(t, worker,
+		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
+		o.org, newRun, o.deviceID, o.sessionID, nonce)
+	if started["run_start"] == nil {
+		t.Fatalf("queued Run did not start after its own ready: %#v", started)
+	}
+	if got := o.scalar(t, "SELECT state || '/' || fence::text FROM work.run WHERE id = "+quoteLiteral(newRun)); got != "active/2" {
+		t.Fatalf("queued activation run = %s, want active/2", got)
+	}
+}
+
+func TestR0bPreReadyLeaseCannotPrepareOrConsume(t *testing.T) {
+	a := newActionFixtureAtOffer(t, "org_r0b_orch_pre_ready_gate")
+	worker := a.workerConn(t)
+	expectCode(t, worker, "run_not_active",
+		`SELECT work.prepare_local_operation($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7,$8::jsonb)`,
+		a.org, a.runID, a.deviceID, a.sessionID, a.leaseID, a.fence, a.checkpointSeq,
+		a.actionBody(t, "pre-ready", a.grantClass))
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+quoteLiteral(a.org)+" AND logical_key = 'pre-ready#0'"); got != 0 {
+		t.Fatalf("pre-ready prepare created %d Operations", got)
+	}
+	callJSON(t, worker, `SELECT work.acknowledge_run_ready($1,$2::uuid,1,$3,$4::jsonb,$5::uuid,$6::uuid)`,
+		a.org, a.runID, "req-pre-ready",
+		`{"binding_hash":"`+strings.Repeat("a", 64)+`","ready_or_reason":"ready","device_signature":"`+strings.Repeat("d", 86)+`"}`,
+		a.deviceID, a.sessionID)
+	callJSON(t, worker, `SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
+		a.org, a.runID, a.deviceID, a.sessionID, a.nonce)
+	prepared := a.prepare(t, worker, "pre-ready", a.grantClass)
+	if idOf(t, prepared, "operation_id") == "" {
+		t.Fatalf("prepare after committed ready = %#v", prepared)
+	}
+}
+
+func TestR0bExpiredPreReadyLeaseCanBeReplacedAtomically(t *testing.T) {
+	o := newOrchestrationFixtureAtOffer(t, "org_r0b_orch_pre_ready_expiry")
+	mustExec(t, o.admin, "UPDATE work.execution_lease SET state = 'expired', revision = revision + 1 WHERE id = "+quoteLiteral(o.leaseID))
+	o.offer(t, o.workerConn(t), 2, "req-pre-ready-expiry-2")
+	if o.leaseID == "" || o.nonce == "" {
+		t.Fatalf("replacement binding returned no lease/nonce")
+	}
+	if got := o.scalar(t, "SELECT state FROM work.device_run_binding WHERE run_id = "+quoteLiteral(o.runID)+" AND binding_revision = 1"); got != "canceled" {
+		t.Fatalf("expired pre-ready binding = %s, want canceled", got)
+	}
+	if got := o.scalar(t, "SELECT state FROM work.run WHERE id = "+quoteLiteral(o.runID)); got != "active" {
+		t.Fatalf("replacement run = %s, want active", got)
+	}
+	if got := o.scalar(t, "SELECT count(*)::text FROM work.execution_lease WHERE org_id = "+quoteLiteral(o.org)+" AND run_id = "+quoteLiteral(o.runID)+" AND state = 'active'"); got != "1" {
+		t.Fatalf("active leases after replacement = %s, want 1", got)
+	}
 }
 
 func TestR0bBaselineHasOneWriterAndIsWrittenOnce(t *testing.T) {
 	o := newOrchestrationFixture(t, "org_r0b_orch_baseline")
 	worker := o.workerConn(t)
 
-	// create_device_run_binding must NOT write a checkpoint: §4.2 gives seq=0 exactly
-	// one writer so two sources cannot disagree about the baseline hash.
-	if got := o.scalar(t, "SELECT count(*)::text FROM work.device_checkpoint WHERE org_id = "+quoteLiteral(o.org)); got != "0" {
-		t.Fatalf("checkpoints after the offer = %s, want 0", got)
+	if got := o.scalar(t, "SELECT count(*)::text FROM work.device_checkpoint WHERE org_id = "+quoteLiteral(o.org)); got != "1" {
+		t.Fatalf("checkpoints after atomic activation = %s, want 1", got)
 	}
-	nonce := newUUID(t)
+	if got := o.scalar(t, "SELECT state FROM work.run WHERE id = "+quoteLiteral(o.runID)); got != "active" {
+		t.Fatalf("run after binding creation = %s, want active", got)
+	}
+	if got := o.scalar(t, "SELECT fence::text FROM work.run WHERE id = "+quoteLiteral(o.runID)); got != "1" {
+		t.Fatalf("resume activation fence = %s, want unchanged 1", got)
+	}
 	first := callJSON(t, worker,
 		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
-		o.org, o.runID, o.deviceID, o.sessionID, nonce)
+		o.org, o.runID, o.deviceID, o.sessionID, o.nonce)
 	if first["run_start"] == nil {
 		t.Fatalf("execute lease signed no run_start: %v", first)
+	}
+	expectCode(t, worker, "run_not_active",
+		`SELECT work.acknowledge_run_ready($1,$2::uuid,1,$3,$4::jsonb,$5::uuid,$6::uuid)`,
+		o.org, o.runID, "req-o-late-non-ready",
+		`{"binding_hash":"`+strings.Repeat("a", 64)+`","ready_or_reason":"missing_input","device_signature":"`+strings.Repeat("d", 86)+`"}`,
+		o.deviceID, o.sessionID)
+	if got := o.scalar(t, "SELECT state FROM work.execution_lease WHERE id = "+quoteLiteral(o.leaseID)); got != "active" {
+		t.Fatalf("late non-ready revoked issued lease: %s", got)
 	}
 	if first["checkpoint_seq"] != float64(0) {
 		t.Fatalf("execute lease checkpoint_seq = %v, want 0", first["checkpoint_seq"])
@@ -107,7 +311,7 @@ func TestR0bBaselineHasOneWriterAndIsWrittenOnce(t *testing.T) {
 	// The same nonce replays the lease and does not write a second baseline.
 	again := callJSON(t, worker,
 		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
-		o.org, o.runID, o.deviceID, o.sessionID, nonce)
+		o.org, o.runID, o.deviceID, o.sessionID, o.nonce)
 	if again["replayed"] != true || again["lease_id"] != first["lease_id"] {
 		t.Fatalf("nonce replay = %v, want the original lease", again)
 	}
@@ -120,11 +324,12 @@ func TestR0bReconcileFinishLeaseBuysNoExecutionCapability(t *testing.T) {
 	o := newOrchestrationFixture(t, "org_r0b_orch_j12")
 	worker := o.workerConn(t)
 
-	// An unreconciled unknown blocks a new execute lease (invariant 3).
+	// An unreconciled unknown blocks first run_start signing (invariant 3).
 	mustExec(t, o.admin, "UPDATE work.operation SET state = 'unknown' WHERE id = "+quoteLiteral(o.op))
 	expectCode(t, worker, "run_has_unreconciled_operation",
 		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
-		o.org, o.runID, o.deviceID, o.sessionID, newUUID(t))
+		o.org, o.runID, o.deviceID, o.sessionID, o.nonce)
+	mustExec(t, o.admin, "UPDATE work.execution_lease SET state = 'expired' WHERE id = "+quoteLiteral(o.leaseID))
 
 	// J12: the hand-back lease is still minted, and it signs no run_start.
 	handback := callJSON(t, worker,
@@ -136,8 +341,8 @@ func TestR0bReconcileFinishLeaseBuysNoExecutionCapability(t *testing.T) {
 	if handback["purpose"] != "reconcile_finish" {
 		t.Fatalf("purpose = %v", handback["purpose"])
 	}
-	if got := o.scalar(t, "SELECT count(*)::text FROM work.device_checkpoint WHERE org_id = "+quoteLiteral(o.org)); got != "0" {
-		t.Fatalf("reconcile_finish wrote a baseline: %s rows", got)
+	if got := o.scalar(t, "SELECT count(*)::text FROM work.device_checkpoint WHERE org_id = "+quoteLiteral(o.org)); got != "1" {
+		t.Fatalf("reconcile_finish changed the atomic baseline: %s rows", got)
 	}
 	// A second reconcile_finish request reuses the active row rather than minting another.
 	second := callJSON(t, worker,
@@ -146,8 +351,8 @@ func TestR0bReconcileFinishLeaseBuysNoExecutionCapability(t *testing.T) {
 	if second["lease_id"] != handback["lease_id"] {
 		t.Fatalf("second hand-back lease = %v, want the same row", second["lease_id"])
 	}
-	if got := o.scalar(t, "SELECT count(*)::text FROM work.execution_lease WHERE org_id = "+quoteLiteral(o.org)); got != "1" {
-		t.Fatalf("lease rows = %s, want 1", got)
+	if got := o.scalar(t, "SELECT count(*)::text FROM work.execution_lease WHERE org_id = "+quoteLiteral(o.org)); got != "2" {
+		t.Fatalf("lease rows = %s, want expired execute plus active reconcile", got)
 	}
 	if got := o.scalar(t, "SELECT purpose FROM work.execution_lease WHERE id = "+quoteLiteral(handback["lease_id"].(string))); got != "reconcile_finish" {
 		t.Fatalf("hand-back lease purpose = %q", got)
@@ -177,9 +382,12 @@ func TestR0bUnknownAllowsAccountingAndRecoversAfterLateReceipt(t *testing.T) {
 	dispatchesBefore := a.scalarInt(t, "SELECT count(*) FROM work.device_dispatch WHERE org_id = "+quoteLiteral(a.org))
 	mustExec(t, a.admin, "UPDATE work.operation SET state = 'unknown' WHERE id = "+quoteLiteral(unknownOp))
 
-	expectCode(t, worker, "run_has_unreconciled_operation",
+	replayed := callJSON(t, worker,
 		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
-		a.org, a.runID, a.deviceID, a.sessionID, newUUID(t))
+		a.org, a.runID, a.deviceID, a.sessionID, a.nonce)
+	if replayed["replayed"] != true || replayed["lease_id"] != a.leaseID {
+		t.Fatalf("unknown changed the already-issued start: %#v", replayed)
+	}
 	expectCode(t, worker, "run_has_unreconciled_operation",
 		`SELECT work.prepare_local_operation($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7,$8::jsonb)`,
 		a.org, a.runID, a.deviceID, a.sessionID, a.leaseID, a.fence, a.checkpointSeq,
@@ -254,7 +462,7 @@ func TestR0bAcquireRecoversAfterUnknownIsReconciled(t *testing.T) {
 	mustExec(t, o.admin, "UPDATE work.operation SET step_key = 'tool:1', supersede_no = 0, logical_key = 'tool:1#0', state = 'unknown' WHERE id = "+quoteLiteral(o.op))
 	expectCode(t, worker, "run_has_unreconciled_operation",
 		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
-		o.org, o.runID, o.deviceID, o.sessionID, newUUID(t))
+		o.org, o.runID, o.deviceID, o.sessionID, o.nonce)
 
 	issueResolution(t, o.admin, o.org, o.op, "succeeded", nil, nil, nil)
 	if got := o.scalar(t, "SELECT state FROM work.operation WHERE id = "+quoteLiteral(o.op)); got != "reconciled" {
@@ -262,7 +470,7 @@ func TestR0bAcquireRecoversAfterUnknownIsReconciled(t *testing.T) {
 	}
 	acquired := callJSON(t, worker,
 		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
-		o.org, o.runID, o.deviceID, o.sessionID, newUUID(t))
+		o.org, o.runID, o.deviceID, o.sessionID, o.nonce)
 	if acquired["run_start"] == nil || acquired["purpose"] != "execute" {
 		t.Fatalf("execute lease after reconciliation = %#v", acquired)
 	}
@@ -335,7 +543,7 @@ func TestR0bCheckpointConflictStopsTheRun(t *testing.T) {
 	worker := o.workerConn(t)
 	callJSON(t, worker,
 		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
-		o.org, o.runID, o.deviceID, o.sessionID, newUUID(t))
+		o.org, o.runID, o.deviceID, o.sessionID, o.nonce)
 
 	cp := func(seq int, hash, requestID string) map[string]any {
 		return callJSON(t, worker,
@@ -377,7 +585,7 @@ func TestR0bRebindPointsAtTheLatestRecordedBaseline(t *testing.T) {
 	worker := o.workerConn(t)
 	callJSON(t, worker,
 		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
-		o.org, o.runID, o.deviceID, o.sessionID, newUUID(t))
+		o.org, o.runID, o.deviceID, o.sessionID, o.nonce)
 	callJSON(t, worker,
 		`SELECT work.record_device_checkpoint($1,$2::uuid,1,2,$3,$4::jsonb,$5::uuid,$6::uuid)`,
 		o.org, o.runID, "req-rb-cp",
@@ -403,8 +611,20 @@ func TestR0bRebindPointsAtTheLatestRecordedBaseline(t *testing.T) {
 	if rebound["expected_checkpoint_hash"] != strings.Repeat("4", 64) {
 		t.Fatalf("rebind expected_checkpoint_hash = %v", rebound["expected_checkpoint_hash"])
 	}
-	if rebound["binding_revision"] != float64(2) {
-		t.Fatalf("binding_revision = %v, want 2", rebound["binding_revision"])
+	if rebound["binding_revision"] != float64(2) || rebound["state"] != "active" {
+		t.Fatalf("rebind did not atomically activate: %#v", rebound)
+	}
+	if got := o.scalar(t, "SELECT count(*)::text FROM work.execution_lease WHERE org_id = "+quoteLiteral(o.org)+" AND run_id = "+quoteLiteral(o.runID)+" AND binding_revision = 2 AND state = 'active'"); got != "1" {
+		t.Fatalf("active rebind leases = %s, want 1", got)
+	}
+	if got := o.scalar(t, "SELECT state FROM work.execution_lease WHERE id = "+quoteLiteral(o.leaseID)); got != "revoked" {
+		t.Fatalf("old execute lease = %s, want revoked", got)
+	}
+	if got := o.scalar(t, "SELECT state FROM work.run WHERE id = "+quoteLiteral(o.runID)); got != "active" {
+		t.Fatalf("run after rebind = %s, want active", got)
+	}
+	if got := o.scalar(t, "SELECT fence::text FROM work.run WHERE id = "+quoteLiteral(o.runID)); got != "1" {
+		t.Fatalf("resume fence = %s, want unchanged 1", got)
 	}
 }
 
@@ -413,7 +633,7 @@ func TestR0bAcquireRefusesResumeOfferWithoutItsBaseline(t *testing.T) {
 	worker := o.workerConn(t)
 	callJSON(t, worker,
 		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
-		o.org, o.runID, o.deviceID, o.sessionID, newUUID(t))
+		o.org, o.runID, o.deviceID, o.sessionID, o.nonce)
 	callJSON(t, worker,
 		`SELECT work.record_device_checkpoint($1,$2::uuid,1,2,$3,$4::jsonb,$5::uuid,$6::uuid)`,
 		o.org, o.runID, "req-fc-cp",
@@ -426,14 +646,13 @@ func TestR0bAcquireRefusesResumeOfferWithoutItsBaseline(t *testing.T) {
 	offer2 := `{"input_ref":"ref","input_hash":"` + strings.Repeat("7", 64) + `","snapshot_hash":"` + strings.Repeat("3", 64) +
 		`","profile_id":"p1","profile_revision":1,"runtime_digest":"` + strings.Repeat("4", 64) +
 		`","tool_manifest_hash":"` + strings.Repeat("5", 64) + `","model_version":"m1","grant_set":[{"grant_id":"` + o.grantID + `","grant_revision":1}],"offer_ttl_seconds":120}`
-	callJSON(t, worker, `SELECT work.create_device_run_binding($1,$2::uuid,$3::uuid,$4::uuid,2,$5,$6::jsonb)`,
-		o.org, o.runID, o.deviceID, o.sessionID, "req-fc-offer2", offer2)
-	callJSON(t, worker, `SELECT work.acknowledge_run_ready($1,$2::uuid,2,$3,$4::jsonb,$5::uuid,$6::uuid)`,
-		o.org, o.runID, "req-fc-ready2",
-		`{"binding_hash":"`+strings.Repeat("a", 64)+`","ready_or_reason":"ready","device_signature":"`+strings.Repeat("d", 86)+`"}`,
-		o.deviceID, o.sessionID)
-	mustExec(t, o.admin, "UPDATE work.run SET state = 'active', wait_reason = NULL WHERE id = "+quoteLiteral(o.runID))
 	expectCode(t, worker, "resync_required",
-		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,2,'execute',$5::uuid,30)`,
-		o.org, o.runID, o.deviceID, o.sessionID, newUUID(t))
+		`SELECT work.create_device_run_binding($1,$2::uuid,$3::uuid,$4::uuid,2,$5,$6::jsonb)`,
+		o.org, o.runID, o.deviceID, o.sessionID, "req-fc-offer2", offer2)
+	if got := o.scalar(t, "SELECT count(*)::text FROM work.device_run_binding WHERE org_id = "+quoteLiteral(o.org)+" AND binding_revision = 2"); got != "0" {
+		t.Fatalf("failed activation left %s binding rows", got)
+	}
+	if got := o.scalar(t, "SELECT state FROM work.run WHERE id = "+quoteLiteral(o.runID)); got != "waiting" {
+		t.Fatalf("failed activation moved Run to %s, want waiting", got)
+	}
 }

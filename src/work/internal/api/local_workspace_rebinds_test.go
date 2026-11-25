@@ -112,7 +112,8 @@ func TestWorkspaceRebindCreateAndReplay(t *testing.T) {
 		t.Fatalf("rebind status = %d body=%s", response.StatusCode, readBody(response))
 	}
 	rebound := decodeObject(t, response)
-	if rebound["binding_revision"] != float64(2) || rebound["state"] != "offered" ||
+	if rebound["binding_revision"] != float64(2) || rebound["state"] != "active" ||
+		rebound["checkpoint_seq"] != float64(0) ||
 		rebound["old_grant_id"] != oldGrant || rebound["new_grant_id"] != newGrant || rebound["replayed"] != false {
 		t.Fatalf("rebound = %#v", rebound)
 	}

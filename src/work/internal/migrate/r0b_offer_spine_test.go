@@ -76,9 +76,8 @@ func seedSupersededSession(t *testing.T, o *orchestrationFixture) string {
 	return sessionID
 }
 
-// offerSecondRevision parks the fixture Run in waiting (create_device_run_binding requires
-// queued/waiting, and the fixture leaves it active) and then offers binding_revision 2, the
-// resume flow 0041's own tests use. The new binding is left 'offered'.
+// offerSecondRevision parks the fixture Run in waiting and creates binding_revision 2.
+// 0069 activates the new binding, execute lease and baseline atomically.
 func offerSecondRevision(t *testing.T, o *orchestrationFixture, worker *pgx.Conn, requestID string) {
 	t.Helper()
 	mustExec(t, o.admin, "UPDATE work.run SET state = 'waiting', wait_reason = 'input' WHERE id = "+
@@ -108,8 +107,7 @@ func seedExpiredOffer(t *testing.T, o *orchestrationFixture) {
 func TestR0bOfferGetterReturnsLiveOffersAndWritesNothing(t *testing.T) {
 	o := newOrchestrationFixture(t, "org_r0b_offer_getter")
 	worker := o.workerConn(t)
-	// The fixture's revision 1 is already 'ready'; offer a second revision so the getter
-	// has a live 'offered' row to return.
+	// Offer a second revision so the getter has a live atomically activated row to return.
 	offerSecondRevision(t, o, worker, "req-offer-getter-2")
 
 	offers := callJSONArray(t, worker,
@@ -144,10 +142,10 @@ func TestR0bOfferGetterReturnsLiveOffersAndWritesNothing(t *testing.T) {
 		t.Fatalf("binding_hash = %v, want the recomputed %s", got["binding_hash"], wantHash)
 	}
 
-	// Read-only: the binding is still offered and its revision did not move.
+	// Read-only: the activated binding and its revision did not move.
 	if got := o.scalar(t, "SELECT state || '/' || revision::text FROM work.device_run_binding "+
-		"WHERE run_id = "+quoteLiteral(o.runID)+" AND binding_revision = 2"); got != "offered/0" {
-		t.Fatalf("binding after the getter = %s, want the untouched offered/0", got)
+		"WHERE run_id = "+quoteLiteral(o.runID)+" AND binding_revision = 2"); got != "active/1" {
+		t.Fatalf("binding after the getter = %s, want active/1", got)
 	}
 	// Calling it twice changes nothing either (re-push is idempotent by construction).
 	if again := callJSONArray(t, worker,
@@ -156,14 +154,13 @@ func TestR0bOfferGetterReturnsLiveOffersAndWritesNothing(t *testing.T) {
 		t.Fatalf("second getter call returned %d offers, want the same 1", len(again))
 	}
 
-	// An expired offer is skipped, never pushed (主签 2026-11-16 裁定): only the live
-	// revision 2 comes back, the aged revision 3 does not.
+	// An expired latest offer is skipped and supersedes older revisions.
 	seedExpiredOffer(t, o)
 	live := callJSONArray(t, worker,
 		`SELECT work.list_pending_device_offers($1,$2::uuid,$3::uuid)`,
 		o.org, o.deviceID, o.sessionID)
-	if len(live) != 1 || live[0]["binding_revision"] != float64(2) {
-		t.Fatalf("offers with an expired row present = %#v, want only revision 2", live)
+	if len(live) != 0 {
+		t.Fatalf("offers with an expired latest row = %#v, want none", live)
 	}
 }
 
@@ -264,49 +261,55 @@ func TestR0bRunReadyIsBoundToDeviceSessionAndRealSignature(t *testing.T) {
 		`SELECT work.acknowledge_run_ready($1,$2::uuid,2,$3,$4::jsonb,$5::uuid,$6::uuid)`,
 		o.org, o.runID, "req-ready-placeholder", ready("sha256:"+strings.Repeat("b", 64)),
 		o.deviceID, o.sessionID)
-	// Nothing moved: the binding is still offered.
+	// Nothing moved: the atomically activated binding is still active.
 	if got := o.scalar(t, "SELECT state || '/' || revision::text FROM work.device_run_binding "+
-		"WHERE run_id = "+quoteLiteral(o.runID)+" AND binding_revision = 2"); got != "offered/0" {
-		t.Fatalf("binding after three refusals = %s, want the untouched offered/0", got)
+		"WHERE run_id = "+quoteLiteral(o.runID)+" AND binding_revision = 2"); got != "active/1" {
+		t.Fatalf("binding after three refusals = %s, want active/1", got)
 	}
 
-	// The entitled device/session still moves offered -> ready, and a replay is idempotent.
+	// The entitled device/session records ready without moving the active binding.
 	ok := callJSON(t, worker,
 		`SELECT work.acknowledge_run_ready($1,$2::uuid,2,$3,$4::jsonb,$5::uuid,$6::uuid)`,
 		o.org, o.runID, "req-ready-owner", ready(strings.Repeat("d", 86)), o.deviceID, o.sessionID)
-	if ok["ready_or_reason"] != "ready" || ok["state"] != "ready" || ok["replayed"] != false {
-		t.Fatalf("ready answer = %v, want state ready, not replayed", ok)
+	if ok["ready_or_reason"] != "ready" || ok["state"] != "active" || ok["replayed"] != false {
+		t.Fatalf("ready answer = %v, want state active, not replayed", ok)
 	}
 	again := callJSON(t, worker,
 		`SELECT work.acknowledge_run_ready($1,$2::uuid,2,$3,$4::jsonb,$5::uuid,$6::uuid)`,
 		o.org, o.runID, "req-ready-owner", ready(strings.Repeat("d", 86)), o.deviceID, o.sessionID)
-	if again["replayed"] != true || again["state"] != "ready" {
-		t.Fatalf("replay = %v, want replayed with state ready", again)
+	if again["replayed"] != true || again["state"] != "active" {
+		t.Fatalf("replay = %v, want replayed with state active", again)
 	}
 	if got := o.scalar(t, "SELECT state || '/' || revision::text FROM work.device_run_binding "+
-		"WHERE run_id = "+quoteLiteral(o.runID)+" AND binding_revision = 2"); got != "ready/1" {
-		t.Fatalf("binding after ready = %s, want ready/1 (moved exactly once)", got)
+		"WHERE run_id = "+quoteLiteral(o.runID)+" AND binding_revision = 2"); got != "active/1" {
+		t.Fatalf("binding after ready = %s, want active/1 (unchanged)", got)
 	}
 }
 
-func TestR0bRunReadyRefusesRevokedDeviceAndNonReadyReasonKeepsOffered(t *testing.T) {
+func TestR0bRunReadyRefusesRevokedDeviceAndNonReadyReasonRollsBackActivation(t *testing.T) {
 	o := newOrchestrationFixture(t, "org_r0b_ready_revoked")
 	worker := o.workerConn(t)
 	offerSecondRevision(t, o, worker, "req-ready-revoked-2")
 
-	// A non-ready reason is a legitimate answer but must NOT move the binding: the workflow
-	// must not AcquireRun and the reason is the user-visible next step (0041 rule restated).
+	// A non-ready answer atomically rolls back pre-offer activation: no execute capability
+	// survives and the Run waits for corrected input.
 	reason := callJSON(t, worker,
 		`SELECT work.acknowledge_run_ready($1,$2::uuid,2,$3,$4::jsonb,$5::uuid,$6::uuid)`,
 		o.org, o.runID, "req-ready-missing-input",
 		`{"binding_hash":"`+strings.Repeat("a", 64)+`","ready_or_reason":"missing_input","device_signature":"`+
 			strings.Repeat("d", 86)+`"}`, o.deviceID, o.sessionID)
-	if reason["ready_or_reason"] != "missing_input" || reason["state"] != "offered" {
-		t.Fatalf("non-ready answer = %v, want state left offered", reason)
+	if reason["ready_or_reason"] != "missing_input" || reason["state"] != "canceled" {
+		t.Fatalf("non-ready answer = %v, want state canceled", reason)
 	}
 	if got := o.scalar(t, "SELECT state || '/' || revision::text FROM work.device_run_binding "+
-		"WHERE run_id = "+quoteLiteral(o.runID)+" AND binding_revision = 2"); got != "offered/0" {
-		t.Fatalf("binding after a non-ready answer = %s, want the untouched offered/0", got)
+		"WHERE run_id = "+quoteLiteral(o.runID)+" AND binding_revision = 2"); got != "canceled/2" {
+		t.Fatalf("binding after a non-ready answer = %s, want canceled/2", got)
+	}
+	if got := o.scalar(t, "SELECT state || '/' || wait_reason FROM work.run WHERE id = "+quoteLiteral(o.runID)); got != "waiting/input" {
+		t.Fatalf("run after non-ready = %s, want waiting/input", got)
+	}
+	if got := o.scalar(t, "SELECT state FROM work.execution_lease WHERE id = "+quoteLiteral(o.leaseID)); got != "revoked" {
+		t.Fatalf("lease after non-ready = %s, want revoked", got)
 	}
 
 	// A revoked device cannot answer, and cannot obtain a replayed response either.

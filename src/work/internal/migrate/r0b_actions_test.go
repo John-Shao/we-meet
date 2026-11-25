@@ -23,24 +23,19 @@ type actionFixture struct {
 	selectorHash   string
 }
 
-func newActionFixture(t *testing.T, org string) *actionFixture {
+func newActionFixtureAtOffer(t *testing.T, org string) *actionFixture {
 	t.Helper()
-	o := newOrchestrationFixture(t, org)
+	o := newOrchestrationFixtureAtOffer(t, org)
 	// The shared fixture inserts the policy directly, so effective_epoch is still the
 	// column default 0. A policy that was actually configured through set_local_policy
 	// has epoch >= 1, and request_approval refuses epoch 0 - so the fixture has to
 	// represent the configured state, not relax the guard.
 	mustExec(t, o.admin, "UPDATE work.local_execution_policy SET effective_epoch = 1 WHERE org_id = "+
 		quoteLiteral(o.org)+" AND effective_epoch = 0")
-	worker := o.workerConn(t)
-	lease := callJSON(t, worker,
-		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
-		o.org, o.runID, o.deviceID, o.sessionID, newUUID(t))
-	leaseID, _ := lease["lease_id"].(string)
-	if leaseID == "" {
-		t.Fatalf("acquire_device_lease returned no lease_id: %#v", lease)
+	if o.leaseID == "" {
+		t.Fatalf("create_device_run_binding returned no lease_id")
 	}
-	a := &actionFixture{orchestrationFixture: o, leaseID: leaseID,
+	a := &actionFixture{orchestrationFixture: o, leaseID: o.leaseID,
 		selectorHash: strings.Repeat("c", 64)}
 	a.fence = int64(a.scalarInt(t, "SELECT fence FROM work.run WHERE id = "+quoteLiteral(o.runID)))
 	a.checkpointSeq = int64(a.scalarInt(t, "SELECT checkpoint_seq FROM work.device_checkpoint WHERE org_id = "+
@@ -50,6 +45,22 @@ func newActionFixture(t *testing.T, org string) *actionFixture {
 		fmt.Sprintf("%d", a.checkpointSeq))
 	a.grantClass = a.scalar(t, "SELECT classification FROM work.workspace_grant WHERE id = "+
 		quoteLiteral(o.grantID))
+	return a
+}
+
+func newActionFixture(t *testing.T, org string) *actionFixture {
+	t.Helper()
+	a := newActionFixtureAtOffer(t, org)
+	callJSON(t, a.workerConn(t), `SELECT work.acknowledge_run_ready($1,$2::uuid,1,$3,$4::jsonb,$5::uuid,$6::uuid)`,
+		a.org, a.runID, "req-action-ready",
+		`{"binding_hash":"`+strings.Repeat("a", 64)+`","ready_or_reason":"ready","device_signature":"`+strings.Repeat("d", 86)+`"}`,
+		a.deviceID, a.sessionID)
+	lease := callJSON(t, a.workerConn(t),
+		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
+		a.org, a.runID, a.deviceID, a.sessionID, a.nonce)
+	if lease["lease_id"] != a.leaseID || lease["run_start"] == nil {
+		t.Fatalf("atomic lease start = %#v", lease)
+	}
 	return a
 }
 

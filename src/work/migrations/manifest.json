@@ -758,6 +758,17 @@
       "catalog_checksum": "sha256:cd0104961032a7892d85076ca1cf71d45f189521c6bcef96205493f7cbf516c7",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 69,
+      "name": "0069_atomic_run_binding_activation",
+      "kind": "increment",
+      "file": "increments/0069_atomic_run_binding_activation.sql",
+      "checksum": "sha256:db4b3696eefa7fad501d0a3334448f69f1b558d3e8a8f6be3f098ca962469d80",
+      "catalog": "catalogs/0069_atomic_run_binding_activation.json",
+      "catalog_checksum": "sha256:4089b0684ec957a1f919429671f36e1500cb54add12e3d94c8d06db92c830e20",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

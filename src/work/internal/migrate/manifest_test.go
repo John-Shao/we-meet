@@ -81,6 +81,7 @@ var publishedIncrements = []string{
 	"0066_reconcile_lease_cannot_mint_permit",
 	"0067_gap_report_rejects_consumed_interval",
 	"0068_governance_cursor_getter",
+	"0069_atomic_run_binding_activation",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

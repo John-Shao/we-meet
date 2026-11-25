@@ -31,7 +31,7 @@ func TestR0bCheckpointAckCarriesTheReceiptWatermark(t *testing.T) {
 	worker := o.workerConn(t)
 	callJSON(t, worker,
 		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
-		o.org, o.runID, o.deviceID, o.sessionID, newUUID(t))
+		o.org, o.runID, o.deviceID, o.sessionID, o.nonce)
 
 	cp := func(seq int, hash string, watermark int, requestID string) map[string]any {
 		return callJSON(t, worker,
@@ -62,12 +62,12 @@ func TestR0bCheckpointAckCarriesTheReceiptWatermark(t *testing.T) {
 	if conflict["state"] != "conflict" || conflict["receipt_through_seq"] != float64(0) {
 		t.Fatalf("conflict = %v, want state conflict and watermark 0", conflict)
 	}
-	if got := o.scalar(t, "SELECT state || '/' || coalesce(wait_reason,'-') FROM work.run WHERE id = " +
+	if got := o.scalar(t, "SELECT state || '/' || coalesce(wait_reason,'-') FROM work.run WHERE id = "+
 		quoteLiteral(o.runID)); got != "waiting/reconcile" {
 		t.Fatalf("run after conflict = %s, want waiting/reconcile", got)
 	}
 	// The stored watermark of the conflicted row is unchanged (the ack's 0 is not a write).
-	if got := o.scalar(t, "SELECT receipt_through_seq::text FROM work.device_checkpoint WHERE org_id = " +
+	if got := o.scalar(t, "SELECT receipt_through_seq::text FROM work.device_checkpoint WHERE org_id = "+
 		quoteLiteral(o.org)+" AND checkpoint_seq = 2"); got != "9" {
 		t.Fatalf("conflicted row watermark = %s, want the recorded 9", got)
 	}
@@ -78,7 +78,7 @@ func TestR0bCheckpointRefusesForeignDeviceSessionAndStaleBinding(t *testing.T) {
 	worker := o.workerConn(t)
 	callJSON(t, worker,
 		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
-		o.org, o.runID, o.deviceID, o.sessionID, newUUID(t))
+		o.org, o.runID, o.deviceID, o.sessionID, o.nonce)
 
 	// A second device with its OWN active session: the session gate passes, so only the
 	// run-level binding gate can refuse it (0049 targeting precedent). Seeded directly
@@ -135,7 +135,7 @@ func TestR0bCheckpointRefusesRevokedDeviceAndPlaceholderSignature(t *testing.T) 
 	worker := o.workerConn(t)
 	callJSON(t, worker,
 		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
-		o.org, o.runID, o.deviceID, o.sessionID, newUUID(t))
+		o.org, o.runID, o.deviceID, o.sessionID, o.nonce)
 
 	// The pre-GW9 internal placeholder is no longer a valid device_signature shape.
 	placeholder := `{"checkpoint_seq":1,"checkpoint_hash":"` + strings.Repeat("1", 64) +

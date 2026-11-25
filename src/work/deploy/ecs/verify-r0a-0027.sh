@@ -103,7 +103,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (65, '0065_late_success_receipt_reconciles'),
   (66, '0066_reconcile_lease_cannot_mint_permit'),
   (67, '0067_gap_report_rejects_consumed_interval'),
-  (68, '0068_governance_cursor_getter')) expected(version, name)
+  (68, '0068_governance_cursor_getter'),
+  (69, '0069_atomic_run_binding_activation')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -1243,6 +1244,23 @@ psql_ro "select 'governance_cursor_getter=' || case when (
     'work.consume_governance_events(text,jsonb,jsonb,bigint)'::regprocedure)) > 0
   and has_function_privilege('work_governance_events',
     'work.record_governance_gap(text,jsonb,bigint)'::regprocedure, 'EXECUTE')
+  then 'true' else 'FALSE' end"
+
+# 0069 makes binding creation atomic and keeps the pre-created lease non-executable
+# until the exact lease has a committed device_lease.acquired receipt.
+psql_ro "select 'atomic_binding_activation=' || case when (
+  position('work.activate_device_run_binding(' in pg_get_functiondef(
+    'work.create_device_run_binding(text,uuid,uuid,uuid,bigint,text,jsonb)'::regprocedure)) > 0
+  and position('work.acquire_run(' in pg_get_functiondef(
+    'work.activate_device_run_binding(text,uuid,bigint,int)'::regprocedure)) > 0
+  and position('work.resume_run(' in pg_get_functiondef(
+    'work.activate_device_run_binding(text,uuid,bigint,int)'::regprocedure)) > 0
+  and position('device_lease.acquired' in pg_get_functiondef(
+    'work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure)) > 0
+  and position('device_lease.acquired' in pg_get_functiondef(
+    'work.consume_device_permit(text,uuid,uuid,uuid,uuid,uuid,bigint,text,text)'::regprocedure)) > 0
+  and not has_function_privilege('work_worker',
+    'work.activate_device_run_binding(text,uuid,bigint,int)'::regprocedure, 'EXECUTE')
   then 'true' else 'FALSE' end"
 
 # The permit document is durable evidence on the dispatch row, not a second single-use

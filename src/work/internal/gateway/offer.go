@@ -226,11 +226,9 @@ func (s *Server) resolveStartNonce(ctx context.Context, orgID, deviceID, session
 }
 
 // handleRunReady verifies the device's ES256 run_ready signature BEFORE any domain command,
-// records the answer through the restated acknowledge_run_ready (0052, now bound to this
-// device/session), and — only when the answer is 'ready' and the binding moved — acquires
-// the lease and sends the server-signed run_start. A non-ready reason is a legitimate
-// answer that leaves the binding offered (§3.2: the workflow must not AcquireRun and the
-// reason is the user-visible next step), so it produces no downlink.
+// records the answer through acknowledge_run_ready and, only for a ready answer, sends
+// the server-signed run_start. 0069 bindings are already active with a pre-created lease;
+// legacy bindings still report ready and mint the lease on this call.
 func (s *Server) handleRunReady(ctx context.Context, stream grpc.ServerStream, orgID, deviceID, sessionID string, pub *devicesig.PublicKey, env *Envelope, nonces map[offerNonceKey]string) error {
 	var body runReadyBody
 	if err := json.Unmarshal(env.Body, &body); err != nil || body.Signature == "" {
@@ -264,7 +262,7 @@ func (s *Server) handleRunReady(ctx context.Context, stream grpc.ServerStream, o
 	if err := json.Unmarshal(result, &acked); err != nil {
 		return status.Error(codes.Internal, "service_degraded")
 	}
-	if acked.State != "ready" {
+	if acked.State != "ready" && acked.State != "active" {
 		return nil
 	}
 
@@ -303,10 +301,8 @@ func (s *Server) acknowledgeReady(ctx context.Context, orgID, deviceID, sessionI
 	return json.RawMessage(raw), nil
 }
 
-// acquireLease acquires the execute lease for a binding the device just answered ready for,
-// passing the binding's own start_nonce verbatim (0041: the nonce is the replay key, so a
-// re-sent run_ready cannot mint a second lease or start a second sidecar). The command also
-// writes the seq=0 checkpoint baseline — its unique writer (§4.2).
+// acquireLease passes the binding's own start_nonce verbatim. For 0069 bindings the lease
+// and baseline already exist and this call signs run_start once; legacy bindings mint them.
 func (s *Server) acquireLease(ctx context.Context, orgID, deviceID, sessionID, runID string, revision int64, nonce string) (json.RawMessage, error) {
 	var raw []byte
 	err := workdb.WithWorkerOrgContext(ctx, s.pool, orgID, func(tx pgx.Tx) error {

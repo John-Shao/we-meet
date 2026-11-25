@@ -56,6 +56,48 @@ func (f *gwFixture) seedOffer(t *testing.T, sessionID, runID string, revision in
 	return nonce
 }
 
+// seedAtomicOffer creates binding revision 1 through the 0069 domain command, so the
+// gateway sees the same pre-created active lease/baseline as production.
+func (f *gwFixture) seedAtomicOffer(t *testing.T, sessionID, runID string) (nonce, leaseID string) {
+	t.Helper()
+	ctx := gwContext(t)
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(f.dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = admin.Exec(ctx, `UPDATE work.run SET state='waiting', wait_reason='input' WHERE org_id=$1 AND id=$2::uuid`, gwOrg, runID); err != nil {
+		_ = admin.Close(ctx)
+		t.Fatal(err)
+	}
+	if err = admin.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	worker, err := testpg.Open(ctx, testpg.WorkerURL(f.dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = worker.Close(ctx) }()
+	if err = testpg.ExecRaw(ctx, worker, "SET app.org_id='"+gwOrg+"'; SET app.subject_id='"+gwSubject+"'"); err != nil {
+		t.Fatal(err)
+	}
+	body := fmt.Sprintf(`{"input_ref":"ref","input_hash":"%s","snapshot_hash":"%s","profile_id":"p1","profile_revision":1,"runtime_digest":"%s","tool_manifest_hash":"%s","model_version":"m1","grant_set":[{"grant_id":"%s","grant_revision":1}],"offer_ttl_seconds":120}`,
+		strings.Repeat("2", 64), strings.Repeat("3", 64), strings.Repeat("4", 64),
+		strings.Repeat("5", 64), uuid.NewString())
+	var raw []byte
+	if err = worker.QueryRow(ctx, `SELECT work.create_device_run_binding($1,$2::uuid,$3::uuid,$4::uuid,1,$5,$6::jsonb)`,
+		gwOrg, runID, f.deviceID, sessionID, "atomic-"+uuid.NewString(), body).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var out struct {
+		StartNonce string `json:"start_nonce"`
+		LeaseID    string `json:"lease_id"`
+	}
+	if err = json.Unmarshal(raw, &out); err != nil {
+		t.Fatal(err)
+	}
+	return out.StartNonce, out.LeaseID
+}
+
 // mintSecondTicket inserts another pending single-use ticket. The fixture's own ticket is
 // consumed by the first hello (the claim is a CAS), so a second session needs a second
 // ticket; activate_device_session then supersedes the previous active session, which is the
@@ -317,6 +359,97 @@ func TestRunReadyAcquiresLeaseAndSendsRunStart(t *testing.T) {
 	}
 	if baselineCount != 1 {
 		t.Fatalf("seq=0 baselines = %d, want exactly 1", baselineCount)
+	}
+}
+
+func TestRunReadyUsesPrecreatedAtomicLease(t *testing.T) {
+	f := newGatewayFixture(t)
+	addr := f.startServer(t)
+	stream := f.connect(t, addr)
+	sessionID, _, bootID, agentID, _, _ := f.helloWithServerJWK(t, stream)
+	runID, _, _, _ := f.seedAction(t, sessionID)
+	nonce, leaseID := f.seedAtomicOffer(t, sessionID, runID)
+
+	if err := stream.SendMsg(f.unsignedFrame(t, "heartbeat", sessionID, bootID, agentID,
+		heartbeatBody("1000", []string{}, "0"))); err != nil {
+		t.Fatal(err)
+	}
+	_, offer, _ := recvTypedFrame(t, stream, "run_offer")
+	ready := map[string]any{
+		"run_id": runID, "binding_revision": "1", "binding_hash": offer["binding_hash"],
+		"ready_or_reason": "ready",
+	}
+	if err := stream.SendMsg(f.signFrame(t, "run_ready", sessionID, bootID, agentID, ready)); err != nil {
+		t.Fatal(err)
+	}
+	_, start, _ := recvTypedFrame(t, stream, "run_start")
+	if start["start_nonce"] != nonce || start["lease_id"] != leaseID {
+		t.Fatalf("atomic run_start = %#v, want nonce %s lease %s", start, nonce, leaseID)
+	}
+	if got := f.bindingState(t, runID, 1); got != "active/1" {
+		t.Fatalf("binding after atomic ready = %s, want active/1", got)
+	}
+	ctx := gwContext(t)
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(f.dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = admin.Close(ctx) }()
+	var leases, baselines int
+	if err := admin.QueryRow(ctx, `SELECT count(*) FROM work.execution_lease WHERE org_id=$1 AND run_id=$2::uuid AND state='active'`, gwOrg, runID).Scan(&leases); err != nil {
+		t.Fatal(err)
+	}
+	if err := admin.QueryRow(ctx, `SELECT count(*) FROM work.device_checkpoint WHERE org_id=$1 AND run_id=$2::uuid AND checkpoint_seq=0`, gwOrg, runID).Scan(&baselines); err != nil {
+		t.Fatal(err)
+	}
+	if leases != 1 || baselines != 1 {
+		t.Fatalf("atomic lease/baseline counts = %d/%d, want 1/1", leases, baselines)
+	}
+}
+
+func TestRunReadyNonReadyRollsBackAtomicActivation(t *testing.T) {
+	f := newGatewayFixture(t)
+	addr := f.startServer(t)
+	stream := f.connect(t, addr)
+	sessionID, _, bootID, agentID, _, _ := f.helloWithServerJWK(t, stream)
+	runID, _, _, _ := f.seedAction(t, sessionID)
+	_, leaseID := f.seedAtomicOffer(t, sessionID, runID)
+	if err := stream.SendMsg(f.unsignedFrame(t, "heartbeat", sessionID, bootID, agentID,
+		heartbeatBody("1000", []string{}, "0"))); err != nil {
+		t.Fatal(err)
+	}
+	_, offer, _ := recvTypedFrame(t, stream, "run_offer")
+	reason := map[string]any{
+		"run_id": runID, "binding_revision": "1", "binding_hash": offer["binding_hash"],
+		"ready_or_reason": "missing_input",
+	}
+	if err := stream.SendMsg(f.signFrame(t, "run_ready", sessionID, bootID, agentID, reason)); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.SendMsg(f.unsignedFrame(t, "heartbeat", sessionID, bootID, agentID,
+		heartbeatBody("2000", []string{uuid.NewString()}, "0"))); err != nil {
+		t.Fatal(err)
+	}
+	var raw []byte
+	wantCode(t, stream.RecvMsg(&raw), codes.NotFound)
+	if got := f.bindingState(t, runID, 1); got != "canceled/2" {
+		t.Fatalf("binding after atomic non-ready = %s, want canceled/2", got)
+	}
+	ctx := gwContext(t)
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(f.dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = admin.Close(ctx) }()
+	var runState, leaseState string
+	if err := admin.QueryRow(ctx, `SELECT state FROM work.run WHERE org_id=$1 AND id=$2::uuid`, gwOrg, runID).Scan(&runState); err != nil {
+		t.Fatal(err)
+	}
+	if err := admin.QueryRow(ctx, `SELECT state FROM work.execution_lease WHERE org_id=$1 AND id=$2::uuid`, gwOrg, leaseID).Scan(&leaseState); err != nil {
+		t.Fatal(err)
+	}
+	if runState != "waiting" || leaseState != "revoked" {
+		t.Fatalf("non-ready rollback run/lease = %s/%s, want waiting/revoked", runState, leaseState)
 	}
 }
 

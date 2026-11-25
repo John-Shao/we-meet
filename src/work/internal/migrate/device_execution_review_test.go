@@ -236,7 +236,7 @@ func TestDeviceExecutionReviewPermitRequiresCurrentRun(t *testing.T) {
 func TestDeviceExecutionReviewLeaseReplay(t *testing.T) {
 	o := newOrchestrationFixture(t, "org_review_lease")
 	worker := o.workerConn(t)
-	nonce := newUUID(t)
+	nonce := o.nonce
 	query := `SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,$5,'execute',$6::uuid,30)`
 	args := []any{o.org, o.runID, o.deviceID, o.sessionID, 1, nonce}
 	first := callJSON(t, worker, query, args...)
@@ -320,12 +320,19 @@ func TestDeviceExecutionReviewLeaseReplayExpiresAtOriginalDeadline(t *testing.T)
 			o := newOrchestrationFixture(t, "org_review_deadline")
 			worker := o.workerConn(t)
 			query := `SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,$6)`
-			args := []any{o.org, o.runID, o.deviceID, o.sessionID, newUUID(t), ttl}
+			args := []any{o.org, o.runID, o.deviceID, o.sessionID, o.nonce, ttl}
+			if ttl == 1 {
+				mustExec(t, o.admin, "UPDATE work.execution_lease SET expires_at = clock_timestamp() + interval '1 second' WHERE id = "+quoteLiteral(o.leaseID))
+			}
 			first := callJSON(t, worker, query, args...)
 			lease := first["lease_id"].(string)
 			expiry := first["run_start"].(map[string]any)["expiry"].(string)
-			if got := o.scalar(t, "SELECT ("+quoteLiteral(expiry)+"::timestamptz = LEAST(expires_at, created_at + interval '5 seconds'))::text FROM work.execution_lease WHERE id="+quoteLiteral(lease)); got != "true" {
-				t.Fatalf("run_start does not have the original bounded delivery deadline: %#v", first)
+			if ttl == 1 {
+				if got := o.scalar(t, "SELECT ("+quoteLiteral(expiry)+"::timestamptz = expires_at)::text FROM work.execution_lease WHERE id="+quoteLiteral(lease)); got != "true" {
+					t.Fatalf("run_start does not use the lease expiry: %#v", first)
+				}
+			} else if got := o.scalar(t, "SELECT ("+quoteLiteral(expiry)+"::timestamptz > clock_timestamp() AND "+quoteLiteral(expiry)+"::timestamptz <= clock_timestamp() + interval '5 seconds')::text"); got != "true" {
+				t.Fatalf("run_start does not have a fresh bounded delivery deadline: %#v", first)
 			}
 			if ttl == 30 {
 				renewLease(t, o, lease, 30, 0, o.deviceID, o.sessionID)
