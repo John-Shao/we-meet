@@ -84,6 +84,8 @@ export type WorkClient = {
   getRunReconciliations(params: { path: { "runId": string }; signal?: AbortSignal }): Promise<WorkResponse<Schemas["RunReconciliations"]>>;
   /** GET /work/v2/runs/{runId}/history-handback - Run 是否正在交回历史并收尾（device-design §3.3；只在活 reconcile_finish 租约下为真） */
   getRunHistoryHandback(params: { path: { "runId": string }; signal?: AbortSignal }): Promise<WorkResponse<Schemas["HistoryHandback"]>>;
+  /** GET /work/v2/runs/{runId}/supersede-budgets - Run 各步骤的权威主动取代预算与第五次上限事实 */
+  getRunSupersedeBudgets(params: { path: { "runId": string }; signal?: AbortSignal }): Promise<WorkResponse<Schemas["RunSupersedeBudgets"]>>;
   /** GET /work/v2/admin/local-policy - 组织本地执行策略与服务端判词（owner/admin 读） */
   getAdminLocalPolicy(params?: { signal?: AbortSignal }): Promise<WorkResponse<Schemas["LocalPolicy"]>>;
   /** PATCH /work/v2/admin/local-policy - 整份写入本地执行策略（revision CAS；只 owner/admin） */
@@ -98,6 +100,7 @@ export type WorkClient = {
 export declare const OPERATIONS: ReadonlyArray<WorkOperation> & readonly [
   "getRunReconciliations",
   "getRunHistoryHandback",
+  "getRunSupersedeBudgets",
   "getAdminLocalPolicy",
   "setAdminLocalPolicy",
   "listReadonlyGrants",

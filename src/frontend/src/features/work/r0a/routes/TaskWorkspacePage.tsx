@@ -512,7 +512,13 @@ export const TaskWorkspacePage = () => {
           </section>
           <RunReconciliations runId={detail.summary.latest_run_id} />
           <RunReadonlyGrants runId={detail.summary.latest_run_id} />
-          <RunOperations runId={detail.summary.latest_run_id} />
+          <RunOperations
+            runId={detail.summary.latest_run_id}
+            runState={run?.state}
+            waitReason={run?.wait_reason}
+            onEndRun={readOnly ? undefined : () => void onCancel()}
+            endingRun={cancelMutation.isPending}
+          />
         </div>
 
         <aside

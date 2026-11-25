@@ -13,6 +13,7 @@ import { OPERATIONS } from './generated/r0b-client.mjs'
 const OPERATION_TO_EXPORT = {
   getRunReconciliations: 'fetchWorkRunReconciliations',
   getRunHistoryHandback: 'fetchWorkRunHistoryHandback',
+  getRunSupersedeBudgets: 'fetchWorkRunSupersedeBudgets',
   getAdminLocalPolicy: 'fetchWorkLocalPolicy',
   setAdminLocalPolicy: 'setWorkLocalPolicy',
   listReadonlyGrants: 'fetchWorkReadonlyGrants',

@@ -218,6 +218,7 @@ func (s *Server) Handler() http.Handler {
 	// R0a surface they sit beside lives under /work/v1.
 	mux.HandleFunc("GET "+RunReconciliationsPath, s.getRunReconciliations)
 	mux.HandleFunc("GET "+RunHistoryHandbackPath, s.getRunHistoryHandback)
+	mux.HandleFunc("GET "+RunSupersedeBudgetsPath, s.getRunSupersedeBudgets)
 	mux.HandleFunc("GET "+DevicesPath, s.listDevices)
 	mux.HandleFunc("POST "+DevicePairingsPath, s.createDevicePairing)
 	mux.HandleFunc("POST "+DevicePairingConfirmPath, s.confirmDevicePairing)

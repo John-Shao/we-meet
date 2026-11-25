@@ -12,6 +12,7 @@
 export type components = {
   schemas: {
     RunReconciliations: RunReconciliations
+    RunSupersedeBudgets: RunSupersedeBudgets
     HistoryHandback: HistoryHandback
     LocalPolicy: LocalPolicy
     LocalPolicyWriteRequest: LocalPolicyWriteRequest
@@ -56,6 +57,19 @@ export interface RunReconciliations {
     acceptance: boolean
   }
   items: RunReconciliationItem[]
+}
+
+export interface RunSupersedeBudget {
+  step_key: string
+  supersede_no: number
+  active_supersede_count: number
+  active_supersede_limit: number
+  limit_reached: boolean
+}
+
+export interface RunSupersedeBudgets {
+  run_id: string
+  steps: RunSupersedeBudget[]
 }
 
 export interface HistoryHandback {

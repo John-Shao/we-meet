@@ -791,6 +791,17 @@
       "catalog_checksum": "sha256:1799f2a7667419305ec7eab9a02b5bc22a5322a1866aa8f70a357f47396c3719",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 72,
+      "name": "0072_run_supersede_budgets",
+      "kind": "increment",
+      "file": "increments/0072_run_supersede_budgets.sql",
+      "checksum": "sha256:f3e92eeb3604b6c371bbd23003fe05bc213f64ab2c442c3b9d05ffe61145055c",
+      "catalog": "catalogs/0072_run_supersede_budgets.json",
+      "catalog_checksum": "sha256:def8e944f3015369d230779b969ccfeda96480af5567ef187dc9d06d9458385d",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

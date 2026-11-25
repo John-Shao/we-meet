@@ -117,6 +117,8 @@ usage, provider_request_id
 
 **【2026-11-25 EV102 设备到期边界闭合登记】** 验签后保留 permit 的单调到期时间，FULL journal 注册不重置它；模型代理在连接、身份核验与首次写出前复核，过期零连接/零请求字节并回 `permit_expired`。首字节写出后仍按 Run lease 结束在途 I/O，不把 permit 到期误报为 `rejected_not_executed`。真 exe 的每轮模型 `runtime_execution` 读回为 `completed/model_result_recorded` 且释放 lease，finish 后无 live execution，lease-loss 后仍只有第一轮模型结果，EV102 已覆盖。
 
+**【2026-11-25 EV71 取代预算与界面闭合登记】** `0071` 让取代写集按 J21 分桶执行：主动桶只计 `workspace_rebound`／`tool_params_changed`，旧 Operation 先条件终结再插替代项，每次取代重新审批，第六次主动取代在同一事务提交 `waiting(input)` 与闭合错误。`0072` 新增 owner-only 的 `/work/v2/runs/{runId}/supersede-budgets` 只读投影，按 `step_key` 返回总取代序号、主动计数、上限与 `limit_reached`；冻结的 R0a operations 面没有 `supersede_reason`，因此界面不再把 `logical_key` 的 `#n` 误当主动预算。运行步骤同时显示服务端累计取代数与主动 `n/5`，只有 `waiting(input)` 且服务端 `limit_reached=true` 才显示“重新预览／结束本 Run”，没有重试或跳过入口；普通审批等待与被动取代不会误触。真库覆盖混合被动/主动序列、第五次上限与外主体不可读，HTTP 覆盖文档、匿名/畸形/外主体拒绝，组件与浏览器覆盖显示和两个真实出口，EV71 已覆盖。
+
 ### 5.4 本机模型服务身份（DD:266-276 存活，E6 甲纳入）
 
 Windows loopback 端口整机共享，另一已登录用户或低权限服务可抢先监听 `127.0.0.1:<port>` 冒充模型端点（DD:268）。常见本机模型服务（Ollama/LM Studio/llama.cpp server）默认无 TLS、不能改命名管道，故身份校验放在**监听进程**上：

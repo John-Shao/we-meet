@@ -1,6 +1,6 @@
 // The R0b browser-consumer contract gate.
 //
-// work-r0b-browser-openapi.yaml is the authority for the four /work/v2 faces the Web app
+// work-r0b-browser-openapi.yaml is the authority for the /work/v2 faces the Web app
 // consumes. This gate keeps it honest in both directions: the committed runtime is what the
 // contract renders today, every declared operation is a route the Go router actually
 // registers, the frozen surface stays exactly the browser faces (a Bearer-plane face must
@@ -28,11 +28,12 @@ const FRONT = join(
   'api'
 )
 
-// The four consumers, one operation per face (local-policy has GET and PATCH). A new
+// The browser consumers, one operation per face (local-policy has GET and PATCH). A new
 // browser face has to be added here on purpose, together with its contract entry.
 const BROWSER_SURFACE = [
   'GET /work/v2/runs/{runId}/reconciliations',
   'GET /work/v2/runs/{runId}/history-handback',
+  'GET /work/v2/runs/{runId}/supersede-budgets',
   'GET /work/v2/admin/local-policy',
   'PATCH /work/v2/admin/local-policy',
   'GET /work/v2/readonly-grants',

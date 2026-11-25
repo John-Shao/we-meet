@@ -4,7 +4,7 @@ info:
   version: 0.1.0
   description: |
     R0b 浏览器消费面的冻结契约：只含 Web 应用经 HttpOnly cookie 会话调用的
-    /work/v2 面 —— reconciliations、history-handback、admin/local-policy、
+    /work/v2 面 —— reconciliations、supersede-budgets、history-handback、admin/local-policy、
     readonly-grants（列表与撤销）。
 
     Bearer 平面的设备、审批、工作区与本地保存面不在本契约内：它们由桌面壳
@@ -12,7 +12,7 @@ info:
     变更请求另带 X-CSRF-Token（double-submit）；正文只经受控内容面返回，
     事件、错误与日志不含正文。
 
-    本文件是这四个消费面的路径/方法/参数/CSRF 权威：手写客户端与生成客户端
+    本文件是这些浏览器消费面的路径/方法/参数/CSRF 权威：手写客户端与生成客户端
     都从它派生，r0b-browser-contract.test.mjs 把每一条核到 Go 路由注册上。
 servers:
   - url: /
@@ -56,6 +56,23 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/HistoryHandback" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /work/v2/runs/{runId}/supersede-budgets:
+    get:
+      tags: [Runs]
+      operationId: getRunSupersedeBudgets
+      summary: Run 各步骤的权威主动取代预算与第五次上限事实
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "200":
+          description: 只含步骤键、总取代序号与主动预算；被动取代不消耗主动预算
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunSupersedeBudgets" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
   /work/v2/admin/local-policy:
@@ -223,6 +240,29 @@ components:
               contact_path:
                 type: string
                 enum: [wait_for_reconciliation, wait_for_late_evidence, operator_ticket]
+
+    RunSupersedeBudgets:
+      type: object
+      description: 0072 的服务端派生投影；active 预算只计 workspace_rebound 与 tool_params_changed。
+      required: [run_id, steps]
+      properties:
+        run_id: { type: string, format: uuid }
+        steps:
+          type: array
+          items:
+            type: object
+            required:
+              - step_key
+              - supersede_no
+              - active_supersede_count
+              - active_supersede_limit
+              - limit_reached
+            properties:
+              step_key: { type: string }
+              supersede_no: { type: integer, minimum: 0 }
+              active_supersede_count: { type: integer, minimum: 0, maximum: 5 }
+              active_supersede_limit: { type: integer, const: 5 }
+              limit_reached: { type: boolean }
 
     HistoryHandback:
       type: object

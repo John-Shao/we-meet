@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 71,
-  "chainTipCatalog": "catalogs/0071_supersede_limit_waiting_input.json",
+  "chainTip": 72,
+  "chainTipCatalog": "catalogs/0072_run_supersede_budgets.json",
   "entries": [
     {
       "name": "GET /work/v2/admin/local-policy",
@@ -68,6 +68,15 @@
     },
     {
       "name": "GET /work/v2/runs/{runId}/reconciliations",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "GET /work/v2/runs/{runId}/supersede-budgets",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",
       "callableBy": [
@@ -501,7 +510,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0071_supersede_limit_waiting_input.json",
+      "origin": "src/work/migrations/catalogs/0072_run_supersede_budgets.json",
       "callableBy": [
         "work_api",
         "work_governance_events"
@@ -782,6 +791,15 @@
       "name": "run_history_handback",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0062_run_history_handback.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "run_supersede_budgets",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0072_run_supersede_budgets.sql",
       "callableBy": [
         "work_api"
       ],

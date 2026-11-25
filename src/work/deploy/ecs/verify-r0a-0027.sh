@@ -106,7 +106,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (68, '0068_governance_cursor_getter'),
   (69, '0069_atomic_run_binding_activation'),
   (70, '0070_independent_model_result_reconciliation'),
-  (71, '0071_supersede_limit_waiting_input')) expected(version, name)
+  (71, '0071_supersede_limit_waiting_input'),
+  (72, '0072_run_supersede_budgets')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -1321,6 +1322,22 @@ psql_ro "select 'supersede_limit_waiting_input=' || case when (
     'work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure)) > 0
   and position('''error'', ''supersede_limit_exceeded''' in pg_get_functiondef(
     'work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure)) > 0
+  then 'true' else 'FALSE' end"
+
+# 0072 keeps the UI's n/5 budget on the same active-bucket predicate as prepare. The
+# frozen R0a operation list has no supersede_reason, so its #n suffix cannot be reused.
+psql_ro "select 'run_supersede_budgets=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work' and p.proname = 'run_supersede_budgets'
+    and p.prosecdef and p.proconfig @> ARRAY['search_path=work, pg_catalog']) = 1
+  and has_function_privilege('work_api',
+        'work.run_supersede_budgets(text,uuid,text)', 'EXECUTE')
+  and position('''workspace_rebound'', ''tool_params_changed''' in pg_get_functiondef(
+    'work.run_supersede_budgets(text,uuid,text)'::regprocedure)) > 0
+  and position('''active_supersede_limit'', 5' in pg_get_functiondef(
+    'work.run_supersede_budgets(text,uuid,text)'::regprocedure)) > 0
+  and position('budgets.active_supersede_count >= 5' in pg_get_functiondef(
+    'work.run_supersede_budgets(text,uuid,text)'::regprocedure)) > 0
   then 'true' else 'FALSE' end"
 
 # The permit document is durable evidence on the dispatch row, not a second single-use

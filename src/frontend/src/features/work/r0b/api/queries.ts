@@ -5,6 +5,7 @@ import {
   fetchWorkReadonlyGrants,
   fetchWorkRunHistoryHandback,
   fetchWorkRunReconciliations,
+  fetchWorkRunSupersedeBudgets,
   revokeWorkReadonlyGrant,
   setWorkLocalPolicy,
 } from './client'
@@ -14,6 +15,8 @@ const r0bKeys = {
     ['work', 'r0b', 'reconciliations', runId] as const,
   handback: (runId: string) =>
     ['work', 'r0b', 'history-handback', runId] as const,
+  supersedeBudgets: (runId: string) =>
+    ['work', 'r0b', 'supersede-budgets', runId] as const,
   localPolicy: ['work', 'r0b', 'local-policy'] as const,
   readonlyGrants: (runId: string) =>
     ['work', 'r0b', 'readonly-grants', runId] as const,
@@ -31,6 +34,18 @@ export const useWorkRunReconciliations = (
   useQuery({
     queryKey: r0bKeys.reconciliations(runId ?? ''),
     queryFn: () => fetchWorkRunReconciliations(runId!),
+    enabled: enabled && !!runId,
+    staleTime: 10_000,
+    retry: false,
+  })
+
+export const useWorkRunSupersedeBudgets = (
+  runId: string | undefined,
+  enabled: boolean
+) =>
+  useQuery({
+    queryKey: r0bKeys.supersedeBudgets(runId ?? ''),
+    queryFn: () => fetchWorkRunSupersedeBudgets(runId!),
     enabled: enabled && !!runId,
     staleTime: 10_000,
     retry: false,

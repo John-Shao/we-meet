@@ -42,6 +42,7 @@ const IMPLEMENTED_ONLY = [
   // under /work/v2 like the face beside it, and it deliberately does NOT add a key to the Run
   // schema closed above: §4.2 forbids inventing a run state for a hand-back.
   'GET /work/v2/runs/{runId}/history-handback',
+  'GET /work/v2/runs/{runId}/supersede-budgets',
   // R0b M1b device-identity face (control-design §1.4 rows 60-63): the Bearer-plane
   // pairing, session-ticket, certificate-renewal, list and revoke routes backed by
   // the 0040 domain commands.

@@ -154,10 +154,8 @@
       "id": "EV71",
       "gate": "I2",
       "requirement": "动作取代的 assertion 闭集、并发单赢家、同 step_key 单未终态、5/6 次主动与被动预算、waiting(input) 和 UI 计数一致。",
-      "status": "partial",
-      "gaps": [
-        "服务端并发单赢家、两桶预算、workspace_rebound 误标、changed_fields 闭集与第六次 waiting(input) 已覆盖；界面 n/5 计数与第六次“重新预览或结束 Run”出口尚未实现/取证。"
-      ],
+      "status": "covered",
+      "gaps": [],
       "evidence": [
         { "path": "src/work/internal/migrate/r0b_transition_test.go", "test": "TestR0bSupersedeShapeAndOneOpenStep" },
         { "path": "src/work/internal/gateway/action_uplink_test.go", "test": "a supersede without its assertion is refused" },
@@ -170,7 +168,14 @@
         { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bSupersedeNeverConsumesReadonlyAutoApproval" },
         { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bDispatchingSupersedeIsRefusedBeforeTheUniqueIndex" },
         { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bConcurrentSupersedeHasExactlyOneWinner" },
-        { "path": "src/work/internal/gateway/action_uplink_test.go", "test": "TestActionPrepareSixthActiveSupersedeParksRunForInput" }
+        { "path": "src/work/internal/gateway/action_uplink_test.go", "test": "TestActionPrepareSixthActiveSupersedeParksRunForInput" },
+        { "path": "src/work/internal/migrate/r0b_supersede_budgets_test.go", "test": "TestR0bSupersedeBudgetsSeparateTotalSequenceFromActiveBudget" },
+        { "path": "src/work/internal/migrate/r0b_supersede_budgets_test.go", "test": "TestR0bSupersedeBudgetsHideAnotherOwnersRun" },
+        { "path": "src/work/internal/api/run_supersede_budgets_pg_test.go", "test": "TestRunSupersedeBudgetsReadFace" },
+        { "path": "src/frontend/src/features/work/r0a/components/RunOperations.test.tsx", "test": "shows the authoritative active budget for each step" },
+        { "path": "src/frontend/src/features/work/r0a/components/RunOperations.test.tsx", "test": "offers only re-preview and end Run after the sixth active supersede" },
+        { "path": "src/frontend/src/features/work/r0a/components/RunOperations.test.tsx", "test": "does not mistake passive replacements for the active limit" },
+        { "path": "src/frontend/e2e/work-r0a-consistency.spec.ts", "test": "mocked sixth supersede: shows n/5 and only real re-preview or end Run exits" }
       ]
     },
     {

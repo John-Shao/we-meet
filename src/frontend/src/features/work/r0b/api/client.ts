@@ -6,6 +6,7 @@ import {
 } from './generated/r0b-client.mjs'
 import type {
   RunReconciliations,
+  RunSupersedeBudgets,
   WorkLocalPolicy,
   WorkLocalPolicyWrite,
   WorkReadonlyGrantList,
@@ -14,7 +15,7 @@ import type {
 } from './types'
 
 /**
- * The call layer is generated from work-r0b-browser-openapi.yaml (the four browser
+ * The call layer is generated from work-r0b-browser-openapi.yaml (the browser
  * consumers of the /work/v2 surface). Paths, methods, parameters, CSRF requirements and
  * success statuses all come from the contract, and `npm run check:work-r0b-api` (wired
  * into `npm test`) fails if the committed artifacts drift. This file keeps only the
@@ -69,6 +70,9 @@ export const fetchWorkRunHistoryHandback = async (
   )
   return document.history_handback === true
 }
+
+export const fetchWorkRunSupersedeBudgets = (runId: string) =>
+  unwrap<RunSupersedeBudgets>(api().getRunSupersedeBudgets({ path: { runId } }))
 
 export const fetchWorkLocalPolicy = () =>
   unwrap<WorkLocalPolicy>(api().getAdminLocalPolicy())

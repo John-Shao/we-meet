@@ -225,6 +225,9 @@ const mockBackend = async (page: Page) => {
     if (path.endsWith('/readonly-grants')) {
       return fulfill(route, { grants: [] })
     }
+    if (path.endsWith('/supersede-budgets')) {
+      return fulfill(route, { run_id: 'browser-run', steps: [] })
+    }
     return fulfill(route, { code: 'unmocked_endpoint' }, 404)
   })
   return errors
@@ -292,6 +295,96 @@ test('mocked golden path: preview, submit, gap event, artifact, acceptance', asy
   expect(cursors).toEqual(['snapshot-before-stream'])
   await page.getByRole('button', { name: '确认采纳', exact: true }).click()
   await expect(page.getByText('已完成', { exact: true })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test('mocked sixth supersede: shows n/5 and only real re-preview or end Run exits', async ({
+  page,
+}) => {
+  const errors = await mockBackend(page)
+  const task = snapshot('supersede-limit')
+  task.summary.latest_run_id = 'browser-run'
+  task.summary.latest_run = {
+    id: 'browser-run',
+    task_id: 'browser-task',
+    attempt_no: 1,
+    state: 'waiting',
+    wait_reason: 'input',
+    terminal_reason: null,
+    control_revision: 12,
+    runtime_version: 'fixture',
+    created_at: '2026-10-31T00:00:00Z',
+    updated_at: '2026-10-31T00:00:10Z',
+  }
+  await page.route('**/work/v1/tasks/browser-task', (route) =>
+    fulfill(route, task)
+  )
+  await page.route('**/work/v1/tasks/browser-task/events', (route) =>
+    route.fulfill({ contentType: 'text/event-stream', body: '' })
+  )
+  await page.route('**/work/v1/runs/browser-run/operations**', (route) =>
+    fulfill(route, {
+      items: [
+        {
+          id: 'browser-operation-limit',
+          run_id: 'browser-run',
+          logical_key: 'tool:1#5',
+          kind: 'model',
+          state: 'waiting_approval',
+          request_hash: 'sha256:browser-limit',
+          provider_request_id: null,
+          receipt_ref: null,
+          revision: 5,
+          created_at: '2026-10-31T00:00:00Z',
+          updated_at: '2026-10-31T00:00:10Z',
+        },
+      ],
+      next_cursor: null,
+    })
+  )
+  let activeSupersedeCount = 2
+  await page.route('**/work/v2/runs/browser-run/supersede-budgets**', (route) =>
+    fulfill(route, {
+      run_id: 'browser-run',
+      steps: [
+        {
+          step_key: 'tool:1',
+          supersede_no: 5,
+          active_supersede_count: activeSupersedeCount,
+          active_supersede_limit: 5,
+          limit_reached: activeSupersedeCount >= 5,
+        },
+      ],
+    })
+  )
+  let canceled = false
+  await page.route('**/work/v1/runs/browser-run/cancel', (route) => {
+    canceled = route.request().method() === 'POST'
+    return fulfill(route, { state: 'cancel_requested' })
+  })
+  await page.goto('/work/items/browser-task')
+  await expect(page.getByText('累计取代 5 次', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText('本步骤主动取代 2/5 次', { exact: true })
+  ).toBeVisible()
+  await expect(
+    page.getByText('继续需重新预览，或结束本 Run', { exact: true })
+  ).toBeHidden()
+
+  activeSupersedeCount = 5
+  await page.reload()
+  await expect(
+    page.getByText('本步骤主动取代 5/5 次', { exact: true })
+  ).toBeVisible()
+  await expect(
+    page.getByText('继续需重新预览，或结束本 Run', { exact: true })
+  ).toBeVisible()
+  await expect(page.getByRole('link', { name: '重新预览' })).toHaveAttribute(
+    'href',
+    '/work'
+  )
+  await page.getByRole('button', { name: '结束本 Run', exact: true }).click()
+  await expect.poll(() => canceled).toBe(true)
   expect(errors).toEqual([])
 })
 

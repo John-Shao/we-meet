@@ -84,6 +84,7 @@ var publishedIncrements = []string{
 	"0069_atomic_run_binding_activation",
 	"0070_independent_model_result_reconciliation",
 	"0071_supersede_limit_waiting_input",
+	"0072_run_supersede_budgets",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

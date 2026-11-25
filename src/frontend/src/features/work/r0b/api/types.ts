@@ -21,6 +21,19 @@ export interface RunReconciliationItem {
   contact_path: ReconciliationContactPath
 }
 
+export interface RunSupersedeBudget {
+  step_key: string
+  supersede_no: number
+  active_supersede_count: number
+  active_supersede_limit: number
+  limit_reached: boolean
+}
+
+export interface RunSupersedeBudgets {
+  run_id: string
+  steps: RunSupersedeBudget[]
+}
+
 export interface RunReconciliations {
   org_id: string
   run_id: string

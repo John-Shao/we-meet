@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { WorkOperation } from '../api/types'
@@ -12,6 +12,13 @@ const state = vi.hoisted(() => ({
   isFetchingNextPage: false,
   isFetchNextPageError: false,
   fetchNextPage: vi.fn(),
+  budgets: [] as {
+    step_key: string
+    supersede_no: number
+    active_supersede_count: number
+    active_supersede_limit: number
+    limit_reached: boolean
+  }[],
 }))
 
 vi.mock('react-i18next', () => ({
@@ -34,6 +41,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('../api/queries', () => ({
+  useWorkBootstrap: () => ({ data: { phases: ['R0b'] } }),
   useWorkRunOperations: () => ({
     data: state.pages.length > 0 ? { pages: state.pages } : undefined,
     isLoading: state.isLoading,
@@ -42,6 +50,15 @@ vi.mock('../api/queries', () => ({
     isFetchingNextPage: state.isFetchingNextPage,
     isFetchNextPageError: state.isFetchNextPageError,
     fetchNextPage: state.fetchNextPage,
+  }),
+}))
+
+vi.mock('../../r0b/api/queries', () => ({
+  useWorkRunSupersedeBudgets: () => ({
+    data:
+      state.budgets.length > 0
+        ? { run_id: 'run-1', steps: state.budgets }
+        : undefined,
   }),
 }))
 
@@ -60,7 +77,13 @@ const operation = (over: Partial<WorkOperation>): WorkOperation => ({
   ...over,
 })
 
-const withRun = () => render(<RunOperations runId="run-1" />)
+const withRun = (
+  props: {
+    runState?: string
+    waitReason?: string | null
+    onEndRun?: () => void
+  } = {}
+) => render(<RunOperations runId="run-1" {...props} />)
 
 beforeEach(() => {
   state.isLoading = false
@@ -69,6 +92,7 @@ beforeEach(() => {
   state.isFetchingNextPage = false
   state.isFetchNextPageError = false
   state.fetchNextPage = vi.fn()
+  state.budgets = []
   state.pages = [
     {
       items: [
@@ -146,6 +170,114 @@ describe('RunOperations', () => {
     // Nothing to fold, so the disclosure is not rendered at all instead of an
     // empty "Tool steps (0)".
     expect(screen.queryByText(/task\.operations\.toolSteps/)).toBeNull()
+  })
+
+  it('shows the authoritative active budget for each step', () => {
+    state.budgets = [
+      {
+        step_key: 'tool:1',
+        supersede_no: 5,
+        active_supersede_count: 3,
+        active_supersede_limit: 5,
+        limit_reached: false,
+      },
+    ]
+    state.pages = [
+      {
+        items: [
+          operation({ id: 'op-a', logical_key: 'tool:1#5' }),
+          operation({ id: 'op-b', logical_key: 'tool:2#0' }),
+        ],
+        next_cursor: null,
+      },
+    ]
+    withRun()
+    expect(
+      screen.getByText('task.operations.supersedeTotal:{"count":5}')
+    ).toBeTruthy()
+    expect(
+      screen.getByText('task.operations.supersedeCount:{"count":3,"limit":5}')
+    ).toBeTruthy()
+    expect(
+      screen.queryByText('task.operations.supersedeCount:{"count":0,"limit":5}')
+    ).toBeNull()
+  })
+
+  it('offers only re-preview and end Run after the sixth active supersede', () => {
+    state.budgets = [
+      {
+        step_key: 'tool:1',
+        supersede_no: 5,
+        active_supersede_count: 5,
+        active_supersede_limit: 5,
+        limit_reached: true,
+      },
+    ]
+    state.pages = [
+      {
+        items: [operation({ id: 'op-limit', logical_key: 'tool:1#5' })],
+        next_cursor: null,
+      },
+    ]
+    const onEndRun = vi.fn()
+    withRun({ runState: 'waiting', waitReason: 'input', onEndRun })
+    expect(screen.getByRole('alert')).toBeTruthy()
+    expect(screen.getByText('task.operations.supersedeLimit')).toBeTruthy()
+    expect(
+      screen.getByRole('link', { name: 'task.operations.repreview' })
+    ).toBeTruthy()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'task.operations.endRun' })
+    )
+    expect(onEndRun).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('retry')).toBeNull()
+    expect(screen.queryByText('skip')).toBeNull()
+  })
+
+  it('does not show the sixth-step exit for an ordinary approval wait', () => {
+    state.budgets = [
+      {
+        step_key: 'tool:1',
+        supersede_no: 5,
+        active_supersede_count: 5,
+        active_supersede_limit: 5,
+        limit_reached: true,
+      },
+    ]
+    state.pages = [
+      {
+        items: [operation({ id: 'op-limit', logical_key: 'tool:1#5' })],
+        next_cursor: null,
+      },
+    ]
+    withRun({ runState: 'waiting', waitReason: 'approval' })
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('does not mistake passive replacements for the active limit', () => {
+    state.budgets = [
+      {
+        step_key: 'tool:1',
+        supersede_no: 5,
+        active_supersede_count: 2,
+        active_supersede_limit: 5,
+        limit_reached: false,
+      },
+    ]
+    state.pages = [
+      {
+        items: [operation({ id: 'op-passive', logical_key: 'tool:1#5' })],
+        next_cursor: null,
+      },
+    ]
+    withRun({ runState: 'waiting', waitReason: 'input' })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(
+      screen.getByText('task.operations.supersedeTotal:{"count":5}')
+    ).toBeTruthy()
+    expect(
+      screen.getByText('task.operations.supersedeCount:{"count":2,"limit":5}')
+    ).toBeTruthy()
   })
 
   // The enum must never reach the screen: this is the same leak that was fixed
