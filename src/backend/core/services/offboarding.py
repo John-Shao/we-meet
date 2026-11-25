@@ -131,7 +131,7 @@ def collect_owned_resources(membership) -> dict:
 
 
 @transaction.atomic
-def offboard_membership(  # noqa: PLR0913 -- explicit offboarding options.
+def offboard_membership(  # noqa: PLR0913 -- explicit offboarding options.  # pylint: disable=too-many-arguments
     membership,
     *,
     actor,
@@ -205,7 +205,7 @@ def offboard_membership(  # noqa: PLR0913 -- explicit offboarding options.
     # Must clear: the partial unique constraint on (user, organization) where
     # is_primary would otherwise block this person being rehired later.
     membership.is_primary = False
-    from core.services.membership import (  # noqa: PLC0415 -- avoid import cycle
+    from core.services.membership import (  # noqa: PLC0415 -- avoid import cycle  # pylint: disable=import-outside-toplevel
         left_transition,
     )
 
@@ -302,7 +302,7 @@ def _schedule_login_disable(user, organization, actor):
         disable_keycloak_login.delay(
             str(user.id), str(organization.id), str(actor.id) if actor else None
         )
-    except Exception:  # pragma: no cover - dispatch failure must not surface
+    except Exception:  # pragma: no cover - dispatch failure must not surface  # pylint: disable=broad-exception-caught
         logger.exception("Failed to schedule Keycloak disable for user %s", user.id)
 
 

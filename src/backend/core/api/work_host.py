@@ -208,7 +208,7 @@ class WorkHostBearerVerifyView(View):
     hash. Work neither parses the token nor caches the claims.
     """
 
-    def post(self, request):  # noqa: PLR0911 -- each auth failure has a distinct wire code
+    def post(self, request):  # noqa: PLR0911  # pylint: disable=too-many-return-statements
         """Return the verified Bearer identity or a fail-closed error."""
         # Workload identity first, exactly like the cookie port: a caller that is
         # not the Work control plane is refused before any user credential reads.
@@ -431,7 +431,10 @@ def _governance_cursor(request):
 @method_decorator(never_cache, name="dispatch")
 @method_decorator(require_GET, name="dispatch")
 class WorkHostGovernanceEventsView(View):
+    """Read one organization's immutable governance event page."""
+
     def get(self, request):
+        """Return events and any first gap from a consistent Host snapshot."""
         try:
             org_id = uuid.UUID(request.GET.get("org_id", ""))
         except (ValueError, TypeError):

@@ -18,7 +18,7 @@ PAYLOAD_HASH_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 class GovernanceConflict(serializers.ValidationError):
-    pass
+    """A command id was reused with a different payload."""
 
 
 def _actor_subject(actor):
@@ -27,7 +27,7 @@ def _actor_subject(actor):
     return (getattr(actor, "sub", "") or "").strip()
 
 
-def _computed_payload_hash(  # noqa: PLR0913 -- explicit command binding fields
+def _computed_payload_hash(  # noqa: PLR0913 -- explicit command binding fields  # pylint: disable=too-many-arguments
     *,
     organization_id,
     subject_id,
@@ -50,7 +50,7 @@ def _computed_payload_hash(  # noqa: PLR0913 -- explicit command binding fields
     return "sha256:" + hashlib.sha256(encoded).hexdigest()
 
 
-def change_seat(  # noqa: PLR0912, PLR0913 -- explicit command/CAS branches
+def change_seat(  # noqa: PLR0912, PLR0913 -- explicit command/CAS branches  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches
     membership,
     *,
     desired,
@@ -60,6 +60,7 @@ def change_seat(  # noqa: PLR0912, PLR0913 -- explicit command/CAS branches
     expected_member_revision=None,
     reason_code="",
 ):
+    """Apply one seat command and append its immutable governance event."""
     if not isinstance(desired, bool):
         raise serializers.ValidationError({"desired": _("Must be a boolean.")})
     command_id = command_id or uuid.uuid4()

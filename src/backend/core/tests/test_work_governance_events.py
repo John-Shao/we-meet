@@ -139,6 +139,7 @@ def test_seat_change_rolls_back_when_audit_write_fails():
     assert not models.WorkGovernanceSequence.objects.exists()
 
 
+@override_settings(OIDC_OP_JWKS_ENDPOINT="https://idp.example.test/jwks")
 def test_membership_api_seat_patch_produces_event():
     organization = factories.OrganizationFactory()
     client, _actor = _admin_client(organization)
