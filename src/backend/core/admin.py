@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from core.recording.event import notification
+from core.services import work_governance
 from core.services.org_dictionary import ensure_builtin_dict_items
 from core.services.org_roles import ensure_builtin_roles
 
@@ -885,6 +886,29 @@ class MembershipAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+    def save_model(self, request, obj, form, change):
+        requested_seat = obj.work_seat
+        with transaction.atomic():
+            models.Organization.objects.select_for_update().get(pk=obj.organization_id)
+            previous = (
+                models.Membership.objects.select_for_update().filter(pk=obj.pk).first()
+                if change
+                else None
+            )
+            seat_changed = (
+                previous.work_seat != requested_seat
+                if previous is not None
+                else requested_seat
+            )
+            if previous is not None and seat_changed:
+                obj.work_seat = previous.work_seat
+            super().save_model(request, obj, form, change)
+            if seat_changed:
+                work_governance.change_seat(
+                    obj, desired=requested_seat, actor=request.user
+                )
+                obj.refresh_from_db()
 
     def get_changeform_initial_data(self, request):
         # Single-org MVP: prefill the only organization to cut friction.

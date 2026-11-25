@@ -7090,6 +7090,95 @@ class Membership(BaseModel):
         }
 
 
+class WorkGovernanceSequence(models.Model):
+    organization = models.OneToOneField(
+        Organization, on_delete=models.CASCADE, primary_key=True
+    )
+    last_event_seq = models.PositiveBigIntegerField(default=0)
+
+    class Meta:
+        db_table = "meet_work_governance_sequence"
+
+    def __str__(self):
+        return f"{self.organization_id}:{self.last_event_seq}"
+
+
+class WorkGovernanceEventKindChoices(models.TextChoices):
+    SEAT = "seat", _("Seat")
+    ASSIGNMENT = "assignment", _("Assignment")
+    ENTITLEMENT = "entitlement", _("Entitlement")
+
+
+class WorkGovernanceEvent(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization, on_delete=models.PROTECT, related_name="work_governance_events"
+    )
+    event_seq = models.PositiveBigIntegerField()
+    command_id = models.UUIDField()
+    kind = models.CharField(
+        max_length=16, choices=WorkGovernanceEventKindChoices.choices
+    )
+    target_subject_id = models.CharField(max_length=128, blank=True, default="")
+    desired = models.BooleanField(null=True, blank=True)
+    payload_hash = models.CharField(max_length=71)
+    member_revision = models.PositiveBigIntegerField(null=True, blank=True)
+    org_revision = models.PositiveBigIntegerField(null=True, blank=True)
+    permissions_revision = models.PositiveBigIntegerField(null=True, blank=True)
+    applied_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "meet_work_governance_event"
+        ordering = ("event_seq",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "event_seq"],
+                name="work_governance_event_org_seq",
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "command_id"],
+                name="work_governance_event_org_command",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(payload_hash__regex=r"^sha256:[0-9a-f]{64}$"),
+                name="work_governance_event_payload_hash",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(desired__isnull=False),
+                name="work_governance_event_desired",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(kind=WorkGovernanceEventKindChoices.SEAT)
+                | (
+                    ~models.Q(target_subject_id="")
+                    & models.Q(desired__isnull=False)
+                    & models.Q(member_revision__isnull=False)
+                ),
+                name="work_governance_event_seat_shape",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(kind=WorkGovernanceEventKindChoices.ASSIGNMENT)
+                | (
+                    ~models.Q(target_subject_id="")
+                    & models.Q(permissions_revision__isnull=False)
+                ),
+                name="work_governance_event_assignment_shape",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(kind=WorkGovernanceEventKindChoices.ENTITLEMENT)
+                | (
+                    models.Q(target_subject_id="")
+                    & models.Q(org_revision__isnull=False)
+                ),
+                name="work_governance_event_entitlement_shape",
+            ),
+        ]
+        indexes = [models.Index(fields=["organization", "applied_at"])]
+
+    def __str__(self):
+        return f"{self.organization_id}:{self.event_seq} {self.kind}"
+
+
 class UserGroup(BaseModel):
     """A named set of people that can be granted access as a unit (P10 M2).
 

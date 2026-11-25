@@ -23,6 +23,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from core import models
+from core.services import work_governance
 from core.services.audit import record_audit
 from core.services.membership import lock_organization
 from core.services.task_permissions import annotate_task_list_owners
@@ -210,6 +211,30 @@ def offboard_membership(  # noqa: PLR0913 -- explicit offboarding options.
 
     with left_transition():
         membership.save()
+
+    remaining = (
+        models.Membership.objects.filter(organization=organization, user=user)
+        .exclude(pk=membership.pk)
+        .exclude(status=LEFT)
+        .exists()
+    )
+    if (
+        not remaining
+        and models.Membership.objects.filter(
+            organization=organization, user=user, work_seat=True
+        ).exists()
+    ):
+        if work_governance.SUBJECT_PATTERN.fullmatch((user.sub or "").strip()):
+            work_governance.change_seat(
+                membership,
+                desired=False,
+                actor=actor,
+                reason_code="member_left",
+            )
+        else:
+            work_governance.revoke_seat_without_subject(
+                membership, actor=actor, reason_code="member_left"
+            )
 
     # Callers keep the instance they passed in; leave it in sync with the
     # locked row this function actually wrote.

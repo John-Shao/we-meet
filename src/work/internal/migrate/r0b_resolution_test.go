@@ -36,6 +36,28 @@ func localUnknownOperation(t *testing.T, dbName, org string, admin *pgx.Conn) (s
 	return run.runID, run.opID
 }
 
+func localUnknownOperationWithReservation(t *testing.T, dbName, org string, admin *pgx.Conn) (string, string, string) {
+	t.Helper()
+	run := seedRun(t, admin, org)
+	r0bAdmin(t, admin, org)
+	var reservationID string
+	if err := admin.QueryRow(testContext(t),
+		`SELECT work.reserve_quota($1, 'default', to_char(now(), 'YYYY-MM'), $2, 1000)::text`,
+		org, run.opID).Scan(&reservationID); err != nil {
+		t.Fatalf("reserve_quota: %v", err)
+	}
+	r0bExec(t, dbName, org, fmt.Sprintf(`
+		UPDATE work.quota_reservation SET state = 'unknown' WHERE id = '%s';
+		UPDATE work.operation
+		SET step_key = 'tool:1', supersede_no = 0, logical_key = 'tool:1#0',
+		    kind = 'tool', state = 'dispatching'
+		WHERE id = '%s';
+		UPDATE work.operation SET state = 'unknown' WHERE id = '%s';
+		UPDATE work.run SET state = 'waiting', wait_reason = 'reconcile' WHERE id = '%s';
+	`, reservationID, run.opID, run.opID, run.runID))
+	return run.runID, run.opID, reservationID
+}
+
 // issueResolutionSigned issues one verdict with the signature the caller supplies,
 // and returns the error rather than failing: replay and conflict cases are the point
 // of several tests below, and a signature is opaque to the database, so "the same
@@ -74,6 +96,29 @@ func issueResolution(t *testing.T, admin *pgx.Conn, org, operationID, state stri
 		t.Fatal(err)
 	}
 	return out
+}
+
+func retryTask(t *testing.T, admin *pgx.Conn, org, runID, requestID, workflow string) (string, int64) {
+	t.Helper()
+	taskID := scalarString(t, admin, `SELECT task_id::text FROM work.run WHERE id = $1`, runID)
+	revision := scalarCount(t, admin, `SELECT revision FROM work.task WHERE id = $1`, taskID)
+	var newRunID string
+	var newRevision int64
+	if err := admin.QueryRow(testContext(t),
+		`SELECT * FROM work.retry_task($1, $2::uuid, $3, $4, $5, $6, $7)`,
+		org, taskID, r0bAdminSubject(org), requestID, revision, workflow, "pi-1").Scan(&newRunID, &newRevision); err != nil {
+		t.Fatalf("retry_task: %v", err)
+	}
+	return newRunID, newRevision
+}
+
+func acceptTaskWithReason(t *testing.T, admin *pgx.Conn, org, runID, requestID string, revision int64) error {
+	t.Helper()
+	taskID := scalarString(t, admin, `SELECT task_id::text FROM work.run WHERE id = $1`, runID)
+	_, err := admin.Exec(testContext(t),
+		`SELECT work.accept_task($1, $2::uuid, $3, $4, $5, NULL, NULL, 'accepted as-is')`,
+		org, taskID, r0bAdminSubject(org), requestID, revision)
+	return err
 }
 
 // i4Facts attests the one §4.2 precondition the server still cannot read: the journal
@@ -126,8 +171,10 @@ func degradationServerFacts(t *testing.T, dbName, org, runID string) {
 func TestR0bReadonlyDegradationReconcilesAndKeepsTheReservation(t *testing.T) {
 	dbName, admin := newGateDB(t)
 	org := "org_r0b_resolution_ro"
-	runID, opID := localUnknownOperation(t, dbName, org, admin)
+	runID, opID, reservationID := localUnknownOperationWithReservation(t, dbName, org, admin)
 	degradationServerFacts(t, dbName, org, runID)
+	controlRevisionBefore := scalarCount(t, admin, `SELECT control_revision FROM work.run WHERE id = $1`, runID)
+	fenceBefore := scalarCount(t, admin, `SELECT fence FROM work.run WHERE id = $1`, runID)
 
 	// An unattested read-only verdict is refused: §4.2's preconditions (3) and (4) are
 	// server facts whose tables arrive with I4, and "the caller did not mention them"
@@ -140,7 +187,15 @@ func TestR0bReadonlyDegradationReconcilesAndKeepsTheReservation(t *testing.T) {
 	}
 
 	result := issueResolution(t, admin, org, opID, "failed", "evidence_unavailable", nil,
-		i4Facts(map[string]any{"checked": "no receipt, no provider request id, no gate fact"}))
+		i4Facts(map[string]any{
+			"checked": "no receipt, no provider request id, no gate fact",
+			"server_basis": map[string]any{"leases": []any{
+				map[string]any{"lease_id": "caller-forged"},
+			}},
+		}))
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.artifact_version WHERE org_id = $1`, org); got != 0 {
+		t.Fatalf("artifact versions after read-only degradation = %d, want 0", got)
+	}
 	if result["operation_state"] != "reconciled" {
 		t.Fatalf("operation state after degradation = %v", result["operation_state"])
 	}
@@ -158,11 +213,15 @@ func TestR0bReadonlyDegradationReconcilesAndKeepsTheReservation(t *testing.T) {
 		`SELECT state FROM work.operation WHERE id = $1`, opID); got != "reconciled" {
 		t.Fatalf("operation.state = %q, want reconciled", got)
 	}
-	// The reservation is neither released nor settled: no evidence is not proof of
-	// non-execution (invariant 2).
-	if got := scalarCount(t, admin, `SELECT count(*) FROM work.quota_reservation
-		WHERE org_id = $1 AND operation_id = $2 AND state = 'held'`, org, opID); got != 0 {
-		t.Fatalf("held reservations = %d, want none created by this path", got)
+	// No evidence is not proof of non-execution (invariant 2): the reservation state
+	// and its ledger remain untouched.
+	if got := scalarString(t, admin,
+		`SELECT state FROM work.quota_reservation WHERE id = $1`, reservationID); got != "unknown" {
+		t.Fatalf("reservation state after degradation = %q, want unknown", got)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.quota_entry
+		WHERE org_id = $1 AND operation_id = $2 AND kind IN ('release','settle')`, org, opID); got != 0 {
+		t.Fatalf("ledger entries after degradation = %d, want no release or settle", got)
 	}
 	if got := scalarString(t, admin,
 		`SELECT settlement_state FROM work.operation_resolution WHERE operation_id = $1`, opID); got != "unknown" {
@@ -176,6 +235,12 @@ func TestR0bReadonlyDegradationReconcilesAndKeepsTheReservation(t *testing.T) {
 	if run != "waiting/input" {
 		t.Fatalf("run state/wait_reason = %q, want waiting/input", run)
 	}
+	if got := scalarCount(t, admin, `SELECT control_revision FROM work.run WHERE id = $1`, runID); got != controlRevisionBefore+1 {
+		t.Fatalf("control_revision after degradation = %d, want %d", got, controlRevisionBefore+1)
+	}
+	if got := scalarCount(t, admin, `SELECT fence FROM work.run WHERE id = $1`, runID); got != fenceBefore {
+		t.Fatalf("fence after degradation = %d, want %d", got, fenceBefore)
+	}
 	if got := scalarCount(t, admin, `SELECT count(*) FROM work.task_event
 		WHERE org_id = $1 AND payload ->> 'operation_id' = $2
 		  AND type = 'operation.reconciled'`, org, opID); got != 1 {
@@ -183,23 +248,73 @@ func TestR0bReadonlyDegradationReconcilesAndKeepsTheReservation(t *testing.T) {
 	}
 	if got := scalarCount(t, admin, `SELECT count(*) FROM work.audit_event
 		WHERE org_id = $1 AND target_id = $2 AND action = 'operation.resolution_issued'
-		  AND metadata ->> 'code' = 'evidence_unavailable'`, org, opID); got != 1 {
-		t.Fatalf("resolution audit rows = %d, want 1", got)
+		  AND metadata ->> 'code' = 'evidence_unavailable'
+		  AND metadata -> 'evidence' ->> 'journal_unavailable' = 'true'
+		  AND metadata -> 'evidence' ->> 'checked' = 'no receipt, no provider request id, no gate fact'
+		  AND metadata -> 'evidence' -> 'server_basis' -> 'journal_attestation' ->> 'journal_unavailable' = 'true'
+		  AND metadata -> 'evidence' -> 'server_basis' -> 'journal_attestation' ->> 'provenance' = 'caller_attestation'
+		  AND metadata -> 'evidence' -> 'server_basis' -> 'leases' -> 0 ->> 'lease_id' = (
+		    SELECT id::text FROM work.execution_lease
+		    WHERE org_id = $1 AND run_id = $3 AND state = 'expired')
+		  AND (metadata -> 'evidence' -> 'server_basis' -> 'leases' -> 0 ->> 'expires_at')::timestamptz = (
+		    SELECT expires_at FROM work.execution_lease
+		    WHERE org_id = $1 AND run_id = $3 AND state = 'expired')
+		  AND metadata -> 'evidence' -> 'server_basis' ->> 'receipt_present' = 'false'
+		  AND metadata -> 'evidence' -> 'server_basis' ->> 'provider_request_present' = 'false'
+		  AND metadata -> 'evidence' -> 'server_basis' ->> 'usage_fact_count' = '0'
+		  AND metadata -> 'evidence' -> 'server_basis' ->> 'dispatch_gate_present' = 'false'
+		  AND metadata ->> 'settlement_state' = 'unknown'
+		  AND metadata ->> 'delivery_state' = 'not_applicable'`, org, opID, runID); got != 1 {
+		t.Fatalf("resolution audit rows with the decision basis = %d, want 1", got)
 	}
-	// A read-only degradation must not block adoption (§4.2: the block is the
-	// side-effect path only).
-	if _, err := admin.Exec(testContext(t), fmt.Sprintf(`
-		INSERT INTO work.acceptance (org_id, task_id, actor_subject_id, task_revision, completion_reason)
-		SELECT '%s', r.task_id, 'sub_operator', 1, 'accepted as-is'
-		FROM work.run r WHERE r.id = '%s'`, org, runID)); err != nil {
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.operation_resolution
+		WHERE org_id = $1 AND operation_id = $2
+		  AND evidence ->> 'operation_state_before' = 'unknown'
+		  AND evidence ->> 'operation_state_after' = 'reconciled'
+		  AND evidence -> 'server_basis' -> 'leases' -> 0 ->> 'lease_id' = (
+		    SELECT id::text FROM work.execution_lease
+		    WHERE org_id = $1 AND run_id = $3 AND state = 'expired')
+		  AND evidence -> 'server_basis' ->> 'dispatch_gate_present' = 'false'
+		  AND evidence -> 'reservations' -> 0 ->> 'state' = 'unknown'`, org, opID, runID); got != 1 {
+		t.Fatalf("resolution frames with state and reservation basis = %d, want 1", got)
+	}
+	if got := scalarString(t, admin,
+		`SELECT work.task_has_blocking_operation(r.task_id, $1)::text FROM work.run r WHERE r.id = $2`,
+		org, runID); got != "false" {
+		t.Fatalf("task_has_blocking_operation after read-only degradation = %s, want false", got)
+	}
+
+	// The old attempt must finish before R0a admits another Run, but the degradation
+	// itself must not leave an admission block behind.
+	r0bExec(t, dbName, org, fmt.Sprintf(`
+		UPDATE work.run SET state = 'cancel_requested' WHERE id = '%s';
+		UPDATE work.run SET state = 'canceled' WHERE id = '%s';
+	`, runID, runID))
+	mustExec(t, admin, "UPDATE work.task SET active_run_id = NULL WHERE id = "+
+		quoteLiteral(scalarString(t, admin, `SELECT task_id::text FROM work.run WHERE id = $1`, runID)))
+	newRunID, taskRevision := retryTask(t, admin, org, runID, "req-after-readonly", "run:after-readonly")
+	if got := scalarString(t, admin, `SELECT state FROM work.run WHERE id = $1`, newRunID); got != "queued" {
+		t.Fatalf("retry_task run state = %s, want queued", got)
+	}
+	r0bExec(t, dbName, org, fmt.Sprintf(`
+		UPDATE work.run SET state = 'cancel_requested' WHERE id = '%s';
+		UPDATE work.run SET state = 'canceled' WHERE id = '%s';
+	`, newRunID, newRunID))
+	taskID := scalarString(t, admin, `SELECT task_id::text FROM work.run WHERE id = $1`, runID)
+	mustExec(t, admin, "UPDATE work.task SET active_run_id = NULL WHERE id = "+quoteLiteral(taskID))
+	mustExec(t, admin, "UPDATE work.task SET state = 'awaiting_acceptance' WHERE id = "+quoteLiteral(taskID))
+	if err := acceptTaskWithReason(t, admin, org, runID, "req-accept-readonly", taskRevision); err != nil {
 		t.Fatalf("a read-only degradation blocked adoption: %v", err)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.acceptance WHERE org_id = $1`, org); got != 1 {
+		t.Fatalf("acceptance rows after read-only degradation = %d, want 1", got)
 	}
 }
 
 func TestR0bExhaustedDegradationRequiresTicketAndBlocksAdoption(t *testing.T) {
 	dbName, admin := newGateDB(t)
 	org := "org_r0b_resolution_exhausted"
-	runID, opID := localUnknownOperation(t, dbName, org, admin)
+	runID, opID, reservationID := localUnknownOperationWithReservation(t, dbName, org, admin)
 
 	// No ticket: the request itself is malformed, and an unattested exhausted verdict
 	// is refused rather than accepted on the operator's word.
@@ -217,51 +332,343 @@ func TestR0bExhaustedDegradationRequiresTicketAndBlocksAdoption(t *testing.T) {
 		org, opID, "sha256:"+repeatHex(t, 64)); err == nil {
 		t.Fatal("an evidence_exhausted verdict was accepted without the server facts")
 	}
+	if got := scalarString(t, admin,
+		`SELECT work.task_has_blocking_operation(r.task_id, $1)::text FROM work.run r WHERE r.id = $2`,
+		org, runID); got != "true" {
+		t.Fatalf("task_has_blocking_operation after refused degradation = %s, want true", got)
+	}
 
 	// 0042 (O-10 = jia): the refusal above is now the server's own read - no expired
 	// lease and no revoked device for this Run - rather than a missing attestation.
 	// Creating the facts is what makes the verdict issuable.
 	degradationServerFacts(t, dbName, org, runID)
-	issueResolution(t, admin, org, opID, "failed", "evidence_exhausted", "TICKET-42",
-		map[string]any{
-			"device_unreachable":          "true",
-			"lease_or_revocation_checked": "true",
-			"seal_checked":                "true",
-		})
+	issueResolution(t, admin, org, opID, "failed", "evidence_exhausted", "TICKET-42", nil)
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.artifact_version WHERE org_id = $1`, org); got != 0 {
+		t.Fatalf("artifact versions after exhausted degradation = %d, want 0", got)
+	}
 	if got := scalarCount(t, admin, `SELECT count(*) FROM work.operation_resolution
 		WHERE org_id = $1 AND operation_id = $2 AND code = 'evidence_exhausted'
 		  AND ticket_id = 'TICKET-42'`, org, opID); got != 1 {
 		t.Fatalf("exhausted verdicts = %d, want 1", got)
 	}
+	if got := scalarString(t, admin,
+		`SELECT state FROM work.quota_reservation WHERE id = $1`, reservationID); got != "unknown" {
+		t.Fatalf("reservation after exhausted degradation = %q, want unknown", got)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.quota_entry
+		WHERE org_id = $1 AND operation_id = $2 AND kind IN ('release','settle')`, org, opID); got != 0 {
+		t.Fatalf("ledger entries after exhausted degradation = %d, want 0", got)
+	}
 
-	// Adoption is blocked, and the block is the half of J38 that stops reconciled
-	// being read as "this action succeeded".
-	_, err := admin.Exec(testContext(t), fmt.Sprintf(`
-		INSERT INTO work.acceptance (org_id, task_id, actor_subject_id, task_revision, completion_reason)
-		SELECT '%s', r.task_id, 'sub_operator', 1, 'accepted as-is'
-		FROM work.run r WHERE r.id = '%s'`, org, runID))
-	assertPgMessage(t, err, "acceptance_blocked_unresolvable")
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.audit_event
+		WHERE org_id = $1 AND target_id = $2 AND action = 'operation.resolution_issued'
+		  AND metadata ->> 'code' = 'evidence_exhausted'
+		  AND metadata ->> 'ticket_id' = 'TICKET-42'
+		  AND metadata ->> 'settlement_state' = 'unknown'
+		  AND metadata -> 'evidence' -> 'server_basis' ->> 'ticket_id' = 'TICKET-42'
+		  AND metadata -> 'evidence' -> 'server_basis' ->> 'active_session_count' = '0'
+		  AND metadata -> 'evidence' -> 'server_basis' ->> 'receipt_present' = 'false'
+		  AND metadata -> 'evidence' -> 'server_basis' ->> 'dispatch_gate_present' = 'false'
+		  AND metadata -> 'evidence' -> 'server_basis' -> 'leases' -> 0 ->> 'lease_id' = (
+		    SELECT id::text FROM work.execution_lease
+		    WHERE org_id = $1 AND run_id = $3 AND state = 'expired')`, org, opID, runID); got != 1 {
+		t.Fatalf("exhausted audit rows with ticket and settlement basis = %d, want 1", got)
+	}
+	if got := scalarString(t, admin,
+		`SELECT work.task_has_blocking_operation(r.task_id, $1)::text FROM work.run r WHERE r.id = $2`,
+		org, runID); got != "false" {
+		t.Fatalf("task_has_blocking_operation after exhausted degradation = %s, want false", got)
+	}
 
-	// A new Run is still allowed: the cost J38 accepted is a blocked Task, not a dead
-	// organization. R0a's one-open-run-per-task rule still applies, so the blocked
-	// attempt is finished first - the point is that nothing about the verdict itself
-	// adds an admission block.
+	// Finish the attempt, then exercise the real adoption command: the Operation is
+	// reconciled, but the exhausted verdict must still reject the acceptance insert.
 	r0bExec(t, dbName, org, fmt.Sprintf(`
 		UPDATE work.run SET state = 'cancel_requested' WHERE id = '%s';
 		UPDATE work.run SET state = 'canceled' WHERE id = '%s';
 	`, runID, runID))
-	if _, err := admin.Exec(testContext(t), fmt.Sprintf(`
-		INSERT INTO work.run (id, org_id, task_id, attempt_no, state, snapshot_id, workflow_id, runtime_version)
-		SELECT '%s', r.org_id, r.task_id, 2, 'queued', r.snapshot_id, 'run:after-exhausted', 'pi-1'
-		FROM work.run r WHERE r.id = '%s'`, newUUID(t), runID)); err != nil {
-		t.Fatalf("a new Run was refused after an exhausted verdict: %v", err)
+	taskID := scalarString(t, admin, `SELECT task_id::text FROM work.run WHERE id = $1`, runID)
+	mustExec(t, admin, "UPDATE work.task SET active_run_id = NULL, state = 'awaiting_acceptance' WHERE id = "+quoteLiteral(taskID))
+	taskRevision := scalarCount(t, admin, `SELECT revision FROM work.task WHERE id = $1`, taskID)
+	err := acceptTaskWithReason(t, admin, org, runID, "req-accept-exhausted", int64(taskRevision))
+	assertPgMessage(t, err, "acceptance_blocked_unresolvable")
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.acceptance WHERE org_id = $1`, org); got != 0 {
+		t.Fatalf("acceptance rows after refused adoption = %d, want 0", got)
 	}
-	// and the Task stays un-adoptable even after that new Run exists
-	if _, err := admin.Exec(testContext(t), fmt.Sprintf(`
-		INSERT INTO work.acceptance (org_id, task_id, actor_subject_id, task_revision, completion_reason)
-		SELECT '%s', r.task_id, 'sub_operator', 2, 'accepted as-is'
-		FROM work.run r WHERE r.id = '%s'`, org, runID)); err == nil {
+
+	// A new Run is still allowed through retry_task itself: the verdict adds no
+	// admission block once the previous attempt is terminal.
+	mustExec(t, admin, "UPDATE work.task SET state = 'open' WHERE id = "+quoteLiteral(taskID))
+	newRunID, newRevision := retryTask(t, admin, org, runID, "req-after-exhausted", "run:after-exhausted")
+	if got := scalarString(t, admin, `SELECT state FROM work.run WHERE id = $1`, newRunID); got != "queued" {
+		t.Fatalf("retry_task run state = %s, want queued", got)
+	}
+	r0bExec(t, dbName, org, fmt.Sprintf(`
+		UPDATE work.run SET state = 'cancel_requested' WHERE id = '%s';
+		UPDATE work.run SET state = 'canceled' WHERE id = '%s';
+	`, newRunID, newRunID))
+	mustExec(t, admin, "UPDATE work.task SET active_run_id = NULL, state = 'awaiting_acceptance' WHERE id = "+quoteLiteral(taskID))
+	if err := acceptTaskWithReason(t, admin, org, runID, "req-accept-exhausted-again", newRevision); err == nil {
 		t.Fatal("a task with an exhausted verdict was adopted")
+	} else {
+		assertPgMessage(t, err, "acceptance_blocked_unresolvable")
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.acceptance WHERE org_id = $1`, org); got != 0 {
+		t.Fatalf("acceptance rows after the second refusal = %d, want 0", got)
+	}
+}
+
+func TestR0bReadonlyDegradationRejectsEachMissingPrecondition(t *testing.T) {
+	cases := []struct {
+		name           string
+		code           string
+		notUnknown     bool
+		liveLease      bool
+		withoutJournal bool
+		setup          func(*testing.T, string, string, string, string, *pgx.Conn)
+	}{
+		{
+			name: "not a readonly tool",
+			code: "evidence_unavailable_scope_denied",
+			setup: func(t *testing.T, dbName, org, runID, opID string, admin *pgx.Conn) {
+				degradationServerFacts(t, dbName, org, runID)
+				r0bExec(t, dbName, org, fmt.Sprintf("UPDATE work.operation SET kind = 'model' WHERE id = '%s'", opID))
+			},
+		},
+		{
+			name:       "operation is not unknown",
+			code:       "operation_not_reconcilable",
+			notUnknown: true,
+		},
+		{
+			name:      "lease is live and device is not revoked",
+			code:      "resolution_preconditions_unattested",
+			liveLease: true,
+		},
+		{
+			name:           "journal unavailability is not attested",
+			code:           "resolution_preconditions_unattested",
+			withoutJournal: true,
+			setup: func(t *testing.T, dbName, org, runID, opID string, admin *pgx.Conn) {
+				degradationServerFacts(t, dbName, org, runID)
+			},
+		},
+		{
+			name: "usage fact already exists",
+			code: "resolution_evidence_exists",
+			setup: func(t *testing.T, dbName, org, runID, opID string, admin *pgx.Conn) {
+				degradationServerFacts(t, dbName, org, runID)
+				r0bExec(t, dbName, org, fmt.Sprintf(`INSERT INTO work.operation_usage_fact
+				  (org_id, operation_id, usage_revision, usage_source, subject_id, provider, model, usage_date,
+				   input_tokens, output_tokens, cached_input_tokens)
+				  VALUES ('%s','%s',1,'provider','sub_operator','aliyun','fixture',CURRENT_DATE,1,1,0)`, org, opID))
+			},
+		},
+		{
+			name: "usage timestamp already exists",
+			code: "resolution_evidence_exists",
+			setup: func(t *testing.T, dbName, org, runID, opID string, admin *pgx.Conn) {
+				degradationServerFacts(t, dbName, org, runID)
+				r0bExec(t, dbName, org, fmt.Sprintf("UPDATE work.operation SET usage_recorded_at = now() WHERE id = '%s'", opID))
+			},
+		},
+		{
+			name: "provider request id already exists",
+			code: "resolution_evidence_exists",
+			setup: func(t *testing.T, dbName, org, runID, opID string, admin *pgx.Conn) {
+				degradationServerFacts(t, dbName, org, runID)
+				r0bExec(t, dbName, org, fmt.Sprintf("UPDATE work.operation SET provider_request_id = 'provider-1' WHERE id = '%s'", opID))
+			},
+		},
+		{
+			name: "receipt reference already exists",
+			code: "resolution_evidence_exists",
+			setup: func(t *testing.T, dbName, org, runID, opID string, admin *pgx.Conn) {
+				degradationServerFacts(t, dbName, org, runID)
+				r0bExec(t, dbName, org, fmt.Sprintf("UPDATE work.operation SET receipt_ref = 'local/receipt-1' WHERE id = '%s'", opID))
+			},
+		},
+		{
+			name: "dispatch gate fact already exists",
+			code: "resolution_evidence_exists",
+			setup: func(t *testing.T, dbName, org, runID, opID string, admin *pgx.Conn) {
+				degradationServerFacts(t, dbName, org, runID)
+				r0bExec(t, dbName, org, fmt.Sprintf(`INSERT INTO work.dispatch_delivery
+				  (org_id, operation_id, gate_state, sealed_at) VALUES ('%s','%s','sealed_not_sent',now())`, org, opID))
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dbName, admin := newGateDB(t)
+			org := "org_r0b_ro_precondition"
+			var runID, opID string
+			if tc.notUnknown {
+				run := seedRun(t, admin, "org_r0b_ro_not_unknown")
+				r0bAdmin(t, admin, run.org)
+				r0bExec(t, dbName, run.org, fmt.Sprintf(`
+					UPDATE work.operation SET step_key = 'tool:1', supersede_no = 0,
+					  logical_key = 'tool:1#0', kind = 'tool' WHERE id = '%s';
+					UPDATE work.run SET state = 'waiting', wait_reason = 'reconcile' WHERE id = '%s';
+				`, run.opID, run.runID))
+				org, runID, opID = run.org, run.runID, run.opID
+			} else if tc.liveLease {
+				a := newActionFixture(t, "org_r0b_ro_live_lease")
+				dbName, admin = a.dbName, a.admin
+				r0bExec(t, dbName, a.org, fmt.Sprintf(`
+					UPDATE work.operation SET step_key = 'tool:1', supersede_no = 0,
+					  logical_key = 'tool:1#0', kind = 'tool', state = 'unknown' WHERE id = '%s';
+					UPDATE work.run SET state = 'waiting', wait_reason = 'reconcile' WHERE id = '%s';
+				`, a.op, a.runID))
+				org, runID, opID = a.org, a.runID, a.op
+				if got := scalarString(t, a.admin, `SELECT state || '/' || (expires_at > now())::text
+					FROM work.execution_lease WHERE id = $1`, a.leaseID); got != "active/true" {
+					t.Fatalf("live-lease fixture = %s, want active/true", got)
+				}
+				if got := scalarString(t, a.admin, `SELECT status FROM work.device WHERE id = $1`, a.deviceID); got != "active" {
+					t.Fatalf("live-lease device status = %s, want active", got)
+				}
+			} else {
+				runID, opID = localUnknownOperation(t, dbName, org, admin)
+				if tc.setup != nil {
+					tc.setup(t, dbName, org, runID, opID, admin)
+				}
+			}
+			evidence := i4Facts(nil)
+			if tc.withoutJournal {
+				evidence = map[string]any{}
+			}
+			_, err := issueResolutionSigned(t, admin, org, opID, "failed", "evidence_unavailable",
+				nil, "", evidence)
+			if err == nil {
+				t.Fatal("degradation was issued without every precondition")
+			}
+			assertPgMessage(t, err, tc.code)
+			wantState := "unknown"
+			if tc.notUnknown {
+				wantState = "authorized"
+			}
+			if got := scalarString(t, admin, `SELECT state FROM work.operation WHERE id = $1`, opID); got != wantState {
+				t.Fatalf("operation after refusal = %q, want %s", got, wantState)
+			}
+			if got := scalarString(t, admin,
+				`SELECT work.task_has_blocking_operation(r.task_id, $1)::text FROM work.run r WHERE r.id = $2`,
+				org, runID); got != "true" {
+				t.Fatalf("task_has_blocking_operation after refusal = %s, want true", got)
+			}
+			if got := scalarCount(t, admin, `SELECT count(*) FROM work.operation_resolution
+				WHERE org_id = $1 AND operation_id = $2`, org, opID); got != 0 {
+				t.Fatalf("resolution rows after refusal = %d, want 0", got)
+			}
+			if got := scalarCount(t, admin, `SELECT count(*) FROM work.artifact_version WHERE org_id = $1`, org); got != 0 {
+				t.Fatalf("artifact versions after refusal = %d, want 0", got)
+			}
+			taskID := scalarString(t, admin, `SELECT task_id::text FROM work.run WHERE id = $1`, runID)
+			r0bExec(t, dbName, org, fmt.Sprintf(`
+				UPDATE work.run SET state = 'failed' WHERE id = '%s';
+				UPDATE work.task SET active_run_id = NULL WHERE id = '%s';
+			`, runID, taskID))
+			taskRevision := scalarCount(t, admin, `SELECT revision FROM work.task WHERE id = $1`, taskID)
+			_, err = admin.Exec(testContext(t),
+				`SELECT work.retry_task($1, $2::uuid, $3, $4, $5, 'run:must-stay-blocked', 'pi-1')`,
+				org, taskID, r0bAdminSubject(org), "req-refused-retry", taskRevision)
+			if err == nil {
+				t.Fatal("retry_task admitted a new Run while the Operation still blocked the Task")
+			} else {
+				assertPgMessage(t, err, "run_not_quiescent")
+			}
+		})
+	}
+}
+
+func TestR0bExhaustedDegradationRefusesReachableDeviceUntilSessionExpires(t *testing.T) {
+	a := newActionFixture(t, "org_r0b_exhausted_reachable")
+	dbName := a.dbName
+	org := a.org
+	r0bExec(t, dbName, org, fmt.Sprintf(`
+		UPDATE work.operation SET step_key = 'tool:1', supersede_no = 0,
+		  logical_key = 'tool:1#0', kind = 'tool', state = 'unknown' WHERE id = '%s';
+		UPDATE work.run SET state = 'waiting', wait_reason = 'reconcile' WHERE id = '%s';
+		UPDATE work.execution_lease SET state = 'expired' WHERE id = '%s';
+	`, a.op, a.runID, a.leaseID))
+	if _, err := issueResolutionSigned(t, a.admin, org, a.op, "failed", "evidence_exhausted",
+		"TICKET-REACHABLE", "", nil); err == nil {
+		t.Fatal("an exhausted verdict was issued while the device session was still active")
+	} else {
+		assertPgMessage(t, err, "resolution_preconditions_unattested")
+	}
+	if got := scalarString(t, a.admin, `SELECT state FROM work.operation WHERE id = $1`, a.op); got != "unknown" {
+		t.Fatalf("operation after reachable-device refusal = %q, want unknown", got)
+	}
+	if got := scalarString(t, a.admin,
+		`SELECT work.task_has_blocking_operation(r.task_id, $1)::text FROM work.run r WHERE r.id = $2`,
+		org, a.runID); got != "true" {
+		t.Fatalf("task_has_blocking_operation after reachable-device refusal = %s, want true", got)
+	}
+
+	mustExec(t, a.admin, "UPDATE work.device_session SET state = 'expired' WHERE id = "+quoteLiteral(a.sessionID))
+	result := issueResolution(t, a.admin, org, a.op, "failed", "evidence_exhausted", "TICKET-REACHABLE", nil)
+	if result["operation_state"] != "reconciled" || result["settlement_state"] != "unknown" {
+		t.Fatalf("exhausted result after session expiry = %#v", result)
+	}
+	if got := scalarCount(t, a.admin, `SELECT count(*) FROM work.artifact_version WHERE org_id = $1`, org); got != 0 {
+		t.Fatalf("artifact versions after exhausted degradation = %d, want 0", got)
+	}
+	if got := scalarString(t, a.admin, `SELECT state || '/' || COALESCE(wait_reason, 'null')
+		FROM work.run WHERE id = $1`, a.runID); got != "waiting/input" {
+		t.Fatalf("run after exhausted degradation = %s, want waiting/input", got)
+	}
+	if got := scalarCount(t, a.admin, `SELECT count(*) FROM work.audit_event
+		WHERE org_id = $1 AND target_id = $2 AND action = 'operation.resolution_issued'
+		  AND metadata ->> 'ticket_id' = 'TICKET-REACHABLE'
+		  AND metadata -> 'evidence' -> 'server_basis' ->> 'active_session_count' = '0'
+		  AND metadata -> 'evidence' -> 'server_basis' -> 'leases' -> 0 ->> 'lease_id' = $3`, org, a.op, a.leaseID); got != 1 {
+		t.Fatalf("audit rows for reachable-device case = %d, want 1", got)
+	}
+}
+
+func TestR0bDegradationRefusesNonObjectEvidence(t *testing.T) {
+	cases := []struct {
+		name    string
+		literal string
+		sqlNull bool
+	}{
+		{name: "SQL NULL", sqlNull: true},
+		{name: "JSON null", literal: "null"},
+		{name: "array", literal: "[]"},
+		{name: "string", literal: `"caller text"`},
+		{name: "number", literal: "1"},
+		{name: "boolean", literal: "true"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dbName, admin := newGateDB(t)
+			org := "org_r0b_resolution_evidence_shape"
+			runID, opID := localUnknownOperation(t, dbName, org, admin)
+			var evidence any
+			if !tc.sqlNull {
+				evidence = tc.literal
+			}
+			_, err := admin.Exec(testContext(t),
+				`SELECT work.issue_operation_resolution($1, $2::uuid, 'failed', 'evidence_exhausted',
+				  'TICKET-SHAPE', $3, 'sub_operator', $4::jsonb)`,
+				org, opID, "sha256:"+repeatHex(t, 64), evidence)
+			if err == nil {
+				t.Fatal("a degradation accepted non-object evidence")
+			}
+			assertPgMessage(t, err, "invalid_request:evidence")
+			if got := scalarString(t, admin, `SELECT state FROM work.operation WHERE id = $1`, opID); got != "unknown" {
+				t.Fatalf("operation after malformed evidence = %s, want unknown", got)
+			}
+			if got := scalarCount(t, admin, `SELECT count(*) FROM work.operation_resolution
+				WHERE org_id = $1 AND operation_id = $2`, org, opID); got != 0 {
+				t.Fatalf("resolution rows after malformed evidence = %d, want 0", got)
+			}
+			if got := scalarString(t, admin,
+				`SELECT work.task_has_blocking_operation(r.task_id, $1)::text FROM work.run r WHERE r.id = $2`,
+				org, runID); got != "true" {
+				t.Fatalf("task_has_blocking_operation after malformed evidence = %s, want true", got)
+			}
+		})
 	}
 }
 
@@ -523,7 +930,7 @@ func TestR0bReconciliationsReadFaceIsTheJ38Query(t *testing.T) {
 		t.Fatalf("exhausted contact path = %q", got)
 	}
 	// The exhausted list is what somebody checked, so the command's own internals
-	// (state before/after, reservation snapshot) must not be presented as evidence sources.
+	// (state before/after, reservation snapshot, server basis) must not be presented as evidence sources.
 	for _, source := range view.Items[exhausted].EvidenceSources {
 		if source == "operation_state_after" || source == "reservation_held" ||
 			source == "reservations" || source == "operation_state_before" {
@@ -601,6 +1008,29 @@ func TestR0bReconciliationsReadFaceIsTheJ38Query(t *testing.T) {
 	}
 }
 
+func TestR0bReconciliationsReadTreatsMalformedHistoricalEvidenceAsNoSources(t *testing.T) {
+	dbName, admin := newGateDB(t)
+	org := "org_r0b_resolution_historical_shape"
+	runID, opID := localUnknownOperation(t, dbName, org, admin)
+	r0bExec(t, dbName, org, fmt.Sprintf(`
+		INSERT INTO work.operation_resolution
+		  (org_id, run_id, operation_id, resolution_revision, resolve_id, state,
+		   delivery_state, code, usage_source, settlement_state, signature, evidence, ticket_id)
+		VALUES ('%s', '%s', '%s', 1, '%s', 'failed', 'not_applicable',
+		        'evidence_exhausted', 'unavailable', 'unknown', 'sha256:%s', '[]'::jsonb, 'TICKET-HISTORICAL');
+	`, org, runID, opID, newUUID(t), repeatHex(t, 64)))
+	var raw []byte
+	if err := admin.QueryRow(testContext(t), `SELECT work.list_run_reconciliations($1, $2::uuid, $3)`,
+		org, runID, r0bAdminSubject(org)).Scan(&raw); err != nil {
+		t.Fatalf("malformed historical evidence broke the reconciliation read: %v", err)
+	}
+	if got := scalarString(t, admin,
+		`SELECT (work.list_run_reconciliations($1, $2::uuid, $3) -> 'items' -> 0 -> 'evidence_sources')::text`,
+		org, runID, r0bAdminSubject(org)); got != "[]" {
+		t.Fatalf("malformed historical evidence sources = %s, want []", got)
+	}
+}
+
 func TestR0bResolutionRefusesTheWrongVocabularyAndScope(t *testing.T) {
 	dbName, admin := newGateDB(t)
 	org := "org_r0b_resolution_scope"
@@ -670,8 +1100,7 @@ func TestR0bResolutionRefusesTheWrongVocabularyAndScope(t *testing.T) {
 		assertPgMessage(t, err, "resolution_evidence_exists")
 	}
 	if _, err := issueResolutionSigned(t, admin, org, opID, "failed", "evidence_exhausted",
-		"TICKET-9", "", map[string]any{"device_unreachable": "true",
-			"lease_or_revocation_checked": "true", "seal_checked": "true"}); err == nil {
+		"TICKET-9", "", map[string]any{"operator_note": "gate fact remains"}); err == nil {
 		t.Fatal("an exhausted verdict was issued while the dispatch gate held a fact")
 	} else {
 		assertPgMessage(t, err, "resolution_evidence_exists")

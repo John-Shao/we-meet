@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 62,
-  "chainTipCatalog": "catalogs/0062_run_history_handback.json",
+  "chainTip": 68,
+  "chainTipCatalog": "catalogs/0068_governance_cursor_getter.json",
   "entries": [
     {
       "name": "GET /work/v2/admin/local-policy",
@@ -266,8 +266,8 @@
     },
     {
       "name": "advance_governance_event_cursor",
-      "surface": "sql-handler",
-      "origin": "src/work/internal/api/admin_governance_cursor.go",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0067_gap_report_rejects_consumed_interval.sql",
       "callableBy": [
         "work_api"
       ],
@@ -374,8 +374,8 @@
     },
     {
       "name": "consume_governance_events",
-      "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0062_run_history_handback.json",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0068_governance_cursor_getter.sql",
       "callableBy": [
         "work_governance_events"
       ],
@@ -490,9 +490,18 @@
       "classification": "external-audit-required"
     },
     {
+      "name": "governance_event_cursor_current",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0068_governance_cursor_getter.sql",
+      "callableBy": [
+        "work_governance_events"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0062_run_history_handback.json",
+      "origin": "src/work/migrations/catalogs/0068_governance_cursor_getter.json",
       "callableBy": [
         "work_api",
         "work_governance_events"
@@ -573,8 +582,8 @@
     },
     {
       "name": "list_run_reconciliations",
-      "surface": "sql-handler",
-      "origin": "src/work/internal/api/run_reconciliations.go",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0064_resolution_audit_basis.sql",
       "callableBy": [
         "work_api"
       ],
@@ -662,11 +671,29 @@
       "classification": "external-audit-required"
     },
     {
+      "name": "record_device_model_result",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0063_device_model_execution_usage.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
       "name": "record_device_receipt",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0042_local_actions_receipts_finish.sql",
       "callableBy": [
         "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "record_governance_gap",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0068_governance_cursor_getter.sql",
+      "callableBy": [
+        "work_governance_events"
       ],
       "classification": "external-audit-required"
     },
@@ -782,14 +809,13 @@
   "namedAdjudications": [
     {
       "name": "ListGovernanceEvents",
-      "outcome": "alias",
-      "producerMentions": [
-        [],
-        []
+      "outcome": "in-scope",
+      "derivedAs": [
+        "sql consume_governance_events"
       ],
-      "noProducer": true,
-      "implementation": "consume_governance_events",
-      "implementedAs": true,
+      "present": [
+        "sql consume_governance_events"
+      ],
       "holds": true
     },
     {

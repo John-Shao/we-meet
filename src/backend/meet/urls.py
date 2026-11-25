@@ -14,6 +14,7 @@ from drf_spectacular.views import (
 
 from core.api.work_host import (
     WorkHostBearerVerifyView,
+    WorkHostGovernanceEventsView,
     WorkHostMemberListView,
     WorkHostOrgListView,
     WorkHostSessionVerifyView,
@@ -42,6 +43,11 @@ urlpatterns = [
         "work-host/v2/orgs/<uuid:org_id>/members",
         WorkHostMemberListView.as_view(),
         name="work-host-member-list",
+    ),
+    path(
+        "work-host/v3/governance-events",
+        WorkHostGovernanceEventsView.as_view(),
+        name="work-host-governance-events",
     ),
     path("", include("core.urls")),
     path("", include("lasuite.oidc_resource_server.urls")),

@@ -81,6 +81,11 @@ func TestR0bResolutionMapIsRealizable(t *testing.T) {
 		  WHERE resolution_state = 'failed' AND operation_state = 'reconciled'`); got != 1 {
 		t.Fatalf("failed -> reconciled mapping rows = %d, want 1", got)
 	}
+	if got := scalarCount(t, admin,
+		`SELECT count(*) FROM work.resolution_state_map
+		  WHERE resolution_state = 'succeeded' AND operation_state = 'reconciled'`); got != 1 {
+		t.Fatalf("succeeded -> reconciled mapping rows = %d, want 1", got)
+	}
 
 	// §4.1 judgments 2 and 3 name the edges that must NOT exist: run
 	// waiting->succeeded would skip the task-level finish gate, and operation
@@ -384,8 +389,8 @@ func TestR0bResolutionMapGrantsAreReadOnly(t *testing.T) {
 	if err := admin.QueryRow(ctx, `SELECT count(*) FROM work.resolution_state_map`).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
-	if count != 8 {
-		t.Fatalf("resolution map rows = %d, want 8", count)
+	if count != 9 {
+		t.Fatalf("resolution map rows = %d, want 9", count)
 	}
 
 	app := connect(t, appURL(dbName))

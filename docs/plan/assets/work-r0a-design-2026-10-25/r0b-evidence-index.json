@@ -1,0 +1,468 @@
+{
+  "schemaVersion": 1,
+  "mapping": {
+    "mode": "static-test-symbol-index",
+    "limitation": "This gate verifies authority rows, real files and declared test symbols. It does not execute the cited Go/Rust/Python suites or adjudicate whether their assertions fully satisfy an EV oracle."
+  },
+  "architectureGateSource": "- **每片的证据门（缺一不得报完成）**：I1→EV84–EV86/EV106–EV108/EV117；I2→EV70/EV71/EV97/EV98/EV113；I3→EV72/EV73/EV99/EV116/EV123；I4→EV51/EV95/EV96/EV100/EV115/EV120；I5→EV63/EV102/EV114/EV118/EV121；I6→EV88；I7→体验文档逐项＋R0a 回归＋凭据撤销后旧身份立即失效的正反向用例（与 I1／I4 共用 EV106/EV107/EV51，见 §6 的 I7 行；§6.1 自称“缺一不得报完成”，漏了这三条就等于允许 I7 在没有撤销用例的情况下报完成）。",
+  "statusMeaning": {
+    "covered": "现有可执行证据完整覆盖该 EV 的 oracle，且无剩余缺口。",
+    "partial": "存在直接相关的可执行证据，但 EV 仍有明确未覆盖步骤。",
+    "not_run": "没有找到直接覆盖该 EV 的可执行门级测试；相邻实现或注释不算证据。",
+    "out_of_scope": "权威范围裁定已把该 EV 整体移出 R0b 本期。"
+  },
+  "gates": [
+    {
+      "id": "EV84",
+      "gate": "I1",
+      "requirement": "Host 授座命令事件按 revision 单调解除席位类 deny，重放/跳号/伪造/投影变化/超期与告警均不得静默放行。",
+      "status": "partial",
+      "gaps": [
+        "Host seat 命令重放/异 payload 冲突、专用 mTLS 读取与 Work HTTP→PG 消费已有证据；assignment/entitlement 生产者、>365 天运行期留存与生产告警投递尚未取证。",
+        "生产 systemd unit、客户端证书、专用 DSN 与组织清单尚未部署；固定两步缺口恢复的 Work SQL 与拉取器分支已覆盖，但真实生产 Host→Work 全链仍未执行。"
+      ],
+      "evidence": [
+        { "path": "src/work/internal/host/governance_integration_test.go", "test": "TestGovernanceHTTPPullerConsumesThroughDedicatedIdentity" },
+        { "path": "src/work/internal/governance/store_test.go", "test": "TestPGStoreInitializesAndConsumesWithoutProjectionWrites" },
+        { "path": "src/work/internal/governance/puller_test.go", "test": "TestPassLostGapDoesNotAdvance" },
+        { "path": "src/work/internal/governance/puller_test.go", "test": "TestPassEnumeratedGapIsPassedToStoreAndStops" },
+        { "path": "src/work/internal/governance/puller_test.go", "test": "TestPassEnumeratedTrailingGapIsRecordedAndStops" },
+        { "path": "src/backend/core/tests/test_work_governance_events.py", "test": "test_seat_command_replay_and_payload_conflict" },
+        { "path": "src/backend/core/tests/test_work_governance_events.py", "test": "test_seat_command_rejects_a_forged_payload_hash" },
+        { "path": "src/backend/core/tests/test_work_governance_events.py", "test": "test_django_admin_create_without_seat_does_not_revoke_existing_seat" },
+        { "path": "src/backend/core/tests/test_work_governance_events.py", "test": "test_governance_endpoint_requires_its_dedicated_identity" },
+        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bSeatDenyReleasedOnlyByCommandEvent" },
+        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bOrgNarrowingDenyIsCreatedAndReleasedByProjection" },
+        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bWorkSeatChangeDenyReleasePredicate" },
+        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bGovernanceCursorAdvancesOnlyForward" }
+      ]
+    },
+    {
+      "id": "EV85",
+      "gate": "I1",
+      "requirement": "仅停用/启用跨两个组织的 User 时，各组织投影 revision 前进并形成/解除 deny，且旧 Run 不复活。",
+      "status": "partial",
+      "gaps": [
+        "现有用例直接调用 Work 投影，未从 Host User 触发器/service 写序驱动。",
+        "未断言增量同步观察与 suspend 路径的取消意图；跨组织隔离与旧 Run 不复活已有断言。"
+      ],
+      "evidence": [
+        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bUserSuspendAcrossMultipleOrgs" },
+        { "path": "src/work/internal/migrate/r0b_entitlement_test.go", "test": "TestR0bMemberNarrowingQueuesOnlyThatPersonsRuns" }
+      ]
+    },
+    {
+      "id": "EV86",
+      "gate": "I1",
+      "requirement": "mass-absence 默认闸与显式放行分别可验；放行时同事务写 host deny、提升 access_epoch 并取消，恢复遵循 host deny 规则。",
+      "status": "partial",
+      "gaps": [
+        "未断言 host_member/host_seat deny、access_epoch 与取消 outbox 的完整同事务差分。",
+        "未从真实 Host mass-absence 路径驱动。"
+      ],
+      "evidence": [
+        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bMassAbsenceThresholdAndRestore" },
+        { "path": "src/work/internal/directory/pg_test.go", "test": "TestMassAbsenceRequiresExplicitAllow" }
+      ]
+    },
+    {
+      "id": "EV106",
+      "gate": "I1",
+      "requirement": "跨库播种仅维护旗标期可写，逐 item snapshot_revision CAS，幂等与异 payload 冲突可验，并出具逐人报告。",
+      "status": "not_run",
+      "gaps": [
+        "SeedWorkMemberState 仍无生产者，也未找到直接门级测试；缺 dry_run、旗标、CAS 冲突、中断重放、异 payload、无投影回退与逐人报告。",
+        "TestR0bMemberProjectionTakesTheOrgLockFirst 只证明投影锁序，不能计作 EV106 播种协议覆盖。",
+        "未验证维护端口凭据执行后撤销。"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "EV107",
+      "gate": "I1",
+      "requirement": "governance event_seq 按组织独立，游标初值取历史最大值，跳号停止；先推进游标再显式授座才形成两步恢复。",
+      "status": "partial",
+      "gaps": [
+        "Host 生产者、专用 mTLS 读取口与 Work HTTP→PG 拉取消费者已落地并取证；生产 unit、客户端证书、专用 DSN 与组织清单尚未部署。",
+        "org.work.seat.write 最终权限尚未落地，端点暂用 org admin 作为 interim gate；Host 目录列表仍逐 Membership 行输出，按人归并与 directory_revision 端到端隔离尚未验证。"
+      ],
+      "evidence": [
+        { "path": "src/work/internal/host/governance_integration_test.go", "test": "TestGovernanceHTTPPullerConsumesThroughDedicatedIdentity" },
+        { "path": "src/work/internal/governance/store_test.go", "test": "TestPGStoreInitializesAndConsumesWithoutProjectionWrites" },
+        { "path": "src/backend/core/tests/test_work_governance_events.py", "test": "test_seat_events_use_independent_org_sequences_and_atomic_audit" },
+        { "path": "src/backend/core/tests/test_work_governance_events.py", "test": "test_governance_endpoint_empty_paginated_and_cursor_contract" },
+        { "path": "src/backend/core/tests/test_work_governance_events.py", "test": "test_governance_gap_alerts_but_keeps_the_read_port_open" },
+        { "path": "src/backend/core/tests/test_work_governance_events.py", "test": "test_governance_interior_gap_returns_the_next_extant_event" },
+        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bGovernanceCursorAdvancesOnlyForward" },
+        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bGovernanceCursorInitializesPerOrgAtHostMax" },
+        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bSeatProjectionGrantWithoutCursorAdvanceKeepsDeny" },
+        { "path": "src/work/internal/migrate/r0b_receipt_test.go", "test": "TestR0bConsumeInitializesTheCursorWithoutColliding" },
+        { "path": "src/work/internal/migrate/r0b_receipt_test.go", "test": "TestR0bGapSkipReceiptIsBoundToItsPayload" },
+        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bGapReportAndCursorAdvanceAreTwoDistinctSteps" },
+        { "path": "src/work/internal/api/admin_governance_cursor_test.go", "test": "TestAdminGovernanceEventCursorAdvance" }
+      ]
+    },
+    {
+      "id": "EV108",
+      "gate": "I1",
+      "requirement": "席位 deny 的解除比较 release_floor_revision 而非 host_revision，NULL host_revision 不阻断，且不连带释放非席位 deny。",
+      "status": "partial",
+      "gaps": [
+        "现有用例直接播种 deny，未串起 Work 撤座 saga 与 Host 授座事件。",
+        "未执行按 host_revision 比较导致 deny 永久 active 的变异反例。"
+      ],
+      "evidence": [
+        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bWorkSeatChangeDenyReleasePredicate" }
+      ]
+    },
+    {
+      "id": "EV117",
+      "gate": "I1",
+      "requirement": "governance gap report 由事件身份生成；四种报告输入只有齐备者可推进，随后授座事件能释放 reconcile_required deny。",
+      "status": "partial",
+      "gaps": [
+        "org.work.seat.write 最终权限尚未落地；端点暂用 org admin 作为 interim gate， viewer 拒绝已有断言，但尚未证明独立权限边界。"
+      ],
+      "evidence": [
+        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bGapReportIsAForgeryProof" },
+        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bGapAdvanceRefusesReportThatOmitsConsumedSeatEvent" },
+        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bGapReportAndCursorAdvanceAreTwoDistinctSteps" },
+        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bGovernanceIdentityCannotReachTheOtherSide" },
+        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bAccessRestrictionShapeAndTerminalRelease" },
+        { "path": "src/work/internal/api/admin_governance_cursor_test.go", "test": "TestAdminGovernanceEventCursorAdvance" },
+        { "path": "src/work/internal/api/admin_governance_cursor_test.go", "test": "TestAdminGovernanceEventCursorProofAndRecoveryChain" }
+      ]
+    },
+    {
+      "id": "EV70",
+      "gate": "I2",
+      "requirement": "同根改绑仅取代未执行步骤并重新审批，已派发步骤只核账；跨根/复制目录/跨设备 proof 拒绝，正向 succession 可零审批自动放行同类只读。",
+      "status": "partial",
+      "gaps": [
+        "未覆盖已派发/待审批/已授权三类步骤的完整取代链和 old→new grant UI。",
+        "未覆盖子树、epoch、到期以及跨设备 GrantSuccessionProof 的负例。"
+      ],
+      "evidence": [
+        { "path": "src/work/internal/api/local_workspace_rebinds_test.go", "test": "TestWorkspaceRebindCreateAndReplay" },
+        { "path": "src/work/internal/api/local_workspace_rebinds_test.go", "test": "TestWorkspaceRebindIdentityChanged" },
+        { "path": "src/work/internal/migrate/r0b_local_artifact_test.go", "test": "TestR0bRebindConsumesItsNonceOnceAndRollsItBackOnRefusal" },
+        { "path": "src/work/internal/gateway/action_uplink_test.go", "test": "TestActionPrepareReadonlyGrantAutoApproves" },
+        { "path": "src/frontend/src/features/work/r0b/components/RunReadonlyGrants.test.tsx", "test": "revokes only after a second click, against the revision the row was read at" }
+      ]
+    },
+    {
+      "id": "EV71",
+      "gate": "I2",
+      "requirement": "动作取代的 assertion 闭集、并发单赢家、同 step_key 单未终态、5/6 次主动与被动预算、waiting(input) 和 UI 计数一致。",
+      "status": "partial",
+      "gaps": [
+        "未覆盖并发单赢家、两桶预算、workspace_rebound 错标拒绝及第 6 次 UI 出口。",
+        "未验证 changed_fields 全闭集和各被动桶不占主动桶。"
+      ],
+      "evidence": [
+        { "path": "src/work/internal/migrate/r0b_transition_test.go", "test": "TestR0bSupersedeShapeAndOneOpenStep" },
+        { "path": "src/work/internal/gateway/action_uplink_test.go", "test": "a supersede without its assertion is refused" },
+        { "path": "src/device/src/frame/action.rs", "test": "supersede_triple_is_all_or_nothing" },
+        { "path": "src/device/src/frame/action.rs", "test": "assertion_reason_and_changed_fields_pair_the_closed_way" }
+      ]
+    },
+    {
+      "id": "EV97",
+      "gate": "I2",
+      "requirement": "成果 classification 由服务端引用 grant 链与输出根取最严下限，含 list；目的地闸与成果闸分别执法。",
+      "status": "covered",
+      "scopeNote": "E=B 移出云侧同步/读取分支；本状态只覆盖保留的本机 (A)/(B) 与分类推导。",
+      "gaps": [],
+      "evidence": [
+        { "path": "src/work/internal/migrate/r0b_local_artifact_test.go", "test": "TestR0bFinalizeTakesTheStrictestInput" },
+        { "path": "src/work/internal/migrate/r0b_local_artifact_test.go", "test": "TestR0bFinalizeSuccessionGrantCountsBeforeAnyActionRuns" },
+        { "path": "src/work/internal/migrate/r0b_local_artifact_test.go", "test": "TestR0bFinalizeClassificationUnknownOnlyComesFromTheClaim" },
+        { "path": "src/work/internal/migrate/r0b_local_artifact_test.go", "test": "TestR0bListOnlyInputPassesDestinationGateButFloorsArtifact" },
+        { "path": "src/work/internal/migrate/r0b_local_artifact_test.go", "test": "TestR0bClassificationRankUsesExplicitStrictnessOrderAndRejectsUnknown" },
+        { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bPrepareRefusesANonDeviceDestinationOnceTheRunHasLocalOnlyInput" },
+        { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bPermitConsumptionReChecksTheDestinationFromServerFacts" }
+      ]
+    },
+    {
+      "id": "EV98",
+      "gate": "I2",
+      "requirement": "local_only 正文粘进 Composer 后外发必须逐次批准，device_local 保留；成果与同步下限继承剪贴板来源。",
+      "status": "partial",
+      "gaps": [
+        "未实现真实剪贴板 provenance、Composer taint 与逐次外发批准页完整字节核对。",
+        "未覆盖 clipboard_derived 行与 clipboard_source_version_ids 的端到端断言；E=B 后外发/同步腿移出。"
+      ],
+      "evidence": [
+        { "path": "src/work/internal/migrate/r0b_local_artifact_test.go", "test": "TestR0bUserSaveClipboardFloorAndSameDeviceSources" },
+        { "path": "src/device/src/broker.rs", "test": "stage_local_input_seals_the_text_and_returns_only_metadata" },
+        { "path": "src/device/src/nodeservice.rs", "test": "staged_input_feeds_an_artifact_write_with_matching_hash_and_size" }
+      ]
+    },
+    {
+      "id": "EV113",
+      "gate": "I2",
+      "requirement": "unknown 阻断新 prepare/permit/run_start，但允许 renew 与 receipt/checkpoint 核账；核账后恢复，收尾 lease 不授执行能力。",
+      "status": "covered",
+      "gaps": [],
+      "evidence": [
+        { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bPrepareBlocksOnAnUnreconciledOperation" },
+        { "path": "src/work/internal/migrate/r0b_permit_mint_test.go", "test": "TestR0bCommandClaimSkipsARunWithAnUnreconciledOperation" },
+        { "path": "src/work/internal/migrate/r0b_orchestration_test.go", "test": "TestR0bUnknownAllowsAccountingAndRecoversAfterLateReceipt" },
+        { "path": "src/work/internal/migrate/r0b_orchestration_test.go", "test": "TestR0bAcquireRecoversAfterUnknownIsReconciled" },
+        { "path": "src/work/internal/migrate/r0b_orchestration_test.go", "test": "TestR0bReconcileFinishLeaseBuysNoExecutionCapability" },
+        { "path": "src/work/internal/migrate/r0b_orchestration_test.go", "test": "TestR0bReconcileFinishLeaseCannotMintPermitForAuthorizedOperation" },
+        { "path": "src/work/internal/migrate/r0b_orchestration_test.go", "test": "TestR0bReconcileFinishLeaseCanFinishFailedWithUnknown" },
+        { "path": "src/work/internal/migrate/r0b_transition_test.go", "test": "TestR0bRunGuardRejectsWaitingToSucceeded" },
+        { "path": "src/work/internal/migrate/r0b_cross_session_finish_test.go", "test": "TestR0bReconnectMintsAReconcileLeaseAndItsSessionFinishes" }
+      ]
+    },
+    {
+      "id": "EV72",
+      "gate": "I3",
+      "requirement": "本机内容窗口不执行原始 HTML、不加载外链，拒绝导航/新窗口/权限请求，系统级零出网与 DNS 预取。",
+      "status": "not_run",
+      "gaps": [
+        "本机内容窗口尚无实现与门级测试；缺网络/DNS 抓包、webRequest 取消记录和 DOM 快照。"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "EV73",
+      "gate": "I3",
+      "requirement": "主窗口不持有本机正文，Composer stage 后清空；仅 viewer 主 frame 可发送六类闭集消息，对象与发送方校验拒绝。",
+      "status": "partial",
+      "gaps": [
+        "仅有 IPC schema 测试；未实现主窗口哨兵扫描、Composer 清空、对象绑定与伪造 frame 的完整负例。",
+        "未覆盖 confirmLocalWrite 三值与 signObjectProof 的 frame 行为。"
+      ],
+      "evidence": [
+        { "path": "src/device/src/ipc/schema.rs", "test": "viewer_closure_has_six_members" },
+        { "path": "src/device/src/ipc/schema.rs", "test": "cross_channel_method_rejected" },
+        { "path": "src/device/src/ipc/ticket.rs", "test": "refuses_every_unclosed_or_mistyped_message" },
+        { "path": "src/device/src/ipc/ticket.rs", "test": "the_method_is_in_the_shell_closure_and_not_the_viewer_closure" }
+      ]
+    },
+    {
+      "id": "EV99",
+      "gate": "I3",
+      "requirement": "viewer 使用隔离 sandbox、无 node/devtools/spellcheck/preload、空 partition+cache:false，与主窗口存储缓存不共享。",
+      "status": "not_run",
+      "gaps": [
+        "尚无 viewer webPreferences 快照、分区/Cookie jar 隔离、进程与网络观测测试。"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "EV116",
+      "gate": "I3",
+      "requirement": "local_only 披露/同步必须由 viewer 手势与专用 authz 授权，proof 字段绑定且不得绕过。",
+      "status": "out_of_scope",
+      "gaps": [],
+      "evidence": [],
+      "ruling": "docs/work/design/work-r0b-architecture-2026-10-30.md",
+      "rulingQuote": "选择性云同步移出 R0b 本期"
+    },
+    {
+      "id": "EV123",
+      "gate": "I3",
+      "requirement": "本机采纳 proof 由 viewer signObjectProof 手势签署，缺手势或伪造 frame 时零请求零写；purpose 仅 accept。",
+      "status": "partial",
+      "gaps": [
+        "尚无 viewer signObjectProof 手势与 principal/frame 强制实现。",
+        "未执行缺手势零抓包与 accept proof 的 purpose 对照；E=B 已移除恢复/读取票据/同步腿。"
+      ],
+      "evidence": [
+        { "path": "src/work/internal/api/local_acceptances_test.go", "test": "TestLocalAcceptanceCreateAndReplay" },
+        { "path": "src/work/internal/api/local_acceptances_test.go", "test": "TestLocalAcceptanceNonceReuse" },
+        { "path": "src/work/internal/api/local_acceptances_test.go", "test": "TestLocalAcceptanceWrongHash" },
+        { "path": "src/work/internal/api/local_acceptances_test.go", "test": "TestLocalAcceptanceRequiresBearer" },
+        { "path": "src/device/src/ipc/schema.rs", "test": "viewer_closure_has_six_members" },
+        { "path": "src/device/src/ipc/schema.rs", "test": "viewer_methods_accepted" }
+      ]
+    },
+    {
+      "id": "EV51",
+      "gate": "I4",
+      "requirement": "撤权前已 recorded 的 receipt 正常核账；撤权后迟到回执不再接受，unknown 走服务端降级；compromised 只隔离。",
+      "status": "partial",
+      "gaps": [
+        "未覆盖撤权前已 recorded receipt 的正常核账、撤权后迟到回执拒绝，以及 started-only 的服务端降级。",
+        "未覆盖 compromised 证据隔离与私钥丢失 unresolved；E=B 已移除 recovery 限流腿。"
+      ],
+      "evidence": [
+        { "path": "src/work/internal/migrate/r0b_device_slice_test.go", "test": "TestR0bDeviceRevokeWritesCancellationIntent" },
+        { "path": "src/work/internal/gateway/receipt_uplink_test.go", "test": "TestReceiptRejectsRevokedDevice" },
+        { "path": "src/work/internal/migrate/r0b_finish_ownership_test.go", "test": "TestR0bFinishRefusesRevokedDeviceEvenOnReplay" }
+      ]
+    },
+    {
+      "id": "EV95",
+      "gate": "I4",
+      "requirement": "撤权后 completed 历史 receipt 与 started-only 分别核账/保留 unknown；seq 越界、伪造与 compromised 不得恢复权限。",
+      "status": "out_of_scope",
+      "gaps": [],
+      "evidence": [],
+      "ruling": "docs/work/design/work-r0b-b03-reconciliation-carrier-2026-11-10.md",
+      "rulingQuote": "EV95（recovery 通道）"
+    },
+    {
+      "id": "EV96",
+      "gate": "I4",
+      "requirement": "停用组织、停用执行与授座并发遵守权威顺序；降 seat_limit 不撤人；未决 Apply 冲突且 revision 单调。",
+      "status": "partial",
+      "gaps": [
+        "未从真实 Host ChangeSeat 路径断言 enabled=false 的 org_execution_disabled。",
+        "未执行跨系统并发时序与全部 deny 来源恢复矩阵。"
+      ],
+      "evidence": [
+        { "path": "src/work/internal/migrate/r0b_entitlement_test.go", "test": "TestR0bOperatorSuspendBuildsDenyAndQueuesCancellations" },
+        { "path": "src/work/internal/migrate/r0b_entitlement_test.go", "test": "TestR0bOperatorRestoreWaitsForTheHostAckAndReleasesOnlyItsOwn" },
+        { "path": "src/work/internal/migrate/r0b_entitlement_test.go", "test": "TestR0bSeatLimitChangeIsNotADenySource" },
+        { "path": "src/work/internal/migrate/r0b_entitlement_test.go", "test": "TestR0bEntitlementReceiptIsIdempotent" },
+        { "path": "src/work/internal/migrate/org_execution_split_test.go", "test": "TestOrgExecutionGuardSplitsByTriggerCondition" }
+      ]
+    },
+    {
+      "id": "EV100",
+      "gate": "I4",
+      "requirement": "未 ack resolution 每次建会话重推；无 journal 行回 journal_row_missing/not_applicable，ack 不阻塞 Run 终态。",
+      "status": "partial",
+      "gaps": [
+        "未执行丢 ack 后换会话的集成重推与永久失联时间线。",
+        "未断言 Run 终态独立于 ack；E=B 后 recovery-only/run_sealed 腿移出。"
+      ],
+      "evidence": [
+        { "path": "src/work/internal/migrate/r0b_pending_resolutions_test.go", "test": "TestR0bPendingResolutionsSkipsTerminalWatermarksAndOmitsSignature" },
+        { "path": "src/work/internal/gateway/resolution_downlink_test.go", "test": "TestResolutionDownlinkPushAndAck" },
+        { "path": "src/device/src/reconcile/resolution.rs", "test": "missing_row_acks_journal_row_missing" }
+      ]
+    },
+    {
+      "id": "EV120",
+      "gate": "I4",
+      "requirement": "只读 unknown 五项前置齐备可降级为 evidence_unavailable/reconciled 并保留 unknown 预留；副作用类按前置选择维持 unknown 或 evidence_exhausted，分别控制新 Run 与采纳。",
+      "status": "partial",
+      "gaps": [
+        "控制面五项前置、unknown 预留保留、成果零新增、active-session 阻断、经 retry_task/accept_task 的新 Run/采纳非对称结果与审计依据（lease 到期/身份、显式 caller_attestation provenance 的 journal 声明、无 receipt/gate/usage/provider 事实、工单）已补齐；wait_reason=input 的“继续/起新 Run/结束”三出口与无假重试 UI 尚未实现/取证。",
+        "降级 operation_resolution 的 gateway-wire 与真实设备送达尚未取证；现有设备证据仅为 resolution 消费单测。"
+      ],
+      "evidence": [
+        { "path": "src/work/internal/migrate/r0b_resolution_test.go", "test": "TestR0bReadonlyDegradationReconcilesAndKeepsTheReservation" },
+        { "path": "src/work/internal/migrate/r0b_resolution_test.go", "test": "TestR0bExhaustedDegradationRequiresTicketAndBlocksAdoption" },
+        { "path": "src/work/internal/migrate/r0b_resolution_test.go", "test": "TestR0bReadonlyDegradationRejectsEachMissingPrecondition" },
+        { "path": "src/work/internal/migrate/r0b_resolution_test.go", "test": "TestR0bDegradationRefusesNonObjectEvidence" },
+        { "path": "src/work/internal/migrate/r0b_resolution_test.go", "test": "TestR0bExhaustedDegradationRefusesReachableDeviceUntilSessionExpires" },
+        { "path": "src/work/internal/migrate/r0b_resolution_test.go", "test": "TestR0bResolutionRefusesTheWrongVocabularyAndScope" },
+        { "path": "src/work/internal/migrate/r0b_resolution_test.go", "test": "TestR0bReconciliationsReadFaceIsTheJ38Query" },
+        { "path": "src/work/internal/migrate/r0b_resolution_test.go", "test": "TestR0bReconciliationsReadTreatsMalformedHistoricalEvidenceAsNoSources" },
+        { "path": "src/work/internal/api/run_reconciliations_test.go", "test": "TestRunReconciliationsReadFace" },
+        { "path": "src/frontend/src/features/work/r0b/components/RunReconciliations.test.tsx", "test": "shows the wait clock, J38 state, authority, evidence and contact path" },
+        { "path": "src/device/src/reconcile/resolution.rs", "test": "degradation_never_proves_non_execution" }
+      ]
+    },
+    {
+      "id": "EV115",
+      "gate": "I4",
+      "requirement": "终态后 tombstone 清理受 recorded release 水位与 terminal finish ack 驱动；丢 ack/失联不阻塞终态，重放幂等。",
+      "status": "partial",
+      "gaps": [
+        "只有组件级水位/ack 测试，未执行丢 ack、重建会话和永久失联的集成时间线。",
+        "E=B 后 run_sealed/recovery-only 腿移出，需按 finish ack+resolution 载体补齐剩余断言。"
+      ],
+      "evidence": [
+        { "path": "src/device/src/reconcile/watermark.rs", "test": "tombstone_gate_requires_all_conditions" },
+        { "path": "src/device/src/reconcile/watermark.rs", "test": "cleanup_only_when_terminal_and_gate_satisfied" },
+        { "path": "src/device/src/finish/ack.rs", "test": "accepted_verdict_records_the_terminal_revision" },
+        { "path": "src/device/src/finish/ack.rs", "test": "reapplying_the_same_verdict_is_idempotent" },
+        { "path": "src/work/internal/migrate/r0b_pending_resolutions_test.go", "test": "TestR0bPendingResolutionsSkipsTerminalWatermarksAndOmitsSignature" }
+      ]
+    },
+    {
+      "id": "EV63",
+      "gate": "I5",
+      "requirement": "远程 provider egress 的许可、单次调用、不读非法 body、哨兵不落盘与 ingress 拒绝矩阵。",
+      "status": "out_of_scope",
+      "gaps": [],
+      "evidence": [],
+      "ruling": "docs/work/design/work-r0b-architecture-2026-10-30.md",
+      "rulingQuote": "S1 设备公网模型入口砍，本机推理用 device_local"
+    },
+    {
+      "id": "EV102",
+      "gate": "I5",
+      "requirement": "device_local permit 消费直接登记 active runtime_execution，lease_until 为 permit+2s，重复请求先清过期行，finish revoke 残留。",
+      "status": "partial",
+      "gaps": [
+        "0063 已由 consume_device_permit 生产接线并有真库用例，但设备侧 model permit 端到端与慢盘/慢网 5s 边缘时序尚未取证。"
+      ],
+      "evidence": [
+        { "path": "src/work/internal/migrate/r0b_device_model_usage_test.go", "test": "TestR0bDeviceModelPermitCreatesActiveExecutionWithTwoSecondMargin" },
+        { "path": "src/work/internal/migrate/r0b_device_model_usage_test.go", "test": "TestR0bDeviceModelSecondRequestExpiresTheStaleLiveRow" },
+        { "path": "src/work/internal/migrate/r0b_device_model_usage_test.go", "test": "TestR0bDeviceModelFinishRevokesResidualActiveExecution" },
+        { "path": "src/work/internal/migrate/r0b_device_model_usage_test.go", "test": "TestR0bDeviceModelConcurrentPermitReplayReturnsOneCommand" }
+      ]
+    },
+    {
+      "id": "EV114",
+      "gate": "I5",
+      "requirement": "device_local 用量由 record_device_model_result 以 device_adapter/device_local 写入，云 provider/空值/越权/结算与报表分列可验。",
+      "status": "partial",
+      "gaps": [
+        "0063 已有 worker-only definer、真库结算/幂等/ACL/CHECK 用例；主签 2026-11-25 已裁定独立 model_result 上行帧，但 Rust 帧、网关接线与真实设备送达尚未实施/取证，org_private 已按 E=B 移出。",
+        "record_device_model_result 只写用量/结算/execution 事实，不替代 operation_resolution 的 Operation 终态；上行载体必须把两者串成同一条可恢复链。",
+        "用量报表前端分列与真实设备结果上行尚未取证。"
+      ],
+      "evidence": [
+        { "path": "src/work/internal/migrate/r0b_device_model_usage_test.go", "test": "TestR0bDeviceModelResultRecordsAdapterUsageAndSettlesOnce" },
+        { "path": "src/work/internal/migrate/r0b_device_model_usage_test.go", "test": "TestR0bDeviceModelResultRefusesBadProviderUsageACLAndRevokedDevice" },
+        { "path": "src/work/internal/migrate/r0b_device_model_usage_test.go", "test": "TestR0bDeviceModelResultRequiresAQuotaReservation" },
+        { "path": "src/work/internal/migrate/r0b_device_model_usage_test.go", "test": "TestR0bDeviceModelResultSurvivesSessionExpiryAndFinishRevocation" }
+      ]
+    },
+    {
+      "id": "EV118",
+      "gate": "I5",
+      "requirement": "只 list local_only 根仍可发远程动作，read 后 prepare/permit 拒绝并释放预留；输出根 local_only 同样拒绝，预览/确认页提前告知。",
+      "status": "not_run",
+      "gaps": [
+        "E=B 移除了 org_remote/org_private 本机 Run 模型消费点，但范围修订未给 EV118 一份保留腿的改写 oracle；当前两组证据都针对已移除的远程目的地。",
+        "保留的目的地谓词、local_only 输出根与 list/read 分类差分没有直接 EV118 用例；UI 警告与 permit 释放也未运行。"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "EV121",
+      "gate": "I5",
+      "requirement": "预览提前显示 artifact_classification_floor 与 local_only 不可云同步告警，提交不被误阻断，改绑变严再次提示。",
+      "status": "not_run",
+      "gaps": [
+        "PreviewV2 尚无 artifact_classification_floor 消费或选择阶段 UI 测试；E=B 后同步腿移出，但本机下限提示仍待裁定与实现。"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "EV88",
+      "gate": "I6",
+      "requirement": "桌面 Bearer 逐请求 Host 验真，Cookie/CSRF 保持 R0a；缺客户端/跨站 Origin、过期/错 aud/iss/吊销/跨面 proof 均无副作用。",
+      "status": "partial",
+      "gaps": [
+        "未执行真 Host token 矩阵、30s epoch 刷新、审计 auth_plane、Set-Cookie 缺席和跨面 proof 拒绝。",
+        "未覆盖桌面未纳入 isApi 的 405 现状与纳入后行为。"
+      ],
+      "evidence": [
+        { "path": "src/work/internal/api/local_acceptances_test.go", "test": "TestLocalAcceptanceRequiresBearer" },
+        { "path": "src/work/internal/api/local_workspace_rebinds_test.go", "test": "TestWorkspaceRebindRequiresBearer" },
+        { "path": "src/work/internal/api/local_artifact_versions_test.go", "test": "TestLocalArtifactVersionRequiresBearer" },
+        { "path": "src/work/internal/api/csrf_test.go", "test": "TestCSRFIssueAndVerify" },
+        { "path": "src/work/internal/host/bearer_test.go", "test": "TestVerifyBearerDoesNotCache" },
+        { "path": "src/work/internal/host/bearer_test.go", "test": "TestVerifyPlanesAreNamespaced" },
+        { "path": "src/backend/core/tests/test_work_host_bearer_verify.py", "test": "test_returns_verified_bearer" },
+        { "path": "src/backend/core/tests/test_work_host_bearer_verify.py", "test": "test_session_revision_tracks_auth_epoch" },
+        { "path": "src/backend/core/tests/test_work_host_bearer_verify.py", "test": "test_cookie_session_cannot_satisfy_bearer" },
+        { "path": "src/work/internal/api/devices_test.go", "test": "TestDeviceFaceRequiresBearerPlane" },
+        { "path": "src/work/internal/api/route_guard_sweep_pg_test.go", "test": "TestEveryContractOperationEnforcesSessionAndCSRF" },
+        { "path": "src/desktop/tests/renderer.test.cjs", "test": "bundle routing, token isolation, API failures and stale-account responses" }
+      ]
+    }
+  ]
+}

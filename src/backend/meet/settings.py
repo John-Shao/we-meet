@@ -952,8 +952,8 @@ class Base(Configuration):
         ),
     }
 
-    # The meet ingress verifies the Work control-plane client certificate and
-    # passes it as ssl-client-cert; this view verifies it again against the CA.
+    # The meet ingress verifies Work client certificates and passes them as
+    # ssl-client-cert; the Host views verify them again against the CA.
     WORK_HOST_MTLS_CA_PEM = values.Value(
         "",
         environ_name="WORK_HOST_MTLS_CA_PEM",
@@ -962,6 +962,11 @@ class Base(Configuration):
     WORK_HOST_MTLS_CLIENT_IDENTITY = values.Value(
         "work-control-plane",
         environ_name="WORK_HOST_MTLS_CLIENT_IDENTITY",
+        environ_prefix=None,
+    )
+    WORK_HOST_GOVERNANCE_EVENTS_IDENTITY = values.Value(
+        "work-governance-events",
+        environ_name="WORK_HOST_GOVERNANCE_EVENTS_IDENTITY",
         environ_prefix=None,
     )
 

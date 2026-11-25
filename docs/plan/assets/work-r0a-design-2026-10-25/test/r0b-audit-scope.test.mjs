@@ -107,21 +107,24 @@ test('the four derivations each still have a live producer', () => {
   assert.equal(derived.size, namedCandidates().length, 'the candidate table and the authority text disagree');
 });
 
-test('the two #49 names without a producer stay without one, and the scan is not vacuous', () => {
+test('the remaining #49 name without a producer stays without one, and implemented aliases are pinned', () => {
   // Positive control first: the same scan must find things that do exist, or "zero mentions" means
   // nothing.
   assert.ok(producerMentions('consume_governance_events').length > 0, 'the producer scan found no implemented command');
   assert.ok(producerMentions('set_local_policy').length > 0, 'the producer scan found no implemented command');
-  for (const token of ['SeedWorkMemberState', 'seed_work_member_state', 'ListGovernanceEvents', 'list_governance_events']) {
-    assert.deepEqual(producerMentions(token), [], `${token} now has a producer - #49 said these were unimplemented`);
+  assert.ok(producerMentions('ListGovernanceEvents').length > 0, 'the governance Host client is not detected');
+  for (const token of ['SeedWorkMemberState', 'seed_work_member_state']) {
+    assert.deepEqual(producerMentions(token), [], `${token} now has a producer - #49 said it was unimplemented`);
   }
   const records = new Map(manifest.namedAdjudications.map((record) => [record.name, record]));
   assert.equal(records.get('SeedWorkMemberState').outcome, 'no-producer');
-  assert.equal(records.get('ListGovernanceEvents').outcome, 'alias');
-  assert.equal(records.get('ListGovernanceEvents').implementation, 'consume_governance_events');
+  assert.equal(records.get('SeedWorkMemberState').holds, true);
+  assert.equal(records.get('ListGovernanceEvents').outcome, 'in-scope');
+  assert.deepEqual(records.get('ListGovernanceEvents').derivedAs, ['sql consume_governance_events']);
+  assert.equal(records.get('ListGovernanceEvents').holds, true);
   assert.ok(
     manifest.entries.some((entry) => entry.name === 'consume_governance_events'),
-    'the alias points at a command that is not enumerated',
+    'the implemented alias points at a command that is not enumerated',
   );
 });
 

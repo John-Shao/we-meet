@@ -318,9 +318,8 @@ const DISPOSITIONS = {
     absentNote: 'src/work/deploy/ecs/provision-r0b-roles.sh says the one-time Host write port is deliberately absent',
   },
   ListGovernanceEvents: {
-    outcome: 'alias',
-    tokens: ['ListGovernanceEvents', 'list_governance_events'],
-    implementation: 'consume_governance_events',
+    outcome: 'in-scope',
+    derivedAs: ['sql consume_governance_events'],
   },
   consume_governance_events: {
     outcome: 'in-scope',

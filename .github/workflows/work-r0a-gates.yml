@@ -209,7 +209,7 @@ jobs:
         run: >-
           uv run pytest core/tests/test_work_host_session_verify.py
           core/tests/test_work_host_org_discovery.py core/tests/test_work_directory_fields.py
-          -q --create-db
+          core/tests/test_work_governance_events.py -q --create-db
 
   go-migrate:
     name: Go migration, RLS, API and directory sync (PG16)

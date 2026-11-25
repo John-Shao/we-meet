@@ -34,7 +34,7 @@ func TestR0bGapSkipReceiptIsBoundToItsPayload(t *testing.T) {
 		SELECT work.consume_governance_events('%s',
 		  jsonb_build_array(%s),
 		  jsonb_build_object('from_seq', 1, 'to_seq_exclusive', 5,
-		    'seat_events', jsonb_build_array(%s)),
+		    'coverage', 'enumerated', 'seat_events', jsonb_build_array(%s)),
 		  0)`,
 		org,
 		governanceEvent(t, 5, newUUID(t), "sub_a", true, 1),

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/we-meet/work/internal/testpg"
@@ -180,6 +181,177 @@ func TestR0bGovernanceCursorAdvancesOnlyForward(t *testing.T) {
 		t.Fatal("the cursor row was deletable")
 	} else {
 		assertPgMessage(t, err, "append_only_table:governance_event_cursor")
+	}
+}
+
+func TestR0bGovernanceCursorInitializesPerOrgAtHostMax(t *testing.T) {
+	dbName, admin := newGateDB(t)
+	orgA := "org_r0b_cursor_a"
+	orgB := "org_r0b_cursor_b"
+	runA := seedRun(t, admin, orgA)
+	seedRun(t, admin, orgB)
+	mustExec(t, admin, "UPDATE work.member SET work_seat = false WHERE org_id = "+quoteLiteral(orgA)+
+		" AND subject_id = "+quoteLiteral(runA.subject))
+	historicalA := governanceEventJSON(t, 40, newUUID(t), runA.subject, true, 9)
+	historicalB := governanceEventJSON(t, 100, newUUID(t), "sub_b", true, 9)
+	eventA := governanceEventJSON(t, 41, newUUID(t), runA.subject, false, 1)
+	eventB := governanceEventJSON(t, 101, newUUID(t), "sub_b", false, 1)
+
+	type consumer struct {
+		org            string
+		initializeFrom int
+		event          string
+		historical     string
+	}
+	consumers := []consumer{
+		{orgA, 40, eventA, historicalA},
+		{orgB, 100, eventB, historicalB},
+	}
+	errs := make(chan error, len(consumers))
+	start := make(chan struct{})
+	var ready, wg sync.WaitGroup
+	ready.Add(len(consumers))
+	for _, c := range consumers {
+		c := c
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			conn, err := testpg.Open(testContext(t), testpg.GovernanceURL(dbName))
+			if err != nil {
+				ready.Done()
+				errs <- err
+				return
+			}
+			defer conn.Close(testContext(t))
+			if _, err := conn.Exec(testContext(t), "SET app.org_id = "+quoteLiteral(c.org)); err != nil {
+				ready.Done()
+				errs <- err
+				return
+			}
+			ready.Done()
+			<-start
+			var payload []byte
+			if err := conn.QueryRow(testContext(t),
+				`SELECT work.consume_governance_events($1, jsonb_build_array($2::jsonb), NULL, $3)`,
+				c.org, c.event, c.initializeFrom).Scan(&payload); err != nil {
+				errs <- err
+			}
+		}()
+	}
+	ready.Wait()
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatalf("concurrent cursor initialization failed: %v", err)
+	}
+	for _, c := range consumers {
+		if _, err := admin.Exec(testContext(t), "SET app.org_id = "+quoteLiteral(c.org)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := admin.Exec(testContext(t),
+			`SELECT work.consume_governance_events($1, jsonb_build_array($2::jsonb))`,
+			c.org, c.historical); err == nil {
+			t.Fatalf("%s back-filled a historical grant", c.org)
+		} else {
+			assertPgMessage(t, err, "directory_protocol_invalid")
+		}
+	}
+	if got := scalarCount(t, admin, `SELECT last_event_seq FROM work.governance_event_cursor WHERE org_id = $1`, orgA); got != 41 {
+		t.Fatalf("org A cursor = %d, want 41", got)
+	}
+	if got := scalarCount(t, admin, `SELECT last_event_seq FROM work.governance_event_cursor WHERE org_id = $1`, orgB); got != 101 {
+		t.Fatalf("org B cursor = %d, want 101", got)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.consumed_governance_command
+		WHERE org_id = $1 AND event_seq = 40`, orgA); got != 0 {
+		t.Fatalf("org A back-filled historical commands = %d, want 0", got)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.consumed_governance_command
+		WHERE org_id = $1 AND event_seq = 100`, orgB); got != 0 {
+		t.Fatalf("org B back-filled historical commands = %d, want 0", got)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.access_restriction
+		WHERE org_id = $1 AND source = 'host_seat' AND state = 'active'`, orgA); got != 1 {
+		t.Fatalf("historical grant released the seat deny = %d active rows, want 1", got)
+	}
+}
+
+func TestR0bGapAdvanceRefusesReportThatOmitsConsumedSeatEvent(t *testing.T) {
+	dbName, admin := newGateDB(t)
+	org := "org_r0b_gap_omitted_seat"
+	seedRun(t, admin, org)
+	r0bAdmin(t, admin, org)
+	actor := r0bAdminSubject(org)
+	commandID := newUUID(t)
+	reportID := newUUID(t)
+	r0bExec(t, dbName, org, fmt.Sprintf(`
+		INSERT INTO work.governance_event_cursor (org_id, last_event_seq) VALUES ('%s', 0);
+		INSERT INTO work.consumed_governance_command
+		  (org_id, command_id, kind, target_subject_id, desired, event_seq,
+		   member_revision, payload_hash, applied_at)
+		VALUES ('%s', '%s', 'seat', 'sub_a', true, 2, 9, 'sha256:%s', now());
+		INSERT INTO work.governance_gap_report
+		  (org_id, gap_report_id, from_seq, to_seq_exclusive, seat_events,
+		   seat_event_count, host_fetch_seq)
+		VALUES ('%s', '%s', 1, 5, '[]'::jsonb, 0, 5);
+		INSERT INTO work.access_restriction
+		  (org_id, scope, subject_id, source, reason, epoch, host_revision, release_floor_revision)
+		VALUES ('%s', 'member', 'sub_a', 'host_seat', 'seat_dropped', 1, 2, 3);
+	`, org, org, commandID, repeatHex(t, 64), org, reportID, org))
+	_, err := admin.Exec(testContext(t), fmt.Sprintf(
+		`SELECT work.advance_governance_event_cursor('%s', 5, '%s', 'TICKET-OMITTED', '%s', 'req-omitted')`,
+		org, reportID, actor))
+	if err == nil {
+		t.Fatal("a gap report that omitted an already consumed seat event was accepted")
+	}
+	assertPgMessage(t, err, "cursor_advance_not_allowed")
+	if got := scalarCount(t, admin, `SELECT last_event_seq FROM work.governance_event_cursor WHERE org_id = $1`, org); got != 0 {
+		t.Fatalf("cursor after omitted-seat refusal = %d, want 0", got)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.governance_gap_report
+		WHERE org_id = $1 AND gap_report_id = $2 AND state = 'pending'`, org, reportID); got != 1 {
+		t.Fatalf("omitted-seat report state = %d pending rows, want 1", got)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.access_restriction
+		WHERE org_id = $1 AND subject_id = 'sub_a' AND source = 'host_seat' AND state = 'active'`, org); got != 1 {
+		t.Fatalf("omitted-seat refusal changed deny state = %d active rows, want 1", got)
+	}
+}
+
+func TestR0bSeatProjectionGrantWithoutCursorAdvanceKeepsDeny(t *testing.T) {
+	dbName, admin := newGateDB(t)
+	org := "org_r0b_grant_without_cursor"
+	run := seedRun(t, admin, org)
+	r0bAdmin(t, admin, org)
+	mustExec(t, admin, "UPDATE work.member SET work_seat = false WHERE org_id = "+quoteLiteral(org)+
+		" AND subject_id = "+quoteLiteral(run.subject))
+	mustExec(t, admin, "INSERT INTO work.governance_event_cursor (org_id, last_event_seq) VALUES ("+
+		quoteLiteral(org)+", 0)")
+	revision := scalarCount(t, admin, `SELECT revision FROM work.member WHERE org_id = $1 AND subject_id = $2`, org, run.subject)
+	directory := connect(t, testpg.DirectoryURL(dbName))
+	defer directory.Close(testContext(t))
+	if _, err := directory.Exec(testContext(t), "SET app.org_id = "+quoteLiteral(org)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := directory.Exec(testContext(t),
+		`SELECT work.sync_member_with_org_context($1,$2,'active','member',true,$3)`,
+		org, run.subject, revision+1); err != nil {
+		t.Fatalf("seat projection: %v", err)
+	}
+	if got := scalarCount(t, admin, `SELECT CASE WHEN work_seat THEN 1 ELSE 0 END FROM work.member
+		WHERE org_id = $1 AND subject_id = $2`, org, run.subject); got != 1 {
+		t.Fatalf("projected work_seat = %d, want 1", got)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.access_restriction
+		WHERE org_id = $1 AND source = 'host_seat' AND state = 'active'`, org); got != 1 {
+		t.Fatalf("projection-only grant released the deny = %d active rows, want 1", got)
+	}
+	if got := scalarCount(t, admin, `SELECT last_event_seq FROM work.governance_event_cursor WHERE org_id = $1`, org); got != 0 {
+		t.Fatalf("projection-only grant moved cursor = %d, want 0", got)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.consumed_governance_command WHERE org_id = $1`, org); got != 0 {
+		t.Fatalf("projection-only grant wrote consumed commands = %d, want 0", got)
 	}
 }
 
@@ -420,9 +592,14 @@ func TestR0bSeatDenyReleasedOnlyByCommandEvent(t *testing.T) {
 // returns it, as a jsonb literal so it can be embedded in a consume call.
 func governanceEvent(t *testing.T, seq int, commandID, subject string, desired bool, memberRevision int) string {
 	t.Helper()
-	return fmt.Sprintf(`'{"event_seq": %d, "command_id": "%s", "kind": "seat",
+	return "'" + governanceEventJSON(t, seq, commandID, subject, desired, memberRevision) + "'::jsonb"
+}
+
+func governanceEventJSON(t *testing.T, seq int, commandID, subject string, desired bool, memberRevision int) string {
+	t.Helper()
+	return fmt.Sprintf(`{"event_seq": %d, "command_id": "%s", "kind": "seat",
 	  "target_subject_id": "%s", "desired": %t, "member_revision": %d,
-	  "payload_hash": "sha256:%s", "applied_at": "2026-11-01T00:00:00Z"}'::jsonb`,
+	  "payload_hash": "sha256:%s", "applied_at": "2026-11-01T00:00:00Z"}`,
 		seq, commandID, subject, desired, memberRevision, repeatHex(t, 64))
 }
 
@@ -599,6 +776,19 @@ func TestR0bGapReportAndCursorAdvanceAreTwoDistinctSteps(t *testing.T) {
 		t.Fatalf("gap reports without attestation = %d, want 0", got)
 	}
 
+	// A lost interval is not an enumeration, even when the caller supplies an empty list.
+	if _, err := admin.Exec(testContext(t), fmt.Sprintf(`
+		SELECT work.consume_governance_events('%s',
+		  jsonb_build_array(%s),
+		  jsonb_build_object('from_seq', 1, 'to_seq_exclusive', 5,
+		    'coverage', 'lost', 'seat_events', '[]'::jsonb),
+		  0)`,
+		org, governanceEvent(t, 5, newUUID(t), "sub_a", true, 1))); err == nil {
+		t.Fatal("a lost gap attestation was accepted")
+	} else {
+		assertPgMessage(t, err, "directory_protocol_invalid")
+	}
+
 	// An enumeration naming a position outside the interval it claims to cover is not a
 	// proof of that interval - it is a list of whatever the caller later wants to be
 	// able to cite. The interval is what §3.1 makes the puller attest, so the list must
@@ -607,7 +797,7 @@ func TestR0bGapReportAndCursorAdvanceAreTwoDistinctSteps(t *testing.T) {
 		SELECT work.consume_governance_events('%s',
 		  jsonb_build_array(%s),
 		  jsonb_build_object('from_seq', 1, 'to_seq_exclusive', 5,
-		    'seat_events', jsonb_build_array(%s)),
+		    'coverage', 'enumerated', 'seat_events', jsonb_build_array(%s)),
 		  0)`,
 		org,
 		governanceEvent(t, 5, newUUID(t), "sub_a", true, 1),
@@ -628,7 +818,7 @@ func TestR0bGapReportAndCursorAdvanceAreTwoDistinctSteps(t *testing.T) {
 		SELECT work.consume_governance_events('%s',
 		  jsonb_build_array(%s),
 		  jsonb_build_object('from_seq', 1, 'to_seq_exclusive', 5,
-		    'seat_events', jsonb_build_array(%s)),
+		    'coverage', 'enumerated', 'seat_events', jsonb_build_array(%s)),
 		  0)`,
 		org,
 		governanceEvent(t, 5, newUUID(t), "sub_a", true, 1),
@@ -670,6 +860,46 @@ func TestR0bGapReportAndCursorAdvanceAreTwoDistinctSteps(t *testing.T) {
 		`SELECT work.advance_governance_event_cursor('%s', 5, '%s', '', '%s', 'req-blank')`,
 		org, reportID, actor)); err == nil {
 		t.Fatal("a cursor advance without a ticket was accepted")
+	} else {
+		assertPgMessage(t, err, "cursor_advance_not_allowed")
+	}
+	if got := scalarCount(t, admin, `SELECT last_event_seq FROM work.governance_event_cursor WHERE org_id = $1`, org); got != 0 {
+		t.Fatalf("cursor after missing-ticket refusal = %d, want 0", got)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.access_restriction
+		WHERE org_id = $1 AND subject_id = 'sub_a' AND source = 'host_seat' AND state = 'active'`, org); got != 1 {
+		t.Fatalf("missing-ticket refusal changed deny state = %d active rows, want 1", got)
+	}
+	if _, err := admin.Exec(testContext(t), fmt.Sprintf(
+		`SELECT work.advance_governance_event_cursor('%s', 5, '%s', 'TICKET-7', '%s', 'req-no-proof')`,
+		org, newUUID(t), actor)); err == nil {
+		t.Fatal("a cursor advance without a Host interval proof was accepted")
+	} else {
+		assertPgMessage(t, err, "cursor_advance_not_allowed")
+	}
+	if got := scalarCount(t, admin, `SELECT last_event_seq FROM work.governance_event_cursor WHERE org_id = $1`, org); got != 0 {
+		t.Fatalf("cursor after no-proof refusal = %d, want 0", got)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.access_restriction
+		WHERE org_id = $1 AND subject_id = 'sub_a' AND source = 'host_seat' AND state = 'active'`, org); got != 1 {
+		t.Fatalf("no-proof refusal changed deny state = %d active rows, want 1", got)
+	}
+	if _, err := admin.Exec(testContext(t), fmt.Sprintf(
+		`SELECT work.advance_governance_event_cursor('%s', 0, '%s', 'TICKET-7', '%s', 'req-no-advance')`,
+		org, reportID, actor)); err == nil {
+		t.Fatal("a cursor advance that did not move forward was accepted")
+	} else {
+		assertPgMessage(t, err, "cursor_advance_not_allowed")
+	}
+	if got := scalarCount(t, admin, `SELECT last_event_seq FROM work.governance_event_cursor WHERE org_id = $1`, org); got != 0 {
+		t.Fatalf("cursor after non-advancing refusal = %d, want 0", got)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.access_restriction
+		WHERE org_id = $1 AND subject_id = 'sub_a' AND source = 'host_seat' AND state = 'active'`, org); got != 1 {
+		t.Fatalf("non-advancing refusal changed deny state = %d active rows, want 1", got)
+	}
+	if got := scalarCount(t, admin, `SELECT last_event_seq FROM work.governance_event_cursor WHERE org_id = $1`, org); got != 0 {
+		t.Fatalf("cursor after proof/order refusals = %d, want 0", got)
 	}
 	if err := admin.QueryRow(testContext(t), fmt.Sprintf(
 		`SELECT work.advance_governance_event_cursor('%s', 5, '%s', 'TICKET-7', '%s', 'req-1')`,
@@ -710,6 +940,10 @@ func TestR0bGapReportAndCursorAdvanceAreTwoDistinctSteps(t *testing.T) {
 		WHERE org_id = $1 AND state = 'released'`, org); got != 0 {
 		t.Fatalf("denys released by the advance = %d, want 0", got)
 	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.audit_event
+		WHERE org_id = $1 AND action = 'governance_gap_skipped' AND metadata ->> 'ticket_id' = 'TICKET-7'`, org); got != 1 {
+		t.Fatalf("gap-skip audit rows = %d, want 1", got)
+	}
 
 	// Same request id replays; a second attempt against the consumed report does not.
 	if err := admin.QueryRow(testContext(t), fmt.Sprintf(
@@ -721,6 +955,15 @@ func TestR0bGapReportAndCursorAdvanceAreTwoDistinctSteps(t *testing.T) {
 		`SELECT work.advance_governance_event_cursor('%s', 7, '%s', 'TICKET-8', '%s', 'req-2')`,
 		org, reportID, actor)); err == nil {
 		t.Fatal("one gap report was consumed by two advances")
+	} else {
+		assertPgMessage(t, err, "cursor_advance_not_allowed")
+	}
+	if got := scalarCount(t, admin, `SELECT last_event_seq FROM work.governance_event_cursor WHERE org_id = $1`, org); got != 5 {
+		t.Fatalf("cursor after consumed-report refusal = %d, want 5", got)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.access_restriction
+		WHERE org_id = $1 AND subject_id = 'sub_a' AND source = 'host_seat' AND state = 'reconcile_required'`, org); got != 1 {
+		t.Fatalf("consumed-report refusal changed deny state = %d reconcile_required rows, want 1", got)
 	}
 	// Consumption resumes from the jumped position, so the out-of-order event is now
 	// exactly the next expected sequence.
@@ -731,6 +974,25 @@ func TestR0bGapReportAndCursorAdvanceAreTwoDistinctSteps(t *testing.T) {
 		   "payload_hash": "sha256:%s", "applied_at": "2026-11-01T00:00:00Z"}'::jsonb))`,
 		org, newUUID(t), repeatHex(t, 64))).Scan(&payload); err != nil {
 		t.Fatalf("resumed consumption after the jump failed: %v", err)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.access_restriction
+		WHERE org_id = $1 AND subject_id = 'sub_a' AND source = 'host_seat' AND state = 'reconcile_required'`, org); got != 1 {
+		t.Fatalf("unrelated sub_b grant changed sub_a deny = %d reconcile_required rows, want 1", got)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.access_restriction
+		WHERE org_id = $1 AND state = 'released'`, org); got != 0 {
+		t.Fatalf("unrelated sub_b grant released a deny = %d rows, want 0", got)
+	}
+	// The second step is a new granting command after the cursor jump. Only now may
+	// the affected deny leave reconcile_required; the skipped event itself could not.
+	if err := admin.QueryRow(testContext(t), fmt.Sprintf(
+		`SELECT work.consume_governance_events('%s', jsonb_build_array(%s))`,
+		org, governanceEvent(t, 7, newUUID(t), "sub_a", true, 9))).Scan(&payload); err != nil {
+		t.Fatalf("explicit re-grant after cursor advance failed: %v", err)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.access_restriction
+		WHERE org_id = $1 AND subject_id = 'sub_a' AND source = 'host_seat' AND state = 'released'`, org); got != 1 {
+		t.Fatalf("released denys after the explicit re-grant = %d, want 1", got)
 	}
 }
 
@@ -877,6 +1139,11 @@ func TestR0bGovernanceIdentityCannotReachTheOtherSide(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = app.Exec(ctx, `SELECT work.consume_governance_events($1, '[]'::jsonb, NULL, 0)`, org)
+	assertPermissionDenied(t, err)
+	_, err = app.Exec(ctx, `
+		INSERT INTO work.governance_gap_report
+		  (org_id, from_seq, to_seq_exclusive, seat_events, seat_event_count, host_fetch_seq)
+		VALUES ($1, 1, 2, '[]'::jsonb, 0, 2)`, org)
 	assertPermissionDenied(t, err)
 }
 

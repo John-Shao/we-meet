@@ -1,0 +1,19 @@
+[Unit]
+Description=Work Host governance-event consumer (one bounded pass)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=work-control
+Group=work-control
+EnvironmentFile=/etc/work/work-governance-events.env
+ExecStart=/usr/local/bin/work-governance-events
+TimeoutStartSec=5min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

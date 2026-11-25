@@ -172,6 +172,11 @@ func TestNewClientRequiresHTTPS(t *testing.T) {
 func startHostServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, testPKI) {
 	t.Helper()
 	pki := newTestPKI(t)
+	return startHostServerWithPKI(t, pki, handler), pki
+}
+
+func startHostServerWithPKI(t *testing.T, pki testPKI, handler http.HandlerFunc) *httptest.Server {
+	t.Helper()
 	server := httptest.NewUnstartedServer(handler)
 	server.TLS = &tls.Config{
 		Certificates: []tls.Certificate{pki.serverCert},
@@ -181,7 +186,7 @@ func startHostServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, 
 	}
 	server.StartTLS()
 	t.Cleanup(server.Close)
-	return server, pki
+	return server
 }
 
 func newClient(t *testing.T, baseURL string, pki testPKI, now time.Time) *host.Client {
@@ -221,6 +226,10 @@ func assertCode(t *testing.T, err error, code string) {
 }
 
 func newTestPKI(t *testing.T) testPKI {
+	return newTestPKIWithIdentity(t, "work-control-plane")
+}
+
+func newTestPKIWithIdentity(t *testing.T, identity string) testPKI {
 	t.Helper()
 	now := time.Now()
 	caKey := mustKey(t)
@@ -261,7 +270,7 @@ func newTestPKI(t *testing.T) testPKI {
 	clientKey := mustKey(t)
 	clientTemplate := &x509.Certificate{
 		SerialNumber: big.NewInt(now.UnixNano() + 2),
-		Subject:      pkix.Name{CommonName: "work-control-plane"},
+		Subject:      pkix.Name{CommonName: identity},
 		NotBefore:    now.Add(-time.Hour),
 		NotAfter:     now.Add(time.Hour),
 		KeyUsage:     x509.KeyUsageDigitalSignature,

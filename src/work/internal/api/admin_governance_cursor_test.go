@@ -2,7 +2,9 @@ package api_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/we-meet/work/internal/api"
@@ -151,4 +153,132 @@ func TestAdminGovernanceEventCursorAdvance(t *testing.T) {
 
 	assertAPICode(t, taskRequest(t, http.MethodPost, path, csrf, body("TICKET-3", "req-cursor-3")),
 		http.StatusForbidden, "admin_access_denied")
+}
+
+func TestAdminGovernanceEventCursorProofAndRecoveryChain(t *testing.T) {
+	pool, dbName := newBootstrapDB(t, true, true)
+	ctx := context.Background()
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(ctx)
+	const (
+		missingReport = "00000000-0000-0000-0000-000000000001"
+		wrongReport   = "00000000-0000-0000-0000-000000000002"
+		validReport   = "00000000-0000-0000-0000-000000000003"
+		omittedReport = "00000000-0000-0000-0000-000000000004"
+		seatCommand   = "10000000-0000-0000-0000-000000000001"
+		omittedSeat   = "10000000-0000-0000-0000-000000000002"
+		grantCommand  = "10000000-0000-0000-0000-000000000003"
+	)
+	seatJSON := fmt.Sprintf(`{"event_seq":2,"command_id":"%s","kind":"seat","target_subject_id":"sub_a","desired":true,"member_revision":9,"payload_hash":"sha256:%s","applied_at":"2026-11-01T00:00:00Z"}`,
+		seatCommand, strings.Repeat("a", 64))
+	if _, err := admin.Exec(ctx,
+		`INSERT INTO work.governance_event_cursor (org_id, last_event_seq) VALUES ($1, 0)`, testOrg); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO work.governance_gap_report
+		  (org_id, gap_report_id, from_seq, to_seq_exclusive, seat_events, seat_event_count, host_fetch_seq)
+		VALUES ($1, $2, 2, 5, '[]'::jsonb, 0, 5),
+		       ($1, $3, 1, 5, jsonb_build_array($4::jsonb), 1, 5);
+	`, testOrg, wrongReport, validReport, seatJSON); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO work.access_restriction
+		  (org_id, scope, subject_id, source, reason, epoch, host_revision, release_floor_revision)
+		VALUES ($1, 'member', 'sub_a', 'host_seat', 'seat_dropped', 1, 2, 3);
+	`, testOrg); err != nil {
+		t.Fatal(err)
+	}
+
+	server := newHTTPServer(t, pool, &stubVerifier{claims: testClaims()}, testCSRF(t))
+	csrf := workspaceCSRF(t, server.URL)
+	path := server.URL + api.AdminGovernanceEventCursorPath
+	body := func(toSeq int, reportID, requestID string) string {
+		return fmt.Sprintf(`{"to_seq":%d,"gap_report_id":"%s","ticket_id":"TICKET-EV117","client_request_id":"%s"}`,
+			toSeq, reportID, requestID)
+	}
+	state := func() (int64, string) {
+		t.Helper()
+		var seq int64
+		var denyState string
+		if err := admin.QueryRow(ctx, `
+			SELECT c.last_event_seq, r.state
+			FROM work.governance_event_cursor c
+			JOIN work.access_restriction r ON r.org_id = c.org_id
+			WHERE c.org_id = $1 AND r.subject_id = 'sub_a' AND r.source = 'host_seat'
+			ORDER BY r.created_at DESC LIMIT 1`, testOrg).Scan(&seq, &denyState); err != nil {
+			t.Fatal(err)
+		}
+		return seq, denyState
+	}
+
+	assertAPICode(t, taskRequest(t, http.MethodPost, path, csrf, body(5, missingReport, "req-ev117-missing")),
+		http.StatusConflict, "cursor_advance_not_allowed")
+	if seq, deny := state(); seq != 0 || deny != "active" {
+		t.Fatalf("missing-report refusal changed state = %d/%s", seq, deny)
+	}
+	assertAPICode(t, taskRequest(t, http.MethodPost, path, csrf, body(5, wrongReport, "req-ev117-wrong")),
+		http.StatusConflict, "cursor_advance_not_allowed")
+	if seq, deny := state(); seq != 0 || deny != "active" {
+		t.Fatalf("wrong-interval refusal changed state = %d/%s", seq, deny)
+	}
+
+	response := taskRequest(t, http.MethodPost, path, csrf, body(5, validReport, "req-ev117-valid"))
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("valid report status = %d body=%s", response.StatusCode, readBody(response))
+	}
+	if seq, deny := state(); seq != 5 || deny != "reconcile_required" {
+		t.Fatalf("valid report state = %d/%s, want 5/reconcile_required", seq, deny)
+	}
+
+	puller, err := testpg.Open(ctx, testpg.GovernanceURL(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer puller.Close(ctx)
+	if _, err := puller.Exec(ctx, "SET app.org_id = '"+testOrg+"'"); err != nil {
+		t.Fatal(err)
+	}
+	var payload []byte
+	if err := puller.QueryRow(ctx, `SELECT work.consume_governance_events($1, jsonb_build_array($2::jsonb))`,
+		testOrg, fmt.Sprintf(`{"event_seq":6,"command_id":"%s","kind":"seat","target_subject_id":"sub_a","desired":true,"member_revision":9,"payload_hash":"sha256:%s","applied_at":"2026-11-01T00:00:00Z"}`,
+			grantCommand, strings.Repeat("b", 64))).Scan(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if seq, deny := state(); seq != 6 || deny != "released" {
+		t.Fatalf("post-grant state = %d/%s, want 6/released", seq, deny)
+	}
+
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO work.consumed_governance_command
+		  (org_id, command_id, kind, target_subject_id, desired, event_seq,
+		   member_revision, payload_hash, applied_at)
+		VALUES ($1, $2, 'seat', 'sub_a', true, 7, 10, $3, now());
+	`, testOrg, omittedSeat, "sha256:"+strings.Repeat("c", 64)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO work.governance_gap_report
+		  (org_id, gap_report_id, from_seq, to_seq_exclusive, seat_events,
+		   seat_event_count, host_fetch_seq)
+		VALUES ($1, $2, 7, 10, '[]'::jsonb, 0, 10);
+	`, testOrg, omittedReport); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO work.access_restriction
+		  (org_id, scope, subject_id, source, reason, epoch, host_revision, release_floor_revision)
+		VALUES ($1, 'member', 'sub_a', 'host_seat', 'seat_dropped_again', 1, 3, 3);
+	`, testOrg); err != nil {
+		t.Fatal(err)
+	}
+	assertAPICode(t, taskRequest(t, http.MethodPost, path, csrf, body(10, omittedReport, "req-ev117-omitted")),
+		http.StatusConflict, "cursor_advance_not_allowed")
+	if seq, deny := state(); seq != 6 || deny != "active" {
+		t.Fatalf("omitted-seat refusal changed state = %d/%s, want 6/active", seq, deny)
+	}
 }

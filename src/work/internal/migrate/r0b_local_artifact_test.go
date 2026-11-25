@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io/fs"
 	"strconv"
 	"strings"
@@ -422,6 +423,95 @@ func TestR0bFinalizeTakesTheStrictestInput(t *testing.T) {
 		"WHERE e ->> 'source' = 'output_root')::text FROM work.audit_event WHERE org_id = "+quoteLiteral(l.org)+
 		" AND action = 'artifact.local_finalize' LIMIT 1"); got != "3/1" {
 		t.Fatalf("derivation inputs = %q, want three arms with one output root", got)
+	}
+}
+
+// EV97's list-only arm: list metadata is excluded from destination gate (A), but the same
+// local_only grant must still floor artifact classification (B). The remote model and output
+// root both use the remote grant, so local_only can only come from the list row.
+func TestR0bListOnlyInputPassesDestinationGateButFloorsArtifact(t *testing.T) {
+	l := newLocalArtifactFixture(t, "org_b4_list_only_floor")
+	worker := l.workerConn(t)
+	api := l.apiConn(t)
+	listGrant := callJSON(t, api,
+		`SELECT work.register_workspace_grant($1,$2,'bearer',7,$3::uuid,$4::uuid,$5,$6::jsonb)`,
+		l.org, l.subject, l.deviceID, l.sessionID, "req-b4-grant-list",
+		`{"root_identity_hash":"`+strings.Repeat("a", 64)+
+			`","allowed_tools":["workspace.list"],"matched_rule_index":0,"user_selected_ttl_seconds":3600}`)
+	listGrantID := idOf(t, listGrant, "grant_id")
+
+	listBody := strings.Replace(l.actionBody(t, "tool:list", l.grantClass(t, l.grantID)),
+		`"action_kind":"workspace.read"`, `"action_kind":"workspace.list"`, 1)
+	listBody = strings.Replace(listBody, `"grant_id":"`+l.grantID+`"`,
+		`"grant_id":"`+listGrantID+`"`, 1)
+	list := l.prepareBody(t, worker, listBody)
+	listOp := idOf(t, list, "operation_id")
+	l.authorizeAction(t, listOp)
+
+	remoteBody := l.actionBody(t, "model:remote", "remote_excerpt_allowed")
+	remoteBody = strings.Replace(remoteBody, `"action_kind":"workspace.read"`,
+		`"action_kind":"model.send_remote"`, 1)
+	remoteBody = strings.Replace(remoteBody, `"tool_schema":"read-v1"`,
+		`"tool_schema":"model.send_remote-v1"`, 1)
+	remoteBody = strings.Replace(remoteBody, `"destination_id":null`,
+		`"destination_id":"org_remote"`, 1)
+	remoteBody = strings.Replace(remoteBody, `"grant_id":"`+l.grantID+`"`,
+		`"grant_id":"`+l.writeGrant+`"`, 1)
+	remote := l.prepareBody(t, worker, remoteBody)
+	remoteOp := idOf(t, remote, "operation_id")
+	remoteAttempt := idOf(t, remote, "attempt_id")
+	l.authorizeAction(t, remoteOp)
+	consumed := l.consumePermit(t, worker, remoteOp, remoteAttempt)
+	if consumed["delivery_state"] != "not_applicable" {
+		t.Fatalf("list-only remote model permit = %#v, want (A) to pass", consumed)
+	}
+
+	writeOp, writeAttempt := l.prepareAction(t, worker, "artifact:write", "artifact.write", l.writeGrant)
+	receiptRef := l.recordReceipt(t, worker, writeOp, writeAttempt, "artifact:write", "started", "", "local/out/list.md", 1)
+	out := l.finalize(t, worker, l.runID, writeOp,
+		l.versionPayload(newUUID(t), "null", "reports/list.md", hex64("b4-list-floor"),
+			"local/out/list.md", l.deviceID, receiptRef, "local_only", 1024))
+	if out["classification"] != "local_only" {
+		t.Fatalf("list-only artifact classification = %v, want local_only", out["classification"])
+	}
+	if got := mustScalar(t, l.admin, fmt.Sprintf(`WITH finalize AS (
+		  SELECT metadata FROM work.audit_event WHERE org_id = %s
+		    AND action = 'artifact.local_finalize' LIMIT 1
+		)
+		SELECT (count(*) = 1)::text || '/' ||
+		  (SELECT count(*) FROM finalize f,
+		    jsonb_array_elements(f.metadata -> 'classification_derivation' -> 'inputs') e
+		   WHERE e ->> 'source' = 'action' AND e ->> 'classification' = 'local_only'
+		     AND e ->> 'grant_id' = %s)::text
+		FROM finalize`, quoteLiteral(l.org), quoteLiteral(listGrantID))); got != "true/1" {
+		t.Fatalf("list-only derivation = %q, want exactly one local_only action input from the list grant", got)
+	}
+}
+
+func TestR0bClassificationRankUsesExplicitStrictnessOrderAndRejectsUnknown(t *testing.T) {
+	l := newLocalArtifactFixture(t, "org_b4_classification_order")
+	if got := mustScalar(t, l.admin, `SELECT work.classification_rank('local_only') || '/' ||
+		work.classification_rank('remote_excerpt_allowed') || '/' ||
+		(work.classification_rank('local_only') > work.classification_rank('remote_excerpt_allowed'))::text ||
+		'/' || ('local_only' < 'remote_excerpt_allowed')::text`); got != "2/1/true/true" {
+		t.Fatalf("classification order = %q, want explicit rank 2>1 despite lexical local_only<remote_excerpt_allowed", got)
+	}
+	if got := mustScalar(t, l.admin, `SELECT (work.classification_rank(NULL) IS NULL
+		AND work.classification_rank('public') IS NULL)::text`); got != "true" {
+		t.Fatalf("unknown classification ranks = %q, want NULL", got)
+	}
+	if got := mustScalar(t, l.admin, `SELECT (position('CASE p_classification' in
+		pg_get_functiondef('work.classification_rank(text)'::regprocedure)) > 0)::text`); got != "true" {
+		t.Fatal("classification_rank no longer declares its order with an explicit CASE")
+	}
+	for _, table := range []string{"work.local_action", "work.workspace_grant"} {
+		if got := mustScalar(t, l.admin, fmt.Sprintf(`SELECT a.attnotnull::text FROM pg_attribute a
+			JOIN pg_class t ON t.oid = a.attrelid JOIN pg_namespace n ON n.oid = t.relnamespace
+			WHERE n.nspname = 'work' AND t.relname = %s
+			  AND a.attname = 'classification' AND NOT a.attisdropped`,
+			quoteLiteral(strings.TrimPrefix(table, "work.")))); got != "true" {
+			t.Fatalf("%s.classification is nullable, so NULL can reach the derivation", table)
+		}
 	}
 }
 

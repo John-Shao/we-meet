@@ -97,7 +97,13 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (59, '0059_device_execution_review'),
   (60, '0060_egress_output_recovery'),
   (61, '0061_local_finish_cross_session_reconcile'),
-  (62, '0062_run_history_handback')) expected(version, name)
+  (62, '0062_run_history_handback'),
+  (63, '0063_device_model_execution_usage'),
+  (64, '0064_resolution_audit_basis'),
+  (65, '0065_late_success_receipt_reconciles'),
+  (66, '0066_reconcile_lease_cannot_mint_permit'),
+  (67, '0067_gap_report_rejects_consumed_interval'),
+  (68, '0068_governance_cursor_getter')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -1117,6 +1123,126 @@ psql_ro "select 'device_permit_is_minted_after_the_cas_and_worker_only=' || case
   and position('v_jti := gen_random_uuid()' in pg_get_functiondef('work.consume_device_permit(text,uuid,uuid,uuid,uuid,uuid,bigint,text,text)'::regprocedure)) > 0
   and position('state = ''dispatching''' in pg_get_functiondef('work.consume_device_permit(text,uuid,uuid,uuid,uuid,uuid,bigint,text,text)'::regprocedure))
       < position('v_jti := gen_random_uuid()' in pg_get_functiondef('work.consume_device_permit(text,uuid,uuid,uuid,uuid,uuid,bigint,text,text)'::regprocedure))
+  then 'true' else 'FALSE' end"
+
+# 0063 is the device_local execution/usage spine: permit consumption must create an active
+# runtime execution with the +2s lease margin, and the adapter result writer must be a
+# worker-only definer that records device_adapter/device_local usage and settles quota.
+psql_ro "select 'device_model_execution_and_usage_are_worker_only=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work' and p.proname in
+    ('register_device_model_execution','complete_device_model_execution','record_device_model_result')
+    and p.prosecdef and p.proconfig @> ARRAY['search_path=work, pg_catalog']) = 3
+  and not has_function_privilege('work_worker',
+    'work.register_device_model_execution(text,uuid,uuid,uuid,uuid,uuid,uuid,text,text,timestamptz)', 'EXECUTE')
+  and not has_function_privilege('work_worker',
+    'work.complete_device_model_execution(text,uuid,text)', 'EXECUTE')
+  and has_function_privilege('work_worker',
+    'work.record_device_model_result(text,uuid,uuid,uuid,uuid,text,text,text,date,bigint,bigint,bigint,bigint)', 'EXECUTE')
+  and not has_function_privilege('work_api',
+    'work.record_device_model_result(text,uuid,uuid,uuid,uuid,text,text,text,date,bigint,bigint,bigint,bigint)', 'EXECUTE')
+  and position('register_device_model_execution' in pg_get_functiondef(
+    'work.consume_device_permit(text,uuid,uuid,uuid,uuid,uuid,bigint,text,text)'::regprocedure)) > 0
+  and position('interval ''2 seconds''' in pg_get_functiondef(
+    'work.register_device_model_execution(text,uuid,uuid,uuid,uuid,uuid,uuid,text,text,timestamptz)'::regprocedure)) > 0
+  and position('''active''' in pg_get_functiondef(
+    'work.register_device_model_execution(text,uuid,uuid,uuid,uuid,uuid,uuid,text,text,timestamptz)'::regprocedure)) > 0
+  and position('device_adapter' in pg_get_functiondef(
+    'work.record_device_model_result(text,uuid,uuid,uuid,uuid,text,text,text,date,bigint,bigint,bigint,bigint)'::regprocedure)) > 0
+  and position('device_local' in pg_get_functiondef(
+    'work.record_device_model_result(text,uuid,uuid,uuid,uuid,text,text,text,date,bigint,bigint,bigint,bigint)'::regprocedure)) > 0
+  and position('settle_quota' in pg_get_functiondef(
+    'work.record_device_model_result(text,uuid,uuid,uuid,uuid,text,text,text,date,bigint,bigint,bigint,bigint)'::regprocedure)) > 0
+  and position('quota_reservation_not_held' in pg_get_functiondef(
+    'work.record_device_model_result(text,uuid,uuid,uuid,uuid,text,text,text,date,bigint,bigint,bigint,bigint)'::regprocedure)) > 0
+  and position('device_adapter' in pg_get_functiondef(
+    'work.finish_operation_from_receipt(text,uuid,text,text,text,text,date,bigint,bigint,bigint,bigint)'::regprocedure)) = 0
+  and position('device_local' in pg_get_functiondef(
+    'work.finish_operation_from_receipt(text,uuid,text,text,text,text,date,bigint,bigint,bigint,bigint)'::regprocedure)) = 0
+  and (select count(*) from pg_constraint c
+       join pg_class t on t.oid = c.conrelid
+       join pg_namespace n on n.oid = t.relnamespace
+       where n.nspname = 'work' and t.relname in ('operation_usage_fact','operation_resolution')
+         and c.conname in ('operation_usage_fact_usage_source_check',
+                           'operation_resolution_usage_source_check')
+         and pg_get_constraintdef(c.oid) like '%device_adapter%') = 2
+  then 'true' else 'FALSE' end"
+
+# 0064 makes the degradation decision basis server-authored. The lease expiry and
+# identity facts must be persisted, and a caller-provided server_basis must be overwritten.
+psql_ro "select 'resolution_audit_basis_is_server_authored=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work' and p.proname = 'issue_operation_resolution'
+    and p.prosecdef and p.proconfig @> ARRAY['search_path=work, pg_catalog']) = 1
+  and has_function_privilege('work_worker',
+    'work.issue_operation_resolution(text,uuid,text,text,text,text,text,jsonb)', 'EXECUTE')
+  and not has_function_privilege('work_api',
+    'work.issue_operation_resolution(text,uuid,text,text,text,text,text,jsonb)', 'EXECUTE')
+  and position('v_evidence || jsonb_build_object(''server_basis'', v_basis)' in pg_get_functiondef(
+    'work.issue_operation_resolution(text,uuid,text,text,text,text,text,jsonb)'::regprocedure)) > 0
+  and position('''expires_at'', l.expires_at' in pg_get_functiondef(
+    'work.issue_operation_resolution(text,uuid,text,text,text,text,text,jsonb)'::regprocedure)) > 0
+  and position('''device_id'', l.device_id' in pg_get_functiondef(
+    'work.issue_operation_resolution(text,uuid,text,text,text,text,text,jsonb)'::regprocedure)) > 0
+  and position('''session_id'', l.session_id' in pg_get_functiondef(
+    'work.issue_operation_resolution(text,uuid,text,text,text,text,text,jsonb)'::regprocedure)) > 0
+  and position('''dispatch_gate_present''' in pg_get_functiondef(
+    'work.issue_operation_resolution(text,uuid,text,text,text,text,text,jsonb)'::regprocedure)) > 0
+  and position('jsonb_typeof(p_evidence) <> ''object''' in pg_get_functiondef(
+    'work.issue_operation_resolution(text,uuid,text,text,text,text,text,jsonb)'::regprocedure)) > 0
+  and position('''journal_unavailable''' in pg_get_functiondef(
+    'work.issue_operation_resolution(text,uuid,text,text,text,text,text,jsonb)'::regprocedure)) > 0
+  and position('''caller_attestation''' in pg_get_functiondef(
+    'work.issue_operation_resolution(text,uuid,text,text,text,text,text,jsonb)'::regprocedure)) > 0
+  and position('''ticket_id''' in pg_get_functiondef(
+    'work.issue_operation_resolution(text,uuid,text,text,text,text,text,jsonb)'::regprocedure)) > 0
+  and has_function_privilege('work_api',
+    'work.list_run_reconciliations(text,uuid,text)', 'EXECUTE')
+  and position('''reservations'', ''server_basis'')' in pg_get_functiondef(
+    'work.list_run_reconciliations(text,uuid,text)'::regprocedure)) > 0
+  then 'true' else 'FALSE' end"
+
+# 0065 lets a late successful receipt settle an unknown Operation as reconciled, without
+# inventing the forbidden direct unknown -> succeeded edge.
+psql_ro "select 'late_success_receipt_reconciles_unknown=' || case when (
+  select count(*) from work.resolution_state_map
+  where resolution_state = 'succeeded' and operation_state = 'reconciled') = 1
+  and not exists (select 1 from work.state_transition
+    where entity = 'operation' and from_state = 'unknown' and to_state = 'succeeded')
+  and exists (select 1 from work.state_transition
+    where entity = 'operation' and from_state = 'unknown' and to_state = 'reconciled')
+  then 'true' else 'FALSE' end"
+
+# 0066 closes the second J12 enforcement point: permit consumption requires an execute
+# lease, so a reconcile_finish lease cannot mint a new device_dispatch permit.
+psql_ro "select 'reconcile_lease_cannot_mint_permit=' || case when (
+  position('v_lease.purpose <> ''execute''' in pg_get_functiondef(
+    'work.consume_device_permit(text,uuid,uuid,uuid,uuid,uuid,bigint,text,text)'::regprocedure)) > 0
+  and position('v_lease.purpose <> ''execute''' in pg_get_functiondef(
+    'work.prepare_local_operation(text,uuid,uuid,uuid,uuid,bigint,bigint,jsonb)'::regprocedure)) > 0
+  then 'true' else 'FALSE' end"
+
+# 0067 rejects both listed overlaps and consumed events omitted from a gap report.
+psql_ro "select 'gap_report_rejects_consumed_interval=' || case when (
+  position('c.event_seq >= report_row.from_seq' in pg_get_functiondef(
+    'work.advance_governance_event_cursor(text,bigint,uuid,text,text,text)'::regprocedure)) > 0
+  and position('c.event_seq < report_row.to_seq_exclusive' in pg_get_functiondef(
+    'work.advance_governance_event_cursor(text,bigint,uuid,text,text,text)'::regprocedure)) > 0
+  then 'true' else 'FALSE' end"
+
+# 0068 gives the puller a tenant-scoped cursor getter without granting table reads.
+psql_ro "select 'governance_cursor_getter=' || case when (
+  position('RETURN (SELECT last_event_seq FROM work.governance_event_cursor' in pg_get_functiondef(
+    'work.governance_event_cursor_current(text)'::regprocedure)) > 0
+  and position('current_setting(''app.org_id'', true)' in pg_get_functiondef(
+    'work.governance_event_cursor_current(text)'::regprocedure)) > 0
+  and has_function_privilege('work_governance_events',
+    'work.governance_event_cursor_current(text)'::regprocedure, 'EXECUTE')
+  and not has_table_privilege('work_governance_events', 'work.governance_event_cursor', 'SELECT')
+  and position('p_gap_attestation ->> ''coverage''' in pg_get_functiondef(
+    'work.consume_governance_events(text,jsonb,jsonb,bigint)'::regprocedure)) > 0
+  and has_function_privilege('work_governance_events',
+    'work.record_governance_gap(text,jsonb,bigint)'::regprocedure, 'EXECUTE')
   then 'true' else 'FALSE' end"
 
 # The permit document is durable evidence on the dispatch row, not a second single-use

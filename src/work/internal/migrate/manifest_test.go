@@ -75,6 +75,12 @@ var publishedIncrements = []string{
 	"0060_egress_output_recovery",
 	"0061_local_finish_cross_session_reconcile",
 	"0062_run_history_handback",
+	"0063_device_model_execution_usage",
+	"0064_resolution_audit_basis",
+	"0065_late_success_receipt_reconciles",
+	"0066_reconcile_lease_cannot_mint_permit",
+	"0067_gap_report_rejects_consumed_interval",
+	"0068_governance_cursor_getter",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

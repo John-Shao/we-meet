@@ -383,10 +383,9 @@ echo "== 5. binaries =="
 # work-gateway (R0b GW3) is installed like the other resident binaries but has no systemd unit
 # yet and is not enabled here: it terminates device mTLS and needs the external device CA /
 # server certificate provisioning before it can serve, so installing the file does not start it.
-# work-cancel (R0b GW16, 0057) is the same shape: the file lands, but neither its .service/.timer
-# nor /etc/work/work-cancel.env is installed or enabled here, so nothing consumes intents. It is
-# M3 line (0046-0058), outside the ruled rollout package; verify reports the three as MISSING.
-for bin in work-api work-relay work-worker work-authz work-content-proxy work-egress work-directory-sync work-reconcile work-export work-provider-setup work-gateway work-cancel; do
+# work-cancel (R0b GW16, 0057) and work-governance-events (0068) install their binaries only;
+# their units/env are not installed or enabled here, so installation starts no consumer.
+for bin in work-api work-relay work-worker work-authz work-content-proxy work-egress work-directory-sync work-reconcile work-export work-provider-setup work-gateway work-cancel work-governance-events; do
   install_binary "$bin"
 done
 # Drill-side binaries. They are installed only because the package now declares them: the host copy

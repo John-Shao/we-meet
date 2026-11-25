@@ -195,6 +195,9 @@ cp "$ROOT/deploy/ecs/work-runstream-scan.env.example" "$OUT/"
 cp "$ROOT/deploy/ecs/work-cancel.service" "$OUT/"
 cp "$ROOT/deploy/ecs/work-cancel.timer" "$OUT/"
 cp "$ROOT/deploy/ecs/work-cancel.env.example" "$OUT/"
+cp "$ROOT/deploy/ecs/work-governance-events.service" "$OUT/"
+cp "$ROOT/deploy/ecs/work-governance-events.timer" "$OUT/"
+cp "$ROOT/deploy/ecs/work-governance-events.env.example" "$OUT/"
 # #50 A (2026-11-04): the health probe is the consumer of the scan's red result, and until now
 # it existed only as a hand-placed file on the pilot host.
 cp "$ROOT/deploy/ecs/work-healthcheck.sh" "$OUT/"

@@ -1,0 +1,12 @@
+[Unit]
+Description=Every-10-second Work Host governance-event consumer pass
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=10s
+RandomizedDelaySec=1s
+Persistent=true
+Unit=work-governance-events.service
+
+[Install]
+WantedBy=timers.target

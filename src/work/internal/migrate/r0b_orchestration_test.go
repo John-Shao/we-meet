@@ -149,6 +149,185 @@ func TestR0bReconcileFinishLeaseBuysNoExecutionCapability(t *testing.T) {
 	if got := o.scalar(t, "SELECT count(*)::text FROM work.execution_lease WHERE org_id = "+quoteLiteral(o.org)); got != "1" {
 		t.Fatalf("lease rows = %s, want 1", got)
 	}
+	if got := o.scalar(t, "SELECT purpose FROM work.execution_lease WHERE id = "+quoteLiteral(handback["lease_id"].(string))); got != "reconcile_finish" {
+		t.Fatalf("hand-back lease purpose = %q", got)
+	}
+	if got := o.scalar(t, "SELECT count(*)::text FROM work.operation WHERE org_id = "+quoteLiteral(o.org)); got != "1" {
+		t.Fatalf("hand-back lease created Operations: %s rows", got)
+	}
+	if got := o.scalar(t, "SELECT count(*)::text FROM work.local_action WHERE org_id = "+quoteLiteral(o.org)); got != "0" {
+		t.Fatalf("hand-back lease created local actions: %s rows", got)
+	}
+	if got := o.scalar(t, "SELECT count(*)::text FROM work.device_dispatch WHERE org_id = "+quoteLiteral(o.org)); got != "0" {
+		t.Fatalf("hand-back lease minted permits: %s dispatch rows", got)
+	}
+}
+
+func TestR0bUnknownAllowsAccountingAndRecoversAfterLateReceipt(t *testing.T) {
+	a, unknownOp, unknownAttempt := reviewDispatchedAction(t)
+	worker := a.workerConn(t)
+	blocked := a.prepare(t, worker, "blocked:1", a.grantClass)
+	blockedOp := idOf(t, blocked, "operation_id")
+	blockedAttempt := idOf(t, blocked, "attempt_id")
+	a.authorizeAction(t, blockedOp)
+
+	operationsBefore := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+quoteLiteral(a.org))
+	actionsBefore := a.scalarInt(t, "SELECT count(*) FROM work.local_action WHERE org_id = "+quoteLiteral(a.org))
+	quotaBefore := a.scalarInt(t, "SELECT count(*) FROM work.quota_reservation WHERE org_id = "+quoteLiteral(a.org))
+	dispatchesBefore := a.scalarInt(t, "SELECT count(*) FROM work.device_dispatch WHERE org_id = "+quoteLiteral(a.org))
+	mustExec(t, a.admin, "UPDATE work.operation SET state = 'unknown' WHERE id = "+quoteLiteral(unknownOp))
+
+	expectCode(t, worker, "run_has_unreconciled_operation",
+		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
+		a.org, a.runID, a.deviceID, a.sessionID, newUUID(t))
+	expectCode(t, worker, "run_has_unreconciled_operation",
+		`SELECT work.prepare_local_operation($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7,$8::jsonb)`,
+		a.org, a.runID, a.deviceID, a.sessionID, a.leaseID, a.fence, a.checkpointSeq,
+		a.actionBody(t, "never:1", a.grantClass))
+	a.refuseConsume(t, worker, blockedOp, blockedAttempt, "run_has_unreconciled_operation")
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+quoteLiteral(a.org)); got != operationsBefore {
+		t.Fatalf("refused prepare created Operations: %d -> %d", operationsBefore, got)
+	}
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.local_action WHERE org_id = "+quoteLiteral(a.org)); got != actionsBefore {
+		t.Fatalf("refused prepare created local actions: %d -> %d", actionsBefore, got)
+	}
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.quota_reservation WHERE org_id = "+quoteLiteral(a.org)); got != quotaBefore {
+		t.Fatalf("refused commands changed quota reservations: %d -> %d", quotaBefore, got)
+	}
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.device_dispatch WHERE org_id = "+quoteLiteral(a.org)); got != dispatchesBefore {
+		t.Fatalf("refused consume minted permits: %d -> %d", dispatchesBefore, got)
+	}
+
+	mustExec(t, a.admin, "UPDATE work.run SET state = 'waiting', wait_reason = 'reconcile' WHERE id = "+quoteLiteral(a.runID))
+	oldExpiry := a.scalar(t, "SELECT expires_at::text FROM work.execution_lease WHERE id = "+quoteLiteral(a.leaseID))
+	renewed := callJSON(t, worker,
+		`SELECT work.renew_device_lease($1,$2::uuid,30,0,$3::uuid,$4::uuid)`, a.org, a.leaseID, a.deviceID, a.sessionID)
+	if renewed["purpose"] != "execute" || renewed["run_id"] != a.runID {
+		t.Fatalf("renewal under unknown = %#v", renewed)
+	}
+	if got := a.scalar(t, "SELECT (expires_at > "+quoteLiteral(oldExpiry)+"::timestamptz)::text FROM work.execution_lease WHERE id = "+quoteLiteral(a.leaseID)); got != "true" {
+		t.Fatal("renewal under unknown did not extend the lease")
+	}
+
+	checkpoint := callJSON(t, worker,
+		`SELECT work.record_device_checkpoint($1,$2::uuid,1,$3,$4,$5::jsonb,$6::uuid,$7::uuid)`,
+		a.org, a.runID, a.fence, "req-unknown-checkpoint",
+		`{"checkpoint_seq":`+strconv.FormatInt(a.checkpointSeq+1, 10)+`,"checkpoint_hash":"`+strings.Repeat("9", 64)+
+			`","local_checkpoint_ref":"local/unknown-cp","receipt_through_seq":0,"pending_operation_set_hash":"`+strings.Repeat("c", 64)+
+			`","device_signature":"`+strings.Repeat("d", 86)+`"}`, a.deviceID, a.sessionID)
+	if checkpoint["state"] != "recorded" {
+		t.Fatalf("checkpoint under unknown = %#v", checkpoint)
+	}
+	a.checkpointSeq++
+	a.checkpointHash = strings.Repeat("9", 64)
+
+	receipt, journal := reviewReceipt(t, a, unknownOp, unknownAttempt, a.sessionID)
+	recorded := reviewRecord(t, a, a.deviceID, journal, receipt)
+	if len(recorded["recorded"].([]any)) != 1 || len(recorded["conflicts"].([]any)) != 0 {
+		t.Fatalf("late receipt under unknown = %#v", recorded)
+	}
+	if got := a.scalar(t, "SELECT state FROM work.operation WHERE id = "+quoteLiteral(unknownOp)); got != "reconciled" {
+		t.Fatalf("late receipt Operation state = %q, want reconciled", got)
+	}
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+quoteLiteral(a.org)+
+		" AND state IN ('unknown','unresolved')"); got != 0 {
+		t.Fatalf("unknown Operations after late receipt = %d, want 0", got)
+	}
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.device_receipt WHERE org_id = "+quoteLiteral(a.org)); got != 1 {
+		t.Fatalf("device receipts after late evidence = %d, want 1", got)
+	}
+
+	if _, err := worker.Exec(testContext(t), `SELECT work.resume_run($1,$2::uuid)`, a.org, a.runID); err != nil {
+		t.Fatalf("resume after late receipt: %v", err)
+	}
+	a.consumePermit(t, worker, blockedOp, blockedAttempt)
+	recovered := a.prepare(t, worker, "recovered:1", a.grantClass)
+	if idOf(t, recovered, "operation_id") == "" {
+		t.Fatalf("prepare after late receipt returned no Operation: %#v", recovered)
+	}
+}
+
+func TestR0bAcquireRecoversAfterUnknownIsReconciled(t *testing.T) {
+	o := newOrchestrationFixture(t, "org_r0b_orch_unknown_recovered")
+	worker := o.workerConn(t)
+	r0bAdmin(t, o.admin, o.org)
+	mustExec(t, o.admin, "UPDATE work.operation SET step_key = 'tool:1', supersede_no = 0, logical_key = 'tool:1#0', state = 'unknown' WHERE id = "+quoteLiteral(o.op))
+	expectCode(t, worker, "run_has_unreconciled_operation",
+		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
+		o.org, o.runID, o.deviceID, o.sessionID, newUUID(t))
+
+	issueResolution(t, o.admin, o.org, o.op, "succeeded", nil, nil, nil)
+	if got := o.scalar(t, "SELECT state FROM work.operation WHERE id = "+quoteLiteral(o.op)); got != "reconciled" {
+		t.Fatalf("settled unknown Operation state = %q, want reconciled", got)
+	}
+	acquired := callJSON(t, worker,
+		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'execute',$5::uuid,30)`,
+		o.org, o.runID, o.deviceID, o.sessionID, newUUID(t))
+	if acquired["run_start"] == nil || acquired["purpose"] != "execute" {
+		t.Fatalf("execute lease after reconciliation = %#v", acquired)
+	}
+}
+
+func TestR0bReconcileFinishLeaseCannotMintPermitForAuthorizedOperation(t *testing.T) {
+	a := newActionFixture(t, "org_r0b_orch_j12_no_permit")
+	worker := a.workerConn(t)
+	out := a.prepare(t, worker, "tool:1", a.grantClass)
+	opID := idOf(t, out, "operation_id")
+	attemptID := idOf(t, out, "attempt_id")
+	a.authorizeAction(t, opID)
+	mustExec(t, a.admin, "UPDATE work.execution_lease SET state = 'expired' WHERE id = "+quoteLiteral(a.leaseID))
+	handback := callJSON(t, worker,
+		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'reconcile_finish',NULL,30)`,
+		a.org, a.runID, a.deviceID, a.sessionID)
+	a.leaseID = idOf(t, handback, "lease_id")
+
+	a.refuseConsume(t, worker, opID, attemptID, "unauthorized")
+	expectCode(t, worker, "unauthorized",
+		`SELECT work.prepare_local_operation($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7,$8::jsonb)`,
+		a.org, a.runID, a.deviceID, a.sessionID, a.leaseID, a.fence, a.checkpointSeq,
+		a.actionBody(t, "tool:2", a.grantClass))
+	if got := a.scalar(t, "SELECT state FROM work.operation WHERE id = "+quoteLiteral(opID)); got != "authorized" {
+		t.Fatalf("reconcile lease changed authorized Operation = %q", got)
+	}
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.device_dispatch WHERE org_id = "+quoteLiteral(a.org)); got != 0 {
+		t.Fatalf("reconcile lease minted %d permits, want 0", got)
+	}
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.runtime_execution WHERE org_id = "+quoteLiteral(a.org)); got != 0 {
+		t.Fatalf("reconcile lease created %d runtime executions, want 0", got)
+	}
+}
+
+func TestR0bReconcileFinishLeaseCanFinishFailedWithUnknown(t *testing.T) {
+	a := newActionFixture(t, "org_r0b_orch_j12_finish")
+	worker := a.workerConn(t)
+	mustExec(t, a.admin, "UPDATE work.operation SET state = 'unknown' WHERE id = "+quoteLiteral(a.op))
+	mustExec(t, a.admin, "UPDATE work.execution_lease SET state = 'expired' WHERE id = "+quoteLiteral(a.leaseID))
+	handback := callJSON(t, worker,
+		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,1,'reconcile_finish',NULL,30)`,
+		a.org, a.runID, a.deviceID, a.sessionID)
+	a.leaseID = idOf(t, handback, "lease_id")
+	operationsBefore := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+quoteLiteral(a.org))
+	dispatchesBefore := a.scalarInt(t, "SELECT count(*) FROM work.device_dispatch WHERE org_id = "+quoteLiteral(a.org))
+
+	out := a.callFinish(t, worker, newUUID(t), entitledFinish(t, a), a.deviceID, a.sessionID)
+	if out["state"] != "accepted" || out["code"] != nil {
+		t.Fatalf("failed finish under reconcile lease = %#v", out)
+	}
+	if got := a.scalar(t, "SELECT state FROM work.run WHERE id = "+quoteLiteral(a.runID)); got != "failed" {
+		t.Fatalf("Run state = %q, want failed", got)
+	}
+	if got := a.scalar(t, "SELECT state FROM work.execution_lease WHERE id = "+quoteLiteral(a.leaseID)); got != "released" {
+		t.Fatalf("reconcile lease state = %q, want released", got)
+	}
+	if got := a.scalar(t, "SELECT state FROM work.operation WHERE id = "+quoteLiteral(a.op)); got != "unknown" {
+		t.Fatalf("failed finish rewrote unknown Operation = %q", got)
+	}
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+quoteLiteral(a.org)); got != operationsBefore {
+		t.Fatalf("hand-back finish created Operations: %d -> %d", operationsBefore, got)
+	}
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.device_dispatch WHERE org_id = "+quoteLiteral(a.org)); got != dispatchesBefore {
+		t.Fatalf("hand-back finish minted permits: %d -> %d", dispatchesBefore, got)
+	}
 }
 
 func TestR0bCheckpointConflictStopsTheRun(t *testing.T) {

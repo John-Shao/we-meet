@@ -34,7 +34,7 @@ from core.api.admin_roles import HasOrgPermission
 from core.api.directory import get_caller_organization, is_caller_org_admin
 from core.api.viewsets import Pagination
 from core.services import membership as membership_service
-from core.services import offboarding, ownership
+from core.services import offboarding, ownership, work_governance
 from core.services.audit import record_audit
 from core.services.org_permissions import get_admin_context
 
@@ -933,7 +933,14 @@ class MembershipAdminViewSet(
         }
 
     def perform_create(self, serializer):
-        instance = serializer.save()
+        seat_requested = "work_seat" in serializer.initial_data
+        with transaction.atomic():
+            instance = serializer.save()
+            if seat_requested:
+                work_governance.change_seat(
+                    instance, desired=instance.work_seat, actor=self.request.user
+                )
+                instance.refresh_from_db()
         record_audit(
             actor=self.request.user,
             organization=self.get_organization(),
@@ -960,10 +967,12 @@ class MembershipAdminViewSet(
         # organization lock, enforce the owner rules and write their own audit.
         role = data.pop("org_role", serializers.empty)
         new_status = data.pop("status", serializers.empty)
+        new_seat = data.pop("work_seat", serializers.empty)
 
         before = self._member_snapshot(serializer.instance)
         label = self._member_label(serializer.instance)
         membership = serializer.instance
+        previous_seat = membership.work_seat
 
         with transaction.atomic():
             if role is not serializers.empty:
@@ -974,6 +983,11 @@ class MembershipAdminViewSet(
                 membership = membership_service.set_status(
                     membership, actor=self.request.user, status=new_status
                 )
+            if new_seat is not serializers.empty and new_seat != previous_seat:
+                work_governance.change_seat(
+                    membership, desired=new_seat, actor=self.request.user
+                )
+                membership.refresh_from_db()
             if data:
                 for field, value in data.items():
                     setattr(membership, field, value)

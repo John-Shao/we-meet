@@ -17,10 +17,11 @@ type Identity struct {
 type Role string
 
 const (
-	RoleAPI       Role = "work_api"
-	RoleWorker    Role = "work_worker"
-	RoleOps       Role = "work_ops"
-	RoleDirectory Role = "work_directory"
+	RoleAPI        Role = "work_api"
+	RoleWorker     Role = "work_worker"
+	RoleOps        Role = "work_ops"
+	RoleDirectory  Role = "work_directory"
+	RoleGovernance Role = "work_governance_events"
 )
 
 type Options struct {
@@ -108,6 +109,18 @@ func WithDirectoryContext(
 		return err
 	}
 	return withContext(ctx, pool, Identity{OrgID: orgID}, RoleDirectory, options, fn)
+}
+
+func WithGovernanceContext(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	orgID string,
+	fn func(pgx.Tx) error,
+) error {
+	if err := validateID("org_id", orgID); err != nil {
+		return err
+	}
+	return withRoleContext(ctx, pool, RoleGovernance, orgID, "", Options{}, fn)
 }
 
 func WithRelayContext(
@@ -231,7 +244,7 @@ func validateID(name, value string) error {
 
 func (r Role) valid() bool {
 	switch r {
-	case RoleAPI, RoleWorker, RoleOps, RoleDirectory:
+	case RoleAPI, RoleWorker, RoleOps, RoleDirectory, RoleGovernance:
 		return true
 	default:
 		return false

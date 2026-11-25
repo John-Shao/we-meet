@@ -1,12 +1,12 @@
-"""Internal Host endpoint for Work session verification (HW-01/HW-04).
+"""Internal Host endpoints for Work identity verification and governance events.
 
-The endpoint is reached through the meet ingress with client-certificate
+The endpoints are reached through the meet ingress with client-certificate
 verification. The ingress passes the verified client certificate as
-``ssl-client-cert``; this view verifies that certificate against
-``WORK_HOST_MTLS_CA_PEM`` and requires the configured workload identity.
+``ssl-client-cert``; these views verify that certificate against
+``WORK_HOST_MTLS_CA_PEM`` and require the configured workload identity.
 The backend must not be reachable directly from workloads that are not the
-Work control plane. The response contains no cookie, CSRF token or Work-domain
-data.
+Work control plane. Session responses contain no cookie, CSRF token or
+Work-domain data; the governance port is read-only and returns no content.
 """
 
 import base64
@@ -19,6 +19,7 @@ import uuid
 from datetime import datetime, timezone
 
 from django.conf import settings
+from django.db import transaction
 from django.http import JsonResponse
 from django.utils.decorators import method_decorator
 from django.views import View
@@ -33,7 +34,12 @@ from mozilla_django_oidc.contrib.drf import OIDCAuthentication
 from rest_framework import exceptions
 
 from core.api.directory import get_caller_organization
-from core.models import Membership, Organization
+from core.models import (
+    Membership,
+    Organization,
+    WorkGovernanceEvent,
+    WorkGovernanceSequence,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +76,7 @@ def _expected_identity() -> str:
     )
 
 
-def _verify_client_certificate(request) -> bool:
+def _verify_client_certificate(request, expected_identity=None) -> bool:
     raw = request.headers.get(CLIENT_CERT_HEADER) or request.META.get(
         "HTTP_SSL_CLIENT_CERT"
     )
@@ -90,7 +96,7 @@ def _verify_client_certificate(request) -> bool:
         and client.issuer == ca.subject
         and _signature_is_valid(ca, client)
         and _client_auth_is_allowed(client)
-        and _common_name_is_expected(client)
+        and _common_name_is_expected(client, expected_identity)
     )
 
 
@@ -136,9 +142,11 @@ def _client_auth_is_allowed(client) -> bool:
     return ExtendedKeyUsageOID.CLIENT_AUTH in extended
 
 
-def _common_name_is_expected(client) -> bool:
+def _common_name_is_expected(client, expected_identity=None) -> bool:
     common_names = client.subject.get_attributes_for_oid(x509.NameOID.COMMON_NAME)
-    return bool(common_names) and common_names[0].value == _expected_identity()
+    return bool(common_names) and common_names[0].value == (
+        expected_identity or _expected_identity()
+    )
 
 
 @method_decorator(csrf_exempt, name="dispatch")
@@ -200,7 +208,7 @@ class WorkHostBearerVerifyView(View):
     hash. Work neither parses the token nor caches the claims.
     """
 
-    def post(self, request):
+    def post(self, request):  # noqa: PLR0911 -- each auth failure has a distinct wire code
         """Return the verified Bearer identity or a fail-closed error."""
         # Workload identity first, exactly like the cookie port: a caller that is
         # not the Work control plane is refused before any user credential reads.
@@ -388,4 +396,106 @@ class WorkHostMemberListView(View):
         )
         return JsonResponse(
             {"items": [_member_item(row) for row in rows], "next_cursor": next_cursor}
+        )
+
+
+def _governance_event_item(event):
+    return {
+        "event_seq": event.event_seq,
+        "command_id": str(event.command_id),
+        "kind": event.kind,
+        "target_subject_id": event.target_subject_id or None,
+        "desired": event.desired,
+        "payload_hash": event.payload_hash,
+        "member_revision": event.member_revision,
+        "org_revision": event.org_revision,
+        "permissions_revision": event.permissions_revision,
+        "applied_at": event.applied_at.astimezone(timezone.utc)
+        .isoformat(timespec="seconds")
+        .replace("+00:00", "Z"),
+    }
+
+
+def _governance_cursor(request):
+    raw_after = request.GET.get("after_event_seq", "0")
+    raw_limit = request.GET.get("limit", str(DEFAULT_LIMIT))
+    if not re.fullmatch(r"[0-9]+", raw_after) or not re.fullmatch(r"[0-9]+", raw_limit):
+        raise ValueError("invalid governance cursor")
+    after = int(raw_after)
+    limit = int(raw_limit)
+    if limit < 1 or limit > MAX_LIMIT:
+        raise ValueError("invalid governance cursor")
+    return after, limit
+
+
+@method_decorator(never_cache, name="dispatch")
+@method_decorator(require_GET, name="dispatch")
+class WorkHostGovernanceEventsView(View):
+    def get(self, request):
+        try:
+            org_id = uuid.UUID(request.GET.get("org_id", ""))
+        except (ValueError, TypeError):
+            return JsonResponse({"code": "org_not_found"}, status=404)
+        expected_identity = (
+            getattr(settings, "WORK_HOST_GOVERNANCE_EVENTS_IDENTITY", "")
+            or "work-governance-events"
+        )
+        if not _verify_client_certificate(request, expected_identity):
+            return JsonResponse({"code": "client_identity_invalid"}, status=403)
+        if not Organization.objects.filter(id=org_id).exists():
+            return JsonResponse({"code": "org_not_found"}, status=404)
+        try:
+            after, limit = _governance_cursor(request)
+        except ValueError:
+            return JsonResponse({"code": "invalid_cursor"}, status=422)
+
+        with transaction.atomic():
+            sequence = (
+                WorkGovernanceSequence.objects.select_for_update()
+                .filter(organization_id=org_id)
+                .first()
+            )
+            latest = sequence.last_event_seq if sequence is not None else 0
+            if after > latest:
+                return JsonResponse({"code": "invalid_cursor"}, status=422)
+            rows = list(
+                WorkGovernanceEvent.objects.filter(
+                    organization_id=org_id, event_seq__gt=after
+                ).order_by("event_seq")[: limit + 1]
+            )
+
+        events = []
+        expected = after + 1
+        gap_from = None
+        gap_to = None
+        for event in rows[:limit]:
+            if gap_from is None and event.event_seq != expected:
+                gap_from = expected
+                gap_to = event.event_seq
+            events.append(_governance_event_item(event))
+            expected = event.event_seq + 1
+        if gap_from is None and expected <= latest and len(rows) <= limit:
+            gap_from = expected
+            gap_to = latest + 1
+
+        gap = None
+        if gap_from is not None:
+            logger.warning(
+                "Work governance event gap org=%s from=%s to=%s",
+                org_id,
+                gap_from,
+                gap_to,
+            )
+            gap = {
+                "from_seq": gap_from,
+                "to_seq_exclusive": gap_to,
+                "seat_events": [],
+                "coverage": "lost",
+            }
+        return JsonResponse(
+            {
+                "events": events,
+                "latest_event_seq": latest,
+                "gap": gap,
+            }
         )

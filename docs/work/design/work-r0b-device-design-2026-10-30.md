@@ -108,6 +108,8 @@ grant 有效期取登录会话、当前 Agent、8h 和用户选择期限的最�
 
 单帧 64KiB、每批 receipts ≤100、未确认窗口 100、单设备非正文帧 20/s（允许 40 burst），超限 pause/RESOURCE_EXHAUSTED；数据不得因背压被丢弃，重连重发同 message/receipt identity。无正文通过 gateway；模型正文仅经 §5 egress 流。默认最多一个设备本机 active Run，其余在控制面排队。
 
+**【2026-11-25 主签裁定（已裁定、待实施；原文逐字保留）：** 新增独立 `model_result` 上行帧，承载 device_local 模型结果与 `device_adapter` 用量；它不再借用 ACTION `receipt`，也不扩展 checkpoint。帧只含模型 Operation 身份、request/result hash、终态或 unknown、usage 与 provider request id 等闭合元数据，不含正文。网关验签后调用 `record_device_model_result` 与相应 Operation 核账路径，ack 只确认送达；迟到、重放与 unknown 的恢复语义独立于 ACTION receipt 序号。
+
 ### 3.2 提交、排队、启动与恢复绑定
 
 提交202后，权威关联保存在控制面 `device_run_binding`，不依赖renderer把Task响应正确传给Broker。绑定包含提交时已签local_intent/hash、原device/session、input_ref/hash、Task/Run、snapshot/profile/runtime/tool/model精确版本及grant revisions。worker从该记录向原设备发送签名run_offer；Broker在本机注册表查同org/subject下精确input_ref/hash，禁止按“最近草稿”猜输入。snapshot_descriptor仅含执行控制信息、模板版本/hash和不透明引用，不含用户正文。
@@ -117,6 +119,8 @@ grant 有效期取登录会话、当前 Agent、8h 和用户选择期限的最�
 run_started响应丢失只查询同binding/start_nonce的本地状态，不重新启动第二进程。进程崩溃后旧start_nonce不能重新发起循环；控制面先核对journal/checkpoint，创建同Run更高binding_revision的resume offer，expected_checkpoint必须是设备经§3.4已签上报并被控制面记录的最新hash/ref。Broker确认同内容和全部prior receipts完整才ready；缺checkpoint明确停止/恢复成果，不能从初始输入重跑。新session须重新授权目录，旧receipt可经recovery-only核账，但该通道不可领取run_offer/start。
 
 绑定记录主键 `(org_id,run_id,binding_revision)`，start_nonce唯一；本地 `runtime_start` 存binding/hash/start_nonce/state/expected_checkpoint，Run终态tombstone阻止旧offer。控制面只由worker创建binding，经同Task/Run锁序写入并审计；renderer/local IPC均无伪造绑定入口。
+
+**【2026-11-25 主签裁定（已裁定、待实施；原文逐字保留）：** 创建 binding、将 Run 从 `queued`（或恢复 `waiting`）激活为 `active`、创建 execute lease 与 seq=0 checkpoint 基线必须在同一数据库事务完成；`run_start` 只在该事务提交后签发。设备收到 start 时不再承担“服务端可能尚未激活”的竞态；同一请求重放只返回原 binding/lease/基线，不启动第二 sidecar。
 
 ### 3.3 SignedPermit
 
