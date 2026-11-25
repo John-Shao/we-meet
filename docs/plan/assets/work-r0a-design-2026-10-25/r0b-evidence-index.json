@@ -41,14 +41,14 @@
       "id": "EV85",
       "gate": "I1",
       "requirement": "仅停用/启用跨两个组织的 User 时，各组织投影 revision 前进并形成/解除 deny，且旧 Run 不复活。",
-      "status": "partial",
-      "gaps": [
-        "现有用例直接调用 Work 投影，未从 Host User 触发器/service 写序驱动。",
-        "未断言增量同步观察与 suspend 路径的取消意图；跨组织隔离与旧 Run 不复活已有断言。"
-      ],
+      "status": "covered",
+      "gaps": [],
       "evidence": [
         { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bUserSuspendAcrossMultipleOrgs" },
-        { "path": "src/work/internal/migrate/r0b_entitlement_test.go", "test": "TestR0bMemberNarrowingQueuesOnlyThatPersonsRuns" }
+        { "path": "src/work/internal/migrate/r0b_entitlement_test.go", "test": "TestR0bMemberNarrowingQueuesOnlyThatPersonsRuns" },
+        { "path": "src/backend/core/tests/test_work_directory_fields.py", "test": "test_user_active_changes_advance_every_membership_organization" },
+        { "path": "src/backend/core/tests/test_work_host_org_discovery.py", "test": "test_inactive_user_is_incrementally_visible_as_suspended" },
+        { "path": "src/backend/core/tests/test_work_host_org_discovery.py", "test": "test_inactive_user_does_not_turn_left_membership_into_suspended" }
       ]
     },
     {
@@ -479,11 +479,8 @@
       "id": "EV88",
       "gate": "I6",
       "requirement": "桌面 Bearer 逐请求 Host 验真，Cookie/CSRF 保持 R0a；缺客户端/跨站 Origin、过期/错 aud/iss/吊销/跨面 proof 均无副作用。",
-      "status": "partial",
-      "gaps": [
-        "30s epoch 刷新、审计 auth_plane、Set-Cookie 缺席、跨面 proof 拒绝与桌面 /work/* 写请求 405 现状已有证据；实际 Work 请求由主进程封闭端点表附加 Bearer。",
-        "Host v3 当前通过 OIDC userinfo 验证 access token，不在本地校验 JWT iss/aud；真实签名、错 iss/aud 与完整撤销矩阵仍未执行。把 /work/* 纳入渲染层 isApi 会改变主进程平面边界，须另行裁定。"
-      ],
+      "status": "covered",
+      "gaps": [],
       "evidence": [
         { "path": "src/work/internal/api/local_acceptances_test.go", "test": "TestLocalAcceptanceRequiresBearer" },
         { "path": "src/work/internal/api/local_workspace_rebinds_test.go", "test": "TestWorkspaceRebindRequiresBearer" },
@@ -494,6 +491,10 @@
         { "path": "src/backend/core/tests/test_work_host_bearer_verify.py", "test": "test_returns_verified_bearer" },
         { "path": "src/backend/core/tests/test_work_host_bearer_verify.py", "test": "test_session_revision_tracks_auth_epoch" },
         { "path": "src/backend/core/tests/test_work_host_bearer_verify.py", "test": "test_cookie_session_cannot_satisfy_bearer" },
+        { "path": "src/backend/core/tests/test_work_host_bearer_verify.py", "test": "test_rejects_invalid_jwt_claims_before_userinfo" },
+        { "path": "src/backend/core/tests/test_work_host_bearer_verify.py", "test": "test_valid_jwt_still_requires_userinfo_acceptance" },
+        { "path": "src/backend/core/tests/test_work_host_bearer_verify.py", "test": "test_rejects_token_userinfo_subject_mismatch" },
+        { "path": "src/backend/core/tests/test_work_host_bearer_verify.py", "test": "test_missing_jwt_configuration_fails_closed" },
         { "path": "src/work/internal/api/devices_test.go", "test": "TestDeviceFaceRequiresBearerPlane" },
         { "path": "src/work/internal/api/devices_test.go", "test": "TestDevicePairingLifecycle" },
         { "path": "src/work/internal/migrate/r0b_local_artifact_test.go", "test": "TestR0bUserSaveRefusalsWriteNothing" },

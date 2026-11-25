@@ -17,6 +17,7 @@ import re
 import urllib.parse
 import uuid
 from datetime import datetime, timezone
+from functools import lru_cache
 
 from django.conf import settings
 from django.db import transaction
@@ -27,6 +28,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
+import jwt
 from cryptography import x509
 from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
 from cryptography.x509.oid import ExtendedKeyUsageOID
@@ -36,6 +38,7 @@ from rest_framework import exceptions
 from core.api.directory import get_caller_organization
 from core.models import (
     Membership,
+    MembershipStatusChoices,
     Organization,
     WorkGovernanceEvent,
     WorkGovernanceSequence,
@@ -149,6 +152,63 @@ def _common_name_is_expected(client, expected_identity=None) -> bool:
     )
 
 
+@lru_cache(maxsize=4)
+def _work_bearer_jwk_client(endpoint):
+    return jwt.PyJWKClient(endpoint, timeout=settings.OIDC_TIMEOUT)
+
+
+def _verified_bearer_claims(request):
+    authorization = request.META.get("HTTP_AUTHORIZATION", "")
+    scheme, separator, token = authorization.partition(" ")
+    if (
+        not separator
+        or scheme.lower() != "bearer"
+        or not token
+        or any(character.isspace() for character in token)
+    ):
+        raise exceptions.AuthenticationFailed("Invalid Bearer authorization header")
+
+    issuer = (settings.OIDC_OP_URL or "").strip()
+    audience = (settings.WORK_HOST_BEARER_AUDIENCE or "").strip()
+    jwks_endpoint = (settings.OIDC_OP_JWKS_ENDPOINT or "").strip()
+    algorithm = settings.OIDC_RP_SIGN_ALGO
+    if (
+        not issuer
+        or not audience
+        or not jwks_endpoint
+        or algorithm not in {"RS256", "RS384", "RS512", "ES256", "ES384", "ES512"}
+    ):
+        raise RuntimeError("Work Bearer JWT verification is not configured")
+
+    try:
+        signing_key = _work_bearer_jwk_client(jwks_endpoint).get_signing_key_from_jwt(
+            token
+        )
+        claims = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=[algorithm],
+            audience=audience,
+            issuer=issuer,
+            options={"require": ["exp", "iss", "aud", "sub"]},
+        )
+    except jwt.PyJWKClientConnectionError as error:
+        raise RuntimeError("Work Bearer JWKS is unavailable") from error
+    except jwt.PyJWKClientError as error:
+        if "Unable to find a signing key" in str(error):
+            raise exceptions.AuthenticationFailed(
+                "Unknown Bearer signing key"
+            ) from error
+        raise RuntimeError("Work Bearer JWKS is invalid") from error
+    except jwt.InvalidTokenError as error:
+        raise exceptions.AuthenticationFailed("Invalid Bearer token") from error
+
+    subject = claims.get("sub")
+    if not isinstance(subject, str) or not subject:
+        raise exceptions.AuthenticationFailed("Bearer token has no subject")
+    return claims
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 @method_decorator(never_cache, name="dispatch")
 @method_decorator(require_POST, name="dispatch")
@@ -216,6 +276,7 @@ class WorkHostBearerVerifyView(View):
             return JsonResponse({"code": "client_identity_invalid"}, status=403)
 
         try:
+            token_claims = _verified_bearer_claims(request)
             result = OIDCAuthentication().authenticate(request)
         except exceptions.AuthenticationFailed:
             return JsonResponse({"code": "session_invalid"}, status=401)
@@ -236,6 +297,8 @@ class WorkHostBearerVerifyView(View):
         subject_id = (getattr(user, "sub", None) or "").strip()
         if not SUBJECT_PATTERN.fullmatch(subject_id):
             return JsonResponse({"code": "subject_unreadable"}, status=401)
+        if token_claims["sub"] != subject_id:
+            return JsonResponse({"code": "session_invalid"}, status=401)
 
         organization = get_caller_organization(user)
         if organization is None:
@@ -314,9 +377,12 @@ def _member_item(membership):
     revision = membership.directory_revision
     if revision is None or revision <= 0:
         gaps.append("revision")
+    status = membership.status
+    if status != MembershipStatusChoices.LEFT and not membership.user.is_active:
+        status = "suspended"
     return {
         "subject_id": subject_id,
-        "status": membership.status,
+        "status": status,
         "role": role,
         "work_seat": membership.work_seat,
         "revision": revision,

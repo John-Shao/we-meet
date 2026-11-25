@@ -81,6 +81,8 @@ spec:
             {{- if and .Values.workHost .Values.workHost.enabled (eq $component "backend") }}
             - name: WORK_HOST_MTLS_CLIENT_IDENTITY
               value: {{ .Values.workHost.clientIdentity | quote }}
+            - name: WORK_HOST_BEARER_AUDIENCE
+              value: {{ .Values.workHost.bearerAudience | default "desktop" | quote }}
             - name: WORK_HOST_MTLS_CA_PEM
               valueFrom:
                 secretKeyRef:

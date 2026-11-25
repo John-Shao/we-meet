@@ -1248,6 +1248,10 @@ func TestR0bUserSuspendAcrossMultipleOrgs(t *testing.T) {
 			ON CONFLICT (org_id, subject_id) DO NOTHING;
 		`, org, subject))
 	}
+	for _, run := range []*gateRun{run1, run2} {
+		mustExec(t, admin, "UPDATE work.task SET owner_subject_id = "+quoteLiteral(subject)+
+			" WHERE id = "+quoteLiteral(run.taskID))
+	}
 
 	// Record the starting revision in each org - EV85 requires both to advance.
 	rev1Before := scalarCount(t, admin,
@@ -1286,6 +1290,11 @@ func TestR0bUserSuspendAcrossMultipleOrgs(t *testing.T) {
 		org1, subject); got != 1 {
 		t.Fatalf("org1 denys after suspend = %d, want 1", got)
 	}
+	if got := scalarCount(t, admin,
+		`SELECT count(*) FROM work.cancellation_intent WHERE org_id = $1 AND run_id = $2 AND reason = 'member_suspended'`,
+		org1, run1.runID); got != 1 {
+		t.Fatalf("org1 cancellation intents after suspend = %d, want 1", got)
+	}
 
 	// Verify org2 is untouched - this is the cross-org isolation assertion.
 	rev2Untouched := scalarCount(t, admin,
@@ -1298,6 +1307,11 @@ func TestR0bUserSuspendAcrossMultipleOrgs(t *testing.T) {
 		`SELECT count(*) FROM work.access_restriction WHERE org_id = $1 AND subject_id = $2`,
 		org2, subject); got != 0 {
 		t.Fatalf("org2 denys after org1 suspend = %d, want 0", got)
+	}
+	if got := scalarCount(t, admin,
+		`SELECT count(*) FROM work.cancellation_intent WHERE org_id = $1 AND run_id = $2`,
+		org2, run2.runID); got != 0 {
+		t.Fatalf("org2 cancellation intents after org1 suspend = %d, want 0", got)
 	}
 
 	// Now suspend in org2 - this must advance org2's revision independently.
@@ -1322,10 +1336,19 @@ func TestR0bUserSuspendAcrossMultipleOrgs(t *testing.T) {
 		org2, subject); got != 1 {
 		t.Fatalf("org2 denys after suspend = %d, want 1", got)
 	}
+	if got := scalarCount(t, admin,
+		`SELECT count(*) FROM work.cancellation_intent WHERE org_id = $1 AND run_id = $2 AND reason = 'member_suspended'`,
+		org2, run2.runID); got != 1 {
+		t.Fatalf("org2 cancellation intents after suspend = %d, want 1", got)
+	}
 
 	// Re-enable in org1 - this must release the deny without resurrecting run1.
 	// EV85 requires that re-enable follows §3.4 release predicate and old Runs
 	// stay in their terminal state.
+	run1BeforeEnable := scalarString(t, admin,
+		`SELECT state FROM work.run WHERE id = $1 AND org_id = $2`, run1.runID, org1)
+	run2BeforeEnable := scalarString(t, admin,
+		`SELECT state FROM work.run WHERE id = $1 AND org_id = $2`, run2.runID, org2)
 	if _, err := directory.Exec(ctx, "SET app.org_id = "+quoteLiteral(org1)); err != nil {
 		t.Fatal(err)
 	}
@@ -1359,15 +1382,15 @@ func TestR0bUserSuspendAcrossMultipleOrgs(t *testing.T) {
 	// Verify run1 was NOT resurrected - it must stay in its original state.
 	run1State := scalarString(t, admin,
 		`SELECT state FROM work.run WHERE id = $1 AND org_id = $2`, run1.runID, org1)
-	if run1State == "queued" || run1State == "running" {
-		t.Fatalf("run1 was resurrected to state %q after org1 re-enable", run1State)
+	if run1State != run1BeforeEnable {
+		t.Fatalf("run1 changed from %q to %q after org1 re-enable", run1BeforeEnable, run1State)
 	}
 
 	// Verify run2 was NOT resurrected either - org2 suspend was not reversed.
 	run2State := scalarString(t, admin,
 		`SELECT state FROM work.run WHERE id = $1 AND org_id = $2`, run2.runID, org2)
-	if run2State == "queued" || run2State == "running" {
-		t.Fatalf("run2 was resurrected to state %q after org1 re-enable", run2State)
+	if run2State != run2BeforeEnable {
+		t.Fatalf("run2 changed from %q to %q after org1 re-enable", run2BeforeEnable, run2State)
 	}
 
 	// Verify org2 deny is still active (org2 suspend was not reversed).

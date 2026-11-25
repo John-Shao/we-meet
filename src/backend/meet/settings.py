@@ -825,6 +825,9 @@ class Base(Configuration):
         None, environ_name="OIDC_OP_LOGOUT_ENDPOINT", environ_prefix=None
     )
     OIDC_OP_URL = values.Value(None, environ_name="OIDC_OP_URL", environ_prefix=None)
+    WORK_HOST_BEARER_AUDIENCE = values.Value(
+        "desktop", environ_name="WORK_HOST_BEARER_AUDIENCE", environ_prefix=None
+    )
     OIDC_AUTH_REQUEST_EXTRA_PARAMS = values.DictValue(
         {}, environ_name="OIDC_AUTH_REQUEST_EXTRA_PARAMS", environ_prefix=None
     )

@@ -49,7 +49,7 @@ test('the baseline does not overstate completion', () => {
       index.gates.filter((entry) => entry.status === status).length,
     ]),
   );
-  assert.deepEqual(counts, { covered: 5, partial: 16, not_run: 5, out_of_scope: 3 });
+  assert.deepEqual(counts, { covered: 7, partial: 14, not_run: 5, out_of_scope: 3 });
   for (const entry of index.gates) {
     if (entry.status !== 'not_run') continue;
     assert.deepEqual(entry.evidence, [], `${entry.id} is not_run but claims executable evidence`);

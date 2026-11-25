@@ -4,8 +4,8 @@ from django.core.exceptions import ValidationError
 
 import pytest
 
-from core.factories import MembershipFactory, OrganizationFactory
-from core.models import Membership, Organization
+from core.factories import MembershipFactory, OrganizationFactory, UserFactory
+from core.models import Membership, Organization, User
 
 pytestmark = pytest.mark.django_db
 
@@ -100,6 +100,41 @@ def test_hard_delete_advances_the_organization_sequence():
 
     organization.refresh_from_db()
     assert organization.directory_revision == 3
+
+
+def test_user_active_changes_advance_every_membership_organization():
+    user = UserFactory(sub="multi-org-user")
+    first_org = OrganizationFactory()
+    second_org = OrganizationFactory()
+    memberships = [
+        MembershipFactory(organization=first_org, user=user),
+        MembershipFactory(organization=first_org, user=user, department=None),
+        MembershipFactory(organization=second_org, user=user),
+    ]
+    organizations = [first_org, second_org]
+    before_orgs = [organization.directory_revision for organization in organizations]
+    before_memberships = [membership.directory_revision for membership in memberships]
+
+    User.objects.filter(pk=user.pk).update(is_active=False)
+
+    for organization, before in zip(organizations, before_orgs, strict=True):
+        organization.refresh_from_db()
+        assert organization.directory_revision > before
+    for membership, before in zip(memberships, before_memberships, strict=True):
+        membership.refresh_from_db()
+        assert membership.directory_revision > before
+
+    disabled_orgs = [organization.directory_revision for organization in organizations]
+    disabled_memberships = [membership.directory_revision for membership in memberships]
+    user.is_active = True
+    user.save(update_fields=["is_active"])
+
+    for organization, before in zip(organizations, disabled_orgs, strict=True):
+        organization.refresh_from_db()
+        assert organization.directory_revision > before
+    for membership, before in zip(memberships, disabled_memberships, strict=True):
+        membership.refresh_from_db()
+        assert membership.directory_revision > before
 
 
 def test_home_region_is_validated():

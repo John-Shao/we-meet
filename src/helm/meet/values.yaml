@@ -85,11 +85,13 @@ ingressWebhook:
 ## @param workHost.caSecretName Secret containing the Work Host client CA
 ## @param workHost.caSecretKey Key inside that Secret
 ## @param workHost.clientIdentity Expected client certificate CN
+## @param workHost.bearerAudience Expected audience claim for desktop Work Bearer tokens
 workHost:
   enabled: false
   caSecretName: work-host-ca
   caSecretKey: ca.crt
   clientIdentity: work-control-plane
+  bearerAudience: desktop
 
 ingressAdmin:
   enabled: false

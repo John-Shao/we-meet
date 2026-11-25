@@ -42,6 +42,8 @@
 
 **【2026-11-25 EV88 边界补证（不宣称闭合）：** 桌面在剩余 30 秒内刷新 access token 已证明不改变账号 epoch；Bearer API 与渲染转发均证明不接收／不落 `Set-Cookie`，设备配对与确认审计保留 `auth_plane=bearer`，跨面 proof 拒绝保持零副作用。`/work/*` 仍未纳入渲染层 `isApi`，写请求实测为 405，实际 Work 请求走主进程封闭端点表并逐请求附加 Bearer；若把 `/work/*` 纳入渲染层会改变这条平面边界，须另行裁定。Host v3 当前通过 OIDC userinfo 验证 access token，不在本地校验 JWT `iss/aud`，因此真实签名、错 `iss/aud` 与完整撤销矩阵仍是 EV88 的明确缺口。
 
+**【2026-11-25 EV88 JWT 校验闭合登记：** 主签裁定在 Host v3 增加本地 JWT 验证，issuer 取 `OIDC_OP_URL`，audience 取 `WORK_HOST_BEARER_AUDIENCE`（默认 `desktop`，Helm 可配），算法限定为配置的非对称 `OIDC_RP_SIGN_ALGO`，签名密钥经 PyJWT `PyJWKClient` 从既有 `OIDC_OP_JWKS_ENDPOINT` 获取。验证强制要求 `exp/iss/aud/sub`，拒绝过期、错 issuer、错 audience、缺 exp、错签名与未知 kid；随后仍调用既有 OIDC userinfo 路径完成身份归并，并强制 JWT `sub` 与 userinfo 主体一致，因此 userinfo 的吊销拒绝与不可用语义保留。mTLS 仍在用户凭据读取之前，JWKS 不可用或配置缺失返回 503，用户凭据拒绝返回 401；真实 RSA 签名正反矩阵 25 项通过，EV88 已覆盖。
+
 ## 3. 需要 John 直接确认的设计结论
 
 **"具名状态"统一更正（2026-11-01，适用于下表 J25–J36 各行末尾）**：这些行写于仍假设存在多方团队之时，其中"待 Lily／平台／Host 侧书面具名""§14 的 Sxx 卡片保持未勾选"自本日起**统一读作"待 7 日延迟复评＋该条证据门槛达标"**，不再表示有一位待签名的外部复核人。**各行的硬条件、被否决的备选与代价一字不改**——它们就是自决的内容与验收线，本轮只改"等谁"这一件事。不逐行重写：那会抹掉建档时的团队假设史，让后续复审无法还原当时的判断前提（完整口径见 §14"文字保留说明"）。

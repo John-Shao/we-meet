@@ -181,6 +181,58 @@ def test_member_list_projects_role_seat_and_status(client):
 @override_settings(
     WORK_HOST_MTLS_CA_PEM=CA_PEM, WORK_HOST_MTLS_CLIENT_IDENTITY=IDENTITY
 )
+def test_inactive_user_is_incrementally_visible_as_suspended(client):
+    organization = OrganizationFactory()
+    user = UserFactory(sub="suspended-user")
+    membership = MembershipFactory(
+        organization=organization,
+        user=user,
+        work_seat=True,
+    )
+    before = membership.directory_revision
+
+    User.objects.filter(pk=user.pk).update(is_active=False)
+
+    suspended = _get(
+        client,
+        MEMBERS_URL.format(organization.id),
+        revision_after=before,
+    )["items"]
+    assert len(suspended) == 1
+    assert suspended[0]["subject_id"] == "suspended-user"
+    assert suspended[0]["status"] == "suspended"
+    assert suspended[0]["work_seat"] is True
+    assert suspended[0]["revision"] > before
+
+    User.objects.filter(pk=user.pk).update(is_active=True)
+
+    enabled = _get(
+        client,
+        MEMBERS_URL.format(organization.id),
+        revision_after=suspended[0]["revision"],
+    )["items"]
+    assert len(enabled) == 1
+    assert enabled[0]["status"] == "active"
+    assert enabled[0]["revision"] > suspended[0]["revision"]
+
+
+@override_settings(
+    WORK_HOST_MTLS_CA_PEM=CA_PEM, WORK_HOST_MTLS_CLIENT_IDENTITY=IDENTITY
+)
+def test_inactive_user_does_not_turn_left_membership_into_suspended(client):
+    organization = OrganizationFactory()
+    user = UserFactory(sub="left-user", is_active=False)
+    MembershipFactory(organization=organization, user=user, status="left")
+
+    item = _get(client, MEMBERS_URL.format(organization.id))["items"][0]
+
+    assert item["subject_id"] == "left-user"
+    assert item["status"] == "left"
+
+
+@override_settings(
+    WORK_HOST_MTLS_CA_PEM=CA_PEM, WORK_HOST_MTLS_CLIENT_IDENTITY=IDENTITY
+)
 def test_member_list_reports_gaps_instead_of_guessing(client):
     organization = OrganizationFactory()
     user = UserFactory()

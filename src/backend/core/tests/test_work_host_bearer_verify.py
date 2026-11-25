@@ -1,11 +1,14 @@
 """Host Bearer access verification wire (control-design §1.1 plane (b), §2.2)."""
 
+import json
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 from django.test import override_settings
 
+import jwt
 import pytest
-from requests.exceptions import HTTPError
+from cryptography.hazmat.primitives.asymmetric import rsa
 from rest_framework import exceptions
 
 from core.factories import MembershipFactory, OrganizationFactory, UserFactory
@@ -28,7 +31,43 @@ MTLS = override_settings(
     WORK_HOST_MTLS_CA_PEM=CA_PEM,
     WORK_HOST_MTLS_CLIENT_IDENTITY=IDENTITY,
     OIDC_OP_JWKS_ENDPOINT="https://idp.example.test/jwks",
+    OIDC_OP_URL="https://idp.example.test",
+    WORK_HOST_BEARER_AUDIENCE="desktop",
 )
+
+
+@pytest.fixture
+def bearer_jwt(monkeypatch):
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    wrong_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(private_key.public_key()))
+    jwk.update({"kid": "test-key", "alg": "RS256", "use": "sig"})
+    client = mock.Mock()
+    client.get_signing_key_from_jwt.return_value = jwt.PyJWK(jwk)
+    monkeypatch.setattr(
+        "core.api.work_host._work_bearer_jwk_client", lambda endpoint: client
+    )
+
+    def issue(subject="subject-bearer", *, key=None, drop=(), **overrides):
+        now = datetime.now(timezone.utc)
+        claims = {
+            "sub": subject,
+            "iss": "https://idp.example.test",
+            "aud": "desktop",
+            "iat": now,
+            "exp": now + timedelta(minutes=5),
+        }
+        claims.update(overrides)
+        for field in drop:
+            claims.pop(field, None)
+        return jwt.encode(
+            claims,
+            key or private_key,
+            algorithm="RS256",
+            headers={"kid": "test-key"},
+        )
+
+    return {"issue": issue, "wrong_key": wrong_key, "client": client}
 
 
 def _authenticate(user):
@@ -40,15 +79,18 @@ def _authenticate(user):
 
 
 @MTLS
-def test_returns_verified_bearer(client):
+def test_returns_verified_bearer(client, bearer_jwt):
     user = UserFactory(sub="subject-bearer", auth_epoch=7)
     organization = OrganizationFactory()
     MembershipFactory(user=user, organization=organization, is_primary=True)
+    token = bearer_jwt["issue"](user.sub)
 
     patcher = _authenticate(user)
     try:
         response = client.post(
-            URL, HTTP_AUTHORIZATION="Bearer native-token", **cert_headers(CLIENT_PEM)
+            URL,
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+            **cert_headers(CLIENT_PEM),
         )
     finally:
         patcher.stop()
@@ -65,19 +107,20 @@ def test_returns_verified_bearer(client):
 
 
 @MTLS
-def test_session_revision_tracks_auth_epoch(client):
+def test_session_revision_tracks_auth_epoch(client, bearer_jwt):
     user = UserFactory(sub="subject-epoch", auth_epoch=0)
     MembershipFactory(user=user, organization=OrganizationFactory(), is_primary=True)
+    token = bearer_jwt["issue"](user.sub)
 
     patcher = _authenticate(user)
     try:
         first = client.post(
-            URL, HTTP_AUTHORIZATION="Bearer t", **cert_headers(CLIENT_PEM)
+            URL, HTTP_AUTHORIZATION=f"Bearer {token}", **cert_headers(CLIENT_PEM)
         )
         user.auth_epoch = 42
         user.save(update_fields=["auth_epoch"])
         second = client.post(
-            URL, HTTP_AUTHORIZATION="Bearer t", **cert_headers(CLIENT_PEM)
+            URL, HTTP_AUTHORIZATION=f"Bearer {token}", **cert_headers(CLIENT_PEM)
         )
     finally:
         patcher.stop()
@@ -143,35 +186,28 @@ def test_cookie_session_cannot_satisfy_bearer(client):
 
 
 @MTLS
-def test_rejects_invalid_token(client):
-    patcher = mock.patch("core.api.work_host.OIDCAuthentication")
-    mock_auth = patcher.start()
-    mock_auth.return_value.authenticate.side_effect = exceptions.AuthenticationFailed(
-        "bad token"
+def test_rejects_invalid_token(client, bearer_jwt):
+    token = bearer_jwt["issue"](key=bearer_jwt["wrong_key"])
+    response = client.post(
+        URL, HTTP_AUTHORIZATION=f"Bearer {token}", **cert_headers(CLIENT_PEM)
     )
-    try:
-        response = client.post(
-            URL, HTTP_AUTHORIZATION="Bearer bad", **cert_headers(CLIENT_PEM)
-        )
-    finally:
-        patcher.stop()
 
     assert response.status_code == 401
     assert response.json() == {"code": "session_invalid"}
 
 
 @MTLS
-def test_verifier_outage_is_service_unavailable(client, caplog):
+def test_verifier_outage_is_service_unavailable(client, bearer_jwt, caplog):
     sensitive_detail = "upstream response: bearer-secret-sentinel"
-    patcher = mock.patch("core.api.work_host.OIDCAuthentication")
-    mock_auth = patcher.start()
-    mock_auth.return_value.authenticate.side_effect = HTTPError(sensitive_detail)
-    try:
-        response = client.post(
-            URL, HTTP_AUTHORIZATION="Bearer t", **cert_headers(CLIENT_PEM)
-        )
-    finally:
-        patcher.stop()
+    token = bearer_jwt["issue"]()
+    bearer_jwt[
+        "client"
+    ].get_signing_key_from_jwt.side_effect = jwt.PyJWKClientConnectionError(
+        sensitive_detail
+    )
+    response = client.post(
+        URL, HTTP_AUTHORIZATION=f"Bearer {token}", **cert_headers(CLIENT_PEM)
+    )
 
     assert response.status_code == 503
     assert response.json() == {"code": "service_unavailable"}
@@ -185,12 +221,13 @@ def test_verifier_outage_is_service_unavailable(client, caplog):
 
 
 @MTLS
-def test_rejects_inactive_user(client):
+def test_rejects_inactive_user(client, bearer_jwt):
     user = UserFactory(sub="subject-inactive", is_active=False)
+    token = bearer_jwt["issue"](user.sub)
     patcher = _authenticate(user)
     try:
         response = client.post(
-            URL, HTTP_AUTHORIZATION="Bearer t", **cert_headers(CLIENT_PEM)
+            URL, HTTP_AUTHORIZATION=f"Bearer {token}", **cert_headers(CLIENT_PEM)
         )
     finally:
         patcher.stop()
@@ -200,13 +237,14 @@ def test_rejects_inactive_user(client):
 
 
 @MTLS
-def test_rejects_missing_subject(client):
+def test_rejects_missing_subject(client, bearer_jwt):
     # §2.2(b): no fallback to user.id — a user without a readable sub is refused.
     user = UserFactory(sub=None)
+    token = bearer_jwt["issue"]("subject-unreadable")
     patcher = _authenticate(user)
     try:
         response = client.post(
-            URL, HTTP_AUTHORIZATION="Bearer t", **cert_headers(CLIENT_PEM)
+            URL, HTTP_AUTHORIZATION=f"Bearer {token}", **cert_headers(CLIENT_PEM)
         )
     finally:
         patcher.stop()
@@ -216,12 +254,13 @@ def test_rejects_missing_subject(client):
 
 
 @MTLS
-def test_rejects_user_without_organization(client):
+def test_rejects_user_without_organization(client, bearer_jwt):
     user = UserFactory(sub="subject-no-org")
+    token = bearer_jwt["issue"](user.sub)
     patcher = _authenticate(user)
     try:
         response = client.post(
-            URL, HTTP_AUTHORIZATION="Bearer t", **cert_headers(CLIENT_PEM)
+            URL, HTTP_AUTHORIZATION=f"Bearer {token}", **cert_headers(CLIENT_PEM)
         )
     finally:
         patcher.stop()
@@ -231,11 +270,116 @@ def test_rejects_user_without_organization(client):
 
 
 @MTLS
-def test_rejects_get(client):
-    user = UserFactory(sub="subject-get")
+@pytest.mark.parametrize(
+    "case",
+    ["expired", "wrong_audience", "wrong_issuer", "missing_exp", "bad_signature"],
+)
+def test_rejects_invalid_jwt_claims_before_userinfo(client, bearer_jwt, case):
+    now = datetime.now(timezone.utc)
+    token = bearer_jwt["issue"](
+        key=bearer_jwt["wrong_key"] if case == "bad_signature" else None,
+        drop=("exp",) if case == "missing_exp" else (),
+        **(
+            {"exp": now - timedelta(minutes=1)}
+            if case == "expired"
+            else {"aud": "another-client"}
+            if case == "wrong_audience"
+            else {"iss": "https://other-idp.example.test"}
+            if case == "wrong_issuer"
+            else {}
+        ),
+    )
+    with mock.patch("core.api.work_host.OIDCAuthentication") as authentication:
+        response = client.post(
+            URL,
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+            **cert_headers(CLIENT_PEM),
+        )
+
+    assert response.status_code == 401
+    assert response.json() == {"code": "session_invalid"}
+    authentication.return_value.authenticate.assert_not_called()
+
+
+@MTLS
+def test_rejects_token_userinfo_subject_mismatch(client, bearer_jwt):
+    user = UserFactory(sub="subject-userinfo")
+    token = bearer_jwt["issue"]("subject-token")
     patcher = _authenticate(user)
     try:
-        response = client.get(URL, **cert_headers(CLIENT_PEM))
+        response = client.post(
+            URL,
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+            **cert_headers(CLIENT_PEM),
+        )
+    finally:
+        patcher.stop()
+
+    assert response.status_code == 401
+    assert response.json() == {"code": "session_invalid"}
+
+
+@MTLS
+@pytest.mark.parametrize(
+    ("error", "status", "code"),
+    [
+        (exceptions.AuthenticationFailed("revoked"), 401, "session_invalid"),
+        (RuntimeError("userinfo unavailable"), 503, "service_unavailable"),
+    ],
+)
+def test_valid_jwt_still_requires_userinfo_acceptance(
+    client, bearer_jwt, error, status, code
+):
+    token = bearer_jwt["issue"]()
+    with mock.patch("core.api.work_host.OIDCAuthentication") as authentication:
+        authentication.return_value.authenticate.side_effect = error
+        response = client.post(
+            URL,
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+            **cert_headers(CLIENT_PEM),
+        )
+
+    assert response.status_code == status
+    assert response.json() == {"code": code}
+
+
+@MTLS
+def test_rejects_unknown_signing_key(client, bearer_jwt):
+    token = bearer_jwt["issue"]()
+    bearer_jwt["client"].get_signing_key_from_jwt.side_effect = jwt.PyJWKClientError(
+        'Unable to find a signing key that matches: "unknown"'
+    )
+    response = client.post(
+        URL, HTTP_AUTHORIZATION=f"Bearer {token}", **cert_headers(CLIENT_PEM)
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {"code": "session_invalid"}
+
+
+@MTLS
+def test_missing_jwt_configuration_fails_closed(client, bearer_jwt):
+    token = bearer_jwt["issue"]()
+    with override_settings(OIDC_OP_URL=None):
+        response = client.post(
+            URL,
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+            **cert_headers(CLIENT_PEM),
+        )
+
+    assert response.status_code == 503
+    assert response.json() == {"code": "service_unavailable"}
+
+
+@MTLS
+def test_rejects_get(client, bearer_jwt):
+    user = UserFactory(sub="subject-get")
+    token = bearer_jwt["issue"](user.sub)
+    patcher = _authenticate(user)
+    try:
+        response = client.get(
+            URL, HTTP_AUTHORIZATION=f"Bearer {token}", **cert_headers(CLIENT_PEM)
+        )
     finally:
         patcher.stop()
 
