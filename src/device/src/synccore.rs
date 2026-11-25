@@ -24,8 +24,8 @@ use tokio::sync::mpsc;
 use crate::broker::ReadyIdentity;
 use crate::finish::orchestrate::{self, FinishInput};
 use crate::frame::{
-    action, cancel, checkpoint, command, finish, lease, offer, publish, receipt_ack, reconcile,
-    resolution,
+    action, cancel, checkpoint, command, envelope, finish, lease, model_result, offer, publish,
+    receipt_ack, reconcile, resolution,
 };
 use crate::journal::record::{self, ActionRow};
 use crate::journal::recover::{self, StartRow};
@@ -282,6 +282,8 @@ struct SyncCore {
     #[cfg(windows)]
     active_commands: Option<(String, crate::nodeservice::SharedCommands)>,
     #[cfg(windows)]
+    prepared_actions: Option<crate::nodeservice::SharedPreparedActions>,
+    #[cfg(windows)]
     io_deadline: Option<Arc<std::sync::Mutex<Option<Instant>>>>,
     last_receipt_seq: u64,
     // ---- batch 3: the five-step finish + reconcile state (device-design §3.4/§6.3) ----
@@ -434,6 +436,8 @@ impl SyncCore {
             #[cfg(windows)]
             active_commands: None,
             #[cfg(windows)]
+            prepared_actions: None,
+            #[cfg(windows)]
             io_deadline: None,
             last_receipt_seq,
             active_run: None,
@@ -543,6 +547,7 @@ impl SyncCore {
             receipt_ack::FRAME_TYPE | crate::frame::reconcile::FRAME_TYPE => {
                 self.consume_receipt_ack(&server_jwk, frame_type, body)
             }
+            model_result::ACK_FRAME_TYPE => self.consume_model_result_ack(&server_jwk, body),
             action::ACTION_PREPARED_FRAME_TYPE => self.consume_action_prepared(&server_jwk, body),
             // Batch 6: the lease downlink reaches here only when it grants a reconcile_finish lease
             // the link does not hold (link.rs forwards an unmatched lease verbatim); a heartbeat
@@ -581,6 +586,9 @@ impl SyncCore {
             Some(id) => id.clone(),
             None => return,
         };
+        // Wall-clock truncation and sampling lag can only shorten, never extend, the permit.
+        let now_unix = now_unix();
+        let verified_at = Instant::now();
         let ctx = PermitContext {
             server_permit_key: &permit_jwk,
             org_id: &self.org_id,
@@ -588,7 +596,7 @@ impl SyncCore {
             device_id: &self.device_id,
             session_id: &session_id,
             run_fence: self.run_fence,
-            now_unix: now_unix(),
+            now_unix,
             remaining_lease_secs: self.remaining_lease_secs(),
         };
         if let Err(err) = cmd.verify_permit(&ctx) {
@@ -599,6 +607,10 @@ impl SyncCore {
             eprintln!("work-device: command permit does not bind the command");
             return;
         }
+        let permit_expires = crate::frame::rfc3339::parse_utc_seconds(&cmd.permit.expires_at)
+            .expect("validated expiry");
+        let permit_deadline =
+            verified_at + std::time::Duration::from_secs(permit_expires - now_unix);
         // The full command (dispatch_attempt_id, tool_schema, local_payload_ref, permit) is sealed
         // verbatim as the action body; the indexed columns carry the queryable identity. attempt is
         // the server's uuid dispatch_attempt_id (the receipt gate binds to it); state="started"
@@ -633,7 +645,9 @@ impl SyncCore {
             // The journal exposes only &Connection (single owner, no nested transactions), so the
             // &self transaction constructor is the correct one; the jti INSERT + commit are atomic.
             let tx = conn.unchecked_transaction()?;
-            record::append_action(&tx, self.journal.dek(), &rctx, &row, &plaintext)?;
+            if !record::upgrade_prepared_action(&tx, self.journal.dek(), &rctx, &row, &plaintext)? {
+                record::append_action(&tx, self.journal.dek(), &rctx, &row, &plaintext)?;
+            }
             tx.commit()?;
             Ok(())
         })();
@@ -657,6 +671,7 @@ impl SyncCore {
                         fence: cmd.permit.fence,
                         generation: cmd.permit.generation,
                         dispatch_attempt_id: cmd.dispatch_attempt_id.clone(),
+                        permit_deadline: Some(permit_deadline),
                     };
                     match &self.active_commands {
                         Some((run_id, live)) if run_id == &cmd.run_id => {
@@ -936,6 +951,8 @@ impl SyncCore {
                     };
                     let io_deadline = Arc::new(std::sync::Mutex::new(self.lease_deadline));
                     self.io_deadline = Some(io_deadline.clone());
+                    let prepared_actions = crate::nodeservice::shared_prepared_actions();
+                    self.prepared_actions = Some(prepared_actions.clone());
                     let ctx = crate::nodeservice::RunContext {
                         run_id: start.run_id.clone(),
                         org_id: self.org_id.clone(),
@@ -955,6 +972,7 @@ impl SyncCore {
                             .clone()
                             .unwrap_or_else(|| offer_body.input_hash.clone()),
                         grant_set: offer_body.grant_set.clone(),
+                        prepared_actions,
                         io_deadline,
                     };
                     // The live per-Run command map (A2 write spine): seed it with the commands
@@ -1262,6 +1280,43 @@ impl SyncCore {
         }
     }
 
+    fn consume_model_result_ack(&mut self, server_jwk: &crate::jwk::EcP256Jwk, body: Value) {
+        let ack: model_result::ModelResultAckBody = match serde_json::from_value(body) {
+            Ok(body) => body,
+            Err(err) => {
+                eprintln!("work-device: model_result_ack schema refused: {err}");
+                return;
+            }
+        };
+        if !ack.shape_consistent() || !ack.verify(server_jwk) {
+            eprintln!("work-device: model_result_ack signature/shape refused");
+            return;
+        }
+        if ack.state != "recorded" {
+            if let Err(err) = recover::mark_model_result_rejected(
+                self.journal.connection(),
+                self.journal.journal_epoch(),
+                &ack.model_result_id,
+                &ack.operation_id,
+            ) {
+                eprintln!("work-device: model_result_ack rejection persist failed: {err:?}");
+            }
+            eprintln!(
+                "work-device: model_result_ack rejected {}: {:?}",
+                ack.model_result_id, ack.code
+            );
+            return;
+        }
+        if let Err(err) = recover::mark_model_result_acked(
+            self.journal.connection(),
+            self.journal.journal_epoch(),
+            &ack.model_result_id,
+            &ack.operation_id,
+        ) {
+            eprintln!("work-device: model_result_ack persist failed: {err:?}");
+        }
+    }
+
     /// GW13 action_prepared: verify the frame. The tool permit gate / dispatch is batch 2; batch 1c
     /// registers nothing here (the command carries the executable permit), only fail-closed verify.
     fn consume_action_prepared(&mut self, server_jwk: &crate::jwk::EcP256Jwk, body: Value) {
@@ -1272,9 +1327,20 @@ impl SyncCore {
                 return;
             }
         };
-        if !prepared.verify(server_jwk) {
-            eprintln!("work-device: action_prepared signature refused");
+        if !prepared.verify(server_jwk)
+            || !prepared.state_consistent()
+            || uuid::Uuid::parse_str(&prepared.operation_id).is_err()
+            || uuid::Uuid::parse_str(&prepared.attempt_id).is_err()
+        {
+            eprintln!("work-device: action_prepared signature/shape refused");
             return;
+        }
+        #[cfg(windows)]
+        if let Some(actions) = self.prepared_actions.as_ref() {
+            actions
+                .lock()
+                .unwrap()
+                .insert(prepared.logical_key.clone(), prepared.clone());
         }
         eprintln!(
             "work-device: action_prepared {} verified (tool gate batch 2)",
@@ -1397,6 +1463,9 @@ impl SyncCore {
             self.dispatched.clear();
             if let Some((_, commands)) = self.active_commands.take() {
                 commands.lock().unwrap().clear();
+            }
+            if let Some(actions) = self.prepared_actions.take() {
+                actions.lock().unwrap().clear();
             }
         }
         if let Some(sidecar) = self.sidecar.as_mut() {
@@ -1682,6 +1751,20 @@ impl SyncCore {
     /// cleanup stays gated on the server-signed facts, never local inference.
     fn reconcile_uplink(&mut self) {
         let epoch = self.journal.journal_epoch().to_string();
+        let model_results = recover::unacked_model_results(self.journal.connection(), &epoch, 100)
+            .unwrap_or_default();
+        for row in model_results {
+            match serde_json::from_slice::<envelope::Envelope>(&row.signed_bytes) {
+                Ok(env) => {
+                    eprintln!("work-device: replay model_result {}", row.model_result_id);
+                    self.uplink(model_result::FRAME_TYPE, env.body);
+                }
+                Err(err) => eprintln!(
+                    "work-device: stored model_result {} envelope refused: {err}",
+                    row.model_result_id
+                ),
+            }
+        }
         let batch =
             replay::next_receipt_batch(self.journal.connection(), &epoch).unwrap_or_default();
         if !batch.is_empty() {
@@ -3412,6 +3495,14 @@ mod tests {
         assert_eq!(recovered.operation_id, "op-1");
         assert_eq!(recovered.permit.jti, "jti-cmd-1");
         assert_eq!(recovered.permit.fence, 2);
+        #[cfg(windows)]
+        {
+            let permit_deadline = core.dispatched[0]
+                .permit_deadline
+                .expect("verified permit deadline is retained for dispatch");
+            assert!(permit_deadline > Instant::now());
+            assert!(permit_deadline <= Instant::now() + Duration::from_secs(5));
+        }
         // Exactly one row, indexed by the consumed jti.
         let count: i64 = core
             .journal

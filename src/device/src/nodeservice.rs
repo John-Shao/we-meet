@@ -43,6 +43,7 @@ pub struct RunContext {
     pub baseline_checkpoint_hash: String,
     /// The offer's grant_set (grant_id → grant_revision); the action_prepare names the grant's revision.
     pub grant_set: Vec<crate::frame::offer::GrantRef>,
+    pub prepared_actions: SharedPreparedActions,
     pub io_deadline: Arc<Mutex<Option<std::time::Instant>>>,
 }
 
@@ -69,6 +70,9 @@ pub struct DispatchedCommand {
     /// The server's uuid dispatch_attempt_id (0048:149): the write receipt + action row echo it so
     /// record_device_receipt's attempt_id equality gate passes. Reads/model carry a local placeholder.
     pub dispatch_attempt_id: String,
+    /// Monotonic permit expiry captured when the signed permit was verified. Once request bytes
+    /// are sent, the Run lease alone governs the in-flight I/O; before that this deadline is final.
+    pub permit_deadline: Option<std::time::Instant>,
 }
 
 /// The live per-Run command map (A2 write spine, execution-face §6.3 C). The sync core inserts a
@@ -76,6 +80,13 @@ pub struct DispatchedCommand {
 /// per tool_call. This is NOT the journal (E4 甲 single-owner holds): it is a dispatch inbox shared
 /// across the two threads, so a write command authorized AFTER start still reaches the running loop.
 pub type SharedCommands = Arc<Mutex<HashMap<String, DispatchedCommand>>>;
+
+pub type SharedPreparedActions =
+    Arc<Mutex<HashMap<String, crate::frame::action::ActionPreparedBody>>>;
+
+pub fn shared_prepared_actions() -> SharedPreparedActions {
+    Arc::new(Mutex::new(HashMap::new()))
+}
 
 /// A fresh shared command map seeded with the commands consumed before start.
 pub fn shared_commands(initial: Vec<DispatchedCommand>) -> SharedCommands {
@@ -231,15 +242,28 @@ impl WorkspaceExecutor {
 
     /// Invoke the Run's device_local model endpoint through the §5.4 gate. Returns the model_response
     /// frame on success, model_blocked on an identity/permit refusal, model_unknown on an I/O unknown.
-    pub fn invoke_model(&self, ctx: &RunContext, request_doc: &Value) -> Value {
+    pub fn invoke_model(
+        &self,
+        ctx: &RunContext,
+        request_doc: &Value,
+        permit_deadline: Option<std::time::Instant>,
+    ) -> Value {
         if !ctx.allows_io() {
             return nodemsg::model_blocked("lease_expired", true);
+        }
+        if permit_deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline) {
+            return nodemsg::model_blocked("permit_expired", true);
         }
         let entry = match self.endpoints.get(&ctx.profile_id) {
             Some(entry) => entry,
             None => return nodemsg::model_blocked("model_binding_missing", true),
         };
-        match modelproxy::invoke(&entry.endpoint, request_doc, &ctx.io_deadline) {
+        match modelproxy::invoke(
+            &entry.endpoint,
+            request_doc,
+            &ctx.io_deadline,
+            permit_deadline,
+        ) {
             Ok(reply) => nodemsg::model_response(
                 reply.assistant_message,
                 &reply.answer_hash,
@@ -248,6 +272,7 @@ impl WorkspaceExecutor {
                 &reply.provider_request_id,
             ),
             Err(ProxyError::LeaseExpired) => nodemsg::model_blocked("lease_expired", true),
+            Err(ProxyError::PermitExpired) => nodemsg::model_blocked("permit_expired", true),
             Err(ProxyError::Identity(_)) => nodemsg::model_blocked("identity_mismatch", true),
             Err(ProxyError::Connect) | Err(ProxyError::RedirectOrStatus) => {
                 nodemsg::model_blocked("model_endpoint_refused", true)
@@ -422,6 +447,40 @@ impl WorkspaceExecutor {
             }
             _ => PermitGate::Failed,
         }
+    }
+
+    fn register_prepared_action(
+        &self,
+        ctx: &RunContext,
+        prepared: &crate::frame::action::ActionPreparedBody,
+    ) -> bool {
+        let row = ActionRowOwned {
+            org_id: ctx.org_id.clone(),
+            operation_id: prepared.operation_id.clone(),
+            run_id: ctx.run_id.clone(),
+            attempt: prepared.attempt_id.clone(),
+            step_key: prepared.step_key.clone(),
+            logical_key: prepared.logical_key.clone(),
+            supersedes: None,
+            request_hash: prepared.request_hash.clone(),
+            fence: ctx.fence as i64,
+            session_id: ctx.session_id.clone(),
+            generation: ctx.generation as i64,
+            permit_jti: format!("prepared:{}", prepared.operation_id),
+            state: prepared.state.clone(),
+            result_hash: None,
+            result_ref: None,
+        };
+        let plaintext = serde_json::to_vec(&prepared.to_value()).unwrap_or_default();
+        matches!(
+            ctx.journal.request(JournalOp::RegisterAction {
+                org_id: ctx.org_id.clone(),
+                subject_id: ctx.subject_id.clone(),
+                row: Box::new(row),
+                plaintext,
+            }),
+            Some(JournalReply::Registered) | Some(JournalReply::JtiConsumed)
+        )
     }
 
     /// The handle-relative execution of one validated tool against its confirmed grant.
@@ -844,16 +903,52 @@ fn serve_run(
         let reply = match ty {
             nodemsg::MODEL_REQUEST => {
                 let logical_key = body["logical_key"].as_str().unwrap_or("");
-                let reply = exec.invoke_model(ctx, &body["request"]);
-                produce_model_receipt(
+                let command = propose_and_await_model_command(
                     ctx,
                     bootstrap,
+                    exec,
                     &body["request"],
                     logical_key,
-                    &reply,
-                    &mut checkpoint_seq,
-                    &mut latest_checkpoint_hash,
+                    checkpoint_seq,
+                    &latest_checkpoint_hash,
+                    commands,
                 );
+                let reply = if let Some(cmd) = command.as_ref() {
+                    match exec.register_permit(ctx, cmd, &body["request"]) {
+                        PermitGate::Proceed => {
+                            let reply =
+                                exec.invoke_model(ctx, &body["request"], cmd.permit_deadline);
+                            if !produce_model_receipt(
+                                ctx,
+                                bootstrap,
+                                &body["request"],
+                                Some(cmd),
+                                logical_key,
+                                &reply,
+                                &mut checkpoint_seq,
+                                &mut latest_checkpoint_hash,
+                            ) {
+                                return Err("model_result persistence failed".into());
+                            }
+                            reply
+                        }
+                        PermitGate::Consumed => nodemsg::model_blocked("already_consumed", true),
+                        PermitGate::Failed => nodemsg::model_blocked("permit_unavailable", true),
+                    }
+                } else {
+                    let reply = nodemsg::model_blocked("permit_pending", true);
+                    produce_model_receipt(
+                        ctx,
+                        bootstrap,
+                        &body["request"],
+                        None,
+                        logical_key,
+                        &reply,
+                        &mut checkpoint_seq,
+                        &mut latest_checkpoint_hash,
+                    );
+                    reply
+                };
                 reply
             }
             nodemsg::TOOL_CALL => {
@@ -997,6 +1092,84 @@ fn propose_and_await_command(
     while std::time::Instant::now() < deadline && ctx.allows_io() {
         if let Some(cmd) = commands.lock().unwrap().get(server_key).cloned() {
             return Some(cmd);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    None
+}
+
+#[allow(clippy::too_many_arguments)]
+fn propose_and_await_model_command(
+    ctx: &RunContext,
+    bootstrap: &crate::ipc::nodepipe::RunBootstrap,
+    exec: &WorkspaceExecutor,
+    request_doc: &Value,
+    logical_key: &str,
+    checkpoint_seq: i64,
+    latest_checkpoint_hash: &str,
+    commands: &SharedCommands,
+) -> Option<DispatchedCommand> {
+    if !ctx.allows_io() {
+        return None;
+    }
+    let grant = ctx.grant_set.first()?;
+    if !exec.grants.contains(&grant.grant_id) {
+        return None;
+    }
+    let request_hash = model_request_hash(request_doc)
+        .strip_prefix("sha256:")?
+        .to_string();
+    let server_key = format!("{logical_key}#0");
+    let facts = ActionPrepareFacts {
+        run_id: ctx.run_id.clone(),
+        lease_id: ctx.lease_id.clone(),
+        fence: ctx.fence,
+        step_key: logical_key.to_string(),
+        logical_key: server_key.clone(),
+        checkpoint_seq: checkpoint_seq.max(0) as u64,
+        checkpoint_hash: latest_checkpoint_hash.to_string(),
+        request_hash: request_hash.clone(),
+        action_kind: "model.send_device_local".into(),
+        tool_schema: "model-v1".into(),
+        local_payload_ref: format!("local/{logical_key}"),
+        grant_id: grant.grant_id.clone(),
+        grant_revision: grant.grant_revision,
+        resource_selector_hash: request_hash.clone(),
+        classification: "local_only".into(),
+        destination_id: Some("device_local".into()),
+        byte_upper_bound: bootstrap.max_bytes,
+        token_upper_bound: bootstrap.max_tokens,
+    };
+    if !matches!(
+        ctx.journal.request(JournalOp::ProposeAction {
+            org_id: ctx.org_id.clone(),
+            subject_id: ctx.subject_id.clone(),
+            facts: Box::new(facts),
+        }),
+        Some(JournalReply::Proposed)
+    ) {
+        return None;
+    }
+    let deadline = std::time::Instant::now() + COMMAND_WAIT;
+    while std::time::Instant::now() < deadline && ctx.allows_io() {
+        if let Some(prepared) = ctx
+            .prepared_actions
+            .lock()
+            .unwrap()
+            .get(&server_key)
+            .cloned()
+        {
+            if prepared.logical_key == server_key && prepared.request_hash == request_hash {
+                let _ = exec.register_prepared_action(ctx, &prepared);
+            }
+        }
+        if let Some(cmd) = commands.lock().unwrap().get(&server_key).cloned() {
+            if cmd.logical_key == server_key
+                && cmd.tool_name == "model-v1"
+                && cmd.request_hash == request_hash
+            {
+                return Some(cmd);
+            }
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
@@ -1154,32 +1327,82 @@ fn record_model_turn(
     }
 }
 
+fn model_usage(value: Option<&Value>, max_tokens: u64) -> crate::frame::model_result::ModelUsage {
+    let value = value.unwrap_or(&Value::Null);
+    let token = |keys: &[&str]| {
+        keys.iter().find_map(|key| {
+            value.get(*key).and_then(Value::as_u64).or_else(|| {
+                value
+                    .get(*key)
+                    .and_then(Value::as_str)
+                    .and_then(|v| v.parse().ok())
+            })
+        })
+    };
+    let input = token(&["input_tokens", "prompt_tokens"]);
+    let output = token(&["output_tokens", "completion_tokens"]);
+    let cached = token(&["cached_input_tokens", "cached_tokens"]);
+    let total = token(&["total_tokens"]);
+    let input_tokens = input.unwrap_or(0);
+    let output_tokens = output
+        .or_else(|| total.map(|total| total.saturating_sub(input_tokens)))
+        .unwrap_or(max_tokens);
+    let cached_input_tokens = cached.unwrap_or(0).min(input_tokens);
+    let derived = input.is_none()
+        || output.is_none()
+        || cached.is_none()
+        || cached.is_some_and(|cached| cached > input.unwrap_or(0))
+        || (output.is_none() && total.is_some());
+    let estimated = value
+        .get("estimated")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        || derived;
+    crate::frame::model_result::ModelUsage {
+        input_tokens,
+        output_tokens,
+        cached_input_tokens,
+        estimated,
+    }
+}
+
 /// Produce the model-turn receipt (§6.3 B). device_local usage is stamped `usage_source='device_adapter'`
 /// with no egress fields (DD:264). success→completed/succeeded; an I/O unknown→unknown (awaits
 /// operation_resolution, §5.3); an identity/binding refusal→completed/rejected_not_executed (no byte
 /// sent, §5.4 step 4); an endpoint refusal→completed/failed (the model produced no answer).
+#[allow(clippy::too_many_arguments)]
 fn produce_model_receipt(
     ctx: &RunContext,
     bootstrap: &crate::ipc::nodepipe::RunBootstrap,
     request_doc: &Value,
+    command: Option<&DispatchedCommand>,
     logical_key: &str,
     reply: &Value,
     checkpoint_seq: &mut i64,
     latest_checkpoint_hash: &mut String,
-) {
+) -> bool {
     let ty = reply["type"].as_str().unwrap_or("");
     let body = &reply["body"];
     let request_hash = model_request_hash(request_doc);
-    let local_ref = format!("{}:{}", ctx.run_id, logical_key);
+    let operation_id = command
+        .map(|c| c.operation_id.clone())
+        .unwrap_or_else(|| logical_key.to_string());
+    let attempt = command
+        .map(|c| c.dispatch_attempt_id.clone())
+        .unwrap_or_else(|| logical_key.to_string());
+    let request_hash = command
+        .map(|c| c.request_hash.clone())
+        .unwrap_or(request_hash);
+    let local_ref = format!("{}:{}", ctx.run_id, operation_id);
     let facts = match ty {
         nodemsg::MODEL_RESPONSE => ReceiptFacts {
-            operation_id: logical_key.to_string(),
+            operation_id: operation_id.clone(),
             run_id: ctx.run_id.clone(),
             session_id: ctx.session_id.clone(),
             generation: ctx.generation,
-            attempt: logical_key.to_string(),
+            attempt: attempt.clone(),
             fence: ctx.fence,
-            request_hash,
+            request_hash: request_hash.clone(),
             state: "completed".into(),
             outcome: Some("succeeded".into()),
             result_hash: body["answer_hash"].as_str().unwrap_or("").to_string(),
@@ -1190,13 +1413,13 @@ fn produce_model_receipt(
             error_code: String::new(),
         },
         nodemsg::MODEL_UNKNOWN => ReceiptFacts {
-            operation_id: logical_key.to_string(),
+            operation_id: operation_id.clone(),
             run_id: ctx.run_id.clone(),
             session_id: ctx.session_id.clone(),
             generation: ctx.generation,
-            attempt: logical_key.to_string(),
+            attempt: attempt.clone(),
             fence: ctx.fence,
-            request_hash,
+            request_hash: request_hash.clone(),
             state: "unknown".into(),
             outcome: None,
             result_hash: String::new(),
@@ -1217,13 +1440,13 @@ fn produce_model_receipt(
                 "failed"
             };
             ReceiptFacts {
-                operation_id: logical_key.to_string(),
+                operation_id: operation_id.clone(),
                 run_id: ctx.run_id.clone(),
                 session_id: ctx.session_id.clone(),
                 generation: ctx.generation,
-                attempt: logical_key.to_string(),
+                attempt: attempt.clone(),
                 fence: ctx.fence,
-                request_hash,
+                request_hash: request_hash.clone(),
                 state: "completed".into(),
                 outcome: Some(outcome.into()),
                 result_hash: String::new(),
@@ -1234,8 +1457,59 @@ fn produce_model_receipt(
                 error_code: reason.to_string(),
             }
         }
-        _ => return,
+        _ => return false,
     };
+    if let Some(command) = command {
+        let usage = if ty == nodemsg::MODEL_RESPONSE {
+            Some(model_usage(body.get("usage"), bootstrap.max_tokens))
+        } else {
+            None
+        };
+        let model_facts = crate::journalop::ModelResultFacts {
+            run_id: ctx.run_id.clone(),
+            operation_id: command.operation_id.clone(),
+            attempt_id: command.dispatch_attempt_id.clone(),
+            session_id: ctx.session_id.clone(),
+            request_hash: facts
+                .request_hash
+                .strip_prefix("sha256:")
+                .unwrap_or(&facts.request_hash)
+                .to_string(),
+            state: facts.state.clone(),
+            outcome: if facts.state == "completed" {
+                Some(if facts.outcome.as_deref() == Some("succeeded") {
+                    "succeeded".into()
+                } else {
+                    "failed".into()
+                })
+            } else {
+                None
+            },
+            result_hash: (!facts.result_hash.is_empty()).then(|| {
+                facts
+                    .result_hash
+                    .strip_prefix("sha256:")
+                    .unwrap_or(&facts.result_hash)
+                    .to_string()
+            }),
+            provider_request_id: body["provider_request_id"].as_str().map(str::to_string),
+            model: bootstrap.model_name.clone(),
+            usage,
+            error_code: (!facts.error_code.is_empty()).then(|| facts.error_code.clone()),
+        };
+        let op = JournalOp::AppendModelResult {
+            org_id: ctx.org_id.clone(),
+            subject_id: ctx.subject_id.clone(),
+            facts: Box::new(model_facts),
+        };
+        match ctx.journal.request(op) {
+            Some(JournalReply::ModelResultProduced { .. }) => {}
+            other => {
+                eprintln!("work-device: model_result production failed: {other:?}");
+                return false;
+            }
+        }
+    }
     record_model_turn(
         ctx,
         bootstrap,
@@ -1244,6 +1518,7 @@ fn produce_model_receipt(
         checkpoint_seq,
         latest_checkpoint_hash,
     );
+    true
 }
 
 /// Produce the tool-call receipt (§6.3 C). A write binds the dispatched command's operation_id +
@@ -1433,6 +1708,17 @@ mod tests {
         std::thread::JoinHandle<()>,
         Arc<std::sync::atomic::AtomicUsize>,
     ) {
+        journal_server_counted_delayed(std::time::Duration::ZERO)
+    }
+
+    fn journal_server_counted_delayed(
+        register_delay: std::time::Duration,
+    ) -> (
+        JournalHandle,
+        tokio::sync::mpsc::Receiver<crate::transport::UplinkFrame>,
+        std::thread::JoinHandle<()>,
+        Arc<std::sync::atomic::AtomicUsize>,
+    ) {
         let count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let server_count = count.clone();
         let (handle, mut rx) = crate::journalop::channel();
@@ -1452,6 +1738,11 @@ mod tests {
             };
             while let Some((op, reply)) = rx.blocking_recv() {
                 server_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                if !register_delay.is_zero()
+                    && matches!(op, crate::journalop::JournalOp::RegisterAction { .. })
+                {
+                    std::thread::sleep(register_delay);
+                }
                 let r = crate::journalop::execute(&journal, &producer, op);
                 let _ = reply.send(r);
             }
@@ -1476,6 +1767,7 @@ mod tests {
             lease_id: "lease".into(),
             baseline_checkpoint_hash: String::new(),
             grant_set: vec![],
+            prepared_actions: shared_prepared_actions(),
             io_deadline: Arc::new(Mutex::new(Some(
                 std::time::Instant::now() + std::time::Duration::from_secs(300),
             ))),
@@ -1491,6 +1783,52 @@ mod tests {
     }
 
     #[test]
+    fn expired_model_permit_blocks_before_endpoint_lookup() {
+        let exec = WorkspaceExecutor::new();
+        let (handle, _uplinks, server, count) = journal_server_counted();
+        let ctx = ctx(handle);
+        let reply = exec.invoke_model(
+            &ctx,
+            &json!({ "v": 1 }),
+            Some(std::time::Instant::now() - std::time::Duration::from_secs(1)),
+        );
+        assert_eq!(reply["body"]["reason"], "permit_expired");
+        assert_eq!(count.load(std::sync::atomic::Ordering::SeqCst), 0);
+        drop(ctx);
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn delayed_journal_registration_cannot_extend_the_model_permit() {
+        let mut exec = WorkspaceExecutor::new();
+        let (handle, _uplinks, server, count) =
+            journal_server_counted_delayed(std::time::Duration::from_millis(200));
+        let ctx = ctx(handle);
+        let permit_deadline = std::time::Instant::now() + std::time::Duration::from_millis(50);
+        let cmd = DispatchedCommand {
+            operation_id: "op-model".into(),
+            logical_key: "model:local:1#0".into(),
+            tool_name: "model.send_device_local".into(),
+            request_hash: "hash".into(),
+            permit_jti: "jti-model".into(),
+            fence: 2,
+            generation: 1,
+            dispatch_attempt_id: "attempt-model".into(),
+            permit_deadline: Some(permit_deadline),
+        };
+        assert!(matches!(
+            exec.register_permit(&ctx, &cmd, &json!({ "v": 1 })),
+            PermitGate::Proceed
+        ));
+        assert!(std::time::Instant::now() >= permit_deadline);
+        let reply = exec.invoke_model(&ctx, &json!({ "v": 1 }), cmd.permit_deadline);
+        assert_eq!(reply["body"]["reason"], "permit_expired");
+        assert_eq!(count.load(std::sync::atomic::Ordering::SeqCst), 1);
+        drop(ctx);
+        server.join().unwrap();
+    }
+
+    #[test]
     fn expired_or_revoked_run_cannot_start_broker_io() {
         let tmp = TempDir::new("expired-io");
         std::fs::create_dir_all(tmp.join("docs")).unwrap();
@@ -1503,7 +1841,7 @@ mod tests {
             let reply = exec.execute_tool(&ctx, tools::WORKSPACE_LIST, &args, "tc", None);
             assert_eq!(reply["body"]["reason"], "lease_expired");
             assert_eq!(
-                exec.invoke_model(&ctx, &json!({}))["body"]["reason"],
+                exec.invoke_model(&ctx, &json!({}), None)["body"]["reason"],
                 "lease_expired"
             );
             assert_eq!(count.load(std::sync::atomic::Ordering::SeqCst), 0);
@@ -1627,6 +1965,7 @@ mod tests {
             fence: 2,
             generation: 1,
             dispatch_attempt_id: "attempt-1".into(),
+            permit_deadline: None,
         };
         let reply = exec.execute_tool(&ctx, "artifact.write", &args, "tc-1", Some(&cmd));
         assert_eq!(reply["type"], "tool_result", "{reply}");
@@ -1673,6 +2012,7 @@ mod tests {
             fence: ctx.fence,
             generation: ctx.generation,
             dispatch_attempt_id: "attempt-1".into(),
+            permit_deadline: None,
         };
         let bootstrap = bootstrap();
         let mut cp = 0;
@@ -1817,6 +2157,7 @@ mod tests {
                 fence: ctx.fence,
                 generation: ctx.generation,
                 dispatch_attempt_id: "attempt-1".into(),
+                permit_deadline: None,
             };
             let reply = exec.execute_tool(&ctx, tools::ARTIFACT_WRITE, &args, "tc", Some(&cmd));
             assert_eq!(reply["body"]["reason"], "bad_path", "{version:?}: {reply}");
@@ -1878,6 +2219,7 @@ mod tests {
             fence: 2,
             generation: 1,
             dispatch_attempt_id: "attempt-1".into(),
+            permit_deadline: None,
         };
         let commands = shared_commands(vec![cmd.clone()]);
         let got = propose_and_await_command(
@@ -2005,6 +2347,7 @@ mod tests {
             fence: 2,
             generation: 1,
             dispatch_attempt_id: "attempt-1".into(),
+            permit_deadline: None,
         };
         let reply = exec.execute_tool(&ctx, "artifact.write", &args, "tc-1", Some(&cmd));
         assert_eq!(reply["type"], "tool_result", "{reply}");
@@ -2081,7 +2424,7 @@ mod tests {
         .unwrap();
         let (handle, server) = journal_server();
         let ctx = ctx(handle);
-        let reply = exec.invoke_model(&ctx, &json!({ "v": 1, "messages": [] }));
+        let reply = exec.invoke_model(&ctx, &json!({ "v": 1, "messages": [] }), None);
         assert_eq!(reply["type"], "model_response", "{reply}");
         assert_eq!(
             reply["body"]["assistant_message"]["tool_calls"][0]["function"]["name"],
@@ -2308,6 +2651,7 @@ mod tests {
             &ctx,
             &bootstrap,
             &json!({ "v": 1 }),
+            None,
             "model:0",
             &reply,
             &mut cp,
@@ -2341,6 +2685,205 @@ mod tests {
         assert_eq!(snapshot["operation_id"], "model:0");
         assert_eq!(snapshot["state"], "completed");
         assert_eq!(snapshot["outcome"], "succeeded");
+        drop(ctx);
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn model_usage_normalizes_aliases_and_marks_missing_counts_estimated() {
+        let usage = model_usage(
+            Some(&json!({ "prompt_tokens": 11, "total_tokens": 18 })),
+            64,
+        );
+        assert_eq!(usage.input_tokens, 11);
+        assert_eq!(usage.output_tokens, 7);
+        assert!(usage.estimated);
+        let usage = model_usage(Some(&json!({ "prompt_tokens": 11 })), 64);
+        assert_eq!(usage.input_tokens, 11);
+        assert_eq!(usage.output_tokens, 64);
+        assert!(usage.estimated);
+        let usage = model_usage(
+            Some(&json!({ "input_tokens": 10, "output_tokens": 5, "cached_input_tokens": 20 })),
+            64,
+        );
+        assert_eq!(usage.cached_input_tokens, 10);
+        assert!(usage.estimated);
+        let usage = model_usage(None, 64);
+        assert_eq!(usage.input_tokens, 0);
+        assert_eq!(usage.output_tokens, 64);
+        assert!(usage.estimated);
+    }
+
+    #[test]
+    fn model_permit_is_single_use_like_tool_permits() {
+        let (handle, server) = journal_server();
+        let ctx = ctx(handle);
+        let mut exec = WorkspaceExecutor::new();
+        let cmd = DispatchedCommand {
+            operation_id: "11111111-1111-1111-1111-111111111111".into(),
+            logical_key: "model:0#0".into(),
+            tool_name: "model-v1".into(),
+            request_hash: "a".repeat(64),
+            permit_jti: "jti-model".into(),
+            fence: ctx.fence,
+            generation: ctx.generation,
+            dispatch_attempt_id: "22222222-2222-2222-2222-222222222222".into(),
+            permit_deadline: None,
+        };
+        assert!(matches!(
+            exec.register_permit(&ctx, &cmd, &json!({ "v": 1 })),
+            PermitGate::Proceed
+        ));
+        assert!(matches!(
+            exec.register_permit(&ctx, &cmd, &json!({ "v": 1 })),
+            PermitGate::Consumed
+        ));
+        drop(ctx);
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn prepared_model_action_is_journaled_before_permit_for_finish_hash_parity() {
+        let (handle, server) = journal_server();
+        let ctx = ctx(handle);
+        let exec = WorkspaceExecutor::new();
+        let prepared: crate::frame::action::ActionPreparedBody = serde_json::from_value(json!({
+            "operation_id": "11111111-1111-1111-1111-111111111111",
+            "logical_key": "model:0#0",
+            "step_key": "model:0",
+            "supersede_no": "0",
+            "state": "waiting_approval",
+            "revision": "1",
+            "approval_id": "22222222-2222-2222-2222-222222222222",
+            "auto_approved": false,
+            "request_hash": "a".repeat(64),
+            "attempt_id": "33333333-3333-3333-3333-333333333333",
+            "checkpoint_seq": "0",
+            "classification": "local_only",
+            "destination_id": "device_local"
+        }))
+        .unwrap();
+        assert!(exec.register_prepared_action(&ctx, &prepared));
+        let row = ctx.journal.request(JournalOp::ReadAction {
+            org_id: "org".into(),
+            subject_id: "sub".into(),
+            operation_id: prepared.operation_id.clone(),
+        });
+        assert!(matches!(row, Some(JournalReply::Action(Ok(_)))));
+        drop(ctx);
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn dispatched_model_turn_emits_independent_model_result_then_checkpoint() {
+        let (handle, mut up_rx, server) = journal_server_with_uplinks();
+        let mut ctx = ctx(handle);
+        ctx.run_id = "33333333-3333-3333-3333-333333333333".into();
+        let bootstrap = test_bootstrap();
+        let request = json!({ "v": 1, "max_tokens": 64 });
+        let command = DispatchedCommand {
+            operation_id: "11111111-1111-1111-1111-111111111111".into(),
+            logical_key: "model:0#0".into(),
+            tool_name: "model-v1".into(),
+            request_hash: model_request_hash(&request)
+                .strip_prefix("sha256:")
+                .unwrap()
+                .to_string(),
+            permit_jti: "jti-model".into(),
+            fence: ctx.fence,
+            generation: ctx.generation,
+            dispatch_attempt_id: "22222222-2222-2222-2222-222222222222".into(),
+            permit_deadline: None,
+        };
+        let reply = nodemsg::model_response(
+            json!({ "role": "assistant", "content": "hi" }),
+            &"a".repeat(64),
+            10,
+            json!({
+                "prompt_tokens": 11,
+                "completion_tokens": 7,
+                "cached_tokens": 3
+            }),
+            "req-1",
+        );
+        let mut cp = 0;
+        produce_model_receipt(
+            &ctx,
+            &bootstrap,
+            &request,
+            Some(&command),
+            "model:0",
+            &reply,
+            &mut cp,
+            &mut String::new(),
+        );
+        let result = up_rx.blocking_recv().unwrap();
+        assert_eq!(result.frame_type, "model_result");
+        assert_eq!(
+            result.body["operation_id"],
+            "11111111-1111-1111-1111-111111111111"
+        );
+        assert_eq!(
+            result.body["attempt_id"],
+            "22222222-2222-2222-2222-222222222222"
+        );
+        assert_eq!(result.body["request_hash"], command.request_hash);
+        assert_eq!(result.body["result_hash"], "a".repeat(64));
+        assert_eq!(result.body["model"], "fixture-model");
+        assert_eq!(result.body["usage"]["input_tokens"], "11");
+        assert_eq!(result.body["usage"]["output_tokens"], "7");
+        assert_eq!(result.body["usage"]["cached_input_tokens"], "3");
+        assert_eq!(result.body["usage"]["estimated"], false);
+        assert!(result.body["signature"].is_string());
+        let commit = up_rx.blocking_recv().unwrap();
+        assert_eq!(commit.frame_type, "checkpoint_commit");
+        assert_eq!(commit.body["receipt_through_seq"], "0");
+        assert!(up_rx.try_recv().is_err());
+        drop(ctx);
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn model_result_persist_failure_is_fail_closed_and_does_not_checkpoint() {
+        let (handle, mut up_rx, server) = journal_server_with_uplinks();
+        let mut ctx = ctx(handle);
+        ctx.run_id = "33333333-3333-3333-3333-333333333333".into();
+        let bootstrap = test_bootstrap();
+        let request = json!({ "v": 1 });
+        let command = DispatchedCommand {
+            operation_id: "11111111-1111-1111-1111-111111111111".into(),
+            logical_key: "model:0#0".into(),
+            tool_name: "model-v1".into(),
+            request_hash: model_request_hash(&request)
+                .strip_prefix("sha256:")
+                .unwrap()
+                .to_string(),
+            permit_jti: "jti-model".into(),
+            fence: ctx.fence,
+            generation: ctx.generation,
+            dispatch_attempt_id: "22222222-2222-2222-2222-222222222222".into(),
+            permit_deadline: None,
+        };
+        let reply = nodemsg::model_response(
+            json!({ "role": "assistant", "content": "hi" }),
+            "not-a-valid-result-hash",
+            10,
+            json!({ "prompt_tokens": 11, "completion_tokens": 7 }),
+            "req-1",
+        );
+        let mut cp = 0;
+        assert!(!produce_model_receipt(
+            &ctx,
+            &bootstrap,
+            &request,
+            Some(&command),
+            "model:0",
+            &reply,
+            &mut cp,
+            &mut String::new(),
+        ));
+        assert_eq!(cp, 0);
+        assert!(up_rx.try_recv().is_err());
         drop(ctx);
         server.join().unwrap();
     }
@@ -2405,7 +2948,7 @@ mod tests {
             );
         });
         let bootstrap = test_bootstrap();
-        let reply = exec.invoke_model(&ctx, &json!({ "v": 1 }));
+        let reply = exec.invoke_model(&ctx, &json!({ "v": 1 }), None);
         assert_eq!(reply["type"], "model_unknown", "{reply}");
         assert_eq!(reply["body"]["reason"], "model_io_unknown");
         endpoint.join().unwrap();
@@ -2414,6 +2957,7 @@ mod tests {
             &ctx,
             &bootstrap,
             &json!({ "v": 1 }),
+            None,
             "model:0",
             &reply,
             &mut cp,
@@ -2453,6 +2997,7 @@ mod tests {
             &ctx,
             &bootstrap,
             &json!({ "v": 1 }),
+            None,
             "model:0",
             &reply,
             &mut cp,
@@ -2496,6 +3041,7 @@ mod tests {
             fence: 2,
             generation: 1,
             dispatch_attempt_id: "attempt-1".into(),
+            permit_deadline: None,
         };
         let ok = nodemsg::tool_result(
             "tc",

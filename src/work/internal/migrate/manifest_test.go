@@ -82,6 +82,7 @@ var publishedIncrements = []string{
 	"0067_gap_report_rejects_consumed_interval",
 	"0068_governance_cursor_getter",
 	"0069_atomic_run_binding_activation",
+	"0070_independent_model_result_reconciliation",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

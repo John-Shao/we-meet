@@ -34,6 +34,8 @@ pub enum ProxyError {
     /// An I/O error mid-call: the effect is unknown, never silently retried (§5.2 step 5).
     Io,
     LeaseExpired,
+    /// The signed action permit expired before any request byte was sent.
+    PermitExpired,
 }
 
 impl From<IdentityError> for ProxyError {
@@ -67,33 +69,44 @@ pub fn invoke(
     endpoint: &DeviceLocalEndpoint,
     request_doc: &Value,
     io_deadline: &Arc<Mutex<Option<Instant>>>,
+    permit_deadline: Option<Instant>,
 ) -> Result<ModelReply, ProxyError> {
-    let live = || {
+    let sending = Cell::new(false);
+    let lease_live = || {
         io_deadline
             .lock()
             .unwrap()
             .is_some_and(|deadline| Instant::now() < deadline)
     };
-    if !live() {
-        return Err(ProxyError::LeaseExpired);
-    }
+    let live = || -> Result<(), ProxyError> {
+        if !lease_live() {
+            return Err(ProxyError::LeaseExpired);
+        }
+        if !sending.get() && permit_deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+            return Err(ProxyError::PermitExpired);
+        }
+        Ok(())
+    };
+    live()?;
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .map_err(|_| ProxyError::Connect)?;
-    let sending = Cell::new(false);
     runtime.block_on(async {
         let exchange = async {
             let dest = LoopbackAddr::V4([127, 0, 0, 1]);
+            live()?;
             let mut stream = TcpStream::connect(("127.0.0.1", endpoint.port))
                 .await
                 .map_err(|_| ProxyError::Connect)?;
+            live()?;
             let local = stream.local_addr().map_err(|_| ProxyError::Connect)?;
             let local_addr = match local.ip() {
                 std::net::IpAddr::V4(v4) => LoopbackAddr::V4(v4.octets()),
                 std::net::IpAddr::V6(_) => return Err(ProxyError::Connect),
             };
             let identity = listener::resolve_listener(&dest, endpoint.port, &local_addr, local.port())?;
+            live()?;
             listener::verify_binding(
                 &identity,
                 &endpoint.record,
@@ -107,9 +120,7 @@ pub fn invoke(
                 body.len()
             );
             // Identity inspection is synchronous; recheck before the first possible send.
-            if !live() {
-                return Err(ProxyError::LeaseExpired);
-            }
+            live()?;
             sending.set(true);
             stream.write_all(request.as_bytes()).await.map_err(|_| ProxyError::Io)?;
             stream.write_all(&body).await.map_err(|_| ProxyError::Io)?;
@@ -122,19 +133,37 @@ pub fn invoke(
             biased;
             _ = async {
                 loop {
-                    let remaining = io_deadline.lock().unwrap()
-                        .and_then(|deadline| deadline.checked_duration_since(Instant::now()));
-                    match remaining {
+                    let lease_deadline = *io_deadline.lock().unwrap();
+                    let deadline = if sending.get() {
+                        lease_deadline
+                    } else {
+                        match (lease_deadline, permit_deadline) {
+                            (Some(lease), Some(permit)) => Some(lease.min(permit)),
+                            (Some(deadline), None) | (None, Some(deadline)) => Some(deadline),
+                            (None, None) => None,
+                        }
+                    };
+                    match deadline.and_then(|d| d.checked_duration_since(Instant::now())) {
                         Some(remaining) if !remaining.is_zero() => {
                             tokio::time::sleep(remaining.min(Duration::from_millis(10))).await;
                         }
                         _ => break,
                     }
                 }
-            } => Err(if sending.get() { ProxyError::Io } else { ProxyError::LeaseExpired }),
+            } => Err(deadline_error(sending.get(), lease_live())),
             result = exchange => result,
         }
     })
+}
+
+fn deadline_error(sending: bool, lease_live: bool) -> ProxyError {
+    if sending {
+        ProxyError::Io
+    } else if !lease_live {
+        ProxyError::LeaseExpired
+    } else {
+        ProxyError::PermitExpired
+    }
 }
 
 /// Split the HTTP response, refuse redirects/non-200, and adapt the Chat Completions message into the
@@ -264,7 +293,7 @@ mod tests {
         for value in [None, Some(Instant::now() - Duration::from_secs(1))] {
             let lease = Arc::new(Mutex::new(value));
             assert_eq!(
-                invoke(&endpoint, &json!({ "v": 1 }), &lease).unwrap_err(),
+                invoke(&endpoint, &json!({ "v": 1 }), &lease, None).unwrap_err(),
                 ProxyError::LeaseExpired
             );
             assert_eq!(
@@ -272,6 +301,56 @@ mod tests {
                 std::io::ErrorKind::WouldBlock
             );
         }
+    }
+
+    #[test]
+    fn deadline_watcher_preserves_pre_send_and_in_flight_error_semantics() {
+        assert_eq!(deadline_error(false, false), ProxyError::LeaseExpired);
+        assert_eq!(deadline_error(false, true), ProxyError::PermitExpired);
+        assert_eq!(deadline_error(true, false), ProxyError::Io);
+        assert_eq!(deadline_error(true, true), ProxyError::Io);
+    }
+
+    #[test]
+    fn expired_permit_never_connects_even_with_a_live_run_lease() {
+        let (listener, endpoint) = pinned_listener();
+        listener.set_nonblocking(true).unwrap();
+        let permit_deadline = Instant::now() + Duration::from_millis(100);
+        std::thread::sleep(Duration::from_millis(150));
+        assert_eq!(
+            invoke(
+                &endpoint,
+                &json!({ "v": 1 }),
+                &deadline(),
+                Some(permit_deadline),
+            )
+            .unwrap_err(),
+            ProxyError::PermitExpired
+        );
+        assert_eq!(
+            listener.accept().unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+    }
+
+    #[test]
+    fn permit_expiry_during_in_flight_io_does_not_replace_lease_semantics() {
+        let (listener, endpoint) = pinned_listener();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            read_request(&mut stream);
+            std::thread::sleep(Duration::from_millis(5_500));
+            stream.write_all(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n{\"choices\":[{\"message\":{\"content\":\"sent\"}}]}").unwrap();
+        });
+        let reply = invoke(
+            &endpoint,
+            &json!({ "v": 1 }),
+            &deadline(),
+            Some(Instant::now() + Duration::from_secs(5)),
+        )
+        .unwrap();
+        assert_eq!(reply.assistant_message["content"], "sent");
+        server.join().unwrap();
     }
 
     #[test]
@@ -297,8 +376,9 @@ mod tests {
                 );
             });
             let pending_lease = lease.clone();
-            let call =
-                std::thread::spawn(move || invoke(&endpoint, &json!({ "v": 1 }), &pending_lease));
+            let call = std::thread::spawn(move || {
+                invoke(&endpoint, &json!({ "v": 1 }), &pending_lease, None)
+            });
             received.recv_timeout(Duration::from_secs(10)).unwrap();
             let stopped_at = Instant::now();
             *lease.lock().unwrap() = if revoke {
@@ -336,7 +416,7 @@ mod tests {
                 std::io::ErrorKind::WouldBlock
             );
         });
-        let result = invoke(&endpoint, &json!({ "v": 1 }), &lease).unwrap();
+        let result = invoke(&endpoint, &json!({ "v": 1 }), &lease, None).unwrap();
         assert_eq!(result.assistant_message["content"], "renewed");
         server.join().unwrap();
     }
@@ -414,7 +494,7 @@ mod tests {
             },
             current_user_sid: sid,
         };
-        let err = invoke(&endpoint, &json!({ "v": 1 }), &deadline()).unwrap_err();
+        let err = invoke(&endpoint, &json!({ "v": 1 }), &deadline(), None).unwrap_err();
         assert!(matches!(err, ProxyError::Identity(IdentityError::Mismatch)));
         let _ = server.join();
     }
@@ -490,8 +570,13 @@ mod tests {
         };
 
         // First call drives an artifact.write tool call; the gate passes (same fixture image hash).
-        let first = invoke(&endpoint, &json!({ "v": 1, "messages": [] }), &deadline())
-            .expect("first invoke");
+        let first = invoke(
+            &endpoint,
+            &json!({ "v": 1, "messages": [] }),
+            &deadline(),
+            None,
+        )
+        .expect("first invoke");
         assert_eq!(
             first.assistant_message["tool_calls"][0]["function"]["name"],
             "artifact.write"
@@ -499,8 +584,13 @@ mod tests {
         assert!(first.answer_hash.starts_with("sha256:"));
         assert_eq!(first.usage["total_tokens"], 15);
         // Second call stops deterministically.
-        let second = invoke(&endpoint, &json!({ "v": 1, "messages": [] }), &deadline())
-            .expect("second invoke");
+        let second = invoke(
+            &endpoint,
+            &json!({ "v": 1, "messages": [] }),
+            &deadline(),
+            None,
+        )
+        .expect("second invoke");
         assert_eq!(second.assistant_message["content"], "Artifact written.");
 
         let _ = child.kill();

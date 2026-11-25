@@ -49,11 +49,13 @@ func TestDeviceFullFixtureRunWritesAnArtifact(t *testing.T) {
 	// The Broker drives offer→run_ready→run_start→sidecar on its own heartbeat cadence; the sidecar
 	// calls the fixture model, which drives artifact.write. The Broker proposes action_prepare and
 	// waits for the command; Go decides the ask_each approval, then the next heartbeat dispatches.
+	approveFixtureModel(t, f.dbName, f.sessionID, f.deviceID, runID, f.stderr)
 	approvalID, operationID, paramsHash, approvalRevision := waitForPendingApproval(t, f.dbName, runID, f.stderr)
 	decideFixtureApproval(t, f.dbName, f.sessionID, f.deviceID, runID, approvalID, operationID, paramsHash, approvalRevision)
 
 	// The write executes once the command reaches the live map; the signed receipt lands server-side.
 	waitForCompletedReceipt(t, f.dbName, operationID)
+	approveFixtureModel(t, f.dbName, f.sessionID, f.deviceID, runID, f.stderr)
 	written, err := os.ReadFile(filepath.Join(f.rootDir, "out", "v1.md"))
 	if err != nil {
 		t.Fatalf("the artifact was not written: %v; broker stderr:\n%s", err, f.stderr.String())
@@ -499,6 +501,11 @@ func seedFixtureRun(t *testing.T, dbName, deviceID, sessionID, bootID, grantID, 
 // waitForPendingApproval polls for the ask_each approval the device's action_prepare created.
 func waitForPendingApproval(t *testing.T, dbName, runID string, stderr *syncBuffer) (approvalID, operationID, paramsHash string, revision int64) {
 	t.Helper()
+	return waitForPendingApprovalKind(t, dbName, runID, "artifact.write", stderr)
+}
+
+func waitForPendingApprovalKind(t *testing.T, dbName, runID, actionKind string, stderr *syncBuffer) (approvalID, operationID, paramsHash string, revision int64) {
+	t.Helper()
 	conn := brokerDB(t, dbName)
 	deadline := time.Now().Add(60 * time.Second)
 	for time.Now().Before(deadline) {
@@ -507,8 +514,10 @@ func waitForPendingApproval(t *testing.T, dbName, runID string, stderr *syncBuff
 			FROM work.approval a
 			JOIN work.approval_operation ao ON ao.approval_id = a.id AND ao.org_id = a.org_id
 			JOIN work.operation o ON o.id = ao.operation_id AND o.org_id = ao.org_id
+			JOIN work.local_action la ON la.operation_id = o.id AND la.org_id = o.org_id
 			WHERE a.org_id = $1 AND o.run_id = $2::uuid AND a.status = 'pending'
-			ORDER BY a.created_at LIMIT 1`, testOrg, runID).
+			  AND la.action_kind = $3
+			ORDER BY a.created_at LIMIT 1`, testOrg, runID, actionKind).
 			Scan(&approvalID, &operationID, &paramsHash, &revision)
 		if err == nil && approvalID != "" {
 			return
@@ -516,8 +525,87 @@ func waitForPendingApproval(t *testing.T, dbName, runID string, stderr *syncBuff
 		time.Sleep(200 * time.Millisecond)
 	}
 	dumpRunDiagnostics(t, dbName, runID, stderr)
-	t.Fatalf("no pending approval appeared for run %s (the write spine never proposed)", runID)
+	t.Fatalf("no pending %s approval appeared for run %s", actionKind, runID)
 	return
+}
+
+func approveFixtureModelApproval(t *testing.T, dbName, sessionID, deviceID, runID string, stderr *syncBuffer) string {
+	t.Helper()
+	approvalID, operationID, paramsHash, revision := waitForPendingApprovalKind(
+		t, dbName, runID, "model.send_device_local", stderr)
+	decideFixtureApproval(t, dbName, sessionID, deviceID, runID, approvalID, operationID, paramsHash, revision)
+	return operationID
+}
+
+func approveFixtureModel(t *testing.T, dbName, sessionID, deviceID, runID string, stderr *syncBuffer) string {
+	t.Helper()
+	operationID := approveFixtureModelApproval(t, dbName, sessionID, deviceID, runID, stderr)
+	conn := brokerDB(t, dbName)
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		var count int
+		err := conn.QueryRow(context.Background(), `
+			SELECT count(*) FROM work.device_model_result
+			WHERE org_id=$1 AND operation_id=$2::uuid AND state='completed' AND outcome='succeeded'`,
+			testOrg, operationID).Scan(&count)
+		if err == nil && count == 1 {
+			var usage string
+			if err := conn.QueryRow(context.Background(), `
+				SELECT input_tokens || '/' || output_tokens || '/' || cached_input_tokens
+				FROM work.operation_usage_fact WHERE org_id=$1 AND operation_id=$2::uuid`,
+				testOrg, operationID).Scan(&usage); err != nil {
+				t.Fatalf("read real-exe model usage: %v", err)
+			}
+			if usage != "10/5/0" {
+				t.Fatalf("real-exe model usage = %q, want 10/5/0", usage)
+			}
+			var executions int
+			if err := conn.QueryRow(context.Background(), `
+				SELECT count(*) FROM work.runtime_execution e
+				JOIN work.device_dispatch d ON d.org_id=e.org_id AND d.command_id=e.execution_id
+				WHERE d.org_id=$1 AND d.operation_id=$2::uuid
+				  AND e.state='completed' AND e.terminal_reason='model_result_recorded'
+				  AND e.lease_until IS NULL`, testOrg, operationID).Scan(&executions); err != nil {
+				t.Fatalf("read real-exe model execution lifecycle: %v", err)
+			}
+			if executions != 1 {
+				t.Fatalf("real-exe completed model executions = %d, want 1", executions)
+			}
+			return operationID
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	dumpRunDiagnostics(t, dbName, runID, stderr)
+	t.Fatalf("no recorded model_result for real-exe operation %s", operationID)
+	return ""
+}
+
+func assertRunExecutionsTerminal(t *testing.T, dbName, runID string) int {
+	t.Helper()
+	conn := brokerDB(t, dbName)
+	var live int
+	if err := conn.QueryRow(context.Background(), `
+		SELECT count(*) FROM work.runtime_execution
+		WHERE org_id=$1 AND run_id=$2::uuid
+		  AND (state IN ('registered','active') OR lease_until IS NOT NULL)`,
+		testOrg, runID).Scan(&live); err != nil {
+		t.Fatalf("read Run execution terminal state: %v", err)
+	}
+	if live != 0 {
+		t.Fatalf("Run has %d live runtime executions after finish", live)
+	}
+	var models int
+	if err := conn.QueryRow(context.Background(), `
+		SELECT count(*) FROM work.runtime_execution e
+		JOIN work.device_dispatch d ON d.org_id=e.org_id AND d.command_id=e.execution_id
+		JOIN work.local_action a ON a.org_id=d.org_id AND a.operation_id=d.operation_id
+		WHERE e.org_id=$1 AND e.run_id=$2::uuid
+		  AND a.action_kind='model.send_device_local'
+		  AND e.state='completed' AND e.terminal_reason='model_result_recorded'`,
+		testOrg, runID).Scan(&models); err != nil {
+		t.Fatalf("read completed model executions: %v", err)
+	}
+	return models
 }
 
 // dumpRunDiagnostics prints the server-side Run state and the Broker stderr to locate a stall.
@@ -631,6 +719,36 @@ func waitForCompletedReceipt(t *testing.T, dbName, operationID string) {
 	t.Fatalf("no completed receipt for operation %s (the command never executed)", operationID)
 }
 
+func waitForRecordedModelResultFast(t *testing.T, dbName, operationID string) {
+	t.Helper()
+	conn := brokerDB(t, dbName)
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		var count int
+		err := conn.QueryRow(context.Background(), `
+			SELECT count(*) FROM work.device_model_result
+			WHERE org_id=$1 AND operation_id=$2::uuid AND state='completed' AND outcome='succeeded'`,
+			testOrg, operationID).Scan(&count)
+		if err == nil && count == 1 {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("no recorded model_result for operation %s", operationID)
+}
+
+func waitForStderrCount(t *testing.T, stderr *syncBuffer, marker string, count int) {
+	t.Helper()
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Count(stderr.String(), marker) >= count {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("stderr did not contain %q %d times:\n%s", marker, count, stderr.String())
+}
+
 // TestDeviceFixtureRunCancelStopsSidecarAndAcks is the ruling-④ cancel evidence (闭合批1 延后取证):
 // a gateway-driven real exe receives a cancel downlink, kills the sidecar Job tree and uplinks a
 // signed cancel_ack stop fact the server records (acknowledge_device_cancel). The write approval is
@@ -640,6 +758,7 @@ func TestDeviceFixtureRunCancelStopsSidecarAndAcks(t *testing.T) {
 	f := startFixtureBroker(t, bin)
 	runID := seedFixtureRun(t, f.dbName, f.deviceID, f.sessionID, f.bootID, f.grantID, f.rootIdentityHash,
 		f.profile.ProfileID, f.profile.RuntimeDigest, f.profile.ToolManifestHash, strings.Repeat("2", 64))
+	approveFixtureModel(t, f.dbName, f.sessionID, f.deviceID, runID, f.stderr)
 	_, operationID, _, _ := waitForPendingApproval(t, f.dbName, runID, f.stderr)
 	pid := sidecarPid(t, f.stderr)
 
@@ -672,15 +791,27 @@ func TestDeviceFixtureRunLeaseLossKillsSidecar(t *testing.T) {
 	f := startFixtureBroker(t, bin)
 	runID := seedFixtureRun(t, f.dbName, f.deviceID, f.sessionID, f.bootID, f.grantID, f.rootIdentityHash,
 		f.profile.ProfileID, f.profile.RuntimeDigest, f.profile.ToolManifestHash, strings.Repeat("2", 64))
+	approveFixtureModel(t, f.dbName, f.sessionID, f.deviceID, runID, f.stderr)
 	waitForPendingApproval(t, f.dbName, runID, f.stderr)
 	pid := sidecarPid(t, f.stderr)
-
 	// A revoked device's renewal refuses; the session ends and the link invalidates its leases.
 	adminExec(t, f.dbName, fmt.Sprintf(
 		`UPDATE work.device SET status='revoked', revoked_at=now() WHERE org_id='%s' AND id='%s'::uuid`, testOrg, f.deviceID))
 
 	waitForLeaseKill(t, f.stderr)
 	waitForProcessDead(t, pid)
+	if models := assertRunExecutionsTerminal(t, f.dbName, runID); models != 1 {
+		t.Fatalf("model executions after lease loss = %d, want exactly the first turn", models)
+	}
+	var modelResults int
+	if err := brokerDB(t, f.dbName).QueryRow(context.Background(), `
+		SELECT count(*) FROM work.device_model_result WHERE org_id=$1 AND run_id=$2::uuid`,
+		testOrg, runID).Scan(&modelResults); err != nil {
+		t.Fatalf("read model results after lease loss: %v", err)
+	}
+	if modelResults != 1 {
+		t.Fatalf("model results after lease loss = %d, want no second model call", modelResults)
+	}
 }
 
 // sidecarPid parses the Broker's operational "sidecar spawned pid=N" line (polling until the sidecar
@@ -771,6 +902,7 @@ func TestDeviceFixtureRunFinishFailedIsAccepted(t *testing.T) {
 	}, "v1")
 	runID := seedFixtureRun(t, f.dbName, f.deviceID, f.sessionID, f.bootID, f.grantID, f.rootIdentityHash,
 		f.profile.ProfileID, f.profile.RuntimeDigest, f.profile.ToolManifestHash, strings.Repeat("2", 64))
+	approveFixtureModel(t, f.dbName, f.sessionID, f.deviceID, runID, f.stderr)
 
 	finishID := waitForRunFinishVerdict(t, f.dbName, runID, "accepted", "")
 	waitForRunTerminal(t, f.dbName, runID, "failed", "no_deliverable")
@@ -825,6 +957,9 @@ func TestDeviceFixtureRunFinishFailedIsAccepted(t *testing.T) {
 	if accepted != 1 {
 		t.Fatalf("accepted verdict rows = %d, want 1", accepted)
 	}
+	if models := assertRunExecutionsTerminal(t, f.dbName, runID); models != 1 {
+		t.Fatalf("completed model executions = %d, want 1", models)
+	}
 }
 
 // TestDeviceFixtureRunFinishCompletedIsAccepted is the batch 4 completed-accepted evidence (ruling 甲,
@@ -841,9 +976,11 @@ func TestDeviceFixtureRunFinishCompletedIsAccepted(t *testing.T) {
 	f := startFixtureBrokerScenario(t, bin, nil, versionID)
 	runID := seedFixtureRun(t, f.dbName, f.deviceID, f.sessionID, f.bootID, f.grantID, f.rootIdentityHash,
 		f.profile.ProfileID, f.profile.RuntimeDigest, f.profile.ToolManifestHash, strings.Repeat("2", 64))
+	approveFixtureModel(t, f.dbName, f.sessionID, f.deviceID, runID, f.stderr)
 	approvalID, operationID, paramsHash, approvalRevision := waitForPendingApproval(t, f.dbName, runID, f.stderr)
 	decideFixtureApproval(t, f.dbName, f.sessionID, f.deviceID, runID, approvalID, operationID, paramsHash, approvalRevision)
 	waitForCompletedReceipt(t, f.dbName, operationID)
+	approveFixtureModel(t, f.dbName, f.sessionID, f.deviceID, runID, f.stderr)
 
 	// Publication precedes the completed finish: the device uplinks local_publish, the server
 	// finalizes a published local_only version, and the device consumes the verified publish_ack.
@@ -905,48 +1042,14 @@ func TestDeviceFixtureRunFinishCompletedIsAccepted(t *testing.T) {
 	if accepted != 1 {
 		t.Fatalf("accepted verdict rows = %d, want 1", accepted)
 	}
+	if models := assertRunExecutionsTerminal(t, f.dbName, runID); models != 2 {
+		t.Fatalf("completed model executions = %d, want 2", models)
+	}
 }
 
-// stallFixtureScript serves the scenario's FIRST message (the artifact.write turn) then hangs every
-// later model request forever. Run by the pinned node.exe, it passes the §5.4 listener-identity gate
-// (same node image hash + current-user SID; the script content is not pinned). The hang holds the Run
-// alive AFTER the completed receipt is durable but BEFORE the loop ends / publication — a deterministic
-// crash window for the batch-5 restart evidence (no second operation is created, so the Run's operation
-// set stays terminal+receipted and the publication gate can re-publish on restart).
-const stallFixtureScript = `import http from 'node:http';
-import fs from 'node:fs';
-const port = Number(process.argv[2]);
-const scenario = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
-let served = false;
-const server = http.createServer((req, res) => {
-  if (req.method === 'POST' && req.url === '/v1/chat/completions') {
-    let body = '';
-    req.on('data', (c) => { body += c; });
-    req.on('end', () => {
-      void body;
-      if (!served) {
-        served = true;
-        const message = scenario[0];
-        const doc = { id: 'stall-1', object: 'chat.completion',
-          choices: [{ index: 0, message, finish_reason: message.tool_calls ? 'tool_calls' : 'stop' }],
-          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } };
-        const bytes = Buffer.from(JSON.stringify(doc), 'utf8');
-        res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': bytes.length, Connection: 'close' });
-        res.end(bytes);
-      }
-      // Later requests hang forever: the model loop blocks here, holding the crash window open.
-    });
-  } else {
-    res.writeHead(404, { Connection: 'close' });
-    res.end();
-  }
-});
-server.listen(port, '127.0.0.1', () => process.stdout.write('stall fixture listening ' + port + '\n'));
-`
-
 // TestDeviceFixtureRunRestartRepublishesSealedDeliverable is the batch-5 ruling-甲 restart evidence:
-// a Broker that wrote a sealed deliverable + completed receipt but crashed BEFORE publication recovers
-// the facts from its durable journal (local_content carrier + runtime_start fence/lease_id) on restart,
+// a Broker that wrote a sealed deliverable, terminal model results and a completed receipt but crashed
+// BEFORE the publication ack/finish recovers the facts from its durable journal on restart,
 // re-publishes via local_publish, and the server finalizes a published local_only artifact_version —
 // without re-executing the Run. finalize idempotency keeps exactly one version row. The completed
 // finish the recovery proposes afterwards is no longer in scope here: since 0061 it is accepted
@@ -954,27 +1057,25 @@ server.listen(port, '127.0.0.1', () => process.stdout.write('stall fixture liste
 // publication evidence and stops at the published row.
 func TestDeviceFixtureRunRestartRepublishesSealedDeliverable(t *testing.T) {
 	bin := requireBrokerBin(t)
-	stallDir := t.TempDir()
-	stallPath := filepath.Join(stallDir, "stall-fixture.mjs")
-	if err := os.WriteFile(stallPath, []byte(stallFixtureScript), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	versionID := uuid.NewString()
-	f := startFixtureBrokerFull(t, bin, nil, versionID, stallPath)
+	f := startFixtureBrokerFull(t, bin, nil, versionID, "")
 	runID := seedFixtureRun(t, f.dbName, f.deviceID, f.sessionID, f.bootID, f.grantID, f.rootIdentityHash,
 		f.profile.ProfileID, f.profile.RuntimeDigest, f.profile.ToolManifestHash, strings.Repeat("2", 64))
+	approveFixtureModel(t, f.dbName, f.sessionID, f.deviceID, runID, f.stderr)
 	approvalID, operationID, paramsHash, approvalRevision := waitForPendingApproval(t, f.dbName, runID, f.stderr)
 	decideFixtureApproval(t, f.dbName, f.sessionID, f.deviceID, runID, approvalID, operationID, paramsHash, approvalRevision)
-	// The completed receipt is durable (server device_receipt row) ⇒ the device stamped result_hash +
-	// receipt_seq and recorded the sealed local_content row. The stall fixture now hangs the next model
-	// request, so the loop never ends and publication never fires: a stable pre-publish crash window.
+	// Let the second model turn reach a durable, terminal model_result and its checkpoint ack, then
+	// crash the Broker before the publication ack/finish can complete.
 	waitForCompletedReceipt(t, f.dbName, operationID)
+	secondModelOperation := approveFixtureModelApproval(t, f.dbName, f.sessionID, f.deviceID, runID, f.stderr)
+	waitForRecordedModelResultFast(t, f.dbName, secondModelOperation)
+	waitForStderrCount(t, f.stderr, "checkpoint_ack", 3)
 	// Crash Broker #1 before publication. The Windows owner lock releases on process death, so the
 	// restart re-acquires it; the journal (same epoch) and CNG container (same device key) persist.
 	_ = f.cmd.Process.Kill()
 	_, _ = f.cmd.Process.Wait()
 	if strings.Contains(f.stderr.String(), "publish_ack accepted") {
-		t.Fatalf("Broker #1 published before the crash; the stall window failed:\n%s", f.stderr.String())
+		t.Fatalf("Broker #1 published before the crash; the crash window failed:\n%s", f.stderr.String())
 	}
 
 	// Restart Broker #2 over the SAME journal + container + certificate, a fresh boot_id and session.
@@ -1005,8 +1106,8 @@ func TestDeviceFixtureRunRestartRepublishesSealedDeliverable(t *testing.T) {
 }
 
 // TestDeviceFixtureRunCrossSessionFinishIsAccepted is the batch-6 evidence (0061): the same crash
-// window as the batch-5 restart test — sealed deliverable + completed receipt durable, Broker killed
-// BEFORE publication — but it follows the recovery through to the hand-back. Broker #2 restarts on a
+// window as the batch-5 restart test — sealed deliverable, terminal model results and completed receipt
+// durable, Broker killed BEFORE the publication ack/finish — but it follows the recovery through to the hand-back. Broker #2 restarts on a
 // NEW session, re-publishes from the durable journal, then finds that the Run's only lease belongs to
 // the dead session. Under 0059 that was the end of the road: the finish gate compared the binding's
 // (guard-immutable, superseded) session against the lease's and refused, and the reconcile_finish
@@ -1019,22 +1120,21 @@ func TestDeviceFixtureRunRestartRepublishesSealedDeliverable(t *testing.T) {
 // is read back from the server, not from the Broker's own log.
 func TestDeviceFixtureRunCrossSessionFinishIsAccepted(t *testing.T) {
 	bin := requireBrokerBin(t)
-	stallDir := t.TempDir()
-	stallPath := filepath.Join(stallDir, "stall-fixture.mjs")
-	if err := os.WriteFile(stallPath, []byte(stallFixtureScript), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	versionID := uuid.NewString()
-	f := startFixtureBrokerFull(t, bin, nil, versionID, stallPath)
+	f := startFixtureBrokerFull(t, bin, nil, versionID, "")
 	runID := seedFixtureRun(t, f.dbName, f.deviceID, f.sessionID, f.bootID, f.grantID, f.rootIdentityHash,
 		f.profile.ProfileID, f.profile.RuntimeDigest, f.profile.ToolManifestHash, strings.Repeat("2", 64))
+	approveFixtureModel(t, f.dbName, f.sessionID, f.deviceID, runID, f.stderr)
 	approvalID, operationID, paramsHash, approvalRevision := waitForPendingApproval(t, f.dbName, runID, f.stderr)
 	decideFixtureApproval(t, f.dbName, f.sessionID, f.deviceID, runID, approvalID, operationID, paramsHash, approvalRevision)
 	waitForCompletedReceipt(t, f.dbName, operationID)
+	secondModelOperation := approveFixtureModelApproval(t, f.dbName, f.sessionID, f.deviceID, runID, f.stderr)
+	waitForRecordedModelResultFast(t, f.dbName, secondModelOperation)
+	waitForStderrCount(t, f.stderr, "checkpoint_ack", 3)
 	_ = f.cmd.Process.Kill()
 	_, _ = f.cmd.Process.Wait()
 	if strings.Contains(f.stderr.String(), "run_finish accepted") {
-		t.Fatalf("Broker #1 finished before the crash; the stall window failed:\n%s", f.stderr.String())
+		t.Fatalf("Broker #1 finished before the crash; the crash window failed:\n%s", f.stderr.String())
 	}
 
 	newBootID := "boot-" + uuid.NewString()
@@ -1099,7 +1199,7 @@ func TestDeviceFixtureRunCrossSessionFinishIsAccepted(t *testing.T) {
 	// The recoveries that must NOT repeat across the restart: one published version, and the Run's
 	// operation set is the same terminal set the dead session left (the finish is a hand-back, not a
 	// re-execution).
-	var versions, operations int
+	var versions int
 	if err := conn.QueryRow(ctx, `
 		SELECT count(*) FROM work.artifact_version WHERE org_id=$1 AND version_id=$2::uuid`,
 		testOrg, versionID).Scan(&versions); err != nil {
@@ -1108,13 +1208,16 @@ func TestDeviceFixtureRunCrossSessionFinishIsAccepted(t *testing.T) {
 	if versions != 1 {
 		t.Fatalf("artifact_version rows = %d, want 1 (finalize idempotency)", versions)
 	}
+	var modelOperations, artifactOperations int
 	if err := conn.QueryRow(ctx, `
-		SELECT count(*) FROM work.operation WHERE org_id=$1 AND run_id=$2::uuid`,
-		testOrg, runID).Scan(&operations); err != nil {
+		SELECT count(*) FILTER (WHERE kind='model'), count(*) FILTER (WHERE kind='artifact')
+		FROM work.operation WHERE org_id=$1 AND run_id=$2::uuid`,
+		testOrg, runID).Scan(&modelOperations, &artifactOperations); err != nil {
 		t.Fatal(err)
 	}
-	if operations != 1 {
-		t.Fatalf("operation rows = %d after the restart, want the single pre-crash operation (no re-execution)", operations)
+	if modelOperations != 2 || artifactOperations != 1 {
+		t.Fatalf("operation rows after restart = %d model + %d artifact, want 2 + 1 (no re-execution)",
+			modelOperations, artifactOperations)
 	}
 }
 

@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 69,
-  "chainTipCatalog": "catalogs/0069_atomic_run_binding_activation.json",
+  "chainTip": 70,
+  "chainTipCatalog": "catalogs/0070_independent_model_result_reconciliation.json",
   "entries": [
     {
       "name": "GET /work/v2/admin/local-policy",
@@ -501,7 +501,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0069_atomic_run_binding_activation.json",
+      "origin": "src/work/migrations/catalogs/0070_independent_model_result_reconciliation.json",
       "callableBy": [
         "work_api",
         "work_governance_events"
@@ -674,6 +674,15 @@
       "name": "record_device_model_result",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0063_device_model_execution_usage.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "record_device_model_result_frame",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0070_independent_model_result_reconciliation.sql",
       "callableBy": [
         "work_worker"
       ],

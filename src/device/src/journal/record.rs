@@ -41,6 +41,7 @@ pub enum RecordError {
     /// A receipt/checkpoint body could not be signed (the production path signs inside the journal
     /// transaction so the allocated seq is bound into the signature atomically).
     Sign(SignError),
+    InvalidModelResult,
 }
 
 impl From<crypto::CryptoError> for RecordError {
@@ -139,6 +140,41 @@ pub fn append_action(
     Ok(())
 }
 
+pub fn upgrade_prepared_action(
+    conn: &Connection,
+    dek: &[u8; 32],
+    ctx: &RecordContext,
+    row: &ActionRow,
+    action_plaintext: &[u8],
+) -> Result<bool, RecordError> {
+    let sealed = seal_record(dek, ctx, "action", row.operation_id, action_plaintext)?;
+    let changed = conn.execute(
+        "UPDATE action_journal
+         SET permit_jti = ?1, state = ?2, encrypted_action = ?3
+         WHERE org_id = ?4 AND operation_id = ?5
+           AND permit_jti = 'prepared:' || ?5
+           AND run_id = ?6 AND attempt = ?7 AND logical_key = ?8
+           AND request_hash = ?9 AND fence = ?10 AND session_id = ?11
+           AND generation = ?12 AND result_hash IS NULL
+           AND state IN ('prepared', 'waiting_approval', 'authorized')",
+        params![
+            row.permit_jti,
+            row.state,
+            sealed,
+            row.org_id,
+            row.operation_id,
+            row.run_id,
+            row.attempt,
+            row.logical_key,
+            row.request_hash,
+            row.fence,
+            row.session_id,
+            row.generation,
+        ],
+    )?;
+    Ok(changed == 1)
+}
+
 /// Read and open an action's sealed body.
 pub fn read_action(
     conn: &Connection,
@@ -192,6 +228,35 @@ pub fn insert_receipt(
         params![
             journal_epoch,
             seq,
+            row.operation_id,
+            row.state,
+            row.signed_bytes,
+            row.signed_hash,
+        ],
+    )?;
+    Ok(())
+}
+
+pub struct ModelResultRow<'a> {
+    pub model_result_id: &'a str,
+    pub operation_id: &'a str,
+    pub state: &'a str,
+    pub signed_bytes: &'a [u8],
+    pub signed_hash: &'a str,
+}
+
+pub fn insert_model_result(
+    conn: &Connection,
+    journal_epoch: &str,
+    row: &ModelResultRow,
+) -> Result<(), RecordError> {
+    conn.execute(
+        "INSERT INTO model_result_outbox
+            (model_result_id, journal_epoch, operation_id, state, signed_bytes, signed_hash, acked)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)",
+        params![
+            row.model_result_id,
+            journal_epoch,
             row.operation_id,
             row.state,
             row.signed_bytes,
@@ -289,6 +354,71 @@ mod tests {
         append_action(&conn, &dek, &c, &action("op1", "jti-dup"), b"a").unwrap();
         let err = append_action(&conn, &dek, &c, &action("op2", "jti-dup"), b"b");
         assert!(matches!(err, Err(RecordError::Sql(_))));
+        drop(conn);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn prepared_action_upgrades_to_the_dispatched_permit_without_a_second_row() {
+        let (conn, path) = temp_conn();
+        let dek = [3u8; 32];
+        let c = ctx();
+        let mut prepared = action("op1", "prepared:op1");
+        prepared.state = "waiting_approval";
+        append_action(&conn, &dek, &c, &prepared, b"prepared").unwrap();
+        let dispatched = action("op1", "jti-real");
+        assert!(upgrade_prepared_action(&conn, &dek, &c, &dispatched, b"dispatched").unwrap());
+        let permit: String = conn
+            .query_row(
+                "SELECT permit_jti FROM action_journal WHERE operation_id='op1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(permit, "jti-real");
+        assert_eq!(
+            read_action(&conn, &dek, &c, "org", "op1").unwrap(),
+            b"dispatched"
+        );
+        assert!(
+            !upgrade_prepared_action(&conn, &dek, &c, &action("op1", "jti-other"), b"other")
+                .unwrap()
+        );
+        drop(conn);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn model_results_do_not_allocate_action_receipt_seqs() {
+        let (conn, path) = temp_conn();
+        for id in ["model-1", "model-2"] {
+            insert_model_result(
+                &conn,
+                "epoch-1",
+                &ModelResultRow {
+                    model_result_id: id,
+                    operation_id: "op1",
+                    state: "completed",
+                    signed_bytes: b"signed",
+                    signed_hash: "hash",
+                },
+            )
+            .unwrap();
+        }
+        let next: i64 = conn
+            .query_row("SELECT next_receipt_seq FROM device_meta", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(next, 1);
+        let receipt = ReceiptRow {
+            operation_id: "op1",
+            state: "completed",
+            signed_bytes: b"receipt",
+            signed_hash: "receipt-hash",
+        };
+        assert_eq!(
+            append_receipt(&conn, "dev", "epoch-1", &receipt).unwrap(),
+            1
+        );
         drop(conn);
         let _ = std::fs::remove_file(&path);
     }

@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AdminPage } from './AdminPage'
@@ -198,6 +204,30 @@ describe('AdminPage', () => {
     // 服务端的固定 note 不直接上屏，文案走本地化 key。
     expect(screen.getByText('admin.usageNote')).toBeInTheDocument()
     expect(screen.queryByText('服务端固定文案')).not.toBeInTheDocument()
+  })
+
+  it('separates device_local usage from cloud provider usage', () => {
+    usageMock.data = {
+      ...usageData,
+      items: [
+        ...usageData.items,
+        {
+          provider: 'device_local',
+          model: 'fixture-model',
+          input_tokens: 10,
+          output_tokens: 5,
+          cached_input_tokens: 0,
+          run_count: 2,
+        },
+      ],
+    }
+    stubViewport(false)
+    render(<AdminPage />)
+    const row = screen.getByRole('row', { name: /device_local fixture-model/ })
+    expect(within(row).getByText('device_local')).toBeInTheDocument()
+    expect(within(row).getByText('fixture-model')).toBeInTheDocument()
+    expect(within(row).getByText('10')).toBeInTheDocument()
+    expect(within(row).getByText('5')).toBeInTheDocument()
   })
 
   it('shows a not-configured notice instead of an error when the provider read 404s', () => {

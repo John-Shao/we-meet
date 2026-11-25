@@ -114,6 +114,47 @@ func TestUsageReadEndpoints(t *testing.T) {
 	}
 }
 
+func TestUsageReadEndpointsSeparateDeviceLocal(t *testing.T) {
+	pool, dbName := newBootstrapDB(t, true, false)
+	seedUsage(t, dbName)
+	admin, err := testpg.Open(context.Background(), testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = admin.Exec(context.Background(), `
+		INSERT INTO work.usage_daily (org_id, subject_id, provider, model, usage_date,
+		     input_tokens, output_tokens, cached_input_tokens, run_count)
+		VALUES ('org_a', 'sub_a', 'device_local', 'fixture-model', DATE '2026-10-30', 10, 5, 0, 2)`)
+	admin.Close(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := newHTTPServer(t, pool, &stubVerifier{claims: testClaims()}, testCSRF(t))
+
+	for _, path := range []string{api.MeUsagePath, api.AdminUsagePath} {
+		response, body := usageRequest(t, server.URL, path+"?from=2026-10-29&to=2026-10-31")
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("%s status = %d body=%#v", path, response.StatusCode, body)
+		}
+		items, ok := body["items"].([]any)
+		if !ok || len(items) != 2 {
+			t.Fatalf("%s items = %#v", path, body["items"])
+		}
+		var local map[string]any
+		for _, item := range items {
+			row := item.(map[string]any)
+			if row["provider"] == "device_local" {
+				local = row
+			}
+		}
+		if local == nil || local["model"] != "fixture-model" ||
+			local["input_tokens"] != float64(10) || local["output_tokens"] != float64(5) ||
+			local["cached_input_tokens"] != float64(0) {
+			t.Fatalf("%s did not separate device_local usage: %#v", path, items)
+		}
+	}
+}
+
 func TestUsageEndpointsRejectNonAdmin(t *testing.T) {
 	pool, dbName := newBootstrapDB(t, true, false)
 	seedUsage(t, dbName)

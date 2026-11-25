@@ -21,6 +21,66 @@ pub struct OutboxReceipt {
     pub signed_hash: String,
 }
 
+#[derive(Clone, Debug)]
+pub struct OutboxModelResult {
+    pub model_result_id: String,
+    pub operation_id: String,
+    pub state: String,
+    pub signed_bytes: Vec<u8>,
+    pub signed_hash: String,
+}
+
+pub fn unacked_model_results(
+    conn: &Connection,
+    journal_epoch: &str,
+    limit: u32,
+) -> rusqlite::Result<Vec<OutboxModelResult>> {
+    let mut stmt = conn.prepare(
+        "SELECT model_result_id, operation_id, state, signed_bytes, signed_hash
+         FROM model_result_outbox
+         WHERE journal_epoch = ?1 AND acked = 0 AND rejected = 0
+         ORDER BY rowid ASC LIMIT ?2",
+    )?;
+    let rows = stmt.query_map(params![journal_epoch, limit], |r| {
+        Ok(OutboxModelResult {
+            model_result_id: r.get(0)?,
+            operation_id: r.get(1)?,
+            state: r.get(2)?,
+            signed_bytes: r.get(3)?,
+            signed_hash: r.get(4)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn mark_model_result_acked(
+    conn: &Connection,
+    journal_epoch: &str,
+    model_result_id: &str,
+    operation_id: &str,
+) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE model_result_outbox SET acked = 1
+         WHERE journal_epoch = ?1 AND model_result_id = ?2 AND operation_id = ?3",
+        params![journal_epoch, model_result_id, operation_id],
+    )?;
+    Ok(())
+}
+
+pub fn mark_model_result_rejected(
+    conn: &Connection,
+    journal_epoch: &str,
+    model_result_id: &str,
+    operation_id: &str,
+) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE model_result_outbox SET rejected = 1
+         WHERE journal_epoch = ?1 AND model_result_id = ?2 AND operation_id = ?3",
+        params![journal_epoch, model_result_id, operation_id],
+    )?;
+    Ok(())
+}
+
 /// Read up to `limit` un-acked receipts in seq order (replay oldest first).
 pub fn unacked_receipts(
     conn: &Connection,

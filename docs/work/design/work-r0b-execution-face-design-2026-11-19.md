@@ -111,7 +111,11 @@ usage, provider_request_id
 
 **【2026-11-25 I5 服务端写入脊落地登记（0063／EV102／EV114）】** 本期先落不依赖上行载体裁定的公共 SQL 脊：`consume_device_permit` 对 `model.send_device_local` 调用新增 `register_device_model_execution`，直接写 `state='active'`、holder＝`device:<device>:<session>`、`lease_until=permit.expires_at+2s`，插入前按既有谓词过期本 Run 残留 live 行；新增 `complete_device_model_execution` 与 worker-only `record_device_model_result`，后者只接受 `provider='device_local'`，写 `usage_source='device_adapter'`、累加 usage_daily、按最新预留结算，并对同 result_hash 重放幂等。`operation_usage_fact` 与 `operation_resolution` 的 usage_source CHECK 同批扩入 `device_adapter`；通用 `finish_operation_from_receipt` 保持 egress-only 原守卫，避免形成第二个可伪造 provider/source 的 `device_adapter` 写者。结果写入要求已有 quota reservation；设备已撤销仍拒绝迟到结果，但 session 过期／被取代或 Run 收尾 revoke 不抹掉已产生用量的历史记账路径。**边界如实记**：设备模型轮次仍按 #200 只写本机 checkpoint、不上行 gateway receipt；`record_device_model_result` 的生产调用载体（独立 model_result 帧／扩 checkpoint／仅 SQL）尚待主签单选，故本批只证服务端写脊与 permit 接线，EV102／EV114 均为 partial，不宣称真实设备结果已计量。org_remote／org_private 与 device-egress 仍按 E=B 不在本期。
 
-**【2026-11-25 主签后续裁定（取代上一段“载体尚待单选”，已裁定、待实施）：** 选 **甲＝新增独立 `model_result` 上行帧**。它不复用 ACTION receipt、不扩展 checkpoint，只携设备已签的模型 Operation 身份、request/result hash、终态或 unknown、`device_adapter` 用量及 provider request id 等元数据；网关验签后接 `record_device_model_result` 与 Operation 核账，ack 仅确认送达。在 Rust 帧、网关 handler、服务端调用与真 exe/gateway-wire 取证完成前，EV114 仍保持 `partial`。
+**【2026-11-25 主签后续裁定（已实施；原文逐字保留）：** 选 **甲＝新增独立 `model_result` 上行帧**。它不复用 ACTION receipt、不扩展 checkpoint，只携设备已签的模型 Operation 身份、request/result hash、终态或 unknown、`device_adapter` 用量及 provider request id 等元数据；网关验签后接 `record_device_model_result` 与 Operation 核账，ack 仅确认送达。Rust lib、真库、gateway-wire、真实设备两轮模型结果上行/发布/跨会话 completed-accepted 与 provider/model 报表分列均已取证，EV114 已覆盖。
+
+**【2026-11-25 0070 核账闭合登记】** 独立帧新增 `model` 元数据用于 usage_daily 分列，usage 日期由服务端从不可变 dispatch 时间派生；设备不自报日期。成功结果在有 reservation 时按 `input+output` 结算，无 reservation 时仍记 usage（O-14 的本地 action_prepare 不预占 quota）；unknown 保持 quota held 并等 resolution，failed 释放预留按零 token 结算。重放按 `(org,model_result_id)` 与 `(org,operation_id,attempt_id)` 双重幂等，冲突回 rejected ack，不重复计账。ACK 只确认送达，不替代 Operation resolution。
+
+**【2026-11-25 EV102 设备到期边界闭合登记】** 验签后保留 permit 的单调到期时间，FULL journal 注册不重置它；模型代理在连接、身份核验与首次写出前复核，过期零连接/零请求字节并回 `permit_expired`。首字节写出后仍按 Run lease 结束在途 I/O，不把 permit 到期误报为 `rejected_not_executed`。真 exe 的每轮模型 `runtime_execution` 读回为 `completed/model_result_recorded` 且释放 lease，finish 后无 live execution，lease-loss 后仍只有第一轮模型结果，EV102 已覆盖。
 
 ### 5.4 本机模型服务身份（DD:266-276 存活，E6 甲纳入）
 

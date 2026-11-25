@@ -44,6 +44,11 @@ pub fn apply(conn: &Connection) -> rusqlite::Result<()> {
         "checkpoint",
         &[("acked", "INTEGER NOT NULL DEFAULT 0")],
     )?;
+    ensure_columns(
+        conn,
+        "model_result_outbox",
+        &[("rejected", "INTEGER NOT NULL DEFAULT 0")],
+    )?;
     Ok(())
 }
 
@@ -105,6 +110,20 @@ CREATE TABLE IF NOT EXISTS receipt_outbox (
     durable_release TEXT,
     PRIMARY KEY (journal_epoch, receipt_seq)
 );
+
+CREATE TABLE IF NOT EXISTS model_result_outbox (
+    model_result_id TEXT PRIMARY KEY,
+    journal_epoch    TEXT NOT NULL,
+    operation_id     TEXT NOT NULL,
+    state            TEXT NOT NULL,
+    signed_bytes     BLOB NOT NULL,
+    signed_hash      TEXT NOT NULL,
+    acked            INTEGER NOT NULL DEFAULT 0,
+    rejected         INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS model_result_outbox_unacked
+    ON model_result_outbox(journal_epoch, acked, rejected);
 
 CREATE TABLE IF NOT EXISTS checkpoint (
     run_id                   TEXT NOT NULL,

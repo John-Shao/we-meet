@@ -289,6 +289,10 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 			if err := s.handleActionPrepare(ctx, stream, orgID, deviceID, sessionID, pub, frame, pushed); err != nil {
 				return err
 			}
+		case "model_result":
+			if err := s.handleModelResult(ctx, stream, orgID, deviceID, sessionID, pub, frame); err != nil {
+				return err
+			}
 		case "local_publish":
 			if err := s.handleLocalPublish(ctx, stream, orgID, deviceID, sessionID, pub, frame); err != nil {
 				return err

@@ -21,6 +21,7 @@ pub mod hello;
 pub mod intent;
 pub mod jcs;
 pub mod lease;
+pub mod model_result;
 pub mod offer;
 pub mod publish;
 pub mod receipt;

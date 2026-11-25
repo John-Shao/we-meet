@@ -769,6 +769,17 @@
       "catalog_checksum": "sha256:4089b0684ec957a1f919429671f36e1500cb54add12e3d94c8d06db92c830e20",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 70,
+      "name": "0070_independent_model_result_reconciliation",
+      "kind": "increment",
+      "file": "increments/0070_independent_model_result_reconciliation.sql",
+      "checksum": "sha256:e6594dd8371f409aaa9ccb6ddd39dc1cb6bbbd80db6ba9b14e5eb947c15440d3",
+      "catalog": "catalogs/0070_independent_model_result_reconciliation.json",
+      "catalog_checksum": "sha256:8e9bcd486358b8fe8d0f784c3d4347c244c480cf2a8379dc55add80581dc1c71",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

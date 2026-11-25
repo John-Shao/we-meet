@@ -4,14 +4,13 @@
 //! and `finish_local_run` (0059) preconditions byte for byte:
 //!
 //! * the operation set is every `action_journal` row of the Run (the dispatched operations the server
-//!   also has in `work.operation`; local-only device_local model turns are NOT server operations and
-//!   are excluded), sorted by `operation_id` text ascending;
+//!   also has in `work.operation`), sorted by `operation_id` text ascending;
 //! * `state` is the journal row's state, which `operation_resolution` advances to the server's
 //!   terminal value (succeeded/failed/canceled/reconciled — there is no `completed` operation state);
-//! * `result_hash` is the completed receipt's bare-hex value stamped onto the journal row by
-//!   `produce_receipt` (NULL → empty when no completed receipt), exactly the server's `device_receipt`
-//!   subquery. It is read from the durable `action_journal`, NOT the transient receipt outbox (the
-//!   checkpoint_ack watermark releases acked receipts, B03 §3.2, before the finish is judged).
+//! * `result_hash` is the completed ACTION receipt's bare-hex value stamped onto the journal row by
+//!   `produce_receipt` (NULL → empty when no completed ACTION receipt), exactly the server's
+//!   `device_receipt` subquery. Independent model results do not enter this hash; their acknowledged
+//!   outbox rows satisfy the separate completion gate without consuming an ACTION receipt sequence.
 
 use rusqlite::{params, Connection};
 
@@ -89,22 +88,32 @@ pub fn all_operations_terminal(
     Ok(true)
 }
 
-/// Whether every operation of the Run has a `completed` receipt recorded (DD:138 "receipt 已入
-/// outbox"). produce_receipt stamps the completed receipt's result_hash onto the durable
-/// action_journal row (NULL until then), so a non-NULL result_hash is the receipted fact that survives
-/// the outbox watermark cleanup. An operation awaiting its receipt blocks the finish; reconcile
-/// re-uploads it.
+/// Whether every operation of the Run has a durable completion fact. ACTION operations use the
+/// completed receipt's result_hash stamped onto action_journal; model operations use the independently
+/// acknowledged model_result outbox row. Neither path consumes the other's sequence or watermark.
 pub fn operations_receipted(
     conn: &Connection,
     org_id: &str,
     run_id: &str,
-    _journal_epoch: &str,
+    journal_epoch: &str,
 ) -> rusqlite::Result<bool> {
-    let mut stmt =
-        conn.prepare("SELECT result_hash FROM action_journal WHERE org_id = ?1 AND run_id = ?2")?;
-    let rows = stmt.query_map(params![org_id, run_id], |r| r.get::<_, Option<String>>(0))?;
+    let mut stmt = conn.prepare(
+        "SELECT a.result_hash, a.resolution_revision, m.model_result_id
+         FROM action_journal a
+         LEFT JOIN model_result_outbox m
+           ON m.operation_id = a.operation_id AND m.journal_epoch = ?3 AND m.acked = 1
+         WHERE a.org_id = ?1 AND a.run_id = ?2",
+    )?;
+    let rows = stmt.query_map(params![org_id, run_id, journal_epoch], |r| {
+        Ok((
+            r.get::<_, Option<String>>(0)?,
+            r.get::<_, Option<i64>>(1)?,
+            r.get::<_, Option<String>>(2)?,
+        ))
+    })?;
     for row in rows {
-        if row?.is_none() {
+        let (result_hash, resolution_revision, model_result_id) = row?;
+        if result_hash.is_none() && resolution_revision.is_none() && model_result_id.is_none() {
             return Ok(false);
         }
     }
@@ -253,6 +262,54 @@ mod tests {
             final_operation_set_hash(&conn, "org", "run", "epoch-1").unwrap(),
             crate::sha256_hex(b"[]")
         );
+        drop(conn);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn acknowledged_model_result_satisfies_completion_without_action_receipt() {
+        let (conn, path) = temp_conn();
+        action(&conn, "op-model", "succeeded");
+        assert!(!operations_receipted(&conn, "org", "run", "epoch-1").unwrap());
+        conn.execute(
+            "INSERT INTO model_result_outbox
+             (model_result_id, journal_epoch, operation_id, state, signed_bytes, signed_hash, acked)
+             VALUES (?1, 'epoch-1', 'op-model', 'completed', X'00', 'sha256:test', 0)",
+            ["10000000-0000-0000-0000-000000000001"],
+        )
+        .unwrap();
+        assert!(!operations_receipted(&conn, "org", "run", "epoch-1").unwrap());
+        conn.execute(
+            "UPDATE model_result_outbox SET acked = 1 WHERE operation_id = 'op-model'",
+            [],
+        )
+        .unwrap();
+        assert!(operations_receipted(&conn, "org", "run", "epoch-1").unwrap());
+        let summaries = operation_summaries(&conn, "org", "run", "epoch-1").unwrap();
+        assert_eq!(summaries[0].result_hash, "");
+        drop(conn);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn rejected_model_result_is_not_replayed_and_server_resolution_can_complete_it() {
+        let (conn, path) = temp_conn();
+        action(&conn, "op-model", "unknown");
+        conn.execute(
+            "INSERT INTO model_result_outbox
+             (model_result_id, journal_epoch, operation_id, state, signed_bytes, signed_hash, rejected)
+             VALUES (?1, 'epoch-1', 'op-model', 'completed', X'00', 'sha256:test', 1)",
+            ["10000000-0000-0000-0000-000000000001"],
+        )
+        .unwrap();
+        assert!(
+            crate::journal::recover::unacked_model_results(&conn, "epoch-1", 100)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(!operations_receipted(&conn, "org", "run", "epoch-1").unwrap());
+        crate::journal::recover::apply_resolution(&conn, "org", "op-model", "failed", 1).unwrap();
+        assert!(operations_receipted(&conn, "org", "run", "epoch-1").unwrap());
         drop(conn);
         let _ = std::fs::remove_file(&path);
     }

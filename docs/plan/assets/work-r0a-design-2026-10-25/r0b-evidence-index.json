@@ -391,32 +391,55 @@
       "id": "EV102",
       "gate": "I5",
       "requirement": "device_local permit 消费直接登记 active runtime_execution，lease_until 为 permit+2s，重复请求先清过期行，finish revoke 残留。",
-      "status": "partial",
-      "gaps": [
-        "0063 已由 consume_device_permit 生产接线并有真库用例，但设备侧 model permit 端到端与慢盘/慢网 5s 边缘时序尚未取证。"
-      ],
+      "status": "covered",
+      "gaps": [],
       "evidence": [
         { "path": "src/work/internal/migrate/r0b_device_model_usage_test.go", "test": "TestR0bDeviceModelPermitCreatesActiveExecutionWithTwoSecondMargin" },
         { "path": "src/work/internal/migrate/r0b_device_model_usage_test.go", "test": "TestR0bDeviceModelSecondRequestExpiresTheStaleLiveRow" },
         { "path": "src/work/internal/migrate/r0b_device_model_usage_test.go", "test": "TestR0bDeviceModelFinishRevokesResidualActiveExecution" },
-        { "path": "src/work/internal/migrate/r0b_device_model_usage_test.go", "test": "TestR0bDeviceModelConcurrentPermitReplayReturnsOneCommand" }
+        { "path": "src/work/internal/migrate/r0b_device_model_usage_test.go", "test": "TestR0bDeviceModelConcurrentPermitReplayReturnsOneCommand" },
+        { "path": "src/device/src/synccore.rs", "test": "a_verified_command_registers_one_journal_row_bound_to_the_permit_jti" },
+        { "path": "src/device/src/modelproxy.rs", "test": "expired_permit_never_connects_even_with_a_live_run_lease" },
+        { "path": "src/device/src/modelproxy.rs", "test": "permit_expiry_during_in_flight_io_does_not_replace_lease_semantics" },
+        { "path": "src/device/src/modelproxy.rs", "test": "deadline_watcher_preserves_pre_send_and_in_flight_error_semantics" },
+        { "path": "src/device/src/nodeservice.rs", "test": "expired_model_permit_blocks_before_endpoint_lookup" },
+        { "path": "src/device/src/nodeservice.rs", "test": "delayed_journal_registration_cannot_extend_the_model_permit" },
+        { "path": "src/work/internal/api/device_run_interop_test.go", "test": "TestDeviceFullFixtureRunWritesAnArtifact" },
+        { "path": "src/work/internal/api/device_run_interop_test.go", "test": "TestDeviceFixtureRunFinishFailedIsAccepted" },
+        { "path": "src/work/internal/api/device_run_interop_test.go", "test": "TestDeviceFixtureRunFinishCompletedIsAccepted" },
+        { "path": "src/work/internal/api/device_run_interop_test.go", "test": "TestDeviceFixtureRunLeaseLossKillsSidecar" }
       ]
     },
     {
       "id": "EV114",
       "gate": "I5",
-      "requirement": "device_local 用量由 record_device_model_result 以 device_adapter/device_local 写入，云 provider/空值/越权/结算与报表分列可验。",
-      "status": "partial",
-      "gaps": [
-        "0063 已有 worker-only definer、真库结算/幂等/ACL/CHECK 用例；主签 2026-11-25 已裁定独立 model_result 上行帧，但 Rust 帧、网关接线与真实设备送达尚未实施/取证，org_private 已按 E=B 移出。",
-        "record_device_model_result 只写用量/结算/execution 事实，不替代 operation_resolution 的 Operation 终态；上行载体必须把两者串成同一条可恢复链。",
-        "用量报表前端分列与真实设备结果上行尚未取证。"
-      ],
+      "requirement": "device_local 用量由独立 model_result 经 record_device_model_result_frame 以 device_adapter/device_local 写入，云 provider/空值/越权/结算与报表分列可验。",
+      "status": "covered",
+      "gaps": [],
       "evidence": [
         { "path": "src/work/internal/migrate/r0b_device_model_usage_test.go", "test": "TestR0bDeviceModelResultRecordsAdapterUsageAndSettlesOnce" },
         { "path": "src/work/internal/migrate/r0b_device_model_usage_test.go", "test": "TestR0bDeviceModelResultRefusesBadProviderUsageACLAndRevokedDevice" },
         { "path": "src/work/internal/migrate/r0b_device_model_usage_test.go", "test": "TestR0bDeviceModelResultRequiresAQuotaReservation" },
-        { "path": "src/work/internal/migrate/r0b_device_model_usage_test.go", "test": "TestR0bDeviceModelResultSurvivesSessionExpiryAndFinishRevocation" }
+        { "path": "src/work/internal/migrate/r0b_device_model_usage_test.go", "test": "TestR0bDeviceModelResultSurvivesSessionExpiryAndFinishRevocation" },
+        { "path": "src/work/internal/migrate/r0b_model_result_frame_test.go", "test": "TestR0bModelResultFrameRecordsAndReplaysWithoutDoubleCounting" },
+        { "path": "src/work/internal/migrate/r0b_model_result_frame_test.go", "test": "TestR0bModelResultFrameSuccessWithoutReservationStillCountsUsage" },
+        { "path": "src/work/internal/migrate/r0b_model_result_frame_test.go", "test": "TestR0bModelResultFrameUnknownKeepsQuotaHeldAndUsageAbsent" },
+        { "path": "src/work/internal/migrate/r0b_model_result_frame_test.go", "test": "TestR0bModelResultFrameFailureSettlesZeroAndCompletesExecution" },
+        { "path": "src/work/internal/migrate/r0b_model_result_frame_test.go", "test": "TestR0bModelResultFrameRefusesBadShapeForeignDeviceAndAPIRole" },
+        { "path": "src/work/internal/gateway/model_result_uplink_test.go", "test": "TestModelResultUplinkRecordsAndReturnsSignedAck" },
+        { "path": "src/work/internal/gateway/model_result_uplink_test.go", "test": "TestModelResultUplinkRejectsBadSignature" },
+        { "path": "src/device/src/frame/model_result.rs", "test": "wire_is_closed_and_token_counts_are_decimal_strings" },
+        { "path": "src/device/src/journalop.rs", "test": "append_model_result_uses_its_own_id_and_leaves_receipt_seq_untouched" },
+        { "path": "src/device/src/nodeservice.rs", "test": "dispatched_model_turn_emits_independent_model_result_then_checkpoint" },
+        { "path": "src/device/src/finish/facts.rs", "test": "acknowledged_model_result_satisfies_completion_without_action_receipt" },
+        { "path": "src/work/internal/api/device_run_interop_test.go", "test": "TestDeviceFixtureRunFinishCompletedIsAccepted" },
+        { "path": "src/work/internal/api/device_run_interop_test.go", "test": "TestDeviceFixtureRunRestartRepublishesSealedDeliverable" },
+        { "path": "src/work/internal/api/device_run_interop_test.go", "test": "TestDeviceFixtureRunCrossSessionFinishIsAccepted" },
+        { "path": "src/work/internal/api/usage_test.go", "test": "TestUsageReadEndpointsSeparateDeviceLocal" },
+        { "path": "src/frontend/src/features/work/r0a/routes/AdminPage.test.tsx", "test": "separates device_local usage from cloud provider usage" },
+        { "path": "src/device/src/nodeservice.rs", "test": "model_permit_is_single_use_like_tool_permits" },
+        { "path": "src/device/src/nodeservice.rs", "test": "model_result_persist_failure_is_fail_closed_and_does_not_checkpoint" },
+        { "path": "src/device/src/finish/facts.rs", "test": "rejected_model_result_is_not_replayed_and_server_resolution_can_complete_it" }
       ]
     },
     {

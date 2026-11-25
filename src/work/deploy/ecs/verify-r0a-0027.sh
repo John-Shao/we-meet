@@ -104,7 +104,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (66, '0066_reconcile_lease_cannot_mint_permit'),
   (67, '0067_gap_report_rejects_consumed_interval'),
   (68, '0068_governance_cursor_getter'),
-  (69, '0069_atomic_run_binding_activation')) expected(version, name)
+  (69, '0069_atomic_run_binding_activation'),
+  (70, '0070_independent_model_result_reconciliation')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
@@ -1261,6 +1262,37 @@ psql_ro "select 'atomic_binding_activation=' || case when (
     'work.consume_device_permit(text,uuid,uuid,uuid,uuid,uuid,bigint,text,text)'::regprocedure)) > 0
   and not has_function_privilege('work_worker',
     'work.activate_device_run_binding(text,uuid,bigint,int)'::regprocedure, 'EXECUTE')
+  then 'true' else 'FALSE' end"
+
+# 0070 records model results outside the ACTION receipt sequence, with replay identity,
+# immutable dispatch ownership, optional quota settlement and worker-only execution.
+psql_ro "select 'independent_model_result_reconciliation=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work' and p.proname = 'record_device_model_result_frame'
+    and p.prosecdef and p.proconfig @> ARRAY['search_path=work, pg_catalog']) = 1
+  and has_function_privilege('work_worker',
+    'work.record_device_model_result_frame(text,uuid,jsonb)'::regprocedure, 'EXECUTE')
+  and not has_function_privilege('work_api',
+    'work.record_device_model_result_frame(text,uuid,jsonb)'::regprocedure, 'EXECUTE')
+  and (select relrowsecurity and relforcerowsecurity from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'work' and c.relname = 'device_model_result')
+  and (select count(*) from pg_constraint c
+       join pg_class t on t.oid = c.conrelid
+       join pg_namespace n on n.oid = t.relnamespace
+       where n.nspname = 'work' and t.relname = 'device_model_result'
+         and c.contype = 'u'
+         and pg_get_constraintdef(c.oid) like '%(operation_id, attempt_id)%') = 1
+  and position('work.mark_operation_unknown(' in pg_get_functiondef(
+    'work.record_device_model_result_frame(text,uuid,jsonb)'::regprocedure)) > 0
+  and position('work.issue_operation_resolution(' in pg_get_functiondef(
+    'work.record_device_model_result_frame(text,uuid,jsonb)'::regprocedure)) > 0
+  and position('work.settle_quota(' in pg_get_functiondef(
+    'work.record_device_model_result_frame(text,uuid,jsonb)'::regprocedure)) > 0
+  and position('v_reservation.id IS NOT NULL' in pg_get_functiondef(
+    'work.record_device_model_result_frame(text,uuid,jsonb)'::regprocedure)) > 0
+  and position('work.record_device_receipt(' in pg_get_functiondef(
+    'work.record_device_model_result_frame(text,uuid,jsonb)'::regprocedure)) = 0
   then 'true' else 'FALSE' end"
 
 # The permit document is durable evidence on the dispatch row, not a second single-use

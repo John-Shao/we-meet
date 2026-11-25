@@ -9,7 +9,7 @@
 use serde_json::Value;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::frame::{action, checkpoint, envelope, receipt, rfc3339};
+use crate::frame::{action, checkpoint, envelope, model_result, receipt, rfc3339};
 use crate::journal::record::{self, ActionRow, RecordError};
 use crate::journal::{meta, recover};
 use crate::key::DeviceKey;
@@ -69,6 +69,13 @@ pub enum JournalOp {
         org_id: String,
         subject_id: String,
         facts: Box<ReceiptFacts>,
+    },
+    /// Persist and uplink an independent device_local model result. Its UUID is the
+    /// replay key; this path never allocates an ACTION receipt sequence.
+    AppendModelResult {
+        org_id: String,
+        subject_id: String,
+        facts: Box<ModelResultFacts>,
     },
     /// Persist an encrypted checkpoint and uplink a signed `checkpoint_commit` (A3, DD:133 the
     /// checkpoint precedes prepare/finish). The sealed canonical body stays local; the commit
@@ -168,6 +175,21 @@ pub struct ReceiptFacts {
 /// The checkpoint facts the Node thread supplies. `checkpoint_seq` is the Run-local monotonic
 /// sequence the executor assigns; the commit's `receipt_through_seq` is the receipt watermark the
 /// checkpoint covers (the sync core's last produced seq at production time).
+pub struct ModelResultFacts {
+    pub run_id: String,
+    pub operation_id: String,
+    pub attempt_id: String,
+    pub session_id: String,
+    pub request_hash: String,
+    pub state: String,
+    pub outcome: Option<String>,
+    pub result_hash: Option<String>,
+    pub provider_request_id: Option<String>,
+    pub model: String,
+    pub usage: Option<model_result::ModelUsage>,
+    pub error_code: Option<String>,
+}
+
 pub struct CheckpointFacts {
     pub run_id: String,
     pub checkpoint_seq: i64,
@@ -215,6 +237,11 @@ pub enum JournalReply {
     /// AppendReceipt produced and uplinked a signed receipt; carries its allocated seq + integrity
     /// hash so the caller can advance its watermark / reference the receipt.
     ReceiptProduced { seq: u64, signed_hash: String },
+    /// AppendModelResult persisted and uplinked one independently replayable result.
+    ModelResultProduced {
+        model_result_id: String,
+        signed_hash: String,
+    },
     /// PersistCheckpoint sealed the body and uplinked a signed checkpoint_commit.
     CheckpointProduced,
     /// ProposeAction signed and uplinked an action_prepare (the command returns via the downlink).
@@ -341,6 +368,11 @@ pub fn execute(
             subject_id,
             facts,
         } => produce_receipt(journal, producer, &org_id, &subject_id, &facts),
+        JournalOp::AppendModelResult {
+            org_id,
+            subject_id,
+            facts,
+        } => produce_model_result(journal, producer, &org_id, &subject_id, &facts),
         JournalOp::PersistCheckpoint {
             org_id,
             subject_id,
@@ -506,6 +538,80 @@ fn produce_receipt(
                 eprintln!("work-device: receipt uplink channel closed (seq {seq})");
             }
             JournalReply::ReceiptProduced { seq, signed_hash }
+        }
+        Err(err) => JournalReply::Failed(err),
+    }
+}
+
+fn produce_model_result(
+    journal: &crate::journal::Journal,
+    producer: &Producer,
+    _org_id: &str,
+    _subject_id: &str,
+    facts: &ModelResultFacts,
+) -> JournalReply {
+    let conn = journal.connection();
+    let outcome = (|| -> Result<(String, String, Value), RecordError> {
+        let tx = conn.unchecked_transaction()?;
+        let result_id = uuid::Uuid::new_v4().to_string();
+        let mut body = model_result::ModelResultBody {
+            model_result_id: result_id.clone(),
+            run_id: facts.run_id.clone(),
+            operation_id: facts.operation_id.clone(),
+            attempt_id: facts.attempt_id.clone(),
+            request_hash: facts.request_hash.clone(),
+            state: facts.state.clone(),
+            outcome: facts.outcome.clone(),
+            result_hash: facts.result_hash.clone(),
+            provider_request_id: facts.provider_request_id.clone(),
+            model: facts.model.clone(),
+            usage: facts.usage.clone(),
+            error_code: facts.error_code.clone(),
+            signature: None,
+        };
+        if !body.shape_consistent() {
+            return Err(RecordError::InvalidModelResult);
+        }
+        body.sign(producer.key)?;
+        let body_value = body.to_value();
+        let mut env = envelope::Envelope::new(
+            model_result::FRAME_TYPE,
+            journal.device_id(),
+            body_value.clone(),
+        );
+        env.session_id = facts.session_id.clone();
+        env.agent_instance_id = producer.instance.agent_instance_id.clone();
+        env.boot_id = producer.instance.boot_id.clone();
+        env.sent_at = now_rfc3339();
+        let signed_bytes = serde_json::to_vec(&env).expect("model_result envelope serializes");
+        let signed_hash = format!("sha256:{}", crate::sha256_hex(&signed_bytes));
+        record::insert_model_result(
+            &tx,
+            journal.journal_epoch(),
+            &record::ModelResultRow {
+                model_result_id: &result_id,
+                operation_id: &facts.operation_id,
+                state: &facts.state,
+                signed_bytes: &signed_bytes,
+                signed_hash: &signed_hash,
+            },
+        )?;
+        tx.commit()?;
+        Ok((result_id, signed_hash, body_value))
+    })();
+    match outcome {
+        Ok((result_id, signed_hash, body_value)) => {
+            let frame = UplinkFrame {
+                frame_type: model_result::FRAME_TYPE.to_string(),
+                body: body_value,
+            };
+            if producer.uplinks.blocking_send(frame).is_err() {
+                eprintln!("work-device: model_result uplink channel closed ({result_id})");
+            }
+            JournalReply::ModelResultProduced {
+                model_result_id: result_id,
+                signed_hash,
+            }
         }
         Err(err) => JournalReply::Failed(err),
     }
@@ -734,6 +840,123 @@ mod tests {
         });
         assert!(matches!(reply, Some(JournalReply::Registered)));
         server.join().unwrap();
+    }
+
+    #[test]
+    fn append_model_result_uses_its_own_id_and_leaves_receipt_seq_untouched() {
+        let path =
+            std::env::temp_dir().join(format!("work-journalop-model-{}.db", uuid::Uuid::new_v4()));
+        let journal = Journal::create(&path, "dev", &dek::TestWrap).unwrap();
+        let key = crate::key::SoftwareKey::random();
+        let (up_tx, mut up_rx) = mpsc::channel(8);
+        let instance = InstanceFacts {
+            agent_instance_id: "agent".into(),
+            boot_id: "boot".into(),
+        };
+        let producer = Producer {
+            key: &key,
+            uplinks: &up_tx,
+            instance: &instance,
+        };
+        let facts = ModelResultFacts {
+            run_id: "20000000-0000-0000-0000-000000000001".into(),
+            operation_id: "30000000-0000-0000-0000-000000000001".into(),
+            attempt_id: "40000000-0000-0000-0000-000000000001".into(),
+            session_id: "sess".into(),
+            request_hash: "a".repeat(64),
+            state: "completed".into(),
+            outcome: Some("succeeded".into()),
+            result_hash: Some("b".repeat(64)),
+            provider_request_id: Some("req-1".into()),
+            model: "fixture-model".into(),
+            usage: Some(model_result::ModelUsage {
+                input_tokens: 3,
+                output_tokens: 2,
+                cached_input_tokens: 1,
+                estimated: false,
+            }),
+            error_code: None,
+        };
+        let operation_id = facts.operation_id.clone();
+        let reply = execute(
+            &journal,
+            &producer,
+            JournalOp::AppendModelResult {
+                org_id: "org".into(),
+                subject_id: "sub".into(),
+                facts: Box::new(facts),
+            },
+        );
+        let result_id = match reply {
+            JournalReply::ModelResultProduced {
+                model_result_id,
+                signed_hash,
+            } => {
+                assert!(signed_hash.starts_with("sha256:"));
+                model_result_id
+            }
+            other => panic!("unexpected model result reply: {other:?}"),
+        };
+        let frame = up_rx.blocking_recv().unwrap();
+        assert_eq!(frame.frame_type, "model_result");
+        assert_eq!(frame.body["model_result_id"], result_id);
+        let pending =
+            recover::unacked_model_results(journal.connection(), journal.journal_epoch(), 10)
+                .unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].model_result_id, result_id);
+        let stored: envelope::Envelope = serde_json::from_slice(&pending[0].signed_bytes).unwrap();
+        assert_eq!(stored.frame_type, "model_result");
+        assert_eq!(stored.body, frame.body);
+        recover::mark_model_result_acked(
+            journal.connection(),
+            journal.journal_epoch(),
+            &result_id,
+            "99999999-0000-0000-0000-000000000001",
+        )
+        .unwrap();
+        assert_eq!(
+            recover::unacked_model_results(journal.connection(), journal.journal_epoch(), 10)
+                .unwrap()
+                .len(),
+            1
+        );
+        recover::mark_model_result_rejected(
+            journal.connection(),
+            journal.journal_epoch(),
+            &result_id,
+            &operation_id,
+        )
+        .unwrap();
+        assert!(
+            recover::unacked_model_results(journal.connection(), journal.journal_epoch(), 10)
+                .unwrap()
+                .is_empty()
+        );
+        journal
+            .connection()
+            .execute(
+                "UPDATE model_result_outbox SET rejected = 0 WHERE model_result_id = ?1",
+                [&result_id],
+            )
+            .unwrap();
+        recover::mark_model_result_acked(
+            journal.connection(),
+            journal.journal_epoch(),
+            &result_id,
+            &operation_id,
+        )
+        .unwrap();
+        assert!(
+            recover::unacked_model_results(journal.connection(), journal.journal_epoch(), 10)
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(current_receipt_seq(&journal), 0);
+        drop(journal);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(path.with_extension("db-wal"));
+        let _ = std::fs::remove_file(path.with_extension("db-shm"));
     }
 
     #[test]
