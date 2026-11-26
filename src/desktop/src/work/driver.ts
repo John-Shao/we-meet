@@ -110,6 +110,12 @@ export interface LocalApprovalReadonlyScope {
   grantRevision: string;
 }
 
+export interface LocalApprovalDestinationFacts {
+  localOnlyTaint: boolean;
+  currentActionTaints: boolean;
+  availableDestinations: string[];
+}
+
 export interface LocalApprovalDetail {
   approvalId: string;
   operationId: string;
@@ -121,6 +127,7 @@ export interface LocalApprovalDetail {
   actionKind: string;
   status: string;
   readonlyScope: LocalApprovalReadonlyScope | null;
+  destinationFacts: LocalApprovalDestinationFacts;
 }
 
 export interface PendingLocalApproval {
@@ -276,10 +283,14 @@ function modelFacts(
 }
 
 function previewAuthEpoch(previewHash: string): string {
-  const payload = previewHash.startsWith("lp1.") ? previewHash.split(".")[1] : "";
+  const payload = previewHash.startsWith("lp1.")
+    ? previewHash.split(".")[1]
+    : "";
   if (!payload) throw new BrokerPipeError("shape");
   try {
-    const value = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    const value = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8"),
+    );
     const epoch = value?.auth_epoch;
     if (typeof epoch !== "string" || !/^(0|[1-9][0-9]*)$/.test(epoch))
       throw new BrokerPipeError("shape");
@@ -725,6 +736,8 @@ export class WorkDeviceDriver {
     const preview = await this.deps.api.request<{
       preview_hash: string;
       target_selection_hash: string;
+      artifact_classification_floor: "local_only" | "remote_excerpt_allowed";
+      available_destinations: string[];
     }>("createLocalTaskPreview", {
       body: {
         client_request_id: randomUUID(),
@@ -743,7 +756,19 @@ export class WorkDeviceDriver {
       typeof preview.preview_hash !== "string" ||
       !/^[A-Za-z0-9._:-]{1,4096}$/.test(preview.preview_hash) ||
       typeof preview.target_selection_hash !== "string" ||
-      !/^[0-9a-f]{64}$/.test(preview.target_selection_hash)
+      !/^[0-9a-f]{64}$/.test(preview.target_selection_hash) ||
+      !["local_only", "remote_excerpt_allowed"].includes(
+        preview.artifact_classification_floor,
+      ) ||
+      !Array.isArray(preview.available_destinations) ||
+      preview.available_destinations.length > 3 ||
+      !preview.available_destinations.every(
+        (value) =>
+          typeof value === "string" &&
+          ["device_local", "org_private", "org_remote"].includes(value),
+      ) ||
+      new Set(preview.available_destinations).size !==
+        preview.available_destinations.length
     ) {
       throw new BrokerPipeError("shape");
     }
@@ -758,6 +783,8 @@ export class WorkDeviceDriver {
       profileId: profile.profile_id,
       profileRevision: profile.profile_revision,
       profileHash: profile.profile_hash,
+      artifactClassificationFloor: preview.artifact_classification_floor,
+      availableDestinations: preview.available_destinations,
     });
     this.checkEpoch();
     if (confirmation.status !== "ready") {
@@ -843,7 +870,7 @@ export class WorkDeviceDriver {
       typeof input !== "object" ||
       Array.isArray(input) ||
       Object.keys(input).sort().join(",") !==
-        "clientRequestId,grantRevisions,inputHash,inputRef,previewHash,profileHash,profileId,profileRevision,selectedGrantIds,targetSelectionHash" ||
+        "artifactClassificationFloor,availableDestinations,clientRequestId,grantRevisions,inputHash,inputRef,previewHash,profileHash,profileId,profileRevision,selectedGrantIds,targetSelectionHash" ||
       typeof input.clientRequestId !== "string" ||
       !request.test(input.clientRequestId) ||
       typeof input.inputRef !== "string" ||
@@ -873,7 +900,19 @@ export class WorkDeviceDriver {
       !Number.isSafeInteger(input.profileRevision) ||
       input.profileRevision < 0 ||
       typeof input.profileHash !== "string" ||
-      !digest.test(input.profileHash)
+      !digest.test(input.profileHash) ||
+      !["local_only", "remote_excerpt_allowed"].includes(
+        input.artifactClassificationFloor,
+      ) ||
+      !Array.isArray(input.availableDestinations) ||
+      input.availableDestinations.length > 3 ||
+      !input.availableDestinations.every(
+        (value) =>
+          typeof value === "string" &&
+          ["device_local", "org_private", "org_remote"].includes(value),
+      ) ||
+      new Set(input.availableDestinations).size !==
+        input.availableDestinations.length
     ) {
       throw new BrokerPipeError("shape");
     }
@@ -1471,6 +1510,32 @@ export class WorkDeviceDriver {
     } else if (data.readonly_scope !== null) {
       throw new BrokerPipeError("shape");
     }
+    const destinationFacts = data.destination_facts;
+    if (
+      !destinationFacts ||
+      typeof destinationFacts !== "object" ||
+      Array.isArray(destinationFacts) ||
+      Object.keys(destinationFacts).sort().join(",") !==
+        "available_destinations,current_action_taints,local_only_taint"
+    ) {
+      throw new BrokerPipeError("shape");
+    }
+    const destinationValue = destinationFacts as Record<string, unknown>;
+    if (
+      typeof destinationValue.local_only_taint !== "boolean" ||
+      typeof destinationValue.current_action_taints !== "boolean" ||
+      !Array.isArray(destinationValue.available_destinations) ||
+      destinationValue.available_destinations.length > 3 ||
+      !destinationValue.available_destinations.every(
+        (value) =>
+          typeof value === "string" &&
+          ["device_local", "org_private", "org_remote"].includes(value),
+      ) ||
+      new Set(destinationValue.available_destinations).size !==
+        destinationValue.available_destinations.length
+    ) {
+      throw new BrokerPipeError("shape");
+    }
     return {
       approvalId,
       operationId: data.operation_id,
@@ -1482,6 +1547,12 @@ export class WorkDeviceDriver {
       actionKind: data.action_kind,
       status: data.status,
       readonlyScope,
+      destinationFacts: {
+        localOnlyTaint: destinationValue.local_only_taint,
+        currentActionTaints: destinationValue.current_action_taints,
+        availableDestinations:
+          destinationValue.available_destinations as string[],
+      },
     };
   }
 

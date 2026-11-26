@@ -92,12 +92,13 @@ func (s *Server) getApproval(w http.ResponseWriter, r *http.Request) {
 		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
 		workdb.RoleAPI, workdb.Options{ReadOnly: true},
 		func(tx pgx.Tx) error {
-			var raw, scope []byte
+			var raw, scope, destinationFacts []byte
 			if err := tx.QueryRow(r.Context(),
 				`SELECT work.get_local_approval($1, $2, $3::uuid),
-				        work.local_approval_readonly_scope($1, $2, $3::uuid)`,
+				        work.local_approval_readonly_scope($1, $2, $3::uuid),
+				        work.local_approval_destination_facts($1, $2, $3::uuid)`,
 				claims.OrgID, claims.SubjectID, approvalID,
-			).Scan(&raw, &scope); err != nil {
+			).Scan(&raw, &scope, &destinationFacts); err != nil {
 				return err
 			}
 			var document map[string]json.RawMessage
@@ -109,6 +110,7 @@ func (s *Server) getApproval(w http.ResponseWriter, r *http.Request) {
 			} else {
 				document["readonly_scope"] = json.RawMessage(append([]byte(nil), scope...))
 			}
+			document["destination_facts"] = json.RawMessage(append([]byte(nil), destinationFacts...))
 			encoded, err := json.Marshal(document)
 			if err != nil {
 				return err

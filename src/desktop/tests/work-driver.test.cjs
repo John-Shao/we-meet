@@ -46,6 +46,8 @@ const localSubmissionInput = {
   profileId: "profile-dev-fixture-v1",
   profileRevision: 2,
   profileHash: "c".repeat(64),
+  artifactClassificationFloor: "local_only",
+  availableDestinations: ["device_local"],
 };
 function localIntentReply(method, fields) {
   if (!fields.approved) return {};
@@ -156,6 +158,8 @@ function harness(t, overrides = {}) {
       target_selection_hash: createHash("sha256")
         .update(JSON.stringify(options.body.target_selection))
         .digest("hex"),
+      artifact_classification_floor: "local_only",
+      available_destinations: ["device_local"],
     }),
     submitLocalTask: (action, options) => ({
       task_id: "99999999-9999-4999-8999-999999999999",
@@ -206,6 +210,11 @@ function harness(t, overrides = {}) {
       action_kind: "artifact.write",
       status: "pending",
       readonly_scope: null,
+      destination_facts: {
+        local_only_taint: true,
+        current_action_taints: true,
+        available_destinations: ["device_local"],
+      },
     },
     decideApproval: {
       approval_id: "33333333-3333-4333-8333-333333333333",
@@ -1261,6 +1270,11 @@ test("local approval reads metadata, signs through Broker and submits the closed
   const detail = await h.driver.getLocalApproval(
     "33333333-3333-4333-8333-333333333333",
   );
+  assert.deepEqual(detail.destinationFacts, {
+    localOnlyTaint: true,
+    currentActionTaints: true,
+    availableDestinations: ["device_local"],
+  });
   const requestId = "66666666-6666-4666-8666-666666666666";
   const result = await h.driver.decideLocalApproval(
     detail,
@@ -1303,6 +1317,11 @@ test("local approval can remember the exact server-issued readonly scope", async
     action_kind: "workspace.read",
     status: "pending",
     readonly_scope: scope,
+    destination_facts: {
+      local_only_taint: false,
+      current_action_taints: false,
+      available_destinations: ["device_local", "org_private", "org_remote"],
+    },
   };
   let sent;
   h.pipeResponses.prepareLocalApprovalDecision = (method, fields) => {
@@ -1761,9 +1780,14 @@ test("local artifact drafts are discoverable and reopen without renderer body by
 
 test("submitLocalTask previews, confirms natively, signs and submits the exact local intent", async (t) => {
   let submit;
+  let confirmationFacts;
   const h = harness(t, {
     apiResponse(action, options) {
       if (action === "submitLocalTask") submit = options;
+    },
+    confirmSubmission(facts) {
+      confirmationFacts = facts;
+      return true;
     },
   });
   await h.driver.start();
@@ -1791,6 +1815,8 @@ test("submitLocalTask previews, confirms natively, signs and submits the exact l
     displayState: "queued",
     inputRef,
   });
+  assert.equal(confirmationFacts.artifactClassificationFloor, "local_only");
+  assert.deepEqual(confirmationFacts.availableDestinations, ["device_local"]);
   const relevant = h.events.filter(
     (event) =>
       event === "api:createLocalTaskPreview" ||

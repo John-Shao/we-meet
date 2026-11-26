@@ -15,6 +15,8 @@ export interface LocalSubmissionInput {
   profileId: string;
   profileRevision: number;
   profileHash: string;
+  artifactClassificationFloor: "local_only" | "remote_excerpt_allowed";
+  availableDestinations: string[];
 }
 
 export interface LocalSubmissionConfirmation extends LocalSubmissionInput {

@@ -117,7 +117,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (79, '0079_permit_destination_refusal_cancels'),
   (80, '0080_local_preview_facts'),
   (81, '0081_local_task_submission'),
-  (82, '0082_local_approval_ttl')) expected(version, name)
+  (82, '0082_local_approval_ttl'),
+  (83, '0083_local_destination_facts')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 psql_ro "select 'approval_proof_es256=' || case when
@@ -145,6 +146,18 @@ psql_ro "select 'local_preview_facts=' || case when
     and not has_table_privilege('work_api', 'work.device_session', 'SELECT')
     and not has_table_privilege('work_api', 'work.workspace_grant', 'SELECT')
     and not has_table_privilege('work_api', 'work.org_policy', 'SELECT')
+    then 'true' else 'FALSE' end"
+psql_ro "select 'local_destination_facts=' || case when
+    (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'work' and p.proname in ('local_preview_destination_facts', 'local_approval_destination_facts')
+        and p.prosecdef and p.proowner = (select oid from pg_roles where rolname = 'work_owner')) = 2
+    and has_function_privilege('work_api',
+      'work.local_preview_destination_facts(text,text,uuid[])', 'EXECUTE')
+    and has_function_privilege('work_api',
+      'work.local_approval_destination_facts(text,text,uuid)', 'EXECUTE')
+    and not has_table_privilege('work_api', 'work.workspace_grant', 'SELECT')
+    and not has_table_privilege('work_api', 'work.local_execution_policy', 'SELECT')
+    and not has_table_privilege('work_api', 'work.local_action', 'SELECT')
     then 'true' else 'FALSE' end"
 psql_ro "select 'local_task_submission=' || case when
     (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace

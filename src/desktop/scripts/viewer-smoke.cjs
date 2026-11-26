@@ -40,10 +40,15 @@ app
       name: "main_only",
       value: "1",
     });
-    await mainSession.protocol.handle("https", (request) =>
-      new Response("<!doctype html><title>main sentinel</title><main>main</main>", {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      }),
+    await mainSession.protocol.handle(
+      "https",
+      (request) =>
+        new Response(
+          "<!doctype html><title>main sentinel</title><main>main</main>",
+          {
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          },
+        ),
     );
     const mainWindow = new BrowserWindow({
       show: false,
@@ -59,8 +64,7 @@ app
     console.log("stage: cookie");
     const messages = [];
     const sentinel = "WORK_LOCAL_BODY_SENTINEL_7f31c2";
-    const payload =
-      `<img src="https://evil.test/pixel" onerror="alert(1)"><script>alert(1)</script>\n[link](https://evil.test/)\n${sentinel}`;
+    const payload = `<img src="https://evil.test/pixel" onerror="alert(1)"><script>alert(1)</script>\n[link](https://evil.test/)\n${sentinel}`;
     const manager = new ViewerManager(
       path.join(__dirname, "../dist/viewer-preload.js"),
       (_webContents, method, payload) => messages.push({ method, payload }),
@@ -149,7 +153,10 @@ app
     assert.equal(Boolean(preferences.spellcheck), false);
 
     assert.equal(
-      manager.bind(win, { kind: "artifact_version", id: "55555555-5555-4555-8555-555555555555" }),
+      manager.bind(win, {
+        kind: "artifact_version",
+        id: "55555555-5555-4555-8555-555555555555",
+      }),
       true,
     );
     await waitFor(
@@ -169,7 +176,10 @@ app
     );
     await waitFor(() => messages.length === 1, "bound object proof");
     assert.equal(
-      manager.bind(win, { kind: "artifact_version", id: "55555555-5555-4555-8555-555555555555" }),
+      manager.bind(win, {
+        kind: "artifact_version",
+        id: "55555555-5555-4555-8555-555555555555",
+      }),
       true,
     );
     await waitFor(
@@ -271,37 +281,104 @@ app
       { kind: "approval", id: "33333333-3333-4333-8333-333333333333" },
       { type: "render", format: "text/plain", text: "approval body" },
     );
-    await waitFor(() => manager.isReady(approvalWin), "approval viewer handshake");
+    await waitFor(
+      () => manager.isReady(approvalWin),
+      "approval viewer handshake",
+    );
     manager.send(approvalWin, {
       type: "approval",
       approval_id: "33333333-3333-4333-8333-333333333333",
       request_id: "77777777-7777-4777-8777-777777777777",
       can_remember_readonly: false,
+      local_only_taint: true,
+      current_action_taints: true,
+      available_destinations: ["device_local"],
     });
-    assert.equal(manager.authorizeRequest(approvalWin, "77777777-7777-4777-8777-777777777777"), true);
-    await approvalWin.webContents.executeJavaScript("document.getElementById('reject').click()");
+    assert.equal(
+      manager.authorizeRequest(
+        approvalWin,
+        "77777777-7777-4777-8777-777777777777",
+      ),
+      true,
+    );
+    await waitFor(
+      () =>
+        approvalWin.webContents.executeJavaScript(
+          "!document.getElementById('approval-destination-warning').hidden",
+        ),
+      "local-only destination warning",
+    );
+    assert.equal(
+      await approvalWin.webContents.executeJavaScript(
+        "document.getElementById('approval-destination-warning').textContent",
+      ),
+      "本操作将读取或产生 local_only 内容；批准后设备外目的地不可用。当前可用目的地：device_local。",
+    );
+    manager.send(approvalWin, {
+      type: "approval",
+      approval_id: "33333333-3333-4333-8333-333333333333",
+      request_id: "77777777-7777-4777-8777-777777777777",
+      can_remember_readonly: false,
+      local_only_taint: true,
+      current_action_taints: false,
+      available_destinations: ["device_local"],
+    });
+    assert.equal(
+      await approvalWin.webContents.executeJavaScript(
+        "document.getElementById('approval-destination-warning').textContent",
+      ),
+      "本 Run 已读取 local_only 内容，设备外目的地不可用。当前可用目的地：device_local。",
+    );
+    await approvalWin.webContents.executeJavaScript(
+      "document.getElementById('reject').click()",
+    );
     await waitFor(() => messages.length === 5, "approval decision gesture");
     assert.equal(messages[4].method, "decideLocalApproval");
     assert.equal(messages[4].payload.decision, "rejected");
-    manager.send(approvalWin, { type: "approval_decided", decision: "rejected" });
+    manager.send(approvalWin, {
+      type: "approval_decided",
+      decision: "rejected",
+    });
     await new Promise((resolve) => setTimeout(resolve, 50));
-    assert.equal(await approvalWin.webContents.executeJavaScript(
-      "document.getElementById('approval').hidden",
-    ), true);
-    assert.equal(await approvalWin.webContents.executeJavaScript(
-      "document.getElementById('remember-readonly-label').hidden",
-    ), true);
+    assert.equal(
+      await approvalWin.webContents.executeJavaScript(
+        "document.getElementById('approval').hidden",
+      ),
+      true,
+    );
+    assert.equal(
+      await approvalWin.webContents.executeJavaScript(
+        "document.getElementById('remember-readonly-label').hidden",
+      ),
+      true,
+    );
 
     manager.send(approvalWin, {
       type: "approval",
       approval_id: "33333333-3333-4333-8333-333333333333",
       request_id: "88888888-8888-4888-8888-888888888888",
       can_remember_readonly: true,
+      local_only_taint: false,
+      current_action_taints: false,
+      available_destinations: ["device_local", "org_private", "org_remote"],
     });
-    manager.authorizeRequest(approvalWin, "88888888-8888-4888-8888-888888888888");
-    await waitFor(() => approvalWin.webContents.executeJavaScript(
-      "!document.getElementById('remember-readonly-label').hidden",
-    ), "readonly remembrance control");
+    manager.authorizeRequest(
+      approvalWin,
+      "88888888-8888-4888-8888-888888888888",
+    );
+    await waitFor(
+      () =>
+        approvalWin.webContents.executeJavaScript(
+          "!document.getElementById('remember-readonly-label').hidden",
+        ),
+      "readonly remembrance control",
+    );
+    assert.equal(
+      await approvalWin.webContents.executeJavaScript(
+        "document.getElementById('approval-destination-warning').hidden",
+      ),
+      true,
+    );
     await approvalWin.webContents.executeJavaScript(
       "document.getElementById('remember-readonly').checked = true; document.getElementById('approve').click()",
     );
@@ -316,10 +393,16 @@ app
       request_id: "request-3",
     });
     assert.equal(manager.authorizeRequest(win, "request-3"), true);
-    await waitFor(() => win.webContents.executeJavaScript(
-      "!document.getElementById('artifact-accept').hidden",
-    ), "artifact acceptance control");
-    await win.webContents.executeJavaScript("document.getElementById('accept-artifact').click()");
+    await waitFor(
+      () =>
+        win.webContents.executeJavaScript(
+          "!document.getElementById('artifact-accept').hidden",
+        ),
+      "artifact acceptance control",
+    );
+    await win.webContents.executeJavaScript(
+      "document.getElementById('accept-artifact').click()",
+    );
     await waitFor(() => messages.length === 7, "artifact acceptance gesture");
     assert.equal(messages[6].method, "signObjectProof");
     assert.equal(messages[6].payload.purpose, "accept");
@@ -328,11 +411,15 @@ app
     assert.equal(messages[6].payload.request_id, "request-3");
     manager.send(win, { type: "artifact_accepted" });
     await new Promise((resolve) => setTimeout(resolve, 50));
-    assert.equal(await win.webContents.executeJavaScript(
-      "document.getElementById('artifact-accept').hidden",
-    ), true);
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        "document.getElementById('artifact-accept').hidden",
+      ),
+      true,
+    );
 
-    const mainWindowSnapshot = await mainWindow.webContents.executeJavaScript(`(async () => {
+    const mainWindowSnapshot = await mainWindow.webContents
+      .executeJavaScript(`(async () => {
       const parts = [document.documentElement.outerHTML];
       for (const storage of [localStorage, sessionStorage]) {
         for (let i = 0; i < storage.length; i += 1) {
@@ -383,13 +470,16 @@ app
           isolatedFromMain: viewerProcessId !== process.pid,
         },
         objectBindingAccepted: messages.length === 7,
-        acceptanceGestureAccepted: messages[6]?.method === "signObjectProof" &&
+        acceptanceGestureAccepted:
+          messages[6]?.method === "signObjectProof" &&
           messages[6]?.payload?.purpose === "accept",
         approvalDecision: {
           accepted: messages[4]?.method === "decideLocalApproval",
           decision: messages[4]?.payload?.decision,
         },
-        readonlyRemembranceAccepted: messages[5]?.payload?.remember_readonly === true,
+        destinationWarningAccepted: true,
+        readonlyRemembranceAccepted:
+          messages[5]?.payload?.remember_readonly === true,
         staleRequestRejected: messages.slice(0, 2).length === 2,
         acceptedProofRequests: messages
           .filter((message) => message.method === "signObjectProof")
@@ -397,7 +487,10 @@ app
         artifactEdit: {
           prepareAccepted: messages[2]?.method === "prepareUserArtifactVersion",
           confirmAccepted: messages[3]?.method === "confirmLocalWrite",
-          taskContextStayedInMain: !Object.hasOwn(messages[2]?.payload ?? {}, "task_id"),
+          taskContextStayedInMain: !Object.hasOwn(
+            messages[2]?.payload ?? {},
+            "task_id",
+          ),
           retainedDraftResumed: true,
         },
       }),

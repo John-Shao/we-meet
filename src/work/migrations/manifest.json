@@ -912,6 +912,17 @@
       "catalog_checksum": "sha256:842329992b69e66a3557bf954cbdaaf5b333f5a297eaa27f6ddd64656a0b88f9",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 83,
+      "name": "0083_local_destination_facts",
+      "kind": "increment",
+      "file": "increments/0083_local_destination_facts.sql",
+      "checksum": "sha256:20be316edffad5ab2ed76ffd0465242a59263ff52c6344ffaaf2ae9695c1157a",
+      "catalog": "catalogs/0083_local_destination_facts.json",
+      "catalog_checksum": "sha256:606b969d0fcb27918b0831def2f7e4f8c9082e2e2ed7094498a44c1e741d197c",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

@@ -37,6 +37,7 @@ test(
       accepted: true,
       decision: "rejected",
     });
+    assert.equal(evidence.destinationWarningAccepted, true);
     assert.equal(evidence.readonlyRemembranceAccepted, true);
     assert.equal(evidence.staleRequestRejected, true);
     assert.deepEqual(evidence.acceptedProofRequests, [

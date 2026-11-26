@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -152,6 +153,12 @@ func TestApprovalListGetDecide(t *testing.T) {
 	detail := decodeObject(t, deviceRequest(t, http.MethodGet, server.URL+detailPath, ""))
 	if detail["id"] != approvalID || detail["params_hash"] != strings.Repeat("c", 64) {
 		t.Fatalf("detail = %#v", detail)
+	}
+	destinationFacts, _ := detail["destination_facts"].(map[string]any)
+	if destinationFacts["local_only_taint"] != true ||
+		destinationFacts["current_action_taints"] != true ||
+		!reflect.DeepEqual(destinationFacts["available_destinations"], []any{"device_local"}) {
+		t.Fatalf("destination facts = %#v", detail["destination_facts"])
 	}
 	scope, _ := detail["readonly_scope"].(map[string]any)
 	if tools, _ := scope["tool_set"].([]any); len(tools) != 1 || tools[0] != "workspace.read" ||

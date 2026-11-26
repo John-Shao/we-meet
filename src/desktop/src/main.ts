@@ -138,6 +138,7 @@ async function armApprovalViewer(
   approvalId: string,
   requestId: string,
   canRememberReadonly: boolean,
+  destinationFacts: LocalApprovalDetail["destinationFacts"],
 ) {
   for (let attempt = 0; attempt < 200; attempt += 1) {
     if (viewerWindow.isDestroyed()) return;
@@ -147,6 +148,9 @@ async function armApprovalViewer(
         approval_id: approvalId,
         request_id: requestId,
         can_remember_readonly: canRememberReadonly,
+        local_only_taint: destinationFacts.localOnlyTaint,
+        current_action_taints: destinationFacts.currentActionTaints,
+        available_destinations: destinationFacts.availableDestinations,
       });
       viewer.authorizeRequest(viewerWindow, requestId);
       return;
@@ -1317,6 +1321,10 @@ async function createWindow() {
               `Profile SHA-256：${facts.profileHash}`,
               `目录授权：${facts.selectedGrantIds.map((id, index) => `${id} @ ${facts.grantRevisions[index]}`).join("、")}`,
               `当前认证 epoch：${facts.authEpoch}`,
+              facts.artifactClassificationFloor === "local_only"
+                ? "所选目录包含 local_only 内容：成果只留本机，不可云同步；设备外模型目的地不可用。"
+                : "所选目录允许脱敏摘录；成果分类仍以服务端执行结果为准。",
+              `当前可用目的地：${facts.availableDestinations.join("、") || "(无)"}`,
               "确认后设备才会签署 local_intent；正文仍只留在本机。",
             ].join("\n"),
             buttons: ["取消", "确认提交"],
@@ -1644,6 +1652,7 @@ async function createWindow() {
             id,
             approval.requestId,
             approval.detail.readonlyScope !== null,
+            approval.detail.destinationFacts,
           );
         }
         return { status: "opened" };

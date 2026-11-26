@@ -80,26 +80,30 @@ type localPreviewClaims struct {
 }
 
 type localPreviewFacts struct {
-	AuthEpoch         string `json:"auth_epoch"`
-	RuntimeDigest     string `json:"runtime_digest"`
-	ProfileID         string `json:"profile_id"`
-	RunCapTokens      int64  `json:"run_cap_tokens"`
-	ForceAskEach      bool   `json:"force_ask_each"`
-	AllowAutoReadonly bool   `json:"allow_auto_readonly"`
+	AuthEpoch                   string   `json:"auth_epoch"`
+	RuntimeDigest               string   `json:"runtime_digest"`
+	ProfileID                   string   `json:"profile_id"`
+	RunCapTokens                int64    `json:"run_cap_tokens"`
+	ForceAskEach                bool     `json:"force_ask_each"`
+	AllowAutoReadonly           bool     `json:"allow_auto_readonly"`
+	ArtifactClassificationFloor string   `json:"artifact_classification_floor"`
+	AvailableDestinations       []string `json:"available_destinations"`
 }
 
 type localPreviewResponse struct {
-	PreviewHash         string    `json:"preview_hash"`
-	ExpiresAt           time.Time `json:"expires_at"`
-	TargetSelectionHash string    `json:"target_selection_hash"`
-	InputRef            string    `json:"input_ref"`
-	InputHash           string    `json:"input_hash"`
-	InputBytes          int64     `json:"input_bytes"`
-	Template            Template  `json:"template"`
-	PermissionMode      string    `json:"permission_mode"`
-	OutputFormat        string    `json:"output_format"`
-	OutputLocation      string    `json:"output_location"`
-	TokenUpperBound     int64     `json:"token_upper_bound"`
+	PreviewHash                 string    `json:"preview_hash"`
+	ExpiresAt                   time.Time `json:"expires_at"`
+	TargetSelectionHash         string    `json:"target_selection_hash"`
+	InputRef                    string    `json:"input_ref"`
+	InputHash                   string    `json:"input_hash"`
+	InputBytes                  int64     `json:"input_bytes"`
+	Template                    Template  `json:"template"`
+	PermissionMode              string    `json:"permission_mode"`
+	OutputFormat                string    `json:"output_format"`
+	OutputLocation              string    `json:"output_location"`
+	TokenUpperBound             int64     `json:"token_upper_bound"`
+	ArtifactClassificationFloor string    `json:"artifact_classification_floor"`
+	AvailableDestinations       []string  `json:"available_destinations"`
 }
 
 func (s *Server) createLocalTaskPreview(w http.ResponseWriter, r *http.Request) {
@@ -142,7 +146,8 @@ func (s *Server) createLocalTaskPreview(w http.ResponseWriter, r *http.Request) 
 			var raw []byte
 			if err := tx.QueryRow(r.Context(), `
 				SELECT work.local_preview_facts($1, $2, $3, $4::uuid, $5::uuid,
-				  $6::uuid[], $7::text[], $8, $9)`,
+				  $6::uuid[], $7::text[], $8, $9)
+				  || work.local_preview_destination_facts($1, $2, $6::uuid[])`,
 				claims.OrgID, claims.SubjectID, claims.SessionRevision,
 				body.TargetSelection.DeviceID, body.TargetSelection.SessionID,
 				grantIDs(body.TargetSelection.WorkspaceGrants), grantRevisions(body.TargetSelection.WorkspaceGrants),
@@ -184,6 +189,8 @@ func (s *Server) createLocalTaskPreview(w http.ResponseWriter, r *http.Request) 
 		InputRef: body.InputRef, InputHash: body.InputHash, InputBytes: body.InputBytes, Template: template,
 		PermissionMode: body.PermissionMode, OutputFormat: body.OutputFormat,
 		OutputLocation: "device_local", TokenUpperBound: facts.RunCapTokens,
+		ArtifactClassificationFloor: facts.ArtifactClassificationFloor,
+		AvailableDestinations:       facts.AvailableDestinations,
 	})
 }
 

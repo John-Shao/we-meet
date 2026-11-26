@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -394,7 +395,9 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 	previewHash, _ := preview["preview_hash"].(string)
 	targetHash, _ := preview["target_selection_hash"].(string)
 	if previewHash == "" || len(targetHash) != 64 || preview["input_hash"] != strings.TrimPrefix(inputHash, "sha256:") ||
-		preview["input_bytes"] != float64(inputBytes) || preview["output_location"] != "device_local" || preview["permission_mode"] != "ask_each" {
+		preview["input_bytes"] != float64(inputBytes) || preview["output_location"] != "device_local" || preview["permission_mode"] != "ask_each" ||
+		preview["artifact_classification_floor"] != "local_only" ||
+		!reflect.DeepEqual(preview["available_destinations"], []any{"device_local"}) {
 		t.Fatalf("local preview = %#v", preview)
 	}
 	staleTarget := make(map[string]any, len(targetSelection))
@@ -486,7 +489,12 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 		testOrg, taskID, runID).Scan(&taskState, &runState, &bindingState, &bindingInput); err != nil {
 		t.Fatal(err)
 	}
-	if taskState != "open" || runState != "queued" || bindingState != "offered" || bindingInput != inputRef {
+	// The real Broker may consume the offer before this read; both the initial
+	// queued/offered state and the already-running active/active state are valid.
+	if taskState != "open" ||
+		!((runState == "queued" && bindingState == "offered") ||
+			(runState == "active" && bindingState == "active")) ||
+		bindingInput != inputRef {
 		t.Fatalf("local submit server truth = task %s run %s binding %s input %s",
 			taskState, runState, bindingState, bindingInput)
 	}

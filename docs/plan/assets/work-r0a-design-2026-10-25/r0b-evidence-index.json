@@ -579,13 +579,18 @@
       "status": "partial",
       "gaps": [
         "E=B 后远程模型消费已移出，但保留的目的地谓词已有直接真库证据：list-only 不进入 (A) 仍按 (B) 压为 local_only；read taint 在 prepare 前拒绝且零 Operation/Approval/预留；local_only 输出根单独进入 (A) 并零副作用拒绝。",
-        "0079 已闭合 permit 拒绝语义：目的地闸命中后持久化 canceled、释放 held 预留、零 dispatch，且 claim 不再重试；正常 permit 与已有 dispatch 重放仍委托原 0069 路径。预览/确认页提前告警与真实远程消费 E2E 仍未执行。"
+        "0079 已闭合 permit 拒绝语义：目的地闸命中后持久化 canceled、释放 held 预留、零 dispatch，且 claim 不再重试；正常 permit 与已有 dispatch 重放仍委托原 0069 路径。",
+        "0083 已让预览响应下发 artifact_classification_floor/available_destinations，并让审批读面按本 Run 实际 read/search/artifact.write 引用计算 local_only taint；本机提交确认与安全 viewer 均显示目的地告警。真实远程消费 E2E 仍按 E=B 移出，未执行。"
       ],
       "evidence": [
         { "path": "src/work/internal/migrate/r0b_local_artifact_test.go", "test": "TestR0bListOnlyInputPassesDestinationGateButFloorsArtifact" },
         { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bPrepareRefusesANonDeviceDestinationOnceTheRunHasLocalOnlyInput" },
         { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bPermitConsumptionReChecksTheDestinationFromServerFacts" },
-        { "path": "src/work/internal/migrate/r0b_local_artifact_test.go", "test": "TestR0bEV118LocalOnlyOutputRootBlocksRemotePrepare" }
+        { "path": "src/work/internal/migrate/r0b_local_artifact_test.go", "test": "TestR0bEV118LocalOnlyOutputRootBlocksRemotePrepare" },
+        { "path": "src/work/internal/api/approvals_test.go", "test": "TestApprovalListGetDecide" },
+        { "path": "src/work/internal/api/device_broker_interop_test.go", "test": "TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "submitLocalTask previews, confirms natively, signs and submits the exact local intent" },
+        { "path": "src/desktop/tests/work-viewer-smoke.test.cjs", "test": "real Electron viewer enforces DOM network cookie and process isolation" }
       ]
     },
     {
@@ -594,7 +599,8 @@
       "requirement": "预览提前显示 artifact_classification_floor 与 local_only 不可云同步告警，提交不被误阻断，改绑变严再次提示。",
       "status": "not_run",
       "gaps": [
-        "PreviewV2 尚无 artifact_classification_floor 消费或选择阶段 UI 测试；E=B 后同步腿移出，但本机下限提示仍待裁定与实现。"
+        "0083 已让本机预览响应携带服务端所选 grant 的 artifact_classification_floor 与 available_destinations，提交确认页在 local_only 时明确告知只留本机、不可云同步且提交不被阻断。",
+        "改绑或换 grant 使实际 (B) 比预览预测更严时，任务页尚未在同步前再次提示；E=B 后同步腿移出，但该改绑提醒仍待实现，故整门保持 not_run。"
       ],
       "evidence": []
     },
