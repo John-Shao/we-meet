@@ -438,9 +438,10 @@
       "requirement": "停用组织、停用执行与授座并发遵守权威顺序；降 seat_limit 不撤人；未决 Apply 冲突且 revision 单调。",
       "status": "partial",
       "gaps": [
-        "未决 Apply 冲突、revision 单调与 host_org/host_member/host_seat 恢复矩阵已补；跨系统并发时序仍未执行。"
+        "未决 Apply 冲突、revision 单调、host_org/host_member/host_seat 恢复矩阵与 Host 侧 operator disable／授座并发已补；Work↔Host 真实网络并发仍未执行。"
       ],
       "evidence": [
+        { "path": "src/backend/core/tests/test_work_entitlement_commands.py", "test": "test_operator_disable_serializes_before_a_concurrent_seat_grant" },
         { "path": "src/work/internal/migrate/r0b_entitlement_test.go", "test": "TestR0bOperatorRestoreKeepsEveryHostDenySource" },
         { "path": "src/work/internal/operatorentitlement/executor_test.go", "test": "TestPendingApplyConflictKeepsTheRevisionMonotonic" },
         { "path": "src/work/internal/migrate/r0b_entitlement_test.go", "test": "TestR0bOperatorSuspendBuildsDenyAndQueuesCancellations" },

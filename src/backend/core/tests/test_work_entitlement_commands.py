@@ -1,6 +1,9 @@
 import json
+import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
+from django.db import transaction
 from django.test import override_settings
 
 import pytest
@@ -247,6 +250,61 @@ def test_change_seat_enforces_entitlement_and_counts_people(client):
     work_governance.change_seat(first, desired=True)
     first.refresh_from_db()
     assert first.work_seat is True
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(**MTLS)
+def test_operator_disable_serializes_before_a_concurrent_seat_grant(client):
+    organization = factories.OrganizationFactory()
+    target = factories.MembershipFactory(organization=organization)
+    initial = command_body(organization)
+    assert (
+        client.post(
+            APPLY_URL.format(org_id=organization.id),
+            json.dumps(initial),
+            content_type="application/json",
+            **cert_headers(OPERATOR_CLIENT_PEM),
+        ).status_code
+        == 200
+    )
+
+    started = threading.Event()
+
+    def grant_seat():
+        started.set()
+        try:
+            work_governance.change_seat(target, desired=True)
+        except DRFValidationError as error:
+            return error
+        return None
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        with transaction.atomic():
+            locked = models.Organization.objects.select_for_update().get(
+                pk=organization.pk
+            )
+            pending = executor.submit(grant_seat)
+            assert started.wait(timeout=5)
+            disabled = command_body(organization, expected=1, target=2, enabled=False)
+            work_governance.apply_execution_entitlement(
+                locked,
+                command_id=disabled["command_id"],
+                expected_revision=disabled["expected_entitlement_revision"],
+                target_revision=disabled["target_entitlement_revision"],
+                enabled=disabled["enabled"],
+                seat_limit=disabled["seat_limit"],
+                operator_suspended=disabled["operator_suspended"],
+                operator_authorization_ref=disabled["operator_authorization_ref"],
+                payload_hash=disabled["payload_hash"],
+            )
+        error = pending.result(timeout=5)
+
+    assert isinstance(error, DRFValidationError)
+    assert error.detail == {"code": "org_execution_disabled"}
+    target.refresh_from_db()
+    assert target.work_seat is False
+    entitlement = models.WorkExecutionEntitlement.objects.get(organization=organization)
+    assert (entitlement.enabled, entitlement.revision) == (False, 2)
 
 
 @override_settings(**MTLS)
