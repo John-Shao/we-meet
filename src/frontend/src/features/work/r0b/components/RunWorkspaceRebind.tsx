@@ -8,7 +8,7 @@ import { css } from '@/styled-system/css'
 import { useWorkBootstrap } from '../../r0a/api/queries'
 import { useReadOnlyViewport } from '../../r0a/hooks/useReadOnlyViewport'
 import { errorText, muted, sectionTitle } from '../../r0a/ui'
-import type { WorkspaceGrantSummary } from '../../../../../../desktop/src/work/bridge'
+import type { WorkspaceGrantSummary } from '../../localBridgeTypes'
 
 const controls = css({
   display: 'flex',

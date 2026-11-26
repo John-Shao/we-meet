@@ -31,7 +31,7 @@ class EntitlementConflict(serializers.ValidationError):
         super().__init__({"code": _(code)})
 
 
-def execution_entitlement_payload_hash(  # noqa: PLR0913 -- explicit signed command fields
+def execution_entitlement_payload_hash(  # noqa: PLR0913 -- explicit signed command fields  # pylint: disable=too-many-arguments
     *,
     organization_id,
     expected_revision,
@@ -41,6 +41,7 @@ def execution_entitlement_payload_hash(  # noqa: PLR0913 -- explicit signed comm
     operator_suspended,
     operator_authorization_ref,
 ):
+    """Return the JCS sha256 of the fields one signed entitlement command binds."""
     payload = {
         "org_id": str(organization_id),
         "expected_entitlement_revision": expected_revision,
@@ -90,7 +91,11 @@ def _entitlement_response(
     return response
 
 
-def apply_execution_entitlement(  # noqa: PLR0913 -- explicit operator command fields
+def _is_int_at_least(value, minimum):
+    return isinstance(value, int) and not isinstance(value, bool) and value >= minimum
+
+
+def apply_execution_entitlement(  # noqa: PLR0913 -- explicit operator command fields  # pylint: disable=too-many-arguments
     organization,
     *,
     command_id=None,
@@ -107,15 +112,9 @@ def apply_execution_entitlement(  # noqa: PLR0913 -- explicit operator command f
     if not isinstance(enabled, bool) or not isinstance(operator_suspended, bool):
         raise serializers.ValidationError({"enabled": _("Must be a boolean.")})
     if (
-        not isinstance(expected_revision, int)
-        or isinstance(expected_revision, bool)
-        or expected_revision < 0
-        or not isinstance(target_revision, int)
-        or isinstance(target_revision, bool)
-        or target_revision < 1
-        or not isinstance(seat_limit, int)
-        or isinstance(seat_limit, bool)
-        or seat_limit < 1
+        not _is_int_at_least(expected_revision, 0)
+        or not _is_int_at_least(target_revision, 1)
+        or not _is_int_at_least(seat_limit, 1)
     ):
         raise serializers.ValidationError(
             {"revision": _("Invalid entitlement values.")}
@@ -229,6 +228,7 @@ def apply_execution_entitlement(  # noqa: PLR0913 -- explicit operator command f
 
 
 def get_execution_entitlement_command(command_id):
+    """Return the stored result of one applied entitlement command, or None."""
     audit = models.AuditLog.objects.filter(
         action=models.AuditActionChoices.WORK_ENTITLEMENT_APPLY,
         metadata__command_id=str(command_id),
@@ -239,6 +239,7 @@ def get_execution_entitlement_command(command_id):
 
 
 def assert_seat_change_allowed(organization, user_id):
+    """Refuse a seat change the organization's entitlement or quota forbids."""
     entitlement = models.WorkExecutionEntitlement.objects.filter(
         organization=organization
     ).first()
@@ -458,6 +459,7 @@ def revoke_seat_without_subject(membership, *, actor=None, reason_code=""):
 
 
 def validate_work_governance_permissions(codes):
+    """Return the sorted closed permission set, refusing unknown codes."""
     cleaned = {str(code).strip() for code in codes or [] if str(code).strip()}
     unknown = sorted(cleaned - WORK_GOVERNANCE_PERMISSIONS)
     if unknown:
@@ -471,6 +473,7 @@ def validate_work_governance_permissions(codes):
 
 
 def work_permissions_for_user(user, organization):
+    """Return the active Work governance permissions for one user in one organization."""
     if (
         user is None
         or not getattr(user, "is_active", False)
@@ -496,7 +499,7 @@ def work_permissions_for_user(user, organization):
     return sorted(permissions)
 
 
-def change_work_governance_assignment(  # noqa: PLR0913 -- explicit assignment command fields
+def change_work_governance_assignment(  # noqa: PLR0913 -- explicit assignment command fields  # pylint: disable=too-many-arguments
     organization,
     target_user,
     *,
@@ -505,6 +508,7 @@ def change_work_governance_assignment(  # noqa: PLR0913 -- explicit assignment c
     expected_revision=None,
     client_request_id="",
 ):
+    """Replace one user's Work governance assignment under its CAS revision."""
     permissions = validate_work_governance_permissions(permissions)
     if not getattr(actor, "is_authenticated", False):
         raise exceptions.PermissionDenied()

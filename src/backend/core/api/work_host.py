@@ -633,7 +633,10 @@ def _entitlement_body(request):
 @method_decorator(never_cache, name="dispatch")
 @method_decorator(require_POST, name="dispatch")
 class WorkHostEntitlementApplyView(View):
+    """Operator entitlement command endpoint (mTLS workload identity only)."""
+
     def post(self, request, org_id):
+        """Apply one signed entitlement command and return its stored result."""
         if not _verify_client_certificate(request, _expected_operator_identity()):
             return JsonResponse({"code": "client_identity_invalid"}, status=403)
         try:
@@ -671,7 +674,10 @@ class WorkHostEntitlementApplyView(View):
 @method_decorator(never_cache, name="dispatch")
 @method_decorator(require_GET, name="dispatch")
 class WorkHostEntitlementCommandView(View):
+    """Read back one applied entitlement command (mTLS workload identity only)."""
+
     def get(self, request, command_id):
+        """Return the stored command result, or 404 when it was never applied."""
         if not _verify_client_certificate(request, _expected_operator_identity()):
             return JsonResponse({"code": "client_identity_invalid"}, status=403)
         response = get_execution_entitlement_command(command_id)

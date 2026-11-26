@@ -172,6 +172,9 @@ mod win {
             ticket_tx,
             core_tx,
             ready_tx,
+            // The ticket probe runs no sync core, so nothing fills this slot and every approval
+            // carrier is refused.
+            std::sync::Arc::new(std::sync::Mutex::new(None)),
             work_device::nodeservice::spawn_node_service(),
         ));
         let link = Link::new(config, key.clone());

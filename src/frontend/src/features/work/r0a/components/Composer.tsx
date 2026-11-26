@@ -10,7 +10,7 @@ import {
 import { Button } from '@/primitives/Button'
 import { TextArea } from '@/primitives/TextArea'
 import { css, cx } from '@/styled-system/css'
-import type { WorkspaceGrantSummary } from '../../../../../../desktop/src/work/bridge'
+import type { WorkspaceGrantSummary } from '../../localBridgeTypes'
 import type {
   PermissionMode,
   WorkBootstrap,

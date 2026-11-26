@@ -1,5 +1,7 @@
 """Owner-only administration of the isolated Work governance domain."""
 
+# pylint: disable=missing-class-docstring,missing-function-docstring,abstract-method
+
 from datetime import timedelta
 
 from django.shortcuts import get_object_or_404

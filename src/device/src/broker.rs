@@ -700,10 +700,7 @@ async fn approval_decision_reply(
         return Reply::refused(message, code);
     }
     for key in fields {
-        if key == "remember_readonly"
-            || key == "readonly_scope"
-            || key == "readonly_expires_at"
-        {
+        if key == "remember_readonly" || key == "readonly_scope" || key == "readonly_expires_at" {
             continue;
         }
         if text(key).is_empty() {
@@ -771,6 +768,10 @@ async fn approval_decision_reply(
     confirmation_reply(node, message).await
 }
 
+// The confirmation carriers forward into the Node service thread, which only exists on Windows
+// (nodeservice/listener/modelproxy are `#[cfg(windows)]` modules). The pump's non-Windows arm
+// refuses these methods before this function is reachable.
+#[cfg(windows)]
 async fn confirmation_reply(
     node: &mpsc::Sender<crate::nodeservice::NodeRequest>,
     message: &Value,

@@ -29,7 +29,7 @@ import { useReadOnlyViewport } from '../hooks/useReadOnlyViewport'
 import { ArtifactPreview } from '../components/ArtifactPreview'
 import { TaskStatusBadge } from '../components/TaskStatusBadge'
 import { card, errorText, muted, notice, page, row, sectionTitle } from '../ui'
-import type { LocalArtifactDraft } from '../../../../../../desktop/src/work/bridge'
+import type { LocalArtifactDraft } from '../../localBridgeTypes'
 
 const downloadLink = css({
   display: 'inline-flex',
@@ -95,6 +95,7 @@ export const ArtifactWorkspacePage = () => {
   }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const workspaceQ = useWorkArtifactWorkspace(taskId, artifactId)
+  const refetchWorkspace = workspaceQ.refetch
   const readOnly = useReadOnlyViewport()
   const acceptMutation = useAcceptWorkTask(taskId ?? '')
   const acceptKey = useIdempotencyKey()
@@ -135,13 +136,13 @@ export const ArtifactWorkspacePage = () => {
     if (!workBridge?.onArtifactAccepted || !taskId || !artifactId) return
     return workBridge.onArtifactAccepted((accepted) => {
       if (accepted.taskId === taskId && accepted.artifactId === artifactId) {
-        void workspaceQ.refetch()
+        void refetchWorkspace()
         void queryClient.invalidateQueries({
           queryKey: ['work', 'task', taskId],
         })
       }
     })
-  }, [artifactId, queryClient, taskId, workBridge, workspaceQ.refetch])
+  }, [artifactId, queryClient, refetchWorkspace, taskId, workBridge])
 
   const versions = workspaceQ.data?.artifact.versions ?? []
   const requestedVersion = Number(searchParams.get('version'))

@@ -10,7 +10,7 @@ import {
   setWorkLocalPolicy,
 } from './client'
 import { useWorkBootstrap } from '../../r0a/api/queries'
-import type { PendingLocalApproval } from '../../../../../../desktop/src/work/bridge'
+import type { PendingLocalApproval } from '../../localBridgeTypes'
 
 const r0bKeys = {
   reconciliations: (runId: string) =>
