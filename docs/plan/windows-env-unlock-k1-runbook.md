@@ -56,3 +56,69 @@ Windows Sandbox 官方要求 Pro/Enterprise/Education；本机家庭版不满足
 - 本单零代码零部署零 migration；不改 signoff 证据边界。
 - 提权动作永远由主签执行；助手只准备步骤与只读探测。
 - K2 不留 Sandbox 兜底是已接受代价（卡片 K 原文），用 §3 第 3 步隔离纪律补偿。
+
+## 7. EV72／EV73／EV123 OS 级零请求／零写取证（提升窗口执行）
+
+本段是主签在提升 PowerShell 中执行的操作单；助手不代提权。所有原始证据只落 `C:\work-k2\`，完成后先把 ETL/TXT/JSON 归档到工作区，再清理临时目录。
+
+### 7.1 前置
+
+1. 提升窗口第一条必须为 `True`：
+   ```powershell
+   ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+   ```
+2. `pktmon`、`logman`、`tracerpt` 可执行；本地 Work 栈（Keycloak/work-api/work-gateway/work-pg16）已启动。
+3. 记录 Electron 主进程、viewer renderer、Broker 的 PID 与二进制 SHA256；E2E receipt 的 `device`/`profileHash` 同时归档。
+
+### 7.2 启动系统观测
+
+```powershell
+New-Item -ItemType Directory C:\work-k2\ev123 -Force | Out-Null
+logman create trace EV123Net -p Microsoft-Windows-Kernel-Network 0xffffffffffffffff 5 -o C:\work-k2\ev123\net.etl -ets
+logman create trace EV123Dns -p Microsoft-Windows-DNS-Client 0xffffffffffffffff 5 -o C:\work-k2\ev123\dns.etl -ets
+logman create trace EV123File -p Microsoft-Windows-Kernel-File 0xffffffffffffffff 5 -o C:\work-k2\ev123\file.etl -ets
+logman create trace EV123Pipe -p Microsoft-Windows-Kernel-Pipe 0xffffffffffffffff 5 -o C:\work-k2\ev123\pipe.etl -ets
+pktmon start --capture --pkt-size 0 --file-name C:\work-k2\ev123\pktmon.etl
+```
+
+### 7.3 运行无手势窗口
+
+在**另一个非提升**终端执行（E2E 自己完成真实 artifact.write、打开安全 viewer，然后只等待、不点击）：
+
+```powershell
+$env:E2E_VIEWER_IDLE_ONLY = "1"
+$env:E2E_VIEWER_IDLE_MS = "10000"
+$env:E2E_VIEWER_IDLE_MARKER = "C:\work-k2\ev123\idle-marker.json"
+node scripts/work-e2e-smoke.cjs
+```
+
+marker 文件出现即观测窗口开始；E2E 会在窗口结束后写 `src/desktop/test-results/work-e2e/idle-receipt.json`，其中 `acceptanceRestCount=0`、`prepareLocalAcceptancePipeFrameCount=0`、`viewerGestureObserved=false`。
+
+### 7.4 停止与判据
+
+窗口结束后停止观测并转文本：
+
+```powershell
+pktmon stop
+pktmon etl2txt C:\work-k2\ev123\pktmon.etl --out C:\work-k2\ev123\pktmon.txt --timestamp
+logman stop EV123Net -ets; logman delete EV123Net -ets
+logman stop EV123Dns -ets; logman delete EV123Dns -ets
+logman stop EV123File -ets; logman delete EV123File -ets
+logman stop EV123Pipe -ets; logman delete EV123Pipe -ets
+tracerpt C:\work-k2\ev123\net.etl -o C:\work-k2\ev123\net.txt -of TEXT
+tracerpt C:\work-k2\ev123\dns.etl -o C:\work-k2\ev123\dns.txt -of TEXT
+tracerpt C:\work-k2\ev123\file.etl -o C:\work-k2\ev123\file.txt -of TEXT
+tracerpt C:\work-k2\ev123\pipe.etl -o C:\work-k2\ev123\pipe.txt -of TEXT
+```
+
+必须同时满足：
+
+- `idle-receipt.json` 三项零值成立；PostgreSQL `acceptance` 计数为 0，journal/workspace 文件哈希与窗口前一致。
+- `pktmon.txt` 在 marker 时间窗内无 viewer PID 的非 loopback 包；`dns.txt` 无 `evil.test` 或任何非预期外部域名查询。
+- `file.txt` 在 marker 时间窗内无 viewer/Broker PID 对授权 workspace、Work journal、`work_e2e` 数据库文件的写事件；Electron 自身缓存/日志路径单列，不混入业务零写判据。
+- `pipe.txt` 无 `prepareLocalAcceptance`／`acceptLocalArtifactVersion` 相关帧；应用层 pipe log 与 REST 计数均为 0。
+- **正对照**：去掉 `E2E_VIEWER_IDLE_ONLY` 再跑一次，必须出现 viewer PID 的 loopback 请求、`prepareLocalAcceptance` pipe 帧、REST acceptance 与 file/DB 写，证明观测器没有静默失效。
+
+### 7.5 归档
+
+把 `C:\work-k2\ev123\` 下的 ETL、TXT、marker、PID/哈希清单与 `idle-receipt.json` 复制到工作区证据目录，记录每个文件的 SHA256、采集时间窗和正对照结果。该证据只闭合 OS 观测缺口；外部 J39 审计仍是独立未完成项。

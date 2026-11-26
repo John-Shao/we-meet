@@ -597,13 +597,31 @@ async function main() {
 
     // No-gesture negative leg. Background polling is allowed; only the acceptance-specific REST
     // route and the serialized prepareLocalAcceptance pipe request are required to remain zero.
-    const noGestureMs = Number(process.env.E2E_NO_GESTURE_MS || 2000);
+    const idleOnly = process.env.E2E_VIEWER_IDLE_ONLY === "1";
+    const noGestureMs = Number(
+      process.env.E2E_VIEWER_IDLE_MS || process.env.E2E_NO_GESTURE_MS || 2000,
+    );
     assert.ok(
       Number.isSafeInteger(noGestureMs) &&
         noGestureMs >= 500 &&
-        noGestureMs <= 10000,
-      "E2E_NO_GESTURE_MS must be 500..10000",
+        noGestureMs <= (idleOnly ? 60000 : 10000),
+      idleOnly
+        ? "E2E_VIEWER_IDLE_MS must be 500..60000"
+        : "E2E_NO_GESTURE_MS must be 500..10000",
     );
+    const idleMarker = process.env.E2E_VIEWER_IDLE_MARKER;
+    if (idleOnly && idleMarker) {
+      fs.writeFileSync(
+        idleMarker,
+        JSON.stringify({
+          at: Date.now(),
+          taskId,
+          artifactId,
+          versionId,
+          windowMs: noGestureMs,
+        }),
+      );
+    }
     await wait(noGestureMs);
     const noGestureAcceptanceRequestCount = acceptanceRestRequests.length;
     const noGesturePreparePipeFrameCount = acceptancePipeFrames().length;
@@ -623,6 +641,34 @@ async function main() {
       ),
       "0",
     );
+
+    if (idleOnly) {
+      const idleReceipt = {
+        passed: true,
+        idleOnly: true,
+        taskId,
+        artifactId,
+        versionId,
+        versionNo: artifact.versionNo,
+        contentHash: artifact.contentHash,
+        windowMs: noGestureMs,
+        acceptanceRestCount: noGestureAcceptanceRequestCount,
+        prepareLocalAcceptancePipeFrameCount: noGesturePreparePipeFrameCount,
+        viewerGestureObserved: false,
+        testedAt: new Date().toISOString(),
+      };
+      assert.equal(
+        idleReceipt.viewerGestureObserved,
+        false,
+        "viewerGestureObserved",
+      );
+      fs.writeFileSync(
+        path.join(output, "idle-receipt.json"),
+        JSON.stringify(idleReceipt, null, 2) + "\n",
+      );
+      console.log(JSON.stringify(idleReceipt));
+      return;
+    }
 
     console.error("clicking viewer accept");
     await viewer
@@ -700,8 +746,7 @@ async function main() {
   } finally {
     if (stopApprover) stopApprover();
     if (fixture) fixture.kill();
-    if (app)
-      await Promise.race([app.close().catch(() => {}), wait(5000)]);
+    if (app) await Promise.race([app.close().catch(() => {}), wait(5000)]);
     proxy.closeAllConnections();
     await Promise.race([
       new Promise((resolve) => proxy.close(resolve)),
