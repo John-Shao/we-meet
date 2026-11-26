@@ -525,7 +525,12 @@ export const TaskWorkspacePage = () => {
               <p className={muted}>{t('task.noLiveEvents')}</p>
             ) : null}
           </section>
-          <RunReconciliations runId={detail.summary.latest_run_id} />
+          <RunReconciliations
+            runId={detail.summary.latest_run_id}
+            onContinue={() => void taskQ.refetch()}
+            onEndRun={readOnly ? undefined : () => void onCancel()}
+            endingRun={cancelMutation.isPending}
+          />
           <RunPendingApprovals taskId={detail.summary.task_id} />
           <RunReadonlyGrants runId={detail.summary.latest_run_id} />
           <RunWorkspaceRebind

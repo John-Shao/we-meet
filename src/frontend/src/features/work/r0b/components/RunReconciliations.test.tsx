@@ -1,4 +1,5 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { RunReconciliations } from './RunReconciliations'
@@ -15,6 +16,12 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: Record<string, unknown>) =>
       options ? `${key}:${JSON.stringify(options)}` : key,
   }),
+}))
+
+vi.mock('wouter', () => ({
+  Link: ({ href, children }: { href: string; children: ReactNode }) => (
+    <a href={href}>{children}</a>
+  ),
 }))
 
 vi.mock('../../r0a/api/queries', () => ({
@@ -152,5 +159,103 @@ describe('RunReconciliations', () => {
     expect(
       screen.getByText('task.reconciliationsContact.wait_for_late_evidence')
     ).toBeTruthy()
+  })
+
+  it('offers continue, new Run and end after a readonly downgrade', () => {
+    const onContinue = vi.fn()
+    const onEndRun = vi.fn()
+    state.data = document({
+      wait_reason: 'input',
+      blocking: { new_run: false, acceptance: false },
+      items: [
+        {
+          operation_id: 'op-1',
+          kind: 'tool',
+          operation_state: 'reconciled',
+          reconcile_requested_at: '2026-11-22T10:00:00Z',
+          waited_seconds: 42,
+          resolution_state: 'downgraded_readonly',
+          evidence_sources: [],
+          ticket_id: null,
+          has_authoritative_evidence: false,
+          contact_path: 'wait_for_late_evidence',
+        },
+      ],
+    })
+    render(
+      <RunReconciliations
+        runId="run-1"
+        onContinue={onContinue}
+        onEndRun={onEndRun}
+      />
+    )
+    expect(screen.getByText('task.reconciliationsInputTitle')).toBeTruthy()
+    expect(screen.getByText('task.reconciliationsInputReadonly')).toBeTruthy()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'task.reconciliationsContinue' })
+    )
+    expect(onContinue).toHaveBeenCalledTimes(1)
+    expect(
+      screen
+        .getByRole('link', { name: 'task.reconciliationsNewRun' })
+        .getAttribute('href')
+    ).toBe('/work')
+    fireEvent.click(
+      screen.getByRole('button', { name: 'task.reconciliationsEndRun' })
+    )
+    expect(onEndRun).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'retry' })).toBeNull()
+  })
+
+  it('explains evidence exhaustion without offering a retry', () => {
+    state.data = document({
+      wait_reason: 'input',
+      blocking: { new_run: false, acceptance: true },
+      items: [
+        {
+          operation_id: 'op-1',
+          kind: 'model',
+          operation_state: 'reconciled',
+          reconcile_requested_at: '2026-11-22T10:00:00Z',
+          waited_seconds: 42,
+          resolution_state: 'evidence_exhausted',
+          evidence_sources: ['provider_log'],
+          ticket_id: 'OPS-7',
+          has_authoritative_evidence: true,
+          contact_path: 'operator_ticket',
+        },
+      ],
+    })
+    render(<RunReconciliations runId="run-1" />)
+    expect(screen.getByText('task.reconciliationsInputExhausted')).toBeTruthy()
+    expect(
+      screen.getByRole('link', { name: 'task.reconciliationsNewRun' })
+    ).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'retry' })).toBeNull()
+  })
+
+  it('does not show the three exits while reconciliation is still pending', () => {
+    state.data = document({
+      wait_reason: 'reconcile',
+      items: [
+        {
+          operation_id: 'op-1',
+          kind: 'model',
+          operation_state: 'unknown',
+          reconcile_requested_at: '2026-11-22T10:00:00Z',
+          waited_seconds: 42,
+          resolution_state: 'pending',
+          evidence_sources: [],
+          ticket_id: null,
+          has_authoritative_evidence: false,
+          contact_path: 'wait_for_reconciliation',
+        },
+      ],
+    })
+    render(<RunReconciliations runId="run-1" />)
+    expect(screen.queryByText('task.reconciliationsInputTitle')).toBeNull()
+    expect(
+      screen.queryByRole('link', { name: 'task.reconciliationsNewRun' })
+    ).toBeNull()
   })
 })

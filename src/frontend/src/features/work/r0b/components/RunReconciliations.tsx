@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next'
+import { Link } from 'wouter'
 
+import { Button } from '@/primitives/Button'
 import { css } from '@/styled-system/css'
 import { useWorkBootstrap } from '../../r0a/api/queries'
 import { muted, sectionTitle } from '../../r0a/ui'
@@ -34,8 +36,14 @@ const keyName = css({ fontWeight: 'semibold' })
  */
 export const RunReconciliations = ({
   runId,
+  onContinue,
+  onEndRun,
+  endingRun = false,
 }: {
   runId: string | null | undefined
+  onContinue?: () => void
+  onEndRun?: () => void
+  endingRun?: boolean
 }) => {
   const { t } = useTranslation('work')
   const bootstrapQ = useWorkBootstrap()
@@ -45,6 +53,13 @@ export const RunReconciliations = ({
     enabled
   )
   const data = reconciliationsQ.data
+  const showInputActions =
+    data?.wait_reason === 'input' &&
+    data.items.some((entry) =>
+      ['downgraded_readonly', 'evidence_exhausted'].includes(
+        entry.resolution_state
+      )
+    )
 
   if (!enabled || !runId || !data || data.items.length === 0) return null
 
@@ -67,6 +82,52 @@ export const RunReconciliations = ({
             .filter(Boolean)
             .join(' · ')}
         </p>
+      ) : null}
+      {showInputActions ? (
+        <div
+          role="group"
+          aria-label={t('task.reconciliationsInputTitle')}
+          className={css({
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'sm',
+            padding: 'md',
+            border: '1px solid token(colors.border.subtle)',
+          })}
+        >
+          <strong>{t('task.reconciliationsInputTitle')}</strong>
+          <p className={muted}>
+            {t(
+              data.blocking.acceptance
+                ? 'task.reconciliationsInputExhausted'
+                : 'task.reconciliationsInputReadonly'
+            )}
+          </p>
+          <div
+            className={css({ display: 'flex', gap: 'sm', flexWrap: 'wrap' })}
+          >
+            {onContinue ? (
+              <Button variant="secondary" size="dense" onPress={onContinue}>
+                {t('task.reconciliationsContinue')}
+              </Button>
+            ) : null}
+            <Link href="/work">
+              <Button variant="secondary" size="dense">
+                {t('task.reconciliationsNewRun')}
+              </Button>
+            </Link>
+            {onEndRun ? (
+              <Button
+                variant="secondary"
+                size="dense"
+                loading={endingRun}
+                onPress={onEndRun}
+              >
+                {t('task.reconciliationsEndRun')}
+              </Button>
+            ) : null}
+          </div>
+        </div>
       ) : null}
       <ul className={list}>
         {data.items.map((entry) => (
