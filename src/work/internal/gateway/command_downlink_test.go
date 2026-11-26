@@ -74,17 +74,17 @@ func (r *runUnderFinish) decideApproval(t *testing.T, approvalID, operationID st
 		t.Fatal(err)
 	}
 	proof := fmt.Sprintf(`{"v":1,"org_id":"%s","subject_id":"%s","auth_plane":"bearer",
-		"auth_epoch":%d,"device_id":"%s","session_id":"%s","approval_id":"%s","operation_id":"%s",
-		"params_hash":"%s","expected_revision":0,"decision":"approved","remember_readonly":false,
-		"readonly_scope":null,"readonly_expires_at":null,"policy_epoch":%s,"access_epoch":%s,
-		"nonce":"%s","expires_at":"%s","signature":"sha256:%s"}`,
+		"auth_epoch":"%d","device_id":"%s","session_id":"%s","approval_id":"%s","operation_id":"%s",
+		"params_hash":"%s","expected_revision":"0","decision":"approved","remember_readonly":false,
+		"readonly_scope":null,"readonly_expires_at":null,"policy_epoch":"%s","access_epoch":"%s",
+		"nonce":"%s","expires_at":"%s","signature":"%s"}`,
 		gwOrg, gwSubject, gwEpoch, r.f.deviceID, r.sessionID, approvalID, operationID,
 		strings.Repeat("1", 64),
 		r.scalar(t, `SELECT effective_epoch::text FROM work.local_execution_policy WHERE org_id=$1`, gwOrg),
 		r.scalar(t, `SELECT admission_access_epoch::text FROM work.run WHERE org_id=$1 AND id=$2::uuid`, gwOrg, r.runID),
 		"nonce-gw14-"+uuid.NewString(),
 		time.Now().UTC().Add(10*time.Minute).Format(time.RFC3339),
-		strings.Repeat("5", 64))
+		strings.Repeat("5", 86))
 	var raw []byte
 	if err := api.QueryRow(ctx,
 		`SELECT work.decide_local_approval($1,$2,'bearer',$3,$4::uuid,$5,$6::jsonb)`,

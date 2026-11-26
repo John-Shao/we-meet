@@ -555,6 +555,7 @@
     "provider_not_configured": "provider_not_configured",
     "provider_probe_grant_binding_immutable": "invalid_request",
     "provider_probe_grant_consumed_immutable": "invalid_request",
+    "preview_stale": "preview_stale",
     "quota_account_not_found": "service_degraded",
     "quota_exhausted": "quota_exhausted",
     "readonly_approval_grant_content_immutable": "invalid_request",
@@ -655,6 +656,8 @@
     "egress_output_immutable": "service_degraded",
     "egress_output_receipt_mismatch": "service_degraded",
     "egress_output_task_deleted": "service_degraded",
-    "local_proof_expired": "local_proof_expired"
+    "local_proof_expired": "local_proof_expired",
+    "local_submission_intent_immutable": "invalid_request",
+    "local_submission_outbox_mismatch": "service_degraded"
   }
 }

@@ -19,7 +19,7 @@ import (
 // getter targets by device_id through the latest binding, so the push after a receipt
 // delivers this conclusion. The row is written directly (how a conclusion is issued is
 // issue_operation_resolution's concern, covered in internal/migrate).
-func (f *gwFixture) seedPendingResolution(t *testing.T, sessionID, runID, opID string) (resolveID string) {
+func (f *gwFixture) seedPendingResolution(t *testing.T, sessionID, runID, opID, code, usageSource string) (resolveID string) {
 	t.Helper()
 	ctx := gwContext(t)
 	seed, err := testpg.Open(ctx, testpg.AdminURLFor(f.dbName))
@@ -45,12 +45,14 @@ func (f *gwFixture) seedPendingResolution(t *testing.T, sessionID, runID, opID s
 		ON CONFLICT (org_id, run_id, binding_revision) DO NOTHING;
 		INSERT INTO work.operation_resolution
 		  (org_id, run_id, operation_id, resolution_revision, resolve_id, attempt_id,
-		   state, delivery_state, settlement_state, signature, resolution_delivery)
-		VALUES ('%s','%s','%s',1,'%s',NULL,'failed','not_applicable','unknown','sha256:%s','pending');
+		   state, delivery_state, settlement_state, signature, resolution_delivery,
+		   code, usage_source)
+		VALUES ('%s','%s','%s',1,'%s',NULL,'failed','not_applicable','unknown','sha256:%s','pending',
+		        NULLIF('%s',''), NULLIF('%s',''));
 	`, gwOrg, gwOrg, runID, taskID, f.deviceID, sessionID,
 		strings.Repeat("2", 64), strings.Repeat("3", 64), strings.Repeat("4", 64),
 		strings.Repeat("5", 64), uuid.NewString(), uuid.NewString(),
-		gwOrg, runID, opID, resolveID, strings.Repeat("e", 64))
+		gwOrg, runID, opID, resolveID, strings.Repeat("e", 64), code, usageSource)
 	if err := testpg.ExecRaw(ctx, seed, script); err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +121,7 @@ func TestResolutionDownlinkPushAndAck(t *testing.T) {
 	}
 
 	runID, opID, attemptID, fence := f.seedReceiptAction(t, sessionID)
-	resolveID := f.seedPendingResolution(t, sessionID, runID, opID)
+	resolveID := f.seedPendingResolution(t, sessionID, runID, opID, "", "")
 
 	// A started receipt records cleanly and triggers the post-record re-push.
 	exec := receiptExec(gwOrg, gwSubject, f.deviceID, sessionID, agentID, bootID, generation, runID, opID, attemptID, fence)
@@ -225,22 +227,7 @@ func TestResolutionDownlinkDegradationKeepsUnknownSettlement(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID, opID, attemptID, fence := f.seedReceiptAction(t, sessionID)
-	resolveID := f.seedPendingResolution(t, sessionID, runID, opID)
-
-	ctx := gwContext(t)
-	seed, err := testpg.Open(ctx, testpg.AdminURLFor(f.dbName))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := testpg.ExecRaw(ctx, seed, fmt.Sprintf(`
-		SET app.org_id = '%s';
-		UPDATE work.operation_resolution
-		SET code='evidence_unavailable', usage_source='unavailable'
-		WHERE org_id='%s' AND resolve_id='%s';
-	`, gwOrg, gwOrg, resolveID)); err != nil {
-		t.Fatal(err)
-	}
-	_ = seed.Close(ctx)
+	resolveID := f.seedPendingResolution(t, sessionID, runID, opID, "evidence_unavailable", "unavailable")
 
 	exec := receiptExec(gwOrg, gwSubject, f.deviceID, sessionID, agentID, bootID, generation, runID, opID, attemptID, fence)
 	if err := stream.SendMsg(f.signReceipt(t, journalEpoch, sessionID, bootID, agentID, exec, 1, "started", nil)); err != nil {
@@ -272,6 +259,7 @@ func TestResolutionDownlinkDegradationKeepsUnknownSettlement(t *testing.T) {
 	}
 	_ = recvReceiptAck(t, stream)
 
+	ctx := gwContext(t)
 	admin, err := testpg.Open(ctx, testpg.AdminURLFor(f.dbName))
 	if err != nil {
 		t.Fatal(err)
@@ -299,7 +287,7 @@ func TestResolutionDownlinkRepushesUnackedOnReconnect(t *testing.T) {
 	first := f.connect(t, addr)
 	session1, journalEpoch, bootID, agentID, generation := f.helloSession(t, first)
 	runID, opID, attemptID, fence := f.seedReceiptAction(t, session1)
-	resolveID := f.seedPendingResolution(t, session1, runID, opID)
+	resolveID := f.seedPendingResolution(t, session1, runID, opID, "", "")
 	exec := receiptExec(gwOrg, gwSubject, f.deviceID, session1, agentID, bootID, generation, runID, opID, attemptID, fence)
 	if err := first.SendMsg(f.signReceipt(t, journalEpoch, session1, bootID, agentID, exec, 1, "started", nil)); err != nil {
 		t.Fatal(err)
@@ -350,7 +338,7 @@ func TestResolutionAckRejectsBadState(t *testing.T) {
 	stream := f.connect(t, addr)
 	sessionID, journalEpoch, bootID, agentID, generation := f.helloSession(t, stream)
 	runID, opID, attemptID, fence := f.seedReceiptAction(t, sessionID)
-	resolveID := f.seedPendingResolution(t, sessionID, runID, opID)
+	resolveID := f.seedPendingResolution(t, sessionID, runID, opID, "", "")
 	exec := receiptExec(gwOrg, gwSubject, f.deviceID, sessionID, agentID, bootID, generation, runID, opID, attemptID, fence)
 	if err := stream.SendMsg(f.signReceipt(t, journalEpoch, sessionID, bootID, agentID, exec, 1, "started", nil)); err != nil {
 		t.Fatal(err)
