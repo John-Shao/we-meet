@@ -39,6 +39,10 @@ const (
 	// shell already holds, but org_id is the Host's caller organization, which only the
 	// verified claims carry. M2 ruling 乙 adds this read-only identity face rather than
 	// widening the frozen pairing response. It is a new public entry (a J39 surface).
+	// The proof faces also bind auth_plane/auth_epoch (control-design §1.2), and the
+	// device session's epoch is server-side only, so the same face returns the caller's
+	// verified plane and session revision — the epoch the shell must sign, never its
+	// local login generation.
 	DeviceIdentityPath = "/work/v2/identity"
 )
 
@@ -369,6 +373,8 @@ func (s *Server) deviceIdentity(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{
 		"org_id":     claims.OrgID,
 		"subject_id": claims.SubjectID,
+		"auth_plane": "bearer",
+		"auth_epoch": strconv.FormatInt(claims.SessionRevision, 10),
 	})
 }
 

@@ -415,6 +415,10 @@ export class WorkDeviceDriver {
   private thumbprint = "";
   private orgId = "";
   private subject = "";
+  // The Host-verified auth_epoch (session revision) every local proof signs. It is NOT
+  // auth.epoch (the local login generation): only the verified claims carry the server's
+  // value, so it comes from the identity face at start and never from local state.
+  private hostEpoch = "";
   private container = "";
   private timer?: ReturnType<typeof setInterval>;
   private polling = false;
@@ -449,10 +453,21 @@ export class WorkDeviceDriver {
       const identity = await this.deps.api.request<{
         org_id: string;
         subject_id: string;
+        auth_plane: string;
+        auth_epoch: string;
       }>("identity");
       this.checkEpoch();
+      if (
+        typeof identity.auth_plane !== "string" ||
+        identity.auth_plane !== "bearer" ||
+        typeof identity.auth_epoch !== "string" ||
+        !/^(0|[1-9][0-9]*)$/.test(identity.auth_epoch)
+      ) {
+        throw new WorkApiError("work_identity_invalid");
+      }
       this.orgId = identity.org_id;
       this.subject = identity.subject_id;
+      this.hostEpoch = identity.auth_epoch;
       if (this.deps.auth.subject && this.subject !== this.deps.auth.subject) {
         throw new WorkApiError("work_account_changed");
       }
@@ -984,7 +999,7 @@ export class WorkDeviceDriver {
       run_id: runId,
       old_grant_id: oldGrantId,
       new_grant_id: newGrantId,
-      auth_epoch: String(this.deps.auth.epoch),
+      auth_epoch: this.hostEpoch,
     });
     this.checkEpoch();
     const proof = reply.data ?? {};
@@ -995,7 +1010,7 @@ export class WorkDeviceDriver {
       proof.new_grant_id !== newGrantId ||
       proof.run_id !== runId ||
       proof.auth_plane !== "bearer" ||
-      proof.auth_epoch !== String(this.deps.auth.epoch) ||
+      proof.auth_epoch !== this.hostEpoch ||
       typeof proof.root_identity_hash !== "string" ||
       !/^[0-9a-f]{64}$/.test(proof.root_identity_hash) ||
       typeof proof.session_id !== "string" ||
@@ -1215,7 +1230,7 @@ export class WorkDeviceDriver {
       version_id: context.versionId,
       content_hash: contentHash,
       request_id: requestId,
-      auth_epoch: String(this.deps.auth.epoch),
+      auth_epoch: this.hostEpoch,
     });
     this.checkEpoch();
     const data = reply.data ?? {};
@@ -1245,7 +1260,7 @@ export class WorkDeviceDriver {
       proof.org_id.length === 0 ||
       proof.subject_id !== this.subject ||
       proof.auth_plane !== "bearer" ||
-      proof.auth_epoch !== String(this.deps.auth.epoch) ||
+      proof.auth_epoch !== this.hostEpoch ||
       proof.device_id !== data.device_id ||
       proof.session_id !== data.session_id ||
       proof.task_id !== context.taskId ||
@@ -1510,7 +1525,7 @@ export class WorkDeviceDriver {
       readonly_expires_at: readonlyExpiresAt,
       policy_epoch: String(detail.policyEpoch),
       access_epoch: String(detail.accessEpoch),
-      auth_epoch: String(this.deps.auth.epoch),
+      auth_epoch: this.hostEpoch,
     });
     this.checkEpoch();
     const data = reply.data ?? {};
@@ -1567,7 +1582,7 @@ export class WorkDeviceDriver {
       Object.keys(proof).sort().join(",") !== proofKeys.sort().join(",") ||
       proof.v !== 1 ||
       proof.auth_plane !== "bearer" ||
-      proof.auth_epoch !== String(this.deps.auth.epoch) ||
+      proof.auth_epoch !== this.hostEpoch ||
       proof.device_id !== detail.deviceId ||
       typeof proof.session_id !== "string" ||
       proof.approval_id !== detail.approvalId ||
@@ -1753,7 +1768,7 @@ export class WorkDeviceDriver {
       base_version_no: String(input.context.baseVersionNo),
       base_version_id: input.context.baseVersionId,
       base_hash: input.context.baseHash,
-      auth_epoch: String(this.deps.auth.epoch),
+      auth_epoch: this.hostEpoch,
       format: input.format,
       content_hash: contentHash,
       byte_count: String(Buffer.byteLength(input.body, "utf8")),
@@ -1854,7 +1869,7 @@ export class WorkDeviceDriver {
       Object.keys(proof).sort().join(",") !== proofKeys.sort().join(",") ||
       proof.v !== 1 ||
       proof.auth_plane !== "bearer" ||
-      proof.auth_epoch !== this.deps.auth.epoch ||
+      proof.auth_epoch !== this.hostEpoch ||
       proof.device_id !== data.device_id ||
       proof.session_id !== data.session_id ||
       proof.artifact_id !== data.artifact_id ||

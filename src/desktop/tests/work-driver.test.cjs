@@ -32,11 +32,14 @@ const renewedPem =
   "-----BEGIN CERTIFICATE-----\nRENEWED\n-----END CERTIFICATE-----\n";
 const thumbprint = "thumb-1";
 const jwk = { kty: "EC", crv: "P-256", x: "x", y: "y" };
+// The local preview is server-signed (`lp1.<payload>.<signature>`); the shell reads the
+// Host auth_epoch from that payload, so the fixture payload has to carry one.
+const previewHash = `lp1.${Buffer.from(JSON.stringify({ auth_epoch: "1" })).toString("base64url")}.signature`;
 const localSubmissionInput = {
   clientRequestId: "local-submit-1",
   inputRef: "12345678-1234-4234-8234-123456789abc",
   inputHash: `sha256:${"a".repeat(64)}`,
-  previewHash: "p1.preview.signature",
+  previewHash,
   targetSelectionHash: "b".repeat(64),
   selectedGrantIds: [workspaceGrantId],
   grantRevisions: ["1"],
@@ -118,7 +121,12 @@ function harness(t, overrides = {}) {
     cert_not_after: "2026-11-20T00:00:00Z",
   };
   const apiResponses = {
-    identity: { org_id: orgId, subject_id: subject },
+    identity: {
+      org_id: orgId,
+      subject_id: subject,
+      auth_plane: "bearer",
+      auth_epoch: "1",
+    },
     pair: {
       pairing_id: pairingId,
       challenge: "challenge-1",
@@ -144,7 +152,7 @@ function harness(t, overrides = {}) {
       replayed: false,
     },
     createLocalTaskPreview: (action, options) => ({
-      preview_hash: "lp1.preview.signature",
+      preview_hash: previewHash,
       target_selection_hash: createHash("sha256")
         .update(JSON.stringify(options.body.target_selection))
         .digest("hex"),
@@ -353,7 +361,7 @@ function harness(t, overrides = {}) {
             org_id: orgId,
             subject_id: subject,
             auth_plane: "bearer",
-            auth_epoch: 1,
+            auth_epoch: "1",
             device_id: deviceId,
             session_id: "22222222-2222-4222-8222-222222222222",
             task_id: "44444444-4444-4444-8444-444444444444",

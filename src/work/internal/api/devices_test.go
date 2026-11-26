@@ -334,9 +334,10 @@ func TestDeviceFaceRequiresBearerPlane(t *testing.T) {
 	assertAPICode(t, crossSite, http.StatusForbidden, "csrf_invalid")
 }
 
-// The identity face (M2 ruling 乙) returns exactly the verified claims' (org, subject)
-// pair: the shell builds its §2.1 signing preimage from these two values, so the face
-// must hold the same Bearer-plane invariants as the device face and leak nothing else.
+// The identity face (M2 ruling 乙) returns the verified claims' (org, subject) pair and
+// the Bearer plane/session revision the shell's proofs must sign (control-design §1.2):
+// the shell builds its §2.1 signing preimage from these values, so the face must hold the
+// same Bearer-plane invariants as the device face and leak nothing else.
 func TestDeviceIdentityFace(t *testing.T) {
 	pool, _ := newBootstrapDB(t, false, false)
 	server := newDeviceServer(t, pool)
@@ -347,8 +348,12 @@ func TestDeviceIdentityFace(t *testing.T) {
 		t.Fatalf("identity status = %d body=%s", response.StatusCode, readBody(response))
 	}
 	identity := decodeObject(t, response)
-	if len(identity) != 2 || identity["org_id"] != testOrg || identity["subject_id"] != testSubject {
-		t.Fatalf("identity = %#v, want exactly {org_id:%s subject_id:%s}", identity, testOrg, testSubject)
+	if len(identity) != 4 ||
+		identity["org_id"] != testOrg ||
+		identity["subject_id"] != testSubject ||
+		identity["auth_plane"] != "bearer" ||
+		identity["auth_epoch"] != "4" {
+		t.Fatalf("identity = %#v, want exactly {org_id:%s subject_id:%s auth_plane:bearer auth_epoch:4}", identity, testOrg, testSubject)
 	}
 
 	// A cookie session must not satisfy the Bearer plane, even with the shell header.

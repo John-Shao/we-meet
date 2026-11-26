@@ -116,7 +116,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (78, '0078_possession_proof_signing_key'),
   (79, '0079_permit_destination_refusal_cancels'),
   (80, '0080_local_preview_facts'),
-  (81, '0081_local_task_submission')) expected(version, name)
+  (81, '0081_local_task_submission'),
+  (82, '0082_local_approval_ttl')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 psql_ro "select 'approval_proof_es256=' || case when

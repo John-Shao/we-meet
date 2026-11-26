@@ -901,6 +901,17 @@
       "catalog_checksum": "sha256:23c42f779b4cb470285505aac28f791636a7ac311483a4adc0ca8fb93a2dedaa",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 82,
+      "name": "0082_local_approval_ttl",
+      "kind": "increment",
+      "file": "increments/0082_local_approval_ttl.sql",
+      "checksum": "sha256:ea60ac9a4992a721960b8bdf7793d7a09822348be8974cda61942049dbd0c493",
+      "catalog": "catalogs/0082_local_approval_ttl.json",
+      "catalog_checksum": "sha256:842329992b69e66a3557bf954cbdaaf5b333f5a297eaa27f6ddd64656a0b88f9",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

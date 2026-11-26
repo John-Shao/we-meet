@@ -1620,11 +1620,15 @@ fn serve_run(
     Ok(())
 }
 
-/// How long the executor waits for a write command downlink after proposing action_prepare. The
-/// server parks an ask_each write for approval; the shell decides it through the REST face and the
-/// next heartbeat claim dispatches the command. The wait bounds the loop so a never-decided approval
-/// terminates the batch (pending_approval) rather than hanging the sidecar.
-const COMMAND_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+/// How long the executor waits for a command downlink after proposing action_prepare. The server
+/// parks an ask_each action (write or model) for approval; the shell decides it through the REST
+/// face and the next heartbeat claim dispatches the command. The Approval's pending TTL is the
+/// policy's 10-minute window (control-design §1.4/§7.2; 0082 mints
+/// LEAST(now()+10min, grant.expires_at)), and a decision may land at the last second, so the wait
+/// spans the whole window plus one 10s heartbeat cadence and a margin. A shorter wait would end
+/// the batch while the Operation is still pending, and the command minted after the decision would
+/// reach a sidecar that no longer reads it (no resume path re-drives an ended batch).
+const COMMAND_WAIT: std::time::Duration = std::time::Duration::from_secs(660);
 
 /// A2 write spine (execution-face §6.3 C): propose one action_prepare through the sync core (which
 /// holds the key + uplink), then await the matching command in the live per-Run map. The server's

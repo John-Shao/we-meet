@@ -136,7 +136,9 @@ test('local submission requires approval, live input facts and the Broker device
 });
 
 test('a single-use ticket is withdrawn only while a link request is outstanding', () => {
-  const src = code(read(BROKER));
+  // The no-lock rule governs the production pump; its test fixture legitimately shares the
+  // io_deadline with Arc<Mutex<..>> when it spawns run_core_pump (prod()'s stated scope).
+  const src = prod(read(BROKER));
   const withdraw = fnBody(src, 'async fn withdraw(');
   const guard = withdraw.indexOf('if !*awaiting');
   const take = withdraw.indexOf('slot.take(now)');

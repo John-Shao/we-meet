@@ -137,6 +137,9 @@ async function main() {
   const modelReady = path.join(root, "model-ready");
   const deviceLog = path.join(root, "device.log");
   const scenario = path.join(root, "scenario.json");
+  // The fixture loop is model → artifact.write → stop. The model-only leg is the one this smoke
+  // drives: the approval wait is the point, and a Run that writes no sealed artifact ends with
+  // the design's no_deliverable finish, which is the expected terminal for this fixture.
   fs.writeFileSync(scenario, JSON.stringify([{ role: "assistant", content: "Work E2E model completed." }]));
   fixture = spawn(path.join(project, "dist", "work-device", "node.exe"), [path.join(project, "dist", "work-device", "work-device-bundle", "fixture-server.mjs"), String(fixturePort), scenario], { stdio: ["ignore", "pipe", "pipe"] });
   await new Promise((resolve, reject) => {
@@ -184,25 +187,46 @@ async function main() {
     await page.getByRole("button", { name: "保存本机草稿", exact: true }).click();
     await expect(page.getByText("本机目录授权", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "在本机预览并提交", exact: true }).click();
-    // ask_each parks every non-readonly action on an approval. The approval's expiry is the
-    // activation lease (0069 LEAST), so the decision must land within that window: start the
-    // loop before the page navigation finishes and poll fast.
+    // ask_each parks every non-readonly action on an approval. The pending TTL is the policy's
+// 10-minute window (0082), and the execute lease keeps renewing underneath it, so the decision
+// may land well after the activation lease's first 20-30 seconds. E2E_APPROVAL_DELAY_MS holds the
+// first decision for that long to prove the window and the renewal actually hold.
+    const approvalDelayMs = Number(process.env.E2E_APPROVAL_DELAY_MS || 0);
     let approved = 0;
     let approving = true;
+    let delayLeft = approvalDelayMs;
     let taskId;
     stopApprover = () => { approving = false; };
     const approver = (async () => {
       while (approving) {
         try {
+          if (delayLeft > 0) {
+            const pending = await app.evaluate(async ({}, id) => {
+              const driver = globalThis.__workE2EDriver;
+              if (!driver) return 0;
+              return (await driver.listPendingLocalApprovals()).filter((a) => !id || a.taskId === id).length;
+            }, taskId ?? null);
+            if (pending > 0) {
+              console.error("stage approval delay", delayLeft);
+              await wait(delayLeft);
+              delayLeft = 0;
+            }
+          }
           const decided = await app.evaluate(async ({}, id) => {
             const driver = globalThis.__workE2EDriver;
             if (!driver) return 0;
             let count = 0;
             for (const approval of await driver.listPendingLocalApprovals()) {
               if (id && approval.taskId !== id) continue;
-              const detail = await driver.getLocalApproval(approval.approvalId);
-              await driver.decideLocalApproval(detail, "approved", globalThis.crypto.randomUUID());
-              count += 1;
+              // A stale pending row from an earlier run can expire between list and read; that is
+              // an expected shape refusal, not a reason to stop deciding the live approval.
+              try {
+                const detail = await driver.getLocalApproval(approval.approvalId);
+                await driver.decideLocalApproval(detail, "approved", globalThis.crypto.randomUUID());
+                count += 1;
+              } catch (error) {
+                console.error("approval skip", approval.approvalId, error.message);
+              }
             }
             return count;
           }, taskId ?? null);
@@ -218,21 +242,23 @@ async function main() {
     let truth;
     try {
       truth = await until(() => {
-        const row = psql(`select t.state||'|'||r.state||'|'||coalesce(b.state,'')||'|'||(select count(*)::text from work.device_model_result m where m.run_id=r.id and m.state='completed' and m.outcome='succeeded') from work.task t join work.run r on r.task_id=t.id and r.org_id=t.org_id left join work.device_run_binding b on b.run_id=r.id and b.org_id=r.org_id where t.id='${taskId}'`);
+        const row = psql(`select t.state||'|'||r.state||'|'||coalesce(r.terminal_reason,'')||'|'||coalesce(b.state,'')||'|'||(select count(*)::text from work.device_model_result m where m.run_id=r.id and m.state='completed' and m.outcome='succeeded') from work.task t join work.run r on r.task_id=t.id and r.org_id=t.org_id left join work.device_run_binding b on b.run_id=r.id and b.org_id=r.org_id where t.id='${taskId}'`);
         if (!row.includes("|") || row.startsWith("|")) return null;
-        const [taskState, runState, bindingState, modelResults] = row.split("|");
-        return taskState === "open" && runState !== "queued" && bindingState !== "offered" && Number(modelResults) >= 1 ? row : null;
+        const [taskState, runState, terminalReason, bindingState, modelResults] = row.split("|");
+        // The model-only fixture chain ends in the design's no_deliverable finish; that is a
+        // terminal Run with a settled model result, not an open queue entry.
+        return taskState === "open" && ["completed", "failed", "canceled"].includes(runState) && bindingState !== "offered" && Number(modelResults) >= 1 ? row : null;
       }, "task/run/binding/model truth", 90000);
     } catch (error) {
       console.error("device log", fs.existsSync(deviceLog) ? fs.readFileSync(deviceLog, "utf8").slice(-8000) : "missing");
       throw error;
     }
-    const [taskState, runState, bindingState, modelResults] = truth.split("|");
+    const [taskState, runState, terminalReason, bindingState, modelResults] = truth.split("|");
     assert.equal(taskState, "open");
-    assert.notEqual(runState, "queued");
+    assert.ok(runState === "completed" || (runState === "failed" && terminalReason === "no_deliverable"));
     assert.notEqual(bindingState, "offered");
     assert.ok(Number(modelResults) >= 1);
-    const receipt = { passed: true, taskId, taskState, runState, bindingState, modelResults: Number(modelResults), approvals: approved, device: config.profile_id, profileHash: config.runtime_digest, testedAt: new Date().toISOString() };
+    const receipt = { passed: true, taskId, taskState, runState, terminalReason, bindingState, modelResults: Number(modelResults), approvals: approved, approvalDelayMs, device: config.profile_id, profileHash: config.runtime_digest, testedAt: new Date().toISOString() };
     fs.writeFileSync(path.join(output, "receipt.json"), JSON.stringify(receipt, null, 2) + "\n");
     console.log(JSON.stringify(receipt));
   } finally {

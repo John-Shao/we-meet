@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 81,
-  "chainTipCatalog": "catalogs/0081_local_task_submission.json",
+  "chainTip": 82,
+  "chainTipCatalog": "catalogs/0082_local_approval_ttl.json",
   "entries": [
     {
       "name": "GET /api/v1.0/admin/work-governance-assignments/",
@@ -556,7 +556,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0081_local_task_submission.json",
+      "origin": "src/work/migrations/catalogs/0082_local_approval_ttl.json",
       "callableBy": [
         "work_api",
         "work_governance_events"

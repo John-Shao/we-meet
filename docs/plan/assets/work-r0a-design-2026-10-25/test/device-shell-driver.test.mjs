@@ -186,7 +186,11 @@ test('local submission keeps approval and auth epoch in main and validates the r
   const gesture = submit.indexOf('this.deps.confirmLocalSubmission(facts)');
   const pipe = submit.indexOf('this.call("confirmLocalSubmission"');
   assert.ok(gesture >= 0 && pipe > gesture, 'native confirmation must precede Broker signing');
-  assert.ok(submit.includes('const authEpoch = String(this.deps.auth.epoch)'));
+  // The local_intent proof signs the auth_epoch the server itself put in the signed local
+  // preview (lp1 payload), never the shell's local login generation: the REST face compares
+  // against the Host-verified session revision (2026-11-26 identity face now republishes it).
+  assert.ok(submit.includes('const authEpoch = previewAuthEpoch(input.previewHash)'));
+  assert.ok(driver.includes('function previewAuthEpoch('));
   assert.ok(submit.includes('auth_epoch: authEpoch'));
   assert.ok(submit.includes('input_hash: input.inputHash.slice("sha256:".length)'));
   assert.ok(submit.includes('parseLocalIntentProof(data.local_intent, input, authEpoch)'));
