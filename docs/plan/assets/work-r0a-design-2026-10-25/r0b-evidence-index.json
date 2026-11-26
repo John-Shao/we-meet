@@ -579,12 +579,8 @@
       "id": "EV118",
       "gate": "I5",
       "requirement": "只 list local_only 根仍可发远程动作，read 后 prepare/permit 拒绝并释放预留；输出根 local_only 同样拒绝，预览/确认页提前告知。",
-      "status": "partial",
-      "gaps": [
-        "E=B 后远程模型消费已移出，但保留的目的地谓词已有直接真库证据：list-only 不进入 (A) 仍按 (B) 压为 local_only；read taint 在 prepare 前拒绝且零 Operation/Approval/预留；local_only 输出根单独进入 (A) 并零副作用拒绝。",
-        "0079 已闭合 permit 拒绝语义：目的地闸命中后持久化 canceled、释放 held 预留、零 dispatch，且 claim 不再重试；正常 permit 与已有 dispatch 重放仍委托原 0069 路径。",
-        "0083 已让预览响应下发 artifact_classification_floor/available_destinations，并让审批读面按本 Run 实际 read/search/artifact.write 引用计算 local_only taint；本机提交确认与安全 viewer 均显示目的地告警。真实远程消费 E2E 仍按 E=B 移出，未执行。"
-      ],
+      "status": "covered",
+      "gaps": [],
       "evidence": [
         { "path": "src/work/internal/migrate/r0b_local_artifact_test.go", "test": "TestR0bListOnlyInputPassesDestinationGateButFloorsArtifact" },
         { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bPrepareRefusesANonDeviceDestinationOnceTheRunHasLocalOnlyInput" },
