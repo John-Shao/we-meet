@@ -13,6 +13,10 @@ use crate::frame::{action, checkpoint, envelope, model_result, receipt, rfc3339}
 use crate::journal::record::{self, ActionRow, RecordError};
 use crate::journal::{meta, recover};
 use crate::key::DeviceKey;
+
+pub use crate::journal::local_content::{
+    DeliverableRow, LocalContentBody, LocalDraftBody, LocalDraftConfirmation, LocalDraftRow,
+};
 use crate::transport::UplinkFrame;
 
 /// The device runtime instance facts bound into a receipt's historical envelope. They come from the
@@ -60,6 +64,97 @@ pub enum JournalOp {
         subject_id: String,
         run_id: String,
         checkpoint_seq: i64,
+    },
+    /// Read one encrypted local deliverable body for the viewer. The body never enters the journal
+    /// reply's metadata path and is returned only to the Node service thread.
+    ReadLocalContent {
+        org_id: String,
+        subject_id: String,
+        version_id: String,
+    },
+    RecordLocalApproval {
+        org_id: String,
+        subject_id: String,
+        approval_id: String,
+        row: Box<DeliverableRow>,
+        plaintext: Vec<u8>,
+    },
+    ReadLocalApproval {
+        org_id: String,
+        subject_id: String,
+        approval_id: String,
+    },
+    PrepareLocalApprovalDecision {
+        org_id: String,
+        subject_id: String,
+        device_id: String,
+        session_id: String,
+        input: Box<crate::approvaldecision::ApprovalDecisionInput>,
+    },
+    PrepareLocalAcceptance {
+        org_id: String,
+        subject_id: String,
+        device_id: String,
+        session_id: String,
+        input: Box<crate::possession::PossessionInput>,
+    },
+    RecordLocalTranscript {
+        org_id: String,
+        subject_id: String,
+        run_id: String,
+        row: Box<DeliverableRow>,
+        plaintext: Vec<u8>,
+    },
+    ReadLocalTranscript {
+        org_id: String,
+        subject_id: String,
+        run_id: String,
+    },
+    PrepareLocalDraft {
+        org_id: String,
+        subject_id: String,
+        row: Box<crate::journal::local_content::LocalDraftRow>,
+        plaintext: Vec<u8>,
+    },
+    ReadLocalDraft {
+        org_id: String,
+        subject_id: String,
+        version_id: String,
+    },
+    ListLocalDrafts {
+        org_id: String,
+        subject_id: String,
+        artifact_id: String,
+        task_id: String,
+    },
+    DecideLocalDraft {
+        org_id: String,
+        subject_id: String,
+        request_id: String,
+        sealed_hash: String,
+        action: String,
+    },
+    ConfirmLocalDraft {
+        org_id: String,
+        subject_id: String,
+        request_id: String,
+        sealed_hash: String,
+        device_id: String,
+        session_id: String,
+    },
+    CompleteLocalDraft {
+        org_id: String,
+        subject_id: String,
+        request_id: String,
+        sealed_hash: String,
+        publish_ack: String,
+    },
+    SetLocalDraftCopyState {
+        org_id: String,
+        subject_id: String,
+        request_id: String,
+        sealed_hash: String,
+        state: String,
     },
     /// Produce a signed receipt (A3 uplink, execution-face §5/E5 甲): the sync core allocates the
     /// next receipt seq, binds it into the body, signs with the device key, appends the original
@@ -122,6 +217,9 @@ pub struct DeliverableFacts {
     pub format: String,
     pub content_hash: String,
     pub byte_count: u64,
+    pub sealed_blob: Vec<u8>,
+    pub grant_id: String,
+    pub root_identity_hash: String,
 }
 
 /// The owned `action_prepare` proposal facts the Node thread supplies (execution-face §6.3 C). The
@@ -234,9 +332,27 @@ pub enum JournalReply {
     Action(Result<Vec<u8>, RecordError>),
     /// ReadCheckpoint returned the sealed checkpoint body (or an error).
     CheckpointBody(Result<Vec<u8>, RecordError>),
+    /// ReadLocalContent returned an encrypted local deliverable body (or an error).
+    LocalContent(Result<Option<crate::journal::local_content::LocalContentBody>, RecordError>),
+    LocalApproval(Result<Option<crate::journal::local_content::LocalContentBody>, RecordError>),
+    LocalApprovalDecision(Result<Option<Value>, RecordError>),
+    LocalAcceptance(Result<Option<Value>, RecordError>),
+    LocalTranscript(Result<Option<crate::journal::local_content::LocalContentBody>, RecordError>),
+    LocalDraftPrepared(Result<crate::journal::local_content::LocalDraftBody, RecordError>),
+    LocalDraft(Result<Option<crate::journal::local_content::LocalDraftBody>, RecordError>),
+    LocalDrafts(Result<Vec<LocalDraftRow>, RecordError>),
+    LocalDraftDecided(Result<Option<crate::journal::local_content::LocalDraftRow>, RecordError>),
+    LocalDraftConfirmed(
+        Result<Option<crate::journal::local_content::LocalDraftConfirmation>, RecordError>,
+    ),
+    LocalDraftCompleted(Result<Option<crate::journal::local_content::LocalDraftCopy>, RecordError>),
+    LocalDraftCopyState(Result<bool, RecordError>),
     /// AppendReceipt produced and uplinked a signed receipt; carries its allocated seq + integrity
     /// hash so the caller can advance its watermark / reference the receipt.
-    ReceiptProduced { seq: u64, signed_hash: String },
+    ReceiptProduced {
+        seq: u64,
+        signed_hash: String,
+    },
     /// AppendModelResult persisted and uplinked one independently replayable result.
     ModelResultProduced {
         model_result_id: String,
@@ -280,6 +396,20 @@ pub fn channel() -> (
     let (tx, rx) = mpsc::channel(64);
     (JournalHandle { tx }, rx)
 }
+
+/// The journal facts an approval decision needs. The Node service thread is inside `serve_run`
+/// for a whole Run, so a decision taken while the Run waits for its permit must reach the journal
+/// op without going through that thread; the pump shares this slot to sign it directly.
+#[derive(Clone)]
+pub struct ApprovalSigner {
+    pub journal: JournalHandle,
+    pub org_id: String,
+    pub subject_id: String,
+    pub device_id: String,
+    pub session_id: Option<String>,
+}
+
+pub type ApprovalSignerSlot = std::sync::Arc<std::sync::Mutex<Option<ApprovalSigner>>>;
 
 /// Execute one journal op against the sync core's journal (the sole owner). The sync core calls this
 /// from its event loop; it never runs on the Node thread. `device_id`/`journal_epoch`/`schema_version`
@@ -362,6 +492,263 @@ pub fn execute(
                 checkpoint_seq,
             );
             JournalReply::CheckpointBody(body)
+        }
+        JournalOp::ReadLocalContent {
+            org_id,
+            subject_id,
+            version_id,
+        } => {
+            let rctx = journal.context(&org_id, &subject_id);
+            let body = crate::journal::local_content::read_sealed(
+                journal.connection(),
+                journal.dek(),
+                &rctx,
+                &version_id,
+            );
+            JournalReply::LocalContent(body)
+        }
+        JournalOp::RecordLocalApproval {
+            org_id,
+            subject_id,
+            approval_id,
+            row,
+            plaintext,
+        } => {
+            let rctx = journal.context(&org_id, &subject_id);
+            let result = crate::journal::local_content::record_approval(
+                journal.connection(),
+                journal.dek(),
+                &rctx,
+                &approval_id,
+                &row,
+                &plaintext,
+            );
+            match result {
+                Ok(()) => JournalReply::Registered,
+                Err(error) => JournalReply::Failed(error),
+            }
+        }
+        JournalOp::ReadLocalApproval {
+            org_id,
+            subject_id,
+            approval_id,
+        } => {
+            let rctx = journal.context(&org_id, &subject_id);
+            let body = crate::journal::local_content::read_approval(
+                journal.connection(),
+                journal.dek(),
+                &rctx,
+                &approval_id,
+            );
+            JournalReply::LocalApproval(body)
+        }
+        JournalOp::PrepareLocalApprovalDecision {
+            org_id,
+            subject_id,
+            device_id,
+            session_id,
+            mut input,
+        } => {
+            input.org_id = org_id;
+            input.subject_id = subject_id;
+            input.device_id = device_id;
+            input.session_id = session_id;
+            let proof = crate::approvaldecision::produce(producer.key, *input)
+                .map(Some)
+                .map_err(RecordError::Sign);
+            JournalReply::LocalApprovalDecision(proof)
+        }
+        JournalOp::PrepareLocalAcceptance {
+            org_id,
+            subject_id,
+            device_id,
+            session_id,
+            mut input,
+        } => {
+            let proof = (|| {
+                let rctx = journal.context(&org_id, &subject_id);
+                let body = crate::journal::local_content::read_sealed(
+                    journal.connection(),
+                    journal.dek(),
+                    &rctx,
+                    &input.version_id,
+                )?
+                .ok_or(RecordError::InvalidLocalDraft)?;
+                if body.row.content_hash != input.content_hash {
+                    return Err(RecordError::InvalidLocalDraft);
+                }
+                input.org_id = org_id;
+                input.subject_id = subject_id;
+                input.device_id = device_id;
+                input.session_id = session_id;
+                crate::possession::produce(producer.key, *input)
+                    .map(Some)
+                    .map_err(RecordError::Sign)
+            })();
+            JournalReply::LocalAcceptance(proof)
+        }
+        JournalOp::RecordLocalTranscript {
+            org_id,
+            subject_id,
+            run_id,
+            row,
+            plaintext,
+        } => {
+            let rctx = journal.context(&org_id, &subject_id);
+            let result = crate::journal::local_content::record_transcript(
+                journal.connection(),
+                journal.dek(),
+                &rctx,
+                &run_id,
+                &row,
+                &plaintext,
+            );
+            match result {
+                Ok(()) => JournalReply::Registered,
+                Err(error) => JournalReply::Failed(error),
+            }
+        }
+        JournalOp::ReadLocalTranscript {
+            org_id,
+            subject_id,
+            run_id,
+        } => {
+            let rctx = journal.context(&org_id, &subject_id);
+            let body = crate::journal::local_content::read_transcript(
+                journal.connection(),
+                journal.dek(),
+                &rctx,
+                &run_id,
+            );
+            JournalReply::LocalTranscript(body)
+        }
+        JournalOp::PrepareLocalDraft {
+            org_id,
+            subject_id,
+            row,
+            plaintext,
+        } => {
+            let rctx = journal.context(&org_id, &subject_id);
+            let body = crate::journal::local_content::prepare_draft(
+                journal.connection(),
+                journal.dek(),
+                &rctx,
+                &row,
+                &plaintext,
+            );
+            JournalReply::LocalDraftPrepared(body)
+        }
+        JournalOp::ReadLocalDraft {
+            org_id,
+            subject_id,
+            version_id,
+        } => {
+            let rctx = journal.context(&org_id, &subject_id);
+            let body = crate::journal::local_content::read_draft_for_display(
+                journal.connection(),
+                journal.dek(),
+                &rctx,
+                &version_id,
+            );
+            JournalReply::LocalDraft(body)
+        }
+        JournalOp::ListLocalDrafts {
+            org_id,
+            subject_id,
+            artifact_id,
+            task_id,
+        } => {
+            let rctx = journal.context(&org_id, &subject_id);
+            let drafts = crate::journal::local_content::list_drafts(
+                journal.connection(),
+                journal.dek(),
+                &rctx,
+                &artifact_id,
+                &task_id,
+            );
+            JournalReply::LocalDrafts(drafts)
+        }
+        JournalOp::DecideLocalDraft {
+            org_id,
+            subject_id,
+            request_id,
+            sealed_hash,
+            action,
+        } => {
+            let rctx = journal.context(&org_id, &subject_id);
+            let row = crate::journal::local_content::decide_draft(
+                journal.connection(),
+                journal.dek(),
+                &rctx,
+                &request_id,
+                &sealed_hash,
+                &action,
+            );
+            JournalReply::LocalDraftDecided(row)
+        }
+        JournalOp::ConfirmLocalDraft {
+            org_id,
+            subject_id,
+            request_id,
+            sealed_hash,
+            device_id,
+            session_id,
+        } => {
+            let rctx = journal.context(&org_id, &subject_id);
+            let confirmed = crate::journal::local_content::confirm_draft(
+                journal.connection(),
+                journal.dek(),
+                &rctx,
+                producer.key,
+                &request_id,
+                &sealed_hash,
+                &device_id,
+                &session_id,
+            );
+            JournalReply::LocalDraftConfirmed(confirmed)
+        }
+        JournalOp::CompleteLocalDraft {
+            org_id,
+            subject_id,
+            request_id,
+            sealed_hash,
+            publish_ack,
+        } => {
+            let rctx = journal.context(&org_id, &subject_id);
+            let completed = crate::journal::local_content::mark_draft_published(
+                journal.connection(),
+                &rctx,
+                &request_id,
+                &sealed_hash,
+                &publish_ack,
+            );
+            let completed = completed.and_then(|published| {
+                if !published {
+                    return Ok(None);
+                }
+                crate::journal::local_content::read_published_draft_copy(
+                    journal.connection(),
+                    journal.dek(),
+                    &rctx,
+                    &request_id,
+                    &sealed_hash,
+                )
+            });
+            JournalReply::LocalDraftCompleted(completed)
+        }
+        JournalOp::SetLocalDraftCopyState {
+            org_id: _,
+            subject_id: _,
+            request_id,
+            sealed_hash,
+            state,
+        } => {
+            JournalReply::LocalDraftCopyState(crate::journal::local_content::set_draft_copy_state(
+                journal.connection(),
+                &request_id,
+                &sealed_hash,
+                &state,
+            ))
         }
         JournalOp::AppendReceipt {
             org_id,

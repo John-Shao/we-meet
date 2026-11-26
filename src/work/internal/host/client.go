@@ -29,6 +29,8 @@ type Claims struct {
 	OrgID           string
 	SessionRevision int64
 	VerifiedAt      time.Time
+	// Permissions is Host-resolved per request; an older Host leaves it nil, granting nothing.
+	Permissions []string
 	// AuthPlane namespaces SessionRevision: "cookie" carries the Web session
 	// revision, "bearer" the Host auth epoch maintained for the desktop login
 	// cycle (control-design §1.1). The two never satisfy each other's checks.
@@ -142,7 +144,7 @@ func (c *Client) VerifySession(ctx context.Context, rawCookie, correlationID str
 		return Claims{}, newError("session_invalid", "session cookie contains invalid characters", nil)
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+sessionVerifyPath, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+sessionVerifyPath+"?include_permissions=1", nil)
 	if err != nil {
 		return Claims{}, newError("session_unverifiable", "build Host session request", err)
 	}
@@ -179,7 +181,7 @@ func (c *Client) VerifyBearer(ctx context.Context, token, correlationID string) 
 		return Claims{}, newError("session_invalid", "bearer token contains invalid characters", nil)
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+bearerVerifyPath, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+bearerVerifyPath+"?include_permissions=1", nil)
 	if err != nil {
 		return Claims{}, newError("session_unverifiable", "build Host bearer request", err)
 	}
@@ -215,10 +217,11 @@ func (c *Client) decodeVerifyResponse(response *http.Response) (Claims, error) {
 	}
 
 	var wire struct {
-		SubjectID       string `json:"subject_id"`
-		OrgID           string `json:"org_id"`
-		SessionRevision *int64 `json:"session_revision"`
-		VerifiedAt      string `json:"verified_at"`
+		SubjectID       string   `json:"subject_id"`
+		OrgID           string   `json:"org_id"`
+		SessionRevision *int64   `json:"session_revision"`
+		VerifiedAt      string   `json:"verified_at"`
+		Permissions     []string `json:"permissions"`
 	}
 	decoder := json.NewDecoder(io.LimitReader(response.Body, maxResponseBytes))
 	decoder.DisallowUnknownFields()
@@ -232,8 +235,13 @@ func (c *Client) decodeVerifyResponse(response *http.Response) (Claims, error) {
 	if wire.SubjectID == "" || wire.OrgID == "" || wire.SessionRevision == nil || wire.VerifiedAt == "" {
 		return Claims{}, newError("host_field_gap", "Host verify response is missing a required field", nil)
 	}
-	if len(wire.SubjectID) > 128 || len(wire.OrgID) > 128 {
-		return Claims{}, newError("host_field_gap", "Host verify IDs exceed 128 bytes", nil)
+	if len(wire.SubjectID) > 128 || len(wire.OrgID) > 128 || len(wire.Permissions) > 128 {
+		return Claims{}, newError("host_field_gap", "Host verify response exceeds field limits", nil)
+	}
+	for _, permission := range wire.Permissions {
+		if permission == "" || len(permission) > 128 {
+			return Claims{}, newError("host_field_gap", "Host verify response has an invalid permission", nil)
+		}
 	}
 	if *wire.SessionRevision < 0 {
 		return Claims{}, newError("session_invalid", "Host session revision is negative", nil)
@@ -255,6 +263,7 @@ func (c *Client) decodeVerifyResponse(response *http.Response) (Claims, error) {
 		OrgID:           wire.OrgID,
 		SessionRevision: *wire.SessionRevision,
 		VerifiedAt:      verifiedAt,
+		Permissions:     append([]string(nil), wire.Permissions...),
 	}, nil
 }
 

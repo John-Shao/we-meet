@@ -108,6 +108,22 @@ impl GrantRegistry {
     pub fn contains(&self, grant_id: &str) -> bool {
         self.grants.contains_key(grant_id)
     }
+
+    pub fn list(&self) -> Vec<(&str, &str, &[String])> {
+        let mut entries: Vec<_> = self
+            .grants
+            .iter()
+            .map(|(grant_id, grant)| {
+                (
+                    grant_id.as_str(),
+                    grant.root_identity_hash.as_str(),
+                    grant.artifact_dir.as_slice(),
+                )
+            })
+            .collect();
+        entries.sort_by(|left, right| left.0.cmp(right.0));
+        entries
+    }
 }
 
 /// The root identity hash from the actually-opened object's volume serial + file ID (§3.5/§4.2 step 1).
@@ -351,6 +367,8 @@ mod tests {
         ));
         assert!(!locations_equal("C:\\a", "C:\\b"));
         assert!(!locations_equal("C:\\a", "D:\\a"));
+        assert!(!locations_equal("C:\\a\\b", "C:\\a"));
+        assert!(!locations_equal("C:\\a", "C:\\a\\b"));
     }
 
     #[test]

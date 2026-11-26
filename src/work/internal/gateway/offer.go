@@ -105,7 +105,16 @@ func signedDownlink(key *ecdsa.PrivateKey, frameType, deviceID, sessionID string
 // "profile/model版本": §3.2 requires the Broker to start "指定digest的单一sidecar" and to
 // check the tool manifest before answering ready, so the device cannot decide
 // ready/missing_input without them.
-func runOfferWire(o *pendingOffer) map[string]any {
+//
+// grant_set is re-rendered into the §3.1 boundary form rather than passed through verbatim:
+// grant_revision is a bigint revision, so it crosses as a decimal string like every other
+// uint64 counter, whichever way the row was stored (the rebind path and older seeds store a
+// JSON number). The signature therefore always covers the string form.
+func runOfferWire(o *pendingOffer) (map[string]any, error) {
+	grants, err := grantSetWire(o.GrantSet)
+	if err != nil {
+		return nil, err
+	}
 	wire := map[string]any{
 		"run_id":                   o.RunID,
 		"binding_revision":         o.BindingRevision.String(),
@@ -120,13 +129,57 @@ func runOfferWire(o *pendingOffer) map[string]any {
 		"runtime_digest":           o.RuntimeDigest,
 		"tool_manifest_hash":       o.ToolManifestHash,
 		"model_version":            o.ModelVersion,
-		"grant_set":                json.RawMessage(o.GrantSet),
+		"grant_set":                grants,
 		"expected_checkpoint_seq":  numberOrNil(o.ExpectedCheckpointSeq),
 		"expected_checkpoint_hash": o.ExpectedCheckpointHash,
 		"original_target":          map[string]any{"device_id": o.DeviceID, "session_id": o.SessionID},
 		"offer_expiry":             o.OfferExpiry,
 	}
-	return wire
+	return wire, nil
+}
+
+// grantSetWire renders binding_grant_set (0040: {grant_id, grant_revision}) with the revision
+// as a decimal string. Any other element shape is a storage break, not a wire choice.
+func grantSetWire(raw json.RawMessage) ([]map[string]any, error) {
+	var elems []struct {
+		GrantID       string          `json:"grant_id"`
+		GrantRevision json.RawMessage `json:"grant_revision"`
+	}
+	if err := json.Unmarshal(raw, &elems); err != nil {
+		return nil, fmt.Errorf("invalid_request: grant_set")
+	}
+	grants := make([]map[string]any, 0, len(elems))
+	for _, elem := range elems {
+		revision, err := decimalText(elem.GrantRevision)
+		if err != nil {
+			return nil, err
+		}
+		grants = append(grants, map[string]any{
+			"grant_id":       elem.GrantID,
+			"grant_revision": revision,
+		})
+	}
+	return grants, nil
+}
+
+// decimalText accepts either stored form of a uint64 counter (JSON number or decimal string)
+// and returns the canonical decimal string. Negative, fractional and exponent forms fail.
+func decimalText(raw json.RawMessage) (string, error) {
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		if _, err := strconv.ParseUint(text, 10, 64); err != nil {
+			return "", fmt.Errorf("invalid_request: grant_revision")
+		}
+		return text, nil
+	}
+	var number json.Number
+	if err := json.Unmarshal(raw, &number); err != nil {
+		return "", fmt.Errorf("invalid_request: grant_revision")
+	}
+	if _, err := strconv.ParseUint(number.String(), 10, 64); err != nil {
+		return "", fmt.Errorf("invalid_request: grant_revision")
+	}
+	return number.String(), nil
 }
 
 // numberOrNil renders a nullable SQL bigint as a decimal string, or JSON null.
@@ -184,7 +237,11 @@ func (s *Server) pushPendingOffers(ctx context.Context, stream grpc.ServerStream
 			continue
 		}
 		nonces[key] = offer.StartNonce
-		raw, err := signedDownlink(s.serverKey, "run_offer", deviceID, sessionID, runOfferWire(offer))
+		wire, err := runOfferWire(offer)
+		if err != nil {
+			return status.Error(codes.Internal, "service_degraded")
+		}
+		raw, err := signedDownlink(s.serverKey, "run_offer", deviceID, sessionID, wire)
 		if err != nil {
 			return status.Error(codes.Internal, "service_degraded")
 		}

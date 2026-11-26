@@ -228,6 +228,16 @@ func TestRunOfferIsPushedOnHeartbeatAndServerSigned(t *testing.T) {
 		}
 	}
 	target, _ := offer["original_target"].(map[string]any)
+	// The seed stores grant_revision as a JSON number; the wire must still carry the §3.1
+	// decimal-string boundary, or the device's u64string adapter refuses the whole offer.
+	grants, _ := offer["grant_set"].([]any)
+	if len(grants) != 1 {
+		t.Fatalf("run_offer grant_set = %#v, want one grant", offer["grant_set"])
+	}
+	grant, _ := grants[0].(map[string]any)
+	if revision, _ := grant["grant_revision"].(string); revision != "1" {
+		t.Fatalf("grant_revision = %#v, want decimal string \"1\"", grant["grant_revision"])
+	}
 	if target == nil || target["device_id"] != f.deviceID || target["session_id"] != sessionID {
 		t.Fatalf("run_offer original_target = %#v, want this device and session", offer["original_target"])
 	}

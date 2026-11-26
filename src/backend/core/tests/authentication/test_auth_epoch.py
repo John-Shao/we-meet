@@ -49,6 +49,7 @@ def test_bump_auth_epoch_by_sub():
 def _callback_view(user, request_user):
     view = WorkOIDCAuthenticationCallbackView()
     view.request = RequestFactory().get("/callback/")
+    view.request.session = {}
     view.request.user = request_user
     view.user = user
     return view
@@ -64,6 +65,7 @@ def test_login_callback_bumps_on_fresh_login():
         view.login_success()
     user.refresh_from_db()
     assert user.auth_epoch == 1
+    assert isinstance(view.request.session["auth_time"], float)
 
 
 def test_login_callback_does_not_bump_on_session_refresh():
@@ -71,6 +73,7 @@ def test_login_callback_does_not_bump_on_session_refresh():
     # The callback re-authenticates the already-signed-in user: a refresh, not a
     # new login, so the Bearer epoch must stay put.
     view = _callback_view(user, user)
+    view.request.session["auth_time"] = 123.0
     with mock.patch(
         "core.authentication.views.OIDCAuthenticationCallbackView.login_success",
         return_value=HttpResponseRedirect("/"),
@@ -78,6 +81,7 @@ def test_login_callback_does_not_bump_on_session_refresh():
         view.login_success()
     user.refresh_from_db()
     assert user.auth_epoch == 3
+    assert view.request.session["auth_time"] == 123.0
 
 
 def test_logout_bumps():

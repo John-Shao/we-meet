@@ -8,10 +8,11 @@
  * repo itself and r0b-audit-scope.json records it, so a new entry point has to be a deliberate edit
  * to an audit list rather than something a reader later discovers was never in scope.
  *
- * Four derivations, each from a different authority in the tree:
+ * Five derivations, each from a different authority in the tree:
  *   http        - routes registered in internal/api/bootstrap.go whose resolved path starts /work/v2.
  *                 §1.4 declares every R0b relative path under that prefix, so the prefix is the
  *                 repo's own marker, not a convention invented here.
+ *   http-host   - Work governance administration routes registered in meet/urls.py.
  *   sql-chain   - functions created by an increment at or after 0028 (the R0b side of the chain, the
  *                 tip being read from migrations/manifest.json rather than hardcoded) that still hold
  *                 EXECUTE at the tip for a role other than work_owner.
@@ -33,6 +34,7 @@ const WORK = join(ROOT, 'src', 'work');
 const PLAN = join(ROOT, 'docs', 'plan');
 const WORK_DESIGN = join(ROOT, 'docs', 'work', 'design');
 const API_DIR = join(WORK, 'internal', 'api');
+const HOST_URLS = join(ROOT, 'src', 'backend', 'meet', 'urls.py');
 const MIG_DIR = join(WORK, 'migrations');
 export const MANIFEST_PATH = join(HERE, 'r0b-audit-scope.json');
 // The 2026-11-10 card E ruling is what makes the audit scope a rule rather than a wish; the manifest
@@ -95,6 +97,19 @@ export function registeredRoutes() {
 
 export function v2Routes() {
   return registeredRoutes().filter((route) => route.path.startsWith(V2_PREFIX));
+}
+
+/** Work governance administration routes exposed by Host rather than Work. */
+export function hostWorkGovernanceRoutes() {
+  const source = readText(HOST_URLS);
+  const routes = [];
+  for (const match of source.matchAll(
+    /path\(\s*"(api\/v1\.0\/admin\/work-governance-assignments\/[^"]*)",\s*(\w+)\.as_view\(\)/g,
+  )) {
+    const method = match[2].includes('ListView') ? 'GET' : 'PUT';
+    routes.push({ method, path: `/${match[1]}`, view: match[2] });
+  }
+  return routes.sort((a, b) => `${a.method} ${a.path}`.localeCompare(`${b.method} ${b.path}`));
 }
 
 /** Files that declare a /work/v2 path constant - the handlers behind this audit surface. */
@@ -237,6 +252,14 @@ export function deriveScope() {
       name: `${route.method} ${route.path}`,
       callableBy: ['http'],
       origin: 'src/work/internal/api/bootstrap.go',
+    });
+  }
+  for (const route of hostWorkGovernanceRoutes()) {
+    entries.set(`http-host ${route.method} ${route.path}`, {
+      surface: 'http-host',
+      name: `${route.method} ${route.path}`,
+      callableBy: ['http'],
+      origin: 'src/backend/meet/urls.py',
     });
   }
   for (const [name, where] of chain) {
@@ -393,14 +416,14 @@ export function buildManifest(existing) {
     }),
     namedAdjudications: namedAdjudications(),
     scopeRule:
-      '范围＝触发那一刻已实现的一切 R0b 新入口；本清单由 audit-scope.mjs 从仓库四处权威现读生成，' +
+      '范围＝触发那一刻已实现的一切 R0b 新入口；本清单由 audit-scope.mjs 从仓库五处权威现读生成，' +
       '新增入口只有两种去向：留在默认的 external-audit-required，或带上具名决策引用改成例外。',
     scopeRuleFile: relative(ROOT, SCOPE_RULE_FILE).replace(/\\/g, '/'),
     scopeRuleSource: scopeRule(),
   };
 }
 
-export const SURFACES = ['http', 'sql-chain', 'sql-handler', 'sql-duty'];
+export const SURFACES = ['http', 'http-host', 'sql-chain', 'sql-handler', 'sql-duty'];
 export const DEFAULT_CLASSIFICATION = 'external-audit-required';
 export const CLASSIFICATIONS = [DEFAULT_CLASSIFICATION, 'excluded-by-adjudication', 'internal-no-audit'];
 export const OUTCOMES = ['in-scope', 'covered-transitively', 'alias', 'no-producer'];
@@ -432,7 +455,7 @@ export function validateAuditScope(manifest, derived = deriveScope()) {
     }
     if (!Array.isArray(entry.callableBy) || entry.callableBy.length === 0) {
       problems.push(`${entry.name}: no callable-by evidence - the derivation that put it here no longer says why`);
-    } else if (entry.surface === 'http') {
+    } else if (entry.surface === 'http' || entry.surface === 'http-host') {
       if (entry.callableBy[0] !== 'http') problems.push(`${entry.name}: an http entry must name http as its caller`);
     } else if (!entry.callableBy.every((role) => /^work_[a-z_]+$/.test(role))) {
       problems.push(`${entry.name}: callableBy holds something that is not a work role`);

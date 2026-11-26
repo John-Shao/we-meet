@@ -3,21 +3,25 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/we-meet/work/internal/apierr"
 	workdb "github.com/we-meet/work/internal/db"
+	"github.com/we-meet/work/internal/devicesig"
 )
 
 // The local user-save face (control-design §1.4 row 73, §7.1). A Bearer-plane route:
 // the desktop main process appends a user-saved local version to an artifact, binding a
 // UserVersionProof signed by the active device session. The SQL (0043
-// create_local_user_artifact_version) owns the closed 21-key proof set, the epoch/CAS and
-// nonce checks, the base-version reconciliation and classification floor; the handler
-// enforces transport bounds and the kind gate only. R0b opens kind=local alone — kind=cloud
-// stays on the R0a create_user_artifact_version path and is refused here with 422.
+// create_local_user_artifact_version) owns the closed 21-key proof set, epoch/CAS,
+// nonce checks, base-version reconciliation and classification floor; the handler
+// verifies the ES256 signature from X-Device-Signature before that transaction.
+// R0b opens kind=local alone — kind=cloud stays on the R0a
+// create_user_artifact_version path and is refused here with 422.
 const LocalArtifactVersionsPath = "/work/v2/artifacts/{artifactId}/versions"
+const userVersionSignatureHeader = "X-Device-Signature"
 
 type localArtifactVersionRequest struct {
 	Kind             string          `json:"kind"`
@@ -48,12 +52,41 @@ func (s *Server) createLocalArtifactVersion(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if body.Kind != "local" || !validClientRequestID(body.ClientRequestID) ||
-		!validUUID(body.DeviceID) || !validUUID(body.SessionID) {
+		!validUUID(body.DeviceID) || !validUUID(body.SessionID) ||
+		!json.Valid(body.UserVersionProof) {
 		writeAPIError(w, correlationID, apierr.New("invalid_request"))
 		return
 	}
+	signature := strings.TrimSpace(r.Header.Get(userVersionSignatureHeader))
+	if signature == "" {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	var pubJWK []byte
+	if err := workdb.WithWorkContext(r.Context(), s.pool,
+		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
+		workdb.RoleAPI, workdb.Options{ReadOnly: true},
+		func(tx pgx.Tx) error {
+			return tx.QueryRow(r.Context(),
+				`SELECT work.user_version_signing_key($1, $2, $3::uuid, $4::uuid)`,
+				claims.OrgID, claims.SubjectID, body.DeviceID, body.SessionID,
+			).Scan(&pubJWK)
+		},
+	); err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
+	pub, err := devicesig.ParseJWK(pubJWK)
+	if err != nil {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	if !devicesig.VerifyUserVersion(pub, body.UserVersionProof, signature) {
+		writeAPIError(w, correlationID, apierr.New("unauthorized"))
+		return
+	}
 	var view json.RawMessage
-	err := workdb.WithWorkContext(r.Context(), s.pool,
+	err = workdb.WithWorkContext(r.Context(), s.pool,
 		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
 		workdb.RoleAPI, workdb.Options{},
 		func(tx pgx.Tx) error {

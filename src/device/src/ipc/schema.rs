@@ -7,7 +7,10 @@
 
 use serde_json::Value;
 
-/// The shell→Broker IPC method closure (device-design §1 :20, 22 members).
+/// The shell→Broker IPC method closure (device-design §1 :20, 29 members).
+/// `prepareLocalAcceptance` carries the viewer-authorized acceptance facts to the Broker;
+/// the Broker alone verifies the sealed local version and produces PossessionProof.
+/// `listWorkspaceGrants` returns metadata only for same-root rebind selection.
 /// `deliverDeviceSessionTicket` was added in GW17: §2.2 requires a single-use device-session
 /// ticket minted from the main process's native Bearer session, and the closed set had no member
 /// that could carry it to the Broker — the same "required but no carrier" gap GW12/GW15 found on
@@ -41,9 +44,16 @@ pub const SHELL_METHODS: &[&str] = &[
     "inspectWorkspace",
     "revokeWorkspace",
     "rebindRunWorkspace",
+    "listWorkspaceGrants",
     "stageLocalInput",
     "confirmLocalSubmission",
     "openLocalContent",
+    "prepareLocalApprovalDecision",
+    "prepareLocalAcceptance",
+    "listLocalArtifactDrafts",
+    "prepareLocalArtifactEdit",
+    "decideLocalArtifactEdit",
+    "completeLocalArtifactEdit",
     "exportArtifactVersion",
     "resendUndeliveredModelRequest",
     "configureLocalModel",
@@ -128,8 +138,8 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn shell_closure_has_twenty_two_members() {
-        assert_eq!(SHELL_METHODS.len(), 22);
+    fn shell_closure_has_twenty_nine_members() {
+        assert_eq!(SHELL_METHODS.len(), 29);
     }
 
     #[test]

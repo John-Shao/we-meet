@@ -12,8 +12,9 @@
 //! pre-register the nonce and block the real start.
 //!
 //! `grant_set` is passed through verbatim from the stored `device_run_binding.grant_set`
-//! jsonb — the gateway does not re-shape it — so `grant_revision` arrives as a JSON number
-//! while the uint64 seq/fence/epoch fields this module owns cross as decimal strings (§3.1).
+//! jsonb — the gateway does not re-shape grant ids — but its `grant_revision` is re-rendered
+//! by the gateway into the same decimal-string boundary as the uint64 seq/fence/epoch fields
+//! this module owns (§3.1), whichever way the row stored it.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -40,10 +41,13 @@ pub const READY_REASONS: &[&str] = &[
     "profile_unavailable",
 ];
 
-/// One grant the offer authorizes, as stored on the binding.
+/// One grant the offer authorizes, as stored on the binding. `grant_revision` is a bigint
+/// revision, so it crosses the wire as a decimal string like every other uint64 counter
+/// (§3.1); the gateway re-renders the stored jsonb into that form before signing.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GrantRef {
     pub grant_id: String,
+    #[serde(with = "u64string")]
     pub grant_revision: u64,
 }
 
@@ -290,8 +294,8 @@ mod tests {
         assert_eq!(obj["profile_revision"], "3");
         assert!(obj["expected_checkpoint_seq"].is_null());
         assert!(obj["expected_checkpoint_hash"].is_null());
-        // grant_set is the stored jsonb passed through, so its revision is a number.
-        assert_eq!(obj["grant_set"][0]["grant_revision"], 1);
+        // grant_set revisions cross the §3.1 uint64 boundary as decimal strings.
+        assert_eq!(obj["grant_set"][0]["grant_revision"], "1");
         assert_eq!(obj["original_target"]["device_id"], "dev-1");
         // No start_nonce on the offer: §3.1 puts it only in run_start.
         assert!(!obj.contains_key("start_nonce"));

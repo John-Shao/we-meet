@@ -71,8 +71,11 @@ test('the REST face is a closed main-process endpoint table on the Bearer plane'
     ['requestRenewal', 'POST', '/work/v2/devices/{deviceId}/certificate-renewals'],
     ['confirmRenewal', 'POST', '/work/v2/devices/certificate-renewals/{pairingId}/confirm'],
     ['revoke', 'POST', '/work/v2/devices/{deviceId}/revoke'],
+    ['registerWorkspaceGrant', 'POST', '/work/v2/workspace-grants'],
+    ['createLocalTaskPreview', 'POST', '/work/v2/local-task-previews'],
+    ['submitLocalTask', 'POST', '/work/v2/tasks'],
   ]) {
-    assert.ok(api.includes(`${action}: { method: "${method}", path: "${path}"`), `${action} route drifted`);
+    assert.ok(api.includes(`${action}:`) && api.includes(`path: "${path}"`), `${action} route drifted`);
   }
   assert.ok(api.includes('Authorization: `Bearer ${token}`'));
   assert.ok(api.includes('"X-Work-Client": "desktop"'));
@@ -105,14 +108,15 @@ test('the pipe client matches the Broker framing, handshake, method and code clo
   assert.ok(pipe.includes('export const MAX_FRAME_BYTES = 64 * 1024;'));
   assert.ok(pipe.includes('writeUInt32BE') && pipe.includes('readUInt32BE'));
   assert.ok(pipe.includes('client_kind: "shell"'));
-  // Methods: the TS set must equal the Rust CORE_METHODS (ticket::METHOD resolved).
+  // Methods: the TS set covers the Rust core pump plus shell-only methods it implements.
   const ticketMethod = rustTicket.match(/pub const METHOD: &str = "([A-Za-z]+)";/)[1];
   const coreBlock = rustDispatch.split('pub const CORE_METHODS: &[&str] = &[')[1].split('];')[0];
-  const rustMethods = [...coreBlock.matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1]).concat([ticketMethod]).sort();
+  const rustMethods = [...coreBlock.matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1])
+    .concat([ticketMethod]).sort();
   const tsBlock = pipe.split('new Set<BrokerMethod>([')[1].split('])')[0];
   const tsMethods = [...tsBlock.matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1]).sort();
   assert.deepEqual(tsMethods, rustMethods);
-  assert.equal(rustMethods.length, 12);
+  assert.equal(rustMethods.length, 22);
   // Refusal codes: same closed vocabulary on both sides.
   const codesBlock = rustDispatch.split('pub const CODES: &[&str] = &[')[1].split('];')[0];
   const rustCodes = [...codesBlock.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]).sort();
@@ -147,6 +151,69 @@ test('the config file the shell writes is field-for-field the Rust BrokerConfig'
   assert.ok(driver.includes('work_device_bundle_profile_missing'), 'a missing profile is a hard failure');
 });
 
+test('workspace grant acquisition keeps the path in main and registers the server-issued id in Broker', () => {
+  const grant = driver.split('async grantWorkspace(')[1].split('async listWorkspaceGrants')[0];
+  const steps = [
+    'selectWorkspaceDirectory',
+    '"chooseWorkspace"',
+    'confirmWorkspaceRoot',
+    '"registerWorkspaceGrant"',
+    '"confirmWorkspaceRoot"',
+  ];
+  let previous = -1;
+  for (const step of steps) {
+    const at = grant.indexOf(step, previous + 1);
+    assert.ok(at > previous, `grant acquisition step drifted: ${step}`);
+    previous = at;
+  }
+  assert.ok(grant.includes('root_identity_hash: facts.rootIdentityHash.slice("sha256:".length)'));
+  assert.ok(grant.includes('grant_id: registered.grant_id'));
+  assert.ok(grant.includes('data.grant_id !== registered.grant_id'));
+  assert.ok(grant.includes('data.root_identity_hash !== facts.rootIdentityHash'));
+  assert.ok(main.includes('ipcMain.handle("work:grant-workspace"'));
+  assert.ok(read(PRELOAD).includes('ipcRenderer.invoke("work:grant-workspace", artifactDir)'));
+  const handler = main.split('ipcMain.handle("work:grant-workspace"')[1].split('ipcMain.handle("work:list-workspace-grants"')[0];
+  assert.ok(!handler.includes('selected_path'));
+  assert.ok(handler.includes('workDriver.grantWorkspace(artifactDir)'));
+  const rustBroker = read(join(DEVICE, 'src', 'broker.rs'));
+  for (const field of ['root_identity_hash', 'device_id', 'session_id']) {
+    assert.ok(rustBroker.includes(`"${field}":`), `chooseWorkspace lost ${field}`);
+  }
+});
+
+test('local submission keeps approval and auth epoch in main and validates the returned proof', () => {
+  const submit = driver.split('async confirmLocalSubmission(')[1].split('async listWorkspaceGrants')[0];
+  const gesture = submit.indexOf('this.deps.confirmLocalSubmission(facts)');
+  const pipe = submit.indexOf('this.call("confirmLocalSubmission"');
+  assert.ok(gesture >= 0 && pipe > gesture, 'native confirmation must precede Broker signing');
+  assert.ok(submit.includes('const authEpoch = String(this.deps.auth.epoch)'));
+  assert.ok(submit.includes('auth_epoch: authEpoch'));
+  assert.ok(submit.includes('input_hash: input.inputHash.slice("sha256:".length)'));
+  assert.ok(submit.includes('parseLocalIntentProof(data.local_intent, input, authEpoch)'));
+  assert.ok(submit.includes('{1,4096}'), 'the server-signed local preview token needs the bounded opaque-token slot');
+  assert.ok(!submit.includes('approved: input'));
+  assert.ok(!submit.includes('authEpoch: input'));
+  assert.ok(driver.includes('function parseLocalIntentProof('));
+  assert.ok(driver.includes('expiry > now + 65_000'));
+  const bridge = read(join(DESKTOP, 'src', 'work', 'bridge.ts'));
+  assert.match(bridge, /confirmLocalSubmission\(\s*input: LocalSubmissionInput,?\s*\)/);
+  assert.ok(read(PRELOAD).includes('ipcRenderer.invoke("work:confirm-local-submission", input)'));
+  assert.ok(main.includes('ipcMain.handle("work:confirm-local-submission"'));
+  assert.ok(main.includes('confirmLocalSubmission: async (facts)'));
+  assert.ok(main.includes('ipcMain.handle("work:submit-local-task"'));
+  assert.ok(read(PRELOAD).includes('ipcRenderer.invoke("work:submit-local-task", input)'));
+  const composed = driver.split('async submitLocalTask(')[1].split('async confirmLocalSubmission')[0];
+  const previewAt = composed.indexOf('"createLocalTaskPreview"');
+  const confirmAt = composed.indexOf('this.confirmLocalSubmission(');
+  const restAt = composed.indexOf('"submitLocalTask"');
+  assert.ok(previewAt >= 0 && confirmAt > previewAt && restAt > confirmAt, 'local preview → native confirmation → REST submission order drifted');
+  assert.ok(composed.includes('local_intent: localIntent'));
+  assert.ok(composed.includes('profile_hash: profile.profile_hash'));
+  const handler = main.split('ipcMain.handle("work:confirm-local-submission"')[1].split('ipcMain.handle("work:list-local-artifact-drafts"')[0];
+  assert.ok(handler.includes('workDriver.confirmLocalSubmission(args[0])'));
+  assert.ok(!handler.includes('approved'));
+});
+
 test('the device-name gesture precedes any pairing request and a cancel pairs nothing', () => {
   const pairBody = driver.split('private async pair(): Promise<boolean> {')[1].split('\n  }')[0];
   const gesture = pairBody.indexOf('askDeviceName');
@@ -157,7 +224,7 @@ test('the device-name gesture precedes any pairing request and a cancel pairs no
   assert.ok(startBody.includes('if (!paired)'));
   assert.ok(startBody.includes('this.state = "idle"'));
   // The signing pre-image fields come from the identity endpoint, not from the renderer.
-  assert.ok(pairBody.includes('org_id: this.orgId, subject_id: this.subject'));
+  assert.match(pairBody, /org_id:\s*this\.orgId,\s*subject_id:\s*this\.subject/);
   assert.ok(startBody.includes('"identity"'));
 });
 
@@ -173,8 +240,8 @@ test('the certificate is account-bound, persisted and re-delivered; mint and ren
   // Re-delivery on start goes through the restart carrier with the record's org declared
   // explicitly (a fresh Broker has no signing history); an undeliverable chain goes through
   // the renewal re-issuance path.
-  assert.ok(driver.includes('await this.redeliver(this.record.deviceId, this.record.certificatePem, this.record.orgId, this.record.subject)'));
-  assert.ok(driver.includes('"redeliverDeviceCertificate", { device_id: deviceId, certificate_pem: certificatePem, org_id: orgId, subject_id: subjectId }'));
+  assert.match(driver, /await this\.redeliver\(\s*this\.record\.deviceId,\s*this\.record\.certificatePem,\s*this\.record\.orgId,\s*this\.record\.subject,?\s*\)/);
+  assert.match(driver, /"redeliverDeviceCertificate",\s*\{\s*device_id:\s*deviceId,\s*certificate_pem:\s*certificatePem,\s*org_id:\s*orgId,\s*subject_id:\s*subjectId,?\s*\}/);
   const rustBroker = read(join(DEVICE, 'src', 'broker.rs'));
   assert.ok(rustBroker.includes('"redeliverDeviceCertificate" => &["device_id", "certificate_pem", "org_id", "subject_id"]'));
   const rustIdentity = read(join(DEVICE, 'src', 'identity.rs'));

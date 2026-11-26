@@ -5,7 +5,7 @@
  *    entry has no --probe mode (its argv is <config.json> or --delete-container), and adding
  *    one would widen the shipped entry for a check the hash already performs.
  *  - There is no stdin heartbeat or guardian ledger: the Broker reads no stdin, and the closed
- *    19-method pipe set has no shutdown message. Liveness is the driver's status poll plus the
+ *    26-method pipe set has no shutdown message. Liveness is the driver's status poll plus the
  *    child exit event; stop() closes the pipe and terminates the process. The persisted CNG
  *    container survives by design (it is the device identity); uninstall owns --delete-container.
  */

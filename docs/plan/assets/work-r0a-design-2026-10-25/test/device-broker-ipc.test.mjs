@@ -38,6 +38,7 @@ const prod = (t) => code(t.split('#[cfg(test)]')[0]);
 const SERVICE = join(DEVICE, 'src', 'ipc', 'service.rs');
 const DISPATCH = join(DEVICE, 'src', 'ipc', 'dispatch.rs');
 const BROKER = join(DEVICE, 'src', 'broker.rs');
+const NODESERVICE = join(DEVICE, 'src', 'nodeservice.rs');
 const HANDSHAKE = join(DEVICE, 'src', 'ipc', 'handshake.rs');
 const TICKET = join(DEVICE, 'src', 'ipc', 'ticket.rs');
 const LINK = join(DEVICE, 'src', 'transport', 'link.rs');
@@ -48,7 +49,7 @@ const MAIN = join(DEVICE, 'src', 'main.rs');
 const BROKER_PROBE = join(DEVICE, 'examples', 'device_broker_probe.rs');
 const BROKER_INTEROP = join(GATEWAY, 'interop_broker_test.go');
 
-for (const p of [SERVICE, DISPATCH, BROKER, HANDSHAKE, TICKET, LINK, TRANSPORT, IPC_MOD, LIB,
+for (const p of [SERVICE, DISPATCH, BROKER, NODESERVICE, HANDSHAKE, TICKET, LINK, TRANSPORT, IPC_MOD, LIB,
   MAIN, BROKER_PROBE, BROKER_INTEROP]) {
   assert.ok(existsSync(p), `missing ${p}`);
 }
@@ -109,9 +110,29 @@ test('the reply vocabulary is closed and the two refusal kinds stay distinct', (
   assert.match(src, /"request_id": self\.request_id/);
   assert.match(dispatch, /assert_eq!\(keys, \["method", "request_id", "result"\]\)/);
   assert.match(dispatch, /assert_eq!\(keys, \["code", "method", "request_id", "result"\]\)/);
-  assert.match(dispatch, /assert_eq!\(count, 10\)/);
-  assert.match(dispatch, /assert_eq!\(SHELL_METHODS\.len\(\), 22\)/);
-  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 12\)/);
+  assert.match(dispatch, /assert_eq!\(count, 7\)/);
+  assert.match(dispatch, /assert_eq!\(SHELL_METHODS\.len\(\), 29\)/);
+  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 22\)/);
+});
+
+test('local submission requires approval, live input facts and the Broker device signature', () => {
+  const broker = code(read(BROKER));
+  const submission = fnBody(broker, 'async fn submission_reply(');
+  assert.match(submission, /let Some\(approved\) = message\.get\("approved"\)\.and_then\(Value::as_bool\)/);
+  const cancel = submission.indexOf('if !approved');
+  const canceled = submission.indexOf('return Reply::accepted(message);', cancel);
+  assert.ok(cancel >= 0 && canceled > cancel, 'cancel must return before any proof or node request');
+  assert.match(submission, /NodeRequest::ValidateLocalSubmission/);
+  assert.match(submission, /proof\.validate\(\)/);
+  assert.match(submission, /identity\.sign_local_intent\(/);
+  assert.match(submission, /request_id: text\("client_request_id"\)/,
+    'the proof must bind the submit idempotency key, not the pipe correlation id');
+  assert.match(submission, /Duration::from_secs\(60\)/);
+  assert.ok(!submission.includes('selected_path'), 'a renderer path reached the submission proof');
+  const node = prod(read(NODESERVICE));
+  assert.match(node, /fn staged_input_hash\(/);
+  assert.match(node, /exec\.staged_input_hash\(&input_ref\)\.as_deref\(\) != Some\(&input_hash\)/);
+  assert.match(node, /exec\.grants\.contains\(grant_id\)/);
 });
 
 test('a single-use ticket is withdrawn only while a link request is outstanding', () => {
@@ -240,7 +261,7 @@ test('the real Windows pipe is exercised, not a fake connection', () => {
   assert.match(centerpiece, /assert_eq!\(h\.next_ticket\(\)\.as_deref\(\), Some\(TICKET\)\)/);
   // Every unlanded shell method is answered over the real pipe, and the channel survives it.
   assert.match(service, /fn every_unimplemented_shell_method_gets_an_explicit_refusal_over_the_pipe/);
-  assert.match(service, /assert_eq!\(count, 10\)/);
+  assert.match(service, /assert_eq!\(count, 7\)/);
 });
 
 test('the broker probe cannot dial without the pipe and refuses other platforms', () => {
@@ -327,8 +348,9 @@ test('the ticket lifecycle the pump depends on is still the GW17 one', () => {
   assert.match(code(ticket), /pub fn deliver_message\(/);
   assert.match(code(ticket), /self\.consumed\s*\n?\s*\.insert\(pending\.delivery\.session_ticket_id\.clone\(\), now\)/);
   const broker = prod(read(BROKER));
+  const pump = fnBody(broker, 'pub async fn run_core_pump(') + fnBody(broker, 'async fn withdraw(');
   assert.ok(!broker.includes('const TICKET_TTL'), 'the pump re-declares the holding window');
-  assert.ok(!broker.includes('Duration::from_secs(60)'), 'the pump guesses a TTL instead of using the slot');
+  assert.ok(!pump.includes('Duration::from_secs(60)'), 'the ticket pump guesses a TTL instead of using the slot');
   // The slot's own retirement of an expired id is what makes the shell's refusal explicit.
   assert.match(ticket, /fn prune\(&mut self, now: Instant\)/);
   assert.match(read(DISPATCH), /TicketError::Empty \| TicketError::Expired => "already_consumed"/);

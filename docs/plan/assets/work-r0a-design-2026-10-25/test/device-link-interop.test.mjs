@@ -210,9 +210,13 @@ test('the shell closure carries the ticket method and the broker agrees on its n
   const member = '"deliverDeviceSessionTicket"';
   const closure = schema.slice(schema.indexOf('pub const SHELL_METHODS'), schema.indexOf('];', schema.indexOf('pub const SHELL_METHODS')));
   assert.ok(closure.includes(member), 'deliverDeviceSessionTicket left the shell closure');
-  // 批2 (主签单选乙, #190) grew the closure to 22: confirmWorkspaceRoot (§4.2) + confirmLocalModel (§5.4)
-  // carry the user's native-dialog decision back; the handle/identity stays on the Node service thread.
-  assert.match(schema, /assert_eq!\(SHELL_METHODS\.len\(\), 22\)/);
+  // artifact_edit adds four internal carriers including draft discovery; acceptance and rebind listing add two: 29.
+  assert.match(schema, /assert_eq!\(SHELL_METHODS\.len\(\), 29\)/);
+  for (const method of ['"openLocalContent"', '"confirmLocalSubmission"', '"listLocalArtifactDrafts"',
+    '"prepareLocalArtifactEdit"', '"decideLocalArtifactEdit"', '"completeLocalArtifactEdit"',
+    '"prepareLocalAcceptance"', '"listWorkspaceGrants"']) {
+    assert.ok(closure.includes(method), `${method} left the shell closure`);
+  }
   for (const confirm of ['"confirmWorkspaceRoot"', '"confirmLocalModel"']) {
     assert.ok(closure.includes(confirm), `${confirm} left the shell closure`);
   }

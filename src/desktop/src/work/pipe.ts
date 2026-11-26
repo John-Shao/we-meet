@@ -11,25 +11,79 @@ export const PROTOCOL_MAJOR = 2;
 export const MAX_FRAME_BYTES = 64 * 1024;
 const LENGTH_PREFIX = 4;
 /** The shell→Broker methods M2 drives plus the 批2 confirmation face (ipc/schema.rs CORE_METHODS).
- * The other eleven closed members are legal but unlanded; this client never calls them. */
-export type BrokerMethod = "getDeviceIdentity" | "signDevicePairing" | "signDeviceCertificateRenewal" |
-  "deliverDeviceCertificate" | "redeliverDeviceCertificate" | "getDeviceCertificateStatus" |
-  "deliverDeviceSessionTicket" | "chooseWorkspace" | "confirmWorkspaceRoot" | "probeLocalModel" |
-  "confirmLocalModel" | "stageLocalInput";
-const METHODS: ReadonlySet<string> = new Set<BrokerMethod>(["getDeviceIdentity", "signDevicePairing",
-  "signDeviceCertificateRenewal", "deliverDeviceCertificate", "redeliverDeviceCertificate",
-  "getDeviceCertificateStatus", "deliverDeviceSessionTicket", "chooseWorkspace", "confirmWorkspaceRoot",
-  "probeLocalModel", "confirmLocalModel", "stageLocalInput"]);
+ * The remaining seven closed members are legal but unlanded; this client never calls them. */
+export type BrokerMethod =
+  | "getDeviceIdentity"
+  | "signDevicePairing"
+  | "signDeviceCertificateRenewal"
+  | "deliverDeviceCertificate"
+  | "redeliverDeviceCertificate"
+  | "getDeviceCertificateStatus"
+  | "deliverDeviceSessionTicket"
+  | "chooseWorkspace"
+  | "confirmWorkspaceRoot"
+  | "probeLocalModel"
+  | "confirmLocalModel"
+  | "stageLocalInput"
+  | "confirmLocalSubmission"
+  | "openLocalContent"
+  | "prepareLocalApprovalDecision"
+  | "prepareLocalAcceptance"
+  | "listLocalArtifactDrafts"
+  | "prepareLocalArtifactEdit"
+  | "decideLocalArtifactEdit"
+  | "completeLocalArtifactEdit"
+  | "rebindRunWorkspace"
+  | "listWorkspaceGrants";
+const METHODS: ReadonlySet<string> = new Set<BrokerMethod>([
+  "getDeviceIdentity",
+  "signDevicePairing",
+  "signDeviceCertificateRenewal",
+  "deliverDeviceCertificate",
+  "redeliverDeviceCertificate",
+  "getDeviceCertificateStatus",
+  "deliverDeviceSessionTicket",
+  "chooseWorkspace",
+  "confirmWorkspaceRoot",
+  "probeLocalModel",
+  "confirmLocalModel",
+  "stageLocalInput",
+  "confirmLocalSubmission",
+  "openLocalContent",
+  "prepareLocalApprovalDecision",
+  "prepareLocalAcceptance",
+  "listLocalArtifactDrafts",
+  "prepareLocalArtifactEdit",
+  "decideLocalArtifactEdit",
+  "completeLocalArtifactEdit",
+  "rebindRunWorkspace",
+  "listWorkspaceGrants",
+]);
 /** The closed refusal codes (ipc/dispatch.rs CODES). */
-const CODES = new Set(["unknown_method", "method_not_implemented", "schema", "shape", "foreign_device",
-  "already_consumed", "handshake", "no_pairing", "certificate_invalid"]);
+const CODES = new Set([
+  "unknown_method",
+  "method_not_implemented",
+  "schema",
+  "shape",
+  "foreign_device",
+  "already_consumed",
+  "handshake",
+  "no_pairing",
+  "certificate_invalid",
+]);
 export class BrokerPipeError extends Error {
-  constructor(public readonly code: string) { super(code); this.name = "BrokerPipeError"; }
+  constructor(public readonly code: string) {
+    super(code);
+    this.name = "BrokerPipeError";
+  }
 }
-export interface BrokerReply { data?: Record<string, unknown> }
+export interface BrokerReply {
+  data?: Record<string, unknown>;
+}
 
 export function encodeFrame(payload: Uint8Array): Buffer {
-  if (payload.length > MAX_FRAME_BYTES) throw new BrokerPipeError("frame_oversize");
+  if (payload.length > MAX_FRAME_BYTES)
+    throw new BrokerPipeError("frame_oversize");
   const frame = Buffer.alloc(LENGTH_PREFIX + payload.length);
   frame.writeUInt32BE(payload.length, 0);
   frame.set(payload, LENGTH_PREFIX);
@@ -55,22 +109,38 @@ export class BrokerPipe {
         await pipe.attach(name);
         break;
       } catch (error) {
-        if (Date.now() >= deadline) throw error instanceof BrokerPipeError ? error : new BrokerPipeError("pipe_unavailable");
-        await new Promise(resolve => setTimeout(resolve, 20));
+        if (Date.now() >= deadline)
+          throw error instanceof BrokerPipeError
+            ? error
+            : new BrokerPipeError("pipe_unavailable");
+        await new Promise((resolve) => setTimeout(resolve, 20));
       }
     }
     try {
       const hello = await pipe.readFrame(5000);
-      const value = JSON.parse(hello.toString("utf8")) as { nonce?: unknown; protocol_major?: unknown };
-      if (!value || Object.keys(value).sort().join(",") !== "nonce,protocol_major" ||
-        typeof value.nonce !== "string" || value.protocol_major !== PROTOCOL_MAJOR) {
+      const value = JSON.parse(hello.toString("utf8")) as {
+        nonce?: unknown;
+        protocol_major?: unknown;
+      };
+      if (
+        !value ||
+        Object.keys(value).sort().join(",") !== "nonce,protocol_major" ||
+        typeof value.nonce !== "string" ||
+        value.protocol_major !== PROTOCOL_MAJOR
+      ) {
         throw new BrokerPipeError("handshake");
       }
-      pipe.writeJson({ nonce: value.nonce, protocol_major: PROTOCOL_MAJOR, client_kind: "shell" });
+      pipe.writeJson({
+        nonce: value.nonce,
+        protocol_major: PROTOCOL_MAJOR,
+        client_kind: "shell",
+      });
       return pipe;
     } catch (error) {
       pipe.close();
-      throw error instanceof BrokerPipeError ? error : new BrokerPipeError("handshake");
+      throw error instanceof BrokerPipeError
+        ? error
+        : new BrokerPipeError("handshake");
     }
   }
 
@@ -87,7 +157,10 @@ export class BrokerPipe {
         socket.on("close", () => this.fail(new BrokerPipeError("pipe_closed")));
         resolve();
       };
-      const onError = (error: Error) => { socket.destroy(); reject(error); };
+      const onError = (error: Error) => {
+        socket.destroy();
+        reject(error);
+      };
       socket.once("connect", onConnect);
       socket.once("error", onError);
     });
@@ -96,8 +169,13 @@ export class BrokerPipe {
   /** One closed call: send {method, request_id, ...fields}, await the echoed reply. Fields are
    * strings for the §2.1 carriers; the 批2 confirmation carriers also pass a bool (approved), an
    * array (artifact_dir) and an object (listener_requirement), so the value type is unknown. */
-  async call(method: BrokerMethod, fields: Record<string, unknown> = {}, timeoutMs = 8000): Promise<BrokerReply> {
-    if (this.closed || this.failure) throw this.failure ?? new BrokerPipeError("pipe_closed");
+  async call(
+    method: BrokerMethod,
+    fields: Record<string, unknown> = {},
+    timeoutMs = 8000,
+  ): Promise<BrokerReply> {
+    if (this.closed || this.failure)
+      throw this.failure ?? new BrokerPipeError("pipe_closed");
     if (!METHODS.has(method)) throw new BrokerPipeError("unknown_method");
     for (const forbidden of ["command", "path", "url"]) {
       if (Object.hasOwn(fields, forbidden)) throw new BrokerPipeError("schema");
@@ -109,16 +187,36 @@ export class BrokerPipe {
       const remaining = deadline - Date.now();
       if (remaining <= 0) throw new BrokerPipeError("pipe_timeout");
       const raw = await this.readFrame(remaining);
-      let reply: { request_id?: unknown; method?: unknown; result?: unknown; code?: unknown; data?: unknown };
-      try { reply = JSON.parse(raw.toString("utf8")); } catch { throw new BrokerPipeError("schema"); }
-      if (!reply || reply.request_id !== requestId || reply.method !== method) continue;
+      let reply: {
+        request_id?: unknown;
+        method?: unknown;
+        result?: unknown;
+        code?: unknown;
+        data?: unknown;
+      };
+      try {
+        reply = JSON.parse(raw.toString("utf8"));
+      } catch {
+        throw new BrokerPipeError("schema");
+      }
+      if (!reply || reply.request_id !== requestId || reply.method !== method)
+        continue;
       if (reply.result === "accepted") {
-        if (reply.data !== undefined && (typeof reply.data !== "object" || reply.data === null || Array.isArray(reply.data))) {
+        if (
+          reply.data !== undefined &&
+          (typeof reply.data !== "object" ||
+            reply.data === null ||
+            Array.isArray(reply.data))
+        ) {
           throw new BrokerPipeError("schema");
         }
         return { data: reply.data as Record<string, unknown> | undefined };
       }
-      if (reply.result === "refused" && typeof reply.code === "string" && CODES.has(reply.code)) {
+      if (
+        reply.result === "refused" &&
+        typeof reply.code === "string" &&
+        CODES.has(reply.code)
+      ) {
         throw new BrokerPipeError(reply.code);
       }
       throw new BrokerPipeError("schema");
@@ -134,7 +232,8 @@ export class BrokerPipe {
 
   private writeJson(value: Record<string, unknown>) {
     const socket = this.socket;
-    if (this.closed || !socket || socket.destroyed) throw this.failure ?? new BrokerPipeError("pipe_closed");
+    if (this.closed || !socket || socket.destroyed)
+      throw this.failure ?? new BrokerPipeError("pipe_closed");
     socket.write(encodeFrame(Buffer.from(JSON.stringify(value), "utf8")));
   }
 
@@ -143,9 +242,15 @@ export class BrokerPipe {
     for (;;) {
       if (this.buffer.length < LENGTH_PREFIX) return;
       const length = this.buffer.readUInt32BE(0);
-      if (length > MAX_FRAME_BYTES) { this.fail(new BrokerPipeError("frame_oversize")); return; }
+      if (length > MAX_FRAME_BYTES) {
+        this.fail(new BrokerPipeError("frame_oversize"));
+        return;
+      }
       if (this.buffer.length < LENGTH_PREFIX + length) return;
-      const payload = this.buffer.subarray(LENGTH_PREFIX, LENGTH_PREFIX + length);
+      const payload = this.buffer.subarray(
+        LENGTH_PREFIX,
+        LENGTH_PREFIX + length,
+      );
       this.buffer = this.buffer.subarray(LENGTH_PREFIX + length);
       const waiter = this.waiters.shift();
       if (waiter) waiter(Buffer.from(payload));
@@ -166,7 +271,8 @@ export class BrokerPipe {
       }, timeoutMs);
       const onFrame = (frame: Buffer | null) => {
         clearTimeout(timer);
-        if (frame === null) reject(this.failure ?? new BrokerPipeError("pipe_closed"));
+        if (frame === null)
+          reject(this.failure ?? new BrokerPipeError("pipe_closed"));
         else resolve(frame);
       };
       this.waiters.push(onFrame);

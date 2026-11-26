@@ -200,6 +200,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST "+InputsPath, s.createInput)
 	mux.HandleFunc("GET "+TemplatesPath, s.listTemplates)
 	mux.HandleFunc("POST "+TaskPreviewsPath, s.createPreview)
+	mux.HandleFunc("POST "+LocalTaskPreviewsPath, s.createLocalTaskPreview)
+	mux.HandleFunc("POST "+LocalTasksPath, s.submitLocalTask)
 	mux.HandleFunc("POST "+TasksPath, s.createTask)
 	mux.HandleFunc("GET "+AdminOverviewPath, s.adminOverview)
 	mux.HandleFunc("GET "+AdminSeatsPath, s.adminSeats)

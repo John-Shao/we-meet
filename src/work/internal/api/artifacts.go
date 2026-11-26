@@ -40,6 +40,7 @@ type ArtifactVersion struct {
 }
 
 type ArtifactWorkspaceVersion struct {
+	VersionID   string     `json:"version_id"`
 	VersionNo   int        `json:"version_no"`
 	MediaType   string     `json:"media_type"`
 	Bytes       int64      `json:"bytes"`
@@ -311,7 +312,7 @@ func (s *Server) readTaskArtifactWorkspace(
 				return err
 			}
 			rows, err := tx.Query(ctx, `
-				SELECT version_no, media_type, bytes, content_hash, state, created_at, published_at
+				SELECT version_id, version_no, media_type, bytes, content_hash, state, created_at, published_at
 				FROM work.artifact_version
 				WHERE artifact_id = $1 AND org_id = $2 AND state = 'published'
 				ORDER BY version_no DESC`,
@@ -324,7 +325,7 @@ func (s *Server) readTaskArtifactWorkspace(
 			for rows.Next() {
 				var version ArtifactWorkspaceVersion
 				var publishedAt pgtype.Timestamptz
-				if err := rows.Scan(&version.VersionNo, &version.MediaType, &version.Bytes,
+				if err := rows.Scan(&version.VersionID, &version.VersionNo, &version.MediaType, &version.Bytes,
 					&version.ContentHash, &version.State, &version.CreatedAt, &publishedAt); err != nil {
 					return err
 				}

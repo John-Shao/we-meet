@@ -11,6 +11,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"log"
 	"math/big"
 	"net"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -79,7 +81,15 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	apiServer := newDeviceAPIServer(t, pool)
+	csrf, err := api.NewCSRF([]byte(strings.Repeat("s", 32)), time.Hour, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	apiServer, err := api.NewServer(pool, &stubVerifier{claims: testClaims()}, csrf, log.New(io.Discard, "", 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	apiServer.SetBearerVerifier(&stubBearerVerifier{claims: testClaims()})
 	apiServer.SetDeviceCA(ca)
 	rest := httptest.NewServer(apiServer.Handler())
 	t.Cleanup(rest.Close)
@@ -101,7 +111,7 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 	// session row and asserts it stays stable across a restart (the journal is recovered, not rebuilt).
 	journalDir := filepath.Join(dir, "journal")
 	config := map[string]any{
-		"pipe_name":          pipeName,
+		"pipe_name": pipeName,
 		// The Go test process plays the shell and owns the pipe client, so its PID is the
 		// shell predicate the Broker's accept() compares every client against.
 		"shell_pid":          os.Getpid(),
@@ -291,6 +301,417 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 	}
 	if got := ticketState(t, dbName, ticketRowID); got != "consumed" {
 		t.Fatalf("ticket state = %s, want consumed", got)
+	}
+
+	// The real shell→Broker→REST grant acquisition chain: prepare binds the actual root and
+	// returns its identity plus the Broker's current session; REST issues the grant id; confirm
+	// registers that same id against the held root handle. The renderer never supplies a path.
+	workspaceRoot := t.TempDir()
+	prepared := brokerCall(t, pipe, map[string]any{
+		"method": "chooseWorkspace", "request_id": "workspace-prepare",
+		"selected_path": workspaceRoot,
+	})
+	if prepared["result"] != "accepted" {
+		t.Fatalf("workspace prepare refused: %#v; broker stderr:\n%s", prepared, stderr.String())
+	}
+	preparedData := prepared["data"].(map[string]any)
+	rootHash, _ := preparedData["root_identity_hash"].(string)
+	if !strings.HasPrefix(rootHash, "sha256:") || len(rootHash) != 71 ||
+		preparedData["device_id"] != deviceID || preparedData["session_id"] != sessionID {
+		t.Fatalf("workspace prepare facts = %#v", preparedData)
+	}
+	grantBody := fmt.Sprintf(`{"device_id":%q,"session_id":%q,"client_request_id":"gw21-grant","grant":{"root_identity_hash":%q,"allowed_tools":["workspace.list","workspace.read","workspace.search","artifact.write"],"matched_rule_index":0,"user_selected_ttl_seconds":3600}}`,
+		deviceID, sessionID, strings.TrimPrefix(rootHash, "sha256:"))
+	registered := decodeObject(t, deviceRequest(t, http.MethodPost, rest.URL+api.WorkspaceGrantsPath, grantBody))
+	grantID, _ := registered["grant_id"].(string)
+	if grantID == "" || registered["state"] != "active" {
+		t.Fatalf("workspace grant registration = %#v", registered)
+	}
+	workspaceConfirmed := brokerCall(t, pipe, map[string]any{
+		"method": "confirmWorkspaceRoot", "request_id": "workspace-confirm",
+		"confirmation_token": preparedData["confirmation_token"], "grant_id": grantID,
+		"artifact_dir": []string{"WeMeet成果"}, "approved": true,
+	})
+	if workspaceConfirmed["result"] != "accepted" {
+		t.Fatalf("workspace confirm refused: %#v; broker stderr:\n%s", workspaceConfirmed, stderr.String())
+	}
+	confirmedData := workspaceConfirmed["data"].(map[string]any)
+	if confirmedData["grant_id"] != grantID || confirmedData["root_identity_hash"] != rootHash {
+		t.Fatalf("workspace confirm facts = %#v", confirmedData)
+	}
+	listed := brokerCall(t, pipe, map[string]any{
+		"method": "listWorkspaceGrants", "request_id": "workspace-list",
+	})
+	listedData := listed["data"].(map[string]any)
+	grants, _ := listedData["grants"].([]any)
+	if listed["result"] != "accepted" || len(grants) != 1 {
+		t.Fatalf("workspace grant list = %#v", listed)
+	}
+	listedGrant := grants[0].(map[string]any)
+	if len(listedGrant) != 3 || listedGrant["grant_id"] != grantID ||
+		listedGrant["root_identity_hash"] != rootHash {
+		t.Fatalf("workspace grant metadata is not closed: %#v", listedGrant)
+	}
+
+	// The real local submission proof path: stage the Composer bytes, approve natively, then let
+	// the Broker bind the current session/input/grant/profile facts and sign local_intent over the
+	// pipe. Go independently parses and verifies the exact document the device returned.
+	staged := brokerCall(t, pipe, map[string]any{
+		"method": "stageLocalInput", "request_id": "local-input-stage",
+		"text": "local submission body",
+	})
+	stagedData := staged["data"].(map[string]any)
+	inputRef, _ := stagedData["local_input_ref"].(string)
+	inputHash, _ := stagedData["content_hash"].(string)
+	inputBytes, err := strconv.ParseInt(fmt.Sprint(stagedData["byte_count"]), 10, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inputRef == "" || !strings.HasPrefix(inputHash, "sha256:") {
+		t.Fatalf("staged local input = %#v", stagedData)
+	}
+	targetSelection := map[string]any{
+		"kind": "local", "profile_id": "profile-1", "profile_revision": "0",
+		"profile_hash": strings.Repeat("e", 64), "device_id": deviceID, "session_id": sessionID,
+		"workspace_grants": []any{map[string]any{"grant_id": grantID, "grant_revision": "1"}},
+		"runtime_digest":   strings.Repeat("b", 64), "tool_manifest_hash": strings.Repeat("a", 64),
+		"model_version": "deferred",
+	}
+	previewRequest := map[string]any{
+		"client_request_id": "gw21-local-preview",
+		"input_ref":         inputRef,
+		"input_hash":        strings.TrimPrefix(inputHash, "sha256:"),
+		"input_bytes":       inputBytes,
+		"target_selection":  targetSelection,
+		"template_id":       "summary", "template_version": 1,
+		"permission_mode": "ask_each", "output_format": "text/markdown",
+	}
+	previewBody, err := json.Marshal(previewRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	preview := decodeObject(t, deviceRequest(t, http.MethodPost, rest.URL+api.LocalTaskPreviewsPath, string(previewBody)))
+	previewHash, _ := preview["preview_hash"].(string)
+	targetHash, _ := preview["target_selection_hash"].(string)
+	if previewHash == "" || len(targetHash) != 64 || preview["input_hash"] != strings.TrimPrefix(inputHash, "sha256:") ||
+		preview["input_bytes"] != float64(inputBytes) || preview["output_location"] != "device_local" || preview["permission_mode"] != "ask_each" {
+		t.Fatalf("local preview = %#v", preview)
+	}
+	staleTarget := make(map[string]any, len(targetSelection))
+	for key, value := range targetSelection {
+		staleTarget[key] = value
+	}
+	staleTarget["workspace_grants"] = []any{map[string]any{"grant_id": grantID, "grant_revision": "2"}}
+	stalePreviewRequest := make(map[string]any, len(previewRequest))
+	for key, value := range previewRequest {
+		stalePreviewRequest[key] = value
+	}
+	stalePreviewRequest["target_selection"] = staleTarget
+	stalePreviewBody, _ := json.Marshal(stalePreviewRequest)
+	stalePreview := deviceRequest(t, http.MethodPost, rest.URL+api.LocalTaskPreviewsPath, string(stalePreviewBody))
+	if stalePreview.StatusCode != http.StatusConflict {
+		t.Fatalf("stale grant preview status = %d body=%s", stalePreview.StatusCode, readBody(stalePreview))
+	}
+	var submissionEpoch int64
+	if err := brokerDB(t, dbName).QueryRow(context.Background(),
+		`SELECT auth_epoch FROM work.device_session WHERE org_id = $1 AND id = $2::uuid`,
+		testOrg, sessionID).Scan(&submissionEpoch); err != nil {
+		t.Fatal(err)
+	}
+	submission := brokerCall(t, pipe, map[string]any{
+		"method": "confirmLocalSubmission", "request_id": "local-submit-confirm",
+		"approved": true, "client_request_id": "gw21-local-submit",
+		"input_ref": inputRef, "input_hash": strings.TrimPrefix(inputHash, "sha256:"),
+		"preview_hash": previewHash, "target_selection_hash": targetHash,
+		"selected_grant_ids": []string{grantID}, "grant_revisions": []string{"1"},
+		"profile_id": "profile-1", "profile_revision": "0", "profile_hash": strings.Repeat("e", 64),
+		"auth_epoch": strconv.FormatInt(submissionEpoch, 10),
+	})
+	if submission["result"] != "accepted" {
+		t.Fatalf("local submission refused: %#v; broker stderr:\n%s", submission, stderr.String())
+	}
+	submissionData := submission["data"].(map[string]any)
+	if submissionData["status"] != "ready" {
+		t.Fatalf("local submission facts = %#v", submissionData)
+	}
+	intent := submissionData["local_intent"].(map[string]any)
+	if len(intent) != 19 || intent["request_id"] != "gw21-local-submit" ||
+		intent["device_id"] != deviceID || intent["session_id"] != sessionID ||
+		intent["org_id"] != testOrg || intent["subject_id"] != testSubject ||
+		intent["input_hash"] != strings.TrimPrefix(inputHash, "sha256:") ||
+		intent["auth_epoch"] != strconv.FormatInt(submissionEpoch, 10) {
+		t.Fatalf("Broker local_intent = %#v", intent)
+	}
+	intentJSON, err := json.Marshal(intent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsedIntent, err := devicesig.ParseLocalIntentProof(intentJSON)
+	if err != nil {
+		t.Fatalf("ParseLocalIntentProof: %v", err)
+	}
+	if !devicesig.VerifyLocalIntent(pub, intentJSON) {
+		t.Fatal("the real Broker local_intent signature did not verify")
+	}
+	if parsedIntent.RequestID != "gw21-local-submit" || parsedIntent.SessionID != sessionID {
+		t.Fatalf("parsed local_intent = %#v", parsedIntent)
+	}
+	submitBody, err := json.Marshal(map[string]any{
+		"client_request_id": "gw21-local-submit",
+		"input_ref":         inputRef, "input_hash": strings.TrimPrefix(inputHash, "sha256:"),
+		"input_bytes": inputBytes, "preview_hash": previewHash,
+		"target_selection_hash": targetHash, "target_selection": targetSelection,
+		"title": "本机提交互操作", "local_intent": intent,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	submitResponse := deviceRequest(t, http.MethodPost, rest.URL+api.LocalTasksPath, string(submitBody))
+	if submitResponse.StatusCode != http.StatusAccepted {
+		t.Fatalf("local task submit status = %d body=%s", submitResponse.StatusCode, readBody(submitResponse))
+	}
+	submitted := decodeObject(t, submitResponse)
+	taskID, _ := submitted["task_id"].(string)
+	runID, _ := submitted["run_id"].(string)
+	if taskID == "" || runID == "" || submitted["binding_revision"] != float64(1) {
+		t.Fatalf("local task submit = %#v", submitted)
+	}
+	var taskState, runState, bindingState, bindingInput string
+	if err := brokerDB(t, dbName).QueryRow(context.Background(), `
+		SELECT t.state, r.state, b.state, b.input_ref
+		FROM work.task t
+		JOIN work.run r ON r.task_id = t.id AND r.org_id = t.org_id
+		JOIN work.device_run_binding b ON b.run_id = r.id AND b.org_id = r.org_id
+		WHERE t.org_id = $1 AND t.id = $2::uuid AND r.id = $3::uuid`,
+		testOrg, taskID, runID).Scan(&taskState, &runState, &bindingState, &bindingInput); err != nil {
+		t.Fatal(err)
+	}
+	if taskState != "open" || runState != "queued" || bindingState != "offered" || bindingInput != inputRef {
+		t.Fatalf("local submit server truth = task %s run %s binding %s input %s",
+			taskState, runState, bindingState, bindingInput)
+	}
+	var cloudOutbox, intentRows int
+	if err := brokerDB(t, dbName).QueryRow(context.Background(), `
+		SELECT (SELECT count(*) FROM work.outbox WHERE org_id = $1 AND aggregate_id = $2::uuid
+		          AND payload->>'kind' = 'start_workflow'),
+		       (SELECT count(*) FROM work.local_submission_intent WHERE org_id = $1 AND task_id = $3::uuid)`,
+		testOrg, runID, taskID).Scan(&cloudOutbox, &intentRows); err != nil {
+		t.Fatal(err)
+	}
+	if cloudOutbox != 0 || intentRows != 1 {
+		t.Fatalf("local submit outbox/intent rows = %d/%d, want 0/1", cloudOutbox, intentRows)
+	}
+	replayResponse := deviceRequest(t, http.MethodPost, rest.URL+api.LocalTasksPath, string(submitBody))
+	replayed := decodeObject(t, replayResponse)
+	if replayResponse.StatusCode != http.StatusAccepted || replayed["task_id"] != taskID ||
+		replayed["run_id"] != runID || replayed["binding_revision"] != float64(1) {
+		t.Fatalf("local submit replay = status %d body %#v", replayResponse.StatusCode, replayed)
+	}
+	nonceReplayIntent := make(map[string]any, len(intent))
+	for key, value := range intent {
+		nonceReplayIntent[key] = value
+	}
+	nonceReplayIntent["request_id"] = "gw21-local-submit-nonce-replay"
+	nonceReplayIntent["input_hash"] = strings.Repeat("9", 64)
+	nonceReplayJSON, _ := json.Marshal(nonceReplayIntent)
+	nonceReplayTarget, _ := json.Marshal(targetSelection)
+	nonceReplayInput := uuid.NewString()
+	admin, err := testpg.Open(context.Background(), testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(context.Background())
+	tx, err := admin.Begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(context.Background())
+	if _, err := tx.Exec(context.Background(), `SET ROLE work_api`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(context.Background(),
+		`SELECT set_config('app.org_id', $1, true), set_config('app.subject_id', $2, true)`,
+		testOrg, testSubject); err != nil {
+		t.Fatal(err)
+	}
+	var replayTask, replayRun string
+	var replayRevision, replayBinding int64
+	nonceReplayErr := tx.QueryRow(context.Background(), `
+		SELECT task_id, run_id, revision, binding_revision
+		FROM work.submit_local_task($1, $2, $3, $4, $5::uuid, $6, $7, $8, $9::timestamptz,
+		  $10, $11, $12, $13::jsonb, $14::text[], $15::jsonb, $16::jsonb, $17::jsonb)`,
+		testOrg, testSubject, submissionEpoch, "gw21-local-submit-nonce-replay",
+		nonceReplayInput, strings.Repeat("9", 64), int64(1), previewHash, time.Now().Add(time.Hour), targetHash,
+		"nonce replay", "ask_each", `{}`, []string{"model_call"},
+		`{"provider":"device_local","model":"deferred"}`, string(nonceReplayTarget), string(nonceReplayJSON),
+	).Scan(&replayTask, &replayRun, &replayRevision, &replayBinding)
+	if nonceReplayErr == nil || !strings.Contains(nonceReplayErr.Error(), "unauthorized") {
+		t.Fatalf("nonce replay error = %v, want closed unauthorized rollback", nonceReplayErr)
+	}
+	var rollbackDedup, rollbackInput, rollbackIntents int
+	if err := brokerDB(t, dbName).QueryRow(context.Background(), `
+		SELECT (SELECT count(*) FROM work.submission_dedup WHERE org_id = $1
+		          AND client_request_id = 'gw21-local-submit-nonce-replay'),
+		       (SELECT count(*) FROM work.input_object WHERE org_id = $1 AND id = $2::uuid),
+		       (SELECT count(*) FROM work.local_submission_intent WHERE org_id = $1 AND nonce = $3)`,
+		testOrg, nonceReplayInput, intent["nonce"]).Scan(&rollbackDedup, &rollbackInput, &rollbackIntents); err != nil {
+		t.Fatal(err)
+	}
+	if rollbackDedup != 0 || rollbackInput != 0 || rollbackIntents != 1 {
+		t.Fatalf("nonce replay rollback truth = dedup/input/intents %d/%d/%d, want 0/0/1",
+			rollbackDedup, rollbackInput, rollbackIntents)
+	}
+	intent["target_selection_hash"] = strings.Repeat("f", 64)
+	tamperedIntent, _ := json.Marshal(intent)
+	if devicesig.VerifyLocalIntent(pub, tamperedIntent) {
+		t.Fatal("a tampered target selection verified")
+	}
+	var tamperedSubmit map[string]any
+	if err := json.Unmarshal(submitBody, &tamperedSubmit); err != nil {
+		t.Fatal(err)
+	}
+	tamperedSubmit["local_intent"] = intent
+	tamperedSubmitBody, _ := json.Marshal(tamperedSubmit)
+	tamperedResponse := deviceRequest(t, http.MethodPost, rest.URL+api.LocalTasksPath, string(tamperedSubmitBody))
+	if tamperedResponse.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("tampered local submit status = %d body=%s", tamperedResponse.StatusCode, readBody(tamperedResponse))
+	}
+	canceledSubmission := brokerCall(t, pipe, map[string]any{
+		"method": "confirmLocalSubmission", "request_id": "local-submit-cancel",
+		"approved": false, "client_request_id": "gw21-local-submit-cancel",
+		"input_ref": inputRef, "input_hash": strings.TrimPrefix(inputHash, "sha256:"),
+		"preview_hash": previewHash, "target_selection_hash": targetHash,
+		"selected_grant_ids": []string{grantID}, "grant_revisions": []string{"1"},
+		"profile_id": "profile-1", "profile_revision": "0", "profile_hash": strings.Repeat("e", 64),
+		"auth_epoch": strconv.FormatInt(submissionEpoch, 10),
+	})
+	if canceledSubmission["result"] != "accepted" || canceledSubmission["data"] != nil {
+		t.Fatalf("canceled local submission returned proof data: %#v", canceledSubmission)
+	}
+
+	// The real device approval chain: the Broker signs the closed decision proof from the
+	// current journal session, then REST verifies it and records the owner's decision.
+	approvalID, operationID, approvalRunID := seedLocalApproval(t, dbName, deviceID, grantID)
+	var approvalEpoch int64
+	if err := brokerDB(t, dbName).QueryRow(context.Background(),
+		`SELECT auth_epoch FROM work.device_session WHERE org_id = $1 AND id = $2::uuid`,
+		testOrg, sessionID).Scan(&approvalEpoch); err != nil {
+		t.Fatal(err)
+	}
+	preparedApproval := brokerCall(t, pipe, map[string]any{
+		"method": "prepareLocalApprovalDecision", "request_id": "approval-prepare",
+		"approval_id": approvalID, "operation_id": operationID,
+		"params_hash": strings.Repeat("c", 64), "expected_revision": "0",
+		"decision": "approved", "remember_readonly": false,
+		"readonly_scope": nil, "readonly_expires_at": nil,
+		"policy_epoch": "0", "access_epoch": "0",
+		"auth_epoch": strconv.FormatInt(approvalEpoch, 10),
+	})
+	if preparedApproval["result"] != "accepted" {
+		t.Fatalf("approval prepare refused: %#v; broker stderr:\n%s", preparedApproval, stderr.String())
+	}
+	preparedApprovalData := preparedApproval["data"].(map[string]any)
+	if preparedApprovalData["status"] != "ready" {
+		t.Fatalf("approval prepare facts = %#v", preparedApprovalData)
+	}
+	decisionProof := preparedApprovalData["approval_decision_proof"].(map[string]any)
+	if decisionProof["approval_id"] != approvalID || decisionProof["operation_id"] != operationID ||
+		decisionProof["device_id"] != deviceID || decisionProof["session_id"] != sessionID ||
+		decisionProof["decision"] != "approved" || decisionProof["remember_readonly"] != false {
+		t.Fatalf("Broker approval proof = %#v", decisionProof)
+	}
+	decisionBody, err := json.Marshal(map[string]any{
+		"client_request_id": "gw21-approval-decision",
+		"decision":          decisionProof,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	decisionPath := strings.ReplaceAll(api.ApprovalDecisionPath, "{approvalId}", approvalID)
+	decisionResponse := deviceRequest(t, http.MethodPost, rest.URL+decisionPath, string(decisionBody))
+	if decisionResponse.StatusCode != http.StatusOK {
+		t.Fatalf("approval decision status = %d body=%s", decisionResponse.StatusCode, readBody(decisionResponse))
+	}
+	decision := decodeObject(t, decisionResponse)
+	if decision["approval_id"] != approvalID || decision["operation_id"] != operationID ||
+		decision["decision"] != "approved" || decision["run_id"] != approvalRunID ||
+		decision["replayed"] != false {
+		t.Fatalf("approval decision response = %#v", decision)
+	}
+	var approvalStatus string
+	if err := brokerDB(t, dbName).QueryRow(context.Background(),
+		`SELECT status FROM work.approval WHERE org_id = $1 AND id = $2::uuid`,
+		testOrg, approvalID).Scan(&approvalStatus); err != nil {
+		t.Fatal(err)
+	}
+	if approvalStatus != "approved" {
+		t.Fatalf("server approval status = %s, want approved", approvalStatus)
+	}
+
+	// Acquire a second server-issued grant over the same held root, then drive the real
+	// shell→Broker→REST succession. The proof's session comes from the Broker, not this test.
+	preparedSecond := brokerCall(t, pipe, map[string]any{
+		"method": "chooseWorkspace", "request_id": "workspace-prepare-2",
+		"selected_path": workspaceRoot,
+	})
+	if preparedSecond["result"] != "accepted" {
+		t.Fatalf("second workspace prepare refused: %#v", preparedSecond)
+	}
+	preparedSecondData := preparedSecond["data"].(map[string]any)
+	newGrantID := registerRebindGrant(t, rest.URL, deviceID, sessionID, "gw21-grant-2",
+		strings.TrimPrefix(rootHash, "sha256:"))
+	confirmedSecond := brokerCall(t, pipe, map[string]any{
+		"method": "confirmWorkspaceRoot", "request_id": "workspace-confirm-2",
+		"confirmation_token": preparedSecondData["confirmation_token"], "grant_id": newGrantID,
+		"artifact_dir": []string{"WeMeet成果"}, "approved": true,
+	})
+	if confirmedSecond["result"] != "accepted" {
+		t.Fatalf("second workspace confirm refused: %#v", confirmedSecond)
+	}
+	seedRebindGraph(t, dbName, deviceID, sessionID, grantID)
+	var authEpoch int64
+	if err := brokerDB(t, dbName).QueryRow(context.Background(),
+		`SELECT auth_epoch FROM work.device_session WHERE org_id = $1 AND id = $2::uuid`,
+		testOrg, sessionID).Scan(&authEpoch); err != nil {
+		t.Fatal(err)
+	}
+	succession := brokerCall(t, pipe, map[string]any{
+		"method": "rebindRunWorkspace", "request_id": "workspace-rebind",
+		"run_id": rebindRunID, "old_grant_id": grantID, "new_grant_id": newGrantID,
+		"auth_epoch": strconv.FormatInt(authEpoch, 10),
+	})
+	if succession["result"] != "accepted" {
+		t.Fatalf("workspace rebind proof refused: %#v; broker stderr:\n%s", succession, stderr.String())
+	}
+	rebindBody, err := json.Marshal(map[string]any{
+		"client_request_id":      "gw21-rebind",
+		"old_grant_id":           grantID,
+		"new_grant_id":           newGrantID,
+		"grant_succession_proof": succession["data"],
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rebindPath := strings.ReplaceAll(api.WorkspaceRebindsPath, "{runId}", rebindRunID)
+	rebindResponse := deviceRequest(t, http.MethodPost, rest.URL+rebindPath, string(rebindBody))
+	if rebindResponse.StatusCode != http.StatusAccepted {
+		t.Fatalf("workspace rebind status = %d body=%s", rebindResponse.StatusCode, readBody(rebindResponse))
+	}
+	rebound := decodeObject(t, rebindResponse)
+	if rebound["state"] != "active" || rebound["binding_revision"] != float64(2) ||
+		rebound["old_grant_id"] != grantID || rebound["new_grant_id"] != newGrantID {
+		t.Fatalf("workspace rebind response = %#v", rebound)
+	}
+	var bindingRevision int
+	var grantSet string
+	if err := brokerDB(t, dbName).QueryRow(context.Background(),
+		`SELECT binding_revision, grant_set::text FROM work.device_run_binding
+		 WHERE org_id = $1 AND run_id = $2 ORDER BY binding_revision DESC LIMIT 1`,
+		testOrg, rebindRunID).Scan(&bindingRevision, &grantSet); err != nil {
+		t.Fatal(err)
+	}
+	if bindingRevision != 2 || !strings.Contains(grantSet, newGrantID) || strings.Contains(grantSet, grantID) {
+		t.Fatalf("workspace rebind server truth = revision %d grant_set %s", bindingRevision, grantSet)
 	}
 
 	// Step 7: open the SERVER's renewal window, then replace the certificate through the renewal

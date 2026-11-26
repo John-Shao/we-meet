@@ -84,9 +84,10 @@ func commandWire(c *pendingCommand, permit json.RawMessage) map[string]any {
 }
 
 // claimCommands dispatches every authorized action of this device's active Runs and returns
-// its live dispatches, through the 0055 getter as work_worker. A refused candidate is skipped
-// inside the command's own subtransaction and stays authorized for the next heartbeat, so a
-// revoked grant or a stale approval never becomes a transport failure that kills the session.
+// its live dispatches, through the 0055 getter as work_worker. Transient refusals are skipped
+// inside the command's own subtransaction and stay authorized for the next heartbeat; 0079's
+// destination refusal is instead a durable canceled/released result, so it cannot be retried.
+// A domain refusal never becomes a transport failure that kills the device's session.
 //
 // The kid supplied is the permit public key's thumbprint — the repo's single P-256 key
 // identifier (0040 work.device_key_thumbprint, Rust thumbprint::device_key_thumbprint), which

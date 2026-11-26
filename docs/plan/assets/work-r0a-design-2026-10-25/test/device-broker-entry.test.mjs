@@ -334,11 +334,13 @@ test('the status method is read-only and the reply payload is a closed shape', (
   assert.match(dispatch, /assert_eq!\(CODES\.len\(\), 9\)/);
   const schema = read(SCHEMA);
   for (const method of ['getDeviceIdentity', 'signDevicePairing', 'signDeviceCertificateRenewal',
-    'deliverDeviceCertificate', 'redeliverDeviceCertificate', 'getDeviceCertificateStatus']) {
+    'deliverDeviceCertificate', 'redeliverDeviceCertificate', 'getDeviceCertificateStatus',
+    'openLocalContent', 'confirmLocalSubmission', 'listLocalArtifactDrafts', 'prepareLocalArtifactEdit',
+    'decideLocalArtifactEdit', 'completeLocalArtifactEdit', 'prepareLocalAcceptance', 'listWorkspaceGrants']) {
     assert.ok(schema.includes(`"${method}"`), `${method} left the shell closure`);
   }
-  assert.match(schema, /assert_eq!\(SHELL_METHODS\.len\(\), 22\)/);
-  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 12\)/);
+  assert.match(schema, /assert_eq!\(SHELL_METHODS\.len\(\), 29\)/);
+  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 22\)/);
 });
 
 test('a refusal reaches the shell before the pipe is disconnected', () => {
@@ -421,6 +423,26 @@ test('the interop drives the real REST face and asserts server-side truth', () =
   assert.match(go, /data\["public_key_thumbprint"\] != pub\.Thumbprint/);
   assert.match(go, /devicesig\.VerifyPairing\(pub, pairingID, challenge, testOrg, testSubject, signature\)/);
   assert.match(go, /devicesig\.VerifyCertRenewal\(pub, renewPairingID, renewChallenge, testOrg, testSubject, renewSignature\)/);
+  // Local submission is driven over the same real pipe and verified independently in Go.
+  assert.match(go, /"method": "stageLocalInput"/);
+  assert.match(go, /api\.LocalTaskPreviewsPath/);
+  assert.match(go, /api\.LocalTasksPath/);
+  assert.match(go, /local submit server truth/);
+  assert.match(go, /local submit outbox\/intent rows/);
+  assert.match(go, /local submit replay/);
+  assert.match(go, /nonce replay rollback truth/);
+  assert.match(go, /tampered local submit status/);
+  assert.match(go, /stale grant preview status/);
+  assert.match(go, /"method": "confirmLocalSubmission"/);
+  assert.match(go, /devicesig\.ParseLocalIntentProof\(intentJSON\)/);
+  assert.match(go, /devicesig\.VerifyLocalIntent\(pub, intentJSON\)/);
+  assert.match(go, /a tampered target selection verified/);
+  assert.match(go, /canceled local submission returned proof data/);
+  const submitSQL = read(join(ROOT, 'src', 'work', 'migrations', 'increments', '0081_local_task_submission.sql'));
+  const dedupAt = submitSQL.indexOf('SELECT * INTO v_dedup FROM work.submission_dedup');
+  const expiryAt = submitSQL.indexOf('IF p_preview_expires_at <= now()');
+  assert.ok(dedupAt >= 0 && expiryAt > dedupAt, 'expired same-key replay must hit dedup before expiry rejection');
+  assert.match(read(join(ROOT, 'src', 'work', 'internal', 'api', 'local_tasks.go')), /time\.Unix\(preview\.ExpiresAtUnix, 0\)/);
   // The domain-separation negative: a renewal signature must NOT verify under the pairing domain.
   assert.match(go, /if devicesig\.VerifyPairing\(pub, renewPairingID, renewChallenge, testOrg, testSubject, renewSignature\) \{/);
   // A foreign device id is refused because the CA-signed CN is authoritative, not the shell's claim.

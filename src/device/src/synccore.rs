@@ -54,6 +54,8 @@ pub struct SyncCoreSpawn {
     pub epoch: String,
     #[cfg(windows)]
     pub node_service: tokio::sync::mpsc::Sender<crate::nodeservice::NodeRequest>,
+    /// Journal facts for approval decisions taken while the Node service thread serves a Run.
+    pub approval_signer: crate::journalop::ApprovalSignerSlot,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -65,16 +67,36 @@ pub fn spawn_sync_core(
     link_commands: mpsc::Sender<LinkCommand>,
     spawn_template: SpawnConfig,
     instance: crate::journalop::InstanceFacts,
+    approval_signer: crate::journalop::ApprovalSignerSlot,
     #[cfg(windows)] node_service: tokio::sync::mpsc::Sender<crate::nodeservice::NodeRequest>,
 ) -> Result<SyncCoreSpawn, String> {
+    #[cfg(windows)]
+    let session_node_service = node_service.clone();
     let (event_tx, mut event_rx) = mpsc::channel::<LinkEvent>(64);
     let (journal_handle, mut journal_op_rx) = crate::journalop::channel();
+    if let Ok(mut slot) = approval_signer.lock() {
+        *slot = Some(crate::journalop::ApprovalSigner {
+            journal: journal_handle.clone(),
+            org_id: ready.org_id.clone(),
+            subject_id: ready.subject_id.clone(),
+            device_id: ready.device_id.clone(),
+            session_id: None,
+        });
+    }
+    #[cfg(windows)]
+    let _ = node_service.try_send(crate::nodeservice::NodeRequest::SetJournal {
+        journal: journal_handle.clone(),
+        org_id: ready.org_id.clone(),
+        subject_id: ready.subject_id.clone(),
+        device_id: ready.device_id.clone(),
+    });
     let (epoch_tx, epoch_rx) = std::sync::mpsc::sync_channel::<Result<String, String>>(0);
     // The long-lived Node service thread owns the grant/endpoint registries + executor + proxy (§6.1).
     // The entry creates it once at startup (before the pump) so the shell confirmation face can route
     // to it even before the first certificate; this core shares the same sender for StartRun.
     #[cfg(windows)]
     let node_service_for_core = node_service.clone();
+    let signer_for_core = approval_signer.clone();
     std::thread::spawn(move || {
         let journal = match open_or_create_journal(&journal_dir, &ready.device_id) {
             Ok(journal) => journal,
@@ -108,7 +130,22 @@ pub fn spawn_sync_core(
         loop {
             core.expire_lease(Instant::now());
             match event_rx.try_recv() {
-                Ok(event) => core.handle(event),
+                Ok(event) => {
+                    #[cfg(windows)]
+                    if let LinkEvent::SessionEstablished(ack) = &event {
+                        if let Ok(mut slot) = signer_for_core.lock() {
+                            if let Some(signer) = slot.as_mut() {
+                                signer.session_id = Some(ack.session_id.clone());
+                            }
+                        }
+                        let _ = session_node_service.try_send(
+                            crate::nodeservice::NodeRequest::SetLocalSession {
+                                session_id: ack.session_id.clone(),
+                            },
+                        );
+                    }
+                    core.handle(event)
+                }
                 Err(mpsc::error::TryRecvError::Empty) => {
                     std::thread::sleep(std::time::Duration::from_millis(1));
                 }
@@ -129,12 +166,9 @@ pub fn spawn_sync_core(
                     // The sync core owns the per-Run deliverable set (DD:137 own execution facts)
                     // and the per-version publication facts (batch 4 local_publish payload).
                     crate::journalop::JournalOp::RecordDeliverable { facts } => {
-                        core.deliverables
-                            .entry(facts.run_id.clone())
-                            .or_default()
-                            .push(facts.version_id.clone());
-                        // Batch 5: persist the sealed deliverable so a restart rebuilds the
-                        // publication facts without re-executing the Run (local_content carrier).
+                        let mut facts = *facts;
+                        // Batch 5: persist the sealed deliverable body so the viewer can read it
+                        // after restart without re-executing the Run.
                         let row = crate::journal::local_content::DeliverableRow {
                             run_id: facts.run_id.clone(),
                             operation_id: facts.operation_id.clone(),
@@ -146,14 +180,40 @@ pub fn spawn_sync_core(
                             receipt_seq: None,
                             publish_state: "sealed".to_string(),
                         };
-                        if let Err(err) =
-                            crate::journal::local_content::record(core.journal().connection(), &row)
-                        {
-                            eprintln!("work-device: local_content record failed: {err:?}");
+                        let rctx = core.journal.context(&core.org_id, &core.subject_id);
+                        match crate::journal::local_content::record_sealed(
+                            core.journal.connection(),
+                            core.journal.dek(),
+                            &rctx,
+                            &row,
+                            &facts.sealed_blob,
+                        ) {
+                            Ok(()) => {
+                                if !facts.grant_id.is_empty()
+                                    && !facts.root_identity_hash.is_empty()
+                                {
+                                    let grant_ref = serde_json::json!({
+                                        "grant_id": facts.grant_id.clone(),
+                                        "root_identity_hash": facts.root_identity_hash.clone(),
+                                    })
+                                    .to_string();
+                                    let _ = core.journal.connection().execute(
+                                        "UPDATE local_content SET grant_ref = ?1 WHERE version_id = ?2",
+                                        rusqlite::params![grant_ref, facts.version_id],
+                                    );
+                                }
+                                core.deliverables
+                                    .entry(facts.run_id.clone())
+                                    .or_default()
+                                    .push(facts.version_id.clone());
+                                core.deliverable_facts.insert(facts.version_id.clone(), {
+                                    facts.sealed_blob.clear();
+                                    facts
+                                });
+                                crate::journalop::JournalReply::DeliverableRecorded
+                            }
+                            Err(err) => crate::journalop::JournalReply::Failed(err),
                         }
-                        core.deliverable_facts
-                            .insert(facts.version_id.clone(), *facts);
-                        crate::journalop::JournalReply::DeliverableRecorded
                     }
                     // Capture the completed receipt's seq per operation so batch 4's local_publish
                     // can name receipt_ref = journal_epoch:seq (the device's own receipt identity).
@@ -211,6 +271,7 @@ pub fn spawn_sync_core(
         epoch,
         #[cfg(windows)]
         node_service,
+        approval_signer,
     })
 }
 
@@ -380,6 +441,13 @@ impl SyncCore {
             if let Some(seq) = row.receipt_seq {
                 receipt_seq_by_op.insert(row.operation_id.clone(), seq);
             }
+            let grant_ref = crate::journal::local_content::read_grant_ref(
+                journal.connection(),
+                &row.version_id,
+            )
+            .unwrap_or(None)
+            .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+            .unwrap_or(Value::Null);
             deliverable_facts.insert(
                 row.version_id.clone(),
                 crate::journalop::DeliverableFacts {
@@ -390,6 +458,12 @@ impl SyncCore {
                     format: row.format,
                     content_hash: row.content_hash,
                     byte_count: row.byte_count,
+                    sealed_blob: Vec::new(),
+                    grant_id: grant_ref["grant_id"].as_str().unwrap_or("").to_string(),
+                    root_identity_hash: grant_ref["root_identity_hash"]
+                        .as_str()
+                        .unwrap_or("")
+                        .to_string(),
                 },
             );
         }
@@ -1958,6 +2032,7 @@ mod tests {
             mpsc::channel::<LinkCommand>(4).0,
             spawn_template(),
             instance_facts(),
+            std::sync::Arc::new(std::sync::Mutex::new(None)),
             #[cfg(windows)]
             crate::nodeservice::spawn_node_service(),
         )
@@ -2009,6 +2084,7 @@ mod tests {
             mpsc::channel::<LinkCommand>(4).0,
             spawn_template(),
             instance_facts(),
+            std::sync::Arc::new(std::sync::Mutex::new(None)),
             #[cfg(windows)]
             crate::nodeservice::spawn_node_service(),
         )
@@ -3118,6 +3194,9 @@ mod tests {
                 format: "md".into(),
                 content_hash: "a".repeat(64),
                 byte_count: 5,
+                sealed_blob: Vec::new(),
+                grant_id: String::new(),
+                root_identity_hash: String::new(),
             },
         );
         core.receipt_seq_by_op.insert("op-1".into(), 1);
@@ -3195,6 +3274,9 @@ mod tests {
                 format: "md".into(),
                 content_hash: "a".repeat(64),
                 byte_count: 5,
+                sealed_blob: Vec::new(),
+                grant_id: String::new(),
+                root_identity_hash: String::new(),
             },
         );
         core.receipt_seq_by_op.insert("op-1".into(), 1);
@@ -3635,6 +3717,7 @@ mod tests {
             mpsc::channel::<LinkCommand>(4).0,
             spawn_template(),
             instance_facts(),
+            std::sync::Arc::new(std::sync::Mutex::new(None)),
             #[cfg(windows)]
             crate::nodeservice::spawn_node_service(),
         )

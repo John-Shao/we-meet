@@ -126,7 +126,8 @@ pub fn cleanup_tombstones(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::frame::{checkpoint, sign};
+    use crate::finish::ack;
+    use crate::frame::{checkpoint, finish, sign};
     use crate::journal::record::ReceiptRow;
     use crate::journal::recover::FinishRow;
     use crate::journal::{meta, record, schema};
@@ -300,5 +301,134 @@ mod tests {
         assert!(recover::is_run_terminal(&conn, "run").unwrap());
         drop(conn);
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn lost_ack_reconnect_and_permanent_loss_keep_cleanup_monotonic() {
+        let (conn, path) = temp_conn();
+        record::append_action(
+            &conn,
+            &[3u8; 32],
+            &record::RecordContext {
+                org: "org",
+                subject: "sub",
+                device: "dev",
+                journal_epoch: "epoch-1",
+                schema_version: schema::SCHEMA_VERSION,
+            },
+            &record::ActionRow {
+                org_id: "org",
+                operation_id: "op1",
+                run_id: "run",
+                attempt: "attempt-1",
+                step_key: "step",
+                logical_key: "op1",
+                supersedes: None,
+                request_hash: "hash",
+                fence: 1,
+                session_id: "sess",
+                generation: 1,
+                permit_jti: "op1",
+                state: "completed",
+                result_hash: None,
+                result_ref: None,
+            },
+            b"body",
+        )
+        .unwrap();
+        seed_receipts(&conn, 2);
+        conn.execute(
+            "INSERT INTO checkpoint (run_id, checkpoint_seq, schema_version, runtime_digest,
+             checkpoint_hash, pending_operation_set_hash) VALUES ('run',1,2,'runtime','cp','set')",
+            [],
+        )
+        .unwrap();
+        recover::persist_finish(
+            &conn,
+            &FinishRow {
+                run_id: "run".into(),
+                finish_id: "f1".into(),
+                outcome: "failed".into(),
+                reason: Some("model_error".into()),
+                final_checkpoint_seq: Some(1),
+                final_checkpoint_hash: Some("cp".into()),
+                signed_bytes: b"sig".to_vec(),
+                signed_hash: "h".into(),
+                ack_state: None,
+                terminal_run_revision: None,
+            },
+        )
+        .unwrap();
+        let server = SoftwareKey::random();
+        let mut finish_ack = crate::frame::finish::RunFinishAckBody {
+            finish_id: "f1".into(),
+            state: "accepted".into(),
+            code: None,
+            terminal_run_revision: Some(7),
+            expected_operation_set_hash: "set".into(),
+            unresolved_operations: vec![],
+            signature: None,
+        };
+        finish_ack.signature = Some(
+            sign::sign_frame(
+                &server,
+                finish::FINISH_ACK_FRAME_TYPE,
+                &finish_ack.to_value(),
+            )
+            .unwrap(),
+        );
+        let checkpoint_ack = signed_ack(&server, "recorded", 2);
+
+        // The transport drops before the finish ack arrives. Reopening the journal models a
+        // reconnect; only the verified server ack makes the Run terminal.
+        drop(conn);
+        let conn = Connection::open(&path).unwrap();
+        assert!(!recover::is_run_terminal(&conn, "run").unwrap());
+        assert!(matches!(
+            ack::apply_finish_ack(&conn, &server.public_jwk(), "run", &finish_ack),
+            Ok(ack::FinishAckOutcome::Accepted {
+                terminal_run_revision: 7
+            })
+        ));
+        assert!(recover::is_run_terminal(&conn, "run").unwrap());
+        let mut gate = TombstoneGate {
+            finish_accepted: true,
+            final_operation_set_hash_verified: true,
+            receipt_through_seq_continuous: false,
+            all_resolutions_received: true,
+        };
+        assert_eq!(cleanup_tombstones(&conn, "run", &gate).unwrap(), 0);
+        assert_eq!(
+            apply_receipt_watermark(&conn, &server.public_jwk(), "epoch-1", &checkpoint_ack)
+                .unwrap(),
+            2
+        );
+        gate.receipt_through_seq_continuous = true;
+        assert_eq!(cleanup_tombstones(&conn, "run", &gate).unwrap(), 1);
+
+        // Permanent loss: no further network ack is needed for the durable terminal tombstone
+        // or cleanup state. Replaying both signed acks after another reopen changes nothing.
+        drop(conn);
+        let conn = Connection::open(&path).unwrap();
+        assert!(recover::is_run_terminal(&conn, "run").unwrap());
+        assert_eq!(cleanup_tombstones(&conn, "run", &gate).unwrap(), 0);
+        ack::apply_finish_ack(&conn, &server.public_jwk(), "run", &finish_ack).unwrap();
+        assert_eq!(
+            apply_receipt_watermark(&conn, &server.public_jwk(), "epoch-1", &checkpoint_ack)
+                .unwrap(),
+            0
+        );
+        assert_eq!(cleanup_tombstones(&conn, "run", &gate).unwrap(), 0);
+        assert!(recover::is_run_terminal(&conn, "run").unwrap());
+        let finishes: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM runtime_finish WHERE run_id='run'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(finishes, 1);
+        drop(conn);
+        let _ = std::fs::remove_file(path);
     }
 }

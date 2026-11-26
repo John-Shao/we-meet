@@ -666,15 +666,15 @@ func decideFixtureApproval(t *testing.T, dbName, sessionID, deviceID, runID, app
 		t.Fatal(err)
 	}
 	proof := fmt.Sprintf(`{"v":1,"org_id":"%s","subject_id":"%s","auth_plane":"%s",
-		"auth_epoch":%d,"device_id":"%s","session_id":"%s","approval_id":"%s","operation_id":"%s",
-		"params_hash":"%s","expected_revision":%d,"decision":"approved","remember_readonly":false,
-		"readonly_scope":null,"readonly_expires_at":null,"policy_epoch":%d,"access_epoch":%d,
-		"nonce":"%s","expires_at":"%s","signature":"sha256:%s"}`,
-		testOrg, testSubject, authPlane, authEpoch, deviceID, sessionID, approvalID, operationID,
-		paramsHash, revision, policyEpoch, accessEpoch,
+		"auth_epoch":%q,"device_id":"%s","session_id":"%s","approval_id":"%s","operation_id":"%s",
+		"params_hash":"%s","expected_revision":%q,"decision":"approved","remember_readonly":false,
+		"readonly_scope":null,"readonly_expires_at":null,"policy_epoch":%q,"access_epoch":%q,
+		"nonce":"%s","expires_at":"%s","signature":%q}`,
+		testOrg, testSubject, authPlane, strconv.FormatInt(authEpoch, 10), deviceID, sessionID, approvalID, operationID,
+		paramsHash, strconv.FormatInt(revision, 10), strconv.FormatInt(policyEpoch, 10), strconv.FormatInt(accessEpoch, 10),
 		"nonce-run-"+uuid.NewString(),
 		time.Now().UTC().Add(10*time.Minute).Format(time.RFC3339),
-		strings.Repeat("5", 64))
+		strings.Repeat("5", 86))
 	app, err := testpg.Open(ctx, testpg.AppURL(dbName))
 	if err != nil {
 		t.Fatal(err)

@@ -3,21 +3,26 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/we-meet/work/internal/apierr"
 	workdb "github.com/we-meet/work/internal/db"
+	"github.com/we-meet/work/internal/devicesig"
 )
 
 // The local acceptance face (control-design §1.4 row 74, §7.1; device §7.3). A Bearer-plane
 // route: the desktop confirms adoption of a specific published local version, binding a
 // PossessionProof(purpose=accept) signed by the active device session. The SQL (0045
 // accept_local_task) owns the closed 15-key proof set, the epoch/device/session checks, the
-// single-use nonce, the Task-level quiescence gate and the version/hash binding; the 0021
-// BEFORE INSERT trigger still raises acceptance_blocked_unresolvable. The handler enforces
-// transport bounds only. This face is version-based: reason-only completion ("用户理由完成
-// 不计成果采纳") stays on the R0a cookie-plane accept_task and cannot carry a PossessionProof.
+// single-use nonce, the Task-level quiescence gate and the version/hash binding; the handler
+// first parses the closed proof, binds its principal/frame fields and verifies ES256 from
+// X-Device-Signature. The 0021 BEFORE INSERT trigger still raises acceptance_blocked_unresolvable.
+// This face is version-based: reason-only completion ("用户理由完成不计成果采纳") stays on the
+// R0a cookie-plane accept_task and cannot carry a PossessionProof.
 const LocalTaskAcceptancesPath = "/work/v2/tasks/{taskId}/acceptances"
 
 type localAcceptanceRequest struct {
@@ -50,8 +55,55 @@ func (s *Server) createLocalAcceptance(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, correlationID, apierr.New("invalid_request"))
 		return
 	}
+	proof, err := devicesig.ParsePossessionProof(body.PossessionProof)
+	if err != nil {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	expiresAt, _ := time.Parse(time.RFC3339, proof.ExpiresAt)
+	// The device signs a 30s proof; tolerate the measured host/database clock skew.
+	if expiresAt.After(time.Now().Add(35 * time.Second)) {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	signature := strings.TrimSpace(r.Header.Get("X-Device-Signature"))
+	if signature == "" {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	if proof.OrgID != claims.OrgID || proof.SubjectID != claims.SubjectID ||
+		proof.AuthEpoch != strconv.FormatInt(claims.SessionRevision, 10) ||
+		proof.DeviceID != body.DeviceID || proof.SessionID != body.SessionID ||
+		proof.TaskID != taskID || proof.ArtifactID != body.ArtifactID ||
+		proof.RequestID != body.ClientRequestID {
+		writeAPIError(w, correlationID, apierr.New("unauthorized"))
+		return
+	}
+	var pubJWK []byte
+	if err := workdb.WithWorkContext(r.Context(), s.pool,
+		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
+		workdb.RoleAPI, workdb.Options{ReadOnly: true},
+		func(tx pgx.Tx) error {
+			return tx.QueryRow(r.Context(),
+				`SELECT work.device_signing_key($1, $2::uuid)`,
+				claims.OrgID, proof.DeviceID,
+			).Scan(&pubJWK)
+		},
+	); err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
+	pub, err := devicesig.ParseJWK(pubJWK)
+	if err != nil {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	if !devicesig.VerifyPossession(pub, body.PossessionProof, signature) {
+		writeAPIError(w, correlationID, apierr.New("unauthorized"))
+		return
+	}
 	var view json.RawMessage
-	err := workdb.WithWorkContext(r.Context(), s.pool,
+	err = workdb.WithWorkContext(r.Context(), s.pool,
 		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
 		workdb.RoleAPI, workdb.Options{},
 		func(tx pgx.Tx) error {

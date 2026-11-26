@@ -385,7 +385,7 @@ echo "== 5. binaries =="
 # server certificate provisioning before it can serve, so installing the file does not start it.
 # work-cancel (R0b GW16, 0057) and work-governance-events (0068) install their binaries only;
 # their units/env are not installed or enabled here, so installation starts no consumer.
-for bin in work-api work-relay work-worker work-authz work-content-proxy work-egress work-directory-sync work-reconcile work-export work-provider-setup work-gateway work-cancel work-governance-events; do
+for bin in work-api work-relay work-worker work-authz work-content-proxy work-egress work-directory-sync work-reconcile work-export work-provider-setup work-gateway work-cancel work-governance-events work-operator-entitlement; do
   install_binary "$bin"
 done
 # Drill-side binaries. They are installed only because the package now declares them: the host copy

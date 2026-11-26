@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/we-meet/work/internal/api"
+	"github.com/we-meet/work/internal/host"
 	"github.com/we-meet/work/internal/testpg"
 )
 
@@ -39,10 +40,17 @@ func seedGovernanceGap(t *testing.T, dbName string) string {
 	return reportID
 }
 
+func governanceCursorClaims() host.Claims {
+	claims := testClaims()
+	claims.Permissions = []string{"org.work.seat.write"}
+	return claims
+}
+
 func TestAdminGovernanceEventCursorAdvance(t *testing.T) {
 	pool, dbName := newBootstrapDB(t, true, true)
 	reportID := seedGovernanceGap(t, dbName)
-	server := newHTTPServer(t, pool, &stubVerifier{claims: testClaims()}, testCSRF(t))
+	verifier := &stubVerifier{claims: governanceCursorClaims()}
+	server := newHTTPServer(t, pool, verifier, testCSRF(t))
 	csrf := workspaceCSRF(t, server.URL)
 	path := server.URL + api.AdminGovernanceEventCursorPath
 
@@ -136,23 +144,49 @@ func TestAdminGovernanceEventCursorAdvance(t *testing.T) {
 		t.Fatalf("denys released by the cursor advance = %d, want 0", got)
 	}
 
-	// And the caller is the organization's administrator. work_api already held EXECUTE on
-	// the command, so without assert_org_admin inside it any active member of the org could
-	// jump the governance cursor over an interval they had not verified.
+	// A caller without Host's seat.write permission is refused before the command.
+	verifier.claims = testClaims()
+	assertAPICode(t, taskRequest(t, http.MethodPost, path, csrf, body("TICKET-3", "req-cursor-3")),
+		http.StatusForbidden, "admin_access_denied")
+}
+
+func TestAdminGovernanceEventCursorRequiresSeatWritePermission(t *testing.T) {
+	pool, dbName := newBootstrapDB(t, true, true)
+	reportID := seedGovernanceGap(t, dbName)
+	verifier := &stubVerifier{claims: testClaims()}
+	server := newHTTPServer(t, pool, verifier, testCSRF(t))
+	csrf := workspaceCSRF(t, server.URL)
+	path := server.URL + api.AdminGovernanceEventCursorPath
+	body := `{"to_seq":5,"gap_report_id":"` + reportID + `","ticket_id":"TICKET-PERM","client_request_id":"req-seat-write"}`
+
+	assertAPICode(t, taskRequest(t, http.MethodPost, path, csrf, body),
+		http.StatusForbidden, "admin_access_denied")
+
 	ctx := context.Background()
-	writer, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := writer.Exec(ctx,
-		`UPDATE work.member SET role = 'viewer' WHERE org_id = $1 AND subject_id = $2`,
+	defer admin.Close(ctx)
+	var cursor int64
+	if err := admin.QueryRow(ctx,
+		`SELECT last_event_seq FROM work.governance_event_cursor WHERE org_id = $1`, testOrg,
+	).Scan(&cursor); err != nil {
+		t.Fatal(err)
+	}
+	if cursor != 0 {
+		t.Fatalf("permission refusal advanced cursor to %d", cursor)
+	}
+	if _, err := admin.Exec(ctx,
+		`UPDATE work.member SET role = 'member' WHERE org_id = $1 AND subject_id = $2`,
 		testOrg, testSubject); err != nil {
 		t.Fatal(err)
 	}
-	writer.Close(ctx)
-
-	assertAPICode(t, taskRequest(t, http.MethodPost, path, csrf, body("TICKET-3", "req-cursor-3")),
-		http.StatusForbidden, "admin_access_denied")
+	verifier.claims = governanceCursorClaims()
+	response := taskRequest(t, http.MethodPost, path, csrf, body)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("permission holder status = %d body=%s", response.StatusCode, readBody(response))
+	}
 }
 
 func TestAdminGovernanceEventCursorProofAndRecoveryChain(t *testing.T) {
@@ -194,7 +228,7 @@ func TestAdminGovernanceEventCursorProofAndRecoveryChain(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	server := newHTTPServer(t, pool, &stubVerifier{claims: testClaims()}, testCSRF(t))
+	server := newHTTPServer(t, pool, &stubVerifier{claims: governanceCursorClaims()}, testCSRF(t))
 	csrf := workspaceCSRF(t, server.URL)
 	path := server.URL + api.AdminGovernanceEventCursorPath
 	body := func(toSeq int, reportID, requestID string) string {

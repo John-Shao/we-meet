@@ -802,6 +802,105 @@
       "catalog_checksum": "sha256:def8e944f3015369d230779b969ccfeda96480af5567ef187dc9d06d9458385d",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 73,
+      "name": "0073_governance_cursor_seat_write_permission",
+      "kind": "increment",
+      "file": "increments/0073_governance_cursor_seat_write_permission.sql",
+      "checksum": "sha256:6c295bdfe8b42cc085983371812adf10d3fd2fd5e555b310979a44c3c1672dc9",
+      "catalog": "catalogs/0073_governance_cursor_seat_write_permission.json",
+      "catalog_checksum": "sha256:a31fda5d348376d8e4eb793e372500d93363174cc0acb3e5dbc8f5e794b416bb",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 74,
+      "name": "0074_grant_succession_proof_verification",
+      "kind": "increment",
+      "file": "increments/0074_grant_succession_proof_verification.sql",
+      "checksum": "sha256:3998a201ccf89df69a4058d606dd0f19261803130706c611dbbf9837f6d01a78",
+      "catalog": "catalogs/0074_grant_succession_proof_verification.json",
+      "catalog_checksum": "sha256:e5ac6d6bb02d4d24ea2c17034a23764d9a6917aaf79147b255720df1ace12e61",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 75,
+      "name": "0075_approval_decision_proof_verification",
+      "kind": "increment",
+      "file": "increments/0075_approval_decision_proof_verification.sql",
+      "checksum": "sha256:d439147270030289d42eaa99b2fe3524eafae1097b47ae0e01dc97ebdecd982f",
+      "catalog": "catalogs/0075_approval_decision_proof_verification.json",
+      "catalog_checksum": "sha256:27c6ab0a6e206aa2c8c0c16a7b325177d844ff0e4d6e1ade7c57ee4370d1f175",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 76,
+      "name": "0076_user_version_signing_key",
+      "kind": "increment",
+      "file": "increments/0076_user_version_signing_key.sql",
+      "checksum": "sha256:2f5b514b8e637cc370c78a6938bf1cac4e5697ec5f5e2210518b3eca653cf626",
+      "catalog": "catalogs/0076_user_version_signing_key.json",
+      "catalog_checksum": "sha256:dec34f6b339dac15f798714cb3130194157d44c3d93b77425949765e496ac34c",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 77,
+      "name": "0077_local_approval_readonly_scope",
+      "kind": "increment",
+      "file": "increments/0077_local_approval_readonly_scope.sql",
+      "checksum": "sha256:9633fe3aae62ff90b9ad588dbf4cf950a38ac7e434d90b4c67391dfedac665d5",
+      "catalog": "catalogs/0077_local_approval_readonly_scope.json",
+      "catalog_checksum": "sha256:db67c81f3d8604e51f668d7903a7a341525dfc8ad35e1898debde3924f8feb97",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 78,
+      "name": "0078_possession_proof_signing_key",
+      "kind": "increment",
+      "file": "increments/0078_possession_proof_signing_key.sql",
+      "checksum": "sha256:ff004f777268375394e3e0d74b7e7b54ed4e26703f0abd4da7258c3588f0d257",
+      "catalog": "catalogs/0078_possession_proof_signing_key.json",
+      "catalog_checksum": "sha256:8249484b9688bc3be3742cebbcb65a0fb46e4e723b0093e3cb334e6feded2048",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 79,
+      "name": "0079_permit_destination_refusal_cancels",
+      "kind": "increment",
+      "file": "increments/0079_permit_destination_refusal_cancels.sql",
+      "checksum": "sha256:a0502023c052a84f58294df274c0364669268c44a0fe3001cd92881923279266",
+      "catalog": "catalogs/0079_permit_destination_refusal_cancels.json",
+      "catalog_checksum": "sha256:b5202af9e8bb7292b31e26aae468e8b9700cfc081564d1b28073680ef6608a36",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 80,
+      "name": "0080_local_preview_facts",
+      "kind": "increment",
+      "file": "increments/0080_local_preview_facts.sql",
+      "checksum": "sha256:a7e98528e56721433187b53aee03640111eb0da19abb996581494407b30389d1",
+      "catalog": "catalogs/0080_local_preview_facts.json",
+      "catalog_checksum": "sha256:a1d4118a564683c1e8d17c900198a7be4831451cff4e257a19069e62effb1f60",
+      "transactional": true,
+      "executable": true
+    },
+    {
+      "version": 81,
+      "name": "0081_local_task_submission",
+      "kind": "increment",
+      "file": "increments/0081_local_task_submission.sql",
+      "checksum": "sha256:712253722b853f7455e6624a5667f2541df6ed78a76d8582fb2142eec897f841",
+      "catalog": "catalogs/0081_local_task_submission.json",
+      "catalog_checksum": "sha256:23c42f779b4cb470285505aac28f791636a7ac311483a4adc0ca8fb93a2dedaa",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

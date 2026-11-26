@@ -62,6 +62,13 @@ export function validateBody(type, body) {
   if (type === 'tool_call' && !TOOL_NAMES.includes(body.tool_name)) {
     throw new ProtocolError('unknown_tool');
   }
+  if (type === 'loop_end') {
+    if (!isRecord(body.transcript_final) || !Array.isArray(body.transcript_final.messages)
+      || typeof body.turn_count !== 'string' || !/^[0-9]+$/.test(body.turn_count)
+      || !body.transcript_final.messages.every((message) => isRecord(message) && typeof message.role === 'string')) {
+      throw new ProtocolError('bad_enum');
+    }
+  }
   return body;
 }
 

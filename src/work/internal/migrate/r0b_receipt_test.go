@@ -46,7 +46,7 @@ func TestR0bGapSkipReceiptIsBoundToItsPayload(t *testing.T) {
 
 	advance := func(toSeq int, ticket, requestID string) error {
 		_, err := admin.Exec(ctx, fmt.Sprintf(
-			`SELECT work.advance_governance_event_cursor('%s', %d, '%s', '%s', '%s', '%s')`,
+			`SELECT work.advance_governance_event_cursor('%s', %d, '%s', '%s', '%s', '%s', ARRAY['org.work.seat.write'])`,
 			org, toSeq, reportID, ticket, actor, requestID))
 		return err
 	}

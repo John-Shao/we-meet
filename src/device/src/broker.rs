@@ -107,6 +107,7 @@ enum Pump {
 /// Backpressure is intentional: if the core stops reading `core_events`, the pump blocks and the
 /// pipe loop's reply waits with it. Nothing is dropped to keep the pipe moving.
 #[allow(clippy::too_many_arguments)]
+#[allow(unused_variables)]
 pub async fn run_core_pump(
     mut identity: Identity,
     mut slot: TicketSlot,
@@ -115,6 +116,7 @@ pub async fn run_core_pump(
     tickets: mpsc::Sender<String>,
     core_events: mpsc::Sender<LinkEvent>,
     ready: mpsc::Sender<ReadyIdentity>,
+    approval_signer: crate::journalop::ApprovalSignerSlot,
     #[cfg(windows)] node_service: mpsc::Sender<crate::nodeservice::NodeRequest>,
 ) -> BridgeOutcome {
     let mut awaiting = false;
@@ -129,7 +131,31 @@ pub async fn run_core_pump(
                         // the Node service thread that owns the registries/executor (the `!Send` handles
                         // and sealed bodies stay there); every other core method is answered from the
                         // identity/slot this task owns.
-                        let reply = if CONFIRMATION_METHODS.contains(&method) || method == "stageLocalInput" {
+                        let reply = if method == "confirmLocalSubmission" {
+                            #[cfg(windows)]
+                            { submission_reply(&mut identity, &node_service, &request.message).await }
+                            #[cfg(not(windows))]
+                            { Reply::refused(&request.message, "method_not_implemented") }
+                        } else if method == "rebindRunWorkspace" {
+                            #[cfg(windows)]
+                            { rebind_reply(&mut identity, &node_service, &request.message).await }
+                            #[cfg(not(windows))]
+                            { Reply::refused(&request.message, "method_not_implemented") }
+                        } else if method == "prepareLocalApprovalDecision" {
+                            #[cfg(windows)]
+                            { approval_decision_reply(&approval_signer, &node_service, &request.message).await }
+                            #[cfg(not(windows))]
+                            { Reply::refused(&request.message, "method_not_implemented") }
+                        } else if CONFIRMATION_METHODS.contains(&method)
+                            || method == "stageLocalInput"
+                            || method == "openLocalContent"
+                            || method == "listWorkspaceGrants"
+                            || method == "prepareLocalAcceptance"
+                            || method == "listLocalArtifactDrafts"
+                            || method == "prepareLocalArtifactEdit"
+                            || method == "decideLocalArtifactEdit"
+                            || method == "completeLocalArtifactEdit"
+                        {
                             #[cfg(windows)]
                             { confirmation_reply(&node_service, &request.message).await }
                             #[cfg(not(windows))]
@@ -375,12 +401,376 @@ const CONFIRMATION_METHODS: &[&str] = &[
     "confirmLocalModel",
 ];
 
+/// Sign a local Task submission only after the shell carries the native approval decision back.
+/// The Node thread proves the exact staged input and selected grants exist in this live session;
+/// the Broker supplies org/subject/device from its own authenticated identity.
+#[cfg(windows)]
+async fn submission_reply(
+    identity: &mut Identity,
+    node: &mpsc::Sender<crate::nodeservice::NodeRequest>,
+    message: &Value,
+) -> Reply {
+    use crate::nodeservice::NodeRequest;
+
+    let fields = [
+        "approved",
+        "client_request_id",
+        "input_ref",
+        "input_hash",
+        "preview_hash",
+        "target_selection_hash",
+        "selected_grant_ids",
+        "grant_revisions",
+        "profile_id",
+        "profile_revision",
+        "profile_hash",
+        "auth_epoch",
+    ];
+    if let Err(code) = confirm_keys(message, &fields) {
+        return Reply::refused(message, code);
+    }
+    let Some(approved) = message.get("approved").and_then(Value::as_bool) else {
+        return Reply::refused(message, "schema");
+    };
+    if !approved {
+        return Reply::accepted(message);
+    }
+    let text = |key: &str| message.get(key).and_then(Value::as_str).unwrap_or("");
+    for key in [
+        "client_request_id",
+        "input_ref",
+        "input_hash",
+        "preview_hash",
+        "target_selection_hash",
+        "profile_id",
+        "profile_revision",
+        "profile_hash",
+        "auth_epoch",
+    ] {
+        if text(key).is_empty() {
+            return Reply::refused(message, "schema");
+        }
+    }
+    let auth_epoch = match text("auth_epoch").parse::<u64>() {
+        Ok(value) if canonical_uint_text(text("auth_epoch")) => value,
+        _ => return Reply::refused(message, "shape"),
+    };
+    let profile_revision = match text("profile_revision").parse::<u64>() {
+        Ok(value) if canonical_uint_text(text("profile_revision")) => value,
+        _ => return Reply::refused(message, "shape"),
+    };
+    if uuid::Uuid::parse_str(text("input_ref")).is_err() {
+        return Reply::refused(message, "shape");
+    }
+    let selected_grant_ids = match string_array_field(message, "selected_grant_ids") {
+        Ok(value) => value,
+        Err(code) => return Reply::refused(message, code),
+    };
+    let grant_revisions = match string_array_field(message, "grant_revisions") {
+        Ok(value) => value,
+        Err(code) => return Reply::refused(message, code),
+    };
+    if selected_grant_ids.len() != grant_revisions.len()
+        || !grant_revisions
+            .iter()
+            .all(|value| canonical_uint_text(value))
+    {
+        return Reply::refused(message, "shape");
+    }
+    let org_id = match identity.signed_org() {
+        Some(value) if !value.is_empty() => value.to_string(),
+        _ => return Reply::refused(message, "no_pairing"),
+    };
+    let subject_id = match identity.signed_subject() {
+        Some(value) if !value.is_empty() => value.to_string(),
+        _ => return Reply::refused(message, "no_pairing"),
+    };
+    let device_id = match identity.device_id() {
+        Some(value) if !value.is_empty() => value.to_string(),
+        _ => return Reply::refused(message, "no_pairing"),
+    };
+    let (tx, rx) = oneshot::channel();
+    if node
+        .send(NodeRequest::ValidateLocalSubmission {
+            input_ref: text("input_ref").to_string(),
+            input_hash: text("input_hash").to_string(),
+            selected_grant_ids: selected_grant_ids.clone(),
+            reply: tx,
+        })
+        .await
+        .is_err()
+    {
+        return Reply::accepted_with(message, json!({ "status": "unavailable" }));
+    }
+    let session_id = match rx.await {
+        Ok(Ok((node_org, node_subject, node_device, session_id)))
+            if node_org == org_id
+                && node_subject == subject_id
+                && node_device == device_id
+                && uuid::Uuid::parse_str(&session_id).is_ok() =>
+        {
+            session_id
+        }
+        _ => return Reply::accepted_with(message, json!({ "status": "unavailable" })),
+    };
+    let proof = crate::frame::intent::LocalIntent {
+        v: 1,
+        org_id,
+        subject_id,
+        auth_plane: "bearer".into(),
+        auth_epoch,
+        device_id,
+        session_id,
+        request_id: text("client_request_id").to_string(),
+        input_hash: text("input_hash").to_string(),
+        preview_hash: text("preview_hash").to_string(),
+        target_selection_hash: text("target_selection_hash").to_string(),
+        selected_grant_ids,
+        grant_revisions,
+        profile_id: text("profile_id").to_string(),
+        profile_revision,
+        profile_hash: text("profile_hash").to_string(),
+        nonce: uuid::Uuid::new_v4().simple().to_string(),
+        expires_at: match std::time::SystemTime::now()
+            .checked_add(std::time::Duration::from_secs(60))
+            .and_then(|value| value.duration_since(std::time::UNIX_EPOCH).ok())
+            .and_then(|value| crate::frame::rfc3339::format_utc_seconds(value.as_secs()))
+        {
+            Some(value) => value,
+            None => return Reply::accepted_with(message, json!({ "status": "unavailable" })),
+        },
+        signature: None,
+    };
+    if let Err(code) = proof.validate().map_err(|_| "shape") {
+        return Reply::refused(message, code);
+    }
+    let value = proof.to_value();
+    let signature = match identity.sign_local_intent(&value, &proof.org_id, &proof.subject_id) {
+        Ok(value) => value,
+        Err(IdentityError::NoPairing) => return Reply::refused(message, "no_pairing"),
+        Err(_) => return Reply::refused(message, "shape"),
+    };
+    let mut proof = value;
+    proof["signature"] = Value::String(signature);
+    Reply::accepted_with(message, json!({ "status": "ready", "local_intent": proof }))
+}
+
+fn canonical_uint_text(value: &str) -> bool {
+    !value.is_empty()
+        && value.bytes().all(|byte| byte.is_ascii_digit())
+        && (value == "0" || !value.starts_with('0'))
+        && value.parse::<u64>().is_ok()
+}
+
+fn string_array_field(message: &Value, key: &str) -> Result<Vec<String>, &'static str> {
+    let Some(Value::Array(values)) = message.get(key) else {
+        return Err("schema");
+    };
+    if values.is_empty() {
+        return Err("shape");
+    }
+    values
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+                .ok_or("schema")
+        })
+        .collect()
+}
+
+/// Build and sign a same-root GrantSuccessionProof from the Node thread's registered grants.
+#[cfg(windows)]
+async fn rebind_reply(
+    identity: &mut Identity,
+    node: &mpsc::Sender<crate::nodeservice::NodeRequest>,
+    message: &Value,
+) -> Reply {
+    use crate::nodeservice::NodeRequest;
+
+    let fields = ["run_id", "old_grant_id", "new_grant_id", "auth_epoch"];
+    if let Err(code) = confirm_keys(message, &fields) {
+        return Reply::refused(message, code);
+    }
+    let text = |key: &str| message.get(key).and_then(Value::as_str).unwrap_or("");
+    for key in fields {
+        let value = text(key);
+        if value.is_empty() {
+            return Reply::refused(message, "schema");
+        }
+    }
+    for key in ["run_id", "old_grant_id", "new_grant_id"] {
+        if uuid::Uuid::parse_str(text(key)).is_err() {
+            return Reply::refused(message, "shape");
+        }
+    }
+    let auth_epoch = match text("auth_epoch").parse::<u64>() {
+        Ok(value) => value.to_string(),
+        Err(_) => return Reply::refused(message, "shape"),
+    };
+    let org_id = match identity.signed_org() {
+        Some(value) if !value.is_empty() => value.to_string(),
+        _ => return Reply::refused(message, "no_pairing"),
+    };
+    let subject_id = match identity.signed_subject() {
+        Some(value) if !value.is_empty() => value.to_string(),
+        _ => return Reply::refused(message, "no_pairing"),
+    };
+
+    let (tx, rx) = oneshot::channel();
+    if node
+        .send(NodeRequest::GrantRootIdentity {
+            old_grant_id: text("old_grant_id").to_string(),
+            new_grant_id: text("new_grant_id").to_string(),
+            reply: tx,
+        })
+        .await
+        .is_err()
+    {
+        return Reply::refused(message, "shape");
+    }
+    let (root_identity_hash, session_id) = match rx.await {
+        Ok(Ok((hash, session))) if hash.len() == 64 && uuid::Uuid::parse_str(&session).is_ok() => {
+            (hash, session)
+        }
+        _ => return Reply::refused(message, "shape"),
+    };
+    let expires_at = match std::time::SystemTime::now()
+        .checked_add(std::time::Duration::from_secs(240))
+        .and_then(|value| value.duration_since(std::time::UNIX_EPOCH).ok())
+        .and_then(|value| crate::frame::rfc3339::format_utc_seconds(value.as_secs()))
+    {
+        Some(value) => value,
+        None => return Reply::refused(message, "shape"),
+    };
+    let mut proof = json!({
+        "old_grant_id": text("old_grant_id"),
+        "new_grant_id": text("new_grant_id"),
+        "root_identity_hash": root_identity_hash,
+        "run_id": text("run_id"),
+        "session_id": session_id,
+        "auth_plane": "bearer",
+        "auth_epoch": auth_epoch,
+        "nonce": uuid::Uuid::new_v4().to_string(),
+        "expires_at": expires_at,
+    });
+    match identity.sign_grant_succession(&proof, &org_id, &subject_id) {
+        Ok(signature) => {
+            proof["signature"] = Value::String(signature);
+            Reply::accepted_with(message, proof)
+        }
+        Err(IdentityError::NoPairing) => Reply::refused(message, "no_pairing"),
+        Err(_) => Reply::refused(message, "shape"),
+    }
+}
+
 /// Forward one confirmation message to the Node service thread and build the closed reply. The
 /// prepare methods return the confirmation facts plus a single-use token; the confirm methods return
 /// the registered grant/binding hash on approve, or an accepted no-facts reply on cancel (no grant).
 /// A bind/probe/identity failure is a closed `shape` refusal — the Broker could not bind/probe the
 /// target — never a silent accept. Schema (key-set/type) violations are `schema`.
 #[cfg(windows)]
+/// Answer one approval decision. A pending `ask_each` approval is decided while its Run is
+/// parked waiting for the permit, i.e. while the Node service thread is inside `serve_run`;
+/// that thread cannot answer, so the pump signs the proof over the shared journal handle and
+/// only falls back to the Node service before a session exists.
+#[cfg(windows)]
+async fn approval_decision_reply(
+    signer: &crate::journalop::ApprovalSignerSlot,
+    node: &mpsc::Sender<crate::nodeservice::NodeRequest>,
+    message: &Value,
+) -> Reply {
+    let text = |key: &str| message.get(key).and_then(Value::as_str).unwrap_or("");
+    let fields = [
+        "approval_id",
+        "operation_id",
+        "params_hash",
+        "expected_revision",
+        "decision",
+        "remember_readonly",
+        "readonly_scope",
+        "readonly_expires_at",
+        "policy_epoch",
+        "access_epoch",
+        "auth_epoch",
+    ];
+    if let Err(code) = confirm_keys(message, &fields) {
+        return Reply::refused(message, code);
+    }
+    for key in fields {
+        if key == "remember_readonly"
+            || key == "readonly_scope"
+            || key == "readonly_expires_at"
+        {
+            continue;
+        }
+        if text(key).is_empty() {
+            return Reply::refused(message, "schema");
+        }
+    }
+    let Some(remember_readonly) = message.get("remember_readonly").and_then(Value::as_bool) else {
+        return Reply::refused(message, "schema");
+    };
+    let readonly_scope = match message.get("readonly_scope") {
+        Some(Value::Object(scope)) => Some(Value::Object(scope.clone())),
+        Some(Value::Null) | None => None,
+        _ => return Reply::refused(message, "schema"),
+    };
+    let readonly_expires_at = match message.get("readonly_expires_at") {
+        Some(Value::String(value)) if !value.is_empty() => Some(value.clone()),
+        Some(Value::Null) | None => None,
+        _ => return Reply::refused(message, "schema"),
+    };
+    let input = crate::approvaldecision::ApprovalDecisionInput {
+        org_id: String::new(),
+        subject_id: String::new(),
+        auth_epoch: text("auth_epoch").to_string(),
+        device_id: String::new(),
+        session_id: String::new(),
+        approval_id: text("approval_id").to_string(),
+        operation_id: text("operation_id").to_string(),
+        params_hash: text("params_hash").to_string(),
+        expected_revision: text("expected_revision").to_string(),
+        decision: text("decision").to_string(),
+        remember_readonly,
+        readonly_scope,
+        readonly_expires_at,
+        policy_epoch: text("policy_epoch").to_string(),
+        access_epoch: text("access_epoch").to_string(),
+    };
+    let facts = signer.lock().ok().and_then(|slot| slot.clone());
+    if let Some(facts) = facts {
+        if let Some(session_id) = facts.session_id.clone() {
+            let op = crate::journalop::JournalOp::PrepareLocalApprovalDecision {
+                org_id: facts.org_id,
+                subject_id: facts.subject_id,
+                device_id: facts.device_id,
+                session_id,
+                input: Box::new(input),
+            };
+            // The journal handle blocks by design; this reply runs on a runtime worker, so the
+            // blocking request must not be made from it.
+            let journal = facts.journal;
+            let proof = tokio::task::spawn_blocking(move || journal.request(op))
+                .await
+                .ok()
+                .flatten();
+            return match proof {
+                Some(crate::journalop::JournalReply::LocalApprovalDecision(Ok(proof))) => {
+                    Reply::accepted_with(
+                        message,
+                        json!({ "status": "ready", "approval_decision_proof": proof }),
+                    )
+                }
+                _ => Reply::accepted_with(message, json!({ "status": "unavailable" })),
+            };
+        }
+    }
+    confirmation_reply(node, message).await
+}
+
 async fn confirmation_reply(
     node: &mpsc::Sender<crate::nodeservice::NodeRequest>,
     message: &Value,
@@ -390,6 +780,182 @@ async fn confirmation_reply(
     let method = message.get("method").and_then(Value::as_str).unwrap_or("");
     let text = |key: &str| message.get(key).and_then(Value::as_str).unwrap_or("");
     match method {
+        "listWorkspaceGrants" => {
+            if let Err(code) = confirm_keys(message, &[]) {
+                return Reply::refused(message, code);
+            }
+            let (tx, rx) = oneshot::channel();
+            if node
+                .send(NodeRequest::ListWorkspaceGrants { reply: tx })
+                .await
+                .is_err()
+            {
+                return Reply::refused(message, "shape");
+            }
+            match rx.await {
+                Ok(grants) => Reply::accepted_with(
+                    message,
+                    json!({ "status": "available", "grants": grants }),
+                ),
+                _ => Reply::refused(message, "shape"),
+            }
+        }
+        "prepareLocalApprovalDecision" => {
+            let fields = [
+                "approval_id",
+                "operation_id",
+                "params_hash",
+                "expected_revision",
+                "decision",
+                "remember_readonly",
+                "readonly_scope",
+                "readonly_expires_at",
+                "policy_epoch",
+                "access_epoch",
+                "auth_epoch",
+            ];
+            if let Err(code) = confirm_keys(message, &fields) {
+                return Reply::refused(message, code);
+            }
+            for key in fields {
+                if key == "remember_readonly"
+                    || key == "readonly_scope"
+                    || key == "readonly_expires_at"
+                {
+                    continue;
+                }
+                if text(key).is_empty() {
+                    return Reply::refused(message, "schema");
+                }
+            }
+            let Some(remember_readonly) = message.get("remember_readonly").and_then(Value::as_bool)
+            else {
+                return Reply::refused(message, "schema");
+            };
+            let readonly_scope = match message.get("readonly_scope") {
+                Some(Value::Object(scope)) => Some(Value::Object(scope.clone())),
+                Some(Value::Null) | None => None,
+                _ => return Reply::refused(message, "schema"),
+            };
+            let readonly_expires_at = match message.get("readonly_expires_at") {
+                Some(Value::String(value)) if !value.is_empty() => Some(value.clone()),
+                Some(Value::Null) | None => None,
+                _ => return Reply::refused(message, "schema"),
+            };
+            let input = crate::approvaldecision::ApprovalDecisionInput {
+                org_id: String::new(),
+                subject_id: String::new(),
+                auth_epoch: text("auth_epoch").to_string(),
+                device_id: String::new(),
+                session_id: String::new(),
+                approval_id: text("approval_id").to_string(),
+                operation_id: text("operation_id").to_string(),
+                params_hash: text("params_hash").to_string(),
+                expected_revision: text("expected_revision").to_string(),
+                decision: text("decision").to_string(),
+                remember_readonly,
+                readonly_scope,
+                readonly_expires_at,
+                policy_epoch: text("policy_epoch").to_string(),
+                access_epoch: text("access_epoch").to_string(),
+            };
+            let (tx, rx) = oneshot::channel();
+            if node
+                .send(NodeRequest::PrepareLocalApprovalDecision {
+                    input: Box::new(input),
+                    reply: tx,
+                })
+                .await
+                .is_err()
+            {
+                return Reply::accepted_with(message, json!({ "status": "unavailable" }));
+            }
+            match rx.await {
+                Ok(Some(proof)) => Reply::accepted_with(
+                    message,
+                    json!({ "status": "ready", "approval_decision_proof": proof }),
+                ),
+                _ => Reply::accepted_with(message, json!({ "status": "unavailable" })),
+            }
+        }
+        "prepareLocalAcceptance" => {
+            let fields = [
+                "task_id",
+                "artifact_id",
+                "version_id",
+                "content_hash",
+                "auth_epoch",
+            ];
+            if let Err(code) = confirm_keys(message, &fields) {
+                return Reply::refused(message, code);
+            }
+            for key in fields {
+                if text(key).is_empty() {
+                    return Reply::refused(message, "schema");
+                }
+            }
+            let input = crate::possession::PossessionInput {
+                org_id: String::new(),
+                subject_id: String::new(),
+                auth_epoch: text("auth_epoch").to_string(),
+                device_id: String::new(),
+                session_id: String::new(),
+                task_id: text("task_id").to_string(),
+                artifact_id: text("artifact_id").to_string(),
+                version_id: text("version_id").to_string(),
+                content_hash: text("content_hash").to_string(),
+                request_id: text("request_id").to_string(),
+            };
+            let (tx, rx) = oneshot::channel();
+            if node
+                .send(NodeRequest::PrepareLocalAcceptance {
+                    input: Box::new(input),
+                    reply: tx,
+                })
+                .await
+                .is_err()
+            {
+                return Reply::accepted_with(message, json!({ "status": "unavailable" }));
+            }
+            match rx.await {
+                Ok(Some(signed)) => {
+                    let proof = signed.get("proof").cloned().unwrap_or(Value::Null);
+                    let signature = signed
+                        .get("signature")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string();
+                    let device_id = proof
+                        .get("device_id")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string();
+                    let session_id = proof
+                        .get("session_id")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string();
+                    if proof.is_null()
+                        || signature.is_empty()
+                        || device_id.is_empty()
+                        || session_id.is_empty()
+                    {
+                        return Reply::accepted_with(message, json!({ "status": "unavailable" }));
+                    }
+                    Reply::accepted_with(
+                        message,
+                        json!({
+                            "status": "ready",
+                            "possession_proof": proof,
+                            "signature": signature,
+                            "device_id": device_id,
+                            "session_id": session_id,
+                        }),
+                    )
+                }
+                _ => Reply::accepted_with(message, json!({ "status": "unavailable" })),
+            }
+        }
         "chooseWorkspace" => {
             if let Err(code) = confirm_keys(message, &["selected_path"]) {
                 return Reply::refused(message, code);
@@ -410,17 +976,22 @@ async fn confirmation_reply(
                 return Reply::refused(message, "shape");
             }
             match rx.await {
-                Ok(Ok((token, c))) => Reply::accepted_with(
-                    message,
-                    json!({
-                        "confirmation_token": token,
-                        "selected_path": c.selected_path,
-                        "actual_location": c.actual_location,
-                        "volume_label": c.volume_label,
-                        "differs_from_selected": c.differs_from_selected,
-                        "other_user_writable": c.other_user_writable,
-                    }),
-                ),
+                Ok(Ok((token, c, root_identity_hash, device_id, session_id))) => {
+                    Reply::accepted_with(
+                        message,
+                        json!({
+                            "confirmation_token": token,
+                            "selected_path": c.selected_path,
+                            "actual_location": c.actual_location,
+                            "volume_label": c.volume_label,
+                            "differs_from_selected": c.differs_from_selected,
+                            "other_user_writable": c.other_user_writable,
+                            "root_identity_hash": root_identity_hash,
+                            "device_id": device_id,
+                            "session_id": session_id,
+                        }),
+                    )
+                }
                 _ => Reply::refused(message, "shape"),
             }
         }
@@ -561,6 +1132,460 @@ async fn confirmation_reply(
                 // identity_mismatch / unpublishable requirement: the binding did not verify.
                 Ok(Some(Err(_))) => Reply::refused(message, "shape"),
                 Ok(None) => Reply::accepted(message),
+                Err(_) => Reply::refused(message, "shape"),
+            }
+        }
+        "openLocalContent" => {
+            if let Err(code) = confirm_keys(message, &["kind", "id"]) {
+                return Reply::refused(message, code);
+            }
+            let kind = text("kind");
+            let id = text("id");
+            if !matches!(
+                kind,
+                "approval" | "run_transcript" | "artifact_version" | "artifact_edit"
+            ) || id.is_empty()
+                || id.len() > 512
+                || id.contains('\x00')
+            {
+                return Reply::refused(message, "shape");
+            }
+            let (tx, rx) = oneshot::channel();
+            if node
+                .send(NodeRequest::OpenLocalContent {
+                    kind: kind.to_string(),
+                    id: id.to_string(),
+                    reply: tx,
+                })
+                .await
+                .is_err()
+            {
+                return Reply::accepted_with(message, json!({ "status": "not_on_this_device" }));
+            }
+            let body = match rx.await {
+                Ok(Some(body)) => body,
+                _ => {
+                    return Reply::accepted_with(message, json!({ "status": "not_on_this_device" }))
+                }
+            };
+            let format = match body.row.format.as_str() {
+                "md" => "text/markdown",
+                "txt" | "json" => "text/plain",
+                _ => {
+                    return Reply::accepted_with(message, json!({ "status": "not_on_this_device" }))
+                }
+            };
+            if body.bytes.len() > 1024 * 1024 {
+                return Reply::accepted_with(message, json!({ "status": "not_on_this_device" }));
+            }
+            let Ok(text) = String::from_utf8(body.bytes) else {
+                return Reply::accepted_with(message, json!({ "status": "not_on_this_device" }));
+            };
+            if kind == "approval" {
+                let valid = (|| -> Option<()> {
+                    if body.row.version_id != id
+                        || body.row.format != "json"
+                        || body.row.publish_state != "sealed"
+                    {
+                        return None;
+                    }
+                    let document: Value = serde_json::from_str(&text).ok()?;
+                    let object = document.as_object()?;
+                    let destination = object.get("destination_id")?;
+                    if object.len() != 9
+                        || object.get("approval_id")?.as_str()? != id
+                        || uuid::Uuid::parse_str(object.get("operation_id")?.as_str()?).is_err()
+                        || object.get("logical_key")?.as_str()?.is_empty()
+                        || object.get("step_key")?.as_str()?.is_empty()
+                        || object.get("state")?.as_str()? != "waiting_approval"
+                        || object.get("classification")?.as_str()? != "local_only"
+                        || !matches!(destination, Value::Null | Value::String(_))
+                        || object.get("request_hash")?.as_str()?.len() != 64
+                        || object
+                            .get("request_hash")?
+                            .as_str()?
+                            .bytes()
+                            .any(|b| !b.is_ascii_hexdigit())
+                    {
+                        return None;
+                    }
+                    let action = object.get("action")?.as_object()?;
+                    if action.len() != 2
+                        || !matches!(
+                            action.get("kind")?.as_str()?,
+                            "artifact.write" | "model.send_device_local"
+                        )
+                        || !action.get("request")?.is_object()
+                    {
+                        return None;
+                    }
+                    Some(())
+                })()
+                .is_some();
+                if !valid {
+                    return Reply::accepted_with(
+                        message,
+                        json!({ "status": "not_on_this_device" }),
+                    );
+                }
+            }
+            if kind == "run_transcript" {
+                let valid = (|| -> Option<()> {
+                    if body.row.version_id != id
+                        || body.row.format != "json"
+                        || body.row.publish_state != "sealed"
+                    {
+                        return None;
+                    }
+                    let document: Value = serde_json::from_str(&text).ok()?;
+                    let object = document.as_object()?;
+                    if object.len() != 3 || object.get("run_id")?.as_str()? != id {
+                        return None;
+                    }
+                    let turn_count = object.get("turn_count")?.as_str()?;
+                    if turn_count.is_empty()
+                        || !turn_count.bytes().all(|byte| byte.is_ascii_digit())
+                    {
+                        return None;
+                    }
+                    let messages = object.get("messages")?.as_array()?;
+                    if !messages.iter().all(|message| {
+                        message
+                            .get("role")
+                            .and_then(Value::as_str)
+                            .is_some_and(|role| !role.is_empty())
+                    }) {
+                        return None;
+                    }
+                    Some(())
+                })()
+                .is_some();
+                if !valid {
+                    return Reply::accepted_with(
+                        message,
+                        json!({ "status": "not_on_this_device" }),
+                    );
+                }
+            }
+            let content_hash = body
+                .row
+                .content_hash
+                .strip_prefix("sha256:")
+                .unwrap_or(&body.row.content_hash);
+            Reply::accepted_with(
+                message,
+                json!({
+                    "status": "available",
+                    "format": format,
+                    "text": text,
+                    "content_hash": format!("sha256:{content_hash}"),
+                    "byte_count": body.row.byte_count.to_string(),
+                }),
+            )
+        }
+        "listLocalArtifactDrafts" => {
+            if let Err(code) = confirm_keys(message, &["artifact_id", "task_id"]) {
+                return Reply::refused(message, code);
+            }
+            let artifact_id = text("artifact_id");
+            let task_id = text("task_id");
+            if uuid::Uuid::parse_str(artifact_id).is_err()
+                || uuid::Uuid::parse_str(task_id).is_err()
+            {
+                return Reply::refused(message, "shape");
+            }
+            let (tx, rx) = oneshot::channel();
+            if node
+                .send(NodeRequest::ListLocalDrafts {
+                    artifact_id: artifact_id.into(),
+                    task_id: task_id.into(),
+                    reply: tx,
+                })
+                .await
+                .is_err()
+            {
+                return Reply::accepted_with(message, json!({ "status": "not_on_this_device" }));
+            }
+            let drafts = match rx.await {
+                Ok(drafts) => drafts,
+                Err(_) => {
+                    return Reply::accepted_with(message, json!({ "status": "not_on_this_device" }))
+                }
+            };
+            let items: Vec<Value> = drafts
+                .into_iter()
+                .map(|row| {
+                    let format = match row.format.as_str() {
+                        "md" => "text/markdown",
+                        _ => "text/plain",
+                    };
+                    json!({
+                        "version_id": row.version_id,
+                        "request_id": row.request_id,
+                        "artifact_id": row.artifact_id,
+                        "task_id": row.task_id,
+                        "base_version_id": row.base_version_id,
+                        "base_version_no": row.base_version_no.to_string(),
+                        "base_hash": row.base_hash,
+                        "format": format,
+                        "content_hash": row.content_hash,
+                        "byte_count": row.byte_count.to_string(),
+                        "base_byte_count": row.base_byte_count.to_string(),
+                        "publish_state": row.publish_state,
+                        "created_at": row.created_at.to_string(),
+                    })
+                })
+                .collect();
+            Reply::accepted_with(message, json!({ "status": "available", "items": items }))
+        }
+        "prepareLocalArtifactEdit" => {
+            if let Err(code) = confirm_keys(
+                message,
+                &[
+                    "client_request_id",
+                    "version_id",
+                    "artifact_id",
+                    "task_id",
+                    "base_version_no",
+                    "base_version_id",
+                    "base_hash",
+                    "auth_epoch",
+                    "format",
+                    "content_hash",
+                    "byte_count",
+                    "body",
+                ],
+            ) {
+                return Reply::refused(message, code);
+            }
+            let digest = |value: &str| {
+                let raw = value.strip_prefix("sha256:").unwrap_or(value);
+                if raw.len() != 64 || !raw.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                    return None;
+                }
+                Some(format!("sha256:{}", raw.to_ascii_lowercase()))
+            };
+            let request_id = text("client_request_id");
+            let version_id = text("version_id");
+            let artifact_id = text("artifact_id");
+            let task_id = text("task_id");
+            let base_version_id = text("base_version_id");
+            if [
+                request_id,
+                version_id,
+                artifact_id,
+                task_id,
+                base_version_id,
+            ]
+            .iter()
+            .any(|value| uuid::Uuid::parse_str(value).is_err())
+            {
+                return Reply::refused(message, "shape");
+            }
+            let Ok(base_version_no) = text("base_version_no").parse::<u32>() else {
+                return Reply::refused(message, "shape");
+            };
+            if base_version_no == 0 {
+                return Reply::refused(message, "shape");
+            }
+            let Some(base_hash) = digest(text("base_hash")) else {
+                return Reply::refused(message, "shape");
+            };
+            let Some(content_hash) = digest(text("content_hash")) else {
+                return Reply::refused(message, "shape");
+            };
+            let Ok(auth_epoch) = text("auth_epoch").parse::<u64>() else {
+                return Reply::refused(message, "shape");
+            };
+            let format = match text("format") {
+                "text/markdown" => "md",
+                "text/plain" => "txt",
+                _ => return Reply::refused(message, "shape"),
+            };
+            let body = text("body");
+            if body.len() > 1024 * 1024 || body.contains('\x00') {
+                return Reply::refused(message, "shape");
+            }
+            let byte_count = match text("byte_count").parse::<u64>() {
+                Ok(value) if value == body.len() as u64 => value,
+                _ => return Reply::refused(message, "shape"),
+            };
+            if crate::sha256_hex(body.as_bytes())
+                != content_hash
+                    .strip_prefix("sha256:")
+                    .unwrap_or(&content_hash)
+            {
+                return Reply::refused(message, "shape");
+            }
+            let row = crate::journalop::LocalDraftRow {
+                version_id: version_id.into(),
+                request_id: request_id.into(),
+                artifact_id: artifact_id.into(),
+                task_id: task_id.into(),
+                base_version_no,
+                base_hash,
+                format: format.into(),
+                content_hash: content_hash.clone(),
+                byte_count,
+                publish_state: "pending_confirm".into(),
+                created_at: 0,
+                auth_epoch,
+                base_version_id: base_version_id.into(),
+                base_byte_count: 0,
+            };
+            let (tx, rx) = oneshot::channel();
+            if node
+                .send(NodeRequest::PrepareLocalDraft {
+                    row,
+                    body: body.into(),
+                    reply: tx,
+                })
+                .await
+                .is_err()
+            {
+                return Reply::refused(message, "shape");
+            }
+            match rx.await {
+                Ok(Ok(row)) => Reply::accepted_with(
+                    message,
+                    json!({
+                        "status": "pending_confirm",
+                        "request_id": row.request_id,
+                        "version_id": row.version_id,
+                        "content_hash": row.content_hash,
+                        "byte_count": row.byte_count.to_string(),
+                        "base_byte_count": row.base_byte_count.to_string(),
+                    }),
+                ),
+                Ok(Err(_)) => Reply::refused(message, "invalid_work_request"),
+                Err(_) => Reply::refused(message, "shape"),
+            }
+        }
+        "decideLocalArtifactEdit" => {
+            if let Err(code) = confirm_keys(message, &["draft_request_id", "sealed_hash", "action"])
+            {
+                return Reply::refused(message, code);
+            }
+            let request_id = text("draft_request_id");
+            let sealed_hash = text("sealed_hash");
+            let action = text("action");
+            if uuid::Uuid::parse_str(request_id).is_err()
+                || sealed_hash.len() != 71
+                || !sealed_hash.starts_with("sha256:")
+                || !sealed_hash[7..]
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit())
+                || !matches!(action, "discard" | "cancel" | "confirm")
+            {
+                return Reply::refused(message, "shape");
+            }
+            if action == "confirm" {
+                let (tx, rx) = oneshot::channel();
+                if node
+                    .send(NodeRequest::ConfirmLocalDraft {
+                        request_id: request_id.into(),
+                        sealed_hash: sealed_hash.into(),
+                        reply: tx,
+                    })
+                    .await
+                    .is_err()
+                {
+                    return Reply::refused(message, "shape");
+                }
+                return match rx.await {
+                    Ok(Some(confirmed)) => {
+                        let extension = if confirmed.row.format == "md" {
+                            "md"
+                        } else {
+                            "txt"
+                        };
+                        Reply::accepted_with(
+                            message,
+                            json!({
+                                "status": confirmed.row.publish_state,
+                                "request_id": confirmed.row.request_id,
+                                "version_id": confirmed.row.version_id,
+                                "artifact_id": confirmed.row.artifact_id,
+                                "device_id": confirmed.proof["device_id"],
+                                "session_id": confirmed.proof["session_id"],
+                                "local_ref": format!("local/{}.{}", confirmed.row.version_id, extension),
+                                "content_hash": confirmed.row.content_hash,
+                                "byte_count": confirmed.row.byte_count.to_string(),
+                                "user_version_proof": confirmed.proof,
+                                "signature": confirmed.signature,
+                            }),
+                        )
+                    }
+                    Ok(None) => {
+                        Reply::accepted_with(message, json!({ "status": "not_on_this_device" }))
+                    }
+                    Err(_) => Reply::refused(message, "shape"),
+                };
+            }
+            let (tx, rx) = oneshot::channel();
+            if node
+                .send(NodeRequest::DecideLocalDraft {
+                    request_id: request_id.into(),
+                    sealed_hash: sealed_hash.into(),
+                    action: action.into(),
+                    reply: tx,
+                })
+                .await
+                .is_err()
+            {
+                return Reply::refused(message, "shape");
+            }
+            match rx.await {
+                Ok(Some(row)) => Reply::accepted_with(
+                    message,
+                    json!({
+                        "status": row.publish_state,
+                        "request_id": row.request_id,
+                        "version_id": row.version_id,
+                        "content_hash": row.content_hash,
+                    }),
+                ),
+                Ok(None) => {
+                    Reply::accepted_with(message, json!({ "status": "not_on_this_device" }))
+                }
+                Err(_) => Reply::refused(message, "shape"),
+            }
+        }
+        "completeLocalArtifactEdit" => {
+            if let Err(code) =
+                confirm_keys(message, &["draft_request_id", "sealed_hash", "publish_ack"])
+            {
+                return Reply::refused(message, code);
+            }
+            let request_id = text("draft_request_id");
+            let sealed_hash = text("sealed_hash");
+            let publish_ack = text("publish_ack");
+            if uuid::Uuid::parse_str(request_id).is_err()
+                || sealed_hash.len() != 71
+                || !sealed_hash.starts_with("sha256:")
+                || publish_ack.len() != 71
+                || !publish_ack.starts_with("sha256:")
+            {
+                return Reply::refused(message, "shape");
+            }
+            let (tx, rx) = oneshot::channel();
+            if node
+                .send(NodeRequest::CompleteLocalDraft {
+                    request_id: request_id.into(),
+                    sealed_hash: sealed_hash.into(),
+                    publish_ack: publish_ack.into(),
+                    reply: tx,
+                })
+                .await
+                .is_err()
+            {
+                return Reply::refused(message, "shape");
+            }
+            match rx.await {
+                Ok(true) => Reply::accepted_with(message, json!({ "status": "published" })),
+                Ok(false) => {
+                    Reply::accepted_with(message, json!({ "status": "not_on_this_device" }))
+                }
                 Err(_) => Reply::refused(message, "shape"),
             }
         }
@@ -749,6 +1774,230 @@ mod tests {
         })
     }
 
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn list_workspace_grants_returns_metadata_only() {
+        let (node, mut requests) = mpsc::channel(1);
+        let worker = tokio::spawn(async move {
+            match requests.recv().await.unwrap() {
+                crate::nodeservice::NodeRequest::ListWorkspaceGrants { reply } => {
+                    reply
+                        .send(vec![json!({
+                            "grant_id": "11111111-1111-4111-8111-111111111111",
+                            "root_identity_hash": "a".repeat(64),
+                            "artifact_dir": ["WeMeet成果"],
+                        })])
+                        .unwrap();
+                }
+                _ => panic!("unexpected node request"),
+            }
+        });
+        let reply = confirmation_reply(
+            &node,
+            &json!({ "method": "listWorkspaceGrants", "request_id": "list-grants-1" }),
+        )
+        .await;
+        assert_eq!(reply.result, ACCEPTED, "{reply:?}");
+        assert_eq!(data_keys(&reply), ["grants", "status"]);
+        let data = reply.data.unwrap();
+        assert_eq!(data["status"], "available");
+        assert_eq!(data["grants"][0]["artifact_dir"], json!(["WeMeet成果"]));
+        assert!(data["grants"][0].get("path").is_none());
+        worker.await.unwrap();
+    }
+
+    fn local_submission_message() -> Value {
+        json!({
+            "method": "confirmLocalSubmission",
+            "request_id": "pipe-request-1",
+            "approved": true,
+            "client_request_id": "local-submit-1",
+            "input_ref": "44444444-4444-4444-8444-444444444444",
+            "input_hash": "a".repeat(64),
+            "preview_hash": "p1.preview.signature",
+            "target_selection_hash": "b".repeat(64),
+            "selected_grant_ids": ["33333333-3333-4333-8333-333333333333"],
+            "grant_revisions": ["1"],
+            "profile_id": "local-profile",
+            "profile_revision": "2",
+            "profile_hash": "c".repeat(64),
+            "auth_epoch": "4",
+        })
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn local_submission_is_session_bound_and_device_signed() {
+        let mut identity =
+            crate::identity::test_identity_with_device("11111111-1111-4111-8111-111111111111");
+        identity
+            .sign_pairing("pair-1", "challenge", "org-1", "sub-1")
+            .unwrap();
+        let (node, mut requests) = mpsc::channel(1);
+        let worker = tokio::spawn(async move {
+            match requests.recv().await.unwrap() {
+                crate::nodeservice::NodeRequest::ValidateLocalSubmission {
+                    input_ref,
+                    input_hash,
+                    selected_grant_ids,
+                    reply,
+                } => {
+                    assert_eq!(input_ref, "44444444-4444-4444-8444-444444444444");
+                    assert_eq!(input_hash, "a".repeat(64));
+                    assert_eq!(
+                        selected_grant_ids,
+                        vec!["33333333-3333-4333-8333-333333333333".to_string()]
+                    );
+                    reply
+                        .send(Ok((
+                            "org-1".into(),
+                            "sub-1".into(),
+                            "11111111-1111-4111-8111-111111111111".into(),
+                            "22222222-2222-4222-8222-222222222222".into(),
+                        )))
+                        .unwrap();
+                }
+                _ => panic!("unexpected node request"),
+            }
+        });
+        let reply = submission_reply(&mut identity, &node, &local_submission_message()).await;
+        assert_eq!(reply.result, ACCEPTED, "{reply:?}");
+        let data = reply.data.unwrap();
+        assert_eq!(data["status"], "ready");
+        let proof = &data["local_intent"];
+        assert_eq!(proof.as_object().unwrap().len(), 19);
+        assert_eq!(proof["request_id"], "local-submit-1");
+        assert_eq!(proof["session_id"], "22222222-2222-4222-8222-222222222222");
+        assert_eq!(proof["org_id"], "org-1");
+        assert_eq!(proof["subject_id"], "sub-1");
+        assert!(proof.get("input_ref").is_none());
+        assert!(crate::frame::sign::verify_frame(
+            &identity.public_jwk(),
+            crate::frame::intent::FRAME_TYPE,
+            proof,
+            proof["signature"].as_str().unwrap()
+        ));
+        worker.await.unwrap();
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn local_submission_cancel_returns_no_proof() {
+        let mut identity = crate::identity::test_identity();
+        let (node, _requests) = mpsc::channel(1);
+        let mut message = local_submission_message();
+        message["approved"] = json!(false);
+        let reply = submission_reply(&mut identity, &node, &message).await;
+        assert_eq!(reply.result, ACCEPTED, "{reply:?}");
+        assert!(reply.data.is_none());
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn local_submission_refuses_open_payload_and_unavailable_input() {
+        let mut identity =
+            crate::identity::test_identity_with_device("11111111-1111-4111-8111-111111111111");
+        identity
+            .sign_pairing("pair-1", "challenge", "org-1", "sub-1")
+            .unwrap();
+        let (node, mut requests) = mpsc::channel(1);
+        let mut open = local_submission_message();
+        open["path"] = json!("C:\\secret");
+        let reply = submission_reply(&mut identity, &node, &open).await;
+        assert_eq!(reply.result, REFUSED, "{reply:?}");
+        assert_eq!(reply.code, Some("schema"));
+        let worker = tokio::spawn(async move {
+            match requests.recv().await.unwrap() {
+                crate::nodeservice::NodeRequest::ValidateLocalSubmission { reply, .. } => {
+                    reply.send(Err("input_mismatch".into())).unwrap();
+                }
+                _ => panic!("unexpected node request"),
+            }
+        });
+        let reply = submission_reply(&mut identity, &node, &local_submission_message()).await;
+        assert_eq!(reply.result, ACCEPTED, "{reply:?}");
+        assert_eq!(reply.data.unwrap()["status"], "unavailable");
+        worker.await.unwrap();
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn rebind_proof_is_root_bound_and_device_signed() {
+        let mut identity = crate::identity::test_identity();
+        identity
+            .sign_pairing("pair-1", "challenge", "org-1", "sub-1")
+            .unwrap();
+        let (node, mut requests) = mpsc::channel(1);
+        let worker = tokio::spawn(async move {
+            match requests.recv().await.unwrap() {
+                crate::nodeservice::NodeRequest::GrantRootIdentity { reply, .. } => {
+                    reply
+                        .send(Ok((
+                            "a".repeat(64),
+                            "55555555-5555-4555-8555-555555555555".to_string(),
+                        )))
+                        .unwrap();
+                }
+                _ => panic!("unexpected node request"),
+            }
+        });
+        let message = json!({
+            "method": "rebindRunWorkspace",
+            "request_id": "req-rebind",
+            "run_id": "44444444-4444-4444-8444-444444444444",
+            "old_grant_id": "11111111-1111-4111-8111-111111111111",
+            "new_grant_id": "22222222-2222-4222-8222-222222222222",
+            "auth_epoch": "7",
+        });
+        let reply = rebind_reply(&mut identity, &node, &message).await;
+        assert_eq!(reply.result, ACCEPTED, "{reply:?}");
+        let proof = reply.data.unwrap();
+        assert_eq!(proof["root_identity_hash"], "a".repeat(64));
+        assert_eq!(proof["session_id"], "55555555-5555-4555-8555-555555555555");
+        assert_eq!(proof["auth_epoch"], "7");
+        let signature = proof["signature"].as_str().unwrap();
+        assert!(crate::grantsuccession::verify(
+            &identity.public_jwk(),
+            &proof,
+            signature
+        ));
+        worker.await.unwrap();
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn rebind_refuses_without_the_broker_session() {
+        let mut identity = crate::identity::test_identity();
+        identity
+            .sign_pairing("pair-1", "challenge", "org-1", "sub-1")
+            .unwrap();
+        let (node, mut requests) = mpsc::channel(1);
+        let worker = tokio::spawn(async move {
+            match requests.recv().await.unwrap() {
+                crate::nodeservice::NodeRequest::GrantRootIdentity { reply, .. } => {
+                    reply.send(Err("no_session".to_string())).unwrap();
+                }
+                _ => panic!("unexpected node request"),
+            }
+        });
+        let reply = rebind_reply(
+            &mut identity,
+            &node,
+            &json!({
+                "method": "rebindRunWorkspace",
+                "request_id": "req-rebind",
+                "run_id": "44444444-4444-4444-8444-444444444444",
+                "old_grant_id": "11111111-1111-4111-8111-111111111111",
+                "new_grant_id": "22222222-2222-4222-8222-222222222222",
+                "auth_epoch": "7",
+            }),
+        )
+        .await;
+        assert_eq!(reply.result, REFUSED, "{reply:?}");
+        assert_eq!(reply.code, Some("shape"));
+        worker.await.unwrap();
+    }
+
     /// A pump plus the four channel ends a caller needs. The link side stays manual so a test
     /// decides exactly when the link asks for a ticket. Ends are `Option` so a test can close one
     /// without partially moving the harness.
@@ -758,6 +2007,13 @@ mod tests {
         tickets: Option<mpsc::Receiver<String>>,
         core_events: Option<mpsc::Receiver<LinkEvent>>,
         ready: Option<mpsc::Receiver<ReadyIdentity>>,
+        #[cfg(windows)]
+        _journal_inbox: Option<
+            mpsc::Receiver<(
+                crate::journalop::JournalOp,
+                oneshot::Sender<crate::journalop::JournalReply>,
+            )>,
+        >,
         handle: tokio::task::JoinHandle<BridgeOutcome>,
     }
 
@@ -768,6 +2024,23 @@ mod tests {
             let (ticket_tx, ticket_rx) = mpsc::channel(1);
             let (core_tx, core_rx) = mpsc::channel(8);
             let (ready_tx, ready_rx) = mpsc::channel(4);
+            #[cfg(windows)]
+            let (node, journal_inbox) = {
+                let node = crate::nodeservice::spawn_node_service();
+                let (journal, journal_inbox) = crate::journalop::channel();
+                node.try_send(crate::nodeservice::NodeRequest::SetJournal {
+                    journal,
+                    org_id: "org-1".into(),
+                    subject_id: "sub-1".into(),
+                    device_id: "11111111-1111-4111-8111-111111111111".into(),
+                })
+                .unwrap();
+                node.try_send(crate::nodeservice::NodeRequest::SetLocalSession {
+                    session_id: "22222222-2222-4222-8222-222222222222".into(),
+                })
+                .unwrap();
+                (node, Some(journal_inbox))
+            };
             let handle = tokio::spawn(run_core_pump(
                 crate::identity::test_identity(),
                 TicketSlot::new("dev-1"),
@@ -776,8 +2049,9 @@ mod tests {
                 ticket_tx,
                 core_tx,
                 ready_tx,
+                std::sync::Arc::new(std::sync::Mutex::new(None)),
                 #[cfg(windows)]
-                crate::nodeservice::spawn_node_service(),
+                node,
             ));
             Self {
                 deliveries: Some(delivery_tx),
@@ -785,6 +2059,8 @@ mod tests {
                 tickets: Some(ticket_rx),
                 core_events: Some(core_rx),
                 ready: Some(ready_rx),
+                #[cfg(windows)]
+                _journal_inbox: journal_inbox,
                 handle,
             }
         }
@@ -1538,16 +2814,32 @@ mod tests {
             [
                 "actual_location",
                 "confirmation_token",
+                "device_id",
                 "differs_from_selected",
                 "other_user_writable",
+                "root_identity_hash",
                 "selected_path",
+                "session_id",
                 "volume_label"
             ]
         );
-        let token = prepare.data.unwrap()["confirmation_token"]
+        let token = prepare.data.as_ref().unwrap()["confirmation_token"]
             .as_str()
             .unwrap()
             .to_string();
+        let prepare_data = prepare.data.unwrap();
+        assert_eq!(
+            prepare_data["device_id"],
+            "11111111-1111-4111-8111-111111111111"
+        );
+        assert_eq!(
+            prepare_data["session_id"],
+            "22222222-2222-4222-8222-222222222222"
+        );
+        assert!(prepare_data["root_identity_hash"]
+            .as_str()
+            .unwrap()
+            .starts_with("sha256:"));
 
         let confirm = h
             .deliver(json!({
@@ -1575,6 +2867,667 @@ mod tests {
         assert_eq!(replay.result, ACCEPTED);
         assert!(replay.data.is_none(), "a spent token produces no grant");
         assert_eq!(h.finish().await, BridgeOutcome::LinkGone);
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn open_local_content_returns_closed_viewer_body_for_artifact_version() {
+        let (node, mut requests) = mpsc::channel(1);
+        let worker = tokio::spawn(async move {
+            match requests.recv().await.unwrap() {
+                crate::nodeservice::NodeRequest::OpenLocalContent { kind, id, reply } => {
+                    assert_eq!(kind, "artifact_version");
+                    assert_eq!(id, "v-1");
+                    reply
+                        .send(Some(crate::journalop::LocalContentBody {
+                            row: crate::journalop::DeliverableRow {
+                                run_id: "run".into(),
+                                operation_id: "op".into(),
+                                version_id: "v-1".into(),
+                                logical_name: "artifact".into(),
+                                format: "md".into(),
+                                content_hash: "a".repeat(64),
+                                byte_count: 4,
+                                receipt_seq: None,
+                                publish_state: "sealed".into(),
+                            },
+                            bytes: b"# hi".to_vec(),
+                        }))
+                        .unwrap();
+                }
+                _ => panic!("unexpected node request"),
+            }
+        });
+        let message = json!({
+            "method": "openLocalContent", "request_id": "open-1",
+            "kind": "artifact_version", "id": "v-1",
+        });
+        let reply = confirmation_reply(&node, &message).await;
+        assert_eq!(reply.result, ACCEPTED, "{reply:?}");
+        assert_eq!(
+            data_keys(&reply),
+            ["byte_count", "content_hash", "format", "status", "text"]
+        );
+        let data = reply.data.unwrap();
+        assert_eq!(data["status"], "available");
+        assert_eq!(data["format"], "text/markdown");
+        assert_eq!(data["text"], "# hi");
+        assert_eq!(data["byte_count"], "4");
+        worker.await.unwrap();
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn open_local_content_returns_validated_approval_body() {
+        let approval_id = "11111111-1111-4111-8111-111111111111";
+        let text = json!({
+            "approval_id": approval_id,
+            "operation_id": "22222222-2222-4222-8222-222222222222",
+            "logical_key": "tool:0#0",
+            "step_key": "tool:0",
+            "state": "waiting_approval",
+            "classification": "local_only",
+            "destination_id": null,
+            "request_hash": "a".repeat(64),
+            "action": { "kind": "artifact.write", "request": { "args": {} } },
+        })
+        .to_string();
+        let worker_text = text.clone();
+        let (node, mut requests) = mpsc::channel(2);
+        let worker = tokio::spawn(async move {
+            for expected in [
+                worker_text.clone(),
+                worker_text.replace("waiting_approval", "authorized"),
+            ] {
+                match requests.recv().await.unwrap() {
+                    crate::nodeservice::NodeRequest::OpenLocalContent { kind, id, reply } => {
+                        assert_eq!(kind, "approval");
+                        assert_eq!(id, approval_id);
+                        let body = expected;
+                        reply
+                            .send(Some(crate::journalop::LocalContentBody {
+                                row: crate::journalop::DeliverableRow {
+                                    run_id: "run".into(),
+                                    operation_id: "22222222-2222-4222-8222-222222222222".into(),
+                                    version_id: approval_id.into(),
+                                    logical_name: "artifact.write".into(),
+                                    format: "json".into(),
+                                    content_hash: crate::sha256_hex(body.as_bytes()),
+                                    byte_count: body.len() as u64,
+                                    receipt_seq: None,
+                                    publish_state: "sealed".into(),
+                                },
+                                bytes: body.into_bytes(),
+                            }))
+                            .unwrap();
+                    }
+                    _ => panic!("unexpected node request"),
+                }
+            }
+        });
+        let message = |request_id: &str| {
+            json!({
+                "method": "openLocalContent", "request_id": request_id,
+                "kind": "approval", "id": approval_id,
+            })
+        };
+        let valid = confirmation_reply(&node, &message("approval-open-1")).await;
+        assert_eq!(valid.result, ACCEPTED, "{valid:?}");
+        let data = valid.data.unwrap();
+        assert_eq!(data["status"], "available");
+        assert_eq!(data["format"], "text/plain");
+        assert_eq!(data["text"], text);
+        let invalid = confirmation_reply(&node, &message("approval-open-2")).await;
+        assert_eq!(invalid.result, ACCEPTED);
+        assert_eq!(invalid.data.unwrap()["status"], "not_on_this_device");
+        worker.await.unwrap();
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn open_local_content_returns_validated_run_transcript() {
+        let text = json!({
+            "run_id": "run-1",
+            "turn_count": "2",
+            "messages": [{ "role": "assistant", "content": "local transcript" }],
+        })
+        .to_string();
+        let worker_text = text.clone();
+        let (node, mut requests) = mpsc::channel(2);
+        let worker = tokio::spawn(async move {
+            for expected in [worker_text.clone(), worker_text.replace("\"2\"", "\"x\"")] {
+                match requests.recv().await.unwrap() {
+                    crate::nodeservice::NodeRequest::OpenLocalContent { kind, id, reply } => {
+                        assert_eq!(kind, "run_transcript");
+                        assert_eq!(id, "run-1");
+                        reply
+                            .send(Some(crate::journalop::LocalContentBody {
+                                row: crate::journalop::DeliverableRow {
+                                    run_id: "run-1".into(),
+                                    operation_id: String::new(),
+                                    version_id: "run-1".into(),
+                                    logical_name: "run_transcript".into(),
+                                    format: "json".into(),
+                                    content_hash: crate::sha256_hex(expected.as_bytes()),
+                                    byte_count: expected.len() as u64,
+                                    receipt_seq: None,
+                                    publish_state: "sealed".into(),
+                                },
+                                bytes: expected.into_bytes(),
+                            }))
+                            .unwrap();
+                    }
+                    _ => panic!("unexpected node request"),
+                }
+            }
+        });
+        let message = |request_id: &str| {
+            json!({
+                "method": "openLocalContent", "request_id": request_id,
+                "kind": "run_transcript", "id": "run-1",
+            })
+        };
+        let valid = confirmation_reply(&node, &message("transcript-open-1")).await;
+        assert_eq!(valid.result, ACCEPTED, "{valid:?}");
+        let data = valid.data.unwrap();
+        assert_eq!(data["status"], "available");
+        assert_eq!(data["format"], "text/plain");
+        assert_eq!(data["text"], text);
+        let invalid = confirmation_reply(&node, &message("transcript-open-2")).await;
+        assert_eq!(invalid.result, ACCEPTED);
+        assert_eq!(invalid.data.unwrap()["status"], "not_on_this_device");
+        worker.await.unwrap();
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn open_local_content_rejects_unknown_kinds_and_extra_fields() {
+        let (node, _requests) = mpsc::channel(1);
+        let unsupported = confirmation_reply(
+            &node,
+            &json!({
+                "method": "openLocalContent", "request_id": "open-2",
+                "kind": "model_log", "id": "run-1",
+            }),
+        )
+        .await;
+        assert_eq!(unsupported.code, Some("shape"));
+        let extra = confirmation_reply(
+            &node,
+            &json!({
+                "method": "openLocalContent", "request_id": "open-3",
+                "kind": "artifact_version", "id": "v-1", "path": "C:\\secret",
+            }),
+        )
+        .await;
+        assert_eq!(extra.code, Some("schema"));
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn prepare_local_approval_decision_returns_only_the_signed_proof() {
+        let (node, mut requests) = mpsc::channel(1);
+        let worker = tokio::spawn(async move {
+            match requests.recv().await.unwrap() {
+                crate::nodeservice::NodeRequest::PrepareLocalApprovalDecision { input, reply } => {
+                    assert_eq!(input.approval_id, "33333333-3333-4333-8333-333333333333");
+                    assert_eq!(input.operation_id, "44444444-4444-4444-8444-444444444444");
+                    assert_eq!(input.decision, "approved");
+                    assert!(!input.remember_readonly);
+                    reply
+                        .send(Some(json!({
+                            "v": 1,
+                            "approval_id": input.approval_id,
+                            "signature": "A".repeat(86),
+                        })))
+                        .unwrap();
+                }
+                _ => panic!("unexpected node request"),
+            }
+        });
+        let reply = confirmation_reply(
+            &node,
+            &json!({
+                "method": "prepareLocalApprovalDecision",
+                "request_id": "approval-prepare-1",
+                "approval_id": "33333333-3333-4333-8333-333333333333",
+                "operation_id": "44444444-4444-4444-8444-444444444444",
+                "params_hash": "a".repeat(64),
+                "expected_revision": "0",
+                "decision": "approved",
+                "remember_readonly": false,
+                "readonly_scope": null,
+                "readonly_expires_at": null,
+                "policy_epoch": "0",
+                "access_epoch": "0",
+                "auth_epoch": "4",
+            }),
+        )
+        .await;
+        assert_eq!(reply.result, ACCEPTED, "{reply:?}");
+        assert_eq!(data_keys(&reply), ["approval_decision_proof", "status"]);
+        assert_eq!(reply.data.unwrap()["status"], "ready");
+        worker.await.unwrap();
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn prepare_local_acceptance_returns_only_bound_proof_metadata() {
+        let (node, mut requests) = mpsc::channel(1);
+        let worker = tokio::spawn(async move {
+            match requests.recv().await.unwrap() {
+                crate::nodeservice::NodeRequest::PrepareLocalAcceptance { input, reply } => {
+                    assert_eq!(input.task_id, "22222222-2222-4222-8222-222222222222");
+                    assert_eq!(input.artifact_id, "11111111-1111-4111-8111-111111111111");
+                    assert_eq!(input.version_id, "77777777-7777-4777-8777-777777777777");
+                    assert_eq!(input.content_hash, "a".repeat(64));
+                    assert_eq!(input.request_id, "accept-1");
+                    reply
+                        .send(Some(json!({
+                            "proof": {
+                                "v": 1,
+                                "device_id": "abcdefab-abcd-abcd-abcd-abcdefabcdef",
+                                "session_id": "33333333-3333-4333-8333-333333333333",
+                                "task_id": input.task_id,
+                                "artifact_id": input.artifact_id,
+                                "version_id": input.version_id,
+                                "content_hash": input.content_hash,
+                                "purpose": "accept",
+                                "request_id": input.request_id,
+                            },
+                            "signature": "A".repeat(86),
+                        })))
+                        .unwrap();
+                }
+                _ => panic!("unexpected node request"),
+            }
+        });
+        let reply = confirmation_reply(
+            &node,
+            &json!({
+                "method": "prepareLocalAcceptance",
+                "request_id": "accept-1",
+                "task_id": "22222222-2222-4222-8222-222222222222",
+                "artifact_id": "11111111-1111-4111-8111-111111111111",
+                "version_id": "77777777-7777-4777-8777-777777777777",
+                "content_hash": "a".repeat(64),
+                "auth_epoch": "4",
+            }),
+        )
+        .await;
+        assert_eq!(reply.result, ACCEPTED, "{reply:?}");
+        assert_eq!(
+            data_keys(&reply),
+            [
+                "device_id",
+                "possession_proof",
+                "session_id",
+                "signature",
+                "status"
+            ]
+        );
+        let data = reply.data.unwrap();
+        assert_eq!(data["status"], "ready");
+        assert_eq!(data["possession_proof"]["request_id"], "accept-1");
+        assert!(data["possession_proof"].get("signature").is_none());
+        worker.await.unwrap();
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn prepare_local_artifact_edit_carries_task_context_without_body_reply() {
+        let (node, mut requests) = mpsc::channel(1);
+        let worker = tokio::spawn(async move {
+            match requests.recv().await.unwrap() {
+                crate::nodeservice::NodeRequest::PrepareLocalDraft { row, body, reply } => {
+                    assert_eq!(row.task_id, "22222222-2222-2222-2222-222222222222");
+                    assert_eq!(row.artifact_id, "11111111-1111-1111-1111-111111111111");
+                    assert_eq!(row.base_version_no, 4);
+                    assert_eq!(row.format, "md");
+                    assert_eq!(body, "edited body");
+                    reply.send(Ok(row)).unwrap();
+                }
+                _ => panic!("unexpected node request"),
+            }
+        });
+        let reply = confirmation_reply(
+            &node,
+            &json!({
+                "method": "prepareLocalArtifactEdit",
+                "request_id": "prepare-edit-1",
+                "client_request_id": "44444444-4444-4444-4444-444444444444",
+                "version_id": "33333333-3333-3333-3333-333333333333",
+                "artifact_id": "11111111-1111-1111-1111-111111111111",
+                "task_id": "22222222-2222-2222-2222-222222222222",
+                "base_version_no": "4",
+                "base_version_id": "55555555-5555-4555-8555-555555555555",
+                "base_hash": format!("sha256:{}", "a".repeat(64)),
+                "auth_epoch": "4",
+                "format": "text/markdown",
+                "content_hash": format!("sha256:{}", crate::sha256_hex(b"edited body")),
+                "byte_count": "11",
+                "body": "edited body",
+            }),
+        )
+        .await;
+        assert_eq!(reply.result, ACCEPTED, "{reply:?}");
+        assert_eq!(
+            data_keys(&reply),
+            [
+                "base_byte_count",
+                "byte_count",
+                "content_hash",
+                "request_id",
+                "status",
+                "version_id"
+            ]
+        );
+        assert_eq!(reply.data.unwrap()["status"], "pending_confirm");
+        worker.await.unwrap();
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn local_artifact_edit_rejects_hash_mismatch_and_supports_closed_decisions() {
+        let (node, _requests) = mpsc::channel(1);
+        let bad_hash = confirmation_reply(
+            &node,
+            &json!({
+                "method": "prepareLocalArtifactEdit",
+                "request_id": "prepare-edit-2",
+                "client_request_id": "55555555-5555-5555-5555-555555555555",
+                "version_id": "33333333-3333-3333-3333-333333333333",
+                "artifact_id": "11111111-1111-1111-1111-111111111111",
+                "task_id": "22222222-2222-2222-2222-222222222222",
+                "base_version_no": "4",
+                "base_version_id": "55555555-5555-4555-8555-555555555555",
+                "base_hash": "a".repeat(64),
+                "auth_epoch": "4", "format": "text/plain", "content_hash": "b".repeat(64),
+                "byte_count": "2", "body": "ok",
+            }),
+        )
+        .await;
+        assert_eq!(bad_hash.code, Some("shape"));
+
+        let (node, mut requests) = mpsc::channel(1);
+        let worker = tokio::spawn(async move {
+            match requests.recv().await.unwrap() {
+                crate::nodeservice::NodeRequest::DecideLocalDraft {
+                    request_id,
+                    sealed_hash,
+                    action,
+                    reply,
+                } => {
+                    assert_eq!(request_id, "44444444-4444-4444-4444-444444444444");
+                    assert_eq!(sealed_hash, format!("sha256:{}", "a".repeat(64)));
+                    assert_eq!(action, "discard");
+                    reply
+                        .send(Some(crate::journalop::LocalDraftRow {
+                            version_id: "33333333-3333-3333-3333-333333333333".into(),
+                            request_id,
+                            artifact_id: "11111111-1111-1111-1111-111111111111".into(),
+                            task_id: "22222222-2222-2222-2222-222222222222".into(),
+                            base_version_no: 4,
+                            base_hash: "a".repeat(64),
+                            format: "md".into(),
+                            content_hash: sealed_hash,
+                            byte_count: 11,
+                            publish_state: "discarded".into(),
+                            created_at: 1,
+                            auth_epoch: 4,
+                            base_version_id: "55555555-5555-4555-8555-555555555555".into(),
+                            base_byte_count: 4,
+                        }))
+                        .unwrap();
+                }
+                _ => panic!("unexpected node request"),
+            }
+        });
+        let reply = confirmation_reply(
+            &node,
+            &json!({
+                "method": "decideLocalArtifactEdit",
+                "request_id": "decide-edit-1",
+                "draft_request_id": "44444444-4444-4444-4444-444444444444",
+                "sealed_hash": format!("sha256:{}", "a".repeat(64)),
+                "action": "discard",
+            }),
+        )
+        .await;
+        assert_eq!(reply.result, ACCEPTED, "{reply:?}");
+        assert_eq!(
+            data_keys(&reply),
+            ["content_hash", "request_id", "status", "version_id"]
+        );
+        assert_eq!(reply.data.unwrap()["status"], "discarded");
+        worker.await.unwrap();
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn confirm_local_artifact_edit_returns_proof_without_body_and_completes_ack() {
+        let (node, mut requests) = mpsc::channel(1);
+        let worker = tokio::spawn(async move {
+            match requests.recv().await.unwrap() {
+                crate::nodeservice::NodeRequest::ConfirmLocalDraft {
+                    request_id,
+                    sealed_hash,
+                    reply,
+                } => {
+                    assert_eq!(request_id, "44444444-4444-4444-4444-444444444444");
+                    assert_eq!(sealed_hash, format!("sha256:{}", "a".repeat(64)));
+                    reply
+                        .send(Some(crate::journalop::LocalDraftConfirmation {
+                            row: crate::journalop::LocalDraftRow {
+                                version_id: "33333333-3333-3333-3333-333333333333".into(),
+                                request_id,
+                                artifact_id: "11111111-1111-1111-1111-111111111111".into(),
+                                task_id: "22222222-2222-2222-2222-222222222222".into(),
+                                base_version_no: 4,
+                                base_hash: "a".repeat(64),
+                                format: "md".into(),
+                                content_hash: sealed_hash,
+                                byte_count: 11,
+                                publish_state: "pending_publish".into(),
+                                created_at: 1,
+                                auth_epoch: 4,
+                                base_version_id: "55555555-5555-4555-8555-555555555555".into(),
+                                base_byte_count: 4,
+                            },
+                            proof: json!({
+                                "device_id": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+                                "session_id": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+                            }),
+                            signature: "signature-edit-1".into(),
+                        }))
+                        .unwrap();
+                }
+                _ => panic!("unexpected node request"),
+            }
+        });
+        let reply = confirmation_reply(
+            &node,
+            &json!({
+                "method": "decideLocalArtifactEdit", "request_id": "confirm-edit-1",
+                "draft_request_id": "44444444-4444-4444-4444-444444444444",
+                "sealed_hash": format!("sha256:{}", "a".repeat(64)), "action": "confirm",
+            }),
+        )
+        .await;
+        assert_eq!(reply.result, ACCEPTED, "{reply:?}");
+        assert_eq!(
+            data_keys(&reply),
+            [
+                "artifact_id",
+                "byte_count",
+                "content_hash",
+                "device_id",
+                "local_ref",
+                "request_id",
+                "session_id",
+                "signature",
+                "status",
+                "user_version_proof",
+                "version_id",
+            ]
+        );
+        let data = reply.data.unwrap();
+        assert_eq!(data["status"], "pending_publish");
+        assert_eq!(data["signature"], "signature-edit-1");
+        assert!(data["user_version_proof"].get("signature").is_none());
+        assert!(data.get("body").is_none());
+        worker.await.unwrap();
+
+        let (node, mut requests) = mpsc::channel(1);
+        let worker = tokio::spawn(async move {
+            match requests.recv().await.unwrap() {
+                crate::nodeservice::NodeRequest::CompleteLocalDraft {
+                    request_id,
+                    sealed_hash,
+                    publish_ack,
+                    reply,
+                } => {
+                    assert_eq!(request_id, "44444444-4444-4444-4444-444444444444");
+                    assert_eq!(sealed_hash, format!("sha256:{}", "a".repeat(64)));
+                    assert_eq!(publish_ack, format!("sha256:{}", "b".repeat(64)));
+                    reply.send(true).unwrap();
+                }
+                _ => panic!("unexpected node request"),
+            }
+        });
+        let reply = confirmation_reply(
+            &node,
+            &json!({
+                "method": "completeLocalArtifactEdit", "request_id": "complete-edit-1",
+                "draft_request_id": "44444444-4444-4444-4444-444444444444",
+                "sealed_hash": format!("sha256:{}", "a".repeat(64)),
+                "publish_ack": format!("sha256:{}", "b".repeat(64)),
+            }),
+        )
+        .await;
+        assert_eq!(reply.result, ACCEPTED, "{reply:?}");
+        assert_eq!(reply.data.unwrap()["status"], "published");
+        worker.await.unwrap();
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn list_local_artifact_drafts_returns_closed_metadata_only() {
+        let (node, mut requests) = mpsc::channel(1);
+        let worker = tokio::spawn(async move {
+            match requests.recv().await.unwrap() {
+                crate::nodeservice::NodeRequest::ListLocalDrafts {
+                    artifact_id,
+                    task_id,
+                    reply,
+                } => {
+                    assert_eq!(artifact_id, "11111111-1111-4111-8111-111111111111");
+                    assert_eq!(task_id, "22222222-2222-4222-8222-222222222222");
+                    reply
+                        .send(vec![crate::journalop::LocalDraftRow {
+                            version_id: "33333333-3333-4333-8333-333333333333".into(),
+                            request_id: "44444444-4444-4444-8444-444444444444".into(),
+                            artifact_id,
+                            task_id,
+                            base_version_no: 4,
+                            base_hash: format!("sha256:{}", "a".repeat(64)),
+                            format: "md".into(),
+                            content_hash: format!("sha256:{}", "b".repeat(64)),
+                            byte_count: 11,
+                            publish_state: "pending_confirm".into(),
+                            created_at: 1,
+                            auth_epoch: 4,
+                            base_version_id: "55555555-5555-4555-8555-555555555555".into(),
+                            base_byte_count: 4,
+                        }])
+                        .unwrap();
+                }
+                _ => panic!("unexpected node request"),
+            }
+        });
+        let reply = confirmation_reply(
+            &node,
+            &json!({
+                "method": "listLocalArtifactDrafts", "request_id": "list-drafts-1",
+                "artifact_id": "11111111-1111-4111-8111-111111111111",
+                "task_id": "22222222-2222-4222-8222-222222222222",
+            }),
+        )
+        .await;
+        assert_eq!(reply.result, ACCEPTED, "{reply:?}");
+        assert_eq!(data_keys(&reply), ["items", "status"]);
+        let data = reply.data.unwrap();
+        assert_eq!(data["status"], "available");
+        let items = data["items"].as_array().unwrap();
+        assert_eq!(items.len(), 1);
+        let mut item_keys: Vec<String> = items[0].as_object().unwrap().keys().cloned().collect();
+        item_keys.sort();
+        assert_eq!(
+            item_keys,
+            [
+                "artifact_id",
+                "base_byte_count",
+                "base_hash",
+                "base_version_id",
+                "base_version_no",
+                "byte_count",
+                "content_hash",
+                "created_at",
+                "format",
+                "publish_state",
+                "request_id",
+                "task_id",
+                "version_id",
+            ]
+        );
+        assert!(items[0].get("body").is_none());
+        worker.await.unwrap();
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn open_local_artifact_edit_returns_only_the_viewer_body_shape() {
+        let (node, mut requests) = mpsc::channel(1);
+        let worker = tokio::spawn(async move {
+            match requests.recv().await.unwrap() {
+                crate::nodeservice::NodeRequest::OpenLocalContent { kind, id, reply } => {
+                    assert_eq!(kind, "artifact_edit");
+                    assert_eq!(id, "v-draft");
+                    reply
+                        .send(Some(crate::journalop::LocalContentBody {
+                            row: crate::journalop::DeliverableRow {
+                                run_id: String::new(),
+                                operation_id: String::new(),
+                                version_id: "v-draft".into(),
+                                logical_name: "artifact".into(),
+                                format: "txt".into(),
+                                content_hash: "a".repeat(64),
+                                byte_count: 5,
+                                receipt_seq: None,
+                                publish_state: "pending_confirm".into(),
+                            },
+                            bytes: b"draft".to_vec(),
+                        }))
+                        .unwrap();
+                }
+                _ => panic!("unexpected node request"),
+            }
+        });
+        let reply = confirmation_reply(
+            &node,
+            &json!({
+                "method": "openLocalContent", "request_id": "open-edit-1",
+                "kind": "artifact_edit", "id": "v-draft",
+            }),
+        )
+        .await;
+        assert_eq!(reply.result, ACCEPTED, "{reply:?}");
+        assert_eq!(
+            data_keys(&reply),
+            ["byte_count", "content_hash", "format", "status", "text"]
+        );
+        assert_eq!(reply.data.unwrap()["text"], "draft");
+        worker.await.unwrap();
     }
 
     #[tokio::test]

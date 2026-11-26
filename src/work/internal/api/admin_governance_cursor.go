@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -15,6 +16,8 @@ import (
 // face: §1.4 registers every relative path in that table beneath /work/v2, and its row for
 // this command spells the path as /admin/governance-event-cursor.
 const AdminGovernanceEventCursorPath = "/work/v2/admin/governance-event-cursor"
+
+const governanceSeatWritePermission = "org.work.seat.write"
 
 // governanceCursorRequest is the J7 first step's whole input surface: which position to
 // jump to, which Host-attested gap report authorises that interval, the external ticket,
@@ -96,6 +99,10 @@ func (s *Server) adminAdvanceGovernanceCursor(w http.ResponseWriter, r *http.Req
 	// with cursor_advance_not_allowed, and §3.1's requirement that the ticket point at a
 	// record visible outside this system is not something this process can check.
 	ticketID := trimmedPointer(body.TicketID)
+	if !slices.Contains(claims.Permissions, governanceSeatWritePermission) {
+		writeAPIError(w, correlationID, apierr.New("admin_access_denied"))
+		return
+	}
 
 	var view json.RawMessage
 	err := workdb.WithWorkContext(r.Context(), s.pool,
@@ -104,8 +111,8 @@ func (s *Server) adminAdvanceGovernanceCursor(w http.ResponseWriter, r *http.Req
 		func(tx pgx.Tx) error {
 			var raw []byte
 			if err := tx.QueryRow(r.Context(),
-				`SELECT work.advance_governance_event_cursor($1, $2, $3::uuid, $4, $5, $6)`,
-				claims.OrgID, *body.ToSeq, reportID, ticketID, claims.SubjectID, requestID,
+				`SELECT work.advance_governance_event_cursor($1, $2, $3::uuid, $4, $5, $6, $7)`,
+				claims.OrgID, *body.ToSeq, reportID, ticketID, claims.SubjectID, requestID, claims.Permissions,
 			).Scan(&raw); err != nil {
 				return err
 			}

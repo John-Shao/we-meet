@@ -60,7 +60,7 @@ test('the journal-op channel carries owned receipt/checkpoint production ops', (
   assert.ok(journalop.includes('pub struct CheckpointFacts {'));
   assert.ok(journalop.includes('pub struct Producer<'));
   assert.ok(journalop.includes('pub struct InstanceFacts {'));
-  assert.ok(journalop.includes('ReceiptProduced { seq: u64, signed_hash: String }'));
+  assert.match(journalop, /ReceiptProduced\s*\{\s*seq:\s*u64,\s*signed_hash:\s*String,?\s*\}/);
   assert.ok(journalop.includes('CheckpointProduced'));
   // execute() takes the Producer so production signs/uplinks on the sole-owner thread.
   assert.ok(journalop.includes('producer: &Producer,'));

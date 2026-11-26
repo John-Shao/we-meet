@@ -324,6 +324,7 @@ mod tests {
                 ticket_tx,
                 core_tx,
                 ready_tx,
+                std::sync::Arc::new(std::sync::Mutex::new(None)),
                 crate::nodeservice::spawn_node_service(),
             ));
             let server_name = name.clone();
@@ -460,7 +461,7 @@ mod tests {
             assert_eq!(reply["method"], *method);
             assert_eq!(reply.as_object().unwrap().len(), 4);
         }
-        assert_eq!(count, 10);
+        assert_eq!(count, 7);
         // The channel is still usable afterwards: a refusal is not a disconnect.
         client.write(&delivery(TICKET, "row-1"));
         assert_eq!(client.read()["result"], "accepted");

@@ -141,6 +141,18 @@ function assertLoop(result, expected, turns) {
 
 const finalMessages = (result) => result.received.at(-1).body.transcript_final.messages;
 
+test('loop_end transcript shape is closed and validated', () => {
+  assert.doesNotThrow(() => validateBody('loop_end', {
+    transcript_final: { messages: [{ role: 'assistant', content: 'done' }] }, turn_count: '1',
+  }));
+  assert.throws(() => validateBody('loop_end', {
+    transcript_final: { messages: [{ content: 'missing role' }] }, turn_count: '1',
+  }), /bad_enum/);
+  assert.throws(() => validateBody('loop_end', {
+    transcript_final: { messages: [] }, turn_count: '1\n',
+  }), /bad_enum/);
+});
+
 test('model -> read/list -> model -> write -> model(stop), sequential with full transcript', pipeTest, async () => {
   const result = await runOnce({
     model: (turn) => turn === 0 ? modelReply('inspect first', [readCall, listCall])

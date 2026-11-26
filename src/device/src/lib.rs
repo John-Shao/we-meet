@@ -10,6 +10,7 @@
 //! the Node/Pi sidecar supervisor and the run-finish operation-set hash. Nothing
 //! here yet claims a production capability.
 
+pub mod approvaldecision;
 pub mod b64;
 pub mod broker;
 pub mod certrenewal;
@@ -17,6 +18,7 @@ pub mod digest;
 pub mod es256;
 pub mod finish;
 pub mod frame;
+pub mod grantsuccession;
 pub mod identity;
 pub mod ipc;
 pub mod journal;
@@ -25,6 +27,7 @@ pub mod jwk;
 pub mod key;
 pub mod pairing;
 pub mod permit;
+pub mod possession;
 pub mod reconcile;
 pub mod recovery;
 pub mod sidecar;
@@ -33,6 +36,7 @@ pub mod thumbprint;
 pub mod tools;
 pub mod transport;
 pub mod upgrade;
+pub mod userversion;
 
 #[cfg(windows)]
 pub mod cng;

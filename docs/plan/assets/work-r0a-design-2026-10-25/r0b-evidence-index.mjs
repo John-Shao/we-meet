@@ -19,6 +19,10 @@ export const OUT_OF_SCOPE_RULINGS = new Map([
     ruling: 'docs/work/design/work-r0b-b03-reconciliation-carrier-2026-11-10.md',
     rulingQuote: 'EV95（recovery 通道）',
   }],
+  ['EV106', {
+    ruling: 'docs/work/design/work-r0b-control-design-2026-10-30.md',
+    rulingQuote: '本期 Host 不先发 `WorkMemberState`，也不先把 `Membership.work_seat` 转只读；改为在 Membership 之上提供统一适配层。',
+  }],
   ['EV116', {
     ruling: 'docs/work/design/work-r0b-architecture-2026-10-30.md',
     rulingQuote: '选择性云同步移出 R0b 本期',

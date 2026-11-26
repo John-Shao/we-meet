@@ -11,6 +11,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from rest_framework import exceptions
 
+from core import models
 from core.factories import MembershipFactory, OrganizationFactory, UserFactory
 from core.tests.host_mtls import (
     CA_PEM,
@@ -103,7 +104,35 @@ def test_returns_verified_bearer(client, bearer_jwt):
     assert data["session_revision"] == 7
     assert data["verified_at"].endswith("Z")
     assert "cookie" not in data
+    assert "permissions" not in data
     assert "Set-Cookie" not in response.headers
+
+
+@MTLS
+def test_optional_permissions_include_work_assignment(client, bearer_jwt):
+    user = UserFactory(sub="subject-permissions")
+    organization = OrganizationFactory()
+    MembershipFactory(user=user, organization=organization, is_primary=True)
+    models.WorkGovernanceAssignment.objects.create(
+        organization=organization,
+        user=user,
+        permissions=["org.work.seat.write"],
+        revision=1,
+    )
+    token = bearer_jwt["issue"](user.sub)
+
+    patcher = _authenticate(user)
+    try:
+        response = client.post(
+            f"{URL}?include_permissions=1",
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+            **cert_headers(CLIENT_PEM),
+        )
+    finally:
+        patcher.stop()
+
+    assert response.status_code == 200
+    assert response.json()["permissions"] == ["org.work.seat.write"]
 
 
 @MTLS

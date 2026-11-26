@@ -6,7 +6,7 @@
   "main": "dist/main.js",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build:main": "tsc",
+    "build:main": "tsc && node scripts/copy-viewer.cjs",
     "build:remote-input": "python scripts/build-remote-input.py",
     "build:work-device": "node scripts/build-work-device.cjs",
     "test:remote-input:cleanup": "python scripts/test-remote-cleanup.py",
@@ -23,6 +23,7 @@
     "build:renderer": "node scripts/build-renderer.mjs",
     "copy:renderer": "node scripts/copy-renderer.mjs",
     "dev": "npm run build:main && electron .",
+    "test:viewer:smoke": "npm run build:main && electron scripts/viewer-smoke.cjs",
     "test": "npm run build:main && node --test tests/*.test.cjs",
     "test:smoke": "npm run build:main && node scripts/smoke.cjs",
     "test:shell-smoke": "npm run build:main && node scripts/shell-smoke.cjs",

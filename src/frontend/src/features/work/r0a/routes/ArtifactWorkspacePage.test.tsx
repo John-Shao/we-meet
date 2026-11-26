@@ -117,6 +117,7 @@ const workspace = (
     accepted_version_no: acceptedVersionNo,
     versions: [
       {
+        version_id: '77777777-7777-4777-8777-777777777777',
         version_no: 2,
         media_type: 'text/markdown',
         bytes: 12,
@@ -128,6 +129,7 @@ const workspace = (
         published_at: '2026-10-31T01:00:00Z',
       },
       {
+        version_id: '66666666-6666-4666-8666-666666666666',
         version_no: 1,
         media_type: 'text/markdown',
         bytes: 10,
@@ -206,6 +208,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   cleanup()
+  Reflect.deleteProperty(window, 'weMeetDesktop')
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
@@ -250,6 +253,56 @@ describe('ArtifactWorkspacePage', () => {
     expect(fetchContent).toHaveBeenCalledWith('task-a', 'artifact-a', 2)
   })
 
+  it('lists local drafts and reopens the selected retained draft', async () => {
+    fetchWorkspace.mockResolvedValue(workspace())
+    const listLocalArtifactDrafts = vi.fn().mockResolvedValue([
+      {
+        requestId: '44444444-4444-4444-8444-444444444444',
+        versionId: '33333333-3333-4333-8333-333333333333',
+        artifactId: 'artifact-a',
+        taskId: 'task-a',
+        baseVersionId: '55555555-5555-4555-8555-555555555555',
+        baseVersionNo: 1,
+        baseHash: `sha256:${'a'.repeat(64)}`,
+        format: 'text/markdown',
+        contentHash: `sha256:${'b'.repeat(64)}`,
+        byteCount: 17,
+        baseByteCount: 4,
+        publishState: 'pending_publish',
+        createdAt: 1,
+      },
+    ])
+    const openLocalArtifactDraft = vi
+      .fn()
+      .mockResolvedValue({ status: 'opened' })
+    Object.defineProperty(window, 'weMeetDesktop', {
+      configurable: true,
+      value: {
+        isDesktop: true,
+        platform: 'win32',
+        work: {
+          listLocalArtifactDrafts,
+          openLocalArtifactDraft,
+          onArtifactPublished: () => () => {},
+        },
+      },
+    })
+    renderPage()
+
+    expect(await screen.findByText('artifact.localDrafts')).toBeInTheDocument()
+    expect(
+      await screen.findByText('artifact.localDraftState.pending_publish')
+    ).toBeInTheDocument()
+    fireEvent.click(
+      screen.getByText('artifact.localDraftState.pending_publish')
+    )
+    expect(openLocalArtifactDraft).toHaveBeenCalledWith(
+      'task-a',
+      'artifact-a',
+      '33333333-3333-4333-8333-333333333333'
+    )
+  })
+
   it('accepts the selected version with the task revision', async () => {
     fetchWorkspace.mockResolvedValue(workspace(null))
     renderPage()
@@ -268,6 +321,77 @@ describe('ArtifactWorkspacePage', () => {
         version_no: 2,
       })
     )
+  })
+
+  it('opens the secure local acceptance gesture instead of cookie-plane acceptance on desktop', async () => {
+    fetchWorkspace.mockResolvedValue(workspace(null))
+    const acceptLocalArtifactVersion = vi
+      .fn()
+      .mockResolvedValue({ status: 'opened' })
+    Object.defineProperty(window, 'weMeetDesktop', {
+      configurable: true,
+      value: {
+        isDesktop: true,
+        platform: 'win32',
+        work: {
+          acceptLocalArtifactVersion,
+          onArtifactAccepted: () => () => {},
+        },
+      },
+    })
+    renderPage()
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'artifact.confirmAccept v2',
+      })
+    )
+    await waitFor(() =>
+      expect(acceptLocalArtifactVersion).toHaveBeenCalledWith({
+        taskId: 'task-a',
+        artifactId: 'artifact-a',
+        versionId: '77777777-7777-4777-8777-777777777777',
+        contentHash: 'sha256:hash-two',
+        revision: 3,
+      })
+    )
+    expect(accept).not.toHaveBeenCalled()
+  })
+
+  it('never falls back to cookie-plane acceptance when desktop version proof metadata is missing', async () => {
+    const data = workspace(null)
+    delete (data.artifact.versions[0] as { version_id?: string }).version_id
+    fetchWorkspace.mockResolvedValue(data)
+    const acceptLocalArtifactVersion = vi.fn()
+    Object.defineProperty(window, 'weMeetDesktop', {
+      configurable: true,
+      value: {
+        isDesktop: false,
+        platform: 'web',
+        getStatus: async () => ({
+          connection: 'online',
+          auth: 'signed-in',
+          message: '',
+        }),
+        onStatus: () => () => {},
+        work: {
+          acceptLocalArtifactVersion,
+          onArtifactAccepted: () => () => {},
+        },
+      },
+    })
+    renderPage()
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'artifact.confirmAccept v2',
+      })
+    )
+    expect(
+      await screen.findByText('artifact.localAcceptOpenFailed')
+    ).toBeInTheDocument()
+    expect(acceptLocalArtifactVersion).not.toHaveBeenCalled()
+    expect(accept).not.toHaveBeenCalled()
   })
 
   it('shows a not-found state for a deep link the server rejects', async () => {

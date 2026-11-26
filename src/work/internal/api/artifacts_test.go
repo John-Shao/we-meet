@@ -289,7 +289,7 @@ func TestTaskArtifactWorkspaceDeepLinkAuthorization(t *testing.T) {
 		t.Fatalf("workspace = %#v", workspace)
 	}
 	latest := workspace.Artifact.Versions[0]
-	if latest.VersionNo != 2 || latest.ContentHash == "" ||
+	if latest.VersionNo != 2 || latest.VersionID == "" || latest.ContentHash == "" ||
 		!strings.HasSuffix(latest.ContentURL,
 			"/work/v1/tasks/11111111-1111-4111-8111-111111111111/artifacts/"+artifactA+"/versions/2/content") {
 		t.Fatalf("latest version = %#v", latest)

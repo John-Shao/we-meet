@@ -8,12 +8,13 @@
 
 use rusqlite::Connection;
 
+use crate::frame::resolution;
 use crate::frame::resolution::{OperationResolutionBody, ResolutionAckBody, ResolutionError};
 use crate::journal::recover::{self, ResolutionApply};
 use crate::jwk::EcP256Jwk;
 
 /// The degradation codes that resolve a row without proving non-execution.
-pub const DEGRADATION_CODES: &[&str] = &["evidence_unavailable", "evidence_exhausted"];
+pub const DEGRADATION_CODES: &[&str] = resolution::DEGRADATION_CODES;
 
 /// A resolution consumption failure.
 #[derive(Debug)]
@@ -222,5 +223,70 @@ mod tests {
         assert!(is_degradation(Some("evidence_exhausted")));
         assert!(!is_degradation(Some("model_error")));
         assert!(!is_degradation(None));
+    }
+
+    fn signed_degradation(server: &SoftwareKey, code: &str) -> OperationResolutionBody {
+        let mut body = signed(server, "op1", "failed", 1);
+        body.code = Some(code.into());
+        body.usage_source = Some("unavailable".into());
+        let sig = sign::sign_frame(server, resolution::FRAME_TYPE, &body.to_value()).unwrap();
+        body.signature = Some(sig);
+        body
+    }
+
+    #[test]
+    fn degradation_frames_resolve_unknown_without_settlement_or_result() {
+        for code in DEGRADATION_CODES {
+            let (conn, path) = temp_conn();
+            seed_unknown(&conn, "op1");
+            let server = SoftwareKey::random();
+            let ack = consume(
+                &conn,
+                &server.public_jwk(),
+                "org",
+                &signed_degradation(&server, code),
+            )
+            .unwrap();
+            assert_eq!(ack.state, "applied");
+            assert_eq!(
+                recover::unreconciled_unknown_count(&conn, "run").unwrap(),
+                0
+            );
+            let (state, result_hash, result_ref): (String, Option<String>, Option<String>) = conn
+                .query_row(
+                    "SELECT state, result_hash, result_ref FROM action_journal WHERE operation_id='op1'",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+            assert_eq!(state, "failed");
+            assert_eq!(result_hash, None);
+            assert_eq!(result_ref, None);
+            drop(conn);
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
+    #[test]
+    fn signed_degradation_cannot_claim_settlement() {
+        let (conn, path) = temp_conn();
+        seed_unknown(&conn, "op1");
+        let server = SoftwareKey::random();
+        let mut body = signed_degradation(&server, "evidence_unavailable");
+        body.settlement_state = "settled".into();
+        body.signature =
+            Some(sign::sign_frame(&server, resolution::FRAME_TYPE, &body.to_value()).unwrap());
+        assert!(matches!(
+            consume(&conn, &server.public_jwk(), "org", &body),
+            Err(ConsumeError::Validation(
+                crate::frame::resolution::ResolutionError::SettlementState
+            ))
+        ));
+        assert_eq!(
+            recover::unreconciled_unknown_count(&conn, "run").unwrap(),
+            1
+        );
+        drop(conn);
+        let _ = std::fs::remove_file(path);
     }
 }

@@ -2,9 +2,9 @@
 //
 // The 2026-11-10 card E ruling set the external-audit range as "everything R0b has implemented at
 // the moment it triggers". That is only checkable if somebody can name the set, so audit-scope.mjs
-// derives it from four authorities in the tree and r0b-audit-scope.json records the result. This
+// derives it from five authorities in the tree and r0b-audit-scope.json records the result. This
 // gate fails when the record no longer matches the tree, when an entry point arrives without a
-// classification, or when one of the four derivations goes silent - the last matters because a
+// classification, or when one of the five derivations goes silent - the last matters because a
 // regex that stops matching looks exactly like an audit surface that shrank.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -22,6 +22,7 @@ import {
   chainCommands,
   functionGrants,
   handlerCommands,
+  hostWorkGovernanceRoutes,
   namedAdjudications,
   namedCandidates,
   producerMentions,
@@ -40,6 +41,7 @@ const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8').replace(/\r\n/g, '\n'
 const FLOORS = {
   routes: 40,
   v2: 4,
+  host: 2,
   chain: 60,
   handler: 4,
   grantFunctions: 200,
@@ -79,7 +81,7 @@ test('every enumerated entry point is classified and points at a file that exist
   );
 });
 
-test('the four derivations each still have a live producer', () => {
+test('the five derivations each still have a live producer', () => {
   assert.ok(registeredRoutes().length >= FLOORS.routes, 'the router scan found almost no routes');
   const v2 = new Set(v2Routes().map((route) => `${route.method} ${route.path}`));
   assert.ok(v2.size >= FLOORS.v2, `only ${v2.size} routes under ${V2_PREFIX}`);
@@ -91,6 +93,15 @@ test('the four derivations each still have a live producer', () => {
   ]) {
     assert.ok(v2.has(route), `${route} is no longer registered`);
   }
+  const hostRoutes = hostWorkGovernanceRoutes();
+  assert.ok(hostRoutes.length >= FLOORS.host, 'the Host governance route scan found almost no routes');
+  assert.deepEqual(
+    hostRoutes.map((route) => `${route.method} ${route.path}`),
+    [
+      'GET /api/v1.0/admin/work-governance-assignments/',
+      'PUT /api/v1.0/admin/work-governance-assignments/<uuid:user_id>/',
+    ],
+  );
   assert.ok(chainCommands().size >= FLOORS.chain, 'the increments scan found almost no R0b functions');
   assert.ok(handlerCommands().size >= FLOORS.handler, 'the v2 handler scan found almost no SQL call sites');
   const grants = functionGrants();
@@ -102,6 +113,9 @@ test('the four derivations each still have a live producer', () => {
   // rows that are here.
   const names = new Set(manifest.entries.map((entry) => entry.name));
   for (const route of v2) assert.ok(names.has(route), `${route} registered but not enumerated`);
+  for (const route of hostRoutes) {
+    assert.ok(names.has(`${route.method} ${route.path}`), `${route.method} ${route.path} registered but not enumerated`);
+  }
   const derived = new Map(namedAdjudications().map((record) => [record.name, record]));
   for (const [name] of duty) assert.ok(names.has(name), `${name} is granted to a duty role but not enumerated`);
   assert.equal(derived.size, namedCandidates().length, 'the candidate table and the authority text disagree');

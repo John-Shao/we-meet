@@ -11,6 +11,7 @@ Work-domain data; the governance port is read-only and returns no content.
 
 import base64
 import hashlib
+import json
 import logging
 import os
 import re
@@ -43,6 +44,13 @@ from core.models import (
     WorkGovernanceEvent,
     WorkGovernanceSequence,
 )
+from core.services.work_governance import (
+    EntitlementConflict,
+    GovernanceConflict,
+    apply_execution_entitlement,
+    get_execution_entitlement_command,
+    work_permissions_for_user,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +73,20 @@ def session_revision(session_key: str) -> int:
     return int.from_bytes(digest[:8], "big") & 0x7FFFFFFFFFFFFFFF
 
 
+def _verify_payload(request, *, user, subject_id, organization, revision):
+    payload = {
+        "subject_id": subject_id,
+        "org_id": str(organization.id),
+        "session_revision": revision,
+        "verified_at": datetime.now(timezone.utc)
+        .isoformat(timespec="seconds")
+        .replace("+00:00", "Z"),
+    }
+    if request.GET.get("include_permissions") == "1":
+        payload["permissions"] = work_permissions_for_user(user, organization)
+    return payload
+
+
 def _ca_pem() -> str:
     return getattr(settings, "WORK_HOST_MTLS_CA_PEM", "") or os.environ.get(
         "WORK_HOST_MTLS_CA_PEM", ""
@@ -76,6 +98,20 @@ def _expected_identity() -> str:
         getattr(settings, "WORK_HOST_MTLS_CLIENT_IDENTITY", "")
         or os.environ.get("WORK_HOST_MTLS_CLIENT_IDENTITY", "")
         or "work-control-plane"
+    )
+
+
+def _expected_governance_events_identity() -> str:
+    return (
+        getattr(settings, "WORK_HOST_GOVERNANCE_EVENTS_IDENTITY", "")
+        or "work-governance-events"
+    )
+
+
+def _expected_operator_identity() -> str:
+    return (
+        getattr(settings, "WORK_HOST_ENTITLEMENT_IDENTITY", "")
+        or "work-operator-adapter"
     )
 
 
@@ -242,14 +278,14 @@ class WorkHostSessionVerifyView(View):
             return JsonResponse({"code": "session_invalid"}, status=401)
 
         subject_id = getattr(user, "sub", None) or str(user.id)
-        verified_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
         return JsonResponse(
-            {
-                "subject_id": subject_id,
-                "org_id": str(organization.id),
-                "session_revision": session_revision(session_key),
-                "verified_at": verified_at.replace("+00:00", "Z"),
-            }
+            _verify_payload(
+                request,
+                user=user,
+                subject_id=subject_id,
+                organization=organization,
+                revision=session_revision(session_key),
+            )
         )
 
 
@@ -304,14 +340,14 @@ class WorkHostBearerVerifyView(View):
         if organization is None:
             return JsonResponse({"code": "session_invalid"}, status=401)
 
-        verified_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
         return JsonResponse(
-            {
-                "subject_id": subject_id,
-                "org_id": str(organization.id),
-                "session_revision": user.auth_epoch,
-                "verified_at": verified_at.replace("+00:00", "Z"),
-            }
+            _verify_payload(
+                request,
+                user=user,
+                subject_id=subject_id,
+                organization=organization,
+                revision=user.auth_epoch,
+            )
         )
 
 
@@ -505,10 +541,7 @@ class WorkHostGovernanceEventsView(View):
             org_id = uuid.UUID(request.GET.get("org_id", ""))
         except (ValueError, TypeError):
             return JsonResponse({"code": "org_not_found"}, status=404)
-        expected_identity = (
-            getattr(settings, "WORK_HOST_GOVERNANCE_EVENTS_IDENTITY", "")
-            or "work-governance-events"
-        )
+        expected_identity = _expected_governance_events_identity()
         if not _verify_client_certificate(request, expected_identity):
             return JsonResponse({"code": "client_identity_invalid"}, status=403)
         if not Organization.objects.filter(id=org_id).exists():
@@ -568,3 +601,80 @@ class WorkHostGovernanceEventsView(View):
                 "gap": gap,
             }
         )
+
+
+ENTITLEMENT_COMMAND_KEYS = frozenset(
+    {
+        "command_id",
+        "expected_entitlement_revision",
+        "target_entitlement_revision",
+        "enabled",
+        "seat_limit",
+        "operator_suspended",
+        "operator_authorization_ref",
+        "payload_hash",
+    }
+)
+
+
+def _entitlement_body(request):
+    if len(request.body) > 65536:
+        raise ValueError("invalid_request")
+    try:
+        body = json.loads(request.body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise ValueError("invalid_request") from None
+    if not isinstance(body, dict) or set(body) != ENTITLEMENT_COMMAND_KEYS:
+        raise ValueError("invalid_request")
+    return body
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+@method_decorator(never_cache, name="dispatch")
+@method_decorator(require_POST, name="dispatch")
+class WorkHostEntitlementApplyView(View):
+    def post(self, request, org_id):
+        if not _verify_client_certificate(request, _expected_operator_identity()):
+            return JsonResponse({"code": "client_identity_invalid"}, status=403)
+        try:
+            organization = Organization.objects.get(id=org_id)
+        except Organization.DoesNotExist:
+            return JsonResponse({"code": "org_not_found"}, status=404)
+        try:
+            body = _entitlement_body(request)
+            command_id = uuid.UUID(body["command_id"])
+            response = apply_execution_entitlement(
+                organization,
+                command_id=command_id,
+                expected_revision=body["expected_entitlement_revision"],
+                target_revision=body["target_entitlement_revision"],
+                enabled=body["enabled"],
+                seat_limit=body["seat_limit"],
+                operator_suspended=body["operator_suspended"],
+                operator_authorization_ref=body["operator_authorization_ref"],
+                payload_hash=body["payload_hash"],
+            )
+        except (EntitlementConflict, GovernanceConflict) as exc:
+            return JsonResponse(
+                {
+                    "code": exc.code
+                    if hasattr(exc, "code")
+                    else "idempotency_key_conflict"
+                },
+                status=409,
+            )
+        except (ValueError, TypeError, AttributeError, exceptions.ValidationError):
+            return JsonResponse({"code": "invalid_request"}, status=422)
+        return JsonResponse(response)
+
+
+@method_decorator(never_cache, name="dispatch")
+@method_decorator(require_GET, name="dispatch")
+class WorkHostEntitlementCommandView(View):
+    def get(self, request, command_id):
+        if not _verify_client_certificate(request, _expected_operator_identity()):
+            return JsonResponse({"code": "client_identity_invalid"}, status=403)
+        response = get_execution_entitlement_command(command_id)
+        if response is None:
+            return JsonResponse({"code": "command_not_found"}, status=404)
+        return JsonResponse(response)

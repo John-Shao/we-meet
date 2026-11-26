@@ -10,6 +10,7 @@ from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 IDENTITY = "work-control-plane"
 GOVERNANCE_IDENTITY = "work-governance-events"
+OPERATOR_IDENTITY = "work-operator-adapter"
 
 
 def _make_ca():
@@ -74,6 +75,7 @@ CA_KEY, CA_CERT = _make_ca()
 CA_PEM = CA_CERT.public_bytes(serialization.Encoding.PEM).decode("utf-8")
 CLIENT_PEM = _make_client(CA_KEY, CA_CERT, IDENTITY)
 GOVERNANCE_CLIENT_PEM = _make_client(CA_KEY, CA_CERT, GOVERNANCE_IDENTITY)
+OPERATOR_CLIENT_PEM = _make_client(CA_KEY, CA_CERT, OPERATOR_IDENTITY)
 OTHER_CN_PEM = _make_client(CA_KEY, CA_CERT, "someone-else")
 EXPIRED_PEM = _make_client(CA_KEY, CA_CERT, IDENTITY, valid=False)
 WRONG_CA_KEY, WRONG_CA_CERT = _make_ca()

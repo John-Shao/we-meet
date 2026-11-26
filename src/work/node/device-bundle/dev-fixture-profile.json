@@ -9,7 +9,7 @@
     "config_revision": 1
   },
   "tool_manifest_hash": "a2b58c4b9193f88d5b1c513d424e53895acf6a1970a4e10050320b17e090ca40",
-  "runtime_digest": "f8b97f39c8c48c808804763a53919177eef6683294710af933fbdf47a4faa4d8",
+  "runtime_digest": "110512a7e1c7e4cf472caa70e3ffe1c64b12b3a8eddbf17d733ba356eac83dd4",
   "listener_requirement": {
     "allowed_signers": [],
     "allow_user_pinned_hash": true,

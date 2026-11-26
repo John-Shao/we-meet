@@ -613,63 +613,133 @@ func TestMassAbsenceRequiresExplicitAllow(t *testing.T) {
 			SubjectID: fmt.Sprintf("sub_%d", revision),
 			Status:    "active",
 			Role:      "member",
+			WorkSeat:  true,
 			Revision:  int64(revision),
 		})
 	}
+	org := host.Org{OrgID: "org_mass", Name: "Mass", Status: "active", HomeRegion: "cn-north", Revision: 13}
 	discovery := &fakeDiscovery{
-		orgs:    []host.Org{{OrgID: "org_mass", Name: "Mass", Status: "active", HomeRegion: "cn-north", Revision: 13}},
+		orgs:    []host.Org{org},
 		members: map[string][]host.Member{"org_mass": members},
 	}
 	if report, err := directory.Sync(ctx, discovery, writer, directory.Options{Full: true}); err != nil || report.Failed() {
 		t.Fatalf("initial sync = %#v, %v", report, err)
 	}
 
-	absent, err := writer.MarkAbsent(ctx, "org_mass", []string{}, false, 13)
-	if !errors.Is(err, directory.ErrMassAbsenceBlocked) || absent != 0 {
-		t.Fatalf("blocked absence = %d, %v", absent, err)
-	}
-	var active int
-	if err := admin.QueryRow(ctx,
-		`SELECT count(*) FROM work.member WHERE org_id = 'org_mass' AND status = 'active'`,
-	).Scan(&active); err != nil {
+	if _, err := admin.Exec(ctx, `
+		SET app.org_id = 'org_mass';
+		INSERT INTO work.input_object (id, org_id, subject_id, content_ref, content_hash, bytes)
+		VALUES ('10000000-0000-0000-0000-000000000001', 'org_mass', 'sub_2', 'input/mass', repeat('a', 64), 12);
+		INSERT INTO work.task (id, org_id, owner_subject_id, state, input_id, title)
+		VALUES ('20000000-0000-0000-0000-000000000001', 'org_mass', 'sub_2', 'open',
+		        '10000000-0000-0000-0000-000000000001', 'Mass absence run');
+		INSERT INTO work.capability_snapshot
+		  (id, org_id, task_id, resolver_version, snapshot_hash, tool_allowlist, model_route, scope_caps, manifest)
+		VALUES ('30000000-0000-0000-0000-000000000001', 'org_mass',
+		        '20000000-0000-0000-0000-000000000001', 'v1', repeat('b', 64),
+		        ARRAY['model_call']::text[], '{}'::jsonb, '{}'::jsonb, '{}'::jsonb);
+		UPDATE work.task SET snapshot_id = '30000000-0000-0000-0000-000000000001'
+		 WHERE id = '20000000-0000-0000-0000-000000000001';
+		INSERT INTO work.run
+		  (id, org_id, task_id, attempt_no, state, snapshot_id, workflow_id, runtime_version)
+		VALUES ('40000000-0000-0000-0000-000000000001', 'org_mass',
+		        '20000000-0000-0000-0000-000000000001', 1, 'active',
+		        '30000000-0000-0000-0000-000000000001', 'run:mass', 'pi-1');
+		UPDATE work.task SET active_run_id = '40000000-0000-0000-0000-000000000001',
+		 latest_run_id = '40000000-0000-0000-0000-000000000001'
+		 WHERE id = '20000000-0000-0000-0000-000000000001';
+	`); err != nil {
 		t.Fatal(err)
-	}
-	if active != 11 {
-		t.Fatalf("blocked absence changed %d members", 11-active)
-	}
-	var blocked int
-	if err := admin.QueryRow(ctx,
-		`SELECT count(*) FROM work.audit_event
-		  WHERE org_id = 'org_mass' AND action = 'directory.member_absence_blocked'`,
-	).Scan(&blocked); err != nil {
-		t.Fatal(err)
-	}
-	if blocked != 1 {
-		t.Fatalf("blocked audits = %d", blocked)
 	}
 
-	absent, err = writer.MarkAbsent(ctx, "org_mass", []string{}, true, 13)
-	if err != nil || absent != 11 {
-		t.Fatalf("allowed absence = %d, %v", absent, err)
+	count := func(query string, args ...any) int {
+		t.Helper()
+		var value int
+		if err := admin.QueryRow(ctx, query, args...).Scan(&value); err != nil {
+			t.Fatal(err)
+		}
+		return value
 	}
-	var left int
-	if err := admin.QueryRow(ctx,
-		`SELECT count(*) FROM work.member WHERE org_id = 'org_mass' AND status = 'left'`,
-	).Scan(&left); err != nil {
-		t.Fatal(err)
+	epochBefore := count(`SELECT access_epoch FROM work.org WHERE id = 'org_mass'`)
+	denyBefore := count(`SELECT count(*) FROM work.access_restriction WHERE org_id = 'org_mass'`)
+	intentBefore := count(`SELECT count(*) FROM work.cancellation_intent WHERE org_id = 'org_mass'`)
+
+	empty := &fakeDiscovery{orgs: []host.Org{org}, members: map[string][]host.Member{"org_mass": {}}}
+	blocked, err := directory.Sync(ctx, empty, writer, directory.Options{Full: true})
+	if err != nil || !blocked.Failed() || blocked.MembersAbsent != 0 ||
+		len(blocked.Errors) != 1 || blocked.Errors[0].Code != "mass_absence_requires_confirmation" {
+		t.Fatalf("blocked full sync = %#v, %v", blocked, err)
 	}
-	if left != 11 {
-		t.Fatalf("left members = %d", left)
+	if got := count(`SELECT count(*) FROM work.member WHERE org_id = 'org_mass' AND status = 'active'`); got != 11 {
+		t.Fatalf("blocked absence changed %d members", 11-got)
 	}
-	var allowed bool
-	if err := admin.QueryRow(ctx,
-		`SELECT (metadata->>'allow_mass_absence')::boolean FROM work.audit_event
-		  WHERE org_id = 'org_mass' AND action = 'directory.member_absence_applied'`,
-	).Scan(&allowed); err != nil {
-		t.Fatal(err)
+	if got := count(`SELECT access_epoch FROM work.org WHERE id = 'org_mass'`); got != epochBefore {
+		t.Fatalf("blocked absence changed epoch to %d, want %d", got, epochBefore)
 	}
-	if !allowed {
-		t.Fatal("allowed absence was not audited as such")
+	if got := count(`SELECT count(*) FROM work.access_restriction WHERE org_id = 'org_mass'`); got != denyBefore {
+		t.Fatalf("blocked absence created %d denys", got-denyBefore)
+	}
+	if got := count(`SELECT count(*) FROM work.cancellation_intent WHERE org_id = 'org_mass'`); got != intentBefore {
+		t.Fatalf("blocked absence created %d cancellation intents", got-intentBefore)
+	}
+	if got := count(`SELECT count(*) FROM work.audit_event
+	 WHERE org_id = 'org_mass' AND action = 'directory.member_absence_blocked'`); got != 1 {
+		t.Fatalf("blocked absence audits = %d, want 1", got)
+	}
+
+	allowed, err := directory.Sync(ctx, empty, writer, directory.Options{Full: true, AllowMassAbsence: true})
+	if err != nil || allowed.Failed() || allowed.MembersAbsent != 11 {
+		t.Fatalf("allowed full sync = %#v, %v", allowed, err)
+	}
+	if got := count(`SELECT count(*) FROM work.member
+	 WHERE org_id = 'org_mass' AND status = 'left' AND NOT work_seat`); got != 11 {
+		t.Fatalf("left members without seats = %d, want 11", got)
+	}
+	if got := count(`SELECT access_epoch FROM work.org WHERE id = 'org_mass'`); got != epochBefore+1 {
+		t.Fatalf("allowed absence epoch = %d, want %d", got, epochBefore+1)
+	}
+	if got := count(`SELECT count(*) FROM work.access_restriction
+	 WHERE org_id = 'org_mass' AND source = 'host_member' AND state = 'active'`); got != 11 {
+		t.Fatalf("host_member denys = %d, want 11", got)
+	}
+	if got := count(`SELECT count(*) FROM work.access_restriction
+	 WHERE org_id = 'org_mass' AND source = 'host_seat' AND state = 'active'`); got != 11 {
+		t.Fatalf("host_seat denys = %d, want 11", got)
+	}
+	if got := count(`SELECT count(*) FROM work.cancellation_intent
+	 WHERE org_id = 'org_mass' AND run_id = '40000000-0000-0000-0000-000000000001'
+	   AND reason = 'member_left'`); got != 1 {
+		t.Fatalf("member cancellation intents = %d, want 1 for the affected Run", got)
+	}
+	if got := count(`SELECT count(*) FROM work.cancellation_intent
+	 WHERE org_id = 'org_mass' AND run_id = '40000000-0000-0000-0000-000000000001'
+	   AND reason = 'work_seat_lost'`); got != 1 {
+		t.Fatalf("seat cancellation intents = %d, want 1 for the affected Run", got)
+	}
+	if got := count(`SELECT count(*) FROM work.audit_event
+	 WHERE org_id = 'org_mass' AND action = 'directory.member_absence_applied'
+	   AND (metadata->>'allow_mass_absence')::boolean AND (metadata->>'absent')::integer = 11`); got != 1 {
+		t.Fatalf("allowed absence audits = %d, want 1", got)
+	}
+
+	org.Revision = 14
+	restored := &fakeDiscovery{
+		orgs: []host.Org{org},
+		members: map[string][]host.Member{"org_mass": {
+			{SubjectID: "sub_2", Status: "active", Role: "member", WorkSeat: true, Revision: 14},
+		}},
+	}
+	report, err := directory.Sync(ctx, restored, writer, directory.Options{Full: true})
+	if err != nil || report.Failed() {
+		t.Fatalf("restore sync = %#v, %v", report, err)
+	}
+	if got := count(`SELECT count(*) FROM work.access_restriction
+	 WHERE org_id = 'org_mass' AND subject_id = 'sub_2' AND source = 'host_member' AND state = 'active'`); got != 0 {
+		t.Fatalf("restore left %d host_member denys active", got)
+	}
+	if got := count(`SELECT count(*) FROM work.access_restriction
+	 WHERE org_id = 'org_mass' AND subject_id = 'sub_2' AND source = 'host_seat' AND state = 'active'`); got != 1 {
+		t.Fatalf("restore seat denys = %d, want 1 until a command event", got)
 	}
 }
 

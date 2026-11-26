@@ -55,6 +55,7 @@ export interface WorkArtifactContent {
 }
 
 export interface WorkArtifactWorkspaceVersion {
+  version_id: string
   version_no: number
   media_type: string
   bytes: number

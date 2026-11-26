@@ -1,8 +1,17 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 72,
-  "chainTipCatalog": "catalogs/0072_run_supersede_budgets.json",
+  "chainTip": 81,
+  "chainTipCatalog": "catalogs/0081_local_task_submission.json",
   "entries": [
+    {
+      "name": "GET /api/v1.0/admin/work-governance-assignments/",
+      "surface": "http-host",
+      "origin": "src/backend/meet/urls.py",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
     {
       "name": "GET /work/v2/admin/local-policy",
       "surface": "http",
@@ -184,6 +193,15 @@
       "classification": "external-audit-required"
     },
     {
+      "name": "POST /work/v2/local-task-previews",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
       "name": "POST /work/v2/readonly-grants/{grantId}/revoke",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",
@@ -194,6 +212,15 @@
     },
     {
       "name": "POST /work/v2/runs/{runId}/workspace-rebinds",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "POST /work/v2/tasks",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",
       "callableBy": [
@@ -223,6 +250,15 @@
       "name": "POST /work/v2/workspace-grants/{grantId}/revoke",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "PUT /api/v1.0/admin/work-governance-assignments/<uuid:user_id>/",
+      "surface": "http-host",
+      "origin": "src/backend/meet/urls.py",
       "callableBy": [
         "http"
       ],
@@ -288,6 +324,15 @@
       "origin": "src/work/migrations/increments/0035_release_restriction_single_writer.sql",
       "callableBy": [
         "work_operator"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "approval_decision_signing_key",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0075_approval_decision_proof_verification.sql",
+      "callableBy": [
+        "work_api"
       ],
       "classification": "external-audit-required"
     },
@@ -440,6 +485,7 @@
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0047_device_signing_key.sql",
       "callableBy": [
+        "work_api",
         "work_worker"
       ],
       "classification": "external-audit-required"
@@ -510,7 +556,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0072_run_supersede_budgets.json",
+      "origin": "src/work/migrations/catalogs/0081_local_task_submission.json",
       "callableBy": [
         "work_api",
         "work_governance_events"
@@ -602,6 +648,24 @@
       "name": "list_workspace_grants",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "local_approval_readonly_scope",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0077_local_approval_readonly_scope.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "local_preview_facts",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0080_local_preview_facts.sql",
       "callableBy": [
         "work_api"
       ],
@@ -831,6 +895,33 @@
         "work_worker"
       ],
       "classification": "external-audit-required"
+    },
+    {
+      "name": "submit_local_task",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0081_local_task_submission.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "user_version_signing_key",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0076_user_version_signing_key.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "workspace_rebind_signing_key",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0074_grant_succession_proof_verification.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
     }
   ],
   "namedAdjudications": [
@@ -904,7 +995,7 @@
       "holds": true
     }
   ],
-  "scopeRule": "范围＝触发那一刻已实现的一切 R0b 新入口；本清单由 audit-scope.mjs 从仓库四处权威现读生成，新增入口只有两种去向：留在默认的 external-audit-required，或带上具名决策引用改成例外。",
+  "scopeRule": "范围＝触发那一刻已实现的一切 R0b 新入口；本清单由 audit-scope.mjs 从仓库五处权威现读生成，新增入口只有两种去向：留在默认的 external-audit-required，或带上具名决策引用改成例外。",
   "scopeRuleFile": "docs/work/design/work-r0b-device-plane-weight-decision-2026-11-10.md",
   "scopeRuleSource": "- **审计闸（J39/#49）**：接真实客户数据前必须外部审计，范围＝触发那一刻已实现的一切 R0b 新入口；六项 S 卡（S1/S2/S4/S11/S14/S15）是必读最小集。本单直接改变该集合的大小。"
 }

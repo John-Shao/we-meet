@@ -76,7 +76,9 @@ def test_no_builtin_role_can_edit_roles():
 
 def test_validate_permission_codes_rejects_unknown_and_owner_only():
     with pytest.raises(ValueError):
-        permissions_registry.validate_permission_codes(["org.nope.read"])
+        permissions_registry.validate_permission_codes(
+            ["org.nope.read", "org.work.seat.write"]
+        )
     with pytest.raises(ValueError):
         permissions_registry.validate_permission_codes(["org.role.write"])
     assert permissions_registry.validate_permission_codes(
@@ -212,9 +214,7 @@ def test_an_unscoped_assignment_widens_a_scoped_one():
         membership=holder,
         scope_type=models.AdminScopeChoices.DEPARTMENTS,
     )
-    models.AdminRoleScopeDepartment.objects.create(
-        assignment=scoped, department=root
-    )
+    models.AdminRoleScopeDepartment.objects.create(assignment=scoped, department=root)
     models.AdminRoleAssignment.objects.create(
         role=_role(organization, "it", ["org.audit.read"]),
         membership=holder,
@@ -448,7 +448,5 @@ def test_permission_catalogue_is_gated_on_role_read():
 
 def test_ensure_builtin_roles_is_idempotent():
     organization = _org()
-    assert ensure_builtin_roles(organization) == len(
-        permissions_registry.BUILTIN_ROLES
-    )
+    assert ensure_builtin_roles(organization) == len(permissions_registry.BUILTIN_ROLES)
     assert ensure_builtin_roles(organization) == 0

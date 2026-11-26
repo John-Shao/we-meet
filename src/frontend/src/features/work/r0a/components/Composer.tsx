@@ -10,6 +10,7 @@ import {
 import { Button } from '@/primitives/Button'
 import { TextArea } from '@/primitives/TextArea'
 import { css, cx } from '@/styled-system/css'
+import type { WorkspaceGrantSummary } from '../../../../../../desktop/src/work/bridge'
 import type {
   PermissionMode,
   WorkBootstrap,
@@ -28,6 +29,13 @@ import { trackWorkEvent, workErrorCode } from '../telemetry'
 import { card, errorText, inputError, label, muted, row } from '../ui'
 
 type Props = { bootstrap: WorkBootstrap }
+
+interface LocalInputDraft {
+  localInputRef: string
+  contentHash: string
+  byteCount: number
+  title: string
+}
 
 // The counter and the server count code points (`Array.from`), while the native
 // maxLength attribute counts UTF-16 units - one emoji is two units there. The
@@ -87,7 +95,34 @@ export const Composer = ({ bootstrap }: Props) => {
   )
   const [preview, setPreview] = useState<WorkPreviewResponse | null>(null)
   const [inputRef, setInputRef] = useState<string | null>(null)
+  const [localDraft, setLocalDraft] = useState<LocalInputDraft | null>(null)
+  const [staging, setStaging] = useState(false)
+  const [localSubmitting, setLocalSubmitting] = useState(false)
+  const [localGrants, setLocalGrants] = useState<WorkspaceGrantSummary[]>([])
+  const [selectedGrantIds, setSelectedGrantIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
+  const stageLocalInput = window.weMeetDesktop?.work?.stageLocalInput
+  const submitLocalTask = window.weMeetDesktop?.work?.submitLocalTask
+  const listWorkspaceGrants = window.weMeetDesktop?.work?.listWorkspaceGrants
+
+  useEffect(() => {
+    if (!localDraft || !listWorkspaceGrants) return
+    let active = true
+    void listWorkspaceGrants()
+      .then((grants) => {
+        if (!active) return
+        setLocalGrants(grants)
+        setSelectedGrantIds((current) =>
+          current.length > 0 ? current : grants[0] ? [grants[0].grantId] : []
+        )
+      })
+      .catch(() => {
+        if (active) setError('errors.generic')
+      })
+    return () => {
+      active = false
+    }
+  }, [localDraft, listWorkspaceGrants])
 
   const templates = useMemo(
     () => templatesQ.data?.items ?? [],
@@ -100,7 +135,11 @@ export const Composer = ({ bootstrap }: Props) => {
   const goalLength = Array.from(goal).length
   const backgroundLength = Array.from(background).length
   const busy =
-    createInput.isPending || createPreview.isPending || submitTask.isPending
+    createInput.isPending ||
+    createPreview.isPending ||
+    submitTask.isPending ||
+    staging ||
+    localSubmitting
   const invalidGoal =
     !goal.trim() || goalLength > bootstrap.limits.max_goal_chars
   const invalidBackground =
@@ -120,6 +159,7 @@ export const Composer = ({ bootstrap }: Props) => {
     setPreview(null)
     setError(null)
     setInputRef(null)
+    setLocalDraft(null)
     previewGeneration.current += 1
     inputKey.rotate()
   }
@@ -183,6 +223,59 @@ export const Composer = ({ bootstrap }: Props) => {
           errorCode: workErrorCode(cause),
         })
       }
+    }
+  }
+
+  const stageLocalDraft = async () => {
+    if (!stageLocalInput || invalidGoal || invalidBackground || staging) return
+    setStaging(true)
+    setError(null)
+    const text = background ? `${goal}\n\n${background}` : goal
+    try {
+      const draft = await stageLocalInput(text)
+      if (!mounted.current) return
+      setGoal('')
+      setBackground('')
+      invalidateInput()
+      setLocalDraft({ ...draft, title: goal.trim() })
+    } catch {
+      if (mounted.current) setError(t('errors.generic'))
+    } finally {
+      if (mounted.current) setStaging(false)
+    }
+  }
+
+  const confirmLocalSubmit = async () => {
+    if (
+      !localDraft ||
+      !submitLocalTask ||
+      !selectedTemplate ||
+      selectedGrantIds.length === 0 ||
+      localSubmitting
+    )
+      return
+    setLocalSubmitting(true)
+    setError(null)
+    try {
+      const task = await submitLocalTask({
+        clientRequestId: submitKey.key,
+        inputRef: localDraft.localInputRef,
+        inputHash: localDraft.contentHash,
+        inputBytes: localDraft.byteCount,
+        title: localDraft.title,
+        templateId: selectedTemplate.id,
+        templateVersion: selectedTemplate.version,
+        permissionMode,
+        outputFormat: 'text/markdown',
+        selectedGrantIds,
+      })
+      if (!mounted.current) return
+      setLocalDraft(null)
+      navigate(`/work/items/${encodeURIComponent(task.taskId)}`)
+    } catch {
+      if (mounted.current) setError(t('errors.generic'))
+    } finally {
+      if (mounted.current) setLocalSubmitting(false)
     }
   }
 
@@ -338,6 +431,68 @@ export const Composer = ({ bootstrap }: Props) => {
           </span>
         </div>
 
+        {localDraft ? (
+          <div
+            className={css({
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'sm',
+              padding: 'md',
+              border: '1px solid token(colors.border.focus)',
+              borderRadius: 'control',
+            })}
+          >
+            <p className={muted} role="status">
+              {t('composer.localDraftSaved', { bytes: localDraft.byteCount })}
+            </p>
+            <span className={label}>{t('composer.localGrants')}</span>
+            <div className={row}>
+              {localGrants.map((grant) => {
+                const selected = selectedGrantIds.includes(grant.grantId)
+                return (
+                  <button
+                    key={grant.grantId}
+                    type="button"
+                    aria-pressed={selected}
+                    className={cx(choice, selected && choiceActive)}
+                    onClick={() =>
+                      setSelectedGrantIds((current) =>
+                        selected
+                          ? current.filter((id) => id !== grant.grantId)
+                          : current.length < 4
+                            ? [...current, grant.grantId]
+                            : current
+                      )
+                    }
+                  >
+                    <span>
+                      {grant.artifactDir.join(' / ') || grant.grantId}
+                    </span>
+                    <span className={muted}>{grant.grantId.slice(0, 8)}</span>
+                  </button>
+                )
+              })}
+            </div>
+            {localGrants.length === 0 ? (
+              <p className={muted}>{t('composer.localGrantsRequired')}</p>
+            ) : null}
+            <div
+              className={css({ display: 'flex', justifyContent: 'flex-end' })}
+            >
+              <Button
+                loading={localSubmitting}
+                isDisabled={
+                  selectedGrantIds.length === 0 ||
+                  !selectedTemplate ||
+                  !submitLocalTask
+                }
+                onPress={confirmLocalSubmit}
+              >
+                {t('composer.submitLocal')}
+              </Button>
+            </div>
+          </div>
+        ) : null}
         {error ? (
           <p className={errorText} role="alert">
             {error}
@@ -349,8 +504,19 @@ export const Composer = ({ bootstrap }: Props) => {
               marginTop: 'md',
               display: 'flex',
               justifyContent: 'flex-end',
+              gap: 'sm',
             })}
           >
+            {stageLocalInput ? (
+              <Button
+                variant="secondary"
+                loading={staging}
+                isDisabled={invalidGoal || invalidBackground || busy}
+                onPress={stageLocalDraft}
+              >
+                {t('composer.stageLocal')}
+              </Button>
+            ) : null}
             <Button
               loading={createInput.isPending || createPreview.isPending}
               isDisabled={invalidGoal || invalidBackground || busy}

@@ -107,9 +107,80 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (69, '0069_atomic_run_binding_activation'),
   (70, '0070_independent_model_result_reconciliation'),
   (71, '0071_supersede_limit_waiting_input'),
-  (72, '0072_run_supersede_budgets')) expected(version, name)
+  (72, '0072_run_supersede_budgets'),
+  (73, '0073_governance_cursor_seat_write_permission'),
+  (74, '0074_grant_succession_proof_verification'),
+  (75, '0075_approval_decision_proof_verification'),
+  (76, '0076_user_version_signing_key'),
+  (77, '0077_local_approval_readonly_scope'),
+  (78, '0078_possession_proof_signing_key'),
+  (79, '0079_permit_destination_refusal_cancels'),
+  (80, '0080_local_preview_facts'),
+  (81, '0081_local_task_submission')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
+psql_ro "select 'approval_proof_es256=' || case when
+    (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'work' and p.proname = 'approval_decision_signing_key'
+        and p.prosecdef and p.proowner = (select oid from pg_roles where rolname = 'work_owner')) = 1
+    and exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'work' and p.proname = 'decide_local_approval'
+        and position('^[A-Za-z0-9_-]{86}$' in p.prosrc) > 0)
+    then 'true' else 'FALSE' end"
+psql_ro "select 'user_version_signing_key=' || case when
+    (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'work' and p.proname = 'user_version_signing_key'
+        and p.prosecdef and p.proowner = (select oid from pg_roles where rolname = 'work_owner')) = 1
+    and not has_table_privilege('work_api', 'work.device_session', 'SELECT')
+    and not has_table_privilege('work_api', 'work.device', 'SELECT')
+    then 'true' else 'FALSE' end"
+psql_ro "select 'local_preview_facts=' || case when
+    (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'work' and p.proname = 'local_preview_facts'
+        and p.prosecdef and p.proowner = (select oid from pg_roles where rolname = 'work_owner')) = 1
+    and has_function_privilege('work_api',
+      'work.local_preview_facts(text,text,bigint,uuid,uuid,uuid[],text[],text,text)', 'EXECUTE')
+    and not has_table_privilege('work_api', 'work.device', 'SELECT')
+    and not has_table_privilege('work_api', 'work.device_session', 'SELECT')
+    and not has_table_privilege('work_api', 'work.workspace_grant', 'SELECT')
+    and not has_table_privilege('work_api', 'work.org_policy', 'SELECT')
+    then 'true' else 'FALSE' end"
+psql_ro "select 'local_task_submission=' || case when
+    (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'work' and p.proname = 'submit_local_task'
+        and p.prosecdef and p.proowner = (select oid from pg_roles where rolname = 'work_owner')) = 1
+    and has_function_privilege('work_api',
+      'work.submit_local_task(text,text,bigint,text,uuid,text,bigint,text,timestamptz,text,text,text,jsonb,text[],jsonb,jsonb,jsonb)', 'EXECUTE')
+    and not has_table_privilege('work_api', 'work.local_submission_intent', 'SELECT')
+    and not has_table_privilege('work_api', 'work.device_run_binding', 'SELECT')
+    and not has_table_privilege('work_api', 'work.outbox', 'DELETE')
+    and position('work.submit_task' in (select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'work' and p.proname = 'submit_local_task')) > 0
+    and position('DELETE FROM work.outbox' in (select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'work' and p.proname = 'submit_local_task')) > 0
+    then 'true' else 'FALSE' end"
+psql_ro "select 'permit_destination_refusal=' || case when
+    exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'work' and p.proname = 'consume_device_permit'
+        and p.prosecdef and p.proowner = (select oid from pg_roles where rolname = 'work_owner')
+        and position('work.cancel_operation' in p.prosrc) > 0
+        and position('''status'', ''refused''' in p.prosrc) > 0)
+    and has_function_privilege('work_worker',
+      'work.consume_device_permit(text,uuid,uuid,uuid,uuid,uuid,bigint,text,text)', 'EXECUTE')
+    and not has_function_privilege('work_worker',
+      'work.consume_device_permit_unfiltered(text,uuid,uuid,uuid,uuid,uuid,bigint,text,text)', 'EXECUTE')
+    then 'true' else 'FALSE' end"
+psql_ro "select 'approval_readonly_scope=' || case when
+    (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'work' and p.proname = 'local_approval_readonly_scope'
+        and p.prosecdef and p.proowner = (select oid from pg_roles where rolname = 'work_owner')) = 1
+    and not has_table_privilege('work_api', 'work.local_action', 'SELECT')
+    then 'true' else 'FALSE' end"
+psql_ro "select 'possession_signing_key=' || case when
+    has_function_privilege('work_api', 'work.device_signing_key(text,uuid)', 'EXECUTE')
+    and not has_table_privilege('work_api', 'work.device', 'SELECT')
+    and not has_table_privilege('work_api', 'work.device_session', 'SELECT')
+    then 'true' else 'FALSE' end"
 # A ledger row for 0038 only proves the file ran; the entire semantic of the revert is that the
 # two 0037 overloads are gone from pg_proc. Count pronames, not oids: an ALTER-own or a partial
 # re-apply would still show oid-level entries but keep the overload count above one.
@@ -301,7 +372,7 @@ echo
 echo "== installed binary hashes =="
 sha256sum /usr/local/bin/work-worker /usr/local/bin/work-reconcile \
   /usr/local/bin/work-migrate /usr/local/bin/work-api /usr/local/bin/work-export \
-  /usr/local/bin/work-provider-setup 2>/dev/null
+  /usr/local/bin/work-provider-setup /usr/local/bin/work-operator-entitlement 2>/dev/null
 
 echo
 echo "== reconcile wiring =="
@@ -1229,9 +1300,9 @@ psql_ro "select 'reconcile_lease_cannot_mint_permit=' || case when (
 # 0067 rejects both listed overlaps and consumed events omitted from a gap report.
 psql_ro "select 'gap_report_rejects_consumed_interval=' || case when (
   position('c.event_seq >= report_row.from_seq' in pg_get_functiondef(
-    'work.advance_governance_event_cursor(text,bigint,uuid,text,text,text)'::regprocedure)) > 0
+    'work.advance_governance_event_cursor(text,bigint,uuid,text,text,text,text[])'::regprocedure)) > 0
   and position('c.event_seq < report_row.to_seq_exclusive' in pg_get_functiondef(
-    'work.advance_governance_event_cursor(text,bigint,uuid,text,text,text)'::regprocedure)) > 0
+    'work.advance_governance_event_cursor(text,bigint,uuid,text,text,text,text[])'::regprocedure)) > 0
   then 'true' else 'FALSE' end"
 
 # 0068 gives the puller a tenant-scoped cursor getter without granting table reads.
@@ -1338,6 +1409,39 @@ psql_ro "select 'run_supersede_budgets=' || case when (
     'work.run_supersede_budgets(text,uuid,text)'::regprocedure)) > 0
   and position('budgets.active_supersede_count >= 5' in pg_get_functiondef(
     'work.run_supersede_budgets(text,uuid,text)'::regprocedure)) > 0
+  then 'true' else 'FALSE' end"
+
+# 0073 replaces the interim org-admin gate with Host's fine-grained seat.write permission.
+psql_ro "select 'governance_cursor_seat_write=' || case when (
+  position('''org.work.seat.write'' = ANY' in pg_get_functiondef(
+    'work.advance_governance_event_cursor(text,bigint,uuid,text,text,text,text[])'::regprocedure)) > 0
+  and position('work.assert_org_admin' in pg_get_functiondef(
+    'work.advance_governance_event_cursor(text,bigint,uuid,text,text,text,text[])'::regprocedure)) = 0
+  and position('admin_access_denied' in pg_get_functiondef(
+    'work.advance_governance_event_cursor(text,bigint,uuid,text,text,text)'::regprocedure)) > 0
+  and position('work.assert_org_admin' in pg_get_functiondef(
+    'work.advance_governance_event_cursor(text,bigint,uuid,text,text,text)'::regprocedure)) = 0
+  and has_function_privilege('work_api',
+    'work.advance_governance_event_cursor(text,bigint,uuid,text,text,text,text[])'::regprocedure, 'EXECUTE')
+  then 'true' else 'FALSE' end"
+
+# 0074 binds the real ES256 proof shape, five-minute freshness and current device session.
+psql_ro "select 'grant_succession_proof_verified=' || case when (
+  select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'work' and p.proname = 'grant_succession_proof_valid'
+    and p.prosecdef is false) = 1
+  and position('''<> 10''' in pg_get_functiondef(
+    'work.grant_succession_proof_valid(jsonb)'::regprocedure)) > 0
+  and position('''{86}''' in pg_get_functiondef(
+    'work.grant_succession_proof_valid(jsonb)'::regprocedure)) > 0
+  and position('work.grant_succession_proof_valid' in pg_get_functiondef(
+    'work.rebind_run_workspace(text,text,text,bigint,uuid,text,uuid,uuid,jsonb)'::regprocedure)) > 0
+  and position('''interval ''5 minutes''' in pg_get_functiondef(
+    'work.rebind_run_workspace(text,text,text,bigint,uuid,text,uuid,uuid,jsonb)'::regprocedure)) > 0
+  and position('v_session.auth_epoch' in pg_get_functiondef(
+    'work.rebind_run_workspace(text,text,text,bigint,uuid,text,uuid,uuid,jsonb)'::regprocedure)) > 0
+  and has_function_privilege('work_api',
+    'work.workspace_rebind_signing_key(text,text,uuid,uuid)'::regprocedure, 'EXECUTE')
   then 'true' else 'FALSE' end"
 
 # The permit document is durable evidence on the dispatch row, not a second single-use

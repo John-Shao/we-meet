@@ -12,8 +12,14 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
+from core.api.admin_work_governance import (
+    WorkGovernanceAssignmentDetailView,
+    WorkGovernanceAssignmentListView,
+)
 from core.api.work_host import (
     WorkHostBearerVerifyView,
+    WorkHostEntitlementApplyView,
+    WorkHostEntitlementCommandView,
     WorkHostGovernanceEventsView,
     WorkHostMemberListView,
     WorkHostOrgListView,
@@ -24,6 +30,16 @@ urlpatterns = [
     # Django admin moved off /admin/ so the front path is free for the
     # management console (M 端) SPA served at /admin/. See the M 端 plan.
     path("dj-admin/", admin.site.urls),
+    path(
+        "api/v1.0/admin/work-governance-assignments/",
+        WorkGovernanceAssignmentListView.as_view(),
+        name="work-governance-assignment-list",
+    ),
+    path(
+        "api/v1.0/admin/work-governance-assignments/<uuid:user_id>/",
+        WorkGovernanceAssignmentDetailView.as_view(),
+        name="work-governance-assignment-detail",
+    ),
     path(
         "work-host/v2/sessions/verify",
         WorkHostSessionVerifyView.as_view(),
@@ -48,6 +64,16 @@ urlpatterns = [
         "work-host/v3/governance-events",
         WorkHostGovernanceEventsView.as_view(),
         name="work-host-governance-events",
+    ),
+    path(
+        "work-host/v3/organizations/<uuid:org_id>/work-entitlement-commands",
+        WorkHostEntitlementApplyView.as_view(),
+        name="work-host-entitlement-apply",
+    ),
+    path(
+        "work-host/v3/work-entitlement-commands/<uuid:command_id>",
+        WorkHostEntitlementCommandView.as_view(),
+        name="work-host-entitlement-command",
     ),
     path("", include("core.urls")),
     path("", include("lasuite.oidc_resource_server.urls")),

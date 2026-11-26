@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TaskWorkspacePage } from './TaskWorkspacePage'
@@ -132,6 +132,7 @@ afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  Reflect.deleteProperty(window, 'weMeetDesktop')
   vi.useRealTimers()
 })
 
@@ -401,6 +402,21 @@ describe('TaskWorkspacePage read-only viewport', () => {
       screen.getByRole('button', { name: 'task.confirmAcceptArtifact' })
     ).toBeInTheDocument()
     expect(screen.queryByText('readOnly.taskNotice')).not.toBeInTheDocument()
+  })
+
+  it('opens the run transcript only through the desktop viewer bridge', async () => {
+    const openLocalContent = vi.fn().mockResolvedValue({ status: 'opened' })
+    Object.defineProperty(window, 'weMeetDesktop', {
+      configurable: true,
+      value: { work: { openLocalContent } },
+    })
+    fetchTask.mockResolvedValueOnce(runningDetail('transcript'))
+    open.mockResolvedValueOnce(new Response(null, { status: 503 }))
+    setup()
+    await tick()
+    fireEvent.click(screen.getByRole('button', { name: 'task.runTranscript' }))
+    await tick()
+    expect(openLocalContent).toHaveBeenCalledWith('run_transcript', 'run-a')
   })
 
   it('renders the closed snapshot as a revision and a localized permission mode', async () => {

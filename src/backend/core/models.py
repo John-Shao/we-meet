@@ -7090,6 +7090,32 @@ class Membership(BaseModel):
         }
 
 
+class WorkExecutionEntitlement(models.Model):
+    organization = models.OneToOneField(
+        Organization, on_delete=models.CASCADE, primary_key=True
+    )
+    enabled = models.BooleanField(default=False)
+    seat_limit = models.PositiveIntegerField(default=0)
+    operator_suspended = models.BooleanField(default=False)
+    revision = models.PositiveBigIntegerField(default=0)
+    operator_authorization_ref = models.CharField(
+        max_length=200, blank=True, default=""
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "meet_work_execution_entitlement"
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(enabled=True) | models.Q(seat_limit__gt=0),
+                name="work_entitlement_enabled_requires_seat_limit",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.organization_id}:r{self.revision}"
+
+
 class WorkGovernanceSequence(models.Model):
     organization = models.OneToOneField(
         Organization, on_delete=models.CASCADE, primary_key=True
@@ -7177,6 +7203,54 @@ class WorkGovernanceEvent(models.Model):
 
     def __str__(self):
         return f"{self.organization_id}:{self.event_seq} {self.kind}"
+
+
+class WorkGovernanceAssignmentStatusChoices(models.TextChoices):
+    ACTIVE = "active", _("Active")
+    REVOKED = "revoked", _("Revoked")
+
+
+class WorkGovernanceAssignment(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="work_governance_assignments",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="work_governance_assignments",
+    )
+    permissions = models.JSONField(default=list)
+    revision = models.PositiveBigIntegerField(default=1)
+    status = models.CharField(
+        max_length=16,
+        choices=WorkGovernanceAssignmentStatusChoices.choices,
+        default=WorkGovernanceAssignmentStatusChoices.ACTIVE,
+    )
+    granted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "meet_work_governance_assignment"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "user"],
+                name="work_governance_assignment_org_user",
+            )
+        ]
+        indexes = [models.Index(fields=["organization", "status"])]
+
+    def __str__(self):
+        return f"{self.organization_id}:{self.user_id}@{self.revision}"
 
 
 class UserGroup(BaseModel):
@@ -8431,6 +8505,9 @@ class AuditActionChoices(models.TextChoices):
     ROLE_DELETE = "role.delete", _("Admin role deleted")
     ROLE_ASSIGN = "role.assign", _("Admin role assigned")
     ROLE_UNASSIGN = "role.unassign", _("Admin role revoked")
+    WORK_GOVERNANCE_GRANT = "work_governance.grant", _("Work governance granted")
+    WORK_GOVERNANCE_REVOKE = "work_governance.revoke", _("Work governance revoked")
+    WORK_ENTITLEMENT_APPLY = "work_entitlement.apply", _("Work entitlement applied")
     # P10 M2 — bulk import/export. One summary row per job, never one per line:
     # a 1000-row import would otherwise bury every other action in the log.
     MEMBER_IMPORT = "member.import", _("Members imported")

@@ -9,6 +9,8 @@ import {
   revokeWorkReadonlyGrant,
   setWorkLocalPolicy,
 } from './client'
+import { useWorkBootstrap } from '../../r0a/api/queries'
+import type { PendingLocalApproval } from '../../../../../../desktop/src/work/bridge'
 
 const r0bKeys = {
   reconciliations: (runId: string) =>
@@ -20,6 +22,7 @@ const r0bKeys = {
   localPolicy: ['work', 'r0b', 'local-policy'] as const,
   readonlyGrants: (runId: string) =>
     ['work', 'r0b', 'readonly-grants', runId] as const,
+  pendingApprovals: ['work', 'r0b', 'pending-approvals'] as const,
 }
 
 /**
@@ -111,6 +114,31 @@ export const useWorkReadonlyGrants = (
     staleTime: 10_000,
     retry: false,
   })
+
+export const useWorkPendingLocalApprovals = (
+  taskId: string | undefined,
+  enabled: boolean
+) => {
+  const bootstrapQ = useWorkBootstrap()
+  return useQuery({
+    queryKey: r0bKeys.pendingApprovals,
+    queryFn: async (): Promise<PendingLocalApproval[]> => {
+      const bridge = window.weMeetDesktop?.work
+      if (!bridge?.listPendingLocalApprovals) return []
+      const result = await bridge.listPendingLocalApprovals()
+      if (result.status !== 'available') return []
+      return result.approvals
+    },
+    enabled:
+      enabled &&
+      !!taskId &&
+      !!window.weMeetDesktop?.work?.listPendingLocalApprovals &&
+      !!bootstrapQ.data?.phases.includes('R0b'),
+    staleTime: 5_000,
+    refetchInterval: 15_000,
+    retry: false,
+  })
+}
 
 export const useRevokeWorkReadonlyGrant = () => {
   const queryClient = useQueryClient()

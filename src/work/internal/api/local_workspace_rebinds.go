@@ -1,13 +1,20 @@
 package api
 
 import (
+	"bytes"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/we-meet/work/internal/apierr"
 	workdb "github.com/we-meet/work/internal/db"
+	"github.com/we-meet/work/internal/devicesig"
 )
 
 // The workspace-rebind face (control-design §1.4 row 65, §4.2; device §3.5). A Bearer-plane
@@ -25,6 +32,44 @@ type workspaceRebindRequest struct {
 	OldGrantID           string          `json:"old_grant_id"`
 	NewGrantID           string          `json:"new_grant_id"`
 	GrantSuccessionProof json.RawMessage `json:"grant_succession_proof"`
+}
+
+type grantSuccessionProof struct {
+	OldGrantID       string `json:"old_grant_id"`
+	NewGrantID       string `json:"new_grant_id"`
+	RootIdentityHash string `json:"root_identity_hash"`
+	RunID            string `json:"run_id"`
+	SessionID        string `json:"session_id"`
+	AuthPlane        string `json:"auth_plane"`
+	AuthEpoch        string `json:"auth_epoch"`
+	Nonce            string `json:"nonce"`
+	ExpiresAt        string `json:"expires_at"`
+	Signature        string `json:"signature"`
+}
+
+func parseGrantSuccessionProof(raw json.RawMessage) (grantSuccessionProof, error) {
+	var proof grantSuccessionProof
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&proof); err != nil {
+		return proof, err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return proof, fmt.Errorf("trailing proof data")
+	}
+	root, err := hex.DecodeString(proof.RootIdentityHash)
+	if err != nil || len(root) != 32 || !validUUID(proof.OldGrantID) ||
+		!validUUID(proof.NewGrantID) || !validUUID(proof.RunID) || !validUUID(proof.SessionID) ||
+		proof.AuthPlane != "bearer" || proof.Nonce == "" || proof.ExpiresAt == "" {
+		return proof, fmt.Errorf("invalid proof shape")
+	}
+	if _, err := strconv.ParseUint(proof.AuthEpoch, 10, 63); err != nil {
+		return proof, err
+	}
+	if _, err := time.Parse(time.RFC3339, proof.ExpiresAt); err != nil {
+		return proof, err
+	}
+	return proof, nil
 }
 
 func (s *Server) rebindRunWorkspace(w http.ResponseWriter, r *http.Request) {
@@ -47,8 +92,36 @@ func (s *Server) rebindRunWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, correlationID, apierr.New("invalid_request"))
 		return
 	}
+	proof, err := parseGrantSuccessionProof(body.GrantSuccessionProof)
+	if err != nil {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	var pubJWK []byte
+	if err := workdb.WithWorkContext(r.Context(), s.pool,
+		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
+		workdb.RoleAPI, workdb.Options{ReadOnly: true},
+		func(tx pgx.Tx) error {
+			return tx.QueryRow(r.Context(),
+				`SELECT work.workspace_rebind_signing_key($1, $2, $3::uuid, $4::uuid)`,
+				claims.OrgID, claims.SubjectID, runID, body.NewGrantID,
+			).Scan(&pubJWK)
+		},
+	); err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
+	pub, err := devicesig.ParseJWK(pubJWK)
+	if err != nil {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	if !devicesig.VerifyGrantSuccession(pub, body.GrantSuccessionProof, proof.Signature) {
+		writeAPIError(w, correlationID, apierr.New("unauthorized"))
+		return
+	}
 	var view json.RawMessage
-	err := workdb.WithWorkContext(r.Context(), s.pool,
+	err = workdb.WithWorkContext(r.Context(), s.pool,
 		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
 		workdb.RoleAPI, workdb.Options{},
 		func(tx pgx.Tx) error {

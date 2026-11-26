@@ -196,6 +196,51 @@ func (a *actionFixture) prepareSupersede(
 	return out
 }
 
+func (a *actionFixture) rebindWorkspace(t *testing.T) string {
+	t.Helper()
+	api := a.apiConn(t)
+	root := a.scalar(t, "SELECT root_identity_hash FROM work.workspace_grant WHERE org_id = "+
+		quoteLiteral(a.org)+" AND id = "+quoteLiteral(a.grantID))
+	registered := callJSON(t, api,
+		`SELECT work.register_workspace_grant($1,$2,'bearer',7,$3::uuid,$4::uuid,$5,$6::jsonb)`,
+		a.org, a.subject, a.deviceID, a.sessionID, "req-rebind-grant-"+newUUID(t),
+		`{"root_identity_hash":"`+root+`","allowed_tools":["workspace.read"],`+
+			`"matched_rule_index":0,"user_selected_ttl_seconds":3600}`)
+	newGrant := idOf(t, registered, "grant_id")
+	oldGrant := a.grantID
+	mustExec(t, a.admin, "UPDATE work.run SET state = 'waiting', wait_reason = 'input' WHERE id = "+quoteLiteral(a.runID))
+	proof := `{"old_grant_id":"` + oldGrant + `","new_grant_id":"` + newGrant +
+		`","run_id":"` + a.runID + `","root_identity_hash":"` + root +
+		`","session_id":"` + a.sessionID + `","auth_plane":"bearer","auth_epoch":"7",` +
+		`"nonce":"` + newUUID(t) + `","expires_at":"` +
+		time.Now().Add(4*time.Minute).UTC().Format(time.RFC3339) +
+		`","signature":"` + strings.Repeat("e", 86) + `"}`
+	rebound := callJSON(t, api,
+		`SELECT work.rebind_run_workspace($1,$2,'bearer',7,$3::uuid,$4,$5::uuid,$6::uuid,$7::jsonb)`,
+		a.org, a.subject, a.runID, "req-rebind-"+newUUID(t), oldGrant, newGrant, proof)
+	if rebound["binding_revision"] != float64(2) || rebound["state"] != "active" {
+		t.Fatalf("workspace rebind = %#v", rebound)
+	}
+	worker := a.workerConn(t)
+	callJSON(t, worker, `SELECT work.acknowledge_run_ready($1,$2::uuid,2,$3,$4::jsonb,$5::uuid,$6::uuid)`,
+		a.org, a.runID, "req-action-ready-rebound-"+newUUID(t),
+		`{"binding_hash":"`+strings.Repeat("a", 64)+`","ready_or_reason":"ready","device_signature":"`+strings.Repeat("d", 86)+`"}`,
+		a.deviceID, a.sessionID)
+	startNonce := a.scalar(t, "SELECT start_nonce::text FROM work.execution_lease WHERE org_id = "+
+		quoteLiteral(a.org)+" AND run_id = "+quoteLiteral(a.runID)+
+		" AND binding_revision = 2 AND state = 'active' ORDER BY created_at DESC LIMIT 1")
+	lease := callJSON(t, worker,
+		`SELECT work.acquire_device_lease($1,$2::uuid,$3::uuid,$4::uuid,2,'execute',$5::uuid,30)`,
+		a.org, a.runID, a.deviceID, a.sessionID, startNonce)
+	if lease["lease_id"] == nil || lease["run_start"] == nil {
+		t.Fatalf("rebound lease start = %#v", lease)
+	}
+	a.grantID = newGrant
+	a.leaseID = idOf(t, lease, "lease_id")
+	a.fence = int64(a.scalarInt(t, "SELECT fence FROM work.run WHERE id = "+quoteLiteral(a.runID)))
+	return newGrant
+}
+
 func (a *actionFixture) prepare(t *testing.T, worker *pgx.Conn, stepKey, classification string) map[string]any {
 	t.Helper()
 	return a.prepareBody(t, worker, a.actionBody(t, stepKey, classification))
@@ -269,6 +314,37 @@ func (a *actionFixture) authorizeAction(t *testing.T, operationID string) {
 		`SELECT work.resume_run($1,$2::uuid)`, a.org, a.runID); err != nil {
 		t.Fatalf("resume_run: %v", err)
 	}
+}
+
+func (a *actionFixture) decideRememberReadonly(t *testing.T, operationID, approvalID string) map[string]any {
+	t.Helper()
+	var approvalRevision int
+	var paramsHash string
+	if err := a.admin.QueryRow(testContext(t), `
+		SELECT revision, params_hash FROM work.approval WHERE org_id = $1 AND id = $2`,
+		a.org, approvalID).Scan(&approvalRevision, &paramsHash); err != nil {
+		t.Fatal(err)
+	}
+	proof := fmt.Sprintf(`{
+		"v":1,"org_id":%q,"subject_id":%q,"auth_plane":"bearer","auth_epoch":%q,
+		"device_id":%q,"session_id":%q,"approval_id":%q,"operation_id":%q,
+		"params_hash":%q,"expected_revision":%q,"decision":"approved","remember_readonly":true,
+		"readonly_scope":{"tool_set":["workspace.read"],"resource_selector_hash":%q,
+		                  "grant_id":%q,"grant_revision":1},
+		"readonly_expires_at":%q,"policy_epoch":%q,"access_epoch":%q,
+		"nonce":%q,"expires_at":%q,"signature":%q}`,
+		a.org, a.subject,
+		a.scalar(t, "SELECT auth_epoch::text FROM work.device WHERE id = "+quoteLiteral(a.deviceID)),
+		a.deviceID, a.sessionID, approvalID, operationID, paramsHash, fmt.Sprintf("%d", approvalRevision),
+		a.selectorHash, a.grantID, time.Now().UTC().Add(time.Hour).Format(time.RFC3339),
+		a.scalar(t, "SELECT effective_epoch::text FROM work.local_execution_policy WHERE org_id = "+quoteLiteral(a.org)),
+		a.scalar(t, "SELECT admission_access_epoch::text FROM work.run WHERE id = "+quoteLiteral(a.runID)),
+		newUUID(t), time.Now().UTC().Add(10*time.Minute).Format(time.RFC3339), strings.Repeat("5", 86))
+	return callJSON(t, a.apiConn(t),
+		`SELECT work.decide_local_approval($1,$2,'bearer',$3,$4::uuid,$5,$6::jsonb)`,
+		a.org, a.subject,
+		a.scalarInt(t, "SELECT auth_epoch FROM work.device WHERE id = "+quoteLiteral(a.deviceID)),
+		approvalID, "req-remember-"+newUUID(t), proof)
 }
 
 // permitTestKid stands in for the gateway's independent permit signing key id. 0055 made
@@ -528,24 +604,27 @@ func TestR0bApprovalDecisionConsumesItsNonceOnce(t *testing.T) {
 	nonce := "nonce-b3-0001"
 	proof := func(approval, op, decision string) string {
 		return `{"v":1,"org_id":"` + a.org + `","subject_id":"` + a.subject +
-			`","auth_plane":"bearer","auth_epoch":` +
+			`","auth_plane":"bearer","auth_epoch":"` +
 			a.scalar(t, "SELECT auth_epoch::text FROM work.device WHERE id = "+quoteLiteral(a.deviceID)) +
-			`,"device_id":"` + a.deviceID + `","session_id":"` + a.sessionID +
+			`","device_id":"` + a.deviceID + `","session_id":"` + a.sessionID +
 			`","approval_id":"` + approval + `","operation_id":"` + op +
-			`","params_hash":"` + strings.Repeat("1", 64) + `","expected_revision":0,` +
+			`","params_hash":"` + a.scalar(t, "SELECT params_hash FROM work.approval WHERE id = "+quoteLiteral(approval)) + `","expected_revision":"0",` +
 			`"decision":"` + decision + `","remember_readonly":false,"readonly_scope":null,` +
-			`"readonly_expires_at":null,"policy_epoch":` +
+			`"readonly_expires_at":null,"policy_epoch":"` +
 			a.scalar(t, "SELECT effective_epoch::text FROM work.local_execution_policy WHERE org_id = "+quoteLiteral(a.org)) +
-			`,"access_epoch":` + a.scalar(t, "SELECT admission_access_epoch::text FROM work.run WHERE id = "+quoteLiteral(a.runID)) +
-			`,"nonce":"` + nonce + `","expires_at":"` +
+			`","access_epoch":"` + a.scalar(t, "SELECT admission_access_epoch::text FROM work.run WHERE id = "+quoteLiteral(a.runID)) +
+			`","nonce":"` + nonce + `","expires_at":"` +
 			time.Now().UTC().Add(10*time.Minute).Format(time.RFC3339) +
-			`","signature":"sha256:` + strings.Repeat("5", 64) + `"}`
+			`","signature":"` + strings.Repeat("5", 86) + `"}`
 	}
 	// Capture the exact proof bytes once: proof() stamps expires_at from time.Now() at
 	// second precision, so regenerating it for the replay below could cross a second
 	// boundary and change the request_hash, turning the ordinary retry into a false
 	// idempotency_key_conflict. The replay must send the identical payload.
 	firstProof := proof(approvalID, opID, "approved")
+	if !json.Valid([]byte(firstProof)) {
+		t.Fatalf("invalid approval proof JSON: %s", firstProof)
+	}
 	decided := callJSON(t, api,
 		`SELECT work.decide_local_approval($1,$2,'bearer',$3,$4::uuid,$5,$6::jsonb)`,
 		a.org, a.subject,
@@ -670,6 +749,10 @@ func TestR0bPermitConsumptionReChecksTheDestinationFromServerFacts(t *testing.T)
 	if a.grantClass != "local_only" {
 		t.Fatalf("grant classification = %q, want local_only", a.grantClass)
 	}
+	if got := a.scalar(t, `SELECT has_function_privilege('work_worker',
+		'work.consume_device_permit_unfiltered(text,uuid,uuid,uuid,uuid,uuid,bigint,text,text)', 'EXECUTE')::text`); got != "false" {
+		t.Fatalf("work_worker can bypass the destination wrapper through the unfiltered function")
+	}
 
 	// Prepare the remote model action while the Run is clean: gate (A) at prepare does not
 	// fire, which is the whole reason a second enforcement point exists.
@@ -677,6 +760,7 @@ func TestR0bPermitConsumptionReChecksTheDestinationFromServerFacts(t *testing.T)
 		"model.send_remote", "org_remote"))
 	opID := idOf(t, out, "operation_id")
 	attemptID := idOf(t, out, "attempt_id")
+	reservationID := reserveDeviceModelQuota(t, a, opID)
 	if got := a.runTaint(t); got != "none" {
 		t.Fatalf("the remote action should not have tainted its own Run: %q", got)
 	}
@@ -687,18 +771,35 @@ func TestR0bPermitConsumptionReChecksTheDestinationFromServerFacts(t *testing.T)
 	}
 
 	a.authorizeAction(t, opID)
-	a.refuseConsume(t, worker, opID, attemptID, "destination_not_allowed_for_local_only")
+	refused := callJSON(t, worker,
+		`SELECT work.consume_device_permit($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8,$9)`,
+		a.org, opID, attemptID, a.deviceID, a.sessionID, a.leaseID, a.fence,
+		strings.Repeat("1", 64), permitTestKid)
+	if refused["status"] != "refused" ||
+		refused["code"] != "destination_not_allowed_for_local_only" ||
+		refused["operation_id"] != opID || refused["dispatch_attempt_id"] != attemptID {
+		t.Fatalf("destination refusal = %#v", refused)
+	}
 
-	// The refusal sits before the CAS, so the single-use authority is still unspent and
-	// the Operation has not moved: no dispatch row, no command, still authorized.
+	// EV118 R12A-14: the refusal is durable, not a heartbeat retry. No dispatch is
+	// written, the Operation is canceled, and its held reservation is released.
 	if got := countRows(t, a.admin, "SELECT count(*) FROM work.device_dispatch WHERE org_id = "+
 		quoteLiteral(a.org)+" AND operation_id = "+quoteLiteral(opID)); got != 0 {
 		t.Fatalf("a refused permit still wrote %d dispatch rows", got)
 	}
 	if got := a.scalar(t, "SELECT state FROM work.operation WHERE org_id = "+
-		quoteLiteral(a.org)+" AND id = "+quoteLiteral(opID)); got != "authorized" {
-		t.Fatalf("operation state after the refused permit = %q, want authorized (the CAS is "+
-			"after the gate, so a dispatching row here means the gate let it through)", got)
+		quoteLiteral(a.org)+" AND id = "+quoteLiteral(opID)); got != "canceled" {
+		t.Fatalf("operation state after the refused permit = %q, want canceled", got)
+	}
+	if got := a.scalar(t, "SELECT state FROM work.quota_reservation WHERE org_id = "+
+		quoteLiteral(a.org)+" AND id = "+quoteLiteral(reservationID)); got != "released" {
+		t.Fatalf("reservation state after the refused permit = %q, want released", got)
+	}
+	claimed := callJSON(t, worker,
+		`SELECT work.claim_pending_device_commands($1,$2::uuid,$3::uuid,$4)`,
+		a.org, a.deviceID, a.sessionID, permitTestKid)
+	if commands, _ := claimed["commands"].([]any); len(commands) != 0 {
+		t.Fatalf("destination-refused action remained claimable: %#v", claimed)
 	}
 
 	// Positive control: with the same taint and the same lease, a device_local model action
@@ -968,6 +1069,276 @@ func TestR0bSupersedeNeverConsumesReadonlyAutoApproval(t *testing.T) {
 	if got := a.scalarInt(t, "SELECT consumed_count FROM work.readonly_approval_grant WHERE org_id = "+
 		quoteLiteral(a.org)+" AND id = "+quoteLiteral(readonlyID)); got != 0 {
 		t.Fatalf("supersede consumed readonly grant %d times", got)
+	}
+}
+
+func TestR0bReadonlyGrantMissesReturnToAskEach(t *testing.T) {
+	cases := []struct {
+		name   string
+		mutate func(policyEpoch, accessEpoch int, selector string) (string, string, string)
+	}{
+		{
+			name: "matching positive control",
+			mutate: func(policyEpoch, accessEpoch int, selector string) (string, string, string) {
+				return selector, fmt.Sprint(policyEpoch), fmt.Sprint(accessEpoch)
+			},
+		},
+		{
+			name: "selector subtree mismatch",
+			mutate: func(policyEpoch, accessEpoch int, _ string) (string, string, string) {
+				return strings.Repeat("d", 64), fmt.Sprint(policyEpoch), fmt.Sprint(accessEpoch)
+			},
+		},
+		{
+			name: "policy epoch mismatch",
+			mutate: func(policyEpoch, accessEpoch int, selector string) (string, string, string) {
+				return selector, fmt.Sprint(policyEpoch + 1), fmt.Sprint(accessEpoch)
+			},
+		},
+		{
+			name: "access epoch mismatch",
+			mutate: func(policyEpoch, accessEpoch int, selector string) (string, string, string) {
+				return selector, fmt.Sprint(policyEpoch), fmt.Sprint(accessEpoch + 1)
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newActionFixture(t, "org_r0b_readonly_miss_"+newUUID(t))
+			worker := a.workerConn(t)
+			policyEpoch := a.scalarInt(t, "SELECT effective_epoch FROM work.local_execution_policy WHERE org_id = "+quoteLiteral(a.org))
+			accessEpoch := a.scalarInt(t, "SELECT admission_access_epoch FROM work.run WHERE id = "+quoteLiteral(a.runID))
+			selector, grantPolicyEpoch, grantAccessEpoch := tc.mutate(policyEpoch, accessEpoch, a.selectorHash)
+			readonlyID := newUUID(t)
+			mustExec(t, a.admin, fmt.Sprintf(`
+				INSERT INTO work.readonly_approval_grant
+				  (org_id,id,owner_subject_id,run_id,device_id,workspace_grant_id,grant_revision,
+				   tool_set,resource_selector_hash,policy_epoch,access_epoch,expires_at,status)
+				VALUES (%s,%s,%s,%s,%s,%s,1,ARRAY['workspace.read'],%s,%s,%s,
+				        now() + interval '1 hour','active');
+			`, quoteLiteral(a.org), quoteLiteral(readonlyID), quoteLiteral(a.subject),
+				quoteLiteral(a.runID), quoteLiteral(a.deviceID), quoteLiteral(a.grantID),
+				quoteLiteral(selector), grantPolicyEpoch, grantAccessEpoch))
+
+			out := a.prepare(t, worker, "tool:readonly", a.grantClass)
+			opID := idOf(t, out, "operation_id")
+			if tc.name == "matching positive control" {
+				if out["auto_approved"] != true || out["state"] != "authorized" || out["approval_id"] != nil {
+					t.Fatalf("matching readonly grant did not auto-approve: %#v", out)
+				}
+				if got := a.scalarInt(t, "SELECT consumed_count FROM work.readonly_approval_grant WHERE org_id = "+
+					quoteLiteral(a.org)+" AND id = "+quoteLiteral(readonlyID)); got != 1 {
+					t.Fatalf("matching grant consumed_count = %d, want 1", got)
+				}
+				if got := a.scalarInt(t, "SELECT count(*) FROM work.audit_event WHERE org_id = "+
+					quoteLiteral(a.org)+" AND action = 'operation.auto_approved' AND target_id = "+quoteLiteral(opID)); got != 1 {
+					t.Fatalf("matching auto-approval audits = %d, want 1", got)
+				}
+				return
+			}
+
+			if out["auto_approved"] != false || out["state"] != "waiting_approval" || out["approval_id"] == nil {
+				t.Fatalf("readonly miss did not return to ask-each: %#v", out)
+			}
+			if got := a.scalarInt(t, "SELECT consumed_count FROM work.readonly_approval_grant WHERE org_id = "+
+				quoteLiteral(a.org)+" AND id = "+quoteLiteral(readonlyID)); got != 0 {
+				t.Fatalf("readonly miss consumed grant %d times", got)
+			}
+			if got := a.scalarInt(t, "SELECT count(*) FROM work.audit_event WHERE org_id = "+
+				quoteLiteral(a.org)+" AND action = 'operation.auto_approved' AND target_id = "+quoteLiteral(opID)); got != 0 {
+				t.Fatalf("readonly miss wrote %d auto-approval audits", got)
+			}
+			if got := a.scalar(t, "SELECT state || '/' || wait_reason FROM work.run WHERE id = "+quoteLiteral(a.runID)); got != "waiting/approval" {
+				t.Fatalf("readonly miss Run = %s, want waiting/approval", got)
+			}
+		})
+	}
+
+	t.Run("expired", func(t *testing.T) {
+		a := newActionFixture(t, "org_r0b_readonly_expired")
+		worker := a.workerConn(t)
+		policyEpoch := a.scalarInt(t, "SELECT effective_epoch FROM work.local_execution_policy WHERE org_id = "+quoteLiteral(a.org))
+		accessEpoch := a.scalarInt(t, "SELECT admission_access_epoch FROM work.run WHERE id = "+quoteLiteral(a.runID))
+		readonlyID := newUUID(t)
+		mustExec(t, a.admin, fmt.Sprintf(`
+			INSERT INTO work.readonly_approval_grant
+			  (org_id,id,owner_subject_id,run_id,device_id,workspace_grant_id,grant_revision,
+			   tool_set,resource_selector_hash,policy_epoch,access_epoch,expires_at,status,created_at)
+			VALUES (%s,%s,%s,%s,%s,%s,1,ARRAY['workspace.read'],%s,%s,%s,
+			        now() - interval '1 hour','active',now() - interval '2 hours');
+		`, quoteLiteral(a.org), quoteLiteral(readonlyID), quoteLiteral(a.subject),
+			quoteLiteral(a.runID), quoteLiteral(a.deviceID), quoteLiteral(a.grantID),
+			quoteLiteral(a.selectorHash), fmt.Sprint(policyEpoch), fmt.Sprint(accessEpoch)))
+		out := a.prepare(t, worker, "tool:readonly", a.grantClass)
+		if out["auto_approved"] != false || out["state"] != "waiting_approval" || out["approval_id"] == nil {
+			t.Fatalf("expired readonly grant did not return to ask-each: %#v", out)
+		}
+		if got := a.scalarInt(t, "SELECT consumed_count FROM work.readonly_approval_grant WHERE org_id = "+
+			quoteLiteral(a.org)+" AND id = "+quoteLiteral(readonlyID)); got != 0 {
+			t.Fatalf("expired grant consumed_count = %d, want 0", got)
+		}
+	})
+}
+
+func TestR0bWorkspaceRebindLeavesDispatchedStepForReceiptReconciliation(t *testing.T) {
+	a := newActionFixture(t, "org_r0b_rebind_dispatched")
+	worker := a.workerConn(t)
+	out := a.prepare(t, worker, "tool:dispatched", a.grantClass)
+	operation := idOf(t, out, "operation_id")
+	attempt := idOf(t, out, "attempt_id")
+	a.authorizeAction(t, operation)
+	a.consumePermit(t, worker, operation, attempt)
+	oldGrant := a.grantID
+
+	newGrant := a.rebindWorkspace(t)
+	if got := a.scalar(t, "SELECT state FROM work.operation WHERE id = "+quoteLiteral(operation)); got != "dispatching" {
+		t.Fatalf("rebind changed dispatched Operation to %s", got)
+	}
+	if got := a.scalar(t, "SELECT grant_id::text FROM work.local_action WHERE operation_id = "+
+		quoteLiteral(operation)); got != oldGrant {
+		t.Fatalf("rebind rewrote historical dispatch grant to %s", got)
+	}
+	body := a.supersedeBody(t, operation, "workspace_rebound", bareDocHash(t, "dispatched-rebound"),
+		[]string{"grant", "entry_ref"})
+	a.refusePrepareBody(t, worker, body, "supersede_not_allowed")
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.operation WHERE org_id = "+
+		quoteLiteral(a.org)+" AND supersedes_operation_id = "+quoteLiteral(operation)); got != 0 {
+		t.Fatalf("dispatched rebind fabricated %d replacements", got)
+	}
+
+	receipt, journal := reviewReceipt(t, a, operation, attempt, a.sessionID)
+	recorded := reviewRecord(t, a, a.deviceID, journal, receipt)
+	if conflicts, ok := recorded["conflicts"].([]any); !ok || len(conflicts) != 0 {
+		t.Fatalf("late post-rebind receipt conflicts = %#v", recorded)
+	}
+	if rows, ok := recorded["recorded"].([]any); !ok || len(rows) != 1 {
+		t.Fatalf("late post-rebind receipt recorded = %#v", recorded)
+	}
+	if got := a.scalar(t, "SELECT state FROM work.operation WHERE id = "+quoteLiteral(operation)); got != "succeeded" {
+		t.Fatalf("late receipt Operation state = %s, want succeeded", got)
+	}
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.device_dispatch WHERE operation_id = "+
+		quoteLiteral(operation)); got != 1 {
+		t.Fatalf("historical dispatch rows = %d, want 1", got)
+	}
+	if got := a.scalar(t, "SELECT state FROM work.workspace_grant WHERE id = "+quoteLiteral(oldGrant)); got != "succeeded" {
+		t.Fatalf("old grant after reconciliation = %s", got)
+	}
+	if got := a.scalar(t, "SELECT state FROM work.workspace_grant WHERE id = "+quoteLiteral(newGrant)); got != "active" {
+		t.Fatalf("new grant after reconciliation = %s", got)
+	}
+}
+
+func TestR0bWorkspaceRebindThreeStateChainAndReadonlySuccession(t *testing.T) {
+	a := newActionFixture(t, "org_r0b_rebind_three_state")
+	worker := a.workerConn(t)
+	oldGrant := a.grantID
+	oldReadonlyID := newUUID(t)
+
+	authorizedOld := idOf(t, a.prepare(t, worker, "tool:authorized", a.grantClass), "operation_id")
+	a.authorizeAction(t, authorizedOld)
+	pendingOut := a.prepare(t, worker, "tool:pending", a.grantClass)
+	pendingOld := idOf(t, pendingOut, "operation_id")
+	pendingApproval := idOf(t, pendingOut, "approval_id")
+	if got := a.scalar(t, "SELECT state FROM work.operation WHERE id = "+quoteLiteral(authorizedOld)); got != "authorized" {
+		t.Fatalf("authorized premise = %s", got)
+	}
+	if got := a.scalar(t, "SELECT state FROM work.operation WHERE id = "+quoteLiteral(pendingOld)); got != "waiting_approval" {
+		t.Fatalf("pending premise = %s", got)
+	}
+	mustExec(t, a.admin, fmt.Sprintf(`
+		INSERT INTO work.readonly_approval_grant
+		  (org_id,id,owner_subject_id,run_id,device_id,workspace_grant_id,grant_revision,
+		   tool_set,resource_selector_hash,policy_epoch,access_epoch,expires_at,status)
+		VALUES (%s,%s,%s,%s,%s,%s,1,ARRAY['workspace.read'],%s,1,0,
+		        now() + interval '1 hour','active');
+	`, quoteLiteral(a.org), quoteLiteral(oldReadonlyID), quoteLiteral(a.subject),
+		quoteLiteral(a.runID), quoteLiteral(a.deviceID), quoteLiteral(oldGrant),
+		quoteLiteral(a.selectorHash)))
+
+	newGrant := a.rebindWorkspace(t)
+	if got := a.scalar(t, "SELECT state FROM work.operation WHERE id = "+quoteLiteral(authorizedOld)); got != "authorized" {
+		t.Fatalf("rebind changed authorized Operation to %s", got)
+	}
+	if got := a.scalar(t, "SELECT state FROM work.operation WHERE id = "+quoteLiteral(pendingOld)); got != "waiting_approval" {
+		t.Fatalf("rebind changed pending Operation to %s", got)
+	}
+	if got := a.scalar(t, "SELECT status FROM work.approval WHERE id = "+quoteLiteral(pendingApproval)); got != "pending" {
+		t.Fatalf("rebind changed pending Approval to %s", got)
+	}
+	if got := a.scalar(t, "SELECT state FROM work.workspace_grant WHERE id = "+quoteLiteral(oldGrant)); got != "succeeded" {
+		t.Fatalf("old grant state = %s, want succeeded", got)
+	}
+	if got := a.scalar(t, "SELECT state FROM work.workspace_grant WHERE id = "+quoteLiteral(newGrant)); got != "active" {
+		t.Fatalf("new grant state = %s, want active", got)
+	}
+	if got := a.scalar(t, "SELECT status FROM work.readonly_approval_grant WHERE id = "+quoteLiteral(oldReadonlyID)); got != "invalidated" {
+		t.Fatalf("old readonly grant status = %s, want invalidated", got)
+	}
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.workspace_grant_succession WHERE org_id = "+
+		quoteLiteral(a.org)+" AND run_id = "+quoteLiteral(a.runID)+" AND old_grant_id = "+
+		quoteLiteral(oldGrant)+" AND new_grant_id = "+quoteLiteral(newGrant)); got != 1 {
+		t.Fatalf("server-written succession rows = %d, want 1", got)
+	}
+
+	authorizedOut := a.prepareSupersede(t, worker, authorizedOld,
+		"workspace_rebound", []string{"grant", "entry_ref"})
+	authorizedReplacement := idOf(t, authorizedOut, "operation_id")
+	authorizedApproval := idOf(t, authorizedOut, "approval_id")
+	pendingReplacement := idOf(t, a.prepareSupersede(t, worker, pendingOld,
+		"workspace_rebound", []string{"grant", "entry_ref"}), "operation_id")
+	for _, oldOperation := range []string{authorizedOld, pendingOld} {
+		if got := a.scalar(t, "SELECT state FROM work.operation WHERE id = "+quoteLiteral(oldOperation)); got != "canceled" {
+			t.Fatalf("old Operation %s state = %s, want canceled", oldOperation, got)
+		}
+	}
+	for _, replacement := range []string{authorizedReplacement, pendingReplacement} {
+		if got := a.scalar(t, "SELECT state || '/' || supersede_reason || '/' || supersede_no::text FROM work.operation WHERE id = "+
+			quoteLiteral(replacement)); got != "waiting_approval/workspace_rebound/1" {
+			t.Fatalf("replacement %s shape = %s", replacement, got)
+		}
+		if got := a.scalar(t, "SELECT grant_id::text FROM work.local_action WHERE operation_id = "+
+			quoteLiteral(replacement)); got != newGrant {
+			t.Fatalf("replacement %s grant = %s, want %s", replacement, got, newGrant)
+		}
+		if got := a.scalarInt(t, "SELECT count(*) FROM work.approval_operation ao JOIN work.approval a ON a.id = ao.approval_id WHERE ao.operation_id = "+
+			quoteLiteral(replacement)+" AND a.status = 'pending'"); got != 1 {
+			t.Fatalf("replacement %s pending Approvals = %d, want 1", replacement, got)
+		}
+		if got := a.scalarInt(t, "SELECT count(*) FROM work.device_dispatch WHERE operation_id = "+
+			quoteLiteral(replacement)); got != 0 {
+			t.Fatalf("replacement %s fabricated %d dispatches", replacement, got)
+		}
+	}
+	if got := a.scalar(t, "SELECT status FROM work.approval WHERE id = "+quoteLiteral(pendingApproval)); got != "expired" {
+		t.Fatalf("superseded pending Approval status = %s, want expired", got)
+	}
+
+	decided := a.decideRememberReadonly(t, authorizedReplacement, authorizedApproval)
+	if decided["decision"] != "approved" || decided["readonly_grant_id"] == nil {
+		t.Fatalf("remember-readonly decision = %#v", decided)
+	}
+	newReadonlyID := idOf(t, decided, "readonly_grant_id")
+	if got := a.scalar(t, "SELECT workspace_grant_id::text FROM work.readonly_approval_grant WHERE id = "+
+		quoteLiteral(newReadonlyID)); got != newGrant {
+		t.Fatalf("remembered readonly grant points at %s, want new grant %s", got, newGrant)
+	}
+	next := a.prepare(t, worker, "tool:next-readonly", a.grantClass)
+	nextOperation := idOf(t, next, "operation_id")
+	if next["auto_approved"] != true || next["state"] != "authorized" || next["approval_id"] != nil {
+		t.Fatalf("new-grant readonly succession did not auto-approve: %#v", next)
+	}
+	if got := a.scalarInt(t, "SELECT consumed_count FROM work.readonly_approval_grant WHERE id = "+
+		quoteLiteral(newReadonlyID)); got != 1 {
+		t.Fatalf("new readonly grant consumed_count = %d, want 1", got)
+	}
+	if got := a.scalarInt(t, "SELECT count(*) FROM work.approval_operation WHERE operation_id = "+
+		quoteLiteral(nextOperation)); got != 0 {
+		t.Fatalf("auto-approved successor wrote %d Approval links", got)
+	}
+	if got := a.scalar(t, "SELECT grant_id::text FROM work.local_action WHERE operation_id = "+
+		quoteLiteral(nextOperation)); got != newGrant {
+		t.Fatalf("auto-approved successor grant = %s, want %s", got, newGrant)
 	}
 }
 

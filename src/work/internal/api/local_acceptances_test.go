@@ -1,26 +1,28 @@
 package api_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/we-meet/work/internal/api"
+	"github.com/we-meet/work/internal/devicesig"
 )
 
-// possessionProof renders a shape-valid 15-key PossessionProof(purpose=accept) (0045
-// possession_proof_valid, control §1.3). Like the other local frames the signature is in
-// the HTTP header, not the payload; real verification belongs to M3/M5.
+// possessionProof renders the closed 15-key PossessionProof(purpose=accept). Its
+// signature is produced separately and transported in X-Device-Signature.
 func possessionProof(deviceID, sessionID, taskID, artifactID, versionID, contentHash, requestID, nonce string) string {
 	return fmt.Sprintf(`{
-		"v":1,"org_id":%q,"subject_id":%q,"auth_plane":"bearer","auth_epoch":4,
+		"v":1,"org_id":%q,"subject_id":%q,"auth_plane":"bearer","auth_epoch":"4",
 		"device_id":%q,"session_id":%q,"task_id":%q,"artifact_id":%q,"version_id":%q,
 		"content_hash":%q,"purpose":"accept","request_id":%q,"nonce":%q,
-		"expires_at":"2027-01-01T00:00:00Z"}`,
+		"expires_at":%q}`,
 		testOrg, testSubject, deviceID, sessionID, taskID, artifactID, versionID,
-		contentHash, requestID, nonce)
+		contentHash, requestID, nonce, time.Now().Add(30*time.Second).UTC().Format(time.RFC3339))
 }
 
 func setupLocalAcceptance(t *testing.T) (*httptest.Server, string, string, string, string, string, string) {
@@ -39,13 +41,21 @@ func acceptanceBody(deviceID, sessionID, artifactID, proof, requestID string, re
 		`"artifact_id":%q,"possession_proof":%s}`, requestID, revision, deviceID, sessionID, artifactID, proof)
 }
 
+func acceptanceRequest(t *testing.T, method, url, deviceID, sessionID, artifactID, proof, requestID string, revision int) *http.Response {
+	t.Helper()
+	signature, err := devicesig.SignFrame(deviceTestPrivateKey(), devicesig.PossessionProofType, []byte(proof))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return deviceRequest(t, method, url, acceptanceBody(deviceID, sessionID, artifactID, proof, requestID, revision), signature)
+}
+
 func TestLocalAcceptanceCreateAndReplay(t *testing.T) {
 	server, deviceID, sessionID, taskID, artifactID, baseID, baseHash := setupLocalAcceptance(t)
 	path := strings.ReplaceAll(api.LocalTaskAcceptancesPath, "{taskId}", taskID)
 	proof := possessionProof(deviceID, sessionID, taskID, artifactID, baseID, baseHash, "accept-0001", "nonce-accept-1")
 
-	response := deviceRequest(t, http.MethodPost, server.URL+path,
-		acceptanceBody(deviceID, sessionID, artifactID, proof, "accept-0001", 0))
+	response := acceptanceRequest(t, http.MethodPost, server.URL+path, deviceID, sessionID, artifactID, proof, "accept-0001", 0)
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("accept status = %d body=%s", response.StatusCode, readBody(response))
 	}
@@ -55,8 +65,7 @@ func TestLocalAcceptanceCreateAndReplay(t *testing.T) {
 		t.Fatalf("accepted = %#v", accepted)
 	}
 
-	replay := decodeObject(t, deviceRequest(t, http.MethodPost, server.URL+path,
-		acceptanceBody(deviceID, sessionID, artifactID, proof, "accept-0001", 0)))
+	replay := decodeObject(t, acceptanceRequest(t, http.MethodPost, server.URL+path, deviceID, sessionID, artifactID, proof, "accept-0001", 0))
 	if replay["replayed"] != true || replay["acceptance_id"] != accepted["acceptance_id"] {
 		t.Fatalf("replay = %#v", replay)
 	}
@@ -66,15 +75,13 @@ func TestLocalAcceptanceNonceReuse(t *testing.T) {
 	server, deviceID, sessionID, taskID, artifactID, baseID, baseHash := setupLocalAcceptance(t)
 	path := strings.ReplaceAll(api.LocalTaskAcceptancesPath, "{taskId}", taskID)
 	proof := possessionProof(deviceID, sessionID, taskID, artifactID, baseID, baseHash, "accept-0001", "nonce-accept-1")
-	if response := deviceRequest(t, http.MethodPost, server.URL+path,
-		acceptanceBody(deviceID, sessionID, artifactID, proof, "accept-0001", 0)); response.StatusCode != http.StatusOK {
+	if response := acceptanceRequest(t, http.MethodPost, server.URL+path, deviceID, sessionID, artifactID, proof, "accept-0001", 0); response.StatusCode != http.StatusOK {
 		t.Fatalf("first accept status = %d body=%s", response.StatusCode, readBody(response))
 	}
 	// A different request id reusing the same nonce is refused before the Task gate: the
 	// nonce is single-use across the whole organization (0045, control §1.3).
 	proof2 := possessionProof(deviceID, sessionID, taskID, artifactID, baseID, baseHash, "accept-0002", "nonce-accept-1")
-	assertAPICode(t, deviceRequest(t, http.MethodPost, server.URL+path,
-		acceptanceBody(deviceID, sessionID, artifactID, proof2, "accept-0002", 0)),
+	assertAPICode(t, acceptanceRequest(t, http.MethodPost, server.URL+path, deviceID, sessionID, artifactID, proof2, "accept-0002", 0),
 		http.StatusUnauthorized, "unauthorized")
 }
 
@@ -84,9 +91,52 @@ func TestLocalAcceptanceWrongHash(t *testing.T) {
 	// The proof's content_hash disagrees with the published version: the proof does not
 	// bind this version, so it is unauthorized rather than accepted.
 	proof := possessionProof(deviceID, sessionID, taskID, artifactID, baseID, strings.Repeat("9", 64), "accept-0001", "nonce-accept-1")
+	assertAPICode(t, acceptanceRequest(t, http.MethodPost, server.URL+path, deviceID, sessionID, artifactID, proof, "accept-0001", 0),
+		http.StatusUnauthorized, "unauthorized")
+}
+
+func TestLocalAcceptanceRequiresDeviceSignature(t *testing.T) {
+	server, deviceID, sessionID, taskID, artifactID, baseID, baseHash := setupLocalAcceptance(t)
+	path := strings.ReplaceAll(api.LocalTaskAcceptancesPath, "{taskId}", taskID)
+	proof := possessionProof(deviceID, sessionID, taskID, artifactID, baseID, baseHash, "accept-0001", "nonce-accept-1")
 	assertAPICode(t, deviceRequest(t, http.MethodPost, server.URL+path,
 		acceptanceBody(deviceID, sessionID, artifactID, proof, "accept-0001", 0)),
+		http.StatusBadRequest, "invalid_request")
+}
+
+func TestLocalAcceptanceRejectsForgedDeviceSignature(t *testing.T) {
+	server, deviceID, sessionID, taskID, artifactID, baseID, baseHash := setupLocalAcceptance(t)
+	path := strings.ReplaceAll(api.LocalTaskAcceptancesPath, "{taskId}", taskID)
+	proof := possessionProof(deviceID, sessionID, taskID, artifactID, baseID, baseHash, "accept-0001", "nonce-accept-1")
+	assertAPICode(t, deviceRequest(t, http.MethodPost, server.URL+path,
+		acceptanceBody(deviceID, sessionID, artifactID, proof, "accept-0001", 0), strings.Repeat("A", 86)),
 		http.StatusUnauthorized, "unauthorized")
+}
+
+func TestLocalAcceptanceRejectsForeignPrincipal(t *testing.T) {
+	server, deviceID, sessionID, taskID, artifactID, baseID, baseHash := setupLocalAcceptance(t)
+	path := strings.ReplaceAll(api.LocalTaskAcceptancesPath, "{taskId}", taskID)
+	proof := strings.Replace(possessionProof(deviceID, sessionID, taskID, artifactID, baseID, baseHash, "accept-0001", "nonce-accept-1"),
+		`"subject_id":"`+testSubject+`"`, `"subject_id":"foreign-subject"`, 1)
+	assertAPICode(t, acceptanceRequest(t, http.MethodPost, server.URL+path, deviceID, sessionID, artifactID, proof, "accept-0001", 0),
+		http.StatusUnauthorized, "unauthorized")
+}
+
+func TestLocalAcceptanceRejectsProofBeyondThirtySecondWindow(t *testing.T) {
+	server, deviceID, sessionID, taskID, artifactID, baseID, baseHash := setupLocalAcceptance(t)
+	path := strings.ReplaceAll(api.LocalTaskAcceptancesPath, "{taskId}", taskID)
+	proof := possessionProof(deviceID, sessionID, taskID, artifactID, baseID, baseHash, "accept-0001", "nonce-accept-1")
+	var document map[string]any
+	if err := json.Unmarshal([]byte(proof), &document); err != nil {
+		t.Fatal(err)
+	}
+	document["expires_at"] = "2027-01-01T00:00:00Z"
+	raw, err := json.Marshal(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertAPICode(t, acceptanceRequest(t, http.MethodPost, server.URL+path, deviceID, sessionID, artifactID, string(raw), "accept-0001", 0),
+		http.StatusBadRequest, "invalid_request")
 }
 
 func TestLocalAcceptanceRequiresBearer(t *testing.T) {

@@ -197,6 +197,150 @@ func TestResolutionDownlinkPushAndAck(t *testing.T) {
 	}
 }
 
+func TestResolutionDownlinkDegradationKeepsUnknownSettlement(t *testing.T) {
+	f := newGatewayFixture(t)
+	addr := f.startServer(t)
+	stream := f.connect(t, addr)
+	journalEpoch := uuid.NewString()
+	bootID := "boot-" + uuid.NewString()
+	agentID := uuid.NewString()
+	if err := stream.SendMsg(f.signHelloIdentity(t, f.ticket, journalEpoch, bootID, agentID)); err != nil {
+		t.Fatal(err)
+	}
+	helloAck := recvAck(t, stream)
+	sessionID, _ := helloAck["_session_id"].(string)
+	if sessionID == "" {
+		t.Fatalf("hello_ack gave no session: %#v", helloAck)
+	}
+	var generation int64
+	if g, ok := helloAck["generation"].(float64); ok {
+		generation = int64(g)
+	}
+	serverJWK, err := json.Marshal(helloAck["server_public_jwk"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	serverPub, err := devicesig.ParseJWK(serverJWK)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID, opID, attemptID, fence := f.seedReceiptAction(t, sessionID)
+	resolveID := f.seedPendingResolution(t, sessionID, runID, opID)
+
+	ctx := gwContext(t)
+	seed, err := testpg.Open(ctx, testpg.AdminURLFor(f.dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := testpg.ExecRaw(ctx, seed, fmt.Sprintf(`
+		SET app.org_id = '%s';
+		UPDATE work.operation_resolution
+		SET code='evidence_unavailable', usage_source='unavailable'
+		WHERE org_id='%s' AND resolve_id='%s';
+	`, gwOrg, gwOrg, resolveID)); err != nil {
+		t.Fatal(err)
+	}
+	_ = seed.Close(ctx)
+
+	exec := receiptExec(gwOrg, gwSubject, f.deviceID, sessionID, agentID, bootID, generation, runID, opID, attemptID, fence)
+	if err := stream.SendMsg(f.signReceipt(t, journalEpoch, sessionID, bootID, agentID, exec, 1, "started", nil)); err != nil {
+		t.Fatal(err)
+	}
+	_ = recvReceiptAck(t, stream)
+	bodyJSON, body, pushedSession := recvResolution(t, stream)
+	if pushedSession != sessionID || body["resolve_id"] != resolveID {
+		t.Fatalf("degradation resolution session=%q body=%#v", pushedSession, body)
+	}
+	if body["state"] != "failed" || body["settlement_state"] != "unknown" ||
+		body["code"] != "evidence_unavailable" || body["usage_source"] != "unavailable" {
+		t.Fatalf("degradation wire conclusion = %#v", body)
+	}
+	sig, _ := body["signature"].(string)
+	if sig == "" {
+		t.Fatalf("degradation resolution has no server signature: %#v", body)
+	}
+	if !devicesig.VerifyFrame(serverPub, "operation_resolution", bodyJSON, sig) {
+		t.Fatal("device could not verify the degradation resolution signature")
+	}
+
+	if err := stream.SendMsg(f.signFrame(t, "operation_resolution_ack", sessionID, bootID, agentID,
+		map[string]any{"resolve_id": resolveID, "state": "applied"})); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.SendMsg(f.signReceipt(t, journalEpoch, sessionID, bootID, agentID, exec, 2, "started", nil)); err != nil {
+		t.Fatal(err)
+	}
+	_ = recvReceiptAck(t, stream)
+
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(f.dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = admin.Close(ctx) }()
+	var state, settlement, code, usage string
+	var delivery string
+	var acked bool
+	if err := admin.QueryRow(ctx, `SELECT state, settlement_state, code, usage_source,
+		resolution_delivery, acked_at IS NOT NULL
+		FROM work.operation_resolution WHERE org_id=$1 AND resolve_id=$2::uuid`,
+		gwOrg, resolveID).Scan(&state, &settlement, &code, &usage, &delivery, &acked); err != nil {
+		t.Fatal(err)
+	}
+	if state != "failed" || settlement != "unknown" || code != "evidence_unavailable" ||
+		usage != "unavailable" || delivery != "acked" || !acked {
+		t.Fatalf("degradation after ack = state:%q settlement:%q code:%q usage:%q delivery:%q acked:%v",
+			state, settlement, code, usage, delivery, acked)
+	}
+}
+
+func TestResolutionDownlinkRepushesUnackedOnReconnect(t *testing.T) {
+	f := newGatewayFixture(t)
+	addr := f.startServer(t)
+	first := f.connect(t, addr)
+	session1, journalEpoch, bootID, agentID, generation := f.helloSession(t, first)
+	runID, opID, attemptID, fence := f.seedReceiptAction(t, session1)
+	resolveID := f.seedPendingResolution(t, session1, runID, opID)
+	exec := receiptExec(gwOrg, gwSubject, f.deviceID, session1, agentID, bootID, generation, runID, opID, attemptID, fence)
+	if err := first.SendMsg(f.signReceipt(t, journalEpoch, session1, bootID, agentID, exec, 1, "started", nil)); err != nil {
+		t.Fatal(err)
+	}
+	_ = recvReceiptAck(t, first)
+	_, body, pushedSession := recvResolution(t, first)
+	if pushedSession != session1 || body["resolve_id"] != resolveID {
+		t.Fatalf("first resolution push session=%q body=%#v", pushedSession, body)
+	}
+
+	// No operation_resolution_ack is sent. A fresh hello on the same device must push the
+	// delivered-but-unacked conclusion before any later downlink, under the NEW session id.
+	second := f.connect(t, addr)
+	session2, _, _, _ := f.helloWithTicket(t, second, f.mintSecondTicket(t))
+	if session2 == session1 {
+		t.Fatalf("reconnect reused session %q", session1)
+	}
+	_, replayed, replaySession := recvResolution(t, second)
+	if replaySession != session2 || replayed["resolve_id"] != resolveID {
+		t.Fatalf("reconnect resolution session=%q body=%#v", replaySession, replayed)
+	}
+
+	ctx := gwContext(t)
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(f.dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(ctx)
+	var attempts int
+	var delivery string
+	var ackedAtNull bool
+	if err := admin.QueryRow(ctx, `SELECT delivery_attempts, resolution_delivery, acked_at IS NULL
+		FROM work.operation_resolution WHERE org_id=$1 AND resolve_id=$2::uuid`,
+		gwOrg, resolveID).Scan(&attempts, &delivery, &ackedAtNull); err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 2 || delivery != "delivered" || !ackedAtNull {
+		t.Fatalf("unacked reconnect delivery attempts=%d state=%q acked_at_null=%v", attempts, delivery, ackedAtNull)
+	}
+}
+
 // TestResolutionAckRejectsBadState proves the gateway lets consume_device_ack enforce the
 // closed ack state set: an out-of-set state is refused (invalid_request) and the watermark
 // does not move.

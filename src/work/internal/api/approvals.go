@@ -9,6 +9,7 @@ import (
 
 	"github.com/we-meet/work/internal/apierr"
 	workdb "github.com/we-meet/work/internal/db"
+	"github.com/we-meet/work/internal/devicesig"
 )
 
 // The local-approval face (control-design §1.4 rows 66-67, §1.2 ApprovalV2).
@@ -91,14 +92,28 @@ func (s *Server) getApproval(w http.ResponseWriter, r *http.Request) {
 		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
 		workdb.RoleAPI, workdb.Options{ReadOnly: true},
 		func(tx pgx.Tx) error {
-			var raw []byte
+			var raw, scope []byte
 			if err := tx.QueryRow(r.Context(),
-				`SELECT work.get_local_approval($1, $2, $3::uuid)`,
+				`SELECT work.get_local_approval($1, $2, $3::uuid),
+				        work.local_approval_readonly_scope($1, $2, $3::uuid)`,
 				claims.OrgID, claims.SubjectID, approvalID,
-			).Scan(&raw); err != nil {
+			).Scan(&raw, &scope); err != nil {
 				return err
 			}
-			view = json.RawMessage(append([]byte(nil), raw...))
+			var document map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &document); err != nil {
+				return err
+			}
+			if string(scope) == "null" {
+				document["readonly_scope"] = json.RawMessage("null")
+			} else {
+				document["readonly_scope"] = json.RawMessage(append([]byte(nil), scope...))
+			}
+			encoded, err := json.Marshal(document)
+			if err != nil {
+				return err
+			}
+			view = json.RawMessage(encoded)
 			return nil
 		},
 	)
@@ -124,12 +139,45 @@ func (s *Server) decideApproval(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, correlationID, decodeError(err))
 		return
 	}
+	if !validClientRequestID(body.ClientRequestID) {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	proof, err := devicesig.ParseApprovalDecisionProof(body.Decision)
+	if err != nil || proof.ApprovalID != approvalID {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	var pubJWK []byte
+	if err := workdb.WithWorkContext(r.Context(), s.pool,
+		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
+		workdb.RoleAPI, workdb.Options{ReadOnly: true},
+		func(tx pgx.Tx) error {
+			return tx.QueryRow(r.Context(),
+				`SELECT work.approval_decision_signing_key($1, $2, $3::uuid, $4::uuid, $5::uuid, $6::uuid)`,
+				claims.OrgID, claims.SubjectID, proof.ApprovalID, proof.OperationID,
+				proof.SessionID, proof.DeviceID,
+			).Scan(&pubJWK)
+		},
+	); err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
+	pub, err := devicesig.ParseJWK(pubJWK)
+	if err != nil {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	if !devicesig.VerifyApprovalDecision(pub, body.Decision) {
+		writeAPIError(w, correlationID, apierr.New("unauthorized"))
+		return
+	}
 	decisionArg := "null"
 	if len(body.Decision) > 0 {
 		decisionArg = string(body.Decision)
 	}
 	var view json.RawMessage
-	err := workdb.WithWorkContext(r.Context(), s.pool,
+	err = workdb.WithWorkContext(r.Context(), s.pool,
 		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
 		workdb.RoleAPI, workdb.Options{},
 		func(tx pgx.Tx) error {

@@ -23,7 +23,7 @@ import {
   lstatSync,
 } from "node:fs";
 import path from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { DesktopAuth } from "./auth";
 import {
   CALLBACK,
@@ -36,16 +36,32 @@ import { installRenderer } from "./renderer";
 import { forwardRequest } from "./forward";
 import { loadInitialPage } from "./startup";
 import { RemoteControlCloud } from "./remote-control/cloud";
-import { RemoteDesktopRuntime, publicRemoteError } from "./remote-control/runtime";
+import {
+  RemoteDesktopRuntime,
+  publicRemoteError,
+} from "./remote-control/runtime";
 import { bindScreenSource } from "./remote-control/source-binding";
 import { chooseCaptureSource } from "./remote-control/source-picker";
 import { ScreenPicker } from "./screen-picker/picker";
 import { nativeDescriptor } from "./remote-control/native-resources";
-import { WorkApi } from "./work/api";
-import { WorkDeviceDriver } from "./work/driver";
+import { WorkApi, WorkApiError } from "./work/api";
+import { WorkDeviceDriver, type LocalApprovalDetail } from "./work/driver";
 import { DeviceStore } from "./work/store";
 import { workDeviceDescriptor } from "./work/broker";
+import {
+  installViewerProtocol,
+  registerViewerScheme,
+} from "./work/viewer-protocol";
+import { ViewerManager } from "./work/viewer-window";
+import type {
+  LocalArtifactAcceptanceContext,
+  LocalArtifactEditContext,
+  LocalArtifactEditDraft,
+  LocalContentKind,
+} from "./work/bridge";
 import type { RemoteDesktopEvent } from "./remote-control/bridge";
+
+registerViewerScheme();
 
 if (!app.isPackaged && process.env.WEMEET_USER_DATA)
   app.setPath("userData", process.env.WEMEET_USER_DATA);
@@ -61,13 +77,17 @@ const config = validateConfig(
     ...(!app.isPackaged && process.env.WEMEET_OIDC_ISSUER
       ? { issuer: process.env.WEMEET_OIDC_ISSUER }
       : {}),
-    ...(!app.isPackaged && process.env.WEMEET_WORK_GATEWAY_ORIGIN &&
-      process.env.WEMEET_WORK_SERVER_NAME && process.env.WEMEET_WORK_CA_PEM_PATH
-      ? { work: {
-          gatewayOrigin: process.env.WEMEET_WORK_GATEWAY_ORIGIN,
-          serverName: process.env.WEMEET_WORK_SERVER_NAME,
-          caPemPath: process.env.WEMEET_WORK_CA_PEM_PATH,
-        } }
+    ...(!app.isPackaged &&
+    process.env.WEMEET_WORK_GATEWAY_ORIGIN &&
+    process.env.WEMEET_WORK_SERVER_NAME &&
+    process.env.WEMEET_WORK_CA_PEM_PATH
+      ? {
+          work: {
+            gatewayOrigin: process.env.WEMEET_WORK_GATEWAY_ORIGIN,
+            serverName: process.env.WEMEET_WORK_SERVER_NAME,
+            caPemPath: process.env.WEMEET_WORK_CA_PEM_PATH,
+          },
+        }
       : {}),
   },
   !app.isPackaged,
@@ -99,9 +119,74 @@ let loginTimer: NodeJS.Timeout | undefined;
 let remoteControl: RemoteDesktopRuntime | undefined;
 let screenPicker: ScreenPicker | undefined;
 let workDriver: WorkDeviceDriver | undefined;
+let workViewer: ViewerManager | undefined;
+let workMainWindow: BrowserWindow | undefined;
+const viewerEditContexts = new Map<number, LocalArtifactEditContext>();
+const viewerDrafts = new Map<number, LocalArtifactEditDraft>();
+const viewerApprovals = new Map<
+  number,
+  { detail: LocalApprovalDetail; requestId: string }
+>();
+const viewerAcceptances = new Map<
+  number,
+  { context: LocalArtifactAcceptanceContext; requestId: string }
+>();
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+async function armApprovalViewer(
+  viewer: ViewerManager,
+  viewerWindow: BrowserWindow,
+  approvalId: string,
+  requestId: string,
+  canRememberReadonly: boolean,
+) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if (viewerWindow.isDestroyed()) return;
+    if (viewer.isReady(viewerWindow)) {
+      viewer.send(viewerWindow, {
+        type: "approval",
+        approval_id: approvalId,
+        request_id: requestId,
+        can_remember_readonly: canRememberReadonly,
+      });
+      viewer.authorizeRequest(viewerWindow, requestId);
+      return;
+    }
+    await delay(25);
+  }
+}
+async function armArtifactAcceptanceViewer(
+  viewer: ViewerManager,
+  viewerWindow: BrowserWindow,
+  context: LocalArtifactAcceptanceContext,
+  requestId: string,
+) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if (viewerWindow.isDestroyed()) return;
+    if (viewer.isReady(viewerWindow)) {
+      viewer.send(viewerWindow, {
+        type: "artifact_accept",
+        artifact_id: context.artifactId,
+        version_id: context.versionId,
+        content_hash: context.contentHash,
+        request_id: requestId,
+      });
+      viewer.authorizeRequest(viewerWindow, requestId);
+      return;
+    }
+    await delay(25);
+  }
+}
 let startWorkDriver: () => Promise<void> = async () => {};
-const closeRemoteControl = (reason: string) => remoteControl?.close(reason) ?? Promise.resolve();
-const stopWorkDriver = () => workDriver?.stop() ?? Promise.resolve();
+const closeRemoteControl = (reason: string) =>
+  remoteControl?.close(reason) ?? Promise.resolve();
+const stopWorkDriver = () => {
+  workViewer?.closeAll();
+  viewerEditContexts.clear();
+  viewerDrafts.clear();
+  viewerApprovals.clear();
+  viewerAcceptances.clear();
+  return workDriver?.stop() ?? Promise.resolve();
+};
 
 const status = {
   version: app.getVersion(),
@@ -222,31 +307,36 @@ async function createWindow() {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
   };
-  auth = new DesktopAuth(config, {
-    read: () =>
-      existsSync(tokenPath)
-        ? safeStorage.decryptString(readFileSync(tokenPath))
-        : undefined,
-    write: (value) => {
-      if (
-        !safeStorage.isEncryptionAvailable() ||
-        (process.platform === "linux" &&
-          safeStorage.getSelectedStorageBackend() === "basic_text")
-      )
-        throw new Error("安全凭据存储不可用。");
-      mkdirSync(path.dirname(tokenPath), { recursive: true });
-      writeFileSync(tokenPath + ".tmp", safeStorage.encryptString(value));
-      renameSync(tokenPath + ".tmp", tokenPath);
+  auth = new DesktopAuth(
+    config,
+    {
+      read: () =>
+        existsSync(tokenPath)
+          ? safeStorage.decryptString(readFileSync(tokenPath))
+          : undefined,
+      write: (value) => {
+        if (
+          !safeStorage.isEncryptionAvailable() ||
+          (process.platform === "linux" &&
+            safeStorage.getSelectedStorageBackend() === "basic_text")
+        )
+          throw new Error("安全凭据存储不可用。");
+        mkdirSync(path.dirname(tokenPath), { recursive: true });
+        writeFileSync(tokenPath + ".tmp", safeStorage.encryptString(value));
+        renameSync(tokenPath + ".tmp", tokenPath);
+      },
+      clear: () => {
+        remove(tokenPath);
+        remove(tokenPath + ".tmp");
+      },
     },
-    clear: () => {
-      remove(tokenPath);
-      remove(tokenPath + ".tmp");
+    fetch,
+    () => {
+      void logout("登录已失效，请重新登录。").catch(() => {
+        report("登录已失效，请重启客户端后重新登录。");
+      });
     },
-  }, fetch, () => {
-    void logout("登录已失效，请重新登录。").catch(() => {
-      report("登录已失效，请重启客户端后重新登录。");
-    });
-  });
+  );
   status.auth = auth.signedIn ? "signed-in" : "signed-out";
   if (!devRenderer)
     installRenderer(
@@ -264,7 +354,10 @@ async function createWindow() {
         publish();
       },
       fetch,
-      request => forwardRequest(request, options => net.request({ ...options, session: ses })),
+      (request) =>
+        forwardRequest(request, (options) =>
+          net.request({ ...options, session: ses }),
+        ),
     );
   window = new BrowserWindow({
     width: 1280,
@@ -274,9 +367,15 @@ async function createWindow() {
     title: "We-Meet",
     backgroundColor: "#ffffff",
     titleBarStyle: "hidden",
-    ...(process.platform !== "darwin" ? {
-      titleBarOverlay: { color: "#f6f6f6", symbolColor: "#555555", height: 40 },
-    } : {}),
+    ...(process.platform !== "darwin"
+      ? {
+          titleBarOverlay: {
+            color: "#f6f6f6",
+            symbolColor: "#555555",
+            height: 40,
+          },
+        }
+      : {}),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       session: ses,
@@ -287,6 +386,7 @@ async function createWindow() {
     },
   });
   const win = window;
+  workMainWindow = win;
   screenPicker = new ScreenPicker({
     rendererOrigin,
     preload: path.join(__dirname, "preload.js"),
@@ -295,7 +395,8 @@ async function createWindow() {
   win.webContents.on("did-finish-load", publishAiCallState);
   win.on("restore", () => {
     const float = aiCallWindow;
-    if (float && !float.isDestroyed() && !aiCallPinned) float.setParentWindow(win);
+    if (float && !float.isDestroyed() && !aiCallPinned)
+      float.setParentWindow(win);
   });
   const openAiCallWindow = async () => {
     if (aiCallWindow && !aiCallWindow.isDestroyed()) {
@@ -315,9 +416,15 @@ async function createWindow() {
       titleBarStyle: "hidden",
       parent: win,
       alwaysOnTop: false,
-      ...(process.platform !== "darwin" ? {
-        titleBarOverlay: { color: "#f6f6f6", symbolColor: "#555555", height: 40 },
-      } : {}),
+      ...(process.platform !== "darwin"
+        ? {
+            titleBarOverlay: {
+              color: "#f6f6f6",
+              symbolColor: "#555555",
+              height: 40,
+            },
+          }
+        : {}),
       webPreferences: {
         preload: path.join(__dirname, "preload.js"),
         session: ses,
@@ -340,7 +447,9 @@ async function createWindow() {
       if (externalUrl(url)) void shell.openExternal(url).catch(() => {});
       return { action: "deny" };
     });
-    float.webContents.on("will-attach-webview", (event) => event.preventDefault());
+    float.webContents.on("will-attach-webview", (event) =>
+      event.preventDefault(),
+    );
     float.webContents.on("will-navigate", (event, url) => {
       if (!sameOrigin(url, rendererOrigin)) event.preventDefault();
     });
@@ -351,7 +460,8 @@ async function createWindow() {
       event.sender !== win.webContents ||
       event.senderFrame !== win.webContents.mainFrame ||
       !sameOrigin(event.senderFrame.url, rendererOrigin)
-    ) throw new Error("invalid_ai_call_request");
+    )
+      throw new Error("invalid_ai_call_request");
     return openAiCallWindow();
   });
   ipcMain.handle("ai-call:status", (event, value: unknown) => {
@@ -362,15 +472,24 @@ async function createWindow() {
       event.sender !== float.webContents ||
       event.senderFrame !== float.webContents.mainFrame ||
       !sameOrigin(event.senderFrame.url, rendererOrigin)
-    ) throw new Error("invalid_ai_call_status");
-    if (!value || typeof value !== "object") throw new Error("invalid_ai_call_status");
+    )
+      throw new Error("invalid_ai_call_status");
+    if (!value || typeof value !== "object")
+      throw new Error("invalid_ai_call_status");
     const candidate = value as Record<string, unknown>;
     const state = candidate.state;
-    if (!["idle", "connecting", "active", "sharing", "error", "ended"].includes(String(state)))
+    if (
+      !["idle", "connecting", "active", "sharing", "error", "ended"].includes(
+        String(state),
+      )
+    )
       throw new Error("invalid_ai_call_status");
     aiCallState = {
       state: state as AiCallState["state"],
-      startedAt: typeof candidate.startedAt === "number" ? candidate.startedAt : undefined,
+      startedAt:
+        typeof candidate.startedAt === "number"
+          ? candidate.startedAt
+          : undefined,
       sharing: candidate.sharing === true,
     };
     publishAiCallState();
@@ -384,7 +503,8 @@ async function createWindow() {
       event.sender !== float.webContents ||
       event.senderFrame !== float.webContents.mainFrame ||
       !sameOrigin(event.senderFrame.url, rendererOrigin)
-    ) throw new Error("invalid_ai_call_request");
+    )
+      throw new Error("invalid_ai_call_request");
     return float.isAlwaysOnTop();
   });
   ipcMain.handle("ai-call:set-pinned", (event, value: unknown) => {
@@ -395,7 +515,8 @@ async function createWindow() {
       event.sender !== float.webContents ||
       event.senderFrame !== float.webContents.mainFrame ||
       !sameOrigin(event.senderFrame.url, rendererOrigin)
-    ) throw new Error("invalid_ai_call_request");
+    )
+      throw new Error("invalid_ai_call_request");
     if (typeof value !== "boolean") throw new Error("invalid_ai_call_pin");
     float.setAlwaysOnTop(value);
     aiCallPinned = value;
@@ -405,24 +526,56 @@ async function createWindow() {
     return float.isAlwaysOnTop();
   });
 
-  remoteControl = new RemoteDesktopRuntime({ auth, cloud: new RemoteControlCloud(config.serviceOrigin, auth),
-    resourceRoot: path.join(app.isPackaged ? process.resourcesPath : __dirname, "remote-input"),
+  remoteControl = new RemoteDesktopRuntime({
+    auth,
+    cloud: new RemoteControlCloud(config.serviceOrigin, auth),
+    resourceRoot: path.join(
+      app.isPackaged ? process.resourcesPath : __dirname,
+      "remote-input",
+    ),
     nativeDescriptor: (() => {
       if (!app.isPackaged) return undefined;
-      try { return nativeDescriptor(JSON.parse(readFileSync(path.join(__dirname, "bundled-remote-input.json"), "utf8"))); }
-      catch { return null; }
-    })() });
+      try {
+        return nativeDescriptor(
+          JSON.parse(
+            readFileSync(
+              path.join(__dirname, "bundled-remote-input.json"),
+              "utf8",
+            ),
+          ),
+        );
+      } catch {
+        return null;
+      }
+    })(),
+  });
   const remote = remoteControl;
   remote.on("state", (event: RemoteDesktopEvent) => {
-    if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("remote-control:state", event);
-    if (event.type === "state" && event.status.cleanupBlocked) report("远程控制已停止，但按键释放结果未能确认。请在本机检查键鼠状态；重新启动客户端前不能再次接受远控。");
+    if (!win.isDestroyed() && !win.webContents.isDestroyed())
+      win.webContents.send("remote-control:state", event);
+    if (event.type === "state" && event.status.cleanupBlocked)
+      report(
+        "远程控制已停止，但按键释放结果未能确认。请在本机检查键鼠状态；重新启动客户端前不能再次接受远控。",
+      );
   });
-  powerMonitor.on("lock-screen", () => { void remote.close("desktop_locked"); });
-  powerMonitor.on("suspend", () => { void remote.close("system_suspend"); });
-  powerMonitor.on("user-did-resign-active", () => { void remote.close("session_changed"); });
-  screen.on("display-added", () => { void remote.close("display_changed"); });
-  screen.on("display-removed", () => { void remote.close("display_changed"); });
-  screen.on("display-metrics-changed", () => { void remote.close("display_changed"); });
+  powerMonitor.on("lock-screen", () => {
+    void remote.close("desktop_locked");
+  });
+  powerMonitor.on("suspend", () => {
+    void remote.close("system_suspend");
+  });
+  powerMonitor.on("user-did-resign-active", () => {
+    void remote.close("session_changed");
+  });
+  screen.on("display-added", () => {
+    void remote.close("display_changed");
+  });
+  screen.on("display-removed", () => {
+    void remote.close("display_changed");
+  });
+  screen.on("display-metrics-changed", () => {
+    void remote.close("display_changed");
+  });
   const trusted = (contents: Electron.WebContents | null, origin: string) =>
     !!contents &&
     (contents.id === win.webContents.id ||
@@ -524,8 +677,14 @@ async function createWindow() {
     const ticket = remote.beginCapture();
     void (async () => {
       if (ticket.context) {
-        try { await remote.captureBaseline(ticket); }
-        catch { if (ticket.fullScreenOnly) { answer({}); return; } }
+        try {
+          await remote.captureBaseline(ticket);
+        } catch {
+          if (ticket.fullScreenOnly) {
+            answer({});
+            return;
+          }
+        }
       }
       let source: Electron.DesktopCapturerSource | undefined;
       if (ticket.fullScreenOnly) {
@@ -538,7 +697,7 @@ async function createWindow() {
           displays: screen.getAllDisplays(),
           fullScreenOnly: true,
           isCurrent: () => remote.captureCurrent(ticket) && !win.isDestroyed(),
-          ask: options => dialog.showMessageBox(win, options),
+          ask: (options) => dialog.showMessageBox(win, options),
         });
       } else {
         source = await screenPicker!.open({
@@ -551,22 +710,50 @@ async function createWindow() {
         return;
       }
       const currentSources = await desktopCapturer.getSources({
-        types: ticket.fullScreenOnly ? ["screen"] : ["screen", "window"], thumbnailSize: { width: 0, height: 0 },
+        types: ticket.fullScreenOnly ? ["screen"] : ["screen", "window"],
+        thumbnailSize: { width: 0, height: 0 },
       });
-      if (!currentSources.some(current => current.id === source.id && current.display_id === source.display_id) ||
-          !remote.captureCurrent(ticket) || win.isDestroyed()) { answer({}); return; }
+      if (
+        !currentSources.some(
+          (current) =>
+            current.id === source.id &&
+            current.display_id === source.display_id,
+        ) ||
+        !remote.captureCurrent(ticket) ||
+        win.isDestroyed()
+      ) {
+        answer({});
+        return;
+      }
       if (ticket.context && source.id.startsWith("screen:")) {
         try {
           const probe = await remote.probeCapture();
           if (!probe.ready) throw new Error("native_unavailable");
-          const binding = bindScreenSource(source, screen.getAllDisplays(), probe.displays,
-            rect => screen.dipToScreenRect(null, rect));
+          const binding = bindScreenSource(
+            source,
+            screen.getAllDisplays(),
+            probe.displays,
+            (rect) => screen.dipToScreenRect(null, rect),
+          );
           remote.selectedCapture(ticket, binding);
         } catch {
-          if (ticket.fullScreenOnly) { answer({}); return; }
+          if (ticket.fullScreenOnly) {
+            answer({});
+            return;
+          }
         }
-      } else if (ticket.fullScreenOnly) { answer({}); return; }
-      if (!remote.captureCurrent(ticket) || win.isDestroyed() || request.frame !== win.webContents.mainFrame) { answer({}); return; }
+      } else if (ticket.fullScreenOnly) {
+        answer({});
+        return;
+      }
+      if (
+        !remote.captureCurrent(ticket) ||
+        win.isDestroyed() ||
+        request.frame !== win.webContents.mainFrame
+      ) {
+        answer({});
+        return;
+      }
       answer({ video: source });
     })().catch(() => answer({}));
   });
@@ -579,9 +766,12 @@ async function createWindow() {
     return { action: "deny" };
   });
   win.webContents.on("will-attach-webview", (event) => event.preventDefault());
-  win.webContents.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
-    if (isMainFrame && !isInPlace) void remote.close("page_navigation");
-  });
+  win.webContents.on(
+    "did-start-navigation",
+    (_event, _url, isInPlace, isMainFrame) => {
+      if (isMainFrame && !isInPlace) void remote.close("page_navigation");
+    },
+  );
   win.webContents.on("will-navigate", (event, url) => {
     if (!sameOrigin(url, rendererOrigin)) {
       event.preventDefault();
@@ -602,12 +792,14 @@ async function createWindow() {
   });
   win.webContents.on("render-process-gone", () => {
     const cleanup = remote.close("renderer_gone");
-    void cleanup.then(() => dialog
-      .showMessageBox(win, {
-        type: "error",
-        message: "页面进程已停止，本机音视频采集已中断。",
-        buttons: ["重新打开", "退出"],
-      }))
+    void cleanup
+      .then(() =>
+        dialog.showMessageBox(win, {
+          type: "error",
+          message: "页面进程已停止，本机音视频采集已中断。",
+          buttons: ["重新打开", "退出"],
+        }),
+      )
       .then((result) => {
         if (!result.response) void win.loadURL(rendererOrigin);
         else {
@@ -634,15 +826,26 @@ async function createWindow() {
     event.senderFrame === win.webContents.mainFrame &&
     sameOrigin(event.senderFrame.url, rendererOrigin);
   const remoteHandlers = {
-    capabilities: remote.capabilities.bind(remote), showRequest: remote.showRequest.bind(remote),
-    bindPublishedTrack: remote.bindPublishedTrack.bind(remote), forwardSignedMessage: remote.forwardSignedMessage.bind(remote),
+    capabilities: remote.capabilities.bind(remote),
+    showRequest: remote.showRequest.bind(remote),
+    bindPublishedTrack: remote.bindPublishedTrack.bind(remote),
+    forwardSignedMessage: remote.forwardSignedMessage.bind(remote),
     stop: remote.stop.bind(remote),
   };
   for (const [name, action] of Object.entries(remoteHandlers)) {
     ipcMain.handle(`remote-control:${name}`, async (event, ...args) => {
-      if (!senderAllowed(event) || args.length !== 1 || !auth.signedIn || quitting) throw new Error("invalid_remote_request");
-      try { return await action(args[0]); }
-      catch (error) { throw new Error(publicRemoteError(error)); }
+      if (
+        !senderAllowed(event) ||
+        args.length !== 1 ||
+        !auth.signedIn ||
+        quitting
+      )
+        throw new Error("invalid_remote_request");
+      try {
+        return await action(args[0]);
+      } catch (error) {
+        throw new Error(publicRemoteError(error));
+      }
     });
   }
   for (const [name, action] of Object.entries({
@@ -661,96 +864,109 @@ async function createWindow() {
       return action();
     });
   const reloadWithConfirmation = () => {
-    void dialog.showMessageBox(win, {
-      message: "重新加载会断开本机会议与采集，请先保存录音。",
-      buttons: ["取消", "重新加载"],
-      defaultId: 0,
-      cancelId: 0,
-    }).then(async (result) => {
-      if (result.response === 1 && !win.isDestroyed()) {
-        await remote.close("page_reload");
-        if (!win.isDestroyed()) win.reload();
-      }
-    });
+    void dialog
+      .showMessageBox(win, {
+        message: "重新加载会断开本机会议与采集，请先保存录音。",
+        buttons: ["取消", "重新加载"],
+        defaultId: 0,
+        cancelId: 0,
+      })
+      .then(async (result) => {
+        if (result.response === 1 && !win.isDestroyed()) {
+          await remote.close("page_reload");
+          if (!win.isDestroyed()) win.reload();
+        }
+      });
   };
   const desktopMenu = Menu.buildFromTemplate([
-      {
-        label: "We-Meet",
-        submenu: [
-          {
-            label: "关于 We-Meet",
-            click: () => {
-              void dialog.showMessageBox(win, {
-                message: `We-Meet ${app.getVersion()}`,
-                detail: `服务：${config.serviceOrigin}\n内部试用版本；升级前请停止并保存本机录音。`,
-              });
-            },
+    {
+      label: "We-Meet",
+      submenu: [
+        {
+          label: "关于 We-Meet",
+          click: () => {
+            void dialog.showMessageBox(win, {
+              message: `We-Meet ${app.getVersion()}`,
+              detail: `服务：${config.serviceOrigin}\n内部试用版本；升级前请停止并保存本机录音。`,
+            });
           },
-          {
-            label: "退出账号",
-            click: () => {
-              void logout().catch(() => report("退出处理失败。"));
-            },
+        },
+        {
+          label: "退出账号",
+          click: () => {
+            void logout().catch(() => report("退出处理失败。"));
           },
-          { type: "separator" },
-          {
-            label: "退出客户端",
-            accelerator: "Alt+F4",
-            click: () => {
-              void confirmExit();
-            },
+        },
+        { type: "separator" },
+        {
+          label: "退出客户端",
+          accelerator: "Alt+F4",
+          click: () => {
+            void confirmExit();
           },
-        ],
-      },
-      {
-        label: "编辑",
-        submenu: [
-          { role: "undo" },
-          { role: "redo" },
-          { type: "separator" },
-          { role: "cut" },
-          { role: "copy" },
-          { role: "paste" },
-          { role: "selectAll" },
-        ],
-      },
-      {
-        label: "窗口",
-        submenu: [
-          {
-            label: "重新加载",
-            accelerator: "Ctrl+R",
-            click: reloadWithConfirmation,
-          },
-          { role: "minimize" },
-          { role: "resetZoom" },
-          { role: "zoomIn" },
-          { role: "zoomOut" },
-        ],
-      },
-    ]);
+        },
+      ],
+    },
+    {
+      label: "编辑",
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { role: "selectAll" },
+      ],
+    },
+    {
+      label: "窗口",
+      submenu: [
+        {
+          label: "重新加载",
+          accelerator: "Ctrl+R",
+          click: reloadWithConfirmation,
+        },
+        { role: "minimize" },
+        { role: "resetZoom" },
+        { role: "zoomIn" },
+        { role: "zoomOut" },
+      ],
+    },
+  ]);
   // Keep the macOS application menu; Windows/Linux use the title-bar popup.
   Menu.setApplicationMenu(process.platform === "darwin" ? desktopMenu : null);
   ipcMain.handle("desktop:menu", (event, ...args) => {
-    if (!senderAllowed(event) || args.length) throw new Error("Invalid desktop request");
+    if (!senderAllowed(event) || args.length)
+      throw new Error("Invalid desktop request");
     desktopMenu.popup({ window: win });
   });
   ipcMain.handle("desktop:window-state", (event, ...args) => {
-    if (!senderAllowed(event) || args.length) throw new Error("Invalid desktop request");
+    if (!senderAllowed(event) || args.length)
+      throw new Error("Invalid desktop request");
     return { fullscreen: win.isFullScreen() };
   });
   ipcMain.handle("desktop:titlebar-theme", (event, theme, ...args) => {
-    if (!senderAllowed(event) || args.length || !["light", "dark"].includes(theme))
+    if (
+      !senderAllowed(event) ||
+      args.length ||
+      !["light", "dark"].includes(theme)
+    )
       throw new Error("Invalid desktop request");
-    if (process.platform !== "darwin") win.setTitleBarOverlay({
-      color: theme === "dark" ? "#1e2024" : "#f6f6f6",
-      symbolColor: theme === "dark" ? "#e5e5e5" : "#555555",
-      height: 40,
-    });
+    if (process.platform !== "darwin")
+      win.setTitleBarOverlay({
+        color: theme === "dark" ? "#1e2024" : "#f6f6f6",
+        symbolColor: theme === "dark" ? "#e5e5e5" : "#555555",
+        height: 40,
+      });
   });
   // Windows can emit the transition before isFullScreen() reflects it.
-  win.on("enter-full-screen", () => win.webContents.send("desktop:window-state", { fullscreen: true }));
-  win.on("leave-full-screen", () => win.webContents.send("desktop:window-state", { fullscreen: false }));
+  win.on("enter-full-screen", () =>
+    win.webContents.send("desktop:window-state", { fullscreen: true }),
+  );
+  win.on("leave-full-screen", () =>
+    win.webContents.send("desktop:window-state", { fullscreen: false }),
+  );
   // Hidden menus don't register accelerators on Windows/Linux. Preserve the
   // guarded reload and zoom shortcuts without taking over text editing.
   win.webContents.on("before-input-event", (event, input) => {
@@ -759,10 +975,17 @@ async function createWindow() {
     if (key === "f5" || (key === "r" && (input.control || input.meta))) {
       event.preventDefault();
       reloadWithConfirmation();
-    } else if ((input.control || input.meta) && ["0", "+", "=", "-"].includes(key)) {
+    } else if (
+      (input.control || input.meta) &&
+      ["0", "+", "=", "-"].includes(key)
+    ) {
       event.preventDefault();
       const zoom = win.webContents.getZoomLevel();
-      win.webContents.setZoomLevel(key === "0" ? 0 : Math.max(-3, Math.min(3, zoom + (key === "-" ? -0.5 : 0.5))));
+      win.webContents.setZoomLevel(
+        key === "0"
+          ? 0
+          : Math.max(-3, Math.min(3, zoom + (key === "-" ? -0.5 : 0.5))),
+      );
     }
   });
   // The Work device driver (M2): main-process only. No preload method and no renderer
@@ -771,6 +994,144 @@ async function createWindow() {
   // the existing desktop:status message channel.
   if (config.work) {
     const work = config.work;
+    workViewer = new ViewerManager(
+      path.join(__dirname, "viewer-preload.js"),
+      (viewerContents, method, payload) => {
+        const driver = workDriver;
+        const viewer = workViewer;
+        const context = viewerEditContexts.get(viewerContents.id);
+        const viewerWindow = viewer?.windowFor(viewerContents);
+        const data = payload as Record<string, unknown> | undefined;
+        if (!driver || !viewer || !viewerWindow) return;
+        if (method === "decideLocalApproval" && data) {
+          const approval = viewerApprovals.get(viewerContents.id);
+          if (!approval || data.request_id !== approval.requestId) return;
+          const decision = data.decision;
+          if (decision !== "approved" && decision !== "rejected") return;
+          void (async () => {
+            try {
+              const result = await driver.decideLocalApproval(
+                approval.detail,
+                decision,
+                approval.requestId,
+                data.remember_readonly === true,
+              );
+              viewer.send(viewerWindow, {
+                type: "approval_decided",
+                decision: result.decision,
+                approval_revision: String(result.approvalRevision),
+              });
+              workMainWindow?.webContents.send("work:approval-decided", {
+                approvalId: result.approvalId,
+                runId: result.runId,
+              });
+            } catch {
+              viewer.send(viewerWindow, {
+                type: "error",
+                code: "invalid_work_request",
+              });
+            }
+          })();
+          return;
+        }
+        if (method === "signObjectProof" && data) {
+          const acceptance = viewerAcceptances.get(viewerContents.id);
+          if (
+            !acceptance ||
+            data.request_id !== acceptance.requestId ||
+            data.purpose !== "accept" ||
+            data.artifact_id !== acceptance.context.artifactId ||
+            data.version_id !== acceptance.context.versionId ||
+            data.content_hash !== acceptance.context.contentHash
+          )
+            return;
+          viewerAcceptances.delete(viewerContents.id);
+          void (async () => {
+            try {
+              const accepted = await driver.acceptLocalArtifactVersion(
+                acceptance.context,
+              );
+              viewer.send(viewerWindow, {
+                type: "artifact_accepted",
+                ...accepted,
+              });
+              workMainWindow?.webContents.send(
+                "work:artifact-accepted",
+                accepted,
+              );
+            } catch {
+              viewer.send(viewerWindow, {
+                type: "error",
+                code: "invalid_work_request",
+              });
+            }
+          })();
+          return;
+        }
+        if (method === "prepareUserArtifactVersion" && context && data) {
+          void (async () => {
+            try {
+              const draft = await driver.prepareLocalArtifactEdit({
+                context,
+                format: data.format as "text/plain" | "text/markdown",
+                body: data.body as string,
+              });
+              viewerDrafts.set(viewerContents.id, draft);
+              viewer.send(viewerWindow, {
+                type: "draft",
+                request_id: draft.requestId,
+                version_id: draft.versionId,
+                content_hash: draft.contentHash,
+                byte_count: String(draft.byteCount),
+                base_byte_count: String(draft.baseByteCount),
+              });
+              viewer.authorizeRequest(viewerWindow, draft.requestId);
+            } catch {
+              viewer.send(viewerWindow, {
+                type: "error",
+                code: "invalid_work_request",
+              });
+            }
+          })();
+          return;
+        }
+        if (method === "confirmLocalWrite" && data) {
+          const requestId = data.request_id as string;
+          const sealedHash = data.sealed_hash as string;
+          const action = data.action as string;
+          void (async () => {
+            try {
+              if (action === "confirm") {
+                const published = await driver.confirmLocalArtifactEdit(
+                  requestId,
+                  sealedHash,
+                );
+                viewer.send(viewerWindow, { type: "published", ...published });
+                workMainWindow?.webContents.send(
+                  "work:artifact-published",
+                  published,
+                );
+              } else {
+                const status = await driver.decideLocalArtifactEdit(
+                  requestId,
+                  sealedHash,
+                  action as "discard" | "cancel",
+                );
+                viewer.send(viewerWindow, { type: "status", status });
+              }
+            } catch {
+              if (action === "confirm" && viewerDrafts.has(viewerContents.id))
+                viewer.authorizeRequest(viewerWindow, requestId);
+              viewer.send(viewerWindow, {
+                type: "error",
+                code: "invalid_work_request",
+              });
+            }
+          })();
+        }
+      },
+    );
+    workViewer.install();
     const devicePath = path.join(app.getPath("userData"), "work-device-v1.enc");
     const storeIo = {
       read: () =>
@@ -789,19 +1150,36 @@ async function createWindow() {
         renameSync(devicePath + ".tmp", devicePath);
       },
       clear: () => {
-        try { unlinkSync(devicePath); } catch (error) {
+        try {
+          unlinkSync(devicePath);
+        } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         }
-        try { unlinkSync(devicePath + ".tmp"); } catch (error) {
+        try {
+          unlinkSync(devicePath + ".tmp");
+        } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         }
       },
     };
-    const workResourceRoot = path.join(app.isPackaged ? process.resourcesPath : __dirname, "work-device");
+    const workResourceRoot = path.join(
+      app.isPackaged ? process.resourcesPath : __dirname,
+      "work-device",
+    );
     const workDescriptor = (() => {
       if (!app.isPackaged) return undefined;
-      try { return workDeviceDescriptor(JSON.parse(readFileSync(path.join(__dirname, "bundled-work-device.json"), "utf8"))); }
-      catch { return null; }
+      try {
+        return workDeviceDescriptor(
+          JSON.parse(
+            readFileSync(
+              path.join(__dirname, "bundled-work-device.json"),
+              "utf8",
+            ),
+          ),
+        );
+      } catch {
+        return null;
+      }
     })();
     startWorkDriver = async () => {
       if (!auth.signedIn || !auth.subject || quitting) return;
@@ -811,18 +1189,28 @@ async function createWindow() {
         auth,
         api: new WorkApi(config.serviceOrigin, auth),
         work,
-        binding: { issuer: config.issuer, clientId: config.clientId, serviceOrigin: config.serviceOrigin },
+        binding: {
+          issuer: config.issuer,
+          clientId: config.clientId,
+          serviceOrigin: config.serviceOrigin,
+        },
         resourceRoot: workResourceRoot,
         descriptor: workDescriptor,
         configDir: path.join(app.getPath("userData"), "work-device"),
-        store: new DeviceStore(storeIo, { issuer: config.issuer, clientId: config.clientId, serviceOrigin: config.serviceOrigin, subject }),
+        store: new DeviceStore(storeIo, {
+          issuer: config.issuer,
+          clientId: config.clientId,
+          serviceOrigin: config.serviceOrigin,
+          subject,
+        }),
         askDeviceName: async (defaultName) => {
           if (win.isDestroyed()) return undefined;
           const result = await dialog.showMessageBox(win, {
             type: "question",
             title: "配对 Work 设备",
             message: `将本机配对为 Work 设备「${defaultName}」？`,
-            detail: "配对后，本机可在当前账号已授权的范围内执行本机任务。设备私钥留在本机 Windows 密钥存储中，不会上传。",
+            detail:
+              "配对后，本机可在当前账号已授权的范围内执行本机任务。设备私钥留在本机 Windows 密钥存储中，不会上传。",
             buttons: ["取消", "确认配对"],
             defaultId: 0,
             cancelId: 0,
@@ -837,15 +1225,19 @@ async function createWindow() {
             title: "选择 Work 工作目录",
             properties: ["openDirectory"],
           });
-          return result.canceled || result.filePaths.length === 0 ? undefined : result.filePaths[0];
+          return result.canceled || result.filePaths.length === 0
+            ? undefined
+            : result.filePaths[0];
         },
         // §4.2 step 3/5: show the ACTUAL location the Broker opened (not the selector path), the
         // volume label, and the two warnings. Cancel produces no grant (the Broker closes the handle).
         confirmWorkspaceRoot: async (facts) => {
           if (win.isDestroyed()) return false;
           const warnings: string[] = [];
-          if (facts.differsFromSelected) warnings.push("实际位置与所选不同（上级目录可能被重定向）。");
-          if (facts.otherUserWritable) warnings.push("其他本机用户可修改此目录。");
+          if (facts.differsFromSelected)
+            warnings.push("实际位置与所选不同（上级目录可能被重定向）。");
+          if (facts.otherUserWritable)
+            warnings.push("其他本机用户可修改此目录。");
           const result = await dialog.showMessageBox(win, {
             type: warnings.length > 0 ? "warning" : "question",
             title: "授权 Work 工作目录",
@@ -863,13 +1255,33 @@ async function createWindow() {
           });
           return result.response === 1;
         },
+        confirmWorkspaceRebind: async (facts) => {
+          if (win.isDestroyed()) return false;
+          const result = await dialog.showMessageBox(win, {
+            type: "warning",
+            title: "重新审批 Work 目录改绑",
+            message: "确认将本机 Run 的工作目录授权改绑到新 grant？",
+            detail: [
+              `Run：${facts.runId}`,
+              `当前 grant：${facts.oldGrantId}`,
+              `新 grant：${facts.newGrantId}`,
+              `根身份：${facts.rootIdentityHash}`,
+              "仅同一实际目录可改绑；未派发步骤将重新审批，已派发步骤只核账，不会改写成新执行。",
+            ].join("\n"),
+            buttons: ["取消", "确认改绑并重新审批"],
+            defaultId: 0,
+            cancelId: 0,
+          });
+          return result.response === 1;
+        },
         // §5.4 step 3: show the listener process name / path / signer / running account. The account
         // is rendered as its SID (a name translation is a later native face); the LAN-open warning is
         // the §5.4 末段 hint. Cancel produces no binding.
         confirmLocalModel: async (facts) => {
           if (win.isDestroyed()) return false;
           const warnings: string[] = [];
-          if (facts.listensOnAllInterfaces) warnings.push("该模型服务对局域网开放。");
+          if (facts.listensOnAllInterfaces)
+            warnings.push("该模型服务对局域网开放。");
           const result = await dialog.showMessageBox(win, {
             type: warnings.length > 0 ? "warning" : "question",
             title: "确认本机模型服务",
@@ -889,10 +1301,530 @@ async function createWindow() {
           });
           return result.response === 1;
         },
+        confirmLocalSubmission: async (facts) => {
+          if (win.isDestroyed()) return false;
+          const result = await dialog.showMessageBox(win, {
+            type: "question",
+            title: "确认提交本机 Work 任务",
+            message: "确认将已预览的任务提交到本机设备执行？",
+            detail: [
+              `提交请求：${facts.clientRequestId}`,
+              `本机输入：${facts.inputRef}`,
+              `输入 SHA-256：${facts.inputHash}`,
+              `预览：${facts.previewHash}`,
+              `目标选择：${facts.targetSelectionHash}`,
+              `执行 profile：${facts.profileId} @ ${facts.profileRevision}`,
+              `Profile SHA-256：${facts.profileHash}`,
+              `目录授权：${facts.selectedGrantIds.map((id, index) => `${id} @ ${facts.grantRevisions[index]}`).join("、")}`,
+              `当前认证 epoch：${facts.authEpoch}`,
+              "确认后设备才会签署 local_intent；正文仍只留在本机。",
+            ].join("\n"),
+            buttons: ["取消", "确认提交"],
+            defaultId: 0,
+            cancelId: 0,
+          });
+          return result.response === 1;
+        },
         report,
       });
       await workDriver.start();
     };
+    ipcMain.handle("work:stage-local-input", async (event, ...args) => {
+      if (
+        !senderAllowed(event) ||
+        args.length !== 1 ||
+        typeof args[0] !== "string"
+      ) {
+        throw new Error("invalid_work_request");
+      }
+      const text = args[0];
+      if (
+        !text.trim() ||
+        text.includes("\x00") ||
+        Buffer.byteLength(text, "utf8") > 60 * 1024
+      ) {
+        throw new Error("invalid_work_request");
+      }
+      if (!workDriver || workDriver.currentState !== "running") {
+        throw new Error("work_device_unavailable");
+      }
+      try {
+        return await workDriver.stageLocalInput(text);
+      } catch (error) {
+        if (
+          error instanceof WorkApiError &&
+          error.code === "work_account_changed"
+        ) {
+          throw new Error("work_account_changed");
+        }
+        throw new Error("work_device_unavailable");
+      }
+    });
+    ipcMain.handle("work:submit-local-task", async (event, ...args) => {
+      if (
+        !senderAllowed(event) ||
+        args.length !== 1 ||
+        !args[0] ||
+        typeof args[0] !== "object" ||
+        Array.isArray(args[0])
+      ) {
+        throw new Error("invalid_work_request");
+      }
+      if (!workDriver || workDriver.currentState !== "running") {
+        throw new Error("work_device_unavailable");
+      }
+      try {
+        return await workDriver.submitLocalTask(args[0]);
+      } catch (error) {
+        if (
+          error instanceof WorkApiError &&
+          error.code === "work_account_changed"
+        ) {
+          throw new Error("work_account_changed");
+        }
+        throw new Error("work_device_unavailable");
+      }
+    });
+    ipcMain.handle("work:confirm-local-submission", async (event, ...args) => {
+      if (
+        !senderAllowed(event) ||
+        args.length !== 1 ||
+        !args[0] ||
+        typeof args[0] !== "object" ||
+        Array.isArray(args[0])
+      ) {
+        throw new Error("invalid_work_request");
+      }
+      if (!workDriver || workDriver.currentState !== "running") {
+        throw new Error("work_device_unavailable");
+      }
+      try {
+        return await workDriver.confirmLocalSubmission(args[0]);
+      } catch (error) {
+        if (
+          error instanceof WorkApiError &&
+          error.code === "work_account_changed"
+        ) {
+          throw new Error("work_account_changed");
+        }
+        throw new Error("work_device_unavailable");
+      }
+    });
+    ipcMain.handle(
+      "work:list-local-artifact-drafts",
+      async (event, ...args) => {
+        if (!senderAllowed(event) || args.length !== 1) return [];
+        const request = args[0];
+        if (
+          !request ||
+          typeof request !== "object" ||
+          Array.isArray(request) ||
+          Object.keys(request).sort().join(",") !== "artifactId,taskId" ||
+          typeof request.taskId !== "string" ||
+          typeof request.artifactId !== "string"
+        )
+          return [];
+        if (!workDriver || workDriver.currentState !== "running") return [];
+        try {
+          return await workDriver.listLocalArtifactDrafts(
+            request.taskId,
+            request.artifactId,
+          );
+        } catch {
+          return [];
+        }
+      },
+    );
+    ipcMain.handle("work:open-local-artifact-draft", async (event, ...args) => {
+      if (!senderAllowed(event) || args.length !== 1)
+        return { status: "denied" };
+      const request = args[0];
+      if (
+        !request ||
+        typeof request !== "object" ||
+        Array.isArray(request) ||
+        Object.keys(request).sort().join(",") !==
+          "artifactId,taskId,versionId" ||
+        typeof request.taskId !== "string" ||
+        typeof request.artifactId !== "string" ||
+        typeof request.versionId !== "string"
+      )
+        return { status: "denied" };
+      if (!workDriver || workDriver.currentState !== "running" || !workViewer) {
+        return { status: "not_on_this_device" };
+      }
+      try {
+        const result = await workDriver.openLocalArtifactDraft(
+          request.taskId,
+          request.artifactId,
+          request.versionId,
+        );
+        if (result.status !== "available") return result;
+        const context: LocalArtifactEditContext = {
+          artifactId: result.draft.artifactId,
+          taskId: result.draft.taskId,
+          baseVersionId: result.draft.baseVersionId,
+          baseVersionNo: result.draft.baseVersionNo,
+          baseHash: result.draft.baseHash,
+        };
+        const viewerWindow = workViewer.openObject(
+          { kind: "artifact_edit", id: context.artifactId },
+          {
+            type: "render",
+            format: result.format,
+            text: result.text,
+            edit: {
+              artifact_id: context.artifactId,
+              task_id: context.taskId,
+              base_version_no: context.baseVersionNo,
+              base_hash: context.baseHash,
+            },
+            draft: {
+              request_id: result.draft.requestId,
+              content_hash: result.draft.contentHash,
+              byte_count: String(result.draft.byteCount),
+              base_byte_count: String(result.draft.baseByteCount),
+              publish_state: result.draft.publishState,
+            },
+          },
+          win,
+        );
+        const id = viewerWindow.webContents.id;
+        viewerEditContexts.set(id, context);
+        viewerDrafts.set(id, {
+          requestId: result.draft.requestId,
+          versionId: result.draft.versionId,
+          contentHash: result.draft.contentHash,
+          byteCount: result.draft.byteCount,
+          baseByteCount: result.draft.baseByteCount,
+        });
+        viewerWindow.once("closed", () => {
+          viewerEditContexts.delete(id);
+          viewerDrafts.delete(id);
+        });
+        return { status: "opened" };
+      } catch {
+        return { status: "denied" };
+      }
+    });
+    ipcMain.handle("work:edit-local-artifact", async (event, ...args) => {
+      if (!senderAllowed(event) || args.length !== 1)
+        return { status: "denied" };
+      const request = args[0];
+      if (
+        !request ||
+        typeof request !== "object" ||
+        Array.isArray(request) ||
+        Object.keys(request).sort().join(",") !==
+          "artifact_id,base_hash,base_version_id,base_version_no,task_id"
+      )
+        return { status: "denied" };
+      const context = request as LocalArtifactEditContext;
+      const uuid =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+      if (
+        !uuid.test(context.artifactId) ||
+        !uuid.test(context.taskId) ||
+        !uuid.test(context.baseVersionId) ||
+        !Number.isSafeInteger(context.baseVersionNo) ||
+        context.baseVersionNo < 1 ||
+        typeof context.baseHash !== "string" ||
+        !/^sha256:[0-9a-f]{64}$/.test(context.baseHash)
+      )
+        return { status: "denied" };
+      if (!workDriver || workDriver.currentState !== "running" || !workViewer) {
+        return { status: "not_on_this_device" };
+      }
+      try {
+        const result = await workDriver.editLocalArtifact(context);
+        if (result.status !== "available") return result;
+        const viewerWindow = workViewer.openObject(
+          { kind: "artifact_edit", id: context.artifactId },
+          {
+            type: "render",
+            format: result.format,
+            text: result.text,
+            edit: {
+              artifact_id: context.artifactId,
+              task_id: context.taskId,
+              base_version_no: context.baseVersionNo,
+              base_hash: context.baseHash,
+            },
+          },
+          win,
+        );
+        const id = viewerWindow.webContents.id;
+        viewerEditContexts.set(id, context);
+        viewerDrafts.delete(id);
+        viewerWindow.once("closed", () => {
+          viewerEditContexts.delete(id);
+          viewerDrafts.delete(id);
+        });
+        return { status: "opened" };
+      } catch {
+        return { status: "denied" };
+      }
+    });
+    ipcMain.handle(
+      "work:list-pending-local-approvals",
+      async (event, ...args) => {
+        if (!senderAllowed(event) || args.length !== 0)
+          return { status: "denied", approvals: [] };
+        if (!workDriver || workDriver.currentState !== "running") {
+          return { status: "not_on_this_device", approvals: [] };
+        }
+        try {
+          return {
+            status: "available",
+            approvals: await workDriver.listPendingLocalApprovals(),
+          };
+        } catch {
+          return { status: "denied", approvals: [] };
+        }
+      },
+    );
+    ipcMain.handle("work:open-local-content", async (event, ...args) => {
+      if (!senderAllowed(event) || args.length !== 1) {
+        return { status: "denied" };
+      }
+      const request = args[0];
+      if (
+        !request ||
+        typeof request !== "object" ||
+        Array.isArray(request) ||
+        Object.keys(request).sort().join(",") !== "id,kind"
+      ) {
+        return { status: "denied" };
+      }
+      const { kind, id } = request as Record<string, unknown>;
+      if (
+        typeof kind !== "string" ||
+        ![
+          "approval",
+          "run_transcript",
+          "artifact_version",
+          "artifact_edit",
+        ].includes(kind) ||
+        typeof id !== "string" ||
+        id.length === 0 ||
+        id.length > 512 ||
+        id.includes("\x00")
+      ) {
+        return { status: "denied" };
+      }
+      if (!workDriver || workDriver.currentState !== "running" || !workViewer) {
+        return { status: "not_on_this_device" };
+      }
+      try {
+        const result = await workDriver.openLocalContent(
+          kind as LocalContentKind,
+          id,
+        );
+        if (result.status !== "available") return result;
+        const approval =
+          kind === "approval"
+            ? {
+                detail: await workDriver.getLocalApproval(id),
+                requestId: randomUUID(),
+              }
+            : undefined;
+        const viewerWindow = workViewer.openObject(
+          { kind: kind as LocalContentKind, id },
+          { type: "render", format: result.format, text: result.text },
+          win,
+        );
+        if (approval) {
+          viewerApprovals.set(viewerWindow.webContents.id, approval);
+          viewerWindow.once("closed", () => {
+            viewerApprovals.delete(viewerWindow.webContents.id);
+          });
+          void armApprovalViewer(
+            workViewer,
+            viewerWindow,
+            id,
+            approval.requestId,
+            approval.detail.readonlyScope !== null,
+          );
+        }
+        return { status: "opened" };
+      } catch {
+        return { status: "denied" };
+      }
+    });
+    ipcMain.handle(
+      "work:accept-local-artifact-version",
+      async (event, ...args) => {
+        if (!senderAllowed(event) || args.length !== 1)
+          return { status: "denied" };
+        const request = args[0];
+        if (
+          !request ||
+          typeof request !== "object" ||
+          Array.isArray(request) ||
+          Object.keys(request).sort().join(",") !==
+            "artifactId,contentHash,revision,taskId,versionId"
+        ) {
+          return { status: "denied" };
+        }
+        const { taskId, artifactId, versionId, contentHash, revision } =
+          request as Record<string, unknown>;
+        const uuid =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+        if (
+          typeof taskId !== "string" ||
+          !uuid.test(taskId) ||
+          typeof artifactId !== "string" ||
+          !uuid.test(artifactId) ||
+          typeof versionId !== "string" ||
+          !uuid.test(versionId) ||
+          typeof contentHash !== "string" ||
+          !/^sha256:[0-9a-f]{64}$/.test(contentHash) ||
+          typeof revision !== "number" ||
+          !Number.isSafeInteger(revision) ||
+          revision < 0
+        ) {
+          return { status: "denied" };
+        }
+        if (
+          !workDriver ||
+          workDriver.currentState !== "running" ||
+          !workViewer
+        ) {
+          return { status: "not_on_this_device" };
+        }
+        try {
+          const content = await workDriver.openLocalContent(
+            "artifact_version",
+            versionId,
+          );
+          if (
+            content.status !== "available" ||
+            content.contentHash !== contentHash
+          )
+            return { status: "denied" };
+          const context: LocalArtifactAcceptanceContext = {
+            taskId: taskId as string,
+            artifactId: artifactId as string,
+            versionId: versionId as string,
+            contentHash: contentHash as string,
+            revision: revision as number,
+          };
+          const requestId = randomUUID();
+          const viewerWindow = workViewer.openObject(
+            { kind: "artifact_version", id: context.versionId },
+            { type: "render", format: content.format, text: content.text },
+            win,
+          );
+          const viewerId = viewerWindow.webContents.id;
+          viewerAcceptances.set(viewerId, { context, requestId });
+          viewerWindow.once("closed", () => viewerAcceptances.delete(viewerId));
+          void armArtifactAcceptanceViewer(
+            workViewer,
+            viewerWindow,
+            context,
+            requestId,
+          );
+          return { status: "opened" };
+        } catch {
+          return { status: "denied" };
+        }
+      },
+    );
+    ipcMain.handle("work:grant-workspace", async (event, ...args) => {
+      if (!senderAllowed(event) || args.length !== 1) return null;
+      const artifactDir = args[0];
+      if (
+        !Array.isArray(artifactDir) ||
+        artifactDir.length > 64 ||
+        !artifactDir.every(
+          (segment) =>
+            typeof segment === "string" &&
+            segment.length > 0 &&
+            segment.length <= 128 &&
+            !segment.includes("/") &&
+            !segment.includes("\\") &&
+            segment !== "." &&
+            segment !== ".." &&
+            !segment.includes("\0"),
+        )
+      ) {
+        throw new Error("invalid_work_request");
+      }
+      if (!workDriver || workDriver.currentState !== "running") {
+        throw new Error("work_device_unavailable");
+      }
+      try {
+        const grant = await workDriver.grantWorkspace(artifactDir);
+        return grant
+          ? {
+              grantId: grant.grantId,
+              rootIdentityHash: grant.rootIdentityHash,
+              artifactDir: [...artifactDir],
+            }
+          : null;
+      } catch (error) {
+        if (
+          error instanceof WorkApiError &&
+          error.code === "work_account_changed"
+        ) {
+          throw new Error("work_account_changed");
+        }
+        throw new Error("work_device_unavailable");
+      }
+    });
+    ipcMain.handle("work:list-workspace-grants", async (event, ...args) => {
+      if (!senderAllowed(event) || args.length !== 0) return [];
+      if (!workDriver || workDriver.currentState !== "running") return [];
+      try {
+        return await workDriver.listWorkspaceGrants();
+      } catch {
+        return [];
+      }
+    });
+    ipcMain.handle("work:rebind-run-workspace", async (event, ...args) => {
+      if (!senderAllowed(event) || args.length !== 1)
+        return { status: "denied" };
+      const request = args[0];
+      if (
+        !request ||
+        typeof request !== "object" ||
+        Array.isArray(request) ||
+        Object.keys(request).sort().join(",") !== "newGrantId,oldGrantId,runId"
+      ) {
+        return { status: "denied" };
+      }
+      const { runId, oldGrantId, newGrantId } = request as Record<
+        string,
+        unknown
+      >;
+      const uuid =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+      if (
+        typeof runId !== "string" ||
+        !uuid.test(runId) ||
+        typeof oldGrantId !== "string" ||
+        !uuid.test(oldGrantId) ||
+        typeof newGrantId !== "string" ||
+        !uuid.test(newGrantId) ||
+        oldGrantId === newGrantId
+      ) {
+        return { status: "denied" };
+      }
+      if (!workDriver || workDriver.currentState !== "running") {
+        return { status: "not_on_this_device" };
+      }
+      try {
+        const rebound = await workDriver.rebindRunWorkspace(
+          runId,
+          oldGrantId,
+          newGrantId,
+        );
+        workMainWindow?.webContents.send("work:workspace-rebound", rebound);
+        return { status: "accepted", rebound };
+      } catch {
+        return { status: "denied" };
+      }
+    });
     if (auth.signedIn) void startWorkDriver();
   }
   await loadInitialPage(win, rendererOrigin);
@@ -919,8 +1851,12 @@ else {
     .then(async () => {
       // Portable acceptance runs must not replace the installed app's login
       // protocol registration. Normal installed startup keeps its behavior.
-      if (app.isPackaged && !app.commandLine.hasSwitch("no-default-protocol-registration"))
+      if (
+        app.isPackaged &&
+        !app.commandLine.hasSwitch("no-default-protocol-registration")
+      )
         app.setAsDefaultProtocolClient("online.we-meet.desktop");
+      installViewerProtocol(path.join(__dirname, "viewer"));
       await createWindow();
       await receiveCallback(
         process.argv.find((arg) => arg.startsWith(CALLBACK)),

@@ -21,6 +21,7 @@ interface Window {
     platform: string
     remoteControl?: import('../../desktop/src/remote-control/bridge').RemoteControlBridge
     screenPicker?: import('../../desktop/src/screen-picker/bridge').ScreenPickerBridge
+    work?: import('../../desktop/src/work/bridge').WorkBridge
     aiCall?: {
       open(): Promise<void>
       getPinned?(): Promise<boolean>

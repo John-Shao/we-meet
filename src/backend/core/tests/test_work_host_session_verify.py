@@ -7,6 +7,7 @@ from django.test import override_settings
 
 import pytest
 
+from core import models
 from core.api.work_host import session_revision
 from core.factories import MembershipFactory, OrganizationFactory, UserFactory
 from core.tests.host_mtls import (
@@ -43,6 +44,35 @@ def test_returns_verified_session(client):
     assert data["session_revision"] == session_revision(session_key)
     assert data["verified_at"].endswith("Z")
     assert "cookie" not in data
+    assert "permissions" not in data
+
+
+@override_settings(
+    WORK_HOST_MTLS_CA_PEM=CA_PEM, WORK_HOST_MTLS_CLIENT_IDENTITY=IDENTITY
+)
+def test_optional_permissions_are_resolved_per_request(client):
+    user = UserFactory(sub="subject-permissions")
+    organization = OrganizationFactory()
+    MembershipFactory(user=user, organization=organization, is_primary=True)
+    models.WorkGovernanceAssignment.objects.create(
+        organization=organization,
+        user=user,
+        permissions=["org.work.seat.write"],
+        revision=1,
+    )
+    client.force_login(user)
+
+    first = client.post(f"{URL}?include_permissions=1", **cert_headers(CLIENT_PEM))
+    assert first.status_code == 200
+    assert first.json()["permissions"] == ["org.work.seat.write"]
+
+    models.WorkGovernanceAssignment.objects.filter(
+        organization=organization,
+        user=user,
+    ).update(status=models.WorkGovernanceAssignmentStatusChoices.REVOKED)
+    second = client.post(f"{URL}?include_permissions=1", **cert_headers(CLIENT_PEM))
+    assert second.status_code == 200
+    assert second.json()["permissions"] == []
 
 
 @override_settings(

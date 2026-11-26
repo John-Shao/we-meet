@@ -49,9 +49,23 @@ def _admin_client(organization):
     return client, actor
 
 
+def _enable_seats(organization, limit=100):
+    models.WorkExecutionEntitlement.objects.update_or_create(
+        organization=organization,
+        defaults={
+            "enabled": True,
+            "seat_limit": limit,
+            "operator_suspended": False,
+            "revision": 1,
+        },
+    )
+
+
 def test_seat_events_use_independent_org_sequences_and_atomic_audit():
     first_org = factories.OrganizationFactory()
     second_org = factories.OrganizationFactory()
+    _enable_seats(first_org)
+    _enable_seats(second_org)
     user = factories.UserFactory(sub="seat-user")
     first = factories.MembershipFactory(
         organization=first_org, user=user, is_primary=True
@@ -99,6 +113,7 @@ def test_seat_command_rejects_a_forged_payload_hash():
 
 def test_seat_command_replay_and_payload_conflict():
     membership = factories.MembershipFactory()
+    _enable_seats(membership.organization)
     command_id = uuid.uuid4()
 
     first = work_governance.change_seat(membership, desired=True, command_id=command_id)
@@ -115,6 +130,7 @@ def test_seat_command_replay_and_payload_conflict():
 
 def test_seat_event_rows_are_immutable():
     membership = factories.MembershipFactory()
+    _enable_seats(membership.organization)
     event = work_governance.change_seat(membership, desired=True)
 
     with pytest.raises(DatabaseError):
@@ -127,6 +143,7 @@ def test_seat_event_rows_are_immutable():
 
 def test_seat_change_rolls_back_when_audit_write_fails():
     membership = factories.MembershipFactory()
+    _enable_seats(membership.organization)
     with mock.patch.object(
         models.AuditLog.objects, "create", side_effect=RuntimeError("audit failed")
     ):
@@ -142,6 +159,7 @@ def test_seat_change_rolls_back_when_audit_write_fails():
 @override_settings(OIDC_OP_JWKS_ENDPOINT="https://idp.example.test/jwks")
 def test_membership_api_seat_patch_produces_event():
     organization = factories.OrganizationFactory()
+    _enable_seats(organization)
     client, _actor = _admin_client(organization)
     membership = factories.MembershipFactory(organization=organization)
 
@@ -162,6 +180,7 @@ def test_membership_api_seat_patch_produces_event():
 
 def test_django_admin_seat_change_uses_the_same_producer():
     organization = factories.OrganizationFactory()
+    _enable_seats(organization)
     actor = factories.UserFactory(is_staff=True, is_superuser=True)
     membership = factories.MembershipFactory(organization=organization)
     membership.work_seat = True
@@ -267,6 +286,7 @@ def test_governance_endpoint_requires_its_dedicated_identity(client):
 )
 def test_governance_endpoint_empty_paginated_and_cursor_contract(client):
     organization = factories.OrganizationFactory()
+    _enable_seats(organization)
     empty = _event_payload(client, organization)
     assert empty == {"events": [], "latest_event_seq": 0, "gap": None}
 
@@ -304,6 +324,7 @@ def test_governance_endpoint_empty_paginated_and_cursor_contract(client):
 )
 def test_governance_gap_alerts_but_keeps_the_read_port_open(client, caplog):
     organization = factories.OrganizationFactory()
+    _enable_seats(organization)
     membership = factories.MembershipFactory(organization=organization)
     work_governance.change_seat(membership, desired=True)
     models.WorkGovernanceSequence.objects.filter(organization=organization).update(
@@ -330,6 +351,7 @@ def test_governance_gap_alerts_but_keeps_the_read_port_open(client, caplog):
 )
 def test_governance_interior_gap_returns_the_next_extant_event(client, caplog):
     organization = factories.OrganizationFactory()
+    _enable_seats(organization)
     first_membership = factories.MembershipFactory(organization=organization)
     first = work_governance.change_seat(first_membership, desired=True)
     models.WorkGovernanceSequence.objects.filter(organization=organization).update(

@@ -33,13 +33,17 @@ const server = createServer({
     response.setHeader('Content-Type', 'application/json')
     response.end(JSON.stringify(value))
   }
-  if (request.method !== 'POST' || request.url !== '/work-host/v3/sessions/verify') return send(404, { code: 'not_found' })
+  const pathname = new URL(request.url, 'https://fixture.invalid').pathname
+  if (request.method !== 'POST' || !['/work-host/v2/sessions/verify', '/work-host/v3/sessions/verify'].includes(pathname)) return send(404, { code: 'not_found' })
   const peer = request.socket.getPeerCertificate()
   if (!peer?.subject?.CN || peer.subject.CN !== 'work-control-plane') return send(401, { code: 'session_invalid' })
   const header = request.headers.authorization ?? ''
-  if (!header.startsWith('Bearer ')) return send(401, { code: 'session_invalid' })
+  const cookie = request.headers.cookie ?? ''
+  const session = cookie.match(/(?:^|;\s*)sessionid=([^;]+)/)?.[1]
+  const token = header.startsWith('Bearer ') ? header.slice(7) : session ? decodeURIComponent(session) : ''
+  if (!token) return send(401, { code: 'session_invalid' })
   try {
-    const { payload } = await jwtVerify(header.slice(7), jwks, { issuer })
+    const { payload } = await jwtVerify(token, jwks, { issuer })
     if (typeof payload.sub !== 'string' || !payload.sub) return send(401, { code: 'session_invalid' })
     console.log(`verify ok sub=${payload.sub} org=${org}`)
     return send(200, { subject_id: payload.sub, org_id: org, session_revision: 1, verified_at: new Date().toISOString() })

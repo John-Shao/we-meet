@@ -49,7 +49,7 @@ test('the baseline does not overstate completion', () => {
       index.gates.filter((entry) => entry.status === status).length,
     ]),
   );
-  assert.deepEqual(counts, { covered: 7, partial: 14, not_run: 5, out_of_scope: 3 });
+  assert.deepEqual(counts, { covered: 15, partial: 9, not_run: 1, out_of_scope: 4 });
   for (const entry of index.gates) {
     if (entry.status !== 'not_run') continue;
     assert.deepEqual(entry.evidence, [], `${entry.id} is not_run but claims executable evidence`);
@@ -57,16 +57,17 @@ test('the baseline does not overstate completion', () => {
   }
 });
 
-test('the only whole-gate exclusions carry the card E=B ruling verbatim', () => {
+test('the only whole-gate exclusions carry an authoritative ruling verbatim', () => {
   assert.deepEqual(
     index.gates.filter((entry) => entry.status === 'out_of_scope').map((entry) => entry.id).sort(),
-    ['EV116', 'EV63', 'EV95'],
+    ['EV106', 'EV116', 'EV63', 'EV95'],
   );
   assert.equal(byId.get('EV116').rulingQuote, '选择性云同步移出 R0b 本期');
   assert.equal(byId.get('EV63').rulingQuote, 'S1 设备公网模型入口砍，本机推理用 device_local');
   assert.equal(byId.get('EV95').rulingQuote, 'EV95（recovery 通道）');
-  assert.deepEqual([...OUT_OF_SCOPE_RULINGS.keys()].sort(), ['EV116', 'EV63', 'EV95']);
-  for (const id of ['EV116', 'EV63']) {
+  assert.equal(byId.get('EV106').rulingQuote, '本期 Host 不先发 `WorkMemberState`，也不先把 `Membership.work_seat` 转只读；改为在 Membership 之上提供统一适配层。');
+  assert.deepEqual([...OUT_OF_SCOPE_RULINGS.keys()].sort(), ['EV106', 'EV116', 'EV63', 'EV95']);
+  for (const id of ['EV116', 'EV63', 'EV106']) {
     const entry = byId.get(id);
     assert.ok(text(join(ROOT, entry.ruling)).includes(entry.rulingQuote));
   }

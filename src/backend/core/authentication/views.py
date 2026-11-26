@@ -13,6 +13,8 @@ tokens depends on the client's ``backchannelLogout`` switch and logout URL, whic
 are a production Keycloak configuration step (see :mod:`core.authentication.epochs`).
 """
 
+from django.utils import timezone
+
 from lasuite.oidc_login.views import (
     OIDCAuthenticationCallbackView,
     OIDCBackChannelLogoutView,
@@ -39,6 +41,7 @@ class WorkOIDCAuthenticationCallbackView(OIDCAuthenticationCallbackView):
         response = super().login_success()
         if fresh_login:
             bump_auth_epoch(user_id=self.user.pk)
+            self.request.session["auth_time"] = timezone.now().timestamp()
         return response
 
 

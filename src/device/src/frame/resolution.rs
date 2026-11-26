@@ -30,11 +30,20 @@ pub const SETTLEMENT_STATES: &[&str] = &["held", "settled", "released", "unknown
 /// The closed ack `state` set.
 pub const ACK_STATES: &[&str] = &["applied", "journal_row_missing", "conflict"];
 
+/// The closed resolution `delivery_state` set.
+pub const DELIVERY_STATES: &[&str] = &["not_applicable", "delivered", "undelivered"];
+/// The closed resolution `code` set. Both codes are degradation terminals and never
+/// prove non-execution.
+pub const DEGRADATION_CODES: &[&str] = &["evidence_unavailable", "evidence_exhausted"];
+
 /// A resolution validation failure.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ResolutionError {
     State,
+    DeliveryState,
+    Code,
     SettlementState,
+    UsageSource,
 }
 
 /// The operation_resolution body.
@@ -71,13 +80,29 @@ impl OperationResolutionBody {
         }
     }
 
-    /// Validate the closed `state` and `settlement_state` sets.
+    /// Validate the closed frame sets and the degradation invariants. A degradation
+    /// terminal must remain `failed/unknown/unavailable`: it resolves the journal row
+    /// but can never be interpreted as proof that the action did not execute.
     pub fn validate(&self) -> Result<(), ResolutionError> {
         if !RESOLUTION_STATES.contains(&self.state.as_str()) {
             return Err(ResolutionError::State);
         }
+        if !DELIVERY_STATES.contains(&self.delivery_state.as_str()) {
+            return Err(ResolutionError::DeliveryState);
+        }
         if !SETTLEMENT_STATES.contains(&self.settlement_state.as_str()) {
             return Err(ResolutionError::SettlementState);
+        }
+        if let Some(code) = self.code.as_deref() {
+            if !DEGRADATION_CODES.contains(&code) {
+                return Err(ResolutionError::Code);
+            }
+            if self.state != "failed" || self.settlement_state != "unknown" {
+                return Err(ResolutionError::SettlementState);
+            }
+            if self.usage_source.as_deref() != Some("unavailable") {
+                return Err(ResolutionError::UsageSource);
+            }
         }
         Ok(())
     }
@@ -149,6 +174,31 @@ mod tests {
         );
         assert_eq!(RESOLUTION_STATES.len(), 6);
         assert_eq!(SETTLEMENT_STATES.len(), 4);
+    }
+
+    #[test]
+    fn degradation_shape_is_closed_and_never_claims_settlement() {
+        for code in DEGRADATION_CODES {
+            let mut body = resolution("failed", "unknown");
+            body.code = Some((*code).into());
+            body.usage_source = Some("unavailable".into());
+            assert_eq!(body.validate(), Ok(()));
+
+            body.settlement_state = "settled".into();
+            assert_eq!(body.validate(), Err(ResolutionError::SettlementState));
+            body.settlement_state = "unknown".into();
+            body.state = "undelivered".into();
+            assert_eq!(body.validate(), Err(ResolutionError::SettlementState));
+            body.state = "failed".into();
+            body.usage_source = Some("provider".into());
+            assert_eq!(body.validate(), Err(ResolutionError::UsageSource));
+        }
+        let mut unknown_code = resolution("failed", "unknown");
+        unknown_code.code = Some("not_a_resolution_code".into());
+        assert_eq!(unknown_code.validate(), Err(ResolutionError::Code));
+        let mut bad_delivery = resolution("failed", "unknown");
+        bad_delivery.delivery_state = "pending".into();
+        assert_eq!(bad_delivery.validate(), Err(ResolutionError::DeliveryState));
     }
 
     #[test]

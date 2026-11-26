@@ -6,6 +6,8 @@ const { WorkApi, WorkApiError } = require("../dist/work/api.js");
 
 const pairingId = "12345678-1234-1234-1234-123456789012";
 const deviceId = "abcdefab-abcd-abcd-abcd-abcdefabcdef";
+const artifactId = "11111111-1111-4111-8111-111111111111";
+const approvalId = "33333333-3333-4333-8333-333333333333";
 const auth = () => ({ epoch: 1, signedIn: true, subject: "subject-1", access: async () => "work-test-token" });
 
 async function localServer(t, handler) {
@@ -45,6 +47,25 @@ test("the endpoint table is closed and every route carries the Bearer plane head
   await api.request("requestRenewal", { id: deviceId, body: {} });
   await api.request("confirmRenewal", { id: pairingId, body: {} });
   await api.request("revoke", { id: deviceId, body: {} });
+  await api.request("registerWorkspaceGrant", {
+    body: {
+      device_id: deviceId,
+      session_id: "44444444-4444-4444-8444-444444444444",
+      client_request_id: "grant-request-1",
+      grant: { root_identity_hash: "a".repeat(64) },
+    },
+  });
+  await api.request("createLocalArtifactVersion", {
+    id: artifactId,
+    body: { kind: "local", user_version_proof: { v: 1 } },
+    signature: "A".repeat(86),
+  });
+  await api.request("listApprovals", { query: { status: "pending", limit: 100, cursor: "next-page" } });
+  await api.request("getApproval", { id: approvalId });
+  await api.request("decideApproval", {
+    id: approvalId,
+    body: { client_request_id: "approval-request-1", decision: { v: 1, signature: "A".repeat(86) } },
+  });
   assert.deepEqual(seen.map((entry) => `${entry.method} ${entry.url}`), [
     "GET /work/v2/identity",
     "GET /work/v2/devices",
@@ -54,6 +75,11 @@ test("the endpoint table is closed and every route carries the Bearer plane head
     `POST /work/v2/devices/${deviceId}/certificate-renewals`,
     `POST /work/v2/devices/certificate-renewals/${pairingId}/confirm`,
     `POST /work/v2/devices/${deviceId}/revoke`,
+    "POST /work/v2/workspace-grants",
+    `POST /work/v2/artifacts/${artifactId}/versions`,
+    "GET /work/v2/approvals?status=pending&limit=100&cursor=next-page",
+    `GET /work/v2/approvals/${approvalId}`,
+    `POST /work/v2/approvals/${approvalId}/decisions`,
   ]);
   for (const entry of seen) {
     assert.equal(entry.headers.authorization, "Bearer work-test-token");
@@ -61,6 +87,12 @@ test("the endpoint table is closed and every route carries the Bearer plane head
     assert.equal(entry.headers["content-type"], "application/json");
   }
   assert.equal(seen[0].body, "");
+  assert.equal(seen[8].headers["x-device-signature"], undefined);
+  assert.equal(seen[9].headers["x-device-signature"], "A".repeat(86));
+  assert.equal(seen[10].headers["x-device-signature"], undefined);
+  assert.equal(seen[11].headers["x-device-signature"], undefined);
+  assert.equal(seen[12].headers["x-device-signature"], undefined);
+  assert.equal(JSON.parse(seen[12].body).decision.signature, "A".repeat(86));
   assert.deepEqual(JSON.parse(seen[2].body), { device_name: "test" });
 });
 
@@ -76,6 +108,12 @@ test("unclosed actions, ids and bodies are refused before any request", async (t
   await expectCode(api.request("identity", { id: pairingId }), "invalid_work_request");
   await expectCode(api.request("identity", { body: {} }), "invalid_work_request");
   await expectCode(api.request("pair", { body: { blob: "x".repeat(16385) } }), "invalid_work_request");
+  await expectCode(api.request("createLocalArtifactVersion", { id: artifactId, body: {} }), "invalid_work_request");
+  await expectCode(api.request("identity", { signature: "A".repeat(86) }), "invalid_work_request");
+  await expectCode(api.request("identity", { query: { status: "pending" } }), "invalid_work_request");
+  await expectCode(api.request("listApprovals", { query: { status: "approved" } }), "invalid_work_request");
+  await expectCode(api.request("listApprovals", { query: { cursor: "bad\0cursor" } }), "invalid_work_request");
+  await expectCode(api.request("createLocalArtifactVersion", { id: artifactId, body: {}, signature: "bad" }), "invalid_work_request");
   assert.equal(fetches, 0);
 });
 

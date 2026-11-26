@@ -300,7 +300,7 @@ func TestR0bGapAdvanceRefusesReportThatOmitsConsumedSeatEvent(t *testing.T) {
 		VALUES ('%s', 'member', 'sub_a', 'host_seat', 'seat_dropped', 1, 2, 3);
 	`, org, org, commandID, repeatHex(t, 64), org, reportID, org))
 	_, err := admin.Exec(testContext(t), fmt.Sprintf(
-		`SELECT work.advance_governance_event_cursor('%s', 5, '%s', 'TICKET-OMITTED', '%s', 'req-omitted')`,
+		`SELECT work.advance_governance_event_cursor('%s', 5, '%s', 'TICKET-OMITTED', '%s', 'req-omitted', ARRAY['org.work.seat.write'])`,
 		org, reportID, actor))
 	if err == nil {
 		t.Fatal("a gap report that omitted an already consumed seat event was accepted")
@@ -599,6 +599,7 @@ func governanceEventJSON(t *testing.T, seq int, commandID, subject string, desir
 	t.Helper()
 	return fmt.Sprintf(`{"event_seq": %d, "command_id": "%s", "kind": "seat",
 	  "target_subject_id": "%s", "desired": %t, "member_revision": %d,
+	  "org_revision": null, "permissions_revision": null,
 	  "payload_hash": "sha256:%s", "applied_at": "2026-11-01T00:00:00Z"}`,
 		seq, commandID, subject, desired, memberRevision, repeatHex(t, 64))
 }
@@ -759,9 +760,8 @@ func TestR0bGapReportAndCursorAdvanceAreTwoDistinctSteps(t *testing.T) {
 	org := "org_r0b_gap_advance"
 	seedRun(t, admin, org)
 	r0bAdmin(t, admin, org)
-	// The cursor command binds its actor to the session subject and to a projected
-	// administrator row (assert_org_admin), so the actor here is the owner the fixture
-	// writes rather than a free-text name.
+	// The cursor command binds its actor to the session subject and requires the
+	// Host-resolved org.work.seat.write permission, independent of the projected role.
 	actor := r0bAdminSubject(org)
 
 	// Out of order without Host's enumeration of the missing interval: nothing is
@@ -857,7 +857,7 @@ func TestR0bGapReportAndCursorAdvanceAreTwoDistinctSteps(t *testing.T) {
 	// A ticket is mandatory: it is the external-visibility control that replaces a
 	// second person under a one-person operations model.
 	if _, err := admin.Exec(testContext(t), fmt.Sprintf(
-		`SELECT work.advance_governance_event_cursor('%s', 5, '%s', '', '%s', 'req-blank')`,
+		`SELECT work.advance_governance_event_cursor('%s', 5, '%s', '', '%s', 'req-blank', ARRAY['org.work.seat.write'])`,
 		org, reportID, actor)); err == nil {
 		t.Fatal("a cursor advance without a ticket was accepted")
 	} else {
@@ -871,7 +871,7 @@ func TestR0bGapReportAndCursorAdvanceAreTwoDistinctSteps(t *testing.T) {
 		t.Fatalf("missing-ticket refusal changed deny state = %d active rows, want 1", got)
 	}
 	if _, err := admin.Exec(testContext(t), fmt.Sprintf(
-		`SELECT work.advance_governance_event_cursor('%s', 5, '%s', 'TICKET-7', '%s', 'req-no-proof')`,
+		`SELECT work.advance_governance_event_cursor('%s', 5, '%s', 'TICKET-7', '%s', 'req-no-proof', ARRAY['org.work.seat.write'])`,
 		org, newUUID(t), actor)); err == nil {
 		t.Fatal("a cursor advance without a Host interval proof was accepted")
 	} else {
@@ -885,7 +885,7 @@ func TestR0bGapReportAndCursorAdvanceAreTwoDistinctSteps(t *testing.T) {
 		t.Fatalf("no-proof refusal changed deny state = %d active rows, want 1", got)
 	}
 	if _, err := admin.Exec(testContext(t), fmt.Sprintf(
-		`SELECT work.advance_governance_event_cursor('%s', 0, '%s', 'TICKET-7', '%s', 'req-no-advance')`,
+		`SELECT work.advance_governance_event_cursor('%s', 0, '%s', 'TICKET-7', '%s', 'req-no-advance', ARRAY['org.work.seat.write'])`,
 		org, reportID, actor)); err == nil {
 		t.Fatal("a cursor advance that did not move forward was accepted")
 	} else {
@@ -902,7 +902,7 @@ func TestR0bGapReportAndCursorAdvanceAreTwoDistinctSteps(t *testing.T) {
 		t.Fatalf("cursor after proof/order refusals = %d, want 0", got)
 	}
 	if err := admin.QueryRow(testContext(t), fmt.Sprintf(
-		`SELECT work.advance_governance_event_cursor('%s', 5, '%s', 'TICKET-7', '%s', 'req-1')`,
+		`SELECT work.advance_governance_event_cursor('%s', 5, '%s', 'TICKET-7', '%s', 'req-1', ARRAY['org.work.seat.write'])`,
 		org, reportID, actor)).Scan(&payload); err != nil {
 		t.Fatal(err)
 	}
@@ -947,12 +947,12 @@ func TestR0bGapReportAndCursorAdvanceAreTwoDistinctSteps(t *testing.T) {
 
 	// Same request id replays; a second attempt against the consumed report does not.
 	if err := admin.QueryRow(testContext(t), fmt.Sprintf(
-		`SELECT work.advance_governance_event_cursor('%s', 5, '%s', 'TICKET-7', '%s', 'req-1')`,
+		`SELECT work.advance_governance_event_cursor('%s', 5, '%s', 'TICKET-7', '%s', 'req-1', ARRAY['org.work.seat.write'])`,
 		org, reportID, actor)).Scan(&payload); err != nil {
 		t.Fatalf("replaying the same request id failed: %v", err)
 	}
 	if _, err := admin.Exec(testContext(t), fmt.Sprintf(
-		`SELECT work.advance_governance_event_cursor('%s', 7, '%s', 'TICKET-8', '%s', 'req-2')`,
+		`SELECT work.advance_governance_event_cursor('%s', 7, '%s', 'TICKET-8', '%s', 'req-2', ARRAY['org.work.seat.write'])`,
 		org, reportID, actor)); err == nil {
 		t.Fatal("one gap report was consumed by two advances")
 	} else {
@@ -1125,7 +1125,7 @@ func TestR0bGovernanceIdentityCannotReachTheOtherSide(t *testing.T) {
 	// ...but may not jump the cursor, may not release a deny directly, and may not
 	// read or write the directory projection it is supposed to leave alone.
 	_, err := puller.Exec(ctx, fmt.Sprintf(
-		`SELECT work.advance_governance_event_cursor('%s', 9, gen_random_uuid(), 'T', 'a', 'r')`, org))
+		`SELECT work.advance_governance_event_cursor('%s', 9, gen_random_uuid(), 'T', 'a', 'r', ARRAY[]::text[])`, org))
 	assertPermissionDenied(t, err)
 	_, err = puller.Exec(ctx, fmt.Sprintf(
 		`SELECT work.release_restriction('%s', gen_random_uuid(), NULL, 9, 'a')`, org))
@@ -1580,116 +1580,179 @@ func TestR0bMassAbsenceThresholdAndRestore(t *testing.T) {
 	}
 }
 
-// TestR0bWorkSeatChangeDenyReleasePredicate is EV108: a work_seat_change deny created
-// by Work's撤座 saga has NULL host_revision (Host hasn't applied yet), and must be
-// released by comparing member_revision > release_floor_revision, NOT by comparing
-// host_revision. The counter-example is critical: if the release predicate compared
-// host_revision, NULL comparison would always be false, and the deny would stay active
-// forever - this is the P1 regression anchor. The test also verifies host_seat deny
-// follows the same path, and non-seat deny is not released together.
+func TestR0bGovernanceCursorRequiresSeatWritePermission(t *testing.T) {
+	dbName, admin := newGateDB(t)
+	org := "org_r0b_gap_permission"
+	seedRun(t, admin, org)
+	r0bAdmin(t, admin, org)
+	actor := r0bAdminSubject(org)
+	reportID := newUUID(t)
+	r0bExec(t, dbName, org, fmt.Sprintf(`
+		INSERT INTO work.governance_event_cursor (org_id, last_event_seq) VALUES ('%s', 0);
+		INSERT INTO work.governance_gap_report
+		  (org_id, gap_report_id, from_seq, to_seq_exclusive, seat_events, seat_event_count, host_fetch_seq)
+		VALUES ('%s', '%s', 1, 5, '[]'::jsonb, 0, 5);
+	`, org, org, reportID))
+
+	_, err := admin.Exec(testContext(t), fmt.Sprintf(
+		`SELECT work.advance_governance_event_cursor('%s', 5, '%s', 'TICKET-PERM', '%s', 'req-denied', ARRAY[]::text[])`,
+		org, reportID, actor))
+	assertPgMessage(t, err, "admin_access_denied")
+	_, err = admin.Exec(testContext(t), fmt.Sprintf(
+		`SELECT work.advance_governance_event_cursor('%s', 5, '%s', 'TICKET-PERM', '%s', 'req-legacy')`,
+		org, reportID, actor))
+	assertPgMessage(t, err, "admin_access_denied")
+	if got := scalarCount(t, admin,
+		`SELECT last_event_seq FROM work.governance_event_cursor WHERE org_id = $1`, org); got != 0 {
+		t.Fatalf("permission refusal advanced cursor to %d", got)
+	}
+
+	if _, err := admin.Exec(testContext(t), fmt.Sprintf(
+		`UPDATE work.member SET role = 'member' WHERE org_id = '%s' AND subject_id = '%s'`,
+		org, actor)); err != nil {
+		t.Fatal(err)
+	}
+	var payload []byte
+	if err := admin.QueryRow(testContext(t), fmt.Sprintf(
+		`SELECT work.advance_governance_event_cursor('%s', 5, '%s', 'TICKET-PERM', '%s', 'req-allowed', ARRAY['org.work.seat.write'])`,
+		org, reportID, actor)).Scan(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if got := scalarCount(t, admin,
+		`SELECT last_event_seq FROM work.governance_event_cursor WHERE org_id = $1`, org); got != 5 {
+		t.Fatalf("permission holder cursor = %d, want 5", got)
+	}
+}
+
+// TestR0bWorkSeatChangeDenyReleasePredicate is EV108: a pending Work撤座 saga plus
+// the real member projection trigger creates a work_seat_change deny with NULL
+// host_revision. A Host seat-grant command event must release it by comparing
+// member_revision > release_floor_revision, while a same-subject non-seat deny stays
+// active. The historical host_revision predicate is executed as a counterexample.
 func TestR0bWorkSeatChangeDenyReleasePredicate(t *testing.T) {
 	dbName, admin := newGateDB(t)
 	org := "org_r0b_seat_release"
-	seedRun(t, admin, org)
+	run := seedRun(t, admin, org)
 	r0bAdmin(t, admin, org)
 	ctx := testContext(t)
 
-	// Create a work_seat_change deny with NULL host_revision (Work撤座 saga step 1).
-	// The release_floor_revision is 0, meaning any member_revision > 0 can release it.
+	revision := scalarCount(t, admin,
+		`SELECT revision FROM work.member WHERE org_id = $1 AND subject_id = $2`, org, run.subject)
+	sagaCommandID := newUUID(t)
+	payloadHash := "sha256:" + repeatHex(t, 64)
 	r0bExec(t, dbName, org, fmt.Sprintf(`
-		INSERT INTO work.access_restriction
-		  (org_id, scope, subject_id, source, reason, epoch, release_floor_revision)
-		VALUES ('%s', 'member', 'sub_seat_test', 'work_seat_change', 'work_seat_saga_step1', 1, 0);
-	`, org))
+		INSERT INTO work.governance_change
+		  (id, org_id, command_id, actor_subject_id, logical_command, client_request_id,
+		   target_kind, target_id, payload_hash, expected_revision, state)
+		VALUES (%s, %s, %s, %s, 'seat.revoke', %s, 'seat', %s, %s, %d, 'pending');
+	`, quoteLiteral(newUUID(t)), quoteLiteral(org), quoteLiteral(sagaCommandID), quoteLiteral(run.subject),
+		quoteLiteral("req-seat-saga-"+sagaCommandID), quoteLiteral(run.subject),
+		quoteLiteral(payloadHash), revision))
 
-	// Verify: host_revision is NULL (the counter-example precondition).
-	hostRevNull := scalarCount(t, admin,
-		`SELECT CASE WHEN host_revision IS NULL THEN 1 ELSE 0 END
-		 FROM work.access_restriction WHERE org_id = $1 AND subject_id = 'sub_seat_test'`, org)
-	if hostRevNull != 1 {
-		t.Fatal("work_seat_change deny must have NULL host_revision")
+	directory := connect(t, testpg.DirectoryURL(dbName))
+	defer directory.Close(ctx)
+	if _, err := directory.Exec(ctx, "SET app.org_id = "+quoteLiteral(org)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := directory.Exec(ctx,
+		`SELECT work.sync_member_with_org_context($1, $2, 'active', 'owner', false, $3)`,
+		org, run.subject, revision+1); err != nil {
+		t.Fatalf("seat-losing projection failed: %v", err)
+	}
+	if got := scalarCount(t, admin, `SELECT CASE WHEN work_seat THEN 1 ELSE 0 END
+		FROM work.member WHERE org_id = $1 AND subject_id = $2`, org, run.subject); got != 0 {
+		t.Fatalf("member work_seat after saga projection = %d, want 0", got)
+	}
+	denyID := scalarString(t, admin, `SELECT id::text FROM work.access_restriction
+		WHERE org_id = $1 AND subject_id = $2 AND source = 'work_seat_change'`, org, run.subject)
+	if denyID == "" {
+		t.Fatal("seat-losing projection did not create a work_seat_change deny")
+	}
+	if got := scalarString(t, admin, `SELECT source || '/' || coalesce(host_revision::text, 'NULL') || '/' ||
+		release_floor_revision::text FROM work.access_restriction WHERE org_id = $1 AND id = $2`,
+		org, denyID); got != fmt.Sprintf("work_seat_change/NULL/%d", revision+1) {
+		t.Fatalf("saga deny shape = %s", got)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.cancellation_intent
+		WHERE org_id = $1 AND source_event_id = $2 AND reason = 'work_seat_lost'`, org, denyID); got != 1 {
+		t.Fatalf("saga cancellation intents = %d, want 1", got)
 	}
 
-	// Create a governance event that grants the seat back (kind=seat, desired=true).
-	// This event has member_revision=5, which is > release_floor_revision=0.
+	// The old positive predicate would keep this real deny active forever because
+	// host_revision is NULL. Execute it before consuming the Host command event.
+	if got := scalarString(t, admin, `SELECT CASE WHEN $2 > host_revision
+		THEN 'would_release' ELSE 'would_keep_active' END
+		FROM work.access_restriction WHERE org_id = $1 AND id = $3`,
+		org, revision+2, denyID); got != "would_keep_active" {
+		t.Fatalf("host_revision counterexample = %s", got)
+	}
+
 	puller := connect(t, testpg.GovernanceURL(dbName))
 	defer puller.Close(ctx)
 	if _, err := puller.Exec(ctx, "SET app.org_id = "+quoteLiteral(org)); err != nil {
 		t.Fatal(err)
 	}
-
-	eventSeq1 := governanceEvent(t, 1, newUUID(t), "sub_seat_test", true, 5)
-	stream := fmt.Sprintf(`jsonb_build_array(%s)`, eventSeq1)
+	event := fmt.Sprintf(`{"event_seq":1,"command_id":%q,"kind":"seat",
+		"target_subject_id":%q,"desired":true,"member_revision":%d,
+		"org_revision":null,"permissions_revision":null,"payload_hash":%q,
+		"applied_at":"2026-11-01T00:00:00Z"}`,
+		sagaCommandID, run.subject, revision+2, payloadHash)
 	var result []byte
 	if err := puller.QueryRow(ctx,
-		`SELECT work.consume_governance_events($1, `+stream+`, NULL, 0)`, org).Scan(&result); err != nil {
+		`SELECT work.consume_governance_events($1, jsonb_build_array($2::jsonb), NULL, 0)`, org, event).Scan(&result); err != nil {
 		t.Fatalf("consume seat grant event failed: %v", err)
 	}
-
-	// Verify: the deny is released with released_by_revision=5 (matching the event's member_revision).
-	releasedByRev := scalarCount(t, admin,
-		`SELECT released_by_revision FROM work.access_restriction
-		 WHERE org_id = $1 AND subject_id = 'sub_seat_test' AND state = 'released'`, org)
-	if releasedByRev != 5 {
-		t.Fatalf("released_by_revision = %d, want 5 (the event's member_revision)", releasedByRev)
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.consumed_governance_command
+		WHERE org_id = $1 AND command_id = $2 AND member_revision = $3`, org, sagaCommandID, revision+2); got != 1 {
+		t.Fatalf("consumed Host command rows = %d, want 1", got)
+	}
+	if got := scalarString(t, admin, `SELECT state || '/' || released_by_revision::text
+		FROM work.access_restriction WHERE org_id = $1 AND id = $2`, org, denyID); got != fmt.Sprintf("released/%d", revision+2) {
+		t.Fatalf("saga deny after Host event = %s", got)
+	}
+	if got := scalarString(t, admin, `SELECT metadata ->> 'command_id' FROM work.audit_event
+		WHERE org_id = $1 AND action = 'access_restriction.released' AND target_id = $2`,
+		org, denyID); got != sagaCommandID {
+		t.Fatalf("release audit command_id = %q, want %q", got, sagaCommandID)
 	}
 
-	// Counter-example assertion: if the release predicate had compared host_revision
-	// instead of release_floor_revision, the deny would still be active because
-	// NULL > anything is always false. We verify the deny IS released, proving the
-	// implementation uses release_floor_revision (the correct predicate).
-	activeCount := scalarCount(t, admin,
-		`SELECT count(*) FROM work.access_restriction
-		 WHERE org_id = $1 AND subject_id = 'sub_seat_test' AND state = 'active'`, org)
-	if activeCount != 0 {
-		t.Fatalf("work_seat_change deny still active = %d, want 0 (should be released by floor comparison)", activeCount)
-	}
-
-	// Now test host_seat deny follows the same path. Create a host_seat deny with
-	// host_revision=3 and release_floor_revision=2.
+	// A same-subject non-seat deny has a floor below both Host revisions. It must
+	// remain active, proving source isolation rather than a stale-revision refusal.
 	r0bExec(t, dbName, org, fmt.Sprintf(`
 		INSERT INTO work.access_restriction
 		  (org_id, scope, subject_id, source, reason, epoch, host_revision, release_floor_revision)
-		VALUES ('%s', 'member', 'sub_host_seat', 'host_seat', 'seat_dropped', 1, 3, 2);
-	`, org))
-
-	// Consume a seat grant event with member_revision=4 (> release_floor_revision=2).
-	eventSeq2 := governanceEvent(t, 2, newUUID(t), "sub_host_seat", true, 4)
-	stream2 := fmt.Sprintf(`jsonb_build_array(%s)`, eventSeq2)
+		VALUES (%s, 'member', %s, 'host_member', 'member_suspended', 1, %d, %d);
+	`, quoteLiteral(org), quoteLiteral(run.subject), revision+1, revision+1))
 	if err := puller.QueryRow(ctx,
-		`SELECT work.consume_governance_events($1, `+stream2+`, NULL, 0)`, org).Scan(&result); err != nil {
+		`SELECT work.consume_governance_events($1, jsonb_build_array($2::jsonb), NULL, 0)`,
+		org, governanceEventJSON(t, 2, newUUID(t), run.subject, true, revision+3)).Scan(&result); err != nil {
+		t.Fatalf("consume second Host event failed: %v", err)
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.access_restriction
+		WHERE org_id = $1 AND subject_id = $2 AND source = 'host_member' AND state = 'active'`,
+		org, run.subject); got != 1 {
+		t.Fatalf("non-seat deny active count = %d, want 1", got)
+	}
+
+	// host_seat uses the same command-event release path and is released independently.
+	r0bExec(t, dbName, org, fmt.Sprintf(`
+		INSERT INTO work.access_restriction
+		  (org_id, scope, subject_id, source, reason, epoch, host_revision, release_floor_revision)
+		VALUES (%s, 'member', %s, 'host_seat', 'seat_dropped', 1, %d, %d);
+	`, quoteLiteral(org), quoteLiteral(run.subject), revision+1, revision+1))
+	if err := puller.QueryRow(ctx,
+		`SELECT work.consume_governance_events($1, jsonb_build_array($2::jsonb), NULL, 0)`,
+		org, governanceEventJSON(t, 3, newUUID(t), run.subject, true, revision+4)).Scan(&result); err != nil {
 		t.Fatalf("consume host_seat grant event failed: %v", err)
 	}
-
-	// Verify: host_seat deny is released with released_by_revision=4.
-	hostSeatReleased := scalarCount(t, admin,
-		`SELECT released_by_revision FROM work.access_restriction
-		 WHERE org_id = $1 AND subject_id = 'sub_host_seat' AND state = 'released'`, org)
-	if hostSeatReleased != 4 {
-		t.Fatalf("host_seat released_by_revision = %d, want 4", hostSeatReleased)
+	if got := scalarCount(t, admin, `SELECT released_by_revision FROM work.access_restriction
+		WHERE org_id = $1 AND subject_id = $2 AND source = 'host_seat' AND state = 'released'`,
+		org, run.subject); got != revision+4 {
+		t.Fatalf("host_seat released_by_revision = %d, want %d", got, revision+4)
 	}
-
-	// Verify: non-seat deny (host_member) is NOT released by the seat grant event.
-	// Create a host_member deny with release_floor_revision=10.
-	r0bExec(t, dbName, org, fmt.Sprintf(`
-		INSERT INTO work.access_restriction
-		  (org_id, scope, subject_id, source, reason, epoch, host_revision, release_floor_revision)
-		VALUES ('%s', 'member', 'sub_host_member', 'host_member', 'member_suspended', 1, 5, 10);
-	`, org))
-
-	// Consume a seat grant event with member_revision=6 (< release_floor_revision=10).
-	eventSeq3 := governanceEvent(t, 3, newUUID(t), "sub_host_member", true, 6)
-	stream3 := fmt.Sprintf(`jsonb_build_array(%s)`, eventSeq3)
-	if err := puller.QueryRow(ctx,
-		`SELECT work.consume_governance_events($1, `+stream3+`, NULL, 0)`, org).Scan(&result); err != nil {
-		t.Fatalf("consume host_member event failed: %v", err)
-	}
-
-	// Verify: host_member deny is still active (member_revision=6 < release_floor_revision=10).
-	hostMemberActive := scalarCount(t, admin,
-		`SELECT count(*) FROM work.access_restriction
-		 WHERE org_id = $1 AND subject_id = 'sub_host_member' AND source = 'host_member' AND state = 'active'`, org)
-	if hostMemberActive != 1 {
-		t.Fatalf("host_member deny active count = %d, want 1 (should NOT be released by seat event)", hostMemberActive)
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.access_restriction
+		WHERE org_id = $1 AND subject_id = $2 AND source = 'host_member' AND state = 'active'`,
+		org, run.subject); got != 1 {
+		t.Fatalf("non-seat deny changed after host_seat release = %d, want 1 active", got)
 	}
 }

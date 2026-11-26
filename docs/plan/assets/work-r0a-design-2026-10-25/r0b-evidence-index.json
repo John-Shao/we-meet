@@ -18,7 +18,7 @@
       "requirement": "Host 授座命令事件按 revision 单调解除席位类 deny，重放/跳号/伪造/投影变化/超期与告警均不得静默放行。",
       "status": "partial",
       "gaps": [
-        "Host seat 命令重放/异 payload 冲突、专用 mTLS 读取与 Work HTTP→PG 消费已有证据；assignment/entitlement 生产者、>365 天运行期留存与生产告警投递尚未取证。",
+        "Host seat 命令重放/异 payload 冲突、专用 mTLS 读取与 Work HTTP→PG 消费已有证据；entitlement 生产者、Work mTLS Apply/Get 客户端与 operator 执行器已落地，>365 天运行期留存与生产告警投递尚未取证。",
         "生产 systemd unit、客户端证书、专用 DSN 与组织清单尚未部署；固定两步缺口恢复的 Work SQL 与拉取器分支已覆盖，但真实生产 Host→Work 全链仍未执行。"
       ],
       "evidence": [
@@ -30,6 +30,14 @@
         { "path": "src/backend/core/tests/test_work_governance_events.py", "test": "test_seat_command_replay_and_payload_conflict" },
         { "path": "src/backend/core/tests/test_work_governance_events.py", "test": "test_seat_command_rejects_a_forged_payload_hash" },
         { "path": "src/backend/core/tests/test_work_governance_events.py", "test": "test_django_admin_create_without_seat_does_not_revoke_existing_seat" },
+        { "path": "src/backend/core/tests/test_work_entitlement_commands.py", "test": "test_entitlement_apply_replay_get_and_governance_event" },
+        { "path": "src/backend/core/tests/test_work_entitlement_commands.py", "test": "test_entitlement_rejects_forgery_conflict_and_stale_revision" },
+        { "path": "src/work/internal/host/entitlement_test.go", "test": "TestExecutionEntitlementApplyAndGetThroughOperatorIdentity" },
+        { "path": "src/work/internal/host/entitlement_test.go", "test": "TestExecutionEntitlementPreservesHostConflictCode" },
+        { "path": "src/work/internal/operatorentitlement/executor_test.go", "test": "TestDisableLandsLocallyBeforeHostAndRestoreWaitsForAck" },
+        { "path": "src/work/internal/operatorentitlement/executor_test.go", "test": "TestHostTimeoutQueriesOriginalCommandBeforeAck" },
+        { "path": "src/work/internal/operatorentitlement/executor_test.go", "test": "TestUnknownHostOutcomeLeavesPendingAndSameRequestReplays" },
+        { "path": "src/work/internal/operatorentitlement/executor_test.go", "test": "TestHostConflictLeavesLocalCommandUnacknowledged" },
         { "path": "src/backend/core/tests/test_work_governance_events.py", "test": "test_governance_endpoint_requires_its_dedicated_identity" },
         { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bSeatDenyReleasedOnlyByCommandEvent" },
         { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bOrgNarrowingDenyIsCreatedAndReleasedByProjection" },
@@ -55,11 +63,8 @@
       "id": "EV86",
       "gate": "I1",
       "requirement": "mass-absence 默认闸与显式放行分别可验；放行时同事务写 host deny、提升 access_epoch 并取消，恢复遵循 host deny 规则。",
-      "status": "partial",
-      "gaps": [
-        "未断言 host_member/host_seat deny、access_epoch 与取消 outbox 的完整同事务差分。",
-        "未从真实 Host mass-absence 路径驱动。"
-      ],
+      "status": "covered",
+      "gaps": [],
       "evidence": [
         { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bMassAbsenceThresholdAndRestore" },
         { "path": "src/work/internal/directory/pg_test.go", "test": "TestMassAbsenceRequiresExplicitAllow" }
@@ -69,13 +74,11 @@
       "id": "EV106",
       "gate": "I1",
       "requirement": "跨库播种仅维护旗标期可写，逐 item snapshot_revision CAS，幂等与异 payload 冲突可验，并出具逐人报告。",
-      "status": "not_run",
-      "gaps": [
-        "SeedWorkMemberState 仍无生产者，也未找到直接门级测试；缺 dry_run、旗标、CAS 冲突、中断重放、异 payload、无投影回退与逐人报告。",
-        "TestR0bMemberProjectionTakesTheOrgLockFirst 只证明投影锁序，不能计作 EV106 播种协议覆盖。",
-        "未验证维护端口凭据执行后撤销。"
-      ],
-      "evidence": []
+      "status": "out_of_scope",
+      "gaps": [],
+      "evidence": [],
+      "ruling": "docs/work/design/work-r0b-control-design-2026-10-30.md",
+      "rulingQuote": "本期 Host 不先发 `WorkMemberState`，也不先把 `Membership.work_seat` 转只读；改为在 Membership 之上提供统一适配层。"
     },
     {
       "id": "EV107",
@@ -84,7 +87,7 @@
       "status": "partial",
       "gaps": [
         "Host 生产者、专用 mTLS 读取口与 Work HTTP→PG 拉取消费者已落地并取证；生产 unit、客户端证书、专用 DSN 与组织清单尚未部署。",
-        "org.work.seat.write 最终权限尚未落地，端点暂用 org admin 作为 interim gate；Host 目录列表仍逐 Membership 行输出，按人归并与 directory_revision 端到端隔离尚未验证。"
+        "生产 unit、客户端证书、专用 DSN 与组织清单尚未部署；Host 目录列表仍逐 Membership 行输出，按人归并与 directory_revision 端到端隔离尚未验证。"
       ],
       "evidence": [
         { "path": "src/work/internal/host/governance_integration_test.go", "test": "TestGovernanceHTTPPullerConsumesThroughDedicatedIdentity" },
@@ -106,47 +109,71 @@
       "id": "EV108",
       "gate": "I1",
       "requirement": "席位 deny 的解除比较 release_floor_revision 而非 host_revision，NULL host_revision 不阻断，且不连带释放非席位 deny。",
-      "status": "partial",
-      "gaps": [
-        "现有用例直接播种 deny，未串起 Work 撤座 saga 与 Host 授座事件。",
-        "未执行按 host_revision 比较导致 deny 永久 active 的变异反例。"
-      ],
+      "status": "covered",
+      "gaps": [],
       "evidence": [
-        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bWorkSeatChangeDenyReleasePredicate" }
+        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bWorkSeatChangeDenyReleasePredicate" },
+        { "path": "src/backend/core/tests/test_work_governance_events.py", "test": "test_membership_api_seat_patch_produces_event" },
+        { "path": "src/backend/core/tests/test_work_governance_events.py", "test": "test_governance_endpoint_empty_paginated_and_cursor_contract" },
+        { "path": "src/work/internal/host/governance_test.go", "test": "TestListGovernanceEventsUsesClosedWireContract" },
+        { "path": "src/work/internal/governance/store_test.go", "test": "TestPGStoreInitializesAndConsumesWithoutProjectionWrites" }
       ]
     },
     {
       "id": "EV117",
       "gate": "I1",
       "requirement": "governance gap report 由事件身份生成；四种报告输入只有齐备者可推进，随后授座事件能释放 reconcile_required deny。",
-      "status": "partial",
-      "gaps": [
-        "org.work.seat.write 最终权限尚未落地；端点暂用 org admin 作为 interim gate， viewer 拒绝已有断言，但尚未证明独立权限边界。"
-      ],
+      "status": "covered",
+      "gaps": [],
       "evidence": [
         { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bGapReportIsAForgeryProof" },
         { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bGapAdvanceRefusesReportThatOmitsConsumedSeatEvent" },
         { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bGapReportAndCursorAdvanceAreTwoDistinctSteps" },
+        { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bGovernanceCursorRequiresSeatWritePermission" },
         { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bGovernanceIdentityCannotReachTheOtherSide" },
         { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bAccessRestrictionShapeAndTerminalRelease" },
         { "path": "src/work/internal/api/admin_governance_cursor_test.go", "test": "TestAdminGovernanceEventCursorAdvance" },
-        { "path": "src/work/internal/api/admin_governance_cursor_test.go", "test": "TestAdminGovernanceEventCursorProofAndRecoveryChain" }
+        { "path": "src/work/internal/api/admin_governance_cursor_test.go", "test": "TestAdminGovernanceEventCursorRequiresSeatWritePermission" },
+        { "path": "src/work/internal/api/admin_governance_cursor_test.go", "test": "TestAdminGovernanceEventCursorProofAndRecoveryChain" },
+        { "path": "src/backend/core/tests/test_work_host_session_verify.py", "test": "test_optional_permissions_are_resolved_per_request" },
+        { "path": "src/backend/core/tests/test_work_host_bearer_verify.py", "test": "test_optional_permissions_include_work_assignment" },
+        { "path": "src/backend/core/tests/test_work_governance_assignments.py", "test": "test_owner_grants_revokes_and_emits_assignment_events" },
+        { "path": "src/backend/core/tests/test_work_governance_assignments.py", "test": "test_django_admin_assignment_surface_is_read_only" },
+        { "path": "src/backend/core/tests/test_work_governance_assignments.py", "test": "test_work_assignment_does_not_widen_legacy_admin_roles" }
       ]
     },
     {
       "id": "EV70",
       "gate": "I2",
       "requirement": "同根改绑仅取代未执行步骤并重新审批，已派发步骤只核账；跨根/复制目录/跨设备 proof 拒绝，正向 succession 可零审批自动放行同类只读。",
-      "status": "partial",
-      "gaps": [
-        "未覆盖已派发/待审批/已授权三类步骤的完整取代链和 old→new grant UI。",
-        "未覆盖子树、epoch、到期以及跨设备 GrantSuccessionProof 的负例。"
-      ],
+      "status": "covered",
+      "gaps": [],
       "evidence": [
         { "path": "src/work/internal/api/local_workspace_rebinds_test.go", "test": "TestWorkspaceRebindCreateAndReplay" },
         { "path": "src/work/internal/api/local_workspace_rebinds_test.go", "test": "TestWorkspaceRebindIdentityChanged" },
+        { "path": "src/work/internal/api/local_workspace_rebinds_test.go", "test": "TestWorkspaceRebindRejectsForeignRootAndForeignDeviceProof" },
+        { "path": "src/work/internal/api/local_workspace_rebinds_test.go", "test": "TestWorkspaceRebindRejectsTamperedExpiredAndWrongKeyProofs" },
+        { "path": "src/work/internal/api/device_broker_interop_test.go", "test": "TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate" },
+        { "path": "src/work/internal/devicesig/grantsuccession_test.go", "test": "TestVerifyGrantSuccessionCrossLanguage" },
+        { "path": "src/work/internal/migrate/r0b_grant_succession_proof_test.go", "test": "TestR0bGrantSuccessionProofClosedShape" },
+        { "path": "src/work/internal/migrate/r0b_grant_succession_proof_test.go", "test": "TestR0bRebindProofFreshnessAndSessionBinding" },
+        { "path": "src/work/internal/migrate/r0b_grant_succession_proof_test.go", "test": "TestR0bRebindReplayReturnsBeforeProofExpiry" },
+        { "path": "src/device/src/broker.rs", "test": "choose_workspace_prepares_facts_then_confirm_registers_a_grant" },
+        { "path": "src/device/src/broker.rs", "test": "rebind_proof_is_root_bound_and_device_signed" },
+        { "path": "src/device/src/broker.rs", "test": "rebind_refuses_without_the_broker_session" },
+        { "path": "src/device/src/grant.rs", "test": "locations_equal_normalizes_prefix_and_case" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "grantWorkspace registers the server grant id with the Broker after native approval" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "cancelling the root dialog still sends approved:false so the Broker closes the handle" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "workspace rebind uses the Broker session and submits the exact succession proof" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "workspace rebind cancellation submits no REST request" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "workspace rebind refuses a proof for another run before REST" },
+        { "path": "src/frontend/src/features/work/r0b/components/RunWorkspaceRebind.test.tsx", "test": "offers only same-root successors and submits the selected pair" },
+        { "path": "src/frontend/e2e/work-r0a-consistency.spec.ts", "test": "desktop workspace rebind offers only same-root grants and submits the selected pair" },
         { "path": "src/work/internal/migrate/r0b_local_artifact_test.go", "test": "TestR0bRebindConsumesItsNonceOnceAndRollsItBackOnRefusal" },
         { "path": "src/work/internal/gateway/action_uplink_test.go", "test": "TestActionPrepareReadonlyGrantAutoApproves" },
+        { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bReadonlyGrantMissesReturnToAskEach" },
+        { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bWorkspaceRebindLeavesDispatchedStepForReceiptReconciliation" },
+        { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bWorkspaceRebindThreeStateChainAndReadonlySuccession" },
         { "path": "src/frontend/src/features/work/r0b/components/RunReadonlyGrants.test.tsx", "test": "revokes only after a second click, against the revision the row was read at" }
       ]
     },
@@ -232,11 +259,22 @@
       "id": "EV72",
       "gate": "I3",
       "requirement": "本机内容窗口不执行原始 HTML、不加载外链，拒绝导航/新窗口/权限请求，系统级零出网与 DNS 预取。",
-      "status": "not_run",
+      "status": "partial",
       "gaps": [
-        "本机内容窗口尚无实现与门级测试；缺网络/DNS 抓包、webRequest 取消记录和 DOM 快照。"
+        "真实 Electron DOM 快照、textContent 安全渲染、fetch 拒绝与新窗口拒绝已执行；真实 Windows 系统级抓包、DNS 日志与独立 webRequest 取消记录尚未执行。"
       ],
-      "evidence": []
+      "evidence": [
+        { "path": "src/desktop/tests/work-viewer-smoke.test.cjs", "test": "real Electron viewer enforces DOM network cookie and process isolation" },
+        { "path": "src/desktop/tests/work-viewer-protocol.test.cjs", "test": "viewer scheme privileges are minimal and never bypass CSP" },
+        { "path": "src/desktop/tests/work-viewer-protocol.test.cjs", "test": "viewer serves only bundle assets with no-store and nosniff" },
+        { "path": "src/desktop/tests/work-viewer-protocol.test.cjs", "test": "viewer rejects traversal, encoded separators, foreign schemes and unclosed asset types" },
+        { "path": "src/desktop/tests/work-viewer-protocol.test.cjs", "test": "viewer refuses oversized assets" },
+        { "path": "src/desktop/tests/viewer-bundle.test.cjs", "test": "viewer renders untrusted content only through textContent" },
+        { "path": "src/desktop/tests/viewer-bundle.test.cjs", "test": "viewer accepts only closed text formats and bounded payloads" },
+        { "path": "src/desktop/tests/viewer-bundle.test.cjs", "test": "viewer bundle has no active-content or network escape hatch" },
+        { "path": "src/desktop/tests/viewer-bundle.test.cjs", "test": "desktop build ships the viewer bundle beside the protocol handler" },
+        { "path": "src/desktop/tests/work-viewer.test.cjs", "test": "viewer requests cannot escape the signed local scheme" }
+      ]
     },
     {
       "id": "EV73",
@@ -244,25 +282,88 @@
       "requirement": "主窗口不持有本机正文，Composer stage 后清空；仅 viewer 主 frame 可发送六类闭集消息，对象与发送方校验拒绝。",
       "status": "partial",
       "gaps": [
-        "仅有 IPC schema 测试；未实现主窗口哨兵扫描、Composer 清空、对象绑定与伪造 frame 的完整负例。",
-        "未覆盖 confirmLocalWrite 三值与 signObjectProof 的 frame 行为。"
+        "artifact_version 正文加密持久化/重启读取与 UserVersionProof 服务端 ES256 验签已闭合；0076 以 owner/device/session SECURITY DEFINER getter 修复取键的 0024 表权限违规，work_api 仍零表权限。artifact_edit 的 task_id/auth_epoch/base 元数据链、本机 base 校验、pending_confirm→pending_publish→published、discard/cancel、30 分钟懒过期、单飞与真实 Electron 编辑/确认手势已落地。任务页草稿列表/恢复入口已接通，pending_publish 可重试原 proof，expired 可只读展示并处置。prepare 的 base→目标字节数/差值摘要已接通。发布后已在原 grant/root 身份匹配时于 WeMeet成果 create-new 写入可见副本，copy_state=written；重试只接受同 hash/size 的既有文件，否则保留 published/pending。approval 已在 action_prepared 到达时封存完整 canonical Action，run_transcript 已在 loop_end 封存完整 messages，均可按 approval_id/run_id 解密读取；任务页已提供运行过程安全查看入口。0075 已把审批 proof signature 改为 base64url ES256，Rust 20 键生产、Go API owner/device/session 限定验签、viewer 批准/拒绝与主进程 REST 提交已闭合。任务页已通过桌面 Bearer 桥分页读取待审批元数据并按 task 过滤，只调用 openLocalContent 在安全 viewer 打开正文，决定事件回刷投影。主窗口 DOM/Web Storage/IndexedDB 的运行态唯一正文哨兵扫描已通过，viewer 拒绝手势的真实 Electron 回归也已通过。remember_readonly 已由 0077 owner-scoped scope getter、viewer 复选框、主进程精确 scope/24h expiry 与 Broker proof 生产闭合，Rust/Go/SQL 统一 grant_revision 为 canonical 字符串；真实 exe fixture↔真 PostgreSQL/API 全链已通过，真实 Windows Broker→REST 审批决定链也已执行（Broker 从当前 journal session 生成 ES256 proof，REST 验签并落 approved）；桌面 viewer→真实 REST→真实设备的单一进程端到端链与外部审计仍未执行。"
       ],
       "evidence": [
+        { "path": "src/work/internal/devicesig/userversion_test.go", "test": "TestVerifyUserVersionCrossLanguage" },
+        { "path": "src/work/internal/devicesig/userversion_test.go", "test": "TestVerifyUserVersionBindsEveryFieldAndType" },
+        { "path": "src/work/internal/api/local_artifact_versions_test.go", "test": "TestLocalArtifactVersionRequiresDeviceSignature" },
+        { "path": "src/work/internal/migrate/r0b_user_version_signing_key_test.go", "test": "TestUserVersionSigningKeyIsOwnerSessionScoped" },
+        { "path": "src/device/src/userversion.rs", "test": "signs_and_verifies_the_closed_proof" },
+        { "path": "src/device/src/journal/local_content.rs", "test": "sealed_body_survives_journal_reopen" },
+        { "path": "src/device/src/broker.rs", "test": "open_local_content_returns_closed_viewer_body_for_artifact_version" },
+        { "path": "src/device/src/broker.rs", "test": "open_local_content_rejects_unknown_kinds_and_extra_fields" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "openLocalContent returns validated viewer text only for an available artifact" },
+        { "path": "src/desktop/tests/work-viewer-smoke.test.cjs", "test": "real Electron viewer enforces DOM network cookie and process isolation" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "stageLocalInput returns only validated ref/hash/byte metadata" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "stageLocalInput refuses invalid text before touching the Broker" },
+        { "path": "src/frontend/src/features/work/r0a/components/Composer.test.tsx", "test": "stages a local draft through the desktop bridge and clears composer text" },
+        { "path": "src/frontend/src/features/work/r0a/components/Composer.test.tsx", "test": "keeps composer text when local staging fails" },
+        { "path": "src/desktop/tests/work-viewer.test.cjs", "test": "viewer payloads bind the current object and consume authorized requests" },
+        { "path": "src/desktop/tests/work-viewer.test.cjs", "test": "viewer artifact edits and local write actions use closed payloads" },
+        { "path": "src/desktop/tests/work-viewer-smoke.test.cjs", "test": "real Electron viewer enforces DOM network cookie and process isolation" },
         { "path": "src/device/src/ipc/schema.rs", "test": "viewer_closure_has_six_members" },
         { "path": "src/device/src/ipc/schema.rs", "test": "cross_channel_method_rejected" },
         { "path": "src/device/src/ipc/ticket.rs", "test": "refuses_every_unclosed_or_mistyped_message" },
-        { "path": "src/device/src/ipc/ticket.rs", "test": "the_method_is_in_the_shell_closure_and_not_the_viewer_closure" }
+        { "path": "src/device/src/ipc/ticket.rs", "test": "the_method_is_in_the_shell_closure_and_not_the_viewer_closure" },
+        { "path": "src/desktop/tests/work-viewer.test.cjs", "test": "viewer message closure is separate from the shell and forbids arbitrary targets" },
+        { "path": "src/desktop/tests/work-viewer.test.cjs", "test": "viewer sender must be the bound webContents main frame" },
+        { "path": "src/device/src/journal/local_content.rs", "test": "draft_seals_replays_and_enforces_single_flight" },
+        { "path": "src/device/src/journal/local_content.rs", "test": "draft_cancel_discard_and_expiry_are_terminal_for_reads" },
+        { "path": "src/device/src/journal/local_content.rs", "test": "draft_confirmation_signs_closed_proof_and_replays_until_published" },
+        { "path": "src/device/src/broker.rs", "test": "prepare_local_artifact_edit_carries_task_context_without_body_reply" },
+        { "path": "src/device/src/broker.rs", "test": "confirm_local_artifact_edit_returns_proof_without_body_and_completes_ack" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "local artifact edit carries task context, signs, publishes and completes the ack" },
+        { "path": "src/desktop/tests/work-api.test.cjs", "test": "the endpoint table is closed and every route carries the Bearer plane headers" },
+        { "path": "src/desktop/tests/work-viewer-smoke.test.cjs", "test": "real Electron viewer enforces DOM network cookie and process isolation" },
+        { "path": "src/device/src/broker.rs", "test": "list_local_artifact_drafts_returns_closed_metadata_only" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "local artifact drafts are discoverable and reopen without renderer body bytes" },
+        { "path": "src/desktop/tests/viewer-bundle.test.cjs", "test": "viewer resumes only closed retained draft metadata" },
+        { "path": "src/frontend/src/features/work/r0a/routes/ArtifactWorkspacePage.test.tsx", "test": "lists local drafts and reopens the selected retained draft" },
+        { "path": "src/frontend/src/features/work/r0a/routes/TaskWorkspacePage.test.tsx", "test": "opens the run transcript only through the desktop viewer bridge" },
+        { "path": "src/device/src/journal/local_content.rs", "test": "approval_body_is_encrypted_idempotent_and_not_a_deliverable" },
+        { "path": "src/device/src/broker.rs", "test": "open_local_content_returns_validated_approval_body" },
+        { "path": "src/device/src/nodeservice.rs", "test": "prepared_model_action_is_journaled_before_permit_for_finish_hash_parity" },
+        { "path": "src/device/src/journal/local_content.rs", "test": "transcript_body_is_encrypted_and_not_a_deliverable" },
+        { "path": "src/device/src/broker.rs", "test": "open_local_content_returns_validated_run_transcript" },
+        { "path": "src/device/src/nodeservice.rs", "test": "pipe_loop_dispatches_a_tool_call_and_exits_on_loop_end" },
+        { "path": "src/work/node/device-bundle/test/bundle.test.mjs", "test": "loop_end transcript shape is closed and validated" },
+        { "path": "src/device/src/nodeservice.rs", "test": "user_edit_copy_is_create_new_verified_and_idempotent" },
+        { "path": "src/device/src/approvaldecision.rs", "test": "produces_the_closed_signed_decision" },
+        { "path": "src/work/internal/devicesig/approval_test.go", "test": "TestVerifyApprovalDecisionCrossLanguage" },
+        { "path": "src/work/internal/devicesig/approval_test.go", "test": "TestVerifyApprovalDecisionBindsEveryFieldAndType" },
+        { "path": "src/work/internal/migrate/r0b_approval_decision_proof_test.go", "test": "TestApprovalDecisionProofRequiresES256SignatureShape" },
+        { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bApprovalDecisionConsumesItsNonceOnce" },
+        { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bWorkspaceRebindThreeStateChainAndReadonlySuccession" },
+        { "path": "src/work/internal/api/approvals_test.go", "test": "TestApprovalListGetDecide" },
+        { "path": "src/work/internal/api/approvals_test.go", "test": "TestApprovalDecisionRejectsInvalidSignature" },
+        { "path": "src/work/internal/api/device_broker_interop_test.go", "test": "TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate" },
+        { "path": "src/device/src/broker.rs", "test": "prepare_local_approval_decision_returns_only_the_signed_proof" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "local approval reads metadata, signs through Broker and submits the closed proof" },
+        { "path": "src/work/internal/migrate/r0b_local_approval_readonly_scope_test.go", "test": "TestLocalApprovalReadonlyScopeIsExactAndOwnerScoped" },
+        { "path": "src/work/internal/api/approvals_test.go", "test": "TestApprovalDecisionCanRememberExactReadonlyScope" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "local approval can remember the exact server-issued readonly scope" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "local approval refuses a proof that does not bind the displayed decision" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "pending local approvals paginate and return only display metadata" },
+        { "path": "src/desktop/tests/work-api.test.cjs", "test": "unclosed actions, ids and bodies are refused before any request" },
+        { "path": "src/frontend/src/features/work/r0b/components/RunPendingApprovals.test.tsx", "test": "shows only this task and opens the approval body through the secure bridge" },
+        { "path": "src/frontend/src/features/work/r0b/components/RunPendingApprovals.test.tsx", "test": "refreshes after the main process reports a decision" },
+        { "path": "src/frontend/e2e/work-r0b-approval.spec.ts", "test": "task page opens pending approval metadata only through the secure bridge" },
+        { "path": "src/desktop/tests/work-viewer.test.cjs", "test": "viewer approval decisions use the server vocabulary and bind the request" },
+        { "path": "src/desktop/tests/work-viewer-smoke.test.cjs", "test": "real Electron viewer enforces DOM network cookie and process isolation" }
       ]
     },
     {
       "id": "EV99",
       "gate": "I3",
       "requirement": "viewer 使用隔离 sandbox、无 node/devtools/spellcheck/preload、空 partition+cache:false，与主窗口存储缓存不共享。",
-      "status": "not_run",
-      "gaps": [
-        "尚无 viewer webPreferences 快照、分区/Cookie jar 隔离、进程与网络观测测试。"
-      ],
-      "evidence": []
+      "status": "covered",
+      "gaps": [],
+      "evidence": [
+        { "path": "src/desktop/tests/work-viewer-smoke.test.cjs", "test": "real Electron viewer enforces DOM network cookie and process isolation" },
+        { "path": "src/desktop/tests/work-viewer.test.cjs", "test": "viewer window uses a dedicated preload and an empty non-persistent partition" },
+        { "path": "src/desktop/tests/work-viewer.test.cjs", "test": "viewer requests cannot escape the signed local scheme" }
+      ]
     },
     {
       "id": "EV116",
@@ -280,14 +381,28 @@
       "requirement": "本机采纳 proof 由 viewer signObjectProof 手势签署，缺手势或伪造 frame 时零请求零写；purpose 仅 accept。",
       "status": "partial",
       "gaps": [
-        "尚无 viewer signObjectProof 手势与 principal/frame 强制实现。",
-        "未执行缺手势零抓包与 accept proof 的 purpose 对照；E=B 已移除恢复/读取票据/同步腿。"
+        "尚未执行真实 Electron viewer → 真实 Broker/设备 → 真实 REST 的采纳全链 E2E。",
+        "尚未执行缺手势时的 OS 层零请求/零写抓包；现有证据覆盖主进程无消息不调用与伪造 proof 拒绝。"
       ],
       "evidence": [
         { "path": "src/work/internal/api/local_acceptances_test.go", "test": "TestLocalAcceptanceCreateAndReplay" },
         { "path": "src/work/internal/api/local_acceptances_test.go", "test": "TestLocalAcceptanceNonceReuse" },
         { "path": "src/work/internal/api/local_acceptances_test.go", "test": "TestLocalAcceptanceWrongHash" },
         { "path": "src/work/internal/api/local_acceptances_test.go", "test": "TestLocalAcceptanceRequiresBearer" },
+        { "path": "src/work/internal/api/local_acceptances_test.go", "test": "TestLocalAcceptanceRequiresDeviceSignature" },
+        { "path": "src/work/internal/api/local_acceptances_test.go", "test": "TestLocalAcceptanceRejectsForgedDeviceSignature" },
+        { "path": "src/work/internal/api/local_acceptances_test.go", "test": "TestLocalAcceptanceRejectsForeignPrincipal" },
+        { "path": "src/work/internal/api/local_acceptances_test.go", "test": "TestLocalAcceptanceRejectsProofBeyondThirtySecondWindow" },
+        { "path": "src/work/internal/devicesig/possession_test.go", "test": "TestPossessionProofClosedShapeAndSignature" },
+        { "path": "src/device/src/possession.rs", "test": "produces_and_verifies_the_closed_acceptance_proof" },
+        { "path": "src/device/src/broker.rs", "test": "prepare_local_acceptance_returns_only_bound_proof_metadata" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "local acceptance binds the viewer request, Broker proof and REST submission" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "local acceptance refuses a proof for another version before REST" },
+        { "path": "src/desktop/tests/work-viewer.test.cjs", "test": "viewer payloads bind the current object and consume authorized requests" },
+        { "path": "src/desktop/tests/work-viewer-smoke.test.cjs", "test": "real Electron viewer enforces DOM network cookie and process isolation" },
+        { "path": "src/frontend/src/features/work/r0a/routes/ArtifactWorkspacePage.test.tsx", "test": "opens the secure local acceptance gesture instead of cookie-plane acceptance on desktop" },
+        { "path": "src/frontend/src/features/work/r0a/routes/ArtifactWorkspacePage.test.tsx", "test": "never falls back to cookie-plane acceptance when desktop version proof metadata is missing" },
+        { "path": "src/frontend/e2e/work-r0a-consistency.spec.ts", "test": "desktop acceptance opens the secure viewer instead of calling the cookie plane" },
         { "path": "src/device/src/ipc/schema.rs", "test": "viewer_closure_has_six_members" },
         { "path": "src/device/src/ipc/schema.rs", "test": "viewer_methods_accepted" }
       ]
@@ -296,12 +411,11 @@
       "id": "EV51",
       "gate": "I4",
       "requirement": "撤权前已 recorded 的 receipt 正常核账；撤权后迟到回执不再接受，unknown 走服务端降级；compromised 只隔离。",
-      "status": "partial",
-      "gaps": [
-        "未覆盖撤权前已 recorded receipt 的正常核账、撤权后迟到回执拒绝，以及 started-only 的服务端降级。",
-        "未覆盖 compromised 证据隔离与私钥丢失 unresolved；E=B 已移除 recovery 限流腿。"
-      ],
+      "status": "covered",
+      "gaps": [],
       "evidence": [
+        { "path": "src/work/internal/migrate/r0b_revocation_accounting_test.go", "test": "TestR0bRecordedReceiptSurvivesCompromisedDeviceRevocation" },
+        { "path": "src/work/internal/migrate/r0b_revocation_accounting_test.go", "test": "TestR0bPrivateKeyLossKeepsStartedOnlyUnknownUntilServerEvidence" },
         { "path": "src/work/internal/migrate/r0b_device_slice_test.go", "test": "TestR0bDeviceRevokeWritesCancellationIntent" },
         { "path": "src/work/internal/gateway/receipt_uplink_test.go", "test": "TestReceiptRejectsRevokedDevice" },
         { "path": "src/work/internal/migrate/r0b_finish_ownership_test.go", "test": "TestR0bFinishRefusesRevokedDeviceEvenOnReplay" }
@@ -323,7 +437,6 @@
       "requirement": "停用组织、停用执行与授座并发遵守权威顺序；降 seat_limit 不撤人；未决 Apply 冲突且 revision 单调。",
       "status": "partial",
       "gaps": [
-        "未从真实 Host ChangeSeat 路径断言 enabled=false 的 org_execution_disabled。",
         "未执行跨系统并发时序与全部 deny 来源恢复矩阵。"
       ],
       "evidence": [
@@ -331,21 +444,23 @@
         { "path": "src/work/internal/migrate/r0b_entitlement_test.go", "test": "TestR0bOperatorRestoreWaitsForTheHostAckAndReleasesOnlyItsOwn" },
         { "path": "src/work/internal/migrate/r0b_entitlement_test.go", "test": "TestR0bSeatLimitChangeIsNotADenySource" },
         { "path": "src/work/internal/migrate/r0b_entitlement_test.go", "test": "TestR0bEntitlementReceiptIsIdempotent" },
-        { "path": "src/work/internal/migrate/org_execution_split_test.go", "test": "TestOrgExecutionGuardSplitsByTriggerCondition" }
+        { "path": "src/work/internal/migrate/org_execution_split_test.go", "test": "TestOrgExecutionGuardSplitsByTriggerCondition" },
+        { "path": "src/backend/core/tests/test_work_entitlement_commands.py", "test": "test_native_membership_api_cannot_grant_seat_while_disabled" },
+        { "path": "src/backend/core/tests/test_work_entitlement_commands.py", "test": "test_change_seat_enforces_entitlement_and_counts_people" },
+        { "path": "src/backend/core/tests/test_work_entitlement_commands.py", "test": "test_lowering_seat_limit_never_revokes_an_existing_seat" }
       ]
     },
     {
       "id": "EV100",
       "gate": "I4",
       "requirement": "未 ack resolution 每次建会话重推；无 journal 行回 journal_row_missing/not_applicable，ack 不阻塞 Run 终态。",
-      "status": "partial",
-      "gaps": [
-        "未执行丢 ack 后换会话的集成重推与永久失联时间线。",
-        "未断言 Run 终态独立于 ack；E=B 后 recovery-only/run_sealed 腿移出。"
-      ],
+      "status": "covered",
+      "gaps": [],
       "evidence": [
         { "path": "src/work/internal/migrate/r0b_pending_resolutions_test.go", "test": "TestR0bPendingResolutionsSkipsTerminalWatermarksAndOmitsSignature" },
+        { "path": "src/work/internal/migrate/r0b_pending_resolutions_test.go", "test": "TestR0bRunFinishDoesNotWaitForResolutionAck" },
         { "path": "src/work/internal/gateway/resolution_downlink_test.go", "test": "TestResolutionDownlinkPushAndAck" },
+        { "path": "src/work/internal/gateway/resolution_downlink_test.go", "test": "TestResolutionDownlinkRepushesUnackedOnReconnect" },
         { "path": "src/device/src/reconcile/resolution.rs", "test": "missing_row_acks_journal_row_missing" }
       ]
     },
@@ -356,7 +471,7 @@
       "status": "partial",
       "gaps": [
         "控制面五项前置、unknown 预留保留、成果零新增、active-session 阻断、经 retry_task/accept_task 的新 Run/采纳非对称结果与审计依据（lease 到期/身份、显式 caller_attestation provenance 的 journal 声明、无 receipt/gate/usage/provider 事实、工单）已补齐；wait_reason=input 的“继续/起新 Run/结束”三出口与无假重试 UI 尚未实现/取证。",
-        "降级 operation_resolution 的 gateway-wire 与真实设备送达尚未取证；现有设备证据仅为 resolution 消费单测。"
+        "真实设备端到端送达尚未取证；gateway-wire 的降级码/unknown 结算/服务端签名与 Rust 帧消费、拒绝伪 settled 已覆盖。"
       ],
       "evidence": [
         { "path": "src/work/internal/migrate/r0b_resolution_test.go", "test": "TestR0bReadonlyDegradationReconcilesAndKeepsTheReservation" },
@@ -368,6 +483,10 @@
         { "path": "src/work/internal/migrate/r0b_resolution_test.go", "test": "TestR0bReconciliationsReadFaceIsTheJ38Query" },
         { "path": "src/work/internal/migrate/r0b_resolution_test.go", "test": "TestR0bReconciliationsReadTreatsMalformedHistoricalEvidenceAsNoSources" },
         { "path": "src/work/internal/api/run_reconciliations_test.go", "test": "TestRunReconciliationsReadFace" },
+        { "path": "src/work/internal/gateway/resolution_downlink_test.go", "test": "TestResolutionDownlinkDegradationKeepsUnknownSettlement" },
+        { "path": "src/device/src/frame/resolution.rs", "test": "degradation_shape_is_closed_and_never_claims_settlement" },
+        { "path": "src/device/src/reconcile/resolution.rs", "test": "degradation_frames_resolve_unknown_without_settlement_or_result" },
+        { "path": "src/device/src/reconcile/resolution.rs", "test": "signed_degradation_cannot_claim_settlement" },
         { "path": "src/frontend/src/features/work/r0b/components/RunReconciliations.test.tsx", "test": "shows the wait clock, J38 state, authority, evidence and contact path" },
         { "path": "src/device/src/reconcile/resolution.rs", "test": "degradation_never_proves_non_execution" }
       ]
@@ -376,14 +495,12 @@
       "id": "EV115",
       "gate": "I4",
       "requirement": "终态后 tombstone 清理受 recorded release 水位与 terminal finish ack 驱动；丢 ack/失联不阻塞终态，重放幂等。",
-      "status": "partial",
-      "gaps": [
-        "只有组件级水位/ack 测试，未执行丢 ack、重建会话和永久失联的集成时间线。",
-        "E=B 后 run_sealed/recovery-only 腿移出，需按 finish ack+resolution 载体补齐剩余断言。"
-      ],
+      "status": "covered",
+      "gaps": [],
       "evidence": [
         { "path": "src/device/src/reconcile/watermark.rs", "test": "tombstone_gate_requires_all_conditions" },
         { "path": "src/device/src/reconcile/watermark.rs", "test": "cleanup_only_when_terminal_and_gate_satisfied" },
+        { "path": "src/device/src/reconcile/watermark.rs", "test": "lost_ack_reconnect_and_permanent_loss_keep_cleanup_monotonic" },
         { "path": "src/device/src/finish/ack.rs", "test": "accepted_verdict_records_the_terminal_revision" },
         { "path": "src/device/src/finish/ack.rs", "test": "reapplying_the_same_verdict_is_idempotent" },
         { "path": "src/work/internal/migrate/r0b_pending_resolutions_test.go", "test": "TestR0bPendingResolutionsSkipsTerminalWatermarksAndOmitsSignature" }
@@ -458,12 +575,17 @@
       "id": "EV118",
       "gate": "I5",
       "requirement": "只 list local_only 根仍可发远程动作，read 后 prepare/permit 拒绝并释放预留；输出根 local_only 同样拒绝，预览/确认页提前告知。",
-      "status": "not_run",
+      "status": "partial",
       "gaps": [
-        "E=B 移除了 org_remote/org_private 本机 Run 模型消费点，但范围修订未给 EV118 一份保留腿的改写 oracle；当前两组证据都针对已移除的远程目的地。",
-        "保留的目的地谓词、local_only 输出根与 list/read 分类差分没有直接 EV118 用例；UI 警告与 permit 释放也未运行。"
+        "E=B 后远程模型消费已移出，但保留的目的地谓词已有直接真库证据：list-only 不进入 (A) 仍按 (B) 压为 local_only；read taint 在 prepare 前拒绝且零 Operation/Approval/预留；local_only 输出根单独进入 (A) 并零副作用拒绝。",
+        "0079 已闭合 permit 拒绝语义：目的地闸命中后持久化 canceled、释放 held 预留、零 dispatch，且 claim 不再重试；正常 permit 与已有 dispatch 重放仍委托原 0069 路径。预览/确认页提前告警与真实远程消费 E2E 仍未执行。"
       ],
-      "evidence": []
+      "evidence": [
+        { "path": "src/work/internal/migrate/r0b_local_artifact_test.go", "test": "TestR0bListOnlyInputPassesDestinationGateButFloorsArtifact" },
+        { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bPrepareRefusesANonDeviceDestinationOnceTheRunHasLocalOnlyInput" },
+        { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bPermitConsumptionReChecksTheDestinationFromServerFacts" },
+        { "path": "src/work/internal/migrate/r0b_local_artifact_test.go", "test": "TestR0bEV118LocalOnlyOutputRootBlocksRemotePrepare" }
+      ]
     },
     {
       "id": "EV121",

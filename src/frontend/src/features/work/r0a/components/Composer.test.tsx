@@ -110,6 +110,7 @@ const setup = async () => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  delete window.weMeetDesktop
   vi.mocked(api.fetchWorkTemplates).mockResolvedValue({ items: templates })
   vi.mocked(api.createWorkInput).mockReset().mockResolvedValue(input)
   vi.mocked(api.createWorkPreview).mockReset().mockResolvedValue(preview)
@@ -272,6 +273,109 @@ describe('Composer preview generations', () => {
     expect(await screen.findByText('errors.resyncRequired')).toBeInTheDocument()
     expect(
       screen.queryByText('事件游标已过期，请重新同步。')
+    ).not.toBeInTheDocument()
+  })
+
+  it('stages a local draft through the desktop bridge and clears composer text', async () => {
+    const stageLocalInput = vi.fn().mockResolvedValue({
+      localInputRef: '12345678-1234-4234-8234-123456789abc',
+      contentHash: `sha256:${'a'.repeat(64)}`,
+      byteCount: 27,
+    })
+    Object.defineProperty(window, 'weMeetDesktop', {
+      configurable: true,
+      value: { isDesktop: true, platform: 'win32', work: { stageLocalInput } },
+    })
+    await setup()
+    fireEvent.change(screen.getByLabelText('composer.background'), {
+      target: { value: 'local background' },
+    })
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    fireEvent.click(screen.getByRole('button', { name: 'composer.stageLocal' }))
+    await screen.findByText('composer.localDraftSaved')
+    expect(stageLocalInput).toHaveBeenCalledWith(
+      'original goal\n\nlocal background'
+    )
+    expect(screen.getByLabelText('composer.goal')).toHaveValue('')
+    expect(screen.getByLabelText('composer.background')).toHaveValue('')
+    expect(api.createWorkInput).not.toHaveBeenCalled()
+    expect(api.createWorkPreview).not.toHaveBeenCalled()
+    expect(setItem).not.toHaveBeenCalled()
+    setItem.mockRestore()
+  })
+
+  it('submits a staged local draft with the selected workspace grant', async () => {
+    const grantId = '12345678-1234-4234-8234-123456789abc'
+    const submitLocalTask = vi.fn().mockResolvedValue({
+      taskId: 'local-task',
+      runId: 'local-run',
+      revision: 1,
+      bindingRevision: 1,
+      taskState: 'open',
+      displayState: 'queued',
+      inputRef: '12345678-1234-4234-8234-123456789abd',
+    })
+    Object.defineProperty(window, 'weMeetDesktop', {
+      configurable: true,
+      value: {
+        isDesktop: true,
+        platform: 'win32',
+        work: {
+          stageLocalInput: vi.fn().mockResolvedValue({
+            localInputRef: '12345678-1234-4234-8234-123456789abd',
+            contentHash: `sha256:${'a'.repeat(64)}`,
+            byteCount: 27,
+          }),
+          listWorkspaceGrants: vi.fn().mockResolvedValue([
+            {
+              grantId,
+              rootIdentityHash: `sha256:${'b'.repeat(64)}`,
+              artifactDir: ['WeMeet成果'],
+            },
+          ]),
+          submitLocalTask,
+        },
+      },
+    })
+    await setup()
+    fireEvent.click(screen.getByRole('button', { name: 'composer.stageLocal' }))
+    const submit = await screen.findByRole('button', {
+      name: 'composer.submitLocal',
+    })
+    expect(submit).toBeEnabled()
+    fireEvent.click(submit)
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith('/work/items/local-task')
+    )
+    expect(submitLocalTask).toHaveBeenCalledWith({
+      clientRequestId: expect.any(String),
+      inputRef: '12345678-1234-4234-8234-123456789abd',
+      inputHash: `sha256:${'a'.repeat(64)}`,
+      inputBytes: 27,
+      title: 'original goal',
+      templateId: 'summary',
+      templateVersion: 1,
+      permissionMode: 'ask_each',
+      outputFormat: 'text/markdown',
+      selectedGrantIds: [grantId],
+    })
+    expect(api.createWorkInput).not.toHaveBeenCalled()
+    expect(api.createWorkPreview).not.toHaveBeenCalled()
+    expect(api.submitWorkTask).not.toHaveBeenCalled()
+  })
+
+  it('keeps composer text when local staging fails', async () => {
+    const stageLocalInput = vi.fn().mockRejectedValue(new Error('offline'))
+    Object.defineProperty(window, 'weMeetDesktop', {
+      configurable: true,
+      value: { isDesktop: true, platform: 'win32', work: { stageLocalInput } },
+    })
+    await setup()
+    fireEvent.click(screen.getByRole('button', { name: 'composer.stageLocal' }))
+    await screen.findByText('errors.generic')
+    expect(screen.getByLabelText('composer.goal')).toHaveValue('original goal')
+    expect(
+      screen.queryByText('composer.localDraftSaved')
     ).not.toBeInTheDocument()
   })
 

@@ -26,6 +26,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64ct::Encoding;
+use serde_json::Value;
 
 use crate::key::{DeviceKey, KeyError};
 use crate::transport::ClientIdentity;
@@ -219,6 +220,40 @@ impl Identity {
             org_id,
             subject_id,
         )
+    }
+
+    pub fn sign_grant_succession(
+        &mut self,
+        proof: &Value,
+        org_id: &str,
+        subject_id: &str,
+    ) -> Result<String, IdentityError> {
+        if !proof.is_object() || org_id.is_empty() || subject_id.is_empty() {
+            return Err(IdentityError::Shape);
+        }
+        if self.signed_org.as_deref() != Some(org_id)
+            || self.signed_subject.as_deref() != Some(subject_id)
+        {
+            return Err(IdentityError::NoPairing);
+        }
+        crate::grantsuccession::sign(self.key.as_ref(), proof).map_err(|_| IdentityError::Sign)
+    }
+
+    pub fn sign_local_intent(
+        &mut self,
+        proof: &Value,
+        org_id: &str,
+        subject_id: &str,
+    ) -> Result<String, IdentityError> {
+        if !proof.is_object() || org_id.is_empty() || subject_id.is_empty() {
+            return Err(IdentityError::Shape);
+        }
+        if self.signed_org.as_deref() != Some(org_id)
+            || self.signed_subject.as_deref() != Some(subject_id)
+        {
+            return Err(IdentityError::NoPairing);
+        }
+        crate::frame::intent::sign(self.key.as_ref(), proof).map_err(|_| IdentityError::Sign)
     }
 
     fn sign_for(
@@ -585,6 +620,13 @@ pub(crate) fn test_identity() -> Identity {
         Arc::new(crate::key::SoftwareKey::random()),
     )
     .expect("test identity")
+}
+
+#[cfg(test)]
+pub(crate) fn test_identity_with_device(device_id: &str) -> Identity {
+    let mut identity = test_identity();
+    identity.device_id = Some(device_id.to_string());
+    identity
 }
 
 #[cfg(test)]

@@ -2,6 +2,10 @@ package api_test
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/we-meet/work/internal/api"
+	"github.com/we-meet/work/internal/devicesig"
 	"github.com/we-meet/work/internal/testpg"
 )
 
@@ -69,6 +74,23 @@ func userVersionProof(deviceID, sessionID, taskID, artifactID, baseHash, version
 		baseHash, versionID, strings.Repeat("c", 64), requestID, nonce)
 }
 
+func signUserVersionProof(t *testing.T, proof string) string {
+	t.Helper()
+	preimage, err := devicesig.SignedPayload(devicesig.UserVersionProofType, []byte(proof))
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256(preimage)
+	r, s, err := ecdsa.Sign(rand.Reader, deviceTestPrivateKey(), digest[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	signature := make([]byte, 64)
+	r.FillBytes(signature[:32])
+	s.FillBytes(signature[32:])
+	return base64.RawURLEncoding.EncodeToString(signature)
+}
+
 func setupLocalSave(t *testing.T) (*httptest.Server, string, string, string, string, string, string) {
 	t.Helper()
 	pool, dbName := newBootstrapDB(t, false, false)
@@ -88,7 +110,7 @@ func TestLocalArtifactVersionCreateAndReplay(t *testing.T) {
 	body := `{"kind":"local","client_request_id":"save-0001","device_id":"` + deviceID +
 		`","session_id":"` + sessionID + `","local_ref":"local/new.md","user_version_proof":` + proof + `}`
 
-	response := deviceRequest(t, http.MethodPost, server.URL+path, body)
+	response := deviceRequest(t, http.MethodPost, server.URL+path, body, signUserVersionProof(t, proof))
 	if response.StatusCode != http.StatusCreated {
 		t.Fatalf("create status = %d body=%s", response.StatusCode, readBody(response))
 	}
@@ -102,7 +124,7 @@ func TestLocalArtifactVersionCreateAndReplay(t *testing.T) {
 	}
 
 	// The same request id replays the stored version without consuming the nonce again.
-	replay := decodeObject(t, deviceRequest(t, http.MethodPost, server.URL+path, body))
+	replay := decodeObject(t, deviceRequest(t, http.MethodPost, server.URL+path, body, signUserVersionProof(t, proof)))
 	if replay["replayed"] != true || replay["version_id"] != versionID {
 		t.Fatalf("replay = %#v", replay)
 	}
@@ -127,8 +149,21 @@ func TestLocalArtifactVersionStaleBaseIsConflict(t *testing.T) {
 		"77777777-7777-4777-8777-777777777777", "save-stale1", "nonce-stale-1")
 	body := `{"kind":"local","client_request_id":"save-stale1","device_id":"` + deviceID +
 		`","session_id":"` + sessionID + `","local_ref":"local/new.md","user_version_proof":` + proof + `}`
-	assertAPICode(t, deviceRequest(t, http.MethodPost, server.URL+path, body),
+	assertAPICode(t, deviceRequest(t, http.MethodPost, server.URL+path, body, signUserVersionProof(t, proof)),
 		http.StatusConflict, "content_on_original_device")
+}
+
+func TestLocalArtifactVersionRequiresDeviceSignature(t *testing.T) {
+	server, deviceID, sessionID, taskID, artifactID, _, baseHash := setupLocalSave(t)
+	path := strings.ReplaceAll(api.LocalArtifactVersionsPath, "{artifactId}", artifactID)
+	proof := userVersionProof(deviceID, sessionID, taskID, artifactID, baseHash,
+		"77777777-7777-4777-8777-777777777777", "save-signature", "nonce-signature-1")
+	body := `{"kind":"local","client_request_id":"save-signature","device_id":"` + deviceID +
+		`","session_id":"` + sessionID + `","local_ref":"local/new.md","user_version_proof":` + proof + `}`
+	assertAPICode(t, deviceRequest(t, http.MethodPost, server.URL+path, body),
+		http.StatusBadRequest, "invalid_request")
+	assertAPICode(t, deviceRequest(t, http.MethodPost, server.URL+path, body, "not-a-signature"),
+		http.StatusUnauthorized, "unauthorized")
 }
 
 func TestLocalArtifactVersionRequiresBearer(t *testing.T) {

@@ -2,13 +2,15 @@ package api_test
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/we-meet/work/internal/api"
+	"github.com/we-meet/work/internal/devicesig"
 	"github.com/we-meet/work/internal/testpg"
 )
 
@@ -68,18 +70,46 @@ func seedLocalApproval(t *testing.T, dbName, deviceID, wsGrantID string) (string
 	return approvalID, operationID, runID
 }
 
-// approvalProof renders a shape-valid ApprovalDecisionProof (the 20-key closed set
-// approval_decision_proof_valid checks). The signature is format-only at this layer;
-// real device-signature verification belongs to the M3 device gateway.
-func approvalProof(deviceID, sessionID, approvalID, operationID, decision, nonce string) string {
-	return fmt.Sprintf(`{
-		"v":1,"org_id":%q,"subject_id":%q,"auth_plane":"bearer","auth_epoch":4,
-		"device_id":%q,"session_id":%q,"approval_id":%q,"operation_id":%q,
-		"params_hash":%q,"expected_revision":0,"decision":%q,"remember_readonly":false,
-		"readonly_scope":null,"readonly_expires_at":null,"policy_epoch":0,"access_epoch":0,
-		"nonce":%q,"expires_at":"2027-01-01T00:00:00Z","signature":"sha256:%s"}`,
-		testOrg, testSubject, deviceID, sessionID, approvalID, operationID,
-		strings.Repeat("c", 64), decision, nonce, strings.Repeat("a", 64))
+// approvalProof signs the closed 20-key ApprovalDecisionProof with the paired device key.
+func approvalProof(t *testing.T, deviceID, sessionID, approvalID, operationID, decision, nonce string) string {
+	t.Helper()
+	return approvalProofWithScope(t, deviceID, sessionID, approvalID, operationID, decision, nonce, nil)
+}
+
+func approvalProofWithScope(t *testing.T, deviceID, sessionID, approvalID, operationID, decision, nonce string, readonlyScope map[string]any) string {
+	t.Helper()
+	var readonlyExpiresAt any
+	if readonlyScope != nil {
+		readonlyExpiresAt = time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	}
+	proof := map[string]any{
+		"v": 1, "org_id": testOrg, "subject_id": testSubject, "auth_plane": "bearer",
+		"auth_epoch": "4", "device_id": deviceID, "session_id": sessionID,
+		"approval_id": approvalID, "operation_id": operationID,
+		"params_hash": strings.Repeat("c", 64), "expected_revision": "0",
+		"decision": decision, "remember_readonly": readonlyScope != nil,
+		"readonly_scope": readonlyScope, "readonly_expires_at": readonlyExpiresAt,
+		"policy_epoch": "0", "access_epoch": "0", "nonce": nonce,
+		"expires_at": time.Now().Add(4 * time.Minute).UTC().Format(time.RFC3339),
+	}
+	raw, err := json.Marshal(proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	preimage, err := devicesig.SignedPayload(devicesig.ApprovalDecisionProofType, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signature, err := devicesig.SignES256(deviceTestPrivateKey(), preimage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proof["signature"] = signature
+	signed, err := json.Marshal(proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(signed)
 }
 
 func setupApproval(t *testing.T) (*httptest.Server, string, string, string, string, string) {
@@ -123,17 +153,23 @@ func TestApprovalListGetDecide(t *testing.T) {
 	if detail["id"] != approvalID || detail["params_hash"] != strings.Repeat("c", 64) {
 		t.Fatalf("detail = %#v", detail)
 	}
+	scope, _ := detail["readonly_scope"].(map[string]any)
+	if tools, _ := scope["tool_set"].([]any); len(tools) != 1 || tools[0] != "workspace.read" ||
+		scope["resource_selector_hash"] != strings.Repeat("e", 64) || scope["grant_revision"] != "1" ||
+		scope["grant_id"] == nil {
+		t.Fatalf("readonly scope = %#v", detail["readonly_scope"])
+	}
 
-	// A proof whose params_hash disagrees with the approval is stale, not decided.
+	// A proof changed after signing is refused before the domain transaction.
 	decisionPath := strings.ReplaceAll(api.ApprovalDecisionPath, "{approvalId}", approvalID)
-	badProof := strings.ReplaceAll(approvalProof(deviceID, sessionID, approvalID, operationID, "approved", "nonce-bad-1"),
+	badProof := strings.ReplaceAll(approvalProof(t, deviceID, sessionID, approvalID, operationID, "approved", "nonce-bad-1"),
 		strings.Repeat("c", 64), strings.Repeat("9", 64))
 	stale := deviceRequest(t, http.MethodPost, server.URL+decisionPath,
 		`{"client_request_id":"dec-bad-0001","decision":`+badProof+`}`)
-	assertAPICode(t, stale, http.StatusConflict, "run_not_active")
+	assertAPICode(t, stale, http.StatusUnauthorized, "unauthorized")
 
 	// The matching proof approves; the operation becomes authorized.
-	proof := approvalProof(deviceID, sessionID, approvalID, operationID, "approved", "nonce-ok-1")
+	proof := approvalProof(t, deviceID, sessionID, approvalID, operationID, "approved", "nonce-ok-1")
 	response := deviceRequest(t, http.MethodPost, server.URL+decisionPath,
 		`{"client_request_id":"dec-ok-0001","decision":`+proof+`}`)
 	if response.StatusCode != http.StatusOK {
@@ -158,6 +194,55 @@ func TestApprovalListGetDecide(t *testing.T) {
 	}
 	if allowed, _ := after["allowed_decisions"].([]any); len(allowed) != 0 {
 		t.Fatalf("allowed_decisions after = %#v", after["allowed_decisions"])
+	}
+}
+
+func TestApprovalDecisionCanRememberExactReadonlyScope(t *testing.T) {
+	server, _, deviceID, sessionID, approvalID, operationID := setupApproval(t)
+	detailPath := strings.ReplaceAll(api.ApprovalDetailPath, "{approvalId}", approvalID)
+	detail := decodeObject(t, deviceRequest(t, http.MethodGet, server.URL+detailPath, ""))
+	scope, _ := detail["readonly_scope"].(map[string]any)
+	if scope == nil {
+		t.Fatalf("approval detail has no readonly scope: %#v", detail)
+	}
+	proof := approvalProofWithScope(t, deviceID, sessionID, approvalID, operationID, "approved", "nonce-remember-api", scope)
+	decisionPath := strings.ReplaceAll(api.ApprovalDecisionPath, "{approvalId}", approvalID)
+	response := deviceRequest(t, http.MethodPost, server.URL+decisionPath,
+		`{"client_request_id":"dec-remember-api","decision":`+proof+`}`)
+	decided := decodeObject(t, response)
+	if decided["decision"] != "approved" || decided["readonly_grant_id"] == nil {
+		t.Fatalf("remembered decision = %#v", decided)
+	}
+	runID, _ := detail["run_id"].(string)
+	csrf := bootstrapCSRF(t, server.URL)
+	grants := decodeObject(t, taskRequest(t, http.MethodGet,
+		server.URL+api.ReadonlyGrantsPath+"?run_id="+runID, csrf, ""))
+	items, _ := grants["grants"].([]any)
+	if len(items) != 1 {
+		t.Fatalf("remembered grants = %#v", grants)
+	}
+}
+
+func TestApprovalDecisionRejectsInvalidSignature(t *testing.T) {
+	server, _, deviceID, sessionID, approvalID, operationID := setupApproval(t)
+	path := strings.ReplaceAll(api.ApprovalDecisionPath, "{approvalId}", approvalID)
+	proof := approvalProof(t, deviceID, sessionID, approvalID, operationID, "approved", "nonce-forged-1")
+	var object map[string]any
+	if err := json.Unmarshal([]byte(proof), &object); err != nil {
+		t.Fatal(err)
+	}
+	object["signature"] = strings.Repeat("A", 86)
+	forged, err := json.Marshal(object)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := deviceRequest(t, http.MethodPost, server.URL+path,
+		`{"client_request_id":"dec-forged-01","decision":`+string(forged)+`}`)
+	assertAPICode(t, response, http.StatusUnauthorized, "unauthorized")
+	detail := decodeObject(t, deviceRequest(t, http.MethodGet,
+		server.URL+strings.ReplaceAll(api.ApprovalDetailPath, "{approvalId}", approvalID), ""))
+	if detail["status"] != "pending" {
+		t.Fatalf("forged decision changed approval status: %#v", detail)
 	}
 }
 

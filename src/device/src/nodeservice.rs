@@ -166,6 +166,19 @@ impl WorkspaceExecutor {
         (input_ref, sealed.hash().to_string(), sealed.len())
     }
 
+    pub fn staged_input_hash(&self, input_ref: &str) -> Option<String> {
+        if !self
+            .staged_input_refs
+            .iter()
+            .any(|value| value == input_ref)
+        {
+            return None;
+        }
+        self.bodies
+            .get(input_ref)
+            .map(|bytes| crate::sha256_hex(bytes))
+    }
+
     // ---- confirmation flow (device-side half; the dialog UI is the shell's) ----
 
     /// Bind a root and produce the confirmation request, holding the handle under a token. The shell
@@ -173,15 +186,16 @@ impl WorkspaceExecutor {
     pub fn prepare_root(
         &mut self,
         selected_path: &str,
-    ) -> Result<(String, RootConfirmation), ExecError> {
+    ) -> Result<(String, RootConfirmation, String), ExecError> {
         let (root, confirmation) =
             crate::grant::prepare_root_confirmation(selected_path).map_err(|e| match e {
                 crate::grant::GrantError::Root(err) => err,
                 _ => ExecError::Io,
             })?;
+        let root_identity_hash = crate::grant::root_identity_hash(&root);
         let token = uuid::Uuid::new_v4().to_string();
         self.pending_roots.insert(token.clone(), root);
-        Ok((token, confirmation))
+        Ok((token, confirmation, root_identity_hash))
     }
 
     /// Register a confirmed root grant (approve) or drop the held handle (cancel). Returns the
@@ -202,6 +216,23 @@ impl WorkspaceExecutor {
             self.grants
                 .register(grant_id.to_string(), root, artifact_dir),
         )
+    }
+
+    pub fn same_root_identity(
+        &self,
+        old_grant_id: &str,
+        new_grant_id: &str,
+    ) -> Result<String, ExecError> {
+        let old = self.grants.get(old_grant_id).ok_or(ExecError::NotFound)?;
+        let new = self.grants.get(new_grant_id).ok_or(ExecError::NotFound)?;
+        if old.root_identity_hash != new.root_identity_hash {
+            return Err(ExecError::WorkspaceChanged);
+        }
+        Ok(old
+            .root_identity_hash
+            .strip_prefix("sha256:")
+            .unwrap_or(&old.root_identity_hash)
+            .to_string())
     }
 
     /// Probe a local model endpoint and produce the confirmation request, holding the identity.
@@ -343,6 +374,14 @@ impl WorkspaceExecutor {
             return nodemsg::tool_blocked(tool_call_id, "lease_expired", true, true);
         }
         // 4. Handle-relative execution.
+        let write_body = if is_write {
+            args["body_ref"]
+                .as_str()
+                .and_then(|body_ref| self.bodies.get(body_ref).cloned())
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         match self.run_tool(&grant_id, tool_name, args, &|| ctx.allows_io()) {
             Ok(content) => {
                 // DD:137 — a successful artifact.write is a sealed deliverable the Broker itself
@@ -382,6 +421,13 @@ impl WorkspaceExecutor {
                             format: args["format"].as_str().unwrap_or("txt").to_string(),
                             content_hash: bare_hash,
                             byte_count,
+                            sealed_blob: write_body,
+                            grant_id: args["grant_id"].as_str().unwrap_or("").to_string(),
+                            root_identity_hash: self
+                                .grants
+                                .get(args["grant_id"].as_str().unwrap_or(""))
+                                .map(|grant| grant.root_identity_hash.clone())
+                                .unwrap_or_default(),
                         };
                         let _ = ctx.journal.request(JournalOp::RecordDeliverable {
                             facts: Box::new(facts),
@@ -481,6 +527,153 @@ impl WorkspaceExecutor {
             }),
             Some(JournalReply::Registered) | Some(JournalReply::JtiConsumed)
         )
+    }
+
+    fn record_prepared_approval(
+        &self,
+        ctx: &RunContext,
+        prepared: &crate::frame::action::ActionPreparedBody,
+        action_kind: &str,
+        request: &Value,
+    ) -> bool {
+        let Some(approval_id) = prepared.approval_id.as_deref() else {
+            return false;
+        };
+        if !prepared.needs_approval()
+            || approval_id.len() > 512
+            || request.to_string().len() > 1024 * 1024
+        {
+            return false;
+        }
+        let document = json!({
+            "approval_id": approval_id,
+            "operation_id": prepared.operation_id,
+            "logical_key": prepared.logical_key,
+            "step_key": prepared.step_key,
+            "state": prepared.state,
+            "classification": prepared.classification,
+            "destination_id": prepared.destination_id,
+            "request_hash": prepared.request_hash,
+            "action": {
+                "kind": action_kind,
+                "request": request,
+            },
+        });
+        let Ok(plaintext) = crate::frame::jcs::canonicalize(&document) else {
+            return false;
+        };
+        let row = crate::journal::local_content::DeliverableRow {
+            run_id: ctx.run_id.clone(),
+            operation_id: prepared.operation_id.clone(),
+            version_id: approval_id.to_string(),
+            logical_name: action_kind.to_string(),
+            format: "json".into(),
+            content_hash: format!("sha256:{}", crate::sha256_hex(&plaintext)),
+            byte_count: plaintext.len() as u64,
+            receipt_seq: None,
+            publish_state: "sealed".into(),
+        };
+        matches!(
+            ctx.journal.request(JournalOp::RecordLocalApproval {
+                org_id: ctx.org_id.clone(),
+                subject_id: ctx.subject_id.clone(),
+                approval_id: approval_id.to_string(),
+                row: Box::new(row),
+                plaintext,
+            }),
+            Some(JournalReply::Registered)
+        )
+    }
+
+    fn record_run_transcript(
+        &self,
+        ctx: &RunContext,
+        transcript_final: &Value,
+        turn_count: &str,
+    ) -> Result<(), String> {
+        let document = json!({
+            "run_id": ctx.run_id,
+            "turn_count": turn_count,
+            "messages": transcript_final["messages"],
+        });
+        let plaintext = crate::frame::jcs::canonicalize(&document)
+            .map_err(|_| "transcript canonicalization failed".to_string())?;
+        if plaintext.len() > 1024 * 1024 {
+            return Err("transcript exceeds local viewer limit".into());
+        }
+        let row = crate::journal::local_content::DeliverableRow {
+            run_id: ctx.run_id.clone(),
+            operation_id: String::new(),
+            version_id: ctx.run_id.clone(),
+            logical_name: "run_transcript".into(),
+            format: "json".into(),
+            content_hash: format!("sha256:{}", crate::sha256_hex(&plaintext)),
+            byte_count: plaintext.len() as u64,
+            receipt_seq: None,
+            publish_state: "sealed".into(),
+        };
+        match ctx.journal.request(JournalOp::RecordLocalTranscript {
+            org_id: ctx.org_id.clone(),
+            subject_id: ctx.subject_id.clone(),
+            run_id: ctx.run_id.clone(),
+            row: Box::new(row),
+            plaintext,
+        }) {
+            Some(JournalReply::Registered) => Ok(()),
+            _ => Err("transcript persistence failed".into()),
+        }
+    }
+
+    fn write_user_copy(
+        &self,
+        grant_ref: &str,
+        version_id: &str,
+        format: &str,
+        bytes: &[u8],
+        content_hash: &str,
+    ) -> Result<(), ExecError> {
+        let reference: Value = serde_json::from_str(grant_ref).map_err(|_| ExecError::NotFound)?;
+        let grant_id = reference["grant_id"].as_str().ok_or(ExecError::NotFound)?;
+        let expected_root = reference["root_identity_hash"]
+            .as_str()
+            .ok_or(ExecError::NotFound)?;
+        let grant = self.grants.get(grant_id).ok_or(ExecError::NotFound)?;
+        if grant.root_identity_hash != expected_root {
+            return Err(ExecError::WorkspaceChanged);
+        }
+        let extension = match format {
+            "md" => "md",
+            "json" => "json",
+            _ => "txt",
+        };
+        let file_name = format!("{version_id}.{extension}");
+        let live = || true;
+        let directory = tool_exec::walk(&grant.root, &grant.artifact_dir, true, &live)?;
+        let body = crate::tools::SealedBuffer::seal(bytes.to_vec());
+        let expected_hash = format!(
+            "sha256:{}",
+            content_hash.strip_prefix("sha256:").unwrap_or(content_hash)
+        );
+        match tool_exec::write_artifact_new(
+            &directory,
+            &file_name,
+            &body,
+            &expected_hash,
+            bytes.len() as u64,
+            &live,
+        ) {
+            Ok(_) => Ok(()),
+            Err(ExecError::WorkspaceChanged) => {
+                let mut segments = grant.artifact_dir.clone();
+                segments.push(file_name);
+                let existing = tool_exec::walk(&grant.root, &segments, false, &live)?;
+                let sealed = tool_exec::read_sealed(&existing, bytes.len() as u64, &live)?;
+                sealed
+                    .verify(&expected_hash, bytes.len() as u64)
+                    .map_err(|_| ExecError::WorkspaceChanged)
+            }
+            Err(error) => Err(error),
+        }
     }
 
     /// The handle-relative execution of one validated tool against its confirmed grant.
@@ -703,12 +896,14 @@ fn exec_refusal(tool_call_id: &str, err: ExecError) -> Value {
     nodemsg::tool_blocked(tool_call_id, reason, false, is_error)
 }
 
+type RootPreparation = Result<(String, RootConfirmation, String, String, String), String>;
+
 /// A request to the long-lived Node service thread. Confirmations and body sealing carry owned (Send)
 /// data; the `!Send` root handles stay on the thread. `StartRun` brings up one Run's pipe loop.
 pub enum NodeRequest {
     PrepareRoot {
         selected_path: String,
-        reply: tokio::sync::oneshot::Sender<Result<(String, RootConfirmation), String>>,
+        reply: tokio::sync::oneshot::Sender<RootPreparation>,
     },
     ConfirmRoot {
         token: String,
@@ -732,6 +927,15 @@ pub enum NodeRequest {
         approved: bool,
         reply: tokio::sync::oneshot::Sender<Option<Result<String, String>>>,
     },
+    /// Return the common bare-hex root identity for a same-root grant succession.
+    GrantRootIdentity {
+        old_grant_id: String,
+        new_grant_id: String,
+        reply: tokio::sync::oneshot::Sender<Result<(String, String), String>>,
+    },
+    ListWorkspaceGrants {
+        reply: tokio::sync::oneshot::Sender<Vec<Value>>,
+    },
     SealBody {
         body_ref: String,
         bytes: Vec<u8>,
@@ -740,6 +944,67 @@ pub enum NodeRequest {
     StageInput {
         text: String,
         reply: tokio::sync::oneshot::Sender<(String, String, u64)>,
+    },
+    ValidateLocalSubmission {
+        input_ref: String,
+        input_hash: String,
+        selected_grant_ids: Vec<String>,
+        reply: tokio::sync::oneshot::Sender<Result<(String, String, String, String), String>>,
+    },
+    /// Install the sync core's single-owner journal handle for viewer reads between Runs.
+    SetJournal {
+        journal: crate::journalop::JournalHandle,
+        org_id: String,
+        subject_id: String,
+        device_id: String,
+    },
+    SetLocalSession {
+        session_id: String,
+    },
+    OpenLocalContent {
+        kind: String,
+        id: String,
+        reply:
+            tokio::sync::oneshot::Sender<Option<crate::journal::local_content::LocalContentBody>>,
+    },
+    PrepareLocalApprovalDecision {
+        input: Box<crate::approvaldecision::ApprovalDecisionInput>,
+        reply: tokio::sync::oneshot::Sender<Option<Value>>,
+    },
+    PrepareLocalAcceptance {
+        input: Box<crate::possession::PossessionInput>,
+        reply: tokio::sync::oneshot::Sender<Option<Value>>,
+    },
+    PrepareLocalDraft {
+        row: crate::journal::local_content::LocalDraftRow,
+        body: String,
+        reply: tokio::sync::oneshot::Sender<
+            Result<crate::journal::local_content::LocalDraftRow, String>,
+        >,
+    },
+    ListLocalDrafts {
+        artifact_id: String,
+        task_id: String,
+        reply: tokio::sync::oneshot::Sender<Vec<crate::journalop::LocalDraftRow>>,
+    },
+    DecideLocalDraft {
+        request_id: String,
+        sealed_hash: String,
+        action: String,
+        reply: tokio::sync::oneshot::Sender<Option<crate::journal::local_content::LocalDraftRow>>,
+    },
+    ConfirmLocalDraft {
+        request_id: String,
+        sealed_hash: String,
+        reply: tokio::sync::oneshot::Sender<
+            Option<crate::journal::local_content::LocalDraftConfirmation>,
+        >,
+    },
+    CompleteLocalDraft {
+        request_id: String,
+        sealed_hash: String,
+        publish_ack: String,
+        reply: tokio::sync::oneshot::Sender<bool>,
     },
     StartRun {
         ctx: RunContext,
@@ -761,6 +1026,13 @@ pub fn spawn_node_service() -> tokio::sync::mpsc::Sender<NodeRequest> {
     let (tx, mut rx) = tokio::sync::mpsc::channel::<NodeRequest>(64);
     std::thread::spawn(move || {
         let mut exec = WorkspaceExecutor::new();
+        let mut journal: Option<(
+            crate::journalop::JournalHandle,
+            String,
+            String,
+            String,
+            Option<String>,
+        )> = None;
         while let Some(req) = rx.blocking_recv() {
             match req {
                 NodeRequest::PrepareRoot {
@@ -770,6 +1042,19 @@ pub fn spawn_node_service() -> tokio::sync::mpsc::Sender<NodeRequest> {
                     let r = exec
                         .prepare_root(&selected_path)
                         .map_err(|e| format!("{e:?}"));
+                    let r = r.and_then(|(token, confirmation, root_identity_hash)| {
+                        let (_, _, _, device_id, session_id) =
+                            journal.as_ref().ok_or_else(|| "no_session".to_string())?;
+                        let session_id =
+                            session_id.clone().ok_or_else(|| "no_session".to_string())?;
+                        Ok((
+                            token,
+                            confirmation,
+                            root_identity_hash,
+                            device_id.clone(),
+                            session_id,
+                        ))
+                    });
                     let _ = reply.send(r);
                 }
                 NodeRequest::ConfirmRoot {
@@ -807,9 +1092,330 @@ pub fn spawn_node_service() -> tokio::sync::mpsc::Sender<NodeRequest> {
                         .map(|res| res.map_err(|e| format!("{e:?}")));
                     let _ = reply.send(r);
                 }
+                NodeRequest::GrantRootIdentity {
+                    old_grant_id,
+                    new_grant_id,
+                    reply,
+                } => {
+                    let r = match journal
+                        .as_ref()
+                        .and_then(|(_, _, _, _, session)| session.clone())
+                    {
+                        Some(session_id) => exec
+                            .same_root_identity(&old_grant_id, &new_grant_id)
+                            .map(|root| (root, session_id))
+                            .map_err(|e| format!("{e:?}")),
+                        None => Err("no_session".to_string()),
+                    };
+                    let _ = reply.send(r);
+                }
+                NodeRequest::ListWorkspaceGrants { reply } => {
+                    let grants = exec
+                        .grants
+                        .list()
+                        .into_iter()
+                        .map(|(grant_id, root_identity_hash, artifact_dir)| {
+                            serde_json::json!({
+                                "grant_id": grant_id,
+                                "root_identity_hash": root_identity_hash,
+                                "artifact_dir": artifact_dir,
+                            })
+                        })
+                        .collect();
+                    let _ = reply.send(grants);
+                }
                 NodeRequest::SealBody { body_ref, bytes } => exec.seal_body(body_ref, bytes),
                 NodeRequest::StageInput { text, reply } => {
                     let _ = reply.send(exec.stage_input(&text));
+                }
+                NodeRequest::ValidateLocalSubmission {
+                    input_ref,
+                    input_hash,
+                    selected_grant_ids,
+                    reply,
+                } => {
+                    let result = match &journal {
+                        Some((_, org_id, subject_id, device_id, Some(session_id))) => {
+                            if exec.staged_input_hash(&input_ref).as_deref() != Some(&input_hash) {
+                                Err("input_mismatch".to_string())
+                            } else if !selected_grant_ids
+                                .iter()
+                                .all(|grant_id| exec.grants.contains(grant_id))
+                            {
+                                Err("grant_unavailable".to_string())
+                            } else {
+                                Ok((
+                                    org_id.clone(),
+                                    subject_id.clone(),
+                                    device_id.clone(),
+                                    session_id.clone(),
+                                ))
+                            }
+                        }
+                        _ => Err("no_session".to_string()),
+                    };
+                    let _ = reply.send(result);
+                }
+                NodeRequest::SetJournal {
+                    journal: handle,
+                    org_id,
+                    subject_id,
+                    device_id,
+                } => journal = Some((handle, org_id, subject_id, device_id, None)),
+                NodeRequest::SetLocalSession { session_id } => {
+                    if let Some((_, _, _, _, session)) = &mut journal {
+                        *session = Some(session_id);
+                    }
+                }
+                NodeRequest::OpenLocalContent { kind, id, reply } => {
+                    let content = match (&journal, kind.as_str()) {
+                        (Some((handle, org_id, subject_id, _, _)), "artifact_version") => {
+                            match handle.request(crate::journalop::JournalOp::ReadLocalContent {
+                                org_id: org_id.clone(),
+                                subject_id: subject_id.clone(),
+                                version_id: id,
+                            }) {
+                                Some(crate::journalop::JournalReply::LocalContent(Ok(body))) => {
+                                    body
+                                }
+                                _ => None,
+                            }
+                        }
+                        (Some((handle, org_id, subject_id, _, _)), "approval") => {
+                            match handle.request(crate::journalop::JournalOp::ReadLocalApproval {
+                                org_id: org_id.clone(),
+                                subject_id: subject_id.clone(),
+                                approval_id: id,
+                            }) {
+                                Some(crate::journalop::JournalReply::LocalApproval(Ok(body))) => {
+                                    body
+                                }
+                                _ => None,
+                            }
+                        }
+                        (Some((handle, org_id, subject_id, _, _)), "run_transcript") => {
+                            match handle.request(crate::journalop::JournalOp::ReadLocalTranscript {
+                                org_id: org_id.clone(),
+                                subject_id: subject_id.clone(),
+                                run_id: id,
+                            }) {
+                                Some(crate::journalop::JournalReply::LocalTranscript(Ok(body))) => {
+                                    body
+                                }
+                                _ => None,
+                            }
+                        }
+                        (Some((handle, org_id, subject_id, _, _)), "artifact_edit") => {
+                            match handle.request(crate::journalop::JournalOp::ReadLocalDraft {
+                                org_id: org_id.clone(),
+                                subject_id: subject_id.clone(),
+                                version_id: id,
+                            }) {
+                                Some(crate::journalop::JournalReply::LocalDraft(Ok(body))) => body
+                                    .map(|body| crate::journal::local_content::LocalContentBody {
+                                        row: crate::journal::local_content::DeliverableRow {
+                                            run_id: String::new(),
+                                            operation_id: String::new(),
+                                            version_id: body.row.version_id,
+                                            logical_name: body.row.artifact_id,
+                                            format: body.row.format,
+                                            content_hash: body.row.content_hash,
+                                            byte_count: body.row.byte_count,
+                                            receipt_seq: None,
+                                            publish_state: body.row.publish_state,
+                                        },
+                                        bytes: body.bytes,
+                                    }),
+                                _ => None,
+                            }
+                        }
+                        _ => None,
+                    };
+                    let _ = reply.send(content);
+                }
+                NodeRequest::PrepareLocalApprovalDecision { input, reply } => {
+                    let proof = match &journal {
+                        Some((handle, org_id, subject_id, device_id, Some(session_id))) => {
+                            match handle.request(
+                                crate::journalop::JournalOp::PrepareLocalApprovalDecision {
+                                    org_id: org_id.clone(),
+                                    subject_id: subject_id.clone(),
+                                    device_id: device_id.clone(),
+                                    session_id: session_id.clone(),
+                                    input,
+                                },
+                            ) {
+                                Some(crate::journalop::JournalReply::LocalApprovalDecision(
+                                    Ok(proof),
+                                )) => proof,
+                                _ => None,
+                            }
+                        }
+                        _ => None,
+                    };
+                    let _ = reply.send(proof);
+                }
+                NodeRequest::PrepareLocalAcceptance { input, reply } => {
+                    let proof = match &journal {
+                        Some((handle, org_id, subject_id, device_id, Some(session_id))) => {
+                            match handle.request(
+                                crate::journalop::JournalOp::PrepareLocalAcceptance {
+                                    org_id: org_id.clone(),
+                                    subject_id: subject_id.clone(),
+                                    device_id: device_id.clone(),
+                                    session_id: session_id.clone(),
+                                    input,
+                                },
+                            ) {
+                                Some(crate::journalop::JournalReply::LocalAcceptance(Ok(
+                                    proof,
+                                ))) => proof,
+                                _ => None,
+                            }
+                        }
+                        _ => None,
+                    };
+                    let _ = reply.send(proof);
+                }
+                NodeRequest::PrepareLocalDraft { row, body, reply } => {
+                    let result = match &journal {
+                        Some((handle, org_id, subject_id, _, _)) => {
+                            match handle.request(crate::journalop::JournalOp::PrepareLocalDraft {
+                                org_id: org_id.clone(),
+                                subject_id: subject_id.clone(),
+                                row: Box::new(row),
+                                plaintext: body.into_bytes(),
+                            }) {
+                                Some(crate::journalop::JournalReply::LocalDraftPrepared(Ok(
+                                    body,
+                                ))) => Ok(body.row),
+                                Some(crate::journalop::JournalReply::LocalDraftPrepared(Err(
+                                    _,
+                                ))) => Err("invalid_work_request".into()),
+                                _ => Err("work_device_unavailable".into()),
+                            }
+                        }
+                        None => Err("work_device_unavailable".into()),
+                    };
+                    let _ = reply.send(result);
+                }
+                NodeRequest::ListLocalDrafts {
+                    artifact_id,
+                    task_id,
+                    reply,
+                } => {
+                    let drafts = match &journal {
+                        Some((handle, org_id, subject_id, _, _)) => {
+                            match handle.request(crate::journalop::JournalOp::ListLocalDrafts {
+                                org_id: org_id.clone(),
+                                subject_id: subject_id.clone(),
+                                artifact_id,
+                                task_id,
+                            }) {
+                                Some(crate::journalop::JournalReply::LocalDrafts(Ok(drafts))) => {
+                                    drafts
+                                }
+                                _ => Vec::new(),
+                            }
+                        }
+                        None => Vec::new(),
+                    };
+                    let _ = reply.send(drafts);
+                }
+                NodeRequest::DecideLocalDraft {
+                    request_id,
+                    sealed_hash,
+                    action,
+                    reply,
+                } => {
+                    let result = match &journal {
+                        Some((handle, org_id, subject_id, _, _)) => {
+                            match handle.request(crate::journalop::JournalOp::DecideLocalDraft {
+                                org_id: org_id.clone(),
+                                subject_id: subject_id.clone(),
+                                request_id,
+                                sealed_hash,
+                                action,
+                            }) {
+                                Some(crate::journalop::JournalReply::LocalDraftDecided(Ok(
+                                    row,
+                                ))) => row,
+                                _ => None,
+                            }
+                        }
+                        None => None,
+                    };
+                    let _ = reply.send(result);
+                }
+                NodeRequest::ConfirmLocalDraft {
+                    request_id,
+                    sealed_hash,
+                    reply,
+                } => {
+                    let result = match &journal {
+                        Some((handle, org_id, subject_id, device_id, Some(session_id))) => {
+                            match handle.request(crate::journalop::JournalOp::ConfirmLocalDraft {
+                                org_id: org_id.clone(),
+                                subject_id: subject_id.clone(),
+                                request_id,
+                                sealed_hash,
+                                device_id: device_id.clone(),
+                                session_id: session_id.clone(),
+                            }) {
+                                Some(crate::journalop::JournalReply::LocalDraftConfirmed(Ok(
+                                    confirmed,
+                                ))) => confirmed,
+                                _ => None,
+                            }
+                        }
+                        _ => None,
+                    };
+                    let _ = reply.send(result);
+                }
+                NodeRequest::CompleteLocalDraft {
+                    request_id,
+                    sealed_hash,
+                    publish_ack,
+                    reply,
+                } => {
+                    let mut result = false;
+                    if let Some((handle, org_id, subject_id, _, _)) = &journal {
+                        if let Some(crate::journalop::JournalReply::LocalDraftCompleted(Ok(
+                            Some(copy),
+                        ))) = handle.request(crate::journalop::JournalOp::CompleteLocalDraft {
+                            org_id: org_id.clone(),
+                            subject_id: subject_id.clone(),
+                            request_id: request_id.clone(),
+                            sealed_hash: sealed_hash.clone(),
+                            publish_ack,
+                        }) {
+                            let state = if copy.grant_ref.as_ref().is_some_and(|grant_ref| {
+                                exec.write_user_copy(
+                                    grant_ref,
+                                    &copy.body.row.version_id,
+                                    &copy.body.row.format,
+                                    &copy.body.bytes,
+                                    &copy.body.row.content_hash,
+                                )
+                                .is_ok()
+                            }) {
+                                "written"
+                            } else {
+                                "pending"
+                            };
+                            let _ = handle.request(
+                                crate::journalop::JournalOp::SetLocalDraftCopyState {
+                                    org_id: org_id.clone(),
+                                    subject_id: subject_id.clone(),
+                                    request_id,
+                                    sealed_hash,
+                                    state: state.to_string(),
+                                },
+                            );
+                            result = true;
+                        }
+                    }
+                    let _ = reply.send(result);
                 }
                 NodeRequest::StartRun {
                     ctx,
@@ -820,6 +1426,9 @@ pub fn spawn_node_service() -> tokio::sync::mpsc::Sender<NodeRequest> {
                     commands,
                     reply,
                 } => {
+                    if let Some((_, _, _, _, session)) = &mut journal {
+                        *session = Some(ctx.session_id.clone());
+                    }
                     // The staged input refs are owned here (the executor sealed them); carry them into
                     // the bootstrap so Node reads the input正文 only through the pipe (§6.3/DD:194).
                     let mut bootstrap = bootstrap;
@@ -993,7 +1602,14 @@ fn serve_run(
                 );
                 reply
             }
-            nodemsg::LOOP_END => break,
+            nodemsg::LOOP_END => {
+                exec.record_run_transcript(
+                    ctx,
+                    &body["transcript_final"],
+                    body["turn_count"].as_str().unwrap_or(""),
+                )?;
+                break;
+            }
             // capability_refresh is Broker→Node; any other Node→Broker type is a protocol violation.
             other => return Err(format!("unexpected Node frame type {other}")),
         };
@@ -1071,7 +1687,7 @@ fn propose_and_await_command(
         local_payload_ref: format!("local/{step_key}"),
         grant_id,
         grant_revision,
-        resource_selector_hash: args_hash,
+        resource_selector_hash: args_hash.clone(),
         // The strictest claim always satisfies the grant classification floor (0054); the server
         // stores the grant's own classification as the authority.
         classification: "local_only".to_string(),
@@ -1089,7 +1705,27 @@ fn propose_and_await_command(
         return None;
     }
     let deadline = std::time::Instant::now() + wait;
+    let mut approval_recorded = false;
     while std::time::Instant::now() < deadline && ctx.allows_io() {
+        if !approval_recorded {
+            if let Some(prepared) = ctx
+                .prepared_actions
+                .lock()
+                .unwrap()
+                .get(server_key)
+                .cloned()
+            {
+                if prepared.logical_key == server_key && prepared.request_hash == args_hash {
+                    let _ = exec.register_prepared_action(ctx, &prepared);
+                    approval_recorded = exec.record_prepared_approval(
+                        ctx,
+                        &prepared,
+                        tool_name,
+                        &json!({ "args": args }),
+                    );
+                }
+            }
+        }
         if let Some(cmd) = commands.lock().unwrap().get(server_key).cloned() {
             return Some(cmd);
         }
@@ -1151,16 +1787,25 @@ fn propose_and_await_model_command(
         return None;
     }
     let deadline = std::time::Instant::now() + COMMAND_WAIT;
+    let mut approval_recorded = false;
     while std::time::Instant::now() < deadline && ctx.allows_io() {
-        if let Some(prepared) = ctx
-            .prepared_actions
-            .lock()
-            .unwrap()
-            .get(&server_key)
-            .cloned()
-        {
-            if prepared.logical_key == server_key && prepared.request_hash == request_hash {
-                let _ = exec.register_prepared_action(ctx, &prepared);
+        if !approval_recorded {
+            if let Some(prepared) = ctx
+                .prepared_actions
+                .lock()
+                .unwrap()
+                .get(&server_key)
+                .cloned()
+            {
+                if prepared.logical_key == server_key && prepared.request_hash == request_hash {
+                    let _ = exec.register_prepared_action(ctx, &prepared);
+                    approval_recorded = exec.record_prepared_approval(
+                        ctx,
+                        &prepared,
+                        "model.send_device_local",
+                        request_doc,
+                    );
+                }
             }
         }
         if let Some(cmd) = commands.lock().unwrap().get(&server_key).cloned() {
@@ -1776,10 +2421,68 @@ mod tests {
 
     fn executor_with_grant(tmp: &TempDir) -> WorkspaceExecutor {
         let mut exec = WorkspaceExecutor::new();
-        let (token, _conf) = exec.prepare_root(tmp.path()).unwrap();
+        let (token, _conf, _root_hash) = exec.prepare_root(tmp.path()).unwrap();
         exec.confirm_root(&token, "g1", vec!["out".into()], true)
             .unwrap();
         exec
+    }
+
+    #[test]
+    fn user_edit_copy_is_create_new_verified_and_idempotent() {
+        let tmp = TempDir::new("user-copy");
+        std::fs::create_dir_all(tmp.join("WeMeet成果")).unwrap();
+        let mut exec = WorkspaceExecutor::new();
+        let (token, _conf, _root_hash) = exec.prepare_root(tmp.path()).unwrap();
+        let root_hash = exec
+            .confirm_root(&token, "g1", vec!["WeMeet成果".into()], true)
+            .unwrap();
+        let grant_ref = json!({
+            "grant_id": "g1",
+            "root_identity_hash": root_hash,
+        })
+        .to_string();
+        let version_id = "11111111-1111-4111-8111-111111111111";
+        let bytes = b"visible user edit";
+        let content_hash = crate::sha256_hex(bytes);
+        exec.write_user_copy(&grant_ref, version_id, "md", bytes, &content_hash)
+            .unwrap();
+        let path = tmp.join(&format!("WeMeet成果/{version_id}.md"));
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        exec.write_user_copy(&grant_ref, version_id, "md", bytes, &content_hash)
+            .unwrap();
+        std::fs::write(&path, b"tampered").unwrap();
+        assert!(exec
+            .write_user_copy(&grant_ref, version_id, "md", bytes, &content_hash)
+            .is_err());
+        let wrong_root = json!({
+            "grant_id": "g1",
+            "root_identity_hash": "sha256:wrong",
+        })
+        .to_string();
+        assert!(exec
+            .write_user_copy(&wrong_root, version_id, "md", bytes, &content_hash)
+            .is_err());
+    }
+
+    #[test]
+    fn same_root_identity_returns_bare_hex_and_refuses_a_different_root() {
+        let first = TempDir::new("root-a");
+        let second = TempDir::new("root-b");
+        let mut exec = executor_with_grant(&first);
+        let (token, _conf, _root_hash) = exec.prepare_root(first.path()).unwrap();
+        exec.confirm_root(&token, "g2", vec!["out".into()], true)
+            .unwrap();
+        let identity = exec.same_root_identity("g1", "g2").unwrap();
+        assert_eq!(identity.len(), 64);
+        assert!(!identity.starts_with("sha256:"));
+
+        let (token, _conf, _root_hash) = exec.prepare_root(second.path()).unwrap();
+        exec.confirm_root(&token, "g3", vec!["out".into()], true)
+            .unwrap();
+        assert!(matches!(
+            exec.same_root_identity("g1", "g3"),
+            Err(ExecError::WorkspaceChanged)
+        ));
     }
 
     #[test]
@@ -1992,7 +2695,7 @@ mod tests {
         std::fs::create_dir_all(tmp.join("out")).unwrap();
         std::fs::create_dir_all(other.join("out")).unwrap();
         let mut exec = executor_with_grant(&tmp);
-        let (token, _) = exec.prepare_root(other.path()).unwrap();
+        let (token, _, _) = exec.prepare_root(other.path()).unwrap();
         exec.confirm_root(&token, "g2", vec!["out".into()], true)
             .unwrap();
         let (body_ref, content_hash, byte_count) = exec.stage_input("approved body");
@@ -2457,6 +3160,20 @@ mod tests {
         std::fs::write(tmp.join("docs/a.txt"), b"hi").unwrap();
 
         let service = spawn_node_service();
+        let (handle, mut up_rx, server) = journal_server_with_uplinks();
+        service
+            .blocking_send(NodeRequest::SetJournal {
+                journal: handle.clone(),
+                org_id: "org".into(),
+                subject_id: "subject".into(),
+                device_id: "11111111-1111-4111-8111-111111111111".into(),
+            })
+            .unwrap();
+        service
+            .blocking_send(NodeRequest::SetLocalSession {
+                session_id: "22222222-2222-4222-8222-222222222222".into(),
+            })
+            .unwrap();
         // Provision a confirmed grant through the thread (the confirmation flow).
         let (rtx, rrx) = tokio::sync::oneshot::channel();
         service
@@ -2465,7 +3182,8 @@ mod tests {
                 reply: rtx,
             })
             .unwrap();
-        let (token, _conf) = rrx.blocking_recv().unwrap().unwrap();
+        let (token, _conf, _root_hash, _device_id, _session_id) =
+            rrx.blocking_recv().unwrap().unwrap();
         let (ctx_tx, ctx_rx) = tokio::sync::oneshot::channel();
         service
             .blocking_send(NodeRequest::ConfirmRoot {
@@ -2478,8 +3196,13 @@ mod tests {
             .unwrap();
         assert!(ctx_rx.blocking_recv().unwrap().is_some());
 
-        let (handle, mut up_rx, server) = journal_server_with_uplinks();
         let run_ctx = ctx(handle);
+        let journal_handle = run_ctx.journal.clone();
+        let transcript_messages = json!([
+            { "role": "user", "content": "local transcript sentinel" },
+            { "role": "assistant", "content": [{ "type": "text", "text": "done" }] }
+        ]);
+        let client_messages = transcript_messages.clone();
         let pipe_name = format!("\\\\.\\pipe\\work-nodesvc-test-{}", uuid::Uuid::new_v4());
         let sid = crate::listener::current_user_sid().unwrap();
         let pid = unsafe { GetCurrentProcessId() };
@@ -2543,7 +3266,7 @@ mod tests {
                 let result = read_frame(h);
                 let loop_end = json!({
                     "type": "loop_end",
-                    "body": { "transcript_final": { "messages": [] }, "turn_count": "1" }
+                    "body": { "transcript_final": { "messages": client_messages }, "turn_count": "1" }
                 });
                 write_frame(h, &loop_end);
                 let _ = CloseHandle(h);
@@ -2585,6 +3308,20 @@ mod tests {
         let entries = result["body"]["content"]["entries"].as_array().unwrap();
         assert!(entries.iter().any(|e| e["name"] == "a.txt"));
         assert!(start_rx.blocking_recv().unwrap().is_ok());
+        match journal_handle.request(JournalOp::ReadLocalTranscript {
+            org_id: "org".into(),
+            subject_id: "sub".into(),
+            run_id: "run".into(),
+        }) {
+            Some(JournalReply::LocalTranscript(Ok(Some(body)))) => {
+                let document: Value = serde_json::from_slice(&body.bytes).unwrap();
+                assert_eq!(document["run_id"], "run");
+                assert_eq!(document["turn_count"], "1");
+                assert_eq!(document["messages"], transcript_messages);
+            }
+            other => panic!("loop_end transcript was not persisted: {other:?}"),
+        }
+        drop(journal_handle);
 
         // A3 live-owner evidence (E5 甲): the read drove a signed receipt + a checkpoint commit uplink
         // through the journal-op channel. org/subject come from the verified-session RunContext, the
@@ -2770,6 +3507,25 @@ mod tests {
             operation_id: prepared.operation_id.clone(),
         });
         assert!(matches!(row, Some(JournalReply::Action(Ok(_)))));
+        let request = json!({ "args": { "goal": "local-only" } });
+        assert!(exec.record_prepared_approval(
+            &ctx,
+            &prepared,
+            "model.send_device_local",
+            &request
+        ));
+        match ctx.journal.request(JournalOp::ReadLocalApproval {
+            org_id: "org".into(),
+            subject_id: "sub".into(),
+            approval_id: prepared.approval_id.clone().unwrap(),
+        }) {
+            Some(JournalReply::LocalApproval(Ok(Some(body)))) => {
+                let document: Value = serde_json::from_slice(&body.bytes).unwrap();
+                assert_eq!(document["action"]["request"], request);
+                assert_eq!(document["request_hash"], "a".repeat(64));
+            }
+            other => panic!("approval body was not persisted: {other:?}"),
+        }
         drop(ctx);
         server.join().unwrap();
     }

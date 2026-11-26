@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams, useSearchParams } from 'wouter'
 import {
@@ -28,6 +29,7 @@ import { useReadOnlyViewport } from '../hooks/useReadOnlyViewport'
 import { ArtifactPreview } from '../components/ArtifactPreview'
 import { TaskStatusBadge } from '../components/TaskStatusBadge'
 import { card, errorText, muted, notice, page, row, sectionTitle } from '../ui'
+import type { LocalArtifactDraft } from '../../../../../../desktop/src/work/bridge'
 
 const downloadLink = css({
   display: 'inline-flex',
@@ -86,6 +88,7 @@ const acceptedBadge = css({
 
 export const ArtifactWorkspacePage = () => {
   const { t } = useTranslation('work')
+  const queryClient = useQueryClient()
   const { taskId, artifactId } = useParams<{
     taskId: string
     artifactId: string
@@ -109,6 +112,36 @@ export const ArtifactWorkspacePage = () => {
     code: string
     message: string
   } | null>(null)
+  const [localDrafts, setLocalDrafts] = useState<LocalArtifactDraft[]>([])
+  const workBridge = window.weMeetDesktop?.work
+  const refreshLocalDrafts = useCallback(async () => {
+    if (!taskId || !artifactId || !workBridge?.listLocalArtifactDrafts) {
+      setLocalDrafts([])
+      return
+    }
+    try {
+      setLocalDrafts(
+        await workBridge.listLocalArtifactDrafts(taskId, artifactId)
+      )
+    } catch {
+      setLocalDrafts([])
+    }
+  }, [artifactId, taskId, workBridge])
+  useEffect(() => {
+    void refreshLocalDrafts()
+    return workBridge?.onArtifactPublished?.(() => void refreshLocalDrafts())
+  }, [refreshLocalDrafts, workBridge])
+  useEffect(() => {
+    if (!workBridge?.onArtifactAccepted || !taskId || !artifactId) return
+    return workBridge.onArtifactAccepted((accepted) => {
+      if (accepted.taskId === taskId && accepted.artifactId === artifactId) {
+        void workspaceQ.refetch()
+        void queryClient.invalidateQueries({
+          queryKey: ['work', 'task', taskId],
+        })
+      }
+    })
+  }, [artifactId, queryClient, taskId, workBridge, workspaceQ.refetch])
 
   const versions = workspaceQ.data?.artifact.versions ?? []
   const requestedVersion = Number(searchParams.get('version'))
@@ -197,6 +230,22 @@ export const ArtifactWorkspacePage = () => {
   const acceptVersion = async () => {
     setActionError(null)
     try {
+      if (workBridge?.acceptLocalArtifactVersion) {
+        if (!selected.version_id) {
+          setActionError(t('artifact.localAcceptOpenFailed'))
+          return
+        }
+        const result = await workBridge.acceptLocalArtifactVersion({
+          taskId: taskId!,
+          artifactId: artifact.artifact_id,
+          versionId: selected.version_id,
+          contentHash: selected.content_hash,
+          revision: summary.revision,
+        })
+        if (result.status !== 'opened')
+          setActionError(t('artifact.localAcceptOpenFailed'))
+        return
+      }
       await acceptMutation.mutateAsync({
         client_request_id: acceptKey.key,
         expected_revision: summary.revision,
@@ -218,6 +267,22 @@ export const ArtifactWorkspacePage = () => {
   const discardDraft = () => {
     setDraft(null)
     setSaveError(null)
+  }
+
+  const openLocalDraft = async (versionId: string) => {
+    if (!taskId || !artifactId || !workBridge?.openLocalArtifactDraft) return
+    setActionError(null)
+    try {
+      const result = await workBridge.openLocalArtifactDraft(
+        taskId,
+        artifactId,
+        versionId
+      )
+      if (result.status !== 'opened')
+        setActionError(t('artifact.localDraftOpenFailed'))
+    } catch {
+      setActionError(t('artifact.localDraftOpenFailed'))
+    }
   }
 
   // D5:209. A refusal never clears the draft: the whole point of the optimistic check
@@ -532,6 +597,55 @@ export const ArtifactWorkspacePage = () => {
               ))}
             </ul>
           </section>
+
+          {workBridge?.listLocalArtifactDrafts ? (
+            <section className={card}>
+              <h2 className={sectionTitle}>{t('artifact.localDrafts')}</h2>
+              {localDrafts.length === 0 ? (
+                <p className={muted}>{t('artifact.localDraftEmpty')}</p>
+              ) : (
+                <ul className={versionList}>
+                  {localDrafts.map((localDraft) => (
+                    <li key={localDraft.versionId}>
+                      <button
+                        type="button"
+                        className={versionButton}
+                        onClick={() =>
+                          void openLocalDraft(localDraft.versionId)
+                        }
+                      >
+                        <span
+                          className={css({
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 'xxs',
+                          })}
+                        >
+                          <span>
+                            {t(
+                              `artifact.localDraftState.${localDraft.publishState}`
+                            )}
+                          </span>
+                          <span className={muted}>
+                            {t('artifact.localDraftMeta', {
+                              version: localDraft.baseVersionNo,
+                              bytes: localDraft.byteCount,
+                            })}
+                          </span>
+                          <span className={muted}>
+                            {new Date(
+                              localDraft.createdAt * 1000
+                            ).toLocaleString()}
+                          </span>
+                        </span>
+                        <span>{t('artifact.localDraftOpen')}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ) : null}
 
           {/* D5:211 - acceptance pins a published version, so an unsaved edit has to be
               resolved first. The affordance is replaced by the reason, not hidden. */}

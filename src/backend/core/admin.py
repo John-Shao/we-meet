@@ -924,6 +924,49 @@ class MembershipAdmin(admin.ModelAdmin):
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
+@admin.register(models.WorkGovernanceAssignment)
+class WorkGovernanceAssignmentAdmin(admin.ModelAdmin):
+    """Read-only oversight; assignment writes stay in the owner-only domain API."""
+
+    list_display = (
+        "organization",
+        "user",
+        "permissions",
+        "revision",
+        "status",
+        "granted_by",
+        "updated_at",
+    )
+    list_filter = ("status", "organization")
+    search_fields = (
+        "user__email",
+        "user__full_name",
+        "user__sub",
+        "organization__name",
+    )
+    readonly_fields = (
+        "id",
+        "organization",
+        "user",
+        "permissions",
+        "revision",
+        "status",
+        "granted_by",
+        "created_at",
+        "updated_at",
+    )
+    list_select_related = ("organization", "user", "granted_by")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(models.OrgDictItem)
 class OrgDictItemAdmin(admin.ModelAdmin):
     """Per-organization option lists (人员类型 / 职级 / 序列 …).

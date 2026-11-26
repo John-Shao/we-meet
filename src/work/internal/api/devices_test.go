@@ -151,7 +151,7 @@ func signDeviceRenewal(t *testing.T, pairingID, challenge string) string {
 	return base64.RawURLEncoding.EncodeToString(sig)
 }
 
-func deviceRequest(t *testing.T, method, url, body string) *http.Response {
+func deviceRequest(t *testing.T, method, url, body string, signature ...string) *http.Response {
 	t.Helper()
 	var reader *strings.Reader
 	if body == "" {
@@ -166,6 +166,9 @@ func deviceRequest(t *testing.T, method, url, body string) *http.Response {
 	request.Header.Set("Authorization", "Bearer desktop-token")
 	request.Header.Set("X-Work-Client", "desktop")
 	request.Header.Set("Content-Type", "application/json")
+	if len(signature) > 0 && signature[0] != "" {
+		request.Header.Set("X-Device-Signature", signature[0])
+	}
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatal(err)

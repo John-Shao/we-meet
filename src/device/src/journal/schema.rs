@@ -27,7 +27,33 @@ pub fn apply(conn: &Connection) -> rusqlite::Result<()> {
             ("format", "TEXT"),
             ("byte_count", "INTEGER"),
             ("receipt_seq", "INTEGER"),
+            ("artifact_id", "TEXT"),
+            ("task_id", "TEXT"),
+            ("base_version_no", "INTEGER"),
+            ("base_hash", "TEXT"),
+            ("request_id", "TEXT"),
+            ("created_at", "INTEGER"),
+            ("auth_epoch", "INTEGER"),
+            ("base_version_id", "TEXT"),
+            ("base_byte_count", "INTEGER"),
+            ("approval_id", "TEXT"),
+            ("publish_ack", "TEXT"),
         ],
+    )?;
+    conn.execute_batch(
+        "DROP INDEX IF EXISTS local_content_pending_edit_once;
+         CREATE UNIQUE INDEX local_content_pending_edit_once
+         ON local_content(artifact_id, base_version_no)
+         WHERE origin = 'user_edit' AND publish_state IN ('pending_confirm', 'pending_publish');
+         CREATE UNIQUE INDEX IF NOT EXISTS local_content_edit_request_once
+         ON local_content(request_id)
+         WHERE origin = 'user_edit';
+         CREATE UNIQUE INDEX IF NOT EXISTS local_content_approval_once
+         ON local_content(approval_id)
+         WHERE origin = 'approval';
+         CREATE UNIQUE INDEX IF NOT EXISTS local_content_transcript_once
+         ON local_content(run_id)
+         WHERE origin = 'run_transcript'",
     )?;
     // Batch 5: runtime_start carries the binding's fence/lease_id so a restart can rebuild the
     // finish judgment that re-publishes sealed deliverables (plain columns, SCHEMA_VERSION stays 2).

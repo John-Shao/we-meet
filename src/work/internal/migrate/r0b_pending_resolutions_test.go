@@ -212,3 +212,36 @@ func TestR0bPendingResolutionsGuardsSessionOrgAndRole(t *testing.T) {
 		`SELECT work.claim_pending_device_resolutions($1,$2::uuid,$3::uuid)`,
 		org, deviceID, sessionID)
 }
+
+func TestR0bRunFinishDoesNotWaitForResolutionAck(t *testing.T) {
+	a := newActionFixture(t, "org_r0b_finish_unacked_resolution")
+	worker := a.workerConn(t)
+	prepared := a.prepare(t, worker, "tool:unacked-resolution", a.grantClass)
+	operationID := idOf(t, prepared, "operation_id")
+	resolveID := newUUID(t)
+	mustExec(t, a.admin, "UPDATE work.operation SET state = 'canceled' WHERE id = "+quoteLiteral(operationID))
+	mustExec(t, a.admin, fmt.Sprintf(`
+		INSERT INTO work.operation_resolution
+		  (org_id, run_id, operation_id, resolution_revision, resolve_id, state,
+		   delivery_state, settlement_state, signature, resolution_delivery,
+		   delivery_attempts, acked_at)
+		VALUES (%s,%s,%s,1,%s,'failed','not_applicable','unknown','sha256:%s',
+		        'delivered',1,NULL);
+	`, quoteLiteral(a.org), quoteLiteral(a.runID), quoteLiteral(operationID),
+		quoteLiteral(resolveID), repeatHex(t, 64)))
+	if _, err := worker.Exec(testContext(t), `SELECT work.resume_run($1,$2::uuid)`, a.org, a.runID); err != nil {
+		t.Fatalf("resume before finish: %v", err)
+	}
+
+	finished := a.callFinish(t, worker, newUUID(t), entitledFinish(t, a), a.deviceID, a.sessionID)
+	if finished["state"] != "accepted" || finished["code"] != nil {
+		t.Fatalf("finish with unacked resolution = %#v", finished)
+	}
+	if got := a.scalar(t, "SELECT state FROM work.run WHERE id = "+quoteLiteral(a.runID)); got != "failed" {
+		t.Fatalf("Run state = %s, want failed", got)
+	}
+	if got := a.scalar(t, "SELECT resolution_delivery || '/' || (acked_at IS NULL)::text FROM work.operation_resolution WHERE resolve_id = "+
+		quoteLiteral(resolveID)); got != "delivered/true" {
+		t.Fatalf("finish changed unacked resolution watermark to %s", got)
+	}
+}

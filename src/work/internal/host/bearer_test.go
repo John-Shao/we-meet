@@ -21,6 +21,9 @@ func TestVerifyBearer(t *testing.T) {
 			r.TLS.PeerCertificates[0].Subject.CommonName != "work-control-plane" {
 			t.Errorf("client certificate missing or wrong identity")
 		}
+		if got := r.URL.Query().Get("include_permissions"); got != "1" {
+			t.Errorf("include_permissions = %q", got)
+		}
 		if got := r.Header.Get("Authorization"); got != "Bearer native-token" {
 			t.Errorf("authorization = %q", got)
 		}
@@ -38,7 +41,8 @@ func TestVerifyBearer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if claims.SubjectID != "sub_1" || claims.OrgID != "org_1" || claims.SessionRevision != 4 {
+	if claims.SubjectID != "sub_1" || claims.OrgID != "org_1" || claims.SessionRevision != 4 ||
+		len(claims.Permissions) != 1 || claims.Permissions[0] != "org.work.seat.write" {
 		t.Fatalf("claims = %#v", claims)
 	}
 	if claims.AuthPlane != "bearer" {

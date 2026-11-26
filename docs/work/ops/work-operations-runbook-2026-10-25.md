@@ -1441,7 +1441,7 @@ sudo -u work-control env $(grep -E '^(WORK_DATABASE_URL|WORK_TEMPORAL_)' /etc/wo
 4. **SLA**：首响 1 个工作日、终响 3 个工作日。单人条件下超时不是「继续无声等待」，而是进入第 6 步的 `evidence_exhausted` 判定。
 5. **流程 A｜unknown 核账**：`work-reconcile -scan -org <org>` 列开放项 → 逐项按第 3 条取证 → 有证据则按既有 `settle_quota`/`release_quota` 收口；无证据则区分动作类别（只读类走 `evidence_unavailable`，副作用类进流程 B）。**不得为跑绿放宽预留释放或终态白名单。**
 6. **流程 B｜`evidence_exhausted` 签署（J38）**：五个前置全部成立才可签——①Operation 属 `artifact.write`／模型调用／外发；②第 3 条列举的权威证据源**逐项查过且无结论**（记录查了哪些、各返回什么）；③原设备无法经正常 session 交回历史且 recovery-only 无可用 receipt；④引用外部工单号；⑤强审计已写。签发效果：`operation.state=reconciled`（已登记边）、`wait_reason: reconcile→input`、预留保持 `unknown`、**新 Run 放开、采纳被 `acceptance_blocked_unresolvable` 拒绝**。
-7. **流程 C｜游标推进（J7 两步，顺序固定）**：先 `advance_governance_event_cursor(org_id, to_seq, gap_report_id, ticket_id, request_id)`，其中区间证明来自 `governance_gap_report`（由 `work_governance_events` 写入，申请人只能引用不能自证）；**再由持 `org.work.seat.write` 者重做一次显式授座**。只做第二步无效（游标仍停在缺口）；不得凭投影值或 Host 现状推断解除任何 deny。
+7. **流程 C｜游标推进（J7 两步，顺序固定）**：先 `advance_governance_event_cursor(org_id, to_seq, gap_report_id, ticket_id, actor_subject_id, request_id, actor_permissions)`，其中区间证明来自 `governance_gap_report`（由 `work_governance_events` 写入，申请人只能引用不能自证），`actor_permissions` 必须包含 Host 逐请求解析的 `org.work.seat.write`；**再由持该权限者重做一次显式授座**。只做第二步无效（游标仍停在缺口）；不得凭投影值或 Host 现状推断解除任何 deny。
 8. **对外表述**：`evidence_exhausted` 既不是「已确认失败」也不是「已完成」，界面与回复一律写「证据已穷尽·无法定论」；治理与用量报表把该 Operation 及其未释放预留**单列**，不得混入正常结算。
 9. **禁止事项**：不得用 `evidence_unavailable` 顶替副作用类；不得释放 unknown 预留来「解锁」任务；不得新增常驻作业或绕过 §1.4 端点表把 reconcile 暴露成 HTTP 口。
 10. **演练状态**：`not_run` —— 上述流程均未经真实环境演练，对应验收规格是 EV113/EV115/EV120；演练通过后在此逐条记录日期与证据位置。

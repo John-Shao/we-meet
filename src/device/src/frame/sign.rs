@@ -19,6 +19,7 @@ use crate::key::{DeviceKey, KeyError};
 #[derive(Debug)]
 pub enum SignError {
     Canonicalize,
+    InvalidProof,
     Key(KeyError),
 }
 

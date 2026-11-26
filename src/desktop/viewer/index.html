@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'"
+    />
+    <title>本机内容窗口</title>
+    <link rel="stylesheet" href="viewer.css" />
+  </head>
+  <body>
+    <main>
+      <h1>本机内容</h1>
+      <p>此窗口不加载外链，也不执行原始 HTML。</p>
+      <pre id="content" aria-live="polite"></pre>
+      <section id="approval" hidden>
+        <label id="remember-readonly-label" hidden>
+          <input id="remember-readonly" type="checkbox" />
+          同类只读操作免审批（最长 24 小时）
+        </label>
+        <div class="actions">
+          <button id="approve" type="button">批准</button>
+          <button id="reject" type="button">拒绝</button>
+        </div>
+      </section>
+      <section id="artifact-accept" hidden>
+        <p>请核对本机正文与版本哈希后确认采纳。</p>
+        <button id="accept-artifact" type="button">确认采纳</button>
+      </section>
+      <section id="editor" hidden>
+        <textarea id="body" aria-label="本机编辑正文" rows="18"></textarea>
+        <div class="actions">
+          <button id="prepare" type="button">保存本机草稿</button>
+          <button id="confirm" type="button" hidden>确认发布</button>
+          <button id="discard" type="button" hidden>丢弃</button>
+          <button id="cancel" type="button" hidden>取消</button>
+        </div>
+      </section>
+      <p id="status" role="status"></p>
+      <button id="close" type="button">关闭</button>
+    </main>
+    <script src="viewer-render.js"></script>
+    <script src="viewer.js"></script>
+  </body>
+</html>

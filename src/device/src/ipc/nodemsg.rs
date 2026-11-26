@@ -125,6 +125,21 @@ pub fn validate_body(frame_type: &str, body: &Value) -> Result<(), MsgError> {
                 return Err(MsgError::BadEnum);
             }
         }
+        LOOP_END => {
+            let messages = obj["transcript_final"]
+                .get("messages")
+                .and_then(Value::as_array)
+                .ok_or(MsgError::MissingKey)?;
+            let turn_count = obj["turn_count"].as_str().ok_or(MsgError::BadEnum)?;
+            if turn_count.is_empty()
+                || !turn_count.bytes().all(|byte| byte.is_ascii_digit())
+                || !messages
+                    .iter()
+                    .all(|message| message.get("role").and_then(Value::as_str).is_some())
+            {
+                return Err(MsgError::BadEnum);
+            }
+        }
         _ => {}
     }
     Ok(())

@@ -32,7 +32,9 @@ import { useTaskEventStream } from '../hooks/useTaskEventStream'
 import { ArtifactPanel } from '../components/ArtifactPanel'
 import { RunOperations } from '../components/RunOperations'
 import { RunReconciliations } from '../../r0b/components/RunReconciliations'
+import { RunPendingApprovals } from '../../r0b/components/RunPendingApprovals'
 import { RunReadonlyGrants } from '../../r0b/components/RunReadonlyGrants'
+import { RunWorkspaceRebind } from '../../r0b/components/RunWorkspaceRebind'
 import { TaskStatusBadge } from '../components/TaskStatusBadge'
 import {
   card,
@@ -80,6 +82,7 @@ export const TaskWorkspacePage = () => {
   const [titleError, setTitleError] = useState<string | null>(null)
   const [reason, setReason] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
+  const [transcriptError, setTranscriptError] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [accepted, setAccepted] = useState(false)
@@ -240,6 +243,18 @@ export const TaskWorkspacePage = () => {
       await cancelMutation.mutateAsync(run.id)
     } catch (cause) {
       setActionError(t(workErrorMessage(cause)))
+    }
+  }
+
+  const openTranscript = async () => {
+    const bridge = window.weMeetDesktop?.work
+    if (!bridge || !run?.id) return
+    setTranscriptError(false)
+    try {
+      const result = await bridge.openLocalContent('run_transcript', run.id)
+      if (result.status !== 'opened') setTranscriptError(true)
+    } catch {
+      setTranscriptError(true)
     }
   }
 
@@ -511,7 +526,13 @@ export const TaskWorkspacePage = () => {
             ) : null}
           </section>
           <RunReconciliations runId={detail.summary.latest_run_id} />
+          <RunPendingApprovals taskId={detail.summary.task_id} />
           <RunReadonlyGrants runId={detail.summary.latest_run_id} />
+          <RunWorkspaceRebind
+            runId={detail.summary.latest_run_id}
+            runState={run?.state}
+            waitReason={run?.wait_reason}
+          />
           <RunOperations
             runId={detail.summary.latest_run_id}
             runState={run?.state}
@@ -564,6 +585,30 @@ export const TaskWorkspacePage = () => {
             ) : (
               <p className={muted}>{t('task.noRun')}</p>
             )}
+            {run && window.weMeetDesktop?.work?.openLocalContent ? (
+              <div
+                className={css({
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  gap: 'xs',
+                  marginTop: 'md',
+                })}
+              >
+                <Button
+                  variant="secondary"
+                  size="dense"
+                  onPress={() => void openTranscript()}
+                >
+                  {t('task.runTranscript')}
+                </Button>
+                {transcriptError ? (
+                  <p className={errorText} role="alert">
+                    {t('task.runTranscriptOpenFailed')}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <h3 className={cx(label, css({ marginTop: 'md' }))}>
               {t('task.quota')}
             </h3>

@@ -298,6 +298,92 @@ test('mocked golden path: preview, submit, gap event, artifact, acceptance', asy
   expect(errors).toEqual([])
 })
 
+test('mocked local composer stages on device, selects a grant and submits through the shell bridge', async ({
+  page,
+}) => {
+  const errors = await mockBackend(page)
+  await page.addInitScript(() => {
+    const localWindow = window as unknown as {
+      weMeetDesktop: unknown
+      __localSubmissions: Array<Record<string, unknown>>
+    }
+    localWindow.__localSubmissions = []
+    localWindow.weMeetDesktop = {
+      isDesktop: true,
+      platform: 'win32',
+      getStatus: async () => ({
+        version: 'test',
+        serviceOrigin: 'http://127.0.0.1:3000',
+        connection: 'online',
+        auth: 'signed-in',
+        message: '',
+      }),
+      onStatus: () => () => undefined,
+      login: async () => undefined,
+      logout: async () => undefined,
+      retry: async () => undefined,
+      work: {
+        stageLocalInput: async (text: string) => ({
+          localInputRef: '12345678-1234-4234-8234-123456789abc',
+          contentHash: `sha256:${'a'.repeat(64)}`,
+          byteCount: new TextEncoder().encode(text).byteLength,
+        }),
+        listWorkspaceGrants: async () => [
+          {
+            grantId: '22222222-2222-4222-8222-222222222222',
+            rootIdentityHash: `sha256:${'b'.repeat(64)}`,
+            artifactDir: ['WeMeet成果'],
+          },
+        ],
+        submitLocalTask: async (input: Record<string, unknown>) => {
+          localWindow.__localSubmissions.push(input)
+          return {
+            taskId: 'browser-task',
+            runId: 'browser-run',
+            revision: 1,
+            bindingRevision: 1,
+            taskState: 'open',
+            displayState: 'queued',
+            inputRef: input.inputRef,
+          }
+        },
+      },
+    }
+  })
+  await page.goto('/work/new')
+  await page.getByLabel('任务描述', { exact: true }).fill('生成本机工作摘要')
+  await page.getByRole('button', { name: '保存本机草稿', exact: true }).click()
+  await expect(page.getByText('本机目录授权', { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'WeMeet成果 22222222', exact: true })
+  ).toHaveAttribute('aria-pressed', 'true')
+  await page
+    .getByRole('button', { name: '在本机预览并提交', exact: true })
+    .click()
+  await expect(page).toHaveURL(/\/work\/items\/browser-task$/)
+  const submissions = await page.evaluate(
+    () =>
+      (
+        window as unknown as {
+          __localSubmissions: Array<Record<string, unknown>>
+        }
+      ).__localSubmissions
+  )
+  expect(submissions).toEqual([
+    expect.objectContaining({
+      inputRef: '12345678-1234-4234-8234-123456789abc',
+      inputHash: `sha256:${'a'.repeat(64)}`,
+      title: '生成本机工作摘要',
+      templateId: 'summary',
+      templateVersion: 1,
+      permissionMode: 'ask_each',
+      outputFormat: 'text/markdown',
+      selectedGrantIds: ['22222222-2222-4222-8222-222222222222'],
+    }),
+  ])
+  expect(errors).toEqual([])
+})
+
 test('mocked sixth supersede: shows n/5 and only real re-preview or end Run exits', async ({
   page,
 }) => {
@@ -385,6 +471,138 @@ test('mocked sixth supersede: shows n/5 and only real re-preview or end Run exit
   )
   await page.getByRole('button', { name: '结束本 Run', exact: true }).click()
   await expect.poll(() => canceled).toBe(true)
+  expect(errors).toEqual([])
+})
+
+test('desktop workspace rebind offers only same-root grants and submits the selected pair', async ({
+  page,
+}) => {
+  const errors = await mockBackend(page)
+  const task = snapshot('workspace-rebind')
+  task.summary.latest_run_id = 'browser-run'
+  task.summary.latest_run = {
+    id: 'browser-run',
+    task_id: 'browser-task',
+    attempt_no: 1,
+    state: 'waiting',
+    wait_reason: 'input',
+    terminal_reason: null,
+    control_revision: 12,
+    runtime_version: 'fixture',
+    created_at: '2026-10-31T00:00:00Z',
+    updated_at: '2026-10-31T00:00:10Z',
+  }
+  await page.route('**/work/v1/tasks/browser-task', (route) =>
+    fulfill(route, task)
+  )
+  await page.route('**/work/v1/tasks/browser-task/events', (route) =>
+    route.fulfill({ contentType: 'text/event-stream', body: '' })
+  )
+  await page.route('**/work/v1/runs/browser-run/operations**', (route) =>
+    fulfill(route, { items: [], next_cursor: null })
+  )
+  await page.addInitScript(() => {
+    const calls: unknown[][] = []
+    const grantCalls: unknown[][] = []
+    const oldGrantId = '11111111-1111-4111-8111-111111111111'
+    const newGrantId = '22222222-2222-4222-8222-222222222222'
+    Object.defineProperty(window, '__workspaceRebindCalls', {
+      configurable: true,
+      value: calls,
+    })
+    Object.defineProperty(window, '__workspaceGrantCalls', {
+      configurable: true,
+      value: grantCalls,
+    })
+    Object.defineProperty(window, 'weMeetDesktop', {
+      configurable: true,
+      value: {
+        isDesktop: false,
+        platform: 'web',
+        getStatus: async () => ({
+          connection: 'online',
+          auth: 'signed-in',
+          message: '',
+        }),
+        onStatus: () => () => {},
+        work: {
+          listWorkspaceGrants: async () => [
+            {
+              grantId: oldGrantId,
+              rootIdentityHash: `sha256:${'a'.repeat(64)}`,
+              artifactDir: ['WeMeet成果'],
+            },
+            {
+              grantId: newGrantId,
+              rootIdentityHash: `sha256:${'a'.repeat(64)}`,
+              artifactDir: ['WeMeet成果'],
+            },
+            {
+              grantId: '33333333-3333-4333-8333-333333333333',
+              rootIdentityHash: `sha256:${'b'.repeat(64)}`,
+              artifactDir: ['other'],
+            },
+          ],
+          grantWorkspace: async (...args: unknown[]) => {
+            grantCalls.push(args)
+            return null
+          },
+          rebindRunWorkspace: async (...args: unknown[]) => {
+            calls.push(args)
+            return {
+              status: 'accepted',
+              rebound: {
+                runId: args[0],
+                oldGrantId: args[1],
+                newGrantId: args[2],
+                bindingRevision: 2,
+                state: 'active',
+                invalidatedReadonlyGrants: 0,
+                replayed: false,
+              },
+            }
+          },
+          onWorkspaceRebound: () => () => {},
+        },
+      },
+    })
+  })
+
+  await page.goto('/work/items/browser-task')
+  const current = page.getByRole('combobox', { name: '当前授权', exact: true })
+  const next = page.getByRole('combobox', { name: '新授权', exact: true })
+  await expect(current).toBeVisible()
+  await expect(current).toHaveValue('11111111-1111-4111-8111-111111111111')
+  await expect(next).toHaveValue('22222222-2222-4222-8222-222222222222')
+  await expect(next.locator('option')).toHaveCount(1)
+  await expect(next.locator('option')).toHaveText(
+    /22222222 · aaaaaaaa · WeMeet成果/
+  )
+  await page
+    .getByRole('button', { name: '确认改绑并重新审批', exact: true })
+    .click()
+  await expect(page.getByText('已改绑并重新激活授权。')).toBeVisible()
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { __workspaceRebindCalls: unknown[][] })
+          .__workspaceRebindCalls
+    )
+  ).toEqual([
+    [
+      'browser-run',
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+    ],
+  ])
+  await page.getByRole('button', { name: '添加工作目录授权' }).click()
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { __workspaceGrantCalls: unknown[][] })
+          .__workspaceGrantCalls
+    )
+  ).toEqual([[['WeMeet成果']]])
   expect(errors).toEqual([])
 })
 
@@ -512,10 +730,11 @@ const artifactWorkspaceJson = (versionCount: number) => ({
     versions: Array.from({ length: versionCount }, (_unused, index) => {
       const versionNo = versionCount - index
       return {
+        version_id: `00000000-0000-4000-8000-${String(versionNo).padStart(12, '0')}`,
         version_no: versionNo,
         media_type: 'text/markdown',
         bytes: 42,
-        content_hash: `artifact-hash-${versionNo}`,
+        content_hash: `sha256:${String(versionNo).repeat(64)}`,
         state: 'published',
         content_url: `/work/v1/tasks/browser-task/artifacts/browser-artifact/versions/${versionNo}/content`,
         created_at: '2026-10-31T00:00:00Z',
@@ -560,7 +779,7 @@ test('artifact editing survives a version conflict and publishes with the same i
           logical_name: 'result',
           media_type: 'text/markdown',
           bytes: 40,
-          content_hash: 'artifact-hash-3',
+          content_hash: `sha256:${'3'.repeat(64)}`,
           state: 'published',
           content_url:
             '/work/v1/tasks/browser-task/artifacts/browser-artifact/versions/3/content',
@@ -599,6 +818,77 @@ test('artifact editing survives a version conflict and publishes with the same i
 
   await expect(page).toHaveURL(/version=3/)
   await expect(page.getByRole('button', { name: '编辑此版本' })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test('desktop acceptance opens the secure viewer instead of calling the cookie plane', async ({
+  page,
+}) => {
+  const errors = await mockBackend(page)
+  let cookieAcceptances = 0
+  await page.route(
+    '**/work/v1/tasks/browser-task/artifacts/browser-artifact',
+    (route) => fulfill(route, artifactWorkspaceJson(2))
+  )
+  await page.route('**/work/v1/tasks/browser-task/acceptances', (route) => {
+    cookieAcceptances += 1
+    return fulfill(route, { code: 'unexpected_cookie_acceptance' }, 500)
+  })
+  await page.addInitScript(() => {
+    const calls: unknown[] = []
+    Object.defineProperty(window, '__localAcceptanceCalls', {
+      configurable: true,
+      value: calls,
+    })
+    Object.defineProperty(window, 'weMeetDesktop', {
+      configurable: true,
+      value: {
+        isDesktop: false,
+        platform: 'web',
+        getStatus: async () => ({
+          connection: 'online',
+          auth: 'signed-in',
+          message: '',
+        }),
+        onStatus: () => () => {},
+        work: {
+          listLocalArtifactDrafts: async () => [],
+          acceptLocalArtifactVersion: async (context: unknown) => {
+            calls.push(context)
+            return { status: 'opened' }
+          },
+          onArtifactAccepted: () => () => {},
+          onArtifactPublished: () => () => {},
+        },
+      },
+    })
+  })
+
+  await page.goto('/work/items/browser-task/artifacts/browser-artifact')
+  await page.getByRole('button', { name: '采纳 v2', exact: true }).click()
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as unknown as { __localAcceptanceCalls: unknown[] })
+            .__localAcceptanceCalls.length
+      )
+    )
+    .toBe(1)
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { __localAcceptanceCalls: unknown[] })
+          .__localAcceptanceCalls[0]
+    )
+  ).toEqual({
+    taskId: 'browser-task',
+    artifactId: 'browser-artifact',
+    versionId: '00000000-0000-4000-8000-000000000002',
+    contentHash: `sha256:${'2'.repeat(64)}`,
+    revision: 4,
+  })
+  expect(cookieAcceptances).toBe(0)
   expect(errors).toEqual([])
 })
 

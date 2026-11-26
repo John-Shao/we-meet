@@ -76,6 +76,8 @@ const IMPLEMENTED_ONLY = [
   // Bearer-plane user-save and adoption routes backed by 0043 create_local_user_artifact_version
   // and the 0045 accept_local_task command.
   'POST /work/v2/artifacts/{artifactId}/versions',
+  'POST /work/v2/local-task-previews',
+  'POST /work/v2/tasks',
   'POST /work/v2/tasks/{taskId}/acceptances',
   // R0b M1b workspace-rebind face (control-design §1.4 row 65): the Bearer-plane rebind
   // route backed by the 0041/0043 rebind_run_workspace command. Its /work/v2/runs sibling

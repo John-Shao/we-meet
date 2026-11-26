@@ -85,6 +85,15 @@ var publishedIncrements = []string{
 	"0070_independent_model_result_reconciliation",
 	"0071_supersede_limit_waiting_input",
 	"0072_run_supersede_budgets",
+	"0073_governance_cursor_seat_write_permission",
+	"0074_grant_succession_proof_verification",
+	"0075_approval_decision_proof_verification",
+	"0076_user_version_signing_key",
+	"0077_local_approval_readonly_scope",
+	"0078_possession_proof_signing_key",
+	"0079_permit_destination_refusal_cancels",
+	"0080_local_preview_facts",
+	"0081_local_task_submission",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

@@ -488,6 +488,67 @@ func TestR0bListOnlyInputPassesDestinationGateButFloorsArtifact(t *testing.T) {
 	}
 }
 
+func TestR0bEV118LocalOnlyOutputRootBlocksRemotePrepare(t *testing.T) {
+	l := newLocalArtifactFixture(t, "org_ev118_local_only_output")
+	worker := l.workerConn(t)
+	outputGrant := callJSON(t, l.apiConn(t),
+		`SELECT work.register_workspace_grant($1,$2,'bearer',7,$3::uuid,$4::uuid,$5,$6::jsonb)`,
+		l.org, l.subject, l.deviceID, l.sessionID, "req-ev118-output-grant",
+		`{"root_identity_hash":"`+strings.Repeat("6", 64)+
+			`","allowed_tools":["workspace.read","artifact.write"],"matched_rule_index":0,`+
+			`"user_selected_ttl_seconds":3600}`)
+	outputGrantID := idOf(t, outputGrant, "grant_id")
+	if l.grantClass(t, outputGrantID) != "local_only" {
+		t.Fatalf("output grant classification = %q, want local_only", l.grantClass(t, outputGrantID))
+	}
+
+	// No read/search action is needed: the local_only artifact.write output root alone
+	// must enter destination predicate (A), while workspace.list would not.
+	l.prepareAction(t, worker, "artifact:local-output", "artifact.write", outputGrantID)
+	if got := l.runTaint(t); got != "artifact.write:local_only" {
+		t.Fatalf("run taint = %q, want the local_only output root", got)
+	}
+
+	remoteBody := l.actionBody(t, "model:remote:output", "remote_excerpt_allowed")
+	remoteBody = strings.Replace(remoteBody, `"action_kind":"workspace.read"`,
+		`"action_kind":"model.send_remote"`, 1)
+	remoteBody = strings.Replace(remoteBody, `"tool_schema":"read-v1"`,
+		`"tool_schema":"model.send_remote-v1"`, 1)
+	remoteBody = strings.Replace(remoteBody, `"destination_id":null`,
+		`"destination_id":"org_remote"`, 1)
+	remoteBody = strings.Replace(remoteBody, `"grant_id":"`+l.grantID+`"`,
+		`"grant_id":"`+l.writeGrant+`"`, 1)
+
+	actions := countRows(t, l.admin, "SELECT count(*) FROM work.local_action WHERE org_id = "+
+		quoteLiteral(l.org))
+	operations := countRows(t, l.admin, "SELECT count(*) FROM work.operation WHERE org_id = "+
+		quoteLiteral(l.org))
+	approvals := countRows(t, l.admin, "SELECT count(*) FROM work.approval WHERE org_id = "+
+		quoteLiteral(l.org))
+	reservations := countRows(t, l.admin, "SELECT count(*) FROM work.quota_reservation WHERE org_id = "+
+		quoteLiteral(l.org))
+	refused := l.refusePrepareBody(t, worker, remoteBody, "destination_not_allowed_for_local_only")
+	if refused.code != "destination_not_allowed_for_local_only" {
+		t.Fatalf("output-root refusal = %q", refused.code)
+	}
+	if got := countRows(t, l.admin, "SELECT count(*) FROM work.local_action WHERE org_id = "+
+		quoteLiteral(l.org)); got != actions {
+		t.Fatalf("refused prepare wrote local_action rows: %d -> %d", actions, got)
+	}
+	if got := countRows(t, l.admin, "SELECT count(*) FROM work.operation WHERE org_id = "+
+		quoteLiteral(l.org)); got != operations {
+		t.Fatalf("refused prepare wrote Operation rows: %d -> %d", operations, got)
+	}
+	if got := countRows(t, l.admin, "SELECT count(*) FROM work.approval WHERE org_id = "+
+		quoteLiteral(l.org)); got != approvals {
+		t.Fatalf("refused prepare wrote Approval rows: %d -> %d", approvals, got)
+	}
+	if got := countRows(t, l.admin, "SELECT count(*) FROM work.quota_reservation WHERE org_id = "+
+		quoteLiteral(l.org)); got != reservations {
+		t.Fatalf("refused prepare wrote quota reservations: %d -> %d", reservations, got)
+	}
+}
+
 func TestR0bClassificationRankUsesExplicitStrictnessOrderAndRejectsUnknown(t *testing.T) {
 	l := newLocalArtifactFixture(t, "org_b4_classification_order")
 	if got := mustScalar(t, l.admin, `SELECT work.classification_rank('local_only') || '/' ||
@@ -574,8 +635,9 @@ func TestR0bFinalizeSuccessionGrantCountsBeforeAnyActionRuns(t *testing.T) {
 		l.org, l.subject, l.runID, "req-b4-rebind-1", remoteID, narrowID,
 		`{"old_grant_id":"`+remoteID+`","new_grant_id":"`+narrowID+`","run_id":"`+l.runID+
 			`","root_identity_hash":"`+strings.Repeat("7", 64)+`","session_id":"`+l.sessionID+
-			`","auth_plane":"bearer","auth_epoch":7,"nonce":"`+nonce+
-			`","signature":"sha256:`+strings.Repeat("e", 64)+`"}`)
+			`","auth_plane":"bearer","auth_epoch":"7","nonce":"`+nonce+
+			`","expires_at":"`+time.Now().Add(4*time.Minute).UTC().Format(time.RFC3339)+
+			`","signature":"`+strings.Repeat("e", 86)+`"}`)
 
 	after := l.finalize(t, worker, l.runID, writeOp, l.versionPayload(newUUID(t), "null", "reports/c.md",
 		hex64("b4-after-succession"), "local/out/b.md", l.deviceID, receiptRef, "local_only", 2048))
@@ -1898,8 +1960,9 @@ func TestR0bRebindConsumesItsNonceOnceAndRollsItBackOnRefusal(t *testing.T) {
 	proof := func(oldGrant, newGrant, nonce, root string) string {
 		return `{"old_grant_id":"` + oldGrant + `","new_grant_id":"` + newGrant + `","run_id":"` + l.runID +
 			`","root_identity_hash":"` + root + `","session_id":"` + l.sessionID +
-			`","auth_plane":"bearer","auth_epoch":7,"nonce":"` + nonce +
-			`","signature":"sha256:` + strings.Repeat("e", 64) + `"}`
+			`","auth_plane":"bearer","auth_epoch":"7","nonce":"` + nonce +
+			`","expires_at":"` + time.Now().Add(4*time.Minute).UTC().Format(time.RFC3339) +
+			`","signature":"` + strings.Repeat("e", 86) + `"}`
 	}
 	nonceRows := func(where string) int {
 		return countRows(t, l.admin, "SELECT count(*) FROM work.consumed_possession_nonce WHERE org_id = "+

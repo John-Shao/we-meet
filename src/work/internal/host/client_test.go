@@ -46,6 +46,9 @@ func TestVerifySession(t *testing.T) {
 		if err != nil || cookie.Value != "session-value" {
 			t.Errorf("cookie = %v, %v", cookie, err)
 		}
+		if got := r.URL.Query().Get("include_permissions"); got != "1" {
+			t.Errorf("include_permissions = %q", got)
+		}
 		if got := r.Header.Get("X-Work-Request-ID"); got != "corr-1" {
 			t.Errorf("correlation = %q", got)
 		}
@@ -56,11 +59,31 @@ func TestVerifySession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if claims.SubjectID != "sub_1" || claims.OrgID != "org_1" || claims.SessionRevision != 4 {
+	if claims.SubjectID != "sub_1" || claims.OrgID != "org_1" || claims.SessionRevision != 4 ||
+		len(claims.Permissions) != 1 || claims.Permissions[0] != "org.work.seat.write" {
 		t.Fatalf("claims = %#v", claims)
 	}
 	if !claims.VerifiedAt.Equal(now.Add(-5 * time.Second)) {
 		t.Fatalf("verified_at = %s", claims.VerifiedAt)
+	}
+}
+
+func TestVerifySessionAcceptsHostWithoutOptionalPermissions(t *testing.T) {
+	now := time.Date(2026, 10, 28, 10, 0, 0, 0, time.UTC)
+	server, pki := startHostServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w,
+			`{"subject_id":"sub_1","org_id":"org_1","session_revision":4,"verified_at":%q}`,
+			now.UTC().Format(time.RFC3339Nano),
+		)
+	})
+	client := newClient(t, server.URL, pki, now)
+	claims, err := client.VerifySession(context.Background(), "session-value", "corr-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claims.Permissions != nil {
+		t.Fatalf("permissions = %#v, want nil for an older Host", claims.Permissions)
 	}
 }
 
@@ -209,7 +232,7 @@ func writeClaims(t *testing.T, w http.ResponseWriter, verifiedAt time.Time) {
 	t.Helper()
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w,
-		`{"subject_id":"sub_1","org_id":"org_1","session_revision":4,"verified_at":%q}`,
+		`{"subject_id":"sub_1","org_id":"org_1","session_revision":4,"verified_at":%q,"permissions":["org.work.seat.write"]}`,
 		verifiedAt.UTC().Format(time.RFC3339Nano),
 	)
 }

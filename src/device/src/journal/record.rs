@@ -42,6 +42,7 @@ pub enum RecordError {
     /// transaction so the allocated seq is bound into the signature atomically).
     Sign(SignError),
     InvalidModelResult,
+    InvalidLocalDraft,
 }
 
 impl From<crypto::CryptoError> for RecordError {

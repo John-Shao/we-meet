@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -603,7 +604,7 @@ func TestR0bRebindPointsAtTheLatestRecordedBaseline(t *testing.T) {
 	rebound := callJSON(t, api,
 		`SELECT work.rebind_run_workspace($1,$2,'bearer',7,$3::uuid,$4,$5::uuid,$6::uuid,$7::jsonb)`,
 		o.org, o.subject, o.runID, "req-rb-1", o.grantID, newGrant,
-		`{"old_grant_id":"`+o.grantID+`","new_grant_id":"`+newGrant+`","run_id":"`+o.runID+`","root_identity_hash":"`+strings.Repeat("8", 64)+`","session_id":"`+o.sessionID+`","auth_plane":"bearer","auth_epoch":7,"nonce":"`+newUUID(t)+`","signature":"sha256:`+strings.Repeat("e", 64)+`"}`)
+		`{"old_grant_id":"`+o.grantID+`","new_grant_id":"`+newGrant+`","run_id":"`+o.runID+`","root_identity_hash":"`+strings.Repeat("8", 64)+`","session_id":"`+o.sessionID+`","auth_plane":"bearer","auth_epoch":"7","nonce":"`+newUUID(t)+`","expires_at":"`+time.Now().Add(4*time.Minute).UTC().Format(time.RFC3339)+`","signature":"`+strings.Repeat("e", 86)+`"}`)
 	// The 0040 obligation discharged: the resume offer names the recorded baseline.
 	if rebound["expected_checkpoint_seq"] != float64(1) {
 		t.Fatalf("rebind expected_checkpoint_seq = %v, want 1", rebound["expected_checkpoint_seq"])

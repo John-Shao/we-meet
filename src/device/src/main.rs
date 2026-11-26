@@ -163,6 +163,10 @@ fn run(path: &str) -> Result<(), String> {
         work_device::ipc::service::serve_shell_pipe(&pipe_name, shell_pid, delivery_tx)
     });
 
+    // Shared with the sync core, which fills it with the journal handle and session facts; the
+    // pump signs approval decisions directly so `ask_each` stays decidable while a Run waits.
+    let approval_signer: work_device::journalop::ApprovalSignerSlot =
+        std::sync::Arc::new(std::sync::Mutex::new(None));
     let pump = rt.spawn(run_core_pump(
         identity,
         TicketSlot::new(""),
@@ -171,6 +175,7 @@ fn run(path: &str) -> Result<(), String> {
         ticket_tx,
         core_tx,
         ready_tx,
+        approval_signer.clone(),
         #[cfg(windows)]
         node_service.clone(),
     ));
@@ -225,6 +230,7 @@ fn run(path: &str) -> Result<(), String> {
                 agent_instance_id: cfg.agent_instance_id.clone(),
                 boot_id: cfg.boot_id.clone(),
             },
+            approval_signer.clone(),
             #[cfg(windows)]
             node_service.clone(),
         )?;
