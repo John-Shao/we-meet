@@ -253,8 +253,11 @@ def test_change_seat_enforces_entitlement_and_counts_people(client):
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(("enabled", "suspended"), [(False, False), (True, True)])
 @override_settings(**MTLS)
-def test_operator_disable_serializes_before_a_concurrent_seat_grant(client):
+def test_operator_disable_or_suspension_serializes_before_a_concurrent_seat_grant(
+    client, enabled, suspended
+):
     organization = factories.OrganizationFactory()
     target = factories.MembershipFactory(organization=organization)
     initial = command_body(organization)
@@ -285,7 +288,13 @@ def test_operator_disable_serializes_before_a_concurrent_seat_grant(client):
             )
             pending = executor.submit(grant_seat)
             assert started.wait(timeout=5)
-            disabled = command_body(organization, expected=1, target=2, enabled=False)
+            disabled = command_body(
+                organization,
+                expected=1,
+                target=2,
+                enabled=enabled,
+                suspended=suspended,
+            )
             work_governance.apply_execution_entitlement(
                 locked,
                 command_id=disabled["command_id"],
@@ -304,7 +313,11 @@ def test_operator_disable_serializes_before_a_concurrent_seat_grant(client):
     target.refresh_from_db()
     assert target.work_seat is False
     entitlement = models.WorkExecutionEntitlement.objects.get(organization=organization)
-    assert (entitlement.enabled, entitlement.revision) == (False, 2)
+    assert (
+        entitlement.enabled,
+        entitlement.operator_suspended,
+        entitlement.revision,
+    ) == (enabled, suspended, 2)
 
 
 @override_settings(**MTLS)
