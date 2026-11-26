@@ -149,6 +149,7 @@ export interface WorkspaceGrantSummary {
   grantId: string;
   rootIdentityHash: string;
   artifactDir: string[];
+  classification: "local_only" | "remote_excerpt_allowed";
 }
 
 export interface WorkspaceRebindConfirmation {

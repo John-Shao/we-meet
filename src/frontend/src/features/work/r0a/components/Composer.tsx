@@ -144,6 +144,11 @@ export const Composer = ({ bootstrap }: Props) => {
     !goal.trim() || goalLength > bootstrap.limits.max_goal_chars
   const invalidBackground =
     backgroundLength > bootstrap.limits.max_background_chars
+  const localOnlySelected = localGrants.some(
+    (grant) =>
+      selectedGrantIds.includes(grant.grantId) &&
+      grant.classification === 'local_only'
+  )
 
   const resetPreview = (clearInput = false) => {
     previewGeneration.current += 1
@@ -475,6 +480,11 @@ export const Composer = ({ bootstrap }: Props) => {
             </div>
             {localGrants.length === 0 ? (
               <p className={muted}>{t('composer.localGrantsRequired')}</p>
+            ) : null}
+            {localOnlySelected ? (
+              <p className={errorText} role="alert">
+                {t('composer.localOnlySelectedWarning')}
+              </p>
             ) : null}
             <div
               className={css({ display: 'flex', justifyContent: 'flex-end' })}

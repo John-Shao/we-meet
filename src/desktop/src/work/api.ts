@@ -11,6 +11,7 @@ export type WorkAction =
   | "confirmRenewal"
   | "revoke"
   | "registerWorkspaceGrant"
+  | "listWorkspaceGrants"
   | "createLocalArtifactVersion"
   | "createLocalAcceptance"
   | "rebindRunWorkspace"
@@ -69,6 +70,7 @@ const endpoints: Record<
     id: "deviceId",
   },
   registerWorkspaceGrant: { method: "POST", path: "/work/v2/workspace-grants" },
+  listWorkspaceGrants: { method: "GET", path: "/work/v2/workspace-grants" },
   createLocalArtifactVersion: {
     method: "POST",
     path: "/work/v2/artifacts/{artifactId}/versions",

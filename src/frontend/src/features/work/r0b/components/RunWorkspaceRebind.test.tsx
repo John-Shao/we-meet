@@ -27,16 +27,19 @@ const grants = [
     grantId: '11111111-1111-4111-8111-111111111111',
     rootIdentityHash: `sha256:${'a'.repeat(64)}`,
     artifactDir: ['WeMeet成果'],
+    classification: 'remote_excerpt_allowed' as const,
   },
   {
     grantId: '22222222-2222-4222-8222-222222222222',
     rootIdentityHash: `sha256:${'a'.repeat(64)}`,
     artifactDir: ['WeMeet成果'],
+    classification: 'remote_excerpt_allowed' as const,
   },
   {
     grantId: '33333333-3333-4333-8333-333333333333',
     rootIdentityHash: `sha256:${'b'.repeat(64)}`,
     artifactDir: ['other'],
+    classification: 'local_only' as const,
   },
 ]
 
@@ -136,6 +139,29 @@ describe('RunWorkspaceRebind', () => {
     expect(screen.getByLabelText('task.workspaceRebindNew')).toHaveValue(
       grants[1].grantId
     )
+  })
+
+  it('warns before rebinding to a stricter classification', async () => {
+    Object.defineProperty(window, 'weMeetDesktop', {
+      configurable: true,
+      value: {
+        work: {
+          listWorkspaceGrants: vi
+            .fn()
+            .mockResolvedValue([
+              grants[0],
+              { ...grants[1], classification: 'local_only' },
+            ]),
+          grantWorkspace: vi.fn().mockResolvedValue(null),
+          rebindRunWorkspace: vi.fn(),
+          onWorkspaceRebound: () => () => {},
+        },
+      },
+    })
+    renderPage()
+    expect(
+      await screen.findByText('task.workspaceRebindStricter')
+    ).toBeInTheDocument()
   })
 
   it('does not expose rebind outside waiting(input)', () => {

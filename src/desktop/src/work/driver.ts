@@ -971,7 +971,7 @@ export class WorkDeviceDriver {
     const uuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
     const seen = new Set<string>();
-    return data.grants
+    const summaries = data.grants
       .filter(
         (grant) =>
           grant &&
@@ -1015,6 +1015,46 @@ export class WorkDeviceDriver {
           artifactDir: [...grant.artifact_dir] as string[],
         };
       });
+    const classifications = new Map<
+      string,
+      WorkspaceGrantSummary["classification"]
+    >();
+    const listed = await this.deps.api.request<{
+      items: unknown;
+      next_cursor: unknown;
+    }>("listWorkspaceGrants");
+    if (
+      Object.keys(listed).sort().join(",") !== "items,next_cursor" ||
+      listed.next_cursor !== null ||
+      !Array.isArray(listed.items) ||
+      listed.items.length > 128
+    ) {
+      throw new BrokerPipeError("shape");
+    }
+    for (const value of listed.items) {
+      if (!value || typeof value !== "object" || Array.isArray(value))
+        throw new BrokerPipeError("shape");
+      const item = value as Record<string, unknown>;
+      if (
+        typeof item.grant_id !== "string" ||
+        !uuid.test(item.grant_id) ||
+        classifications.has(item.grant_id) ||
+        !["local_only", "remote_excerpt_allowed"].includes(
+          String(item.classification),
+        )
+      ) {
+        throw new BrokerPipeError("shape");
+      }
+      classifications.set(
+        item.grant_id,
+        item.classification as WorkspaceGrantSummary["classification"],
+      );
+    }
+    return summaries.map((summary) => {
+      const classification = classifications.get(summary.grantId);
+      if (!classification) throw new BrokerPipeError("shape");
+      return { ...summary, classification };
+    });
   }
 
   async rebindRunWorkspace(

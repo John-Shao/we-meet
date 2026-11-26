@@ -153,6 +153,15 @@ function harness(t, overrides = {}) {
       state: "active",
       replayed: false,
     },
+    listWorkspaceGrants: {
+      items: [
+        {
+          grant_id: workspaceGrantId,
+          classification: "local_only",
+        },
+      ],
+      next_cursor: null,
+    },
     createLocalTaskPreview: (action, options) => ({
       preview_hash: previewHash,
       target_selection_hash: createHash("sha256")
@@ -1573,8 +1582,17 @@ test("workspace grant list returns only closed metadata for rebind selection", a
       grantId: workspaceGrantId,
       rootIdentityHash: `sha256:${"a".repeat(64)}`,
       artifactDir: ["WeMeet成果"],
+      classification: "local_only",
     },
   ]);
+  h.apiResponses.listWorkspaceGrants = {
+    items: [{ grant_id: workspaceGrantId }],
+    next_cursor: null,
+  };
+  await assert.rejects(
+    () => h.driver.listWorkspaceGrants(),
+    (error) => error.code === "shape",
+  );
 });
 
 test("workspace rebind uses the Broker session and submits the exact succession proof", async (t) => {

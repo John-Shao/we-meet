@@ -36,7 +36,11 @@ const select = css({
 })
 
 const grantLabel = (grant: WorkspaceGrantSummary) =>
-  `${grant.grantId.slice(0, 8)} · ${grant.rootIdentityHash.slice(7, 15)} · ${grant.artifactDir.join('/') || '(root)'}`
+  `${grant.grantId.slice(0, 8)} · ${grant.rootIdentityHash.slice(7, 15)} · ${grant.artifactDir.join('/') || '(root)'} · ${grant.classification}`
+
+const classificationRank = (
+  classification: WorkspaceGrantSummary['classification']
+) => (classification === 'local_only' ? 2 : 1)
 
 export const RunWorkspaceRebind = ({
   runId,
@@ -96,6 +100,12 @@ export const RunWorkspaceRebind = ({
   }, [bridge, queryClient, refresh])
 
   const oldGrant = grants.find((grant) => grant.grantId === oldGrantId)
+  const newGrant = grants.find((grant) => grant.grantId === newGrantId)
+  const stricter =
+    !!oldGrant &&
+    !!newGrant &&
+    classificationRank(newGrant.classification) >
+      classificationRank(oldGrant.classification)
   const candidates = useMemo(
     () =>
       oldGrant
@@ -224,6 +234,11 @@ export const RunWorkspaceRebind = ({
               ))}
             </select>
           </label>
+          {stricter ? (
+            <p role="alert" className={errorText}>
+              {t('task.workspaceRebindStricter')}
+            </p>
+          ) : null}
           <Button size="dense" loading={busy} onPress={() => void submit()}>
             {t('task.workspaceRebindSubmit')}
           </Button>

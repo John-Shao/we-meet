@@ -49,7 +49,7 @@ test('the baseline does not overstate completion', () => {
       index.gates.filter((entry) => entry.status === status).length,
     ]),
   );
-  assert.deepEqual(counts, { covered: 15, partial: 9, not_run: 1, out_of_scope: 4 });
+  assert.deepEqual(counts, { covered: 16, partial: 9, not_run: 0, out_of_scope: 4 });
   for (const entry of index.gates) {
     if (entry.status !== 'not_run') continue;
     assert.deepEqual(entry.evidence, [], `${entry.id} is not_run but claims executable evidence`);
@@ -105,7 +105,9 @@ test('tampering with the evidence record trips the invariant it is meant to prot
     ['call partial without any executable evidence', (clone) => { clone.gates[0].evidence = []; }],
     ['call not_run while citing executable evidence', (clone) => { clone.gates[0].status = 'not_run'; }],
     ['call not_run without naming the gap', (clone) => {
-      const entry = clone.gates.find((candidate) => candidate.status === 'not_run');
+      const entry = clone.gates.find((candidate) => candidate.status === 'partial');
+      entry.status = 'not_run';
+      entry.evidence = [];
       entry.gaps = [];
     }],
     ['exclude a gate without a ruling', (clone) => {

@@ -304,7 +304,7 @@ describe('Composer preview generations', () => {
     setItem.mockRestore()
   })
 
-  it('submits a staged local draft with the selected workspace grant', async () => {
+  it('warns about local-only artifacts and submits a staged local draft with the selected workspace grant', async () => {
     const grantId = '12345678-1234-4234-8234-123456789abc'
     const submitLocalTask = vi.fn().mockResolvedValue({
       taskId: 'local-task',
@@ -331,6 +331,7 @@ describe('Composer preview generations', () => {
               grantId,
               rootIdentityHash: `sha256:${'b'.repeat(64)}`,
               artifactDir: ['WeMeet成果'],
+              classification: 'local_only',
             },
           ]),
           submitLocalTask,
@@ -343,6 +344,9 @@ describe('Composer preview generations', () => {
       name: 'composer.submitLocal',
     })
     expect(submit).toBeEnabled()
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'composer.localOnlySelectedWarning'
+    )
     fireEvent.click(submit)
     await waitFor(() =>
       expect(navigate).toHaveBeenCalledWith('/work/items/local-task')

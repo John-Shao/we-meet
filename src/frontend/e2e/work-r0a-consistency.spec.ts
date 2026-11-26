@@ -333,6 +333,7 @@ test('mocked local composer stages on device, selects a grant and submits throug
             grantId: '22222222-2222-4222-8222-222222222222',
             rootIdentityHash: `sha256:${'b'.repeat(64)}`,
             artifactDir: ['WeMeet成果'],
+            classification: 'local_only',
           },
         ],
         submitLocalTask: async (input: Record<string, unknown>) => {
@@ -357,6 +358,9 @@ test('mocked local composer stages on device, selects a grant and submits throug
   await expect(
     page.getByRole('button', { name: 'WeMeet成果 22222222', exact: true })
   ).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('alert')).toContainText(
+    '已选目录包含 local_only 内容'
+  )
   await page
     .getByRole('button', { name: '在本机预览并提交', exact: true })
     .click()
@@ -531,16 +535,19 @@ test('desktop workspace rebind offers only same-root grants and submits the sele
               grantId: oldGrantId,
               rootIdentityHash: `sha256:${'a'.repeat(64)}`,
               artifactDir: ['WeMeet成果'],
+              classification: 'remote_excerpt_allowed',
             },
             {
               grantId: newGrantId,
               rootIdentityHash: `sha256:${'a'.repeat(64)}`,
               artifactDir: ['WeMeet成果'],
+              classification: 'local_only',
             },
             {
               grantId: '33333333-3333-4333-8333-333333333333',
               rootIdentityHash: `sha256:${'b'.repeat(64)}`,
               artifactDir: ['other'],
+              classification: 'local_only',
             },
           ],
           grantWorkspace: async (...args: unknown[]) => {
@@ -578,6 +585,7 @@ test('desktop workspace rebind offers only same-root grants and submits the sele
   await expect(next.locator('option')).toHaveText(
     /22222222 · aaaaaaaa · WeMeet成果/
   )
+  await expect(page.getByRole('alert')).toContainText('新授权分类更严')
   await page
     .getByRole('button', { name: '确认改绑并重新审批', exact: true })
     .click()

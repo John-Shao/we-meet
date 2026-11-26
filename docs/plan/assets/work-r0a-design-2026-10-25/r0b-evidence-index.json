@@ -600,12 +600,17 @@
       "id": "EV121",
       "gate": "I5",
       "requirement": "预览提前显示 artifact_classification_floor 与 local_only 不可云同步告警，提交不被误阻断，改绑变严再次提示。",
-      "status": "not_run",
-      "gaps": [
-        "0083 已让本机预览响应携带服务端所选 grant 的 artifact_classification_floor 与 available_destinations，提交确认页在 local_only 时明确告知只留本机、不可云同步且提交不被阻断。",
-        "改绑或换 grant 使实际 (B) 比预览预测更严时，任务页尚未在同步前再次提示；E=B 后同步腿移出，但该改绑提醒仍待实现，故整门保持 not_run。"
-      ],
-      "evidence": []
+      "status": "covered",
+      "gaps": [],
+      "evidence": [
+        { "path": "src/work/internal/api/device_broker_interop_test.go", "test": "TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "submitLocalTask previews, confirms natively, signs and submits the exact local intent" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "workspace grant list returns only closed metadata for rebind selection" },
+        { "path": "src/frontend/src/features/work/r0a/components/Composer.test.tsx", "test": "warns about local-only artifacts and submits a staged local draft with the selected workspace grant" },
+        { "path": "src/frontend/src/features/work/r0b/components/RunWorkspaceRebind.test.tsx", "test": "warns before rebinding to a stricter classification" },
+        { "path": "src/frontend/e2e/work-r0a-consistency.spec.ts", "test": "mocked local composer stages on device, selects a grant and submits through the shell bridge" },
+        { "path": "src/frontend/e2e/work-r0a-consistency.spec.ts", "test": "desktop workspace rebind offers only same-root grants and submits the selected pair" }
+      ]
     },
     {
       "id": "EV88",
