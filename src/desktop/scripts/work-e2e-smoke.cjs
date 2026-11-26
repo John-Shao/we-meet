@@ -700,9 +700,13 @@ async function main() {
   } finally {
     if (stopApprover) stopApprover();
     if (fixture) fixture.kill();
-    if (app) await app.close().catch(() => {});
+    if (app)
+      await Promise.race([app.close().catch(() => {}), wait(5000)]);
     proxy.closeAllConnections();
-    await new Promise((resolve) => proxy.close(resolve));
+    await Promise.race([
+      new Promise((resolve) => proxy.close(resolve)),
+      wait(1000),
+    ]);
   }
 }
 main()
