@@ -327,6 +327,51 @@ func TestR0bOperatorRestoreWaitsForTheHostAckAndReleasesOnlyItsOwn(t *testing.T)
 	}
 }
 
+func TestR0bOperatorRestoreKeepsEveryHostDenySource(t *testing.T) {
+	dbName, admin := newGateDB(t)
+	ctx := testContext(t)
+	org := "org_r0b_ops_restore_host_denys"
+	seedRun(t, admin, org)
+	r0bAdmin(t, admin, org)
+	r0bExec(t, dbName, org, `
+		INSERT INTO work.access_restriction
+			(org_id, scope, subject_id, source, reason, epoch, host_revision, release_floor_revision)
+		VALUES
+			('`+org+`', 'org', NULL, 'host_org', 'org_archived', 1, 1, 1),
+			('`+org+`', 'member', 'sub_host_member', 'host_member', 'member_suspended', 1, 1, 1),
+			('`+org+`', 'member', 'sub_host_seat', 'host_seat', 'seat_revoked', 1, 1, 1)`)
+
+	ops := operatorSession(t, dbName, org, "ops_root")
+	defer ops.Close(ctx)
+	applyEntitlement(t, ops, entitlementCall{
+		org: org, actor: "ops_root", ref: "TICKET-RESTORE-HOST-DENYS",
+		suspended: true, revision: 1, requestID: "req-suspend-host-denys",
+	})
+	applyEntitlement(t, ops, entitlementCall{
+		org: org, actor: "ops_root", ref: "TICKET-RESTORE-HOST-DENYS",
+		suspended: true, revision: 1, ack: int64(1), requestID: "req-ack-suspend-host-denys",
+	})
+	applyEntitlement(t, ops, entitlementCall{
+		org: org, actor: "ops_root", ref: "TICKET-RESTORE-HOST-DENYS-2",
+		enabled: true, revision: 2, requestID: "req-restore-host-denys",
+	})
+	applyEntitlement(t, ops, entitlementCall{
+		org: org, actor: "ops_root", ref: "TICKET-RESTORE-HOST-DENYS-2",
+		enabled: true, revision: 2, ack: int64(2), requestID: "req-ack-restore-host-denys",
+	})
+
+	for _, source := range []string{"host_org", "host_member", "host_seat"} {
+		if got := scalarCount(t, admin, `SELECT count(*) FROM work.access_restriction
+			WHERE org_id = $1 AND source = $2 AND state = 'active'`, org, source); got != 1 {
+			t.Fatalf("active %s denys after operator restore = %d, want 1", source, got)
+		}
+	}
+	if got := scalarCount(t, admin, `SELECT count(*) FROM work.access_restriction
+		WHERE org_id = $1 AND source = 'operator' AND state = 'released'`, org); got != 1 {
+		t.Fatalf("released operator denys = %d, want 1", got)
+	}
+}
+
 func TestR0bSeatLimitChangeIsNotADenySource(t *testing.T) {
 	dbName, admin := newGateDB(t)
 	ctx := testContext(t)

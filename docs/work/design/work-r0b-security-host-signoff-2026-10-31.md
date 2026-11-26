@@ -58,7 +58,7 @@
 
 **【2026-11-27 EV121 分类下限预览与改绑变严提示闭合登记：** 本机 grant 列表由 Broker 元数据与 Work REST `/work/v2/workspace-grants` 按 `grant_id` 合并，服务端分类缺失即 fail closed；Composer 在选中任一 `local_only` 授权时、提交前显示“成果只留本机、不可云同步”告警，不阻断提交。原生提交确认页继续显示服务端预览的 `artifact_classification_floor` 与当前可用目的地。改绑页按 `local_only` 严于 `remote_excerpt_allowed` 的固定序比较旧/新授权，变严时在提交前显示再次提示；同根过滤、取消与 proof 链不变。真实 Broker 预览互操作、Desktop driver、Composer/RunWorkspaceRebind 组件测试及 Chromium 本机提交/改绑场景均通过。EV121 读作 `covered`；本登记不构成外部审计结论。
 
-**【2026-11-27 EV96 未决 Apply 冲突补证（不宣称完整闭合）：** 真实 PostgreSQL 上先让第一条 operator Apply 因 Host 结果未知保持未确认，再以同一组织、旧 expected revision 和更高 target revision 发送第二条；Work 在本地 revision 守卫处返回 `governance_revision_conflict`，未调用 Host、未写 ack，entitlement revision 保持 1，未被未决冲突推进。该用例补齐“同 org 未决 Apply 时再发第二条返回 governance_revision_conflict 且目标 revision 单调”的直接证据。EV96 仍为 `partial`：跨系统并发时序与全部 deny 来源恢复矩阵尚未执行；本补记不构成外部审计结论。
+**【2026-11-27 EV96 未决 Apply 与 deny 恢复矩阵补证（不宣称完整闭合）：** 真实 PostgreSQL 上先让第一条 operator Apply 因 Host 结果未知保持未确认，再以同一组织、旧 expected revision 和更高 target revision 发送第二条；Work 在本地 revision 守卫处返回 `governance_revision_conflict`，未调用 Host、未写 ack，entitlement revision 保持 1，未被未决冲突推进。另一真库用例同时预置 `host_org`／`host_member`／`host_seat` 三类 active deny，完成 operator suspend→Host ack→restore→Host ack 后，三类 Host deny 均保持 active，只有 operator deny 被释放。EV96 仍为 `partial`：跨系统并发时序尚未执行；本补记不构成外部审计结论。
 
 **【2026-11-27 EV118 范围闭合登记：** EV118 的 list-only 正例、read taint 在 prepare 前零副作用拒绝、permit 复验后 canceled＋held 预留释放＋零 dispatch＋claim 不重试、local_only 输出根拒绝，以及预览/确认页提前告知均有直接可执行证据。真实远程模型消费 E2E 已由 E=B 明确移出本期，不再作为本门缺口；EV118 读作 `covered`。本登记不构成外部审计结论。
 
