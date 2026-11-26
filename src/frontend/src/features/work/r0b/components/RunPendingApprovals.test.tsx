@@ -9,7 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { RunPendingApprovals } from './RunPendingApprovals'
-import type { PendingLocalApproval } from '../../localBridgeTypes'
+import type { PendingLocalApproval } from '../../../../../../desktop/src/work/bridge'
 
 const state = vi.hoisted(() => ({
   phases: ['R0a', 'R0b'] as string[],

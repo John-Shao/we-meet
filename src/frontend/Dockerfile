@@ -28,6 +28,10 @@ COPY --chown=node:node \
 COPY --chown=node:node \
     ./src/desktop/src/screen-picker/bridge.ts \
     /home/desktop/src/screen-picker/
+# Work preload contract is type-only; keep it beside the other browser-safe bridges.
+COPY --chown=node:node \
+    ./src/desktop/src/work/bridge.ts \
+    /home/desktop/src/work/
 
 ### ---- Front-end builder image ----
 FROM frontend-deps AS meet

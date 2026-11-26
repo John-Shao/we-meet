@@ -7,7 +7,7 @@ import { css } from '@/styled-system/css'
 
 import { errorText, muted, sectionTitle } from '../../r0a/ui'
 import { useWorkPendingLocalApprovals } from '../api/queries'
-import type { PendingLocalApproval } from '../../localBridgeTypes'
+import type { PendingLocalApproval } from '../../../../../../desktop/src/work/bridge'
 
 const list = css({
   listStyle: 'none',

@@ -29,7 +29,7 @@ import { useReadOnlyViewport } from '../hooks/useReadOnlyViewport'
 import { ArtifactPreview } from '../components/ArtifactPreview'
 import { TaskStatusBadge } from '../components/TaskStatusBadge'
 import { card, errorText, muted, notice, page, row, sectionTitle } from '../ui'
-import type { LocalArtifactDraft } from '../../localBridgeTypes'
+import type { LocalArtifactDraft } from '../../../../../../desktop/src/work/bridge'
 
 const downloadLink = css({
   display: 'inline-flex',
