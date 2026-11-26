@@ -381,8 +381,7 @@
       "requirement": "本机采纳 proof 由 viewer signObjectProof 手势签署，缺手势或伪造 frame 时零请求零写；purpose 仅 accept。",
       "status": "partial",
       "gaps": [
-        "尚未执行真实 Electron viewer → 真实 Broker/设备 → 真实 REST 的采纳全链 E2E。",
-        "尚未执行缺手势时的 OS 层零请求/零写抓包；现有证据覆盖主进程无消息不调用与伪造 proof 拒绝。"
+        "尚未执行缺手势时的 OS 层零请求/零写抓包；真实 Electron 单进程 E2E 已覆盖应用层零 acceptance REST/pipe 请求，现有单元证据覆盖主进程无消息不调用与伪造 proof 拒绝。"
       ],
       "evidence": [
         { "path": "src/work/internal/api/local_acceptances_test.go", "test": "TestLocalAcceptanceCreateAndReplay" },
@@ -404,7 +403,9 @@
         { "path": "src/frontend/src/features/work/r0a/routes/ArtifactWorkspacePage.test.tsx", "test": "never falls back to cookie-plane acceptance when desktop version proof metadata is missing" },
         { "path": "src/frontend/e2e/work-r0a-consistency.spec.ts", "test": "desktop acceptance opens the secure viewer instead of calling the cookie plane" },
         { "path": "src/device/src/ipc/schema.rs", "test": "viewer_closure_has_six_members" },
-        { "path": "src/device/src/ipc/schema.rs", "test": "viewer_methods_accepted" }
+        { "path": "src/device/src/ipc/schema.rs", "test": "viewer_methods_accepted" },
+        { "path": "src/desktop/scripts/work-e2e-smoke.cjs", "test": "viewerGestureObserved" },
+        { "path": "src/desktop/tests/work-pipe.test.cjs", "test": "a caller-supplied request_id is the correlation id" }
       ]
     },
     {

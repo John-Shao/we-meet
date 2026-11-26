@@ -95,6 +95,7 @@ export class BrokerPipe {
   private buffer = Buffer.alloc(0);
   private frames: Buffer[] = [];
   private waiters: ((frame: Buffer | null) => void)[] = [];
+  private tail: Promise<void> = Promise.resolve();
   private closed = false;
   private failure?: Error;
 
@@ -169,7 +170,22 @@ export class BrokerPipe {
   /** One closed call: send {method, request_id, ...fields}, await the echoed reply. Fields are
    * strings for the §2.1 carriers; the 批2 confirmation carriers also pass a bool (approved), an
    * array (artifact_dir) and an object (listener_requirement), so the value type is unknown. */
-  async call(
+  call(
+    method: BrokerMethod,
+    fields: Record<string, unknown> = {},
+    timeoutMs = 8000,
+  ): Promise<BrokerReply> {
+    const result = this.tail.then(() =>
+      this.callOnce(method, fields, timeoutMs),
+    );
+    this.tail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
+  private async callOnce(
     method: BrokerMethod,
     fields: Record<string, unknown> = {},
     timeoutMs = 8000,
@@ -180,8 +196,11 @@ export class BrokerPipe {
     for (const forbidden of ["command", "path", "url"]) {
       if (Object.hasOwn(fields, forbidden)) throw new BrokerPipeError("schema");
     }
-    const requestId = randomUUID();
-    this.writeJson({ method, request_id: requestId, ...fields });
+    const requestId =
+      typeof fields.request_id === "string" && fields.request_id.length > 0
+        ? fields.request_id
+        : randomUUID();
+    this.writeJson({ ...fields, method, request_id: requestId });
     const deadline = Date.now() + timeoutMs;
     for (;;) {
       const remaining = deadline - Date.now();

@@ -1666,8 +1666,23 @@ async function createWindow() {
         ) {
           return { status: "denied" };
         }
-        const { taskId, artifactId, versionId, contentHash, revision } =
-          request as Record<string, unknown>;
+        const {
+          taskId,
+          artifactId,
+          versionId,
+          contentHash: requestedContentHash,
+          revision,
+        } = request as Record<string, unknown>;
+        // REST artifact versions store the bare digest, while the viewer/driver proof contract
+        // uses the canonical sha256: form. Accept the REST read-model shape at this IPC boundary
+        // and normalize it before the local body hash check and proof binding.
+        const contentHash =
+          typeof requestedContentHash === "string" &&
+          requestedContentHash.startsWith("sha256:")
+            ? requestedContentHash
+            : typeof requestedContentHash === "string"
+              ? `sha256:${requestedContentHash}`
+              : requestedContentHash;
         const uuid =
           /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
         if (
@@ -1678,7 +1693,7 @@ async function createWindow() {
           typeof versionId !== "string" ||
           !uuid.test(versionId) ||
           typeof contentHash !== "string" ||
-          !/^sha256:[0-9a-f]{64}$/.test(contentHash) ||
+          !/^(?:sha256:)?[0-9a-f]{64}$/.test(contentHash) ||
           typeof revision !== "number" ||
           !Number.isSafeInteger(revision) ||
           revision < 0
