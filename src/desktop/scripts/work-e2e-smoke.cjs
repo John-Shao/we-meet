@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const { spawn, execFileSync } = require("node:child_process");
-const { randomUUID } = require("node:crypto");
+const { createHash, randomUUID } = require("node:crypto");
 const fs = require("node:fs");
 const http = require("node:http");
 const net = require("node:net");
@@ -47,6 +47,9 @@ function psql(sql) {
 }
 function one(sql) {
   return psql(sql).split("\n").pop().trim();
+}
+function sha256File(file) {
+  return createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 }
 // The local face refuses approval creation until the org has a configured policy
 // (set_local_policy bumps effective_epoch; request_approval requires > 0). A real admin
@@ -643,6 +646,17 @@ async function main() {
     );
 
     if (idleOnly) {
+      const brokerPid = await app.evaluate(() => globalThis.__workE2EBrokerPid);
+      const brokerPath = path.join(
+        project,
+        "dist",
+        "work-device",
+        "work-device.exe",
+      );
+      const electronPath = require("electron");
+      const viewerPid = await app.evaluate(() =>
+        globalThis.__workE2EViewerPid(),
+      );
       const idleReceipt = {
         passed: true,
         idleOnly: true,
@@ -655,6 +669,15 @@ async function main() {
         acceptanceRestCount: noGestureAcceptanceRequestCount,
         prepareLocalAcceptancePipeFrameCount: noGesturePreparePipeFrameCount,
         viewerGestureObserved: false,
+        pids: {
+          main: app.process().pid,
+          viewer: viewerPid,
+          broker: brokerPid,
+        },
+        binaries: {
+          main: { path: electronPath, sha256: sha256File(electronPath) },
+          broker: { path: brokerPath, sha256: sha256File(brokerPath) },
+        },
         testedAt: new Date().toISOString(),
       };
       assert.equal(

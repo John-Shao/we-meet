@@ -118,10 +118,19 @@ app.prependOnceListener("ready", () => {
   const originalBrokerStart = BrokerSupervisor.prototype.start;
   BrokerSupervisor.prototype.start = async function (...args) {
     await originalBrokerStart.apply(this, args);
+    if (this.child?.pid) globalThis.__workE2EBrokerPid = this.child.pid;
     const stream = this.child && this.child.stderr;
     if (deviceLog && stream) {
       stream.on("data", (chunk) => fs.appendFileSync(deviceLog, chunk));
     }
+  };
+
+  globalThis.__workE2EViewerPid = () => {
+    const { BrowserWindow } = require("electron");
+    const win = BrowserWindow.getAllWindows().find((candidate) =>
+      candidate.webContents.getURL().startsWith("wemeet-local://viewer"),
+    );
+    return win?.webContents.getOSProcessId();
   };
 
   const originalGrant = WorkDeviceDriver.prototype.grantWorkspace;
