@@ -441,7 +441,7 @@
         "未决 Apply 冲突与 revision 单调已补；跨系统并发时序与全部 deny 来源恢复矩阵仍未执行。"
       ],
       "evidence": [
-        { "path": "src/work/internal/operatorentitlement/executor_test.go", "test": "TestPendingApplyConflictKeepsTheTargetRevisionMonotonic" },
+        { "path": "src/work/internal/operatorentitlement/executor_test.go", "test": "TestPendingApplyConflictKeepsTheRevisionMonotonic" },
         { "path": "src/work/internal/migrate/r0b_entitlement_test.go", "test": "TestR0bOperatorSuspendBuildsDenyAndQueuesCancellations" },
         { "path": "src/work/internal/migrate/r0b_entitlement_test.go", "test": "TestR0bOperatorRestoreWaitsForTheHostAckAndReleasesOnlyItsOwn" },
         { "path": "src/work/internal/migrate/r0b_entitlement_test.go", "test": "TestR0bSeatLimitChangeIsNotADenySource" },

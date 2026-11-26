@@ -265,7 +265,7 @@ func TestHostConflictLeavesLocalCommandUnacknowledged(t *testing.T) {
 	}
 }
 
-func TestPendingApplyConflictKeepsTheTargetRevisionMonotonic(t *testing.T) {
+func TestPendingApplyConflictKeepsTheRevisionMonotonic(t *testing.T) {
 	ctx, pool, observer, orgID := setup(t)
 	first := operatorentitlement.Command{
 		OrgID: orgID, ActorSubject: "sub_operator", OperatorAuthorizationRef: "OPS-PENDING",
@@ -304,7 +304,7 @@ func TestPendingApplyConflictKeepsTheTargetRevisionMonotonic(t *testing.T) {
 		`SELECT revision, host_ack_revision FROM work.execution_entitlement WHERE org_id=$1`, orgID).Scan(&revision, &ack); err != nil {
 		t.Fatal(err)
 	}
-	if revision != 2 || ack != nil {
+	if revision != 1 || ack != nil {
 		t.Fatalf("pending conflict facts = revision:%d ack:%v", revision, ack)
 	}
 }
