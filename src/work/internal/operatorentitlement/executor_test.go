@@ -265,6 +265,50 @@ func TestHostConflictLeavesLocalCommandUnacknowledged(t *testing.T) {
 	}
 }
 
+func TestPendingApplyConflictKeepsTheTargetRevisionMonotonic(t *testing.T) {
+	ctx, pool, observer, orgID := setup(t)
+	first := operatorentitlement.Command{
+		OrgID: orgID, ActorSubject: "sub_operator", OperatorAuthorizationRef: "OPS-PENDING",
+		ExpectedEntitlementRevision: 0, TargetEntitlementRevision: 1,
+		Enabled: false, SeatLimit: 2, RequestID: "66666666-0000-0000-0000-000000000001",
+	}
+	applyCalls := 0
+	hostClient := &fakeHost{
+		apply: func(context.Context, host.ExecutionEntitlementCommand, string) (host.ExecutionEntitlementReceipt, error) {
+			applyCalls++
+			if applyCalls == 1 {
+				return host.ExecutionEntitlementReceipt{}, &host.Error{Code: "entitlement_unavailable"}
+			}
+			return host.ExecutionEntitlementReceipt{}, &host.Error{Code: "governance_revision_conflict"}
+		},
+		get: func(context.Context, string, string) (host.ExecutionEntitlementReceipt, error) {
+			return host.ExecutionEntitlementReceipt{}, &host.Error{Code: "command_not_found"}
+		},
+	}
+	executor := &operatorentitlement.Executor{Pool: pool, Host: hostClient}
+	if _, err := executor.Execute(ctx, first); err == nil {
+		t.Fatal("unknown Host outcome was acknowledged")
+	}
+
+	second := first
+	second.OperatorAuthorizationRef = "OPS-PENDING-CONFLICT"
+	second.ExpectedEntitlementRevision = 0
+	second.TargetEntitlementRevision = 2
+	second.RequestID = "66666666-0000-0000-0000-000000000002"
+	if _, err := executor.Execute(ctx, second); err == nil {
+		t.Fatal("a second Apply against an unacknowledged revision was acknowledged")
+	}
+	var revision int64
+	var ack any
+	if err := observer.QueryRow(ctx,
+		`SELECT revision, host_ack_revision FROM work.execution_entitlement WHERE org_id=$1`, orgID).Scan(&revision, &ack); err != nil {
+		t.Fatal(err)
+	}
+	if revision != 2 || ack != nil {
+		t.Fatalf("pending conflict facts = revision:%d ack:%v", revision, ack)
+	}
+}
+
 func TestInvalidCommandDoesNotTouchDatabase(t *testing.T) {
 	_, pool, _, _ := setup(t)
 	executor := &operatorentitlement.Executor{Pool: pool, Host: fakeHost{}}
