@@ -5,7 +5,8 @@
 ## 范围
 
 - `h01/`：Windows 安装/卸载、自签名、哈希校验、干净环境启动。
-- `h02*.mjs`：真实模型经本地 Work Gateway 的 Chat Completions/Responses 测试；Key 只经环境变量传入。
+- `h02.mjs`：独立 Runtime 经本地 Work Gateway 的 Chat Completions/Responses 测试。
+- `h02-supervisor.mjs`：生产 `Supervisor`＋真实 Pi child→受限 egress→本地 Work Gateway 的端到端测试；返回 `CHECKPOINTED` 才通过。
 - `h03.mjs`–`h05.mjs`、`h07.mjs`–`h10.mjs`、`h12.mjs`：Harness 准入实验。
 - `h06/`：Windows AppContainer + Node permission model 隔离。
 - `s1s6/`：S1–S6 首轮验证；S1/S3/S5 使用 PostgreSQL，S2 为设备 journal/租约 mock，S4 为纯策略，S6 仅并发烟雾。
@@ -33,16 +34,24 @@ powershell -NoProfile -ExecutionPolicy Bypass -File h01/run-h01.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File h06/run-h06-inline.ps1
 ```
 
-H02 需要模型 Key，仅通过进程环境传入，不写入文件：
+H02 会发起真实供应商请求，必须显式提供非生产凭据。Qwen 从 `H02_SECRET_FILE` 指向的 YAML 读取 `agentAIAssistant.envVars.DASHSCOPE_API_KEY`；未指定文件时默认的生产 secret 会被拒绝。即使显式把 `H02_SECRET_FILE` 指向该生产文件，也仍必须设置 `H02_ALLOW_PRODUCTION_SECRET=1` 才解除保护。DeepSeek/Doubao 分别读取进程环境中的 `DEEPSEEK_API_KEY`/`DOUBAO_API_KEY`。
 
 ```bash
-# set DASHSCOPE_API_KEY in the process environment first
-node h02.mjs
-# set DEEPSEEK_API_KEY first
-H02_PROVIDER=deepseek node h02.mjs
-# set DOUBAO_API_KEY first
-H02_PROVIDER=doubao node h02.mjs
+# 使用已授权的非生产 Qwen secret 文件
+H02_SECRET_FILE=/path/to/non-production-secret.yaml node h02.mjs
+H02_SECRET_FILE=/path/to/non-production-secret.yaml node h02-supervisor.mjs
+# 或使用非生产 DeepSeek/Doubao 环境变量
+H02_PROVIDER=deepseek node h02-supervisor.mjs
+H02_PROVIDER=doubao node h02-supervisor.mjs
 ```
+
+`H02_UPSTREAM_URL` 可覆盖供应商端点，仅允许 HTTPS 或回环 HTTP，供隔离 fixture 使用；不要把生产 Key 交给不可信端点。无凭据回归使用临时 fixture secret，不读取生产文件：
+
+```bash
+npm run test:h02-supervisor
+```
+
+该回归覆盖生产密钥默认拒绝、真实 Supervisor/Pi 全链、usage/receipt、超限请求 413，以及 Key 不进入日志。隔离 fixture 通过不等于真实外部供应商 E2E 已通过。
 
 ## 说明
 

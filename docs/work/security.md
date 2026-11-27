@@ -145,9 +145,9 @@
 
 **残余风险（明写，不消解）**：被提示操控的子进程可把本次 Run 已取到的内容发往任意公网地址；宿主无 mount/syscall/pid/network 任一层围栏。缓解只收窄"凭据"维，不收窄"数据外带"维。
 
-**当前验证状态**：隔离证明**未验证**（sandboxProof=false，无逃逸测试）；补偿控制已验证（哨兵/握手测试）；真实供应商仅一次 Qwen smoke，真实供应商 E2E 未跑。**重开条件**（任一出现即退回 todo 并补隔离）：真实客户数据进入试点；池并发超过 maxConcurrent 且被用于正确性；R0b 本机执行或池化恢复启用。
+**当前验证状态**：隔离证明**未验证**（sandboxProof=false，无逃逸测试）；补偿控制已验证（哨兵/握手测试）。2026-11-27 起，生产 `Supervisor`＋真实 Pi child→受限 egress→本地 Work Gateway→隔离供应商 fixture 的全链回归通过，覆盖 `CHECKPOINTED`、receipt、usage、请求边界与凭据不落产物；这只是隔离 fixture 证据，**真实外部供应商 E2E 仍未跑**，历史仅一次 Qwen smoke。**重开条件**（任一出现即退回 todo 并补隔离）：真实客户数据进入试点；池并发超过 maxConcurrent 且被用于正确性；R0b 本机执行或池化恢复启用。
 
-**权威代码/测试**：`docs/plan/assets/work-r0a-runtime-2026-10-25/policy/sandbox-profile.json` + `evaluator.test.mjs`（声称隔离证明即红）；`src/work/node/src/supervisor.mjs`、`child-pi.mjs` + `test/supervisor-handshake.test.mjs`；`src/work/internal/authz/`（`authz.go`、`registry_store.go`、`mtls_test.go`）；[隔离例外单（已归档）](archive/work-r0a-runtime-isolation-exception-2026-11-04.md)；[ADR-0012](../adr/0012-controlled-egress.md)、[ADR-0013](../adr/0013-unknown-side-effects.md)、[ADR-0015](../adr/0015-directory-grant-not-sandbox.md)；[威胁模型](design/work-threat-model-2026-10-25.md) §4。
+**权威代码/测试**：`docs/plan/assets/work-r0a-runtime-2026-10-25/policy/sandbox-profile.json` + `evaluator.test.mjs`（声称隔离证明即红）；`src/work/node/src/supervisor.mjs`、`child-pi.mjs` + `test/supervisor-handshake.test.mjs`、`test/supervisor-provider.test.mjs`；[H02 Supervisor 全链回归](../plan/assets/harness-lab/h02-supervisor.test.mjs)；`src/work/internal/authz/`（`authz.go`、`registry_store.go`、`mtls_test.go`）；[隔离例外单（已归档）](archive/work-r0a-runtime-isolation-exception-2026-11-04.md)；[ADR-0012](../adr/0012-controlled-egress.md)、[ADR-0013](../adr/0013-unknown-side-effects.md)、[ADR-0015](../adr/0015-directory-grant-not-sandbox.md)；[威胁模型](design/work-threat-model-2026-10-25.md) §4。
 
 ## 7. 密钥生命周期
 

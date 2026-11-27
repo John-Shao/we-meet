@@ -6,12 +6,21 @@ const apiKey = process.env.H02_UPSTREAM_KEY;
 const provider = process.env.H02_PROVIDER ?? "qwen";
 const port = Number(process.env.H02_PORT);
 const logFile = process.env.H02_GATEWAY_LOG;
-const upstreamUrl =
+const defaultUpstreamUrl =
   provider === "deepseek"
     ? "https://api.deepseek.com/chat/completions"
     : provider === "doubao"
       ? "https://ark.cn-beijing.volces.com/api/v3/responses"
       : "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
+const upstreamUrl = process.env.H02_UPSTREAM_URL ?? defaultUpstreamUrl;
+if (process.env.H02_UPSTREAM_URL) {
+  const parsed = new URL(upstreamUrl);
+  if (!(parsed.protocol === "https:" ||
+      (parsed.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname)))) {
+    throw new Error("H02_UPSTREAM_URL must use HTTPS or a loopback HTTP test endpoint");
+  }
+}
+const upstreamProtocol = new URL(upstreamUrl).protocol;
 const expectedPath = provider === "doubao" ? "/v1/responses" : "/v1/chat/completions";
 
 if (!apiKey || !port || !logFile) {
@@ -87,7 +96,7 @@ const server = http.createServer((req, res) => {
     };
     const started = Date.now();
 
-    const upstream = https.request(
+    const upstream = (upstreamProtocol === "http:" ? http.request : https.request)(
       upstreamUrl,
       {
         method: "POST",

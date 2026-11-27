@@ -1,6 +1,6 @@
 {
   "$note": "人工记录的生产/决策事实——scripts/work-status.mjs 无法从仓库资产推导的部分。改动任一项须更新 facts_as_of 与该事实的 verified_at。每个事实带 reason/evidence/verified_at：evidence 是仓库内现存的证据路径（脚本校验存在性），verified_at 是该事实最近一次核实日期，不得晚于 facts_as_of。动态试点门禁（pilot_gate）与仓库迁移 tip 由脚本现算，不在此手抄。",
-  "facts_as_of": "2026-11-24",
+  "facts_as_of": "2026-11-27",
   "product_stage": "r0a",
   "current_gate": "r0a-pilot-readiness",
   "implementation_tracks": {
@@ -19,14 +19,16 @@
   },
   "runtime_verified": {
     "value": false,
-    "reason": "0062 runtime 已替换并完成 healthz／Host orgs 200、reconcile 空扫描与官方 verifier rc=0，但生产 Runtime 仍无容器隔离（裸 spawn），真实供应商 E2E 未跑。",
+    "reason": "0062 runtime 已替换并完成 healthz／Host orgs 200、reconcile 空扫描与官方 verifier rc=0，但生产 Runtime 仍无容器隔离（裸 spawn）。2026-11-27 生产 Supervisor＋真实 Pi child 到本地 Gateway／隔离供应商 fixture 的全链回归通过；真实外部供应商 E2E 仍未跑，不能据此关闭生产前置条件。",
     "evidence": [
       "docs/plan/assets/work-r0a-runtime-2026-10-25/policy/sandbox-profile.json",
       "src/work/node/src/supervisor.mjs",
+      "src/work/node/test/supervisor-provider.test.mjs",
+      "docs/plan/assets/harness-lab/h02-supervisor.test.mjs",
       "docs/work/security.md",
       "docs/work/operations.md"
     ],
-    "verified_at": "2026-11-24"
+    "verified_at": "2026-11-27"
   },
   "external_security_audit_done": {
     "value": false,

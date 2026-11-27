@@ -1,6 +1,6 @@
 # Work 当前状态
 
-> 本文由 `scripts/work-status.mjs` 生成，勿手改。生产事实记录在 [status.inputs.json](status.inputs.json)（每项带证据引用）；动态门禁与仓库迁移 tip 由脚本现算。人工改状态请改 inputs 后重跑脚本。最近核实：**2026-11-24**（生成日期另见 status.json 的 `generated_at`，两者不同义）。
+> 本文由 `scripts/work-status.mjs` 生成，勿手改。生产事实记录在 [status.inputs.json](status.inputs.json)（每项带证据引用）；动态门禁与仓库迁移 tip 由脚本现算。人工改状态请改 inputs 后重跑脚本。最近核实：**2026-11-27**（生成日期另见 status.json 的 `generated_at`，两者不同义）。
 
 ## 阶段
 
@@ -52,7 +52,7 @@ rollout 范围：已裁 rollout 包＝增量 0040–0062（整包一次，39→6
 | 现网迁移 tip | 62 |
 | 现网发布包 | work-release-0062-c73adea2a |
 
-Runtime 已验证：否。0062 runtime 已替换并完成 healthz／Host orgs 200、reconcile 空扫描与官方 verifier rc=0，但生产 Runtime 仍无容器隔离（裸 spawn），真实供应商 E2E 未跑。
+Runtime 已验证：否。0062 runtime 已替换并完成 healthz／Host orgs 200、reconcile 空扫描与官方 verifier rc=0，但生产 Runtime 仍无容器隔离（裸 spawn）。2026-11-27 生产 Supervisor＋真实 Pi child 到本地 Gateway／隔离供应商 fixture 的全链回归通过；真实外部供应商 E2E 仍未跑，不能据此关闭生产前置条件。
 
 Content Store：local-pilot-deployed-zero-real-requests。云 KMS：not-connected-scope-exception-D03B。外部安全审计已执行：否。
 
@@ -62,7 +62,7 @@ Content Store：local-pilot-deployed-zero-real-requests。云 KMS：not-connecte
 
 | 事实 | 核实日期 | 证据 |
 |---|---|---|
-| runtime_verified | 2026-11-24 | `docs/plan/assets/work-r0a-runtime-2026-10-25/policy/sandbox-profile.json`、`src/work/node/src/supervisor.mjs`、`docs/work/security.md`、`docs/work/operations.md` |
+| runtime_verified | 2026-11-27 | `docs/plan/assets/work-r0a-runtime-2026-10-25/policy/sandbox-profile.json`、`src/work/node/src/supervisor.mjs`、`src/work/node/test/supervisor-provider.test.mjs`、`docs/plan/assets/harness-lab/h02-supervisor.test.mjs`、`docs/work/security.md`、`docs/work/operations.md` |
 | external_security_audit_done | 2026-11-16 | `docs/work/security.md`、`docs/work/decisions/0023-static-single-layer-encryption.md` |
 | content_store | 2026-11-16 | `src/work/internal/content/local.go`、`docs/work/security.md`、`docs/work/operations.md` |
 | cloud_kms | 2026-11-16 | `docs/work/decisions/0023-static-single-layer-encryption.md`、`docs/work/security.md` |

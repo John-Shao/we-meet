@@ -8,8 +8,27 @@ import { fileURLToPath } from "node:url";
 import { ensureDir, newRunDir, readJsonl } from "./lib/store.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const secretFile = path.resolve(here, "../../../we-meet/src/helm/env.d/aliyun-prod/values.secrets.yaml");
 const provider = process.env.H02_PROVIDER ?? "qwen";
+const defaultSecretFile = path.resolve(here, "../../../../src/helm/env.d/aliyun-prod/values.secrets.yaml");
+const secretFile = process.env.H02_SECRET_FILE ?? defaultSecretFile;
+function canonicalPath(file) {
+  const resolved = path.resolve(file);
+  let canonical = resolved;
+  try { canonical = fs.realpathSync.native(resolved); } catch {}
+  return process.platform === "win32" ? canonical.toLowerCase() : canonical;
+}
+
+if (
+  provider === "qwen" &&
+  canonicalPath(secretFile) === canonicalPath(defaultSecretFile) &&
+  process.env.H02_ALLOW_PRODUCTION_SECRET !== "1"
+) {
+  throw new Error(
+    process.env.H02_SECRET_FILE
+      ? "The production secret file requires explicit H02_ALLOW_PRODUCTION_SECRET=1 authorization"
+      : "H02_SECRET_FILE is required; the production secret file is refused without explicit H02_ALLOW_PRODUCTION_SECRET=1 authorization",
+  );
+}
 const modelId =
   process.env.H02_MODEL_ID ??
   (provider === "deepseek"

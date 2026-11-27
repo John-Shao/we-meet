@@ -2,6 +2,9 @@
   "name": "wemeet-harness-lab",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test:h02-supervisor": "node --test h02-supervisor.test.mjs"
+  },
   "dependencies": {
     "@earendil-works/pi-agent-core": "1.4.0",
     "@earendil-works/pi-ai": "1.4.0",
