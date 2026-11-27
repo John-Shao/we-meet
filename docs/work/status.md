@@ -32,8 +32,9 @@ node --input-type=module -e "const p='./docs/plan/assets/work-r0a-ops-2026-10-25
 - runtime-sandbox-isolation
 - real-provider-e2e
 - real-content-store-validation
+- governance-consumer-production-validation
 
-rollout 范围：已裁 rollout 包＝增量 0040–0062（整包一次，39→62；2026-11-22 主签重切，取代 2026-11-14 的 0040–0045／39→45，取代关系照原文留档）。2026-11-24 已由主签逐步授权并执行：第一步 --migrations-only、第二步 --enable-advance 均 rc=0，台账 62，worker／api／authz 等 15 个二进制与 V／W／Y 安装面已落，Node runtime 未换；W 新脚本已于 12:46:05 实际成功备份。c73adea2a 重建包已上传到 /root/work-release-0062-c73adea2a，75 条 SHA256SUMS 全 OK，ledger／package preflight 与官方 verifier 均 rc=0；15 个运行时二进制与旧包逐字节相同。真实供应商 E2E、J39、C13 仍未闭合；1 条 failed Run 的 held reservation 未释放，W 的重建可移植性仍受仓外三件限制。
+rollout 范围：已裁 rollout 包＝增量 0040–0062（整包一次，39→62；2026-11-22 主签重切，取代 2026-11-14 的 0040–0045／39→45，取代关系照原文留档）。2026-11-24 已由主签逐步授权并执行：第一步 --migrations-only、第二步 --enable-advance 均 rc=0，台账 62，worker／api／authz 等 15 个二进制与 V／W／Y 安装面已落，Node runtime 未换；W 新脚本已于 12:46:05 实际成功备份。c73adea2a 重建包已上传到 /root/work-release-0062-c73adea2a，75 条 SHA256SUMS 全 OK，ledger／package preflight 与官方 verifier 均 rc=0；15 个运行时二进制与旧包逐字节相同。真实供应商 E2E、J39、C13 仍未闭合；治理消费者仓库安装、专用角色/mTLS、证书预检与健康告警链已闭合，但生产 unit/证书/DSN/组织清单/告警投递仍未部署或取证；1 条 failed Run 的 held reservation 未释放，W 的重建可移植性仍受仓外三件限制。
 
 ## 真实客户数据准入
 
