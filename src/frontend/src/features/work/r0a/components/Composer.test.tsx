@@ -304,6 +304,37 @@ describe('Composer preview generations', () => {
     setItem.mockRestore()
   })
 
+  it('treats pasted text as local-only and keeps only the local path', async () => {
+    const stageLocalInput = vi.fn().mockResolvedValue({
+      localInputRef: '12345678-1234-4234-8234-123456789abc',
+      contentHash: `sha256:${'a'.repeat(64)}`,
+      byteCount: 27,
+    })
+    Object.defineProperty(window, 'weMeetDesktop', {
+      configurable: true,
+      value: { isDesktop: true, platform: 'win32', work: { stageLocalInput } },
+    })
+    await setup()
+    fireEvent.paste(screen.getByLabelText('composer.goal'), {
+      clipboardData: { getData: () => 'pasted local content' },
+    })
+    expect(
+      screen.getByText('composer.clipboardLocalOnlyWarning')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'composer.preview' })
+    ).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'composer.preview' }))
+    expect(api.createWorkInput).not.toHaveBeenCalled()
+    expect(api.createWorkPreview).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole('button', { name: 'composer.stageLocal' })
+    ).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'composer.stageLocal' }))
+    await screen.findByText('composer.localDraftSaved')
+    expect(stageLocalInput).toHaveBeenCalledWith('original goal')
+  })
+
   it('warns about local-only artifacts and submits a staged local draft with the selected workspace grant', async () => {
     const grantId = '12345678-1234-4234-8234-123456789abc'
     const submitLocalTask = vi.fn().mockResolvedValue({

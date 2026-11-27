@@ -79,6 +79,7 @@
     "localGrants": "Lokale werkmaptoegang",
     "localGrantsRequired": "Geef dit apparaat eerst toegang tot minstens één werkmap.",
     "localOnlySelectedWarning": "De geselecteerde werkmap bevat local_only-inhoud: taakresultaten blijven op dit apparaat en kunnen niet naar de cloud worden gesynchroniseerd. Bevestig opnieuw voordat u verzendt.",
+    "clipboardLocalOnlyWarning": "Geplakte inhoud wordt als local_only behandeld: cloudvoorbeeld en verzenden zijn uitgeschakeld. Gebruik een lokaal concept of uitvoering op het apparaat.",
     "submitLocal": "Voorbeeld en verzenden op dit apparaat",
     "confirmTitle": "Confirm send",
     "confirmDescription": "The task enters the execution queue after submission; follow progress in the workspace.",

@@ -228,13 +228,14 @@
       "requirement": "local_only 正文粘进 Composer 后外发必须逐次批准，device_local 保留；成果与同步下限继承剪贴板来源。",
       "status": "partial",
       "gaps": [
-        "未实现真实剪贴板 provenance、Composer taint 与逐次外发批准页完整字节核对。",
+        "Composer 已对任何粘贴内容建立单调 local_only taint：云端预览/发送禁用，本机草稿路径保留；真实剪贴板来源 token、来源版本分类与逐次外发批准页完整字节核对仍未实现。",
         "未覆盖 clipboard_derived 行与 clipboard_source_version_ids 的端到端断言；E=B 后外发/同步腿移出。"
       ],
       "evidence": [
         { "path": "src/work/internal/migrate/r0b_local_artifact_test.go", "test": "TestR0bUserSaveClipboardFloorAndSameDeviceSources" },
         { "path": "src/device/src/broker.rs", "test": "stage_local_input_seals_the_text_and_returns_only_metadata" },
-        { "path": "src/device/src/nodeservice.rs", "test": "staged_input_feeds_an_artifact_write_with_matching_hash_and_size" }
+        { "path": "src/device/src/nodeservice.rs", "test": "staged_input_feeds_an_artifact_write_with_matching_hash_and_size" },
+        { "path": "src/frontend/src/features/work/r0a/components/Composer.test.tsx", "test": "treats pasted text as local-only and keeps only the local path" }
       ]
     },
     {

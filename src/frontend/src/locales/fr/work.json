@@ -79,6 +79,7 @@
     "localGrants": "Accès local à l’espace de travail",
     "localGrantsRequired": "Autorisez d’abord cet appareil à accéder à au moins un espace de travail.",
     "localOnlySelectedWarning": "L’espace de travail sélectionné contient du contenu local_only : les résultats restent sur cet appareil et ne peuvent pas être synchronisés avec le cloud. Confirmez à nouveau avant l’envoi.",
+    "clipboardLocalOnlyWarning": "Le contenu collé est traité comme local_only : l’aperçu et l’envoi cloud sont désactivés. Utilisez un brouillon local ou l’exécution sur l’appareil.",
     "submitLocal": "Prévisualiser et envoyer sur cet appareil",
     "confirmTitle": "Confirm send",
     "confirmDescription": "The task enters the execution queue after submission; follow progress in the workspace.",

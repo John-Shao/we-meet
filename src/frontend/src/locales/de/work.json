@@ -79,6 +79,7 @@
     "localGrants": "Lokaler Arbeitsbereich",
     "localGrantsRequired": "Gewähren Sie diesem Gerät zuerst Zugriff auf mindestens einen Arbeitsbereich.",
     "localOnlySelectedWarning": "Der ausgewählte Arbeitsbereich enthält local_only-Inhalte: Aufgabenergebnisse bleiben auf diesem Gerät und können nicht in die Cloud synchronisiert werden. Bitte vor dem Senden erneut bestätigen.",
+    "clipboardLocalOnlyWarning": "Eingefügte Inhalte werden als local_only behandelt: Cloud-Vorschau und -Versand sind deaktiviert. Nutzen Sie einen lokalen Entwurf oder die gerätelokale Ausführung.",
     "submitLocal": "Auf diesem Gerät prüfen und senden",
     "confirmTitle": "Confirm send",
     "confirmDescription": "The task enters the execution queue after submission; follow progress in the workspace.",

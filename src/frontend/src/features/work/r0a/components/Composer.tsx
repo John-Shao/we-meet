@@ -96,6 +96,7 @@ export const Composer = ({ bootstrap }: Props) => {
   const [preview, setPreview] = useState<WorkPreviewResponse | null>(null)
   const [inputRef, setInputRef] = useState<string | null>(null)
   const [localDraft, setLocalDraft] = useState<LocalInputDraft | null>(null)
+  const [clipboardDerived, setClipboardDerived] = useState(false)
   const [staging, setStaging] = useState(false)
   const [localSubmitting, setLocalSubmitting] = useState(false)
   const [localGrants, setLocalGrants] = useState<WorkspaceGrantSummary[]>([])
@@ -193,6 +194,7 @@ export const Composer = ({ bootstrap }: Props) => {
 
   const requestPreview = async () => {
     setError(null)
+    if (clipboardDerived) return
     if (invalidGoal || invalidBackground) return
     const generation = previewGeneration.current + 1
     previewGeneration.current = generation
@@ -241,6 +243,7 @@ export const Composer = ({ bootstrap }: Props) => {
       if (!mounted.current) return
       setGoal('')
       setBackground('')
+      setClipboardDerived(false)
       invalidateInput()
       setLocalDraft({ ...draft, title: goal.trim() })
     } catch {
@@ -285,7 +288,7 @@ export const Composer = ({ bootstrap }: Props) => {
   }
 
   const confirmSubmit = async () => {
-    if (!preview) return
+    if (!preview || clipboardDerived) return
     setError(null)
     try {
       const task = await submitTask.mutateAsync({
@@ -337,6 +340,7 @@ export const Composer = ({ bootstrap }: Props) => {
             rows={5}
             placeholder={t('composer.goalPlaceholder')}
             onChange={(event) => onGoalChange(event.target.value)}
+            onPaste={() => setClipboardDerived(true)}
             aria-invalid={invalidGoal && goal.length > 0}
           />
           <span className={invalidGoal && goal.length > 0 ? inputError : muted}>
@@ -354,6 +358,7 @@ export const Composer = ({ bootstrap }: Props) => {
             rows={3}
             placeholder={t('composer.backgroundPlaceholder')}
             onChange={(event) => onBackgroundChange(event.target.value)}
+            onPaste={() => setClipboardDerived(true)}
           />
           <span className={muted}>
             {t('composer.counter', {
@@ -361,6 +366,11 @@ export const Composer = ({ bootstrap }: Props) => {
               max: bootstrap.limits.max_background_chars,
             })}
           </span>
+          {clipboardDerived ? (
+            <p className={errorText} role="alert">
+              {t('composer.clipboardLocalOnlyWarning')}
+            </p>
+          ) : null}
         </div>
 
         <div
@@ -529,7 +539,9 @@ export const Composer = ({ bootstrap }: Props) => {
             ) : null}
             <Button
               loading={createInput.isPending || createPreview.isPending}
-              isDisabled={invalidGoal || invalidBackground || busy}
+              isDisabled={
+                invalidGoal || invalidBackground || busy || clipboardDerived
+              }
               icon={<RiArrowRightLine size={16} aria-hidden="true" />}
               onPress={requestPreview}
             >

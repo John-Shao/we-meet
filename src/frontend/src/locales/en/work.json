@@ -79,6 +79,7 @@
     "localGrants": "Local workspace access",
     "localGrantsRequired": "Grant this device access to at least one workspace first.",
     "localOnlySelectedWarning": "The selected workspace contains local_only content: task artifacts stay on this device and cannot sync to the cloud. Confirm again before submitting.",
+    "clipboardLocalOnlyWarning": "Pasted content is treated as local_only: cloud preview and send are disabled. Use a local draft or device-local execution.",
     "submitLocal": "Preview and submit on this device",
     "confirmTitle": "Confirm send",
     "confirmDescription": "The task enters the execution queue after submission; follow progress in the workspace.",

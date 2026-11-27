@@ -79,6 +79,7 @@
     "localGrants": "本机目录授权",
     "localGrantsRequired": "请先为这台设备授权至少一个工作目录。",
     "localOnlySelectedWarning": "已选目录包含 local_only 内容：任务成果只留本机、不可云同步；提交前请再次确认。",
+    "clipboardLocalOnlyWarning": "检测到粘贴内容：按 local_only 处理，云端预览与发送已禁用；请使用本机草稿或设备本地执行。",
     "submitLocal": "在本机预览并提交",
     "confirmTitle": "确认发送",
     "confirmDescription": "提交后任务会进入执行队列；你可以在任务工作区查看进展。",
