@@ -2,12 +2,26 @@ package operatorentitlement_test
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	workdb "github.com/we-meet/work/internal/db"
+	"github.com/we-meet/work/internal/deviceca"
 	"github.com/we-meet/work/internal/host"
 	"github.com/we-meet/work/internal/operatorentitlement"
 	"github.com/we-meet/work/internal/testpg"
@@ -306,6 +320,192 @@ func TestPendingApplyConflictKeepsTheRevisionMonotonic(t *testing.T) {
 	}
 	if revision != 1 || ack != nil {
 		t.Fatalf("pending conflict facts = revision:%d ack:%v", revision, ack)
+	}
+}
+
+func TestOperatorDisableSerializesBeforeConcurrentSeatGrantOverMTLS(t *testing.T) {
+	ctx, pool, observer, orgID := setup(t)
+	ca, err := deviceca.NewCA()
+	if err != nil {
+		t.Fatal(err)
+	}
+	serverCert, err := ca.IssueServerCert([]string{"localhost"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientCert, err := ca.IssueDeviceCert("work-operator", orgID, &clientKey.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	caPath := filepath.Join(dir, "ca.pem")
+	certPath := filepath.Join(dir, "operator.pem")
+	keyPath := filepath.Join(dir, "operator.key")
+	keyDER, err := x509.MarshalPKCS8PrivateKey(clientKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for path, body := range map[string][]byte{
+		caPath:   ca.CertPEM,
+		certPath: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: clientCert.Certificate[0]}),
+		keyPath:  pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER}),
+	} {
+		if err := os.WriteFile(path, body, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	applySeen := make(chan struct{})
+	seatSeen := make(chan struct{})
+	releaseApply := make(chan struct{})
+	releaseSeat := make(chan struct{})
+	var mu sync.Mutex
+	suspended := false
+	seated := false
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 ||
+			r.TLS.PeerCertificates[0].Subject.CommonName != "work-operator" {
+			http.Error(w, "client_identity_invalid", http.StatusForbidden)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/work-host/v3/organizations/"+orgID+"/work-entitlement-commands":
+			var body struct {
+				CommandID                 string `json:"command_id"`
+				OrgID                     string `json:"org_id"`
+				PayloadHash               string `json:"payload_hash"`
+				Enabled                   bool   `json:"enabled"`
+				SeatLimit                 int    `json:"seat_limit"`
+				OperatorSuspended         bool   `json:"operator_suspended"`
+				TargetEntitlementRevision int64  `json:"target_entitlement_revision"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, "invalid_request", http.StatusBadRequest)
+				return
+			}
+			body.OrgID = orgID
+			mu.Lock()
+			suspended = body.OperatorSuspended
+			mu.Unlock()
+			close(applySeen)
+			select {
+			case <-releaseApply:
+			case <-r.Context().Done():
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"command_id": body.CommandID, "org_id": body.OrgID, "status": "applied",
+				"payload_hash": body.PayloadHash, "enabled": body.Enabled,
+				"seat_limit": body.SeatLimit, "operator_suspended": body.OperatorSuspended,
+				"revision": body.TargetEntitlementRevision, "occupied_seats": 0,
+				"applied_at": time.Now().UTC().Format(time.RFC3339Nano),
+			})
+		case r.Method == http.MethodPost && r.URL.Path == "/seat-grant":
+			close(seatSeen)
+			select {
+			case <-releaseSeat:
+			case <-r.Context().Done():
+				return
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if suspended {
+				w.WriteHeader(http.StatusConflict)
+				_ = json.NewEncoder(w).Encode(map[string]any{"code": "org_execution_disabled"})
+				return
+			}
+			seated = true
+			_ = json.NewEncoder(w).Encode(map[string]any{"work_seat": true})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	server := httptest.NewUnstartedServer(handler)
+	server.TLS = deviceca.ServerTLSConfig(ca, serverCert)
+	server.StartTLS()
+	t.Cleanup(server.Close)
+	serverURL := strings.Replace(server.URL, "127.0.0.1", "localhost", 1)
+
+	hostClient, err := host.NewClient(host.Config{
+		BaseURL: serverURL, ClientCertFile: certPath, ClientKeyFile: keyPath,
+		CAFile: caPath, Timeout: 5 * time.Second,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := operatorentitlement.Command{
+		OrgID: orgID, ActorSubject: "sub_operator", OperatorAuthorizationRef: "OPS-NETWORK-RACE",
+		ExpectedEntitlementRevision: 0, TargetEntitlementRevision: 1,
+		Enabled: false, SeatLimit: 2, OperatorSuspended: true,
+		RequestID: "77777777-0000-0000-0000-000000000001",
+	}
+	executor := &operatorentitlement.Executor{Pool: pool, Host: hostClient}
+	executeDone := make(chan error, 1)
+	go func() {
+		_, err := executor.Execute(ctx, command)
+		executeDone <- err
+	}()
+	select {
+	case <-applySeen:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Host Apply did not arrive over mTLS")
+	}
+
+	seatClient := &http.Client{
+		Transport: &http.Transport{TLSClientConfig: deviceca.ClientTLSConfig(ca,
+			tls.Certificate{Certificate: clientCert.Certificate, PrivateKey: clientKey}, "localhost")},
+		Timeout: 5 * time.Second,
+	}
+	seatDone := make(chan *http.Response, 1)
+	go func() {
+		response, _ := seatClient.Post(serverURL+"/seat-grant", "application/json", nil)
+		seatDone <- response
+	}()
+	select {
+	case <-seatSeen:
+	case <-time.After(10 * time.Second):
+		t.Fatal("concurrent seat grant did not arrive")
+	}
+	close(releaseApply)
+	close(releaseSeat)
+
+	response := <-seatDone
+	if response == nil {
+		t.Fatal("seat grant returned no HTTP response")
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusConflict {
+		t.Fatalf("seat grant status = %d, want 409", response.StatusCode)
+	}
+	var seatBody struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&seatBody); err != nil || seatBody.Code != "org_execution_disabled" {
+		t.Fatalf("seat grant body = %#v, err=%v", seatBody, err)
+	}
+	if err := <-executeDone; err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if seated {
+		t.Fatal("concurrent seat grant succeeded after operator suspension")
+	}
+	var enabled bool
+	var ack int64
+	if err := observer.QueryRow(ctx, `
+		SELECT o.execution_enabled, e.host_ack_revision FROM work.org o
+		JOIN work.execution_entitlement e ON e.org_id=o.id WHERE o.id=$1`, orgID).
+		Scan(&enabled, &ack); err != nil {
+		t.Fatal(err)
+	}
+	if enabled || ack != 1 {
+		t.Fatalf("Work facts after network race = enabled:%v ack:%d", enabled, ack)
 	}
 }
 
