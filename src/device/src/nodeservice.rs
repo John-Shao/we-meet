@@ -115,8 +115,8 @@ pub struct WorkspaceExecutor {
     entries: HashMap<String, EntryRef>,
     /// body_ref → sealed body bytes (the Broker-sealed input/artifact bodies Node only references).
     bodies: HashMap<String, Vec<u8>>,
-    /// The local_input_refs staged through `stageLocalInput` (§1.1), carried into run_bootstrap's
-    /// sealed_input_refs so Node reads the input正文 only through the pipe (DD:194).
+    /// The local_input_refs staged through `stageLocalInput` (§1.1). The first staged body is
+    /// base64url-encoded into run_bootstrap so Node receives the Composer text only through the pipe.
     staged_input_refs: Vec<String>,
     /// Pending root confirmations (token → held handle), bound on prepare, registered/dropped on confirm.
     pending_roots: HashMap<String, tool_exec::RootHandle>,
@@ -1429,10 +1429,14 @@ pub fn spawn_node_service() -> tokio::sync::mpsc::Sender<NodeRequest> {
                     if let Some((_, _, _, _, session)) = &mut journal {
                         *session = Some(ctx.session_id.clone());
                     }
-                    // The staged input refs are owned here (the executor sealed them); carry them into
-                    // the bootstrap so Node reads the input正文 only through the pipe (§6.3/DD:194).
+                    // Carry the staged Composer body through the ACL'd Node pipe as bounded base64url.
+                    // Node never receives a path, journal handle or direct memory reference (DD:194).
                     let mut bootstrap = bootstrap;
-                    bootstrap.sealed_input_refs = exec.staged_input_refs.clone();
+                    bootstrap.sealed_input_b64 = exec
+                        .staged_input_refs
+                        .first()
+                        .and_then(|input_ref| exec.bodies.get(input_ref))
+                        .map(|bytes| crate::b64::encode(bytes));
                     let r = serve_run(
                         &mut exec,
                         &ctx,
@@ -2891,7 +2895,7 @@ mod tests {
             model_provider: "device-local".into(),
             model_name: "fixture-model".into(),
             model_config_revision: 1,
-            sealed_input_refs: vec!["buf-1".into()],
+            sealed_input_b64: Some(crate::b64::encode(b"staged composer text")),
             max_turns: 8,
             max_tokens: 4096,
             max_bytes: 1048576,
@@ -3289,7 +3293,7 @@ mod tests {
             model_provider: "device-local".into(),
             model_name: "fixture-model".into(),
             model_config_revision: 1,
-            sealed_input_refs: vec![],
+            sealed_input_b64: None,
             max_turns: 8,
             max_tokens: 4096,
             max_bytes: 1048576,
@@ -3367,7 +3371,7 @@ mod tests {
             model_provider: "device-local".into(),
             model_name: "fixture-model".into(),
             model_config_revision: 1,
-            sealed_input_refs: vec![],
+            sealed_input_b64: None,
             max_turns: 8,
             max_tokens: 4096,
             max_bytes: 1048576,

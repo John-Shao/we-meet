@@ -29,7 +29,7 @@ function bootstrapBody() {
     run_id: 'run-1', binding_revision: '1', start_nonce: 'nonce-1', profile_id: 'profile-dev-fixture-v1',
     compat_profile_version: '1', tool_manifest_hash: 'tmh', runtime_digest: 'rd',
     model_route: { provider: 'device-local', model: 'fixture-model', config_revision: '1' },
-    sealed_input_refs: [], max_turns: '8', max_tokens: '4096', max_bytes: '1048576',
+    sealed_input_b64: null, max_turns: '8', max_tokens: '4096', max_bytes: '1048576',
     deadline: '2026-11-19T01:00:00Z',
   };
 }
@@ -140,6 +140,18 @@ function assertLoop(result, expected, turns) {
 }
 
 const finalMessages = (result) => result.received.at(-1).body.transcript_final.messages;
+
+test('staged Composer text becomes the first model prompt', pipeTest, async () => {
+  const text = 'pasted local_only contract\n第二行';
+  const result = await runOnce({
+    bootstrap: { sealed_input_b64: Buffer.from(text, 'utf8').toString('base64url') },
+  });
+  assertLoop(result, ['model_request', 'loop_end'], 1);
+  const messages = result.received[0].body.request.messages;
+  assert.equal(messages[0].role, 'system');
+  assert.equal(messages[1].role, 'user');
+  assert.deepEqual(JSON.parse(messages[1].content), [{ type: 'text', text }]);
+});
 
 test('loop_end transcript shape is closed and validated', () => {
   assert.doesNotThrow(() => validateBody('loop_end', {

@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-export const MAX_FRAME_BYTES = 64 * 1024;
+export const MAX_FRAME_BYTES = 128 * 1024;
 export const LENGTH_PREFIX = 4;
 
 export const TOOL_NAMES = Object.freeze([
@@ -21,7 +21,7 @@ export const TOOL_NAMES = Object.freeze([
 const CLOSED_KEYS = Object.freeze({
   run_bootstrap: [
     'run_id', 'binding_revision', 'start_nonce', 'profile_id', 'compat_profile_version',
-    'tool_manifest_hash', 'runtime_digest', 'model_route', 'sealed_input_refs',
+    'tool_manifest_hash', 'runtime_digest', 'model_route', 'sealed_input_b64',
     'max_turns', 'max_tokens', 'max_bytes', 'deadline',
   ],
   capability_refresh: ['credential', 'generation'],
@@ -58,6 +58,12 @@ export function validateBody(type, body) {
   }
   for (const key of Object.keys(body)) {
     if (!keys.includes(key)) throw new ProtocolError('extra_key');
+  }
+  if (type === 'run_bootstrap') {
+    if (body.sealed_input_b64 !== null && (typeof body.sealed_input_b64 !== 'string'
+      || !/^[A-Za-z0-9_-]+$/.test(body.sealed_input_b64))) {
+      throw new ProtocolError('bad_enum');
+    }
   }
   if (type === 'tool_call' && !TOOL_NAMES.includes(body.tool_name)) {
     throw new ProtocolError('unknown_tool');

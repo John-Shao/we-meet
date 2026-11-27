@@ -46,7 +46,7 @@
 
 **【2026-11-27 EV96 真实网络并发闭合登记：** Work operator executor 通过真实 mTLS `host.Client` 向 Host Apply 端点发起停用命令，Host 处理线程在更新 suspension 后保持不返回；同时第二个真实 mTLS HTTP 请求执行 seat grant，两请求实际重叠。seat grant 在 Apply 未完成时即返回 `org_execution_disabled`，未写席位；Apply 完成后 Work `execution_enabled=false`、`host_ack_revision=1`。结合既有未决 Apply 冲突、revision 单调、seat_limit 不撤人、完整 deny 恢复矩阵与 Host 侧并发用例，EV96 读作 `covered`；本登记不构成外部审计结论。
 
-**【2026-11-27 EV98 Composer 粘贴 fail-closed 子集登记：** Composer 的任一输入框收到 paste 事件后，当前组合即单调标记为 `local_only`；后续编辑不清除该标记，云端“预览并发送”按钮禁用且处理函数再次拒绝，本机草稿与设备本地提交路径保留。成功暂存并清空输入后，下一次新组合才解除标记。组件测试覆盖粘贴告警、云端零调用与本机暂存。EV98 仍为 `partial`：可信来源 token、来源版本分类、`clipboard_derived`/`clipboard_source_version_ids` 的端到端生产链与完整外发审批字节核对尚未实现；审计另发现 Node 初始 prompt 仍写死为 `begin`，`sealed_input_refs` 未读取，Composer 暂存正文尚未真正进入模型请求。本登记不构成外部审计结论。
+**【2026-11-27 EV98 Composer 粘贴 fail-closed 子集登记：** Composer 的任一输入框收到 paste 事件后，当前组合即单调标记为 `local_only`；后续编辑不清除该标记，云端“预览并发送”按钮禁用且处理函数再次拒绝，本机草稿与设备本地提交路径保留。成功暂存并清空输入后，下一次新组合才解除标记。组件测试覆盖粘贴告警、云端零调用与本机暂存。EV98 仍为 `partial`：可信来源 token、来源版本分类、`clipboard_derived`/`clipboard_source_version_ids` 的端到端生产链与完整外发审批字节核对尚未实现；Composer 暂存正文已由 Broker 以 base64url 经 Node 管道送入首轮模型请求，Node bundle 与真实 Windows exe 回归均通过。本登记不构成外部审计结论。
 
 **【2026-11-25 EV88 边界补证（不宣称闭合）：** 桌面在剩余 30 秒内刷新 access token 已证明不改变账号 epoch；Bearer API 与渲染转发均证明不接收／不落 `Set-Cookie`，设备配对与确认审计保留 `auth_plane=bearer`，跨面 proof 拒绝保持零副作用。`/work/*` 仍未纳入渲染层 `isApi`，写请求实测为 405，实际 Work 请求走主进程封闭端点表并逐请求附加 Bearer；若把 `/work/*` 纳入渲染层会改变这条平面边界，须另行裁定。Host v3 当前通过 OIDC userinfo 验证 access token，不在本地校验 JWT `iss/aud`，因此真实签名、错 `iss/aud` 与完整撤销矩阵仍是 EV88 的明确缺口。
 

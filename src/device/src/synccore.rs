@@ -1017,7 +1017,7 @@ impl SyncCore {
                         model_provider: "device-local".into(),
                         model_name: "fixture-model".into(),
                         model_config_revision: 1,
-                        sealed_input_refs: Vec::new(),
+                        sealed_input_b64: None,
                         max_turns: 8,
                         max_tokens: 4096,
                         max_bytes: 1_048_576,

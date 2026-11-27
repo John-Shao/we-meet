@@ -187,6 +187,10 @@ pub struct NodePipeServer {
     expected_pid: u32,
 }
 
+/// Node frames carry the Composer input as base64url, so the Node pipe has a larger bounded frame
+/// than the 64 KiB shell channel. 60 KiB of UTF-8 input expands to at most 80 KiB base64url.
+pub const NODE_MAX_FRAME_BYTES: usize = 128 * 1024;
+
 impl NodePipeServer {
     /// Create the per-Run pipe. `container_sid` is the AppContainer SID the sidecar token carries
     /// (the only SID granted by the DACL); `sidecar_pid` is the process id recorded at spawn.
@@ -209,8 +213,8 @@ impl NodePipeServer {
                 PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
                 PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
                 1,
-                (frame::MAX_FRAME_BYTES + frame::LENGTH_PREFIX) as u32,
-                (frame::MAX_FRAME_BYTES + frame::LENGTH_PREFIX) as u32,
+                (NODE_MAX_FRAME_BYTES + frame::LENGTH_PREFIX) as u32,
+                (NODE_MAX_FRAME_BYTES + frame::LENGTH_PREFIX) as u32,
                 0,
                 Some(&sa),
             );
@@ -340,7 +344,7 @@ impl NodePipeConnection {
     }
 
     pub fn read_frame(&self) -> Result<Vec<u8>, NodePipeError> {
-        let mut buf = vec![0u8; frame::MAX_FRAME_BYTES + frame::LENGTH_PREFIX];
+        let mut buf = vec![0u8; NODE_MAX_FRAME_BYTES + frame::LENGTH_PREFIX];
         let mut read: u32 = 0;
         unsafe {
             ReadFile(self.handle, Some(buf.as_mut_slice()), Some(&mut read), None)
@@ -389,8 +393,9 @@ impl Drop for NodePipeConnection {
 }
 
 /// The `run_bootstrap` body (§6.3 family A, closed). The model route carries provider/model/
-/// config_revision but NO endpoint URL — the Broker holds the endpoint (§5.3). Sealed input buffer
-/// refs point at Broker-sealed bodies Node only reads (DD:194). Bounds and deadline cap the loop.
+/// config_revision but NO endpoint URL — the Broker holds the endpoint (§5.3). The Composer input
+/// crosses once as base64url so Node never receives a filesystem path or journal handle (DD:194).
+/// Bounds and deadline cap the loop.
 #[derive(Clone, Debug)]
 pub struct RunBootstrap {
     pub run_id: String,
@@ -403,7 +408,7 @@ pub struct RunBootstrap {
     pub model_provider: String,
     pub model_name: String,
     pub model_config_revision: u64,
-    pub sealed_input_refs: Vec<String>,
+    pub sealed_input_b64: Option<String>,
     pub max_turns: u64,
     pub max_tokens: u64,
     pub max_bytes: u64,
@@ -425,7 +430,7 @@ impl RunBootstrap {
                 "model": self.model_name,
                 "config_revision": self.model_config_revision.to_string(),
             },
-            "sealed_input_refs": self.sealed_input_refs,
+            "sealed_input_b64": self.sealed_input_b64,
             "max_turns": self.max_turns.to_string(),
             "max_tokens": self.max_tokens.to_string(),
             "max_bytes": self.max_bytes.to_string(),
@@ -472,7 +477,7 @@ mod tests {
             model_provider: "device-local".into(),
             model_name: "fixture-model".into(),
             model_config_revision: 1,
-            sealed_input_refs: vec!["buf-1".into()],
+            sealed_input_b64: Some(crate::b64::encode(b"staged composer text")),
             max_turns: 8,
             max_tokens: 4096,
             max_bytes: 1048576,
@@ -503,7 +508,7 @@ mod tests {
                 "profile_id",
                 "run_id",
                 "runtime_digest",
-                "sealed_input_refs",
+                "sealed_input_b64",
                 "start_nonce",
                 "tool_manifest_hash",
             ]
@@ -533,7 +538,7 @@ mod tests {
                 None,
             )
             .expect("client connect");
-            let mut buf = vec![0u8; frame::MAX_FRAME_BYTES + frame::LENGTH_PREFIX];
+            let mut buf = vec![0u8; NODE_MAX_FRAME_BYTES + frame::LENGTH_PREFIX];
             let mut read: u32 = 0;
             // A PID-refused connection is disconnected before any server hello; treat a failed
             // first read as "no exchange" rather than panicking the client thread.
@@ -556,7 +561,7 @@ mod tests {
                 .expect("write client hello");
             // Read the next frame (bootstrap). On a kind refusal the server disconnects; read fails
             // or returns zero, which the caller treats as no bootstrap.
-            let mut buf2 = vec![0u8; frame::MAX_FRAME_BYTES + frame::LENGTH_PREFIX];
+            let mut buf2 = vec![0u8; NODE_MAX_FRAME_BYTES + frame::LENGTH_PREFIX];
             let mut read2: u32 = 0;
             let mut out = Vec::new();
             if ReadFile(handle, Some(buf2.as_mut_slice()), Some(&mut read2), None).is_ok()

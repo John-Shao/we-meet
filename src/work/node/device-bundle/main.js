@@ -358,6 +358,16 @@ async function main() {
     throw new ProtocolError('invalid_max_turns');
   }
   const maxTurns = BigInt(bootstrap.max_turns);
+  let initialText = 'begin';
+  if (bootstrap.sealed_input_b64 !== null) {
+    const inputBytes = Buffer.from(bootstrap.sealed_input_b64, 'base64url');
+    if (inputBytes.toString('base64url') !== bootstrap.sealed_input_b64
+      || inputBytes.length > 60 * 1024) {
+      link.socket.destroy();
+      throw new ProtocolError('invalid_sealed_input');
+    }
+    initialText = new TextDecoder('utf-8', { fatal: true }).decode(inputBytes);
+  }
   const counters = { turn: 0n, call: 0 };
   const tools = makeTools(link, counters);
 
@@ -438,9 +448,8 @@ async function main() {
     finishTurn: () => terminate || counters.turn >= maxTurns ? { action: 'end' } : undefined,
   });
 
-  // The bootstrap carries sealed input refs; the initial prompt is the Broker-sealed input the Node
-  // reads only through the pipe (DD:194). For the fixture loop the first user turn is empty content
-  // the Broker fills; successful tools naturally feed the next model turn.
+  // The Broker delivers the staged Composer input as bounded base64url in the bootstrap. A Run with
+  // no staged input keeps the inert fixture prompt; local submission always carries the real text.
   let terminate = false;
   const unsubscribe = agent.subscribe((event) => {
     if (event.type === 'tool_execution_end' && event.result?.terminate === true) {
@@ -452,7 +461,7 @@ async function main() {
   });
   try {
     if (maxTurns > 0n) {
-      await agent.prompt([{ role: 'user', content: [{ type: 'text', text: 'begin' }] }]);
+      await agent.prompt([{ role: 'user', content: [{ type: 'text', text: initialText }] }]);
       await agent.waitForIdle();
     }
   } finally {

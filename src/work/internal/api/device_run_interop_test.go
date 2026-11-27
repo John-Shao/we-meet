@@ -80,6 +80,83 @@ func TestDeviceFullFixtureRunWritesAnArtifact(t *testing.T) {
 	}
 }
 
+// TestDeviceFixtureRunSendsStagedComposerTextToModel proves the shipped Broker/Node chain carries
+// the shell-staged input through run_bootstrap into the first real model request, rather than the
+// fixture's old literal "begin" prompt.
+func TestDeviceFixtureRunSendsStagedComposerTextToModel(t *testing.T) {
+	bin := requireBrokerBin(t)
+	fixture := filepath.Join(t.TempDir(), "capture-model.mjs")
+	if err := os.WriteFile(fixture, []byte(`
+import http from 'node:http';
+import fs from 'node:fs';
+const port = Number(process.argv[2]);
+const scenarioPath = process.argv[3];
+const scenario = JSON.parse(fs.readFileSync(scenarioPath, 'utf8'));
+let counter = 0;
+http.createServer((req, res) => {
+  if (req.method !== 'POST' || req.url !== '/v1/chat/completions') {
+    res.writeHead(404, { Connection: 'close' }); res.end(); return;
+  }
+  let body = '';
+  req.on('data', (chunk) => { body += chunk; });
+  req.on('end', () => {
+    fs.writeFileSync(scenarioPath + '.model-request', body);
+    const message = scenario[Math.min(counter++, scenario.length - 1)];
+    const doc = {
+      id: 'fixture-' + counter, object: 'chat.completion',
+      choices: [{ index: 0, message, finish_reason: message.tool_calls ? 'tool_calls' : 'stop' }],
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+    };
+    const bytes = Buffer.from(JSON.stringify(doc), 'utf8');
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': bytes.length, Connection: 'close' });
+    res.end(bytes);
+  });
+}).listen(port, '127.0.0.1');
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := startFixtureBrokerFull(t, bin, nil, "v1", fixture)
+	runID := seedFixtureRun(t, f.dbName, f.deviceID, f.sessionID, f.bootID, f.grantID, f.rootIdentityHash,
+		f.profile.ProfileID, f.profile.RuntimeDigest, f.profile.ToolManifestHash,
+		strings.TrimPrefix(f.contentHash, "sha256:"))
+	approveFixtureModel(t, f.dbName, f.sessionID, f.deviceID, runID, f.stderr)
+
+	raw, err := os.ReadFile(f.scenarioPath + ".model-request")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var request struct {
+		Messages []struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(raw, &request); err != nil {
+		t.Fatal(err)
+	}
+	var prompt string
+	for _, message := range request.Messages {
+		if message.Role != "user" {
+			continue
+		}
+		var blocks []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		}
+		if err := json.Unmarshal([]byte(message.Content), &blocks); err != nil {
+			t.Fatal(err)
+		}
+		for _, block := range blocks {
+			if block.Type == "text" {
+				prompt = block.Text
+			}
+		}
+	}
+	if prompt != artifactText {
+		t.Fatalf("first model prompt = %q, want staged Composer text %q", prompt, artifactText)
+	}
+}
+
 // artifactText is the fixture artifact正文 the shell stages through stageLocalInput (§1.1); the write
 // Run writes it verbatim into out/v1.md and the cancel/lease Runs reuse the same staging.
 const artifactText = "the fixture artifact body"
