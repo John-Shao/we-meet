@@ -41,6 +41,7 @@ test('governance timer drives the bounded oneshot with the dedicated identity', 
     'the dedicated DSN must match the loopback PostgreSQL sslmode used by the role provisioner');
   assert.match(env, /^WORK_GOVERNANCE_CLIENT_CERT=\/etc\/work\/certs\/work-governance-events\.crt$/m);
   assert.match(env, /^WORK_GOVERNANCE_CLIENT_KEY=\/etc\/work\/certs\/work-governance-events\.key$/m);
+  assert.match(env, /^WORK_GOVERNANCE_CLIENT_CA=\/etc\/work\/certs\/ca\.crt$/m);
   assert.match(main, /Getenv\("WORK_GOVERNANCE_ORGS"\)/);
   assert.match(main, /WORK_GOVERNANCE_ORGS is empty/);
 });
@@ -51,7 +52,12 @@ test('full rollout proves role, mTLS and org coverage before installing the time
   assert.match(rollout, /verify_governance_consumer\(\)/);
   assert.match(rollout, /verify_governance_consumer\n/, 'the preflight function must be called');
   assert.match(rollout, /work_governance_events_login:[^@]+@/);
-  assert.match(rollout, /CN=work-governance-events/);
+  assert.match(rollout, /--verify-governance-client/);
+  assert.match(rollout, /WORK_GOVERNANCE_CLIENT_CA/);
+  assert.match(verify, /CN=work-governance-events/);
+  assert.match(verify, /verify_governance_client_cert\(\)/);
+  assert.match(verify, /--verify-governance-client/);
+  assert.match(verify, /governance_cert_valid/);
   assert.match(rollout, /select rolname from pg_roles where rolname='work_governance_events_login'/);
   assert.match(rollout, /select id from work\.org/);
   assert.match(rollout, /WORK_GOVERNANCE_ORGS must exactly cover every work\.org id/);

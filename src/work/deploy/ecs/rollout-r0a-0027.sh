@@ -258,7 +258,8 @@ verify_cancel_org_coverage() {
 verify_governance_consumer() {
   local env_file="/etc/work/work-governance-events.env"
   local configured database configured_sorted database_sorted
-  local orgs dsn host_url cert key ca role subject
+  local orgs dsn host_url cert key ca client_ca client_ca_key
+  client_ca_key='WORK_GOVERNANCE_CLIENT_CA'
   if [[ ! -r "$env_file" ]]; then
     echo "aborting: $env_file is required before enabling work-governance-events; copy the packaged" >&2
     echo "  template and provision the dedicated DB role, Host mTLS identity and complete org list." >&2
@@ -270,7 +271,8 @@ verify_governance_consumer() {
   cert="$(grep '^WORK_GOVERNANCE_CLIENT_CERT=' "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
   key="$(grep '^WORK_GOVERNANCE_CLIENT_KEY=' "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
   ca="$(grep '^WORK_GOVERNANCE_CA=' "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
-  if [[ -z "$orgs" || -z "$host_url" || -z "$cert" || -z "$key" || -z "$ca" || "$dsn" == *CHANGE_ME* ]]; then
+  client_ca="$(grep "^${client_ca_key}=" "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
+  if [[ -z "$orgs" || -z "$host_url" || -z "$cert" || -z "$key" || -z "$ca" || -z "$client_ca" || "$dsn" == *CHANGE_ME* ]]; then
     echo "aborting: work-governance-events.env has empty or placeholder required values; secrets are not printed." >&2
     exit 1
   fi
@@ -278,13 +280,12 @@ verify_governance_consumer() {
     echo "aborting: work-governance-events must use the dedicated work_governance_events_login role." >&2
     exit 1
   fi
-  if [[ ! -r "$cert" || ! -r "$key" || ! -r "$ca" ]]; then
-    echo "aborting: work-governance-events mTLS cert/key/CA paths must be readable before the timer is enabled." >&2
+  if [[ ! -r "$cert" || ! -r "$key" || ! -r "$ca" || ! -r "$client_ca" ]]; then
+    echo "aborting: work-governance-events mTLS cert/key/server-CA/client-CA paths must be readable before the timer is enabled." >&2
     exit 1
   fi
-  subject="$(openssl x509 -in "$cert" -noout -subject -nameopt RFC2253 2>/dev/null || true)"
-  if ! grep -Eq '(^|[=,])CN=work-governance-events(,|$)' <<<"$subject"; then
-    echo "aborting: work-governance-events client certificate CN must be work-governance-events." >&2
+  if ! bash "$RELEASE/verify-r0a-0027.sh" --verify-governance-client "$cert" "$key" "$client_ca" work-governance-events; then
+    echo "aborting: work-governance-events client certificate failed validation; no timer was enabled." >&2
     exit 1
   fi
   if ! role="$(runuser -u postgres -- psql -d work -X -At -v ON_ERROR_STOP=1 -c "select rolname from pg_roles where rolname='work_governance_events_login'")"; then

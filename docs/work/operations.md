@@ -52,7 +52,7 @@ unit 权威＝`src/work/deploy/ecs/*.service`（directory-sync 两个 unit 为�
 
 - `work-chain-check` 由 `work-api.service` 的 `Requires=` 拉起（卡片 V）；2026-11-24 第二步 rollout 已安装并在 `work-api` 启动时执行成功，2026-11-27 只读复审仍为 active 链尾闸。
 - `work-cancel`（0057／GW16）：一次 oneshot＝对 `WORK_CANCEL_ORGS` 里每个 org 跑一轮有界消费（≤100 Task、≤500 意图），超量保持 pending 且 next_attempt 不变，下一轮继续。它是 work_worker，逐 org 设租户上下文，**没有跨组织 claim**；不发帧、不写 Run 终态，只进已登记的 cancel_requested 路径并写 relay 的 cancel_signal 交接。**安装链**：full rollout 在任何写入前要求 `/etc/work/work-cancel.env` 的 `WORK_CANCEL_ORGS` 与 `work.org` 全集逐项相等，随后安装 unit/timer、收紧 env 权限并 enable/start timer；空模板不会自动启用消费者。2026-11-27 现网仍缺这三件，须在下一场获授权的 full rollout 中部署。死信告警＝`cancellation_intent.dead_lettered` 审计行（照 outbox 先例），**无 gauge**；重放只能由 work_ops 调 `requeue_cancellation_dead_letter`，consumed 不可重开。
-- `work-governance-events`（0068）：一次 oneshot 按 `WORK_GOVERNANCE_ORGS` 分页拉取 Host 治理命令事件，写本地 consumed/cursor 并执行已授权的席位恢复链。full rollout 写前要求 env 非空且无占位值、专用 `work_governance_events_login` 角色存在、客户端证书 CN 为 `work-governance-events`、cert/key/CA 可读、组织清单精确覆盖 `work.org` 全集；随后安装 unit/timer、收紧 env 权限并 enable/start timer。官方 verifier 的 `work_governance_consumer` 在缺任一项时为 FALSE。2026-11-27 现网尚未安装该 unit/timer/env，部署仍须逐项授权。
+- `work-governance-events`（0068）：一次 oneshot 按 `WORK_GOVERNANCE_ORGS` 分页拉取 Host 治理命令事件，写本地 consumed/cursor 并执行已授权的席位恢复链。full rollout 写前要求 env 非空且无占位值、专用 `work_governance_events_login` 角色存在、客户端证书 CN 为 `work-governance-events`、cert/key/CA 可读、组织清单精确覆盖 `work.org` 全集；证书还必须是 `WORK_GOVERNANCE_CLIENT_CA` 直接签发、当前有效、带 clientAuth EKU 且与私钥匹配。随后安装 unit/timer、收紧 env 权限并 enable/start timer。官方 verifier 的 `work_governance_consumer` 在缺任一项时为 FALSE。2026-11-27 现网尚未安装该 unit/timer/env，部署仍须逐项授权。
 - Temporal 在 k8s 侧（资产 `deploy/aliyun/temporal/`），worker/relay 经 mTLS 连 `WORK_TEMPORAL_ADDRESS`（模板值 10.43.147.249:7233，namespace `work-r0a`）。
 
 Timer 清单（周期以 `systemctl list-timers` 现读为准）：
@@ -104,7 +104,7 @@ WORK_GOVERNANCE_EVENTS_PASSWORD=… [WORK_OPERATOR_PASSWORD=…] \
   ./src/work/deploy/ecs/provision-r0b-roles.sh [--dry-run]
 ```
 
-workload PKI 由 `init-workload-pki.sh` 生成（/etc/work/runtime-ca，幂等不覆盖；rollout 在 CA 缺失时自动跑）。治理消费者使用独立 Host mTLS 客户端身份；其 PostgreSQL DSN 仍是 127.0.0.1 回环、`sslmode=disable`，与现有 Work 服务及 `provision-r0b-roles.sh` 输出一致，不能套用 Host 的 HTTPS/mTLS 参数。
+workload PKI 由 `init-workload-pki.sh` 生成（/etc/work/runtime-ca，幂等不覆盖；rollout 在 CA 缺失时自动跑）。治理消费者使用独立 Host mTLS 客户端身份；其 PostgreSQL DSN 仍是 127.0.0.1 回环、`sslmode=disable`，与现有 Work 服务及 `provision-r0b-roles.sh` 输出一致，不能套用 Host 的 HTTPS/mTLS 参数。`WORK_GOVERNANCE_CA` 只验 Host HTTPS 服务端；`WORK_GOVERNANCE_CLIENT_CA` 才是客户端证书的签发 CA，供 rollout/verify 做链、有效期、EKU 与私钥匹配预检。
 
 ## 2. 环境变量
 

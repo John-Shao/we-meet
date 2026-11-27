@@ -18,7 +18,7 @@
       "requirement": "Host 授座命令事件按 revision 单调解除席位类 deny，重放/跳号/伪造/投影变化/超期与告警均不得静默放行。",
       "status": "partial",
       "gaps": [
-        "Host seat 命令重放/异 payload 冲突、专用 mTLS 读取与 Work HTTP→PG 消费已有证据；entitlement 生产者、Work mTLS Apply/Get 客户端与 operator 执行器已落地，>365 天运行期留存尚未取证；治理消费者失败/停 timer 已接入仓库健康邮件链，但生产告警投递尚未取证。",
+        "Host seat 命令重放/异 payload 冲突、专用 mTLS 读取与 Work HTTP→PG 消费已有证据；entitlement 生产者、Work mTLS Apply/Get 客户端与 operator 执行器已落地，>365 天运行期留存尚未取证；治理消费者失败/停 timer 已接入仓库健康邮件链，客户端证书 CN/EKU/CA/有效期/私钥匹配已有真实 OpenSSL 正反例，但生产告警投递尚未取证。",
         "生产 systemd unit、客户端证书、专用 DSN 与组织清单尚未部署；固定两步缺口恢复的 Work SQL 与拉取器分支已覆盖，但真实生产 Host→Work 全链仍未执行。"
       ],
       "evidence": [
@@ -44,7 +44,8 @@
         { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bWorkSeatChangeDenyReleasePredicate" },
         { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bGovernanceCursorAdvancesOnlyForward" },
         { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/healthcheck-runtime.test.mjs", "test": "governance consumer service failure degrades and alerts" },
-        { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/healthcheck-runtime.test.mjs", "test": "stopped governance consumer timer degrades and alerts" }
+        { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/healthcheck-runtime.test.mjs", "test": "stopped governance consumer timer degrades and alerts" },
+        { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/governance-client-cert.test.mjs", "test": "governance client certificate preflight accepts only a valid dedicated identity" }
       ]
     },
     {
@@ -88,7 +89,7 @@
       "requirement": "governance event_seq 按组织独立，游标初值取历史最大值，跳号停止；先推进游标再显式授座才形成两步恢复。",
       "status": "partial",
       "gaps": [
-        "Host 生产者、专用 mTLS 读取口与 Work HTTP→PG 拉取消费者已落地并取证；消费者失败/停 timer 已接入仓库健康邮件链，但生产 unit、客户端证书、专用 DSN、组织清单与实际告警投递尚未部署/取证。",
+        "Host 生产者、专用 mTLS 读取口与 Work HTTP→PG 拉取消费者已落地并取证；消费者失败/停 timer 已接入仓库健康邮件链，客户端证书 CN/EKU/CA/有效期/私钥匹配已有真实 OpenSSL 正反例，但生产 unit、客户端证书、专用 DSN、组织清单与实际告警投递尚未部署/取证。",
         "生产 unit、客户端证书、专用 DSN 与组织清单尚未部署；Host 目录列表已按 user 分页并归并同组织多条 Membership，status/role/seat/revision 与 revision_after 有直接用例。"
       ],
       "evidence": [
@@ -109,7 +110,8 @@
         { "path": "src/backend/core/tests/test_work_host_org_discovery.py", "test": "test_member_list_merges_status_and_paginates_by_user" },
         { "path": "src/backend/core/tests/test_work_host_org_discovery.py", "test": "test_member_list_revision_after_observes_any_merged_row" },
         { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/healthcheck-runtime.test.mjs", "test": "governance consumer service failure degrades and alerts" },
-        { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/healthcheck-runtime.test.mjs", "test": "stopped governance consumer timer degrades and alerts" }
+        { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/healthcheck-runtime.test.mjs", "test": "stopped governance consumer timer degrades and alerts" },
+        { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/governance-client-cert.test.mjs", "test": "governance client certificate preflight accepts only a valid dedicated identity" }
       ]
     },
     {

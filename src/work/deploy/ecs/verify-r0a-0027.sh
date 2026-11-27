@@ -9,6 +9,63 @@
 # database, env files or systemd units.
 set -uo pipefail
 
+verify_governance_client_cert() {
+  local cert="$1" key="$2" ca="$3" expected_cn="$4"
+  local subject cert_pub key_pub ca_subject issuer
+  if [[ ! -r "$cert" || ! -r "$key" || ! -r "$ca" ]]; then
+    echo "governance client cert/key/CA must be readable" >&2
+    return 1
+  fi
+  subject="$(openssl x509 -in "$cert" -noout -subject -nameopt RFC2253 2>/dev/null)" || {
+    echo "governance client certificate is not valid PEM/DER" >&2
+    return 1
+  }
+  if ! grep -Eq '(^|[=,])CN='"$expected_cn"'([,]|$)' <<<"$subject"; then
+    echo "governance client certificate CN must be $expected_cn" >&2
+    return 1
+  fi
+  ca_subject="$(openssl x509 -in "$ca" -noout -subject -nameopt RFC2253 2>/dev/null)" || {
+    echo "governance client CA is not valid PEM/DER" >&2
+    return 1
+  }
+  issuer="$(openssl x509 -in "$cert" -noout -issuer -nameopt RFC2253 2>/dev/null)" || {
+    echo "governance client certificate issuer is unreadable" >&2
+    return 1
+  }
+  if [[ "${ca_subject#subject=}" != "${issuer#issuer=}" ]]; then
+    echo "governance client certificate must be issued directly by the configured client CA" >&2
+    return 1
+  fi
+  if ! openssl x509 -in "$cert" -noout -ext extendedKeyUsage 2>/dev/null | grep -q 'TLS Web Client Authentication'; then
+    echo "governance client certificate must carry clientAuth EKU" >&2
+    return 1
+  fi
+  if ! openssl verify -CAfile "$ca" -purpose sslclient "$cert" >/dev/null 2>&1; then
+    echo "governance client certificate failed CA, validity or clientAuth purpose verification" >&2
+    return 1
+  fi
+  cert_pub="$(openssl x509 -in "$cert" -pubkey -noout 2>/dev/null | openssl pkey -pubin -outform DER 2>/dev/null | openssl dgst -sha256 2>/dev/null)" || cert_pub=""
+  key_pub="$(openssl pkey -in "$key" -passin pass: -pubout -outform DER 2>/dev/null | openssl dgst -sha256 2>/dev/null)" || key_pub=""
+  if [[ -z "$cert_pub" || "$cert_pub" != "$key_pub" ]]; then
+    echo "governance client private key does not match the certificate" >&2
+    return 1
+  fi
+}
+
+if [[ "${1:-}" == "--verify-governance-client" ]]; then
+  shift
+  if [[ $# -ne 4 ]]; then
+    echo "usage: $0 --verify-governance-client CERT KEY CA EXPECTED_CN" >&2
+    exit 2
+  fi
+  if verify_governance_client_cert "$@"; then
+    echo "work_governance_client_cert=true"
+    exit 0
+  fi
+  echo "work_governance_client_cert=FALSE" >&2
+  exit 1
+fi
+
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "run as root" >&2
   exit 1
@@ -513,6 +570,7 @@ governance_host=""
 governance_cert=""
 governance_key=""
 governance_ca=""
+governance_client_ca=""
 governance_role=""
 governance_subject=""
 if [[ -r "$governance_env" ]]; then
@@ -522,6 +580,8 @@ if [[ -r "$governance_env" ]]; then
   governance_cert="$(grep '^WORK_GOVERNANCE_CLIENT_CERT=' "$governance_env" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
   governance_key="$(grep '^WORK_GOVERNANCE_CLIENT_KEY=' "$governance_env" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
   governance_ca="$(grep '^WORK_GOVERNANCE_CA=' "$governance_env" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
+  governance_client_ca_key='WORK_GOVERNANCE_CLIENT_CA'
+  governance_client_ca="$(grep "^${governance_client_ca_key}=" "$governance_env" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
   governance_role="$(runuser -u postgres -- psql -d work -X -At -v ON_ERROR_STOP=1 -c "select rolname from pg_roles where rolname='work_governance_events_login'" 2>/dev/null || true)"
   governance_subject="$(openssl x509 -in "$governance_cert" -noout -subject -nameopt RFC2253 2>/dev/null || true)"
 fi
@@ -534,18 +594,24 @@ governance_timer_enabled="$(systemctl is-enabled work-governance-events.timer 2>
 governance_timer_active="$(systemctl is-active work-governance-events.timer 2>/dev/null || true)"
 governance_dsn_valid=0
 governance_cn_valid=0
+governance_cert_valid=0
 if [[ "$governance_dsn" =~ ^postgresql://work_governance_events_login:[^@]+@ ]]; then
   governance_dsn_valid=1
 fi
 if grep -Eq '(^|[=,])CN=work-governance-events(,|$)' <<<"$governance_subject"; then
   governance_cn_valid=1
 fi
+if [[ -n "$governance_cert" && -n "$governance_key" && -n "$governance_client_ca" ]] && \
+   verify_governance_client_cert "$governance_cert" "$governance_key" "$governance_client_ca" work-governance-events >/dev/null 2>&1; then
+  governance_cert_valid=1
+fi
+printf 'work_governance_client_cert=%s\n' "$([[ "$governance_cert_valid" -eq 1 ]] && echo true || echo FALSE)"
 if [[ -x /usr/local/bin/work-governance-events && -r "$governance_env" && \
       -f /etc/systemd/system/work-governance-events.service && -f /etc/systemd/system/work-governance-events.timer && \
       -n "$governance_configured_sorted" && "$governance_configured_sorted" == "$governance_database_sorted" && \
-      -n "$governance_host" && -r "$governance_cert" && -r "$governance_key" && -r "$governance_ca" && \
+      -n "$governance_host" && -r "$governance_cert" && -r "$governance_key" && -r "$governance_ca" && -r "$governance_client_ca" && \
       "$governance_dsn" != *CHANGE_ME* && "$governance_dsn_valid" -eq 1 && \
-      "$governance_role" == "work_governance_events_login" && "$governance_cn_valid" -eq 1 && \
+      "$governance_role" == "work_governance_events_login" && "$governance_cn_valid" -eq 1 && "$governance_cert_valid" -eq 1 && \
       "$governance_timer_enabled" == "enabled" && "$governance_timer_active" == "active" ]]; then
   echo "work_governance_consumer=true"
 else
