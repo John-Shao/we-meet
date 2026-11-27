@@ -61,6 +61,50 @@ Windows Sandbox 官方要求 Pro/Enterprise/Education；本机家庭版不满足
 
 本段是主签在提升 PowerShell 中执行的操作单；助手不代提权。所有原始证据只落 `C:\work-k2\`，完成后先把 ETL/TXT/JSON 归档到工作区，再清理临时目录。
 
+### 7.0 自动采集器（2026-11-27 起）
+
+`src/desktop/scripts/work-os-capture.ps1` 只负责 `Preflight/Start/Stop`，不会自行提权；`Start/Stop` 在非提升窗口直接拒绝。`Preflight` 可在普通窗口运行，当前本机已实测：`pktmon/logman/tracerpt` 均存在，但 `pktmon status` 因非提升返回拒绝访问，故 `readyForCapture=false`。这证明前置检查生效，不构成 OS 零请求证据。
+
+**负例窗口**（仓库根目录；Start/Stop 使用提升窗口）：
+
+```powershell
+$neg = 'C:\work-k2\ev123-negative'
+.\src\desktop\scripts\work-os-capture.ps1 -Mode Preflight -EvidenceDir $neg
+.\src\desktop\scripts\work-os-capture.ps1 -Mode Start -EvidenceDir $neg -MarkerPath "$neg\idle-marker.json"
+```
+
+在另一个非提升终端运行 E2E：
+
+```powershell
+$env:E2E_VIEWER_IDLE_ONLY = '1'
+$env:E2E_VIEWER_IDLE_MS = '10000'
+$env:E2E_VIEWER_IDLE_MARKER = 'C:\work-k2\ev123-negative\idle-marker.json'
+node src/desktop/scripts/work-e2e-smoke.cjs
+```
+
+回到提升窗口停止并封包：
+
+```powershell
+.\src\desktop\scripts\work-os-capture.ps1 -Mode Stop -EvidenceDir $neg `
+  -ReceiptPath src/desktop/test-results/work-e2e/idle-receipt.json `
+  -PipeLogPath src/desktop/test-results/work-e2e/acceptance-pipe.jsonl
+```
+
+**正对照窗口**：换一个新目录，Start 加 `-Positive`，非提升终端不设置 `E2E_VIEWER_IDLE_ONLY` 后重跑 E2E；Stop 加 `-Positive`，receipt 指向 `receipt.json`。两个窗口都必须产生带 SHA256 的 `collection.json`。
+
+**判据**（普通终端即可，不需要凭据）：
+
+```powershell
+node src/desktop/scripts/work-os-evidence-analyze.cjs `
+  --evidence-dir 'C:\work-k2\ev123-negative' `
+  --positive-dir 'C:\work-k2\ev123-positive' `
+  --protected-path 'D:\workspace\we-meet\we-meet' `
+  --protected-path '<实际 Work journal 目录>' `
+  --protected-path '<实际 PostgreSQL 数据目录>'
+```
+
+分析器要求负例 receipt 三项零值、marker 时间窗内无目标 PID 的非 loopback 网络/DNS 事件、无受保护路径写事件、acceptance pipe 请求为零；同时要求正对照出现目标 PID 的网络/文件事件与非零 acceptance REST/pipe 请求。ETW 先转成结构化 XML，任何缺文件、哈希不符、不可识别 XML 或缺少正对照都 fail closed。下面的手工命令保留为排障回退；只有提升窗口真实跑完正负两窗且分析器返回 `passed=true` 后，才可更新 EV72/EV73/EV123 的 OS 证据状态。
+
 ### 7.1 前置
 
 1. 提升窗口第一条必须为 `True`：

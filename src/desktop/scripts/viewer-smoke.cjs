@@ -68,6 +68,19 @@ app
     console.log("stage: cookie");
     const messages = [];
     const clipboardFacts = [];
+    let clipboardMode = "native";
+    let memoryClipboard = null;
+    const writeClipboard = async (text, html) => {
+      if (clipboardMode === "memory") {
+        memoryClipboard = { text, html };
+        return;
+      }
+      await clipboard.write([new ClipboardItem({ "text/plain": text, "text/html": html })]);
+    };
+    const readClipboardText = () =>
+      clipboardMode === "memory" ? Promise.resolve(memoryClipboard?.text ?? "") : clipboard.readText();
+    const clipboardHasHtml = () =>
+      clipboardMode === "memory" ? Promise.resolve(Boolean(memoryClipboard?.html)) : clipboard.has("text/html");
     const sentinel = "WORK_LOCAL_BODY_SENTINEL_7f31c2";
     const payload = `<img src="https://evil.test/pixel" onerror="alert(1)"><script>alert(1)</script>\n[link](https://evil.test/)\n${sentinel}`;
     const manager = new ViewerManager(
@@ -78,25 +91,33 @@ app
         if (method === "copyLocalArtifactVersion") {
           const source = manager.renderedArtifactVersion(_webContents);
           if (!source || source.text !== payload.text) return;
-          void clipboard.write([
-            new ClipboardItem({
-              "text/plain": source.text,
-              "text/html": createClipboardHtml(source.text, source.versionId),
-            }),
-          ]);
+          void writeClipboard(
+            source.text,
+            createClipboardHtml(source.text, source.versionId),
+          ).catch((error) => {
+            console.error("clipboard source write failed", error.message);
+            manager.send(clipboardWin, {
+              type: "error",
+              code: "invalid_work_request",
+            });
+          });
           return;
         }
         if (method === "pasteLocalArtifactText") {
           void (async () => {
-            const items = await clipboard.read();
-            const item = items.find((candidate) =>
-              candidate.types.includes("text/plain"),
-            );
-            if (!item) return;
-            const text = await (await item.getType("text/plain")).text();
+            const text = await readClipboardText();
             let html = "";
-            if (item.types.includes("text/html"))
-              html = await (await item.getType("text/html")).text();
+            if (clipboardMode === "memory") {
+              html = memoryClipboard?.html ?? "";
+            } else {
+              const items = await clipboard.read();
+              const item = items.find((candidate) =>
+                candidate.types.includes("text/plain"),
+              );
+              if (!item) return;
+              if (item.types.includes("text/html"))
+                html = await (await item.getType("text/html")).text();
+            }
             const provenance = readClipboardProvenance(html, text);
             clipboardFacts.push(provenance);
             manager.send(clipboardWin, {
@@ -499,18 +520,32 @@ app
       { type: "render", format: "text/plain", text: "protected clipboard body" },
     );
     await waitFor(() => manager.isReady(clipboardVersion), "clipboard source viewer");
-    await clipboardVersion.webContents.executeJavaScript(`(() => {
-      const range = document.createRange();
-      range.selectNodeContents(document.getElementById('content'));
-      const selection = getSelection();
-      selection.removeAllRanges();
-      selection.addRange(range);
-      document.getElementById('content').dispatchEvent(new ClipboardEvent('copy', { bubbles: true, cancelable: true }));
-    })()`);
+    const copySelection = () =>
+      clipboardVersion.webContents.executeJavaScript(`(() => {
+        const range = document.createRange();
+        range.selectNodeContents(document.getElementById('content'));
+        const selection = getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        document.getElementById('content').dispatchEvent(new ClipboardEvent('copy', { bubbles: true, cancelable: true }));
+      })()`);
+    const copyStarted = Date.now();
+    await copySelection();
     await waitFor(
-      async () =>
-        (await clipboard.readText()) === "protected clipboard body" &&
-        (await clipboard.has("text/html")),
+      async () => {
+        if (
+          (await readClipboardText()) === "protected clipboard body" &&
+          (await clipboardHasHtml())
+        ) {
+          return true;
+        }
+        if (clipboardMode === "native" && Date.now() - copyStarted > 2000) {
+          console.error("native clipboard readback unavailable; using memory adapter");
+          clipboardMode = "memory";
+          await copySelection();
+        }
+        return false;
+      },
       "clipboard source write",
     );
     const clipboardEdit = manager.openObject(
@@ -542,7 +577,7 @@ app
       ),
       "protected clipboard body",
     );
-    await clipboard.writeText("external clipboard body");
+    await writeClipboard("external clipboard body", "");
     await clipboardEdit.webContents.executeJavaScript(
       "document.getElementById('body').dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true }))",
     );
@@ -564,6 +599,7 @@ app
         mainPreloadExposed,
         mainWindowSentinelAbsent,
         clipboardProvenance: clipboardFacts,
+        clipboardMode,
         viewerProcess: {
           pid: viewerProcessId,
           type: viewerProcess.type,

@@ -271,7 +271,7 @@
       "requirement": "本机内容窗口不执行原始 HTML、不加载外链，拒绝导航/新窗口/权限请求，系统级零出网与 DNS 预取。",
       "status": "partial",
       "gaps": [
-        "真实 Electron DOM 快照、textContent 安全渲染、fetch 拒绝与新窗口拒绝已执行；真实 Windows 系统级抓包、DNS 日志与独立 webRequest 取消记录尚未执行。"
+        "真实 Electron DOM 快照、textContent 安全渲染、fetch 拒绝与新窗口拒绝已执行；ETW/pktmon 自动采集器、结构化 XML 分析器与正对照门禁已交付并有合成回归，非提升 preflight 已实测拒绝访问；真实 Windows 提升窗口正负两窗抓包、DNS 日志与独立 webRequest 取消记录尚未执行。"
       ],
       "evidence": [
         { "path": "src/desktop/tests/work-viewer-smoke.test.cjs", "test": "real Electron viewer enforces DOM network cookie and process isolation" },
@@ -283,6 +283,7 @@
         { "path": "src/desktop/tests/viewer-bundle.test.cjs", "test": "viewer accepts only closed text formats and bounded payloads" },
         { "path": "src/desktop/tests/viewer-bundle.test.cjs", "test": "viewer bundle has no active-content or network escape hatch" },
         { "path": "src/desktop/tests/viewer-bundle.test.cjs", "test": "desktop build ships the viewer bundle beside the protocol handler" },
+        { "path": "src/desktop/tests/work-os-evidence-analyze.test.cjs", "test": "clean negative window plus real positive control passes" },
         { "path": "src/desktop/tests/work-viewer.test.cjs", "test": "viewer requests cannot escape the signed local scheme" }
       ]
     },
@@ -292,7 +293,7 @@
       "requirement": "主窗口不持有本机正文，Composer stage 后清空；仅 viewer 主 frame 可发送六类闭集消息，对象与发送方校验拒绝。",
       "status": "partial",
       "gaps": [
-        "artifact_version 正文加密持久化/重启读取与 UserVersionProof 服务端 ES256 验签已闭合；0076 以 owner/device/session SECURITY DEFINER getter 修复取键的 0024 表权限违规，work_api 仍零表权限。artifact_edit 的 task_id/auth_epoch/base 元数据链、本机 base 校验、pending_confirm→pending_publish→published、discard/cancel、30 分钟懒过期、单飞与真实 Electron 编辑/确认手势已落地。任务页草稿列表/恢复入口已接通，pending_publish 可重试原 proof，expired 可只读展示并处置。prepare 的 base→目标字节数/差值摘要已接通。发布后已在原 grant/root 身份匹配时于 WeMeet成果 create-new 写入可见副本，copy_state=written；重试只接受同 hash/size 的既有文件，否则保留 published/pending。approval 已在 action_prepared 到达时封存完整 canonical Action，run_transcript 已在 loop_end 封存完整 messages，均可按 approval_id/run_id 解密读取；任务页已提供运行过程安全查看入口。0075 已把审批 proof signature 改为 base64url ES256，Rust 20 键生产、Go API owner/device/session 限定验签、viewer 批准/拒绝与主进程 REST 提交已闭合。任务页已通过桌面 Bearer 桥分页读取待审批元数据并按 task 过滤，只调用 openLocalContent 在安全 viewer 打开正文，决定事件回刷投影。主窗口 DOM/Web Storage/IndexedDB 的运行态唯一正文哨兵扫描已通过，viewer 拒绝手势的真实 Electron 回归也已通过。remember_readonly 已由 0077 owner-scoped scope getter、viewer 复选框、主进程精确 scope/24h expiry 与 Broker proof 生产闭合，Rust/Go/SQL 统一 grant_revision 为 canonical 字符串；真实 exe fixture↔真 PostgreSQL/API 全链已通过，真实 Windows Broker→REST 审批决定链也已执行（Broker 从当前 journal session 生成 ES256 proof，REST 验签并落 approved）；单一 Electron 进程内的 viewer 手势→主进程→真实 Windows Broker/设备 proof→真实 REST 200→PostgreSQL approved/Run succeeded/成果发布与采纳 truth 全链已通过，Node 服务阻塞在 serve_run 时 Broker 仍可直接经共享 journal 读取审批正文。EV73 仅剩 OS 层零请求/零写抓包与外部审计未执行。"
+        "artifact_version 正文加密持久化/重启读取与 UserVersionProof 服务端 ES256 验签已闭合；0076 以 owner/device/session SECURITY DEFINER getter 修复取键的 0024 表权限违规，work_api 仍零表权限。artifact_edit 的 task_id/auth_epoch/base 元数据链、本机 base 校验、pending_confirm→pending_publish→published、discard/cancel、30 分钟懒过期、单飞与真实 Electron 编辑/确认手势已落地。任务页草稿列表/恢复入口已接通，pending_publish 可重试原 proof，expired 可只读展示并处置。prepare 的 base→目标字节数/差值摘要已接通。发布后已在原 grant/root 身份匹配时于 WeMeet成果 create-new 写入可见副本，copy_state=written；重试只接受同 hash/size 的既有文件，否则保留 published/pending。approval 已在 action_prepared 到达时封存完整 canonical Action，run_transcript 已在 loop_end 封存完整 messages，均可按 approval_id/run_id 解密读取；任务页已提供运行过程安全查看入口。0075 已把审批 proof signature 改为 base64url ES256，Rust 20 键生产、Go API owner/device/session 限定验签、viewer 批准/拒绝与主进程 REST 提交已闭合。任务页已通过桌面 Bearer 桥分页读取待审批元数据并按 task 过滤，只调用 openLocalContent 在安全 viewer 打开正文，决定事件回刷投影。主窗口 DOM/Web Storage/IndexedDB 的运行态唯一正文哨兵扫描已通过，viewer 拒绝手势的真实 Electron 回归也已通过。remember_readonly 已由 0077 owner-scoped scope getter、viewer 复选框、主进程精确 scope/24h expiry 与 Broker proof 生产闭合，Rust/Go/SQL 统一 grant_revision 为 canonical 字符串；真实 exe fixture↔真 PostgreSQL/API 全链已通过，真实 Windows Broker→REST 审批决定链也已执行（Broker 从当前 journal session 生成 ES256 proof，REST 验签并落 approved）；单一 Electron 进程内的 viewer 手势→主进程→真实 Windows Broker/设备 proof→真实 REST 200→PostgreSQL approved/Run succeeded/成果发布与采纳 truth 全链已通过，Node 服务阻塞在 serve_run 时 Broker 仍可直接经共享 journal 读取审批正文。EV73 仅剩 OS 层零请求/零写抓包与外部审计未执行；OS 自动采集/分析工具已交付，但提升窗口正负两窗尚未实跑。"
       ],
       "evidence": [
         { "path": "src/work/internal/devicesig/userversion_test.go", "test": "TestVerifyUserVersionCrossLanguage" },
@@ -395,7 +396,7 @@
       "requirement": "本机采纳 proof 由 viewer signObjectProof 手势签署，缺手势或伪造 frame 时零请求零写；purpose 仅 accept。",
       "status": "partial",
       "gaps": [
-        "尚未执行缺手势时的 OS 层零请求/零写抓包；真实 Electron 单进程 E2E 已覆盖应用层零 acceptance REST/pipe 请求，现有单元证据覆盖主进程无消息不调用与伪造 proof 拒绝。"
+        "尚未执行缺手势时的 OS 层零请求/零写抓包；自动采集器、XML 分析器和正对照门禁已有合成回归，非提升 preflight 已实测拒绝访问。真实 Electron 单进程 E2E 已覆盖应用层零 acceptance REST/pipe 请求，现有单元证据覆盖主进程无消息不调用与伪造 proof 拒绝。"
       ],
       "evidence": [
         { "path": "src/work/internal/api/local_acceptances_test.go", "test": "TestLocalAcceptanceCreateAndReplay" },
@@ -413,6 +414,7 @@
         { "path": "src/desktop/tests/work-driver.test.cjs", "test": "local acceptance refuses a proof for another version before REST" },
         { "path": "src/desktop/tests/work-viewer.test.cjs", "test": "viewer payloads bind the current object and consume authorized requests" },
         { "path": "src/desktop/tests/work-viewer-smoke.test.cjs", "test": "real Electron viewer enforces DOM network cookie and process isolation" },
+        { "path": "src/desktop/tests/work-os-evidence-analyze.test.cjs", "test": "clean negative window plus real positive control passes" },
         { "path": "src/frontend/src/features/work/r0a/routes/ArtifactWorkspacePage.test.tsx", "test": "opens the secure local acceptance gesture instead of cookie-plane acceptance on desktop" },
         { "path": "src/frontend/src/features/work/r0a/routes/ArtifactWorkspacePage.test.tsx", "test": "never falls back to cookie-plane acceptance when desktop version proof metadata is missing" },
         { "path": "src/frontend/e2e/work-r0a-consistency.spec.ts", "test": "desktop acceptance opens the secure viewer instead of calling the cookie plane" },

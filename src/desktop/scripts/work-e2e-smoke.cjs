@@ -830,8 +830,27 @@ async function main() {
     assert.match(acceptanceTruthRaw.deviceId, /^[0-9a-f-]{36}$/);
     assert.match(acceptanceTruthRaw.proofDigest, /^[0-9a-f]{64}$/);
 
+    const brokerPid = await app.evaluate(() => globalThis.__workE2EBrokerPid);
+    const viewerPid = await app.evaluate(() =>
+      globalThis.__workE2EViewerPid(),
+    );
+    const electronPath = require("electron");
     const receipt = {
       passed: true,
+      pids: {
+        main: app.process().pid,
+        viewer: viewerPid,
+        broker: brokerPid,
+      },
+      binaries: {
+        main: { path: electronPath, sha256: sha256File(electronPath) },
+        broker: {
+          path: path.join(project, "dist", "work-device", "work-device.exe"),
+          sha256: sha256File(
+            path.join(project, "dist", "work-device", "work-device.exe"),
+          ),
+        },
+      },
       taskId,
       taskState: acceptanceTruthRaw.taskState,
       runState,
@@ -871,6 +890,12 @@ async function main() {
     );
     console.log(JSON.stringify(receipt));
   } finally {
+    if (fs.existsSync(acceptancePipeLog)) {
+      fs.copyFileSync(
+        acceptancePipeLog,
+        path.join(output, "acceptance-pipe.jsonl"),
+      );
+    }
     if (stopApprover) stopApprover();
     if (fixture) fixture.kill();
     if (app) await Promise.race([app.close().catch(() => {}), wait(5000)]);

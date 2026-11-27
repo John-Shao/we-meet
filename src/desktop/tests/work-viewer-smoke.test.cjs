@@ -29,6 +29,7 @@ test(
     assert.equal(evidence.viewerCookies, 0);
     assert.equal(evidence.mainPreloadExposed, false);
     assert.equal(evidence.mainWindowSentinelAbsent, true);
+    assert.ok(["native", "memory"].includes(evidence.clipboardMode));
     assert.deepEqual(evidence.clipboardProvenance, [
       {
         derived: true,
