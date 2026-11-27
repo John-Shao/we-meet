@@ -176,28 +176,35 @@ func (s *Server) getTask(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, correlationID, apierr.New("service_degraded"))
 		return
 	}
-	if s.content == nil {
-		writeAPIError(w, correlationID, apierr.New("service_degraded"))
-		return
-	}
-	plaintext, err := s.content.Get(r.Context(), claims.OrgID, record.contentRef)
-	if err != nil || !contentHashMatches(plaintext, record.contentHash) {
-		s.logger.Printf("work api task content read failure correlation_id=%s", correlationID)
-		writeAPIError(w, correlationID, apierr.New("service_degraded"))
-		return
-	}
-	var input struct {
-		Goal       string `json:"goal"`
-		Background string `json:"background"`
-	}
-	if err := json.Unmarshal(plaintext, &input); err != nil || strings.TrimSpace(input.Goal) == "" {
-		s.logger.Printf("work api task content is invalid correlation_id=%s", correlationID)
-		writeAPIError(w, correlationID, apierr.New("service_degraded"))
-		return
-	}
+	goal := summary.Title
 	var background *string
-	if input.Background != "" {
-		background = &input.Background
+	if record.contentRef == "local:"+record.inputRef {
+		// Local submission keeps the Composer body on the device. The control plane returns only
+		// the task title and must not pretend the opaque local ref is a Content Store object.
+	} else {
+		if s.content == nil {
+			writeAPIError(w, correlationID, apierr.New("service_degraded"))
+			return
+		}
+		plaintext, err := s.content.Get(r.Context(), claims.OrgID, record.contentRef)
+		if err != nil || !contentHashMatches(plaintext, record.contentHash) {
+			s.logger.Printf("work api task content read failure correlation_id=%s", correlationID)
+			writeAPIError(w, correlationID, apierr.New("service_degraded"))
+			return
+		}
+		var input struct {
+			Goal       string `json:"goal"`
+			Background string `json:"background"`
+		}
+		if err := json.Unmarshal(plaintext, &input); err != nil || strings.TrimSpace(input.Goal) == "" {
+			s.logger.Printf("work api task content is invalid correlation_id=%s", correlationID)
+			writeAPIError(w, correlationID, apierr.New("service_degraded"))
+			return
+		}
+		goal = input.Goal
+		if input.Background != "" {
+			background = &input.Background
+		}
 	}
 	var snapshotManifest struct {
 		Template struct {
@@ -224,7 +231,7 @@ func (s *Server) getTask(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, TaskDetail{
 		Summary:       summary,
 		InputRef:      record.inputRef,
-		Goal:          input.Goal,
+		Goal:          goal,
 		Background:    background,
 		Template:      templateFromSnapshot(record.manifestJSON),
 		Snapshot:      &record.snapshot,

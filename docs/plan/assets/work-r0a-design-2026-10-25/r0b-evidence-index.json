@@ -346,6 +346,7 @@
         { "path": "src/work/internal/migrate/r0b_actions_test.go", "test": "TestR0bWorkspaceRebindThreeStateChainAndReadonlySuccession" },
         { "path": "src/work/internal/api/approvals_test.go", "test": "TestApprovalListGetDecide" },
         { "path": "src/work/internal/api/approvals_test.go", "test": "TestApprovalDecisionRejectsInvalidSignature" },
+        { "path": "src/work/internal/api/task_detail_test.go", "test": "TestGetTaskLocalInputReturnsTitleWithoutServerBody" },
         { "path": "src/work/internal/api/device_broker_interop_test.go", "test": "TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate" },
         { "path": "src/device/src/broker.rs", "test": "prepare_local_approval_decision_returns_only_the_signed_proof" },
         { "path": "src/desktop/tests/work-driver.test.cjs", "test": "local approval reads metadata, signs through Broker and submits the closed proof" },

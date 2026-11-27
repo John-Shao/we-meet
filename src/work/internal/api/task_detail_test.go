@@ -93,6 +93,32 @@ func TestGetTaskReturnsOwnedDetail(t *testing.T) {
 	missing.Body.Close()
 }
 
+func TestGetTaskLocalInputReturnsTitleWithoutServerBody(t *testing.T) {
+	pool, dbName := newBootstrapDB(t, true, true)
+	server := newHTTPServerWithContent(t, pool, newTestContentStore(t))
+	token := bootstrapCSRF(t, server.URL)
+	created := createTaskForTest(t, server.URL, token, "local-detail-input1", "本机任务标题", "只留在设备的背景")
+	adminExec(t, dbName, fmt.Sprintf(`
+		UPDATE work.input_object
+		SET content_ref = 'local:' || id::text,
+		    content_hash = '%s',
+		    bytes = 27
+		WHERE id = '%s'`, strings.Repeat("a", 64), created.InputRef))
+
+	response := taskRequest(t, http.MethodGet, server.URL+"/work/v1/tasks/"+created.TaskID, "", "")
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("local detail status = %d body=%s", response.StatusCode, readBody(response))
+	}
+	defer response.Body.Close()
+	var detail api.TaskDetail
+	if err := json.NewDecoder(response.Body).Decode(&detail); err != nil {
+		t.Fatal(err)
+	}
+	if detail.InputRef != created.InputRef || detail.Goal != "本机任务标题" || detail.Background != nil {
+		t.Fatalf("local detail exposed a server body or lost its title: %#v", detail)
+	}
+}
+
 func TestGetTaskKeepsSummaryAndCursorOnSameSnapshot(t *testing.T) {
 	pool, dbName := newBootstrapDB(t, true, true)
 	ctx, cancel := context.WithCancel(testContext(t))
