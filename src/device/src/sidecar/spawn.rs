@@ -83,6 +83,9 @@ impl SpawnConfig {
 
 /// The per-process memory limit (device-design §1 :18, 1 GiB).
 pub const PROCESS_MEMORY_LIMIT: usize = 1024 * 1024 * 1024;
+pub const PROCESS_CPU_TIME_LIMIT_100NS: u64 = 60 * 10_000_000;
+pub const CPU_RATE_LIMIT_BASIS_POINTS: u32 = 5_000;
+pub const ACTIVE_PROCESS_LIMIT: u32 = 1;
 
 /// The per-Run AppContainer profile name. CreateAppContainerProfile caps the name at 64 chars
 /// (ERROR_INVALID_PARAMETER beyond it): the 16-char prefix + 36-char run_id + an 8-char uniqueness
@@ -135,6 +138,7 @@ pub struct SidecarProcess {
     node_pipe_handle: Option<isize>,
     // Held for their Drop side effects (kill-on-close / profile delete); order matters: the job
     // must outlive the process handle close so the tree is killed before the handles release.
+    _cpu_guard: super::job::CpuGuard,
     _job: super::job::JobObject,
     _container: super::appcontainer::AppContainer,
 }
@@ -166,6 +170,7 @@ impl SidecarProcess {
 #[cfg(windows)]
 impl Drop for SidecarProcess {
     fn drop(&mut self) {
+        self._cpu_guard.shutdown();
         unsafe {
             // Terminate the tree explicitly first (kill-on-close also fires when _job drops), then
             // release the handles. The AppContainer profile is deleted by _container's own drop.
@@ -191,9 +196,10 @@ impl Drop for SidecarProcess {
 }
 
 /// Spawn the single sidecar for a Run into a fresh AppContainer (no capabilities) under a
-/// kill-on-close Job Object with a 1 GiB per-process limit, a stripped environment and the Node
-/// `--permission` flags (device-design §1 :18/:41, DD:20). The process is created suspended,
-/// assigned to the job, then resumed — so it never runs a single instruction outside the job.
+/// kill-on-close Job Object with a 1 GiB per-process limit, 60s CPU-time budget, 50% CPU rate and
+/// one-process limit, a Broker CPU guard, a stripped environment and the Node `--permission` flags
+/// (device-design §1 :18/:41, DD:20). The process is created suspended, assigned to the job, then
+/// resumed — so it never runs a single instruction outside the job.
 ///
 /// Batch 1d spawns the configured Node bundle path; the real signed bundle and tool loop are
 /// batch 2. The caller persists `start_nonce` BEFORE calling this (DD:113), and the lifecycle
@@ -243,10 +249,15 @@ pub fn spawn_sidecar(
     let container = super::appcontainer::AppContainer::create(&container_name)
         .map_err(|_| SpawnError::AppContainer)?;
 
-    // 3. Job Object with kill-on-close + 1 GiB per-process limit.
+    // 3. Job Object with kill-on-close, 1 GiB memory, 60s CPU time, 50% CPU rate and one process.
     let job = super::job::JobObject::create().map_err(|_| SpawnError::Job)?;
-    job.set_limits(PROCESS_MEMORY_LIMIT)
-        .map_err(|_| SpawnError::Job)?;
+    job.set_limits(
+        PROCESS_MEMORY_LIMIT,
+        PROCESS_CPU_TIME_LIMIT_100NS,
+        CPU_RATE_LIMIT_BASIS_POINTS,
+        ACTIVE_PROCESS_LIMIT,
+    )
+    .map_err(|_| SpawnError::Job)?;
 
     // 4. Command line: node + permission flags + the fixed bundle. Quoted paths tolerate spaces.
     let mut cmdline = format!("\"{}\"", config.node_path);
@@ -411,6 +422,30 @@ pub fn spawn_sidecar(
         }
     };
 
+    let cpu_guard = match super::job::spawn_cpu_guard(
+        process_info.hProcess,
+        PROCESS_CPU_TIME_LIMIT_100NS,
+        CPU_RATE_LIMIT_BASIS_POINTS,
+    ) {
+        Ok(guard) => guard,
+        Err(_) => {
+            unsafe {
+                let _ =
+                    windows::Win32::System::Threading::TerminateProcess(process_info.hProcess, 1);
+                let _ = windows::Win32::Foundation::CloseHandle(process_info.hThread);
+                let _ = windows::Win32::Foundation::CloseHandle(process_info.hProcess);
+                let _ = windows::Win32::Foundation::CloseHandle(
+                    windows::Win32::Foundation::HANDLE(node_pipe_handle as *mut c_void),
+                );
+            }
+            for path in &acl_paths {
+                let _ = super::fileacl::revoke(path, container.sid());
+            }
+            let _ = std::fs::remove_dir_all(&staging_dir);
+            return Err(SpawnError::Job);
+        }
+    };
+
     let resumed = unsafe { ResumeThread(process_info.hThread) };
     // ResumeThread returns the previous suspend count; (u32)-1 signals failure.
     if resumed == u32::MAX {
@@ -436,6 +471,7 @@ pub fn spawn_sidecar(
         acl_paths,
         staging_dir,
         node_pipe_handle: Some(node_pipe_handle),
+        _cpu_guard: cpu_guard,
         _job: job,
         _container: container,
     })
