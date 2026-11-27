@@ -266,6 +266,8 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 **2026-11-27 现网只读复审**：工作主机 `lavm-t7fmveau9b` 的 exact 0062 包 ledger preflight＝`HOST_SCRIPT_RC=0`（tip_version=62／rows=62／device_dispatch=0／open_runs=0／outbox_pending=0／held_reservations=1）；package preflight＝`HOST_SCRIPT_RC=0`（`RELEASE_COMMIT=c73adea2a`／`RELEASE_DIRTY=0`／75 条 SHA256SUMS 全通过／15 个声明二进制齐备／backup 三件剥 CR 后逐字相等）；包内官方 `verify-r0a-0027.sh`＝`OFFICIAL_VERIFY_RC=0`，所有 acceptance verdict 为 true／present。`/var/lib/work/health.json` 为 `status=ok`（13:59:08+08:00），八个核心 unit active，`work-runtime` 仍为 2026-11-07 08:04:01 启动的 Node/Pi 进程，未换 runtime bundle。现装 `work-api` sha256 `b4b82e8e…` 与 0062 包件 `8f8bae28…` 不同，是下文 C17 `a05ba12e8` 埋点热修后的已知二进制；`/proc/2543216/exe` 与 `/usr/local/bin/work-api` 哈希一致，非运行中 deleted inode。**仍未闭合**：1 条 held reservation；reconcile／retention／gauge 的组织清单均为 1 而目录组织为 2；`work-cancel.service/.timer/.env` 在主机缺失；真实 SLO 告警仍丢弃，C17 观测窗未满。本轮只读，未改数据库、env、unit 或二进制。
 
+**2026-11-27 18:18 CST 当前 HEAD 只读验收**：同一主机仍为 ledger 62／rows 62；用当前 `verify-r0a-0027.sh` 验收返回 rc=1、22 项 FALSE/MISSING，核心原因是包内 `MIGRATION_TAIL=83` 而主机只部署到 62，63–83 的 schema/函数尚未上线。该结果不推翻 0062 exact 包的历史 `OFFICIAL_VERIFY_RC=0`，也不得写成当前 HEAD 已验收通过。治理专项读数：`work_governance_events`／`work_operator` 均为 NOLOGIN 且无 super/createrole/bypassrls，`work_governance_events_login` 为 LOGIN 且无这些高权限；`work-cancel.service/.timer/.env` 与 `work-governance-events.service/.timer/.env` 仍 MISSING，`work_governance_client_cert=FALSE`、`work_governance_consumer=FALSE`。本轮只读，未改数据库、env、unit、证书或二进制。
+
 ### 3.5 装后验证与链尾闸 [只读]
 
 - `sudo ./verify-r0a-0027.sh "<开始时刻>"`：`rows=N max=N`、清单 all present、函数体探针 true（claim_carries_takeover、terminal_release_guard、export_discovery_hardened、0040–0045 设备面探针等）。
