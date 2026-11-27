@@ -4,12 +4,18 @@ on:
   pull_request:
     paths:
       - 'src/device/**'
+      - 'src/work/node/device-bundle/**'
+      - 'src/work/node/package.json'
+      - 'src/work/node/package-lock.json'
       - '.github/workflows/work-device.yml'
   push:
     branches:
       - aliyun-dev
     paths:
       - 'src/device/**'
+      - 'src/work/node/device-bundle/**'
+      - 'src/work/node/package.json'
+      - 'src/work/node/package-lock.json'
       - '.github/workflows/work-device.yml'
 
 permissions:
@@ -36,3 +42,12 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings
       - name: Test (includes non-exportable CNG key tests)
         run: cargo test
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Install pinned Node runtime dependencies
+        working-directory: src/work/node
+        run: npm ci
+      - name: Test Node device bundle
+        working-directory: src/work/node/device-bundle
+        run: npm test
