@@ -77,6 +77,7 @@
 
 - 专用 `work-host-ca`；Go 控制面客户端证书 CN 固定 `work-control-plane`，
   Host 只信任该 CA，校验证书存在、CA、有效期、clientAuth EKU 与 CN。
+- 治理事件消费者使用独立客户端身份 `work-governance-events`，不得复用控制面身份；rollout 与官方 verifier 在启用 timer 前验证专用 CN、`WORK_GOVERNANCE_CLIENT_CA` 直接签发、当前有效期、clientAuth EKU、私钥匹配、专用 DB role 与组织全集。仓库已有真实 OpenSSL 正反例；生产证书部署与告警投递仍未取证。
 - Host 端点只在内网暴露，不建公网 DNS；Django 是强制校验点
   （ingress `optional` 是已签决策，不改变强制校验位置）。
 - CA/客户端私钥只存 Work ECS 受限目录，不进仓库/Secret/日志；证书到期有预警。

@@ -114,7 +114,7 @@ R0b 设备面（**未实现**）再加一层：Rust Broker 持真实文件句柄
 
 - 所有租户表 FORCE RLS；业务角色非表 owner、无 BYPASSRLS；每事务显式设置可信租户上下文。
 - 写路径只经 SECURITY DEFINER 领域命令（owner 为 `work_owner`，`search_path` 钉死）；表 DML 与 PUBLIC EXECUTE 收回。新增函数必须显式 REVOKE，否则继承 PUBLIC 隐式 EXECUTE——catalog 一致不等于权限面一致。
-- 角色按职责分离：`work_api`/`work_worker`/`work_ledger`/`work_directory`/`work_ops`/`work_migrator`，R0b 另加 `work_governance_events`/`work_operator`（`src/work/migrations/baseline/0001_roles_precondition.sql`、`src/work/deploy/ecs/provision-r0b-roles.sh`）。治理事件消费者须使用专用 mTLS CN 与完整组织清单；full rollout 写前验证这些前置条件，现网尚未执行该部署。
+- 角色按职责分离：`work_api`/`work_worker`/`work_ledger`/`work_directory`/`work_ops`/`work_migrator`，R0b 另加 `work_governance_events`/`work_operator`（`src/work/migrations/baseline/0001_roles_precondition.sql`、`src/work/deploy/ecs/provision-r0b-roles.sh`）。治理事件消费者须使用专用 mTLS 身份与完整组织清单；full rollout 写前验证专用 DB role、证书 CN/直接 CA/clientAuth/有效期/私钥匹配、DSN 与组织全集，官方 verifier 复验并硬判失败。仓库安装与验收链已落，现网尚未执行该部署。
 - 状态迁移白名单、审批单胜者、预算不超卖、采纳静止、成果不可覆盖由约束、触发器与行锁保证。
 - 迁移链与 catalog 校验和钉在 `src/work/migrations/manifest.json`，由 `src/work/cmd/work-migrate` 执行：拒绝 catalog 漂移、增量与台账同事务、无 DROP SCHEMA 或回零路径。
 
