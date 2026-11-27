@@ -146,9 +146,13 @@ pub async fn run_core_pump(
                             { approval_decision_reply(&approval_signer, &node_service, &request.message).await }
                             #[cfg(not(windows))]
                             { Reply::refused(&request.message, "method_not_implemented") }
+                        } else if method == "openLocalContent" {
+                            #[cfg(windows)]
+                            { open_local_content_reply(&approval_signer, &node_service, &request.message).await }
+                            #[cfg(not(windows))]
+                            { Reply::refused(&request.message, "method_not_implemented") }
                         } else if CONFIRMATION_METHODS.contains(&method)
                             || method == "stageLocalInput"
-                            || method == "openLocalContent"
                             || method == "listWorkspaceGrants"
                             || method == "prepareLocalAcceptance"
                             || method == "listLocalArtifactDrafts"
@@ -768,6 +772,163 @@ async fn approval_decision_reply(
     confirmation_reply(node, message).await
 }
 
+#[cfg(windows)]
+async fn open_local_content_reply(
+    signer: &crate::journalop::ApprovalSignerSlot,
+    node: &mpsc::Sender<crate::nodeservice::NodeRequest>,
+    message: &Value,
+) -> Reply {
+    let text = |key: &str| message.get(key).and_then(Value::as_str).unwrap_or("");
+    if let Err(code) = confirm_keys(message, &["kind", "id"]) {
+        return Reply::refused(message, code);
+    }
+    let kind = text("kind");
+    let id = text("id");
+    if !matches!(
+        kind,
+        "approval" | "run_transcript" | "artifact_version" | "artifact_edit"
+    ) || id.is_empty()
+        || id.len() > 512
+        || id.contains('\0')
+    {
+        return Reply::refused(message, "shape");
+    }
+    if kind != "approval" {
+        return confirmation_reply(node, message).await;
+    }
+    let Some(facts) = signer.lock().ok().and_then(|slot| slot.clone()) else {
+        return confirmation_reply(node, message).await;
+    };
+    let op = crate::journalop::JournalOp::ReadLocalApproval {
+        org_id: facts.org_id,
+        subject_id: facts.subject_id,
+        approval_id: id.to_string(),
+    };
+    let journal = facts.journal;
+    let body = tokio::task::spawn_blocking(move || journal.request(op))
+        .await
+        .ok()
+        .flatten();
+    match body {
+        Some(crate::journalop::JournalReply::LocalApproval(Ok(Some(body)))) => {
+            local_content_reply(message, kind, id, body)
+        }
+        _ => Reply::accepted_with(message, json!({ "status": "not_on_this_device" })),
+    }
+}
+
+fn local_content_reply(
+    message: &Value,
+    kind: &str,
+    id: &str,
+    body: crate::journalop::LocalContentBody,
+) -> Reply {
+    let format = match body.row.format.as_str() {
+        "md" => "text/markdown",
+        "txt" | "json" => "text/plain",
+        _ => return Reply::accepted_with(message, json!({ "status": "not_on_this_device" })),
+    };
+    if body.bytes.len() > 1024 * 1024 {
+        return Reply::accepted_with(message, json!({ "status": "not_on_this_device" }));
+    }
+    let Ok(text) = String::from_utf8(body.bytes) else {
+        return Reply::accepted_with(message, json!({ "status": "not_on_this_device" }));
+    };
+    if kind == "approval" {
+        let valid = (|| -> Option<()> {
+            if body.row.version_id != id
+                || body.row.format != "json"
+                || body.row.publish_state != "sealed"
+            {
+                return None;
+            }
+            let document: Value = serde_json::from_str(&text).ok()?;
+            let object = document.as_object()?;
+            let destination = object.get("destination_id")?;
+            if object.len() != 9
+                || object.get("approval_id")?.as_str()? != id
+                || uuid::Uuid::parse_str(object.get("operation_id")?.as_str()?).is_err()
+                || object.get("logical_key")?.as_str()?.is_empty()
+                || object.get("step_key")?.as_str()?.is_empty()
+                || object.get("state")?.as_str()? != "waiting_approval"
+                || object.get("classification")?.as_str()? != "local_only"
+                || !matches!(destination, Value::Null | Value::String(_))
+                || object.get("request_hash")?.as_str()?.len() != 64
+                || object
+                    .get("request_hash")?
+                    .as_str()?
+                    .bytes()
+                    .any(|b| !b.is_ascii_hexdigit())
+            {
+                return None;
+            }
+            let action = object.get("action")?.as_object()?;
+            if action.len() != 2
+                || !matches!(
+                    action.get("kind")?.as_str()?,
+                    "artifact.write" | "model.send_device_local"
+                )
+                || !action.get("request")?.is_object()
+            {
+                return None;
+            }
+            Some(())
+        })()
+        .is_some();
+        if !valid {
+            return Reply::accepted_with(message, json!({ "status": "not_on_this_device" }));
+        }
+    }
+    if kind == "run_transcript" {
+        let valid = (|| -> Option<()> {
+            if body.row.version_id != id
+                || body.row.format != "json"
+                || body.row.publish_state != "sealed"
+            {
+                return None;
+            }
+            let document: Value = serde_json::from_str(&text).ok()?;
+            let object = document.as_object()?;
+            if object.len() != 3 || object.get("run_id")?.as_str()? != id {
+                return None;
+            }
+            let turn_count = object.get("turn_count")?.as_str()?;
+            if turn_count.is_empty() || !turn_count.bytes().all(|byte| byte.is_ascii_digit()) {
+                return None;
+            }
+            let messages = object.get("messages")?.as_array()?;
+            if !messages.iter().all(|message| {
+                message
+                    .get("role")
+                    .and_then(Value::as_str)
+                    .is_some_and(|role| !role.is_empty())
+            }) {
+                return None;
+            }
+            Some(())
+        })()
+        .is_some();
+        if !valid {
+            return Reply::accepted_with(message, json!({ "status": "not_on_this_device" }));
+        }
+    }
+    let content_hash = body
+        .row
+        .content_hash
+        .strip_prefix("sha256:")
+        .unwrap_or(&body.row.content_hash);
+    Reply::accepted_with(
+        message,
+        json!({
+            "status": "available",
+            "format": format,
+            "text": text,
+            "content_hash": format!("sha256:{content_hash}"),
+            "byte_count": body.row.byte_count.to_string(),
+        }),
+    )
+}
+
 // The confirmation carriers forward into the Node service thread, which only exists on Windows
 // (nodeservice/listener/modelproxy are `#[cfg(windows)]` modules). The pump's non-Windows arm
 // refuses these methods before this function is reachable.
@@ -1169,120 +1330,7 @@ async fn confirmation_reply(
                     return Reply::accepted_with(message, json!({ "status": "not_on_this_device" }))
                 }
             };
-            let format = match body.row.format.as_str() {
-                "md" => "text/markdown",
-                "txt" | "json" => "text/plain",
-                _ => {
-                    return Reply::accepted_with(message, json!({ "status": "not_on_this_device" }))
-                }
-            };
-            if body.bytes.len() > 1024 * 1024 {
-                return Reply::accepted_with(message, json!({ "status": "not_on_this_device" }));
-            }
-            let Ok(text) = String::from_utf8(body.bytes) else {
-                return Reply::accepted_with(message, json!({ "status": "not_on_this_device" }));
-            };
-            if kind == "approval" {
-                let valid = (|| -> Option<()> {
-                    if body.row.version_id != id
-                        || body.row.format != "json"
-                        || body.row.publish_state != "sealed"
-                    {
-                        return None;
-                    }
-                    let document: Value = serde_json::from_str(&text).ok()?;
-                    let object = document.as_object()?;
-                    let destination = object.get("destination_id")?;
-                    if object.len() != 9
-                        || object.get("approval_id")?.as_str()? != id
-                        || uuid::Uuid::parse_str(object.get("operation_id")?.as_str()?).is_err()
-                        || object.get("logical_key")?.as_str()?.is_empty()
-                        || object.get("step_key")?.as_str()?.is_empty()
-                        || object.get("state")?.as_str()? != "waiting_approval"
-                        || object.get("classification")?.as_str()? != "local_only"
-                        || !matches!(destination, Value::Null | Value::String(_))
-                        || object.get("request_hash")?.as_str()?.len() != 64
-                        || object
-                            .get("request_hash")?
-                            .as_str()?
-                            .bytes()
-                            .any(|b| !b.is_ascii_hexdigit())
-                    {
-                        return None;
-                    }
-                    let action = object.get("action")?.as_object()?;
-                    if action.len() != 2
-                        || !matches!(
-                            action.get("kind")?.as_str()?,
-                            "artifact.write" | "model.send_device_local"
-                        )
-                        || !action.get("request")?.is_object()
-                    {
-                        return None;
-                    }
-                    Some(())
-                })()
-                .is_some();
-                if !valid {
-                    return Reply::accepted_with(
-                        message,
-                        json!({ "status": "not_on_this_device" }),
-                    );
-                }
-            }
-            if kind == "run_transcript" {
-                let valid = (|| -> Option<()> {
-                    if body.row.version_id != id
-                        || body.row.format != "json"
-                        || body.row.publish_state != "sealed"
-                    {
-                        return None;
-                    }
-                    let document: Value = serde_json::from_str(&text).ok()?;
-                    let object = document.as_object()?;
-                    if object.len() != 3 || object.get("run_id")?.as_str()? != id {
-                        return None;
-                    }
-                    let turn_count = object.get("turn_count")?.as_str()?;
-                    if turn_count.is_empty()
-                        || !turn_count.bytes().all(|byte| byte.is_ascii_digit())
-                    {
-                        return None;
-                    }
-                    let messages = object.get("messages")?.as_array()?;
-                    if !messages.iter().all(|message| {
-                        message
-                            .get("role")
-                            .and_then(Value::as_str)
-                            .is_some_and(|role| !role.is_empty())
-                    }) {
-                        return None;
-                    }
-                    Some(())
-                })()
-                .is_some();
-                if !valid {
-                    return Reply::accepted_with(
-                        message,
-                        json!({ "status": "not_on_this_device" }),
-                    );
-                }
-            }
-            let content_hash = body
-                .row
-                .content_hash
-                .strip_prefix("sha256:")
-                .unwrap_or(&body.row.content_hash);
-            Reply::accepted_with(
-                message,
-                json!({
-                    "status": "available",
-                    "format": format,
-                    "text": text,
-                    "content_hash": format!("sha256:{content_hash}"),
-                    "byte_count": body.row.byte_count.to_string(),
-                }),
-            )
+            local_content_reply(message, kind, id, body)
         }
         "listLocalArtifactDrafts" => {
             if let Err(code) = confirm_keys(message, &["artifact_id", "task_id"]) {
@@ -2981,6 +3029,89 @@ mod tests {
         let invalid = confirmation_reply(&node, &message("approval-open-2")).await;
         assert_eq!(invalid.result, ACCEPTED);
         assert_eq!(invalid.data.unwrap()["status"], "not_on_this_device");
+        worker.await.unwrap();
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn open_local_content_reads_approval_from_journal_while_node_is_busy() {
+        let approval_id = "11111111-1111-4111-8111-111111111111";
+        let text = json!({
+            "approval_id": approval_id,
+            "operation_id": "22222222-2222-4222-8222-222222222222",
+            "logical_key": "tool:0#0",
+            "step_key": "tool:0",
+            "state": "waiting_approval",
+            "classification": "local_only",
+            "destination_id": null,
+            "request_hash": "a".repeat(64),
+            "action": { "kind": "artifact.write", "request": { "args": {} } },
+        })
+        .to_string();
+        let (journal, mut operations) = crate::journalop::channel();
+        let worker_text = text.clone();
+        let worker = tokio::spawn(async move {
+            let (op, reply) = operations.recv().await.unwrap();
+            match op {
+                crate::journalop::JournalOp::ReadLocalApproval {
+                    org_id,
+                    subject_id,
+                    approval_id: requested,
+                } => {
+                    assert_eq!(org_id, "org-1");
+                    assert_eq!(subject_id, "subject-1");
+                    assert_eq!(requested, approval_id);
+                    reply
+                        .send(crate::journalop::JournalReply::LocalApproval(Ok(Some(
+                            crate::journalop::LocalContentBody {
+                                row: crate::journalop::DeliverableRow {
+                                    run_id: "run-1".into(),
+                                    operation_id: "22222222-2222-4222-8222-222222222222".into(),
+                                    version_id: approval_id.into(),
+                                    logical_name: "artifact.write".into(),
+                                    format: "json".into(),
+                                    content_hash: crate::sha256_hex(worker_text.as_bytes()),
+                                    byte_count: worker_text.len() as u64,
+                                    receipt_seq: None,
+                                    publish_state: "sealed".into(),
+                                },
+                                bytes: worker_text.into_bytes(),
+                            },
+                        ))))
+                        .unwrap();
+                }
+                _ => panic!("unexpected journal operation"),
+            }
+        });
+        let signer: crate::journalop::ApprovalSignerSlot = std::sync::Arc::new(
+            std::sync::Mutex::new(Some(crate::journalop::ApprovalSigner {
+                journal,
+                org_id: "org-1".into(),
+                subject_id: "subject-1".into(),
+                device_id: "device-1".into(),
+                session_id: Some("session-1".into()),
+            })),
+        );
+        let (node, _requests) = mpsc::channel(1);
+        let reply = tokio::time::timeout(
+            Duration::from_secs(1),
+            open_local_content_reply(
+                &signer,
+                &node,
+                &json!({
+                    "method": "openLocalContent",
+                    "request_id": "approval-open-busy",
+                    "kind": "approval",
+                    "id": approval_id,
+                }),
+            ),
+        )
+        .await
+        .expect("approval content read waited on the busy Node service");
+        assert_eq!(reply.result, ACCEPTED, "{reply:?}");
+        let data = reply.data.unwrap();
+        assert_eq!(data["status"], "available");
+        assert_eq!(data["text"], text);
         worker.await.unwrap();
     }
 

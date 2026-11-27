@@ -196,8 +196,11 @@ async function main() {
   const renderer = path.resolve(project, "../frontend/dist");
   let sessionTickets = 0;
   const acceptanceRestRequests = [];
+  const approvalRestRequests = [];
   const acceptancePath = (pathname) =>
     /^\/work\/v2\/tasks\/[0-9a-f-]+\/acceptances$/.test(pathname);
+  const approvalPath = (pathname) =>
+    /^\/work\/v2\/approvals\/[0-9a-f-]+\/decisions$/.test(pathname);
   const proxy = http.createServer((req, res) => {
     const pathname = new URL(req.url, "http://fixture.invalid").pathname;
     if (req.method === "POST" && pathname.endsWith("/session-tickets"))
@@ -212,6 +215,14 @@ async function main() {
             status,
           });
           console.error("acceptance REST", req.method, pathname, status);
+        }
+        if (req.method === "POST" && approvalPath(pathname)) {
+          approvalRestRequests.push({
+            method: req.method,
+            path: pathname,
+            status,
+          });
+          console.error("approval REST", req.method, pathname, status);
         }
       });
     }
@@ -271,17 +282,20 @@ async function main() {
   const deviceLog = path.join(root, "device.log");
   const scenario = path.join(root, "scenario.json");
   const acceptancePipeLog = path.join(root, "acceptance-pipe.jsonl");
+  const approvalPipeLog = path.join(root, "approval-pipe.jsonl");
   let artifactId = randomUUID();
   const versionId = randomUUID();
-  const acceptancePipeFrames = () =>
-    fs.existsSync(acceptancePipeLog)
+  const pipeFrames = (file) =>
+    fs.existsSync(file)
       ? fs
-          .readFileSync(acceptancePipeLog, "utf8")
+          .readFileSync(file, "utf8")
           .trim()
           .split("\n")
           .filter(Boolean)
           .map((line) => JSON.parse(line))
       : [];
+  const acceptancePipeFrames = () => pipeFrames(acceptancePipeLog);
+  const approvalPipeFrames = () => pipeFrames(approvalPipeLog);
   async function startFixture() {
     fixture = spawn(
       path.join(project, "dist", "work-device", "node.exe"),
@@ -351,6 +365,7 @@ async function main() {
     WEMEET_E2E_ARTIFACT_ID: artifactId,
     WEMEET_E2E_VERSION_ID: versionId,
     WEMEET_E2E_ACCEPTANCE_PIPE_LOG: acceptancePipeLog,
+    WEMEET_E2E_APPROVAL_PIPE_LOG: approvalPipeLog,
   };
   delete env.ELECTRON_RUN_AS_NODE;
   try {
@@ -436,8 +451,9 @@ async function main() {
     // may land well after the activation lease's first 20-30 seconds. E2E_APPROVAL_DELAY_MS holds the
     // first decision for that long to prove the window and the renewal actually hold.
     const approvalDelayMs = Number(process.env.E2E_APPROVAL_DELAY_MS || 0);
+    const viewerApproval = process.env.E2E_APPROVAL_VIEWER === "1";
     let approved = 0;
-    let approving = true;
+    let approving = !viewerApproval;
     let delayLeft = approvalDelayMs;
     let taskId;
     stopApprover = () => {
@@ -499,6 +515,73 @@ async function main() {
       timeout: 30000,
     });
     taskId = new URL(page.url()).pathname.split("/").pop();
+    if (viewerApproval) {
+      const deadline = Date.now() + 180000;
+      while (Date.now() < deadline) {
+        const approvalId = one(`
+          select a.id::text from work.approval a
+          join work.approval_operation ao on ao.approval_id=a.id and ao.org_id=a.org_id
+          join work.operation o on o.id=ao.operation_id and o.org_id=a.org_id
+          join work.run r on r.id=o.run_id and r.org_id=o.org_id
+          where r.task_id='${taskId}' and a.status='pending' and a.expires_at>now()
+          order by a.created_at limit 1
+        `);
+        if (!approvalId) {
+          const state = one(`
+            select state from work.run where task_id='${taskId}'
+            order by created_at desc limit 1
+          `);
+          if (["succeeded", "failed", "cancelled", "canceled"].includes(state))
+            break;
+          await wait(200);
+          continue;
+        }
+        console.error("approval pending", approvalId);
+        const before = approvalRestRequests.length;
+        console.error("approval open", approvalId);
+        const openResult = await page.evaluate(
+          async ({ id }) =>
+            window.weMeetDesktop.work.openLocalContent("approval", id),
+          { id: approvalId },
+        );
+        console.error("approval open result", approvalId, openResult.status);
+        if (openResult.status !== "opened") {
+          throw new Error(`approval viewer refused: ${openResult.status}`);
+        }
+        const viewer = await until(
+          async () => {
+            for (const candidate of app
+              .windows()
+              .filter((candidate) =>
+                candidate.url().startsWith("wemeet-local://viewer"),
+              )) {
+              const body = await candidate
+                .locator("body")
+                .innerText()
+                .catch(() => "");
+              if (body.includes(approvalId)) return candidate;
+            }
+            return null;
+          },
+          "approval viewer window",
+          15000,
+        );
+        await expect(
+          viewer.getByRole("button", { name: "批准", exact: true }),
+        ).toBeVisible({ timeout: 15000 });
+        await viewer.getByRole("button", { name: "批准", exact: true }).click();
+        await expect(viewer.getByText("已批准。", { exact: true })).toBeVisible(
+          { timeout: 15000 },
+        );
+        await until(
+          () => approvalRestRequests.length > before,
+          "viewer approval decision REST",
+          15000,
+        );
+        approved += 1;
+      }
+      assert.ok(approved >= 1, "the secure viewer must approve the live Run");
+    }
     let truth;
     try {
       truth = await until(
@@ -545,6 +628,19 @@ async function main() {
       approved >= 1,
       "the real artifact.write approval leg must remain exercised",
     );
+    if (viewerApproval) {
+      assert.equal(approvalRestRequests.length, approved);
+      assert.ok(
+        approvalRestRequests.every((request) => request.status === 200),
+        "every viewer approval must reach REST successfully",
+      );
+      const prepareFrames = approvalPipeFrames().filter(
+        (frame) =>
+          frame.direction === "request" &&
+          frame.method === "prepareLocalApprovalDecision",
+      );
+      assert.equal(prepareFrames.length, approved);
+    }
 
     const artifact = await until(() => {
       const raw = psql(
@@ -744,6 +840,14 @@ async function main() {
       modelResults: Number(modelResults),
       approvals: approved,
       approvalDelayMs,
+      viewerApproval,
+      approvalGestureObserved: viewerApproval,
+      approvalRestRequests,
+      prepareLocalApprovalDecisionPipeFrameCount: approvalPipeFrames().filter(
+        (frame) =>
+          frame.direction === "request" &&
+          frame.method === "prepareLocalApprovalDecision",
+      ).length,
       artifactId,
       versionId,
       versionNo: artifact.versionNo,

@@ -69,11 +69,18 @@ app.prependOnceListener("ready", () => {
   // Observe the actual serialized acceptance request frame at the pipe boundary. This is an
   // observation only: the real BrokerPipe still writes it and validates the real reply.
   const pipeLog = process.env.WEMEET_E2E_ACCEPTANCE_PIPE_LOG;
+  const approvalPipeLog = process.env.WEMEET_E2E_APPROVAL_PIPE_LOG;
   const originalWriteJson = BrokerPipe.prototype.writeJson;
   BrokerPipe.prototype.writeJson = function (value) {
-    if (pipeLog && value.method === "prepareLocalAcceptance") {
+    if (
+      pipeLog &&
+      (value.method === "prepareLocalAcceptance" ||
+        (approvalPipeLog && value.method === "prepareLocalApprovalDecision"))
+    ) {
       fs.appendFileSync(
-        pipeLog,
+        approvalPipeLog && value.method === "prepareLocalApprovalDecision"
+          ? approvalPipeLog
+          : pipeLog,
         JSON.stringify({ at: Date.now(), direction: "request", ...value }) +
           "\n",
       );
@@ -91,11 +98,23 @@ app.prependOnceListener("ready", () => {
           Date.now() - started,
           JSON.stringify(result),
         );
+      if (method === "prepareLocalApprovalDecision")
+        console.error(
+          "work e2e prepare approval reply",
+          Date.now() - started,
+          JSON.stringify(result),
+        );
       return result;
     } catch (error) {
       if (method === "prepareLocalAcceptance")
         console.error(
           "work e2e prepare acceptance error",
+          Date.now() - started,
+          error.code || error.message,
+        );
+      if (method === "prepareLocalApprovalDecision")
+        console.error(
+          "work e2e prepare approval error",
           Date.now() - started,
           error.code || error.message,
         );
