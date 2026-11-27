@@ -14,9 +14,8 @@
 //!   entry sends `LinkCommand::ReplaceIdentity` and the next dial presents the new chain. The
 //!   current session is not dropped, because the old certificate stays valid until its own NotAfter
 //!   and §2.1 renewals happen inside that last hour.
-//! * Downlink frames are still forwarded verbatim and only logged. A2 consumption (journal
-//!   registration and sidecar dispatch) needs an executor that does not exist yet, so building a
-//!   router here would create an abstraction with no caller — the same reason GW18 declined it.
+//! * Downlink frames are forwarded to the sync core, which owns A2 journal registration and
+//!   sidecar dispatch; the entry only forwards link events and never duplicates domain writes.
 //! * REST stays with the desktop main process (§2.1). This binary has no HTTP client: it signs and
 //!   reports facts over the pipe, and the shell drives pairing, ticket minting and renewal.
 //!
