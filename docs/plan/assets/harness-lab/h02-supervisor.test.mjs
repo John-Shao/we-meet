@@ -149,6 +149,76 @@ test("H02 egress bounds a hung upstream call", { timeout: 10000 }, async (t) => 
   assert.deepEqual(JSON.parse(response.body), { code: "upstream_unavailable" });
 });
 
+test("H02 egress uses the Responses request shape for Doubao", { timeout: 10000 }, async (t) => {
+  const upstreamRequests = [];
+  const gateway = createServer((req, res) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      upstreamRequests.push({ path: req.url, body: JSON.parse(Buffer.concat(chunks).toString("utf8")) });
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      res.end(`data: ${JSON.stringify({ response: { usage: { input_tokens: 7, output_tokens: 1 } } })}\n\ndata: [DONE]\n\n`);
+    });
+  });
+  await new Promise((resolve, reject) => {
+    gateway.once("error", reject);
+    gateway.listen(0, "127.0.0.1", resolve);
+  });
+  t.after(() => new Promise((resolve) => gateway.close(resolve)));
+  const bundle = {
+    executionId: "11111111-1111-4111-8111-111111111111",
+    document: {
+      kind: "model_request",
+      schemaVersion: "work-model-request-v1",
+      route: { model: "doubao-fixture" },
+      parameters: { maxOutputTokens: 8 },
+    },
+    input: "PONG",
+    template: "Reply exactly.",
+  };
+  const logFile = path.join(tmpdir(), `h02-egress-doubao-${process.pid}.jsonl`);
+  t.after(() => rm(logFile, { force: true }));
+  const egress = await createEgressServer({
+    gatewayUrl: `http://127.0.0.1:${gateway.address().port}`,
+    token: "scoped-token",
+    bundle,
+    provider: "doubao",
+    logFile,
+  });
+  t.after(() => egress.close());
+  const hash = documentHash(bundle.document);
+  const response = await new Promise((resolve, reject) => {
+    const req = request(egress.baseUrl + "/runtime/v1/model/invoke", {
+      method: "POST",
+      headers: { authorization: "Bearer scoped-token", "content-type": "application/json" },
+    }, (res) => {
+      const chunks = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString("utf8") }));
+    });
+    req.on("error", reject);
+    req.end(JSON.stringify({
+      executionId: bundle.executionId,
+      requestHash: hash,
+      requestRef: { refId: "88888888-8888-4888-8888-888888888888", hash },
+    }));
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(upstreamRequests, [{
+    path: "/v1/responses",
+    body: {
+      model: "doubao-fixture",
+      stream: true,
+      input: [
+        { role: "system", content: "Reply exactly." },
+        { role: "user", content: [{ type: "input_text", text: "PONG" }] },
+      ],
+      max_output_tokens: 16,
+      store: false,
+    },
+  }]);
+});
+
 test("H02 production supervisor chain completes against an isolated provider fixture", { timeout: 40000 }, async (t) => {
   const directory = await mkdtemp(path.join(tmpdir(), "h02-supervisor-test-"));
   t.after(() => rm(directory, { recursive: true, force: true }));

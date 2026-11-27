@@ -151,15 +151,27 @@ export async function createEgressServer({
         res.end(JSON.stringify({ code: "request_mismatch" }));
         return;
       }
-      const upstreamBody = {
-        model: bundle.document.route.model,
-        stream: true,
-        messages: [
-          { role: "system", content: bundle.template },
-          { role: "user", content: bundle.input },
-        ],
-        max_tokens: bundle.document.parameters?.maxOutputTokens ?? 2048,
-      };
+      const maxOutputTokens = bundle.document.parameters?.maxOutputTokens ?? 2048;
+      const upstreamBody = provider === "doubao"
+        ? {
+            model: bundle.document.route.model,
+            stream: true,
+            input: [
+              { role: "system", content: bundle.template },
+              { role: "user", content: [{ type: "input_text", text: bundle.input }] },
+            ],
+            max_output_tokens: Math.max(16, maxOutputTokens),
+            store: false,
+          }
+        : {
+            model: bundle.document.route.model,
+            stream: true,
+            messages: [
+              { role: "system", content: bundle.template },
+              { role: "user", content: bundle.input },
+            ],
+            max_tokens: maxOutputTokens,
+          };
       const started = Date.now();
       try {
         const upstream = await fetch(`${gatewayUrl}${upstreamPath}`, {
