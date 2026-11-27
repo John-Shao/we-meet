@@ -161,6 +161,7 @@ func TestEveryClientRequestKeyCommandIsIdempotent(t *testing.T) {
 		"revoke_readonly_grant=dedup+conflict",
 		"revoke_workspace_grant=own_request_hash",
 		"set_local_policy=revision_only",
+		"submit_configuration_probe=dedup+conflict",
 		"submit_local_task=dedup+conflict",
 		"submit_task=dedup+conflict",
 		"update_task_title=dedup+conflict",

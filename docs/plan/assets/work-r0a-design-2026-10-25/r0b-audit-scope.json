@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 85,
-  "chainTipCatalog": "catalogs/0085_execution_profile_binding.json",
+  "chainTip": 86,
+  "chainTipCatalog": "catalogs/0086_configuration_probe_submission.json",
   "entries": [
     {
       "name": "GET /api/v1.0/admin/work-governance-assignments/",
@@ -194,6 +194,15 @@
     },
     {
       "name": "POST /work/v2/devices/{deviceId}/model-bindings",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "POST /work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-runs",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",
       "callableBy": [
@@ -619,7 +628,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0085_execution_profile_binding.json",
+      "origin": "src/work/migrations/catalogs/0086_configuration_probe_submission.json",
       "callableBy": [
         "work_api",
         "work_governance_events"
@@ -992,6 +1001,15 @@
       "origin": "src/work/migrations/increments/0060_egress_output_recovery.sql",
       "callableBy": [
         "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "submit_configuration_probe",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0086_configuration_probe_submission.sql",
+      "callableBy": [
+        "work_api"
       ],
       "classification": "external-audit-required"
     },

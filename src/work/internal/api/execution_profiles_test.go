@@ -126,14 +126,28 @@ func TestDeviceModelBindingAndProbeRejectBadSignaturesBeforeSQL(t *testing.T) {
 	response = deviceRequest(t, http.MethodPost, server.URL+probePath, probeBody, "not-a-signature")
 	assertAPICode(t, response, http.StatusUnauthorized, "unauthorized")
 
-	var bindings, probes int
+	templateSum := sha256.Sum256([]byte("device-model-probe-v1"))
+	probeRunBody := fmt.Sprintf(`{"client_request_id":"bad-probe-run-sig","session_id":"22222222-2222-4222-8222-222222222222","probe_id":"33333333-3333-4333-8333-333333333333","preview_hash":%q,"target_selection_hash":%q,"local_intent":{"v":1,"org_id":%q,"subject_id":%q,"auth_plane":"bearer","auth_epoch":"4","device_id":%q,"session_id":"22222222-2222-4222-8222-222222222222","request_id":"bad-probe-run-sig","input_hash":%q,"preview_hash":%q,"target_selection_hash":%q,"selected_grant_ids":[],"grant_revisions":[],"profile_id":"profile-api","profile_revision":"1","profile_hash":%q,"nonce":"nonce-probe-run","expires_at":"2027-01-01T00:00:00Z","signature":%q}}`,
+		strings.Repeat("d", 64), strings.Repeat("e", 64), testOrg, testSubject, deviceID,
+		hex.EncodeToString(templateSum[:]), strings.Repeat("d", 64), strings.Repeat("e", 64),
+		profileHash, strings.Repeat("s", 86))
+	probeRunPath := strings.ReplaceAll(api.DeviceModelBindingProbeRunsPath, "{deviceId}", deviceID)
+	probeRunPath = strings.ReplaceAll(probeRunPath, "{bindingId}", "44444444-4444-4444-8444-444444444444")
+	response = deviceRequest(t, http.MethodPost, server.URL+probeRunPath, probeRunBody)
+	assertAPICode(t, response, http.StatusUnauthorized, "unauthorized")
+
+	var bindings, probes, tasks, runs, inputs int
 	if err := admin.QueryRow(ctx,
 		`SELECT (SELECT count(*) FROM work.device_model_binding WHERE org_id=$1),
-		        (SELECT count(*) FROM work.model_profile_probe WHERE org_id=$1)`, testOrg).
-		Scan(&bindings, &probes); err != nil {
+		        (SELECT count(*) FROM work.model_profile_probe WHERE org_id=$1),
+		        (SELECT count(*) FROM work.task WHERE org_id=$1),
+		        (SELECT count(*) FROM work.run WHERE org_id=$1),
+		        (SELECT count(*) FROM work.input_object WHERE org_id=$1)`, testOrg).
+		Scan(&bindings, &probes, &tasks, &runs, &inputs); err != nil {
 		t.Fatal(err)
 	}
-	if bindings != 0 || probes != 0 {
-		t.Fatalf("signature refusal wrote binding/probe rows: %d/%d", bindings, probes)
+	if bindings != 0 || probes != 0 || tasks != 0 || runs != 0 || inputs != 0 {
+		t.Fatalf("signature refusal wrote rows: bindings=%d probes=%d tasks=%d runs=%d inputs=%d",
+			bindings, probes, tasks, runs, inputs)
 	}
 }

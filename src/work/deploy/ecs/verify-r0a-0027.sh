@@ -177,7 +177,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (82, '0082_local_approval_ttl'),
   (83, '0083_local_destination_facts'),
   (84, '0084_device_resume_offers'),
-  (85, '0085_execution_profile_binding')) expected(version, name)
+  (85, '0085_execution_profile_binding'),
+  (86, '0086_configuration_probe_submission')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 psql_ro "select 'approval_proof_es256=' || case when
@@ -273,6 +274,53 @@ psql_ro "select 'execution_profile_guards=' || case when
         ('execution_profile_revision_guard','device_model_binding_guard','model_profile_probe_guard')) = 3
     and exists (select 1 from pg_index i join pg_class c on c.oid=i.indexrelid
       where c.relname='work_device_model_binding_one_active' and i.indisunique and i.indpred is not null)
+    then 'true' else 'FALSE' end"
+psql_ro "select 'configuration_probe_submission=' || case when
+    (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='submit_configuration_probe'
+        and p.prosecdef and p.proowner=(select oid from pg_roles where rolname='work_owner')
+        and p.proconfig @> array['search_path=work, pg_catalog']) = 1
+    and has_function_privilege('work_api',
+      'work.submit_configuration_probe(text,text,bigint,text,uuid,uuid,uuid,uuid,text,text,jsonb)', 'EXECUTE')
+    and not has_function_privilege('public',
+      'work.submit_configuration_probe(text,text,bigint,text,uuid,uuid,uuid,uuid,text,text,jsonb)', 'EXECUTE')
+    and position('device.model_probe.submit' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='submit_configuration_probe')) > 0
+    and position('work.submit_task' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='submit_configuration_probe')) > 0
+    and position('work.activate_device_run_binding' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='submit_configuration_probe')) > 0
+    and position('probe:' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='submit_configuration_probe')) > 0
+    then 'true' else 'FALSE' end"
+psql_ro "select 'configuration_probe_guards=' || case when
+    exists (select 1 from information_schema.columns where table_schema='work' and table_name='task'
+      and column_name='task_kind' and is_nullable='NO' and column_default='''task''::text')
+    and exists (select 1 from pg_constraint c join pg_class t on t.oid=c.conrelid
+      join pg_namespace n on n.oid=t.relnamespace
+      where n.nspname='work' and t.relname='task' and c.conname='task_task_kind_check'
+        and pg_get_constraintdef(c.oid) like '%configuration_probe%')
+    and exists (select 1 from pg_constraint c join pg_class t on t.oid=c.conrelid
+      join pg_namespace n on n.oid=t.relnamespace
+      where n.nspname='work' and t.relname='device_run_binding'
+        and c.conname='device_run_binding_grant_set_shape'
+        and pg_get_constraintdef(c.oid) like '%configuration_probe%'
+        and pg_get_constraintdef(c.oid) like '%jsonb_array_length(grant_set) = 0%')
+    and position('(t.task_kind = ''task''::text)' in pg_get_viewdef('work.task_summary'::regclass, true)) > 0
+    and exists (select 1 from pg_trigger t join pg_proc p on p.oid=t.tgfoid
+      where not t.tgisinternal and t.tgrelid='work.run'::regclass
+        and p.proname='reject_configuration_probe_retry')
+    and exists (select 1 from pg_trigger t join pg_proc p on p.oid=t.tgfoid
+      where not t.tgisinternal and t.tgrelid='work.model_profile_probe'::regclass
+        and p.proname='guard_configuration_probe_result')
+    and exists (select 1 from pg_trigger t join pg_proc p on p.oid=t.tgfoid
+      where not t.tgisinternal and t.tgrelid='work.operation'::regclass
+        and p.proname='enforce_configuration_probe_operation')
+    and exists (select 1 from pg_trigger t join pg_proc p on p.oid=t.tgfoid
+      where not t.tgisinternal and t.tgrelid='work.device_model_result'::regclass
+        and p.proname='enforce_configuration_probe_model_result')
+    and position('v_probe.state <> ''queued''' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='submit_configuration_probe')) > 0
     then 'true' else 'FALSE' end"
 psql_ro "select 'device_resume_offers=' || case when
     (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace

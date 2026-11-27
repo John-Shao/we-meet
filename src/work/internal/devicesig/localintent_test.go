@@ -51,6 +51,27 @@ func TestLocalIntentSignatureBindsEveryField(t *testing.T) {
 	}
 }
 
+func TestConfigurationProbeIntentAllowsOnlyExplicitEmptyGrants(t *testing.T) {
+	body := strings.Replace(vectorLocalIntentBody,
+		`"selected_grant_ids":["33333333-3333-4333-8333-333333333333"],"grant_revisions":["1"]`,
+		`"selected_grant_ids":[],"grant_revisions":[]`, 1)
+	proof := strings.TrimSuffix(body, "}") + `,"signature":"` + vectorLocalIntentSig + `"}`
+	if _, err := ParseLocalIntentProof([]byte(proof)); err == nil {
+		t.Fatal("ordinary local intent accepted empty grants")
+	}
+	parsed, err := ParseConfigurationProbeIntentProof([]byte(proof))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.SelectedGrantIDs == nil || parsed.GrantRevisions == nil ||
+		len(parsed.SelectedGrantIDs) != 0 || len(parsed.GrantRevisions) != 0 {
+		t.Fatalf("probe grants = %#v/%#v", parsed.SelectedGrantIDs, parsed.GrantRevisions)
+	}
+	if VerifyConfigurationProbeIntent(mustParse(t), []byte(proof)) {
+		t.Fatal("empty-grant intent verified with a signature for different bytes")
+	}
+}
+
 func TestLocalIntentRejectsOpenAndAmbiguousShapes(t *testing.T) {
 	base := func() map[string]any {
 		var proof map[string]any

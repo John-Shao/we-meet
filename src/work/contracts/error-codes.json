@@ -220,6 +220,12 @@
       "recovery_action": "re_preview",
       "ui": "template_changed"
     },
+    "input_limit_exceeded": {
+      "status": 422,
+      "retryable": false,
+      "recovery_action": "reduce_input",
+      "ui": "too_long"
+    },
     "input_not_found": {
       "status": 422,
       "retryable": false,
@@ -496,6 +502,7 @@
     "idempotency_conflict": "idempotency_conflict",
     "idempotency_key_conflict": "idempotency_key_conflict",
     "input_conflict_retry": "service_degraded",
+    "input_limit_exceeded": "input_limit_exceeded",
     "input_not_found": "input_not_found",
     "invalid_approval_decision": "invalid_request",
     "invalid_approval_request": "invalid_request",

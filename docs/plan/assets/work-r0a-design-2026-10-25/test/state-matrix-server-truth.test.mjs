@@ -78,9 +78,11 @@ const TASK_STATES = enumFor('task');
 const RUN_STATES = enumFor('run');
 const OPERATION_STATES = enumFor('operation');
 
-assert.equal([...AUTHORITY.matchAll(/END AS display_state/g)].length, 1,
-  'more than one display_state definition in the chain - re-choose which one this gate reads');
-const displayTail = AUTHORITY.indexOf('END AS display_state');
+// Later increments may legitimately replace task_summary. Read the last definition in application
+// order, matching PostgreSQL's final view definition, rather than rejecting every such replacement.
+assert.ok([...AUTHORITY.matchAll(/END AS display_state/g)].length >= 1,
+  'the chain must define display_state');
+const displayTail = AUTHORITY.lastIndexOf('END AS display_state');
 const caseStart = AUTHORITY.lastIndexOf('CASE', displayTail);
 assert.notEqual(caseStart, -1, 'display_state must still be a CASE expression');
 const CASE_BLOCK = AUTHORITY.slice(caseStart, displayTail);
@@ -399,9 +401,12 @@ test('the UI blocking-operations count is scoped to the latest run while the ser
   // the refusal split with no test noticing until a user hits it.
   // Scoped slices, not whole-file substrings: `o.run_id = r.id` also appears in the CASE's EXISTS
   // arm, so an unanchored check would stay green after the view count quietly changed scope.
-  const viewMark = AUTHORITY.indexOf(') AS blocking_operations');
+  const viewStart = AUTHORITY.lastIndexOf('CREATE OR REPLACE VIEW work.task_summary');
+  assert.notEqual(viewStart, -1, 'the chain must define work.task_summary');
+  const currentView = AUTHORITY.slice(viewStart);
+  const viewMark = currentView.indexOf(') AS blocking_operations');
   assert.notEqual(viewMark, -1, 'the view lost its blocking_operations count - re-read this test');
-  const viewScope = AUTHORITY.slice(viewMark - 700, viewMark);
+  const viewScope = currentView.slice(viewMark - 700, viewMark);
   const view = /o\.state IN \(([^)]*)\)[\s\S]{0,10}$/.exec(viewScope);
   assert.ok(view, 'the blocking_operations count no longer ends where this test reads it');
   assert.match(viewScope, /WHERE o\.run_id = r\.id/, 'the view count is no longer latest-run scoped');
@@ -422,7 +427,7 @@ test('the UI blocking-operations count is scoped to the latest run while the ser
 
   // The internal half of the same finding: one view, two scopes over one join. If a future edit
   // unifies them, this assertion is where the decision has to be recorded.
-  assert.equal([...AUTHORITY.matchAll(/SELECT rr\.id FROM work\.run rr WHERE rr\.task_id = t\.id/g)].length, 2,
+  assert.equal([...currentView.matchAll(/SELECT rr\.id FROM work\.run rr WHERE rr\.task_id = t\.id/g)].length, 2,
     'the quota columns changed their run scope; re-read which scope this view promises');
 
   // What makes the split latent rather than live: no operation can leave a terminal state, so once a

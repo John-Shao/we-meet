@@ -17,6 +17,7 @@
   "execution_target_unavailable": "执行目标不可用。",
   "forbidden": "没有执行该操作的权限。",
   "idempotency_key_conflict": "同一请求键携带了不同参数。",
+  "input_limit_exceeded": "输入超过当前执行 profile 的允许上限。",
   "input_not_found": "输入不存在或不可见。",
   "input_too_large": "输入内容过大。",
   "invalid_json": "请求体不是合法 JSON。",

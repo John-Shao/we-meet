@@ -47,6 +47,17 @@ type LocalIntentProof struct {
 }
 
 func ParseLocalIntentProof(raw []byte) (LocalIntentProof, error) {
+	return parseLocalIntentProof(raw, false)
+}
+
+// ParseConfigurationProbeIntentProof accepts the same closed proof as an ordinary local Task,
+// except that both grant arrays must be present and empty. Configuration probes are bounded to
+// model_call and derive all executable authority from the server-side profile and probe rows.
+func ParseConfigurationProbeIntentProof(raw []byte) (LocalIntentProof, error) {
+	return parseLocalIntentProof(raw, true)
+}
+
+func parseLocalIntentProof(raw []byte, emptyGrants bool) (LocalIntentProof, error) {
 	var proof LocalIntentProof
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
@@ -95,8 +106,9 @@ func ParseLocalIntentProof(raw []byte) (LocalIntentProof, error) {
 	if _, err := time.Parse(time.RFC3339, proof.ExpiresAt); err != nil {
 		return proof, fmt.Errorf("invalid local intent expiry")
 	}
-	if len(proof.SelectedGrantIDs) < 1 || len(proof.SelectedGrantIDs) > 4 ||
-		len(proof.SelectedGrantIDs) != len(proof.GrantRevisions) {
+	if proof.SelectedGrantIDs == nil || proof.GrantRevisions == nil ||
+		len(proof.SelectedGrantIDs) != len(proof.GrantRevisions) ||
+		(!emptyGrants && len(proof.SelectedGrantIDs) < 1) || len(proof.SelectedGrantIDs) > 4 {
 		return proof, fmt.Errorf("invalid local intent grant set")
 	}
 	seen := make(map[string]struct{}, len(proof.SelectedGrantIDs))
@@ -114,6 +126,16 @@ func ParseLocalIntentProof(raw []byte) (LocalIntentProof, error) {
 
 func VerifyLocalIntent(pub *PublicKey, proofJSON []byte) bool {
 	proof, err := ParseLocalIntentProof(proofJSON)
+	if err != nil {
+		return false
+	}
+	return VerifyFrame(pub, LocalIntentProofType, proofJSON, proof.Signature)
+}
+
+// VerifyConfigurationProbeIntent keeps the ordinary local_intent signing domain and verifier;
+// only the explicitly empty grant-set policy differs.
+func VerifyConfigurationProbeIntent(pub *PublicKey, proofJSON []byte) bool {
+	proof, err := ParseConfigurationProbeIntentProof(proofJSON)
 	if err != nil {
 		return false
 	}

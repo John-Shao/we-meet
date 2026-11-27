@@ -88,6 +88,8 @@ const IMPLEMENTED_ONLY = [
   'POST /work/v2/admin/execution-profiles',
   'POST /work/v2/devices/{deviceId}/model-bindings',
   'POST /work/v2/devices/{deviceId}/model-bindings/{bindingId}/probes',
+  // Server-owned bounded Run that produces the verified probe receipt (0086).
+  'POST /work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-runs',
 ];
 
 function readGoSurface() {

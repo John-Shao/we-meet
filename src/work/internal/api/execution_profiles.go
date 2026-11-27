@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,12 +21,15 @@ import (
 )
 
 const (
-	ExecutionProfilePath          = "/work/v2/execution-profiles/{profileId}/revisions/{revision}"
-	AdminExecutionProfilesPath    = "/work/v2/admin/execution-profiles"
-	DeviceModelBindingsPath       = "/work/v2/devices/{deviceId}/model-bindings"
-	DeviceModelBindingProbesPath  = "/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probes"
-	modelProbeReceiptNoncePattern = `^[A-Za-z0-9_-]{8,128}$`
+	ExecutionProfilePath            = "/work/v2/execution-profiles/{profileId}/revisions/{revision}"
+	AdminExecutionProfilesPath      = "/work/v2/admin/execution-profiles"
+	DeviceModelBindingsPath         = "/work/v2/devices/{deviceId}/model-bindings"
+	DeviceModelBindingProbesPath    = "/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probes"
+	DeviceModelBindingProbeRunsPath = "/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-runs"
+	modelProbeReceiptNoncePattern   = `^[A-Za-z0-9_-]{8,128}$`
 )
+
+var configurationProbeTemplateHash = fmt.Sprintf("%x", sha256.Sum256([]byte("device-model-probe-v1")))
 
 var modelProbeReceiptNonceRE = regexp.MustCompile(modelProbeReceiptNoncePattern)
 
@@ -55,6 +59,15 @@ type recordModelProfileProbeRequest struct {
 	ReceiptRef      string          `json:"receipt_ref"`
 	State           string          `json:"state"`
 	Receipt         json.RawMessage `json:"receipt"`
+}
+
+type submitConfigurationProbeRequest struct {
+	ClientRequestID     string          `json:"client_request_id"`
+	SessionID           string          `json:"session_id"`
+	ProbeID             string          `json:"probe_id"`
+	PreviewHash         string          `json:"preview_hash"`
+	TargetSelectionHash string          `json:"target_selection_hash"`
+	LocalIntent         json.RawMessage `json:"local_intent"`
 }
 
 // modelProbeReceipt is the closed document signed by the current device key. The signature is
@@ -225,6 +238,84 @@ func (s *Server) createDeviceModelBinding(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusCreated, view)
+}
+
+func (s *Server) submitConfigurationProbe(w http.ResponseWriter, r *http.Request) {
+	claims, correlationID, ok := s.authenticateBearer(w, r)
+	if !ok {
+		return
+	}
+	if err := s.requireWriter(r.Context(), claims); err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
+	deviceID := r.PathValue("deviceId")
+	bindingID := r.PathValue("bindingId")
+	if !validUUID(deviceID) || !validUUID(bindingID) {
+		writeAPIError(w, correlationID, apierr.New("not_found"))
+		return
+	}
+	var body submitConfigurationProbeRequest
+	if err := decodeStrictJSON(w, r, &body); err != nil {
+		writeAPIError(w, correlationID, decodeError(err))
+		return
+	}
+	if !validClientRequestID(body.ClientRequestID) || !validUUID(body.SessionID) ||
+		!validUUID(body.ProbeID) || !localPreviewDigestPattern.MatchString(body.PreviewHash) ||
+		!localPreviewDigestPattern.MatchString(body.TargetSelectionHash) ||
+		len(body.LocalIntent) == 0 || !json.Valid(body.LocalIntent) {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	proof, err := devicesig.ParseConfigurationProbeIntentProof(body.LocalIntent)
+	if err != nil {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	if proof.OrgID != claims.OrgID || proof.SubjectID != claims.SubjectID ||
+		proof.AuthEpoch != strconv.FormatInt(claims.SessionRevision, 10) ||
+		proof.DeviceID != deviceID || proof.SessionID != body.SessionID ||
+		proof.RequestID != body.ClientRequestID || proof.InputHash != configurationProbeTemplateHash ||
+		proof.PreviewHash != body.PreviewHash || proof.TargetSelectionHash != body.TargetSelectionHash {
+		writeAPIError(w, correlationID, apierr.New("unauthorized"))
+		return
+	}
+	pub, err := s.loadDevicePublicKeyForClaims(r.Context(), claims.OrgID, claims.SubjectID, deviceID)
+	if err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
+	if !devicesig.VerifyConfigurationProbeIntent(pub, body.LocalIntent) {
+		writeAPIError(w, correlationID, apierr.New("unauthorized"))
+		return
+	}
+	var view json.RawMessage
+	err = workdb.WithWorkContext(r.Context(), s.pool,
+		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
+		workdb.RoleAPI, workdb.Options{},
+		func(tx pgx.Tx) error {
+			var raw []byte
+			if err := tx.QueryRow(r.Context(), `
+				SELECT jsonb_build_object(
+				  'task_id', task_id, 'run_id', run_id, 'revision', revision,
+				  'binding_revision', binding_revision, 'task_kind', 'configuration_probe',
+				  'probe_id', $8, 'binding_id', $7, 'state', 'running')
+				FROM work.submit_configuration_probe(
+				  $1, $2, $3, $4, $5::uuid, $6::uuid, $7::uuid, $8::uuid, $9, $10, $11::jsonb)`,
+				claims.OrgID, claims.SubjectID, claims.SessionRevision, body.ClientRequestID,
+				deviceID, body.SessionID, bindingID, body.ProbeID, body.PreviewHash,
+				body.TargetSelectionHash, string(body.LocalIntent)).Scan(&raw); err != nil {
+				return err
+			}
+			view = json.RawMessage(append([]byte(nil), raw...))
+			return nil
+		},
+	)
+	if err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, view)
 }
 
 func (s *Server) recordModelProfileProbe(w http.ResponseWriter, r *http.Request) {

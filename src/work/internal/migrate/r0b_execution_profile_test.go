@@ -155,6 +155,10 @@ func (f *executionProfileFixture) seedProbeResult(t *testing.T, binding map[stri
 		`{"provider":"device_local","model":"`+f.modelVersion+`"}`, "probe-"+bindingID, f.runtimeDigest)
 	runID, _ := submitted["run_id"].(string)
 	taskID, _ := submitted["task_id"].(string)
+	probeID, _ := preview["probe_id"].(string)
+	mustExec(t, f.admin, `UPDATE work.model_profile_probe SET task_id=`+quoteLiteral(taskID)+
+		`,run_id=`+quoteLiteral(runID)+`,state='running',updated_at=now() WHERE org_id=`+
+		quoteLiteral(f.org)+` AND probe_id=`+quoteLiteral(probeID))
 	mustExec(t, f.admin, `UPDATE work.run SET state='active' WHERE org_id=`+quoteLiteral(f.org)+` AND id=`+quoteLiteral(runID))
 	mustExec(t, f.admin, `INSERT INTO work.device_run_binding
 		(org_id,run_id,binding_revision,task_id,device_id,session_id,input_ref,input_hash,
@@ -165,7 +169,7 @@ func (f *executionProfileFixture) seedProbeResult(t *testing.T, binding map[stri
 		quoteLiteral(inputHash)+`,`+quoteLiteral("local:"+inputRef)+`,`+quoteLiteral(hex64("probe-snapshot"))+`,`+
 		quoteLiteral(f.profileID)+`,`+strconv.FormatInt(f.profileRevision, 10)+`,`+quoteLiteral(f.runtimeDigest)+`,`+
 		quoteLiteral(f.toolManifestHash)+`,`+quoteLiteral(f.modelVersion)+`,`+
-		quoteLiteral(`[{"grant_id":"`+f.grantID+`","grant_revision":"1"}]`)+`::jsonb,`+
+		quoteLiteral(`[]`)+`::jsonb,`+
 		quoteLiteral(newUUID(t))+`,now()+interval '5 minutes','active','configuration_probe')`)
 	operationID := newUUID(t)
 	resultID := newUUID(t)
@@ -183,6 +187,15 @@ func (f *executionProfileFixture) seedProbeResult(t *testing.T, binding map[stri
 		quoteLiteral(newUUID(t))+`,`+quoteLiteral(previewHash)+`,'completed','succeeded',`+quoteLiteral(resultHash)+`,`+
 		quoteLiteral(f.modelVersion)+`,CURRENT_DATE,1,1,0,false,`+quoteLiteral(hex64("probe-payload"))+`,`+
 		quoteLiteral(`{"probe":true}`)+`::jsonb)`)
+	expectCode(t, f.admin, "invalid_request", `INSERT INTO work.device_model_result
+		(org_id,model_result_id,run_id,operation_id,attempt_id,device_id,session_id,execution_id,
+		 request_hash,state,outcome,result_hash,model,usage_date,input_tokens,output_tokens,
+		 cached_input_tokens,usage_estimated,payload_hash,payload)
+		SELECT org_id,$2::uuid,run_id,operation_id,attempt_id,device_id,session_id,execution_id,
+		 request_hash,state,outcome,result_hash,model,usage_date,input_tokens,output_tokens,
+		 cached_input_tokens,usage_estimated,payload_hash,payload
+		FROM work.device_model_result WHERE org_id=$1 AND model_result_id=$3::uuid`,
+		f.org, newUUID(t), resultID)
 	ref := "model_result:" + resultID
 	f.probeResults[bindingID] = [2]string{ref, resultHash}
 	return ref, resultHash
@@ -252,6 +265,227 @@ func (f *executionProfileFixture) submitArgs(requestID string, inputRef string) 
 		time.Now().Add(2 * time.Minute), targetHash, "profile submission", "ask_each",
 		`{"template":"fixture"}`, []string{"model_call"},
 		`{"provider":"device_local","model":"` + f.modelVersion + `"}`, string(targetJSON), string(intentJSON),
+	}
+}
+
+func (f *executionProfileFixture) configurationProbeArgs(t *testing.T, binding map[string]any, requestID string) []any {
+	t.Helper()
+	preview, _ := binding["probe_preview"].(map[string]any)
+	probeID, _ := preview["probe_id"].(string)
+	previewHash, _ := preview["preview_hash"].(string)
+	if probeID == "" || previewHash == "" {
+		t.Fatalf("binding preview = %#v", binding)
+	}
+	templateHash := f.scalar(t, "SELECT work.sha256_text('device-model-probe-v1')")
+	targetHash := hex64("probe-target|" + requestID)
+	intent := map[string]any{
+		"v": 1, "org_id": f.org, "subject_id": f.subject, "auth_plane": "bearer",
+		"auth_epoch": "7", "device_id": f.deviceID, "session_id": f.sessionID,
+		"request_id": requestID, "input_hash": templateHash, "preview_hash": previewHash,
+		"target_selection_hash": targetHash, "selected_grant_ids": []string{},
+		"grant_revisions": []string{}, "profile_id": f.profileID,
+		"profile_revision": strconv.FormatInt(f.profileRevision, 10), "profile_hash": f.profileHash,
+		"nonce": "nonce-" + requestID, "expires_at": time.Now().Add(time.Minute).UTC().Format(time.RFC3339),
+		"signature": strings.Repeat("s", 86),
+	}
+	intentJSON, err := json.Marshal(intent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return []any{
+		f.org, f.subject, 7, requestID, f.deviceID, f.sessionID,
+		binding["binding_id"], probeID, previewHash, targetHash, string(intentJSON),
+	}
+}
+
+const submitConfigurationProbeSQL = `SELECT task_id,run_id,revision,binding_revision
+	FROM work.submit_configuration_probe($1,$2,$3,$4,$5::uuid,$6::uuid,$7::uuid,$8::uuid,$9,$10,$11::jsonb)`
+
+func TestConfigurationProbeSubmissionCreatesCanonicalHiddenRunAndReplays(t *testing.T) {
+	f := newExecutionProfileFixture(t, "org_probe_submit")
+	binding := f.createBinding(t, "req-probe-binding")
+	args := f.configurationProbeArgs(t, binding, "req-probe-submit")
+	var taskID, runID string
+	var revision, bindingRevision int64
+	if err := f.api.QueryRow(testContext(t), submitConfigurationProbeSQL, args...).
+		Scan(&taskID, &runID, &revision, &bindingRevision); err != nil {
+		t.Fatalf("configuration probe submission: %v", err)
+	}
+	if taskID == "" || runID == "" || revision != 1 || bindingRevision != 1 {
+		t.Fatalf("submission = %s/%s rev=%d binding=%d", taskID, runID, revision, bindingRevision)
+	}
+	preview, _ := binding["probe_preview"].(map[string]any)
+	probeID, _ := preview["probe_id"].(string)
+	previewHash, _ := preview["preview_hash"].(string)
+	templateHash := f.scalar(t, "SELECT work.sha256_text('device-model-probe-v1')")
+	var taskKind, title, permissionMode, runState, purpose, grantSet, inputRef, inputHash, contentRef string
+	var profileID, runtimeDigest, toolHash, modelVersion, probeState string
+	var profileRevision, inputBytes int64
+	var manifest []byte
+	if err := f.admin.QueryRow(testContext(t), `
+		SELECT t.task_kind,t.title,t.permission_mode,r.state,b.purpose,b.grant_set::text,
+		       i.id::text,i.content_hash,i.content_ref,i.bytes,b.profile_id,b.profile_revision,
+		       b.runtime_digest,b.tool_manifest_hash,b.model_version,p.state,s.manifest
+		FROM work.task t
+		JOIN work.run r ON r.task_id=t.id AND r.org_id=t.org_id
+		JOIN work.device_run_binding b ON b.run_id=r.id AND b.org_id=r.org_id AND b.binding_revision=1
+		JOIN work.input_object i ON i.id=t.input_id AND i.org_id=t.org_id
+		JOIN work.model_profile_probe p ON p.run_id=r.id AND p.org_id=r.org_id
+		JOIN work.capability_snapshot s ON s.id=r.snapshot_id AND s.org_id=r.org_id
+		WHERE t.org_id=$1 AND t.id=$2::uuid`, f.org, taskID).
+		Scan(&taskKind, &title, &permissionMode, &runState, &purpose, &grantSet,
+			&inputRef, &inputHash, &contentRef, &inputBytes, &profileID, &profileRevision,
+			&runtimeDigest, &toolHash, &modelVersion, &probeState, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if taskKind != "configuration_probe" || title != "configuration probe" || permissionMode != "ask_each" ||
+		runState != "active" || purpose != "configuration_probe" || grantSet != "[]" ||
+		inputHash != templateHash || contentRef != "probe:"+probeID || inputBytes <= 0 ||
+		profileID != f.profileID || profileRevision != f.profileRevision || runtimeDigest != f.runtimeDigest ||
+		toolHash != f.toolManifestHash || modelVersion != f.modelVersion || probeState != "running" {
+		t.Fatalf("probe facts = kind=%s title=%s mode=%s run=%s purpose=%s grants=%s input=%s/%s/%d profile=%s/%d/%s/%s/%s probe=%s",
+			taskKind, title, permissionMode, runState, purpose, grantSet, inputHash, contentRef, inputBytes,
+			profileID, profileRevision, runtimeDigest, toolHash, modelVersion, probeState)
+	}
+	var manifestDoc map[string]any
+	if err := json.Unmarshal(manifest, &manifestDoc); err != nil {
+		t.Fatal(err)
+	}
+	if manifestDoc["kind"] != "configuration_probe" || manifestDoc["probe_id"] != probeID ||
+		manifestDoc["binding_id"] != binding["binding_id"] || manifestDoc["template_hash"] != templateHash ||
+		manifestDoc["preview_hash"] != previewHash || len(manifestDoc) != 5 {
+		t.Fatalf("probe manifest = %s", manifest)
+	}
+	if got := countRows(t, f.admin, "SELECT count(*) FROM work.outbox WHERE org_id="+quoteLiteral(f.org)+
+		" AND aggregate_id="+quoteLiteral(runID)+" AND payload->>'kind'='start_workflow'"); got != 0 {
+		t.Fatalf("probe start_workflow outbox rows = %d", got)
+	}
+	if got := countRows(t, f.admin, "SELECT count(*) FROM work.local_submission_intent WHERE org_id="+
+		quoteLiteral(f.org)+" AND task_id="+quoteLiteral(taskID)+" AND run_id="+quoteLiteral(runID)); got != 1 {
+		t.Fatalf("probe local intent rows = %d", got)
+	}
+	if got := countRows(t, f.admin, "SELECT count(*) FROM work.task_summary WHERE org_id="+
+		quoteLiteral(f.org)+" AND task_id="+quoteLiteral(taskID)); got != 0 {
+		t.Fatalf("configuration probe leaked into task_summary: %d", got)
+	}
+	expectCode(t, f.api, "invalid_request", submitConfigurationProbeSQL,
+		f.configurationProbeArgs(t, binding, "req-probe-second-run")...)
+	expectCode(t, f.admin, "invalid_request",
+		`UPDATE work.model_profile_probe SET run_id=$2::uuid WHERE org_id=$1 AND probe_id=$3::uuid`,
+		f.org, newUUID(t), probeID)
+	operationID := newUUID(t)
+	mustExec(t, f.admin, `INSERT INTO work.operation
+		(id,org_id,run_id,logical_key,kind,request_hash,state)
+		VALUES (`+quoteLiteral(operationID)+`,`+quoteLiteral(f.org)+`,`+quoteLiteral(runID)+`,`+
+		quoteLiteral("model")+`,'model',`+quoteLiteral(previewHash)+`,'prepared')`)
+	expectCode(t, f.admin, "invalid_request", `INSERT INTO work.operation
+		(id,org_id,run_id,logical_key,kind,request_hash,state)
+		VALUES ($1,$2,$3::uuid,'second','model',$4,'prepared')`,
+		newUUID(t), f.org, runID, previewHash)
+	if got := countRows(t, f.admin, "SELECT count(*) FROM work.task WHERE org_id="+
+		quoteLiteral(f.org)+" AND task_kind='configuration_probe'"); got != 1 {
+		t.Fatalf("configuration probe task count = %d, want 1", got)
+	}
+
+	// Expire the preview behind the guard, then prove replay is resolved before expiry checks.
+	mustExec(t, f.admin, `ALTER TABLE work.model_profile_probe DISABLE TRIGGER model_profile_probe_guard`)
+	mustExec(t, f.admin, `UPDATE work.model_profile_probe
+		SET created_at=now()-interval '1 day',expires_at=now()-interval '1 second'
+		WHERE org_id=`+quoteLiteral(f.org)+` AND probe_id=`+quoteLiteral(probeID))
+	mustExec(t, f.admin, `ALTER TABLE work.model_profile_probe ENABLE TRIGGER model_profile_probe_guard`)
+	var replayTask, replayRun string
+	if err := f.api.QueryRow(testContext(t), submitConfigurationProbeSQL, args...).
+		Scan(&replayTask, &replayRun, new(int64), new(int64)); err != nil {
+		t.Fatalf("configuration probe replay: %v", err)
+	}
+	if replayTask != taskID || replayRun != runID {
+		t.Fatalf("replay = %s/%s, want %s/%s", replayTask, replayRun, taskID, runID)
+	}
+	conflict := append([]any(nil), args...)
+	conflict[9] = hex64("conflicting-target")
+	expectCode(t, f.api, "idempotency_key_conflict", submitConfigurationProbeSQL, conflict...)
+	expectCode(t, f.admin, "device_run_binding_grant_set_shape",
+		`UPDATE work.device_run_binding SET purpose='task' WHERE org_id=$1 AND run_id=$2::uuid`, f.org, runID)
+}
+
+func TestConfigurationProbeSubmissionRejectsExpiredAndMismatchedFacts(t *testing.T) {
+	f := newExecutionProfileFixture(t, "org_probe_reject")
+	binding := f.createBinding(t, "req-probe-binding")
+	tasksBefore := countRows(t, f.admin, "SELECT count(*) FROM work.task WHERE org_id="+quoteLiteral(f.org))
+	preview, _ := binding["probe_preview"].(map[string]any)
+	probeID, _ := preview["probe_id"].(string)
+	// Replace only the probe UUID in an otherwise valid request.
+	wrongProbe := f.configurationProbeArgs(t, binding, "req-probe-wrong-probe")
+	wrongProbe[7] = newUUID(t)
+	expectCode(t, f.api, "not_found", submitConfigurationProbeSQL, wrongProbe...)
+	wrongBinding := f.configurationProbeArgs(t, binding, "req-probe-wrong-binding")
+	wrongBinding[6] = newUUID(t)
+	expectCode(t, f.api, "not_found", submitConfigurationProbeSQL, wrongBinding...)
+	wrongDevice := f.configurationProbeArgs(t, binding, "req-probe-wrong-device")
+	wrongDevice[4] = newUUID(t)
+	expectCode(t, f.api, "unauthorized", submitConfigurationProbeSQL, wrongDevice...)
+	wrongSession := f.configurationProbeArgs(t, binding, "req-probe-wrong-session")
+	wrongSession[5] = newUUID(t)
+	expectCode(t, f.api, "unauthorized", submitConfigurationProbeSQL, wrongSession...)
+	wrongPreview := f.configurationProbeArgs(t, binding, "req-probe-wrong-preview")
+	wrongPreview[8] = strings.Repeat("0", 64)
+	var wrongPreviewIntent map[string]any
+	if err := json.Unmarshal([]byte(wrongPreview[10].(string)), &wrongPreviewIntent); err != nil {
+		t.Fatal(err)
+	}
+	wrongPreviewIntent["preview_hash"] = wrongPreview[8]
+	wrongPreviewJSON, err := json.Marshal(wrongPreviewIntent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrongPreview[10] = string(wrongPreviewJSON)
+	expectCode(t, f.api, "preview_stale", submitConfigurationProbeSQL, wrongPreview...)
+
+	mustExec(t, f.admin, `ALTER TABLE work.model_profile_probe DISABLE TRIGGER model_profile_probe_guard`)
+	mustExec(t, f.admin, `UPDATE work.model_profile_probe
+		SET created_at=now()-interval '1 day',expires_at=now()-interval '1 second'
+		WHERE org_id=`+quoteLiteral(f.org)+` AND probe_id=`+quoteLiteral(probeID))
+	mustExec(t, f.admin, `ALTER TABLE work.model_profile_probe ENABLE TRIGGER model_profile_probe_guard`)
+	expectCode(t, f.api, "preview_stale", submitConfigurationProbeSQL,
+		f.configurationProbeArgs(t, binding, "req-probe-expired")...)
+	if got := countRows(t, f.admin, "SELECT count(*) FROM work.task WHERE org_id="+quoteLiteral(f.org)); got != tasksBefore {
+		t.Fatalf("rejected probe submissions created %d tasks", got-tasksBefore)
+	}
+}
+
+func TestConfigurationProbeTaskCannotBeRetried(t *testing.T) {
+	f := newExecutionProfileFixture(t, "org_probe_no_retry")
+	binding := f.createBinding(t, "req-probe-binding")
+	args := f.configurationProbeArgs(t, binding, "req-probe-submit")
+	var taskID, runID string
+	if err := f.api.QueryRow(testContext(t), submitConfigurationProbeSQL, args...).
+		Scan(&taskID, &runID, new(int64), new(int64)); err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, f.admin, `UPDATE work.run SET state='failed',terminal_reason='probe test'
+		WHERE org_id=`+quoteLiteral(f.org)+` AND id=`+quoteLiteral(runID))
+	mustExec(t, f.admin, `UPDATE work.task SET state='open',active_run_id=NULL
+		WHERE org_id=`+quoteLiteral(f.org)+` AND id=`+quoteLiteral(taskID))
+	expectCode(t, f.api, "invalid_request", `SELECT run_id,revision FROM work.retry_task(
+		$1,$2::uuid,$3,$4,$5,$6,$7)`,
+		f.org, taskID, f.subject, "req-probe-retry", int64(1), "retry-probe", f.runtimeDigest)
+	if got := countRows(t, f.admin, "SELECT count(*) FROM work.run WHERE org_id="+
+		quoteLiteral(f.org)+" AND task_id="+quoteLiteral(taskID)); got != 1 {
+		t.Fatalf("configuration probe retry created another run: %d", got)
+	}
+}
+
+func TestConfigurationProbeSubmissionRefusesVerifiedBinding(t *testing.T) {
+	f := newExecutionProfileFixture(t, "org_probe_verified_refusal")
+	binding := f.createBinding(t, "req-probe-binding")
+	tasksBefore := countRows(t, f.admin, "SELECT count(*) FROM work.task WHERE org_id="+quoteLiteral(f.org))
+	mustExec(t, f.admin, `UPDATE work.device_model_binding
+		SET status='verified',revision=revision+1,updated_at=now()
+		WHERE org_id=`+quoteLiteral(f.org)+` AND id=`+quoteLiteral(binding["binding_id"].(string)))
+	expectCode(t, f.api, "invalid_request", submitConfigurationProbeSQL,
+		f.configurationProbeArgs(t, binding, "req-probe-verified")...)
+	if got := countRows(t, f.admin, "SELECT count(*) FROM work.task WHERE org_id="+quoteLiteral(f.org)); got != tasksBefore {
+		t.Fatalf("verified binding refusal created %d tasks", got-tasksBefore)
 	}
 }
 
