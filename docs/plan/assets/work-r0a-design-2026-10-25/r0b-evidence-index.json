@@ -228,7 +228,7 @@
       "requirement": "local_only 正文粘进 Composer 后外发必须逐次批准，device_local 保留；成果与同步下限继承剪贴板来源。",
       "status": "partial",
       "gaps": [
-        "Composer 已对任何粘贴内容建立单调 local_only taint：云端预览/发送禁用，本机草稿路径保留；真实剪贴板来源 token、来源版本分类与逐次外发批准页完整字节核对仍未实现。",
+        "Composer 已对任何粘贴内容建立单调 local_only taint：云端预览/发送禁用，本机草稿路径保留；真实剪贴板来源 token、来源版本分类与逐次外发批准页完整字节核对仍未实现。Node 当前初始 prompt 仍写死为 begin，sealed_input_refs 未读取，Composer 暂存正文尚未真正进入模型请求。",
         "未覆盖 clipboard_derived 行与 clipboard_source_version_ids 的端到端断言；E=B 后外发/同步腿移出。"
       ],
       "evidence": [
