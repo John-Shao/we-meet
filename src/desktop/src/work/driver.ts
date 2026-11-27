@@ -440,6 +440,10 @@ export class WorkDeviceDriver {
     string,
     { deviceId: string; sessionId: string; revision: string }
   >();
+  private readonly editClipboardSources = new Map<
+    string,
+    { derived: boolean; sources: string[] }
+  >();
 
   constructor(private readonly deps: DriverDeps) {
     this.pollIntervalMs = deps.pollIntervalMs ?? 10000;
@@ -1796,6 +1800,10 @@ export class WorkDeviceDriver {
     if (!draft) return { status: "not_on_this_device" };
     const content = await this.openLocalContent("artifact_edit", versionId);
     if (content.status !== "available") return { status: "not_on_this_device" };
+    this.editClipboardSources.set(draft.requestId, {
+      derived: draft.clipboardDerived,
+      sources: [...draft.clipboardSourceVersionIds],
+    });
     return {
       status: "available",
       draft,
@@ -1810,7 +1818,7 @@ export class WorkDeviceDriver {
     const data = value as Record<string, unknown>;
     if (
       Object.keys(data).sort().join(",") !==
-        "artifact_id,base_byte_count,base_hash,base_version_id,base_version_no,byte_count,content_hash,created_at,format,publish_state,request_id,task_id,version_id" ||
+        "artifact_id,base_byte_count,base_hash,base_version_id,base_version_no,byte_count,clipboard_derived,clipboard_source_version_ids,content_hash,created_at,format,publish_state,request_id,task_id,version_id" ||
       typeof data.request_id !== "string" ||
       typeof data.version_id !== "string" ||
       typeof data.artifact_id !== "string" ||
@@ -1831,7 +1839,18 @@ export class WorkDeviceDriver {
         data.publish_state !== "pending_publish" &&
         data.publish_state !== "expired") ||
       typeof data.created_at !== "string" ||
-      !/^[1-9][0-9]*$/.test(data.created_at)
+      !/^[1-9][0-9]*$/.test(data.created_at) ||
+      typeof data.clipboard_derived !== "boolean" ||
+      !Array.isArray(data.clipboard_source_version_ids) ||
+      data.clipboard_source_version_ids.length > 16 ||
+      new Set(data.clipboard_source_version_ids).size !==
+        data.clipboard_source_version_ids.length ||
+      !data.clipboard_source_version_ids.every((value) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+          value,
+        ),
+      ) ||
+      (!data.clipboard_derived && data.clipboard_source_version_ids.length > 0)
     )
       throw new BrokerPipeError("shape");
     return {
@@ -1848,6 +1867,8 @@ export class WorkDeviceDriver {
       baseByteCount: Number(data.base_byte_count),
       publishState: data.publish_state,
       createdAt: Number(data.created_at),
+      clipboardDerived: data.clipboard_derived,
+      clipboardSourceVersionIds: data.clipboard_source_version_ids as string[],
     };
   }
 
@@ -1855,6 +1876,8 @@ export class WorkDeviceDriver {
     context: LocalArtifactEditContext;
     format: "text/plain" | "text/markdown";
     body: string;
+    clipboardDerived: boolean;
+    clipboardSourceVersionIds: string[];
   }): Promise<LocalArtifactEditDraft> {
     if (this.state !== "running") throw new BrokerPipeError("shape");
     this.validateEditContext(input.context);
@@ -1863,7 +1886,18 @@ export class WorkDeviceDriver {
       typeof input.body !== "string" ||
       input.body.length === 0 ||
       input.body.includes("\x00") ||
-      Buffer.byteLength(input.body, "utf8") > 1024 * 1024
+      Buffer.byteLength(input.body, "utf8") > 1024 * 1024 ||
+      typeof input.clipboardDerived !== "boolean" ||
+      !Array.isArray(input.clipboardSourceVersionIds) ||
+      input.clipboardSourceVersionIds.length > 16 ||
+      new Set(input.clipboardSourceVersionIds).size !==
+        input.clipboardSourceVersionIds.length ||
+      !input.clipboardSourceVersionIds.every((value) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+          value,
+        ),
+      ) ||
+      (!input.clipboardDerived && input.clipboardSourceVersionIds.length > 0)
     ) {
       throw new BrokerPipeError("shape");
     }
@@ -1884,6 +1918,8 @@ export class WorkDeviceDriver {
       content_hash: contentHash,
       byte_count: String(Buffer.byteLength(input.body, "utf8")),
       body: input.body,
+      clipboard_derived: input.clipboardDerived,
+      clipboard_source_version_ids: input.clipboardSourceVersionIds,
     });
     this.checkEpoch();
     const data = reply.data ?? {};
@@ -1901,6 +1937,10 @@ export class WorkDeviceDriver {
     ) {
       throw new BrokerPipeError("shape");
     }
+    this.editClipboardSources.set(requestId, {
+      derived: input.clipboardDerived,
+      sources: [...input.clipboardSourceVersionIds],
+    });
     return {
       requestId,
       versionId,
@@ -1953,6 +1993,8 @@ export class WorkDeviceDriver {
       throw new BrokerPipeError("shape");
     }
     const proof = data.user_version_proof as Record<string, unknown>;
+    const clipboardSources = this.editClipboardSources.get(requestId);
+    if (!clipboardSources) throw new BrokerPipeError("shape");
     const proofKeys = [
       "v",
       "org_id",
@@ -1989,9 +2031,10 @@ export class WorkDeviceDriver {
       proof.content_hash !== sealedHash.slice("sha256:".length) ||
       proof.bytes !== Number(data.byte_count) ||
       proof.classification !== "local_only" ||
-      proof.clipboard_derived !== false ||
+      proof.clipboard_derived !== clipboardSources.derived ||
       !Array.isArray(proof.clipboard_source_version_ids) ||
-      proof.clipboard_source_version_ids.length !== 0 ||
+      JSON.stringify(proof.clipboard_source_version_ids) !==
+        JSON.stringify(clipboardSources.sources) ||
       typeof proof.nonce !== "string" ||
       !/^[A-Za-z0-9_-]{8,128}$/.test(proof.nonce) ||
       typeof proof.expires_at !== "string"
@@ -2048,6 +2091,7 @@ export class WorkDeviceDriver {
     ) {
       throw new BrokerPipeError("shape");
     }
+    this.editClipboardSources.delete(requestId);
     return {
       versionId: created.version_id,
       versionNo: created.version_no,
@@ -2084,6 +2128,7 @@ export class WorkDeviceDriver {
     ) {
       return "not_on_this_device";
     }
+    this.editClipboardSources.delete(requestId);
     if (
       Object.keys(data).sort().join(",") !==
         "content_hash,request_id,status,version_id" ||
@@ -2115,6 +2160,7 @@ export class WorkDeviceDriver {
 
   private async teardown() {
     this.localGrants.clear();
+    this.editClipboardSources.clear();
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = undefined;

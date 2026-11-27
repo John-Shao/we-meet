@@ -50,6 +50,8 @@ test("viewer message closure is separate from the shell and forbids arbitrary ta
     [
       "decideLocalApproval",
       "prepareUserArtifactVersion",
+      "copyLocalArtifactVersion",
+      "pasteLocalArtifactText",
       "confirmLocalWrite",
       "confirmDisclosureDecision",
       "signObjectProof",
@@ -268,6 +270,49 @@ test("viewer artifact edits and local write actions use closed payloads", () => 
         new Set(["request-1"]),
       ),
     /invalid local write action/,
+  );
+});
+
+test("viewer clipboard operations are bound to exact object kinds", () => {
+  const versionBinding = { kind: "artifact_version", id: "version-1" };
+  const editBinding = { kind: "artifact_edit", id: "artifact-1" };
+  assert.deepEqual(
+    validateViewerPayload(
+      "copyLocalArtifactVersion",
+      { text: "protected body" },
+      versionBinding,
+      new Set(),
+    ),
+    { text: "protected body" },
+  );
+  assert.throws(
+    () =>
+      validateViewerPayload(
+        "copyLocalArtifactVersion",
+        { text: "protected body" },
+        editBinding,
+        new Set(),
+      ),
+    /object kind mismatch/,
+  );
+  assert.deepEqual(
+    validateViewerPayload(
+      "pasteLocalArtifactText",
+      {},
+      editBinding,
+      new Set(),
+    ),
+    {},
+  );
+  assert.throws(
+    () =>
+      validateViewerPayload(
+        "pasteLocalArtifactText",
+        { clipboard_derived: false },
+        editBinding,
+        new Set(),
+      ),
+    /unexpected viewer field/,
   );
 });
 

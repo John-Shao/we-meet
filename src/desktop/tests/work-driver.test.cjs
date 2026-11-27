@@ -334,6 +334,10 @@ function harness(t, overrides = {}) {
             base_byte_count: "4",
             publish_state: "pending_confirm",
             created_at: "1",
+            clipboard_derived: true,
+            clipboard_source_version_ids: [
+              "99999999-9999-4999-8999-999999999999",
+            ],
           },
         ],
       },
@@ -358,7 +362,7 @@ function harness(t, overrides = {}) {
             status:
               fields.action === "discard" ? "discarded" : "pending_confirm",
             request_id: fields.draft_request_id,
-            version_id: preparedEdit.version_id,
+            version_id: preparedEdit?.version_id ?? "33333333-3333-4333-8333-333333333333",
             content_hash: fields.sealed_hash,
           },
         };
@@ -366,11 +370,11 @@ function harness(t, overrides = {}) {
         data: {
           status: "pending_publish",
           request_id: fields.draft_request_id,
-          version_id: preparedEdit.version_id,
+          version_id: preparedEdit?.version_id ?? "33333333-3333-4333-8333-333333333333",
           artifact_id: "11111111-1111-4111-8111-111111111111",
           device_id: deviceId,
           session_id: "22222222-2222-4222-8222-222222222222",
-          local_ref: `local/${preparedEdit.version_id}.md`,
+          local_ref: `local/${preparedEdit?.version_id ?? "33333333-3333-4333-8333-333333333333"}.md`,
           content_hash: fields.sealed_hash,
           byte_count: "11",
           signature: "A".repeat(86),
@@ -386,13 +390,16 @@ function harness(t, overrides = {}) {
             artifact_id: "11111111-1111-4111-8111-111111111111",
             base_version_no: 1,
             base_hash: "a".repeat(64),
-            version_id: preparedEdit.version_id,
+            version_id: preparedEdit?.version_id ?? "33333333-3333-4333-8333-333333333333",
             format: "text/markdown",
             content_hash: fields.sealed_hash.slice(7),
             bytes: 11,
             classification: "local_only",
-            clipboard_derived: false,
-            clipboard_source_version_ids: [],
+            clipboard_derived: preparedEdit?.clipboard_derived ?? true,
+            clipboard_source_version_ids:
+              preparedEdit?.clipboard_source_version_ids ?? [
+                "99999999-9999-4999-8999-999999999999",
+              ],
             client_request_id: fields.draft_request_id,
             nonce: "nonce-edit-1",
             expires_at: "2027-01-01T00:00:00Z",
@@ -543,6 +550,7 @@ function harness(t, overrides = {}) {
     gestures,
     pipeResponses,
     apiResponses,
+    preparedEdit: () => preparedEdit,
     resourceRoot,
     counters: () => ({ stops, closes }),
   };
@@ -1758,7 +1766,15 @@ test("local artifact edit carries task context, signs, publishes and completes t
     context,
     format: "text/markdown",
     body: "edited body",
+    clipboardDerived: true,
+    clipboardSourceVersionIds: [
+      "99999999-9999-4999-8999-999999999999",
+    ],
   });
+  assert.equal(h.preparedEdit().clipboard_derived, true);
+  assert.deepEqual(h.preparedEdit().clipboard_source_version_ids, [
+    "99999999-9999-4999-8999-999999999999",
+  ]);
   assert.equal(draft.byteCount, 11);
   assert.match(draft.contentHash, /^sha256:[0-9a-f]{64}$/);
   const published = await h.driver.confirmLocalArtifactEdit(
@@ -1785,6 +1801,10 @@ test("local artifact drafts are discoverable and reopen without renderer body by
   assert.equal(drafts.length, 1);
   assert.equal(drafts[0].publishState, "pending_confirm");
   assert.equal(drafts[0].baseVersionNo, 4);
+  assert.equal(drafts[0].clipboardDerived, true);
+  assert.deepEqual(drafts[0].clipboardSourceVersionIds, [
+    "99999999-9999-4999-8999-999999999999",
+  ]);
   const opened = await h.driver.openLocalArtifactDraft(
     taskId,
     artifactId,
@@ -1793,6 +1813,11 @@ test("local artifact drafts are discoverable and reopen without renderer body by
   assert.equal(opened.status, "available");
   assert.equal(opened.draft.requestId, "44444444-4444-4444-8444-444444444444");
   assert.equal(opened.text, "# local draft\n");
+  const published = await h.driver.confirmLocalArtifactEdit(
+    drafts[0].requestId,
+    drafts[0].contentHash,
+  );
+  assert.equal(published.versionId, drafts[0].versionId);
   assert.ok(h.events.includes("pipe:listLocalArtifactDrafts"));
 });
 

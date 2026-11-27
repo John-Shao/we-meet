@@ -29,6 +29,13 @@ test(
     assert.equal(evidence.viewerCookies, 0);
     assert.equal(evidence.mainPreloadExposed, false);
     assert.equal(evidence.mainWindowSentinelAbsent, true);
+    assert.deepEqual(evidence.clipboardProvenance, [
+      {
+        derived: true,
+        sources: ["99999999-9999-4999-8999-999999999999"],
+      },
+      { derived: true, sources: [] },
+    ]);
     assert.equal(evidence.viewerProcess.isolatedFromMain, true);
     assert.ok(evidence.viewerProcess.pid > 0);
     assert.equal(evidence.viewerProcess.type, "Tab");

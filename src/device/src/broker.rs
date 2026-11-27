@@ -1382,6 +1382,8 @@ async fn confirmation_reply(
                         "base_byte_count": row.base_byte_count.to_string(),
                         "publish_state": row.publish_state,
                         "created_at": row.created_at.to_string(),
+                        "clipboard_derived": row.clipboard_derived,
+                        "clipboard_source_version_ids": row.clipboard_source_version_ids,
                     })
                 })
                 .collect();
@@ -1403,6 +1405,8 @@ async fn confirmation_reply(
                     "content_hash",
                     "byte_count",
                     "body",
+                    "clipboard_derived",
+                    "clipboard_source_version_ids",
                 ],
             ) {
                 return Reply::refused(message, code);
@@ -1466,6 +1470,29 @@ async fn confirmation_reply(
             {
                 return Reply::refused(message, "shape");
             }
+            let clipboard_derived = match message.get("clipboard_derived") {
+                Some(Value::Bool(value)) => *value,
+                _ => return Reply::refused(message, "shape"),
+            };
+            let clipboard_source_version_ids = match message.get("clipboard_source_version_ids") {
+                Some(Value::Array(values)) => {
+                    let mut sources = Vec::with_capacity(values.len());
+                    for value in values {
+                        let Some(source) = value.as_str() else {
+                            return Reply::refused(message, "shape");
+                        };
+                        sources.push(source.to_owned());
+                    }
+                    sources
+                }
+                _ => return Reply::refused(message, "shape"),
+            };
+            if !crate::journal::local_content::valid_clipboard_sources(
+                clipboard_derived,
+                &clipboard_source_version_ids,
+            ) {
+                return Reply::refused(message, "shape");
+            }
             let row = crate::journalop::LocalDraftRow {
                 version_id: version_id.into(),
                 request_id: request_id.into(),
@@ -1481,6 +1508,8 @@ async fn confirmation_reply(
                 auth_epoch,
                 base_version_id: base_version_id.into(),
                 base_byte_count: 0,
+                clipboard_derived,
+                clipboard_source_version_ids,
             };
             let (tx, rx) = oneshot::channel();
             if node
@@ -3339,6 +3368,8 @@ mod tests {
                 "content_hash": format!("sha256:{}", crate::sha256_hex(b"edited body")),
                 "byte_count": "11",
                 "body": "edited body",
+                "clipboard_derived": true,
+                "clipboard_source_version_ids": ["99999999-9999-4999-8999-999999999999"],
             }),
         )
         .await;
@@ -3376,6 +3407,7 @@ mod tests {
                 "base_hash": "a".repeat(64),
                 "auth_epoch": "4", "format": "text/plain", "content_hash": "b".repeat(64),
                 "byte_count": "2", "body": "ok",
+                "clipboard_derived": false, "clipboard_source_version_ids": [],
             }),
         )
         .await;
@@ -3409,6 +3441,8 @@ mod tests {
                             auth_epoch: 4,
                             base_version_id: "55555555-5555-4555-8555-555555555555".into(),
                             base_byte_count: 4,
+                            clipboard_derived: false,
+                            clipboard_source_version_ids: Vec::new(),
                         }))
                         .unwrap();
                 }
@@ -3465,6 +3499,8 @@ mod tests {
                                 auth_epoch: 4,
                                 base_version_id: "55555555-5555-4555-8555-555555555555".into(),
                                 base_byte_count: 4,
+                                clipboard_derived: false,
+                                clipboard_source_version_ids: Vec::new(),
                             },
                             proof: json!({
                                 "device_id": "dddddddd-dddd-dddd-dddd-dddddddddddd",
@@ -3571,6 +3607,10 @@ mod tests {
                             auth_epoch: 4,
                             base_version_id: "55555555-5555-4555-8555-555555555555".into(),
                             base_byte_count: 4,
+                            clipboard_derived: true,
+                            clipboard_source_version_ids: vec![
+                                "99999999-9999-4999-8999-999999999999".into(),
+                            ],
                         }])
                         .unwrap();
                 }
@@ -3603,6 +3643,8 @@ mod tests {
                 "base_version_id",
                 "base_version_no",
                 "byte_count",
+                "clipboard_derived",
+                "clipboard_source_version_ids",
                 "content_hash",
                 "created_at",
                 "format",
@@ -3613,6 +3655,11 @@ mod tests {
             ]
         );
         assert!(items[0].get("body").is_none());
+        assert_eq!(items[0]["clipboard_derived"], true);
+        assert_eq!(
+            items[0]["clipboard_source_version_ids"],
+            json!(["99999999-9999-4999-8999-999999999999"])
+        );
         worker.await.unwrap();
     }
 

@@ -9,6 +9,8 @@ export const VIEWER_ORIGIN = "wemeet-local://viewer";
 export const VIEWER_METHODS = [
   "decideLocalApproval",
   "prepareUserArtifactVersion",
+  "copyLocalArtifactVersion",
+  "pasteLocalArtifactText",
   "confirmLocalWrite",
   "confirmDisclosureDecision",
   "signObjectProof",
@@ -128,6 +130,24 @@ export function validateViewerPayload(
       throw new Error("invalid artifact body");
     }
     return payload;
+  }
+  if (method === "copyLocalArtifactVersion") {
+    if (binding.kind !== "artifact_version")
+      throw new Error("viewer object kind mismatch");
+    const payload = viewerPayload(value, ["text"]);
+    if (
+      typeof payload.text !== "string" ||
+      new TextEncoder().encode(payload.text).length > 1024 * 1024
+    ) {
+      throw new Error("invalid clipboard text");
+    }
+    return payload;
+  }
+  if (method === "pasteLocalArtifactText") {
+    if (binding.kind !== "artifact_edit")
+      throw new Error("viewer object kind mismatch");
+    viewerPayload(value, []);
+    return {};
   }
   if (method === "confirmLocalWrite") {
     if (binding.kind !== "artifact_edit")

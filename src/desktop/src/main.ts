@@ -1,6 +1,8 @@
 import {
   app,
   BrowserWindow,
+  clipboard,
+  ClipboardItem,
   desktopCapturer,
   dialog,
   ipcMain,
@@ -53,6 +55,10 @@ import {
   registerViewerScheme,
 } from "./work/viewer-protocol";
 import { ViewerManager } from "./work/viewer-window";
+import {
+  createClipboardHtml,
+  readClipboardProvenance,
+} from "./work/clipboard-provenance";
 import type {
   LocalArtifactAcceptanceContext,
   LocalArtifactEditContext,
@@ -123,6 +129,10 @@ let workViewer: ViewerManager | undefined;
 let workMainWindow: BrowserWindow | undefined;
 const viewerEditContexts = new Map<number, LocalArtifactEditContext>();
 const viewerDrafts = new Map<number, LocalArtifactEditDraft>();
+const viewerClipboard = new Map<
+  number,
+  { derived: boolean; sources: string[] }
+>();
 const viewerApprovals = new Map<
   number,
   { detail: LocalApprovalDetail; requestId: string }
@@ -1007,6 +1017,81 @@ async function createWindow() {
         const viewerWindow = viewer?.windowFor(viewerContents);
         const data = payload as Record<string, unknown> | undefined;
         if (!driver || !viewer || !viewerWindow) return;
+        if (method === "copyLocalArtifactVersion" && data) {
+          const source = viewer.renderedArtifactVersion(viewerContents);
+          if (!source || data.text !== source.text) return;
+          void clipboard.write([
+            new ClipboardItem({
+              "text/plain": source.text,
+              "text/html": createClipboardHtml(source.text, source.versionId),
+            }),
+          ]).catch(() => {
+            viewer.send(viewerWindow, {
+              type: "error",
+              code: "invalid_work_request",
+            });
+          });
+          return;
+        }
+        if (method === "pasteLocalArtifactText") {
+          void (async () => {
+            try {
+              const items = await clipboard.read();
+              const item = items.find((candidate) =>
+                candidate.types.includes("text/plain"),
+              );
+              if (!item) {
+                viewer.send(viewerWindow, {
+                  type: "error",
+                  code: "invalid_work_request",
+                });
+                return;
+              }
+              const textBlob = await item.getType("text/plain");
+              if (!(textBlob instanceof Blob) || textBlob.size > 1024 * 1024) {
+                viewer.send(viewerWindow, {
+                  type: "error",
+                  code: "invalid_work_request",
+                });
+                return;
+              }
+              const text = await textBlob.text();
+              let html = "";
+              if (item.types.includes("text/html")) {
+                const htmlBlob = await item.getType("text/html");
+                if (
+                  !(htmlBlob instanceof Blob) ||
+                  htmlBlob.size > 2 * 1024 * 1024
+                ) {
+                  viewer.send(viewerWindow, {
+                    type: "error",
+                    code: "invalid_work_request",
+                  });
+                  return;
+                }
+                html = await htmlBlob.text();
+              }
+              const provenance = readClipboardProvenance(html, text);
+              if (text.includes("\x00")) {
+                viewer.send(viewerWindow, {
+                  type: "error",
+                  code: "invalid_work_request",
+                });
+                return;
+              }
+              viewerClipboard.set(viewerContents.id, provenance);
+              viewer.send(viewerWindow, {
+                type: "clipboard_paste",
+                text,
+                clipboard_derived: provenance.derived,
+                clipboard_source_version_ids: provenance.sources,
+              });
+            } catch {
+              viewer.send(viewerWindow, { type: "error", code: "invalid_work_request" });
+            }
+          })();
+          return;
+        }
         if (method === "decideLocalApproval" && data) {
           const approval = viewerApprovals.get(viewerContents.id);
           if (!approval || data.request_id !== approval.requestId) return;
@@ -1079,7 +1164,11 @@ async function createWindow() {
                 context,
                 format: data.format as "text/plain" | "text/markdown",
                 body: data.body as string,
+                clipboardDerived: viewerClipboard.get(viewerContents.id)?.derived ?? false,
+                clipboardSourceVersionIds:
+                  viewerClipboard.get(viewerContents.id)?.sources ?? [],
               });
+              viewerClipboard.delete(viewerContents.id);
               viewerDrafts.set(viewerContents.id, draft);
               viewer.send(viewerWindow, {
                 type: "draft",
@@ -1509,6 +1598,7 @@ async function createWindow() {
         viewerWindow.once("closed", () => {
           viewerEditContexts.delete(id);
           viewerDrafts.delete(id);
+          viewerClipboard.delete(id);
         });
         return { status: "opened" };
       } catch {
@@ -1564,9 +1654,11 @@ async function createWindow() {
         const id = viewerWindow.webContents.id;
         viewerEditContexts.set(id, context);
         viewerDrafts.delete(id);
+        viewerClipboard.delete(id);
         viewerWindow.once("closed", () => {
           viewerEditContexts.delete(id);
           viewerDrafts.delete(id);
+          viewerClipboard.delete(id);
         });
         return { status: "opened" };
       } catch {

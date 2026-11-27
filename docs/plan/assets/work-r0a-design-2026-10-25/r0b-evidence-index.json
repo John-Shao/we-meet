@@ -229,15 +229,19 @@
       "id": "EV98",
       "gate": "I2",
       "requirement": "local_only 正文粘进 Composer 后外发必须逐次批准，device_local 保留；成果与同步下限继承剪贴板来源。",
-      "status": "partial",
-      "gaps": [
-        "Composer 已对任何粘贴内容建立单调 local_only taint：云端预览/发送禁用，本机草稿路径保留；Broker 已把暂存正文经 Node 管道送入首轮模型请求。真实剪贴板来源 token、来源版本分类与逐次外发批准页完整字节核对仍未实现。",
-        "未覆盖 clipboard_derived 行与 clipboard_source_version_ids 的端到端断言；E=B 后外发/同步腿移出。"
-      ],
+      "status": "covered",
+      "gaps": [],
       "evidence": [
         { "path": "src/work/internal/migrate/r0b_local_artifact_test.go", "test": "TestR0bUserSaveClipboardFloorAndSameDeviceSources" },
         { "path": "src/device/src/broker.rs", "test": "stage_local_input_seals_the_text_and_returns_only_metadata" },
         { "path": "src/device/src/nodeservice.rs", "test": "staged_input_feeds_an_artifact_write_with_matching_hash_and_size" },
+        { "path": "src/device/src/journal/local_content.rs", "test": "clipboard_sources_require_unique_version_uuids" },
+        { "path": "src/device/src/journal/local_content.rs", "test": "corrupt_clipboard_provenance_never_defaults_to_no_source" },
+        { "path": "src/device/src/journal/local_content.rs", "test": "draft_confirmation_signs_closed_proof_and_replays_until_published" },
+        { "path": "src/desktop/tests/viewer-bundle.test.cjs", "test": "trusted artifact clipboard tokens bind text, expire and fail closed" },
+        { "path": "src/desktop/tests/work-viewer-smoke.test.cjs", "test": "real Electron viewer enforces DOM network cookie and process isolation" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "local artifact edit carries task context, signs, publishes and completes the ack" },
+        { "path": "src/desktop/tests/work-driver.test.cjs", "test": "local artifact drafts are discoverable and reopen without renderer body bytes" },
         { "path": "src/frontend/src/features/work/r0a/components/Composer.test.tsx", "test": "treats pasted text as local-only and keeps only the local path" },
         { "path": "src/work/node/device-bundle/test/bundle.test.mjs", "test": "staged Composer text becomes the first model prompt" },
         { "path": "src/work/internal/api/device_run_interop_test.go", "test": "TestDeviceFixtureRunSendsStagedComposerTextToModel" }

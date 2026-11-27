@@ -1,6 +1,10 @@
 const assert = require("node:assert/strict");
 const path = require("node:path");
-const { app, BrowserWindow, session } = require("electron");
+const { app, BrowserWindow, clipboard, ClipboardItem, session } = require("electron");
+const {
+  createClipboardHtml,
+  readClipboardProvenance,
+} = require("../dist/work/clipboard-provenance.js");
 const { ViewerManager } = require("../dist/work/viewer-window.js");
 const {
   installViewerProtocol,
@@ -63,11 +67,49 @@ app
 
     console.log("stage: cookie");
     const messages = [];
+    const clipboardFacts = [];
     const sentinel = "WORK_LOCAL_BODY_SENTINEL_7f31c2";
     const payload = `<img src="https://evil.test/pixel" onerror="alert(1)"><script>alert(1)</script>\n[link](https://evil.test/)\n${sentinel}`;
     const manager = new ViewerManager(
       path.join(__dirname, "../dist/viewer-preload.js"),
-      (_webContents, method, payload) => messages.push({ method, payload }),
+      (_webContents, method, payload) => {
+        const clipboardWin = manager.windowFor(_webContents);
+        if (!clipboardWin) return;
+        if (method === "copyLocalArtifactVersion") {
+          const source = manager.renderedArtifactVersion(_webContents);
+          if (!source || source.text !== payload.text) return;
+          void clipboard.write([
+            new ClipboardItem({
+              "text/plain": source.text,
+              "text/html": createClipboardHtml(source.text, source.versionId),
+            }),
+          ]);
+          return;
+        }
+        if (method === "pasteLocalArtifactText") {
+          void (async () => {
+            const items = await clipboard.read();
+            const item = items.find((candidate) =>
+              candidate.types.includes("text/plain"),
+            );
+            if (!item) return;
+            const text = await (await item.getType("text/plain")).text();
+            let html = "";
+            if (item.types.includes("text/html"))
+              html = await (await item.getType("text/html")).text();
+            const provenance = readClipboardProvenance(html, text);
+            clipboardFacts.push(provenance);
+            manager.send(clipboardWin, {
+              type: "clipboard_paste",
+              text,
+              clipboard_derived: true,
+              clipboard_source_version_ids: provenance.sources,
+            });
+          })();
+          return;
+        }
+        messages.push({ method, payload });
+      },
     );
     manager.install();
     const win = manager.openObject(
@@ -449,6 +491,64 @@ app
     const mainWindowSentinelAbsent = !mainWindowSnapshot.includes(sentinel);
     assert.equal(mainWindowSentinelAbsent, true);
 
+    const clipboardVersion = manager.openObject(
+      {
+        kind: "artifact_version",
+        id: "99999999-9999-4999-8999-999999999999",
+      },
+      { type: "render", format: "text/plain", text: "protected clipboard body" },
+    );
+    await waitFor(() => manager.isReady(clipboardVersion), "clipboard source viewer");
+    await clipboardVersion.webContents.executeJavaScript(`(() => {
+      const range = document.createRange();
+      range.selectNodeContents(document.getElementById('content'));
+      const selection = getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      document.getElementById('content').dispatchEvent(new ClipboardEvent('copy', { bubbles: true, cancelable: true }));
+    })()`);
+    await waitFor(
+      async () =>
+        (await clipboard.readText()) === "protected clipboard body" &&
+        (await clipboard.has("text/html")),
+      "clipboard source write",
+    );
+    const clipboardEdit = manager.openObject(
+      { kind: "artifact_edit", id: "88888888-8888-4888-8888-888888888888" },
+      {
+        type: "render",
+        format: "text/plain",
+        text: "",
+        edit: {
+          artifact_id: "88888888-8888-4888-8888-888888888888",
+          task_id: "77777777-7777-4777-8777-777777777777",
+          base_version_no: 1,
+          base_hash: `sha256:${"c".repeat(64)}`,
+        },
+      },
+    );
+    await waitFor(() => manager.isReady(clipboardEdit), "clipboard edit viewer");
+    await clipboardEdit.webContents.executeJavaScript(
+      "document.getElementById('body').dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true }))",
+    );
+    await waitFor(() => clipboardFacts.length === 1, "trusted clipboard paste");
+    assert.deepEqual(clipboardFacts[0], {
+      derived: true,
+      sources: ["99999999-9999-4999-8999-999999999999"],
+    });
+    assert.equal(
+      await clipboardEdit.webContents.executeJavaScript(
+        "document.getElementById('body').value",
+      ),
+      "protected clipboard body",
+    );
+    await clipboard.writeText("external clipboard body");
+    await clipboardEdit.webContents.executeJavaScript(
+      "document.getElementById('body').dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true }))",
+    );
+    await waitFor(() => clipboardFacts.length === 2, "external clipboard paste");
+    assert.deepEqual(clipboardFacts[1], { derived: true, sources: [] });
+
     console.log("stage: assertions");
     manager.closeAll();
     mainWindow.destroy();
@@ -463,6 +563,7 @@ app
         networkAttempts,
         mainPreloadExposed,
         mainWindowSentinelAbsent,
+        clipboardProvenance: clipboardFacts,
         viewerProcess: {
           pid: viewerProcessId,
           type: viewerProcess.type,

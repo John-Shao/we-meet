@@ -106,6 +106,8 @@ export interface LocalArtifactDraft {
   baseByteCount: number;
   publishState: "pending_confirm" | "pending_publish" | "expired";
   createdAt: number;
+  clipboardDerived: boolean;
+  clipboardSourceVersionIds: string[];
 }
 
 export interface LocalArtifactPublication {

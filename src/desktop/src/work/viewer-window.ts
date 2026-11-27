@@ -26,6 +26,7 @@ export class ViewerManager {
   private readonly bindings = new Map<number, ViewerObjectBinding>();
   private readonly requests = new Map<number, Set<string>>();
   private readonly pendingBodies = new Map<number, unknown[]>();
+  private readonly renderedText = new Map<number, string>();
   private installed = false;
 
   constructor(
@@ -141,6 +142,7 @@ export class ViewerManager {
       this.bindings.delete(id);
       this.requests.delete(id);
       this.pendingBodies.delete(id);
+      this.renderedText.delete(id);
     });
     void win.loadURL(viewerUrl());
     return win;
@@ -176,10 +178,21 @@ export class ViewerManager {
     return true;
   }
 
+  renderedArtifactVersion(
+    webContents: WebContents,
+  ): { versionId: string; text: string } | undefined {
+    const binding = this.bindings.get(webContents.id);
+    const text = this.renderedText.get(webContents.id);
+    return binding?.kind === "artifact_version" && text !== undefined
+      ? { versionId: binding.id, text }
+      : undefined;
+  }
+
   bind(win: BrowserWindow, binding: ViewerObjectBinding): boolean {
     if (!this.owns(win.webContents)) return false;
     this.bindings.set(win.webContents.id, binding);
     this.pendingBodies.delete(win.webContents.id);
+    this.renderedText.delete(win.webContents.id);
     this.invalidate(win);
     return true;
   }
@@ -232,6 +245,7 @@ export class ViewerManager {
     this.bindings.clear();
     this.requests.clear();
     this.pendingBodies.clear();
+    this.renderedText.clear();
   }
 
   private flush(webContents: WebContents): void {
@@ -242,6 +256,18 @@ export class ViewerManager {
     if (!port || !pending?.length) return;
     for (const body of pending) port.postMessage(body);
     this.pendingBodies.delete(webContents.id);
+    const latest = pending.at(-1);
+    if (
+      latest &&
+      typeof latest === "object" &&
+      !Array.isArray(latest) &&
+      typeof (latest as Record<string, unknown>).text === "string"
+    ) {
+      this.renderedText.set(
+        webContents.id,
+        (latest as Record<string, unknown>).text as string,
+      );
+    }
   }
 
   windowFor(webContents: WebContents): BrowserWindow | undefined {

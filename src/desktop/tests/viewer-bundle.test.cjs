@@ -3,6 +3,60 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { test } = require("node:test");
 const viewer = require("../viewer/viewer-render.js");
+const clipboard = require("../dist/work/clipboard-provenance.js");
+
+test("trusted artifact clipboard tokens bind text, expire and fail closed", () => {
+  const now = 1_000_000;
+  const versionId = "11111111-1111-4111-8111-111111111111";
+  const text = '<script>alert("x")</script>';
+  const html = clipboard.createClipboardHtml(text, versionId, now);
+  assert.equal(html.includes(text), false);
+  assert.deepEqual(clipboard.readClipboardProvenance(html, text, now + 1), {
+    derived: true,
+    sources: [versionId],
+  });
+  assert.deepEqual(clipboard.readClipboardProvenance(html, "transplanted", now), {
+    derived: true,
+    sources: [],
+  });
+  assert.deepEqual(
+    clipboard.readClipboardProvenance(html, text, now + 5 * 60 * 1000),
+    { derived: true, sources: [] },
+  );
+  assert.deepEqual(
+    clipboard.readClipboardProvenance("<p>external</p>", "external", now),
+    { derived: true, sources: [] },
+  );
+  assert.deepEqual(
+    clipboard.readClipboardProvenance(
+      html.replace("wemeet-", "wemeetX-"),
+      text,
+      now,
+    ),
+    { derived: true, sources: [] },
+  );
+  assert.deepEqual(
+    clipboard.readClipboardProvenance(`${html}${html}`, text, now),
+    { derived: true, sources: [] },
+  );
+  const tampered = html.replace(
+    /wemeet-clipboard-source-v1:([A-Za-z0-9_-]+)/,
+    (_match, token) =>
+      `wemeet-clipboard-source-v1:${token[0] === "A" ? "B" : "A"}${token.slice(1)}`,
+  );
+  assert.deepEqual(clipboard.readClipboardProvenance(tampered, text, now), {
+    derived: true,
+    sources: [],
+  });
+  assert.deepEqual(
+    clipboard.readClipboardProvenance(
+      clipboard.createClipboardHtml("external", null, now),
+      "external",
+      now,
+    ),
+    { derived: true, sources: [] },
+  );
+});
 
 test("viewer renders untrusted content only through textContent", () => {
   const element = { textContent: "" };

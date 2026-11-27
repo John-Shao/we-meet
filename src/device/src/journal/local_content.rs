@@ -290,6 +290,8 @@ pub struct LocalDraftRow {
     pub auth_epoch: u64,
     pub base_version_id: String,
     pub base_byte_count: u64,
+    pub clipboard_derived: bool,
+    pub clipboard_source_version_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -322,8 +324,31 @@ fn valid_digest(value: &str) -> bool {
     raw.len() == 64 && raw.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
+pub(crate) fn valid_clipboard_sources(derived: bool, sources: &[String]) -> bool {
+    if !derived {
+        return sources.is_empty();
+    }
+    if sources.len() > 16 {
+        return false;
+    }
+    let mut seen = std::collections::HashSet::new();
+    sources
+        .iter()
+        .all(|source| valid_uuid(source) && seen.insert(source.as_str()))
+}
+
 fn draft_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<LocalDraftRow> {
-    Ok(LocalDraftRow {
+    let clipboard_source_version_ids = match row.get::<_, Option<String>>(15)? {
+        Some(raw) => serde_json::from_str::<Vec<String>>(&raw).map_err(|error| {
+            rusqlite::Error::FromSqlConversionFailure(
+                15,
+                rusqlite::types::Type::Text,
+                Box::new(error),
+            )
+        })?,
+        None => Vec::new(),
+    };
+    let draft = LocalDraftRow {
         version_id: row.get(0)?,
         request_id: row.get(1)?,
         artifact_id: row.get(2)?,
@@ -338,12 +363,18 @@ fn draft_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<LocalDraftRow> {
         auth_epoch: row.get::<_, i64>(11)? as u64,
         base_version_id: row.get(12)?,
         base_byte_count: row.get::<_, i64>(13)? as u64,
-    })
+        clipboard_derived: row.get::<_, i64>(14)? != 0,
+        clipboard_source_version_ids,
+    };
+    if !valid_clipboard_sources(draft.clipboard_derived, &draft.clipboard_source_version_ids) {
+        return Err(rusqlite::Error::InvalidQuery);
+    }
+    Ok(draft)
 }
 
 const DRAFT_COLUMNS: &str = "version_id, request_id, artifact_id, task_id, base_version_no,
     base_hash, format, sealed_hash, byte_count, publish_state, created_at, auth_epoch,
-    base_version_id, base_byte_count";
+    base_version_id, base_byte_count, clipboard_derived, clipboard_source_version_ids";
 
 fn expire_drafts(conn: &Connection, now: u64) -> rusqlite::Result<()> {
     conn.execute(
@@ -372,6 +403,7 @@ pub fn prepare_draft(
         || !valid_digest(&row.base_hash)
         || !valid_digest(&row.content_hash)
         || !matches!(row.format.as_str(), "md" | "txt" | "json")
+        || !valid_clipboard_sources(row.clipboard_derived, &row.clipboard_source_version_ids)
         || plaintext.len() as u64 != row.byte_count
         || crate::sha256_hex(plaintext)
             != row
@@ -434,6 +466,8 @@ pub fn prepare_draft(
                 && existing.format == row.format
                 && existing.content_hash == row.content_hash
                 && existing.byte_count == row.byte_count
+                && existing.clipboard_derived == row.clipboard_derived
+                && existing.clipboard_source_version_ids == row.clipboard_source_version_ids
             {
                 return read_draft(conn, dek, ctx, &row.version_id)?
                     .ok_or(RecordError::InvalidLocalDraft);
@@ -448,15 +482,18 @@ pub fn prepare_draft(
     persisted.publish_state = "pending_confirm".into();
     persisted.created_at = now_secs();
     persisted.base_byte_count = base_byte_count;
+    let clipboard_sources = serde_json::to_string(&persisted.clipboard_source_version_ids)
+        .map_err(|_| RecordError::InvalidLocalDraft)?;
     conn.execute(
         "INSERT INTO local_content
             (version_id, origin, publish_state, classification, sealed_hash, base_version,
              base_version_no, base_hash, artifact_id, task_id, request_id, logical_name,
              format, byte_count, sealed_blob_hash, sealed_blob, created_at, auth_epoch,
-             base_version_id, base_byte_count, grant_ref)
+             base_version_id, base_byte_count, grant_ref, clipboard_derived,
+             clipboard_source_version_ids)
          VALUES (?1, 'user_edit', 'pending_confirm', 'local_only', ?2, ?3, ?3, ?4,
                  ?5, ?6, ?7, ?5, ?8, ?9, ?2, ?10, ?11, ?12, ?13, ?14,
-                 (SELECT grant_ref FROM local_content WHERE version_id = ?13))",
+                 (SELECT grant_ref FROM local_content WHERE version_id = ?13), ?15, ?16)",
         params![
             persisted.version_id,
             persisted.content_hash,
@@ -472,6 +509,8 @@ pub fn prepare_draft(
             persisted.auth_epoch as i64,
             persisted.base_version_id,
             persisted.base_byte_count as i64,
+            persisted.clipboard_derived as i64,
+            clipboard_sources,
         ],
     )?;
     Ok(LocalDraftBody {
@@ -512,7 +551,7 @@ fn read_draft_in_states(
              OR (?2 = 1 AND publish_state IN ('pending_confirm', 'pending_publish', 'expired')))"
     ))?;
     let mut rows = stmt.query_map(params![version_id, retained], |r| {
-        Ok((draft_from_row(r)?, r.get::<_, Vec<u8>>(14)?))
+        Ok((draft_from_row(r)?, r.get::<_, Vec<u8>>(16)?))
     })?;
     let Some(item) = rows.next() else {
         return Ok(None);
@@ -558,7 +597,7 @@ pub fn list_drafts(
          ORDER BY created_at DESC, version_id"
     ))?;
     let rows = stmt.query_map(params![artifact_id, task_id], |r| {
-        Ok((draft_from_row(r)?, r.get::<_, Vec<u8>>(14)?))
+        Ok((draft_from_row(r)?, r.get::<_, Vec<u8>>(16)?))
     })?;
     let mut drafts = Vec::new();
     for item in rows {
@@ -585,7 +624,8 @@ fn stored_confirmation(
     let mut stmt = conn.prepare(
         "SELECT version_id, request_id, artifact_id, task_id, base_version_no,
                 base_hash, format, sealed_hash, byte_count, publish_state, created_at,
-                auth_epoch, base_version_id, base_byte_count, output_identity, proof_bytes
+                auth_epoch, base_version_id, base_byte_count, clipboard_derived,
+                clipboard_source_version_ids, output_identity, proof_bytes
          FROM local_content
          WHERE request_id = ?1 AND origin = 'user_edit'
            AND publish_state IN ('pending_publish', 'published')",
@@ -593,8 +633,8 @@ fn stored_confirmation(
     let mut rows = stmt.query_map([request_id], |r| {
         Ok((
             draft_from_row(r)?,
-            r.get::<_, Option<String>>(14)?,
-            r.get::<_, Option<Vec<u8>>>(15)?,
+            r.get::<_, Option<String>>(16)?,
+            r.get::<_, Option<Vec<u8>>>(17)?,
         ))
     })?;
     let Some(item) = rows.next() else {
@@ -684,8 +724,8 @@ pub fn confirm_draft(
         "content_hash": raw_hash(&body.row.content_hash),
         "bytes": body.row.byte_count,
         "classification": "local_only",
-        "clipboard_derived": false,
-        "clipboard_source_version_ids": [],
+        "clipboard_derived": body.row.clipboard_derived,
+        "clipboard_source_version_ids": body.row.clipboard_source_version_ids.clone(),
         "client_request_id": body.row.request_id,
         "nonce": uuid::Uuid::new_v4().simple().to_string(),
         "expires_at": expires_at,
@@ -760,8 +800,8 @@ pub fn read_published_draft_copy(
     let mut rows = stmt.query_map(params![request_id, sealed_hash], |r| {
         Ok((
             draft_from_row(r)?,
-            r.get::<_, Vec<u8>>(14)?,
-            r.get::<_, Option<String>>(15)?,
+            r.get::<_, Vec<u8>>(16)?,
+            r.get::<_, Option<String>>(17)?,
         ))
     })?;
     let Some(item) = rows.next() else {
@@ -904,6 +944,7 @@ mod tests {
     use super::*;
     use crate::journal::schema;
     use crate::key::DeviceKey;
+    use serde_json::{json, Value};
 
     fn conn() -> Connection {
         let c = Connection::open_in_memory().unwrap();
@@ -1088,6 +1129,32 @@ mod tests {
             auth_epoch: 4,
             base_version_id: "99999999-9999-4999-8999-999999999999".into(),
             base_byte_count: 4,
+            clipboard_derived: false,
+            clipboard_source_version_ids: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn corrupt_clipboard_provenance_never_defaults_to_no_source() {
+        let c = conn();
+        let dek = [17; 32];
+        seed_base(&c, &dek);
+        let bytes = b"protected edit";
+        let mut row = draft(
+            "33333333-3333-4333-8333-333333333333",
+            "44444444-4444-4444-8444-444444444444",
+        );
+        row.content_hash = crate::sha256_hex(bytes);
+        row.byte_count = bytes.len() as u64;
+        row.clipboard_derived = true;
+        prepare_draft(&c, &dek, &context(), &row, bytes).unwrap();
+        for corrupt in ["not-json", r#"["not-a-uuid"]"#] {
+            c.execute(
+                "UPDATE local_content SET clipboard_source_version_ids = ?1 WHERE version_id = ?2",
+                params![corrupt, row.version_id],
+            )
+            .unwrap();
+            assert!(read_draft(&c, &dek, &context(), &row.version_id).is_err());
         }
     }
 
@@ -1275,6 +1342,23 @@ mod tests {
     }
 
     #[test]
+    fn clipboard_sources_require_unique_version_uuids() {
+        assert!(valid_clipboard_sources(false, &[]));
+        assert!(!valid_clipboard_sources(
+            false,
+            &["11111111-1111-4111-8111-111111111111".into()]
+        ));
+        assert!(valid_clipboard_sources(true, &[]));
+        assert!(!valid_clipboard_sources(true, &["not-a-uuid".into()]));
+        let source = "11111111-1111-4111-8111-111111111111".to_string();
+        assert!(!valid_clipboard_sources(
+            true,
+            &[source.clone(), source.clone()]
+        ));
+        assert!(valid_clipboard_sources(true, &[source]));
+    }
+
+    #[test]
     fn draft_confirmation_signs_closed_proof_and_replays_until_published() {
         let c = conn();
         let dek = [13; 32];
@@ -1287,6 +1371,8 @@ mod tests {
         );
         row.content_hash = crate::sha256_hex(bytes);
         row.byte_count = bytes.len() as u64;
+        row.clipboard_derived = true;
+        row.clipboard_source_version_ids = vec!["99999999-9999-4999-8999-999999999999".into()];
         prepare_draft(&c, &dek, &context(), &row, bytes).unwrap();
         let device = "dddddddd-dddd-dddd-dddd-dddddddddddd";
         let session = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
@@ -1314,6 +1400,24 @@ mod tests {
         assert!(first.proof.get("signature").is_none());
         assert_eq!(first.proof["task_id"], row.task_id);
         assert_eq!(first.proof["auth_epoch"], 4);
+        assert_eq!(first.proof["clipboard_derived"], true);
+        assert_eq!(
+            first.proof["clipboard_source_version_ids"],
+            json!(["99999999-9999-4999-8999-999999999999"])
+        );
+        let (stored_derived, stored_sources): (i64, Option<String>) = c
+            .query_row(
+                "SELECT clipboard_derived, clipboard_source_version_ids
+                 FROM local_content WHERE version_id = ?1",
+                [&row.version_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(stored_derived, 1);
+        assert_eq!(
+            serde_json::from_str::<Value>(&stored_sources.unwrap()).unwrap(),
+            json!(["99999999-9999-4999-8999-999999999999"])
+        );
         assert!(crate::userversion::verify(
             &key.public_jwk(),
             &first.proof,

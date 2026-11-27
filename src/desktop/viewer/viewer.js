@@ -28,6 +28,9 @@
   let draft = null;
   let pendingApproval = null;
   let pendingAcceptance = null;
+  let clipboardDerived = false;
+  let clipboardSources = [];
+  let pendingPaste = null;
   let busy = false;
 
   function setBusy(value) {
@@ -87,6 +90,9 @@
       draft = message.draft ?? null;
       pendingApproval = null;
       pendingAcceptance = null;
+      clipboardDerived = false;
+      clipboardSources = [];
+      pendingPaste = null;
       approval.hidden = true;
       approvalDestinationWarning.hidden = true;
       artifactAccept.hidden = true;
@@ -192,6 +198,42 @@
       setBusy(false);
       return;
     }
+    if (value.type === "clipboard_paste") {
+      if (
+        !edit ||
+        !pendingPaste ||
+        typeof value.text !== "string" ||
+        value.clipboard_derived !== true ||
+        !Array.isArray(value.clipboard_source_version_ids) ||
+        value.clipboard_source_version_ids.length > 16 ||
+        !value.clipboard_source_version_ids.every(function (source) {
+          return typeof source === "string" &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(source);
+        }) ||
+        new Set(value.clipboard_source_version_ids).size !==
+          value.clipboard_source_version_ids.length ||
+        new TextEncoder().encode(value.text).length > api.MAX_TEXT_BYTES ||
+        value.text.includes("\x00")
+      ) {
+        pendingPaste = null;
+        setBusy(false);
+        return;
+      }
+      body.setRangeText(
+        value.text,
+        pendingPaste.start,
+        pendingPaste.end,
+        "end",
+      );
+      pendingPaste = null;
+      clipboardDerived = true;
+      clipboardSources = value.clipboard_source_version_ids;
+      status.textContent = clipboardSources.length
+        ? "已粘贴受保护的本机成果内容；来源分类已继承，仅允许保存到本机。"
+        : "已粘贴内容；无法验证本机成果来源，仅允许保存到本机。";
+      setBusy(false);
+      return;
+    }
     if (value.type === "draft") {
       if (
         !edit ||
@@ -254,6 +296,25 @@
       setBusy(false);
     }
   });
+  content.addEventListener("copy", function (event) {
+    if (edit || !globalThis.weMeetViewer) return;
+    const selected = globalThis.getSelection()?.toString() ?? "";
+    if (!selected || selected !== content.textContent) return;
+    event.preventDefault();
+    globalThis.weMeetViewer.send("copyLocalArtifactVersion", {
+      text: content.textContent,
+    });
+  });
+  body.addEventListener("paste", function (event) {
+    if (!edit || draft || busy) return;
+    event.preventDefault();
+    pendingPaste = {
+      start: body.selectionStart,
+      end: body.selectionEnd,
+    };
+    setBusy(true);
+    globalThis.weMeetViewer.send("pasteLocalArtifactText", {});
+  });
   prepare.addEventListener("click", function () {
     if (!edit || busy) return;
     const text = body.value;
@@ -262,7 +323,11 @@
       return;
     }
     setBusy(true);
-    status.textContent = "";
+    status.textContent = clipboardDerived
+      ? clipboardSources.length
+        ? "保存本机草稿；已继承粘贴来源的分类。"
+        : "保存本机草稿；粘贴内容来源不可验证，按 local_only 处理。"
+      : "";
     globalThis.weMeetViewer.send("prepareUserArtifactVersion", {
       artifact_id: edit.artifact_id,
       base_version_no: edit.base_version_no,
