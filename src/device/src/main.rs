@@ -74,9 +74,16 @@ struct BrokerConfig {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(String::as_str) == Some("--uninstall") {
+        if let Err(err) = run_uninstall(&args[2..]) {
+            eprintln!("work-device: {err}");
+            std::process::exit(1);
+        }
+        return;
+    }
     // Teardown primitive: a persisted CNG container is a real user-profile artefact, so removing it
     // must be an explicit operation rather than a side effect of a failed start. The local
-    // full-chain evidence uses it to leave nothing behind; uninstall (§8) will need the same call.
+    // full-chain evidence uses it to leave nothing behind; uninstall (§8) uses the same call.
     if args.get(1).map(String::as_str) == Some("--delete-container") {
         match args.get(2) {
             Some(name) => match delete_container(name) {
@@ -103,6 +110,83 @@ fn main() {
         eprintln!("work-device: {err}");
         std::process::exit(1);
     }
+}
+
+fn run_uninstall(args: &[String]) -> Result<(), String> {
+    use std::path::PathBuf;
+    use work_device::upgrade::uninstall::{self, UninstallMode};
+
+    let mut journal = None;
+    let mut mode = None;
+    let mut support_package = None;
+    let mut support_key = None;
+    let mut acknowledge_loss = false;
+    let mut container = None;
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--journal" => {
+                journal = Some(PathBuf::from(
+                    args.get(index + 1).ok_or("missing --journal value")?,
+                ));
+                index += 2;
+            }
+            "--mode" => {
+                mode = Some(match args.get(index + 1).map(String::as_str) {
+                    Some("preserve") => UninstallMode::Preserve,
+                    Some("delete") => UninstallMode::Delete,
+                    _ => return Err("--mode must be preserve or delete".into()),
+                });
+                index += 2;
+            }
+            "--support-package" => {
+                support_package = Some(PathBuf::from(
+                    args.get(index + 1)
+                        .ok_or("missing --support-package value")?,
+                ));
+                index += 2;
+            }
+            "--support-key" => {
+                support_key = Some(PathBuf::from(
+                    args.get(index + 1).ok_or("missing --support-key value")?,
+                ));
+                index += 2;
+            }
+            "--acknowledge-loss" => {
+                acknowledge_loss = true;
+                index += 1;
+            }
+            "--container" => {
+                container = Some(
+                    args.get(index + 1)
+                        .ok_or("missing --container value")?
+                        .clone(),
+                );
+                index += 2;
+            }
+            other => return Err(format!("unknown --uninstall option: {other}")),
+        }
+    }
+    let journal = journal.ok_or("--journal is required")?;
+    let mode = mode.ok_or("--mode is required")?;
+    if support_package.is_some() != support_key.is_some() {
+        return Err("--support-package and --support-key must be supplied together".into());
+    }
+    if container.is_some() && mode != UninstallMode::Delete {
+        return Err("--container is only valid with --mode delete".into());
+    }
+    if let (Some(output), Some(key_path)) = (support_package, support_key) {
+        let key = uninstall::read_support_key(&key_path).map_err(|err| err.to_string())?;
+        uninstall::write_support_package(&journal, &key, &output).map_err(|err| err.to_string())?;
+    }
+    let summary = uninstall::remove_journal(&journal, mode, acknowledge_loss)
+        .map_err(|err| err.to_string())?;
+    if let Some(name) = container {
+        delete_container(&name)?;
+    }
+    let rendered = serde_json::to_string(&summary).map_err(|err| format!("summary: {err}"))?;
+    println!("uninstall_mode={mode:?} summary={rendered}");
+    Ok(())
 }
 
 #[cfg(windows)]
