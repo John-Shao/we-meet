@@ -107,6 +107,14 @@ impl LocalIntent {
     }
 
     pub fn validate(&self) -> Result<(), sign::SignError> {
+        self.validate_grant_set(false)
+    }
+
+    pub fn validate_configuration_probe(&self) -> Result<(), sign::SignError> {
+        self.validate_grant_set(true)
+    }
+
+    fn validate_grant_set(&self, empty_grants: bool) -> Result<(), sign::SignError> {
         if self.v != 1
             || !valid_text(&self.org_id, 256)
             || !valid_text(&self.subject_id, 256)
@@ -118,7 +126,11 @@ impl LocalIntent {
             || !valid_digest(&self.input_hash)
             || !valid_preview(&self.preview_hash)
             || !valid_digest(&self.target_selection_hash)
-            || !(1..=4).contains(&self.selected_grant_ids.len())
+            || (if empty_grants {
+                !self.selected_grant_ids.is_empty()
+            } else {
+                !(1..=4).contains(&self.selected_grant_ids.len())
+            })
             || self.selected_grant_ids.len() != self.grant_revisions.len()
             || !valid_text(&self.profile_id, 128)
             || !valid_uint(&self.profile_revision.to_string())
@@ -153,6 +165,13 @@ impl LocalIntent {
         self.signature = Some(sign(key, &value)?);
         Ok(())
     }
+
+    pub fn sign_configuration_probe(&mut self, key: &dyn DeviceKey) -> Result<(), sign::SignError> {
+        self.validate_configuration_probe()?;
+        let value = self.to_value();
+        self.signature = Some(sign(key, &value)?);
+        Ok(())
+    }
 }
 
 pub fn sign(key: &dyn DeviceKey, proof: &Value) -> Result<String, sign::SignError> {
@@ -160,6 +179,21 @@ pub fn sign(key: &dyn DeviceKey, proof: &Value) -> Result<String, sign::SignErro
 }
 
 pub fn produce(key: &dyn DeviceKey, input: LocalIntentInput) -> Result<Value, sign::SignError> {
+    produce_with_grant_set(key, input, false)
+}
+
+pub fn produce_configuration_probe(
+    key: &dyn DeviceKey,
+    input: LocalIntentInput,
+) -> Result<Value, sign::SignError> {
+    produce_with_grant_set(key, input, true)
+}
+
+fn produce_with_grant_set(
+    key: &dyn DeviceKey,
+    input: LocalIntentInput,
+    empty_grants: bool,
+) -> Result<Value, sign::SignError> {
     let auth_epoch = input
         .auth_epoch
         .parse::<u64>()
@@ -194,7 +228,11 @@ pub fn produce(key: &dyn DeviceKey, input: LocalIntentInput) -> Result<Value, si
         expires_at,
         signature: None,
     };
-    intent.sign(key)?;
+    if empty_grants {
+        intent.sign_configuration_probe(key)?;
+    } else {
+        intent.sign(key)?;
+    }
     Ok(intent.to_value())
 }
 
@@ -257,6 +295,64 @@ mod tests {
             .selected_grant_ids
             .push("44444444-4444-4444-8444-444444444444".into());
         assert!(!verify_frame(&jwk, FRAME_TYPE, &intent.to_value(), &sig));
+    }
+
+    #[test]
+    fn configuration_probe_uses_the_same_domain_with_an_empty_grant_set() {
+        let key = SoftwareKey::random();
+        let jwk = key.public_jwk();
+        let mut probe = sample();
+        probe.selected_grant_ids.clear();
+        probe.grant_revisions.clear();
+        assert!(probe.validate().is_err());
+        probe.sign_configuration_probe(&key).unwrap();
+        let signature = probe.signature.clone().unwrap();
+        assert!(verify_frame(
+            &jwk,
+            FRAME_TYPE,
+            &probe.to_value(),
+            &signature
+        ));
+
+        let mut ordinary = sample();
+        ordinary.selected_grant_ids.clear();
+        ordinary.grant_revisions.clear();
+        assert!(ordinary.validate_configuration_probe().is_ok());
+        ordinary
+            .selected_grant_ids
+            .push("33333333-3333-4333-8333-333333333333".into());
+        ordinary.grant_revisions.push("1".into());
+        assert!(ordinary.validate_configuration_probe().is_err());
+
+        let produced = produce_configuration_probe(
+            &key,
+            LocalIntentInput {
+                org_id: "org".into(),
+                subject_id: "subject".into(),
+                auth_epoch: "3".into(),
+                device_id: sample().device_id,
+                session_id: sample().session_id,
+                request_id: "configuration-probe-1".into(),
+                input_hash: "a".repeat(64),
+                preview_hash: "p1.preview.signature".into(),
+                target_selection_hash: "b".repeat(64),
+                selected_grant_ids: vec![],
+                grant_revisions: vec![],
+                profile_id: "local-profile".into(),
+                profile_revision: "2".into(),
+                profile_hash: "c".repeat(64),
+            },
+        )
+        .unwrap();
+        let produced_signature = produced["signature"].as_str().unwrap();
+        assert!(verify_frame(
+            &jwk,
+            FRAME_TYPE,
+            &produced,
+            produced_signature
+        ));
+        let parsed: LocalIntent = serde_json::from_value(produced).unwrap();
+        assert!(parsed.validate_configuration_probe().is_ok());
     }
 
     #[test]
