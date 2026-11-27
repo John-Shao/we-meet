@@ -1,10 +1,12 @@
 import uuid
+from datetime import datetime, timedelta
 from unittest import mock
 
 from django.contrib import admin
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import DatabaseError, transaction
 from django.test import RequestFactory, override_settings
+from django.utils import timezone
 
 import pytest
 from rest_framework.exceptions import ValidationError as DRFValidationError
@@ -315,6 +317,34 @@ def test_governance_endpoint_empty_paginated_and_cursor_contract(client):
     }
     second_page = _event_payload(client, organization, after_event_seq=1, limit=1)
     assert [event["event_seq"] for event in second_page["events"]] == [2]
+
+
+@override_settings(
+    WORK_HOST_MTLS_CA_PEM=CA_PEM,
+    WORK_HOST_MTLS_CLIENT_IDENTITY="work-control-plane",
+    WORK_HOST_GOVERNANCE_EVENTS_IDENTITY="work-governance-events",
+)
+def test_governance_event_older_than_365_days_remains_readable(client):
+    organization = factories.OrganizationFactory()
+    _enable_seats(organization)
+    membership = factories.MembershipFactory(organization=organization)
+    applied_at = timezone.now().replace(microsecond=0) - timedelta(days=366)
+
+    with mock.patch(
+        "core.services.work_governance.timezone.now", return_value=applied_at
+    ):
+        event = work_governance.change_seat(membership, desired=True)
+
+    payload = _event_payload(client, organization)
+
+    assert event.applied_at == applied_at
+    assert payload["latest_event_seq"] == 1
+    assert payload["gap"] is None
+    assert [item["command_id"] for item in payload["events"]] == [str(event.command_id)]
+    returned_at = datetime.fromisoformat(
+        payload["events"][0]["applied_at"].replace("Z", "+00:00")
+    )
+    assert returned_at == applied_at
 
 
 @override_settings(
