@@ -136,7 +136,7 @@ R0b 设备面（**未实现**）再加一层：Rust Broker 持真实文件句柄
 - 用户事件由 SSE 直接读持久事件表，不经外部总线；断线按游标补读，游标过期要求重同步。
 - 对账器（`src/work/cmd/work-reconcile` 与 `src/work/deploy/ecs/` 的定时扫描单元）只能调用同一领域命令，不人工改库绕过已批准内容与预算。
 - outbox 的事件种类是闭集，未知种类以**非重试**方式判失败。因此取消意图一类需要独立告警语义的载体不塞进 outbox，而是自己的表（R0b 迁移 0019 明确拒绝了"取消 outbox"方案）。
-- 取消意图的消费者是独立进程（`src/work/internal/cancellation` ＋ `src/work/cmd/work-cancel`，systemd oneshot timer，迁移 0057）：逐 org 配置清单、work_worker 租户上下文（无跨组织 claim），只调 claim/consume/fail 三条领域命令，进已登记的 `cancel_requested` 路径并写 relay 的 `cancel_signal` 交接；不发帧、不写 Run 终态，死信告警是审计行、重放只能由 work_ops 发起。**入包≠安装**：rollout 只装二进制，单元与 env 未安装（M3 线）。
+- 取消意图的消费者是独立进程（`src/work/internal/cancellation` ＋ `src/work/cmd/work-cancel`，systemd oneshot timer，迁移 0057）：逐 org 配置清单、work_worker 租户上下文（无跨组织 claim），只调 claim/consume/fail 三条领域命令，进已登记的 `cancel_requested` 路径并写 relay 的 `cancel_signal` 交接；不发帧、不写 Run 终态，死信告警是审计行、重放只能由 work_ops 发起。full rollout 写前要求配置清单精确覆盖 `work.org` 全集，再安装并启用 unit/timer；现网尚未执行该部署。
 
 ### 4.4 提交、启动与收尾的持久性顺序
 

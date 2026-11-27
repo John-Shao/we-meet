@@ -5,11 +5,9 @@
 // rather than a red unit. This guard pins the wiring that carries those rulings, in the same shape
 // as c16-timer-wiring: package, schedule, executor, and the boundary the code must not cross.
 //
-// Deliberately NOT asserted here: that the host runs it. rollout installs the binary only - the
-// unit, the timer and /etc/work/work-cancel.env are not installed or enabled (M3 line, outside the
-// ruled rollout package), and verify's closure section reports the three as deployment state.
-// Packaging is not installing, so a gate that demanded an install line would be demanding an
-// unauthorized production write.
+// The host run is a separate deployment authorization. This guard pins that full rollout proves
+// exact work.org coverage before any write, installs the unit/timer/env permissions, enables the
+// timer, and that the read-only verifier fails closed when the consumer is absent or partial.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
@@ -61,7 +59,7 @@ test('the timer schedules that service, and the service runs a binary the tree b
 test('the org list is configuration the binary reads, and an empty list is a refusal', () => {
   const env = read(ENV);
   const main = read(MAIN);
-  assert.match(env, /^WORK_CANCEL_ORGS=/m, 'the template must carry the org list knob');
+  assert.match(env, /^WORK_CANCEL_ORGS=$/m, 'the packaged template must stay empty until an operator supplies the exact org set');
   assert.match(main, /Getenv\("WORK_CANCEL_ORGS"\)/, 'the binary must read the knob the template advertises');
   assert.match(main, /WORK_CANCEL_ORGS is empty/,
     'a worker cannot enumerate orgs under FORCE RLS, so an empty list is a misconfigured unit, not a clean pass');
@@ -100,6 +98,30 @@ test('the dead-letter alert is an audit row, and the unit rc reports infrastruct
   const rollout = read(join(ECS, 'rollout-r0a-0027.sh'));
   assert.match(rollout, /for bin in [^\n]*work-cancel/,
     'the binary needs an install path like every other cmd/ entry (the release-assets exhaustiveness gate)');
+  assert.match(rollout, /verify_cancel_org_coverage\(\)/,
+    'full rollout must have an explicit org coverage guard');
+  assert.match(rollout, /verify_cancel_org_coverage\n/,
+    'the coverage guard must actually be called, not merely declared');
+  assert.match(rollout, /configured="\$\(grep '\^WORK_CANCEL_ORGS='[^\n]*\|\| true\)"/,
+    'a missing org line must reach the explicit empty-list refusal, not trip pipefail first');
+  assert.match(rollout, /select id from work\.org/,
+    'coverage must compare against the database org set, not a second hand-written list');
+  assert.match(rollout, /run chown root:work-control \/etc\/work\/work-cancel\.env/,
+    'the operator-provisioned env must be tightened without being replaced');
+  assert.match(rollout, /run chmod 640 \/etc\/work\/work-cancel\.env/);
+  for (const unit of ['work-cancel.service', 'work-cancel.timer']) {
+    assert.ok(rollout.includes(`"$RELEASE/$unit"`), `rollout must install ${unit}`);
+  }
+  assert.match(rollout, /run systemctl enable work-cancel\.timer/,
+    'the consumer needs a persistent schedule');
+  assert.match(rollout, /run systemctl start work-cancel\.timer/,
+    'the schedule must become active in the same authorized rollout');
   assert.ok(!/^install_env work-cancel$/m.test(rollout),
-    'installing the env would be a production write outside the ruled rollout package');
+    'the empty template must never overwrite or stand in for operator-provisioned org coverage');
+  assert.match(verify, /work_cancel_consumer=true/,
+    'verify must publish a positive consumer verdict');
+  assert.match(verify, /work_cancel_consumer=FALSE/,
+    'verify must have a negative branch');
+  assert.match(verify, /work_cancel_consumer=FALSE"\r?\n\s+FAILURES=\$\(\(FAILURES \+ 1\)\)/,
+    'missing or partial consumer deployment must fail the official verifier');
 });

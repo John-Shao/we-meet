@@ -440,9 +440,8 @@ echo "== deploy/ecs closure files (卡片 W: packaged != installed) =="
 # 同日补的 work-chain-check.service）加安装步骤，其余逐名走这里的读数。present＝主机上有这一份
 # （多数是初次装机手工放的，仓库此刻才有出处）；MISSING＝按本包重建的主机上会缺。两者都是部署状态，
 # 不进 FAILURES（与上面 drill 二进制、restore drill 同一口径：本脚本只报，不因此拒绝）。
-# 2026-11-17（0057／GW16）：work-cancel 三件同口径入包不入安装——它是 M3 线（0046–0058），不在
-# 已裁 rollout 包（0040–0045／39→45）内，rollout 没有它的安装步骤。这里逐名报在位性，让"包里有、
-# 主机还没装"出现在验收转写里；env 读的是安装态 /etc/work/work-cancel.env，不是 .example 模板。
+# 2026-11-27：work-cancel 三件已进入 full rollout 安装链；env 仍由操作员按 work.org 全集预置。
+# 本段保留 present/MISSING 的 report-only 语义；消费者是否真正可运行由后面的独立硬判据负责。
 for pair in \
   "work-relay.service:/etc/systemd/system/work-relay.service" \
   "work-worker.service:/etc/systemd/system/work-worker.service" \
@@ -473,6 +472,33 @@ for pair in \
   printf '  %s -> %s = %s sha16(cr-stripped)=%s\n' \
     "$name" "$host" "$(test -e "$host" && echo present || echo MISSING)" "$host_sha16"
 done
+
+echo
+echo "== cancellation consumer (GW16) =="
+# Unlike the report-only closure list above, this is an executable acceptance criterion: a host
+# that has not run the authorized full rollout must fail rather than look ready.
+cancel_env="/etc/work/work-cancel.env"
+cancel_configured=""
+cancel_database=""
+if [[ -r "$cancel_env" ]]; then
+  cancel_configured="$(grep '^WORK_CANCEL_ORGS=' "$cancel_env" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
+fi
+if ! cancel_database="$(runuser -u postgres -- psql -d work -X -At -v ON_ERROR_STOP=1 -c 'select id from work.org')"; then
+  cancel_database=""
+fi
+cancel_configured_sorted="$(printf '%s\n' "$cancel_configured" | tr '[:space:]' '\n' | sed '/^$/d' | sort -u)"
+cancel_database_sorted="$(printf '%s\n' "$cancel_database" | sed '/^$/d' | sort -u)"
+cancel_timer_enabled="$(systemctl is-enabled work-cancel.timer 2>/dev/null || true)"
+cancel_timer_active="$(systemctl is-active work-cancel.timer 2>/dev/null || true)"
+if [[ -x /usr/local/bin/work-cancel && -r "$cancel_env" && \
+      -f /etc/systemd/system/work-cancel.service && -f /etc/systemd/system/work-cancel.timer && \
+      -n "$cancel_configured_sorted" && "$cancel_configured_sorted" == "$cancel_database_sorted" && \
+      "$cancel_timer_enabled" == "enabled" && "$cancel_timer_active" == "active" ]]; then
+  echo "work_cancel_consumer=true"
+else
+  echo "work_cancel_consumer=FALSE"
+  FAILURES=$((FAILURES + 1))
+fi
 
 echo
 echo "== runstream gauges wiring (C17 minimal set) =="

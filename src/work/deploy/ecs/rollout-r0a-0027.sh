@@ -227,6 +227,34 @@ install_env() {
   echo "installed $target from template; review placeholders before starting"
 }
 
+verify_cancel_org_coverage() {
+  local env_file="/etc/work/work-cancel.env"
+  local configured database configured_sorted database_sorted
+  if [[ ! -r "$env_file" ]]; then
+    echo "aborting: $env_file is required before enabling work-cancel; copy the packaged template," >&2
+    echo "  set WORK_CANCEL_ORGS to the complete work.org id list, and chown root:work-control/chmod 640." >&2
+    exit 1
+  fi
+  if [[ ! -r /etc/work/work-worker.env ]]; then
+    echo "aborting: work-cancel.service reuses /etc/work/work-worker.env, but it is missing or unreadable." >&2
+    exit 1
+  fi
+  configured="$(grep '^WORK_CANCEL_ORGS=' "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
+  if ! database="$(runuser -u postgres -- psql -d work -X -At -v ON_ERROR_STOP=1 -c 'select id from work.org')"; then
+    echo "aborting: could not read work.org for work-cancel coverage; a partial org list is not safe." >&2
+    exit 1
+  fi
+  configured_sorted="$(printf '%s\n' "$configured" | tr '[:space:]' '\n' | sed '/^$/d' | sort -u)"
+  database_sorted="$(printf '%s\n' "$database" | sed '/^$/d' | sort -u)"
+  if [[ -z "$configured_sorted" || "$configured_sorted" != "$database_sorted" ]]; then
+    echo "aborting: WORK_CANCEL_ORGS must exactly cover every work.org id before work-cancel is enabled." >&2
+    echo "configured:" >&2; printf '%s\n' "$configured_sorted" >&2
+    echo "database:" >&2; printf '%s\n' "$database_sorted" >&2
+    exit 1
+  fi
+  echo "work-cancel org coverage: $(printf '%s\n' "$database_sorted" | wc -l) organization(s), exact match"
+}
+
 echo "== 1. preflight =="
 # ledger_max reports its own reason and returns non-zero; `set -e` would end the script there
 # anyway, but this stays explicit so a future `set +e` around here cannot turn "unknown" into a
@@ -311,6 +339,13 @@ if [[ -f "$RELEASE/work-chain-check.service" ]] && [[ ! -r /root/work-secrets.en
     exit 1
   fi
 fi
+if [[ "$MIGRATIONS_ONLY" -eq 0 ]]; then
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo "WARN: a real full rollout would require /etc/work/work-cancel.env to exactly cover work.org"
+  else
+    verify_cancel_org_coverage
+  fi
+fi
 df -h / | tail -1
 systemctl is-active work-api work-relay work-worker || true
 
@@ -383,8 +418,9 @@ echo "== 5. binaries =="
 # work-gateway (R0b GW3) is installed like the other resident binaries but has no systemd unit
 # yet and is not enabled here: it terminates device mTLS and needs the external device CA /
 # server certificate provisioning before it can serve, so installing the file does not start it.
-# work-cancel (R0b GW16, 0057) and work-governance-events (0068) install their binaries only;
-# their units/env are not installed or enabled here, so installation starts no consumer.
+# work-cancel (R0b GW16, 0057) and work-governance-events (0068) install their binaries here;
+# work-cancel's env/unit/timer are installed and scheduled in steps 6/7 after exact org coverage
+# has been proven. work-governance-events remains binary-only until its deployment is authorized.
 for bin in work-api work-relay work-worker work-authz work-content-proxy work-egress work-directory-sync work-reconcile work-export work-provider-setup work-gateway work-cancel work-governance-events work-operator-entitlement; do
   install_binary "$bin"
 done
@@ -413,6 +449,10 @@ fi
 install_env work-authz
 install_env work-content-proxy
 install_env work-egress
+# work-cancel.env is operator-provisioned and exact-covered in preflight; never replace it from
+# the empty package template. Tighten the installed file without printing its contents.
+run chown root:work-control /etc/work/work-cancel.env
+run chmod 640 /etc/work/work-cancel.env
 render_env work-authz
 render_env work-content-proxy
 render_env work-egress
@@ -436,14 +476,26 @@ fi
 run install -m 0644 -o root -g root "$RELEASE/work-api.service" /etc/systemd/system/work-api.service
 run install -m 0644 -o root -g root "$RELEASE/work-chain-check.service" /etc/systemd/system/work-chain-check.service
 run install -m 0755 -o root -g root "$RELEASE/ecs-migrate.sh" /usr/local/bin/ecs-migrate.sh
+# GW16 cancellation consumer: the org list was proven complete before any write. Install the
+# oneshot and its timer as a pair, keep rollback copies, then enable the schedule. Starting the
+# timer does not overlap runs: systemd serializes oneshot activations and the DB claim has its own
+# 60s visibility window.
+for unit in work-cancel.service work-cancel.timer; do
+  if [[ -f "/etc/systemd/system/$unit" ]]; then
+    run cp -p "/etc/systemd/system/$unit" "/etc/systemd/system/$unit.bak-$STAMP"
+  fi
+  run install -m 0644 -o root -g root "$RELEASE/$unit" "/etc/systemd/system/$unit"
+done
 run systemctl daemon-reload
 run systemctl enable work-authz work-content-proxy work-egress
+run systemctl enable work-cancel.timer
 # work-api 在现网早已 enabled＋active（unit 是初次装机手工放的）；这里的 enable 是为了按本包重建的
 # 主机也能开机带出它与它的闸（闸无 [Install]，由 work-api 的 Requires= 拉起来）。
 run systemctl enable work-api
 # restart, not start: step 3 never stops these units, so `start` would be a
 # no-op and the freshly installed binaries would sit on disk unused.
 run systemctl restart work-authz work-content-proxy work-egress
+run systemctl start work-cancel.timer
 
 # #50 A (2026-11-04): the read-only orphan scan ships in the release payload but was never
 # wired on any host, so reconcile visibility depended on someone remembering to run it.

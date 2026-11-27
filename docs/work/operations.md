@@ -50,7 +50,7 @@ unit 权威＝`src/work/deploy/ecs/*.service`（directory-sync 两个 unit 为�
 | work-chain-check.service | 链尾启动闸（oneshot，root） | 无 | /root/work-secrets.env |
 
 - `work-chain-check` 由 `work-api.service` 的 `Requires=` 拉起（卡片 V）；**现网 work-api unit 仍是无此闸的旧版**，随下次 rollout 安装后生效（§3.5）。
-- `work-cancel`（0057／GW16）：一次 oneshot＝对 `WORK_CANCEL_ORGS` 里每个 org 跑一轮有界消费（≤100 Task、≤500 意图），超量保持 pending 且 next_attempt 不变，下一轮继续。它是 work_worker，逐 org 设租户上下文，**没有跨组织 claim**；不发帧、不写 Run 终态，只进已登记的 cancel_requested 路径并写 relay 的 cancel_signal 交接。**入包≠安装**：rollout 未点名它，现网尚未安装（与 0046–0058 同属 M3 线，不在已裁 rollout 包内）。死信告警＝`cancellation_intent.dead_lettered` 审计行（照 outbox 先例），**无 gauge**；重放只能由 work_ops 调 `requeue_cancellation_dead_letter`，consumed 不可重开。
+- `work-cancel`（0057／GW16）：一次 oneshot＝对 `WORK_CANCEL_ORGS` 里每个 org 跑一轮有界消费（≤100 Task、≤500 意图），超量保持 pending 且 next_attempt 不变，下一轮继续。它是 work_worker，逐 org 设租户上下文，**没有跨组织 claim**；不发帧、不写 Run 终态，只进已登记的 cancel_requested 路径并写 relay 的 cancel_signal 交接。**安装链**：full rollout 在任何写入前要求 `/etc/work/work-cancel.env` 的 `WORK_CANCEL_ORGS` 与 `work.org` 全集逐项相等，随后安装 unit/timer、收紧 env 权限并 enable/start timer；空模板不会自动启用消费者。2026-11-27 现网仍缺这三件，须在下一场获授权的 full rollout 中部署。死信告警＝`cancellation_intent.dead_lettered` 审计行（照 outbox 先例），**无 gauge**；重放只能由 work_ops 调 `requeue_cancellation_dead_letter`，consumed 不可重开。
 - Temporal 在 k8s 侧（资产 `deploy/aliyun/temporal/`），worker/relay 经 mTLS 连 `WORK_TEMPORAL_ADDRESS`（模板值 10.43.147.249:7233，namespace `work-r0a`）。
 
 Timer 清单（周期以 `systemctl list-timers` 现读为准）：
