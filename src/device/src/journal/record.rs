@@ -267,6 +267,42 @@ pub fn insert_model_result(
     Ok(())
 }
 
+pub struct ModelProbeResultRow<'a> {
+    pub model_result_id: &'a str,
+    pub org_id: &'a str,
+    pub subject_id: &'a str,
+    pub device_id: &'a str,
+    pub session_id: &'a str,
+    pub binding_id: &'a str,
+    pub probe_id: &'a str,
+    pub preview_hash: &'a str,
+}
+
+pub fn insert_model_probe_result(
+    conn: &Connection,
+    journal_epoch: &str,
+    row: &ModelProbeResultRow<'_>,
+) -> Result<(), RecordError> {
+    conn.execute(
+        "INSERT INTO model_probe_result
+            (model_result_id, journal_epoch, org_id, subject_id, device_id, session_id,
+             binding_id, probe_id, preview_hash)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![
+            row.model_result_id,
+            journal_epoch,
+            row.org_id,
+            row.subject_id,
+            row.device_id,
+            row.session_id,
+            row.binding_id,
+            row.probe_id,
+            row.preview_hash,
+        ],
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

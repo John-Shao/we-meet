@@ -151,6 +151,26 @@ CREATE TABLE IF NOT EXISTS model_result_outbox (
 CREATE INDEX IF NOT EXISTS model_result_outbox_unacked
     ON model_result_outbox(journal_epoch, acked, rejected);
 
+CREATE TABLE IF NOT EXISTS model_probe_result (
+    model_result_id TEXT PRIMARY KEY,
+    journal_epoch    TEXT NOT NULL,
+    org_id           TEXT NOT NULL,
+    subject_id       TEXT NOT NULL,
+    device_id        TEXT NOT NULL,
+    session_id       TEXT NOT NULL,
+    binding_id       TEXT NOT NULL,
+    probe_id         TEXT NOT NULL,
+    preview_hash     TEXT NOT NULL,
+    signed_receipt   BLOB,
+    receipt_signature TEXT,
+    receipt_auth_epoch TEXT,
+    receipt_expires_at TEXT,
+    receipt_delivered INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS model_probe_result_session
+    ON model_probe_result(journal_epoch, session_id, model_result_id);
+
 CREATE TABLE IF NOT EXISTS checkpoint (
     run_id                   TEXT NOT NULL,
     checkpoint_seq           INTEGER NOT NULL,

@@ -273,6 +273,14 @@ pub struct ReceiptFacts {
 /// The checkpoint facts the Node thread supplies. `checkpoint_seq` is the Run-local monotonic
 /// sequence the executor assigns; the commit's `receipt_through_seq` is the receipt watermark the
 /// checkpoint covers (the sync core's last produced seq at production time).
+#[derive(Clone, Debug)]
+pub struct ProbeResultMetadata {
+    pub binding_id: String,
+    pub probe_id: String,
+    pub preview_hash: String,
+}
+
+#[derive(Clone, Debug)]
 pub struct ModelResultFacts {
     pub run_id: String,
     pub operation_id: String,
@@ -286,6 +294,7 @@ pub struct ModelResultFacts {
     pub model: String,
     pub usage: Option<model_result::ModelUsage>,
     pub error_code: Option<String>,
+    pub probe: Option<ProbeResultMetadata>,
 }
 
 pub struct CheckpointFacts {
@@ -933,8 +942,8 @@ fn produce_receipt(
 fn produce_model_result(
     journal: &crate::journal::Journal,
     producer: &Producer,
-    _org_id: &str,
-    _subject_id: &str,
+    org_id: &str,
+    subject_id: &str,
     facts: &ModelResultFacts,
 ) -> JournalReply {
     let conn = journal.connection();
@@ -983,6 +992,34 @@ fn produce_model_result(
                 signed_hash: &signed_hash,
             },
         )?;
+        if let Some(probe) = &facts.probe {
+            let digest = |value: &str| {
+                value.len() == 64
+                    && value
+                        .bytes()
+                        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            };
+            if uuid::Uuid::parse_str(&probe.binding_id).is_err()
+                || uuid::Uuid::parse_str(&probe.probe_id).is_err()
+                || !digest(&probe.preview_hash)
+            {
+                return Err(RecordError::InvalidModelResult);
+            }
+            record::insert_model_probe_result(
+                &tx,
+                journal.journal_epoch(),
+                &record::ModelProbeResultRow {
+                    model_result_id: &result_id,
+                    org_id,
+                    subject_id,
+                    device_id: journal.device_id(),
+                    session_id: &facts.session_id,
+                    binding_id: &probe.binding_id,
+                    probe_id: &probe.probe_id,
+                    preview_hash: &probe.preview_hash,
+                },
+            )?;
+        }
         tx.commit()?;
         Ok((result_id, signed_hash, body_value))
     })();
@@ -1263,8 +1300,15 @@ mod tests {
                 estimated: false,
             }),
             error_code: None,
+            probe: Some(ProbeResultMetadata {
+                binding_id: "50000000-0000-0000-0000-000000000001".into(),
+                probe_id: "60000000-0000-0000-0000-000000000001".into(),
+                preview_hash: "c".repeat(64),
+            }),
         };
         let operation_id = facts.operation_id.clone();
+        let mut invalid_facts = facts.clone();
+        invalid_facts.probe.as_mut().unwrap().preview_hash = "bad".into();
         let reply = execute(
             &journal,
             &producer,
@@ -1287,11 +1331,48 @@ mod tests {
         let frame = up_rx.blocking_recv().unwrap();
         assert_eq!(frame.frame_type, "model_result");
         assert_eq!(frame.body["model_result_id"], result_id);
+        let invalid = execute(
+            &journal,
+            &producer,
+            JournalOp::AppendModelResult {
+                org_id: "org".into(),
+                subject_id: "sub".into(),
+                facts: Box::new(invalid_facts),
+            },
+        );
+        assert!(matches!(
+            invalid,
+            JournalReply::Failed(RecordError::InvalidModelResult)
+        ));
+        assert!(matches!(
+            up_rx.try_recv(),
+            Err(tokio::sync::mpsc::error::TryRecvError::Empty)
+        ));
         let pending =
             recover::unacked_model_results(journal.connection(), journal.journal_epoch(), 10)
                 .unwrap();
         assert_eq!(pending.len(), 1);
         assert_eq!(pending[0].model_result_id, result_id);
+        let probe = recover::probe_result_for_model_result(
+            journal.connection(),
+            journal.journal_epoch(),
+            &result_id,
+            &operation_id,
+        )
+        .unwrap()
+        .expect("probe metadata persisted with the model result");
+        assert_eq!(probe.binding_id, "50000000-0000-0000-0000-000000000001");
+        assert_eq!(probe.probe_id, "60000000-0000-0000-0000-000000000001");
+        assert_eq!(probe.preview_hash, "c".repeat(64));
+        assert!(!probe.acked && !probe.rejected);
+        assert!(recover::probe_result_for_model_result(
+            journal.connection(),
+            journal.journal_epoch(),
+            &result_id,
+            "99999999-0000-0000-0000-000000000001",
+        )
+        .unwrap()
+        .is_none());
         let stored: envelope::Envelope = serde_json::from_slice(&pending[0].signed_bytes).unwrap();
         assert_eq!(stored.frame_type, "model_result");
         assert_eq!(stored.body, frame.body);
@@ -1340,6 +1421,16 @@ mod tests {
                 .is_empty()
         );
         assert_eq!(current_receipt_seq(&journal), 0);
+        let probe = recover::probe_result_for_model_result(
+            journal.connection(),
+            journal.journal_epoch(),
+            &result_id,
+            &operation_id,
+        )
+        .unwrap()
+        .expect("acked probe metadata remains readable");
+        assert!(probe.acked && !probe.rejected);
+        assert_eq!(probe.result_state, "completed");
         drop(journal);
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(path.with_extension("db-wal"));

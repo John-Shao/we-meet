@@ -30,6 +30,58 @@ pub struct OutboxModelResult {
     pub signed_hash: String,
 }
 
+#[derive(Clone, Debug)]
+pub struct ProbeResultRow {
+    pub model_result_id: String,
+    pub operation_id: String,
+    pub org_id: String,
+    pub subject_id: String,
+    pub device_id: String,
+    pub session_id: String,
+    pub binding_id: String,
+    pub probe_id: String,
+    pub preview_hash: String,
+    pub result_state: String,
+    pub signed_bytes: Vec<u8>,
+    pub acked: bool,
+    pub rejected: bool,
+}
+
+pub fn probe_result_for_model_result(
+    conn: &Connection,
+    journal_epoch: &str,
+    model_result_id: &str,
+    operation_id: &str,
+) -> rusqlite::Result<Option<ProbeResultRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT p.model_result_id, m.operation_id, p.org_id, p.subject_id, p.device_id,
+                p.session_id, p.binding_id, p.probe_id, p.preview_hash, m.state,
+                m.signed_bytes, m.acked, m.rejected
+         FROM model_probe_result p
+         JOIN model_result_outbox m
+           ON m.model_result_id = p.model_result_id AND m.journal_epoch = p.journal_epoch
+         WHERE p.journal_epoch = ?1 AND p.model_result_id = ?2 AND m.operation_id = ?3",
+    )?;
+    stmt.query_row(params![journal_epoch, model_result_id, operation_id], |r| {
+        Ok(ProbeResultRow {
+            model_result_id: r.get(0)?,
+            operation_id: r.get(1)?,
+            org_id: r.get(2)?,
+            subject_id: r.get(3)?,
+            device_id: r.get(4)?,
+            session_id: r.get(5)?,
+            binding_id: r.get(6)?,
+            probe_id: r.get(7)?,
+            preview_hash: r.get(8)?,
+            result_state: r.get(9)?,
+            signed_bytes: r.get(10)?,
+            acked: r.get::<_, i64>(11)? != 0,
+            rejected: r.get::<_, i64>(12)? != 0,
+        })
+    })
+    .optional()
+}
+
 pub fn unacked_model_results(
     conn: &Connection,
     journal_epoch: &str,

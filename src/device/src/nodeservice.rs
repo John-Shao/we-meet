@@ -2163,6 +2163,14 @@ fn produce_model_receipt(
             model: bootstrap.model_name.clone(),
             usage,
             error_code: (!facts.error_code.is_empty()).then(|| facts.error_code.clone()),
+            probe: bootstrap
+                .probe
+                .as_ref()
+                .map(|probe| crate::journalop::ProbeResultMetadata {
+                    binding_id: probe.binding_id.clone(),
+                    probe_id: probe.probe_id.clone(),
+                    preview_hash: probe.preview_hash.clone(),
+                }),
         };
         let op = JournalOp::AppendModelResult {
             org_id: ctx.org_id.clone(),
