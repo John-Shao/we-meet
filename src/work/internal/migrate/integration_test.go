@@ -16,6 +16,8 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	embedded "github.com/we-meet/work/migrations"
+
+	"github.com/we-meet/work/internal/testpg"
 )
 
 var testAdminURL string
@@ -45,50 +47,7 @@ func TestMain(m *testing.M) {
 }
 
 func ensureTestFixtures(ctx context.Context) error {
-	rolesSQL, err := fs.ReadFile(embedded.FS, "baseline/0001_roles_precondition.sql")
-	if err != nil {
-		return err
-	}
-	if err := execRaw(ctx, testAdmin, string(rolesSQL)); err != nil {
-		return err
-	}
-	if err := ensureLogin(ctx, "work_migrator_login", "work_owner"); err != nil {
-		return err
-	}
-	if err := ensureLogin(ctx, "work_app_test_login", "work_api"); err != nil {
-		return err
-	}
-	return nil
-}
-
-func ensureLogin(ctx context.Context, name, member string) error {
-	var exists bool
-	if err := testAdmin.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $1)`, name).Scan(&exists); err != nil {
-		return err
-	}
-	if !exists {
-		_, err := testAdmin.Exec(ctx, fmt.Sprintf(
-			`CREATE ROLE %s LOGIN PASSWORD 'work' NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT`,
-			pgx.Identifier{name}.Sanitize(),
-		))
-		if err != nil {
-			return err
-		}
-	} else {
-		_, err := testAdmin.Exec(ctx, fmt.Sprintf(
-			`ALTER ROLE %s LOGIN PASSWORD 'work' NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT`,
-			pgx.Identifier{name}.Sanitize(),
-		))
-		if err != nil {
-			return err
-		}
-	}
-	_, err := testAdmin.Exec(ctx, fmt.Sprintf(
-		`GRANT %s TO %s`,
-		pgx.Identifier{member}.Sanitize(),
-		pgx.Identifier{name}.Sanitize(),
-	))
-	return err
+	return testpg.EnsureFixtures(ctx, testAdmin)
 }
 
 func TestReadCatalogDetectsColumnGrants(t *testing.T) {
@@ -148,6 +107,92 @@ func TestApplyEmptyDatabase(t *testing.T) {
 	}
 	if got := ledgerVersions(t, dbName); !equalInt64(got, stampedVersions(t)) {
 		t.Fatalf("ledger versions after repeat = %v", got)
+	}
+}
+
+func TestApplyFromTip62ToTail(t *testing.T) {
+	const tip62 int64 = 62
+	dir := copyEmbeddedMigrations(t)
+	manifestPath := filepath.Join(dir, "manifest.json")
+	manifestBody, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest Manifest
+	if err := json.Unmarshal(manifestBody, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	var through []Migration
+	for _, migration := range manifest.Increments {
+		if migration.Version <= tip62 {
+			through = append(through, migration)
+		}
+	}
+	if len(through) == 0 || through[len(through)-1].Version != tip62 {
+		t.Fatalf("published chain does not contain increment %02d", tip62)
+	}
+	manifest.Increments = through
+	manifestBody, err = json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifestPath, append(manifestBody, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	dbName, migratorURL := newTestDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	staged, err := New(Config{
+		DatabaseURL: migratorURL, Migrations: os.DirFS(dir), Root: ".",
+		LegacyMigratorDisabled: true, LockTimeout: 10 * time.Second,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := staged.Apply(ctx); err != nil {
+		t.Fatalf("create managed tip62 database: %v", err)
+	}
+	var wantTip []int64
+	for _, version := range stampedVersions(t) {
+		if version <= tip62 {
+			wantTip = append(wantTip, version)
+		}
+	}
+	if got := ledgerVersions(t, dbName); !equalInt64(got, wantTip) {
+		t.Fatalf("ledger before upgrade = %v, want %v", got, wantTip)
+	}
+
+	tail := newRunner(t, migratorURL, true)
+	plan, err := tail.Status(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wantPending []int64
+	for _, version := range stampedVersions(t) {
+		if version > tip62 {
+			wantPending = append(wantPending, version)
+		}
+	}
+	if plan.State != "pending" || !equalInt64(plan.Pending, wantPending) {
+		t.Fatalf("upgrade plan = %s %v, want pending %v", plan.State, plan.Pending, wantPending)
+	}
+	result, err := tail.Apply(ctx)
+	if err != nil {
+		t.Fatalf("apply tip62 to tail: %v", err)
+	}
+	if result.State != "applied" {
+		t.Fatalf("upgrade state = %q", result.State)
+	}
+	if got := ledgerVersions(t, dbName); !equalInt64(got, stampedVersions(t)) {
+		t.Fatalf("ledger after upgrade = %v, want %v", got, stampedVersions(t))
+	}
+	status, err := tail.Status(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.State != "up_to_date" || len(status.Pending) != 0 {
+		t.Fatalf("status after upgrade = %s %v", status.State, status.Pending)
 	}
 }
 

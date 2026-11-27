@@ -132,3 +132,136 @@ func describeSections(diff *Diff) []string {
 	}
 	return sections
 }
+
+func TestUpgradeFrom62PreservesSchemaContracts(t *testing.T) {
+	manifest, err := LoadManifest(embedded.FS, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var oldPath, tailPath string
+	var oldChecksum, tailChecksum string
+	var tailVersion int64
+	for _, migration := range manifest.Increments {
+		switch migration.Version {
+		case 62:
+			oldPath, oldChecksum = migration.Catalog, migration.CatalogChecksum
+		}
+		if migration.Version > tailVersion {
+			tailVersion = migration.Version
+			tailPath, tailChecksum = migration.Catalog, migration.CatalogChecksum
+		}
+	}
+	if oldPath == "" || tailPath == "" || tailVersion <= 62 {
+		t.Fatalf("catalog pair unavailable: old=%q tail=%q version=%d", oldPath, tailPath, tailVersion)
+	}
+	oldCatalog, oldBody, err := LoadCatalog(embedded.FS, ".", oldPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tailCatalog, tailBody, err := LoadCatalog(embedded.FS, ".", tailPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checksumBytes(oldBody) != oldChecksum || checksumBytes(tailBody) != tailChecksum {
+		t.Fatal("upgrade catalog checksum does not match the manifest")
+	}
+	if len(oldCatalog.Functions) < 100 || len(tailCatalog.Functions) < 100 {
+		t.Fatalf("catalog function set looks truncated: old=%d tail=%d", len(oldCatalog.Functions), len(tailCatalog.Functions))
+	}
+
+	functionKey := func(fn Function) string { return fn.Name + "(" + fn.IdentityArguments + ")" }
+	tailFunctions := make(map[string]Function, len(tailCatalog.Functions))
+	for _, fn := range tailCatalog.Functions {
+		tailFunctions[functionKey(fn)] = fn
+	}
+	var missing, changed []string
+	for _, fn := range oldCatalog.Functions {
+		key := functionKey(fn)
+		next, ok := tailFunctions[key]
+		if !ok {
+			missing = append(missing, key)
+			continue
+		}
+		// Implementation language and volatility may change without breaking callers; the
+		// signature, result and privilege boundary are the hot-upgrade compatibility contract.
+		if fn.Result != next.Result || fn.SecurityDefiner != next.SecurityDefiner ||
+			fn.Strict != next.Strict || fn.Owner != next.Owner ||
+			fn.Configuration != next.Configuration {
+			changed = append(changed, key)
+		}
+	}
+	if len(missing) != 0 || len(changed) != 0 {
+		t.Fatalf("tip62 function contracts changed at tail: missing=%v changed=%v", missing, changed)
+	}
+
+	tailRelations := make(map[string]struct{}, len(tailCatalog.Relations))
+	for _, relation := range tailCatalog.Relations {
+		tailRelations[relation.Name] = struct{}{}
+	}
+	var removedRelations []string
+	for _, relation := range oldCatalog.Relations {
+		if _, ok := tailRelations[relation.Name]; !ok {
+			removedRelations = append(removedRelations, relation.Name)
+		}
+	}
+	if len(removedRelations) != 0 {
+		t.Fatalf("tip62 relations removed at tail: %v", removedRelations)
+	}
+
+	tailColumns := make(map[string]Column, len(tailCatalog.Columns))
+	for _, column := range tailCatalog.Columns {
+		tailColumns[column.Table+"."+column.Name] = column
+	}
+	missingColumns, changedColumns := []string{}, []string{}
+	for _, column := range oldCatalog.Columns {
+		key := column.Table + "." + column.Name
+		next, ok := tailColumns[key]
+		if !ok {
+			missingColumns = append(missingColumns, key)
+			continue
+		}
+		if column.DataType != next.DataType || column.Nullable != next.Nullable {
+			changedColumns = append(changedColumns, key)
+		}
+	}
+	if len(missingColumns) != 0 || len(changedColumns) != 0 {
+		t.Fatalf("tip62 columns changed at tail: missing=%v changed=%v", missingColumns, changedColumns)
+	}
+
+	tailConstraints := make(map[string]struct{}, len(tailCatalog.Constraints))
+	for _, constraint := range tailCatalog.Constraints {
+		tailConstraints[constraint.Table+"."+constraint.Name] = struct{}{}
+	}
+	var removedConstraints []string
+	for _, constraint := range oldCatalog.Constraints {
+		key := constraint.Table + "." + constraint.Name
+		if _, ok := tailConstraints[key]; !ok {
+			removedConstraints = append(removedConstraints, key)
+		}
+	}
+	if len(removedConstraints) != 0 {
+		t.Fatalf("tip62 constraints removed at tail: %v", removedConstraints)
+	}
+
+	grantKey := func(g Grant) string {
+		return strings.Join([]string{g.ObjectType, g.Schema, g.Object, g.Grantee, g.Privilege, strconv.FormatBool(g.Grantable)}, "\x00")
+	}
+	tailGrants := make(map[string]struct{}, len(tailCatalog.Grants))
+	for _, grant := range tailCatalog.Grants {
+		if grant.ObjectType == "function" {
+			tailGrants[grantKey(grant)] = struct{}{}
+		}
+	}
+	var revoked []string
+	for _, grant := range oldCatalog.Grants {
+		if grant.ObjectType != "function" {
+			continue
+		}
+		if _, ok := tailGrants[grantKey(grant)]; !ok {
+			revoked = append(revoked, grantKey(grant))
+		}
+	}
+	if len(revoked) != 0 {
+		t.Fatalf("tip62 function grants removed at tail: %v", revoked)
+	}
+}
