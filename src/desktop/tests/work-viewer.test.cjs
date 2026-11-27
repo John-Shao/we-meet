@@ -51,6 +51,7 @@ test("viewer message closure is separate from the shell and forbids arbitrary ta
       "decideLocalApproval",
       "prepareUserArtifactVersion",
       "copyLocalArtifactVersion",
+      "exportArtifactVersion",
       "pasteLocalArtifactText",
       "confirmLocalWrite",
       "confirmDisclosureDecision",
@@ -294,6 +295,35 @@ test("viewer clipboard operations are bound to exact object kinds", () => {
         new Set(),
       ),
     /object kind mismatch/,
+  );
+  assert.deepEqual(
+    validateViewerPayload(
+      "exportArtifactVersion",
+      { version_id: "version-1" },
+      versionBinding,
+      new Set(),
+    ),
+    { version_id: "version-1" },
+  );
+  assert.throws(
+    () =>
+      validateViewerPayload(
+        "exportArtifactVersion",
+        { version_id: "version-1" },
+        editBinding,
+        new Set(),
+      ),
+    /object kind mismatch/,
+  );
+  assert.throws(
+    () =>
+      validateViewerPayload(
+        "exportArtifactVersion",
+        { version_id: "version-2" },
+        versionBinding,
+        new Set(),
+      ),
+    /artifact mismatch/,
   );
   assert.deepEqual(
     validateViewerPayload(

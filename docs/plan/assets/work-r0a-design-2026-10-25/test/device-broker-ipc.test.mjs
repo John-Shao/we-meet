@@ -110,9 +110,9 @@ test('the reply vocabulary is closed and the two refusal kinds stay distinct', (
   assert.match(src, /"request_id": self\.request_id/);
   assert.match(dispatch, /assert_eq!\(keys, \["method", "request_id", "result"\]\)/);
   assert.match(dispatch, /assert_eq!\(keys, \["code", "method", "request_id", "result"\]\)/);
-  assert.match(dispatch, /assert_eq!\(count, 7\)/);
+  assert.match(dispatch, /assert_eq!\(count, 6\)/);
   assert.match(dispatch, /assert_eq!\(SHELL_METHODS\.len\(\), 29\)/);
-  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 22\)/);
+  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 23\)/);
 });
 
 test('local submission requires approval, live input facts and the Broker device signature', () => {
@@ -264,7 +264,7 @@ test('the real Windows pipe is exercised, not a fake connection', () => {
   assert.match(centerpiece, /assert_eq!\(h\.next_ticket\(\)\.as_deref\(\), Some\(TICKET\)\)/);
   // Every unlanded shell method is answered over the real pipe, and the channel survives it.
   assert.match(service, /fn every_unimplemented_shell_method_gets_an_explicit_refusal_over_the_pipe/);
-  assert.match(service, /assert_eq!\(count, 7\)/);
+  assert.match(service, /assert_eq!\(count, 6\)/);
 });
 
 test('the broker probe cannot dial without the pipe and refuses other platforms', () => {

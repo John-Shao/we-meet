@@ -36,6 +36,11 @@
         base_hash: edit.base_hash,
       };
     }
+    if (value.export_version_id !== undefined) {
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+      if (typeof value.export_version_id !== "string" || !uuid.test(value.export_version_id)) return null;
+      message.export_version_id = value.export_version_id;
+    }
     if (value.draft !== undefined) {
       const draft = value.draft;
       if (

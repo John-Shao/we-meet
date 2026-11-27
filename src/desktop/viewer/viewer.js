@@ -1,6 +1,7 @@
 (function () {
   "use strict";
   const content = document.getElementById("content");
+  const exportArtifact = document.getElementById("export-artifact");
   const close = document.getElementById("close");
   const approval = document.getElementById("approval");
   const approve = document.getElementById("approve");
@@ -25,6 +26,7 @@
   if (!api || !globalThis.weMeetViewer)
     throw new Error("viewer bridge unavailable");
   let edit = null;
+  let exportVersionId = null;
   let draft = null;
   let pendingApproval = null;
   let pendingAcceptance = null;
@@ -43,6 +45,7 @@
     reject.disabled = value;
     rememberReadonly.disabled = value;
     acceptArtifact.disabled = value;
+    exportArtifact.disabled = value;
   }
 
   function decideApproval(decision) {
@@ -87,6 +90,7 @@
       const message = api.parseMessage(value);
       if (!message) return;
       edit = message.edit ?? null;
+      exportVersionId = message.export_version_id ?? null;
       draft = message.draft ?? null;
       pendingApproval = null;
       pendingAcceptance = null;
@@ -96,6 +100,7 @@
       approval.hidden = true;
       approvalDestinationWarning.hidden = true;
       artifactAccept.hidden = true;
+      exportArtifact.hidden = !exportVersionId;
       rememberReadonlyLabel.hidden = true;
       rememberReadonly.checked = false;
       content.textContent = message.text;
@@ -278,6 +283,14 @@
         globalThis.weMeetViewer.send("close");
       return;
     }
+    if (value.type === "export_status") {
+      status.textContent =
+        value.status === "exported"
+          ? "已导出到用户选择的文件夹。"
+          : "已取消导出。";
+      setBusy(false);
+      return;
+    }
     if (value.type === "error") {
       status.textContent = pendingApproval
         ? "审批提交失败，请关闭后重新打开。"
@@ -343,6 +356,14 @@
     decideApproval("approved");
   });
   acceptArtifact.addEventListener("click", acceptArtifactVersion);
+  exportArtifact.addEventListener("click", function () {
+    if (!exportVersionId || busy) return;
+    setBusy(true);
+    status.textContent = "";
+    globalThis.weMeetViewer.send("exportArtifactVersion", {
+      version_id: exportVersionId,
+    });
+  });
   reject.addEventListener("click", function () {
     decideApproval("rejected");
   });

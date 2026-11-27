@@ -11,7 +11,7 @@ export const PROTOCOL_MAJOR = 2;
 export const MAX_FRAME_BYTES = 64 * 1024;
 const LENGTH_PREFIX = 4;
 /** The shell→Broker methods M2 drives plus the 批2 confirmation face (ipc/schema.rs CORE_METHODS).
- * The remaining seven closed members are legal but unlanded; this client never calls them. */
+ * The remaining six closed members are legal but unlanded; this client never calls them. */
 export type BrokerMethod =
   | "getDeviceIdentity"
   | "signDevicePairing"
@@ -27,6 +27,7 @@ export type BrokerMethod =
   | "stageLocalInput"
   | "confirmLocalSubmission"
   | "openLocalContent"
+  | "exportArtifactVersion"
   | "prepareLocalApprovalDecision"
   | "prepareLocalAcceptance"
   | "listLocalArtifactDrafts"
@@ -50,6 +51,7 @@ const METHODS: ReadonlySet<string> = new Set<BrokerMethod>([
   "stageLocalInput",
   "confirmLocalSubmission",
   "openLocalContent",
+  "exportArtifactVersion",
   "prepareLocalApprovalDecision",
   "prepareLocalAcceptance",
   "listLocalArtifactDrafts",

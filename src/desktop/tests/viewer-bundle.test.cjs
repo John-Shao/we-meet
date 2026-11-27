@@ -108,6 +108,28 @@ test("viewer accepts only closed text formats and bounded payloads", () => {
     assert.equal(viewer.parseMessage(value), null);
 });
 
+test("viewer accepts an export binding only for a closed version id", () => {
+  const versionId = "55555555-5555-4555-8555-555555555555";
+  assert.deepEqual(
+    viewer.parseMessage({
+      type: "render",
+      format: "text/markdown",
+      text: "body",
+      export_version_id: versionId,
+    }),
+    { format: "text/markdown", text: "body", export_version_id: versionId },
+  );
+  assert.equal(
+    viewer.parseMessage({
+      type: "render",
+      format: "text/plain",
+      text: "body",
+      export_version_id: "../../secret",
+    }),
+    null,
+  );
+});
+
 test("viewer resumes only closed retained draft metadata", () => {
   const message = {
     type: "render",

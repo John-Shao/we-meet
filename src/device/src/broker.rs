@@ -146,7 +146,7 @@ pub async fn run_core_pump(
                             { approval_decision_reply(&approval_signer, &node_service, &request.message).await }
                             #[cfg(not(windows))]
                             { Reply::refused(&request.message, "method_not_implemented") }
-                        } else if method == "openLocalContent" {
+                        } else if matches!(method, "openLocalContent" | "exportArtifactVersion") {
                             #[cfg(windows)]
                             { open_local_content_reply(&approval_signer, &node_service, &request.message).await }
                             #[cfg(not(windows))]
@@ -778,6 +778,34 @@ async fn open_local_content_reply(
     node: &mpsc::Sender<crate::nodeservice::NodeRequest>,
     message: &Value,
 ) -> Reply {
+    if message.get("method").and_then(Value::as_str) == Some("exportArtifactVersion") {
+        if let Err(code) = confirm_keys(message, &["version_id"]) {
+            return Reply::refused(message, code);
+        }
+        let version_id = message
+            .get("version_id")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        if uuid::Uuid::parse_str(version_id).is_err() {
+            return Reply::refused(message, "shape");
+        }
+        let (tx, rx) = oneshot::channel();
+        if node
+            .send(crate::nodeservice::NodeRequest::OpenLocalContent {
+                kind: "artifact_version".to_string(),
+                id: version_id.to_string(),
+                reply: tx,
+            })
+            .await
+            .is_err()
+        {
+            return Reply::accepted_with(message, json!({ "status": "not_on_this_device" }));
+        }
+        return match rx.await {
+            Ok(Some(body)) => local_content_export_reply(message, version_id, body),
+            _ => Reply::accepted_with(message, json!({ "status": "not_on_this_device" })),
+        };
+    }
     let text = |key: &str| message.get(key).and_then(Value::as_str).unwrap_or("");
     if let Err(code) = confirm_keys(message, &["kind", "id"]) {
         return Reply::refused(message, code);
@@ -924,6 +952,42 @@ fn local_content_reply(
             "format": format,
             "text": text,
             "content_hash": format!("sha256:{content_hash}"),
+            "byte_count": body.row.byte_count.to_string(),
+        }),
+    )
+}
+
+#[cfg(windows)]
+fn local_content_export_reply(
+    message: &Value,
+    version_id: &str,
+    body: crate::journalop::LocalContentBody,
+) -> Reply {
+    let format = match body.row.format.as_str() {
+        "md" => "text/markdown",
+        "txt" => "text/plain",
+        _ => return Reply::accepted_with(message, json!({ "status": "not_on_this_device" })),
+    };
+    let expected_hash = body
+        .row
+        .content_hash
+        .strip_prefix("sha256:")
+        .unwrap_or(&body.row.content_hash);
+    if body.row.version_id != version_id
+        || body.bytes.len() > 1024 * 1024
+        || body.bytes.len() as u64 != body.row.byte_count
+        || std::str::from_utf8(&body.bytes).is_err()
+        || crate::sha256_hex(&body.bytes) != expected_hash
+    {
+        return Reply::accepted_with(message, json!({ "status": "not_on_this_device" }));
+    }
+    Reply::accepted_with(
+        message,
+        json!({
+            "status": "ready",
+            "version_id": version_id,
+            "format": format,
+            "content_hash": format!("sha256:{expected_hash}"),
             "byte_count": body.row.byte_count.to_string(),
         }),
     )
@@ -2992,6 +3056,75 @@ mod tests {
         assert_eq!(data["text"], "# hi");
         assert_eq!(data["byte_count"], "4");
         worker.await.unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn local_content_export_returns_only_closed_metadata() {
+        let version_id = "55555555-5555-4555-8555-555555555555";
+        let body = crate::journalop::LocalContentBody {
+            row: crate::journalop::DeliverableRow {
+                run_id: "run".into(),
+                operation_id: "op".into(),
+                version_id: version_id.into(),
+                logical_name: "artifact".into(),
+                format: "md".into(),
+                content_hash: crate::sha256_hex(b"# hi"),
+                byte_count: 4,
+                receipt_seq: None,
+                publish_state: "published".into(),
+            },
+            bytes: b"# hi".to_vec(),
+        };
+        let message = json!({
+            "method": "exportArtifactVersion", "request_id": "export-1",
+            "version_id": version_id,
+        });
+        let reply = local_content_export_reply(&message, version_id, body);
+        assert_eq!(reply.result, ACCEPTED, "{reply:?}");
+        assert_eq!(
+            data_keys(&reply),
+            [
+                "byte_count",
+                "content_hash",
+                "format",
+                "status",
+                "version_id"
+            ]
+        );
+        let data = reply.data.unwrap();
+        assert_eq!(data["status"], "ready");
+        assert_eq!(data["format"], "text/markdown");
+        assert_eq!(data["byte_count"], "4");
+        assert!(data.get("text").is_none());
+        assert!(data.get("path").is_none());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn local_content_export_refuses_tampered_sealed_bytes() {
+        let version_id = "55555555-5555-4555-8555-555555555555";
+        let body = crate::journalop::LocalContentBody {
+            row: crate::journalop::DeliverableRow {
+                run_id: "run".into(),
+                operation_id: "op".into(),
+                version_id: version_id.into(),
+                logical_name: "artifact".into(),
+                format: "txt".into(),
+                content_hash: "a".repeat(64),
+                byte_count: 4,
+                receipt_seq: None,
+                publish_state: "published".into(),
+            },
+            bytes: b"# hi".to_vec(),
+        };
+        let message = json!({
+            "method": "exportArtifactVersion", "request_id": "export-2",
+            "version_id": version_id,
+        });
+        let reply = local_content_export_reply(&message, version_id, body);
+        assert_eq!(reply.result, ACCEPTED, "{reply:?}");
+        assert_eq!(reply.data.unwrap()["status"], "not_on_this_device");
     }
 
     #[cfg(windows)]

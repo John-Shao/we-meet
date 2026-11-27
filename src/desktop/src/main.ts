@@ -48,6 +48,10 @@ import { ScreenPicker } from "./screen-picker/picker";
 import { nativeDescriptor } from "./remote-control/native-resources";
 import { WorkApi, WorkApiError } from "./work/api";
 import { WorkDeviceDriver, type LocalApprovalDetail } from "./work/driver";
+import {
+  ArtifactExportError,
+  exportArtifactVersion,
+} from "./work/artifact-export";
 import { DeviceStore } from "./work/store";
 import { workDeviceDescriptor } from "./work/broker";
 import {
@@ -1033,6 +1037,57 @@ async function createWindow() {
           });
           return;
         }
+        if (method === "exportArtifactVersion" && data) {
+          const source = viewer.renderedArtifactVersion(viewerContents);
+          if (!source || data.version_id !== source.versionId) return;
+          void (async () => {
+            try {
+              const content = await driver.openLocalContent(
+                "artifact_version",
+                source.versionId,
+              );
+              if (
+                content.status !== "available" ||
+                content.text !== source.text
+              ) {
+                viewer.send(viewerWindow, {
+                  type: "error",
+                  code: "invalid_work_request",
+                });
+                return;
+              }
+              try {
+                const status = await exportArtifactVersion(
+                  source.versionId,
+                  content,
+                  (options) => dialog.showSaveDialog(viewerWindow, options),
+                  (filePath, text) =>
+                    writeFileSync(filePath, text, {
+                      encoding: "utf8",
+                      flag: "wx",
+                      mode: 0o600,
+                    }),
+                );
+                viewer.send(viewerWindow, { type: "export_status", status });
+              } catch (error) {
+                viewer.send(viewerWindow, {
+                  type: "error",
+                  code:
+                    error instanceof ArtifactExportError
+                      ? error.code
+                      : "export_failed",
+                });
+                return;
+              }
+            } catch {
+              viewer.send(viewerWindow, {
+                type: "error",
+                code: "export_failed",
+              });
+            }
+          })();
+          return;
+        }
         if (method === "pasteLocalArtifactText") {
           void (async () => {
             try {
@@ -1730,7 +1785,12 @@ async function createWindow() {
             : undefined;
         const viewerWindow = workViewer.openObject(
           { kind: kind as LocalContentKind, id },
-          { type: "render", format: result.format, text: result.text },
+          {
+            type: "render",
+            format: result.format,
+            text: result.text,
+            ...(kind === "artifact_version" ? { export_version_id: id } : {}),
+          },
           win,
         );
         if (approval) {

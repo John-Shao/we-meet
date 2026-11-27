@@ -4,8 +4,8 @@
 //! GW18 landed the service loop with one handler out of fourteen closed shell methods. GW21 adds
 //! five more for §2.1's Broker side and M2b adds the restart re-delivery carrier; 批2 (主签单选乙)
 //! adds the four §4.2/§5.4 confirmation carriers and EV70 adds `rebindRunWorkspace`; local
-//! approval and acceptance later add their proof carriers, so eighteen now have handlers and
-//! ten remain in the closure but unimplemented. Those are refused with
+//! approval and acceptance later add their proof carriers, and exportArtifactVersion now returns
+//! closed metadata, so twenty-three have handlers and six remain in the closure but unimplemented. Those are refused with
 //! `method_not_implemented`, never with `unknown_method`:
 //! the shell must be able to tell "this call is illegal" from "this call is legal but not landed
 //! yet". Conflating the two would make a legitimate caller look like an attacker, and would give
@@ -206,6 +206,7 @@ pub const CORE_METHODS: &[&str] = &[
     "stageLocalInput",
     "confirmLocalSubmission",
     "openLocalContent",
+    "exportArtifactVersion",
     "prepareLocalApprovalDecision",
     "prepareLocalAcceptance",
     "listWorkspaceGrants",
@@ -348,10 +349,10 @@ mod tests {
                 Dispatch::Core => panic!("{method} must not reach the ticket slot"),
             }
         }
-        // Seven of the twenty-nine are unlanded; the count is the closure minus the twenty-two handlers.
-        assert_eq!(count, 7);
+        // Six of the twenty-nine are unlanded; exportArtifactVersion now returns closed metadata.
+        assert_eq!(count, 6);
         assert_eq!(SHELL_METHODS.len(), 29);
-        assert_eq!(CORE_METHODS.len(), 22);
+        assert_eq!(CORE_METHODS.len(), 23);
     }
 
     #[test]

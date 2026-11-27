@@ -10,6 +10,7 @@ export const VIEWER_METHODS = [
   "decideLocalApproval",
   "prepareUserArtifactVersion",
   "copyLocalArtifactVersion",
+  "exportArtifactVersion",
   "pasteLocalArtifactText",
   "confirmLocalWrite",
   "confirmDisclosureDecision",
@@ -140,6 +141,15 @@ export function validateViewerPayload(
       new TextEncoder().encode(payload.text).length > 1024 * 1024
     ) {
       throw new Error("invalid clipboard text");
+    }
+    return payload;
+  }
+  if (method === "exportArtifactVersion") {
+    if (binding.kind !== "artifact_version")
+      throw new Error("viewer object kind mismatch");
+    const payload = viewerPayload(value, ["version_id"]);
+    if (viewerString(payload, "version_id") !== binding.id) {
+      throw new Error("viewer artifact mismatch");
     }
     return payload;
   }

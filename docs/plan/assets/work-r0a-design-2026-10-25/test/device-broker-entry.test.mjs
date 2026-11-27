@@ -340,7 +340,7 @@ test('the status method is read-only and the reply payload is a closed shape', (
     assert.ok(schema.includes(`"${method}"`), `${method} left the shell closure`);
   }
   assert.match(schema, /assert_eq!\(SHELL_METHODS\.len\(\), 29\)/);
-  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 22\)/);
+  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 23\)/);
 });
 
 test('a refusal reaches the shell before the pipe is disconnected', () => {
