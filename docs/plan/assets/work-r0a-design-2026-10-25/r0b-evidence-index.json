@@ -475,11 +475,8 @@
       "id": "EV120",
       "gate": "I4",
       "requirement": "只读 unknown 五项前置齐备可降级为 evidence_unavailable/reconciled 并保留 unknown 预留；副作用类按前置选择维持 unknown 或 evidence_exhausted，分别控制新 Run 与采纳。",
-      "status": "partial",
-      "gaps": [
-        "控制面五项前置、unknown 预留保留、成果零新增、active-session 阻断、经 retry_task/accept_task 的新 Run/采纳非对称结果与审计依据（lease 到期/身份、显式 caller_attestation provenance 的 journal 声明、无 receipt/gate/usage/provider 事实、工单）已补齐；wait_reason=input 的“继续/起新 Run/结束”三出口与无假重试 UI 已实现，组件测试覆盖只读降级、证据穷尽与 pending 不显示三出口。",
-        "真实设备端到端送达尚未取证；gateway-wire 的降级码/unknown 结算/服务端签名与 Rust 帧消费、拒绝伪 settled 已覆盖。"
-      ],
+      "status": "covered",
+      "gaps": [],
       "evidence": [
         { "path": "src/work/internal/migrate/r0b_resolution_test.go", "test": "TestR0bReadonlyDegradationReconcilesAndKeepsTheReservation" },
         { "path": "src/work/internal/migrate/r0b_resolution_test.go", "test": "TestR0bExhaustedDegradationRequiresTicketAndBlocksAdoption" },
@@ -498,7 +495,8 @@
         { "path": "src/frontend/src/features/work/r0b/components/RunReconciliations.test.tsx", "test": "offers continue, new Run and end after a readonly downgrade" },
         { "path": "src/frontend/src/features/work/r0b/components/RunReconciliations.test.tsx", "test": "explains evidence exhaustion without offering a retry" },
         { "path": "src/frontend/src/features/work/r0b/components/RunReconciliations.test.tsx", "test": "does not show the three exits while reconciliation is still pending" },
-        { "path": "src/device/src/reconcile/resolution.rs", "test": "degradation_never_proves_non_execution" }
+        { "path": "src/device/src/reconcile/resolution.rs", "test": "degradation_never_proves_non_execution" },
+        { "path": "src/work/internal/api/device_run_interop_test.go", "test": "TestDeviceFixtureRunReceivesDegradedResolutionAfterRestart" }
       ]
     },
     {

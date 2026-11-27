@@ -1221,6 +1221,117 @@ func TestDeviceFixtureRunCrossSessionFinishIsAccepted(t *testing.T) {
 	}
 }
 
+// TestDeviceFixtureRunReceivesDegradedResolutionAfterRestart is the EV120 real-device delivery
+// evidence: a real model I/O failure leaves an unknown journal row, the server queues an
+// evidence_exhausted/unavailable resolution, and a fresh session over the same journal receives,
+// verifies and applies it. The applied ack proves the shipped Broker consumed the degradation without
+// inventing a successful model result or usage fact.
+func TestDeviceFixtureRunReceivesDegradedResolutionAfterRestart(t *testing.T) {
+	bin := requireBrokerBin(t)
+	dropModel := filepath.Join(t.TempDir(), "drop-model.mjs")
+	if err := os.WriteFile(dropModel, []byte(`
+import http from 'node:http';
+const port = Number(process.argv[2]);
+const server = http.createServer((req, res) => {
+  if (req.method === 'POST' && req.url === '/v1/chat/completions') {
+    req.socket.destroy();
+    return;
+  }
+  res.writeHead(404, { Connection: 'close' });
+  res.end();
+});
+server.listen(port, '127.0.0.1');
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := startFixtureBrokerFull(t, bin, nil, "v1", dropModel)
+	runID := seedFixtureRun(t, f.dbName, f.deviceID, f.sessionID, f.bootID, f.grantID, f.rootIdentityHash,
+		f.profile.ProfileID, f.profile.RuntimeDigest, f.profile.ToolManifestHash,
+		strings.TrimPrefix(f.contentHash, "sha256:"))
+	operationID := approveFixtureModelApproval(t, f.dbName, f.sessionID, f.deviceID, runID, f.stderr)
+
+	conn := brokerDB(t, f.dbName)
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		var state string
+		err := conn.QueryRow(context.Background(),
+			`SELECT state FROM work.operation WHERE org_id=$1 AND id=$2::uuid`, testOrg, operationID).Scan(&state)
+		if err == nil && state == "unknown" {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	var operationState string
+	if err := conn.QueryRow(context.Background(),
+		`SELECT state FROM work.operation WHERE org_id=$1 AND id=$2::uuid`, testOrg, operationID).
+		Scan(&operationState); err != nil {
+		t.Fatal(err)
+	}
+	if operationState != "unknown" {
+		t.Fatalf("operation state = %q, want unknown; broker stderr:\n%s", operationState, f.stderr.String())
+	}
+
+	resolveID := uuid.NewString()
+	adminExec(t, f.dbName, fmt.Sprintf(`
+		INSERT INTO work.operation_resolution
+		  (org_id, run_id, operation_id, resolution_revision, resolve_id, attempt_id,
+		   state, delivery_state, settlement_state, signature, resolution_delivery,
+		   code, usage_source, ticket_id)
+		SELECT org_id, run_id, id, 1, '%s', dispatch_attempt_id,
+		       'failed', 'not_applicable', 'unknown', 'sha256:%s', 'pending',
+		       'evidence_exhausted', 'unavailable', 'EV120-%s'
+		FROM work.operation WHERE org_id='%s' AND id='%s'::uuid`,
+		resolveID, strings.Repeat("e", 64), uuid.NewString(), testOrg, operationID))
+
+	_ = f.cmd.Process.Kill()
+	_, _ = f.cmd.Process.Wait()
+	newBootID := "boot-" + uuid.NewString()
+	_, stderr2, cmd2, session2, epoch2 := restartBroker(t, f, bin, newBootID)
+	t.Cleanup(func() { _ = cmd2.Process.Kill(); _, _ = cmd2.Process.Wait() })
+	t.Cleanup(func() { t.Logf("DIAG EV120 Broker stderr:\n%s", stderr2.String()) })
+	if session2 == f.sessionID || epoch2 != f.journalEpoch {
+		t.Fatalf("restart session/epoch = %s/%s, want fresh session over %s", session2, epoch2, f.journalEpoch)
+	}
+
+	deadline = time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		var delivery string
+		var acked bool
+		err := conn.QueryRow(context.Background(), `
+			SELECT resolution_delivery, acked_at IS NOT NULL
+			FROM work.operation_resolution WHERE org_id=$1 AND resolve_id=$2::uuid`,
+			testOrg, resolveID).Scan(&delivery, &acked)
+		if err == nil && delivery == "acked" && acked {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	var delivery, settlement, code, usage string
+	var acked bool
+	if err := conn.QueryRow(context.Background(), `
+		SELECT resolution_delivery, settlement_state, code, usage_source, acked_at IS NOT NULL
+		FROM work.operation_resolution WHERE org_id=$1 AND resolve_id=$2::uuid`,
+		testOrg, resolveID).Scan(&delivery, &settlement, &code, &usage, &acked); err != nil {
+		t.Fatal(err)
+	}
+	if delivery != "acked" || !acked || settlement != "unknown" || code != "evidence_exhausted" || usage != "unavailable" {
+		t.Fatalf("degraded resolution after real-device ack = %s/%s/%s/%s acked=%v",
+			delivery, settlement, code, usage, acked)
+	}
+	var succeeded, usageFacts int
+	if err := conn.QueryRow(context.Background(), `
+		SELECT (SELECT count(*) FROM work.device_model_result
+		        WHERE org_id=$1 AND operation_id=$2::uuid AND state='completed' AND outcome='succeeded'),
+		       (SELECT count(*) FROM work.operation_usage_fact
+		        WHERE org_id=$1 AND operation_id=$2::uuid)`, testOrg, operationID).
+		Scan(&succeeded, &usageFacts); err != nil {
+		t.Fatal(err)
+	}
+	if succeeded != 0 || usageFacts != 0 {
+		t.Fatalf("degradation invented result/usage: succeeded=%d usage=%d", succeeded, usageFacts)
+	}
+}
+
 // restartBroker spawns a second Broker process over the fixture's persisted journal_dir, CNG container
 // and device certificate, with a fresh pipe + boot_id. It re-delivers the certificate (the shell's
 // restart gesture, M2b redeliverDeviceCertificate), mints and delivers a fresh session ticket, and
