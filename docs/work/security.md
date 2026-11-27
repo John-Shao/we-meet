@@ -119,7 +119,7 @@
 
 **当前验证状态**：**部分**。当前是本地 pilot 实现：`work-content-proxy:8444` 已上线
 （loopback，server TLS + bearer，**不是 mTLS**），自 2026-10-31 起**零真实请求**，
-路由属测试证明而非生产证明。往返/租户隔离/篡改拒收/执行绑定有 PG+HTTP 用例。
+路由属测试证明而非生产证明。往返/租户隔离/篡改拒收/执行绑定有 PG+HTTP 用例；本机 store 重开、删除状态保持、错主密钥拒收，以及真实 PG＋HTTP proxy/store 重开后按原引用读回密文也有直接用例。该重开证据不等于生产真实流量或备份恢复演练。
 **未实现**：key_version 重加密（全部调用点 keyVersion=1，ref 的 `?v=` 预留未接线）；
 对象存储后端与规模化擦除（内容留存删除清扫）转 R0b。注意区分：输入 24h TTL 清扫
 与 content_shred 交接已实现并有测试（relay），那是输入留存，不是 Content Store

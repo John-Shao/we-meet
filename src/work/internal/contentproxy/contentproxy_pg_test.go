@@ -31,10 +31,11 @@ import (
 // the proxy is checked against the landed commands rather than a mock of them.
 
 var (
-	pgAdmin *pgx.Conn
-	pgDB    string
-	pgPool  *pgxpool.Pool
-	pgStore *content.Local
+	pgAdmin      *pgx.Conn
+	pgDB         string
+	pgPool       *pgxpool.Pool
+	pgStore      *content.Local
+	pgContentDir string
 )
 
 func TestMain(m *testing.M) {
@@ -77,7 +78,7 @@ func TestMain(m *testing.M) {
 		fmt.Fprintf(os.Stderr, "open content store: %v\n", err)
 		os.Exit(1)
 	}
-	pgAdmin, pgDB, pgPool, pgStore = dbAdmin, dbName, pool, store
+	pgAdmin, pgDB, pgPool, pgStore, pgContentDir = dbAdmin, dbName, pool, store, contentDir
 
 	code := m.Run()
 
@@ -274,8 +275,13 @@ func registerCandidate(t *testing.T, tn proxyTenant, body []byte) contentref.Ref
 
 func startProxyServer(t *testing.T) *httptest.Server {
 	t.Helper()
+	return startProxyServerWithStore(t, pgStore)
+}
+
+func startProxyServerWithStore(t *testing.T, store *content.Local) *httptest.Server {
+	t.Helper()
 	server, err := New(Config{ListenAddr: "127.0.0.1:0"},
-		capability.NewIssuer(pgPool), contentref.NewRegistry(pgPool), pgStore)
+		capability.NewIssuer(pgPool), contentref.NewRegistry(pgPool), store)
 	if err != nil {
 		t.Fatalf("new content proxy: %v", err)
 	}
@@ -362,6 +368,38 @@ func TestReadServesExactRegisteredBytes(t *testing.T) {
 	if got := response.header.Get("Cache-Control"); got != "no-store" {
 		t.Fatalf("cache-control = %q", got)
 	}
+}
+
+func TestReadSurvivesProxyAndStoreReopen(t *testing.T) {
+	requireProxyDB(t)
+	tn := seedPlanTenant(t, "org_proxy_reopen")
+	body := []byte("reopen-content-" + newUUID(t))
+	reference := registerCandidate(t, tn, body)
+	token, generation := issueCapability(t, tn, capability.AudienceContent, time.Minute)
+	first := startProxyServer(t)
+	before := getContent(t, first.URL, reference.RefID, tn.org, tn.execID, token, generation)
+	if before.status != http.StatusOK || !bytes.Equal(before.body, body) {
+		t.Fatalf("before reopen = %d %q", before.status, before.body)
+	}
+	first.Close()
+
+	reopened, err := content.NewLocal(bytes.Repeat([]byte{0x5a}, 32), pgContentDir, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after := getContent(t, startProxyServerWithStore(t, reopened).URL,
+		reference.RefID, tn.org, tn.execID, token, generation)
+	if after.status != http.StatusOK || !bytes.Equal(after.body, body) {
+		t.Fatalf("after reopen = %d %q", after.status, after.body)
+	}
+
+	wrongMaster, err := content.NewLocal(bytes.Repeat([]byte{0x5b}, 32), pgContentDir, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	failed := getContent(t, startProxyServerWithStore(t, wrongMaster).URL,
+		reference.RefID, tn.org, tn.execID, token, generation)
+	assertExactError(t, failed, http.StatusServiceUnavailable, codeContentUnavailable)
 }
 
 func TestCheckpointWriteThroughRealRegistry(t *testing.T) {
