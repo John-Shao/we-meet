@@ -194,11 +194,12 @@ test('the pump consumes the wait and forwards every other event verbatim', () =>
   assert.match(run, /deliveries_open = false;/);
   // A gone shell with an unsatisfiable request ends the pump instead of hanging the link's dial.
   assert.match(run, /Pump::Waiting if !deliveries_open => return BridgeOutcome::ShellGone/);
-  // Scope: the pump touches no journal, no sidecar and no permit — A2 consumption stays deferred.
-  // Scoped to the production half: the test module builds a LeaseState to prove forwarding.
-  const production = prod(read(BROKER));
+  // Scope: the pump body touches no journal, no sidecar and no permit — A2 consumption stays deferred.
+  // Confirmation helpers elsewhere in broker.rs may validate journal-owned provenance; they are not
+  // part of the ticket pump this test governs.
+  const pump = fnBody(prod(read(BROKER)), 'pub async fn run_core_pump(');
   for (const forbidden of ['journal::', 'sidecar::', 'permit::', 'reconcile::', 'recovery::']) {
-    assert.ok(!production.includes(forbidden), `the pump reached into ${forbidden}, which GW18 did not rule`);
+    assert.ok(!pump.includes(forbidden), `the pump reached into ${forbidden}, which GW18 did not rule`);
   }
 });
 
