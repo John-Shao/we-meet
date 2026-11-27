@@ -175,7 +175,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (80, '0080_local_preview_facts'),
   (81, '0081_local_task_submission'),
   (82, '0082_local_approval_ttl'),
-  (83, '0083_local_destination_facts')) expected(version, name)
+  (83, '0083_local_destination_facts'),
+  (84, '0084_device_resume_offers')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 psql_ro "select 'approval_proof_es256=' || case when
@@ -229,6 +230,26 @@ psql_ro "select 'local_task_submission=' || case when
       where n.nspname = 'work' and p.proname = 'submit_local_task')) > 0
     and position('DELETE FROM work.outbox' in (select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'work' and p.proname = 'submit_local_task')) > 0
+    then 'true' else 'FALSE' end"
+psql_ro "select 'device_resume_offers=' || case when
+    (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'work' and p.proname = 'ensure_device_resume_offers'
+        and p.prosecdef and p.proowner = (select oid from pg_roles where rolname = 'work_owner')) = 1
+    and has_function_privilege('work_worker',
+      'work.ensure_device_resume_offers(text,uuid,uuid)', 'EXECUTE')
+    and not has_function_privilege('work_api',
+      'work.ensure_device_resume_offers(text,uuid,uuid)', 'EXECUTE')
+    and not has_function_privilege('public',
+      'work.ensure_device_resume_offers(text,uuid,uuid)', 'EXECUTE')
+    and position('v_binding.session_id <> p_session_id' in (select prosrc from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'work' and p.proname = 'ensure_device_resume_offers')) > 0
+    and position('FOR SHARE OF g' in (select prosrc from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'work' and p.proname = 'ensure_device_resume_offers')) > 0
+    and position('device_lease.acquired' in (select prosrc from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'work' and p.proname = 'ensure_device_resume_offers')) > 0
     then 'true' else 'FALSE' end"
 psql_ro "select 'permit_destination_refusal=' || case when
     exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace

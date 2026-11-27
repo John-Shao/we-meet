@@ -139,6 +139,9 @@ func (s *Server) handleHeartbeat(ctx context.Context, stream grpc.ServerStream, 
 			return err
 		}
 	}
+	if err := s.ensureResumeOffers(ctx, orgID, deviceID, sessionID); err != nil {
+		return mapError(err)
+	}
 	if err := s.pushPendingOffers(ctx, stream, orgID, deviceID, sessionID, nonces); err != nil {
 		return err
 	}
@@ -246,4 +249,3 @@ func (s *Server) handleLeaseAcquire(ctx context.Context, stream grpc.ServerStrea
 	}
 	return stream.SendMsg(raw)
 }
-

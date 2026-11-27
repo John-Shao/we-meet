@@ -15,7 +15,7 @@ Work 是 we-meet 的 AI 任务执行模块：用户写一个目标（Composer）
 | 阶段 | 范围 | 状态 |
 |---|---|---|
 | R0a | 云端文本任务：Composer、我的工作、任务工作区、成果验收、预算/审计、管理只读子集 | 已实现、已部署试点环境 |
-| R0b | 本机执行（设备面）、可委派权限、治理、审批、token 护栏 | 设计自查完成、外部审计未执行；设备迁移/REST、Rust Broker 与网关、桌面壳驱动、执行/审批/成果/治理脊均已落仓库（未 rollout、未接生产消费）。仍未闭合：生产 ExecutionProfile/verified binding、审批后 executor 退出的持久恢复、卸载保留/删除与支持包、部分 M4 消费者、M5 真机/外部审计；迁移 tip 见 [status.json](status.json) |
+| R0b | 本机执行（设备面）、可委派权限、治理、审批、token 护栏 | 设计自查完成、外部审计未执行；设备迁移/REST、Rust Broker 与网关、桌面壳驱动、执行/审批/成果/治理脊均已落仓库（未 rollout、未接生产消费）。仍未闭合：生产 ExecutionProfile/verified binding、跨会话显式改绑后的真机恢复验收、部分 M4 消费者、M5 真机/外部审计；迁移 tip 见 [status.json](status.json) |
 | R1–R5 | 套件/技能、连接器、项目/链式、富成果、协作/自动化 | 仅产品/UX/架构方向，未实现 |
 
 > **2026-11-20 更正**：本页早期的「M2 未实现／M3 仅部分」不能替代后续分批登记；桌面壳与设备执行脊的已落范围、夹具证据和仍延后项以 [执行面设计单](design/work-r0b-execution-face-design-2026-11-19.md) 的批次登记为准。本页下方同类阶段概括也按此读取，不据此扩大生产准入或 rollout 授权；迁移与生产状态仍只取 [status.json](status.json)。
@@ -34,7 +34,7 @@ R0a **不含**：本机执行、连接器、项目/链式、手工审批 UI（�
 | [operations.md](operations.md) | 可操作运维步骤：部署、迁移、备份、回滚、告警、go/no-go |
 | [status.json](status.json) / [status.md](status.md) | 当前状态（`scripts/work-status.mjs` 生成；事实输入 [status.inputs.json](status.inputs.json)） |
 | [decisions/](decisions/README.md) | 架构决策记录（ADR）索引 |
-| [design/](design/) | R0b 详细设计（需评审）＋安全边界决策（host-wire/threat-model）；设备/网关/桌面壳/执行/审批/成果/治理脊已落仓库，生产 profile/binding、持久恢复、卸载/支持包与 M5 验收仍未闭合；长文**按章节收敛**（已实现章节移入归档，未实现章节仍为签署权威，条件见下）；已实现 R0a 设计基线见 [archive/design-baseline/](archive/design-baseline/) |
+| [design/](design/) | R0b 详细设计（需评审）＋安全边界决策（host-wire/threat-model）；设备/网关/桌面壳/执行/审批/成果/治理脊已落仓库，生产 profile/binding、跨会话显式改绑恢复验收与 M5 验收仍未闭合；长文**按章节收敛**（已实现章节移入归档，未实现章节仍为签署权威，条件见下）；已实现 R0a 设计基线见 [archive/design-baseline/](archive/design-baseline/) |
 | [ops/](ops/) | 运维参考长文（runbook/drill-checklist/glossary/pilot-ops）；[operations.md](operations.md) 是其精简操作入口 |
 | [archive/](archive/README.md) | 历史快照，只读追溯，不参与当前设计阅读 |
 | [work-project.md](work-project.md) | 项目纯索引：状态指向 status，开放裁定指向 decisions/open-rulings |

@@ -270,6 +270,90 @@ func TestRunOfferIsPushedOnHeartbeatAndServerSigned(t *testing.T) {
 	}
 }
 
+// TestHeartbeatCreatesResumeOfferAfterExecutorExit proves 0084 is wired into the production
+// poll: a waiting Run with a recorded checkpoint and no live lease gets a higher revision on
+// heartbeat, then follows the existing signed offer -> ready -> start chain.
+func TestHeartbeatCreatesResumeOfferAfterExecutorExit(t *testing.T) {
+	f := newGatewayFixture(t)
+	addr := f.startServer(t)
+	stream := f.connect(t, addr)
+	sessionID, _, bootID, agentID, _, serverPub := f.helloWithServerJWK(t, stream)
+	runID, _, _, fence := f.seedAction(t, sessionID)
+	ctx := gwContext(t)
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(f.dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = admin.Close(ctx) }()
+	var taskID, boot string
+	if err = admin.QueryRow(ctx, `SELECT task_id FROM work.run WHERE org_id=$1 AND id=$2::uuid`, gwOrg, runID).Scan(&taskID); err != nil {
+		t.Fatal(err)
+	}
+	if err = admin.QueryRow(ctx, `SELECT boot_id FROM work.device_session WHERE org_id=$1 AND id=$2::uuid`, gwOrg, sessionID).Scan(&boot); err != nil {
+		t.Fatal(err)
+	}
+	grantID := f.seedLocalPolicyAndGrant(t, sessionID, boot)
+	checkpointHash := strings.Repeat("c", 64)
+	nonce := uuid.NewString()
+	script := fmt.Sprintf(`
+		SET app.org_id = '%s';
+		INSERT INTO work.device_run_binding
+		  (org_id, run_id, binding_revision, task_id, device_id, session_id, input_ref,
+		   input_hash, snapshot_hash, profile_id, profile_revision, runtime_digest,
+		   tool_manifest_hash, model_version, grant_set, start_nonce, offer_expiry, state,
+		   created_at)
+		VALUES ('%s','%s',1,'%s','%s','%s','ref','%s','%s','p1',1,'%s','%s','m1',
+		        '[{"grant_id":"%s","grant_revision":1}]'::jsonb,'%s',
+		        now() - interval '1 second','active',now() - interval '2 seconds');
+		INSERT INTO work.device_checkpoint
+		  (org_id, run_id, checkpoint_seq, binding_revision, fence, checkpoint_hash,
+		   local_ref, receipt_through_seq, pending_operation_set_hash, signed_payload_hash, state)
+		VALUES ('%s','%s',1,1,%d,'%s','local/cp1',0,'%s','%s','recorded');
+		INSERT INTO work.audit_event (org_id, action, target_type, target_id, metadata)
+		VALUES ('%s','device_lease.acquired','run','%s',
+		        '{"response":{"run_id":"%s","lease_id":"%s"}}'::jsonb);
+		UPDATE work.run SET state='waiting', wait_reason='input' WHERE org_id='%s' AND id='%s';
+	`, gwOrg, gwOrg, runID, taskID, f.deviceID, sessionID,
+		strings.Repeat("b", 64), strings.Repeat("3", 64), strings.Repeat("4", 64),
+		strings.Repeat("5", 64), grantID, nonce,
+		gwOrg, runID, fence, checkpointHash, strings.Repeat("d", 64), strings.Repeat("e", 64),
+		gwOrg, runID, runID, uuid.NewString(), gwOrg, runID)
+	seed, err := testpg.Open(ctx, testpg.AdminURLFor(f.dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = testpg.ExecRaw(ctx, seed, script); err != nil {
+		_ = seed.Close(ctx)
+		t.Fatal(err)
+	}
+	_ = seed.Close(ctx)
+
+	if err = stream.SendMsg(f.unsignedFrame(t, "heartbeat", sessionID, bootID, agentID,
+		heartbeatBody("1000", []string{}, "0"))); err != nil {
+		t.Fatal(err)
+	}
+	bodyJSON, offer, offerSession := recvTypedFrame(t, stream, "run_offer")
+	if offerSession != sessionID || offer["run_id"] != runID || offer["binding_revision"] != "2" {
+		t.Fatalf("resume offer = session %v body %#v", offerSession, offer)
+	}
+	if offer["expected_checkpoint_seq"] != "1" || offer["expected_checkpoint_hash"] != checkpointHash {
+		t.Fatalf("resume checkpoint = %#v, want seq 1 hash %s", offer, checkpointHash)
+	}
+	if sig, _ := offer["signature"].(string); sig == "" || !devicesig.VerifyFrame(serverPub, "run_offer", bodyJSON, sig) {
+		t.Fatalf("resume offer signature does not verify: %#v", offer)
+	}
+	bindingHash, _ := offer["binding_hash"].(string)
+	if err = stream.SendMsg(f.signFrame(t, "run_ready", sessionID, bootID, agentID, map[string]any{
+		"run_id": runID, "binding_revision": "2", "binding_hash": bindingHash, "ready_or_reason": "ready",
+	})); err != nil {
+		t.Fatal(err)
+	}
+	_, start, _ := recvTypedFrame(t, stream, "run_start")
+	if start["run_id"] != runID || start["run_binding_id"] != "2" || start["start_nonce"] == nonce {
+		t.Fatalf("resume run_start = %#v", start)
+	}
+}
+
 // TestRunReadyAcquiresLeaseAndSendsRunStart is the GW11 end-to-end spine: offer pushed →
 // device-signed run_ready verified → acknowledge_run_ready moves offered->ready →
 // acquire_device_lease with the BINDING'S OWN start_nonce → server-signed run_start. The

@@ -190,6 +190,29 @@ func numberOrNil(n *json.Number) any {
 	return n.String()
 }
 
+// ensureResumeOffers creates the higher-revision offers required after an executor exits while
+// its session and grants remain valid. Cross-session recovery uses the explicit rebind command,
+// which already creates its own offer; this command never carries grants across sessions.
+// The SQL command is idempotent per Run/session/revision; delivery still goes through the
+// read-only list_pending_device_offers getter and the existing signed run_offer path.
+func (s *Server) ensureResumeOffers(ctx context.Context, orgID, deviceID, sessionID string) error {
+	var raw []byte
+	err := workdb.WithWorkerOrgContext(ctx, s.pool, orgID, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx,
+			`SELECT work.ensure_device_resume_offers($1, $2::uuid, $3::uuid)`,
+			orgID, deviceID, sessionID,
+		).Scan(&raw)
+	})
+	if err != nil {
+		return err
+	}
+	var created []json.RawMessage
+	if err := json.Unmarshal(raw, &created); err != nil {
+		return fmt.Errorf("invalid_request: resume offers")
+	}
+	return nil
+}
+
 // listPendingOffers reads the device's live offered bindings through the 0052 getter as
 // work_worker. The getter is read-only: it moves no state, so offered->ready remains
 // acknowledge_run_ready's unique transition.

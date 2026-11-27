@@ -234,6 +234,131 @@ func TestR0bOfferGetterSkipsOffersBoundToAnotherSession(t *testing.T) {
 			strings.Repeat("d", 86)+`"}`, o.deviceID, o.sessionID)
 }
 
+func TestR0bEnsureResumeOffersRebindsExpiredExecutorToLatestCheckpoint(t *testing.T) {
+	o := newOrchestrationFixture(t, "org_r0b_resume_offer")
+	worker := o.workerConn(t)
+	checkpointHash := strings.Repeat("c", 64)
+	mustExec(t, o.admin, `INSERT INTO work.device_checkpoint
+	  (org_id, run_id, checkpoint_seq, binding_revision, fence, checkpoint_hash,
+	   local_ref, receipt_through_seq, pending_operation_set_hash, signed_payload_hash, state)
+	  VALUES (`+quoteLiteral(o.org)+`, `+quoteLiteral(o.runID)+`, 1, 1, 1, `+
+		quoteLiteral(checkpointHash)+`, 'checkpoint-1', 0, `+quoteLiteral(strings.Repeat("d", 64))+
+		`, `+quoteLiteral(strings.Repeat("e", 64))+`, 'recorded')`)
+
+	if active := callJSONArray(t, worker,
+		`SELECT work.ensure_device_resume_offers($1,$2::uuid,$3::uuid)`,
+		o.org, o.deviceID, o.sessionID); len(active) != 0 {
+		t.Fatalf("active Run with an acquired lease was re-offered: %#v", active)
+	}
+	mustExec(t, o.admin, "UPDATE work.run SET state = 'waiting', wait_reason = 'input' "+
+		"WHERE id = "+quoteLiteral(o.runID))
+	mustExec(t, o.admin, "UPDATE work.execution_lease SET state = 'revoked', "+
+		"revision = revision + 1 WHERE org_id = "+quoteLiteral(o.org)+" AND run_id = "+quoteLiteral(o.runID)+
+		" AND purpose = 'execute'")
+
+	created := callJSONArray(t, worker,
+		`SELECT work.ensure_device_resume_offers($1,$2::uuid,$3::uuid)`,
+		o.org, o.deviceID, o.sessionID)
+	if len(created) != 1 || created[0]["binding_revision"] != float64(2) {
+		t.Fatalf("resume offers = %#v, want one revision-2 offer", created)
+	}
+	got := o.scalar(t, "SELECT session_id || '/' || expected_checkpoint_seq::text || '/' || "+
+		"expected_checkpoint_hash FROM work.device_run_binding WHERE run_id = "+quoteLiteral(o.runID)+
+		" AND binding_revision = 2")
+	want := o.sessionID + "/1/" + checkpointHash
+	if got != want {
+		t.Fatalf("resume binding = %s, want %s", got, want)
+	}
+	if again := callJSONArray(t, worker,
+		`SELECT work.ensure_device_resume_offers($1,$2::uuid,$3::uuid)`,
+		o.org, o.deviceID, o.sessionID); len(again) != 0 {
+		t.Fatalf("second ensure created %#v, want no duplicate nonce", again)
+	}
+	offers := callJSONArray(t, worker,
+		`SELECT work.list_pending_device_offers($1,$2::uuid,$3::uuid)`,
+		o.org, o.deviceID, o.sessionID)
+	if len(offers) != 1 || offers[0]["binding_revision"] != float64(2) ||
+		offers[0]["expected_checkpoint_seq"] != float64(1) ||
+		offers[0]["expected_checkpoint_hash"] != checkpointHash {
+		t.Fatalf("pending resume offers = %#v, want revision 2 at checkpoint 1", offers)
+	}
+}
+
+func TestR0bEnsureResumeOffersRequiresCurrentSessionGrantAndIdentity(t *testing.T) {
+	o := newOrchestrationFixture(t, "org_r0b_resume_scope")
+	worker := o.workerConn(t)
+	mustExec(t, o.admin, "UPDATE work.run SET state = 'waiting', wait_reason = 'input' "+
+		"WHERE id = "+quoteLiteral(o.runID))
+	mustExec(t, o.admin, "UPDATE work.execution_lease SET state = 'revoked', "+
+		"revision = revision + 1 WHERE org_id = "+quoteLiteral(o.org)+" AND run_id = "+quoteLiteral(o.runID)+
+		" AND purpose = 'execute'")
+	newSession := newUUID(t)
+	mustExec(t, o.admin, "UPDATE work.device_session SET state = 'superseded', "+
+		"revision = revision + 1 WHERE id = "+quoteLiteral(o.sessionID))
+	mustExec(t, o.admin, `INSERT INTO work.device_session
+	  (org_id, id, device_id, owner_subject_id, boot_id, agent_instance_id,
+	   auth_plane, auth_epoch, protocol_major, protocol_minor, runtime_digest,
+	   journal_epoch, generation, expires_at, state)
+	  VALUES (`+quoteLiteral(o.org)+`, `+quoteLiteral(newSession)+`, `+quoteLiteral(o.deviceID)+`,
+		`+quoteLiteral(o.subject)+`, 'boot-resume-scope', `+quoteLiteral(newUUID(t))+`, 'bearer', 7,
+		2, 0, `+quoteLiteral(strings.Repeat("6", 64))+`, `+quoteLiteral(newUUID(t))+`, 1,
+		now() + interval '1 hour', 'active')`)
+
+	if got := callJSONArray(t, worker,
+		`SELECT work.ensure_device_resume_offers($1,$2::uuid,$3::uuid)`,
+		o.org, o.deviceID, newSession); len(got) != 0 {
+		t.Fatalf("new session inherited old-session grants: %#v", got)
+	}
+	otherDevice, otherSession := seedSecondDevice(t, o)
+	expectCode(t, worker, "unauthorized",
+		`SELECT work.ensure_device_resume_offers($1,$2::uuid,$3::uuid)`,
+		o.org, o.deviceID, otherSession)
+	if got := callJSONArray(t, worker,
+		`SELECT work.ensure_device_resume_offers($1,$2::uuid,$3::uuid)`,
+		o.org, otherDevice, otherSession); len(got) != 0 {
+		t.Fatalf("foreign device saw %d resume offers, want 0", len(got))
+	}
+}
+
+func TestR0bEnsureResumeOffersRefusesMissingRecordedCheckpoint(t *testing.T) {
+	o := newOrchestrationFixture(t, "org_r0b_resume_no_checkpoint")
+	worker := o.workerConn(t)
+	mustExec(t, o.admin, "UPDATE work.run SET state = 'waiting', wait_reason = 'input' "+
+		"WHERE id = "+quoteLiteral(o.runID))
+	mustExec(t, o.admin, "UPDATE work.execution_lease SET state = 'revoked', "+
+		"revision = revision + 1 WHERE org_id = "+quoteLiteral(o.org)+" AND run_id = "+quoteLiteral(o.runID)+
+		" AND purpose = 'execute'")
+	mustExec(t, o.admin, "UPDATE work.device_checkpoint SET state = 'conflict' "+
+		"WHERE org_id = "+quoteLiteral(o.org)+" AND run_id = "+quoteLiteral(o.runID))
+	if got := callJSONArray(t, worker,
+		`SELECT work.ensure_device_resume_offers($1,$2::uuid,$3::uuid)`,
+		o.org, o.deviceID, o.sessionID); len(got) != 0 {
+		t.Fatalf("missing recorded checkpoint produced a resume offer: %#v", got)
+	}
+}
+
+func TestR0bEnsureResumeOffersRefusesRevokedGrantAndDevice(t *testing.T) {
+	o := newOrchestrationFixture(t, "org_r0b_resume_revoked")
+	worker := o.workerConn(t)
+	mustExec(t, o.admin, "UPDATE work.run SET state = 'waiting', wait_reason = 'input' "+
+		"WHERE id = "+quoteLiteral(o.runID))
+	mustExec(t, o.admin, "UPDATE work.execution_lease SET state = 'revoked', "+
+		"revision = revision + 1 WHERE org_id = "+quoteLiteral(o.org)+" AND run_id = "+quoteLiteral(o.runID)+
+		" AND purpose = 'execute'")
+	mustExec(t, o.admin, "UPDATE work.workspace_grant SET state = 'revoked', "+
+		"revision = revision + 1 WHERE id = "+quoteLiteral(o.grantID))
+	if got := callJSONArray(t, worker,
+		`SELECT work.ensure_device_resume_offers($1,$2::uuid,$3::uuid)`,
+		o.org, o.deviceID, o.sessionID); len(got) != 0 {
+		t.Fatalf("revoked grant produced a resume offer: %#v", got)
+	}
+	mustExec(t, o.admin, "UPDATE work.device SET status = 'revoked', revoked_at = now() "+
+		"WHERE id = "+quoteLiteral(o.deviceID))
+	expectCode(t, worker, "device_revoked",
+		`SELECT work.ensure_device_resume_offers($1,$2::uuid,$3::uuid)`,
+		o.org, o.deviceID, o.sessionID)
+}
+
 func TestR0bRunReadyIsBoundToDeviceSessionAndRealSignature(t *testing.T) {
 	o := newOrchestrationFixture(t, "org_r0b_ready_bound")
 	worker := o.workerConn(t)

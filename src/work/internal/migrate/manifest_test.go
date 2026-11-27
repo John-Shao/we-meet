@@ -96,6 +96,7 @@ var publishedIncrements = []string{
 	"0081_local_task_submission",
 	"0082_local_approval_ttl",
 	"0083_local_destination_facts",
+	"0084_device_resume_offers",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

@@ -130,6 +130,8 @@ run_started响应丢失只查询同binding/start_nonce的本地状态，不重�
 
 **【2026-11-25 0069 落地登记（原文逐字保留）：** 设备侧合同不变：`run_offer` 仍不含 start_nonce，`run_ready` 仍先于 `run_start`。服务端预创建 lease 在 ready 前不能 prepare/consume；非 ready 回答会撤销预激活并回到 waiting/input，已签发 start 后拒绝非 ready 回滚。gateway 对 legacy `ready` 与 0069 `active` 两种 ack 状态都发送同一闭合 `run_start`，真库与 gateway 用例均已覆盖。
 
+**【2026-11-27 0084 落地登记：** session establish 与 heartbeat 调用 `ensure_device_resume_offers`，对同设备、同会话且 grant 仍有效的 `waiting(input)`／尚未取得 execute lease 的 `active` Run 创建更高 revision，并取最新 recorded checkpoint；已有 live offer/lease、已 acquired 的 active Run、unknown/unresolved、reconcile lease 均不重发；没有 recorded checkpoint 时明确不恢复，避免从初始输入重跑。新会话不得继承旧 grant，仍须经 `rebind_run_workspace` 的显式 proof／新授权链创建 offer。真库覆盖最新 checkpoint、幂等、旧会话 grant、撤销 grant、撤销设备与 foreign identity；生产 rollout 与真机跨会话恢复验收仍未执行。
+
 ### 3.3 SignedPermit
 
 许可包含 `v, aud, kid, jti, org_id, subject_id, device_id, session_id, agent_instance_id, boot_id, generation, run_id, operation_id, dispatch_attempt_id, execution_id?, request_hash, fence, policy_epoch, access_epoch, grant_id/revision, approval_id/decision_revision, scope_hash, destination_id, max_bytes, issued_at, expires_at`。签名规则同 §2，服务端独立 permit signing key；`aud` 闭集为 `device-tool`、`device-model-proxy`、`device-egress`，不能互用；只有 `device-egress` 带 execution_id（§5.3）。纯本地读 destination_id=null；模型调用绑定 endpoint profile，不接受运行时 URL。（**【2026-11-10 卡片 E=B：`aud` 闭集去 `device-egress`（S1 入口砍），剩 `device-tool`／`device-model-proxy`（device_local）；本期本机 Run 的模型目的地闭集收敛为 `device_local`（B03 载体 §3.1）。**】）

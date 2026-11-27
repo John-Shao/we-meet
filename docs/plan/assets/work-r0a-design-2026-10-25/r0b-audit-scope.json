@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 83,
-  "chainTipCatalog": "catalogs/0083_local_destination_facts.json",
+  "chainTip": 84,
+  "chainTipCatalog": "catalogs/0084_device_resume_offers.json",
   "entries": [
     {
       "name": "GET /api/v1.0/admin/work-governance-assignments/",
@@ -491,6 +491,15 @@
       "classification": "external-audit-required"
     },
     {
+      "name": "ensure_device_resume_offers",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0084_device_resume_offers.sql",
+      "callableBy": [
+        "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
       "name": "fail_cancellation_intent",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0057_cancellation_intent_consumer.sql",
@@ -556,7 +565,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0083_local_destination_facts.json",
+      "origin": "src/work/migrations/catalogs/0084_device_resume_offers.json",
       "callableBy": [
         "work_api",
         "work_governance_events"

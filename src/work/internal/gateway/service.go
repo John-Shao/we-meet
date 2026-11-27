@@ -207,6 +207,9 @@ func (s *Server) connect(stream grpc.ServerStream) error {
 	// stream, so a re-sent run_ready can still acquire the lease (0041 keys lease replay on
 	// that nonce) without minting a second one.
 	nonces := map[offerNonceKey]string{}
+	if err := s.ensureResumeOffers(ctx, orgID, deviceID, sessionID); err != nil {
+		return mapError(err)
+	}
 	if err := s.pushPendingOffers(ctx, stream, orgID, deviceID, sessionID, nonces); err != nil {
 		return err
 	}
