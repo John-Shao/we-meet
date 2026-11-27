@@ -255,6 +255,61 @@ verify_cancel_org_coverage() {
   echo "work-cancel org coverage: $(printf '%s\n' "$database_sorted" | wc -l) organization(s), exact match"
 }
 
+verify_governance_consumer() {
+  local env_file="/etc/work/work-governance-events.env"
+  local configured database configured_sorted database_sorted
+  local orgs dsn host_url cert key ca role subject
+  if [[ ! -r "$env_file" ]]; then
+    echo "aborting: $env_file is required before enabling work-governance-events; copy the packaged" >&2
+    echo "  template and provision the dedicated DB role, Host mTLS identity and complete org list." >&2
+    exit 1
+  fi
+  orgs="$(grep '^WORK_GOVERNANCE_ORGS=' "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
+  dsn="$(grep '^WORK_DATABASE_URL=' "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
+  host_url="$(grep '^WORK_GOVERNANCE_HOST_BASE_URL=' "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
+  cert="$(grep '^WORK_GOVERNANCE_CLIENT_CERT=' "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
+  key="$(grep '^WORK_GOVERNANCE_CLIENT_KEY=' "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
+  ca="$(grep '^WORK_GOVERNANCE_CA=' "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
+  if [[ -z "$orgs" || -z "$host_url" || -z "$cert" || -z "$key" || -z "$ca" || "$dsn" == *CHANGE_ME* ]]; then
+    echo "aborting: work-governance-events.env has empty or placeholder required values; secrets are not printed." >&2
+    exit 1
+  fi
+  if [[ ! "$dsn" =~ ^postgresql://work_governance_events_login:[^@]+@ ]]; then
+    echo "aborting: work-governance-events must use the dedicated work_governance_events_login role." >&2
+    exit 1
+  fi
+  if [[ ! -r "$cert" || ! -r "$key" || ! -r "$ca" ]]; then
+    echo "aborting: work-governance-events mTLS cert/key/CA paths must be readable before the timer is enabled." >&2
+    exit 1
+  fi
+  subject="$(openssl x509 -in "$cert" -noout -subject -nameopt RFC2253 2>/dev/null || true)"
+  if ! grep -Eq '(^|[=,])CN=work-governance-events(,|$)' <<<"$subject"; then
+    echo "aborting: work-governance-events client certificate CN must be work-governance-events." >&2
+    exit 1
+  fi
+  if ! role="$(runuser -u postgres -- psql -d work -X -At -v ON_ERROR_STOP=1 -c "select rolname from pg_roles where rolname='work_governance_events_login'")"; then
+    echo "aborting: could not verify the work_governance_events_login database role." >&2
+    exit 1
+  fi
+  if [[ "$role" != "work_governance_events_login" ]]; then
+    echo "aborting: work_governance_events_login is missing; run the approved role provisioning step first." >&2
+    exit 1
+  fi
+  if ! database="$(runuser -u postgres -- psql -d work -X -At -v ON_ERROR_STOP=1 -c 'select id from work.org')"; then
+    echo "aborting: could not read work.org for governance consumer coverage." >&2
+    exit 1
+  fi
+  configured_sorted="$(printf '%s\n' "$orgs" | tr '[:space:]' '\n' | sed '/^$/d' | sort -u)"
+  database_sorted="$(printf '%s\n' "$database" | sed '/^$/d' | sort -u)"
+  if [[ -z "$configured_sorted" || "$configured_sorted" != "$database_sorted" ]]; then
+    echo "aborting: WORK_GOVERNANCE_ORGS must exactly cover every work.org id before the timer is enabled." >&2
+    echo "configured:" >&2; printf '%s\n' "$configured_sorted" >&2
+    echo "database:" >&2; printf '%s\n' "$database_sorted" >&2
+    exit 1
+  fi
+  echo "governance consumer preflight: dedicated role/mTLS identity and $(printf '%s\n' "$database_sorted" | wc -l) organization(s) verified"
+}
+
 echo "== 1. preflight =="
 # ledger_max reports its own reason and returns non-zero; `set -e` would end the script there
 # anyway, but this stays explicit so a future `set +e` around here cannot turn "unknown" into a
@@ -341,9 +396,10 @@ if [[ -f "$RELEASE/work-chain-check.service" ]] && [[ ! -r /root/work-secrets.en
 fi
 if [[ "$MIGRATIONS_ONLY" -eq 0 ]]; then
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    echo "WARN: a real full rollout would require /etc/work/work-cancel.env to exactly cover work.org"
+    echo "WARN: a real full rollout would require work-cancel and work-governance-events env/org/mTLS preflight"
   else
     verify_cancel_org_coverage
+    verify_governance_consumer
   fi
 fi
 df -h / | tail -1
@@ -419,8 +475,9 @@ echo "== 5. binaries =="
 # yet and is not enabled here: it terminates device mTLS and needs the external device CA /
 # server certificate provisioning before it can serve, so installing the file does not start it.
 # work-cancel (R0b GW16, 0057) and work-governance-events (0068) install their binaries here;
-# work-cancel's env/unit/timer are installed and scheduled in steps 6/7 after exact org coverage
-# has been proven. work-governance-events remains binary-only until its deployment is authorized.
+# both consumers' env/unit/timer are installed and scheduled in steps 6/7 after exact org coverage
+# and, for governance, dedicated role/mTLS identity have been proven. work-operator-entitlement is
+# an on-demand command executor and intentionally has no timer.
 for bin in work-api work-relay work-worker work-authz work-content-proxy work-egress work-directory-sync work-reconcile work-export work-provider-setup work-gateway work-cancel work-governance-events work-operator-entitlement; do
   install_binary "$bin"
 done
@@ -449,10 +506,12 @@ fi
 install_env work-authz
 install_env work-content-proxy
 install_env work-egress
-# work-cancel.env is operator-provisioned and exact-covered in preflight; never replace it from
-# the empty package template. Tighten the installed file without printing its contents.
+# work-cancel.env and work-governance-events.env are operator-provisioned and exact-covered in
+# preflight; never replace them from package templates. Tighten permissions without printing values.
 run chown root:work-control /etc/work/work-cancel.env
 run chmod 640 /etc/work/work-cancel.env
+run chown root:work-control /etc/work/work-governance-events.env
+run chmod 640 /etc/work/work-governance-events.env
 render_env work-authz
 render_env work-content-proxy
 render_env work-egress
@@ -486,16 +545,24 @@ for unit in work-cancel.service work-cancel.timer; do
   fi
   run install -m 0644 -o root -g root "$RELEASE/$unit" "/etc/systemd/system/$unit"
 done
+# Governance events use the same bounded oneshot/timer shape, with a dedicated Host mTLS identity
+# proven in preflight. systemd serializes activations; the puller/store keep their own cursors.
+for unit in work-governance-events.service work-governance-events.timer; do
+  if [[ -f "/etc/systemd/system/$unit" ]]; then
+    run cp -p "/etc/systemd/system/$unit" "/etc/systemd/system/$unit.bak-$STAMP"
+  fi
+  run install -m 0644 -o root -g root "$RELEASE/$unit" "/etc/systemd/system/$unit"
+done
 run systemctl daemon-reload
 run systemctl enable work-authz work-content-proxy work-egress
-run systemctl enable work-cancel.timer
+run systemctl enable work-cancel.timer work-governance-events.timer
 # work-api 在现网早已 enabled＋active（unit 是初次装机手工放的）；这里的 enable 是为了按本包重建的
 # 主机也能开机带出它与它的闸（闸无 [Install]，由 work-api 的 Requires= 拉起来）。
 run systemctl enable work-api
 # restart, not start: step 3 never stops these units, so `start` would be a
 # no-op and the freshly installed binaries would sit on disk unused.
 run systemctl restart work-authz work-content-proxy work-egress
-run systemctl start work-cancel.timer
+run systemctl start work-cancel.timer work-governance-events.timer
 
 # #50 A (2026-11-04): the read-only orphan scan ships in the release payload but was never
 # wired on any host, so reconcile visibility depended on someone remembering to run it.

@@ -451,7 +451,10 @@ for pair in \
   "work-health-alert.py:/usr/local/bin/work-health-alert.py" \
   "work-cancel.service:/etc/systemd/system/work-cancel.service" \
   "work-cancel.timer:/etc/systemd/system/work-cancel.timer" \
-  "work-cancel.env.example:/etc/work/work-cancel.env"; do
+  "work-cancel.env.example:/etc/work/work-cancel.env" \
+  "work-governance-events.service:/etc/systemd/system/work-governance-events.service" \
+  "work-governance-events.timer:/etc/systemd/system/work-governance-events.timer" \
+  "work-governance-events.env.example:/etc/work/work-governance-events.env"; do
   name="${pair%%:*}"
   host="${pair#*:}"
   printf '  %s -> %s = %s\n' "$name" "$host" "$(test -e "$host" && echo present || echo MISSING)"
@@ -497,6 +500,56 @@ if [[ -x /usr/local/bin/work-cancel && -r "$cancel_env" && \
   echo "work_cancel_consumer=true"
 else
   echo "work_cancel_consumer=FALSE"
+  FAILURES=$((FAILURES + 1))
+fi
+
+echo
+echo "== governance event consumer (0068) =="
+governance_env="/etc/work/work-governance-events.env"
+governance_orgs=""
+governance_database=""
+governance_dsn=""
+governance_host=""
+governance_cert=""
+governance_key=""
+governance_ca=""
+governance_role=""
+governance_subject=""
+if [[ -r "$governance_env" ]]; then
+  governance_orgs="$(grep '^WORK_GOVERNANCE_ORGS=' "$governance_env" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
+  governance_dsn="$(grep '^WORK_DATABASE_URL=' "$governance_env" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
+  governance_host="$(grep '^WORK_GOVERNANCE_HOST_BASE_URL=' "$governance_env" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
+  governance_cert="$(grep '^WORK_GOVERNANCE_CLIENT_CERT=' "$governance_env" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
+  governance_key="$(grep '^WORK_GOVERNANCE_CLIENT_KEY=' "$governance_env" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
+  governance_ca="$(grep '^WORK_GOVERNANCE_CA=' "$governance_env" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
+  governance_role="$(runuser -u postgres -- psql -d work -X -At -v ON_ERROR_STOP=1 -c "select rolname from pg_roles where rolname='work_governance_events_login'" 2>/dev/null || true)"
+  governance_subject="$(openssl x509 -in "$governance_cert" -noout -subject -nameopt RFC2253 2>/dev/null || true)"
+fi
+if ! governance_database="$(runuser -u postgres -- psql -d work -X -At -v ON_ERROR_STOP=1 -c 'select id from work.org' 2>/dev/null)"; then
+  governance_database=""
+fi
+governance_configured_sorted="$(printf '%s\n' "$governance_orgs" | tr '[:space:]' '\n' | sed '/^$/d' | sort -u)"
+governance_database_sorted="$(printf '%s\n' "$governance_database" | sed '/^$/d' | sort -u)"
+governance_timer_enabled="$(systemctl is-enabled work-governance-events.timer 2>/dev/null || true)"
+governance_timer_active="$(systemctl is-active work-governance-events.timer 2>/dev/null || true)"
+governance_dsn_valid=0
+governance_cn_valid=0
+if [[ "$governance_dsn" =~ ^postgresql://work_governance_events_login:[^@]+@ ]]; then
+  governance_dsn_valid=1
+fi
+if grep -Eq '(^|[=,])CN=work-governance-events(,|$)' <<<"$governance_subject"; then
+  governance_cn_valid=1
+fi
+if [[ -x /usr/local/bin/work-governance-events && -r "$governance_env" && \
+      -f /etc/systemd/system/work-governance-events.service && -f /etc/systemd/system/work-governance-events.timer && \
+      -n "$governance_configured_sorted" && "$governance_configured_sorted" == "$governance_database_sorted" && \
+      -n "$governance_host" && -r "$governance_cert" && -r "$governance_key" && -r "$governance_ca" && \
+      "$governance_dsn" != *CHANGE_ME* && "$governance_dsn_valid" -eq 1 && \
+      "$governance_role" == "work_governance_events_login" && "$governance_cn_valid" -eq 1 && \
+      "$governance_timer_enabled" == "enabled" && "$governance_timer_active" == "active" ]]; then
+  echo "work_governance_consumer=true"
+else
+  echo "work_governance_consumer=FALSE"
   FAILURES=$((FAILURES + 1))
 fi
 

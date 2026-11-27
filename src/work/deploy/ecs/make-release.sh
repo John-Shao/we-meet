@@ -191,8 +191,8 @@ cp "$ROOT/deploy/ecs/work-runstream-scan.timer" "$OUT/"
 cp "$ROOT/deploy/ecs/work-runstream-scan.env.example" "$OUT/"
 # 2026-11-17（0057／GW16）：取消意图消费者的 unit＋timer＋org 清单模板一起走（#47／#50 的形状：
 # 脚本没有它的配对件＝装了也永远不跑）。2026-11-27 起 full rollout 在写前要求操作员预置
-# work-cancel.env 并逐项覆盖 work.org 全集，然后安装 unit/timer、enable 并 start timer；空模板
-# 只是交付物，不会被自动当成可用配置。
+# work-cancel.env 与 work-governance-events.env，校验组织全集及 governance 专用角色/mTLS 身份，
+# 然后安装 unit/timer、enable 并 start timer；包内空模板不会被当成可用配置。
 cp "$ROOT/deploy/ecs/work-cancel.service" "$OUT/"
 cp "$ROOT/deploy/ecs/work-cancel.timer" "$OUT/"
 cp "$ROOT/deploy/ecs/work-cancel.env.example" "$OUT/"
