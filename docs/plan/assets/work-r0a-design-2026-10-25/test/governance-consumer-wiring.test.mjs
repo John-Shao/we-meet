@@ -37,7 +37,8 @@ test('governance timer drives the bounded oneshot with the dedicated identity', 
   assert.match(service, /^EnvironmentFile=\/etc\/work\/work-governance-events\.env$/m);
   assert.match(service, /^ExecStart=\/usr\/local\/bin\/work-governance-events$/m);
   assert.match(env, /^WORK_GOVERNANCE_ORGS=$/m, 'the template must not ship a partial org list');
-  assert.match(env, /^WORK_DATABASE_URL=postgresql:\/\/work_governance_events_login:CHANGE_ME@/m);
+  assert.match(env, /^WORK_DATABASE_URL=postgresql:\/\/work_governance_events_login:CHANGE_ME@127\.0\.0\.1:5432\/work\?sslmode=disable$/m,
+    'the dedicated DSN must match the loopback PostgreSQL sslmode used by the role provisioner');
   assert.match(env, /^WORK_GOVERNANCE_CLIENT_CERT=\/etc\/work\/certs\/work-governance-events\.crt$/m);
   assert.match(env, /^WORK_GOVERNANCE_CLIENT_KEY=\/etc\/work\/certs\/work-governance-events\.key$/m);
   assert.match(main, /Getenv\("WORK_GOVERNANCE_ORGS"\)/);

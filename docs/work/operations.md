@@ -104,7 +104,7 @@ WORK_GOVERNANCE_EVENTS_PASSWORD=… [WORK_OPERATOR_PASSWORD=…] \
   ./src/work/deploy/ecs/provision-r0b-roles.sh [--dry-run]
 ```
 
-workload PKI 由 `init-workload-pki.sh` 生成（/etc/work/runtime-ca，幂等不覆盖；rollout 在 CA 缺失时自动跑）。
+workload PKI 由 `init-workload-pki.sh` 生成（/etc/work/runtime-ca，幂等不覆盖；rollout 在 CA 缺失时自动跑）。治理消费者使用独立 Host mTLS 客户端身份；其 PostgreSQL DSN 仍是 127.0.0.1 回环、`sslmode=disable`，与现有 Work 服务及 `provision-r0b-roles.sh` 输出一致，不能套用 Host 的 HTTPS/mTLS 参数。
 
 ## 2. 环境变量
 
