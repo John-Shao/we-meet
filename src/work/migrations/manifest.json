@@ -956,6 +956,17 @@
       "catalog_checksum": "sha256:50e5f22f19123c4957f650c908acf3904d7b11ff5b20a414cd015ea9f69f4e2e",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 87,
+      "name": "0087_configuration_probe_offer",
+      "kind": "increment",
+      "file": "increments/0087_configuration_probe_offer.sql",
+      "checksum": "sha256:c1f5a7eac19ab3e983d6cba517dd64e5107c00475721bf591abdbb4dce7dc9ea",
+      "catalog": "catalogs/0087_configuration_probe_offer.json",
+      "catalog_checksum": "sha256:2012670051c27873f39106d2d97991dd54a1e83bf8b0564f955b2304770d3d5f",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

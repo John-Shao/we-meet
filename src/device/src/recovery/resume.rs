@@ -290,6 +290,7 @@ mod tests {
                 session_id: "sess".into(),
             },
             offer_expiry: "2026-11-16T00:02:00Z".into(),
+            probe: None,
             signature: None,
         };
         assert!(wire.is_resume());

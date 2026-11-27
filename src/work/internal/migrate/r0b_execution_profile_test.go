@@ -356,6 +356,23 @@ func TestConfigurationProbeSubmissionCreatesCanonicalHiddenRunAndReplays(t *test
 		manifestDoc["preview_hash"] != previewHash || len(manifestDoc) != 5 {
 		t.Fatalf("probe manifest = %s", manifest)
 	}
+	var offerJSON []byte
+	if err := f.workerConn(t).QueryRow(testContext(t),
+		`SELECT work.list_pending_device_offers($1,$2::uuid,$3::uuid)`, f.org, f.deviceID, f.sessionID).Scan(&offerJSON); err != nil {
+		t.Fatal(err)
+	}
+	var offers []map[string]any
+	if err := json.Unmarshal(offerJSON, &offers); err != nil {
+		t.Fatal(err)
+	}
+	if len(offers) != 1 || offers[0]["run_id"] != runID {
+		t.Fatalf("probe offers = %s", offerJSON)
+	}
+	probeOffer, _ := offers[0]["probe"].(map[string]any)
+	if probeOffer["binding_id"] != binding["binding_id"] || probeOffer["probe_id"] != probeID ||
+		probeOffer["preview_hash"] != previewHash || probeOffer["template_hash"] != templateHash {
+		t.Fatalf("signed offer probe metadata = %#v", probeOffer)
+	}
 	if got := countRows(t, f.admin, "SELECT count(*) FROM work.outbox WHERE org_id="+quoteLiteral(f.org)+
 		" AND aggregate_id="+quoteLiteral(runID)+" AND payload->>'kind'='start_workflow'"); got != 0 {
 		t.Fatalf("probe start_workflow outbox rows = %d", got)

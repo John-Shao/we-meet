@@ -276,6 +276,8 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 **2026-11-27 0086 configuration-probe 提交链**：新增 `submit_configuration_probe` 与 `POST /work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-runs`，使用现有 19 字段 `local_intent` 签名域但要求空 grant 集与固定模板 hash。服务端从 pending binding/probe/registry 派生全部执行事实，创建 `task_kind=configuration_probe` 的隐藏 Task、无用户正文 synthetic input、`purpose=configuration_probe` 的 device Run binding，并复用 `submit_task`／原子 activation／现有计量链。同一 probe 仅允许 queued→running 一次；新 request ID 不能重复建 Run，普通 `retry_task` 也被单 Run 触发器拒绝。configuration-probe Run 只允许一个 model Operation 与一条 model result；验证回执必须属于该 probe 已记录的 Task/Run，probe Task/Run 指针写入后不可改；`task_summary` 排除 configuration probe。真库覆盖 canonical 隐藏 Run、幂等/冲突、过期/错配/verified 拒绝、重复提交、禁止 retry 与 pointer 防改写；API 覆盖签名拒绝。生产未部署。
 
+**2026-11-27 0087 签名 offer probe 元数据**：基于 0069 现行 `list_pending_device_offers` 语义重述 getter，保留 offered/ready/active-未签 run_start 的可见条件，仅为 `purpose=configuration_probe` 的 binding 返回 `probe{binding_id,probe_id,preview_hash,template_hash}`。gateway 在 configuration probe 时把该对象写入签名 `run_offer`，普通 Task 线格式不变；Rust `RunOfferBody` 增加可选 `probe` 字段，序列化省略普通 Task 的该键，签名覆盖 probe 元数据。真库验证原子激活后的 probe Run 能返回精确 probe 元数据，Rust 覆盖可选字段、闭合线格式与篡改拒绝。生产未部署。
+
 ### 3.5 装后验证与链尾闸 [只读]
 
 - `sudo ./verify-r0a-0027.sh "<开始时刻>"`：`rows=N max=N`、清单 all present、函数体探针 true（claim_carries_takeover、terminal_release_guard、export_discovery_hardened、0040–0045 设备面探针等）。

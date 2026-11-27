@@ -48,6 +48,14 @@ type pendingOffer struct {
 	ExpectedCheckpointHash *string         `json:"expected_checkpoint_hash"`
 	StartNonce             string          `json:"start_nonce"`
 	OfferExpiry            string          `json:"offer_expiry"`
+	Probe                  *probeOffer     `json:"probe"`
+}
+
+type probeOffer struct {
+	BindingID    string `json:"binding_id"`
+	ProbeID      string `json:"probe_id"`
+	PreviewHash  string `json:"preview_hash"`
+	TemplateHash string `json:"template_hash"`
 }
 
 // runReadyBody is the wire run_ready body (device-design §3.1 run_ready row: binding
@@ -134,6 +142,14 @@ func runOfferWire(o *pendingOffer) (map[string]any, error) {
 		"expected_checkpoint_hash": o.ExpectedCheckpointHash,
 		"original_target":          map[string]any{"device_id": o.DeviceID, "session_id": o.SessionID},
 		"offer_expiry":             o.OfferExpiry,
+	}
+	if o.Probe != nil {
+		wire["probe"] = map[string]any{
+			"binding_id":    o.Probe.BindingID,
+			"probe_id":      o.Probe.ProbeID,
+			"preview_hash":  o.Probe.PreviewHash,
+			"template_hash": o.Probe.TemplateHash,
+		}
 	}
 	return wire, nil
 }

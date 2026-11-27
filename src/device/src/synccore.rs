@@ -2205,6 +2205,7 @@ mod tests {
                 session_id: "sess".into(),
             },
             offer_expiry: "2026-11-19T00:00:30Z".into(),
+            probe: None,
             signature: None,
         };
         offer.signature =

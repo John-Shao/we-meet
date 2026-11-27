@@ -59,6 +59,14 @@ pub struct OriginalTarget {
     pub session_id: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProbeOffer {
+    pub binding_id: String,
+    pub probe_id: String,
+    pub preview_hash: String,
+    pub template_hash: String,
+}
+
 /// The run_offer body. `expected_checkpoint_*` are both null for a first offer and both set
 /// for a resume offer (§3.4: a resume references the latest recorded checkpoint of that Run),
 /// which is how the device tells the two apart.
@@ -85,6 +93,8 @@ pub struct RunOfferBody {
     pub expected_checkpoint_hash: Option<String>,
     pub original_target: OriginalTarget,
     pub offer_expiry: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub probe: Option<ProbeOffer>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,
 }
@@ -265,6 +275,7 @@ mod tests {
                 session_id: "sess-1".into(),
             },
             offer_expiry: "2026-11-16T00:02:00Z".into(),
+            probe: None,
             signature: None,
         }
     }
@@ -283,6 +294,35 @@ mod tests {
             expiry: "2026-11-16T00:00:30Z".into(),
             signature: None,
         }
+    }
+
+    #[test]
+    fn probe_metadata_is_optional_and_signed() {
+        let key = SoftwareKey::random();
+        let jwk = key.public_jwk();
+        let mut probe = offer();
+        probe.probe = Some(ProbeOffer {
+            binding_id: "binding".into(),
+            probe_id: "probe".into(),
+            preview_hash: "a".repeat(64),
+            template_hash: "b".repeat(64),
+        });
+        let value = probe.to_value();
+        assert_eq!(value.as_object().unwrap().len(), 19);
+        let signature = sign::sign_frame(&key, OFFER_FRAME_TYPE, &value).unwrap();
+        assert!(sign::verify_frame(
+            &jwk,
+            OFFER_FRAME_TYPE,
+            &value,
+            &signature
+        ));
+        probe.probe.as_mut().unwrap().preview_hash = "c".repeat(64);
+        assert!(!sign::verify_frame(
+            &jwk,
+            OFFER_FRAME_TYPE,
+            &probe.to_value(),
+            &signature
+        ));
     }
 
     #[test]
