@@ -17,12 +17,13 @@ export const TOOL_NAMES = Object.freeze([
   'artifact.write',
 ]);
 
-// Closed top-level key sets per frame type (run_bootstrap is validated against its own set).
+// Closed top-level key sets per frame type. run_bootstrap.probe is the sole optional member: Rust
+// omits it for ordinary Runs, while explicit null is equivalent to omission.
 const CLOSED_KEYS = Object.freeze({
   run_bootstrap: [
     'run_id', 'binding_revision', 'start_nonce', 'profile_id', 'compat_profile_version',
     'tool_manifest_hash', 'runtime_digest', 'model_route', 'sealed_input_b64',
-    'max_turns', 'max_tokens', 'max_bytes', 'deadline',
+    'max_turns', 'max_tokens', 'max_bytes', 'deadline', 'probe',
   ],
   capability_refresh: ['credential', 'generation'],
   model_request: ['request', 'logical_key'],
@@ -36,6 +37,9 @@ const CLOSED_KEYS = Object.freeze({
   tool_unknown: ['tool_call_id', 'reason'],
   loop_end: ['transcript_final', 'turn_count'],
 });
+
+const OPTIONAL_KEYS = Object.freeze({ run_bootstrap: ['probe'] });
+const PROBE_KEYS = Object.freeze(['binding_id', 'probe_id', 'preview_hash', 'template_hash']);
 
 export class ProtocolError extends Error {
   constructor(code) {
@@ -54,7 +58,7 @@ export function validateBody(type, body) {
   if (!keys) throw new ProtocolError('unknown_type');
   if (!isRecord(body)) throw new ProtocolError('not_object');
   for (const key of keys) {
-    if (!Object.hasOwn(body, key)) throw new ProtocolError('missing_key');
+    if (!Object.hasOwn(body, key) && !OPTIONAL_KEYS[type]?.includes(key)) throw new ProtocolError('missing_key');
   }
   for (const key of Object.keys(body)) {
     if (!keys.includes(key)) throw new ProtocolError('extra_key');
@@ -63,6 +67,15 @@ export function validateBody(type, body) {
     if (body.sealed_input_b64 !== null && (typeof body.sealed_input_b64 !== 'string'
       || !/^[A-Za-z0-9_-]+$/.test(body.sealed_input_b64))) {
       throw new ProtocolError('bad_enum');
+    }
+    if (body.probe !== undefined && body.probe !== null) {
+      const probe = body.probe;
+      if (!isRecord(probe)
+        || PROBE_KEYS.some((key) => !Object.hasOwn(probe, key))
+        || Object.keys(probe).some((key) => !PROBE_KEYS.includes(key))
+        || PROBE_KEYS.some((key) => typeof probe[key] !== 'string')) {
+        throw new ProtocolError('invalid_probe');
+      }
     }
   }
   if (type === 'tool_call' && !TOOL_NAMES.includes(body.tool_name)) {

@@ -1757,12 +1757,10 @@ fn propose_and_await_model_command(
         return None;
     }
     let grant = ctx.grant_set.first()?;
-    if !exec.grants.contains(&grant.grant_id) {
+    if bootstrap.probe.is_none() && !exec.grants.contains(&grant.grant_id) {
         return None;
     }
-    let request_hash = model_request_hash(request_doc)
-        .strip_prefix("sha256:")?
-        .to_string();
+    let request_hash = model_request_hash_for_bootstrap(request_doc, bootstrap);
     let server_key = format!("{logical_key}#0");
     let facts = ActionPrepareFacts {
         run_id: ctx.run_id.clone(),
@@ -1840,7 +1838,19 @@ fn canonical_hash(value: &Value) -> String {
     format!("sha256:{}", crate::sha256_hex(&bytes))
 }
 
-/// The `local_model_request` v1 request hash: an independent-kind canonical document hash (§5.1).
+fn model_request_hash_for_bootstrap(
+    doc: &Value,
+    bootstrap: &crate::ipc::nodepipe::RunBootstrap,
+) -> String {
+    if let Some(probe) = &bootstrap.probe {
+        return probe.preview_hash.clone();
+    }
+    model_request_hash(doc)
+        .strip_prefix("sha256:")
+        .unwrap_or_default()
+        .to_string()
+}
+
 fn model_request_hash(doc: &Value) -> String {
     let canonical = crate::frame::jcs::canonicalize(doc).unwrap_or_default();
     let mut covered = MODEL_REQUEST_KIND.as_bytes().to_vec();
@@ -2036,7 +2046,11 @@ fn produce_model_receipt(
 ) -> bool {
     let ty = reply["type"].as_str().unwrap_or("");
     let body = &reply["body"];
-    let request_hash = model_request_hash(request_doc);
+    let request_hash = if bootstrap.probe.is_some() {
+        model_request_hash_for_bootstrap(request_doc, bootstrap)
+    } else {
+        model_request_hash(request_doc)
+    };
     let operation_id = command
         .map(|c| c.operation_id.clone())
         .unwrap_or_else(|| logical_key.to_string());
@@ -2900,6 +2914,7 @@ mod tests {
             max_tokens: 4096,
             max_bytes: 1048576,
             deadline: "2026-11-19T01:00:00Z".into(),
+            probe: None,
         }
     }
 
@@ -3298,6 +3313,7 @@ mod tests {
             max_tokens: 4096,
             max_bytes: 1048576,
             deadline: "2026-11-19T01:00:00Z".into(),
+            probe: None,
         };
         let (start_tx, start_rx) = tokio::sync::oneshot::channel();
         service
@@ -3376,6 +3392,7 @@ mod tests {
             max_tokens: 4096,
             max_bytes: 1048576,
             deadline: "2026-11-19T01:00:00Z".into(),
+            probe: None,
         }
     }
 
@@ -3428,6 +3445,10 @@ mod tests {
         assert_eq!(snapshot["usage"]["total_tokens"], 15);
         assert_eq!(snapshot["result_hash"], "sha256:answer");
         assert_eq!(snapshot["operation_id"], "model:0");
+        assert_eq!(
+            snapshot["request_hash"],
+            model_request_hash(&json!({ "v": 1 }))
+        );
         assert_eq!(snapshot["state"], "completed");
         assert_eq!(snapshot["outcome"], "succeeded");
         drop(ctx);
@@ -3850,6 +3871,26 @@ mod tests {
         assert!(up_rx.try_recv().is_err());
         drop(ctx);
         server.join().unwrap();
+    }
+
+    #[test]
+    fn probe_model_hash_uses_the_signed_preview_and_normal_hash_is_bare() {
+        let doc = json!({ "v": 1, "messages": ["private user body"] });
+        let mut bootstrap = test_bootstrap();
+        assert_eq!(
+            model_request_hash_for_bootstrap(&doc, &bootstrap),
+            model_request_hash(&doc).strip_prefix("sha256:").unwrap()
+        );
+        bootstrap.probe = Some(crate::ipc::nodepipe::ProbeBootstrap {
+            binding_id: "33333333-3333-4333-8333-333333333333".into(),
+            probe_id: "44444444-4444-4444-8444-444444444444".into(),
+            preview_hash: "a".repeat(64),
+            template_hash: crate::sha256_hex(b"device-model-probe-v1"),
+        });
+        assert_eq!(
+            model_request_hash_for_bootstrap(&doc, &bootstrap),
+            "a".repeat(64)
+        );
     }
 
     #[test]

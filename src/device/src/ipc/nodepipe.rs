@@ -397,6 +397,14 @@ impl Drop for NodePipeConnection {
 /// crosses once as base64url so Node never receives a filesystem path or journal handle (DD:194).
 /// Bounds and deadline cap the loop.
 #[derive(Clone, Debug)]
+pub struct ProbeBootstrap {
+    pub binding_id: String,
+    pub probe_id: String,
+    pub preview_hash: String,
+    pub template_hash: String,
+}
+
+#[derive(Clone, Debug)]
 pub struct RunBootstrap {
     pub run_id: String,
     pub binding_revision: u64,
@@ -413,11 +421,12 @@ pub struct RunBootstrap {
     pub max_tokens: u64,
     pub max_bytes: u64,
     pub deadline: String,
+    pub probe: Option<ProbeBootstrap>,
 }
 
 impl RunBootstrap {
     pub fn to_value(&self) -> Value {
-        json!({
+        let mut value = json!({
             "run_id": self.run_id,
             "binding_revision": self.binding_revision.to_string(),
             "start_nonce": self.start_nonce,
@@ -435,7 +444,16 @@ impl RunBootstrap {
             "max_tokens": self.max_tokens.to_string(),
             "max_bytes": self.max_bytes.to_string(),
             "deadline": self.deadline,
-        })
+        });
+        if let Some(probe) = &self.probe {
+            value["probe"] = json!({
+                "binding_id": probe.binding_id,
+                "probe_id": probe.probe_id,
+                "preview_hash": probe.preview_hash,
+                "template_hash": probe.template_hash,
+            });
+        }
+        value
     }
 }
 
@@ -482,6 +500,7 @@ mod tests {
             max_tokens: 4096,
             max_bytes: 1048576,
             deadline: "2026-11-19T01:00:00Z".into(),
+            probe: None,
         }
     }
 
@@ -521,6 +540,22 @@ mod tests {
         // u64 members are decimal strings (the wire convention).
         assert_eq!(value["binding_revision"], "1");
         assert_eq!(value["max_turns"], "8");
+    }
+
+    #[test]
+    fn probe_bootstrap_is_optional_and_closed() {
+        let mut value = bootstrap();
+        assert!(value.to_value().get("probe").is_none());
+        value.probe = Some(ProbeBootstrap {
+            binding_id: "33333333-3333-4333-8333-333333333333".into(),
+            probe_id: "44444444-4444-4444-8444-444444444444".into(),
+            preview_hash: "a".repeat(64),
+            template_hash: crate::sha256_hex(b"device-model-probe-v1"),
+        });
+        let probe = &value.to_value()["probe"];
+        assert_eq!(probe.as_object().unwrap().len(), 4);
+        assert_eq!(probe["preview_hash"], "a".repeat(64));
+        assert!(probe.get("endpoint").is_none());
     }
 
     /// Drive one client connection: read the server hello, echo a client hello of `kind`, then read

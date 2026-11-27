@@ -830,6 +830,10 @@ impl SyncCore {
             eprintln!("work-device: offer signature refused");
             return;
         }
+        if !offer_body.expected_checkpoint_consistent() || !offer_body.probe_consistent() {
+            eprintln!("work-device: offer shape refused");
+            return;
+        }
         let mut reason = "ready";
         if offer_body.is_resume() {
             let resume_offer = resume::ResumeOffer::from_wire(&offer_body, "");
@@ -1010,18 +1014,26 @@ impl SyncCore {
                         run_id: start.run_id.clone(),
                         binding_revision: start.run_binding_id,
                         start_nonce: start.start_nonce.clone(),
-                        profile_id: "profile-dev-fixture-v1".into(),
+                        profile_id: offer_body.profile_id.clone(),
                         compat_profile_version: 1,
-                        tool_manifest_hash: self.spawn_template.manifest_hash.clone(),
+                        tool_manifest_hash: offer_body.tool_manifest_hash.clone(),
                         runtime_digest: start.runtime_digest.clone(),
                         model_provider: "device-local".into(),
-                        model_name: "fixture-model".into(),
+                        model_name: offer_body.model_version.clone(),
                         model_config_revision: 1,
                         sealed_input_b64: None,
-                        max_turns: 8,
-                        max_tokens: 4096,
+                        max_turns: if offer_body.probe.is_some() { 1 } else { 8 },
+                        max_tokens: if offer_body.probe.is_some() { 16 } else { 4096 },
                         max_bytes: 1_048_576,
                         deadline: start.expiry.clone(),
+                        probe: offer_body.probe.as_ref().map(|probe| {
+                            crate::ipc::nodepipe::ProbeBootstrap {
+                                binding_id: probe.binding_id.clone(),
+                                probe_id: probe.probe_id.clone(),
+                                preview_hash: probe.preview_hash.clone(),
+                                template_hash: probe.template_hash.clone(),
+                            }
+                        }),
                     };
                     let io_deadline = Arc::new(std::sync::Mutex::new(self.lease_deadline));
                     self.io_deadline = Some(io_deadline.clone());
@@ -1034,7 +1046,7 @@ impl SyncCore {
                         session_id: start.session_id.clone(),
                         fence: start.fence,
                         generation: start.generation,
-                        profile_id: "profile-dev-fixture-v1".into(),
+                        profile_id: offer_body.profile_id.clone(),
                         journal: self.journal_handle.clone(),
                         lease_id: start.lease_id.clone(),
                         // The seq=0 baseline acquire_device_lease writes is the binding's

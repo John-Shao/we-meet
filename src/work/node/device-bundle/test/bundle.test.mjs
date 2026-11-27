@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -33,6 +33,13 @@ function bootstrapBody() {
     deadline: '2026-11-19T01:00:00Z',
   };
 }
+
+const probeTemplateId = 'device-model-probe-v1';
+const probeTemplateHash = createHash('sha256').update(probeTemplateId, 'utf8').digest('hex');
+const probeBootstrap = {
+  binding_id: 'binding-1', probe_id: 'probe-1', preview_hash: 'c'.repeat(64),
+  template_hash: probeTemplateHash,
+};
 
 function modelReply(content, tool_calls = []) {
   return { type: 'model_response', body: {
@@ -141,6 +148,33 @@ function assertLoop(result, expected, turns) {
 
 const finalMessages = (result) => result.received.at(-1).body.transcript_final.messages;
 
+test('probe template hash is bare SHA-256 hex of the literal UTF-8 template ID', () => {
+  assert.equal(probeTemplateHash, 'a3995f6cf85cd80e9649ab0ef3eb8082dc99936e64c9c895f2b722b48b94fab2');
+});
+
+test('run_bootstrap accepts omitted, null, and exact object-shaped probe metadata', () => {
+  const ordinary = bootstrapBody();
+  assert.equal(validateBody('run_bootstrap', ordinary), ordinary);
+  assert.doesNotThrow(() => validateBody('run_bootstrap', { ...ordinary, probe: null }));
+  const body = { ...ordinary, probe: { ...probeBootstrap } };
+  assert.equal(validateBody('run_bootstrap', body), body);
+});
+
+for (const [name, probe] of [
+  ['array', []],
+  ['string', 'probe'],
+  ['missing field', { binding_id: 'binding-1', probe_id: 'probe-1', preview_hash: 'preview' }],
+  ['extra field', { ...probeBootstrap, extra: 'no' }],
+  ['non-string field', { ...probeBootstrap, probe_id: 1 }],
+]) {
+  test(`run_bootstrap rejects ${name} probe metadata`, () => {
+    assert.throws(
+      () => validateBody('run_bootstrap', { ...bootstrapBody(), probe }),
+      (err) => err.code === 'invalid_probe',
+    );
+  });
+}
+
 test('staged Composer text becomes the first model prompt', pipeTest, async () => {
   const text = 'pasted local_only contract\n第二行';
   const result = await runOnce({
@@ -152,6 +186,59 @@ test('staged Composer text becomes the first model prompt', pipeTest, async () =
   assert.equal(messages[1].role, 'user');
   assert.deepEqual(JSON.parse(messages[1].content), [{ type: 'text', text }]);
 });
+
+test('probe ignores sealed input, exposes no tools, and makes exactly one bounded model turn', pipeTest, async () => {
+  const result = await runOnce({
+    bootstrap: {
+      probe: { ...probeBootstrap },
+      sealed_input_b64: Buffer.from('SEALED_USER_INPUT_MUST_NOT_LEAK', 'utf8').toString('base64url'),
+      max_turns: '8',
+      max_tokens: '4096',
+    },
+    // Even a provider-requested tool call cannot escape the probe's no-tool, one-turn boundary.
+    model: () => modelReply('probe ok', [readCall]),
+  });
+  assertLoop(result, ['model_request', 'loop_end'], 1);
+  const request = result.received[0].body.request;
+  assert.deepEqual(request.messages, []);
+  assert.deepEqual(request.tools, []);
+  assert.deepEqual(request.parameters, { max_tokens: 16 });
+  assert.deepEqual(request.template, {
+    id: 'device-model-probe-v1', version: '1', hash: probeTemplateHash,
+  });
+  assert.equal(JSON.stringify(request).includes('SEALED_USER_INPUT_MUST_NOT_LEAK'), false);
+  assert.equal(finalMessages(result).some((message) => message.role === 'user'), false);
+  assert.equal(result.received.some((frame) => frame.type === 'tool_call'), false);
+});
+
+test('probe template hash mismatch fails closed before any model or tool frame', pipeTest, async () => {
+  const result = await runOnce({
+    bootstrap: { probe: { ...probeBootstrap, template_hash: '0'.repeat(64) } },
+  });
+  assert.equal(result.code, 1);
+  assert.equal(result.signal, null);
+  assert.match(result.stderr, /work-device-bundle: invalid_probe_template_hash/);
+  assert.deepEqual(result.received, []);
+});
+
+for (const [name, bootstrap] of [
+  ['omitted', {}],
+  ['null', { probe: null }],
+]) {
+  test(`ordinary run with ${name} probe metadata keeps its prompt, tools, template, and turn budget`, pipeTest, async () => {
+    const result = await runOnce({
+      bootstrap,
+      model: (turn) => turn === 0 ? modelReply('inspect', [readCall]) : modelReply('done'),
+      tool: (f) => [permitGate(f), toolResult(f)],
+    });
+    assertLoop(result, ['model_request', 'workspace.read', 'model_request', 'loop_end'], 2);
+    const request = result.received[0].body.request;
+    assert.deepEqual(request.parameters, {});
+    assert.deepEqual(request.template, { id: 'device-default', version: '1', hash: 'tmh' });
+    assert.deepEqual(request.tools, []);
+    assert.deepEqual(JSON.parse(request.messages.at(-1).content), [{ type: 'text', text: 'begin' }]);
+  });
+}
 
 test('loop_end transcript shape is closed and validated', () => {
   assert.doesNotThrow(() => validateBody('loop_end', {

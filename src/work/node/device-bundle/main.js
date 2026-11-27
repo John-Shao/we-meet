@@ -16,6 +16,7 @@
 // The SDK does NOT auto-call the model (DD:113): it waits for run_bootstrap before starting the loop.
 
 import net from 'node:net';
+import { createHash } from 'node:crypto';
 
 import { Agent } from '@earendil-works/pi-agent-core';
 
@@ -51,6 +52,12 @@ const ZERO_USAGE = Object.freeze({
   input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
   cost: Object.freeze({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }),
 });
+
+// Configuration probes are fixed, bodyless one-shot model calls. This is the same bare SHA-256 hex
+// preimage as work.sha256_text('device-model-probe-v1') / Rust sha256_hex, not a prefixed hash.
+const PROBE_TEMPLATE_ID = 'device-model-probe-v1';
+const PROBE_TEMPLATE_HASH = createHash('sha256').update(PROBE_TEMPLATE_ID, 'utf8').digest('hex');
+const PROBE_MAX_TOKENS = 16;
 
 function isRecord(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -217,10 +224,11 @@ async function connectAndBootstrap(pipeName) {
 // The Broker canonicalizes (JCS) and hashes it; Node never names an endpoint. logical_key is assigned
 // by the Broker's turn counter — Node supplies a placeholder the Broker overrides (DD:147).
 function buildModelRequest(context, bootstrap, turnNo) {
-  const messages = (context.messages ?? []).map((m) => ({
+  const probe = bootstrap.probe ?? null;
+  const messages = probe === null ? (context.messages ?? []).map((m) => ({
     role: m.role,
     content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content ?? ''),
-  }));
+  })) : [];
   return {
     v: 1,
     binding: {
@@ -235,8 +243,10 @@ function buildModelRequest(context, bootstrap, turnNo) {
       config_revision: bootstrap.model_route.config_revision,
       compat_profile_version: bootstrap.compat_profile_version,
     },
-    parameters: {},
-    template: { id: 'device-default', version: '1', hash: bootstrap.tool_manifest_hash },
+    parameters: probe === null ? {} : { max_tokens: PROBE_MAX_TOKENS },
+    template: probe === null
+      ? { id: 'device-default', version: '1', hash: bootstrap.tool_manifest_hash }
+      : { id: PROBE_TEMPLATE_ID, version: '1', hash: probe.template_hash },
     source_manifest_hash: bootstrap.tool_manifest_hash,
     messages,
     tools: [],
@@ -350,6 +360,11 @@ async function main() {
     throw new ProtocolError('pipe_name_required');
   }
   const { link, bootstrap } = await connectAndBootstrap(pipeName);
+  const probe = bootstrap.probe ?? null;
+  if (probe !== null && probe.template_hash !== PROBE_TEMPLATE_HASH) {
+    link.socket.destroy();
+    throw new ProtocolError('invalid_probe_template_hash');
+  }
   // Bootstrap u64 values cross the protocol as decimal strings, not lossy JS numbers. No fallback
   // or local token policy: enforce only the Broker-supplied turn bound, failing closed if invalid.
   if (typeof bootstrap.max_turns !== 'string' || !/^[0-9]+$/.test(bootstrap.max_turns)
@@ -357,9 +372,10 @@ async function main() {
     link.socket.destroy();
     throw new ProtocolError('invalid_max_turns');
   }
-  const maxTurns = BigInt(bootstrap.max_turns);
+  // A probe always makes exactly one model turn, regardless of the ordinary Run turn budget.
+  const maxTurns = probe === null ? BigInt(bootstrap.max_turns) : 1n;
   let initialText = 'begin';
-  if (bootstrap.sealed_input_b64 !== null) {
+  if (probe === null && bootstrap.sealed_input_b64 !== null) {
     const inputBytes = Buffer.from(bootstrap.sealed_input_b64, 'base64url');
     if (inputBytes.toString('base64url') !== bootstrap.sealed_input_b64
       || inputBytes.length > 60 * 1024) {
@@ -369,7 +385,7 @@ async function main() {
     initialText = new TextDecoder('utf-8', { fatal: true }).decode(inputBytes);
   }
   const counters = { turn: 0n, call: 0 };
-  const tools = makeTools(link, counters);
+  const tools = probe === null ? makeTools(link, counters) : [];
 
   // StreamFn: one model turn via the Broker pipe. Never throws; failures encode stopReason='error'.
   const streamFn = () => {
@@ -419,11 +435,12 @@ async function main() {
         return;
       }
       const message = assistantMessage({
-        // The loop executes tools only when the turn ends in toolUse (pi-ai StopReason).
-        stopReason: toolCalls.length > 0 ? 'toolUse' : 'stop',
+        // The loop executes tools only when the turn ends in toolUse (pi-ai StopReason). Probes never
+        // expose tools and discard any provider-requested calls, so one response always ends the Run.
+        stopReason: probe !== null || toolCalls.length === 0 ? 'stop' : 'toolUse',
         content: typeof am.content === 'string' ? [{ type: 'text', text: am.content }]
           : Array.isArray(am.content) ? am.content : [],
-        toolCalls,
+        toolCalls: probe === null ? toolCalls : [],
         usage: isRecord(reply.body.usage) ? reply.body.usage : ZERO_USAGE,
       });
       stream.push({ type: 'start', partial: { ...message } });
@@ -461,7 +478,7 @@ async function main() {
   });
   try {
     if (maxTurns > 0n) {
-      await agent.prompt([{ role: 'user', content: [{ type: 'text', text: initialText }] }]);
+      await agent.prompt(probe === null ? [{ role: 'user', content: [{ type: 'text', text: initialText }] }] : []);
       await agent.waitForIdle();
     }
   } finally {

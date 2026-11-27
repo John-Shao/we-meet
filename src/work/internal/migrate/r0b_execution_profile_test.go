@@ -166,7 +166,7 @@ func (f *executionProfileFixture) seedProbeResult(t *testing.T, binding map[stri
 		 tool_manifest_hash,model_version,grant_set,start_nonce,offer_expiry,state,purpose)
 		VALUES (`+quoteLiteral(f.org)+`,`+quoteLiteral(runID)+`,1,`+quoteLiteral(taskID)+`,`+
 		quoteLiteral(f.deviceID)+`,`+quoteLiteral(f.sessionID)+`,`+quoteLiteral(inputRef)+`,`+
-		quoteLiteral(inputHash)+`,`+quoteLiteral("local:"+inputRef)+`,`+quoteLiteral(hex64("probe-snapshot"))+`,`+
+		quoteLiteral(inputHash)+`,`+quoteLiteral("probe:"+probeID)+`,`+quoteLiteral(hex64("probe-snapshot"))+`,`+
 		quoteLiteral(f.profileID)+`,`+strconv.FormatInt(f.profileRevision, 10)+`,`+quoteLiteral(f.runtimeDigest)+`,`+
 		quoteLiteral(f.toolManifestHash)+`,`+quoteLiteral(f.modelVersion)+`,`+
 		quoteLiteral(`[]`)+`::jsonb,`+
@@ -305,6 +305,8 @@ func TestConfigurationProbeSubmissionCreatesCanonicalHiddenRunAndReplays(t *test
 	f := newExecutionProfileFixture(t, "org_probe_submit")
 	binding := f.createBinding(t, "req-probe-binding")
 	args := f.configurationProbeArgs(t, binding, "req-probe-submit")
+	preview, _ := binding["probe_preview"].(map[string]any)
+	probeID, _ := preview["probe_id"].(string)
 	var taskID, runID string
 	var revision, bindingRevision int64
 	if err := f.api.QueryRow(testContext(t), submitConfigurationProbeSQL, args...).
@@ -314,8 +316,6 @@ func TestConfigurationProbeSubmissionCreatesCanonicalHiddenRunAndReplays(t *test
 	if taskID == "" || runID == "" || revision != 1 || bindingRevision != 1 {
 		t.Fatalf("submission = %s/%s rev=%d binding=%d", taskID, runID, revision, bindingRevision)
 	}
-	preview, _ := binding["probe_preview"].(map[string]any)
-	probeID, _ := preview["probe_id"].(string)
 	previewHash, _ := preview["preview_hash"].(string)
 	templateHash := f.scalar(t, "SELECT work.sha256_text('device-model-probe-v1')")
 	var taskKind, title, permissionMode, runState, purpose, grantSet, inputRef, inputHash, contentRef string
@@ -339,7 +339,7 @@ func TestConfigurationProbeSubmissionCreatesCanonicalHiddenRunAndReplays(t *test
 		t.Fatal(err)
 	}
 	if taskKind != "configuration_probe" || title != "configuration probe" || permissionMode != "ask_each" ||
-		runState != "active" || purpose != "configuration_probe" || grantSet != "[]" ||
+		runState != "active" || purpose != "configuration_probe" || grantSet == "[]" ||
 		inputHash != templateHash || contentRef != "probe:"+probeID || inputBytes <= 0 ||
 		profileID != f.profileID || profileRevision != f.profileRevision || runtimeDigest != f.runtimeDigest ||
 		toolHash != f.toolManifestHash || modelVersion != f.modelVersion || probeState != "running" {
@@ -372,6 +372,21 @@ func TestConfigurationProbeSubmissionCreatesCanonicalHiddenRunAndReplays(t *test
 	if probeOffer["binding_id"] != binding["binding_id"] || probeOffer["probe_id"] != probeID ||
 		probeOffer["preview_hash"] != previewHash || probeOffer["template_hash"] != templateHash {
 		t.Fatalf("signed offer probe metadata = %#v", probeOffer)
+	}
+	if got := countRows(t, f.admin, "SELECT count(*) FROM work.workspace_grant WHERE org_id="+
+		quoteLiteral(f.org)+" AND purpose='configuration_probe'"); got != 1 {
+		t.Fatalf("internal probe grants = %d, want 1", got)
+	}
+	internalGrantID := f.scalar(t, "SELECT id::text FROM work.workspace_grant WHERE org_id="+
+		quoteLiteral(f.org)+" AND purpose='configuration_probe'")
+	visibleGrants := callJSON(t, f.api, `SELECT work.list_workspace_grants($1,$2,$3::uuid,NULL,50)`,
+		f.org, f.subject, f.deviceID)
+	items, _ := visibleGrants["items"].([]any)
+	for _, item := range items {
+		grant, _ := item.(map[string]any)
+		if grant["grant_id"] == internalGrantID {
+			t.Fatalf("internal probe grant leaked into workspace grants: %#v", item)
+		}
 	}
 	if got := countRows(t, f.admin, "SELECT count(*) FROM work.outbox WHERE org_id="+quoteLiteral(f.org)+
 		" AND aggregate_id="+quoteLiteral(runID)+" AND payload->>'kind'='start_workflow'"); got != 0 {
@@ -421,7 +436,7 @@ func TestConfigurationProbeSubmissionCreatesCanonicalHiddenRunAndReplays(t *test
 	conflict := append([]any(nil), args...)
 	conflict[9] = hex64("conflicting-target")
 	expectCode(t, f.api, "idempotency_key_conflict", submitConfigurationProbeSQL, conflict...)
-	expectCode(t, f.admin, "device_run_binding_grant_set_shape",
+	expectCode(t, f.admin, "device_run_binding_purpose_shape",
 		`UPDATE work.device_run_binding SET purpose='task' WHERE org_id=$1 AND run_id=$2::uuid`, f.org, runID)
 }
 

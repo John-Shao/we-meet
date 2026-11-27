@@ -179,7 +179,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (84, '0084_device_resume_offers'),
   (85, '0085_execution_profile_binding'),
   (86, '0086_configuration_probe_submission'),
-  (87, '0087_configuration_probe_offer')) expected(version, name)
+  (87, '0087_configuration_probe_offer'),
+  (88, '0088_configuration_probe_grant')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 psql_ro "select 'approval_proof_es256=' || case when
@@ -306,7 +307,7 @@ psql_ro "select 'configuration_probe_guards=' || case when
       where n.nspname='work' and t.relname='device_run_binding'
         and c.conname='device_run_binding_grant_set_shape'
         and pg_get_constraintdef(c.oid) like '%configuration_probe%'
-        and pg_get_constraintdef(c.oid) like '%jsonb_array_length(grant_set) = 0%')
+        and pg_get_constraintdef(c.oid) like '%jsonb_array_length(grant_set) = 1%')
     and position('(t.task_kind = ''task''::text)' in pg_get_viewdef('work.task_summary'::regclass, true)) > 0
     and exists (select 1 from pg_trigger t join pg_proc p on p.oid=t.tgfoid
       where not t.tgisinternal and t.tgrelid='work.run'::regclass
@@ -324,6 +325,19 @@ psql_ro "select 'configuration_probe_guards=' || case when
       where n.nspname='work' and p.proname='submit_configuration_probe')) > 0
     and position('mp.binding_id' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
       where n.nspname='work' and p.proname='list_pending_device_offers')) > 0
+    and exists (select 1 from pg_trigger t join pg_proc p on p.oid=t.tgfoid
+      where not t.tgisinternal and t.tgrelid='work.device_run_binding'::regclass
+        and p.proname='provide_configuration_probe_grant')
+    and exists (select 1 from information_schema.columns where table_schema='work'
+      and table_name='workspace_grant' and column_name='purpose')
+    and position('''snapshot_descriptor_ref = ''''probe:''''' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='provide_configuration_probe_grant')) > 0
+    and position('''configuration_probe''' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='provide_configuration_probe_grant')) > 0
+    and position('''probe:''' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='provide_configuration_probe_grant')) > 0
+    and position('''g.purpose = ''''workspace''''' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='list_workspace_grants')) > 0
     and position('''probe''' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
       where n.nspname='work' and p.proname='list_pending_device_offers')) > 0
     then 'true' else 'FALSE' end"

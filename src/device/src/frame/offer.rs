@@ -67,6 +67,21 @@ pub struct ProbeOffer {
     pub template_hash: String,
 }
 
+impl ProbeOffer {
+    pub fn shape_consistent(&self) -> bool {
+        let digest = |value: &str| {
+            value.len() == 64
+                && value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        };
+        uuid::Uuid::parse_str(&self.binding_id).is_ok()
+            && uuid::Uuid::parse_str(&self.probe_id).is_ok()
+            && digest(&self.preview_hash)
+            && self.template_hash == crate::sha256_hex(b"device-model-probe-v1")
+    }
+}
+
 /// The run_offer body. `expected_checkpoint_*` are both null for a first offer and both set
 /// for a resume offer (§3.4: a resume references the latest recorded checkpoint of that Run),
 /// which is how the device tells the two apart.
@@ -124,6 +139,19 @@ impl RunOfferBody {
     /// (device_run_binding_checkpoint_shape), so a half-populated offer is a protocol break.
     pub fn expected_checkpoint_consistent(&self) -> bool {
         self.expected_checkpoint_seq.is_some() == self.expected_checkpoint_hash.is_some()
+    }
+
+    pub fn probe_consistent(&self) -> bool {
+        match &self.probe {
+            None => true,
+            Some(probe) => {
+                probe.shape_consistent()
+                    && self.grant_set.len() == 1
+                    && self.input_hash == probe.template_hash
+                    && self.snapshot_descriptor_ref.as_deref()
+                        == Some(format!("probe:{}", probe.probe_id).as_str())
+            }
+        }
     }
 }
 
@@ -360,6 +388,29 @@ mod tests {
         let mut half = round.clone();
         half.expected_checkpoint_hash = None;
         assert!(!half.expected_checkpoint_consistent());
+    }
+
+    #[test]
+    fn probe_offer_requires_fixed_template_and_one_internal_grant() {
+        let mut body = offer();
+        body.probe = Some(ProbeOffer {
+            binding_id: "33333333-3333-4333-8333-333333333333".into(),
+            probe_id: "44444444-4444-4444-8444-444444444444".into(),
+            preview_hash: "a".repeat(64),
+            template_hash: crate::sha256_hex(b"device-model-probe-v1"),
+        });
+        let probe = body.probe.as_ref().unwrap();
+        body.input_hash = probe.template_hash.clone();
+        body.snapshot_descriptor_ref = Some(format!("probe:{}", probe.probe_id));
+        assert!(body.probe_consistent());
+        body.grant_set.clear();
+        assert!(!body.probe_consistent());
+        body.grant_set.push(GrantRef {
+            grant_id: "g1".into(),
+            grant_revision: 1,
+        });
+        body.input_hash = "b".repeat(64);
+        assert!(!body.probe_consistent());
     }
 
     #[test]

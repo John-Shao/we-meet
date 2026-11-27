@@ -278,6 +278,8 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 **2026-11-27 0087 签名 offer probe 元数据**：基于 0069 现行 `list_pending_device_offers` 语义重述 getter，保留 offered/ready/active-未签 run_start 的可见条件，仅为 `purpose=configuration_probe` 的 binding 返回 `probe{binding_id,probe_id,preview_hash,template_hash}`。gateway 在 configuration probe 时把该对象写入签名 `run_offer`，普通 Task 线格式不变；Rust `RunOfferBody` 增加可选 `probe` 字段，序列化省略普通 Task 的该键，签名覆盖 probe 元数据。真库验证原子激活后的 probe Run 能返回精确 probe 元数据，Rust 覆盖可选字段、闭合线格式与篡改拒绝。生产未部署。
 
+**2026-11-28 0088 内部探针 grant 与固定模板执行**：`workspace_grant.purpose` 增加 `configuration_probe`，probe binding 通过 `probe:<probe_id>` 快照引用精确匹配 pending probe，并由数据库铸造仅一个、五分钟内过期、`local_only` 的内部 grant；普通 grant 列表显式过滤该 purpose。Broker 仅对 probe 跳过设备侧根目录注册表成员检查，仍携带服务端 grant 走 prepare/permit/计量链；模型 Action 与 model result 的 `request_hash` 使用签名 offer 的 `preview_hash`，普通 Task 保持原独立域哈希。Rust 校验 probe UUID、bare hex、固定模板 hash、单 grant 与 input/snapshot 一致性；Node 忽略 sealed input，不发送用户消息或工具，仅执行一轮且 `max_tokens=16`，模板 hash 不符时在任何模型/工具帧前失败。真库覆盖内部 grant 可见性、精确 probe 关联与 tip88 catalog；Node 51 项、Rust 652 项通过。**仍未实现：** 持久 model_result ack 到签名 `model_probe` receipt 的生产桥接、桌面 profile/binding/probe 界面、profile 生命周期端点与真实设备/供应商验收；生产未部署。
+
 ### 3.5 装后验证与链尾闸 [只读]
 
 - `sudo ./verify-r0a-0027.sh "<开始时刻>"`：`rows=N max=N`、清单 all present、函数体探针 true（claim_carries_takeover、terminal_release_guard、export_discovery_hardened、0040–0045 设备面探针等）。
