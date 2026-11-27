@@ -176,7 +176,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (81, '0081_local_task_submission'),
   (82, '0082_local_approval_ttl'),
   (83, '0083_local_destination_facts'),
-  (84, '0084_device_resume_offers')) expected(version, name)
+  (84, '0084_device_resume_offers'),
+  (85, '0085_execution_profile_binding')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 psql_ro "select 'approval_proof_es256=' || case when
@@ -199,7 +200,7 @@ psql_ro "select 'local_preview_facts=' || case when
       where n.nspname = 'work' and p.proname = 'local_preview_facts'
         and p.prosecdef and p.proowner = (select oid from pg_roles where rolname = 'work_owner')) = 1
     and has_function_privilege('work_api',
-      'work.local_preview_facts(text,text,bigint,uuid,uuid,uuid[],text[],text,text)', 'EXECUTE')
+      'work.local_preview_facts(text,text,bigint,uuid,uuid,uuid[],text[],text,text,bigint,text,text,text)', 'EXECUTE')
     and not has_table_privilege('work_api', 'work.device', 'SELECT')
     and not has_table_privilege('work_api', 'work.device_session', 'SELECT')
     and not has_table_privilege('work_api', 'work.workspace_grant', 'SELECT')
@@ -230,6 +231,48 @@ psql_ro "select 'local_task_submission=' || case when
       where n.nspname = 'work' and p.proname = 'submit_local_task')) > 0
     and position('DELETE FROM work.outbox' in (select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'work' and p.proname = 'submit_local_task')) > 0
+    then 'true' else 'FALSE' end"
+psql_ro "select 'execution_profile_registry=' || case when
+    (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace
+      where n.nspname='work' and c.relname in
+        ('execution_profile_revision','device_model_binding','model_profile_probe')
+        and c.relrowsecurity and c.relforcerowsecurity) = 3
+    and (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname in
+        ('publish_execution_profile','get_execution_profile','verified_execution_profile',
+         'create_device_model_binding','record_execution_profile_probe')
+        and p.prosecdef and p.proowner=(select oid from pg_roles where rolname='work_owner')
+        and p.proconfig @> array['search_path=work, pg_catalog']) = 5
+    and has_function_privilege('work_api','work.publish_execution_profile(text,text,text,jsonb)','EXECUTE')
+    and has_function_privilege('work_api','work.get_execution_profile(text,text,bigint)','EXECUTE')
+    and has_function_privilege('work_api','work.create_device_model_binding(text,text,bigint,uuid,uuid,text,text,bigint,text,text,text,text,jsonb)','EXECUTE')
+    and has_function_privilege('work_api','work.record_execution_profile_probe(text,text,bigint,uuid,uuid,text,uuid,text,text,text,text)','EXECUTE')
+    and has_function_privilege('work_api','work.local_preview_facts(text,text,bigint,uuid,uuid,uuid[],text[],text,text,bigint,text,text,text)','EXECUTE')
+    and not has_function_privilege('work_api','work.verified_execution_profile(text,uuid,uuid,text,bigint,text)','EXECUTE')
+    and not has_table_privilege('work_api','work.execution_profile_revision','SELECT')
+    and not has_table_privilege('work_api','work.device_model_binding','SELECT')
+    and not has_table_privilege('work_api','work.model_profile_probe','SELECT')
+    and position('work.verified_execution_profile' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='local_preview_facts')) > 0
+    and position('work.verified_execution_profile' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='submit_local_task')) > 0
+    and position('preview_stale' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='record_execution_profile_probe')) > 0
+    and position('expires_at <= now()' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='record_execution_profile_probe')) > 0
+    and position('v_result.request_hash <> v_probe.preview_hash' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='record_execution_profile_probe')) > 0
+    and position('configuration_probe' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='record_execution_profile_probe')) > 0
+    and exists (select 1 from information_schema.columns where table_schema='work'
+      and table_name='device_run_binding' and column_name='purpose')
+    then 'true' else 'FALSE' end"
+psql_ro "select 'execution_profile_guards=' || case when
+    (select count(*) from pg_trigger t join pg_proc p on p.oid=t.tgfoid
+      where not t.tgisinternal and p.proname in
+        ('execution_profile_revision_guard','device_model_binding_guard','model_profile_probe_guard')) = 3
+    and exists (select 1 from pg_index i join pg_class c on c.oid=i.indexrelid
+      where c.relname='work_device_model_binding_one_active' and i.indisunique and i.indpred is not null)
     then 'true' else 'FALSE' end"
 psql_ro "select 'device_resume_offers=' || case when
     (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -410,7 +453,8 @@ psql_ro "select coalesce(string_agg(name, ', '), 'none') from (values
   ('work.device_session_ticket'), ('work.workspace_grant'),
   ('work.workspace_grant_succession'), ('work.execution_lease'),
   ('work.device_run_binding'), ('work.readonly_approval_grant'),
-  ('work.device_checkpoint')) v(name)
+  ('work.device_checkpoint'), ('work.execution_profile_revision'),
+  ('work.device_model_binding'), ('work.model_profile_probe')) v(name)
  where to_regclass(name) is null" | sed 's/^/missing: /'
 # The commands this range replaces keep their SECURITY DEFINER identity, and the new
 # guard triggers are what make the append-only tables hold. Both are matched by name

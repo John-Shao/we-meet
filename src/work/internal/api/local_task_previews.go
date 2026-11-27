@@ -146,12 +146,14 @@ func (s *Server) createLocalTaskPreview(w http.ResponseWriter, r *http.Request) 
 			var raw []byte
 			if err := tx.QueryRow(r.Context(), `
 				SELECT work.local_preview_facts($1, $2, $3, $4::uuid, $5::uuid,
-				  $6::uuid[], $7::text[], $8, $9)
+				  $6::uuid[], $7::text[], $8, $9, $10::bigint, $11, $12, $13)
 				  || work.local_preview_destination_facts($1, $2, $6::uuid[])`,
 				claims.OrgID, claims.SubjectID, claims.SessionRevision,
 				body.TargetSelection.DeviceID, body.TargetSelection.SessionID,
 				grantIDs(body.TargetSelection.WorkspaceGrants), grantRevisions(body.TargetSelection.WorkspaceGrants),
-				body.TargetSelection.RuntimeDigest, body.TargetSelection.ProfileID).Scan(&raw); err != nil {
+				body.TargetSelection.RuntimeDigest, body.TargetSelection.ProfileID,
+				body.TargetSelection.ProfileRevision, body.TargetSelection.ProfileHash,
+				body.TargetSelection.ToolManifestHash, body.TargetSelection.ModelVersion).Scan(&raw); err != nil {
 				return err
 			}
 			return json.Unmarshal(raw, &facts)

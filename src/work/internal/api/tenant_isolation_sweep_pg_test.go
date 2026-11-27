@@ -185,13 +185,14 @@ func TestTenantTablesAreEmptyToEveryLoginWhenTheOrgGUCIsUnset(t *testing.T) {
 	// device_run_finish) and 0043 two more (artifact_replica, consumed_possession_nonce), so the
 	// named set is thirty-six.
 	// 0081 adds local_submission_intent on the same rule, so the named set is thirty-seven.
+	// 0085 adds execution_profile_revision, device_model_binding and model_profile_probe, making forty.
 	wantUncovered := "access_restriction,artifact_replica,audit_export,cancellation_intent," +
 		"consumed_governance_command,consumed_possession_nonce," +
-		"content_reference,device,device_checkpoint,device_dispatch,device_model_result,device_pairing,device_receipt," +
+		"content_reference,device,device_checkpoint,device_dispatch,device_model_binding,device_model_result,device_pairing,device_receipt," +
 		"device_run_binding,device_run_finish,device_session,device_session_ticket,directory_sync_state," +
-		"execution_entitlement,execution_lease,governance_change,governance_event_cursor," +
+		"execution_entitlement,execution_lease,execution_profile_revision,governance_change,governance_event_cursor," +
 		"governance_gap_report,local_action,local_execution_policy,local_submission_intent," +
-		"operation_resolution,operation_usage_fact,provider_access_config,provider_credential," +
+		"model_profile_probe,operation_resolution,operation_usage_fact,provider_access_config,provider_credential," +
 		"provider_probe_grant,readonly_approval_grant,runtime_capability,runtime_checkpoint_head," +
 		"usage_daily,workspace_grant,workspace_grant_succession"
 	if got := sortedJoin(unread); got != wantUncovered {

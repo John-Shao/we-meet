@@ -276,6 +276,8 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 	if sessionID == "" {
 		t.Fatalf("the Broker never established a session; stderr:\n%s", stderr.String())
 	}
+	seedVerifiedExecutionProfile(t, dbName, deviceID, sessionID, "profile-1", 1,
+		strings.Repeat("e", 64), strings.Repeat("b", 64), strings.Repeat("a", 64), "deferred")
 	// The session consumed the delivered ticket, so no request is outstanding: the shell must
 	// read false here and NOT mint another ticket against a satisfied link.
 	postSession := brokerCall(t, pipe, map[string]any{"method": "getDeviceCertificateStatus", "request_id": "st-session"})
@@ -372,7 +374,7 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 		t.Fatalf("staged local input = %#v", stagedData)
 	}
 	targetSelection := map[string]any{
-		"kind": "local", "profile_id": "profile-1", "profile_revision": "0",
+		"kind": "local", "profile_id": "profile-1", "profile_revision": "1",
 		"profile_hash": strings.Repeat("e", 64), "device_id": deviceID, "session_id": sessionID,
 		"workspace_grants": []any{map[string]any{"grant_id": grantID, "grant_revision": "1"}},
 		"runtime_digest":   strings.Repeat("b", 64), "tool_manifest_hash": strings.Repeat("a", 64),
@@ -427,7 +429,7 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 		"input_ref": inputRef, "input_hash": strings.TrimPrefix(inputHash, "sha256:"),
 		"preview_hash": previewHash, "target_selection_hash": targetHash,
 		"selected_grant_ids": []string{grantID}, "grant_revisions": []string{"1"},
-		"profile_id": "profile-1", "profile_revision": "0", "profile_hash": strings.Repeat("e", 64),
+		"profile_id": "profile-1", "profile_revision": "1", "profile_hash": strings.Repeat("e", 64),
 		"auth_epoch": strconv.FormatInt(submissionEpoch, 10),
 	})
 	if submission["result"] != "accepted" {
@@ -590,7 +592,7 @@ func TestDeviceBrokerEntryPairsAndConsumesARestIssuedCertificate(t *testing.T) {
 		"input_ref": inputRef, "input_hash": strings.TrimPrefix(inputHash, "sha256:"),
 		"preview_hash": previewHash, "target_selection_hash": targetHash,
 		"selected_grant_ids": []string{grantID}, "grant_revisions": []string{"1"},
-		"profile_id": "profile-1", "profile_revision": "0", "profile_hash": strings.Repeat("e", 64),
+		"profile_id": "profile-1", "profile_revision": "1", "profile_hash": strings.Repeat("e", 64),
 		"auth_epoch": strconv.FormatInt(submissionEpoch, 10),
 	})
 	if canceledSubmission["result"] != "accepted" || canceledSubmission["data"] != nil {

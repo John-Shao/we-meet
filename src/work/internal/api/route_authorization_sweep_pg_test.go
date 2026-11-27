@@ -109,11 +109,12 @@ func TestMemberAndSeatlessSessionsAreRefusedAcrossTheRouteTable(t *testing.T) {
 		"POST /work/v2/admin/governance-event-cursor": `{"to_seq":5,"gap_report_id":"` +
 			guardFixtureUUID + `","ticket_id":"OPS-1042",` +
 			`"client_request_id":"sweep-admin-cursor-1"}`,
-		"PATCH /work/v2/admin/local-policy": `{"revision":0,"client_request_id":"sweep-admin-policy-1"}`,
-		"POST /work/v1/inputs":              `{"client_request_id":"sweep-seat-input","goal":"sweep","background":""}`,
-		"DELETE /work/v1/tasks/{taskId}":    `{"client_request_id":"sweep-seat-delete","expected_revision":0}`,
-		"POST /work/v1/tasks/{taskId}/runs": `{"client_request_id":"sweep-seat-retry","expected_revision":0,"target":{"kind":"cloud","profile":"text-v1"}}`,
-		"POST /work/v1/runs/{runId}/cancel": `{"reason":"operator_request"}`,
+		"PATCH /work/v2/admin/local-policy":      `{"revision":0,"client_request_id":"sweep-admin-policy-1"}`,
+		"POST /work/v2/admin/execution-profiles": `{"client_request_id":"sweep-admin-profile-1","profile":{}}`,
+		"POST /work/v1/inputs":                   `{"client_request_id":"sweep-seat-input","goal":"sweep","background":""}`,
+		"DELETE /work/v1/tasks/{taskId}":         `{"client_request_id":"sweep-seat-delete","expected_revision":0}`,
+		"POST /work/v1/tasks/{taskId}/runs":      `{"client_request_id":"sweep-seat-retry","expected_revision":0,"target":{"kind":"cloud","profile":"text-v1"}}`,
+		"POST /work/v1/runs/{runId}/cancel":      `{"reason":"operator_request"}`,
 		"PUT /work/v1/admin/provider-config": `{"provider":"deepseek","model":"m","region":"r",` +
 			`"endpoint":"https://x.example/v1","credential_mode":"managed_key","credential_id":"` +
 			guardFixtureUUID + `","expected_revision":0}`,

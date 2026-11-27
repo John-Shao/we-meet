@@ -83,6 +83,11 @@ const IMPLEMENTED_ONLY = [
   // route backed by the 0041/0043 rebind_run_workspace command. Its /work/v2/runs sibling
   // (reconciliations) is a cookie-plane R0a read and is not listed here.
   'POST /work/v2/runs/{runId}/workspace-rebinds',
+  // Production ExecutionProfile registry and verified device model binding/probe gate (0085).
+  'GET /work/v2/execution-profiles/{profileId}/revisions/{revision}',
+  'POST /work/v2/admin/execution-profiles',
+  'POST /work/v2/devices/{deviceId}/model-bindings',
+  'POST /work/v2/devices/{deviceId}/model-bindings/{bindingId}/probes',
 ];
 
 function readGoSurface() {

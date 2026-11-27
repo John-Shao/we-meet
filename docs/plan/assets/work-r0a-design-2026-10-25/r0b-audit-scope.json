@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 84,
-  "chainTipCatalog": "catalogs/0084_device_resume_offers.json",
+  "chainTip": 85,
+  "chainTipCatalog": "catalogs/0085_execution_profile_binding.json",
   "entries": [
     {
       "name": "GET /api/v1.0/admin/work-governance-assignments/",
@@ -41,6 +41,15 @@
     },
     {
       "name": "GET /work/v2/devices",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "GET /work/v2/execution-profiles/{profileId}/revisions/{revision}",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",
       "callableBy": [
@@ -112,6 +121,15 @@
       "classification": "external-audit-required"
     },
     {
+      "name": "POST /work/v2/admin/execution-profiles",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
       "name": "POST /work/v2/admin/governance-event-cursor",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",
@@ -167,6 +185,24 @@
     },
     {
       "name": "POST /work/v2/devices/{deviceId}/certificate-renewals",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "POST /work/v2/devices/{deviceId}/model-bindings",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "POST /work/v2/devices/{deviceId}/model-bindings/{bindingId}/probes",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",
       "callableBy": [
@@ -436,6 +472,15 @@
       "classification": "external-audit-required"
     },
     {
+      "name": "create_device_model_binding",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0085_execution_profile_binding.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
       "name": "create_device_run_binding",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0041_local_run_orchestration.sql",
@@ -536,6 +581,15 @@
       "classification": "external-audit-required"
     },
     {
+      "name": "get_execution_profile",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0085_execution_profile_binding.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
       "name": "get_local_approval",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0044_local_approval_reads.sql",
@@ -565,7 +619,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0084_device_resume_offers.json",
+      "origin": "src/work/migrations/catalogs/0085_execution_profile_binding.json",
       "callableBy": [
         "work_api",
         "work_governance_events"
@@ -744,6 +798,15 @@
       "classification": "external-audit-required"
     },
     {
+      "name": "publish_execution_profile",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0085_execution_profile_binding.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
       "name": "rebind_run_workspace",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
@@ -794,6 +857,15 @@
       "origin": "src/work/migrations/increments/0042_local_actions_receipts_finish.sql",
       "callableBy": [
         "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "record_execution_profile_probe",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0085_execution_profile_binding.sql",
+      "callableBy": [
+        "work_api"
       ],
       "classification": "external-audit-required"
     },
