@@ -96,6 +96,7 @@ export async function createEgressServer({
   bundle,
   provider = "qwen",
   logFile,
+  upstreamTimeoutMs = 30_000,
 }) {
   const upstreamPath = provider === "doubao" ? "/v1/responses" : "/v1/chat/completions";
   const requests = [];
@@ -163,6 +164,7 @@ export async function createEgressServer({
       try {
         const upstream = await fetch(`${gatewayUrl}${upstreamPath}`, {
           method: "POST",
+          signal: AbortSignal.timeout(upstreamTimeoutMs),
           headers: {
             "content-type": "application/json",
             "x-work-gateway-token": "local-dev",
