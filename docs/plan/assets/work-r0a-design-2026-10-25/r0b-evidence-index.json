@@ -19,7 +19,7 @@
       "status": "partial",
       "gaps": [
         "Host seat 命令重放/异 payload 冲突、专用 mTLS 读取与 Work HTTP→PG 消费已有证据；entitlement 生产者、Work mTLS Apply/Get 客户端与 operator 执行器已落地，>365 天运行期留存尚未取证；治理消费者失败/停 timer 已接入仓库健康邮件链，客户端证书 CN/EKU/CA/有效期/私钥匹配已有真实 OpenSSL 正反例，但生产告警投递尚未取证。",
-        "生产 systemd unit、客户端证书、专用 DSN 与组织清单尚未部署；固定两步缺口恢复的 Work SQL 与拉取器分支已覆盖，但真实生产 Host→Work 全链仍未执行。"
+        "生产 systemd unit、客户端证书、专用 DSN 与组织清单尚未部署；固定两步缺口恢复的 Work SQL 与拉取器分支已覆盖，但真实生产 Host→Work 全链仍未执行。7d162433a 的本地干净候选包已验证治理 unit/timer/env、角色预置脚本、17 个二进制与 83/83 哈希覆盖，隔离 dry-run 未执行治理启停；该证据不等于生产部署。"
       ],
       "evidence": [
         { "path": "src/work/internal/host/governance_integration_test.go", "test": "TestGovernanceHTTPPullerConsumesThroughDedicatedIdentity" },
@@ -45,7 +45,9 @@
         { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bGovernanceCursorAdvancesOnlyForward" },
         { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/healthcheck-runtime.test.mjs", "test": "governance consumer service failure degrades and alerts" },
         { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/healthcheck-runtime.test.mjs", "test": "stopped governance consumer timer degrades and alerts" },
-        { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/governance-client-cert.test.mjs", "test": "governance client certificate preflight accepts only a valid dedicated identity" }
+        { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/governance-client-cert.test.mjs", "test": "governance client certificate preflight accepts only a valid dedicated identity" },
+        { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/release-assets.test.mjs", "test": "the governance role provisioner travels with the rollout package" },
+        { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/release-payload-closure.test.mjs", "test": "SHA256SUMS covers hidden provenance metadata as well as visible payload files" }
       ]
     },
     {
@@ -90,7 +92,7 @@
       "status": "partial",
       "gaps": [
         "Host 生产者、专用 mTLS 读取口与 Work HTTP→PG 拉取消费者已落地并取证；消费者失败/停 timer 已接入仓库健康邮件链，客户端证书 CN/EKU/CA/有效期/私钥匹配已有真实 OpenSSL 正反例，但生产 unit、客户端证书、专用 DSN、组织清单与实际告警投递尚未部署/取证。",
-        "生产 unit、客户端证书、专用 DSN 与组织清单尚未部署；Host 目录列表已按 user 分页并归并同组织多条 Membership，status/role/seat/revision 与 revision_after 有直接用例。"
+        "生产 unit、客户端证书、专用 DSN 与组织清单尚未部署；Host 目录列表已按 user 分页并归并同组织多条 Membership，status/role/seat/revision 与 revision_after 有直接用例。7d162433a 的本地干净候选包已验证治理 unit/timer/env、角色预置脚本、17 个二进制与 83/83 哈希覆盖，隔离 dry-run 未执行治理启停；该证据不等于生产部署。"
       ],
       "evidence": [
         { "path": "src/work/internal/host/governance_integration_test.go", "test": "TestGovernanceHTTPPullerConsumesThroughDedicatedIdentity" },
@@ -111,7 +113,9 @@
         { "path": "src/backend/core/tests/test_work_host_org_discovery.py", "test": "test_member_list_revision_after_observes_any_merged_row" },
         { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/healthcheck-runtime.test.mjs", "test": "governance consumer service failure degrades and alerts" },
         { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/healthcheck-runtime.test.mjs", "test": "stopped governance consumer timer degrades and alerts" },
-        { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/governance-client-cert.test.mjs", "test": "governance client certificate preflight accepts only a valid dedicated identity" }
+        { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/governance-client-cert.test.mjs", "test": "governance client certificate preflight accepts only a valid dedicated identity" },
+        { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/release-assets.test.mjs", "test": "the governance role provisioner travels with the rollout package" },
+        { "path": "docs/plan/assets/work-r0a-design-2026-10-25/test/release-payload-closure.test.mjs", "test": "SHA256SUMS covers hidden provenance metadata as well as visible payload files" }
       ]
     },
     {
