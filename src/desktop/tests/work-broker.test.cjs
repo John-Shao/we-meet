@@ -150,12 +150,14 @@ test("start spawns the verified executable with the closed config argv and waits
 test("a child that exits before ready fails the start and lands in the exit ledger", windows, async (t) => {
   const root = await payload(t);
   const child = fakeChild();
-  mockSpawn(t, child);
+  const spawns = mockSpawn(t, child);
   const supervisor = new BrokerSupervisor();
   const events = [];
   supervisor.on("state", (event) => events.push(event));
   const starting = supervisor.start(root, "broker.json", "pipe-x");
-  await delay(10);
+  const deadline = Date.now() + 5000;
+  while (spawns.length === 0 && Date.now() < deadline) await delay(5);
+  assert.equal(spawns.length, 1, "the child must spawn before the simulated early exit");
   child.stderr.push("fatal: bad config\n");
   child.emit("exit", 2, null);
   await assert.rejects(starting, /work_device_start_failed/);
