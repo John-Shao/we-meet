@@ -87,7 +87,7 @@
       "status": "partial",
       "gaps": [
         "Host 生产者、专用 mTLS 读取口与 Work HTTP→PG 拉取消费者已落地并取证；生产 unit、客户端证书、专用 DSN 与组织清单尚未部署。",
-        "生产 unit、客户端证书、专用 DSN 与组织清单尚未部署；Host 目录列表仍逐 Membership 行输出，按人归并与 directory_revision 端到端隔离尚未验证。"
+        "生产 unit、客户端证书、专用 DSN 与组织清单尚未部署；Host 目录列表已按 user 分页并归并同组织多条 Membership，status/role/seat/revision 与 revision_after 有直接用例。"
       ],
       "evidence": [
         { "path": "src/work/internal/host/governance_integration_test.go", "test": "TestGovernanceHTTPPullerConsumesThroughDedicatedIdentity" },
@@ -102,7 +102,10 @@
         { "path": "src/work/internal/migrate/r0b_receipt_test.go", "test": "TestR0bConsumeInitializesTheCursorWithoutColliding" },
         { "path": "src/work/internal/migrate/r0b_receipt_test.go", "test": "TestR0bGapSkipReceiptIsBoundToItsPayload" },
         { "path": "src/work/internal/migrate/r0b_governance_test.go", "test": "TestR0bGapReportAndCursorAdvanceAreTwoDistinctSteps" },
-        { "path": "src/work/internal/api/admin_governance_cursor_test.go", "test": "TestAdminGovernanceEventCursorAdvance" }
+        { "path": "src/work/internal/api/admin_governance_cursor_test.go", "test": "TestAdminGovernanceEventCursorAdvance" },
+        { "path": "src/backend/core/tests/test_work_host_org_discovery.py", "test": "test_member_list_merges_one_person_across_departments" },
+        { "path": "src/backend/core/tests/test_work_host_org_discovery.py", "test": "test_member_list_merges_status_and_paginates_by_user" },
+        { "path": "src/backend/core/tests/test_work_host_org_discovery.py", "test": "test_member_list_revision_after_observes_any_merged_row" }
       ]
     },
     {

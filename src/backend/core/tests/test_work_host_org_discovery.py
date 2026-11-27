@@ -181,6 +181,87 @@ def test_member_list_projects_role_seat_and_status(client):
 @override_settings(
     WORK_HOST_MTLS_CA_PEM=CA_PEM, WORK_HOST_MTLS_CLIENT_IDENTITY=IDENTITY
 )
+def test_member_list_merges_one_person_across_departments(client):
+    organization = OrganizationFactory()
+    user = UserFactory(sub="multi-department")
+    owner_row = MembershipFactory(
+        organization=organization,
+        user=user,
+        org_role="owner",
+        work_seat=True,
+    )
+    member_row = MembershipFactory(
+        organization=organization,
+        user=user,
+        org_role="member",
+        work_seat=False,
+    )
+    owner_row.refresh_from_db()
+    member_row.refresh_from_db()
+
+    payload = _get(client, MEMBERS_URL.format(organization.id), limit=100)
+
+    assert len(payload["items"]) == 1
+    item = payload["items"][0]
+    assert set(item) == MEMBER_KEYS
+    assert item["subject_id"] == "multi-department"
+    assert item["status"] == "active"
+    assert item["role"] == "owner"
+    assert item["work_seat"] is True
+    assert item["revision"] == max(
+        owner_row.directory_revision, member_row.directory_revision
+    )
+    assert item["gaps"] == []
+
+
+@override_settings(
+    WORK_HOST_MTLS_CA_PEM=CA_PEM, WORK_HOST_MTLS_CLIENT_IDENTITY=IDENTITY
+)
+def test_member_list_merges_status_and_paginates_by_user(client):
+    organization = OrganizationFactory()
+    inactive = UserFactory(sub="inactive-user", is_active=False)
+    MembershipFactory(organization=organization, user=inactive, status="active")
+    MembershipFactory(organization=organization, user=inactive, status="left")
+    mixed = UserFactory(sub="mixed-user")
+    MembershipFactory(organization=organization, user=mixed, status="active")
+    MembershipFactory(organization=organization, user=mixed, status="left")
+
+    items = _collect(client, MEMBERS_URL.format(organization.id), limit=1)
+    by_subject = {item["subject_id"]: item for item in items}
+
+    assert len(items) == len(by_subject) == 2
+    assert by_subject["inactive-user"]["status"] == "suspended"
+    assert by_subject["mixed-user"]["status"] == "active"
+
+
+@override_settings(
+    WORK_HOST_MTLS_CA_PEM=CA_PEM, WORK_HOST_MTLS_CLIENT_IDENTITY=IDENTITY
+)
+def test_member_list_revision_after_observes_any_merged_row(client):
+    organization = OrganizationFactory()
+    user = UserFactory(sub="merged-revision")
+    first = MembershipFactory(organization=organization, user=user)
+    second = MembershipFactory(organization=organization, user=user)
+    before = max(first.directory_revision, second.directory_revision)
+
+    Membership.objects.filter(pk=second.pk).update(title="bump merged row")
+    second.refresh_from_db()
+    after = second.directory_revision
+    assert after > before
+
+    payload = _get(
+        client,
+        MEMBERS_URL.format(organization.id),
+        revision_after=before,
+        limit=100,
+    )
+    assert [item["subject_id"] for item in payload["items"]] == ["merged-revision"]
+    assert payload["items"][0]["revision"] == after
+
+
+@override_settings(
+    WORK_HOST_MTLS_CA_PEM=CA_PEM, WORK_HOST_MTLS_CLIENT_IDENTITY=IDENTITY
+)
 def test_inactive_user_is_incrementally_visible_as_suspended(client):
     organization = OrganizationFactory()
     user = UserFactory(sub="suspended-user")

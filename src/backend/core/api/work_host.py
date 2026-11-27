@@ -22,6 +22,7 @@ from functools import lru_cache
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Prefetch
 from django.http import JsonResponse
 from django.utils.decorators import method_decorator
 from django.views import View
@@ -41,6 +42,7 @@ from core.models import (
     Membership,
     MembershipStatusChoices,
     Organization,
+    User,
     WorkGovernanceEvent,
     WorkGovernanceSequence,
 )
@@ -402,25 +404,49 @@ def _org_item(organization):
     }
 
 
-def _member_item(membership):
+def _member_item(user, memberships):
     gaps = []
-    subject_id = (membership.user.sub or "").strip()
+    subject_id = (user.sub or "").strip()
     if not SUBJECT_PATTERN.fullmatch(subject_id):
         gaps.append("subject_id")
-    role = MEMBER_ROLE_MAP.get(membership.org_role)
-    if role is None:
-        gaps.append("role")
-    revision = membership.directory_revision
-    if revision is None or revision <= 0:
-        gaps.append("revision")
-    status = membership.status
-    if status != MembershipStatusChoices.LEFT and not membership.user.is_active:
+    active = [row for row in memberships if row.status == MembershipStatusChoices.ACTIVE]
+    if not user.is_active and any(
+        row.status != MembershipStatusChoices.LEFT for row in memberships
+    ):
         status = "suspended"
+    elif active:
+        status = "active"
+    elif any(row.status == MembershipStatusChoices.SUSPENDED for row in memberships):
+        status = "suspended"
+    elif any(row.status == MembershipStatusChoices.INVITED for row in memberships):
+        status = "invited"
+    else:
+        status = "left"
+    role = "member"
+    active_roles = [MEMBER_ROLE_MAP.get(row.org_role) for row in active]
+    if any(value is None for value in active_roles):
+        gaps.append("role")
+    known_roles = [value for value in active_roles if value is not None]
+    if active and not known_roles:
+        role = None
+    elif "owner" in known_roles:
+        role = "owner"
+    elif "admin" in known_roles:
+        role = "admin"
+    revision = max(
+        (row.directory_revision or 0 for row in memberships),
+        default=0,
+    )
+    if revision <= 0:
+        gaps.append("revision")
     return {
         "subject_id": subject_id,
         "status": status,
         "role": role,
-        "work_seat": membership.work_seat,
+        "work_seat": any(
+            row.work_seat and row.status != MembershipStatusChoices.LEFT
+            for row in memberships
+        ),
         "revision": revision,
         "gaps": gaps,
     }
@@ -481,23 +507,34 @@ class WorkHostMemberListView(View):
         if revision_after < 0:
             return _pagination_error()
 
-        query = (
-            Membership.objects.filter(organization_id=org_id)
-            .select_related("user")
-            .order_by("id")
-        )
+        query = User.objects.filter(memberships__organization_id=org_id).distinct()
         if cursor is not None:
             query = query.filter(id__gt=cursor)
         if revision_after:
-            query = query.filter(directory_revision__gt=revision_after)
-        rows = list(query[: limit + 1])
+            query = query.filter(
+                memberships__organization_id=org_id,
+                memberships__directory_revision__gt=revision_after,
+            ).distinct()
+        rows = list(
+            query.order_by("id")
+            .prefetch_related(
+                Prefetch(
+                    "memberships",
+                    queryset=Membership.objects.filter(organization_id=org_id).order_by("id"),
+                    to_attr="org_memberships",
+                )
+            )[: limit + 1]
+        )
         has_more = len(rows) > limit
         rows = rows[:limit]
         next_cursor = (
             _next_cursor([row.id for row in rows]) if has_more and rows else None
         )
         return JsonResponse(
-            {"items": [_member_item(row) for row in rows], "next_cursor": next_cursor}
+            {
+                "items": [_member_item(row, row.org_memberships) for row in rows],
+                "next_cursor": next_cursor,
+            }
         )
 
 
