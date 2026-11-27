@@ -67,3 +67,20 @@ test('full rollout proves role, mTLS and org coverage before installing the time
   assert.match(verify, /work_governance_consumer=FALSE"\r?\n\s+FAILURES=\$\(\(FAILURES \+ 1\)\)/,
     'missing or partial governance deployment must fail the official verifier');
 });
+
+test('governance consumer failures and stopped timers reach the health alert path', () => {
+  const healthcheck = read(join(ECS, 'work-healthcheck.sh'));
+  const runtime = read(join(HERE, 'healthcheck-runtime.test.mjs'));
+  for (const unit of ['work-cancel.service', 'work-governance-events.service']) {
+    assert.ok(healthcheck.includes(unit), `healthcheck must observe ${unit}`);
+  }
+  for (const timer of ['work-cancel.timer', 'work-governance-events.timer']) {
+    assert.ok(healthcheck.includes(timer), `healthcheck must observe ${timer}`);
+  }
+  assert.match(healthcheck, /systemctl is-enabled "\$timer"/);
+  assert.match(healthcheck, /issues\+=\("\$\{timer\}=\$timer_active"\)/);
+  assert.match(healthcheck, /"\$PYTHON_BIN" "\$ALERT_SCRIPT" "\$status" "\$issue_text"/,
+    'consumer degradation must reach the existing mail alert command');
+  assert.ok(runtime.includes('governance consumer service failure degrades and alerts'));
+  assert.ok(runtime.includes('stopped governance consumer timer degrades and alerts'));
+});

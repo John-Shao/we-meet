@@ -278,7 +278,9 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 ### 4.1 自动探针与告警
 
-`work-healthcheck.timer` 每 2 分钟跑 `work-healthcheck.sh`，检查：`http://127.0.0.1:8080/healthz`=200；Host `/work-host/v2/orgs`=200（客户端证书）；观察名单 unit（directory-sync×2、reconcile-scan、runstream-scan）Result≠failed；relay active；worker 在 enabled 时 active；30 分钟内两类同步报告且 `"errors":[]`；/etc/work/certs 与 /etc/work/temporal 证书 30 天内不到期。
+`work-healthcheck.timer` 每 2 分钟跑 `work-healthcheck.sh`，检查：`http://127.0.0.1:8080/healthz`=200；Host `/work-host/v2/orgs`=200（客户端证书）；观察名单 unit（directory-sync×2、reconcile-scan、runstream-scan、work-cancel、work-governance-events）Result≠failed；relay active；worker 与已 enable 的治理消费者 timer 在启用时 active；30 分钟内两类同步报告且 `"errors":[]`；/etc/work/certs 与 /etc/work/temporal 证书 30 天内不到期。
+
+- 治理消费者的基础设施失败或跳号会以非零退出留下 failed，并由上述探针转 degraded；timer 已 enable 但非 active 也转 degraded。尚未部署的 timer 不单独触发健康告警，其缺失由官方 verifier 的硬判据拒绝。**仓库接线不等于生产投递已取证**。
 
 - 状态：`/var/lib/work/health.json`；异常：`/var/log/work-health-alerts.log`＋journal。
 - `work-health-alert.py` 状态变化发信（ok→degraded 立即；持续 degraded 每 6 小时；恢复发信）。只有邮件通道；SMTP 失败在 journal 搜 `health alert delivery failed`。
@@ -291,6 +293,7 @@ sudo systemctl list-timers 'work-*' 'meet-db-backup*'                 # [只读]
 journalctl -u work-reconcile-scan.service -o cat | tail               # [只读] orgs=N orphans=M scan_errors=K
 journalctl -u work-runstream-scan.service -o cat | tail               # [只读] BREACH/ok＋六条读数
 journalctl -u work-cancel.service -o cat | tail                       # [只读] orgs=N intents=M＋逐条 outcome/state
+journalctl -u work-governance-events.service -o cat | tail            # [只读] events/gaps＋逐 org 消费结果
 ```
 
 ### 4.2 目录同步新鲜度
@@ -404,10 +407,12 @@ sudo WORK_BACKUP_IDENTITY=/root/work-backups/work-offsite-20261029.agekey \
 | work-retention-scan（hourly） | 干净（扫到 N 行属正常） | 调用失败/缺读数 | content_shred 卡住 >15min 宽限窗 | — |
 | work-c16-log-scan（daily） | 干净 | preflight 失败/正控未 fire | — | 发现正文/秘密 |
 | work-cancel（5s） | 一轮完成（含 0 条） | org 清单为空/claim 或退避写库失败 | — | — |
+| work-governance-events（10s） | 一轮完成（含 0 条） | Host/DB/协议失败或跳号停止 | — | — |
 
 - `parked_runs` 排除 waiting/quota（有意状态，24h 上限）；waiting/reconcile 不排除——那是"24 小时窗口决定要不要救"，每小时 BREACH 是设计内的钟，不是告警坏了。
 - `orphans=0` ≠ 没有停放 Run（workflow 仍 Running 的那类孤儿规则看不见）；`held_on_terminal` 容差现值 0，泄漏一笔即红。
-- work-cancel 的 rc 只报基础设施：意图死信**不**标红单元（告警是 `cancellation_intent.dead_lettered` 审计行，与 outbox 死信同口径），单条意图被拒也不标红——它进退避阶梯，十次或非可重试才死信。值班读死信：`SELECT count(*) FROM work.audit_event WHERE action='cancellation_intent.dead_lettered'` **[只读]**。
+- work-cancel 的 rc 只报基础设施：意图死信**不**标红单元（告警是 `cancellation_intent.dead_lettered` 审计行，与 outbox 死信同口径），单条意图被拒也不标红——它进退避阶梯，十次或非可重试才死信。基础设施失败本身会由 healthcheck 转 degraded；值班读死信：`SELECT count(*) FROM work.audit_event WHERE action='cancellation_intent.dead_lettered'` **[只读]**。
+- work-governance-events 的 Host/DB/协议失败与跳号会非零退出，由 healthcheck 转 degraded；恢复仍须固定两步，不得用重做授座绕过游标。
 - 判自动路径看 `runs_logged`/journal，不抄历史时刻；不要手跑 work-healthcheck.sh 去"消警"。
 
 ### 7.3 值班程序

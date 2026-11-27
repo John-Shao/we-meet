@@ -36,11 +36,20 @@ host=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
 # work-runstream-scan.service (C17 minimal set, 2026-11-04) joins the same list for the same
 # reason: it exits 2 on a parked Run or an unreleased reservation, which are exactly the states
 # the Temporal-side orphan rule cannot see (its workflow is still Running).
-for unit in work-directory-sync.service work-directory-sync-full.service work-reconcile-scan.service work-runstream-scan.service; do
+# The governance consumers fail closed on Host/DB errors and gaps; their timers must stay active
+# once enabled so a stopped consumer cannot look healthy merely because its last result was success.
+for unit in work-directory-sync.service work-directory-sync-full.service work-reconcile-scan.service work-runstream-scan.service work-cancel.service work-governance-events.service; do
   result=$(systemctl show -p Result --value "$unit" 2>/dev/null || true)
   if [ "$result" = "failed" ]; then
     status="degraded"
     issues+=("${unit}_failed")
+  fi
+done
+
+for timer in work-cancel.timer work-governance-events.timer; do
+  if systemctl is-enabled "$timer" >/dev/null 2>&1; then
+    timer_active=$(systemctl is-active "$timer" 2>/dev/null || true)
+    [ "$timer_active" = "active" ] || { status="degraded"; issues+=("${timer}=$timer_active"); }
   fi
 done
 

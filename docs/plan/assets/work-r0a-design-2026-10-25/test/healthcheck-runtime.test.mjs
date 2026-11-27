@@ -40,8 +40,16 @@ const runProbe = (env = {}) => {
   stub('curl', `case "$*" in *127.0.0.1:8080*) printf '%s' "\${FAKE_API:-200}";; *) printf '%s' "\${FAKE_HOST:-200}";; esac`);
   stub('systemctl', [
     'case "$1" in',
-    '  show) printf \'%s\\n\' "${FAKE_UNIT_RESULT:-success}" ;;',
-    '  is-active) printf \'%s\\n\' "${FAKE_ACTIVE:-active}" ;;',
+    '  show)',
+    '    unit="${@: -1}"',
+    '    if [[ -n "${FAKE_FAILED_UNIT:-}" ]]; then',
+    '      [[ "$unit" == "$FAKE_FAILED_UNIT" ]] && printf \'failed\\n\' || printf \'success\\n\'',
+    '    else',
+    '      printf \'%s\\n\' "${FAKE_UNIT_RESULT:-success}"',
+    '    fi ;;',
+    '  is-active)',
+    '    unit="${@: -1}"',
+    '    [[ "$unit" == "${FAKE_INACTIVE_TIMER:-}" ]] && printf \'inactive\\n\' || printf \'%s\\n\' "${FAKE_ACTIVE:-active}" ;;',
     '  is-enabled) exit "${FAKE_ENABLED_RC:-0}" ;;',
     'esac',
   ].join('\n'));
@@ -89,6 +97,30 @@ test('a failed observe-list unit degrades and names that unit', () => {
   assert.match(run.health.issues, /work-reconcile-scan\.service_failed/, run.health.issues);
   assert.ok((run.alert || '').includes(' degraded'), `the alert script must be told the status: ${run.alert}`);
   assert.ok(run.log && run.log.includes('status=degraded'), 'a degraded probe must append to the log');
+});
+
+test('governance consumer service failure degrades and alerts', () => {
+  for (const unit of ['work-cancel.service', 'work-governance-events.service']) {
+    const run = runProbe({ FAKE_FAILED_UNIT: unit });
+    assert.equal(run.health.status, 'degraded', JSON.stringify(run.health));
+    assert.ok(run.health.issues.includes(`${unit}_failed`), run.health.issues);
+    assert.ok((run.alert || '').includes(`${unit}_failed`), run.alert);
+  }
+});
+
+test('stopped governance consumer timer degrades and alerts', () => {
+  for (const timer of ['work-cancel.timer', 'work-governance-events.timer']) {
+    const run = runProbe({ FAKE_INACTIVE_TIMER: timer });
+    assert.equal(run.health.status, 'degraded', JSON.stringify(run.health));
+    assert.ok(run.health.issues.includes(`${timer}=inactive`), run.health.issues);
+    assert.ok((run.alert || '').includes(`${timer}=inactive`), run.alert);
+  }
+});
+
+test('not-yet-deployed governance timers do not false-alert', () => {
+  const run = runProbe({ FAKE_ENABLED_RC: '1' });
+  assert.equal(run.health.status, 'ok', JSON.stringify(run.health));
+  assert.equal(run.health.issues, '', JSON.stringify(run.health));
 });
 
 test('an unhealthy API endpoint degrades with the code it actually saw', () => {
