@@ -6,9 +6,9 @@
 // the list, so the pilot report had no operator path on the host.
 //
 // Three narrow checks, chosen to encode that trap without pretending to know why the other
-// ops scripts are deliberately not packaged (nine of them are intentionally unpackaged:
-// superseded rollout/verify 0015/0016 pairs, make-release.sh itself, R0b provisioning, etc. -
-// each is a human choice, so this test does not assert on it).
+// ops scripts are deliberately not packaged (superseded rollout/verify 0015/0016 pairs and
+// make-release.sh itself are excluded; R0b role provisioning is required by the governance
+// rollout and therefore has an explicit delivery assertion below).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -75,6 +75,13 @@ test('every packaged path exists in the repo', () => {
     [],
     `make-release.sh copies paths that no longer exist in the repo: ${missing.join(', ')} - ` +
       'the build would die on the release host, partway through, after the binaries are built',
+  );
+});
+
+test('the governance role provisioner travels with the rollout package', () => {
+  assert.ok(
+    copySources.includes('deploy/ecs/provision-r0b-roles.sh'),
+    'the full governance rollout requires dedicated database roles, but its provisioner is not packaged',
   );
 });
 

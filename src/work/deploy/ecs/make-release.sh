@@ -142,6 +142,7 @@ echo "copying deploy assets"
 cp "$ROOT/deploy/ecs/rollout-r0a-0027.sh" "$OUT/"
 cp "$ROOT/deploy/ecs/verify-r0a-0027.sh" "$OUT/"
 cp "$ROOT/deploy/ecs/init-workload-pki.sh" "$OUT/"
+cp "$ROOT/deploy/ecs/provision-r0b-roles.sh" "$OUT/"
 cp "$ROOT/scripts/pilot-metrics.sql" "$OUT/"
 cp "$ROOT/scripts/run-pilot-metrics.sh" "$OUT/"
 cp "$ROOT/scripts/runstream-gauges.sql" "$OUT/"
@@ -269,5 +270,5 @@ for name in "${!UNPACKAGED_DEPLOY_ASSETS[@]}"; do
 done
 chmod 0755 "$OUT"/*.sh
 
-(cd "$OUT" && sha256sum ./* >SHA256SUMS)
+(cd "$OUT" && find . -maxdepth 1 -type f ! -name SHA256SUMS -exec sha256sum {} + | sort >SHA256SUMS)
 echo "release ready: $OUT (stamp $STAMP)"

@@ -99,9 +99,9 @@ rollout 内置闸（任一命中即中止，**不要绕过**）：账本探针�
 ```bash
 # [生产写] 每集群一次：7 个 NOLOGIN 角色，幂等、从不 drop/alter 已有角色
 DATABASE_URL=postgresql://… bash deploy/aliyun/apply-work-roles.sh
-# [生产写] 0018/0023 之前：work_governance_events / work_operator 组角色（＋可选 login）
+# [生产写] 0018/0023 之前：在解压后的发布目录创建 work_governance_events / work_operator 组角色（＋可选 login）
 WORK_GOVERNANCE_EVENTS_PASSWORD=… [WORK_OPERATOR_PASSWORD=…] \
-  ./src/work/deploy/ecs/provision-r0b-roles.sh [--dry-run]
+  ./provision-r0b-roles.sh [--dry-run]
 ```
 
 workload PKI 由 `init-workload-pki.sh` 生成（/etc/work/runtime-ca，幂等不覆盖；rollout 在 CA 缺失时自动跑）。治理消费者使用独立 Host mTLS 客户端身份；其 PostgreSQL DSN 仍是 127.0.0.1 回环、`sslmode=disable`，与现有 Work 服务及 `provision-r0b-roles.sh` 输出一致，不能套用 Host 的 HTTPS/mTLS 参数。`WORK_GOVERNANCE_CA` 只验 Host HTTPS 服务端；`WORK_GOVERNANCE_CLIENT_CA` 才是客户端证书的签发 CA，供 rollout/verify 做链、有效期、EKU 与私钥匹配预检。

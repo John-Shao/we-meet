@@ -156,12 +156,30 @@ test('the closure runs before SHA256SUMS, so everything it adds has provenance',
     .split(/\r?\n/)
     .map((line, index) => [line, index + 1])
     .filter(([line]) => !/^\s*#/.test(line))
-    .find(([line]) => /sha256sum \.\/\* >SHA256SUMS/.test(line));
+    .find(([line]) => /sha256sum/.test(line) && />SHA256SUMS/.test(line));
   assert.ok(sumLine, 'no SHA256SUMS step found - a packaged file would travel with no checksum at all');
   assert.ok(
     parsed.closureCp[0][1] < sumLine[1],
     `make-release.sh:${parsed.closureCp[0][1]} copies closure files AFTER make-release.sh:${sumLine[1]} writes ` +
       'SHA256SUMS, so those files ship unchecksummed - the #54 provenance hole, one layer down',
+  );
+});
+
+test('SHA256SUMS covers hidden provenance metadata as well as visible payload files', () => {
+  const checksumCode = readFileSync(RELEASE, 'utf8')
+    .split(/\r?\n/)
+    .map((line, index) => [line, index + 1])
+    .filter(([line]) => !/^\s*#/.test(line))
+    .find(([line]) => /sha256sum/.test(line) && />SHA256SUMS/.test(line));
+  assert.ok(checksumCode, 'no SHA256SUMS writer found');
+  assert.match(
+    checksumCode[0],
+    /find \. -maxdepth 1 -type f ! -name SHA256SUMS/,
+    'checksum generation must include dotfiles such as .increments-in-tree while excluding SHA256SUMS itself',
+  );
+  assert.ok(
+    checksumCode[1] > parsed.closureCp[0][1],
+    'checksum generation must run after the deploy-asset closure',
   );
 });
 
