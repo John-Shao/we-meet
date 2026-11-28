@@ -1,14 +1,80 @@
-import type {
-  DeviceModelBinding,
-  ExecutionProfile,
-  ModelProbeStatus,
-} from "./driver";
+export interface ListenerRequirement {
+  allowedSigners: string[];
+  allowUserPinnedHash: boolean;
+  allowedServiceSids: string[];
+}
 
-export type {
-  DeviceModelBinding,
-  ExecutionProfile,
-  ModelProbeStatus,
-} from "./driver";
+export interface ExecutionProfile {
+  orgId: string;
+  profileId: string;
+  revision: number;
+  contentHash: string;
+  kind: "device_local" | "org_private" | "org_remote";
+  provider: string;
+  model: string;
+  apiType: "chat_completions" | "responses";
+  residency: string;
+  listenerRequirement: ListenerRequirement;
+  allowedPorts: number[];
+  tokenizerId: string;
+  contextTokens: number;
+  maxRequestBytes: number;
+  maxOutputTokens: number;
+  usageMode: "actual" | "estimated";
+  runtimeDigest: string;
+  toolManifestHash: string;
+  compatProfileVersion: string;
+  maxTurns: number;
+  status: "active";
+  createdAt: string;
+}
+
+export interface ModelProbePreview {
+  bindingId: string;
+  bindingRevision: number;
+  probeId: string;
+  previewHash: string;
+  templateHash: string;
+  maxOutputTokens: 16;
+  expiresAt: string;
+}
+
+export interface DeviceModelBinding {
+  bindingId: string;
+  bindingRevision: number;
+  profileId: string;
+  profileRevision: number;
+  profileHash: string;
+  bindingHash: string;
+  localRef: string;
+  listenerIdentityHash: string;
+  status: "pending_probe";
+  createdAt: string;
+  updatedAt: string;
+  probePreview: ModelProbePreview;
+}
+
+export interface ModelProbeStatus {
+  probeId: string;
+  bindingId: string;
+  profileId: string;
+  profileRevision: number;
+  previewHash: string;
+  state: "queued" | "running" | "verified" | "failed" | "reconcile";
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+  taskId: string | null;
+  runId: string | null;
+  operationId: string | null;
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    cachedInputTokens: number;
+    usageEstimated: boolean;
+  } | null;
+  safeError: "probe_failed" | null;
+}
 
 export interface StagedLocalInput {
   localInputRef: string;
