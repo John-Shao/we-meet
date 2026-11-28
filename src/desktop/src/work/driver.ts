@@ -207,6 +207,47 @@ export interface ExecutionProfile {
   createdAt: string;
 }
 
+export interface NativeModelBindingProof {
+  v: "1";
+  orgId: string;
+  subjectId: string;
+  authEpoch: string;
+  deviceId: string;
+  sessionId: string;
+  profileId: string;
+  profileRevision: string;
+  profileHash: string;
+  bindingHash: string;
+  localRef: string;
+  listenerIdentityHash: string;
+  nonce: string;
+  expiresAt: string;
+}
+
+export interface ModelBindingConfirmation {
+  profileId: string;
+  bindingHash: string;
+  localRef: string;
+  listenerIdentityHash: string;
+  proof: NativeModelBindingProof;
+  signature: string;
+}
+
+export interface DeviceModelBinding {
+  bindingId: string;
+  bindingRevision: number;
+  profileId: string;
+  profileRevision: number;
+  profileHash: string;
+  bindingHash: string;
+  localRef: string;
+  listenerIdentityHash: string;
+  status: "pending_probe";
+  createdAt: string;
+  updatedAt: string;
+  probePreview: ModelProbePreview;
+}
+
 function parseExecutionProfile(
   value: unknown,
   profileId: string,
@@ -1609,15 +1650,31 @@ export class WorkDeviceDriver {
     return parseModelProbePreview(response, bindingId, bindingRevision);
   }
 
-  /** The §5.4 model identity confirmation flow (批2 主签单选乙). probeLocalModel returns the listener
-   * identity facts + token; the main process shows process name/path/signer/account; the decision
-   * rides confirmLocalModel back with the org profile's listener_requirement. Cancel sends
-   * approved:false (no binding). Returns the binding_hash, or undefined when the user cancelled. */
   async configureLocalModel(
-    profileId: string,
+    profile: ExecutionProfile,
     port: number,
-    requirement: ListenerRequirement,
-  ): Promise<{ profileId: string; bindingHash: string } | undefined> {
+    sessionId: string,
+  ): Promise<ModelBindingConfirmation | undefined> {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (
+      this.state !== "running" ||
+      !this.record ||
+      !profile ||
+      profile.status !== "active" ||
+      profile.kind !== "device_local" ||
+      profile.profileId.length === 0 ||
+      profile.profileId.length > 128 ||
+      profile.profileId.trim() !== profile.profileId ||
+      !Number.isSafeInteger(profile.revision) ||
+      profile.revision < 1 ||
+      !/^[0-9a-f]{64}$/.test(profile.contentHash) ||
+      !Number.isInteger(port) ||
+      port < 1 ||
+      port > 65535 ||
+      !uuid.test(sessionId) ||
+      !/^(0|[1-9][0-9]*)$/.test(this.hostEpoch)
+    )
+      throw new BrokerPipeError("shape");
     const prepared = await this.call("probeLocalModel", { port: String(port) });
     const facts = modelFacts(prepared.data);
     this.checkEpoch();
@@ -1625,19 +1682,193 @@ export class WorkDeviceDriver {
     this.checkEpoch();
     const confirmed = await this.call("confirmLocalModel", {
       confirmation_token: facts.confirmationToken,
-      profile_id: profileId,
+      profile_id: profile.profileId,
+      profile_revision: String(profile.revision),
+      profile_hash: profile.contentHash,
+      auth_epoch: this.hostEpoch,
       port: String(port),
       listener_requirement: {
-        allowed_signers: requirement.allowedSigners,
-        allow_user_pinned_hash: requirement.allowUserPinnedHash,
-        allowed_service_sids: requirement.allowedServiceSids,
+        allowed_signers: profile.listenerRequirement.allowedSigners,
+        allow_user_pinned_hash: profile.listenerRequirement.allowUserPinnedHash,
+        allowed_service_sids: profile.listenerRequirement.allowedServiceSids,
       },
       approved,
     });
+    this.checkEpoch();
+    if (this.state !== "running" || !this.record)
+      throw new BrokerPipeError("cancelled");
     if (!approved) return undefined;
-    const bindingHash = String(confirmed.data?.binding_hash ?? "");
-    if (!bindingHash) throw new BrokerPipeError("shape");
-    return { profileId, bindingHash };
+    const data = confirmed.data;
+    if (
+      !data ||
+      Object.keys(data).sort().join(",") !==
+        "binding_hash,native_confirmation_proof,profile_id,signature" ||
+      data.profile_id !== profile.profileId
+    )
+      throw new BrokerPipeError("shape");
+    const proof = data.native_confirmation_proof;
+    if (!proof || typeof proof !== "object" || Array.isArray(proof))
+      throw new BrokerPipeError("shape");
+    const p = proof as Record<string, unknown>;
+    if (
+      Object.keys(p).sort().join(",") !==
+        "auth_epoch,binding_hash,device_id,expires_at,listener_identity_hash,local_ref,nonce,org_id,profile_hash,profile_id,profile_revision,session_id,subject_id,v" ||
+      p.v !== "1" ||
+      p.org_id !== this.record.orgId ||
+      p.subject_id !== this.record.subject ||
+      p.auth_epoch !== this.hostEpoch ||
+      p.device_id !== this.record.deviceId ||
+      p.session_id !== sessionId ||
+      p.profile_id !== profile.profileId ||
+      p.profile_revision !== String(profile.revision) ||
+      p.profile_hash !== profile.contentHash ||
+      typeof p.binding_hash !== "string" ||
+      !/^[0-9a-f]{64}$/.test(p.binding_hash) ||
+      typeof p.listener_identity_hash !== "string" ||
+      !/^[0-9a-f]{64}$/.test(p.listener_identity_hash) ||
+      p.local_ref !== `http://127.0.0.1:${port}` ||
+      typeof p.nonce !== "string" ||
+      !/^[A-Za-z0-9_-]{8,128}$/.test(p.nonce) ||
+      typeof p.expires_at !== "string" ||
+      !Number.isFinite(Date.parse(p.expires_at)) ||
+      Date.parse(p.expires_at) <= Date.now() ||
+      Date.parse(p.expires_at) > Date.now() + 65_000 ||
+      data.binding_hash !== p.binding_hash ||
+      typeof data.signature !== "string" ||
+      !/^[A-Za-z0-9_-]{86}$/.test(data.signature)
+    )
+      throw new BrokerPipeError("shape");
+    const bindingParts = [
+      p.org_id,
+      p.device_id,
+      p.session_id,
+      p.profile_id,
+      p.profile_revision,
+      p.profile_hash,
+      p.local_ref,
+      p.listener_identity_hash,
+    ] as string[];
+    const bindingPreimage =
+      "device-model-binding-v1|" +
+      bindingParts
+        .map((value) => `${Buffer.byteLength(value, "utf8")}:${value}`)
+        .join("|");
+    if (
+      p.binding_hash !==
+      createHash("sha256").update(bindingPreimage, "utf8").digest("hex")
+    )
+      throw new BrokerPipeError("shape");
+    return {
+      profileId: profile.profileId,
+      bindingHash: p.binding_hash,
+      localRef: p.local_ref as string,
+      listenerIdentityHash: p.listener_identity_hash as string,
+      proof: {
+        v: "1",
+        orgId: p.org_id as string,
+        subjectId: p.subject_id as string,
+        authEpoch: p.auth_epoch as string,
+        deviceId: p.device_id as string,
+        sessionId: p.session_id as string,
+        profileId: p.profile_id as string,
+        profileRevision: p.profile_revision as string,
+        profileHash: p.profile_hash as string,
+        bindingHash: p.binding_hash,
+        localRef: p.local_ref as string,
+        listenerIdentityHash: p.listener_identity_hash as string,
+        nonce: p.nonce,
+        expiresAt: p.expires_at,
+      },
+      signature: data.signature,
+    };
+  }
+
+  async createDeviceModelBinding(
+    profile: ExecutionProfile,
+    port: number,
+    sessionId: string,
+  ): Promise<DeviceModelBinding> {
+    const confirmation = await this.configureLocalModel(profile, port, sessionId);
+    if (!confirmation) throw new BrokerPipeError("cancelled");
+    this.checkEpoch();
+    if (this.state !== "running" || !this.record)
+      throw new BrokerPipeError("cancelled");
+    const record = this.record;
+    const proof = {
+      v: confirmation.proof.v,
+      org_id: confirmation.proof.orgId,
+      subject_id: confirmation.proof.subjectId,
+      auth_epoch: confirmation.proof.authEpoch,
+      device_id: confirmation.proof.deviceId,
+      session_id: confirmation.proof.sessionId,
+      profile_id: confirmation.proof.profileId,
+      profile_revision: confirmation.proof.profileRevision,
+      profile_hash: confirmation.proof.profileHash,
+      binding_hash: confirmation.proof.bindingHash,
+      local_ref: confirmation.proof.localRef,
+      listener_identity_hash: confirmation.proof.listenerIdentityHash,
+      nonce: confirmation.proof.nonce,
+      expires_at: confirmation.proof.expiresAt,
+    };
+    const response = await this.deps.api.request("createDeviceModelBinding", {
+      id: record.deviceId,
+      signature: confirmation.signature,
+      body: {
+        client_request_id: randomUUID(),
+        session_id: sessionId,
+        profile_id: profile.profileId,
+        profile_revision: String(profile.revision),
+        profile_hash: profile.contentHash,
+        binding_hash: confirmation.bindingHash,
+        local_ref: confirmation.localRef,
+        listener_identity_hash: confirmation.listenerIdentityHash,
+        native_confirmation_proof: proof,
+      },
+    });
+    this.checkEpoch();
+    if (this.state !== "running" || this.record !== record)
+      throw new BrokerPipeError("cancelled");
+    if (
+      !response ||
+      Object.keys(response).sort().join(",") !==
+        "binding_hash,binding_id,created_at,device_id,listener_identity_hash,local_ref,probe_preview,profile_hash,profile_id,profile_revision,revision,session_id,status,updated_at" ||
+      typeof response.binding_id !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(response.binding_id) ||
+      response.device_id !== record.deviceId ||
+      response.session_id !== sessionId ||
+      response.profile_id !== profile.profileId ||
+      response.profile_revision !== profile.revision ||
+      response.profile_hash !== profile.contentHash ||
+      response.binding_hash !== confirmation.bindingHash ||
+      response.listener_identity_hash !== confirmation.listenerIdentityHash ||
+      response.local_ref !== confirmation.localRef ||
+      response.status !== "pending_probe" ||
+      response.revision !== 1 ||
+      typeof response.created_at !== "string" ||
+      !Number.isFinite(Date.parse(response.created_at)) ||
+      typeof response.updated_at !== "string" ||
+      !Number.isFinite(Date.parse(response.updated_at))
+    )
+      throw new BrokerPipeError("shape");
+    const preview = parseModelProbePreview(
+      { binding_id: response.binding_id, binding_revision: response.revision, probe_preview: response.probe_preview },
+      response.binding_id,
+      1,
+    );
+    return {
+      bindingId: response.binding_id,
+      bindingRevision: 1,
+      profileId: profile.profileId,
+      profileRevision: profile.revision,
+      profileHash: profile.contentHash,
+      bindingHash: confirmation.bindingHash,
+      localRef: confirmation.localRef,
+      listenerIdentityHash: confirmation.listenerIdentityHash,
+      status: "pending_probe",
+      createdAt: response.created_at,
+      updatedAt: response.updated_at,
+      probePreview: preview,
+    };
   }
 
   async stageLocalInput(text: string): Promise<StagedLocalInput> {

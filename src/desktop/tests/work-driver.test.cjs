@@ -38,6 +38,78 @@ const jwk = { kty: "EC", crv: "P-256", x: "x", y: "y" };
 // The local preview is server-signed (`lp1.<payload>.<signature>`); the shell reads the
 // Host auth_epoch from that payload, so the fixture payload has to carry one.
 const previewHash = `lp1.${Buffer.from(JSON.stringify({ auth_epoch: "1" })).toString("base64url")}.signature`;
+const executionProfile = {
+  orgId,
+  profileId: "profile-dev-fixture-v1",
+  revision: 2,
+  contentHash: "e".repeat(64),
+  kind: "device_local",
+  provider: "device_local",
+  model: "fixture-model",
+  apiType: "chat_completions",
+  residency: "device",
+  listenerRequirement: {
+    allowedSigners: [],
+    allowUserPinnedHash: true,
+    allowedServiceSids: [],
+  },
+  tokenizerId: "fixture",
+  contextTokens: 4096,
+  maxRequestBytes: 262144,
+  maxOutputTokens: 1024,
+  usageMode: "actual",
+  runtimeDigest: "b".repeat(64),
+  toolManifestHash: "a".repeat(64),
+  compatProfileVersion: "1",
+  maxTurns: 8,
+  status: "active",
+  createdAt: "2026-11-28T00:00:00Z",
+};
+function modelBindingHash(port = 11434) {
+  const field = (value) => `${value.length}:${value}`;
+  const listenerIdentityHash = "f".repeat(64);
+  const localRef = `http://127.0.0.1:${port}`;
+  return createHash("sha256")
+    .update(
+      "device-model-binding-v1|" +
+        [
+          orgId,
+          deviceId,
+          sessionId,
+          executionProfile.profileId,
+          String(executionProfile.revision),
+          executionProfile.contentHash,
+          localRef,
+          listenerIdentityHash,
+        ].map(field).join("|"),
+    )
+    .digest("hex");
+}
+function modelBindingConfirmation(port = 11434) {
+  const listenerIdentityHash = "f".repeat(64);
+  const bindingHash = modelBindingHash(port);
+  return {
+    profile_id: executionProfile.profileId,
+    binding_hash: bindingHash,
+    native_confirmation_proof: {
+      v: "1",
+      org_id: orgId,
+      subject_id: subject,
+      auth_epoch: "1",
+      device_id: deviceId,
+      session_id: sessionId,
+      profile_id: executionProfile.profileId,
+      profile_revision: String(executionProfile.revision),
+      profile_hash: executionProfile.contentHash,
+      binding_hash: bindingHash,
+      local_ref: `http://127.0.0.1:${port}`,
+      listener_identity_hash: listenerIdentityHash,
+      nonce: "nonce-model-binding",
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+    },
+    signature: "A".repeat(86),
+  };
+}
 const localSubmissionInput = {
   clientRequestId: "local-submit-1",
   inputRef: "12345678-1234-4234-8234-123456789abc",
@@ -264,6 +336,28 @@ function harness(t, overrides = {}) {
       max_turns: 8,
       status: "active",
       created_at: "2026-11-28T00:00:00Z",
+    }),
+    createDeviceModelBinding: (action, options) => ({
+      binding_id: bindingId,
+      device_id: options.id,
+      session_id: options.body.session_id,
+      profile_id: options.body.profile_id,
+      profile_revision: Number(options.body.profile_revision),
+      profile_hash: options.body.profile_hash,
+      binding_hash: options.body.binding_hash,
+      status: "pending_probe",
+      local_ref: options.body.local_ref,
+      listener_identity_hash: options.body.listener_identity_hash,
+      revision: 1,
+      created_at: "2026-11-28T00:00:00Z",
+      updated_at: "2026-11-28T00:00:00Z",
+      probe_preview: {
+        probe_id: probeId,
+        preview_hash: "d".repeat(64),
+        template_hash: "f".repeat(64),
+        max_output_tokens: 16,
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+      },
     }),
     refreshModelProbePreview: (action, options) => ({
       binding_id: options.id2,
@@ -1458,23 +1552,22 @@ test("refreshModelProbePreview fences a late response after account change", asy
   );
 });
 
-test("configureLocalModel runs probe → dialog → confirm and returns the binding hash", async (t) => {
+test("configureLocalModel signs and validates the native binding proof", async (t) => {
   const h = harness(t);
   await h.driver.start();
   let confirmFields;
   h.pipeResponses.confirmLocalModel = (method, fields) => {
     confirmFields = fields;
-    return {
-      data: { profile_id: fields.profile_id, binding_hash: "bind-hash" },
-    };
+    return { data: modelBindingConfirmation(fields.port) };
   };
-  const requirement = {
-    allowedSigners: [],
-    allowUserPinnedHash: true,
-    allowedServiceSids: [],
-  };
-  const result = await h.driver.configureLocalModel("p-1", 11434, requirement);
-  assert.deepEqual(result, { profileId: "p-1", bindingHash: "bind-hash" });
+  const result = await h.driver.configureLocalModel(executionProfile, 11434, sessionId);
+  assert.equal(result.profileId, executionProfile.profileId);
+  assert.equal(result.bindingHash, modelBindingHash(11434));
+  assert.notEqual(result.bindingHash, result.listenerIdentityHash);
+  assert.equal(result.localRef, "http://127.0.0.1:11434");
+  assert.equal(result.proof.sessionId, sessionId);
+  assert.equal(result.proof.profileHash, executionProfile.contentHash);
+  assert.equal(result.signature, "A".repeat(86));
   const flow = h.events.filter(
     (e) =>
       e.startsWith("gesture:") ||
@@ -1488,6 +1581,9 @@ test("configureLocalModel runs probe → dialog → confirm and returns the bind
   ]);
   assert.equal(confirmFields.confirmation_token, "tok-model");
   assert.equal(confirmFields.port, "11434");
+  assert.equal(confirmFields.profile_revision, "2");
+  assert.equal(confirmFields.profile_hash, executionProfile.contentHash);
+  assert.equal(confirmFields.auth_epoch, "1");
   assert.equal(confirmFields.approved, true);
   assert.deepEqual(confirmFields.listener_requirement, {
     allowed_signers: [],
@@ -1496,7 +1592,7 @@ test("configureLocalModel runs probe → dialog → confirm and returns the bind
   });
 });
 
-test("cancelling the model dialog sends approved:false and produces no binding", async (t) => {
+test("cancelling the model dialog sends approved:false and produces no proof", async (t) => {
   const h = harness(t, { confirmModel: () => false });
   await h.driver.start();
   let confirmFields;
@@ -1504,24 +1600,103 @@ test("cancelling the model dialog sends approved:false and produces no binding",
     confirmFields = fields;
     return {};
   };
-  const result = await h.driver.configureLocalModel("p-1", 11434, {
-    allowedSigners: [],
-    allowUserPinnedHash: true,
-    allowedServiceSids: [],
-  });
+  const result = await h.driver.configureLocalModel(executionProfile, 11434, sessionId);
   assert.equal(result, undefined);
   assert.equal(confirmFields.approved, false);
 });
 
-test("a malformed confirmation reply is a shape refusal, never a silent dialog", async (t) => {
+test("configureLocalModel rejects a proof for another session or profile", async (t) => {
   const h = harness(t);
   await h.driver.start();
-  h.pipeResponses.chooseWorkspace = { data: { confirmation_token: "tok" } };
+  h.pipeResponses.confirmLocalModel = (method, fields) => {
+    const value = modelBindingConfirmation(fields.port);
+    value.native_confirmation_proof.session_id = bindingId;
+    return { data: value };
+  };
   await assert.rejects(
-    () => h.driver.grantWorkspace(["out"]),
-    (e) => e.code === "shape",
+    h.driver.configureLocalModel(executionProfile, 11434, sessionId),
+    BrokerPipeError,
   );
-  assert.ok(!h.events.includes("gesture:confirmRoot"));
+  h.pipeResponses.confirmLocalModel = (method, fields) => {
+    const value = modelBindingConfirmation(fields.port);
+    value.native_confirmation_proof.profile_hash = "a".repeat(64);
+    return { data: value };
+  };
+  await assert.rejects(
+    h.driver.configureLocalModel(executionProfile, 11434, sessionId),
+    BrokerPipeError,
+  );
+  h.pipeResponses.confirmLocalModel = (method, fields) => {
+    const value = modelBindingConfirmation(fields.port);
+    value.native_confirmation_proof.binding_hash = "a".repeat(64);
+    value.binding_hash = "a".repeat(64);
+    return { data: value };
+  };
+  await assert.rejects(
+    h.driver.configureLocalModel(executionProfile, 11434, sessionId),
+    BrokerPipeError,
+  );
+});
+
+test("createDeviceModelBinding submits the signed proof and returns its preview", async (t) => {
+  const h = harness(t);
+  await h.driver.start();
+  h.pipeResponses.confirmLocalModel = (method, fields) => ({
+    data: modelBindingConfirmation(fields.port),
+  });
+  const respond = h.apiResponses.createDeviceModelBinding;
+  let seen;
+  h.apiResponses.createDeviceModelBinding = (action, options) => {
+    seen = options;
+    return respond(action, options);
+  };
+  const result = await h.driver.createDeviceModelBinding(executionProfile, 11434, sessionId);
+  assert.equal(result.bindingId, bindingId);
+  assert.equal(result.bindingRevision, 1);
+  assert.equal(result.profileId, executionProfile.profileId);
+  assert.equal(result.profileRevision, 2);
+  assert.equal(result.status, "pending_probe");
+  assert.equal(result.probePreview.probeId, probeId);
+  assert.equal(result.probePreview.maxOutputTokens, 16);
+  assert.equal(seen.id, deviceId);
+  assert.equal(seen.signature, "A".repeat(86));
+  assert.equal(seen.body.session_id, sessionId);
+  assert.equal(seen.body.profile_revision, "2");
+  assert.equal(seen.body.binding_hash, modelBindingHash(11434));
+  assert.deepEqual(seen.body.native_confirmation_proof, {
+    v: "1",
+    org_id: orgId,
+    subject_id: subject,
+    auth_epoch: "1",
+    device_id: deviceId,
+    session_id: sessionId,
+    profile_id: executionProfile.profileId,
+    profile_revision: "2",
+    profile_hash: executionProfile.contentHash,
+    binding_hash: modelBindingHash(11434),
+    local_ref: "http://127.0.0.1:11434",
+    listener_identity_hash: "f".repeat(64),
+    nonce: seen.body.native_confirmation_proof.nonce,
+    expires_at: seen.body.native_confirmation_proof.expires_at,
+  });
+  assert.match(seen.body.client_request_id, /^[0-9a-f-]{36}$/);
+});
+
+test("createDeviceModelBinding fences a late response after account change", async (t) => {
+  const h = harness(t);
+  await h.driver.start();
+  h.pipeResponses.confirmLocalModel = (method, fields) => ({
+    data: modelBindingConfirmation(fields.port),
+  });
+  const respond = h.apiResponses.createDeviceModelBinding;
+  h.apiResponses.createDeviceModelBinding = (action, options) => {
+    h.auth.epoch++;
+    return respond(action, options);
+  };
+  await assert.rejects(
+    h.driver.createDeviceModelBinding(executionProfile, 11434, sessionId),
+    WorkApiError,
+  );
 });
 
 test("stageLocalInput returns only validated ref/hash/byte metadata", async (t) => {

@@ -918,6 +918,9 @@ pub enum NodeRequest {
             Result<(String, crate::endpoint::ModelConfirmation), String>,
         >,
     },
+    CurrentSession {
+        reply: tokio::sync::oneshot::Sender<Result<(String, String, String, String), String>>,
+    },
     ConfirmModel {
         token: String,
         profile_id: String,
@@ -1070,6 +1073,18 @@ pub fn spawn_node_service() -> tokio::sync::mpsc::Sender<NodeRequest> {
                 NodeRequest::PrepareModel { port, reply } => {
                     let r = exec.prepare_model(port).map_err(|e| format!("{e:?}"));
                     let _ = reply.send(r);
+                }
+                NodeRequest::CurrentSession { reply } => {
+                    let result = match &journal {
+                        Some((_, org_id, subject_id, device_id, Some(session_id))) => Ok((
+                            org_id.clone(),
+                            subject_id.clone(),
+                            device_id.clone(),
+                            session_id.clone(),
+                        )),
+                        _ => Err("no_session".to_string()),
+                    };
+                    let _ = reply.send(result);
                 }
                 NodeRequest::ConfirmModel {
                     token,

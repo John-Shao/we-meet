@@ -166,7 +166,7 @@ pub async fn run_core_pump(
                             || method == "completeLocalArtifactEdit"
                         {
                             #[cfg(windows)]
-                            { confirmation_reply(&node_service, &request.message).await }
+                            { confirmation_reply_with_identity(Some(&mut identity), &node_service, &request.message).await }
                             #[cfg(not(windows))]
                             { Reply::refused(&request.message, "method_not_implemented") }
                         } else {
@@ -562,6 +562,19 @@ async fn submission_reply(
     let mut proof = value;
     proof["signature"] = Value::String(signature);
     Reply::accepted_with(message, json!({ "status": "ready", "local_intent": proof }))
+}
+
+fn model_binding_hash(parts: &[&str]) -> String {
+    let field = |value: &str| format!("{}:{value}", value.len());
+    let preimage = format!(
+        "device-model-binding-v1|{}",
+        parts
+            .iter()
+            .map(|value| field(value))
+            .collect::<Vec<_>>()
+            .join("|")
+    );
+    crate::sha256_hex(preimage.as_bytes())
 }
 
 fn canonical_uint_text(value: &str) -> bool {
@@ -1085,6 +1098,15 @@ async fn confirmation_reply(
     node: &mpsc::Sender<crate::nodeservice::NodeRequest>,
     message: &Value,
 ) -> Reply {
+    confirmation_reply_with_identity(None, node, message).await
+}
+
+#[cfg(windows)]
+async fn confirmation_reply_with_identity(
+    identity: Option<&mut Identity>,
+    node: &mpsc::Sender<crate::nodeservice::NodeRequest>,
+    message: &Value,
+) -> Reply {
     use crate::nodeservice::NodeRequest;
 
     let method = message.get("method").and_then(Value::as_str).unwrap_or("");
@@ -1383,11 +1405,17 @@ async fn confirmation_reply(
             }
         }
         "confirmLocalModel" => {
+            let Some(identity) = identity else {
+                return Reply::refused(message, "method_not_implemented");
+            };
             if let Err(code) = confirm_keys(
                 message,
                 &[
                     "confirmation_token",
                     "profile_id",
+                    "profile_revision",
+                    "profile_hash",
+                    "auth_epoch",
                     "port",
                     "listener_requirement",
                     "approved",
@@ -1410,6 +1438,21 @@ async fn confirmation_reply(
                 None => return Reply::refused(message, "schema"),
             };
             if token.is_empty() || profile_id.is_empty() {
+                return Reply::refused(message, "shape");
+            }
+            let profile_revision = text("profile_revision");
+            let profile_hash = text("profile_hash");
+            let auth_epoch = text("auth_epoch");
+            if !canonical_uint_text(profile_revision)
+                || profile_revision
+                    .parse::<u64>()
+                    .ok()
+                    .is_none_or(|value| value == 0)
+                || profile_hash.len() != 64
+                || !profile_hash.bytes().all(|byte| byte.is_ascii_hexdigit())
+                || !canonical_uint_text(auth_epoch)
+                || auth_epoch.parse::<u64>().is_err()
+            {
                 return Reply::refused(message, "shape");
             }
             // The Broker is the current-user authority for the §5.4 owner_sid comparison; if its own
@@ -1435,10 +1478,83 @@ async fn confirmation_reply(
                 return Reply::refused(message, "shape");
             }
             match rx.await {
-                Ok(Some(Ok(hash))) => Reply::accepted_with(
-                    message,
-                    json!({ "profile_id": profile_id, "binding_hash": hash }),
-                ),
+                Ok(Some(Ok(listener_identity_hash))) => {
+                    let (session_tx, session_rx) = oneshot::channel();
+                    if node
+                        .send(NodeRequest::CurrentSession { reply: session_tx })
+                        .await
+                        .is_err()
+                    {
+                        return Reply::refused(message, "shape");
+                    }
+                    let (org_id, subject_id, device_id, session_id) = match session_rx.await {
+                        Ok(Ok(value))
+                            if identity.signed_org() == Some(value.0.as_str())
+                                && identity.signed_subject() == Some(value.1.as_str())
+                                && identity.device_id() == Some(value.2.as_str())
+                                && uuid::Uuid::parse_str(&value.3).is_ok() =>
+                        {
+                            value
+                        }
+                        _ => return Reply::refused(message, "no_pairing"),
+                    };
+                    let expires_at = match std::time::SystemTime::now()
+                        .checked_add(std::time::Duration::from_secs(60))
+                        .and_then(|value| value.duration_since(std::time::UNIX_EPOCH).ok())
+                        .and_then(|value| {
+                            crate::frame::rfc3339::format_utc_seconds(value.as_secs())
+                        }) {
+                        Some(value) => value,
+                        None => return Reply::refused(message, "shape"),
+                    };
+                    let local_ref = format!("http://127.0.0.1:{port}");
+                    let binding_hash = model_binding_hash(&[
+                        &org_id,
+                        &device_id,
+                        &session_id,
+                        profile_id,
+                        profile_revision,
+                        profile_hash,
+                        &local_ref,
+                        &listener_identity_hash,
+                    ]);
+                    let proof = json!({
+                        "v": "1",
+                        "org_id": org_id,
+                        "subject_id": subject_id,
+                        "auth_epoch": auth_epoch,
+                        "device_id": device_id,
+                        "session_id": session_id,
+                        "profile_id": profile_id,
+                        "profile_revision": profile_revision,
+                        "profile_hash": profile_hash,
+                        "binding_hash": binding_hash,
+                        "local_ref": local_ref,
+                        "listener_identity_hash": listener_identity_hash,
+                        "nonce": uuid::Uuid::new_v4().simple().to_string(),
+                        "expires_at": expires_at,
+                    });
+                    let signature = match identity.sign_model_binding(
+                        &proof,
+                        proof["org_id"].as_str().unwrap_or(""),
+                        proof["subject_id"].as_str().unwrap_or(""),
+                    ) {
+                        Ok(value) => value,
+                        Err(IdentityError::NoPairing) => {
+                            return Reply::refused(message, "no_pairing")
+                        }
+                        Err(_) => return Reply::refused(message, "shape"),
+                    };
+                    Reply::accepted_with(
+                        message,
+                        json!({
+                            "profile_id": profile_id,
+                            "binding_hash": binding_hash,
+                            "native_confirmation_proof": proof,
+                            "signature": signature,
+                        }),
+                    )
+                }
                 // identity_mismatch / unpublishable requirement: the binding did not verify.
                 Ok(Some(Err(_))) => Reply::refused(message, "shape"),
                 Ok(None) => Reply::accepted(message),
@@ -1990,6 +2106,23 @@ mod tests {
     const TICKET: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     const OTHER: &str = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
 
+    #[test]
+    fn model_binding_hash_matches_the_server_vector() {
+        assert_eq!(
+            model_binding_hash(&[
+                "org-1",
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "profile-dev-fixture-v1",
+                "1",
+                "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                "http://127.0.0.1:11434",
+                "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            ]),
+            "9a6a954d8ac278f9dba441f35ad02e5da95df7af3c7836f8f311a1a1305b5059"
+        );
+    }
+
     fn delivery(ticket: &str, row: &str) -> Value {
         json!({
             "method": ticket::METHOD,
@@ -2233,6 +2366,7 @@ mod tests {
         tickets: Option<mpsc::Receiver<String>>,
         core_events: Option<mpsc::Receiver<LinkEvent>>,
         ready: Option<mpsc::Receiver<ReadyIdentity>>,
+        identity_jwk: crate::jwk::EcP256Jwk,
         #[cfg(windows)]
         _journal_inbox: Option<
             mpsc::Receiver<(
@@ -2245,6 +2379,10 @@ mod tests {
 
     impl Harness {
         fn new() -> Self {
+            Self::with_identity(crate::identity::test_identity())
+        }
+
+        fn with_identity(identity: crate::identity::Identity) -> Self {
             let (delivery_tx, delivery_rx) = mpsc::channel(4);
             let (link_tx, link_rx) = mpsc::channel(8);
             let (ticket_tx, ticket_rx) = mpsc::channel(1);
@@ -2267,8 +2405,9 @@ mod tests {
                 .unwrap();
                 (node, Some(journal_inbox))
             };
+            let identity_jwk = identity.public_jwk();
             let handle = tokio::spawn(run_core_pump(
-                crate::identity::test_identity(),
+                identity,
                 TicketSlot::new("dev-1"),
                 delivery_rx,
                 link_rx,
@@ -2285,6 +2424,7 @@ mod tests {
                 tickets: Some(ticket_rx),
                 core_events: Some(core_rx),
                 ready: Some(ready_rx),
+                identity_jwk,
                 #[cfg(windows)]
                 _journal_inbox: journal_inbox,
                 handle,
@@ -4089,7 +4229,7 @@ mod tests {
         }
         assert!(ready, "fixture did not listen");
 
-        let mut h = Harness::new();
+        let mut h = Harness::with_identity(crate::identity::test_paired_identity());
         let prepare = h
             .deliver(json!({
                 "method": "probeLocalModel", "request_id": "m-1", "port": port.to_string(),
@@ -4116,6 +4256,8 @@ mod tests {
             .deliver(json!({
                 "method": "confirmLocalModel", "request_id": "m-2",
                 "confirmation_token": token, "profile_id": "profile-dev-fixture-v1",
+                "profile_revision": "1", "profile_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                "auth_epoch": "4",
                 "port": port.to_string(),
                 "listener_requirement": {
                     "allowed_signers": [], "allow_user_pinned_hash": true, "allowed_service_sids": []
@@ -4124,11 +4266,47 @@ mod tests {
             }))
             .await;
         assert_eq!(confirm.result, ACCEPTED, "{confirm:?}");
-        assert_eq!(data_keys(&confirm), ["binding_hash", "profile_id"]);
-        assert!(!confirm.data.unwrap()["binding_hash"]
-            .as_str()
-            .unwrap()
-            .is_empty());
+        assert_eq!(
+            data_keys(&confirm),
+            [
+                "binding_hash",
+                "native_confirmation_proof",
+                "profile_id",
+                "signature"
+            ]
+        );
+        let data = confirm.data.unwrap();
+        let proof = &data["native_confirmation_proof"];
+        assert_eq!(proof["v"], "1");
+        assert_eq!(proof["org_id"], "org-1");
+        assert_eq!(proof["subject_id"], "sub-1");
+        assert_eq!(proof["device_id"], "11111111-1111-4111-8111-111111111111");
+        assert_eq!(proof["session_id"], "22222222-2222-4222-8222-222222222222");
+        assert_eq!(proof["profile_revision"], "1");
+        assert_eq!(proof["auth_epoch"], "4");
+        assert_eq!(proof["binding_hash"], data["binding_hash"]);
+        assert_ne!(proof["binding_hash"], proof["listener_identity_hash"]);
+        assert_eq!(proof["local_ref"], format!("http://127.0.0.1:{port}"));
+        assert_eq!(
+            proof["binding_hash"],
+            model_binding_hash(&[
+                proof["org_id"].as_str().unwrap(),
+                proof["device_id"].as_str().unwrap(),
+                proof["session_id"].as_str().unwrap(),
+                proof["profile_id"].as_str().unwrap(),
+                proof["profile_revision"].as_str().unwrap(),
+                proof["profile_hash"].as_str().unwrap(),
+                proof["local_ref"].as_str().unwrap(),
+                proof["listener_identity_hash"].as_str().unwrap(),
+            ])
+        );
+        assert!(crate::frame::sign::verify_frame(
+            &h.identity_jwk,
+            "model_binding",
+            proof,
+            data["signature"].as_str().unwrap()
+        ));
+        assert!(!data["binding_hash"].as_str().unwrap().is_empty());
         assert_eq!(h.finish().await, BridgeOutcome::LinkGone);
         let _ = child.kill();
         let _ = child.wait();

@@ -294,6 +294,8 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 **2026-11-28 桌面 ExecutionProfile 读取驱动**：`WorkDriver.getExecutionProfile` 接通服务端 active profile 读取，严格校验 profile/revision/hash、device_local 类型、listener_requirement、有限资源上界与时间字段，并在请求前后检查账号 epoch；非法上界、空 listener policy、draft/未知字段与迟到响应均 fail closed。桌面全量 237 项回归通过。该切片仅提供主进程驱动读取，尚未接到渲染界面且未做真机验收；生产未部署。
 
+**2026-11-28 Broker 签名 model binding 与 bundle pin 修复**：Broker `confirmLocalModel` 现从当前 journal session 与设备身份生成 14 字段 `native_confirmation_proof`，以 `model_binding` 域做 ES256 签名；完整 `binding_hash` 按服务端 `device-model-binding-v1` 长度前缀算法计算，listener 指纹单独传递。桌面驱动复算 hash、校验身份/session/profile/epoch/有效期后提交建绑定并严格解析 probe preview。Rust 654 项、桌面 239 项、Node bundle 79 项回归通过；已定位并修复上一轮 Windows CI 的 bundle manifest digest 漂移，CI 新增显式重算＋`git diff --exit-code` 门禁。渲染界面、真实 Broker→桌面→API 全链与供应商验收仍未闭合；生产未部署。
+
 ### 3.5 装后验证与链尾闸 [只读]
 
 - `sudo ./verify-r0a-0027.sh "<开始时刻>"`：`rows=N max=N`、清单 all present、函数体探针 true（claim_carries_takeover、terminal_release_guard、export_discovery_hardened、0040–0045 设备面探针等）。

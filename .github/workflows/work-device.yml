@@ -32,6 +32,11 @@ jobs:
         working-directory: src/device
     steps:
       - uses: actions/checkout@v6
+      - name: Verify the pinned device bundle manifest
+        working-directory: src/work/node/device-bundle
+        run: |
+          node build-manifest.mjs
+          git diff --exit-code -- bundle-manifest.json dev-fixture-profile.json
       - name: Install the pinned toolchain
         run: rustup show
       - name: Format check

@@ -239,6 +239,24 @@ impl Identity {
         crate::grantsuccession::sign(self.key.as_ref(), proof).map_err(|_| IdentityError::Sign)
     }
 
+    pub fn sign_model_binding(
+        &mut self,
+        proof: &Value,
+        org_id: &str,
+        subject_id: &str,
+    ) -> Result<String, IdentityError> {
+        if !proof.is_object() || org_id.is_empty() || subject_id.is_empty() {
+            return Err(IdentityError::Shape);
+        }
+        if self.signed_org.as_deref() != Some(org_id)
+            || self.signed_subject.as_deref() != Some(subject_id)
+        {
+            return Err(IdentityError::NoPairing);
+        }
+        crate::frame::sign::sign_frame(self.key.as_ref(), "model_binding", proof)
+            .map_err(|_| IdentityError::Sign)
+    }
+
     pub fn sign_local_intent(
         &mut self,
         proof: &Value,
@@ -620,6 +638,14 @@ pub(crate) fn test_identity() -> Identity {
         Arc::new(crate::key::SoftwareKey::random()),
     )
     .expect("test identity")
+}
+
+#[cfg(test)]
+pub(crate) fn test_paired_identity() -> Identity {
+    let mut identity = test_identity_with_device("11111111-1111-4111-8111-111111111111");
+    identity.signed_org = Some("org-1".into());
+    identity.signed_subject = Some("sub-1".into());
+    identity
 }
 
 #[cfg(test)]
