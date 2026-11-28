@@ -54,6 +54,23 @@
     "emptyInbox": "现在没有需要你处理的任务。",
     "inboxUnavailable": "暂时读不到需要你处理的任务，其余内容不受影响。"
   },
+  "deviceExecution": {
+    "title": "本机执行",
+    "description": "将此设备连接到已批准的本机模型端点，并运行验证探针。",
+    "profile": "{{model}} · 修订 {{revision}}",
+    "port": "回环端口",
+    "configure": "连接并验证",
+    "failed": "无法配置本机模型，请检查端口后重试。",
+    "loadFailed": "无法读取当前生效的本机执行 profile。",
+    "binding": "绑定：{{status}}",
+    "probe": {
+      "queued": "探针已排队",
+      "running": "探针运行中",
+      "verified": "探针已验证",
+      "failed": "探针失败",
+      "reconcile": "探针需要核对"
+    }
+  },
   "composer": {
     "title": "新建工作",
     "goal": "任务描述",

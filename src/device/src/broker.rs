@@ -159,6 +159,7 @@ pub async fn run_core_pump(
                         } else if CONFIRMATION_METHODS.contains(&method)
                             || method == "stageLocalInput"
                             || method == "listWorkspaceGrants"
+                            || method == "getCurrentSession"
                             || method == "prepareLocalAcceptance"
                             || method == "listLocalArtifactDrafts"
                             || method == "prepareLocalArtifactEdit"
@@ -1112,6 +1113,35 @@ async fn confirmation_reply_with_identity(
     let method = message.get("method").and_then(Value::as_str).unwrap_or("");
     let text = |key: &str| message.get(key).and_then(Value::as_str).unwrap_or("");
     match method {
+        "getCurrentSession" => {
+            if let Err(code) = confirm_keys(message, &[]) {
+                return Reply::refused(message, code);
+            }
+            let (tx, rx) = oneshot::channel();
+            if node
+                .send(NodeRequest::CurrentSession { reply: tx })
+                .await
+                .is_err()
+            {
+                return Reply::refused(message, "shape");
+            }
+            match rx.await {
+                Ok(Ok(value)) => {
+                    let Some(identity) = identity.as_ref() else {
+                        return Reply::refused(message, "no_pairing");
+                    };
+                    if identity.signed_org() != Some(value.0.as_str())
+                        || identity.signed_subject() != Some(value.1.as_str())
+                        || identity.device_id() != Some(value.2.as_str())
+                        || uuid::Uuid::parse_str(&value.3).is_err()
+                    {
+                        return Reply::refused(message, "no_pairing");
+                    }
+                    Reply::accepted_with(message, json!({ "session_id": value.3 }))
+                }
+                _ => Reply::refused(message, "shape"),
+            }
+        }
         "listWorkspaceGrants" => {
             if let Err(code) = confirm_keys(message, &[]) {
                 return Reply::refused(message, code);

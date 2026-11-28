@@ -46,6 +46,18 @@ const screenPicker: ScreenPickerBridge = {
 // as desktop features land (native notifications, tray, deep links, screen
 // share picker, auto-update status…), but never exposes raw Node/ipc directly.
 const work: WorkBridge = {
+  getActiveExecutionProfile: (profileId) =>
+    ipcRenderer.invoke("work:get-active-execution-profile", profileId),
+  getCurrentSessionId: () =>
+    ipcRenderer.invoke("work:get-current-session-id"),
+  createDeviceModelBinding: (profileId, port, sessionId) =>
+    ipcRenderer.invoke("work:create-device-model-binding", {
+      profileId,
+      port,
+      sessionId,
+    }),
+  getModelProbe: (probeId) =>
+    ipcRenderer.invoke("work:get-model-probe", probeId),
   stageLocalInput: (text: string) =>
     ipcRenderer.invoke("work:stage-local-input", text),
   submitLocalTask: (input) =>

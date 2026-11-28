@@ -36,6 +36,7 @@ export type BrokerMethod =
   | "completeLocalArtifactEdit"
   | "rebindRunWorkspace"
   | "listWorkspaceGrants"
+  | "getCurrentSession"
   | "getModelProbeReceipts"
   | "confirmModelProbeReceiptDelivery";
 const METHODS: ReadonlySet<string> = new Set<BrokerMethod>([
@@ -62,6 +63,7 @@ const METHODS: ReadonlySet<string> = new Set<BrokerMethod>([
   "completeLocalArtifactEdit",
   "rebindRunWorkspace",
   "listWorkspaceGrants",
+  "getCurrentSession",
   "getModelProbeReceipts",
   "confirmModelProbeReceiptDelivery",
 ]);

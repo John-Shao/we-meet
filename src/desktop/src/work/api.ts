@@ -21,6 +21,7 @@ export type WorkAction =
   | "createLocalTaskPreview"
   | "submitLocalTask"
   | "getExecutionProfile"
+  | "getActiveExecutionProfile"
   | "createDeviceModelBinding"
   | "refreshModelProbePreview"
   | "getModelProbe"
@@ -123,6 +124,11 @@ const endpoints: Record<
     path: "/work/v2/execution-profiles/{profileId}/revisions/{revision}",
     id: "profileId",
     id2: "revision",
+  },
+  getActiveExecutionProfile: {
+    method: "GET",
+    path: "/work/v2/execution-profiles/{profileId}/active",
+    id: "profileId",
   },
   createDeviceModelBinding: {
     method: "POST",

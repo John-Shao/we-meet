@@ -22,6 +22,7 @@ import (
 
 const (
 	ExecutionProfilePath              = "/work/v2/execution-profiles/{profileId}/revisions/{revision}"
+	ActiveExecutionProfilePath        = "/work/v2/execution-profiles/{profileId}/active"
 	AdminExecutionProfilesPath        = "/work/v2/admin/execution-profiles"
 	AdminExecutionProfileActivatePath = "/work/v2/admin/execution-profiles/{profileId}/activate"
 	AdminExecutionProfileRevokePath   = "/work/v2/admin/execution-profiles/{profileId}/revoke"
@@ -139,6 +140,38 @@ func (s *Server) getExecutionProfile(w http.ResponseWriter, r *http.Request) {
 			if err := tx.QueryRow(r.Context(),
 				`SELECT work.get_execution_profile($1, $2, $3::bigint)`,
 				claims.OrgID, profileID, revision).Scan(&raw); err != nil {
+				return err
+			}
+			view = json.RawMessage(append([]byte(nil), raw...))
+			return nil
+		},
+	)
+	if err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
+}
+
+func (s *Server) getActiveExecutionProfile(w http.ResponseWriter, r *http.Request) {
+	claims, correlationID, ok := s.authenticateBearer(w, r)
+	if !ok {
+		return
+	}
+	profileID := r.PathValue("profileId")
+	if profileID == "" || len(profileID) > 128 || strings.TrimSpace(profileID) != profileID {
+		writeAPIError(w, correlationID, apierr.New("not_found"))
+		return
+	}
+	var view json.RawMessage
+	err := workdb.WithWorkContext(r.Context(), s.pool,
+		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
+		workdb.RoleAPI, workdb.Options{ReadOnly: true},
+		func(tx pgx.Tx) error {
+			var raw []byte
+			if err := tx.QueryRow(r.Context(),
+				`SELECT work.get_active_execution_profile($1, $2)`,
+				claims.OrgID, profileID).Scan(&raw); err != nil {
 				return err
 			}
 			view = json.RawMessage(append([]byte(nil), raw...))

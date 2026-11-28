@@ -1389,6 +1389,31 @@ test("getExecutionProfile fences a late response after account change", async (t
   await assert.rejects(h.driver.getExecutionProfile("profile-1", "1"), WorkApiError);
 });
 
+test("getActiveExecutionProfile reads the active revision without a revision argument", async (t) => {
+  const h = harness(t);
+  await h.driver.start();
+  const respond = h.apiResponses.getExecutionProfile;
+  let seen;
+  h.apiResponses.getActiveExecutionProfile = (action, options) => {
+    seen = options;
+    return respond(action, { id: options.id, id2: "2" });
+  };
+  const result = await h.driver.getActiveExecutionProfile("profile-1");
+  assert.equal(result.revision, 2);
+  assert.equal(result.profileId, "profile-1");
+  assert.deepEqual(seen, { id: "profile-1" });
+});
+
+test("getCurrentSessionId validates the Broker session reply", async (t) => {
+  const h = harness(t);
+  await assert.rejects(h.driver.getCurrentSessionId(), BrokerPipeError);
+  await h.driver.start();
+  h.pipeResponses.getCurrentSession = () => ({ data: { session_id: sessionId } });
+  assert.equal(await h.driver.getCurrentSessionId(), sessionId);
+  h.pipeResponses.getCurrentSession = () => ({ data: { session_id: "not-a-uuid" } });
+  await assert.rejects(h.driver.getCurrentSessionId(), BrokerPipeError);
+});
+
 test("getModelProbe returns validated status and structured usage", async (t) => {
   const h = harness(t);
   await h.driver.start();
@@ -1651,6 +1676,9 @@ test("configureLocalModel rejects a proof for another session or profile", async
 test("createDeviceModelBinding submits the signed proof and returns its preview", async (t) => {
   const h = harness(t);
   await h.driver.start();
+  const activeProfile = h.apiResponses.getExecutionProfile;
+  h.apiResponses.getActiveExecutionProfile = (action, options) =>
+    activeProfile(action, { id: options.id, id2: "2" });
   h.pipeResponses.confirmLocalModel = (method, fields) => ({
     data: modelBindingConfirmation(11434),
   });
@@ -1660,7 +1688,7 @@ test("createDeviceModelBinding submits the signed proof and returns its preview"
     seen = options;
     return respond(action, options);
   };
-  const result = await h.driver.createDeviceModelBinding(executionProfile, 11434, sessionId);
+  const result = await h.driver.createDeviceModelBinding(executionProfile.profileId, 11434, sessionId);
   assert.equal(result.bindingId, bindingId);
   assert.equal(result.bindingRevision, 1);
   assert.equal(result.profileId, executionProfile.profileId);
@@ -1698,6 +1726,9 @@ test("createDeviceModelBinding submits the signed proof and returns its preview"
 test("createDeviceModelBinding fences a late response after account change", async (t) => {
   const h = harness(t);
   await h.driver.start();
+  const activeProfile = h.apiResponses.getExecutionProfile;
+  h.apiResponses.getActiveExecutionProfile = (action, options) =>
+    activeProfile(action, { id: options.id, id2: "2" });
   h.pipeResponses.confirmLocalModel = (method, fields) => ({
     data: modelBindingConfirmation(11434),
   });
@@ -1707,7 +1738,7 @@ test("createDeviceModelBinding fences a late response after account change", asy
     return respond(action, options);
   };
   await assert.rejects(
-    h.driver.createDeviceModelBinding(executionProfile, 11434, sessionId),
+    h.driver.createDeviceModelBinding(executionProfile.profileId, 11434, sessionId),
     WorkApiError,
   );
 });

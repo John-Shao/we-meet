@@ -11,6 +11,7 @@ import { Button } from '@/primitives/Button'
 import { css } from '@/styled-system/css'
 import { useWorkBootstrap, useWorkInbox, useWorkTasks } from '../api/queries'
 import { Composer } from '../components/Composer'
+import { DeviceExecutionProfilesPanel } from '../components/DeviceExecutionProfilesPanel'
 import { InboxCard } from '../components/InboxCard'
 import { TaskCard } from '../components/TaskCard'
 import { useReadOnlyViewport } from '../hooks/useReadOnlyViewport'
@@ -92,6 +93,17 @@ export const WorkHomePage = ({
           </Link>
         </div>
       )}
+
+      {!readOnly && window.weMeetDesktop?.work
+        ? bootstrapQ.data.execution_targets
+            .filter((target) => target.kind === 'device_local')
+            .map((target) => (
+              <DeviceExecutionProfilesPanel
+                key={target.profile}
+                profileId={target.profile}
+              />
+            ))
+        : null}
 
       <section
         className={css({ display: 'flex', flexDirection: 'column', gap: 'sm' })}

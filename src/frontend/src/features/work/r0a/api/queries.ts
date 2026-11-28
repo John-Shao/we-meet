@@ -53,6 +53,9 @@ const workKeys = {
     ['work', 'artifact-workspace', taskId, artifactId] as const,
   artifactContent: (taskId: string, artifactId: string, versionNo: number) =>
     ['work', 'artifact-content', taskId, artifactId, versionNo] as const,
+  activeExecutionProfile: (profileId: string) =>
+    ['work', 'execution-profile', profileId, 'active'] as const,
+  modelProbe: (probeId: string) => ['work', 'model-probe', probeId] as const,
 }
 
 // invalidateWorkTaskLists covers both task projections at once. The inbox is the
@@ -70,6 +73,36 @@ export const useWorkBootstrap = () =>
     queryFn: fetchWorkBootstrap,
     staleTime: 5 * 60_000,
     retry: false,
+  })
+
+export const useActiveExecutionProfile = (profileId: string | undefined) =>
+  useQuery({
+    queryKey: workKeys.activeExecutionProfile(profileId ?? ''),
+    queryFn: () => {
+      const work = window.weMeetDesktop?.work
+      if (!work) throw new Error('desktop_work_unavailable')
+      return work.getActiveExecutionProfile(profileId!)
+    },
+    enabled: !!profileId,
+    retry: false,
+  })
+
+export const useModelProbe = (probeId: string | undefined) =>
+  useQuery({
+    queryKey: workKeys.modelProbe(probeId ?? ''),
+    queryFn: () => {
+      const work = window.weMeetDesktop?.work
+      if (!work) throw new Error('desktop_work_unavailable')
+      return work.getModelProbe(probeId!)
+    },
+    enabled: !!probeId,
+    retry: false,
+    refetchInterval: (query) => {
+      const state = query.state.data?.state
+      return state === 'verified' || state === 'failed' || state === 'reconcile'
+        ? false
+        : 2000
+    },
   })
 
 export const useWorkTemplates = () =>

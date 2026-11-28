@@ -1,3 +1,15 @@
+import type {
+  DeviceModelBinding,
+  ExecutionProfile,
+  ModelProbeStatus,
+} from "./driver";
+
+export type {
+  DeviceModelBinding,
+  ExecutionProfile,
+  ModelProbeStatus,
+} from "./driver";
+
 export interface StagedLocalInput {
   localInputRef: string;
   contentHash: string;
@@ -195,6 +207,14 @@ export interface LocalTaskSubmissionResult {
 }
 
 export interface WorkBridge {
+  getActiveExecutionProfile(profileId: string): Promise<ExecutionProfile>;
+  getCurrentSessionId(): Promise<string>;
+  createDeviceModelBinding(
+    profileId: string,
+    port: number,
+    sessionId: string,
+  ): Promise<DeviceModelBinding>;
+  getModelProbe(probeId: string): Promise<ModelProbeStatus>;
   stageLocalInput(text: string): Promise<StagedLocalInput>;
   submitLocalTask(
     input: LocalTaskSubmission,

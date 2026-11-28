@@ -97,6 +97,8 @@ const IMPLEMENTED_ONLY = [
   'GET /work/v2/devices/{deviceId}/model-probes/{probeId}',
   // Owner-only atomic ExecutionProfile activation (0093).
   'POST /work/v2/admin/execution-profiles/{profileId}/activate',
+  // Active ExecutionProfile read for device configuration (0097).
+  'GET /work/v2/execution-profiles/{profileId}/active',
   // Owner-only ExecutionProfile revocation (0095).
   'POST /work/v2/admin/execution-profiles/{profileId}/revoke',
 ];

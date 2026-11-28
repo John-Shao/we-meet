@@ -1627,6 +1627,48 @@ export class WorkDeviceDriver {
     return parseExecutionProfile(response, profileId, profileRevision);
   }
 
+  async getActiveExecutionProfile(profileId: string): Promise<ExecutionProfile> {
+    if (
+      this.state !== "running" ||
+      !this.record ||
+      typeof profileId !== "string" ||
+      profileId.length === 0 ||
+      profileId.length > 128 ||
+      profileId.trim() !== profileId
+    )
+      throw new BrokerPipeError("shape");
+    this.checkEpoch();
+    const response = await this.deps.api.request("getActiveExecutionProfile", {
+      id: profileId,
+    });
+    this.checkEpoch();
+    if (
+      !response ||
+      typeof response.revision !== "number" ||
+      !Number.isSafeInteger(response.revision) ||
+      response.revision < 1
+    )
+      throw new BrokerPipeError("shape");
+    return parseExecutionProfile(response, profileId, response.revision);
+  }
+
+  async getCurrentSessionId(): Promise<string> {
+    if (this.state !== "running") throw new BrokerPipeError("shape");
+    this.checkEpoch();
+    const reply = await this.call("getCurrentSession");
+    this.checkEpoch();
+    const data = reply.data ?? {};
+    if (
+      Object.keys(data).sort().join(",") !== "session_id" ||
+      typeof data.session_id !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        data.session_id,
+      )
+    )
+      throw new BrokerPipeError("shape");
+    return data.session_id;
+  }
+
   async getModelProbe(probeId: string): Promise<ModelProbeStatus> {
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (this.state !== "running" || !this.record || !uuid.test(probeId))
@@ -1823,10 +1865,11 @@ export class WorkDeviceDriver {
   }
 
   async createDeviceModelBinding(
-    profile: ExecutionProfile,
+    profileId: string,
     port: number,
     sessionId: string,
   ): Promise<DeviceModelBinding> {
+    const profile = await this.getActiveExecutionProfile(profileId);
     const confirmation = await this.configureLocalModel(profile, port, sessionId);
     if (!confirmation) throw new BrokerPipeError("cancelled");
     this.checkEpoch();

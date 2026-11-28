@@ -96,6 +96,27 @@ func TestExecutionProfileGETAndUnknownRevision(t *testing.T) {
 	assertAPICode(t, response, http.StatusNotFound, "not_found")
 }
 
+func TestActiveExecutionProfileGET(t *testing.T) {
+	pool, dbName := newBootstrapDB(t, true, true)
+	profileHash := strings.Repeat("e", 64)
+	seedExecutionProfileRevision(t, dbName, "profile-active", "model-active", 1,
+		profileHash, strings.Repeat("b", 64), strings.Repeat("a", 64))
+	server := newDeviceServer(t, pool)
+	path := strings.ReplaceAll(api.ActiveExecutionProfilePath, "{profileId}", "profile-active")
+	response := deviceRequest(t, http.MethodGet, server.URL+path, "")
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("active profile GET status = %d body=%s", response.StatusCode, readBody(response))
+	}
+	view := decodeObject(t, response)
+	if view["profile_id"] != "profile-active" || view["revision"] != float64(1) ||
+		view["content_hash"] != profileHash || view["status"] != "active" {
+		t.Fatalf("active profile GET = %#v", view)
+	}
+	missing := strings.ReplaceAll(api.ActiveExecutionProfilePath, "{profileId}", "missing")
+	response = deviceRequest(t, http.MethodGet, server.URL+missing, "")
+	assertAPICode(t, response, http.StatusNotFound, "not_found")
+}
+
 func TestDeviceModelProbePreviewRefreshAPI(t *testing.T) {
 	pool, dbName := newBootstrapDB(t, true, true)
 	ctx := context.Background()

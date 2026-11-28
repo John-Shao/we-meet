@@ -188,7 +188,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (93, '0093_execution_profile_activation'),
   (94, '0094_device_model_binding_target_policy'),
   (95, '0095_execution_profile_revoke'),
-  (96, '0096_execution_profile_list')) expected(version, name)
+  (96, '0096_execution_profile_list'),
+  (97, '0097_active_execution_profile')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 psql_ro "select 'approval_proof_es256=' || case when

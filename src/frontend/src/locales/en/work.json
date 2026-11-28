@@ -54,6 +54,23 @@
     "emptyInbox": "Nothing needs your attention right now.",
     "inboxUnavailable": "The list of tasks waiting on you is unavailable."
   },
+  "deviceExecution": {
+    "title": "Local execution",
+    "description": "Connect this device to the approved local model endpoint and run its verification probe.",
+    "profile": "{{model}} · revision {{revision}}",
+    "port": "Loopback port",
+    "configure": "Connect and verify",
+    "failed": "The local model could not be configured. Check the port and try again.",
+    "loadFailed": "The active local execution profile could not be loaded.",
+    "binding": "Binding: {{status}}",
+    "probe": {
+      "queued": "Probe queued",
+      "running": "Probe running",
+      "verified": "Probe verified",
+      "failed": "Probe failed",
+      "reconcile": "Probe needs reconciliation"
+    }
+  },
   "composer": {
     "title": "New work",
     "goal": "Task description",

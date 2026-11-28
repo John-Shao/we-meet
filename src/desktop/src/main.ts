@@ -1481,6 +1481,112 @@ async function createWindow() {
       });
       await workDriver.start();
     };
+    ipcMain.handle("work:get-active-execution-profile", async (event, ...args) => {
+      if (
+        !senderAllowed(event) ||
+        args.length !== 1 ||
+        typeof args[0] !== "string" ||
+        args[0].length === 0 ||
+        args[0].length > 128 ||
+        args[0].trim() !== args[0]
+      ) {
+        throw new Error("invalid_work_request");
+      }
+      if (!workDriver || workDriver.currentState !== "running") {
+        throw new Error("work_device_unavailable");
+      }
+      try {
+        return await workDriver.getActiveExecutionProfile(args[0]);
+      } catch (error) {
+        if (
+          error instanceof WorkApiError &&
+          error.code === "work_account_changed"
+        ) {
+          throw new Error("work_account_changed");
+        }
+        throw new Error("work_device_unavailable");
+      }
+    });
+    ipcMain.handle("work:get-current-session-id", async (event, ...args) => {
+      if (!senderAllowed(event) || args.length !== 0) {
+        throw new Error("invalid_work_request");
+      }
+      if (!workDriver || workDriver.currentState !== "running") {
+        throw new Error("work_device_unavailable");
+      }
+      try {
+        return await workDriver.getCurrentSessionId();
+      } catch {
+        throw new Error("work_device_unavailable");
+      }
+    });
+    ipcMain.handle("work:create-device-model-binding", async (event, ...args) => {
+      if (
+        !senderAllowed(event) ||
+        args.length !== 1 ||
+        !args[0] ||
+        typeof args[0] !== "object" ||
+        Array.isArray(args[0]) ||
+        Object.keys(args[0]).sort().join(",") !== "port,profileId,sessionId" ||
+        typeof args[0].profileId !== "string" ||
+        args[0].profileId.length === 0 ||
+        args[0].profileId.length > 128 ||
+        args[0].profileId.trim() !== args[0].profileId ||
+        !Number.isInteger(args[0].port) ||
+        args[0].port < 1 ||
+        args[0].port > 65535 ||
+        typeof args[0].sessionId !== "string" ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          args[0].sessionId,
+        )
+      ) {
+        throw new Error("invalid_work_request");
+      }
+      if (!workDriver || workDriver.currentState !== "running") {
+        throw new Error("work_device_unavailable");
+      }
+      try {
+        return await workDriver.createDeviceModelBinding(
+          args[0].profileId,
+          args[0].port,
+          args[0].sessionId,
+        );
+      } catch (error) {
+        if (
+          error instanceof WorkApiError &&
+          error.code === "work_account_changed"
+        ) {
+          throw new Error("work_account_changed");
+        }
+        throw new Error("work_device_unavailable");
+      }
+    });
+    ipcMain.handle("work:get-model-probe", async (event, ...args) => {
+      if (
+        !senderAllowed(event) ||
+        args.length !== 1 ||
+        typeof args[0] !== "string" ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          args[0],
+        )
+      ) {
+        throw new Error("invalid_work_request");
+      }
+      if (!workDriver || workDriver.currentState !== "running") {
+        throw new Error("work_device_unavailable");
+      }
+      try {
+        return await workDriver.getModelProbe(args[0]);
+      } catch (error) {
+        if (
+          error instanceof WorkApiError &&
+          error.code === "work_account_changed"
+        ) {
+          throw new Error("work_account_changed");
+        }
+        throw new Error("work_device_unavailable");
+      }
+    });
     ipcMain.handle("work:stage-local-input", async (event, ...args) => {
       if (
         !senderAllowed(event) ||
