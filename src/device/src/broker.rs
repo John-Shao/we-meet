@@ -2138,6 +2138,53 @@ mod tests {
     const TICKET: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     const OTHER: &str = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
 
+    #[tokio::test]
+    async fn model_probe_receipt_ipc_refuses_malformed_or_unpaired_requests() {
+        let signer: crate::journalop::ApprovalSignerSlot =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cases = [
+            (
+                json!({ "method": "unknown", "request_id": "r1" }),
+                "unknown_method",
+            ),
+            (
+                json!({ "method": "getModelProbeReceipts", "request_id": "r2" }),
+                "schema",
+            ),
+            (
+                json!({ "method": "getModelProbeReceipts", "request_id": "r3", "auth_epoch": "1", "extra": true }),
+                "schema",
+            ),
+            (
+                json!({ "method": "getModelProbeReceipts", "request_id": "r4", "auth_epoch": "bad" }),
+                "shape",
+            ),
+            (
+                json!({ "method": "getModelProbeReceipts", "request_id": "r5", "auth_epoch": "1" }),
+                "no_pairing",
+            ),
+            (
+                json!({ "method": "confirmModelProbeReceiptDelivery", "request_id": "r6" }),
+                "schema",
+            ),
+            (
+                json!({ "method": "confirmModelProbeReceiptDelivery", "request_id": "r7", "model_result_id": "bad" }),
+                "shape",
+            ),
+            (
+                json!({ "method": "confirmModelProbeReceiptDelivery", "request_id": "r8", "model_result_id": "55555555-5555-4555-8555-555555555555" }),
+                "no_pairing",
+            ),
+        ];
+        for (message, code) in cases {
+            let reply = model_probe_receipt_reply(&signer, &message).await;
+            assert_eq!(reply.result, REFUSED, "{message}");
+            assert_eq!(reply.code, Some(code), "{message}");
+            assert_eq!(reply.data, None, "{message}");
+            assert_eq!(reply.request_id, message["request_id"].as_str().unwrap());
+        }
+    }
+
     #[test]
     fn model_binding_hash_matches_the_server_vector() {
         assert_eq!(
