@@ -35,6 +35,7 @@ export const DeviceExecutionProfilesPanel = ({
   const profileQ = useActiveExecutionProfile(profileId)
   const [port, setPort] = useState('')
   const [binding, setBinding] = useState<{
+    bindingId: string
     status: string
     probePreview: { probeId: string }
   } | null>(null)
