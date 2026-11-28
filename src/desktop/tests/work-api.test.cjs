@@ -126,6 +126,72 @@ test("the endpoint table is closed and every route carries the Bearer plane head
   assert.deepEqual(JSON.parse(seen[2].body), { device_name: "test" });
 });
 
+test("execution profile, binding, and probe-run actions use their closed routes", async (t) => {
+  const seen = [];
+  const origin = await localServer(t, (request, response) => {
+    let body = "";
+    request.on("data", (chunk) => (body += chunk));
+    request.on("end", () => {
+      seen.push({ method: request.method, url: request.url, headers: request.headers, body });
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify({ ok: true }));
+    });
+  });
+  const api = new WorkApi(origin, auth());
+  const bindingBody = {
+    client_request_id: "binding-0001",
+    session_id: "44444444-4444-4444-8444-444444444444",
+    profile_id: "profile-1",
+    profile_revision: "1",
+    profile_hash: "a".repeat(64),
+    binding_hash: "b".repeat(64),
+    local_ref: "fixture://model",
+    listener_identity_hash: "c".repeat(64),
+    native_confirmation_proof: { v: 1 },
+  };
+  const probeBody = {
+    client_request_id: "probe-run-0001",
+    session_id: bindingBody.session_id,
+    probe_id: "88888888-8888-4888-8888-888888888888",
+    preview_hash: "d".repeat(64),
+    target_selection_hash: "e".repeat(64),
+    local_intent: { v: 1 },
+  };
+  await api.request("getExecutionProfile", { id: "profile-1", id2: "1" });
+  await api.request("createDeviceModelBinding", {
+    id: deviceId,
+    signature: "A".repeat(86),
+    body: bindingBody,
+  });
+  await api.request("submitConfigurationProbe", {
+    id: deviceId,
+    id2: bindingId,
+    body: probeBody,
+  });
+  assert.deepEqual(
+    seen.map(({ method, url }) => `${method} ${url}`),
+    [
+      "GET /work/v2/execution-profiles/profile-1/revisions/1",
+      `POST /work/v2/devices/${deviceId}/model-bindings`,
+      `POST /work/v2/devices/${deviceId}/model-bindings/${bindingId}/probe-runs`,
+    ],
+  );
+  assert.equal(seen[0].body, "");
+  assert.equal(seen[1].headers["x-device-signature"], "A".repeat(86));
+  assert.equal(seen[2].headers["x-device-signature"], undefined);
+  assert.deepEqual(JSON.parse(seen[1].body), bindingBody);
+  assert.deepEqual(JSON.parse(seen[2].body), probeBody);
+  await expectCode(
+    api.request("getExecutionProfile", { id: "profile-1", id2: "0" }),
+    "invalid_work_request",
+  );
+  await expectCode(
+    api.request("createDeviceModelBinding", { id: deviceId, body: bindingBody }),
+    "invalid_work_request",
+  );
+  assert.equal(seen.length, 3);
+});
+
 test("refreshModelProbePreview uses the Bearer device route without a device signature", async (t) => {
   const seen = [];
   const body = {

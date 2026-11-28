@@ -20,7 +20,10 @@ export type WorkAction =
   | "decideApproval"
   | "createLocalTaskPreview"
   | "submitLocalTask"
+  | "getExecutionProfile"
+  | "createDeviceModelBinding"
   | "refreshModelProbePreview"
+  | "submitConfigurationProbe"
   | "recordModelProbe";
 export interface WorkAuth {
   readonly epoch: number;
@@ -29,6 +32,12 @@ export interface WorkAuth {
   access(): Promise<string | undefined>;
 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const validPathValue = (kind: string, value: string | undefined): boolean => {
+  if (kind === "profileId")
+    return value !== undefined && value.length > 0 && value.length <= 128 && value.trim() === value;
+  if (kind === "revision") return value !== undefined && /^[1-9][0-9]*$/.test(value);
+  return uuid.test(value ?? "");
+};
 const endpoints: Record<
   WorkAction,
   {
@@ -41,8 +50,10 @@ const endpoints: Record<
       | "approvalId"
       | "taskId"
       | "runId"
+      | "profileId"
+      | "revision"
       | "bindingId";
-    id2?: "bindingId";
+    id2?: "revision" | "bindingId";
   }
 > = {
   identity: { method: "GET", path: "/work/v2/identity" },
@@ -106,9 +117,26 @@ const endpoints: Record<
     path: "/work/v2/local-task-previews",
   },
   submitLocalTask: { method: "POST", path: "/work/v2/tasks" },
+  getExecutionProfile: {
+    method: "GET",
+    path: "/work/v2/execution-profiles/{profileId}/revisions/{revision}",
+    id: "profileId",
+    id2: "revision",
+  },
+  createDeviceModelBinding: {
+    method: "POST",
+    path: "/work/v2/devices/{deviceId}/model-bindings",
+    id: "deviceId",
+  },
   refreshModelProbePreview: {
     method: "POST",
     path: "/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-previews",
+    id: "deviceId",
+    id2: "bindingId",
+  },
+  submitConfigurationProbe: {
+    method: "POST",
+    path: "/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-runs",
     id: "deviceId",
     id2: "bindingId",
   },
@@ -223,8 +251,8 @@ export class WorkApi {
       : undefined;
     if (
       !route ||
-      (route.id ? !uuid.test(options.id ?? "") : options.id !== undefined) ||
-      (route.id2 ? !uuid.test(options.id2 ?? "") : options.id2 !== undefined) ||
+      (route.id ? !validPathValue(route.id, options.id) : options.id !== undefined) ||
+      (route.id2 ? !validPathValue(route.id2, options.id2) : options.id2 !== undefined) ||
       (route.method === "GET" && options.body !== undefined) ||
       (options.query !== undefined && action !== "listApprovals") ||
       (options.query &&
@@ -237,11 +265,13 @@ export class WorkApi {
               options.query.cursor.includes("\0"))))) ||
       ((action === "createLocalArtifactVersion" ||
         action === "createLocalAcceptance" ||
+        action === "createDeviceModelBinding" ||
         action === "recordModelProbe") &&
         options.signature === undefined) ||
       (options.signature !== undefined &&
         ((action !== "createLocalArtifactVersion" &&
           action !== "createLocalAcceptance" &&
+          action !== "createDeviceModelBinding" &&
           action !== "recordModelProbe") ||
           !/^[A-Za-z0-9_-]{86}$/.test(options.signature)))
     )
@@ -270,13 +300,11 @@ export class WorkApi {
     const query = options.query
       ? `?${new URLSearchParams({ status: "pending", limit: "100", ...(options.query.cursor ? { cursor: options.query.cursor } : {}) })}`
       : "";
-    const url =
-      this.origin +
-      (route.id
-        ? route.path.replace(`{${route.id}}`, options.id!)
-        : route.path)
-        .replace("{bindingId}", options.id2 ?? "") +
-      query;
+    let path = route.id
+      ? route.path.replace(`{${route.id}}`, options.id!)
+      : route.path;
+    if (route.id2) path = path.replace(`{${route.id2}}`, options.id2!);
+    const url = this.origin + path + query;
     try {
       const response = await beforeDeadline(deadline, () => {
         this.checkEpoch(epoch);
