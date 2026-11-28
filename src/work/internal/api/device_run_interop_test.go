@@ -37,6 +37,26 @@ import (
 // This is the model→artifact.write→completed evidence (DD:138). Windows-only (named pipes + CNG +
 // AppContainer sidecar) and the real PG fixture lives in the Linux job, so no CI job spans this seam
 // — the same boundary GW18/GW21 registered; a node gate forbids any workflow naming WORK_DEVICE_BIN.
+func TestDeviceFullFixtureModelBinding(t *testing.T) {
+	bin := requireBrokerBin(t)
+	f := startFixtureBroker(t, bin)
+	ctx := context.Background()
+	conn, err := testpg.Open(ctx, testpg.AdminURLFor(f.dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+	var status string
+	if err := conn.QueryRow(ctx, `SELECT status FROM work.device_model_binding
+		WHERE org_id=$1 AND device_id=$2::uuid AND session_id=$3::uuid
+		  AND profile_id=$4`, testOrg, f.deviceID, f.sessionID, f.profile.ProfileID).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "pending_probe" {
+		t.Fatalf("real Broker binding status = %s, want pending_probe", status)
+	}
+}
+
 func TestDeviceFullFixtureRunWritesAnArtifact(t *testing.T) {
 	bin := requireBrokerBin(t)
 	f := startFixtureBroker(t, bin)
@@ -455,6 +475,44 @@ func startFixtureBrokerFull(t *testing.T, bin string, scenario []map[string]any,
 	t.Cleanup(func() { _ = fixtureCmd.Process.Kill(); _, _ = fixtureCmd.Process.Wait() })
 	waitFixtureListening(t, port)
 
+	profileHash := strings.Repeat("e", 64)
+	policyRaw, err := json.Marshal(map[string]any{
+		"allowed_ports": []int{port},
+		"listener_requirement": map[string]any{
+			"allowed_signers":      profile.ListenerRequirement.AllowedSigners,
+			"allow_pinned_hash":    profile.ListenerRequirement.AllowUserPinnedHash,
+			"allowed_service_sids": profile.ListenerRequirement.AllowedServiceSIDs,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	adminExec(t, dbName, fmt.Sprintf(`
+		INSERT INTO work.execution_profile_revision
+		  (org_id,profile_id,revision,content_hash,kind,provider,model,api_type,
+		   residency,endpoint_policy,tokenizer_id,context_tokens,max_request_bytes,
+		   max_output_tokens,usage_mode,runtime_digest,tool_manifest_hash,
+		   compat_profile_version,max_turns,status)
+		VALUES ('%s','%s',1,'%s','device_local','device-local','fixture-model',
+		        'chat_completions','device','%s'::jsonb,'fixture',4096,262144,
+		        1024,'actual','%s','%s','1',8,'active');
+		UPDATE work.device_session SET profile_id='%s'
+		WHERE org_id='%s' AND id='%s'::uuid;
+	`, testOrg, profile.ProfileID, profileHash, string(policyRaw), profile.RuntimeDigest,
+		profile.ToolManifestHash, profile.ProfileID, testOrg, sessionID))
+	ctx := context.Background()
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var authEpoch int64
+	if err := admin.QueryRow(ctx, `SELECT auth_epoch FROM work.device_session
+		WHERE org_id=$1 AND id=$2::uuid`, testOrg, sessionID).Scan(&authEpoch); err != nil {
+		_ = admin.Close(ctx)
+		t.Fatal(err)
+	}
+	_ = admin.Close(ctx)
+
 	probe := brokerCall(t, pipe, map[string]any{
 		"method": "probeLocalModel", "request_id": "pm-1", "port": fmt.Sprintf("%d", port),
 	})
@@ -462,7 +520,8 @@ func startFixtureBrokerFull(t *testing.T, bin string, scenario []map[string]any,
 	confirmModel := brokerCall(t, pipe, map[string]any{
 		"method": "confirmLocalModel", "request_id": "pm-2",
 		"confirmation_token": modelToken, "profile_id": profile.ProfileID,
-		"port": fmt.Sprintf("%d", port),
+		"profile_revision": "1", "profile_hash": profileHash,
+		"auth_epoch": strconv.FormatInt(authEpoch, 10),
 		"listener_requirement": map[string]any{
 			"allowed_signers":        profile.ListenerRequirement.AllowedSigners,
 			"allow_user_pinned_hash": profile.ListenerRequirement.AllowUserPinnedHash,
@@ -470,8 +529,34 @@ func startFixtureBrokerFull(t *testing.T, bin string, scenario []map[string]any,
 		},
 		"approved": true,
 	})
-	if confirmModel["data"].(map[string]any)["binding_hash"] == "" {
+	confirmData := confirmModel["data"].(map[string]any)
+	if confirmData["binding_hash"] == "" {
 		t.Fatalf("the model binding did not confirm: %#v; stderr:\n%s", confirmModel, stderr.String())
+	}
+	proof := confirmData["native_confirmation_proof"].(map[string]any)
+	bindingBody, err := json.Marshal(map[string]any{
+		"client_request_id":         "real-broker-binding-1",
+		"session_id":                sessionID,
+		"profile_id":                profile.ProfileID,
+		"profile_revision":          "1",
+		"profile_hash":              profileHash,
+		"binding_hash":              confirmData["binding_hash"],
+		"local_ref":                 proof["local_ref"],
+		"listener_identity_hash":    proof["listener_identity_hash"],
+		"native_confirmation_proof": proof,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bindingPath := strings.ReplaceAll(api.DeviceModelBindingsPath, "{deviceId}", deviceID)
+	bindingResponse := deviceRequest(t, http.MethodPost, rest.URL+bindingPath, string(bindingBody),
+		confirmData["signature"].(string))
+	if bindingResponse.StatusCode != http.StatusCreated {
+		t.Fatalf("create real Broker binding status = %d body=%s", bindingResponse.StatusCode, readBody(bindingResponse))
+	}
+	binding := decodeObject(t, bindingResponse)
+	if binding["binding_hash"] != confirmData["binding_hash"] || binding["status"] != "pending_probe" {
+		t.Fatalf("create real Broker binding = %#v", binding)
 	}
 
 	return &runFixture{

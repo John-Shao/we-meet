@@ -302,6 +302,8 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 **2026-11-28 0096 ExecutionProfile 生命周期列表**：新增 owner-only `list_execution_profiles` 与 `GET /work/v2/admin/execution-profiles`，每个 profile 返回最新 revision 的 canonical 元数据、状态与当前 `active_revision`，便于区分“最新草稿”和“仍生效 revision”；不返回凭据，API 角色仅获函数 EXECUTE。真库覆盖最新 draft＋旧 active、非 owner 拒绝，API 覆盖会话认证与列表响应，tail catalog 96。生产未部署。
 
+**2026-11-28 真实 Broker→API model binding 验收**：更新 Windows 互操作夹具到当前 `confirmLocalModel` 闭合契约（不再由 renderer 传端口，携带 profile revision/hash/auth epoch），从 Broker 返回的 17 字段 `native_confirmation_proof` 提取 `local_ref` 与 listener identity，并带真实设备签名 POST 建绑定 API。独立 `TestDeviceFullFixtureModelBinding` 使用当前 Windows Broker、真实 CNG 身份、REST API 与 PostgreSQL 通过，确认生成 `pending_probe` binding。完整 artifact Run 仍受旧 fixture bundle 的 `missing_key` 阻断，未将其宣称为已通过；生产未部署。
+
 ### 3.5 装后验证与链尾闸 [只读]
 
 - `sudo ./verify-r0a-0027.sh "<开始时刻>"`：`rows=N max=N`、清单 all present、函数体探针 true（claim_carries_takeover、terminal_release_guard、export_discovery_hardened、0040–0045 设备面探针等）。
