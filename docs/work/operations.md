@@ -310,7 +310,7 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 **2026-11-28 configuration-probe 重启恢复**：本机执行面板现在按 profile 只持久化已提交 probe 的 UUID；重新挂载后通过现有 `getModelProbe` 读面重新验证 server 状态与 profile 归属，再恢复 binding 状态和该 probe 的待审批入口，不持久化 approval、proof 或凭据，也不从 renderer 恢复任何写能力。其他 profile、无 Task 关联或无效 UUID 的存储项会被清除；localStorage 不可用时仅放弃恢复，不影响实时会话。恢复 effect 使用等值闸避免重复查询数据触发渲染循环。面板 6 项、Work R0a 190 项、TypeScript、ESLint、Prettier 与 Vite production build 通过；生产 rollout、真实供应商与 J39 仍未闭合。
 
-**2026-11-28 configuration-probe 安装包复验**：`efa554360` 的功能切片、`48e4b7ff7` 的面板 binding 类型修正与 `ac5f876f5` 的 Prettier 修正后，Vite production build、renderer source/config/214 assets provenance、NSIS 打包与 Electron shell smoke 全部通过。安装包位于本地 src/desktop/release-probe-verified-final/We-Meet-0.4.0-delivery.6-setup.exe，215,493,781 bytes，sha256＝`6f08b0fe2eca71a2f2e03fa4d00f83841d32040c3b2954be024463b318757177`；shell smoke 再次覆盖匿名标题栏、Work API native Bearer proxy、拖拽区、导航/搜索、菜单、主题、缩放与全屏。该包是未正式签名的本地候选，不等于生产发布或真实供应商验收。
+**2026-11-28 configuration-probe 安装包复验**：`efa554360` 的功能切片、`48e4b7ff7` 的面板 binding 类型修正、`ac5f876f5` 的 Prettier 修正与 `fd39e2a7f` 的重启恢复后，Vite production build、renderer source/config/214 assets provenance、NSIS 打包与 Electron shell smoke 全部通过。安装包位于本地 src/desktop/release-probe-restart-final/We-Meet-0.4.0-delivery.6-setup.exe，215,496,361 bytes，sha256＝`8a53365ea0898ddd41961f24ec21d8477e5fcf393e4376707d0767b2dfb2abe7`；shell smoke 再次覆盖匿名标题栏、Work API native Bearer proxy、拖拽区、导航/搜索、菜单、主题、缩放与全屏。该包是未正式签名的本地候选，不等于生产发布或真实供应商验收。
 
 ### 3.5 装后验证与链尾闸 [只读]
 
