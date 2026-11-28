@@ -15,6 +15,7 @@
 ## 前置条件
 
 - Node.js 24（Windows x64 已测）。
+- Python 3.12 与 PyYAML 6.0.3（H02 读取隔离 fixture secret；CI 固定安装 `PyYAML==6.0.3`）。
 - `npm install` 安装根依赖；H10 还需 `cd h10/v13 && npm install` 安装 Pi 1.3.0 版本对。
 - H01/H06 需要 Windows PowerShell 5.1、.NET Framework `csc.exe`；H01 需要 `HARNESS_NODE_MODULES` 或根 `node_modules`。
 - S1/S3/S5/S6 需要 PostgreSQL 16 监听 55432，数据库 `wemeet`，用户/密码 `postgres`/`test`：
