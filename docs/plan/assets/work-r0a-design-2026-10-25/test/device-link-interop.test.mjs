@@ -211,7 +211,7 @@ test('the shell closure carries the ticket method and the broker agrees on its n
   const closure = schema.slice(schema.indexOf('pub const SHELL_METHODS'), schema.indexOf('];', schema.indexOf('pub const SHELL_METHODS')));
   assert.ok(closure.includes(member), 'deliverDeviceSessionTicket left the shell closure');
   // artifact_edit adds four internal carriers including draft discovery; acceptance and rebind listing add two: 29.
-  assert.match(schema, /assert_eq!\(SHELL_METHODS\.len\(\), 29\)/);
+  assert.match(schema, /assert_eq!\(SHELL_METHODS\.len\(\), 31\)/);
   for (const method of ['"openLocalContent"', '"confirmLocalSubmission"', '"listLocalArtifactDrafts"',
     '"prepareLocalArtifactEdit"', '"decideLocalArtifactEdit"', '"completeLocalArtifactEdit"',
     '"prepareLocalAcceptance"', '"listWorkspaceGrants"']) {

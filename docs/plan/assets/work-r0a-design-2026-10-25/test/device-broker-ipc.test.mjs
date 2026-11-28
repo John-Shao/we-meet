@@ -111,8 +111,8 @@ test('the reply vocabulary is closed and the two refusal kinds stay distinct', (
   assert.match(dispatch, /assert_eq!\(keys, \["method", "request_id", "result"\]\)/);
   assert.match(dispatch, /assert_eq!\(keys, \["code", "method", "request_id", "result"\]\)/);
   assert.match(dispatch, /assert_eq!\(count, 6\)/);
-  assert.match(dispatch, /assert_eq!\(SHELL_METHODS\.len\(\), 29\)/);
-  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 23\)/);
+  assert.match(dispatch, /assert_eq!\(SHELL_METHODS\.len\(\), 31\)/);
+  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 25\)/);
 });
 
 test('local submission requires approval, live input facts and the Broker device signature', () => {

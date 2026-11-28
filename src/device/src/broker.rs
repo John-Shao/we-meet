@@ -680,11 +680,7 @@ async fn rebind_reply(
 /// the registered grant/binding hash on approve, or an accepted no-facts reply on cancel (no grant).
 /// A bind/probe/identity failure is a closed `shape` refusal — the Broker could not bind/probe the
 /// target — never a silent accept. Schema (key-set/type) violations are `schema`.
-#[cfg(windows)]
-/// Answer one approval decision. A pending `ask_each` approval is decided while its Run is
-/// parked waiting for the permit, i.e. while the Node service thread is inside `serve_run`;
-/// that thread cannot answer, so the pump signs the proof over the shared journal handle and
-/// only falls back to the Node service before a session exists.
+/// Serve recorded model-result receipts to the authenticated shell and persist delivery confirmation.
 async fn model_probe_receipt_reply(
     signer: &crate::journalop::ApprovalSignerSlot,
     message: &Value,
