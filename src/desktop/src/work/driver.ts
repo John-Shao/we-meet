@@ -183,6 +183,143 @@ export interface ListenerRequirement {
   allowedServiceSids: string[];
 }
 
+export interface ExecutionProfile {
+  orgId: string;
+  profileId: string;
+  revision: number;
+  contentHash: string;
+  kind: "device_local" | "org_private" | "org_remote";
+  provider: string;
+  model: string;
+  apiType: "chat_completions" | "responses";
+  residency: string;
+  listenerRequirement: ListenerRequirement;
+  tokenizerId: string;
+  contextTokens: number;
+  maxRequestBytes: number;
+  maxOutputTokens: number;
+  usageMode: "actual" | "estimated";
+  runtimeDigest: string;
+  toolManifestHash: string;
+  compatProfileVersion: string;
+  maxTurns: number;
+  status: "active";
+  createdAt: string;
+}
+
+function parseExecutionProfile(
+  value: unknown,
+  profileId: string,
+  revision: number,
+): ExecutionProfile {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new BrokerPipeError("shape");
+  const d = value as Record<string, unknown>;
+  if (
+    Object.keys(d).sort().join(",") !==
+    "api_type,compat_profile_version,content_hash,context_tokens,created_at,endpoint_policy,kind,max_output_tokens,max_request_bytes,max_turns,model,org_id,profile_id,provider,residency,revision,runtime_digest,status,tokenizer_id,tool_manifest_hash,usage_mode"
+  )
+    throw new BrokerPipeError("shape");
+  const digest = /^[0-9a-f]{64}$/;
+  const text = (key: string, max: number) => {
+    const field = d[key];
+    if (
+      typeof field !== "string" ||
+      field.length === 0 ||
+      field.length > max ||
+      field.trim() !== field
+    )
+      throw new BrokerPipeError("shape");
+    return field;
+  };
+  const positive = (key: string, max: number) => {
+    const field = d[key];
+    if (
+      typeof field !== "number" ||
+      !Number.isSafeInteger(field) ||
+      field < 1 ||
+      field > max
+    )
+      throw new BrokerPipeError("shape");
+    return field;
+  };
+  const policy = d.endpoint_policy;
+  if (!policy || typeof policy !== "object" || Array.isArray(policy))
+    throw new BrokerPipeError("shape");
+  const requirement = (policy as Record<string, unknown>).listener_requirement;
+  if (!requirement || typeof requirement !== "object" || Array.isArray(requirement))
+    throw new BrokerPipeError("shape");
+  const r = requirement as Record<string, unknown>;
+  const strings = (key: string, maxItems: number, maxLength: number) => {
+    const field = r[key];
+    if (
+      !Array.isArray(field) ||
+      field.length > maxItems ||
+      new Set(field).size !== field.length ||
+      !field.every(
+        (item) =>
+          typeof item === "string" &&
+          item.length > 0 &&
+          item.length <= maxLength &&
+          item.trim() === item,
+      )
+    )
+      throw new BrokerPipeError("shape");
+    return field as string[];
+  };
+  const allowedSigners = strings("allowed_signers", 32, 256);
+  const allowedServiceSids = strings("allowed_service_sids", 32, 256);
+  if (
+    d.profile_id !== profileId ||
+    d.revision !== revision ||
+    d.status !== "active" ||
+    d.kind !== "device_local" ||
+    !digest.test(text("content_hash", 64)) ||
+    !digest.test(text("runtime_digest", 64)) ||
+    !digest.test(text("tool_manifest_hash", 64)) ||
+    !["chat_completions", "responses"].includes(String(d.api_type)) ||
+    !["actual", "estimated"].includes(String(d.usage_mode)) ||
+    typeof r.allow_pinned_hash !== "boolean" ||
+    (allowedSigners.length === 0 &&
+      !r.allow_pinned_hash &&
+      allowedServiceSids.length === 0) ||
+    positive("context_tokens", 9007199254740991) <
+      positive("max_output_tokens", 9007199254740991) ||
+    positive("max_request_bytes", 262144) > 262144 ||
+    positive("max_turns", 9007199254740991) > 9007199254740991 ||
+    typeof d.created_at !== "string" ||
+    !Number.isFinite(Date.parse(d.created_at))
+  )
+    throw new BrokerPipeError("shape");
+  return {
+    orgId: text("org_id", 128),
+    profileId,
+    revision,
+    contentHash: text("content_hash", 64),
+    kind: "device_local",
+    provider: text("provider", 128),
+    model: text("model", 256),
+    apiType: d.api_type as ExecutionProfile["apiType"],
+    residency: text("residency", 128),
+    listenerRequirement: {
+      allowedSigners,
+      allowUserPinnedHash: r.allow_pinned_hash,
+      allowedServiceSids,
+    },
+    tokenizerId: text("tokenizer_id", 128),
+    contextTokens: positive("context_tokens", 9007199254740991),
+    maxRequestBytes: positive("max_request_bytes", 262144),
+    maxOutputTokens: positive("max_output_tokens", 9007199254740991),
+    usageMode: d.usage_mode as ExecutionProfile["usageMode"],
+    runtimeDigest: text("runtime_digest", 64),
+    toolManifestHash: text("tool_manifest_hash", 64),
+    compatProfileVersion: text("compat_profile_version", 64),
+    maxTurns: positive("max_turns", 9007199254740991),
+    status: "active",
+    createdAt: d.created_at,
+  };
+}
+
 const PROVIDER = "Microsoft Software Key Storage Provider";
 // 批2-5 (execution-face §6.4/§6.5, E3 乙): the two digest placeholders are gone. profile_id /
 // tool_manifest_hash / runtime_digest are read from the shipped dev fixture profile, whose hashes are
@@ -1402,6 +1539,31 @@ export class WorkDeviceDriver {
       invalidatedReadonlyGrants: Number(rebound.invalidated_readonly_grants),
       replayed: rebound.replayed,
     };
+  }
+
+  async getExecutionProfile(
+    profileId: string,
+    revision: string,
+  ): Promise<ExecutionProfile> {
+    const profileRevision = Number(revision);
+    if (
+      this.state !== "running" ||
+      !this.record ||
+      typeof profileId !== "string" ||
+      profileId.length === 0 ||
+      profileId.length > 128 ||
+      profileId.trim() !== profileId ||
+      !/^[1-9][0-9]*$/.test(revision) ||
+      !Number.isSafeInteger(profileRevision)
+    )
+      throw new BrokerPipeError("shape");
+    this.checkEpoch();
+    const response = await this.deps.api.request("getExecutionProfile", {
+      id: profileId,
+      id2: revision,
+    });
+    this.checkEpoch();
+    return parseExecutionProfile(response, profileId, profileRevision);
   }
 
   async getModelProbe(probeId: string): Promise<ModelProbeStatus> {

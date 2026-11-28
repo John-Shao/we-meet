@@ -236,6 +236,35 @@ function harness(t, overrides = {}) {
       artifact_classification_floor: "local_only",
       available_destinations: ["device_local"],
     }),
+    getExecutionProfile: (action, options) => ({
+      org_id: orgId,
+      profile_id: options.id,
+      revision: Number(options.id2),
+      content_hash: "e".repeat(64),
+      kind: "device_local",
+      provider: "device_local",
+      model: "fixture-model",
+      api_type: "chat_completions",
+      residency: "device",
+      endpoint_policy: {
+        listener_requirement: {
+          allowed_signers: ["fixture-signer"],
+          allow_pinned_hash: true,
+          allowed_service_sids: [],
+        },
+      },
+      tokenizer_id: "fixture",
+      context_tokens: 4096,
+      max_request_bytes: 262144,
+      max_output_tokens: 1024,
+      usage_mode: "actual",
+      runtime_digest: "b".repeat(64),
+      tool_manifest_hash: "a".repeat(64),
+      compat_profile_version: "1",
+      max_turns: 8,
+      status: "active",
+      created_at: "2026-11-28T00:00:00Z",
+    }),
     refreshModelProbePreview: (action, options) => ({
       binding_id: options.id2,
       binding_revision: Number(options.body.revision),
@@ -1175,6 +1204,85 @@ test("the root dialog receives the actual location and the two §4.2 warnings", 
   assert.equal(seen.differsFromSelected, true);
   assert.equal(seen.otherUserWritable, true);
   assert.equal(seen.volumeLabel, "Data");
+});
+
+test("getExecutionProfile returns canonical bounds and listener policy", async (t) => {
+  const h = harness(t);
+  await h.driver.start();
+  const respond = h.apiResponses.getExecutionProfile;
+  let seen;
+  h.apiResponses.getExecutionProfile = (action, options) => {
+    seen = options;
+    return respond(action, options);
+  };
+  const result = await h.driver.getExecutionProfile("profile-1", "2");
+  assert.deepEqual(result, {
+    orgId: orgId,
+    profileId: "profile-1",
+    revision: 2,
+    contentHash: "e".repeat(64),
+    kind: "device_local",
+    provider: "device_local",
+    model: "fixture-model",
+    apiType: "chat_completions",
+    residency: "device",
+    listenerRequirement: {
+      allowedSigners: ["fixture-signer"],
+      allowUserPinnedHash: true,
+      allowedServiceSids: [],
+    },
+    tokenizerId: "fixture",
+    contextTokens: 4096,
+    maxRequestBytes: 262144,
+    maxOutputTokens: 1024,
+    usageMode: "actual",
+    runtimeDigest: "b".repeat(64),
+    toolManifestHash: "a".repeat(64),
+    compatProfileVersion: "1",
+    maxTurns: 8,
+    status: "active",
+    createdAt: "2026-11-28T00:00:00Z",
+  });
+  assert.equal(seen.id, "profile-1");
+  assert.equal(seen.id2, "2");
+  assert.equal(seen.body, undefined);
+});
+
+test("getExecutionProfile rejects invalid bounds, policy and identifiers", async (t) => {
+  const h = harness(t);
+  await assert.rejects(h.driver.getExecutionProfile("profile-1", "0"), BrokerPipeError);
+  await assert.rejects(h.driver.getExecutionProfile(" profile-1", "1"), BrokerPipeError);
+  await h.driver.start();
+  const respond = h.apiResponses.getExecutionProfile;
+  for (const patch of [
+    { max_request_bytes: 262145 },
+    { max_output_tokens: 4097 },
+    { max_turns: 9007199254740992 },
+    { status: "draft" },
+    { endpoint_policy: { listener_requirement: {
+      allowed_signers: [], allow_pinned_hash: false, allowed_service_sids: [],
+    } } },
+    { unexpected: true },
+  ]) {
+    h.apiResponses.getExecutionProfile = (action, options) => ({
+      ...respond(action, options),
+      ...patch,
+    });
+    await assert.rejects(h.driver.getExecutionProfile("profile-1", "1"), BrokerPipeError);
+  }
+});
+
+test("getExecutionProfile fences a late response after account change", async (t) => {
+  let h;
+  h = harness(t, {
+    apiResponse(action) {
+      if (action !== "getExecutionProfile") return undefined;
+      h.auth.epoch++;
+      return h.apiResponses.getExecutionProfile(action, { id: "profile-1", id2: "1" });
+    },
+  });
+  await h.driver.start();
+  await assert.rejects(h.driver.getExecutionProfile("profile-1", "1"), WorkApiError);
 });
 
 test("getModelProbe returns validated status and structured usage", async (t) => {

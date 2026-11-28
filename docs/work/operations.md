@@ -292,6 +292,8 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 **2026-11-28 0093 ExecutionProfile 原子激活**：新增 owner-only `activate_execution_profile` 与 `POST /work/v2/admin/execution-profiles/{profileId}/activate`，以 `expected_active_revision` 做乐观并发：draft device_local revision 原子切换为 active，旧 active revision 同步 revoked；同 profile 唯一 active 索引、锁顺序、幂等重放/冲突与审计均落库。真库覆盖旧新状态、重放、错期望 revision 与非 owner 拒绝，API 覆盖 cookie/CSRF 与响应，tail catalog 93。生产未部署。
 
+**2026-11-28 桌面 ExecutionProfile 读取驱动**：`WorkDriver.getExecutionProfile` 接通服务端 active profile 读取，严格校验 profile/revision/hash、device_local 类型、listener_requirement、有限资源上界与时间字段，并在请求前后检查账号 epoch；非法上界、空 listener policy、draft/未知字段与迟到响应均 fail closed。桌面全量 237 项回归通过。该切片仅提供主进程驱动读取，尚未接到渲染界面且未做真机验收；生产未部署。
+
 ### 3.5 装后验证与链尾闸 [只读]
 
 - `sudo ./verify-r0a-0027.sh "<开始时刻>"`：`rows=N max=N`、清单 all present、函数体探针 true（claim_carries_takeover、terminal_release_guard、export_discovery_hardened、0040–0045 设备面探针等）。
