@@ -65,9 +65,9 @@ Content Store：local-pilot-deployed-zero-real-requests。云 KMS：not-connecte
 |---|---|---|
 | runtime_verified | 2026-11-27 | `docs/plan/assets/work-r0a-runtime-2026-10-25/policy/sandbox-profile.json`、`src/work/node/src/supervisor.mjs`、`src/work/node/test/supervisor-provider.test.mjs`、`docs/plan/assets/harness-lab/h02-supervisor.test.mjs`、`docs/work/security.md`、`docs/work/operations.md` |
 | external_security_audit_done | 2026-11-16 | `docs/work/security.md`、`docs/work/decisions/0023-static-single-layer-encryption.md` |
-| content_store | 2026-11-16 | `src/work/internal/content/local.go`、`docs/work/security.md`、`docs/work/operations.md` |
+| content_store | 2026-11-28 | `src/work/internal/content/local.go`、`src/work/scripts/retention-scan.sql`、`src/work/scripts/run-retention-scan.sh`、`docs/work/security.md`、`docs/work/operations.md` |
 | cloud_kms | 2026-11-16 | `docs/work/decisions/0023-static-single-layer-encryption.md`、`docs/work/security.md` |
-| migration | 2026-11-27 | `docs/work/operations.md`、`src/work/deploy/ecs/verify-r0a-0027.sh` |
+| migration | 2026-11-28 | `docs/work/operations.md`、`src/work/deploy/ecs/verify-r0a-0027.sh` |
 
 ## 入口
 

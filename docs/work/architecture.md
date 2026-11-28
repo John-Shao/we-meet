@@ -219,7 +219,7 @@ Temporal 使用独立持久化库与角色、独立 namespace 与任务队列，
 - **不允许真实客户数据。** 接入任何真实客户数据前必须完成外部安全审计（J39），当前**未执行**。R0b 设计只完成多轮主签自查，不得表述为"经独立安全复核"。
 - **生产 Runtime 没有容器隔离**：主机无 runc/runsc，子进程是同解释器裸 spawn，`sandboxProof=false`。补偿控制、残余风险与重开条件登记在 `docs/plan/assets/work-r0a-runtime-2026-10-25/policy/sandbox-profile.json`；该文件是降级自证，不是隔离证明。
 - **真实外部供应商 E2E 未跑**，历史仅一次 Qwen smoke。生产 `Supervisor`＋真实 Pi child 到本地 Gateway／隔离供应商 fixture 的全链回归已通过，但不构成真实供应商或生产准入证据。
-- **Content Store 是本地实现**（`src/work/internal/content/local.go`），已上线但零真实请求；重加密与留存清扫未实现。
+- **Content Store 是本地实现**（`src/work/internal/content/local.go`），已上线但零真实请求；输入 24h TTL 清扫与 `content_shred` 投递已实现，Content Store 对象级留存清扫与 `key_version` 重加密驱动未实现。
 - **云 KMS 未接**：静态单层加密是已签范围例外（[ADR-0023](decisions/0023-static-single-layer-encryption.md)），接触客户数据须重开。
 - **外发内容治理未落地**：来源标签分类与秘密模式检测只存在于设计资产校验器，生产 egress 路径不执行（`src/work/internal/egress/doc.go` 已显式更正此前的假控制注释）。egress 实际强制的是请求文档哈希冻结、provider/model 匹配与单次发送。
 - **计量只统计 token，不计算费用**（[ADR-0022](decisions/0022-token-metering-not-money.md)）；客户自带模型账号，护栏取代金额账本。

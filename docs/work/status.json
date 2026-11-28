@@ -74,13 +74,15 @@
     },
     "content_store": {
       "value": "local-pilot-deployed-zero-real-requests",
-      "reason": "Content Store 是本地实现（internal/content/local.go），已上线但零真实请求；重加密与留存清扫未实现。",
+      "reason": "Content Store 是本地实现（internal/content/local.go），已上线但零真实请求；输入 24h TTL 清扫与 content_shred 投递已实现并有生产运行证据，但 Content Store 对象级留存清扫与 key_version 重加密驱动未实现。",
       "evidence": [
         "src/work/internal/content/local.go",
+        "src/work/scripts/retention-scan.sql",
+        "src/work/scripts/run-retention-scan.sh",
         "docs/work/security.md",
         "docs/work/operations.md"
       ],
-      "verified_at": "2026-11-16"
+      "verified_at": "2026-11-28"
     },
     "cloud_kms": {
       "value": "not-connected-scope-exception-D03B",
@@ -94,12 +96,12 @@
     "migration": {
       "value": 62,
       "deployed_release": "work-release-0062-c73adea2a",
-      "reason": "现网台账 tip_version=62／rows=62；0040–0062 已于 2026-11-24 分两步执行，migrations-only 与 runtime swap 均 rc=0；c73adea2a 重建包的官方 verifier rc=0。2026-11-27 复核仍为 tip62；当前 HEAD verifier 期望 MIGRATION_TAIL=88，因此对 62 主机 rc=1，不能把 0062 exact 包的历史 rc=0 外推为当前 HEAD 验收通过。",
+      "reason": "现网台账 tip_version=62／rows=62；0040–0062 已于 2026-11-24 分两步执行，migrations-only 与 runtime swap 均 rc=0；c73adea2a 重建包的官方 verifier rc=0。2026-11-27 复核仍为 tip62；当前 HEAD verifier 期望 MIGRATION_TAIL=97，因此对 62 主机 rc=1，不能把 0062 exact 包的历史 rc=0 外推为当前 HEAD 验收通过。",
       "evidence": [
         "docs/work/operations.md",
         "src/work/deploy/ecs/verify-r0a-0027.sh"
       ],
-      "verified_at": "2026-11-27"
+      "verified_at": "2026-11-28"
     }
   }
 }
