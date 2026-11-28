@@ -513,6 +513,13 @@ func startFixtureBrokerFull(t *testing.T, bin string, scenario []map[string]any,
 	}
 	_ = admin.Close(ctx)
 
+	currentSession := brokerCall(t, pipe, map[string]any{
+		"method": "getCurrentSession", "request_id": "session-1",
+	})
+	if currentSession["data"].(map[string]any)["session_id"] != sessionID {
+		t.Fatalf("getCurrentSession = %#v, want session %s", currentSession, sessionID)
+	}
+
 	probe := brokerCall(t, pipe, map[string]any{
 		"method": "probeLocalModel", "request_id": "pm-1", "port": fmt.Sprintf("%d", port),
 	})
