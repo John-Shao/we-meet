@@ -183,7 +183,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (88, '0088_configuration_probe_grant'),
   (89, '0089_device_model_probe_preview_refresh'),
   (90, '0090_device_model_probe_status'),
-  (91, '0091_signed_offer_resource_limits')) expected(version, name)
+  (91, '0091_signed_offer_resource_limits'),
+  (92, '0092_execution_profile_resource_bounds')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 psql_ro "select 'approval_proof_es256=' || case when
@@ -377,6 +378,20 @@ psql_ro "select 'signed_offer_resource_limits=' || case when
       where n.nspname='work' and p.proname='list_pending_device_offers')) > 0
     and position('''p.max_request_bytes''' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
       where n.nspname='work' and p.proname='list_pending_device_offers')) > 0
+    then 'true' else 'FALSE' end"
+psql_ro "select 'execution_profile_resource_bounds=' || case when
+    (select count(*) from pg_constraint where conrelid='work.execution_profile_revision'::regclass
+      and conname in ('execution_profile_revision_request_bytes_bound',
+        'execution_profile_revision_context_tokens_bound',
+        'execution_profile_revision_output_tokens_bound',
+        'execution_profile_revision_output_within_context',
+        'execution_profile_revision_turns_bound')) = 5
+    and position('262144' in (select pg_get_constraintdef(oid) from pg_constraint
+      where conrelid='work.execution_profile_revision'::regclass
+        and conname='execution_profile_revision_request_bytes_bound')) > 0
+    and position('9007199254740991' in (select pg_get_constraintdef(oid) from pg_constraint
+      where conrelid='work.execution_profile_revision'::regclass
+        and conname='execution_profile_revision_context_tokens_bound')) > 0
     then 'true' else 'FALSE' end"
 psql_ro "select 'device_resume_offers=' || case when
     (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace

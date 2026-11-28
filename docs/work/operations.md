@@ -288,6 +288,8 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 **2026-11-28 0091 签名 offer canonical 资源上界**：`list_pending_device_offers` 从绑定对应的 ExecutionProfile revision 读取 `max_turns`、`max_output_tokens`、`max_request_bytes`，Go gateway 以十进制字符串写入签名 `run_offer`，Rust `RunOfferBody` 必填解析并在 ready 前拒绝零值；普通 Run 的 Node bootstrap 直接消费这三项，并以 profile revision 作为 config revision；configuration probe 仍固定为一轮／16 token／1MiB。真库 offer、Go wire 与 Rust 签名/形状回归通过，tail catalog 91。生产未部署。
 
+**2026-11-28 0092 ExecutionProfile 有限上界**：数据库新增约束：`max_request_bytes ≤ 262144`、`context_tokens/max_output_tokens/max_turns ≤ 2^53−1`，且 `max_output_tokens ≤ context_tokens`；发布夹具同步收紧到 262144 bytes。真库覆盖五类越界拒绝，verifier 钉住五个约束与关键数值，tail catalog 92。生产未部署。
+
 ### 3.5 装后验证与链尾闸 [只读]
 
 - `sudo ./verify-r0a-0027.sh "<开始时刻>"`：`rows=N max=N`、清单 all present、函数体探针 true（claim_carries_takeover、terminal_release_guard、export_discovery_hardened、0040–0045 设备面探针等）。

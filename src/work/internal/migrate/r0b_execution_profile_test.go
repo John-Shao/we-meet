@@ -70,7 +70,7 @@ func newExecutionProfileFixture(t *testing.T, org string) *executionProfileFixtu
 			"allowed_signers": []string{"fixture-signer"}, "allow_pinned_hash": true,
 			"allowed_service_sids": []string{},
 		}},
-		"tokenizer_id": "fixture", "context_tokens": 4096, "max_request_bytes": 1048576,
+		"tokenizer_id": "fixture", "context_tokens": 4096, "max_request_bytes": 262144,
 		"max_output_tokens": 1024, "usage_mode": "actual", "runtime_digest": runtimeDigest,
 		"tool_manifest_hash": hex64("tools"), "compat_profile_version": "1", "max_turns": 8,
 		"status": "active",
@@ -97,6 +97,47 @@ func newExecutionProfileFixture(t *testing.T, org string) *executionProfileFixtu
 		profileID: profileID, profileRevision: profileRevision, profileHash: profileHash,
 		runtimeDigest: runtimeDigest, toolManifestHash: hex64("tools"), modelVersion: modelVersion,
 		listenerIdentity: hex64("listener"), probeResults: make(map[string][2]string),
+	}
+}
+
+func TestExecutionProfileResourceBounds(t *testing.T) {
+	f := newExecutionProfileFixture(t, "org-resource-bounds")
+	insert := func(contextTokens, requestBytes, outputTokens, turns int64) error {
+		_, err := f.admin.Exec(testContext(t), `
+			INSERT INTO work.execution_profile_revision
+			  (org_id,profile_id,revision,content_hash,kind,provider,model,api_type,
+			   residency,endpoint_policy,tokenizer_id,context_tokens,max_request_bytes,
+			   max_output_tokens,usage_mode,runtime_digest,tool_manifest_hash,
+			   compat_profile_version,max_turns,status)
+			SELECT org_id,profile_id,revision+1,content_hash,kind,provider,model,api_type,
+			       residency,endpoint_policy,tokenizer_id,$1,$2,$3,usage_mode,runtime_digest,
+			       tool_manifest_hash,compat_profile_version,$4,status
+			FROM work.execution_profile_revision
+			WHERE org_id=$5 AND profile_id=$6 AND revision=1`,
+			contextTokens, requestBytes, outputTokens, turns, f.org, f.profileID)
+		return err
+	}
+	cases := []struct {
+		name           string
+		contextTokens  int64
+		requestBytes   int64
+		outputTokens   int64
+		turns          int64
+		constraintName string
+	}{
+		{"request bytes", 4096, 262145, 1024, 8, "execution_profile_revision_request_bytes_bound"},
+		{"context tokens", 9007199254740992, 262144, 1024, 8, "execution_profile_revision_context_tokens_bound"},
+		{"output tokens", 4096, 262144, 9007199254740992, 8, "execution_profile_revision_output_tokens_bound"},
+		{"output within context", 1024, 262144, 1025, 8, "execution_profile_revision_output_within_context"},
+		{"turns", 4096, 262144, 1024, 9007199254740992, "execution_profile_revision_turns_bound"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := insert(tc.contextTokens, tc.requestBytes, tc.outputTokens, tc.turns)
+			if err == nil || !strings.Contains(err.Error(), tc.constraintName) {
+				t.Fatalf("expected %s, got %v", tc.constraintName, err)
+			}
+		})
 	}
 }
 
@@ -374,7 +415,7 @@ func TestConfigurationProbeSubmissionCreatesCanonicalHiddenRunAndReplays(t *test
 		t.Fatalf("signed offer probe metadata = %#v", probeOffer)
 	}
 	if offers[0]["max_turns"] != float64(8) || offers[0]["max_output_tokens"] != float64(1024) ||
-		offers[0]["max_request_bytes"] != float64(1048576) {
+		offers[0]["max_request_bytes"] != float64(262144) {
 		t.Fatalf("signed offer resource limits = %#v", offers[0])
 	}
 	if got := countRows(t, f.admin, "SELECT count(*) FROM work.workspace_grant WHERE org_id="+
@@ -565,7 +606,7 @@ func (f *executionProfileFixture) profileDocument(t *testing.T, model ...string)
 		"residency": "device", "endpoint_policy": map[string]any{"listener_requirement": map[string]any{
 			"allowed_signers": []string{"fixture-signer"}, "allow_pinned_hash": true, "allowed_service_sids": []string{},
 		}},
-		"tokenizer_id": "fixture", "context_tokens": 4096, "max_request_bytes": 1048576,
+		"tokenizer_id": "fixture", "context_tokens": 4096, "max_request_bytes": 262144,
 		"max_output_tokens": 1024, "usage_mode": "actual", "runtime_digest": f.runtimeDigest,
 		"tool_manifest_hash": f.toolManifestHash, "compat_profile_version": "1", "max_turns": 8,
 		"status": "active",

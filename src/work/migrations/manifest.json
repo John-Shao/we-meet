@@ -1011,6 +1011,17 @@
       "catalog_checksum": "sha256:ca9a5efe8d5ed119817ed2b77145d3f952b0743eeaf6a439aaa25ec7713d51ef",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 92,
+      "name": "0092_execution_profile_resource_bounds",
+      "kind": "increment",
+      "file": "increments/0092_execution_profile_resource_bounds.sql",
+      "checksum": "sha256:5089cffd78bb94cc7252662baffb9d3f3c073ee129560f83ea2e08fcdf85ff4f",
+      "catalog": "catalogs/0092_execution_profile_resource_bounds.json",
+      "catalog_checksum": "sha256:7b6234ace2f3d2c11fd911a948c5b22ef874f67f5a859598983f6c75a883d7a7",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

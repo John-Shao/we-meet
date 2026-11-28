@@ -12,7 +12,7 @@ func TestRunOfferWireOnlyIncludesProbeMetadataForProbeRuns(t *testing.T) {
 		InputHash: "input-hash", SnapshotHash: "snapshot", ProfileID: "profile",
 		ProfileRevision: json.Number("1"), RuntimeDigest: "runtime", ToolManifestHash: "tools",
 		ModelVersion: "model", MaxTurns: json.Number("8"), MaxOutputTokens: json.Number("1024"),
-		MaxRequestBytes: json.Number("1048576"), GrantSet: json.RawMessage(`[]`), StartNonce: "nonce",
+		MaxRequestBytes: json.Number("262144"), GrantSet: json.RawMessage(`[]`), StartNonce: "nonce",
 		OfferExpiry: "2026-11-16T00:02:00Z",
 	}
 	ordinary, err := runOfferWire(&base)
@@ -23,7 +23,7 @@ func TestRunOfferWireOnlyIncludesProbeMetadataForProbeRuns(t *testing.T) {
 		t.Fatalf("ordinary offer contains probe metadata: %#v", ordinary)
 	}
 	if ordinary["max_turns"] != "8" || ordinary["max_output_tokens"] != "1024" ||
-		ordinary["max_request_bytes"] != "1048576" {
+		ordinary["max_request_bytes"] != "262144" {
 		t.Fatalf("ordinary offer resource limits = %#v", ordinary)
 	}
 	invalid := base

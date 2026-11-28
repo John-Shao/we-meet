@@ -29,7 +29,7 @@ func seedExecutionProfileRevision(t *testing.T, dbName, profileID, modelVersion 
 		   max_output_tokens, usage_mode, runtime_digest, tool_manifest_hash,
 		   compat_profile_version, max_turns, status)
 		VALUES ($1, $2, $3, $4, 'device_local', 'device_local', $5, 'chat_completions',
-		   'device', $6::jsonb, 'fixture', 4096, 1048576, 1024, 'actual', $7, $8,
+		   'device', $6::jsonb, 'fixture', 4096, 262144, 1024, 'actual', $7, $8,
 		   '1', 8, 'active')
 		ON CONFLICT (org_id, profile_id, revision) DO NOTHING`,
 		testOrg, profileID, revision, profileHash, modelVersion,
