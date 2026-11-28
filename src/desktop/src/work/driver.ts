@@ -300,6 +300,66 @@ function previewAuthEpoch(previewHash: string): string {
   }
 }
 
+export interface ModelProbePreview {
+  bindingId: string;
+  bindingRevision: number;
+  probeId: string;
+  previewHash: string;
+  templateHash: string;
+  maxOutputTokens: 16;
+  expiresAt: string;
+}
+
+function parseModelProbePreview(
+  value: unknown,
+  bindingId: string,
+  bindingRevision: number,
+): ModelProbePreview {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new BrokerPipeError("shape");
+  const d = value as Record<string, unknown>;
+  if (Object.keys(d).sort().join(",") !== "binding_id,binding_revision,probe_preview")
+    throw new BrokerPipeError("shape");
+  const preview = d.probe_preview;
+  if (!preview || typeof preview !== "object" || Array.isArray(preview))
+    throw new BrokerPipeError("shape");
+  const p = preview as Record<string, unknown>;
+  if (
+    Object.keys(p).sort().join(",") !==
+    "expires_at,max_output_tokens,preview_hash,probe_id,template_hash"
+  )
+    throw new BrokerPipeError("shape");
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const digest = /^[0-9a-f]{64}$/;
+  const expiresAt = p.expires_at;
+  const expiry = typeof expiresAt === "string" ? Date.parse(expiresAt) : NaN;
+  const now = Date.now();
+  if (
+    d.binding_id !== bindingId ||
+    d.binding_revision !== bindingRevision ||
+    typeof p.probe_id !== "string" ||
+    !uuid.test(p.probe_id) ||
+    typeof p.preview_hash !== "string" ||
+    !digest.test(p.preview_hash) ||
+    typeof p.template_hash !== "string" ||
+    !digest.test(p.template_hash) ||
+    p.max_output_tokens !== 16 ||
+    !Number.isFinite(expiry) ||
+    expiry <= now ||
+    expiry > now + 65_000
+  )
+    throw new BrokerPipeError("shape");
+  return {
+    bindingId,
+    bindingRevision,
+    probeId: p.probe_id,
+    previewHash: p.preview_hash,
+    templateHash: p.template_hash,
+    maxOutputTokens: 16,
+    expiresAt: expiresAt as string,
+  };
+}
+
 interface ModelProbeReceiptProof {
   client_request_id: string;
   receipt: Record<string, unknown>;
@@ -1228,6 +1288,36 @@ export class WorkDeviceDriver {
       invalidatedReadonlyGrants: Number(rebound.invalidated_readonly_grants),
       replayed: rebound.replayed,
     };
+  }
+
+  async refreshModelProbePreview(
+    bindingId: string,
+    sessionId: string,
+    revision: string,
+  ): Promise<ModelProbePreview> {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const bindingRevision = Number(revision);
+    if (
+      this.state !== "running" ||
+      !this.record ||
+      !uuid.test(bindingId) ||
+      !uuid.test(sessionId) ||
+      !/^[1-9][0-9]*$/.test(revision) ||
+      !Number.isSafeInteger(bindingRevision)
+    )
+      throw new BrokerPipeError("shape");
+    this.checkEpoch();
+    const response = await this.deps.api.request("refreshModelProbePreview", {
+      id: this.record.deviceId,
+      id2: bindingId,
+      body: {
+        client_request_id: randomUUID(),
+        session_id: sessionId,
+        revision,
+      },
+    });
+    this.checkEpoch();
+    return parseModelProbePreview(response, bindingId, bindingRevision);
   }
 
   /** The §5.4 model identity confirmation flow (批2 主签单选乙). probeLocalModel returns the listener

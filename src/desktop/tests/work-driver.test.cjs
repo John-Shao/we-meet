@@ -235,6 +235,17 @@ function harness(t, overrides = {}) {
       artifact_classification_floor: "local_only",
       available_destinations: ["device_local"],
     }),
+    refreshModelProbePreview: (action, options) => ({
+      binding_id: options.id2,
+      binding_revision: Number(options.body.revision),
+      probe_preview: {
+        probe_id: "88888888-8888-4888-8888-888888888888",
+        preview_hash: "d".repeat(64),
+        template_hash: "f".repeat(64),
+        max_output_tokens: 16,
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+      },
+    }),
     submitLocalTask: (action, options) => ({
       task_id: "99999999-9999-4999-8999-999999999999",
       run_id: "55555555-5555-4555-8555-555555555555",
@@ -1147,6 +1158,84 @@ test("the root dialog receives the actual location and the two §4.2 warnings", 
   assert.equal(seen.differsFromSelected, true);
   assert.equal(seen.otherUserWritable, true);
   assert.equal(seen.volumeLabel, "Data");
+});
+
+test("refreshModelProbePreview submits the closed request and validates the preview", async (t) => {
+  const h = harness(t);
+  await h.driver.start();
+  const respond = h.apiResponses.refreshModelProbePreview;
+  let seen;
+  h.apiResponses.refreshModelProbePreview = (action, options) => {
+    seen = options;
+    return respond(action, options);
+  };
+  const result = await h.driver.refreshModelProbePreview(bindingId, sessionId, "1");
+  assert.deepEqual(result, {
+    bindingId,
+    bindingRevision: 1,
+    probeId: "88888888-8888-4888-8888-888888888888",
+    previewHash: "d".repeat(64),
+    templateHash: "f".repeat(64),
+    maxOutputTokens: 16,
+    expiresAt: result.expiresAt,
+  });
+  assert.equal(seen.id, deviceId);
+  assert.equal(seen.id2, bindingId);
+  assert.equal(seen.signature, undefined);
+  assert.equal(seen.body.session_id, sessionId);
+  assert.equal(seen.body.revision, "1");
+  assert.match(seen.body.client_request_id, /^[0-9a-f-]{36}$/);
+});
+
+test("refreshModelProbePreview refuses malformed previews and invalid input", async (t) => {
+  const h = harness(t);
+  await assert.rejects(
+    h.driver.refreshModelProbePreview("bad", sessionId, "1"),
+    BrokerPipeError,
+  );
+  await h.driver.start();
+  h.apiResponses.refreshModelProbePreview = () => ({
+    binding_id: bindingId,
+    binding_revision: 1,
+    probe_preview: {
+      probe_id: "88888888-8888-4888-8888-888888888888",
+      preview_hash: "d".repeat(64),
+      template_hash: "f".repeat(64),
+      max_output_tokens: 16,
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+      unexpected: true,
+    },
+  });
+  await assert.rejects(
+    h.driver.refreshModelProbePreview(bindingId, sessionId, "1"),
+    BrokerPipeError,
+  );
+});
+
+test("refreshModelProbePreview fences a late response after account change", async (t) => {
+  let h;
+  h = harness(t, {
+    apiResponse(action) {
+      if (action !== "refreshModelProbePreview") return undefined;
+      h.auth.epoch++;
+      return {
+        binding_id: bindingId,
+        binding_revision: 1,
+        probe_preview: {
+          probe_id: "88888888-8888-4888-8888-888888888888",
+          preview_hash: "d".repeat(64),
+          template_hash: "f".repeat(64),
+          max_output_tokens: 16,
+          expires_at: new Date(Date.now() + 60_000).toISOString(),
+        },
+      };
+    },
+  });
+  await h.driver.start();
+  await assert.rejects(
+    h.driver.refreshModelProbePreview(bindingId, sessionId, "1"),
+    WorkApiError,
+  );
 });
 
 test("configureLocalModel runs probe → dialog → confirm and returns the binding hash", async (t) => {
