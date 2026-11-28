@@ -339,8 +339,8 @@ test('the status method is read-only and the reply payload is a closed shape', (
     'decideLocalArtifactEdit', 'completeLocalArtifactEdit', 'prepareLocalAcceptance', 'listWorkspaceGrants']) {
     assert.ok(schema.includes(`"${method}"`), `${method} left the shell closure`);
   }
-  assert.match(schema, /assert_eq!\(SHELL_METHODS\.len\(\), 31\)/);
-  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 25\)/);
+  assert.match(schema, /assert_eq!\(SHELL_METHODS\.len\(\), 33\)/);
+  assert.match(dispatch, /assert_eq!\(CORE_METHODS\.len\(\), 27\)/);
 });
 
 test('a refusal reaches the shell before the pipe is disconnected', () => {
