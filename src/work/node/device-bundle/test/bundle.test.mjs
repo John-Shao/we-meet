@@ -29,7 +29,7 @@ function bootstrapBody() {
     run_id: 'run-1', binding_revision: '1', start_nonce: 'nonce-1', profile_id: 'profile-dev-fixture-v1',
     compat_profile_version: '1', tool_manifest_hash: 'tmh', runtime_digest: 'rd',
     model_route: { provider: 'device-local', model: 'fixture-model', config_revision: '1' },
-    sealed_input_b64: null, max_turns: '8', max_tokens: '4096', max_bytes: '1048576',
+    sealed_input_b64: null, max_turns: '8', max_tokens: '4096', max_bytes: '262144',
     deadline: '2026-11-19T01:00:00Z',
   };
 }
@@ -233,7 +233,7 @@ for (const [name, bootstrap] of [
     });
     assertLoop(result, ['model_request', 'workspace.read', 'model_request', 'loop_end'], 2);
     const request = result.received[0].body.request;
-    assert.deepEqual(request.parameters, {});
+    assert.deepEqual(request.parameters, { max_tokens: 4096 });
     assert.deepEqual(request.template, { id: 'device-default', version: '1', hash: 'tmh' });
     assert.deepEqual(request.tools, []);
     assert.deepEqual(JSON.parse(request.messages.at(-1).content), [{ type: 'text', text: 'begin' }]);
@@ -325,6 +325,38 @@ for (const maxTurns of ['0', '1', '2']) {
   test(`max_turns=${maxTurns} bounds a model that keeps requesting tools`, pipeTest, async () => {
     const result = await runOnce({ bootstrap: { max_turns: maxTurns }, model: () => modelReply([], [readCall]) });
     assertLoop(result, [...Array.from({ length: Number(maxTurns) }, () => ['model_request', 'workspace.read']).flat(), 'loop_end'], Number(maxTurns));
+  });
+}
+
+test('ordinary model requests carry the Broker-supplied output token bound', pipeTest, async () => {
+  const result = await runOnce({ bootstrap: { max_tokens: '1234' } });
+  assertLoop(result, ['model_request', 'loop_end'], 1);
+  assert.deepEqual(result.received[0].body.request.parameters, { max_tokens: 1234 });
+});
+
+test('an oversized serialized model request fails before any model frame', pipeTest, async () => {
+  const result = await runOnce({ bootstrap: { max_bytes: '1' } });
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(result.received.map((f) => f.type), ['loop_end']);
+  assert.equal(finalMessages(result).at(-1).stopReason, 'error');
+  assert.match(finalMessages(result).at(-1).errorMessage, /request_bytes_exceeded/);
+});
+
+for (const maxTokens of [null, 0, true, {}, [], '', '-1', '1.5', '1e2', ' 2', '2\n', '2x', '9007199254740992']) {
+  test(`invalid max_tokens=${JSON.stringify(maxTokens)} fails closed before any model/tool`, pipeTest, async () => {
+    const result = await runOnce({ bootstrap: { max_tokens: maxTokens } });
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, /work-device-bundle: invalid_max_tokens/);
+    assert.deepEqual(result.received, []);
+  });
+}
+
+for (const maxBytes of [null, 0, true, {}, [], '', '-1', '1.5', '1e2', ' 2', '2\n', '2x', '262145']) {
+  test(`invalid max_bytes=${JSON.stringify(maxBytes)} fails closed before any model/tool`, pipeTest, async () => {
+    const result = await runOnce({ bootstrap: { max_bytes: maxBytes } });
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, /work-device-bundle: invalid_max_bytes/);
+    assert.deepEqual(result.received, []);
   });
 }
 

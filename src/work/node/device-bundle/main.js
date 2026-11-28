@@ -243,7 +243,9 @@ function buildModelRequest(context, bootstrap, turnNo) {
       config_revision: bootstrap.model_route.config_revision,
       compat_profile_version: bootstrap.compat_profile_version,
     },
-    parameters: probe === null ? {} : { max_tokens: PROBE_MAX_TOKENS },
+    parameters: {
+      max_tokens: probe === null ? Number(bootstrap.max_tokens) : PROBE_MAX_TOKENS,
+    },
     template: probe === null
       ? { id: 'device-default', version: '1', hash: bootstrap.tool_manifest_hash }
       : { id: PROBE_TEMPLATE_ID, version: '1', hash: probe.template_hash },
@@ -372,6 +374,17 @@ async function main() {
     link.socket.destroy();
     throw new ProtocolError('invalid_max_turns');
   }
+  if (typeof bootstrap.max_tokens !== 'string' || !/^[0-9]+$/.test(bootstrap.max_tokens)
+    || BigInt(bootstrap.max_tokens) === 0n || BigInt(bootstrap.max_tokens) > 9007199254740991n) {
+    link.socket.destroy();
+    throw new ProtocolError('invalid_max_tokens');
+  }
+  if (typeof bootstrap.max_bytes !== 'string' || !/^[0-9]+$/.test(bootstrap.max_bytes)
+    || BigInt(bootstrap.max_bytes) === 0n || BigInt(bootstrap.max_bytes) > 262144n) {
+    link.socket.destroy();
+    throw new ProtocolError('invalid_max_bytes');
+  }
+  const maxRequestBytes = Number(bootstrap.max_bytes);
   // A probe always makes exactly one model turn, regardless of the ordinary Run turn budget.
   const maxTurns = probe === null ? BigInt(bootstrap.max_turns) : 1n;
   let initialText = 'begin';
@@ -395,7 +408,15 @@ async function main() {
       let reply;
       try {
         const context = { messages: agent.state.messages.slice() };
-        reply = await link.request(modelRequest(buildModelRequest(context, bootstrap, turnNo), `model:${turnNo}`), [
+        const request = buildModelRequest(context, bootstrap, turnNo);
+        if (Buffer.byteLength(JSON.stringify(request), 'utf8') > maxRequestBytes) {
+          const message = assistantMessage({ stopReason: 'error', errorMessage: 'request_bytes_exceeded' });
+          stream.push({ type: 'start', partial: { ...message } });
+          stream.push({ type: 'error', reason: 'error', error: message });
+          stream.end(message);
+          return;
+        }
+        reply = await link.request(modelRequest(request, `model:${turnNo}`), [
           'model_response', 'model_unknown',
         ]);
       } catch {
