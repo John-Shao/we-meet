@@ -11,7 +11,8 @@ func TestRunOfferWireOnlyIncludesProbeMetadataForProbeRuns(t *testing.T) {
 		TaskID: "task", DeviceID: "device", SessionID: "session", InputRef: "input",
 		InputHash: "input-hash", SnapshotHash: "snapshot", ProfileID: "profile",
 		ProfileRevision: json.Number("1"), RuntimeDigest: "runtime", ToolManifestHash: "tools",
-		ModelVersion: "model", GrantSet: json.RawMessage(`[]`), StartNonce: "nonce",
+		ModelVersion: "model", MaxTurns: json.Number("8"), MaxOutputTokens: json.Number("1024"),
+		MaxRequestBytes: json.Number("1048576"), GrantSet: json.RawMessage(`[]`), StartNonce: "nonce",
 		OfferExpiry: "2026-11-16T00:02:00Z",
 	}
 	ordinary, err := runOfferWire(&base)
@@ -20,6 +21,15 @@ func TestRunOfferWireOnlyIncludesProbeMetadataForProbeRuns(t *testing.T) {
 	}
 	if _, ok := ordinary["probe"]; ok {
 		t.Fatalf("ordinary offer contains probe metadata: %#v", ordinary)
+	}
+	if ordinary["max_turns"] != "8" || ordinary["max_output_tokens"] != "1024" ||
+		ordinary["max_request_bytes"] != "1048576" {
+		t.Fatalf("ordinary offer resource limits = %#v", ordinary)
+	}
+	invalid := base
+	invalid.MaxTurns = json.Number("0")
+	if _, err := runOfferWire(&invalid); err == nil {
+		t.Fatal("zero max_turns was accepted")
 	}
 	probe := base
 	probe.Probe = &probeOffer{BindingID: "binding-id", ProbeID: "probe-id", PreviewHash: "preview", TemplateHash: "template"}

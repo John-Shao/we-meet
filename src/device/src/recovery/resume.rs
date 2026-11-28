@@ -279,6 +279,9 @@ mod tests {
             runtime_digest: "rd".into(),
             tool_manifest_hash: "tm".into(),
             model_version: "m1".into(),
+            max_turns: 8,
+            max_output_tokens: 1024,
+            max_request_bytes: 1_048_576,
             grant_set: vec![GrantRef {
                 grant_id: "g1".into(),
                 grant_revision: 1,

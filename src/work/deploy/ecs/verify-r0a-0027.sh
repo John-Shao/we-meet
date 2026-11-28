@@ -182,7 +182,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (87, '0087_configuration_probe_offer'),
   (88, '0088_configuration_probe_grant'),
   (89, '0089_device_model_probe_preview_refresh'),
-  (90, '0090_device_model_probe_status')) expected(version, name)
+  (90, '0090_device_model_probe_status'),
+  (91, '0091_signed_offer_resource_limits')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 psql_ro "select 'approval_proof_es256=' || case when
@@ -368,6 +369,14 @@ psql_ro "select 'model_probe_status_guard=' || case when
       where n.nspname='work' and p.proname='get_device_model_probe')) > 0
     and position('''safe_error''' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
       where n.nspname='work' and p.proname='get_device_model_probe')) > 0
+    then 'true' else 'FALSE' end"
+psql_ro "select 'signed_offer_resource_limits=' || case when
+    position('''p.max_turns''' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='list_pending_device_offers')) > 0
+    and position('''p.max_output_tokens''' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='list_pending_device_offers')) > 0
+    and position('''p.max_request_bytes''' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='list_pending_device_offers')) > 0
     then 'true' else 'FALSE' end"
 psql_ro "select 'device_resume_offers=' || case when
     (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace

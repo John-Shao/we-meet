@@ -1000,6 +1000,17 @@
       "catalog_checksum": "sha256:1d94683dd988da959bb8620554d5571e722dc4994d41e08f289662a96e682396",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 91,
+      "name": "0091_signed_offer_resource_limits",
+      "kind": "increment",
+      "file": "increments/0091_signed_offer_resource_limits.sql",
+      "checksum": "sha256:b225f80fbb5541cf555bcd46893f8ec690cd0040eaf09eab9ddd0eb220e76610",
+      "catalog": "catalogs/0091_signed_offer_resource_limits.json",
+      "catalog_checksum": "sha256:ca9a5efe8d5ed119817ed2b77145d3f952b0743eeaf6a439aaa25ec7713d51ef",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

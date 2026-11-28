@@ -830,7 +830,10 @@ impl SyncCore {
             eprintln!("work-device: offer signature refused");
             return;
         }
-        if !offer_body.expected_checkpoint_consistent() || !offer_body.probe_consistent() {
+        if !offer_body.expected_checkpoint_consistent()
+            || !offer_body.probe_consistent()
+            || !offer_body.resource_limits_valid()
+        {
             eprintln!("work-device: offer shape refused");
             return;
         }
@@ -1020,11 +1023,23 @@ impl SyncCore {
                         runtime_digest: start.runtime_digest.clone(),
                         model_provider: "device-local".into(),
                         model_name: offer_body.model_version.clone(),
-                        model_config_revision: 1,
+                        model_config_revision: offer_body.profile_revision,
                         sealed_input_b64: None,
-                        max_turns: if offer_body.probe.is_some() { 1 } else { 8 },
-                        max_tokens: if offer_body.probe.is_some() { 16 } else { 4096 },
-                        max_bytes: 1_048_576,
+                        max_turns: if offer_body.probe.is_some() {
+                            1
+                        } else {
+                            offer_body.max_turns
+                        },
+                        max_tokens: if offer_body.probe.is_some() {
+                            16
+                        } else {
+                            offer_body.max_output_tokens
+                        },
+                        max_bytes: if offer_body.probe.is_some() {
+                            1_048_576
+                        } else {
+                            offer_body.max_request_bytes
+                        },
                         deadline: start.expiry.clone(),
                         probe: offer_body.probe.as_ref().map(|probe| {
                             crate::ipc::nodepipe::ProbeBootstrap {
@@ -2209,6 +2224,9 @@ mod tests {
             runtime_digest: "digest".into(),
             tool_manifest_hash: "manifest".into(),
             model_version: "model".into(),
+            max_turns: 8,
+            max_output_tokens: 1024,
+            max_request_bytes: 1_048_576,
             grant_set: Vec::new(),
             expected_checkpoint_seq: None,
             expected_checkpoint_hash: None,

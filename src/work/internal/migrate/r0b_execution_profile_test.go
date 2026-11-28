@@ -373,6 +373,10 @@ func TestConfigurationProbeSubmissionCreatesCanonicalHiddenRunAndReplays(t *test
 		probeOffer["preview_hash"] != previewHash || probeOffer["template_hash"] != templateHash {
 		t.Fatalf("signed offer probe metadata = %#v", probeOffer)
 	}
+	if offers[0]["max_turns"] != float64(8) || offers[0]["max_output_tokens"] != float64(1024) ||
+		offers[0]["max_request_bytes"] != float64(1048576) {
+		t.Fatalf("signed offer resource limits = %#v", offers[0])
+	}
 	if got := countRows(t, f.admin, "SELECT count(*) FROM work.workspace_grant WHERE org_id="+
 		quoteLiteral(f.org)+" AND purpose='configuration_probe'"); got != 1 {
 		t.Fatalf("internal probe grants = %d, want 1", got)

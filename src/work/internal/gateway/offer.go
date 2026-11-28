@@ -43,6 +43,9 @@ type pendingOffer struct {
 	RuntimeDigest          string          `json:"runtime_digest"`
 	ToolManifestHash       string          `json:"tool_manifest_hash"`
 	ModelVersion           string          `json:"model_version"`
+	MaxTurns               json.Number     `json:"max_turns"`
+	MaxOutputTokens        json.Number     `json:"max_output_tokens"`
+	MaxRequestBytes        json.Number     `json:"max_request_bytes"`
 	GrantSet               json.RawMessage `json:"grant_set"`
 	ExpectedCheckpointSeq  *json.Number    `json:"expected_checkpoint_seq"`
 	ExpectedCheckpointHash *string         `json:"expected_checkpoint_hash"`
@@ -123,6 +126,25 @@ func runOfferWire(o *pendingOffer) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	positiveLimit := func(value json.Number, name string) (string, error) {
+		parsed, err := strconv.ParseUint(value.String(), 10, 64)
+		if err != nil || parsed == 0 {
+			return "", fmt.Errorf("invalid_request: %s", name)
+		}
+		return value.String(), nil
+	}
+	maxTurns, err := positiveLimit(o.MaxTurns, "max_turns")
+	if err != nil {
+		return nil, err
+	}
+	maxOutputTokens, err := positiveLimit(o.MaxOutputTokens, "max_output_tokens")
+	if err != nil {
+		return nil, err
+	}
+	maxRequestBytes, err := positiveLimit(o.MaxRequestBytes, "max_request_bytes")
+	if err != nil {
+		return nil, err
+	}
 	wire := map[string]any{
 		"run_id":                   o.RunID,
 		"binding_revision":         o.BindingRevision.String(),
@@ -137,6 +159,9 @@ func runOfferWire(o *pendingOffer) (map[string]any, error) {
 		"runtime_digest":           o.RuntimeDigest,
 		"tool_manifest_hash":       o.ToolManifestHash,
 		"model_version":            o.ModelVersion,
+		"max_turns":                maxTurns,
+		"max_output_tokens":        maxOutputTokens,
+		"max_request_bytes":        maxRequestBytes,
 		"grant_set":                grants,
 		"expected_checkpoint_seq":  numberOrNil(o.ExpectedCheckpointSeq),
 		"expected_checkpoint_hash": o.ExpectedCheckpointHash,

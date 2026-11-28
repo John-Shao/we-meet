@@ -102,6 +102,12 @@ pub struct RunOfferBody {
     pub runtime_digest: String,
     pub tool_manifest_hash: String,
     pub model_version: String,
+    #[serde(with = "u64string")]
+    pub max_turns: u64,
+    #[serde(with = "u64string")]
+    pub max_output_tokens: u64,
+    #[serde(with = "u64string")]
+    pub max_request_bytes: u64,
     pub grant_set: Vec<GrantRef>,
     #[serde(with = "u64string::opt")]
     pub expected_checkpoint_seq: Option<u64>,
@@ -139,6 +145,10 @@ impl RunOfferBody {
     /// (device_run_binding_checkpoint_shape), so a half-populated offer is a protocol break.
     pub fn expected_checkpoint_consistent(&self) -> bool {
         self.expected_checkpoint_seq.is_some() == self.expected_checkpoint_hash.is_some()
+    }
+
+    pub fn resource_limits_valid(&self) -> bool {
+        self.max_turns > 0 && self.max_output_tokens > 0 && self.max_request_bytes > 0
     }
 
     pub fn probe_consistent(&self) -> bool {
@@ -292,6 +302,9 @@ mod tests {
             runtime_digest: "d".repeat(64),
             tool_manifest_hash: "e".repeat(64),
             model_version: "m1".into(),
+            max_turns: 8,
+            max_output_tokens: 1024,
+            max_request_bytes: 1_048_576,
             grant_set: vec![GrantRef {
                 grant_id: "g1".into(),
                 grant_revision: 1,
@@ -336,7 +349,7 @@ mod tests {
             template_hash: "b".repeat(64),
         });
         let value = probe.to_value();
-        assert_eq!(value.as_object().unwrap().len(), 19);
+        assert_eq!(value.as_object().unwrap().len(), 22);
         let signature = sign::sign_frame(&key, OFFER_FRAME_TYPE, &value).unwrap();
         assert!(sign::verify_frame(
             &jwk,
@@ -357,9 +370,12 @@ mod tests {
     fn offer_wire_shape_is_closed_and_decimal_strings() {
         let value = offer().to_value();
         let obj = value.as_object().unwrap();
-        assert_eq!(obj.len(), 18);
+        assert_eq!(obj.len(), 21);
         assert_eq!(obj["binding_revision"], "1");
         assert_eq!(obj["profile_revision"], "3");
+        assert_eq!(obj["max_turns"], "8");
+        assert_eq!(obj["max_output_tokens"], "1024");
+        assert_eq!(obj["max_request_bytes"], "1048576");
         assert!(obj["expected_checkpoint_seq"].is_null());
         assert!(obj["expected_checkpoint_hash"].is_null());
         // grant_set revisions cross the §3.1 uint64 boundary as decimal strings.
@@ -371,6 +387,10 @@ mod tests {
         assert_eq!(round.binding_revision, 1);
         assert!(!round.is_resume());
         assert!(round.expected_checkpoint_consistent());
+        assert!(round.resource_limits_valid());
+        let mut invalid = round.clone();
+        invalid.max_output_tokens = 0;
+        assert!(!invalid.resource_limits_valid());
     }
 
     #[test]
