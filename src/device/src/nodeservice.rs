@@ -120,8 +120,8 @@ pub struct WorkspaceExecutor {
     staged_input_refs: Vec<String>,
     /// Pending root confirmations (token → held handle), bound on prepare, registered/dropped on confirm.
     pending_roots: HashMap<String, tool_exec::RootHandle>,
-    /// Pending model confirmations (token → probed identity).
-    pending_models: HashMap<String, ListenerIdentity>,
+    /// Pending model confirmations (token → probed identity and its exact loopback port).
+    pending_models: HashMap<String, (ListenerIdentity, u16)>,
     /// Permit jtis this Run already executed. The command downlink registers the jti at dispatch
     /// (DD:123, synccore consume_command); the tool gate proceeds on that registration but must refuse
     /// a second execution of the same dispatched permit within the Run (replay → already_consumed).
@@ -242,7 +242,7 @@ impl WorkspaceExecutor {
     ) -> Result<(String, crate::endpoint::ModelConfirmation), crate::listener::IdentityError> {
         let (identity, confirmation) = crate::endpoint::probe_local_model(port)?;
         let token = uuid::Uuid::new_v4().to_string();
-        self.pending_models.insert(token.clone(), identity);
+        self.pending_models.insert(token.clone(), (identity, port));
         Ok((token, confirmation))
     }
 
@@ -251,22 +251,32 @@ impl WorkspaceExecutor {
         &mut self,
         token: &str,
         profile_id: &str,
-        port: u16,
         requirement: ListenerRequirement,
         current_user_sid: Vec<u8>,
         approved: bool,
-    ) -> Option<Result<String, crate::listener::IdentityError>> {
-        let identity = self.pending_models.remove(token)?;
+    ) -> Option<Result<ConfirmedModel, crate::listener::IdentityError>> {
+        let (identity, port) = self.pending_models.remove(token)?;
         if !approved {
             return None;
         }
-        Some(self.endpoints.confirm(
-            profile_id.to_string(),
-            port,
-            &identity,
-            requirement,
-            current_user_sid,
-        ))
+        let owner_is_current_user = identity.owner_sid == current_user_sid;
+        Some(
+            self.endpoints
+                .confirm(
+                    profile_id.to_string(),
+                    port,
+                    &identity,
+                    requirement,
+                    current_user_sid,
+                )
+                .map(|listener_identity_hash| ConfirmedModel {
+                    listener_identity_hash,
+                    port,
+                    signer_thumbprint: identity.signer_thumbprint,
+                    owner_sid: identity.owner_sid,
+                    owner_is_current_user,
+                }),
+        )
     }
 
     // ---- model family (B) ----
@@ -898,6 +908,14 @@ fn exec_refusal(tool_call_id: &str, err: ExecError) -> Value {
 
 type RootPreparation = Result<(String, RootConfirmation, String, String, String), String>;
 
+pub struct ConfirmedModel {
+    pub listener_identity_hash: String,
+    pub port: u16,
+    pub signer_thumbprint: Option<String>,
+    pub owner_sid: Vec<u8>,
+    pub owner_is_current_user: bool,
+}
+
 /// A request to the long-lived Node service thread. Confirmations and body sealing carry owned (Send)
 /// data; the `!Send` root handles stay on the thread. `StartRun` brings up one Run's pipe loop.
 pub enum NodeRequest {
@@ -924,11 +942,10 @@ pub enum NodeRequest {
     ConfirmModel {
         token: String,
         profile_id: String,
-        port: u16,
         requirement: ListenerRequirement,
         current_user_sid: Vec<u8>,
         approved: bool,
-        reply: tokio::sync::oneshot::Sender<Option<Result<String, String>>>,
+        reply: tokio::sync::oneshot::Sender<Option<Result<ConfirmedModel, String>>>,
     },
     /// Return the common bare-hex root identity for a same-root grant succession.
     GrantRootIdentity {
@@ -1089,21 +1106,13 @@ pub fn spawn_node_service() -> tokio::sync::mpsc::Sender<NodeRequest> {
                 NodeRequest::ConfirmModel {
                     token,
                     profile_id,
-                    port,
                     requirement,
                     current_user_sid,
                     approved,
                     reply,
                 } => {
                     let r = exec
-                        .confirm_model(
-                            &token,
-                            &profile_id,
-                            port,
-                            requirement,
-                            current_user_sid,
-                            approved,
-                        )
+                        .confirm_model(&token, &profile_id, requirement, current_user_sid, approved)
                         .map(|res| res.map_err(|e| format!("{e:?}")));
                     let _ = reply.send(r);
                 }
@@ -3161,16 +3170,9 @@ mod tests {
             allow_user_pinned_hash: true,
             allowed_service_sids: vec![],
         };
-        exec.confirm_model(
-            &token,
-            "profile-dev-fixture-v1",
-            port,
-            requirement,
-            sid,
-            true,
-        )
-        .unwrap()
-        .unwrap();
+        exec.confirm_model(&token, "profile-dev-fixture-v1", requirement, sid, true)
+            .unwrap()
+            .unwrap();
         let (handle, server) = journal_server();
         let ctx = ctx(handle);
         let reply = exec.invoke_model(&ctx, &json!({ "v": 1, "messages": [] }), None);
@@ -3710,7 +3712,6 @@ mod tests {
         exec.confirm_model(
             &token,
             "profile-dev-fixture-v1",
-            port,
             ListenerRequirement {
                 allowed_signers: vec![],
                 allow_user_pinned_hash: true,

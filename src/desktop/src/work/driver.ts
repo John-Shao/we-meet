@@ -194,6 +194,7 @@ export interface ExecutionProfile {
   apiType: "chat_completions" | "responses";
   residency: string;
   listenerRequirement: ListenerRequirement;
+  allowedPorts: number[];
   tokenizerId: string;
   contextTokens: number;
   maxRequestBytes: number;
@@ -220,6 +221,9 @@ export interface NativeModelBindingProof {
   bindingHash: string;
   localRef: string;
   listenerIdentityHash: string;
+  listenerSignerThumbprint: string | null;
+  listenerOwnerSid: string;
+  listenerOwnerIsCurrentUser: boolean;
   nonce: string;
   expiresAt: string;
 }
@@ -229,6 +233,9 @@ export interface ModelBindingConfirmation {
   bindingHash: string;
   localRef: string;
   listenerIdentityHash: string;
+  listenerSignerThumbprint: string | null;
+  listenerOwnerSid: string;
+  listenerOwnerIsCurrentUser: boolean;
   proof: NativeModelBindingProof;
   signature: string;
 }
@@ -287,6 +294,18 @@ function parseExecutionProfile(
   const policy = d.endpoint_policy;
   if (!policy || typeof policy !== "object" || Array.isArray(policy))
     throw new BrokerPipeError("shape");
+  const allowedPortsValue = (policy as Record<string, unknown>).allowed_ports;
+  if (
+    !Array.isArray(allowedPortsValue) ||
+    allowedPortsValue.length === 0 ||
+    allowedPortsValue.length > 32 ||
+    new Set(allowedPortsValue).size !== allowedPortsValue.length ||
+    !allowedPortsValue.every(
+      (port) => Number.isInteger(port) && port >= 1 && port <= 65535,
+    )
+  )
+    throw new BrokerPipeError("shape");
+  const allowedPorts = allowedPortsValue as number[];
   const requirement = (policy as Record<string, unknown>).listener_requirement;
   if (!requirement || typeof requirement !== "object" || Array.isArray(requirement))
     throw new BrokerPipeError("shape");
@@ -347,6 +366,7 @@ function parseExecutionProfile(
       allowUserPinnedHash: r.allow_pinned_hash,
       allowedServiceSids,
     },
+    allowedPorts,
     tokenizerId: text("tokenizer_id", 128),
     contextTokens: positive("context_tokens", 9007199254740991),
     maxRequestBytes: positive("max_request_bytes", 262144),
@@ -1671,6 +1691,7 @@ export class WorkDeviceDriver {
       !Number.isInteger(port) ||
       port < 1 ||
       port > 65535 ||
+      !profile.allowedPorts.includes(port) ||
       !uuid.test(sessionId) ||
       !/^(0|[1-9][0-9]*)$/.test(this.hostEpoch)
     )
@@ -1686,7 +1707,6 @@ export class WorkDeviceDriver {
       profile_revision: String(profile.revision),
       profile_hash: profile.contentHash,
       auth_epoch: this.hostEpoch,
-      port: String(port),
       listener_requirement: {
         allowed_signers: profile.listenerRequirement.allowedSigners,
         allow_user_pinned_hash: profile.listenerRequirement.allowUserPinnedHash,
@@ -1712,7 +1732,7 @@ export class WorkDeviceDriver {
     const p = proof as Record<string, unknown>;
     if (
       Object.keys(p).sort().join(",") !==
-        "auth_epoch,binding_hash,device_id,expires_at,listener_identity_hash,local_ref,nonce,org_id,profile_hash,profile_id,profile_revision,session_id,subject_id,v" ||
+        "auth_epoch,binding_hash,device_id,expires_at,listener_identity_hash,listener_owner_is_current_user,listener_owner_sid,listener_signer_thumbprint,local_ref,nonce,org_id,profile_hash,profile_id,profile_revision,session_id,subject_id,v" ||
       p.v !== "1" ||
       p.org_id !== this.record.orgId ||
       p.subject_id !== this.record.subject ||
@@ -1726,6 +1746,19 @@ export class WorkDeviceDriver {
       !/^[0-9a-f]{64}$/.test(p.binding_hash) ||
       typeof p.listener_identity_hash !== "string" ||
       !/^[0-9a-f]{64}$/.test(p.listener_identity_hash) ||
+      typeof p.listener_owner_is_current_user !== "boolean" ||
+      typeof p.listener_owner_sid !== "string" ||
+      !/^[0-9a-f]{2,256}$/.test(p.listener_owner_sid) ||
+      (p.listener_signer_thumbprint !== null &&
+        (typeof p.listener_signer_thumbprint !== "string" ||
+          p.listener_signer_thumbprint.length === 0 ||
+          p.listener_signer_thumbprint.length > 256 ||
+          p.listener_signer_thumbprint.trim() !== p.listener_signer_thumbprint)) ||
+      (!p.listener_owner_is_current_user &&
+        !profile.listenerRequirement.allowedServiceSids.includes(p.listener_owner_sid)) ||
+      !(profile.listenerRequirement.allowUserPinnedHash ||
+        (typeof p.listener_signer_thumbprint === "string" &&
+          profile.listenerRequirement.allowedSigners.includes(p.listener_signer_thumbprint))) ||
       p.local_ref !== `http://127.0.0.1:${port}` ||
       typeof p.nonce !== "string" ||
       !/^[A-Za-z0-9_-]{8,128}$/.test(p.nonce) ||
@@ -1763,6 +1796,9 @@ export class WorkDeviceDriver {
       bindingHash: p.binding_hash,
       localRef: p.local_ref as string,
       listenerIdentityHash: p.listener_identity_hash as string,
+      listenerSignerThumbprint: p.listener_signer_thumbprint as string | null,
+      listenerOwnerSid: p.listener_owner_sid as string,
+      listenerOwnerIsCurrentUser: p.listener_owner_is_current_user as boolean,
       proof: {
         v: "1",
         orgId: p.org_id as string,
@@ -1776,6 +1812,9 @@ export class WorkDeviceDriver {
         bindingHash: p.binding_hash,
         localRef: p.local_ref as string,
         listenerIdentityHash: p.listener_identity_hash as string,
+        listenerSignerThumbprint: p.listener_signer_thumbprint as string | null,
+        listenerOwnerSid: p.listener_owner_sid as string,
+        listenerOwnerIsCurrentUser: p.listener_owner_is_current_user as boolean,
         nonce: p.nonce,
         expiresAt: p.expires_at,
       },
@@ -1807,6 +1846,9 @@ export class WorkDeviceDriver {
       binding_hash: confirmation.proof.bindingHash,
       local_ref: confirmation.proof.localRef,
       listener_identity_hash: confirmation.proof.listenerIdentityHash,
+      listener_signer_thumbprint: confirmation.proof.listenerSignerThumbprint,
+      listener_owner_sid: confirmation.proof.listenerOwnerSid,
+      listener_owner_is_current_user: confirmation.proof.listenerOwnerIsCurrentUser,
       nonce: confirmation.proof.nonce,
       expires_at: confirmation.proof.expiresAt,
     };

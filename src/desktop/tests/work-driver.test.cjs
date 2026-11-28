@@ -53,6 +53,7 @@ const executionProfile = {
     allowUserPinnedHash: true,
     allowedServiceSids: [],
   },
+  allowedPorts: [11434],
   tokenizerId: "fixture",
   contextTokens: 4096,
   maxRequestBytes: 262144,
@@ -104,6 +105,9 @@ function modelBindingConfirmation(port = 11434) {
       binding_hash: bindingHash,
       local_ref: `http://127.0.0.1:${port}`,
       listener_identity_hash: listenerIdentityHash,
+      listener_signer_thumbprint: null,
+      listener_owner_sid: "01020304",
+      listener_owner_is_current_user: true,
       nonce: "nonce-model-binding",
       expires_at: new Date(Date.now() + 60_000).toISOString(),
     },
@@ -319,6 +323,7 @@ function harness(t, overrides = {}) {
       api_type: "chat_completions",
       residency: "device",
       endpoint_policy: {
+        allowed_ports: [11434],
         listener_requirement: {
           allowed_signers: ["fixture-signer"],
           allow_pinned_hash: true,
@@ -1325,6 +1330,7 @@ test("getExecutionProfile returns canonical bounds and listener policy", async (
       allowUserPinnedHash: true,
       allowedServiceSids: [],
     },
+    allowedPorts: [11434],
     tokenizerId: "fixture",
     contextTokens: 4096,
     maxRequestBytes: 262144,
@@ -1347,13 +1353,17 @@ test("getExecutionProfile rejects invalid bounds, policy and identifiers", async
   await assert.rejects(h.driver.getExecutionProfile("profile-1", "0"), BrokerPipeError);
   await assert.rejects(h.driver.getExecutionProfile(" profile-1", "1"), BrokerPipeError);
   await h.driver.start();
+  await assert.rejects(
+    h.driver.configureLocalModel(executionProfile, 11435, sessionId),
+    BrokerPipeError,
+  );
   const respond = h.apiResponses.getExecutionProfile;
   for (const patch of [
     { max_request_bytes: 262145 },
     { max_output_tokens: 4097 },
     { max_turns: 9007199254740992 },
     { status: "draft" },
-    { endpoint_policy: { listener_requirement: {
+    { endpoint_policy: { allowed_ports: [11434], listener_requirement: {
       allowed_signers: [], allow_pinned_hash: false, allowed_service_sids: [],
     } } },
     { unexpected: true },
@@ -1580,7 +1590,6 @@ test("configureLocalModel signs and validates the native binding proof", async (
     "pipe:confirmLocalModel",
   ]);
   assert.equal(confirmFields.confirmation_token, "tok-model");
-  assert.equal(confirmFields.port, "11434");
   assert.equal(confirmFields.profile_revision, "2");
   assert.equal(confirmFields.profile_hash, executionProfile.contentHash);
   assert.equal(confirmFields.auth_epoch, "1");
@@ -1676,6 +1685,9 @@ test("createDeviceModelBinding submits the signed proof and returns its preview"
     binding_hash: modelBindingHash(11434),
     local_ref: "http://127.0.0.1:11434",
     listener_identity_hash: "f".repeat(64),
+    listener_signer_thumbprint: null,
+    listener_owner_sid: "01020304",
+    listener_owner_is_current_user: true,
     nonce: seen.body.native_confirmation_proof.nonce,
     expires_at: seen.body.native_confirmation_proof.expires_at,
   });

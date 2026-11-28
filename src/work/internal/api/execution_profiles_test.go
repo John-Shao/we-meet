@@ -35,7 +35,7 @@ func seedExecutionProfileRevision(t *testing.T, dbName, profileID, modelVersion 
 		   '1', 8, 'active')
 		ON CONFLICT (org_id, profile_id, revision) DO NOTHING`,
 		testOrg, profileID, revision, profileHash, modelVersion,
-		`{"listener_requirement":{"allowed_signers":["fixture-signer"],"allow_pinned_hash":true,"allowed_service_sids":[]}}`,
+		`{"allowed_ports":[11434],"listener_requirement":{"allowed_signers":["fixture-signer"],"allow_pinned_hash":true,"allowed_service_sids":[]}}`,
 		runtimeDigest, toolManifestHash)
 	if err != nil {
 		t.Fatal(err)

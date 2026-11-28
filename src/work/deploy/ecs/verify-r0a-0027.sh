@@ -185,7 +185,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (90, '0090_device_model_probe_status'),
   (91, '0091_signed_offer_resource_limits'),
   (92, '0092_execution_profile_resource_bounds'),
-  (93, '0093_execution_profile_activation')) expected(version, name)
+  (93, '0093_execution_profile_activation'),
+  (94, '0094_device_model_binding_target_policy')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 psql_ro "select 'approval_proof_es256=' || case when
@@ -407,6 +408,22 @@ psql_ro "select 'execution_profile_activation_guard=' || case when
       where n.nspname='work' and p.proname='activate_execution_profile')) > 0
     and exists (select 1 from pg_indexes where schemaname='work'
       and indexname='work_execution_profile_one_active')
+    then 'true' else 'FALSE' end"
+psql_ro "select 'device_model_binding_target_policy=' || case when
+    position('''allowed_ports''' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='publish_execution_profile')) > 0
+    and position('listener_signer_thumbprint' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='create_device_model_binding')) > 0
+    and position('listener_owner_is_current_user' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='create_device_model_binding')) > 0
+    and position('allowed_service_sids' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='create_device_model_binding')) > 0
+    and position('octet_length(p_org_id)' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='create_device_model_binding')) > 0
+    and position('clock_timestamp()' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='create_device_model_binding')) > 0
+    and position('^http://127[.]0[.]0[.]1:' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='create_device_model_binding')) > 0
     then 'true' else 'FALSE' end"
 psql_ro "select 'device_resume_offers=' || case when
     (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace

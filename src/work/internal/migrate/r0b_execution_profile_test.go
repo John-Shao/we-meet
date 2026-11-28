@@ -66,7 +66,7 @@ func newExecutionProfileFixture(t *testing.T, org string) *executionProfileFixtu
 	doc := map[string]any{
 		"profile_id": profileID, "kind": "device_local", "provider": "device_local",
 		"model": modelVersion, "api_type": "chat_completions", "residency": "device",
-		"endpoint_policy": map[string]any{"listener_requirement": map[string]any{
+		"endpoint_policy": map[string]any{"allowed_ports": []int{11434}, "listener_requirement": map[string]any{
 			"allowed_signers": []string{"fixture-signer"}, "allow_pinned_hash": true,
 			"allowed_service_sids": []string{},
 		}},
@@ -241,9 +241,13 @@ func (f *executionProfileFixture) bindingProof(t *testing.T, bindingHash string)
 		"v": "1", "org_id": f.org, "subject_id": f.subject, "auth_epoch": "7",
 		"device_id": f.deviceID, "session_id": f.sessionID, "profile_id": f.profileID,
 		"profile_revision": strconv.FormatInt(f.profileRevision, 10), "profile_hash": f.profileHash,
-		"binding_hash": bindingHash, "local_ref": "fixture://model",
-		"listener_identity_hash": f.listenerIdentity, "nonce": "nonce-ep-1234",
-		"expires_at": time.Now().Add(time.Minute).UTC().Format(time.RFC3339),
+		"binding_hash": bindingHash, "local_ref": "http://127.0.0.1:11434",
+		"listener_identity_hash":         f.listenerIdentity,
+		"listener_signer_thumbprint":     "fixture-signer",
+		"listener_owner_sid":             "01020304",
+		"listener_owner_is_current_user": true,
+		"nonce":                          "nonce-ep-1234",
+		"expires_at":                     time.Now().Add(time.Minute).UTC().Format(time.RFC3339),
 	}
 	body, err := json.Marshal(proof)
 	if err != nil {
@@ -252,20 +256,24 @@ func (f *executionProfileFixture) bindingProof(t *testing.T, bindingHash string)
 	return string(body)
 }
 
-func (f *executionProfileFixture) createBinding(t *testing.T, requestID string) map[string]any {
-	t.Helper()
+func (f *executionProfileFixture) bindingHash() string {
 	field := func(value string) string { return strconv.Itoa(len(value)) + ":" + value }
 	preimage := "device-model-binding-v1|" + field(f.org) + "|" + field(f.deviceID) + "|" +
 		field(f.sessionID) + "|" + field(f.profileID) + "|" +
 		field(strconv.FormatInt(f.profileRevision, 10)) + "|" + field(f.profileHash) + "|" +
-		field("fixture://model") + "|" + field(f.listenerIdentity)
+		field("http://127.0.0.1:11434") + "|" + field(f.listenerIdentity)
 	sum := sha256.Sum256([]byte(preimage))
-	bindingHash := hex.EncodeToString(sum[:])
+	return hex.EncodeToString(sum[:])
+}
+
+func (f *executionProfileFixture) createBinding(t *testing.T, requestID string) map[string]any {
+	t.Helper()
+	bindingHash := f.bindingHash()
 	proof := f.bindingProof(t, bindingHash)
 	return callJSON(t, f.api, `SELECT work.create_device_model_binding(
 		$1,$2,$3,$4::uuid,$5::uuid,$6,$7,$8::bigint,$9,$10,$11,$12,$13::jsonb)`,
 		f.org, f.subject, 7, f.deviceID, f.sessionID, requestID, f.profileID,
-		f.profileRevision, f.profileHash, bindingHash, "fixture://model",
+		f.profileRevision, f.profileHash, bindingHash, "http://127.0.0.1:11434",
 		f.listenerIdentity, proof)
 }
 
@@ -697,7 +705,7 @@ func (f *executionProfileFixture) profileDocument(t *testing.T, model ...string)
 	doc := map[string]any{
 		"profile_id": f.profileID, "kind": "device_local",
 		"provider": "device_local", "model": modelVersion, "api_type": "chat_completions",
-		"residency": "device", "endpoint_policy": map[string]any{"listener_requirement": map[string]any{
+		"residency": "device", "endpoint_policy": map[string]any{"allowed_ports": []int{11434}, "listener_requirement": map[string]any{
 			"allowed_signers": []string{"fixture-signer"}, "allow_pinned_hash": true, "allowed_service_sids": []string{},
 		}},
 		"tokenizer_id": "fixture", "context_tokens": 4096, "max_request_bytes": 262144,
@@ -709,27 +717,194 @@ func (f *executionProfileFixture) profileDocument(t *testing.T, model ...string)
 	return string(body)
 }
 
+func TestExecutionProfileRequiresApprovedPorts(t *testing.T) {
+	f := newExecutionProfileFixture(t, "org_ep_required_ports")
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(f.profileDocument(t)), &doc); err != nil {
+		t.Fatal(err)
+	}
+	delete(doc["endpoint_policy"].(map[string]any), "allowed_ports")
+	body, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectCode(t, f.api, "invalid_request", `
+		SELECT work.publish_execution_profile($1,$2,$3,$4::jsonb)`,
+		f.org, f.subject, "req-ep-missing-ports", string(body))
+}
+
+func (f *executionProfileFixture) activateProfileDocument(t *testing.T, mutate func(map[string]any), requestID string) {
+	t.Helper()
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(f.profileDocument(t)), &doc); err != nil {
+		t.Fatal(err)
+	}
+	mutate(doc)
+	doc["status"] = "draft"
+	body, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	published := callJSON(t, f.api, `SELECT work.publish_execution_profile($1,$2,$3,$4::jsonb)`,
+		f.org, f.subject, requestID+"-publish", string(body))
+	revision, _ := published["revision"].(float64)
+	profileHash, _ := published["content_hash"].(string)
+	if revision != float64(f.profileRevision+1) || profileHash == "" {
+		t.Fatalf("publish policy revision = %#v", published)
+	}
+	activated := callJSON(t, f.api, `
+		SELECT work.activate_execution_profile($1,$2,$3,$4,$5::bigint,$6::bigint)`,
+		f.org, f.subject, requestID+"-activate", f.profileID, int64(revision), f.profileRevision)
+	if activated["status"] != "active" {
+		t.Fatalf("activate policy revision = %#v", activated)
+	}
+	f.profileRevision = int64(revision)
+	f.profileHash = profileHash
+}
+
+func TestExecutionProfileRejectsDuplicateApprovedPorts(t *testing.T) {
+	f := newExecutionProfileFixture(t, "org_ep_duplicate_ports")
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(f.profileDocument(t)), &doc); err != nil {
+		t.Fatal(err)
+	}
+	doc["endpoint_policy"].(map[string]any)["allowed_ports"] = []int{11434, 11434}
+	body, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectCode(t, f.api, "invalid_request", `
+		SELECT work.publish_execution_profile($1,$2,$3,$4::jsonb)`,
+		f.org, f.subject, "req-ep-duplicate-ports", string(body))
+}
+
+func TestDeviceModelBindingHashUsesUtf8ByteLengths(t *testing.T) {
+	f := newExecutionProfileFixture(t, "org_ep_unicode_hash")
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(f.profileDocument(t)), &doc); err != nil {
+		t.Fatal(err)
+	}
+	doc["profile_id"] = "profile-模型"
+	body, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	published := callJSON(t, f.api, `SELECT work.publish_execution_profile($1,$2,$3,$4::jsonb)`,
+		f.org, f.subject, "req-ep-unicode-publish", string(body))
+	f.profileID = "profile-模型"
+	f.profileRevision = 1
+	f.profileHash, _ = published["content_hash"].(string)
+	if f.profileHash == "" {
+		t.Fatalf("publish Unicode profile = %#v", published)
+	}
+	mustExec(t, f.admin, `UPDATE work.device_session SET profile_id=`+quoteLiteral(f.profileID)+
+		` WHERE org_id=`+quoteLiteral(f.org)+` AND id=`+quoteLiteral(f.sessionID))
+	binding := f.createBinding(t, "req-ep-unicode-binding")
+	if binding["status"] != "pending_probe" {
+		t.Fatalf("Unicode profile binding = %#v", binding)
+	}
+}
+
+func TestDeviceModelBindingEnforcesApprovedTargetAndSigner(t *testing.T) {
+	f := newExecutionProfileFixture(t, "org_ep_target_policy")
+	rejectBinding := func(requestID string) {
+		t.Helper()
+		bindingHash := f.bindingHash()
+		expectCode(t, f.api, "invalid_request", `
+			SELECT work.create_device_model_binding(
+				$1,$2,$3,$4::uuid,$5::uuid,$6,$7,$8::bigint,$9,$10,$11,$12,$13::jsonb)`,
+			f.org, f.subject, 7, f.deviceID, f.sessionID, requestID, f.profileID,
+			f.profileRevision, f.profileHash, bindingHash, "http://127.0.0.1:11434",
+			f.listenerIdentity, f.bindingProof(t, bindingHash))
+	}
+	f.activateProfileDocument(t, func(doc map[string]any) {
+		doc["endpoint_policy"].(map[string]any)["allowed_ports"] = []int{11435}
+	}, "req-ep-wrong-port")
+	rejectBinding("req-ep-wrong-port")
+
+	f.activateProfileDocument(t, func(doc map[string]any) {
+		policy := doc["endpoint_policy"].(map[string]any)
+		policy["allowed_ports"] = []int{11434}
+		policy["listener_requirement"] = map[string]any{
+			"allowed_signers": []string{"other-signer"}, "allow_pinned_hash": false,
+			"allowed_service_sids": []string{},
+		}
+	}, "req-ep-wrong-signer")
+	rejectBinding("req-ep-wrong-signer")
+
+	f.activateProfileDocument(t, func(doc map[string]any) {
+		policy := doc["endpoint_policy"].(map[string]any)
+		policy["allowed_ports"] = []int{11434}
+		policy["listener_requirement"] = map[string]any{
+			"allowed_signers": []string{"fixture-signer"}, "allow_pinned_hash": false,
+			"allowed_service_sids": []string{},
+		}
+	}, "req-ep-wrong-service")
+	var proof map[string]any
+	bindingHash := f.bindingHash()
+	if err := json.Unmarshal([]byte(f.bindingProof(t, bindingHash)), &proof); err != nil {
+		t.Fatal(err)
+	}
+	proof["listener_owner_is_current_user"] = false
+	body, err := json.Marshal(proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectCode(t, f.api, "invalid_request", `
+		SELECT work.create_device_model_binding(
+			$1,$2,$3,$4::uuid,$5::uuid,$6,$7,$8::bigint,$9,$10,$11,$12,$13::jsonb)`,
+		f.org, f.subject, 7, f.deviceID, f.sessionID, "req-ep-wrong-service", f.profileID,
+		f.profileRevision, f.profileHash, bindingHash, "http://127.0.0.1:11434",
+		f.listenerIdentity, string(body))
+
+	f.activateProfileDocument(t, func(doc map[string]any) {
+		policy := doc["endpoint_policy"].(map[string]any)
+		policy["allowed_ports"] = []int{11434}
+		policy["listener_requirement"] = map[string]any{
+			"allowed_signers": []string{"fixture-signer"}, "allow_pinned_hash": false,
+			"allowed_service_sids": []string{"01020304"},
+		}
+	}, "req-ep-approved-service")
+	if err := json.Unmarshal([]byte(f.bindingProof(t, f.bindingHash())), &proof); err != nil {
+		t.Fatal(err)
+	}
+	proof["listener_owner_is_current_user"] = false
+	body, err = json.Marshal(proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := callJSON(t, f.api, `
+		SELECT work.create_device_model_binding(
+			$1,$2,$3,$4::uuid,$5::uuid,$6,$7,$8::bigint,$9,$10,$11,$12,$13::jsonb)`,
+		f.org, f.subject, 7, f.deviceID, f.sessionID, "req-ep-approved-service", f.profileID,
+		f.profileRevision, f.profileHash, f.bindingHash(), "http://127.0.0.1:11434",
+		f.listenerIdentity, string(body))
+	if binding["status"] != "pending_probe" {
+		t.Fatalf("approved service binding = %#v", binding)
+	}
+}
+
 func TestDeviceModelBindingPendingVerifiedAndNegativeBindings(t *testing.T) {
 	f := newExecutionProfileFixture(t, "org_ep_binding")
 	expectCode(t, f.api, "unauthorized", `SELECT work.create_device_model_binding(
 		$1,$2,$3,$4::uuid,$5::uuid,$6,$7,$8::bigint,$9,$10,$11,$12,$13::jsonb)`,
 		f.org, f.subject, 7, newUUID(t), f.sessionID, "req-wrong-device", f.profileID,
-		f.profileRevision, f.profileHash, hex64("binding"), "fixture://model", f.listenerIdentity,
+		f.profileRevision, f.profileHash, hex64("binding"), "http://127.0.0.1:11434", f.listenerIdentity,
 		f.bindingProof(t, hex64("binding")))
 	expectCode(t, f.api, "unauthorized", `SELECT work.create_device_model_binding(
 		$1,$2,$3,$4::uuid,$5::uuid,$6,$7,$8::bigint,$9,$10,$11,$12,$13::jsonb)`,
 		f.org, f.subject, 7, f.deviceID, newUUID(t), "req-wrong-session", f.profileID,
-		f.profileRevision, f.profileHash, hex64("binding"), "fixture://model", f.listenerIdentity,
+		f.profileRevision, f.profileHash, hex64("binding"), "http://127.0.0.1:11434", f.listenerIdentity,
 		f.bindingProof(t, hex64("binding")))
 	expectCode(t, f.api, "unauthorized", `SELECT work.create_device_model_binding(
 		$1,$2,$3,$4::uuid,$5::uuid,$6,$7,$8::bigint,$9,$10,$11,$12,$13::jsonb)`,
 		f.org, f.subject, 7, f.deviceID, f.sessionID, "req-wrong-profile", "missing",
-		f.profileRevision, f.profileHash, hex64("binding"), "fixture://model", f.listenerIdentity,
+		f.profileRevision, f.profileHash, hex64("binding"), "http://127.0.0.1:11434", f.listenerIdentity,
 		f.bindingProof(t, hex64("binding")))
 	expectCode(t, f.api, "not_found", `SELECT work.create_device_model_binding(
 		$1,$2,$3,$4::uuid,$5::uuid,$6,$7,$8::bigint,$9,$10,$11,$12,$13::jsonb)`,
 		f.org, f.subject, 7, f.deviceID, f.sessionID, "req-wrong-hash", f.profileID,
-		f.profileRevision, strings.Repeat("0", 64), hex64("binding"), "fixture://model", f.listenerIdentity,
+		f.profileRevision, strings.Repeat("0", 64), hex64("binding"), "http://127.0.0.1:11434", f.listenerIdentity,
 		f.bindingProof(t, hex64("binding")))
 
 	binding := f.createBinding(t, "req-ep-binding")
@@ -782,7 +957,7 @@ func TestDeviceModelBindingRejectsRevokedProfileAndProbeMismatch(t *testing.T) {
 	expectCode(t, f.api, "not_found", `SELECT work.create_device_model_binding(
 		$1,$2,$3,$4::uuid,$5::uuid,$6,$7,$8::bigint,$9,$10,$11,$12,$13::jsonb)`,
 		f.org, f.subject, 7, f.deviceID, f.sessionID, "req-revoked-profile", f.profileID,
-		f.profileRevision, f.profileHash, hex64("binding"), "fixture://model", f.listenerIdentity,
+		f.profileRevision, f.profileHash, hex64("binding"), "http://127.0.0.1:11434", f.listenerIdentity,
 		f.bindingProof(t, hex64("binding")))
 }
 

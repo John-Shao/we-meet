@@ -1416,7 +1416,6 @@ async fn confirmation_reply_with_identity(
                     "profile_revision",
                     "profile_hash",
                     "auth_epoch",
-                    "port",
                     "listener_requirement",
                     "approved",
                 ],
@@ -1428,10 +1427,6 @@ async fn confirmation_reply_with_identity(
             let approved = match message.get("approved").and_then(Value::as_bool) {
                 Some(b) => b,
                 None => return Reply::refused(message, "schema"),
-            };
-            let port = match parse_port(text("port")) {
-                Some(p) => p,
-                None => return Reply::refused(message, "shape"),
             };
             let requirement = match parse_requirement(message.get("listener_requirement")) {
                 Some(r) => r,
@@ -1466,7 +1461,6 @@ async fn confirmation_reply_with_identity(
                 .send(NodeRequest::ConfirmModel {
                     token: token.to_string(),
                     profile_id: profile_id.to_string(),
-                    port,
                     requirement,
                     current_user_sid,
                     approved,
@@ -1478,7 +1472,12 @@ async fn confirmation_reply_with_identity(
                 return Reply::refused(message, "shape");
             }
             match rx.await {
-                Ok(Some(Ok(listener_identity_hash))) => {
+                Ok(Some(Ok(confirmed))) => {
+                    let listener_identity_hash = confirmed.listener_identity_hash;
+                    let port = confirmed.port;
+                    let listener_signer_thumbprint = confirmed.signer_thumbprint;
+                    let listener_owner_sid = hex_encode(&confirmed.owner_sid);
+                    let listener_owner_is_current_user = confirmed.owner_is_current_user;
                     let (session_tx, session_rx) = oneshot::channel();
                     if node
                         .send(NodeRequest::CurrentSession { reply: session_tx })
@@ -1531,6 +1530,9 @@ async fn confirmation_reply_with_identity(
                         "binding_hash": binding_hash,
                         "local_ref": local_ref,
                         "listener_identity_hash": listener_identity_hash,
+                        "listener_signer_thumbprint": listener_signer_thumbprint,
+                        "listener_owner_sid": listener_owner_sid,
+                        "listener_owner_is_current_user": listener_owner_is_current_user,
                         "nonce": uuid::Uuid::new_v4().simple().to_string(),
                         "expires_at": expires_at,
                     });
@@ -4258,7 +4260,6 @@ mod tests {
                 "confirmation_token": token, "profile_id": "profile-dev-fixture-v1",
                 "profile_revision": "1", "profile_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
                 "auth_epoch": "4",
-                "port": port.to_string(),
                 "listener_requirement": {
                     "allowed_signers": [], "allow_user_pinned_hash": true, "allowed_service_sids": []
                 },
@@ -4284,6 +4285,8 @@ mod tests {
         assert_eq!(proof["session_id"], "22222222-2222-4222-8222-222222222222");
         assert_eq!(proof["profile_revision"], "1");
         assert_eq!(proof["auth_epoch"], "4");
+        assert_eq!(proof["listener_owner_is_current_user"], true);
+        assert!(proof["listener_owner_sid"].as_str().unwrap().len() >= 2);
         assert_eq!(proof["binding_hash"], data["binding_hash"]);
         assert_ne!(proof["binding_hash"], proof["listener_identity_hash"]);
         assert_eq!(proof["local_ref"], format!("http://127.0.0.1:{port}"));
