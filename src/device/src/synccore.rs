@@ -1036,7 +1036,7 @@ impl SyncCore {
                             offer_body.max_output_tokens
                         },
                         max_bytes: if offer_body.probe.is_some() {
-                            1_048_576
+                            262_144
                         } else {
                             offer_body.max_request_bytes
                         },

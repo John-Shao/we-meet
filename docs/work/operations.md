@@ -286,7 +286,7 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 **2026-11-28 0090 probe 状态读面**：新增 `get_device_model_probe` 与 `GET /work/v2/devices/{deviceId}/model-probes/{probeId}`。函数为 `SECURITY DEFINER`、固定 `search_path=work, pg_catalog`，核对当前组织/主体、active device 所有权后返回 probe/binding/profile 标识、状态、有效期、Task/Run/Operation 关联、结构化 token usage；failed/reconcile 仅返回固定 `probe_failed`，不泄露供应商错误。API 角色仅获该函数 EXECUTE，不获得 R0b 新表直接 SELECT 权限；桌面 `WorkApi.getModelProbe` 使用同一闭合路由。真库 API 覆盖 queued 状态与空 usage/safe_error，tail catalog 90 通过。生产未部署。
 
-**2026-11-28 0091 签名 offer canonical 资源上界**：`list_pending_device_offers` 从绑定对应的 ExecutionProfile revision 读取 `max_turns`、`max_output_tokens`、`max_request_bytes`，Go gateway 以十进制字符串写入签名 `run_offer`，Rust `RunOfferBody` 必填解析并在 ready 前拒绝零值；普通 Run 的 Node bootstrap 直接消费这三项，并以 profile revision 作为 config revision；configuration probe 仍固定为一轮／16 token／1MiB。真库 offer、Go wire 与 Rust 签名/形状回归通过，tail catalog 91。生产未部署。
+**2026-11-28 0091 签名 offer canonical 资源上界**：`list_pending_device_offers` 从绑定对应的 ExecutionProfile revision 读取 `max_turns`、`max_output_tokens`、`max_request_bytes`，Go gateway 以十进制字符串写入签名 `run_offer`，Rust `RunOfferBody` 必填解析并在 ready 前拒绝零值；普通 Run 的 Node bootstrap 直接消费这三项，并以 profile revision 作为 config revision；configuration probe 仍固定为一轮／16 token／256KiB。真库 offer、Go wire 与 Rust 签名/形状回归通过，tail catalog 91。生产未部署。
 
 **2026-11-28 0092 ExecutionProfile 有限上界**：数据库新增约束：`max_request_bytes ≤ 262144`、`context_tokens/max_output_tokens/max_turns ≤ 2^53−1`，且 `max_output_tokens ≤ context_tokens`；发布夹具同步收紧到 262144 bytes。真库覆盖五类越界拒绝，verifier 钉住五个约束与关键数值，tail catalog 92。生产未部署。
 
