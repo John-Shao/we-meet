@@ -114,7 +114,7 @@ pub fn listener_identity_hash(record: &ListenerRecord) -> String {
         "image_sha256": record.image_sha256,
     });
     let canonical = serde_jcs::to_vec(&doc).unwrap_or_default();
-    format!("sha256:{}", crate::sha256_hex(&canonical))
+    crate::sha256_hex(&canonical)
 }
 
 /// Probe a local model endpoint's listener identity over a throwaway loopback connection and produce
@@ -210,7 +210,8 @@ mod tests {
                     sid,
                 )
                 .unwrap();
-            assert!(hash.starts_with("sha256:"));
+            assert_eq!(hash.len(), 64);
+            assert!(hash.chars().all(|value| value.is_ascii_hexdigit()));
             assert!(registry.contains("profile-dev-fixture-v1"));
             let entry = registry.get("profile-dev-fixture-v1").unwrap();
             assert_eq!(entry.binding_hash, hash);
@@ -249,7 +250,8 @@ mod tests {
         let h1 = listener_identity_hash(&record);
         let h2 = listener_identity_hash(&record.clone());
         assert_eq!(h1, h2);
-        assert!(h1.starts_with("sha256:"));
+        assert_eq!(h1.len(), 64);
+        assert!(h1.chars().all(|value| value.is_ascii_hexdigit()));
         // A different image hash changes the binding hash.
         let mut changed = record;
         changed.image_sha256 = "sha256:other".into();
