@@ -106,7 +106,9 @@ describe('DeviceExecutionProfilesPanel', () => {
     await waitFor(() =>
       expect(mocks.submitConfigurationProbe).toHaveBeenCalledWith('binding-1')
     )
-    expect(await screen.findByText('deviceExecution.probeApprovalHint')).toBeInTheDocument()
+    expect(
+      await screen.findByText('deviceExecution.probeApprovalHint')
+    ).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'deviceExecution.runProbe' })
     ).not.toBeInTheDocument()

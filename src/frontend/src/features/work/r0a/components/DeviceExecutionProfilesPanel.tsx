@@ -45,7 +45,7 @@ export const DeviceExecutionProfilesPanel = ({
   const [failure, setFailure] = useState(false)
   const probeQ = useModelProbe(binding?.probePreview.probeId)
   const bindingStatus =
-    probeQ.data?.state === "verified" ? "verified" : binding?.status
+    probeQ.data?.state === 'verified' ? 'verified' : binding?.status
 
   if (profileQ.isPending) {
     return (
