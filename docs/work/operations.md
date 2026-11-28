@@ -302,7 +302,7 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 **2026-11-28 0096 ExecutionProfile 生命周期列表**：新增 owner-only `list_execution_profiles` 与 `GET /work/v2/admin/execution-profiles`，每个 profile 返回最新 revision 的 canonical 元数据、状态与当前 `active_revision`，便于区分“最新草稿”和“仍生效 revision”；不返回凭据，API 角色仅获函数 EXECUTE。真库覆盖最新 draft＋旧 active、非 owner 拒绝，API 覆盖会话认证与列表响应，tail catalog 96。生产未部署。
 
-**2026-11-28 真实 Broker→API model binding／artifact 验收**：更新 Windows 互操作夹具到当前 `confirmLocalModel` 闭合契约（不再由 renderer 传端口，携带 profile revision/hash/auth epoch），从 Broker 返回的 17 字段 `native_confirmation_proof` 提取 `local_ref` 与 listener identity，并带真实设备签名 POST 建绑定 API。独立 `TestDeviceFullFixtureModelBinding` 使用当前 Windows Broker、真实 CNG 身份、REST API 与 PostgreSQL 通过，确认生成 `pending_probe` binding；使用仓库当前 device bundle 后，`TestDeviceFullFixtureRunWritesAnArtifact` 进一步通过真实 offer→ready→start→model→artifact.write→receipt→publish 全链。生产未部署。
+**2026-11-28 真实 Broker→API model binding／artifact 验收**：更新 Windows 互操作夹具到当前 `confirmLocalModel` 闭合契约（不再由 renderer 传端口，携带 profile revision/hash/auth epoch），从 Broker 返回的 17 字段 `native_confirmation_proof` 提取 `local_ref` 与 listener identity，并带真实设备签名 POST 建绑定 API。独立 `TestDeviceFullFixtureModelBinding` 使用当前 Windows Broker、真实 CNG 身份、REST API 与 PostgreSQL 通过，确认生成 `pending_probe` binding；使用仓库当前 device bundle 后，`TestDeviceFullFixtureRunWritesAnArtifact` 进一步通过真实 offer→ready→start→model→artifact.write→receipt→publish 全链。同一真实 Broker 夹具还通过 `TestDeviceFixtureRunCancelStopsSidecarAndAcks`、`TestDeviceFixtureRunLeaseLossKillsSidecar`、`TestDeviceFixtureRunRestartRepublishesSealedDeliverable` 与 `TestDeviceFixtureRunCrossSessionFinishIsAccepted`，覆盖取消 stop fact、租约失效杀 sidecar、重启重发和跨会话 finish accepted。生产未部署。
 
 ### 3.5 装后验证与链尾闸 [只读]
 
