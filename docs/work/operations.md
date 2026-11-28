@@ -312,6 +312,8 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 **2026-11-28 configuration-probe 安装包复验**：`efa554360` 的功能切片、`48e4b7ff7` 的面板 binding 类型修正、`ac5f876f5` 的 Prettier 修正与 `fd39e2a7f` 的重启恢复后，Vite production build、renderer source/config/214 assets provenance、NSIS 打包与 Electron shell smoke 全部通过。安装包位于本地 src/desktop/release-probe-restart-final/We-Meet-0.4.0-delivery.6-setup.exe，215,496,361 bytes，sha256＝`8a53365ea0898ddd41961f24ec21d8477e5fcf393e4376707d0767b2dfb2abe7`；shell smoke 再次覆盖匿名标题栏、Work API native Bearer proxy、拖拽区、导航/搜索、菜单、主题、缩放与全屏。该包是未正式签名的本地候选，不等于生产发布或真实供应商验收。
 
+**2026-11-28 治理扫描组织覆盖 fail-closed 门禁**：官方只读验收器将 reconcile／retention／runstream 三份 `WORK_*_ORGS` 与 `work.org` 做排序后的精确集合比较；缺 env、缺键、重复键、空清单、重复组织、未知/遗漏组织或 SQL 读取失败都输出对应 `*_org_coverage=FALSE` 并增加 `FAILURES`，同数量错组织不再通过，也不执行 env 文件来读取这些非秘密扫描设置。真实 Bash 运行时契约覆盖九类边界，相关回归 37/37；完整 R0a contract gate 的 369＋38＋24 项均通过。该门禁尚未打包进上述 `352e67437` 服务端包，也未在生产执行；现网已知 `first-org` 遗漏仍须在获授权的配置修正中补齐。
+
 **2026-11-28 当前 HEAD tip97 服务端发布包重建**：从 `352e67437` 的干净工作树构建 `work-release-0097-352e67437`，`RELEASE_COMMIT=352e67437ebd039c81a0bf6ee5400a64ff212347`、`RELEASE_DIRTY=0`、`MIGRATION_TAIL=97`、17 个二进制、83 条 SHA256SUMS、84 个包内文件。独立复验 83 条校验全部 `OK`，Node runtime 与 deploy assets 均入包；归档 `work-release-0097-352e67437.tar.gz` 为 99,615,537 bytes，sha256＝`81502c385aa8f36e310840b8b973cece6908ab2ab3dc9828cc4de04b0b4913cc`。该包尚未上传或部署，不替代生产 63–97 rollout、真实供应商 E2E、J39 与提升窗口 OS 取证。
 
 ### 3.5 装后验证与链尾闸 [只读]
@@ -502,8 +504,8 @@ sudo WORK_BACKUP_IDENTITY=/root/work-backups/work-offsite-20261029.agekey \
 - `work-retention-scan.timer` 每小时、逐 org 事务：expire_due_audit_exports / expire_due_inputs / shred_due_audit_exports（EXECUTE 仅 work_worker）；导出与未绑定输入 TTL 均 24h。
 - 整批语义（expires_at <= now()），无按 id 入参；**input 侧绝不提前钟**（会把最近一天所有未绑定输入一起投删）。
 - 只读预检：`sudo /usr/local/bin/run-retention-preflight.sh`（superuser＋ON_ERROR_STOP，六列欠账＋ctx 自证）。
-- 停止 **[生产写]**：`systemctl stop work-retention-scan.timer`（disable 才跨重启不回来）。kill switch/组织停用停不了它（义务作业）；按组织的唯一开关是从 `WORK_RETENTION_ORGS` 摘除。
-- 手工补跑用包装件 `run-retention-scan.sh`，不手抄 SQL；空 org 清单按配错退 1。
+- 停止 **[生产写]**：`systemctl stop work-retention-scan.timer`（disable 才跨重启不回来）。kill switch/组织停用停不了它（义务作业）；不得从 `WORK_RETENTION_ORGS` 静默摘除组织，官方验收器现将任何遗漏、重复、未知组织、空清单或 `work.org` 读取失败计为失败。
+- 手工补跑用包装件 `run-retention-scan.sh`，不手抄 SQL；空 org 清单按配错退 1。`verify-r0a-0027.sh` 对 reconcile／retention／runstream 分别输出 `reconcile_org_coverage=true|FALSE`、`retention_org_coverage=true|FALSE` 与 `runstream_org_coverage=true|FALSE`，三者均按完整组织集合精确比较，不再按数量比较或只告警；本地运行时契约覆盖精确匹配、同数量错组织、缺失、重复、空清单、缺配置、重复配置、缺 env 与 SQL 失败。
 - `content_orphans` 只报不删、不进退出码；与 `shred_stuck` 同轮 PAIR 行一起看。refs−disk 稳态属正常（行比对象活得久），要盯的是 status='active' 行的 dangling 引用；孤儿先定性再决定回收，不写自动删除。
 
 ### 8.3 组织退出与留存期

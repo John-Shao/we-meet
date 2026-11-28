@@ -79,6 +79,46 @@ SINCE="${1:-2026-11-03 00:00:00}"
 # from one that failed every probe. Counted here and turned into the exit status at the end.
 FAILURES=0
 
+verify_scan_org_coverage() {
+  local label="$1" env_file="$2" knob="$3"
+  local configured database configured_sorted database_sorted duplicates lines
+  local valid=true
+  if [[ ! -r "$env_file" ]]; then
+    printf '%s_org_coverage=FALSE\n' "$label"
+    echo "  $env_file is missing or unreadable" >&2
+    FAILURES=$((FAILURES + 1))
+    return
+  fi
+  lines="$(grep -c "^${knob}=" "$env_file" || true)"
+  configured="$(grep "^${knob}=" "$env_file" | tail -1 | cut -d= -f2-)"
+  if [[ "$lines" != "1" ]]; then
+    valid=false
+  fi
+  configured="${configured#"${configured%%[![:space:]\"\']*}"}"
+  configured="${configured%"${configured##*[![:space:]\"\']}"}"
+  if ! database="$(runuser -u postgres -- psql -d work -X -At -v ON_ERROR_STOP=1 -c 'select id from work.org')"; then
+    printf '%s_org_coverage=FALSE\n' "$label"
+    echo "  could not read work.org for $label coverage" >&2
+    FAILURES=$((FAILURES + 1))
+    return
+  fi
+  configured_sorted="$(printf '%s\n' "$configured" | tr '[:space:]' '\n' | sed '/^$/d' | LC_ALL=C sort)"
+  database_sorted="$(printf '%s\n' "$database" | sed '/^$/d' | LC_ALL=C sort)"
+  duplicates="$(printf '%s\n' "$configured_sorted" | uniq -d)"
+  if [[ -z "$configured_sorted" || -n "$duplicates" || "$configured_sorted" != "$database_sorted" ]]; then
+    valid=false
+  fi
+  if [[ "$valid" == true ]]; then
+    printf '%s_org_coverage=true\n' "$label"
+  else
+    printf '%s_org_coverage=FALSE\n' "$label"
+    printf '  %s must contain every work.org id exactly once; configured=%s directory=%s\n' \
+      "$knob" "$(printf '%s\n' "$configured_sorted" | wc -l)" \
+      "$(printf '%s\n' "$database_sorted" | wc -l)" >&2
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+
 psql_ro() {
   # ON_ERROR_STOP turns a SQL error into a non-zero exit: without it a broken check printed
   # its ERROR line and the script went on looking green (found 2026-11-05 - the parity query
@@ -713,13 +753,11 @@ if [[ -f /usr/local/bin/work-reconcile ]] && [[ -z "$scan_timer" ]]; then
   echo "WARN: /usr/local/bin/work-reconcile exists but work-reconcile-scan.timer is not enabled;"
   echo "      orphan Runs are only found if someone invokes the scan by hand."
 fi
+configured="$(grep '^WORK_RECONCILE_ORGS=' /etc/work/work-reconcile-scan.env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'" | wc -w)"
+verify_scan_org_coverage reconcile /etc/work/work-reconcile-scan.env WORK_RECONCILE_ORGS
 if [[ -n "$scan_timer" ]]; then
-  # The scan lists its orgs explicitly; a pilot org added without appending its id is silently
-  # never scanned, so the configured count is reported next to the directory-sync row count.
-  configured="$(set -o posix; . /etc/work/work-reconcile-scan.env 2>/dev/null; echo ${WORK_RECONCILE_ORGS:-} | wc -w)"
-  synced="$(runuser -u postgres -- psql -d work -Atc 'select count(*) from work.org' 2>/dev/null || echo '?')"
+  synced="$(runuser -u postgres -- psql -d work -X -At -v ON_ERROR_STOP=1 -c 'select count(*) from work.org' 2>/dev/null || echo '?')"
   echo "  orgs configured for scan=${configured:-0} orgs in directory=${synced}"
-  [[ "${configured:-0}" == "$synced" ]] || echo "  WARN: scan org list ($configured) != directory orgs ($synced); new tenants may be unscanned"
 fi
 grep -rl work-reconcile /etc/systemd/system 2>/dev/null | sed 's/^/  referenced by: /'
 
@@ -915,7 +953,7 @@ ret_result="$(systemctl show -p Result --value work-retention-scan.service 2>/de
 # 所以"上一次什么时候跑的"这件事，唯一可靠来源是它自己的日志行。
 ret_last="$(journalctl -u work-retention-scan.service --no-pager -o short-iso 2>/dev/null | grep -E 'Finished|Failed|Deactivated' | tail -1 | cut -d' ' -f1)"
 ret_runs="$(journalctl -u work-retention-scan.service --no-pager -o cat 2>/dev/null | grep -c 'run-retention-scan summary:')"
-ret_orgs="$(set -o posix; . /etc/work/work-retention-scan.env 2>/dev/null; echo "${WORK_RETENTION_ORGS:-}" | wc -w)"
+ret_orgs="$(grep '^WORK_RETENTION_ORGS=' /etc/work/work-retention-scan.env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'" | wc -w)"
 ret_next="$(systemctl show -p NextElapseUSecRealtime --value work-retention-scan.timer 2>/dev/null || true)"
 printf 'work-retention-scan  timer=%s enabled=%s next=%s last_result=%s last_run=%s runs_logged=%s wrapper=%s sql=%s orgs=%s\n' \
   "${ret_state:-none}" "${ret_enabled:-none}" "${ret_next:-none}" "${ret_result:-none}" \
@@ -926,10 +964,7 @@ fi
 if [[ -z "$ret_enabled" ]]; then
   echo "  WARN: work-retention-scan.timer not installed - 留存清扫仍无执行者（§5 那两行「不可停」只对投递成立；2026-11-04 那批欠账堆到 2 条超期 4 天就是这种状态）"
 fi
-if [[ "$ret_enabled" == "enabled" ]]; then
-  ret_synced="$(runuser -u postgres -- psql -d work -Atc 'select count(*) from work.org' 2>/dev/null || echo '?')"
-  [[ "${ret_orgs:-0}" == "$ret_synced" ]] || echo "  WARN: retention org list ($ret_orgs) != directory orgs ($ret_synced); new tenants' content may never be swept"
-fi
+verify_scan_org_coverage retention /etc/work/work-retention-scan.env WORK_RETENTION_ORGS
 # #96 C1（2026-11-07）：在位性之外还要读出"有没有执行者、跑过没有"。controls_fired 数的是包装件
 # 自己打印的 positive control fired 行——0 与"跑过且正控成立"是两件事，只看在位性分不出来。
 c16_timer="$(systemctl is-enabled work-c16-log-scan.timer 2>/dev/null || true)"
@@ -946,13 +981,13 @@ fi
 if [[ "$c16_timer" != "enabled" ]]; then
   echo "  WARN: work-c16-log-scan.timer not enabled - 正文/canary 检测仍只在有人手跑时发生（#96 C1 未生效）"
 fi
+rs_configured="$(grep '^WORK_RUNSTREAM_ORGS=' /etc/work/work-runstream-scan.env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'" | wc -w)"
+verify_scan_org_coverage runstream /etc/work/work-runstream-scan.env WORK_RUNSTREAM_ORGS
 if [[ -n "$rs_timer" ]]; then
-  rs_configured="$(set -o posix; . /etc/work/work-runstream-scan.env 2>/dev/null; echo ${WORK_RUNSTREAM_ORGS:-} | wc -w)"
-  rs_synced="$(runuser -u postgres -- psql -d work -Atc 'select count(*) from work.org' 2>/dev/null || echo '?')"
+  rs_synced="$(runuser -u postgres -- psql -d work -X -At -v ON_ERROR_STOP=1 -c 'select count(*) from work.org' 2>/dev/null || echo '?')"
   echo "  orgs configured for gauges=${rs_configured:-0} orgs in directory=${rs_synced}"
-  [[ "${rs_configured:-0}" == "$rs_synced" ]] || echo "  WARN: gauge org list (${rs_configured:-0}) != directory orgs ($rs_synced); new tenants may be unscanned"
   # 容差是临时值，必须能被读出来；#56 收口后应回到 0。
-  rs_tolerance="$(set -o posix; . /etc/work/work-runstream-scan.env 2>/dev/null; echo ${WORK_RUNSTREAM_MAX_HELD_ON_TERMINAL:-})"
+  rs_tolerance="$(grep '^WORK_RUNSTREAM_MAX_HELD_ON_TERMINAL=' /etc/work/work-runstream-scan.env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'")"
   echo "  max_held_on_terminal tolerance=${rs_tolerance:-unit default} (2026-11-04 演练残留 2 笔，待裁 #56-A／B 后改回 0)"
 fi
 
