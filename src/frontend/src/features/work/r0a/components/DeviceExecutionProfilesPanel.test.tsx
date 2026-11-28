@@ -40,7 +40,16 @@ const profile = {
   allowedPorts: [11434],
 }
 
+const ids = {
+  binding: '11111111-1111-4111-8111-111111111111',
+  probe: '22222222-2222-4222-8222-222222222222',
+  task: '33333333-3333-4333-8333-333333333333',
+  run: '44444444-4444-4444-8444-444444444444',
+}
+const storageKey = 'we-meet:work:configuration-probe:profile-1'
+
 beforeEach(() => {
+  window.localStorage.clear()
   mocks.profile.mockReturnValue({
     data: profile,
     isPending: false,
@@ -50,12 +59,15 @@ beforeEach(() => {
   mocks.probe.mockReturnValue({ data: undefined })
   mocks.getCurrentSessionId.mockResolvedValue('session-1')
   mocks.createDeviceModelBinding.mockResolvedValue({
-    bindingId: 'binding-1',
+    bindingId: ids.binding,
     status: 'awaiting_probe',
-    probePreview: { probeId: 'probe-1' },
+    probePreview: { probeId: ids.probe },
   })
   mocks.submitConfigurationProbe.mockResolvedValue({
-    taskId: 'probe-task-1',
+    taskId: ids.task,
+    runId: ids.run,
+    probeId: ids.probe,
+    bindingId: ids.binding,
     state: 'running',
   })
   Object.defineProperty(window, 'weMeetDesktop', {
@@ -73,6 +85,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  window.localStorage.clear()
   Reflect.deleteProperty(window, 'weMeetDesktop')
 })
 
@@ -104,8 +117,9 @@ describe('DeviceExecutionProfilesPanel', () => {
       screen.getByRole('button', { name: 'deviceExecution.runProbe' })
     )
     await waitFor(() =>
-      expect(mocks.submitConfigurationProbe).toHaveBeenCalledWith('binding-1')
+      expect(mocks.submitConfigurationProbe).toHaveBeenCalledWith(ids.binding)
     )
+    expect(window.localStorage.getItem(storageKey)).toBe(ids.probe)
     expect(
       await screen.findByText('deviceExecution.probeApprovalHint')
     ).toBeInTheDocument()
@@ -125,6 +139,59 @@ describe('DeviceExecutionProfilesPanel', () => {
       screen.getByRole('button', { name: 'deviceExecution.configure' })
     )
     expect(await screen.findByRole('status')).toHaveTextContent('verified')
+  })
+
+  it('restores a submitted probe and its approval entry after remount', async () => {
+    window.localStorage.setItem(storageKey, ids.probe)
+    mocks.probe.mockImplementation((probeId: string | undefined) => ({
+      data:
+        probeId === ids.probe
+          ? {
+              probeId: ids.probe,
+              bindingId: ids.binding,
+              profileId: profile.profileId,
+              state: 'running',
+              taskId: ids.task,
+              runId: ids.run,
+            }
+          : undefined,
+    }))
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <DeviceExecutionProfilesPanel profileId="profile-1" />
+      </QueryClientProvider>
+    )
+    expect(await screen.findByRole('status')).toHaveTextContent('running')
+    expect(
+      await screen.findByText('deviceExecution.probeApprovalHint')
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'deviceExecution.runProbe' })
+    ).not.toBeInTheDocument()
+    expect(mocks.submitConfigurationProbe).not.toHaveBeenCalled()
+  })
+
+  it('drops a stored probe that belongs to another profile', async () => {
+    window.localStorage.setItem(storageKey, ids.probe)
+    mocks.probe.mockReturnValue({
+      data: {
+        probeId: ids.probe,
+        bindingId: ids.binding,
+        profileId: 'another-profile',
+        state: 'running',
+        taskId: ids.task,
+        runId: ids.run,
+      },
+    })
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <DeviceExecutionProfilesPanel profileId="profile-1" />
+      </QueryClientProvider>
+    )
+    await waitFor(() =>
+      expect(window.localStorage.getItem(storageKey)).toBeNull()
+    )
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('shows a retryable profile load failure', () => {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/primitives/Button'
@@ -26,6 +26,31 @@ const input = css({
   color: 'text.default',
 })
 
+const probeStorageKey = (profileId: string) =>
+  `we-meet:work:configuration-probe:${profileId}`
+
+const readStoredProbeId = (key: string): string | undefined => {
+  try {
+    const value = window.localStorage.getItem(key)
+    return value &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        value
+      )
+      ? value
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+const writeStoredProbeId = (key: string, probeId: string) => {
+  try {
+    window.localStorage.setItem(key, probeId)
+  } catch {
+    // The live session still works when storage is unavailable.
+  }
+}
+
 export const DeviceExecutionProfilesPanel = ({
   profileId,
 }: {
@@ -42,10 +67,45 @@ export const DeviceExecutionProfilesPanel = ({
   const [saving, setSaving] = useState(false)
   const [submittingProbe, setSubmittingProbe] = useState(false)
   const [probeTaskId, setProbeTaskId] = useState<string>()
+  const [restoredProbeId, setRestoredProbeId] = useState<string>()
   const [failure, setFailure] = useState(false)
-  const probeQ = useModelProbe(binding?.probePreview.probeId)
+  const storageKey = probeStorageKey(profileId)
+  const probeQ = useModelProbe(binding?.probePreview.probeId ?? restoredProbeId)
   const bindingStatus =
     probeQ.data?.state === 'verified' ? 'verified' : binding?.status
+
+  useEffect(() => {
+    setRestoredProbeId(readStoredProbeId(storageKey))
+  }, [storageKey])
+
+  useEffect(() => {
+    const probe = probeQ.data
+    if (!probe) return
+    if (probe.profileId !== profileId || !probe.taskId) {
+      try {
+        window.localStorage.removeItem(storageKey)
+      } catch {
+        // Ignore unavailable storage; the server remains authoritative.
+      }
+      setRestoredProbeId(undefined)
+      return
+    }
+    const status = probe.state === 'verified' ? 'verified' : 'pending_probe'
+    setBinding((current) =>
+      current?.bindingId === probe.bindingId &&
+      current.status === status &&
+      current.probePreview.probeId === probe.probeId
+        ? current
+        : {
+            bindingId: probe.bindingId,
+            status,
+            probePreview: { probeId: probe.probeId },
+          }
+    )
+    setProbeTaskId((current) =>
+      current === probe.taskId ? current : (probe.taskId ?? undefined)
+    )
+  }, [probeQ.data, profileId, storageKey])
 
   if (profileQ.isPending) {
     return (
@@ -101,6 +161,8 @@ export const DeviceExecutionProfilesPanel = ({
     setFailure(false)
     try {
       const submission = await work.submitConfigurationProbe(binding.bindingId)
+      writeStoredProbeId(storageKey, submission.probeId)
+      setRestoredProbeId(submission.probeId)
       setProbeTaskId(submission.taskId)
     } catch {
       setFailure(true)
