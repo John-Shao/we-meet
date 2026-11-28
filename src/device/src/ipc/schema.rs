@@ -68,6 +68,8 @@ pub const SHELL_METHODS: &[&str] = &[
     "deliverDeviceCertificate",
     "redeliverDeviceCertificate",
     "getDeviceCertificateStatus",
+    "getModelProbeReceipts",
+    "confirmModelProbeReceiptDelivery",
 ];
 
 /// The viewer→main-process message closure (device-design §1.1 :33, 6 members).
@@ -138,8 +140,8 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn shell_closure_has_twenty_nine_members() {
-        assert_eq!(SHELL_METHODS.len(), 29);
+    fn shell_closure_has_thirty_one_members() {
+        assert_eq!(SHELL_METHODS.len(), 31);
     }
 
     #[test]

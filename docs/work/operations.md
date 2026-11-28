@@ -280,6 +280,8 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 **2026-11-28 0088 内部探针 grant 与固定模板执行**：`workspace_grant.purpose` 增加 `configuration_probe`，probe binding 通过 `probe:<probe_id>` 快照引用精确匹配 pending probe，并由数据库铸造仅一个、五分钟内过期、`local_only` 的内部 grant；普通 grant 列表显式过滤该 purpose。Broker 仅对 probe 跳过设备侧根目录注册表成员检查，仍携带服务端 grant 走 prepare/permit/计量链；模型 Action 与 model result 的 `request_hash` 使用签名 offer 的 `preview_hash`，普通 Task 保持原独立域哈希。Rust 校验 probe UUID、bare hex、固定模板 hash、单 grant 与 input/snapshot 一致性；Node 忽略 sealed input，不发送用户消息或工具，仅执行一轮且 `max_tokens=16`，模板 hash 不符时在任何模型/工具帧前失败。真库覆盖内部 grant 可见性、精确 probe 关联与 tip88 catalog；Node 51 项、Rust 652 项通过。**仍未实现：** 持久 model_result ack 到签名 `model_probe` receipt 的生产桥接、桌面 profile/binding/probe 界面、profile 生命周期端点与真实设备/供应商验收；生产未部署。
 
+**2026-11-28 model_result ack→model_probe receipt 桥接**：probe 元数据与 model result 同事务持久化；journal 仅读取服务器 signed `recorded` ack 且未 rejected 的结果，复验 model_result 签名与 request_hash=preview_hash 后生成 `model_probe` 签名回执。回执使用 `model_result:<id>` 引用、服务端 result hash、当前 Host session revision，60 秒有效；同一 model result 复用精确签名与 `model_probe:<id>` 幂等请求 ID，过期或 epoch 改变后不再重铸、不再无限重试。Broker 新增闭合轮询 IPC `getModelProbeReceipts`／`confirmModelProbeReceiptDelivery`，桌面轮询用 Host auth_epoch 取回执，严格校验 14 键形状与当前组织/主体/设备后带 Bearer、`X-Work-Client:desktop`、`X-Device-Signature` POST 到现有 `/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probes`，API 成功后才确认本地投递。Rust journal/IPC、桌面 API/pipe/driver 定向回归通过。生产 rollout、真实设备与真实供应商验收仍未执行。
+
 ### 3.5 装后验证与链尾闸 [只读]
 
 - `sudo ./verify-r0a-0027.sh "<开始时刻>"`：`rows=N max=N`、清单 all present、函数体探针 true（claim_carries_takeover、terminal_release_guard、export_discovery_hardened、0040–0045 设备面探针等）。

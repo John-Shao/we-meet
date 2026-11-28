@@ -151,6 +151,11 @@ pub async fn run_core_pump(
                             { open_local_content_reply(&approval_signer, &node_service, &request.message).await }
                             #[cfg(not(windows))]
                             { Reply::refused(&request.message, "method_not_implemented") }
+                        } else if matches!(
+                            method,
+                            "getModelProbeReceipts" | "confirmModelProbeReceiptDelivery"
+                        ) {
+                            model_probe_receipt_reply(&approval_signer, &request.message).await
                         } else if CONFIRMATION_METHODS.contains(&method)
                             || method == "stageLocalInput"
                             || method == "listWorkspaceGrants"
@@ -680,6 +685,89 @@ async fn rebind_reply(
 /// parked waiting for the permit, i.e. while the Node service thread is inside `serve_run`;
 /// that thread cannot answer, so the pump signs the proof over the shared journal handle and
 /// only falls back to the Node service before a session exists.
+async fn model_probe_receipt_reply(
+    signer: &crate::journalop::ApprovalSignerSlot,
+    message: &Value,
+) -> Reply {
+    let method = message.get("method").and_then(Value::as_str).unwrap_or("");
+    if method == "getModelProbeReceipts" {
+        if confirm_keys(message, &["auth_epoch"]).is_err() {
+            return Reply::refused(message, "schema");
+        }
+    } else if method == "confirmModelProbeReceiptDelivery" {
+        if confirm_keys(message, &["model_result_id"]).is_err() {
+            return Reply::refused(message, "schema");
+        }
+    } else {
+        return Reply::refused(message, "unknown_method");
+    }
+    let auth_epoch = if method == "getModelProbeReceipts" {
+        message
+            .get("auth_epoch")
+            .and_then(Value::as_str)
+            .and_then(|value| value.parse::<u64>().ok())
+    } else {
+        None
+    };
+    if method == "getModelProbeReceipts" && auth_epoch.is_none() {
+        return Reply::refused(message, "shape");
+    }
+    let model_result_id = if method == "confirmModelProbeReceiptDelivery" {
+        message
+            .get("model_result_id")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+    } else {
+        ""
+    };
+    if method == "confirmModelProbeReceiptDelivery"
+        && uuid::Uuid::parse_str(model_result_id).is_err()
+    {
+        return Reply::refused(message, "shape");
+    }
+    let facts = signer.lock().ok().and_then(|slot| slot.clone());
+    let Some(facts) = facts else {
+        return Reply::refused(message, "no_pairing");
+    };
+    let Some(session_id) = facts.session_id.clone() else {
+        return Reply::accepted_with(message, json!({ "status": "unavailable" }));
+    };
+    let op = if method == "getModelProbeReceipts" {
+        crate::journalop::JournalOp::PrepareModelProbeReceipts {
+            org_id: facts.org_id,
+            subject_id: facts.subject_id,
+            session_id,
+            auth_epoch: auth_epoch.unwrap_or_default(),
+        }
+    } else {
+        crate::journalop::JournalOp::ConfirmModelProbeReceiptDelivery {
+            org_id: facts.org_id,
+            subject_id: facts.subject_id,
+            session_id,
+            model_result_id: model_result_id.to_string(),
+        }
+    };
+    let journal = facts.journal;
+    let reply = tokio::task::spawn_blocking(move || journal.request(op))
+        .await
+        .ok()
+        .flatten();
+    match (method, reply) {
+        (
+            "getModelProbeReceipts",
+            Some(crate::journalop::JournalReply::ModelProbeReceiptsPrepared(receipts)),
+        ) => Reply::accepted_with(message, json!({ "status": "ready", "receipts": receipts })),
+        (
+            "confirmModelProbeReceiptDelivery",
+            Some(crate::journalop::JournalReply::ModelProbeReceiptDeliveryConfirmed(delivered)),
+        ) => Reply::accepted_with(
+            message,
+            json!({ "status": "ready", "delivered": delivered }),
+        ),
+        _ => Reply::accepted_with(message, json!({ "status": "unavailable" })),
+    }
+}
+
 #[cfg(windows)]
 async fn approval_decision_reply(
     signer: &crate::journalop::ApprovalSignerSlot,
@@ -2766,6 +2854,32 @@ mod tests {
             h.ready.as_mut().unwrap().try_recv().is_err(),
             "a refused delivery must not publish an identity the entry could dial with"
         );
+    }
+
+    #[tokio::test]
+    async fn probe_receipt_methods_enforce_shape_before_pairing() {
+        let mut h = Harness::new();
+        let extra = h
+            .deliver(json!({
+                "method": "getModelProbeReceipts", "request_id": "probe-extra",
+                "auth_epoch": "4", "extra": true,
+            }))
+            .await;
+        assert_eq!(extra.code, Some("schema"));
+        let unpaired = h
+            .deliver(json!({
+                "method": "getModelProbeReceipts", "request_id": "probe-unpaired",
+                "auth_epoch": "4",
+            }))
+            .await;
+        assert_eq!(unpaired.code, Some("no_pairing"));
+        let bad_id = h
+            .deliver(json!({
+                "method": "confirmModelProbeReceiptDelivery", "request_id": "probe-bad-id",
+                "model_result_id": "not-a-uuid",
+            }))
+            .await;
+        assert_eq!(bad_id.code, Some("shape"));
     }
 
     #[tokio::test]

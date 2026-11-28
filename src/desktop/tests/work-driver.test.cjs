@@ -25,6 +25,8 @@ const pairingId = "12345678-1234-1234-1234-123456789012";
 const renewPairingId = "87654321-4321-4321-4321-210987654321";
 const ticketId = "11111111-2222-3333-4444-555555555555";
 const sessionId = "44444444-4444-4444-8444-444444444444";
+const bindingId = "77777777-7777-4777-8777-777777777777";
+const modelResultId = "99999999-9999-4999-8999-999999999999";
 const workspaceGrantId = "55555555-5555-4555-8555-555555555555";
 const workspaceRootHash = `sha256:${"a".repeat(64)}`;
 const pem = "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n";
@@ -49,6 +51,69 @@ const localSubmissionInput = {
   artifactClassificationFloor: "local_only",
   availableDestinations: ["device_local"],
 };
+function modelProbeReceipt({
+  binding = bindingId,
+  result = modelResultId,
+  receiptSession = sessionId,
+  probe = "88888888-8888-4888-8888-888888888888",
+} = {}) {
+  const receipt = {
+    v: 1,
+    auth_epoch: "1",
+    org_id: orgId,
+    subject_id: subject,
+    device_id: deviceId,
+    binding_id: binding,
+    session_id: receiptSession,
+    probe_id: probe,
+    preview_hash: "d".repeat(64),
+    state: "verified",
+    receipt_hash: "e".repeat(64),
+    receipt_ref: `model_result:${result}`,
+    nonce: "nonce-probe-1",
+    expires_at: new Date(Date.now() + 60_000)
+      .toISOString()
+      .replace(/\.\d{3}Z$/, "Z"),
+  };
+  return {
+    client_request_id: `model_probe:${result}`,
+    receipt,
+    signature: "A".repeat(86),
+  };
+}
+
+function expectedModelProbeSubmission(proof) {
+  const receipt = proof.receipt;
+  return {
+    id: deviceId,
+    id2: receipt.binding_id,
+    signature: proof.signature,
+    body: {
+      client_request_id: proof.client_request_id,
+      session_id: receipt.session_id,
+      probe_id: receipt.probe_id,
+      preview_hash: receipt.preview_hash,
+      state: receipt.state,
+      receipt_hash: receipt.receipt_hash,
+      receipt_ref: receipt.receipt_ref,
+      receipt,
+    },
+  };
+}
+
+function seedStoredDevice(h) {
+  h.io.value = JSON.stringify({
+    ...binding,
+    subject,
+    orgId,
+    deviceId,
+    container: containerFor(binding, subject),
+    certificatePem: pem,
+    certSerial: "12345678901234567890",
+    certNotAfter: "2026-11-19T00:00:00Z",
+  });
+}
+
 function localIntentReply(method, fields) {
   if (!fields.approved) return {};
   return {
@@ -765,6 +830,141 @@ test("an open renewal window triggers the renewal flow from the poll", async (t)
   assert.ok(h.events.includes("api:requestRenewal"));
   assert.ok(h.events.includes("pipe:signDeviceCertificateRenewal"));
   assert.equal(h.store.load().certificatePem, renewedPem);
+});
+
+test("the poll submits each Host receipt to REST before confirming its model result", async (t) => {
+  const proofs = [
+    modelProbeReceipt(),
+    modelProbeReceipt({
+      binding: "66666666-6666-4666-8666-666666666666",
+      result: "55555555-5555-4555-8555-555555555555",
+      receiptSession: "22222222-2222-4222-8222-222222222222",
+      probe: "33333333-3333-4333-8333-333333333333",
+    }),
+  ];
+  proofs[1].signature = "B".repeat(86);
+  const submissions = [];
+  const confirmations = [];
+  const receiptRequests = [];
+  const h = harness(t, {
+    apiResponse: (action, options) => {
+      if (action === "recordModelProbe") submissions.push(options);
+      return undefined;
+    },
+  });
+  seedStoredDevice(h);
+  let offered = false;
+  h.pipeResponses.getModelProbeReceipts = (method, fields) => {
+    receiptRequests.push(fields);
+    if (offered) return { data: { status: "ready", receipts: [] } };
+    offered = true;
+    return { data: { status: "ready", receipts: proofs } };
+  };
+  h.pipeResponses.confirmModelProbeReceiptDelivery = (method, fields) => {
+    confirmations.push(fields);
+    return {};
+  };
+  await h.driver.start();
+  await waitFor(() => confirmations.length === proofs.length, "receipt confirmations");
+  await h.driver.stop();
+  assert.ok(receiptRequests.length > 0);
+  for (const request of receiptRequests)
+    assert.deepEqual(request, { auth_epoch: "1" });
+  assert.deepEqual(submissions, proofs.map(expectedModelProbeSubmission));
+  assert.deepEqual(
+    confirmations,
+    proofs.map((proof) => ({
+      model_result_id: proof.receipt.receipt_ref.slice("model_result:".length),
+    })),
+  );
+  assert.deepEqual(
+    h.events.filter(
+      (event) =>
+        event === "pipe:getModelProbeReceipts" ||
+        event === "api:recordModelProbe" ||
+        event === "pipe:confirmModelProbeReceiptDelivery",
+    ),
+    [
+      "pipe:getModelProbeReceipts",
+      "api:recordModelProbe",
+      "pipe:confirmModelProbeReceiptDelivery",
+      "api:recordModelProbe",
+      "pipe:confirmModelProbeReceiptDelivery",
+    ],
+  );
+});
+
+test("the poll rejects receipts whose identity differs from the Host", async (t) => {
+  for (const [field, value] of [
+    ["auth_epoch", "2"],
+    ["org_id", "another-org"],
+    ["subject_id", "another-subject"],
+    ["device_id", "11111111-1111-4111-8111-111111111111"],
+  ]) {
+    await t.test(field, async (t) => {
+      const proof = modelProbeReceipt();
+      proof.receipt[field] = value;
+      const receiptRequests = [];
+      const submissions = [];
+      const confirmations = [];
+      const h = harness(t, {
+        apiResponse: (action, options) => {
+          if (action === "recordModelProbe") submissions.push(options);
+          return undefined;
+        },
+      });
+      seedStoredDevice(h);
+      h.pipeResponses.getModelProbeReceipts = (method, fields) => {
+        receiptRequests.push(fields);
+        return { data: { status: "ready", receipts: [proof] } };
+      };
+      h.pipeResponses.confirmModelProbeReceiptDelivery = (method, fields) => {
+        confirmations.push(fields);
+        return {};
+      };
+      await h.driver.start();
+      await waitFor(() => receiptRequests.length > 0, "receipt identity check");
+      await delay(30);
+      await h.driver.stop();
+      assert.deepEqual(receiptRequests[0], { auth_epoch: "1" });
+      assert.deepEqual(submissions, []);
+      assert.deepEqual(confirmations, []);
+    });
+  }
+});
+
+test("the poll does not confirm a model receipt when REST rejects it", async (t) => {
+  const proof = modelProbeReceipt();
+  const submissions = [];
+  const confirmations = [];
+  let receiptPolls = 0;
+  const h = harness(t, {
+    apiResponse: (action, options) => {
+      if (action !== "recordModelProbe") return undefined;
+      submissions.push(options);
+      return new WorkApiError("forbidden");
+    },
+  });
+  seedStoredDevice(h);
+  h.pipeResponses.getModelProbeReceipts = () => {
+    receiptPolls++;
+    return {
+      data: {
+        status: "ready",
+        receipts: receiptPolls === 1 ? [proof] : [],
+      },
+    };
+  };
+  h.pipeResponses.confirmModelProbeReceiptDelivery = (method, fields) => {
+    confirmations.push(fields);
+    return {};
+  };
+  await h.driver.start();
+  await waitFor(() => submissions.length === 1, "rejected receipt submission");
+  await waitFor(() => receiptPolls >= 2, "next receipt poll");
+  await h.driver.stop();
+  assert.deepEqual(submissions, [expectedModelProbeSubmission(proof)]);
+  assert.deepEqual(confirmations, []);
 });
 
 test("device_revoked clears the record, stops the driver and reports", async (t) => {

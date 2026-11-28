@@ -9,7 +9,9 @@
 use serde_json::Value;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::frame::{action, checkpoint, envelope, model_result, receipt, rfc3339};
+use rusqlite::OptionalExtension;
+
+use crate::frame::{action, checkpoint, envelope, model_probe, model_result, receipt, rfc3339};
 use crate::journal::record::{self, ActionRow, RecordError};
 use crate::journal::{meta, recover};
 use crate::key::DeviceKey;
@@ -172,6 +174,18 @@ pub enum JournalOp {
         subject_id: String,
         facts: Box<ModelResultFacts>,
     },
+    PrepareModelProbeReceipts {
+        org_id: String,
+        subject_id: String,
+        session_id: String,
+        auth_epoch: u64,
+    },
+    ConfirmModelProbeReceiptDelivery {
+        org_id: String,
+        subject_id: String,
+        session_id: String,
+        model_result_id: String,
+    },
     /// Persist an encrypted checkpoint and uplink a signed `checkpoint_commit` (A3, DD:133 the
     /// checkpoint precedes prepare/finish). The sealed canonical body stays local; the commit
     /// carries only hashes + an opaque ref (never ciphertext).
@@ -280,6 +294,13 @@ pub struct ProbeResultMetadata {
     pub preview_hash: String,
 }
 
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct ModelProbeReceiptProof {
+    pub client_request_id: String,
+    pub receipt: Value,
+    pub signature: String,
+}
+
 #[derive(Clone, Debug)]
 pub struct ModelResultFacts {
     pub run_id: String,
@@ -367,6 +388,8 @@ pub enum JournalReply {
         model_result_id: String,
         signed_hash: String,
     },
+    ModelProbeReceiptsPrepared(Vec<ModelProbeReceiptProof>),
+    ModelProbeReceiptDeliveryConfirmed(bool),
     /// PersistCheckpoint sealed the body and uplinked a signed checkpoint_commit.
     CheckpointProduced,
     /// ProposeAction signed and uplinked an action_prepare (the command returns via the downlink).
@@ -769,6 +792,31 @@ pub fn execute(
             subject_id,
             facts,
         } => produce_model_result(journal, producer, &org_id, &subject_id, &facts),
+        JournalOp::PrepareModelProbeReceipts {
+            org_id,
+            subject_id,
+            session_id,
+            auth_epoch,
+        } => prepare_model_probe_receipts(
+            journal,
+            producer,
+            &org_id,
+            &subject_id,
+            &session_id,
+            auth_epoch,
+        ),
+        JournalOp::ConfirmModelProbeReceiptDelivery {
+            org_id,
+            subject_id,
+            session_id,
+            model_result_id,
+        } => confirm_model_probe_receipt_delivery(
+            journal,
+            &org_id,
+            &subject_id,
+            &session_id,
+            &model_result_id,
+        ),
         JournalOp::PersistCheckpoint {
             org_id,
             subject_id,
@@ -1041,6 +1089,204 @@ fn produce_model_result(
     }
 }
 
+fn prepare_model_probe_receipts(
+    journal: &crate::journal::Journal,
+    producer: &Producer,
+    org_id: &str,
+    subject_id: &str,
+    session_id: &str,
+    auth_epoch: u64,
+) -> JournalReply {
+    let outcome = (|| -> Result<Vec<ModelProbeReceiptProof>, RecordError> {
+        let tx = journal.connection().unchecked_transaction()?;
+        let rows = recover::pending_probe_results(
+            &tx,
+            journal.journal_epoch(),
+            org_id,
+            subject_id,
+            journal.device_id(),
+            session_id,
+            16,
+        )?;
+        let now = now_rfc3339();
+        let expires_at = rfc3339::format_utc_seconds(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_secs() + 60)
+                .unwrap_or(60),
+        )
+        .unwrap_or_else(|| "1970-01-01T00:01:00Z".to_string());
+        let mut proofs = Vec::with_capacity(rows.len());
+        for row in rows {
+            if !row.acked || row.rejected {
+                return Err(RecordError::ProbeReceiptUnavailable);
+            }
+            if row.signed_receipt.is_some() {
+                let (bytes, signature, stored_epoch, stored_expiry) = (
+                    row.signed_receipt.as_deref(),
+                    row.receipt_signature.as_deref(),
+                    row.receipt_auth_epoch.as_deref(),
+                    row.receipt_expires_at.as_deref(),
+                );
+                let (Some(bytes), Some(signature), Some(stored_epoch), Some(stored_expiry)) =
+                    (bytes, signature, stored_epoch, stored_expiry)
+                else {
+                    return Err(RecordError::InvalidModelResult);
+                };
+                if stored_epoch != auth_epoch.to_string() || stored_expiry <= now.as_str() {
+                    continue;
+                }
+                let receipt: model_probe::ModelProbeReceipt =
+                    serde_json::from_slice(bytes).map_err(|_| RecordError::InvalidModelResult)?;
+                if !receipt.shape_consistent()
+                    || !crate::frame::sign::verify_frame(
+                        &producer.key.public_jwk(),
+                        model_probe::FRAME_TYPE,
+                        &receipt.to_value(),
+                        signature,
+                    )
+                {
+                    return Err(RecordError::InvalidModelResult);
+                }
+                proofs.push(ModelProbeReceiptProof {
+                    client_request_id: format!("model_probe:{}", row.model_result_id),
+                    receipt: receipt.to_value(),
+                    signature: signature.to_string(),
+                });
+                continue;
+            }
+            let env: envelope::Envelope = serde_json::from_slice(&row.signed_bytes)
+                .map_err(|_| RecordError::InvalidModelResult)?;
+            if env.frame_type != model_result::FRAME_TYPE
+                || env.device_id != row.device_id
+                || env.session_id != row.session_id
+            {
+                return Err(RecordError::ProbeReceiptIdentityMismatch);
+            }
+            let result: model_result::ModelResultBody = serde_json::from_value(env.body.clone())
+                .map_err(|_| RecordError::InvalidModelResult)?;
+            if !result.shape_consistent()
+                || result.model_result_id != row.model_result_id
+                || result.operation_id != row.operation_id
+                || result.request_hash != row.preview_hash
+                || !crate::frame::sign::verify_frame(
+                    &producer.key.public_jwk(),
+                    model_result::FRAME_TYPE,
+                    &env.body,
+                    result.signature.as_deref().unwrap_or(""),
+                )
+            {
+                return Err(RecordError::ProbeReceiptIdentityMismatch);
+            }
+            let (state, receipt_hash) = match result.outcome.as_deref() {
+                Some("succeeded") => ("verified", result.result_hash.clone().unwrap_or_default()),
+                Some("failed") => ("failed", String::new()),
+                None if result.state == "unknown" => ("reconcile", String::new()),
+                _ => return Err(RecordError::InvalidModelResult),
+            };
+            let receipt = model_probe::ModelProbeReceipt {
+                v: 1,
+                org_id: row.org_id,
+                subject_id: row.subject_id,
+                auth_epoch,
+                device_id: row.device_id,
+                session_id: row.session_id,
+                binding_id: row.binding_id,
+                probe_id: row.probe_id,
+                preview_hash: row.preview_hash,
+                receipt_hash,
+                receipt_ref: format!("model_result:{}", row.model_result_id),
+                state: state.to_string(),
+                nonce: uuid::Uuid::new_v4().to_string(),
+                expires_at: expires_at.clone(),
+            };
+            let signature = receipt.signature_for(producer.key)?;
+            let bytes = serde_json::to_vec(&receipt.to_value())
+                .map_err(|_| RecordError::InvalidModelResult)?;
+            recover::store_probe_receipt(
+                &tx,
+                journal.journal_epoch(),
+                &row.model_result_id,
+                &bytes,
+                &signature,
+                auth_epoch,
+                &expires_at,
+            )?;
+            proofs.push(ModelProbeReceiptProof {
+                client_request_id: format!("model_probe:{}", row.model_result_id),
+                receipt: receipt.to_value(),
+                signature,
+            });
+        }
+        tx.commit()?;
+        Ok(proofs)
+    })();
+    match outcome {
+        Ok(proofs) => JournalReply::ModelProbeReceiptsPrepared(proofs),
+        Err(err) => JournalReply::Failed(err),
+    }
+}
+
+fn confirm_model_probe_receipt_delivery(
+    journal: &crate::journal::Journal,
+    org_id: &str,
+    subject_id: &str,
+    session_id: &str,
+    model_result_id: &str,
+) -> JournalReply {
+    let result = (|| -> Result<bool, RecordError> {
+        let row = journal
+            .connection()
+            .query_row(
+                "SELECT p.org_id, p.subject_id, p.device_id, p.session_id, p.signed_receipt,
+                        m.acked, m.rejected
+                 FROM model_probe_result p
+                 JOIN model_result_outbox m
+                   ON m.model_result_id = p.model_result_id AND m.journal_epoch = p.journal_epoch
+                 WHERE p.journal_epoch = ?1 AND p.model_result_id = ?2",
+                rusqlite::params![journal.journal_epoch(), model_result_id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, Option<Vec<u8>>>(4)?,
+                        row.get::<_, i64>(5)? != 0,
+                        row.get::<_, i64>(6)? != 0,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(RecordError::from)?;
+        let Some((stored_org, stored_subject, device_id, stored_session, receipt, acked, rejected)) =
+            row
+        else {
+            return Err(RecordError::ProbeReceiptUnavailable);
+        };
+        if !acked
+            || rejected
+            || stored_org != org_id
+            || stored_subject != subject_id
+            || device_id != journal.device_id()
+            || stored_session != session_id
+            || receipt.is_none()
+        {
+            return Err(RecordError::ProbeReceiptIdentityMismatch);
+        }
+        recover::mark_probe_receipt_delivered(
+            journal.connection(),
+            journal.journal_epoch(),
+            model_result_id,
+        )
+        .map_err(RecordError::from)
+    })();
+    match result {
+        Ok(confirmed) => JournalReply::ModelProbeReceiptDeliveryConfirmed(confirmed),
+        Err(err) => JournalReply::Failed(err),
+    }
+}
+
 /// Persist an encrypted checkpoint and uplink a signed `checkpoint_commit`. The canonical body is
 /// sealed under the DEK with the identity-bound AAD (recover::persist_checkpoint); the commit carries
 /// only hashes + an opaque local ref, never ciphertext (device-design §3.4). `receipt_through_seq` is
@@ -1270,7 +1516,12 @@ mod tests {
     fn append_model_result_uses_its_own_id_and_leaves_receipt_seq_untouched() {
         let path =
             std::env::temp_dir().join(format!("work-journalop-model-{}.db", uuid::Uuid::new_v4()));
-        let journal = Journal::create(&path, "dev", &dek::TestWrap).unwrap();
+        let journal = Journal::create(
+            &path,
+            "80000000-0000-0000-0000-000000000001",
+            &dek::TestWrap,
+        )
+        .unwrap();
         let key = crate::key::SoftwareKey::random();
         let (up_tx, mut up_rx) = mpsc::channel(8);
         let instance = InstanceFacts {
@@ -1286,8 +1537,8 @@ mod tests {
             run_id: "20000000-0000-0000-0000-000000000001".into(),
             operation_id: "30000000-0000-0000-0000-000000000001".into(),
             attempt_id: "40000000-0000-0000-0000-000000000001".into(),
-            session_id: "sess".into(),
-            request_hash: "a".repeat(64),
+            session_id: "70000000-0000-0000-0000-000000000001".into(),
+            request_hash: "c".repeat(64),
             state: "completed".into(),
             outcome: Some("succeeded".into()),
             result_hash: Some("b".repeat(64)),
@@ -1431,6 +1682,83 @@ mod tests {
         .expect("acked probe metadata remains readable");
         assert!(probe.acked && !probe.rejected);
         assert_eq!(probe.result_state, "completed");
+        let prepare = |auth_epoch: u64, session_id: &str| {
+            execute(
+                &journal,
+                &producer,
+                JournalOp::PrepareModelProbeReceipts {
+                    org_id: "org".into(),
+                    subject_id: "sub".into(),
+                    session_id: session_id.into(),
+                    auth_epoch,
+                },
+            )
+        };
+        let proofs = match prepare(4, "70000000-0000-0000-0000-000000000001") {
+            JournalReply::ModelProbeReceiptsPrepared(proofs) => proofs,
+            other => panic!("expected prepared probe receipts, got {other:?}"),
+        };
+        assert_eq!(proofs.len(), 1);
+        assert_eq!(
+            proofs[0].client_request_id,
+            format!("model_probe:{result_id}")
+        );
+        assert_eq!(proofs[0].receipt["state"], "verified");
+        assert_eq!(proofs[0].receipt["auth_epoch"], "4");
+        assert_eq!(
+            proofs[0].receipt["receipt_ref"],
+            format!("model_result:{result_id}")
+        );
+        assert_eq!(proofs[0].receipt["receipt_hash"], "b".repeat(64));
+        assert!(crate::frame::sign::verify_frame(
+            &key.public_jwk(),
+            model_probe::FRAME_TYPE,
+            &proofs[0].receipt,
+            &proofs[0].signature
+        ));
+        let replay = match prepare(4, "70000000-0000-0000-0000-000000000001") {
+            JournalReply::ModelProbeReceiptsPrepared(proofs) => proofs,
+            other => panic!("expected replayed probe receipts, got {other:?}"),
+        };
+        assert_eq!(replay[0].receipt, proofs[0].receipt);
+        assert_eq!(replay[0].signature, proofs[0].signature);
+        assert!(matches!(
+            prepare(5, "70000000-0000-0000-0000-000000000001"),
+            JournalReply::ModelProbeReceiptsPrepared(proofs) if proofs.is_empty()
+        ));
+        journal
+            .connection()
+            .execute(
+                "UPDATE model_probe_result SET receipt_expires_at = '2000-01-01T00:00:00Z'
+                 WHERE model_result_id = ?1",
+                [&result_id],
+            )
+            .unwrap();
+        assert!(matches!(
+            prepare(4, "70000000-0000-0000-0000-000000000001"),
+            JournalReply::ModelProbeReceiptsPrepared(proofs) if proofs.is_empty()
+        ));
+        assert!(matches!(
+            prepare(4, "90000000-0000-0000-0000-000000000001"),
+            JournalReply::ModelProbeReceiptsPrepared(proofs) if proofs.is_empty()
+        ));
+        assert!(matches!(
+            execute(
+                &journal,
+                &producer,
+                JournalOp::ConfirmModelProbeReceiptDelivery {
+                    org_id: "org".into(),
+                    subject_id: "sub".into(),
+                    session_id: "70000000-0000-0000-0000-000000000001".into(),
+                    model_result_id: result_id.clone(),
+                },
+            ),
+            JournalReply::ModelProbeReceiptDeliveryConfirmed(true)
+        ));
+        assert!(matches!(
+            prepare(4, "70000000-0000-0000-0000-000000000001"),
+            JournalReply::ModelProbeReceiptsPrepared(proofs) if proofs.is_empty()
+        ));
         drop(journal);
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(path.with_extension("db-wal"));

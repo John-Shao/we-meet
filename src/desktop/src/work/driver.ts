@@ -300,6 +300,73 @@ function previewAuthEpoch(previewHash: string): string {
   }
 }
 
+interface ModelProbeReceiptProof {
+  client_request_id: string;
+  receipt: Record<string, unknown>;
+  signature: string;
+  model_result_id: string;
+}
+
+function parseModelProbeReceipts(value: unknown): ModelProbeReceiptProof[] {
+  if (!Array.isArray(value) || value.length > 16) throw new BrokerPipeError("shape");
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const digest = /^[0-9a-f]{64}$/;
+  const now = Date.now();
+  return value.map((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry))
+      throw new BrokerPipeError("shape");
+    const proof = entry as Record<string, unknown>;
+    if (Object.keys(proof).sort().join(",") !== "client_request_id,receipt,signature")
+      throw new BrokerPipeError("shape");
+    const receipt = proof.receipt;
+    if (!receipt || typeof receipt !== "object" || Array.isArray(receipt))
+      throw new BrokerPipeError("shape");
+    const d = receipt as Record<string, unknown>;
+    const keys =
+      "auth_epoch,binding_id,device_id,expires_at,nonce,org_id,preview_hash,probe_id,receipt_hash,receipt_ref,session_id,state,subject_id,v";
+    if (Object.keys(d).sort().join(",") !== keys) throw new BrokerPipeError("shape");
+    const str = (key: string) => {
+      const field = d[key];
+      if (typeof field !== "string") throw new BrokerPipeError("shape");
+      return field;
+    };
+    const receiptRef = str("receipt_ref");
+    const modelResultId = receiptRef.startsWith("model_result:")
+      ? receiptRef.slice("model_result:".length)
+      : "";
+    const expiry = Date.parse(str("expires_at"));
+    const state = str("state");
+    const receiptHash = str("receipt_hash");
+    if (
+      d.v !== 1 ||
+      !/^(0|[1-9][0-9]*)$/.test(str("auth_epoch")) ||
+      !uuid.test(str("binding_id")) ||
+      !uuid.test(str("device_id")) ||
+      !uuid.test(str("session_id")) ||
+      !uuid.test(str("probe_id")) ||
+      !uuid.test(modelResultId) ||
+      !digest.test(str("preview_hash")) ||
+      (state === "verified" ? !digest.test(receiptHash) : receiptHash !== "") ||
+      !["verified", "failed", "reconcile"].includes(state) ||
+      !/^[A-Za-z0-9_-]{8,128}$/.test(str("nonce")) ||
+      !Number.isFinite(expiry) ||
+      expiry <= now ||
+      expiry > now + 65_000 ||
+      typeof proof.client_request_id !== "string" ||
+      proof.client_request_id !== `model_probe:${modelResultId}` ||
+      typeof proof.signature !== "string" ||
+      !/^[A-Za-z0-9_-]{86}$/.test(proof.signature)
+    )
+      throw new BrokerPipeError("shape");
+    return {
+      client_request_id: proof.client_request_id,
+      receipt: d,
+      signature: proof.signature,
+      model_result_id: modelResultId,
+    };
+  });
+}
+
 function parseLocalIntentProof(
   value: unknown,
   expected: LocalSubmissionInput,
@@ -2391,6 +2458,7 @@ export class WorkDeviceDriver {
       const data = status.data ?? {};
       if (data.renewal_window_open === true) await this.renew();
       else if (data.awaiting_ticket === true) await this.mintAndDeliver();
+      if (this.record && this.hostEpoch) await this.deliverModelProbeReceipts();
     } catch (error) {
       if (this.state !== "running") return;
       if (
@@ -2419,6 +2487,45 @@ export class WorkDeviceDriver {
       // Transient transport/window races wait for the next poll; no retry loop bypasses a refusal.
     } finally {
       this.polling = false;
+    }
+  }
+
+  private async deliverModelProbeReceipts(): Promise<void> {
+    if (!this.record) return;
+    const response = await this.call("getModelProbeReceipts", {
+      auth_epoch: this.hostEpoch,
+    });
+    this.checkEpoch();
+    if (response.data?.status !== "ready") return;
+    const receipts = parseModelProbeReceipts(response.data.receipts);
+    for (const proof of receipts) {
+      const receipt = proof.receipt;
+      if (
+        receipt.auth_epoch !== this.hostEpoch ||
+        receipt.org_id !== this.orgId ||
+        receipt.subject_id !== this.subject ||
+        receipt.device_id !== this.record.deviceId
+      )
+        throw new BrokerPipeError("shape");
+      await this.deps.api.request("recordModelProbe", {
+        id: this.record.deviceId,
+        id2: String(receipt.binding_id),
+        signature: proof.signature,
+        body: {
+          client_request_id: proof.client_request_id,
+          session_id: receipt.session_id,
+          probe_id: receipt.probe_id,
+          preview_hash: receipt.preview_hash,
+          state: receipt.state,
+          receipt_hash: receipt.receipt_hash,
+          receipt_ref: receipt.receipt_ref,
+          receipt,
+        },
+      });
+      this.checkEpoch();
+      await this.call("confirmModelProbeReceiptDelivery", {
+        model_result_id: proof.model_result_id,
+      });
     }
   }
 

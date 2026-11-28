@@ -19,7 +19,8 @@ export type WorkAction =
   | "getApproval"
   | "decideApproval"
   | "createLocalTaskPreview"
-  | "submitLocalTask";
+  | "submitLocalTask"
+  | "recordModelProbe";
 export interface WorkAuth {
   readonly epoch: number;
   readonly signedIn: boolean;
@@ -38,7 +39,9 @@ const endpoints: Record<
       | "artifactId"
       | "approvalId"
       | "taskId"
-      | "runId";
+      | "runId"
+      | "bindingId";
+    id2?: "bindingId";
   }
 > = {
   identity: { method: "GET", path: "/work/v2/identity" },
@@ -102,6 +105,12 @@ const endpoints: Record<
     path: "/work/v2/local-task-previews",
   },
   submitLocalTask: { method: "POST", path: "/work/v2/tasks" },
+  recordModelProbe: {
+    method: "POST",
+    path: "/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probes",
+    id: "deviceId",
+    id2: "bindingId",
+  },
 };
 /** The closed public codes the device face can raise (error-codes.json). Anything else is a
  * transport failure, never a code the driver branches on. */
@@ -196,6 +205,7 @@ export class WorkApi {
     action: WorkAction,
     options: {
       id?: string;
+      id2?: string;
       body?: Record<string, unknown>;
       signature?: string;
       query?: { status?: "pending"; cursor?: string; limit?: 100 };
@@ -207,6 +217,7 @@ export class WorkApi {
     if (
       !route ||
       (route.id ? !uuid.test(options.id ?? "") : options.id !== undefined) ||
+      (route.id2 ? !uuid.test(options.id2 ?? "") : options.id2 !== undefined) ||
       (route.method === "GET" && options.body !== undefined) ||
       (options.query !== undefined && action !== "listApprovals") ||
       (options.query &&
@@ -218,11 +229,13 @@ export class WorkApi {
               options.query.cursor.length > 2048 ||
               options.query.cursor.includes("\0"))))) ||
       ((action === "createLocalArtifactVersion" ||
-        action === "createLocalAcceptance") &&
+        action === "createLocalAcceptance" ||
+        action === "recordModelProbe") &&
         options.signature === undefined) ||
       (options.signature !== undefined &&
         ((action !== "createLocalArtifactVersion" &&
-          action !== "createLocalAcceptance") ||
+          action !== "createLocalAcceptance" &&
+          action !== "recordModelProbe") ||
           !/^[A-Za-z0-9_-]{86}$/.test(options.signature)))
     )
       throw new WorkApiError("invalid_work_request");
@@ -254,7 +267,8 @@ export class WorkApi {
       this.origin +
       (route.id
         ? route.path.replace(`{${route.id}}`, options.id!)
-        : route.path) +
+        : route.path)
+        .replace("{bindingId}", options.id2 ?? "") +
       query;
     try {
       const response = await beforeDeadline(deadline, () => {

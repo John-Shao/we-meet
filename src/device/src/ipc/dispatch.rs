@@ -199,6 +199,8 @@ pub const CORE_METHODS: &[&str] = &[
     "deliverDeviceCertificate",
     "redeliverDeviceCertificate",
     "getDeviceCertificateStatus",
+    "getModelProbeReceipts",
+    "confirmModelProbeReceiptDelivery",
     "chooseWorkspace",
     "confirmWorkspaceRoot",
     "probeLocalModel",
@@ -349,10 +351,10 @@ mod tests {
                 Dispatch::Core => panic!("{method} must not reach the ticket slot"),
             }
         }
-        // Six of the twenty-nine are unlanded; exportArtifactVersion now returns closed metadata.
+        // Six of the thirty-one are unlanded; exportArtifactVersion now returns closed metadata.
         assert_eq!(count, 6);
-        assert_eq!(SHELL_METHODS.len(), 29);
-        assert_eq!(CORE_METHODS.len(), 23);
+        assert_eq!(SHELL_METHODS.len(), 31);
+        assert_eq!(CORE_METHODS.len(), 25);
     }
 
     #[test]

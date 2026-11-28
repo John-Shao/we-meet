@@ -45,6 +45,110 @@ pub struct ProbeResultRow {
     pub signed_bytes: Vec<u8>,
     pub acked: bool,
     pub rejected: bool,
+    pub signed_receipt: Option<Vec<u8>>,
+    pub receipt_signature: Option<String>,
+    pub receipt_auth_epoch: Option<String>,
+    pub receipt_expires_at: Option<String>,
+    pub receipt_delivered: bool,
+}
+
+fn scan_probe_result(row: &rusqlite::Row<'_>) -> rusqlite::Result<ProbeResultRow> {
+    Ok(ProbeResultRow {
+        model_result_id: row.get(0)?,
+        operation_id: row.get(1)?,
+        org_id: row.get(2)?,
+        subject_id: row.get(3)?,
+        device_id: row.get(4)?,
+        session_id: row.get(5)?,
+        binding_id: row.get(6)?,
+        probe_id: row.get(7)?,
+        preview_hash: row.get(8)?,
+        result_state: row.get(9)?,
+        signed_bytes: row.get(10)?,
+        acked: row.get::<_, i64>(11)? != 0,
+        rejected: row.get::<_, i64>(12)? != 0,
+        signed_receipt: row.get(13)?,
+        receipt_signature: row.get(14)?,
+        receipt_auth_epoch: row.get(15)?,
+        receipt_expires_at: row.get(16)?,
+        receipt_delivered: row.get::<_, i64>(17)? != 0,
+    })
+}
+
+pub fn pending_probe_results(
+    conn: &Connection,
+    journal_epoch: &str,
+    org_id: &str,
+    subject_id: &str,
+    device_id: &str,
+    session_id: &str,
+    limit: u32,
+) -> rusqlite::Result<Vec<ProbeResultRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT p.model_result_id, m.operation_id, p.org_id, p.subject_id, p.device_id,
+                p.session_id, p.binding_id, p.probe_id, p.preview_hash, m.state,
+                m.signed_bytes, m.acked, m.rejected, p.signed_receipt,
+                p.receipt_signature, p.receipt_auth_epoch, p.receipt_expires_at,
+                p.receipt_delivered
+         FROM model_probe_result p
+         JOIN model_result_outbox m
+           ON m.model_result_id = p.model_result_id AND m.journal_epoch = p.journal_epoch
+         WHERE p.journal_epoch = ?1 AND p.org_id = ?2 AND p.subject_id = ?3
+           AND p.device_id = ?4 AND p.session_id = ?5
+           AND m.acked = 1 AND m.rejected = 0 AND p.receipt_delivered = 0
+         ORDER BY m.rowid ASC LIMIT ?6",
+    )?;
+    let rows = stmt.query_map(
+        params![
+            journal_epoch,
+            org_id,
+            subject_id,
+            device_id,
+            session_id,
+            limit
+        ],
+        scan_probe_result,
+    )?;
+    rows.collect()
+}
+
+pub fn store_probe_receipt(
+    conn: &Connection,
+    journal_epoch: &str,
+    model_result_id: &str,
+    signed_receipt: &[u8],
+    signature: &str,
+    auth_epoch: u64,
+    expires_at: &str,
+) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE model_probe_result
+         SET signed_receipt = ?2, receipt_signature = ?3, receipt_auth_epoch = ?4,
+             receipt_expires_at = ?5
+         WHERE journal_epoch = ?1 AND model_result_id = ?6",
+        params![
+            journal_epoch,
+            signed_receipt,
+            signature,
+            auth_epoch.to_string(),
+            expires_at,
+            model_result_id
+        ],
+    )?;
+    Ok(())
+}
+
+pub fn mark_probe_receipt_delivered(
+    conn: &Connection,
+    journal_epoch: &str,
+    model_result_id: &str,
+) -> rusqlite::Result<bool> {
+    let changed = conn.execute(
+        "UPDATE model_probe_result SET receipt_delivered = 1
+         WHERE journal_epoch = ?1 AND model_result_id = ?2 AND receipt_delivered = 0",
+        params![journal_epoch, model_result_id],
+    )?;
+    Ok(changed != 0)
 }
 
 pub fn probe_result_for_model_result(
@@ -56,29 +160,18 @@ pub fn probe_result_for_model_result(
     let mut stmt = conn.prepare(
         "SELECT p.model_result_id, m.operation_id, p.org_id, p.subject_id, p.device_id,
                 p.session_id, p.binding_id, p.probe_id, p.preview_hash, m.state,
-                m.signed_bytes, m.acked, m.rejected
+                m.signed_bytes, m.acked, m.rejected, p.signed_receipt,
+                p.receipt_signature, p.receipt_auth_epoch, p.receipt_expires_at,
+                p.receipt_delivered
          FROM model_probe_result p
          JOIN model_result_outbox m
            ON m.model_result_id = p.model_result_id AND m.journal_epoch = p.journal_epoch
          WHERE p.journal_epoch = ?1 AND p.model_result_id = ?2 AND m.operation_id = ?3",
     )?;
-    stmt.query_row(params![journal_epoch, model_result_id, operation_id], |r| {
-        Ok(ProbeResultRow {
-            model_result_id: r.get(0)?,
-            operation_id: r.get(1)?,
-            org_id: r.get(2)?,
-            subject_id: r.get(3)?,
-            device_id: r.get(4)?,
-            session_id: r.get(5)?,
-            binding_id: r.get(6)?,
-            probe_id: r.get(7)?,
-            preview_hash: r.get(8)?,
-            result_state: r.get(9)?,
-            signed_bytes: r.get(10)?,
-            acked: r.get::<_, i64>(11)? != 0,
-            rejected: r.get::<_, i64>(12)? != 0,
-        })
-    })
+    stmt.query_row(
+        params![journal_epoch, model_result_id, operation_id],
+        scan_probe_result,
+    )
     .optional()
 }
 

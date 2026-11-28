@@ -102,6 +102,32 @@ test(
 );
 
 test(
+  "the model probe receipt methods are accepted and carry their closed fields",
+  windows,
+  async (t) => {
+    const { name, state, listening } = startBroker(t);
+    await listening;
+    const pipe = await BrokerPipe.connect(name);
+    t.after(() => pipe.close());
+    const modelResultId = randomUUID();
+    await pipe.call("getModelProbeReceipts", { auth_epoch: "7" });
+    await pipe.call("confirmModelProbeReceiptDelivery", {
+      model_result_id: modelResultId,
+    });
+    assert.deepEqual(
+      state.messages.map(({ request_id, ...fields }) => fields),
+      [
+        { method: "getModelProbeReceipts", auth_epoch: "7" },
+        {
+          method: "confirmModelProbeReceiptDelivery",
+          model_result_id: modelResultId,
+        },
+      ],
+    );
+  },
+);
+
+test(
   "an unclosed or mistyped server hello refuses the connection",
   windows,
   async (t) => {

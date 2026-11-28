@@ -7,6 +7,7 @@ const { WorkApi, WorkApiError } = require("../dist/work/api.js");
 const pairingId = "12345678-1234-1234-1234-123456789012";
 const deviceId = "abcdefab-abcd-abcd-abcd-abcdefabcdef";
 const artifactId = "11111111-1111-4111-8111-111111111111";
+const bindingId = "77777777-7777-4777-8777-777777777777";
 const approvalId = "33333333-3333-4333-8333-333333333333";
 const auth = () => ({
   epoch: 1,
@@ -123,6 +124,91 @@ test("the endpoint table is closed and every route carries the Bearer plane head
   assert.equal(seen[13].headers["x-device-signature"], undefined);
   assert.equal(JSON.parse(seen[13].body).decision.signature, "A".repeat(86));
   assert.deepEqual(JSON.parse(seen[2].body), { device_name: "test" });
+});
+
+test("recordModelProbe posts the exact signed receipt to the device binding route", async (t) => {
+  const seen = [];
+  const signature = "A".repeat(86);
+  const receipt = {
+    v: 1,
+    auth_epoch: "1",
+    org_id: "org-1",
+    subject_id: "subject-1",
+    device_id: deviceId,
+    binding_id: bindingId,
+    session_id: "44444444-4444-4444-8444-444444444444",
+    probe_id: "88888888-8888-4888-8888-888888888888",
+    preview_hash: "a".repeat(64),
+    state: "verified",
+    receipt_hash: "b".repeat(64),
+    receipt_ref: "model_result:99999999-9999-4999-8999-999999999999",
+    nonce: "nonce-probe-1",
+    expires_at: "2027-01-01T00:00:00Z",
+  };
+  const body = {
+    client_request_id: "model_probe:99999999-9999-4999-8999-999999999999",
+    session_id: receipt.session_id,
+    probe_id: receipt.probe_id,
+    preview_hash: receipt.preview_hash,
+    state: receipt.state,
+    receipt_hash: receipt.receipt_hash,
+    receipt_ref: receipt.receipt_ref,
+    receipt,
+  };
+  const origin = await localServer(t, (request, response) => {
+    let raw = "";
+    request.on("data", (chunk) => (raw += chunk));
+    request.on("end", () => {
+      seen.push({
+        method: request.method,
+        url: request.url,
+        headers: request.headers,
+        raw,
+      });
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify({ accepted: true }));
+    });
+  });
+  const result = await new WorkApi(origin, auth()).request("recordModelProbe", {
+    id: deviceId,
+    id2: bindingId,
+    signature,
+    body,
+  });
+  assert.deepEqual(result, { accepted: true });
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].method, "POST");
+  assert.equal(
+    seen[0].url,
+    `/work/v2/devices/${deviceId}/model-bindings/${bindingId}/probes`,
+  );
+  assert.equal(seen[0].headers.authorization, "Bearer work-test-token");
+  assert.equal(seen[0].headers["x-work-client"], "desktop");
+  assert.equal(seen[0].headers["x-device-signature"], signature);
+  assert.deepEqual(JSON.parse(seen[0].raw), body);
+});
+
+test("recordModelProbe refuses a missing binding id or signature before HTTP", async () => {
+  let fetches = 0;
+  const api = new WorkApi("https://meet.example.test", auth(), async () => {
+    fetches++;
+    return new Response("{}");
+  });
+  const options = {
+    id: deviceId,
+    id2: bindingId,
+    signature: "A".repeat(86),
+    body: { state: "verified" },
+  };
+  await expectCode(
+    api.request("recordModelProbe", { ...options, id2: undefined }),
+    "invalid_work_request",
+  );
+  await expectCode(
+    api.request("recordModelProbe", { ...options, signature: undefined }),
+    "invalid_work_request",
+  );
+  assert.equal(fetches, 0);
 });
 
 test("unclosed actions, ids and bodies are refused before any request", async (t) => {

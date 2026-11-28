@@ -35,7 +35,9 @@ export type BrokerMethod =
   | "decideLocalArtifactEdit"
   | "completeLocalArtifactEdit"
   | "rebindRunWorkspace"
-  | "listWorkspaceGrants";
+  | "listWorkspaceGrants"
+  | "getModelProbeReceipts"
+  | "confirmModelProbeReceiptDelivery";
 const METHODS: ReadonlySet<string> = new Set<BrokerMethod>([
   "getDeviceIdentity",
   "signDevicePairing",
@@ -60,6 +62,8 @@ const METHODS: ReadonlySet<string> = new Set<BrokerMethod>([
   "completeLocalArtifactEdit",
   "rebindRunWorkspace",
   "listWorkspaceGrants",
+  "getModelProbeReceipts",
+  "confirmModelProbeReceiptDelivery",
 ]);
 /** The closed refusal codes (ipc/dispatch.rs CODES). */
 const CODES = new Set([
