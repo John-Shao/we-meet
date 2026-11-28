@@ -35,8 +35,11 @@ test('bundle routing, token isolation, API failures and stale-account responses'
   assert.equal(network, true)
   const beforeWorkRoute = calls
   const workWrite = req('/work/v2/identity', { method: 'POST', body: '{}' })
-  assert.equal((await handler(workWrite)).status, 405)
-  assert.equal(calls, beforeWorkRoute, 'Work routes stay on the main-process Bearer face')
+  const workResponse = await handler(workWrite)
+  assert.equal(workResponse.status, 200)
+  assert.equal(calls, beforeWorkRoute + 1, 'Work API routes use the main-process Bearer face')
+  assert.equal(call.init.headers.get('authorization'), 'Bearer native-token')
+  assert.equal(call.init.headers.get('cookie'), null)
   const foreign = req('/api/v1.0/users/me/'); foreign.initiatorOrigin = 'https://evil.test'
   assert.equal((await handler(foreign)).status, 403)
   changeAccount = true

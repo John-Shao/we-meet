@@ -27,6 +27,24 @@ const http = require('node:http')
       id: 'shell-fixture', email: 'fixture@example.invalid', full_name: '桌面外壳验证',
       language: 'zh-CN', timezone: 'Asia/Shanghai',
     }))
+    if (pathname === '/api/v1.0/directory/me/' && signedIn) return res.end(JSON.stringify({
+      organization: null, org_role: null, is_org_admin: false, permissions: [],
+    }))
+    if (pathname === '/api/v1.0/im/token/' && signedIn) return res.end(JSON.stringify({
+      uid: 'shell-fixture', token: 'fixture-im-token', ws_url: 'ws://127.0.0.1:1',
+    }))
+    if (pathname === '/work/v1/bootstrap' && signedIn) return res.end(JSON.stringify({
+      subject_id: 'shell-fixture',
+      org: { id: 'fixture-org', name: 'Fixture', role: 'member', work_seat: true },
+      permissions: [], phases: ['R0a'], execution_targets: [],
+      allowed_permission_modes: ['ask_each'],
+      limits: { max_goal_chars: 2000, max_background_chars: 4000, max_artifact_bytes: 262144, max_active_runs: 3 },
+      csrf_token: 'fixture-csrf',
+    }))
+    if (signedIn && ['/work/v1/tasks', '/work/v1/inbox'].some((route) => pathname.startsWith(route))) {
+      return res.end(JSON.stringify({ items: [], next_cursor: null }))
+    }
+    if (signedIn && pathname.startsWith('/work/v1/templates')) return res.end(JSON.stringify({ items: [] }))
     if (pathname.endsWith('/work/capabilities/')) return res.end(JSON.stringify({ enabled: true, local_agent_enabled: true }))
     if (pathname.includes('/approvals/')) return res.end('[]')
     if (signedIn && pathname === '/api/v1.0/rooms/recent-meetings/') return res.end('[]')
@@ -42,7 +60,7 @@ const http = require('node:http')
   try {
     app = await _electron.launch({ executablePath: require('electron'), args: [project], env, timeout: 30000 })
     const page = await app.firstWindow()
-    page.on('pageerror', error => errors.push(error.message))
+    page.on('pageerror', error => errors.push(error.stack || error.message))
     const titlebar = page.getByTestId('desktop-titlebar')
     await expect(titlebar).toBeVisible()
     await expect(page.locator('[data-attr="login"]:visible').first()).toBeVisible()
@@ -54,8 +72,11 @@ const http = require('node:http')
     signedIn = true
     await page.goto(origin + '/work')
     await expect(page.locator('nav[data-desktop-rail]')).toBeVisible()
-    await expect(titlebar.locator('button')).toHaveCount(3)
+    await expect(titlebar.locator('button')).toHaveCount(5)
     await expect(page.getByTestId('rail-/work')).toBeVisible()
+    assert.ok(requests.includes('/work/v1/bootstrap'), 'Work bootstrap must reach the native API proxy')
+    assert.ok(requests.includes('/work/v1/tasks') && requests.includes('/work/v1/inbox'))
+    checks.push('work-api-native-bearer-proxy')
     assert.equal(await titlebar.evaluate(el => getComputedStyle(el).webkitAppRegion), 'drag')
     assert.equal(await titlebar.locator('button').first().evaluate(el => getComputedStyle(el).webkitAppRegion), 'no-drag')
     const layout = await page.evaluate(() => ({

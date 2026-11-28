@@ -1,7 +1,7 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const path = require('node:path')
-const { validateConfig, DEFAULT_CONFIG, externalUrl, sameOrigin, assetPath, callbackCode, CALLBACK } = require('../dist/policy.js')
+const { validateConfig, DEFAULT_CONFIG, externalUrl, sameOrigin, assetPath, isApi, callbackCode, CALLBACK } = require('../dist/policy.js')
 
 test('production config requires credential-free HTTPS and an exact origin', () => {
   assert.deepEqual(validateConfig(DEFAULT_CONFIG), DEFAULT_CONFIG)
@@ -20,6 +20,15 @@ test('asset paths cannot escape the bundle or address Windows streams', () => {
   assert.equal(assetPath(root, '/assets/main.js'), path.join(root, 'assets', 'main.js'))
   for (const url of ['/%2e%2e/secrets', '/a/%2e%2e/secrets', '/%5cWindows', '/C:/Windows', '/file:stream', '/%00', '/%']) assert.equal(assetPath(root, url), undefined)
 })
+test('Work API paths use the native Bearer proxy while Work pages stay in the SPA', () => {
+  for (const path of ['/api/v1.0/users/me/', '/media/object', '/work/v1/bootstrap', '/work/v2/identity']) {
+    assert.equal(isApi(path), true, path)
+  }
+  for (const path of ['/work', '/work/new', '/work/items/task-1', '/work/v1ish/page']) {
+    assert.equal(isApi(path), false, path)
+  }
+})
+
 test('callback has exact destination, one state and one code', () => {
   assert.equal(callbackCode(`${CALLBACK}?state=s&code=c`, 's'), 'c')
   for (const url of [`${CALLBACK}?state=x&code=c`, `${CALLBACK}?state=s&state=s&code=c`, `${CALLBACK}?state=s&code=c&code=d`, `${CALLBACK}?state=s&code=c#x`, 'online.we-meet.desktop://evil/callback?state=s&code=c']) assert.throws(() => callbackCode(url, 's'))

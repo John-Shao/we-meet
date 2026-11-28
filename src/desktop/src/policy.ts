@@ -117,7 +117,12 @@ export function assetPath(root: string, pathname: string): string | undefined {
 }
 
 export function isApi(pathname: string): boolean {
-  return pathname.startsWith("/api/") || pathname.startsWith("/media/");
+  return (
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/media/") ||
+    pathname.startsWith("/work/v1/") ||
+    pathname.startsWith("/work/v2/")
+  );
 }
 
 /** Callback codes are accepted only for a live, matching, single-use attempt. */
