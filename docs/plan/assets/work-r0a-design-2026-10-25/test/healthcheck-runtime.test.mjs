@@ -99,6 +99,13 @@ test('a failed observe-list unit degrades and names that unit', () => {
   assert.ok(run.log && run.log.includes('status=degraded'), 'a degraded probe must append to the log');
 });
 
+test('a nonzero observe-list exit degrades with the actual systemd result', () => {
+  const run = runProbe({ FAKE_UNIT_RESULT: 'exit-code' });
+  assert.equal(run.health.status, 'degraded', JSON.stringify(run.health));
+  assert.match(run.health.issues, /work-runstream-scan\.service_failed/, run.health.issues);
+  assert.ok((run.alert || '').includes('work-runstream-scan.service_failed'), run.alert);
+});
+
 test('governance consumer service failure degrades and alerts', () => {
   for (const unit of ['work-cancel.service', 'work-governance-events.service']) {
     const run = runProbe({ FAKE_FAILED_UNIT: unit });

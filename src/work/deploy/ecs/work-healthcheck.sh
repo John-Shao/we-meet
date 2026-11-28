@@ -40,7 +40,7 @@ host=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
 # once enabled so a stopped consumer cannot look healthy merely because its last result was success.
 for unit in work-directory-sync.service work-directory-sync-full.service work-reconcile-scan.service work-runstream-scan.service work-cancel.service work-governance-events.service; do
   result=$(systemctl show -p Result --value "$unit" 2>/dev/null || true)
-  if [ "$result" = "failed" ]; then
+  if [ -n "$result" ] && [ "$result" != "success" ]; then
     status="degraded"
     issues+=("${unit}_failed")
   fi
