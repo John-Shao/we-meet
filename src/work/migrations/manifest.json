@@ -1044,6 +1044,17 @@
       "catalog_checksum": "sha256:61338b9de5489be54981e97bad92ea73631c0608c972e1e35bfa85991b82a062",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 95,
+      "name": "0095_execution_profile_revoke",
+      "kind": "increment",
+      "file": "increments/0095_execution_profile_revoke.sql",
+      "checksum": "sha256:d4e4ad39d84083ff83dcd92c8c73e81a804f127c7587d4660f103a43afbc116a",
+      "catalog": "catalogs/0095_execution_profile_revoke.json",
+      "catalog_checksum": "sha256:872d81d362071b8e6b501a4e135367558756af70633577922fbce04039770c6d",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

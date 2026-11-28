@@ -111,6 +111,7 @@ func TestMemberAndSeatlessSessionsAreRefusedAcrossTheRouteTable(t *testing.T) {
 			`"client_request_id":"sweep-admin-cursor-1"}`,
 		"PATCH /work/v2/admin/local-policy":      `{"revision":0,"client_request_id":"sweep-admin-policy-1"}`,
 		"POST /work/v2/admin/execution-profiles": `{"client_request_id":"sweep-admin-profile-1","profile":{}}`,
+		"POST /work/v2/admin/execution-profiles/{profileId}/revoke": `{"client_request_id":"sweep-admin-profile-revoke","revision":"1","reason":"owner_revoke"}`,
 		"POST /work/v1/inputs":                   `{"client_request_id":"sweep-seat-input","goal":"sweep","background":""}`,
 		"DELETE /work/v1/tasks/{taskId}":         `{"client_request_id":"sweep-seat-delete","expected_revision":0}`,
 		"POST /work/v1/tasks/{taskId}/runs":      `{"client_request_id":"sweep-seat-retry","expected_revision":0,"target":{"kind":"cloud","profile":"text-v1"}}`,

@@ -298,6 +298,8 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 **2026-11-28 0094 model binding 目标策略加固**：device_local profile 发布必须携带非空、唯一且 1–65535 的 `allowed_ports`；binding 只接受精确 `http://127.0.0.1:<approved-port>`，Broker 确认 token 同时绑定 listener identity 与实际探测端口，renderer 不再提供或替换确认端口。17 字段签名 proof 增加 Authenticode signer、owner SID 与 current-user 事实，数据库按 profile 校验 signer 或 pinned-hash 策略以及 current-user/批准 service-SID 策略；跨语言 binding hash 统一 UTF-8 字节长度前缀，proof 过期改用 `clock_timestamp()`。真库覆盖缺端口、重复端口、错端口、错 signer、未批准 service SID、已批准 service SID 正例与 malformed listener JSON 类型拒绝；Rust 654 项、桌面 239 项回归通过，tip94 catalog 已从真实链重采样。生产未部署。
 
+**2026-11-28 0095 ExecutionProfile owner 撤销**：新增 `revoke_execution_profile` 与 `POST /work/v2/admin/execution-profiles/{profileId}/revoke`，要求 owner、CSRF、`client_request_id`、目标 active revision 与 reason code。函数按 profile 锁串行化激活/撤销，幂等重放并拒绝同键异 payload；撤销后 active-only 读取与 verified binding 立即失效，同时撤销该 revision 的设备 binding，并对最新 binding 使用该 profile 的非终态 Operation 发起定向取消，旧 receipt/计量记录保留。真库覆盖 binding 与 Operation fencing、重放/冲突、错 revision、非 owner；API 覆盖 cookie/CSRF、响应与授权穷举，tail catalog 95。生产未部署。
+
 ### 3.5 装后验证与链尾闸 [只读]
 
 - `sudo ./verify-r0a-0027.sh "<开始时刻>"`：`rows=N max=N`、清单 all present、函数体探针 true（claim_carries_takeover、terminal_release_guard、export_discovery_hardened、0040–0045 设备面探针等）。

@@ -24,6 +24,7 @@ const (
 	ExecutionProfilePath              = "/work/v2/execution-profiles/{profileId}/revisions/{revision}"
 	AdminExecutionProfilesPath        = "/work/v2/admin/execution-profiles"
 	AdminExecutionProfileActivatePath = "/work/v2/admin/execution-profiles/{profileId}/activate"
+	AdminExecutionProfileRevokePath   = "/work/v2/admin/execution-profiles/{profileId}/revoke"
 	DeviceModelBindingsPath           = "/work/v2/devices/{deviceId}/model-bindings"
 	DeviceModelBindingProbesPath      = "/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probes"
 	DeviceModelBindingProbeRunsPath   = "/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-runs"
@@ -37,6 +38,7 @@ var configurationProbeTemplateHash = fmt.Sprintf("%x", sha256.Sum256([]byte("dev
 var (
 	modelProbeReceiptNonceRE                 = regexp.MustCompile(modelProbeReceiptNoncePattern)
 	executionProfileExpectedActiveRevisionRE = regexp.MustCompile(`^(0|[1-9][0-9]*)$`)
+	executionProfileReasonRE                 = regexp.MustCompile(`^[a-z][a-z0-9_]{1,63}$`)
 )
 
 type publishExecutionProfileRequest struct {
@@ -48,6 +50,12 @@ type activateExecutionProfileRequest struct {
 	ClientRequestID        string `json:"client_request_id"`
 	Revision               string `json:"revision"`
 	ExpectedActiveRevision string `json:"expected_active_revision"`
+}
+
+type revokeExecutionProfileRequest struct {
+	ClientRequestID string `json:"client_request_id"`
+	Revision        string `json:"revision"`
+	Reason          string `json:"reason"`
 }
 
 type createDeviceModelBindingRequest struct {
@@ -226,6 +234,57 @@ func (s *Server) adminActivateExecutionProfile(w http.ResponseWriter, r *http.Re
 				SELECT work.activate_execution_profile($1, $2, $3, $4, $5::bigint, $6::bigint)`,
 				claims.OrgID, claims.SubjectID, body.ClientRequestID, profileID,
 				revision, expectedActiveRevision).Scan(&raw); err != nil {
+				return err
+			}
+			view = json.RawMessage(append([]byte(nil), raw...))
+			return nil
+		},
+	)
+	if err != nil {
+		s.writeAdminError(w, correlationID, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
+}
+
+func (s *Server) adminRevokeExecutionProfile(w http.ResponseWriter, r *http.Request) {
+	claims, correlationID, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	if !s.verifyCSRF(w, r, claims, correlationID) {
+		return
+	}
+	profileID := r.PathValue("profileId")
+	if profileID == "" || len(profileID) > 128 || strings.TrimSpace(profileID) != profileID {
+		writeAPIError(w, correlationID, apierr.New("not_found"))
+		return
+	}
+	var body revokeExecutionProfileRequest
+	if err := decodeStrictJSON(w, r, &body); err != nil {
+		writeAPIError(w, correlationID, decodeError(err))
+		return
+	}
+	if !validClientRequestID(body.ClientRequestID) || !localPreviewUintPattern.MatchString(body.Revision) ||
+		!executionProfileReasonRE.MatchString(body.Reason) {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	revision, err := strconv.ParseInt(body.Revision, 10, 64)
+	if err != nil || revision < 1 {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	var view json.RawMessage
+	err = workdb.WithWorkContext(r.Context(), s.pool,
+		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
+		workdb.RoleAPI, workdb.Options{},
+		func(tx pgx.Tx) error {
+			var raw []byte
+			if err := tx.QueryRow(r.Context(), `
+				SELECT work.revoke_execution_profile($1, $2, $3, $4, $5::bigint, $6)`,
+				claims.OrgID, claims.SubjectID, body.ClientRequestID, profileID,
+				revision, body.Reason).Scan(&raw); err != nil {
 				return err
 			}
 			view = json.RawMessage(append([]byte(nil), raw...))

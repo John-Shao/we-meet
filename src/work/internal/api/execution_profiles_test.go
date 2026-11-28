@@ -308,6 +308,63 @@ func TestAdminExecutionProfileActivation(t *testing.T) {
 	}
 }
 
+func TestAdminExecutionProfileRevoke(t *testing.T) {
+	pool, dbName := newBootstrapDB(t, true, true)
+	ctx := context.Background()
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(ctx)
+	profileID := "profile-revoke"
+	seedExecutionProfileRevision(t, dbName, profileID, "model-revoke", 1,
+		strings.Repeat("e", 64), strings.Repeat("b", 64), strings.Repeat("a", 64))
+	server := newHTTPServer(t, pool, &stubVerifier{claims: testClaims()}, testCSRF(t))
+	bootstrap := doBootstrap(t, server.URL, "session-value", "corr-profile-revoke")
+	if bootstrap.StatusCode != http.StatusOK {
+		t.Fatalf("bootstrap status = %d", bootstrap.StatusCode)
+	}
+	var boot map[string]any
+	if err := json.NewDecoder(bootstrap.Body).Decode(&boot); err != nil {
+		t.Fatal(err)
+	}
+	bootstrap.Body.Close()
+	csrf, _ := boot["csrf_token"].(string)
+	csrfCookie := findCookie(t, bootstrap, api.CSRFCookieName)
+	path := strings.ReplaceAll(api.AdminExecutionProfileRevokePath, "{profileId}", profileID)
+	body := `{"client_request_id":"revoke-api-1","revision":"1","reason":"owner_revoke"}`
+	request := func(body string) *http.Response {
+		req, err := http.NewRequest(http.MethodPost, server.URL+path, strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.AddCookie(&http.Cookie{Name: host.SessionCookieName, Value: "session-value"})
+		req.AddCookie(csrfCookie)
+		req.Header.Set(api.CSRFHeaderName, csrf)
+		req.Header.Set("Content-Type", "application/json")
+		response, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return response
+	}
+	response := request(body)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("revoke status = %d body=%s", response.StatusCode, readBody(response))
+	}
+	view := decodeObject(t, response)
+	if view["profile_id"] != profileID || view["revision"] != float64(1) ||
+		view["status"] != "revoked" || view["reason"] != "owner_revoke" {
+		t.Fatalf("revoke = %#v", view)
+	}
+	response = request(body)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("revoke replay status = %d body=%s", response.StatusCode, readBody(response))
+	}
+	response = request(`{"client_request_id":"revoke-api-1","revision":"1","reason":"different_reason"}`)
+	assertAPICode(t, response, http.StatusConflict, "idempotency_key_conflict")
+}
+
 func TestDeviceModelBindingAndProbeRejectBadSignaturesBeforeSQL(t *testing.T) {
 	pool, dbName := newBootstrapDB(t, true, true)
 	ctx := context.Background()

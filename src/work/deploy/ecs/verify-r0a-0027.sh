@@ -186,7 +186,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (91, '0091_signed_offer_resource_limits'),
   (92, '0092_execution_profile_resource_bounds'),
   (93, '0093_execution_profile_activation'),
-  (94, '0094_device_model_binding_target_policy')) expected(version, name)
+  (94, '0094_device_model_binding_target_policy'),
+  (95, '0095_execution_profile_revoke')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 psql_ro "select 'approval_proof_es256=' || case when
@@ -426,6 +427,18 @@ psql_ro "select 'device_model_binding_target_policy=' || case when
       where n.nspname='work' and p.proname='create_device_model_binding')) > 0
     and position('^http://127[.]0[.]0[.]1:' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
       where n.nspname='work' and p.proname='create_device_model_binding')) > 0
+    then 'true' else 'FALSE' end"
+psql_ro "select 'execution_profile_revoke_guard=' || case when
+    exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='revoke_execution_profile'
+        and p.prosecdef and p.proowner=(select oid from pg_roles where rolname='work_owner')
+        and p.proconfig @> array['search_path=work, pg_catalog'])
+    and has_function_privilege('work_api',
+      'work.revoke_execution_profile(text,text,text,text,bigint,text)', 'EXECUTE')
+    and not has_function_privilege('public',
+      'work.revoke_execution_profile(text,text,text,text,bigint,text)', 'EXECUTE')
+    and position('work.cancel_operation' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='revoke_execution_profile')) > 0
     then 'true' else 'FALSE' end"
 psql_ro "select 'device_resume_offers=' || case when
     (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace

@@ -924,6 +924,60 @@ func TestDeviceModelBindingRejectsMalformedListenerProofTypes(t *testing.T) {
 	}
 }
 
+func TestExecutionProfileRevokeFencesBindingsAndOperations(t *testing.T) {
+	f := newExecutionProfileFixture(t, "org_ep_revoke")
+	binding := f.createBinding(t, "req-ep-revoke-binding")
+	mustExec(t, f.admin, `UPDATE work.task SET active_run_id=`+quoteLiteral(f.runID)+
+		`,latest_run_id=`+quoteLiteral(f.runID)+` WHERE id=`+quoteLiteral(f.taskID))
+	mustExec(t, f.admin, `INSERT INTO work.device_run_binding
+	  (org_id,run_id,binding_revision,task_id,device_id,session_id,input_ref,input_hash,
+	   snapshot_hash,profile_id,profile_revision,runtime_digest,tool_manifest_hash,model_version,
+	   grant_set,start_nonce,offer_expiry,state)
+	  VALUES (`+quoteLiteral(f.org)+`,`+quoteLiteral(f.runID)+`,1,`+quoteLiteral(f.taskID)+`,`+
+		quoteLiteral(f.deviceID)+`,`+quoteLiteral(f.sessionID)+`,'ref',`+quoteLiteral(hex64("input"))+
+		`,`+quoteLiteral(hex64("snapshot"))+`,`+quoteLiteral(f.profileID)+`,1,`+
+		quoteLiteral(f.runtimeDigest)+`,`+quoteLiteral(f.toolManifestHash)+`,'m1','[{"grant_id":"`+
+		f.grantID+`","grant_revision":1}]'::jsonb,`+
+		quoteLiteral(newUUID(t))+`,now()+interval '2 minutes','active')`)
+	operationID := newUUID(t)
+	mustExec(t, f.admin, `INSERT INTO work.operation
+	  (id,org_id,run_id,logical_key,kind,request_hash,state)
+	  VALUES (`+quoteLiteral(operationID)+`,`+quoteLiteral(f.org)+`,`+quoteLiteral(f.runID)+
+		`,'tool:revoke:1','tool',`+quoteLiteral(hex64("operation"))+`,'authorized')`)
+
+	revokeSQL := `SELECT work.revoke_execution_profile($1,$2,$3,$4,$5::bigint,$6)`
+	revoked := callJSON(t, f.api, revokeSQL, f.org, f.subject, "req-ep-revoke",
+		f.profileID, f.profileRevision, "owner_revoke")
+	if revoked["status"] != "revoked" || revoked["revoked_binding_count"] != float64(1) ||
+		revoked["cancel_requested_operation_count"] != float64(1) {
+		t.Fatalf("revoke = %#v", revoked)
+	}
+	if got := f.scalar(t, "SELECT status FROM work.execution_profile_revision WHERE org_id="+
+		quoteLiteral(f.org)+" AND profile_id="+quoteLiteral(f.profileID)); got != "revoked" {
+		t.Fatalf("profile status = %s", got)
+	}
+	if got := f.scalar(t, "SELECT status || '/' || revision::text FROM work.device_model_binding WHERE id="+
+		quoteLiteral(binding["binding_id"].(string))); got != "revoked/2" {
+		t.Fatalf("binding after revoke = %s", got)
+	}
+	if got := f.scalar(t, "SELECT state FROM work.operation WHERE id="+quoteLiteral(operationID)); got != "canceled" {
+		t.Fatalf("operation after revoke = %s", got)
+	}
+	replayed := callJSON(t, f.api, revokeSQL, f.org, f.subject, "req-ep-revoke",
+		f.profileID, f.profileRevision, "owner_revoke")
+	if replayed["status"] != "revoked" || replayed["revoked_binding_count"] != float64(1) {
+		t.Fatalf("revoke replay = %#v", replayed)
+	}
+	expectCode(t, f.api, "idempotency_key_conflict", revokeSQL, f.org, f.subject,
+		"req-ep-revoke", f.profileID, f.profileRevision, "different_reason")
+	expectCode(t, f.api, "not_found", revokeSQL, f.org, f.subject, "req-ep-revoke-missing",
+		f.profileID, f.profileRevision+1, "owner_revoke")
+	mustExec(t, f.admin, `UPDATE work.member SET role='member' WHERE org_id=`+
+		quoteLiteral(f.org)+` AND subject_id=`+quoteLiteral(f.subject))
+	expectCode(t, f.api, "admin_access_denied", revokeSQL, f.org, f.subject,
+		"req-ep-revoke-nonowner", f.profileID, f.profileRevision, "owner_revoke")
+}
+
 func TestDeviceModelBindingPendingVerifiedAndNegativeBindings(t *testing.T) {
 	f := newExecutionProfileFixture(t, "org_ep_binding")
 	expectCode(t, f.api, "unauthorized", `SELECT work.create_device_model_binding(

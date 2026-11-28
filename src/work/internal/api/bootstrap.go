@@ -206,6 +206,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET "+ExecutionProfilePath, s.getExecutionProfile)
 	mux.HandleFunc("POST "+AdminExecutionProfilesPath, s.adminPublishExecutionProfile)
 	mux.HandleFunc("POST "+AdminExecutionProfileActivatePath, s.adminActivateExecutionProfile)
+	mux.HandleFunc("POST "+AdminExecutionProfileRevokePath, s.adminRevokeExecutionProfile)
 	mux.HandleFunc("POST "+DeviceModelBindingsPath, s.createDeviceModelBinding)
 	mux.HandleFunc("POST "+DeviceModelBindingProbesPath, s.recordModelProfileProbe)
 	mux.HandleFunc("POST "+DeviceModelBindingProbeRunsPath, s.submitConfigurationProbe)
