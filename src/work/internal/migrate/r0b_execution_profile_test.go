@@ -884,6 +884,46 @@ func TestDeviceModelBindingEnforcesApprovedTargetAndSigner(t *testing.T) {
 	}
 }
 
+func TestDeviceModelBindingRejectsMalformedListenerProofTypes(t *testing.T) {
+	f := newExecutionProfileFixture(t, "org_ep_proof_types")
+	f.activateProfileDocument(t, func(doc map[string]any) {
+		policy := doc["endpoint_policy"].(map[string]any)
+		policy["allowed_ports"] = []int{11434}
+		policy["listener_requirement"] = map[string]any{
+			"allowed_signers": []string{"123"}, "allow_pinned_hash": false,
+			"allowed_service_sids": []string{},
+		}
+	}, "req-ep-proof-types")
+	cases := []struct {
+		name   string
+		mutate func(map[string]any)
+	}{
+		{"null current user", func(proof map[string]any) { proof["listener_owner_is_current_user"] = nil }},
+		{"numeric owner sid", func(proof map[string]any) { proof["listener_owner_sid"] = 1020304 }},
+		{"numeric signer", func(proof map[string]any) { proof["listener_signer_thumbprint"] = 123 }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			bindingHash := f.bindingHash()
+			var proof map[string]any
+			if err := json.Unmarshal([]byte(f.bindingProof(t, bindingHash)), &proof); err != nil {
+				t.Fatal(err)
+			}
+			tc.mutate(proof)
+			body, err := json.Marshal(proof)
+			if err != nil {
+				t.Fatal(err)
+			}
+			expectCode(t, f.api, "invalid_request", `
+				SELECT work.create_device_model_binding(
+					$1,$2,$3,$4::uuid,$5::uuid,$6,$7,$8::bigint,$9,$10,$11,$12,$13::jsonb)`,
+				f.org, f.subject, 7, f.deviceID, f.sessionID, "req-"+strings.ReplaceAll(tc.name, " ", "-"), f.profileID,
+				f.profileRevision, f.profileHash, bindingHash, "http://127.0.0.1:11434",
+				f.listenerIdentity, string(body))
+		})
+	}
+}
+
 func TestDeviceModelBindingPendingVerifiedAndNegativeBindings(t *testing.T) {
 	f := newExecutionProfileFixture(t, "org_ep_binding")
 	expectCode(t, f.api, "unauthorized", `SELECT work.create_device_model_binding(

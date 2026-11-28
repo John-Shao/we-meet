@@ -1568,7 +1568,7 @@ test("configureLocalModel signs and validates the native binding proof", async (
   let confirmFields;
   h.pipeResponses.confirmLocalModel = (method, fields) => {
     confirmFields = fields;
-    return { data: modelBindingConfirmation(fields.port) };
+    return { data: modelBindingConfirmation(11434) };
   };
   const result = await h.driver.configureLocalModel(executionProfile, 11434, sessionId);
   assert.equal(result.profileId, executionProfile.profileId);
@@ -1590,6 +1590,7 @@ test("configureLocalModel signs and validates the native binding proof", async (
     "pipe:confirmLocalModel",
   ]);
   assert.equal(confirmFields.confirmation_token, "tok-model");
+  assert.equal(Object.hasOwn(confirmFields, "port"), false);
   assert.equal(confirmFields.profile_revision, "2");
   assert.equal(confirmFields.profile_hash, executionProfile.contentHash);
   assert.equal(confirmFields.auth_epoch, "1");
@@ -1618,7 +1619,7 @@ test("configureLocalModel rejects a proof for another session or profile", async
   const h = harness(t);
   await h.driver.start();
   h.pipeResponses.confirmLocalModel = (method, fields) => {
-    const value = modelBindingConfirmation(fields.port);
+    const value = modelBindingConfirmation(11434);
     value.native_confirmation_proof.session_id = bindingId;
     return { data: value };
   };
@@ -1627,7 +1628,7 @@ test("configureLocalModel rejects a proof for another session or profile", async
     BrokerPipeError,
   );
   h.pipeResponses.confirmLocalModel = (method, fields) => {
-    const value = modelBindingConfirmation(fields.port);
+    const value = modelBindingConfirmation(11434);
     value.native_confirmation_proof.profile_hash = "a".repeat(64);
     return { data: value };
   };
@@ -1636,7 +1637,7 @@ test("configureLocalModel rejects a proof for another session or profile", async
     BrokerPipeError,
   );
   h.pipeResponses.confirmLocalModel = (method, fields) => {
-    const value = modelBindingConfirmation(fields.port);
+    const value = modelBindingConfirmation(11434);
     value.native_confirmation_proof.binding_hash = "a".repeat(64);
     value.binding_hash = "a".repeat(64);
     return { data: value };
@@ -1651,7 +1652,7 @@ test("createDeviceModelBinding submits the signed proof and returns its preview"
   const h = harness(t);
   await h.driver.start();
   h.pipeResponses.confirmLocalModel = (method, fields) => ({
-    data: modelBindingConfirmation(fields.port),
+    data: modelBindingConfirmation(11434),
   });
   const respond = h.apiResponses.createDeviceModelBinding;
   let seen;
@@ -1698,7 +1699,7 @@ test("createDeviceModelBinding fences a late response after account change", asy
   const h = harness(t);
   await h.driver.start();
   h.pipeResponses.confirmLocalModel = (method, fields) => ({
-    data: modelBindingConfirmation(fields.port),
+    data: modelBindingConfirmation(11434),
   });
   const respond = h.apiResponses.createDeviceModelBinding;
   h.apiResponses.createDeviceModelBinding = (action, options) => {

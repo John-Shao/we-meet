@@ -1039,9 +1039,9 @@
       "name": "0094_device_model_binding_target_policy",
       "kind": "increment",
       "file": "increments/0094_device_model_binding_target_policy.sql",
-      "checksum": "sha256:915c82cee4c3a2f25d2ac85f613cd248591219f1b141fe46a2e691cf649e4d46",
+      "checksum": "sha256:fb09beb77449c20965468f6ae36258eb9dca931fc51998f6f457ba413478f2b5",
       "catalog": "catalogs/0094_device_model_binding_target_policy.json",
-      "catalog_checksum": "sha256:c67bf6de65ae6e40836cfab9bcf744a1bcb81fc566e031aa98633737056d84e9",
+      "catalog_checksum": "sha256:61338b9de5489be54981e97bad92ea73631c0608c972e1e35bfa85991b82a062",
       "transactional": true,
       "executable": true
     }

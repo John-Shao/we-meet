@@ -53,6 +53,15 @@ func newOrchestrationFixtureAtOffer(t *testing.T, org string) *orchestrationFixt
 		f.org, f.subject, deviceID, sessionID, "req-o-grant",
 		`{"root_identity_hash":"`+strings.Repeat("8", 64)+`","allowed_tools":["workspace.read"],"matched_rule_index":0,"user_selected_ttl_seconds":3600}`)
 	grantID, _ := grant["grant_id"].(string)
+	mustExec(t, f.admin, `INSERT INTO work.execution_profile_revision
+	  (org_id,profile_id,revision,content_hash,kind,provider,model,api_type,residency,
+	   endpoint_policy,tokenizer_id,context_tokens,max_request_bytes,max_output_tokens,
+	   usage_mode,runtime_digest,tool_manifest_hash,compat_profile_version,max_turns,status)
+	  VALUES (`+quoteLiteral(f.org)+`,'p1',1,`+quoteLiteral(strings.Repeat("a", 64))+`,
+	   'device_local','fixture','m1','chat_completions','device',
+	   '{"allowed_ports":[11434],"listener_requirement":{"allowed_signers":["fixture-signer"],"allow_pinned_hash":true,"allowed_service_sids":[]}}'::jsonb,'fixture',
+	   4096,262144,1024,'actual',`+quoteLiteral(strings.Repeat("4", 64))+`,
+	   `+quoteLiteral(strings.Repeat("5", 64))+`,'1',8,'active')`)
 
 	o := &orchestrationFixture{deviceFixture: f, deviceID: deviceID, sessionID: sessionID,
 		grantID: grantID, revision: 1, op: newUUID(t)}

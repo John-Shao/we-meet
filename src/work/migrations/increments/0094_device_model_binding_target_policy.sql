@@ -5,7 +5,7 @@ CREATE OR REPLACE FUNCTION work.publish_execution_profile(p_org_id text, p_actor
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
- SET search_path TO 'work', 'pg_catalog'
+ SET search_path = work, pg_catalog
 AS $function$
 DECLARE
   v_dedup work.submission_dedup%ROWTYPE;
@@ -190,7 +190,7 @@ CREATE OR REPLACE FUNCTION work.create_device_model_binding(p_org_id text, p_act
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
- SET search_path TO 'work', 'pg_catalog'
+ SET search_path = work, pg_catalog
 AS $function$
 DECLARE
   v_dedup work.submission_dedup%ROWTYPE;
@@ -300,7 +300,24 @@ BEGIN
     || octet_length(p_profile_hash)::text || ':' || p_profile_hash || '|'
     || octet_length(p_local_ref)::text || ':' || p_local_ref || '|'
     || octet_length(p_listener_identity_hash)::text || ':' || p_listener_identity_hash);
-  IF (p_native_confirmation_proof ->> 'v') IS DISTINCT FROM '1'
+  IF jsonb_typeof(p_native_confirmation_proof -> 'v') <> 'string'
+     OR jsonb_typeof(p_native_confirmation_proof -> 'org_id') <> 'string'
+     OR jsonb_typeof(p_native_confirmation_proof -> 'subject_id') <> 'string'
+     OR jsonb_typeof(p_native_confirmation_proof -> 'auth_epoch') <> 'string'
+     OR jsonb_typeof(p_native_confirmation_proof -> 'device_id') <> 'string'
+     OR jsonb_typeof(p_native_confirmation_proof -> 'session_id') <> 'string'
+     OR jsonb_typeof(p_native_confirmation_proof -> 'profile_id') <> 'string'
+     OR jsonb_typeof(p_native_confirmation_proof -> 'profile_revision') <> 'string'
+     OR jsonb_typeof(p_native_confirmation_proof -> 'profile_hash') <> 'string'
+     OR jsonb_typeof(p_native_confirmation_proof -> 'binding_hash') <> 'string'
+     OR jsonb_typeof(p_native_confirmation_proof -> 'local_ref') <> 'string'
+     OR jsonb_typeof(p_native_confirmation_proof -> 'listener_identity_hash') <> 'string'
+     OR jsonb_typeof(p_native_confirmation_proof -> 'listener_signer_thumbprint') NOT IN ('string', 'null')
+     OR jsonb_typeof(p_native_confirmation_proof -> 'listener_owner_sid') <> 'string'
+     OR jsonb_typeof(p_native_confirmation_proof -> 'listener_owner_is_current_user') <> 'boolean'
+     OR jsonb_typeof(p_native_confirmation_proof -> 'nonce') <> 'string'
+     OR jsonb_typeof(p_native_confirmation_proof -> 'expires_at') <> 'string'
+     OR (p_native_confirmation_proof ->> 'v') IS DISTINCT FROM '1'
      OR (p_native_confirmation_proof ->> 'org_id') IS DISTINCT FROM p_org_id
      OR (p_native_confirmation_proof ->> 'subject_id') IS DISTINCT FROM p_actor_subject_id
      OR (p_native_confirmation_proof ->> 'auth_epoch') IS DISTINCT FROM p_auth_epoch::text

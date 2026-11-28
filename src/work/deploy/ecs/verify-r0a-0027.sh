@@ -416,6 +416,8 @@ psql_ro "select 'device_model_binding_target_policy=' || case when
       where n.nspname='work' and p.proname='create_device_model_binding')) > 0
     and position('listener_owner_is_current_user' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
       where n.nspname='work' and p.proname='create_device_model_binding')) > 0
+    and position('jsonb_typeof(p_native_confirmation_proof' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='create_device_model_binding')) > 0
     and position('allowed_service_sids' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
       where n.nspname='work' and p.proname='create_device_model_binding')) > 0
     and position('octet_length(p_org_id)' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace

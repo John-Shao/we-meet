@@ -136,6 +136,7 @@ func TestEveryClientRequestKeyCommandIsIdempotent(t *testing.T) {
 		"accept_local_task=dedup+conflict",
 		"accept_task=dedup+conflict",
 		"acknowledge_run_ready=own_request_hash",
+		"activate_execution_profile=dedup+conflict",
 		"advance_governance_event_cursor=dedup+conflict",
 		"apply_execution_entitlement=own_request_hash",
 		"confirm_device_certificate_renewal=own_request_hash",

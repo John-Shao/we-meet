@@ -129,6 +129,13 @@ func newGatewayFixture(t *testing.T) *gwFixture {
 		INSERT INTO work.org (id, status, home_region, name) VALUES ('%s','active','cn-north','GW');
 		INSERT INTO work.member (org_id, subject_id, status, role, work_seat)
 			VALUES ('%s','%s','active','owner',true);
+		INSERT INTO work.execution_profile_revision
+		  (org_id,profile_id,revision,content_hash,kind,provider,model,api_type,residency,
+		   endpoint_policy,tokenizer_id,context_tokens,max_request_bytes,max_output_tokens,
+		   usage_mode,runtime_digest,tool_manifest_hash,compat_profile_version,max_turns,status)
+		  VALUES ('%s','p1',1,'%s','device_local','fixture','m1','chat_completions','device',
+		   '{"allowed_ports":[11434],"listener_requirement":{"allowed_signers":["fixture-signer"],"allow_pinned_hash":true,"allowed_service_sids":[]}}'::jsonb,
+		   'fixture',4096,262144,1024,'actual','%s','%s','1',8,'active');
 		INSERT INTO work.device
 			(org_id, id, owner_subject_id, device_name, platform, public_key_jwk,
 			 public_key_thumbprint, auth_plane, auth_epoch, status)
@@ -137,7 +144,8 @@ func newGatewayFixture(t *testing.T) *gwFixture {
 			(org_id, device_id, owner_subject_id, auth_plane, auth_epoch,
 			 public_key_thumbprint, ticket_hash, client_request_id, request_hash, expires_at, state)
 			VALUES ('%s','%s','%s','bearer',%d,'%s','%s','tick-1','%s', now() + interval '60 seconds','pending');
-	`, gwOrg, gwOrg, gwSubject, gwOrg, deviceID, gwSubject, string(jwk), thumbprint, gwEpoch,
+	`, gwOrg, gwOrg, gwSubject, gwOrg, strings.Repeat("a", 64), strings.Repeat("4", 64),
+		strings.Repeat("5", 64), gwOrg, deviceID, gwSubject, string(jwk), thumbprint, gwEpoch,
 		gwOrg, deviceID, gwSubject, gwEpoch, thumbprint, ticketHash, sha256Hex("req"))
 	if err := testpg.ExecRaw(ctx, seed, statement); err != nil {
 		_ = seed.Close(ctx)
