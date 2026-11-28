@@ -96,6 +96,10 @@ func envelopeProbe(t *testing.T, serverURL, method, path, body, mode, csrfToken 
 	}
 	var payload map[string]any
 	if err := json.Unmarshal(raw, &payload); err != nil {
+		var list []any
+		if response.StatusCode < http.StatusBadRequest && json.Unmarshal(raw, &list) == nil {
+			return response.StatusCode, nil, string(raw)
+		}
 		t.Fatalf("%s %s did not return a JSON object: status=%d body=%s",
 			method, path, response.StatusCode, firstChars(string(raw)))
 	}
