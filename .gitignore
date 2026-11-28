@@ -131,5 +131,9 @@ src/helm/env.d/aliyun-prod/values.work.yaml.tmp
 /src/work/work-relay
 /src/work/work-worker
 src/work/work-release-*
+
+# Electron Builder probe/release outputs
+/src/desktop/release-probe-*/
+
 *.exe
 .env-test
