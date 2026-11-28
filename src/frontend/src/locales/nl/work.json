@@ -54,6 +54,23 @@
     "emptyInbox": "Nothing needs your attention right now.",
     "inboxUnavailable": "The list of tasks waiting on you is unavailable."
   },
+  "deviceExecution": {
+    "title": "Lokale uitvoering",
+    "description": "Verbind dit apparaat met het goedgekeurde lokale modelendpoint en voer de verificatiecontrole uit.",
+    "profile": "{{model}} · revisie {{revision}}",
+    "port": "Loopbackpoort",
+    "configure": "Verbinden en verifiëren",
+    "failed": "Het lokale model kon niet worden geconfigureerd. Controleer de poort en probeer het opnieuw.",
+    "loadFailed": "Het actieve lokale uitvoeringsprofiel kon niet worden geladen.",
+    "binding": "Koppeling: {{status}}",
+    "probe": {
+      "queued": "Controle in de wachtrij",
+      "running": "Controle wordt uitgevoerd",
+      "verified": "Controle geverifieerd",
+      "failed": "Controle mislukt",
+      "reconcile": "Controle moet worden afgestemd"
+    }
+  },
   "composer": {
     "title": "New work",
     "goal": "Task description",

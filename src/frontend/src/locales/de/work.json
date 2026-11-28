@@ -54,6 +54,23 @@
     "emptyInbox": "Nothing needs your attention right now.",
     "inboxUnavailable": "The list of tasks waiting on you is unavailable."
   },
+  "deviceExecution": {
+    "title": "Lokale Ausführung",
+    "description": "Verbinden Sie dieses Gerät mit dem freigegebenen lokalen Modellendpunkt und führen Sie dessen Verifizierungsprüfung aus.",
+    "profile": "{{model}} · Revision {{revision}}",
+    "port": "Loopback-Port",
+    "configure": "Verbinden und prüfen",
+    "failed": "Das lokale Modell konnte nicht konfiguriert werden. Prüfen Sie den Port und versuchen Sie es erneut.",
+    "loadFailed": "Das aktive lokale Ausführungsprofil konnte nicht geladen werden.",
+    "binding": "Bindung: {{status}}",
+    "probe": {
+      "queued": "Prüfung eingereiht",
+      "running": "Prüfung läuft",
+      "verified": "Prüfung bestätigt",
+      "failed": "Prüfung fehlgeschlagen",
+      "reconcile": "Prüfung muss abgeglichen werden"
+    }
+  },
   "composer": {
     "title": "New work",
     "goal": "Task description",

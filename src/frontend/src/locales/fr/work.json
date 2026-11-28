@@ -54,6 +54,23 @@
     "emptyInbox": "Nothing needs your attention right now.",
     "inboxUnavailable": "The list of tasks waiting on you is unavailable."
   },
+  "deviceExecution": {
+    "title": "Exécution locale",
+    "description": "Connectez cet appareil au point de terminaison du modèle local approuvé et lancez sa vérification.",
+    "profile": "{{model}} · révision {{revision}}",
+    "port": "Port loopback",
+    "configure": "Connecter et vérifier",
+    "failed": "Le modèle local n’a pas pu être configuré. Vérifiez le port et réessayez.",
+    "loadFailed": "Le profil d’exécution local actif n’a pas pu être chargé.",
+    "binding": "Liaison : {{status}}",
+    "probe": {
+      "queued": "Vérification en attente",
+      "running": "Vérification en cours",
+      "verified": "Vérification confirmée",
+      "failed": "Échec de la vérification",
+      "reconcile": "La vérification doit être rapprochée"
+    }
+  },
   "composer": {
     "title": "New work",
     "goal": "Task description",
