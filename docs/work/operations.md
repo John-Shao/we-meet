@@ -290,6 +290,8 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 **2026-11-28 0092 ExecutionProfile 有限上界**：数据库新增约束：`max_request_bytes ≤ 262144`、`context_tokens/max_output_tokens/max_turns ≤ 2^53−1`，且 `max_output_tokens ≤ context_tokens`；发布夹具同步收紧到 262144 bytes。真库覆盖五类越界拒绝，verifier 钉住五个约束与关键数值，tail catalog 92。Node bundle 同步校验 `max_tokens≤2^53−1`、`max_bytes≤262144`，普通模型请求显式携带 `max_tokens`，序列化请求超字节时在任何 model frame 前失败；79 项 bundle 回归通过。生产未部署。
 
+**2026-11-28 0093 ExecutionProfile 原子激活**：新增 owner-only `activate_execution_profile` 与 `POST /work/v2/admin/execution-profiles/{profileId}/activate`，以 `expected_active_revision` 做乐观并发：draft device_local revision 原子切换为 active，旧 active revision 同步 revoked；同 profile 唯一 active 索引、锁顺序、幂等重放/冲突与审计均落库。真库覆盖旧新状态、重放、错期望 revision 与非 owner 拒绝，API 覆盖 cookie/CSRF 与响应，tail catalog 93。生产未部署。
+
 ### 3.5 装后验证与链尾闸 [只读]
 
 - `sudo ./verify-r0a-0027.sh "<开始时刻>"`：`rows=N max=N`、清单 all present、函数体探针 true（claim_carries_takeover、terminal_release_guard、export_discovery_hardened、0040–0045 设备面探针等）。

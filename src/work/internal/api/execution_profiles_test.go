@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/we-meet/work/internal/api"
+	"github.com/we-meet/work/internal/host"
 	"github.com/we-meet/work/internal/testpg"
 )
 
@@ -206,6 +208,103 @@ func TestDeviceModelProbePreviewRefreshAPI(t *testing.T) {
 	}
 	if probes != 2 || bindingRevision != 1 || oldState != "queued" {
 		t.Fatalf("refresh rows probes=%d binding_revision=%d old_state=%s", probes, bindingRevision, oldState)
+	}
+}
+
+func TestAdminExecutionProfileActivation(t *testing.T) {
+	pool, dbName := newBootstrapDB(t, true, true)
+	ctx := context.Background()
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(ctx)
+	profileID := "profile-activate"
+	profileHash := strings.Repeat("e", 64)
+	seedExecutionProfileRevision(t, dbName, profileID, "model-activate", 1,
+		profileHash, strings.Repeat("b", 64), strings.Repeat("a", 64))
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO work.execution_profile_revision
+		  (org_id,profile_id,revision,content_hash,kind,provider,model,api_type,
+		   residency,endpoint_policy,tokenizer_id,context_tokens,max_request_bytes,
+		   max_output_tokens,usage_mode,runtime_digest,tool_manifest_hash,
+		   compat_profile_version,max_turns,status)
+		SELECT org_id,profile_id,revision+1,content_hash,kind,provider,model,api_type,
+		       residency,endpoint_policy,tokenizer_id,context_tokens,max_request_bytes,
+		       max_output_tokens,usage_mode,runtime_digest,tool_manifest_hash,
+		       compat_profile_version,max_turns,'draft'
+		FROM work.execution_profile_revision
+		WHERE org_id=$1 AND profile_id=$2 AND revision=1`, testOrg, profileID); err != nil {
+		t.Fatal(err)
+	}
+	server := newHTTPServer(t, pool, &stubVerifier{claims: testClaims()}, testCSRF(t))
+	bootstrap := doBootstrap(t, server.URL, "session-value", "corr-profile-activate")
+	if bootstrap.StatusCode != http.StatusOK {
+		t.Fatalf("bootstrap status = %d", bootstrap.StatusCode)
+	}
+	var boot map[string]any
+	if err := json.NewDecoder(bootstrap.Body).Decode(&boot); err != nil {
+		t.Fatal(err)
+	}
+	bootstrap.Body.Close()
+	csrf, _ := boot["csrf_token"].(string)
+	csrfCookie := findCookie(t, bootstrap, api.CSRFCookieName)
+	path := strings.ReplaceAll(api.AdminExecutionProfileActivatePath, "{profileId}", profileID)
+	body := `{"client_request_id":"activate-api-1","revision":"2","expected_active_revision":"1"}`
+	request := func(body string) *http.Response {
+		req, err := http.NewRequest(http.MethodPost, server.URL+path, strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.AddCookie(&http.Cookie{Name: host.SessionCookieName, Value: "session-value"})
+		req.AddCookie(csrfCookie)
+		req.Header.Set(api.CSRFHeaderName, csrf)
+		req.Header.Set("Content-Type", "application/json")
+		response, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return response
+	}
+	response := request(body)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("activation status = %d body=%s", response.StatusCode, readBody(response))
+	}
+	view := decodeObject(t, response)
+	if view["profile_id"] != profileID || view["revision"] != float64(2) ||
+		view["status"] != "active" || view["previous_active_revision"] != float64(1) {
+		t.Fatalf("activation = %#v", view)
+	}
+	response = request(body)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("activation replay status = %d body=%s", response.StatusCode, readBody(response))
+	}
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO work.execution_profile_revision
+		  (org_id,profile_id,revision,content_hash,kind,provider,model,api_type,
+		   residency,endpoint_policy,tokenizer_id,context_tokens,max_request_bytes,
+		   max_output_tokens,usage_mode,runtime_digest,tool_manifest_hash,
+		   compat_profile_version,max_turns,status)
+		SELECT org_id,profile_id,revision+1,content_hash,kind,provider,model,api_type,
+		       residency,endpoint_policy,tokenizer_id,context_tokens,max_request_bytes,
+		       max_output_tokens,usage_mode,runtime_digest,tool_manifest_hash,
+		       compat_profile_version,max_turns,'draft'
+		FROM work.execution_profile_revision
+		WHERE org_id=$1 AND profile_id=$2 AND revision=2`, testOrg, profileID); err != nil {
+		t.Fatal(err)
+	}
+	response = request(`{"client_request_id":"activate-api-conflict","revision":"3","expected_active_revision":"0"}`)
+	assertAPICode(t, response, http.StatusConflict, "version_conflict")
+	var oldStatus, newStatus string
+	if err := admin.QueryRow(ctx, `
+		SELECT
+		  (SELECT status FROM work.execution_profile_revision WHERE org_id=$1 AND profile_id=$2 AND revision=1),
+		  (SELECT status FROM work.execution_profile_revision WHERE org_id=$1 AND profile_id=$2 AND revision=2)`,
+		testOrg, profileID).Scan(&oldStatus, &newStatus); err != nil {
+		t.Fatal(err)
+	}
+	if oldStatus != "revoked" || newStatus != "active" {
+		t.Fatalf("activation statuses old=%s new=%s", oldStatus, newStatus)
 	}
 }
 

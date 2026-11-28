@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 92,
-  "chainTipCatalog": "catalogs/0092_execution_profile_resource_bounds.json",
+  "chainTip": 93,
+  "chainTipCatalog": "catalogs/0093_execution_profile_activation.json",
   "entries": [
     {
       "name": "GET /api/v1.0/admin/work-governance-assignments/",
@@ -131,6 +131,15 @@
     },
     {
       "name": "POST /work/v2/admin/execution-profiles",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "POST /work/v2/admin/execution-profiles/{profileId}/activate",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",
       "callableBy": [
@@ -369,6 +378,15 @@
       "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
       "callableBy": [
         "work_worker"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "activate_execution_profile",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0093_execution_profile_activation.sql",
+      "callableBy": [
+        "work_api"
       ],
       "classification": "external-audit-required"
     },
@@ -655,7 +673,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0092_execution_profile_resource_bounds.json",
+      "origin": "src/work/migrations/catalogs/0093_execution_profile_activation.json",
       "callableBy": [
         "work_api",
         "work_governance_events"

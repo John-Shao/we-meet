@@ -94,6 +94,8 @@ const IMPLEMENTED_ONLY = [
   'POST /work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-previews',
   // Device-owned probe status read with structured usage and a fixed safe error (0090).
   'GET /work/v2/devices/{deviceId}/model-probes/{probeId}',
+  // Owner-only atomic ExecutionProfile activation (0093).
+  'POST /work/v2/admin/execution-profiles/{profileId}/activate',
 ];
 
 function readGoSurface() {

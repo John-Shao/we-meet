@@ -141,6 +141,100 @@ func TestExecutionProfileResourceBounds(t *testing.T) {
 	}
 }
 
+func TestExecutionProfileActivationAtomicAndReplays(t *testing.T) {
+	f := newExecutionProfileFixture(t, "org-profile-activation")
+	_, err := f.admin.Exec(testContext(t), `
+		INSERT INTO work.execution_profile_revision
+		  (org_id,profile_id,revision,content_hash,kind,provider,model,api_type,
+		   residency,endpoint_policy,tokenizer_id,context_tokens,max_request_bytes,
+		   max_output_tokens,usage_mode,runtime_digest,tool_manifest_hash,
+		   compat_profile_version,max_turns,status)
+		SELECT org_id,profile_id,revision+1,content_hash,kind,provider,model,api_type,
+		       residency,endpoint_policy,tokenizer_id,context_tokens,max_request_bytes,
+		       max_output_tokens,usage_mode,runtime_digest,tool_manifest_hash,
+		       compat_profile_version,max_turns,'draft'
+		FROM work.execution_profile_revision
+		WHERE org_id=$1 AND profile_id=$2 AND revision=1`, f.org, f.profileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	activated := callJSON(t, f.api, `
+		SELECT work.activate_execution_profile($1,$2,$3,$4,$5::bigint,$6::bigint)`,
+		f.org, f.subject, "req-profile-activate", f.profileID, 2, 1)
+	if activated["profile_id"] != f.profileID || activated["revision"] != float64(2) ||
+		activated["status"] != "active" || activated["previous_active_revision"] != float64(1) {
+		t.Fatalf("activated profile = %#v", activated)
+	}
+	replayed := callJSON(t, f.api, `
+		SELECT work.activate_execution_profile($1,$2,$3,$4,$5::bigint,$6::bigint)`,
+		f.org, f.subject, "req-profile-activate", f.profileID, 2, 1)
+	if replayed["revision"] != float64(2) || replayed["previous_active_revision"] != float64(1) {
+		t.Fatalf("activation replay = %#v", replayed)
+	}
+	var oldStatus, newStatus string
+	if err := f.admin.QueryRow(testContext(t), `
+		SELECT
+		  (SELECT status FROM work.execution_profile_revision WHERE org_id=$1 AND profile_id=$2 AND revision=1),
+		  (SELECT status FROM work.execution_profile_revision WHERE org_id=$1 AND profile_id=$2 AND revision=2)`,
+		f.org, f.profileID).Scan(&oldStatus, &newStatus); err != nil {
+		t.Fatal(err)
+	}
+	if oldStatus != "revoked" || newStatus != "active" {
+		t.Fatalf("activation statuses old=%s new=%s", oldStatus, newStatus)
+	}
+	if _, err := f.admin.Exec(testContext(t), `
+		INSERT INTO work.execution_profile_revision
+		  (org_id,profile_id,revision,content_hash,kind,provider,model,api_type,
+		   residency,endpoint_policy,tokenizer_id,context_tokens,max_request_bytes,
+		   max_output_tokens,usage_mode,runtime_digest,tool_manifest_hash,
+		   compat_profile_version,max_turns,status)
+		SELECT org_id,profile_id,revision+1,content_hash,kind,provider,model,api_type,
+		       residency,endpoint_policy,tokenizer_id,context_tokens,max_request_bytes,
+		       max_output_tokens,usage_mode,runtime_digest,tool_manifest_hash,
+		       compat_profile_version,max_turns,'draft'
+		FROM work.execution_profile_revision
+		WHERE org_id=$1 AND profile_id=$2 AND revision=2`, f.org, f.profileID); err != nil {
+		t.Fatal(err)
+	}
+	expectCode(t, f.api, "revision_conflict", `
+		SELECT work.activate_execution_profile($1,$2,$3,$4,$5::bigint,$6::bigint)`,
+		f.org, f.subject, "req-profile-conflict", f.profileID, 3, 0)
+	expectCode(t, f.api, "revision_conflict", `
+		SELECT work.activate_execution_profile($1,$2,$3,$4,$5::bigint,$6::bigint)`,
+		f.org, f.subject, "req-profile-stale", f.profileID, 3, 1)
+	expectCode(t, f.api, "invalid_request", `
+		SELECT work.activate_execution_profile($1,$2,$3,$4,$5::bigint,$6::bigint)`,
+		f.org, f.subject, "req-profile-null", f.profileID, 3, nil)
+	if _, err := f.admin.Exec(testContext(t), `
+		UPDATE work.execution_profile_revision SET status='revoked'
+		WHERE org_id=$1 AND profile_id=$2 AND revision=2`, f.org, f.profileID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.admin.Exec(testContext(t), `
+		INSERT INTO work.execution_profile_revision
+		  (org_id,profile_id,revision,content_hash,kind,provider,model,api_type,
+		   residency,endpoint_policy,tokenizer_id,context_tokens,max_request_bytes,
+		   max_output_tokens,usage_mode,runtime_digest,tool_manifest_hash,
+		   compat_profile_version,max_turns,status)
+		SELECT org_id,profile_id,4,content_hash,kind,provider,model,api_type,
+		       residency,endpoint_policy,tokenizer_id,context_tokens,max_request_bytes,
+		       max_output_tokens,usage_mode,runtime_digest,tool_manifest_hash,
+		       compat_profile_version,max_turns,'draft'
+		FROM work.execution_profile_revision
+		WHERE org_id=$1 AND profile_id=$2 AND revision=2`, f.org, f.profileID); err != nil {
+		t.Fatal(err)
+	}
+	firstActive := callJSON(t, f.api, `
+		SELECT work.activate_execution_profile($1,$2,$3,$4,$5::bigint,$6::bigint)`,
+		f.org, f.subject, "req-profile-first-active", f.profileID, 4, 0)
+	if firstActive["revision"] != float64(4) || firstActive["previous_active_revision"] != nil {
+		t.Fatalf("first active profile = %#v", firstActive)
+	}
+	expectCode(t, f.api, "admin_access_denied", `
+		SELECT work.activate_execution_profile($1,$2,$3,$4,$5::bigint,$6::bigint)`,
+		f.org, "not-an-owner", "req-profile-denied", f.profileID, 2, 2)
+}
+
 func (f *executionProfileFixture) bindingProof(t *testing.T, bindingHash string) string {
 	t.Helper()
 	proof := map[string]any{

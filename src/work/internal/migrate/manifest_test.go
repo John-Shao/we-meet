@@ -105,6 +105,7 @@ var publishedIncrements = []string{
 	"0090_device_model_probe_status",
 	"0091_signed_offer_resource_limits",
 	"0092_execution_profile_resource_bounds",
+	"0093_execution_profile_activation",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

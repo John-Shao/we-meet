@@ -184,7 +184,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (89, '0089_device_model_probe_preview_refresh'),
   (90, '0090_device_model_probe_status'),
   (91, '0091_signed_offer_resource_limits'),
-  (92, '0092_execution_profile_resource_bounds')) expected(version, name)
+  (92, '0092_execution_profile_resource_bounds'),
+  (93, '0093_execution_profile_activation')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 psql_ro "select 'approval_proof_es256=' || case when
@@ -392,6 +393,20 @@ psql_ro "select 'execution_profile_resource_bounds=' || case when
     and position('9007199254740991' in (select pg_get_constraintdef(oid) from pg_constraint
       where conrelid='work.execution_profile_revision'::regclass
         and conname='execution_profile_revision_context_tokens_bound')) > 0
+    then 'true' else 'FALSE' end"
+psql_ro "select 'execution_profile_activation_guard=' || case when
+    exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='activate_execution_profile'
+        and p.prosecdef and p.proowner=(select oid from pg_roles where rolname='work_owner')
+        and p.proconfig @> array['search_path=work, pg_catalog'])
+    and has_function_privilege('work_api',
+      'work.activate_execution_profile(text,text,text,text,bigint,bigint)', 'EXECUTE')
+    and not has_function_privilege('public',
+      'work.activate_execution_profile(text,text,text,text,bigint,bigint)', 'EXECUTE')
+    and position('''revision_conflict''' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='activate_execution_profile')) > 0
+    and exists (select 1 from pg_indexes where schemaname='work'
+      and indexname='work_execution_profile_one_active')
     then 'true' else 'FALSE' end"
 psql_ro "select 'device_resume_offers=' || case when
     (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
