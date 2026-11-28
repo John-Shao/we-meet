@@ -179,6 +179,21 @@ func TestDeviceModelProbePreviewRefreshAPI(t *testing.T) {
 	if replayPreview["probe_id"] != newProbeID {
 		t.Fatalf("preview replay = %#v first=%#v", replay, view)
 	}
+	statusPath := strings.ReplaceAll(api.DeviceModelProbePath, "{deviceId}", deviceID)
+	statusPath = strings.ReplaceAll(statusPath, "{probeId}", newProbeID)
+	response = deviceRequest(t, http.MethodGet, server.URL+statusPath, "")
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("probe GET status = %d body=%s", response.StatusCode, readBody(response))
+	}
+	status := decodeObject(t, response)
+	if status["probe_id"] != newProbeID || status["binding_id"] != bindingID ||
+		status["state"] != "queued" || status["usage"] != nil || status["safe_error"] != nil {
+		t.Fatalf("probe GET = %#v", status)
+	}
+	missingPath := strings.ReplaceAll(api.DeviceModelProbePath, "{deviceId}", deviceID)
+	missingPath = strings.ReplaceAll(missingPath, "{probeId}", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+	response = deviceRequest(t, http.MethodGet, server.URL+missingPath, "")
+	assertAPICode(t, response, http.StatusNotFound, "not_found")
 	var probes, bindingRevision int64
 	var oldState string
 	if err := admin.QueryRow(ctx, `

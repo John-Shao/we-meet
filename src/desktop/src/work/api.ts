@@ -23,6 +23,7 @@ export type WorkAction =
   | "getExecutionProfile"
   | "createDeviceModelBinding"
   | "refreshModelProbePreview"
+  | "getModelProbe"
   | "submitConfigurationProbe"
   | "recordModelProbe";
 export interface WorkAuth {
@@ -53,7 +54,7 @@ const endpoints: Record<
       | "profileId"
       | "revision"
       | "bindingId";
-    id2?: "revision" | "bindingId";
+    id2?: "revision" | "bindingId" | "probeId";
   }
 > = {
   identity: { method: "GET", path: "/work/v2/identity" },
@@ -133,6 +134,12 @@ const endpoints: Record<
     path: "/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-previews",
     id: "deviceId",
     id2: "bindingId",
+  },
+  getModelProbe: {
+    method: "GET",
+    path: "/work/v2/devices/{deviceId}/model-probes/{probeId}",
+    id: "deviceId",
+    id2: "probeId",
   },
   submitConfigurationProbe: {
     method: "POST",

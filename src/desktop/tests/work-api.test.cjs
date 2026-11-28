@@ -168,12 +168,17 @@ test("execution profile, binding, and probe-run actions use their closed routes"
     id2: bindingId,
     body: probeBody,
   });
+  await api.request("getModelProbe", {
+    id: deviceId,
+    id2: probeBody.probe_id,
+  });
   assert.deepEqual(
     seen.map(({ method, url }) => `${method} ${url}`),
     [
       "GET /work/v2/execution-profiles/profile-1/revisions/1",
       `POST /work/v2/devices/${deviceId}/model-bindings`,
       `POST /work/v2/devices/${deviceId}/model-bindings/${bindingId}/probe-runs`,
+      `GET /work/v2/devices/${deviceId}/model-probes/${probeBody.probe_id}`,
     ],
   );
   assert.equal(seen[0].body, "");
@@ -189,7 +194,7 @@ test("execution profile, binding, and probe-run actions use their closed routes"
     api.request("createDeviceModelBinding", { id: deviceId, body: bindingBody }),
     "invalid_work_request",
   );
-  assert.equal(seen.length, 3);
+  assert.equal(seen.length, 4);
 });
 
 test("refreshModelProbePreview uses the Bearer device route without a device signature", async (t) => {

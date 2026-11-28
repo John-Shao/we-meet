@@ -989,6 +989,17 @@
       "catalog_checksum": "sha256:7d66f7b2b7350be05fd53e45eda550cdff3f1ded329428d4093d07e6d76e53a4",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 90,
+      "name": "0090_device_model_probe_status",
+      "kind": "increment",
+      "file": "increments/0090_device_model_probe_status.sql",
+      "checksum": "sha256:53136428ba986874d3e0c9dcd079c3f54d3aebbb6d5a2b86e06a285f54d5dce8",
+      "catalog": "catalogs/0090_device_model_probe_status.json",
+      "catalog_checksum": "sha256:1d94683dd988da959bb8620554d5571e722dc4994d41e08f289662a96e682396",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

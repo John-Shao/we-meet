@@ -284,6 +284,8 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 **2026-11-28 0089 probe preview 过期刷新**：新增 `refresh_device_model_probe_preview` 与 `POST /work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-previews`，仅允许当前 owner/seat、active bearer device/session、匹配 active device_local profile、pending binding 的最新 queued probe 已过期且无 Task/Run 时刷新。函数按 org→member/device/session→binding/profile/probe 顺序加锁，以 client request ID 幂等，保留 binding ID/revision/profile/listener identity 与旧 probe 行，只插入新 UUID 的 60 秒 queued preview；未过期、running、已验证、撤销 profile、错 revision/会话均拒绝。真库覆盖旧 probe 不变、新 preview hash、binding 保持、幂等重放/冲突、未过期与 running 拒绝，tail catalog 89 通过。生产未部署。
 
+**2026-11-28 0090 probe 状态读面**：新增 `get_device_model_probe` 与 `GET /work/v2/devices/{deviceId}/model-probes/{probeId}`。函数为 `SECURITY DEFINER`、固定 `search_path=work, pg_catalog`，核对当前组织/主体、active device 所有权后返回 probe/binding/profile 标识、状态、有效期、Task/Run/Operation 关联、结构化 token usage；failed/reconcile 仅返回固定 `probe_failed`，不泄露供应商错误。API 角色仅获该函数 EXECUTE，不获得 R0b 新表直接 SELECT 权限；桌面 `WorkApi.getModelProbe` 使用同一闭合路由。真库 API 覆盖 queued 状态与空 usage/safe_error，tail catalog 90 通过。生产未部署。
+
 ### 3.5 装后验证与链尾闸 [只读]
 
 - `sudo ./verify-r0a-0027.sh "<开始时刻>"`：`rows=N max=N`、清单 all present、函数体探针 true（claim_carries_takeover、terminal_release_guard、export_discovery_hardened、0040–0045 设备面探针等）。

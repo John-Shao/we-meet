@@ -92,6 +92,8 @@ const IMPLEMENTED_ONLY = [
   'POST /work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-runs',
   // Expiry-only refresh that preserves the binding and creates a fresh probe preview (0089).
   'POST /work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-previews',
+  // Device-owned probe status read with structured usage and a fixed safe error (0090).
+  'GET /work/v2/devices/{deviceId}/model-probes/{probeId}',
 ];
 
 function readGoSurface() {

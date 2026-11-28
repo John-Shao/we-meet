@@ -27,6 +27,7 @@ const (
 	DeviceModelBindingProbesPath    = "/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probes"
 	DeviceModelBindingProbeRunsPath = "/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-runs"
 	DeviceModelProbePreviewsPath    = "/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-previews"
+	DeviceModelProbePath            = "/work/v2/devices/{deviceId}/model-probes/{probeId}"
 	modelProbeReceiptNoncePattern   = `^[A-Za-z0-9_-]{8,128}$`
 )
 
@@ -245,6 +246,43 @@ func (s *Server) createDeviceModelBinding(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusCreated, view)
+}
+
+func (s *Server) getDeviceModelProbe(w http.ResponseWriter, r *http.Request) {
+	claims, correlationID, ok := s.authenticateBearer(w, r)
+	if !ok {
+		return
+	}
+	if err := s.requireWriter(r.Context(), claims); err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
+	deviceID := r.PathValue("deviceId")
+	probeID := r.PathValue("probeId")
+	if !validUUID(deviceID) || !validUUID(probeID) {
+		writeAPIError(w, correlationID, apierr.New("not_found"))
+		return
+	}
+	var view json.RawMessage
+	err := workdb.WithWorkContext(r.Context(), s.pool,
+		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
+		workdb.RoleAPI, workdb.Options{ReadOnly: true},
+		func(tx pgx.Tx) error {
+			var raw []byte
+			if err := tx.QueryRow(r.Context(), `
+				SELECT work.get_device_model_probe($1, $2, $3::uuid, $4::uuid)`,
+				claims.OrgID, claims.SubjectID, deviceID, probeID).Scan(&raw); err != nil {
+				return err
+			}
+			view = json.RawMessage(append([]byte(nil), raw...))
+			return nil
+		},
+	)
+	if err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
 }
 
 func (s *Server) refreshDeviceModelProbePreview(w http.ResponseWriter, r *http.Request) {

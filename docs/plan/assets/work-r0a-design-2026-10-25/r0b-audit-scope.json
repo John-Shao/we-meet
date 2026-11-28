@@ -1,7 +1,7 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 89,
-  "chainTipCatalog": "catalogs/0089_device_model_probe_preview_refresh.json",
+  "chainTip": 90,
+  "chainTipCatalog": "catalogs/0090_device_model_probe_status.json",
   "entries": [
     {
       "name": "GET /api/v1.0/admin/work-governance-assignments/",
@@ -41,6 +41,15 @@
     },
     {
       "name": "GET /work/v2/devices",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "GET /work/v2/devices/{deviceId}/model-probes/{probeId}",
       "surface": "http",
       "origin": "src/work/internal/api/bootstrap.go",
       "callableBy": [
@@ -599,6 +608,15 @@
       "classification": "external-audit-required"
     },
     {
+      "name": "get_device_model_probe",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0090_device_model_probe_status.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
       "name": "get_execution_profile",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0085_execution_profile_binding.sql",
@@ -637,7 +655,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0089_device_model_probe_preview_refresh.json",
+      "origin": "src/work/migrations/catalogs/0090_device_model_probe_status.json",
       "callableBy": [
         "work_api",
         "work_governance_events"
