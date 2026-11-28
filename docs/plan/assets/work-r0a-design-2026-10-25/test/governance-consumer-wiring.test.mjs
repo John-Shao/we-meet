@@ -60,7 +60,22 @@ test('full rollout proves role, mTLS and org coverage before installing the time
   assert.match(verify, /governance_cert_valid/);
   assert.match(rollout, /select rolname from pg_roles where rolname='work_governance_events_login'/);
   assert.match(rollout, /select id from work\.org/);
-  assert.match(rollout, /WORK_GOVERNANCE_ORGS must exactly cover every work\.org id/);
+  assert.match(rollout, /verify_org_coverage WORK_GOVERNANCE_ORGS "\$orgs" "\$database"/);
+  assert.match(rollout, /must exactly cover every work\.org id; duplicate, empty, unknown or missing entries are not allowed/);
+  for (const key of [
+    'WORK_GOVERNANCE_ORGS',
+    'WORK_DATABASE_URL',
+    'WORK_GOVERNANCE_HOST_BASE_URL',
+    'WORK_GOVERNANCE_CLIENT_CERT',
+    'WORK_GOVERNANCE_CLIENT_KEY',
+    'WORK_GOVERNANCE_CA',
+    'WORK_GOVERNANCE_CLIENT_CA',
+  ]) {
+    assert.ok(rollout.includes(`read_env_exact "$env_file" ${key}`), `${key} must appear exactly once`);
+  }
+  assert.match(rollout, /verify_org_coverage WORK_GOVERNANCE_ORGS "\$orgs" "\$database"/);
+  assert.doesNotMatch(rollout, /configured_sorted=.*sort -u/,
+    'sort -u would silently accept duplicate configured org ids');
   assert.match(rollout, /run chown root:work-control \/etc\/work\/work-governance-events\.env/);
   assert.match(rollout, /run chmod 640 \/etc\/work\/work-governance-events\.env/);
   for (const unit of ['work-governance-events.service', 'work-governance-events.timer']) {

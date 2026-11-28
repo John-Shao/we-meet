@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# READ-ONLY package and host-copy preflight for the 0040-0062 rollout. No writes.
+# READ-ONLY package and host-copy preflight for the current rollout. No writes.
 set -uo pipefail
 
 PF_FAILURES=0
-EXPECTED_MIGRATION_TAIL="${EXPECTED_MIGRATION_TAIL:-62}"
+EXPECTED_MIGRATION_TAIL="${EXPECTED_MIGRATION_TAIL:-97}"
 WORK_RELEASE_ROOT="${WORK_RELEASE_ROOT:-/root}"
 WORK_INSTALL_BIN_DIR="${WORK_INSTALL_BIN_DIR:-/usr/local/bin}"
 WORK_BACKUP_PY="${WORK_BACKUP_PY:-/opt/meet-db-backup/work-content-backup.py}"

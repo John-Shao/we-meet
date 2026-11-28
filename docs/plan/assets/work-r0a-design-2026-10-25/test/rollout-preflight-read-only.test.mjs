@@ -1,4 +1,4 @@
-// The 0040-0062 rollout pre-flight readings are taken by two shell scripts that run as root on
+// The 0063-0097 rollout pre-flight readings are taken by two shell scripts that run as root on
 // the production host. "Root on production" plus "read-only" is a claim, not a fact, until a
 // machine checks it - so this gate refuses the scripts the moment they gain a state-changing
 // command, and keeps a positive control (the real rollout script) to prove the scan has teeth.

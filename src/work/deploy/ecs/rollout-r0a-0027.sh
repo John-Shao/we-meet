@@ -227,9 +227,39 @@ install_env() {
   echo "installed $target from template; review placeholders before starting"
 }
 
+read_env_exact() {
+  local env_file="$1" key="$2" lines value
+  lines="$(grep -c "^${key}=" "$env_file" || true)"
+  if [[ "$lines" != "1" ]]; then
+    echo "aborting: $key must appear exactly once in $env_file (found $lines)" >&2
+    exit 1
+  fi
+  value="$(grep "^${key}=" "$env_file" | tail -1 | cut -d= -f2-)"
+  value="${value#"${value%%[![:space:]\"\']*}"}"
+  value="${value%"${value##*[![:space:]\"\']}"}"
+  printf '%s' "$value"
+}
+
+verify_org_coverage() {
+  local label="$1" configured="$2" database="$3"
+  local configured_sorted database_sorted duplicates
+  configured_sorted="$(printf '%s\n' "$configured" | tr '[:space:]' '\n' | sed '/^$/d' | LC_ALL=C sort)"
+  database_sorted="$(printf '%s\n' "$database" | sed '/^$/d' | LC_ALL=C sort)"
+  duplicates="$(printf '%s\n' "$configured_sorted" | uniq -d)"
+  if [[ -z "$configured_sorted" || -n "$duplicates" || "$configured_sorted" != "$database_sorted" ]]; then
+    echo "aborting: $label must exactly cover every work.org id; duplicate, empty, unknown or missing entries are not allowed." >&2
+    if [[ -n "$duplicates" ]]; then
+      echo "duplicate configured ids:" >&2; printf '%s\n' "$duplicates" >&2
+    fi
+    echo "configured:" >&2; printf '%s\n' "$configured_sorted" >&2
+    echo "database:" >&2; printf '%s\n' "$database_sorted" >&2
+    exit 1
+  fi
+}
+
 verify_cancel_org_coverage() {
   local env_file="/etc/work/work-cancel.env"
-  local configured database configured_sorted database_sorted
+  local configured database
   if [[ ! -r "$env_file" ]]; then
     echo "aborting: $env_file is required before enabling work-cancel; copy the packaged template," >&2
     echo "  set WORK_CANCEL_ORGS to the complete work.org id list, and chown root:work-control/chmod 640." >&2
@@ -239,40 +269,32 @@ verify_cancel_org_coverage() {
     echo "aborting: work-cancel.service reuses /etc/work/work-worker.env, but it is missing or unreadable." >&2
     exit 1
   fi
-  configured="$(grep '^WORK_CANCEL_ORGS=' "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
+  configured="$(read_env_exact "$env_file" WORK_CANCEL_ORGS)"
   if ! database="$(runuser -u postgres -- psql -d work -X -At -v ON_ERROR_STOP=1 -c 'select id from work.org')"; then
     echo "aborting: could not read work.org for work-cancel coverage; a partial org list is not safe." >&2
     exit 1
   fi
-  configured_sorted="$(printf '%s\n' "$configured" | tr '[:space:]' '\n' | sed '/^$/d' | sort -u)"
-  database_sorted="$(printf '%s\n' "$database" | sed '/^$/d' | sort -u)"
-  if [[ -z "$configured_sorted" || "$configured_sorted" != "$database_sorted" ]]; then
-    echo "aborting: WORK_CANCEL_ORGS must exactly cover every work.org id before work-cancel is enabled." >&2
-    echo "configured:" >&2; printf '%s\n' "$configured_sorted" >&2
-    echo "database:" >&2; printf '%s\n' "$database_sorted" >&2
-    exit 1
-  fi
-  echo "work-cancel org coverage: $(printf '%s\n' "$database_sorted" | wc -l) organization(s), exact match"
+  verify_org_coverage WORK_CANCEL_ORGS "$configured" "$database"
+  echo "work-cancel org coverage: $(printf '%s\n' "$database" | sed '/^$/d' | wc -l) organization(s), exact match"
 }
 
 verify_governance_consumer() {
   local env_file="/etc/work/work-governance-events.env"
-  local configured database configured_sorted database_sorted
-  local orgs dsn host_url cert key ca client_ca client_ca_key
-  client_ca_key='WORK_GOVERNANCE_CLIENT_CA'
+  local database role
+  local orgs dsn host_url cert key ca client_ca
   if [[ ! -r "$env_file" ]]; then
     echo "aborting: $env_file is required before enabling work-governance-events; copy the packaged" >&2
     echo "  template and provision the dedicated DB role, Host mTLS identity and complete org list." >&2
     exit 1
   fi
-  orgs="$(grep '^WORK_GOVERNANCE_ORGS=' "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
-  dsn="$(grep '^WORK_DATABASE_URL=' "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
-  host_url="$(grep '^WORK_GOVERNANCE_HOST_BASE_URL=' "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
-  cert="$(grep '^WORK_GOVERNANCE_CLIENT_CERT=' "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
-  key="$(grep '^WORK_GOVERNANCE_CLIENT_KEY=' "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
-  ca="$(grep '^WORK_GOVERNANCE_CA=' "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
-  client_ca="$(grep "^${client_ca_key}=" "$env_file" | tail -1 | cut -d= -f2- | tr -d "\"'" || true)"
-  if [[ -z "$orgs" || -z "$host_url" || -z "$cert" || -z "$key" || -z "$ca" || -z "$client_ca" || "$dsn" == *CHANGE_ME* ]]; then
+  orgs="$(read_env_exact "$env_file" WORK_GOVERNANCE_ORGS)"
+  dsn="$(read_env_exact "$env_file" WORK_DATABASE_URL)"
+  host_url="$(read_env_exact "$env_file" WORK_GOVERNANCE_HOST_BASE_URL)"
+  cert="$(read_env_exact "$env_file" WORK_GOVERNANCE_CLIENT_CERT)"
+  key="$(read_env_exact "$env_file" WORK_GOVERNANCE_CLIENT_KEY)"
+  ca="$(read_env_exact "$env_file" WORK_GOVERNANCE_CA)"
+  client_ca="$(read_env_exact "$env_file" WORK_GOVERNANCE_CLIENT_CA)"
+  if [[ -z "$orgs" || -z "$dsn" || -z "$host_url" || -z "$cert" || -z "$key" || -z "$ca" || -z "$client_ca" || "$dsn" == *CHANGE_ME* ]]; then
     echo "aborting: work-governance-events.env has empty or placeholder required values; secrets are not printed." >&2
     exit 1
   fi
@@ -300,15 +322,8 @@ verify_governance_consumer() {
     echo "aborting: could not read work.org for governance consumer coverage." >&2
     exit 1
   fi
-  configured_sorted="$(printf '%s\n' "$orgs" | tr '[:space:]' '\n' | sed '/^$/d' | sort -u)"
-  database_sorted="$(printf '%s\n' "$database" | sed '/^$/d' | sort -u)"
-  if [[ -z "$configured_sorted" || "$configured_sorted" != "$database_sorted" ]]; then
-    echo "aborting: WORK_GOVERNANCE_ORGS must exactly cover every work.org id before the timer is enabled." >&2
-    echo "configured:" >&2; printf '%s\n' "$configured_sorted" >&2
-    echo "database:" >&2; printf '%s\n' "$database_sorted" >&2
-    exit 1
-  fi
-  echo "governance consumer preflight: dedicated role/mTLS identity and $(printf '%s\n' "$database_sorted" | wc -l) organization(s) verified"
+  verify_org_coverage WORK_GOVERNANCE_ORGS "$orgs" "$database"
+  echo "governance consumer preflight: dedicated role/mTLS identity and $(printf '%s\n' "$database" | sed '/^$/d' | wc -l) organization(s) verified"
 }
 
 echo "== 1. preflight =="

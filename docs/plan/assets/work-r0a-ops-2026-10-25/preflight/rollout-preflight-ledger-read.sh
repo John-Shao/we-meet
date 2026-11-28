@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# READ-ONLY ledger preflight for the 0040-0062 rollout. No writes, no restarts.
+# READ-ONLY ledger preflight for the current rollout. No writes, no restarts.
 set -uo pipefail
 
 PF_FAILURES=0
-EXPECTED_LEDGER_TIP="${EXPECTED_LEDGER_TIP:-39}"
+EXPECTED_LEDGER_TIP="${EXPECTED_LEDGER_TIP:-62}"
+EXPECTED_MIGRATION_TAIL="${EXPECTED_MIGRATION_TAIL:-97}"
 REQUIRE_DRAINED="${REQUIRE_DRAINED:-0}"
 WORK_RELEASE_ROOT="${WORK_RELEASE_ROOT:-/root}"
 WORK_INSTALL_BIN_DIR="${WORK_INSTALL_BIN_DIR:-/usr/local/bin}"
@@ -43,6 +44,14 @@ if [[ ! "$EXPECTED_LEDGER_TIP" =~ ^[0-9]+$ ]]; then
   pf_fail "EXPECTED_LEDGER_TIP is not a number: $EXPECTED_LEDGER_TIP"
   exit 1
 fi
+if [[ ! "$EXPECTED_MIGRATION_TAIL" =~ ^[0-9]+$ ]]; then
+  pf_fail "EXPECTED_MIGRATION_TAIL is not a number: $EXPECTED_MIGRATION_TAIL"
+  exit 1
+fi
+if [ "$EXPECTED_MIGRATION_TAIL" -lt "$EXPECTED_LEDGER_TIP" ]; then
+  pf_fail "EXPECTED_MIGRATION_TAIL $EXPECTED_MIGRATION_TAIL is below EXPECTED_LEDGER_TIP $EXPECTED_LEDGER_TIP"
+  exit 1
+fi
 if [[ "$REQUIRE_DRAINED" != "0" && "$REQUIRE_DRAINED" != "1" ]]; then
   pf_fail "REQUIRE_DRAINED must be 0 or 1: $REQUIRE_DRAINED"
   exit 1
@@ -72,9 +81,9 @@ fi
 sudo -u postgres psql -d work -X -v ON_ERROR_STOP=1 -c \
   "select version,name,applied_at from work.schema_migration order by version desc limit 6;"
 
-printf '== 2. 0038-0062 ledger coverage ==\n'
+printf '== 2. %04d-%04d ledger coverage ==\n' "$EXPECTED_LEDGER_TIP" "$EXPECTED_MIGRATION_TAIL"
 sudo -u postgres psql -d work -X -At -v ON_ERROR_STOP=1 -c \
-  "select coalesce(string_agg(version||':'||name, ' ' order by version), 'none') from work.schema_migration where version between 38 and 62;"
+  "select coalesce(string_agg(version||':'||name, ' ' order by version), 'none') from work.schema_migration where version between $EXPECTED_LEDGER_TIP and $EXPECTED_MIGRATION_TAIL;"
 
 printf '== 3. release directories on host ==\n'
 ls -1dt "$WORK_RELEASE_ROOT"/work-release-* 2>/dev/null | head -6 || true
@@ -84,12 +93,13 @@ echo "newest=${latest:-none}"
 printf '== 4. installed work-migrate: size, sha256, embedded chain names ==\n'
 ls -l "$WORK_INSTALL_BIN_DIR/work-migrate" 2>/dev/null || true
 sha256sum "$WORK_INSTALL_BIN_DIR/work-migrate" 2>/dev/null || true
-for n in 0040_device_identity_and_workspace_grants \
-         0055_device_permit_mint_command_claim \
-         0059_device_execution_review \
-         0060_egress_output_recovery \
-         0061_local_finish_cross_session_reconcile \
-         0062_run_history_handback; do
+for n in 0062_run_history_handback \
+         0063_device_model_execution_usage \
+         0068_governance_cursor_getter \
+         0073_governance_cursor_seat_write_permission \
+         0081_local_task_submission \
+         0085_execution_profile_binding \
+         0097_active_execution_profile; do
   c=$(grep -a -c "$n" "$WORK_INSTALL_BIN_DIR/work-migrate" 2>/dev/null || true)
   echo "embed ${n} count=${c:-0}"
 done

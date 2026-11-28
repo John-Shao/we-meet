@@ -79,7 +79,7 @@ Timer 清单（周期以 `systemctl list-timers` 现读为准）：
    bash src/work/deploy/ecs/make-release.sh /tmp/work-release-00NN
    ```
    - 构建容器必须挂载本工作树（脚本按挂载自动推导，或显式 `GO_CONTAINER=… GO_WORKDIR=…`）；默认 work-go 挂的是主 checkout，拿错树会建出与包内增量不一致的二进制。
-   - 包自述件：`RELEASE_COMMIT`、`RELEASE_DIRTY`、`MIGRATION_TAIL`（从 increments 文件名推导）、`BINARIES`（从 cmd/ 推导，13 个）、`SHA256SUMS`。
+   - 包自述件：`RELEASE_COMMIT`、`RELEASE_DIRTY`、`MIGRATION_TAIL`（从 increments 文件名推导）、`BINARIES`（从 cmd/ 推导，数量以构建输出为准）、`SHA256SUMS`。
    - 工作树必须干净（`RELEASE_DIRTY=0`）；增量不在 stamped commit 里直接构建失败（除非显式 `WORK_ALLOW_UNSTAMPED_MIGRATIONS=1`）。
 2. **[生产写] 上传解包**到主机后校验：`cd <发布目录> && sha256sum -c SHA256SUMS`，必须全 OK。
 3. **[只读] 先 dry-run 读半径**：
@@ -250,6 +250,18 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 # 第二步换 worker/api 前：台账应已到 62，且在途 Run 必须为 0
 EXPECTED_LEDGER_TIP=62 REQUIRE_DRAINED=1 bash /var/tmp/rollout-preflight-ledger-read.sh
 EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
+```
+
+**2026-11-28 tip97 预检口径更新**：上面的 `39→62` 是已完成的 0040–0062 历史窗口，不得复用。下一轮 0063–0097 的第一步从现网 tip 62 起，第二步在 migrations-only 后从 tip 97 起；脚本默认值已相应改为 `EXPECTED_LEDGER_TIP=62` 与 `EXPECTED_MIGRATION_TAIL=97`。cancel／governance 预检还要求每个必需 env 键恰好出现一次，组织清单不得重复；空值、未知/遗漏组织、重复键或重复组织都在任何写入前失败：
+
+```bash
+# 第一步 migrations-only：现网 tip=62；在途 Run 记录但不阻断这一步
+EXPECTED_LEDGER_TIP=62 EXPECTED_MIGRATION_TAIL=97 REQUIRE_DRAINED=0 bash /var/tmp/rollout-preflight-ledger-read.sh
+EXPECTED_MIGRATION_TAIL=97 bash /var/tmp/rollout-preflight-package-shape-read.sh
+
+# 第二步换 worker/api 前：台账应已到 97，且在途 Run 必须为 0
+EXPECTED_LEDGER_TIP=97 EXPECTED_MIGRATION_TAIL=97 REQUIRE_DRAINED=1 bash /var/tmp/rollout-preflight-ledger-read.sh
+EXPECTED_MIGRATION_TAIL=97 bash /var/tmp/rollout-preflight-package-shape-read.sh
 ```
 
 `PF_RELEASE_DIR` 可指定 exact 包目录；不指定时仍取 `/root/work-release-*` 最新目录。`work.device_dispatch` 不存在按 0 行的安全情形通过，存在但查不到行数则中止。卡片 V／Y 的**重启后**读数仍按第 6／7 条在窗口内另取，本 preflight 不替代、也不声称已闭合。

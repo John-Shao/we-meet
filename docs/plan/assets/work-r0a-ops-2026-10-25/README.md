@@ -18,8 +18,8 @@
 | `telemetry.test.mjs` | 11 组测试（覆盖、target 对齐、track-only、篡改负例、漂移、与 D3 作业契约的跨资产一致性） |
 | `ops-model.mjs` | 控制/SLO/清单校验与 go/no-go |
 | `ops-model.test.mjs` | 9 组测试（含 S17/S18 存在性与冻结契约里禁 `download_url`）**【2026-11-13 现读 15 条：批 C 第一格给 `goNoGo` 接上 SLO 现读后新增 4 条，取数法见下面"已验证"段的同日更正行，别抄本表】** |
-| `preflight/rollout-preflight-ledger-read.sh` | **只读＋fail-closed**：0040–0062 台账 tip／尾六号、已装 `work-migrate` 的关键增量符号、unit 进程身份、`device_dispatch` 空集、在途 Run／预留／outbox、表与函数计数。`EXPECTED_LEDGER_TIP` 默认 39；第二步传 62 并置 `REQUIRE_DRAINED=1` |
-| `preflight/rollout-preflight-package-shape-read.sh` | **只读＋fail-closed**：包尾 62／`RELEASE_DIRTY=0`／`SHA256SUMS` 全通过、`BINARIES` 与 rollout／verify／backup 三件在场、主机 backup 三件剥 CR 后与包全等、包装件与已装件对照。主机缺件按首次安装放行 |
+| `preflight/rollout-preflight-ledger-read.sh` | **只读＋fail-closed**：0063–0097 台账 tip、已装 `work-migrate` 的关键增量符号、unit 进程身份、`device_dispatch` 空集、在途 Run／预留／outbox、表与函数计数。`EXPECTED_LEDGER_TIP` 默认 62、`EXPECTED_MIGRATION_TAIL` 默认 97；迁移后第二步传 97 并置 `REQUIRE_DRAINED=1` |
+| `preflight/rollout-preflight-package-shape-read.sh` | **只读＋fail-closed**：包尾 97／`RELEASE_DIRTY=0`／`SHA256SUMS` 全通过、`BINARIES` 与 rollout／verify／backup 三件在场、主机 backup 三件剥 CR 后与包全等、包装件与已装件对照。主机缺件按首次安装放行 |
 
 > 上面两份 `preflight/` 脚本的**唯一跑法**是一条 ssh：上传到 `/var/tmp` → 以 root 执行（口令取主机 `~/sudo-pass.txt`，不进 argv、不进聊天）→ 跑完立即 `rm -f`，判据取脚本自身退出码 `HOST_SCRIPT_RC=0`。命令原文与 2026-11-13 的当日读数见 [work-project.md](../../../work/work-project.md) §9 那张表里"批 C 第三格"那一行；2026-11-24 起两步的环境变量与 fail-closed 判据见 [operations.md](../../../work/operations.md) §3.4。"这两份脚本改不动主机状态"不是散文承诺，由 `docs/plan/assets/work-r0a-design-2026-10-25/test/rollout-preflight-read-only.test.mjs` 机器强制（写动词扫描＋正向对照真部署脚本＋逐条 SQL 必须是 SELECT＋标签由脚本自己打印）；退出码语义由同目录 `rollout-preflight-fail-closed.test.mjs` 用假主机／假 psql 做正负例验证。
 

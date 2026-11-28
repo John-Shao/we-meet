@@ -102,8 +102,12 @@ test('the dead-letter alert is an audit row, and the unit rc reports infrastruct
     'full rollout must have an explicit org coverage guard');
   assert.match(rollout, /verify_cancel_org_coverage\n/,
     'the coverage guard must actually be called, not merely declared');
-  assert.match(rollout, /configured="\$\(grep '\^WORK_CANCEL_ORGS='[^\n]*\|\| true\)"/,
-    'a missing org line must reach the explicit empty-list refusal, not trip pipefail first');
+  assert.match(rollout, /configured="\$\(read_env_exact "\$env_file" WORK_CANCEL_ORGS\)"/,
+    'the org key must be read through the exactly-once env parser');
+  assert.match(rollout, /verify_org_coverage WORK_CANCEL_ORGS "\$configured" "\$database"/,
+    'coverage must reject duplicate org ids as well as missing or unknown ids');
+  assert.doesNotMatch(rollout, /configured_sorted=.*sort -u/,
+    'sort -u would silently accept duplicate configured org ids');
   assert.match(rollout, /select id from work\.org/,
     'coverage must compare against the database org set, not a second hand-written list');
   assert.match(rollout, /run chown root:work-control \/etc\/work\/work-cancel\.env/,
