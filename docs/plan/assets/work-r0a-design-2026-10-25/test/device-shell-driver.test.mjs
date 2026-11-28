@@ -102,6 +102,7 @@ test('the pipe client matches the Broker framing, handshake, method and code clo
   const rustFrame = read(RUST_FRAME);
   const rustDispatch = read(RUST_DISPATCH);
   const rustTicket = read(RUST_TICKET);
+  const rustBroker = read(join(DEVICE, 'src', 'broker.rs'));
   const major = rustHandshake.match(/pub const PROTOCOL_MAJOR: u32 = (\d+);/)[1];
   assert.ok(pipe.includes(`export const PROTOCOL_MAJOR = ${major};`));
   assert.ok(rustFrame.includes('pub const MAX_FRAME_BYTES: usize = 64 * 1024;'));
@@ -112,11 +113,13 @@ test('the pipe client matches the Broker framing, handshake, method and code clo
   const ticketMethod = rustTicket.match(/pub const METHOD: &str = "([A-Za-z]+)";/)[1];
   const coreBlock = rustDispatch.split('pub const CORE_METHODS: &[&str] = &[')[1].split('];')[0];
   const rustMethods = [...coreBlock.matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1])
-    .concat([ticketMethod]).sort();
+    .concat([ticketMethod, 'getCurrentSession']).sort();
   const tsBlock = pipe.split('new Set<BrokerMethod>([')[1].split('])')[0];
   const tsMethods = [...tsBlock.matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1]).sort();
   assert.deepEqual(tsMethods, rustMethods);
-  assert.equal(rustMethods.length, 25);
+  assert.equal(rustMethods.length, 26);
+  assert.ok(rustBroker.includes('|| method == "getCurrentSession"'));
+  assert.ok(rustBroker.includes('"getCurrentSession" => {'));
   // Refusal codes: same closed vocabulary on both sides.
   const codesBlock = rustDispatch.split('pub const CODES: &[&str] = &[')[1].split('];')[0];
   const rustCodes = [...codesBlock.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]).sort();
