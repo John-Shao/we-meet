@@ -61,6 +61,9 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
+      - name: Install pinned Node runtime dependencies
+        working-directory: src/work/node
+        run: npm ci
       - name: Install pinned harness dependencies
         run: npm ci
       - name: Test H02 supervisor against isolated provider fixture
