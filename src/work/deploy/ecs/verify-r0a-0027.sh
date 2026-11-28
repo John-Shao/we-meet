@@ -2032,11 +2032,10 @@ psql_ro "select 'cancellation_ladder_and_claim_caps_match_the_ruling=' || case w
 
 echo
 if [[ "$FAILURES" -ne 0 ]]; then
-  # Loud and non-zero: the transcript above already says which line, this just refuses to let a
-  # pipeline treat "printed FALSE three times" as a pass. WARN lines about not-yet-deployed
-  # packaging (drill binaries, restore drill, org lists) stay out of the count on purpose - those
-  # are reported deployment state, not a verdict this script can assert.
-  echo "FAIL: ${FAILURES} acceptance check(s) answered FALSE/MISSING or could not run; see the ^^ lines above" >&2
+  # Loud and non-zero: the transcript above already says which check failed, so a pipeline cannot
+  # treat printed FALSE verdicts as a pass. WARN lines about not-yet-deployed packaging (drill
+  # binaries, restore drill) stay out of the count; scan org coverage is asserted above.
+  echo "FAIL: ${FAILURES} acceptance check(s) answered FALSE/MISSING or could not run; see failed verdicts and reasons above" >&2
   exit 1
 fi
 echo "OK: every acceptance verdict read true/present (WARN lines above, if any, are deployment state)"
