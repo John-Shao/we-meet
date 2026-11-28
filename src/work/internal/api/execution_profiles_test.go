@@ -211,6 +211,61 @@ func TestDeviceModelProbePreviewRefreshAPI(t *testing.T) {
 	}
 }
 
+func TestAdminExecutionProfileList(t *testing.T) {
+	pool, dbName := newBootstrapDB(t, true, true)
+	ctx := context.Background()
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(ctx)
+	profileID := "profile-list"
+	seedExecutionProfileRevision(t, dbName, profileID, "model-list", 1,
+		strings.Repeat("e", 64), strings.Repeat("b", 64), strings.Repeat("a", 64))
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO work.execution_profile_revision
+		  (org_id,profile_id,revision,content_hash,kind,provider,model,api_type,
+		   residency,endpoint_policy,tokenizer_id,context_tokens,max_request_bytes,
+		   max_output_tokens,usage_mode,runtime_digest,tool_manifest_hash,
+		   compat_profile_version,max_turns,status)
+		SELECT org_id,profile_id,revision+1,content_hash,kind,provider,model,api_type,
+		       residency,endpoint_policy,tokenizer_id,context_tokens,max_request_bytes,
+		       max_output_tokens,usage_mode,runtime_digest,tool_manifest_hash,
+		       compat_profile_version,max_turns,'draft'
+		FROM work.execution_profile_revision
+		WHERE org_id=$1 AND profile_id=$2 AND revision=1`, testOrg, profileID); err != nil {
+		t.Fatal(err)
+	}
+	server := newHTTPServer(t, pool, &stubVerifier{claims: testClaims()}, testCSRF(t))
+	bootstrap := doBootstrap(t, server.URL, "session-value", "corr-profile-list")
+	if bootstrap.StatusCode != http.StatusOK {
+		t.Fatalf("bootstrap status = %d", bootstrap.StatusCode)
+	}
+	bootstrap.Body.Close()
+	req, err := http.NewRequest(http.MethodGet, server.URL+api.AdminExecutionProfilesPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.AddCookie(&http.Cookie{Name: host.SessionCookieName, Value: "session-value"})
+	response, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("list status = %d body=%s", response.StatusCode, readBody(response))
+	}
+	var profiles []map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&profiles); err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if len(profiles) != 1 || profiles[0]["profile_id"] != profileID ||
+		profiles[0]["revision"] != float64(2) || profiles[0]["status"] != "draft" ||
+		profiles[0]["active_revision"] != float64(1) {
+		t.Fatalf("profile list = %#v", profiles)
+	}
+}
+
 func TestAdminExecutionProfileActivation(t *testing.T) {
 	pool, dbName := newBootstrapDB(t, true, true)
 	ctx := context.Background()

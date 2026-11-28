@@ -1,12 +1,21 @@
 {
   "generatedBy": "node docs/plan/assets/work-r0a-design-2026-10-25/audit-scope.mjs --write",
-  "chainTip": 95,
-  "chainTipCatalog": "catalogs/0095_execution_profile_revoke.json",
+  "chainTip": 96,
+  "chainTipCatalog": "catalogs/0096_execution_profile_list.json",
   "entries": [
     {
       "name": "GET /api/v1.0/admin/work-governance-assignments/",
       "surface": "http-host",
       "origin": "src/backend/meet/urls.py",
+      "callableBy": [
+        "http"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "GET /work/v2/admin/execution-profiles",
+      "surface": "http",
+      "origin": "src/work/internal/api/bootstrap.go",
       "callableBy": [
         "http"
       ],
@@ -682,7 +691,7 @@
     {
       "name": "governance_seat_events_valid",
       "surface": "sql-duty",
-      "origin": "src/work/migrations/catalogs/0095_execution_profile_revoke.json",
+      "origin": "src/work/migrations/catalogs/0096_execution_profile_list.json",
       "callableBy": [
         "work_api",
         "work_governance_events"
@@ -711,6 +720,15 @@
       "name": "list_devices",
       "surface": "sql-chain",
       "origin": "src/work/migrations/increments/0040_device_identity_and_workspace_grants.sql",
+      "callableBy": [
+        "work_api"
+      ],
+      "classification": "external-audit-required"
+    },
+    {
+      "name": "list_execution_profiles",
+      "surface": "sql-chain",
+      "origin": "src/work/migrations/increments/0096_execution_profile_list.sql",
       "callableBy": [
         "work_api"
       ],

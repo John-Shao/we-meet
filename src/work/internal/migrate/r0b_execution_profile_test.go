@@ -924,6 +924,36 @@ func TestDeviceModelBindingRejectsMalformedListenerProofTypes(t *testing.T) {
 	}
 }
 
+func TestExecutionProfileListReturnsLatestAndActiveRevision(t *testing.T) {
+	f := newExecutionProfileFixture(t, "org_ep_list")
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(f.profileDocument(t)), &doc); err != nil {
+		t.Fatal(err)
+	}
+	doc["status"] = "draft"
+	body, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	published := callJSON(t, f.api, `SELECT work.publish_execution_profile($1,$2,$3,$4::jsonb)`,
+		f.org, f.subject, "req-ep-list-draft", string(body))
+	if published["revision"] != float64(2) {
+		t.Fatalf("publish draft = %#v", published)
+	}
+	profiles := callJSONArray(t, f.api, `SELECT work.list_execution_profiles($1,$2)`, f.org, f.subject)
+	if len(profiles) != 1 {
+		t.Fatalf("profile list = %#v", profiles)
+	}
+	profile := profiles[0]
+	if profile["profile_id"] != f.profileID || profile["revision"] != float64(2) ||
+		profile["status"] != "draft" || profile["active_revision"] != float64(1) {
+		t.Fatalf("listed profile = %#v", profile)
+	}
+	mustExec(t, f.admin, `UPDATE work.member SET role='member' WHERE org_id=`+
+		quoteLiteral(f.org)+` AND subject_id=`+quoteLiteral(f.subject))
+	expectCode(t, f.api, "admin_access_denied", `SELECT work.list_execution_profiles($1,$2)`, f.org, f.subject)
+}
+
 func TestExecutionProfileRevokeFencesBindingsAndOperations(t *testing.T) {
 	f := newExecutionProfileFixture(t, "org_ep_revoke")
 	binding := f.createBinding(t, "req-ep-revoke-binding")

@@ -108,6 +108,7 @@ var publishedIncrements = []string{
 	"0093_execution_profile_activation",
 	"0094_device_model_binding_target_policy",
 	"0095_execution_profile_revoke",
+	"0096_execution_profile_list",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

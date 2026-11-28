@@ -86,6 +86,7 @@ const IMPLEMENTED_ONLY = [
   // Production ExecutionProfile registry and verified device model binding/probe gate (0085).
   'GET /work/v2/execution-profiles/{profileId}/revisions/{revision}',
   'POST /work/v2/admin/execution-profiles',
+  'GET /work/v2/admin/execution-profiles',
   'POST /work/v2/devices/{deviceId}/model-bindings',
   'POST /work/v2/devices/{deviceId}/model-bindings/{bindingId}/probes',
   // Server-owned bounded Run that produces the verified probe receipt (0086).

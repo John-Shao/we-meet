@@ -152,6 +152,33 @@ func (s *Server) getExecutionProfile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, view)
 }
 
+func (s *Server) adminListExecutionProfiles(w http.ResponseWriter, r *http.Request) {
+	claims, correlationID, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	var view json.RawMessage
+	err := workdb.WithWorkContext(r.Context(), s.pool,
+		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
+		workdb.RoleAPI, workdb.Options{ReadOnly: true},
+		func(tx pgx.Tx) error {
+			var raw []byte
+			if err := tx.QueryRow(r.Context(),
+				`SELECT work.list_execution_profiles($1, $2)`,
+				claims.OrgID, claims.SubjectID).Scan(&raw); err != nil {
+				return err
+			}
+			view = json.RawMessage(append([]byte(nil), raw...))
+			return nil
+		},
+	)
+	if err != nil {
+		s.writeAdminError(w, correlationID, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
+}
+
 func (s *Server) adminPublishExecutionProfile(w http.ResponseWriter, r *http.Request) {
 	claims, correlationID, ok := s.authenticate(w, r)
 	if !ok {

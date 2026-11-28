@@ -300,6 +300,8 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 **2026-11-28 0095 ExecutionProfile owner 撤销**：新增 `revoke_execution_profile` 与 `POST /work/v2/admin/execution-profiles/{profileId}/revoke`，要求 owner、CSRF、`client_request_id`、目标 active revision 与 reason code。函数按 profile 锁串行化激活/撤销，幂等重放并拒绝同键异 payload；撤销后 active-only 读取与 verified binding 立即失效，同时撤销该 revision 的设备 binding，并对最新 binding 使用该 profile 的非终态 Operation 发起定向取消，旧 receipt/计量记录保留。真库覆盖 binding 与 Operation fencing、重放/冲突、错 revision、非 owner；API 覆盖 cookie/CSRF、响应与授权穷举，tail catalog 95。生产未部署。
 
+**2026-11-28 0096 ExecutionProfile 生命周期列表**：新增 owner-only `list_execution_profiles` 与 `GET /work/v2/admin/execution-profiles`，每个 profile 返回最新 revision 的 canonical 元数据、状态与当前 `active_revision`，便于区分“最新草稿”和“仍生效 revision”；不返回凭据，API 角色仅获函数 EXECUTE。真库覆盖最新 draft＋旧 active、非 owner 拒绝，API 覆盖会话认证与列表响应，tail catalog 96。生产未部署。
+
 ### 3.5 装后验证与链尾闸 [只读]
 
 - `sudo ./verify-r0a-0027.sh "<开始时刻>"`：`rows=N max=N`、清单 all present、函数体探针 true（claim_carries_takeover、terminal_release_guard、export_discovery_hardened、0040–0045 设备面探针等）。

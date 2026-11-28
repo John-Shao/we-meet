@@ -1055,6 +1055,17 @@
       "catalog_checksum": "sha256:872d81d362071b8e6b501a4e135367558756af70633577922fbce04039770c6d",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 96,
+      "name": "0096_execution_profile_list",
+      "kind": "increment",
+      "file": "increments/0096_execution_profile_list.sql",
+      "checksum": "sha256:d082bcd65b2c2354204974026bc2731ffe9852483c88296f90c38d2ddbe4cc45",
+      "catalog": "catalogs/0096_execution_profile_list.json",
+      "catalog_checksum": "sha256:aa7d21f1025866dbbadb4979826d5557bf65f069969b65ec3dff8c18ecd9c4ff",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

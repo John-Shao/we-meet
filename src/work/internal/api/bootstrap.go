@@ -204,6 +204,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST "+LocalTasksPath, s.submitLocalTask)
 	mux.HandleFunc("POST "+TasksPath, s.createTask)
 	mux.HandleFunc("GET "+ExecutionProfilePath, s.getExecutionProfile)
+	mux.HandleFunc("GET "+AdminExecutionProfilesPath, s.adminListExecutionProfiles)
 	mux.HandleFunc("POST "+AdminExecutionProfilesPath, s.adminPublishExecutionProfile)
 	mux.HandleFunc("POST "+AdminExecutionProfileActivatePath, s.adminActivateExecutionProfile)
 	mux.HandleFunc("POST "+AdminExecutionProfileRevokePath, s.adminRevokeExecutionProfile)
