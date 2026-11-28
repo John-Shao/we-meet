@@ -310,6 +310,120 @@ export interface ModelProbePreview {
   expiresAt: string;
 }
 
+export interface ModelProbeStatus {
+  probeId: string;
+  bindingId: string;
+  profileId: string;
+  profileRevision: number;
+  previewHash: string;
+  state: "queued" | "running" | "verified" | "failed" | "reconcile";
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+  taskId: string | null;
+  runId: string | null;
+  operationId: string | null;
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    cachedInputTokens: number;
+    usageEstimated: boolean;
+  } | null;
+  safeError: "probe_failed" | null;
+}
+
+function parseModelProbeStatus(value: unknown, probeId: string): ModelProbeStatus {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new BrokerPipeError("shape");
+  const d = value as Record<string, unknown>;
+  const keys =
+    "binding_id,created_at,expires_at,operation_id,preview_hash,probe_id,profile_id,profile_revision,run_id,safe_error,state,task_id,updated_at,usage";
+  if (Object.keys(d).sort().join(",") !== keys) throw new BrokerPipeError("shape");
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const digest = /^[0-9a-f]{64}$/;
+  const str = (key: string) => {
+    const field = d[key];
+    if (typeof field !== "string") throw new BrokerPipeError("shape");
+    return field;
+  };
+  const optionalUUID = (key: string) => {
+    const field = d[key];
+    if (field === null) return null;
+    if (typeof field !== "string" || !uuid.test(field))
+      throw new BrokerPipeError("shape");
+    return field;
+  };
+  const usageValue = d.usage;
+  let usage: ModelProbeStatus["usage"] = null;
+  if (usageValue !== null) {
+    if (!usageValue || typeof usageValue !== "object" || Array.isArray(usageValue))
+      throw new BrokerPipeError("shape");
+    const u = usageValue as Record<string, unknown>;
+    if (
+      Object.keys(u).sort().join(",") !==
+      "cached_input_tokens,input_tokens,output_tokens,usage_estimated" ||
+      typeof u.input_tokens !== "number" ||
+      !Number.isSafeInteger(u.input_tokens) ||
+      u.input_tokens < 0 ||
+      typeof u.output_tokens !== "number" ||
+      !Number.isSafeInteger(u.output_tokens) ||
+      u.output_tokens < 0 ||
+      typeof u.cached_input_tokens !== "number" ||
+      !Number.isSafeInteger(u.cached_input_tokens) ||
+      u.cached_input_tokens < 0 ||
+      u.cached_input_tokens > u.input_tokens ||
+      typeof u.usage_estimated !== "boolean"
+    )
+      throw new BrokerPipeError("shape");
+    usage = {
+      inputTokens: u.input_tokens,
+      outputTokens: u.output_tokens,
+      cachedInputTokens: u.cached_input_tokens,
+      usageEstimated: u.usage_estimated,
+    };
+  }
+  const state = str("state");
+  const safeError = d.safe_error;
+  if (
+    d.probe_id !== probeId ||
+    typeof d.binding_id !== "string" ||
+    !uuid.test(d.binding_id) ||
+    typeof d.profile_id !== "string" ||
+    d.profile_id.length === 0 ||
+    d.profile_id.length > 128 ||
+    d.profile_id.trim() !== d.profile_id ||
+    typeof d.profile_revision !== "number" ||
+    !Number.isSafeInteger(d.profile_revision) ||
+    d.profile_revision < 1 ||
+    !digest.test(str("preview_hash")) ||
+    !["queued", "running", "verified", "failed", "reconcile"].includes(state) ||
+    !Number.isFinite(Date.parse(str("expires_at"))) ||
+    !Number.isFinite(Date.parse(str("created_at"))) ||
+    !Number.isFinite(Date.parse(str("updated_at"))) ||
+    (safeError !== null && safeError !== "probe_failed") ||
+    (state === "failed" || state === "reconcile"
+      ? safeError !== "probe_failed"
+      : safeError !== null)
+  )
+    throw new BrokerPipeError("shape");
+  return {
+    probeId,
+    bindingId: d.binding_id,
+    profileId: d.profile_id,
+    profileRevision: d.profile_revision,
+    previewHash: str("preview_hash"),
+    state: state as ModelProbeStatus["state"],
+    expiresAt: str("expires_at"),
+    createdAt: str("created_at"),
+    updatedAt: str("updated_at"),
+    taskId: optionalUUID("task_id"),
+    runId: optionalUUID("run_id"),
+    operationId: optionalUUID("operation_id"),
+    usage,
+    safeError,
+  };
+}
+
 function parseModelProbePreview(
   value: unknown,
   bindingId: string,
@@ -1288,6 +1402,19 @@ export class WorkDeviceDriver {
       invalidatedReadonlyGrants: Number(rebound.invalidated_readonly_grants),
       replayed: rebound.replayed,
     };
+  }
+
+  async getModelProbe(probeId: string): Promise<ModelProbeStatus> {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (this.state !== "running" || !this.record || !uuid.test(probeId))
+      throw new BrokerPipeError("shape");
+    this.checkEpoch();
+    const response = await this.deps.api.request("getModelProbe", {
+      id: this.record.deviceId,
+      id2: probeId,
+    });
+    this.checkEpoch();
+    return parseModelProbeStatus(response, probeId);
   }
 
   async refreshModelProbePreview(

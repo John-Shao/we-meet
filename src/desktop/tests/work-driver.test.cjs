@@ -27,6 +27,7 @@ const ticketId = "11111111-2222-3333-4444-555555555555";
 const sessionId = "44444444-4444-4444-8444-444444444444";
 const bindingId = "77777777-7777-4777-8777-777777777777";
 const modelResultId = "99999999-9999-4999-8999-999999999999";
+const probeId = "88888888-8888-4888-8888-888888888888";
 const workspaceGrantId = "55555555-5555-4555-8555-555555555555";
 const workspaceRootHash = `sha256:${"a".repeat(64)}`;
 const pem = "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n";
@@ -245,6 +246,22 @@ function harness(t, overrides = {}) {
         max_output_tokens: 16,
         expires_at: new Date(Date.now() + 60_000).toISOString(),
       },
+    }),
+    getModelProbe: (action, options) => ({
+      probe_id: options.id2,
+      binding_id: bindingId,
+      profile_id: "profile-1",
+      profile_revision: 1,
+      preview_hash: "d".repeat(64),
+      state: "queued",
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+      created_at: new Date(Date.now() - 1_000).toISOString(),
+      updated_at: new Date(Date.now() - 1_000).toISOString(),
+      task_id: null,
+      run_id: null,
+      operation_id: null,
+      usage: null,
+      safe_error: null,
     }),
     submitLocalTask: (action, options) => ({
       task_id: "99999999-9999-4999-8999-999999999999",
@@ -1158,6 +1175,101 @@ test("the root dialog receives the actual location and the two §4.2 warnings", 
   assert.equal(seen.differsFromSelected, true);
   assert.equal(seen.otherUserWritable, true);
   assert.equal(seen.volumeLabel, "Data");
+});
+
+test("getModelProbe returns validated status and structured usage", async (t) => {
+  const h = harness(t);
+  await h.driver.start();
+  const respond = h.apiResponses.getModelProbe;
+  let seen;
+  h.apiResponses.getModelProbe = (action, options) => {
+    seen = options;
+    const value = respond(action, options);
+    value.state = "verified";
+    value.operation_id = "66666666-6666-4666-8666-666666666666";
+    value.usage = {
+      input_tokens: 10,
+      output_tokens: 2,
+      cached_input_tokens: 3,
+      usage_estimated: false,
+    };
+    return value;
+  };
+  const result = await h.driver.getModelProbe(probeId);
+  assert.deepEqual(result, {
+    probeId,
+    bindingId,
+    profileId: "profile-1",
+    profileRevision: 1,
+    previewHash: "d".repeat(64),
+    state: "verified",
+    expiresAt: result.expiresAt,
+    createdAt: result.createdAt,
+    updatedAt: result.updatedAt,
+    taskId: null,
+    runId: null,
+    operationId: "66666666-6666-4666-8666-666666666666",
+    usage: {
+      inputTokens: 10,
+      outputTokens: 2,
+      cachedInputTokens: 3,
+      usageEstimated: false,
+    },
+    safeError: null,
+  });
+  assert.equal(seen.id, deviceId);
+  assert.equal(seen.id2, probeId);
+  assert.equal(seen.body, undefined);
+});
+
+test("getModelProbe rejects inconsistent safe errors and usage", async (t) => {
+  const h = harness(t);
+  await h.driver.start();
+  const respond = h.apiResponses.getModelProbe;
+  h.apiResponses.getModelProbe = (action, options) => ({
+    ...respond(action, options),
+    state: "failed",
+    safe_error: null,
+  });
+  await assert.rejects(h.driver.getModelProbe(probeId), BrokerPipeError);
+  h.apiResponses.getModelProbe = (action, options) => ({
+    ...respond(action, options),
+    usage: {
+      input_tokens: 1,
+      output_tokens: 2,
+      cached_input_tokens: 2,
+      usage_estimated: false,
+    },
+  });
+  await assert.rejects(h.driver.getModelProbe(probeId), BrokerPipeError);
+});
+
+test("getModelProbe fences a late response after account change", async (t) => {
+  let h;
+  h = harness(t, {
+    apiResponse(action) {
+      if (action !== "getModelProbe") return undefined;
+      h.auth.epoch++;
+      return {
+        probe_id: probeId,
+        binding_id: bindingId,
+        profile_id: "profile-1",
+        profile_revision: 1,
+        preview_hash: "d".repeat(64),
+        state: "queued",
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        task_id: null,
+        run_id: null,
+        operation_id: null,
+        usage: null,
+        safe_error: null,
+      };
+    },
+  });
+  await h.driver.start();
+  await assert.rejects(h.driver.getModelProbe(probeId), WorkApiError);
 });
 
 test("refreshModelProbePreview submits the closed request and validates the preview", async (t) => {
