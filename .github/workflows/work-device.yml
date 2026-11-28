@@ -4,18 +4,16 @@ on:
   pull_request:
     paths:
       - 'src/device/**'
-      - 'src/work/node/device-bundle/**'
-      - 'src/work/node/package.json'
-      - 'src/work/node/package-lock.json'
+      - 'src/work/node/**'
+      - 'docs/plan/assets/harness-lab/**'
       - '.github/workflows/work-device.yml'
   push:
     branches:
       - aliyun-dev
     paths:
       - 'src/device/**'
-      - 'src/work/node/device-bundle/**'
-      - 'src/work/node/package.json'
-      - 'src/work/node/package-lock.json'
+      - 'src/work/node/**'
+      - 'docs/plan/assets/harness-lab/**'
       - '.github/workflows/work-device.yml'
 
 permissions:
@@ -51,3 +49,19 @@ jobs:
       - name: Test Node device bundle
         working-directory: src/work/node/device-bundle
         run: npm test
+
+  h02-runtime:
+    name: H02 Supervisor and Node runtime regression
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: docs/plan/assets/harness-lab
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install pinned harness dependencies
+        run: npm ci
+      - name: Test H02 supervisor against isolated provider fixture
+        run: npm run test:h02-supervisor
