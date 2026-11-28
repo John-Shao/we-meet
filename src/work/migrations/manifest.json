@@ -978,6 +978,17 @@
       "catalog_checksum": "sha256:e3f1b0e5c8cc523755c13aed9e7b8de28a678426a10bc209f10ca2d4fbd2bb28",
       "transactional": true,
       "executable": true
+    },
+    {
+      "version": 89,
+      "name": "0089_device_model_probe_preview_refresh",
+      "kind": "increment",
+      "file": "increments/0089_device_model_probe_preview_refresh.sql",
+      "checksum": "sha256:69497febdf945ddb230ca33ab2fa19e03ebabbc060f1fc2abcdd01fd6d6b3faa",
+      "catalog": "catalogs/0089_device_model_probe_preview_refresh.json",
+      "catalog_checksum": "sha256:7d66f7b2b7350be05fd53e45eda550cdff3f1ded329428d4093d07e6d76e53a4",
+      "transactional": true,
+      "executable": true
     }
   ]
 }

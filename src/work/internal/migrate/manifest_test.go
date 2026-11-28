@@ -101,6 +101,7 @@ var publishedIncrements = []string{
 	"0086_configuration_probe_submission",
 	"0087_configuration_probe_offer",
 	"0088_configuration_probe_grant",
+	"0089_device_model_probe_preview_refresh",
 }
 
 func TestEmbeddedManifestLoads(t *testing.T) {

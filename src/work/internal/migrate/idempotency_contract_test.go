@@ -154,6 +154,7 @@ func TestEveryClientRequestKeyCommandIsIdempotent(t *testing.T) {
 		"record_device_certificate=own_request_hash",
 		"record_device_checkpoint=own_request_hash",
 		"record_execution_profile_probe=dedup+conflict",
+		"refresh_device_model_probe_preview=dedup+conflict",
 		"register_workspace_grant=own_request_hash",
 		"renew_device_certificate=own_request_hash",
 		"retry_task=dedup+conflict",

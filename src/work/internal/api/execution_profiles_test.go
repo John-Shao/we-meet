@@ -94,6 +94,106 @@ func TestExecutionProfileGETAndUnknownRevision(t *testing.T) {
 	assertAPICode(t, response, http.StatusNotFound, "not_found")
 }
 
+func TestDeviceModelProbePreviewRefreshAPI(t *testing.T) {
+	pool, dbName := newBootstrapDB(t, true, true)
+	ctx := context.Background()
+	admin, err := testpg.Open(ctx, testpg.AdminURLFor(dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(ctx)
+	deviceID := "11111111-1111-4111-8111-111111111111"
+	sessionID := "22222222-2222-4222-8222-222222222222"
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO work.device
+		  (org_id,id,owner_subject_id,device_name,platform,public_key_jwk,
+		   public_key_thumbprint,auth_plane,auth_epoch,status)
+		VALUES ($1,$2::uuid,$3,'desk','windows-x64',$4::jsonb,$5,'bearer',4,'active')`,
+		testOrg, deviceID, testSubject, deviceTestJWK, strings.Repeat("1", 64)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO work.device_session
+		  (org_id,id,device_id,owner_subject_id,boot_id,agent_instance_id,auth_plane,
+		   auth_epoch,protocol_major,protocol_minor,runtime_digest,journal_epoch,generation,
+		   state,expires_at)
+		VALUES ($1,$2::uuid,$3::uuid,$4,'boot-api','33333333-3333-4333-8333-333333333333','bearer',
+		   4,2,0,$5,'44444444-4444-4444-8444-444444444444',0,'active',now()+interval '1 hour')`,
+		testOrg, sessionID, deviceID, testSubject, strings.Repeat("b", 64)); err != nil {
+		t.Fatal(err)
+	}
+	profileID := "profile-api"
+	profileHash := strings.Repeat("e", 64)
+	seedExecutionProfileRevision(t, dbName, profileID, "model-api", 1,
+		profileHash, strings.Repeat("b", 64), strings.Repeat("a", 64))
+	if _, err := admin.Exec(ctx, `
+		UPDATE work.device_session SET profile_id=$1 WHERE org_id=$2 AND id=$3::uuid`,
+		profileID, testOrg, sessionID); err != nil {
+		t.Fatal(err)
+	}
+	bindingID := "66666666-6666-4666-8666-666666666666"
+	bindingHash := strings.Repeat("7", 64)
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO work.device_model_binding
+		  (org_id,id,device_id,session_id,profile_id,profile_revision,profile_hash,
+		   binding_hash,status,local_ref,listener_identity_hash,revision)
+		VALUES ($1,$8::uuid,$2::uuid,$3::uuid,$4,1,$5,$6,'pending_probe','fixture://model',$7,1)`,
+		testOrg, deviceID, sessionID, profileID, profileHash, bindingHash, strings.Repeat("c", 64), bindingID); err != nil {
+		t.Fatal(err)
+	}
+	oldProbeID := "55555555-5555-4555-8555-555555555555"
+	oldPreviewHash := strings.Repeat("d", 64)
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO work.model_profile_probe
+		  (org_id,probe_id,binding_id,profile_id,profile_revision,profile_hash,
+		   candidate_hash,preview_hash,expires_at,state,created_at,updated_at)
+		VALUES ($1,$2::uuid,$3::uuid,$4,1,$5,$6,$7,now()-interval '1 second','queued',
+		        now()-interval '2 minutes',now()-interval '2 minutes')`,
+		testOrg, oldProbeID, bindingID, profileID, profileHash, strings.Repeat("f", 64), oldPreviewHash); err != nil {
+		t.Fatal(err)
+	}
+	server := newDeviceServer(t, pool)
+	path := strings.ReplaceAll(api.DeviceModelProbePreviewsPath, "{deviceId}", deviceID)
+	path = strings.ReplaceAll(path, "{bindingId}", bindingID)
+	body := fmt.Sprintf(`{"client_request_id":"refresh-api-1","session_id":%q,"revision":"1"}`, sessionID)
+	response := deviceRequest(t, http.MethodPost, server.URL+path, body)
+	if response.StatusCode != http.StatusCreated {
+		t.Fatalf("preview refresh status = %d body=%s", response.StatusCode, readBody(response))
+	}
+	view := decodeObject(t, response)
+	preview, _ := view["probe_preview"].(map[string]any)
+	if view["binding_id"] != bindingID || view["binding_revision"] != float64(1) ||
+		preview["preview_hash"] == oldPreviewHash || preview["max_output_tokens"] != float64(16) {
+		t.Fatalf("preview refresh = %#v", view)
+	}
+	newProbeID, _ := preview["probe_id"].(string)
+	if newProbeID == "" || newProbeID == oldProbeID {
+		t.Fatalf("new probe id = %q", newProbeID)
+	}
+	response = deviceRequest(t, http.MethodPost, server.URL+path, body)
+	if response.StatusCode != http.StatusCreated {
+		t.Fatalf("preview replay status = %d body=%s", response.StatusCode, readBody(response))
+	}
+	replay := decodeObject(t, response)
+	replayPreview, _ := replay["probe_preview"].(map[string]any)
+	if replayPreview["probe_id"] != newProbeID {
+		t.Fatalf("preview replay = %#v first=%#v", replay, view)
+	}
+	var probes, bindingRevision int64
+	var oldState string
+	if err := admin.QueryRow(ctx, `
+		SELECT count(*), (SELECT revision FROM work.device_model_binding
+		  WHERE org_id=$1 AND id=$2::uuid),
+		  (SELECT state FROM work.model_profile_probe WHERE org_id=$1 AND probe_id=$3::uuid)
+		FROM work.model_profile_probe WHERE org_id=$1 AND binding_id=$2::uuid`, testOrg, bindingID, oldProbeID).
+		Scan(&probes, &bindingRevision, &oldState); err != nil {
+		t.Fatal(err)
+	}
+	if probes != 2 || bindingRevision != 1 || oldState != "queued" {
+		t.Fatalf("refresh rows probes=%d binding_revision=%d old_state=%s", probes, bindingRevision, oldState)
+	}
+}
+
 func TestDeviceModelBindingAndProbeRejectBadSignaturesBeforeSQL(t *testing.T) {
 	pool, dbName := newBootstrapDB(t, true, true)
 	ctx := context.Background()

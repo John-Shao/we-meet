@@ -126,6 +126,37 @@ test("the endpoint table is closed and every route carries the Bearer plane head
   assert.deepEqual(JSON.parse(seen[2].body), { device_name: "test" });
 });
 
+test("refreshModelProbePreview uses the Bearer device route without a device signature", async (t) => {
+  const seen = [];
+  const body = {
+    client_request_id: "refresh-0001",
+    session_id: "44444444-4444-4444-8444-444444444444",
+    revision: "1",
+  };
+  const api = new WorkApi("https://meet.example.test", auth(), async (url, options) => {
+    seen.push({ url, options });
+    return new Response(
+      JSON.stringify({ binding_id: bindingId, binding_revision: 1, probe_preview: {} }),
+      { status: 201, headers: { "Content-Type": "application/json" } },
+    );
+  });
+  const result = await api.request("refreshModelProbePreview", {
+    id: deviceId,
+    id2: bindingId,
+    body,
+  });
+  assert.equal(result.binding_id, bindingId);
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].options.method, "POST");
+  assert.equal(
+    seen[0].url,
+    `https://meet.example.test/work/v2/devices/${deviceId}/model-bindings/${bindingId}/probe-previews`,
+  );
+  assert.equal(seen[0].options.headers.Authorization, "Bearer work-test-token");
+  assert.equal(seen[0].options.headers["X-Device-Signature"], undefined);
+  assert.deepEqual(JSON.parse(seen[0].options.body), body);
+});
+
 test("recordModelProbe posts the exact signed receipt to the device binding route", async (t) => {
   const seen = [];
   const signature = "A".repeat(86);

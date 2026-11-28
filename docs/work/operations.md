@@ -282,6 +282,8 @@ EXPECTED_MIGRATION_TAIL=62 bash /var/tmp/rollout-preflight-package-shape-read.sh
 
 **2026-11-28 model_result ack→model_probe receipt 桥接**：probe 元数据与 model result 同事务持久化；journal 仅读取服务器 signed `recorded` ack 且未 rejected 的结果，复验 model_result 签名与 request_hash=preview_hash 后生成 `model_probe` 签名回执。回执使用 `model_result:<id>` 引用、服务端 result hash、当前 Host session revision，60 秒有效；同一 model result 复用精确签名与 `model_probe:<id>` 幂等请求 ID，过期或 epoch 改变后不再重铸、不再无限重试。Broker 新增闭合轮询 IPC `getModelProbeReceipts`／`confirmModelProbeReceiptDelivery`，桌面轮询用 Host auth_epoch 取回执，严格校验 14 键形状与当前组织/主体/设备后带 Bearer、`X-Work-Client:desktop`、`X-Device-Signature` POST 到现有 `/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probes`，API 成功后才确认本地投递。Rust journal/IPC、桌面 API/pipe/driver 定向回归通过。生产 rollout、真实设备与真实供应商验收仍未执行。
 
+**2026-11-28 0089 probe preview 过期刷新**：新增 `refresh_device_model_probe_preview` 与 `POST /work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-previews`，仅允许当前 owner/seat、active bearer device/session、匹配 active device_local profile、pending binding 的最新 queued probe 已过期且无 Task/Run 时刷新。函数按 org→member/device/session→binding/profile/probe 顺序加锁，以 client request ID 幂等，保留 binding ID/revision/profile/listener identity 与旧 probe 行，只插入新 UUID 的 60 秒 queued preview；未过期、running、已验证、撤销 profile、错 revision/会话均拒绝。真库覆盖旧 probe 不变、新 preview hash、binding 保持、幂等重放/冲突、未过期与 running 拒绝，tail catalog 89 通过。生产未部署。
+
 ### 3.5 装后验证与链尾闸 [只读]
 
 - `sudo ./verify-r0a-0027.sh "<开始时刻>"`：`rows=N max=N`、清单 all present、函数体探针 true（claim_carries_takeover、terminal_release_guard、export_discovery_hardened、0040–0045 设备面探针等）。

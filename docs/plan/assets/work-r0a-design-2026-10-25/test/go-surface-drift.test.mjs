@@ -90,6 +90,8 @@ const IMPLEMENTED_ONLY = [
   'POST /work/v2/devices/{deviceId}/model-bindings/{bindingId}/probes',
   // Server-owned bounded Run that produces the verified probe receipt (0086).
   'POST /work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-runs',
+  // Expiry-only refresh that preserves the binding and creates a fresh probe preview (0089).
+  'POST /work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-previews',
 ];
 
 function readGoSurface() {

@@ -26,6 +26,7 @@ const (
 	DeviceModelBindingsPath         = "/work/v2/devices/{deviceId}/model-bindings"
 	DeviceModelBindingProbesPath    = "/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probes"
 	DeviceModelBindingProbeRunsPath = "/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-runs"
+	DeviceModelProbePreviewsPath    = "/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-previews"
 	modelProbeReceiptNoncePattern   = `^[A-Za-z0-9_-]{8,128}$`
 )
 
@@ -48,6 +49,12 @@ type createDeviceModelBindingRequest struct {
 	LocalRef                string          `json:"local_ref"`
 	ListenerIdentityHash    string          `json:"listener_identity_hash"`
 	NativeConfirmationProof json.RawMessage `json:"native_confirmation_proof"`
+}
+
+type refreshDeviceModelProbePreviewRequest struct {
+	ClientRequestID string `json:"client_request_id"`
+	SessionID       string `json:"session_id"`
+	Revision        string `json:"revision"`
 }
 
 type recordModelProfileProbeRequest struct {
@@ -227,6 +234,60 @@ func (s *Server) createDeviceModelBinding(w http.ResponseWriter, r *http.Request
 				deviceID, body.SessionID, body.ClientRequestID, body.ProfileID,
 				revision, body.ProfileHash, body.BindingHash, body.LocalRef,
 				body.ListenerIdentityHash, string(body.NativeConfirmationProof)).Scan(&raw); err != nil {
+				return err
+			}
+			view = json.RawMessage(append([]byte(nil), raw...))
+			return nil
+		},
+	)
+	if err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, view)
+}
+
+func (s *Server) refreshDeviceModelProbePreview(w http.ResponseWriter, r *http.Request) {
+	claims, correlationID, ok := s.authenticateBearer(w, r)
+	if !ok {
+		return
+	}
+	if err := s.requireWriter(r.Context(), claims); err != nil {
+		s.writeAccessError(w, correlationID, err)
+		return
+	}
+	deviceID := r.PathValue("deviceId")
+	bindingID := r.PathValue("bindingId")
+	if !validUUID(deviceID) || !validUUID(bindingID) {
+		writeAPIError(w, correlationID, apierr.New("not_found"))
+		return
+	}
+	var body refreshDeviceModelProbePreviewRequest
+	if err := decodeStrictJSON(w, r, &body); err != nil {
+		writeAPIError(w, correlationID, decodeError(err))
+		return
+	}
+	if !validClientRequestID(body.ClientRequestID) || !validUUID(body.SessionID) ||
+		!localPreviewUintPattern.MatchString(body.Revision) {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	revision, err := strconv.ParseInt(body.Revision, 10, 64)
+	if err != nil || revision < 1 {
+		writeAPIError(w, correlationID, apierr.New("invalid_request"))
+		return
+	}
+	var view json.RawMessage
+	err = workdb.WithWorkContext(r.Context(), s.pool,
+		workdb.Identity{OrgID: claims.OrgID, SubjectID: claims.SubjectID},
+		workdb.RoleAPI, workdb.Options{},
+		func(tx pgx.Tx) error {
+			var raw []byte
+			if err := tx.QueryRow(r.Context(), `
+				SELECT work.refresh_device_model_probe_preview(
+				  $1, $2, $3, $4::uuid, $5::uuid, $6::uuid, $7, $8::bigint)`,
+				claims.OrgID, claims.SubjectID, claims.SessionRevision,
+				deviceID, body.SessionID, bindingID, body.ClientRequestID, revision).Scan(&raw); err != nil {
 				return err
 			}
 			view = json.RawMessage(append([]byte(nil), raw...))

@@ -180,7 +180,8 @@ psql_ro "select 'missing rows against the list this script ships: ' || coalesce(
   (85, '0085_execution_profile_binding'),
   (86, '0086_configuration_probe_submission'),
   (87, '0087_configuration_probe_offer'),
-  (88, '0088_configuration_probe_grant')) expected(version, name)
+  (88, '0088_configuration_probe_grant'),
+  (89, '0089_device_model_probe_preview_refresh')) expected(version, name)
   left join work.schema_migration m on m.version = expected.version and m.name = expected.name
   where m.version is null"
 psql_ro "select 'approval_proof_es256=' || case when
@@ -338,6 +339,18 @@ psql_ro "select 'configuration_probe_guards=' || case when
       where n.nspname='work' and p.proname='provide_configuration_probe_grant')) > 0
     and position('''g.purpose = ''''workspace''''' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
       where n.nspname='work' and p.proname='list_workspace_grants')) > 0
+    and exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='refresh_device_model_probe_preview'
+        and p.prosecdef and p.proowner=(select oid from pg_roles where rolname='work_owner')
+        and p.proconfig @> array['search_path=work, pg_catalog'])
+    and has_function_privilege('work_api',
+      'work.refresh_device_model_probe_preview(text,text,bigint,uuid,uuid,uuid,text,bigint)', 'EXECUTE')
+    and not has_function_privilege('public',
+      'work.refresh_device_model_probe_preview(text,text,bigint,uuid,uuid,uuid,text,bigint)', 'EXECUTE')
+    and position('''device.model_probe.refresh''' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='refresh_device_model_probe_preview')) > 0
+    and position('''v_probe.expires_at > now()''' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='work' and p.proname='refresh_device_model_probe_preview')) > 0
     and position('''probe''' in (select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace
       where n.nspname='work' and p.proname='list_pending_device_offers')) > 0
     then 'true' else 'FALSE' end"

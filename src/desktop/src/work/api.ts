@@ -20,6 +20,7 @@ export type WorkAction =
   | "decideApproval"
   | "createLocalTaskPreview"
   | "submitLocalTask"
+  | "refreshModelProbePreview"
   | "recordModelProbe";
 export interface WorkAuth {
   readonly epoch: number;
@@ -105,6 +106,12 @@ const endpoints: Record<
     path: "/work/v2/local-task-previews",
   },
   submitLocalTask: { method: "POST", path: "/work/v2/tasks" },
+  refreshModelProbePreview: {
+    method: "POST",
+    path: "/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probe-previews",
+    id: "deviceId",
+    id2: "bindingId",
+  },
   recordModelProbe: {
     method: "POST",
     path: "/work/v2/devices/{deviceId}/model-bindings/{bindingId}/probes",

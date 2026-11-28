@@ -667,6 +667,54 @@ func TestDeviceModelBindingProbePreviewExpiryIsEnforced(t *testing.T) {
 		previewHash, candidateHash, "receipt/expired", "verified")
 }
 
+func TestDeviceModelProbePreviewRefreshPreservesBindingAndReplays(t *testing.T) {
+	f := newExecutionProfileFixture(t, "org_ep_refresh")
+	binding := f.createBinding(t, "req-ep-refresh-binding")
+	oldPreview, _ := binding["probe_preview"].(map[string]any)
+	oldProbeID, _ := oldPreview["probe_id"].(string)
+	mustExec(t, f.admin, `ALTER TABLE work.model_profile_probe DISABLE TRIGGER model_profile_probe_guard`)
+	mustExec(t, f.admin, `UPDATE work.model_profile_probe
+		SET created_at=now()-interval '2 minutes',expires_at=now()-interval '1 second'
+		WHERE org_id=`+quoteLiteral(f.org)+` AND probe_id=`+quoteLiteral(oldProbeID))
+	mustExec(t, f.admin, `ALTER TABLE work.model_profile_probe ENABLE TRIGGER model_profile_probe_guard`)
+	refreshed := callJSON(t, f.api, `SELECT work.refresh_device_model_probe_preview(
+		$1,$2,$3,$4::uuid,$5::uuid,$6::uuid,$7,$8::bigint)`,
+		f.org, f.subject, 7, f.deviceID, f.sessionID, binding["binding_id"], "req-ep-refresh", 1)
+	if refreshed["binding_id"] != binding["binding_id"] || refreshed["binding_revision"] != float64(1) {
+		t.Fatalf("refresh replaced binding = %#v", refreshed)
+	}
+	preview, _ := refreshed["probe_preview"].(map[string]any)
+	if preview["probe_id"] == oldProbeID || preview["preview_hash"] == oldPreview["preview_hash"] ||
+		preview["template_hash"] != oldPreview["template_hash"] || preview["max_output_tokens"] != float64(16) {
+		t.Fatalf("refreshed preview = %#v", preview)
+	}
+	if got := countRows(t, f.admin, "SELECT count(*) FROM work.model_profile_probe WHERE org_id="+
+		quoteLiteral(f.org)+" AND binding_id="+quoteLiteral(binding["binding_id"].(string))); got != 2 {
+		t.Fatalf("probe count after refresh = %d, want 2", got)
+	}
+	if got := f.scalar(t, "SELECT state FROM work.model_profile_probe WHERE org_id="+quoteLiteral(f.org)+
+		" AND probe_id="+quoteLiteral(oldProbeID)); got != "queued" {
+		t.Fatalf("old probe mutated to %s", got)
+	}
+	replay := callJSON(t, f.api, `SELECT work.refresh_device_model_probe_preview(
+		$1,$2,$3,$4::uuid,$5::uuid,$6::uuid,$7,$8::bigint)`,
+		f.org, f.subject, 7, f.deviceID, f.sessionID, binding["binding_id"], "req-ep-refresh", 1)
+	if replay["probe_preview"].(map[string]any)["probe_id"] != preview["probe_id"] {
+		t.Fatalf("refresh replay changed probe = %#v", replay)
+	}
+	expectCode(t, f.api, "idempotency_key_conflict", `SELECT work.refresh_device_model_probe_preview(
+		$1,$2,$3,$4::uuid,$5::uuid,$6::uuid,$7,$8::bigint)`,
+		f.org, f.subject, 7, f.deviceID, f.sessionID, binding["binding_id"], "req-ep-refresh", 2)
+	expectCode(t, f.api, "invalid_request", `SELECT work.refresh_device_model_probe_preview(
+		$1,$2,$3,$4::uuid,$5::uuid,$6::uuid,$7,$8::bigint)`,
+		f.org, f.subject, 7, f.deviceID, f.sessionID, binding["binding_id"], "req-ep-refresh-unexpired", 1)
+	mustExec(t, f.admin, `UPDATE work.model_profile_probe SET state='running'
+		WHERE org_id=`+quoteLiteral(f.org)+` AND probe_id=`+quoteLiteral(preview["probe_id"].(string)))
+	expectCode(t, f.api, "invalid_request", `SELECT work.refresh_device_model_probe_preview(
+		$1,$2,$3,$4::uuid,$5::uuid,$6::uuid,$7,$8::bigint)`,
+		f.org, f.subject, 7, f.deviceID, f.sessionID, binding["binding_id"], "req-ep-refresh-running", 1)
+}
+
 func TestLocalPreviewAndSubmissionFailClosedThenUseCanonicalProfile(t *testing.T) {
 	f := newExecutionProfileFixture(t, "org_ep_preview_submit")
 	if _, err := f.preview(t, f.toolManifestHash, f.modelVersion); err == nil || !strings.Contains(err.Error(), "not_found") {
