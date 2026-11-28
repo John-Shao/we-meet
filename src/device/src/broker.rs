@@ -131,9 +131,15 @@ pub async fn run_core_pump(
                         // the Node service thread that owns the registries/executor (the `!Send` handles
                         // and sealed bodies stay there); every other core method is answered from the
                         // identity/slot this task owns.
-                        let reply = if method == "confirmLocalSubmission" {
+                        let reply = if method == "confirmLocalSubmission"
+                            || method == "confirmLocalConfigurationProbe"
+                        {
                             #[cfg(windows)]
-                            { submission_reply(&mut identity, &node_service, &request.message).await }
+                            if method == "confirmLocalConfigurationProbe" {
+                                configuration_probe_reply(&mut identity, &node_service, &request.message).await
+                            } else {
+                                submission_reply(&mut identity, &node_service, &request.message).await
+                            }
                             #[cfg(not(windows))]
                             { Reply::refused(&request.message, "method_not_implemented") }
                         } else if method == "rebindRunWorkspace" {
@@ -553,6 +559,135 @@ async fn submission_reply(
     };
     if let Err(code) = proof.validate().map_err(|_| "shape") {
         return Reply::refused(message, code);
+    }
+    let value = proof.to_value();
+    let signature = match identity.sign_local_intent(&value, &proof.org_id, &proof.subject_id) {
+        Ok(value) => value,
+        Err(IdentityError::NoPairing) => return Reply::refused(message, "no_pairing"),
+        Err(_) => return Reply::refused(message, "shape"),
+    };
+    let mut proof = value;
+    proof["signature"] = Value::String(signature);
+    Reply::accepted_with(message, json!({ "status": "ready", "local_intent": proof }))
+}
+
+/// Sign the fixed, empty-grant configuration-probe intent for the current Node session.
+#[cfg(windows)]
+async fn configuration_probe_reply(
+    identity: &mut Identity,
+    node: &mpsc::Sender<crate::nodeservice::NodeRequest>,
+    message: &Value,
+) -> Reply {
+    use crate::nodeservice::NodeRequest;
+
+    let fields = [
+        "approved",
+        "auth_epoch",
+        "client_request_id",
+        "preview_hash",
+        "profile_hash",
+        "profile_id",
+        "profile_revision",
+        "session_id",
+        "target_selection_hash",
+    ];
+    if let Err(code) = confirm_keys(message, &fields) {
+        return Reply::refused(message, code);
+    }
+    let Some(approved) = message.get("approved").and_then(Value::as_bool) else {
+        return Reply::refused(message, "schema");
+    };
+    if !approved {
+        return Reply::accepted(message);
+    }
+    let text = |key: &str| message.get(key).and_then(Value::as_str).unwrap_or("");
+    for key in [
+        "auth_epoch",
+        "client_request_id",
+        "preview_hash",
+        "profile_hash",
+        "profile_id",
+        "profile_revision",
+        "session_id",
+        "target_selection_hash",
+    ] {
+        if text(key).is_empty() {
+            return Reply::refused(message, "schema");
+        }
+    }
+    let auth_epoch = match text("auth_epoch").parse::<u64>() {
+        Ok(value) if canonical_uint_text(text("auth_epoch")) => value,
+        _ => return Reply::refused(message, "shape"),
+    };
+    let profile_revision = match text("profile_revision").parse::<u64>() {
+        Ok(value) if value > 0 && canonical_uint_text(text("profile_revision")) => value,
+        _ => return Reply::refused(message, "shape"),
+    };
+    if uuid::Uuid::parse_str(text("session_id")).is_err() {
+        return Reply::refused(message, "shape");
+    }
+    let org_id = match identity.signed_org() {
+        Some(value) if !value.is_empty() => value.to_string(),
+        _ => return Reply::refused(message, "no_pairing"),
+    };
+    let subject_id = match identity.signed_subject() {
+        Some(value) if !value.is_empty() => value.to_string(),
+        _ => return Reply::refused(message, "no_pairing"),
+    };
+    let device_id = match identity.device_id() {
+        Some(value) if !value.is_empty() => value.to_string(),
+        _ => return Reply::refused(message, "no_pairing"),
+    };
+    let (tx, rx) = oneshot::channel();
+    if node
+        .send(NodeRequest::CurrentSession { reply: tx })
+        .await
+        .is_err()
+    {
+        return Reply::accepted_with(message, json!({ "status": "unavailable" }));
+    }
+    let session_id = match rx.await {
+        Ok(Ok((node_org, node_subject, node_device, session_id)))
+            if node_org == org_id
+                && node_subject == subject_id
+                && node_device == device_id
+                && session_id == text("session_id")
+                && uuid::Uuid::parse_str(&session_id).is_ok() =>
+        {
+            session_id
+        }
+        _ => return Reply::accepted_with(message, json!({ "status": "unavailable" })),
+    };
+    let proof = crate::frame::intent::LocalIntent {
+        v: 1,
+        org_id,
+        subject_id,
+        auth_plane: "bearer".into(),
+        auth_epoch,
+        device_id,
+        session_id,
+        request_id: text("client_request_id").to_string(),
+        input_hash: crate::sha256_hex(b"device-model-probe-v1"),
+        preview_hash: text("preview_hash").to_string(),
+        target_selection_hash: text("target_selection_hash").to_string(),
+        selected_grant_ids: Vec::new(),
+        grant_revisions: Vec::new(),
+        profile_id: text("profile_id").to_string(),
+        profile_revision,
+        profile_hash: text("profile_hash").to_string(),
+        nonce: uuid::Uuid::new_v4().simple().to_string(),
+        expires_at: match std::time::SystemTime::now()
+            .checked_add(std::time::Duration::from_secs(60))
+            .and_then(|value| value.duration_since(std::time::UNIX_EPOCH).ok())
+            .and_then(|value| crate::frame::rfc3339::format_utc_seconds(value.as_secs()))
+        {
+            Some(value) => value,
+            None => return Reply::accepted_with(message, json!({ "status": "unavailable" })),
+        },
+        signature: None,
+    };
+    if proof.validate_configuration_probe().is_err() {
+        return Reply::refused(message, "shape");
     }
     let value = proof.to_value();
     let signature = match identity.sign_local_intent(&value, &proof.org_id, &proof.subject_id) {

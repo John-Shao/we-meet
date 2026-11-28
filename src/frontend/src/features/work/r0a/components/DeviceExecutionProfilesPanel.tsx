@@ -5,6 +5,7 @@ import { Button } from '@/primitives/Button'
 import { css } from '@/styled-system/css'
 
 import { useActiveExecutionProfile, useModelProbe } from '../api/queries'
+import { RunPendingApprovals } from '../../r0b/components/RunPendingApprovals'
 import { card, errorText, muted, sectionTitle } from '../ui'
 
 const field = css({
@@ -38,8 +39,12 @@ export const DeviceExecutionProfilesPanel = ({
     probePreview: { probeId: string }
   } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [submittingProbe, setSubmittingProbe] = useState(false)
+  const [probeTaskId, setProbeTaskId] = useState<string>()
   const [failure, setFailure] = useState(false)
   const probeQ = useModelProbe(binding?.probePreview.probeId)
+  const bindingStatus =
+    probeQ.data?.state === "verified" ? "verified" : binding?.status
 
   if (profileQ.isPending) {
     return (
@@ -88,6 +93,21 @@ export const DeviceExecutionProfilesPanel = ({
     }
   }
 
+  const runProbe = async () => {
+    const work = window.weMeetDesktop?.work
+    if (!work || !binding || submittingProbe) return
+    setSubmittingProbe(true)
+    setFailure(false)
+    try {
+      const submission = await work.submitConfigurationProbe(binding.bindingId)
+      setProbeTaskId(submission.taskId)
+    } catch {
+      setFailure(true)
+    } finally {
+      setSubmittingProbe(false)
+    }
+  }
+
   return (
     <section className={card}>
       <h2 className={sectionTitle}>{t('deviceExecution.title')}</h2>
@@ -121,12 +141,30 @@ export const DeviceExecutionProfilesPanel = ({
         </p>
       ) : null}
       {binding ? (
-        <p role="status">
-          {t('deviceExecution.binding', { status: binding.status })}
-          {probeQ.data
-            ? ` · ${t(`deviceExecution.probe.${probeQ.data.state}`)}`
-            : ''}
-        </p>
+        <div>
+          <p role="status">
+            {t('deviceExecution.binding', { status: bindingStatus })}
+            {probeQ.data
+              ? ` · ${t(`deviceExecution.probe.${probeQ.data.state}`)}`
+              : ''}
+          </p>
+          {!probeTaskId ? (
+            <Button
+              variant="secondary"
+              size="dense"
+              loading={submittingProbe}
+              onPress={runProbe}
+            >
+              {t('deviceExecution.runProbe')}
+            </Button>
+          ) : null}
+          {probeTaskId ? (
+            <>
+              <p className={muted}>{t('deviceExecution.probeApprovalHint')}</p>
+              <RunPendingApprovals taskId={probeTaskId} />
+            </>
+          ) : null}
+        </div>
       ) : null}
     </section>
   )

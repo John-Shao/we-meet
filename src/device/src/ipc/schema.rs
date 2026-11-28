@@ -7,7 +7,7 @@
 
 use serde_json::Value;
 
-/// The shell→Broker IPC method closure (device-design §1 :20, 29 members).
+/// The shell→Broker IPC method closure (device-design §1 :20; original 29, current 33).
 /// `prepareLocalAcceptance` carries the viewer-authorized acceptance facts to the Broker;
 /// the Broker alone verifies the sealed local version and produces PossessionProof.
 /// `listWorkspaceGrants` returns metadata only for same-root rebind selection.
@@ -47,6 +47,8 @@ pub const SHELL_METHODS: &[&str] = &[
     "listWorkspaceGrants",
     "stageLocalInput",
     "confirmLocalSubmission",
+    "confirmLocalConfigurationProbe",
+    "getCurrentSession",
     "openLocalContent",
     "prepareLocalApprovalDecision",
     "prepareLocalAcceptance",
@@ -140,8 +142,8 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn shell_closure_has_thirty_one_members() {
-        assert_eq!(SHELL_METHODS.len(), 31);
+    fn shell_closure_has_thirty_three_members() {
+        assert_eq!(SHELL_METHODS.len(), 33);
     }
 
     #[test]

@@ -60,6 +60,8 @@
     "profile": "{{model}} · 修订 {{revision}}",
     "port": "回环端口",
     "configure": "连接并验证",
+    "runProbe": "运行验证探针",
+    "probeApprovalHint": "探针已提交。请审核下方的模型请求以完成验证。",
     "failed": "无法配置本机模型，请检查端口后重试。",
     "loadFailed": "无法读取当前生效的本机执行 profile。",
     "binding": "绑定：{{status}}",

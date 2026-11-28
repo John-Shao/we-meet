@@ -203,13 +203,15 @@ function localIntentReply(method, fields) {
         auth_plane: "bearer",
         auth_epoch: fields.auth_epoch,
         device_id: deviceId,
-        session_id: "22222222-2222-4222-8222-222222222222",
+        session_id: fields.session_id ?? "22222222-2222-4222-8222-222222222222",
         request_id: fields.client_request_id,
-        input_hash: fields.input_hash,
+        input_hash: fields.input_hash ?? createHash("sha256")
+          .update("device-model-probe-v1")
+          .digest("hex"),
         preview_hash: fields.preview_hash,
         target_selection_hash: fields.target_selection_hash,
-        selected_grant_ids: fields.selected_grant_ids,
-        grant_revisions: fields.grant_revisions,
+        selected_grant_ids: fields.selected_grant_ids ?? [],
+        grant_revisions: fields.grant_revisions ?? [],
         profile_id: fields.profile_id,
         profile_revision: fields.profile_revision,
         profile_hash: fields.profile_hash,
@@ -520,6 +522,7 @@ function harness(t, overrides = {}) {
       },
     }),
     confirmLocalSubmission: localIntentReply,
+    confirmLocalConfigurationProbe: localIntentReply,
     openLocalContent: (method, fields) => {
       if (!["artifact_version", "artifact_edit"].includes(fields.kind))
         return { data: { status: "not_on_this_device" } };
@@ -752,6 +755,12 @@ function harness(t, overrides = {}) {
       events.push("gesture:confirmSubmission");
       return overrides.confirmSubmission
         ? overrides.confirmSubmission(facts)
+        : true;
+    },
+    confirmLocalConfigurationProbe: async (facts) => {
+      events.push("gesture:confirmConfigurationProbe");
+      return overrides.confirmConfigurationProbe
+        ? overrides.confirmConfigurationProbe(facts)
         : true;
     },
     report: (message) => reports.push(message),
@@ -1721,6 +1730,53 @@ test("createDeviceModelBinding submits the signed proof and returns its preview"
     expires_at: seen.body.native_confirmation_proof.expires_at,
   });
   assert.match(seen.body.client_request_id, /^[0-9a-f-]{36}$/);
+});
+
+test("submitConfigurationProbe signs and submits the fixed empty-grant intent", async (t) => {
+  const h = harness(t);
+  await h.driver.start();
+  const activeProfile = h.apiResponses.getExecutionProfile;
+  h.apiResponses.getActiveExecutionProfile = (action, options) =>
+    activeProfile(action, { id: options.id, id2: "2" });
+  h.pipeResponses.confirmLocalModel = () => ({ data: modelBindingConfirmation(11434) });
+  h.pipeResponses.getCurrentSession = () => ({ data: { session_id: sessionId } });
+  h.pipeResponses.confirmLocalConfigurationProbe = localIntentReply;
+  const taskId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const runId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  let submission;
+  h.apiResponses.submitConfigurationProbe = (action, options) => {
+    submission = options;
+    return {
+      task_id: taskId,
+      run_id: runId,
+      revision: 1,
+      binding_revision: 1,
+      task_kind: "configuration_probe",
+      probe_id: probeId,
+      binding_id: bindingId,
+      state: "running",
+    };
+  };
+  const binding = await h.driver.createDeviceModelBinding(
+    executionProfile.profileId,
+    11434,
+    sessionId,
+  );
+  const result = await h.driver.submitConfigurationProbe(binding.bindingId);
+  assert.equal(result.taskId, taskId);
+  assert.equal(result.runId, runId);
+  assert.equal(result.state, "running");
+  assert.equal(submission.id, deviceId);
+  assert.equal(submission.id2, bindingId);
+  assert.equal(submission.body.session_id, sessionId);
+  assert.equal(submission.body.probe_id, probeId);
+  assert.deepEqual(submission.body.local_intent.selected_grant_ids, []);
+  assert.deepEqual(submission.body.local_intent.grant_revisions, []);
+  assert.equal(
+    submission.body.local_intent.input_hash,
+    createHash("sha256").update("device-model-probe-v1").digest("hex")
+  );
+  assert.ok(h.events.includes("gesture:confirmConfigurationProbe"));
 });
 
 test("createDeviceModelBinding fences a late response after account change", async (t) => {

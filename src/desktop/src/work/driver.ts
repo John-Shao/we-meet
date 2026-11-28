@@ -19,6 +19,8 @@ import { BrokerPipe, BrokerPipeError, type BrokerReply } from "./pipe";
 import { BrokerSupervisor, type WorkDeviceDescriptor } from "./broker";
 import { DeviceStore, type DeviceRecord } from "./store";
 import type {
+  ConfigurationProbeConfirmation,
+  ConfigurationProbeSubmission,
   DeviceModelBinding,
   ExecutionProfile,
   ListenerRequirement,
@@ -100,6 +102,9 @@ export interface DriverDeps {
   confirmWorkspaceRebind(facts: WorkspaceRebindConfirmation): Promise<boolean>;
   /** The main-process §5.4 model identity confirmation dialog. false = cancel (no binding). */
   confirmLocalModel(facts: ModelConfirmation): Promise<boolean>;
+  confirmLocalConfigurationProbe(
+    facts: ConfigurationProbeConfirmation,
+  ): Promise<boolean>;
   confirmLocalSubmission(facts: LocalSubmissionConfirmation): Promise<boolean>;
   report(message: string): void;
   brokerFactory?: BrokerFactory;
@@ -667,7 +672,18 @@ function parseModelProbeReceipts(value: unknown): ModelProbeReceiptProof[] {
 
 function parseLocalIntentProof(
   value: unknown,
-  expected: LocalSubmissionInput,
+  expected: Pick<
+    LocalSubmissionInput,
+    | "clientRequestId"
+    | "inputHash"
+    | "previewHash"
+    | "targetSelectionHash"
+    | "selectedGrantIds"
+    | "grantRevisions"
+    | "profileId"
+    | "profileRevision"
+    | "profileHash"
+  >,
   authEpoch: string,
 ): LocalIntentProof {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -805,6 +821,7 @@ export class WorkDeviceDriver {
     string,
     { deviceId: string; sessionId: string; revision: string }
   >();
+  private readonly modelBindings = new Map<string, DeviceModelBinding>();
   private readonly editClipboardSources = new Map<
     string,
     { derived: boolean; sources: string[] }
@@ -1866,7 +1883,7 @@ export class WorkDeviceDriver {
       response.binding_id,
       1,
     );
-    return {
+    const binding: DeviceModelBinding = {
       bindingId: response.binding_id,
       bindingRevision: 1,
       profileId: profile.profileId,
@@ -1879,6 +1896,119 @@ export class WorkDeviceDriver {
       createdAt: response.created_at,
       updatedAt: response.updated_at,
       probePreview: preview,
+    };
+    this.modelBindings.set(response.binding_id, binding);
+    return binding;
+  }
+
+  async submitConfigurationProbe(
+    bindingId: string,
+  ): Promise<ConfigurationProbeSubmission> {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const binding = this.modelBindings.get(bindingId);
+    if (
+      this.state !== "running" ||
+      !this.record ||
+      !uuid.test(bindingId) ||
+      !binding
+    )
+      throw new BrokerPipeError("shape");
+    const profile = await this.getActiveExecutionProfile(binding.profileId);
+    if (
+      profile.revision !== binding.profileRevision ||
+      profile.contentHash !== binding.profileHash
+    )
+      throw new BrokerPipeError("shape");
+    const sessionId = await this.getCurrentSessionId();
+    const requestId = randomUUID();
+    const approved = await this.deps.confirmLocalConfigurationProbe({
+      profileId: profile.profileId,
+      model: profile.model,
+      localRef: binding.localRef,
+      probeId: binding.probePreview.probeId,
+      previewHash: binding.probePreview.previewHash,
+    });
+    this.checkEpoch();
+    if (!approved) throw new BrokerPipeError("cancelled");
+    const reply = await this.call("confirmLocalConfigurationProbe", {
+      approved,
+      client_request_id: requestId,
+      session_id: sessionId,
+      profile_id: profile.profileId,
+      profile_revision: String(profile.revision),
+      profile_hash: profile.contentHash,
+      preview_hash: binding.probePreview.previewHash,
+      target_selection_hash: binding.probePreview.previewHash,
+      auth_epoch: this.hostEpoch,
+    });
+    this.checkEpoch();
+    const data = reply.data ?? {};
+    if (
+      Object.keys(data).sort().join(",") !== "local_intent,status" ||
+      data.status !== "ready" ||
+      !data.local_intent ||
+      typeof data.local_intent !== "object" ||
+      Array.isArray(data.local_intent)
+    )
+      throw new BrokerPipeError("shape");
+    const intent = data.local_intent as Record<string, unknown>;
+    parseLocalIntentProof(
+      intent,
+      {
+        clientRequestId: requestId,
+        inputHash: `sha256:${createHash("sha256")
+          .update("device-model-probe-v1")
+          .digest("hex")}`,
+        previewHash: binding.probePreview.previewHash,
+        targetSelectionHash: binding.probePreview.previewHash,
+        selectedGrantIds: [],
+        grantRevisions: [],
+        profileId: profile.profileId,
+        profileRevision: profile.revision,
+        profileHash: profile.contentHash,
+      },
+      this.hostEpoch,
+    );
+    const response = await this.deps.api.request("submitConfigurationProbe", {
+      id: this.record.deviceId,
+      id2: bindingId,
+      body: {
+        client_request_id: requestId,
+        session_id: sessionId,
+        probe_id: binding.probePreview.probeId,
+        preview_hash: binding.probePreview.previewHash,
+        target_selection_hash: binding.probePreview.previewHash,
+        local_intent: intent,
+      },
+    });
+    this.checkEpoch();
+    if (
+      !response ||
+      Object.keys(response).sort().join(",") !==
+        "binding_id,binding_revision,probe_id,revision,run_id,state,task_id,task_kind" ||
+      response.task_kind !== "configuration_probe" ||
+      response.state !== "running" ||
+      response.binding_id !== bindingId ||
+      response.probe_id !== binding.probePreview.probeId ||
+      typeof response.task_id !== "string" ||
+      !uuid.test(response.task_id) ||
+      typeof response.run_id !== "string" ||
+      !uuid.test(response.run_id) ||
+      typeof response.revision !== "number" ||
+      !Number.isSafeInteger(response.revision) ||
+      response.revision < 1 ||
+      response.binding_revision !== binding.bindingRevision
+    )
+      throw new BrokerPipeError("shape");
+    return {
+      taskId: response.task_id,
+      runId: response.run_id,
+      revision: response.revision as number,
+      bindingRevision: response.binding_revision as number,
+      taskKind: "configuration_probe",
+      probeId: response.probe_id,
+      bindingId: response.binding_id,
+      state: "running",
     };
   }
 

@@ -60,6 +60,8 @@
     "profile": "{{model}} · révision {{revision}}",
     "port": "Port loopback",
     "configure": "Connecter et vérifier",
+    "runProbe": "Exécuter la vérification",
+    "probeApprovalHint": "La vérification est en attente. Examinez la demande du modèle ci-dessous pour la terminer.",
     "failed": "Le modèle local n’a pas pu être configuré. Vérifiez le port et réessayez.",
     "loadFailed": "Le profil d’exécution local actif n’a pas pu être chargé.",
     "binding": "Liaison : {{status}}",

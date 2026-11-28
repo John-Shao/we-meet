@@ -60,6 +60,8 @@
     "profile": "{{model}} · Revision {{revision}}",
     "port": "Loopback-Port",
     "configure": "Verbinden und prüfen",
+    "runProbe": "Verifizierungsprüfung ausführen",
+    "probeApprovalHint": "Die Prüfung wartet. Prüfen Sie die Modellanfrage unten, um die Verifizierung abzuschließen.",
     "failed": "Das lokale Modell konnte nicht konfiguriert werden. Prüfen Sie den Port und versuchen Sie es erneut.",
     "loadFailed": "Das aktive lokale Ausführungsprofil konnte nicht geladen werden.",
     "binding": "Bindung: {{status}}",

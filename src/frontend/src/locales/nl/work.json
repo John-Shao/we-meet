@@ -60,6 +60,8 @@
     "profile": "{{model}} · revisie {{revision}}",
     "port": "Loopbackpoort",
     "configure": "Verbinden en verifiëren",
+    "runProbe": "Verificatiecontrole uitvoeren",
+    "probeApprovalHint": "De controle wacht. Beoordeel de modelaanvraag hieronder om de verificatie te voltooien.",
     "failed": "Het lokale model kon niet worden geconfigureerd. Controleer de poort en probeer het opnieuw.",
     "loadFailed": "Het actieve lokale uitvoeringsprofiel kon niet worden geladen.",
     "binding": "Koppeling: {{status}}",

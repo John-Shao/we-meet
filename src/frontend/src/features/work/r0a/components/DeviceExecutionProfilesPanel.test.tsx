@@ -7,6 +7,8 @@ import {
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
 import { DeviceExecutionProfilesPanel } from './DeviceExecutionProfilesPanel'
 
 const mocks = vi.hoisted(() => ({
@@ -14,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   probe: vi.fn(),
   getCurrentSessionId: vi.fn(),
   createDeviceModelBinding: vi.fn(),
+  submitConfigurationProbe: vi.fn(),
 }))
 
 vi.mock('react-i18next', () => ({
@@ -25,6 +28,9 @@ vi.mock('react-i18next', () => ({
 vi.mock('../api/queries', () => ({
   useActiveExecutionProfile: mocks.profile,
   useModelProbe: mocks.probe,
+}))
+vi.mock('../../r0b/api/queries', () => ({
+  useWorkPendingLocalApprovals: () => ({ data: [] }),
 }))
 
 const profile = {
@@ -44,8 +50,13 @@ beforeEach(() => {
   mocks.probe.mockReturnValue({ data: undefined })
   mocks.getCurrentSessionId.mockResolvedValue('session-1')
   mocks.createDeviceModelBinding.mockResolvedValue({
+    bindingId: 'binding-1',
     status: 'awaiting_probe',
     probePreview: { probeId: 'probe-1' },
+  })
+  mocks.submitConfigurationProbe.mockResolvedValue({
+    taskId: 'probe-task-1',
+    state: 'running',
   })
   Object.defineProperty(window, 'weMeetDesktop', {
     configurable: true,
@@ -53,6 +64,7 @@ beforeEach(() => {
       work: {
         getCurrentSessionId: mocks.getCurrentSessionId,
         createDeviceModelBinding: mocks.createDeviceModelBinding,
+        submitConfigurationProbe: mocks.submitConfigurationProbe,
       },
     },
   })
@@ -66,7 +78,11 @@ afterEach(() => {
 
 describe('DeviceExecutionProfilesPanel', () => {
   it('creates a binding for the active profile and current Broker session', async () => {
-    render(<DeviceExecutionProfilesPanel profileId="profile-1" />)
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <DeviceExecutionProfilesPanel profileId="profile-1" />
+      </QueryClientProvider>
+    )
     expect(screen.getByText('deviceExecution.title')).toBeInTheDocument()
     expect(screen.getByText(/deviceExecution\.profile:/)).toHaveTextContent(
       'fixture-model'
@@ -84,6 +100,29 @@ describe('DeviceExecutionProfilesPanel', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(
       'deviceExecution.binding'
     )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'deviceExecution.runProbe' })
+    )
+    await waitFor(() =>
+      expect(mocks.submitConfigurationProbe).toHaveBeenCalledWith('binding-1')
+    )
+    expect(await screen.findByText('deviceExecution.probeApprovalHint')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'deviceExecution.runProbe' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows a verified binding after the probe verifies', async () => {
+    mocks.probe.mockReturnValue({ data: { state: 'verified' } })
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <DeviceExecutionProfilesPanel profileId="profile-1" />
+      </QueryClientProvider>
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'deviceExecution.configure' })
+    )
+    expect(await screen.findByRole('status')).toHaveTextContent('verified')
   })
 
   it('shows a retryable profile load failure', () => {
@@ -93,7 +132,11 @@ describe('DeviceExecutionProfilesPanel', () => {
       isError: true,
       refetch: vi.fn(),
     })
-    render(<DeviceExecutionProfilesPanel profileId="profile-1" />)
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <DeviceExecutionProfilesPanel profileId="profile-1" />
+      </QueryClientProvider>
+    )
     expect(screen.getByRole('alert')).toHaveTextContent(
       'deviceExecution.loadFailed'
     )
@@ -102,7 +145,11 @@ describe('DeviceExecutionProfilesPanel', () => {
 
   it('reports binding failure without claiming a probe succeeded', async () => {
     mocks.createDeviceModelBinding.mockRejectedValue(new Error('refused'))
-    render(<DeviceExecutionProfilesPanel profileId="profile-1" />)
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <DeviceExecutionProfilesPanel profileId="profile-1" />
+      </QueryClientProvider>
+    )
     fireEvent.click(
       screen.getByRole('button', { name: 'deviceExecution.configure' })
     )

@@ -58,6 +58,8 @@ const work: WorkBridge = {
     }),
   getModelProbe: (probeId) =>
     ipcRenderer.invoke("work:get-model-probe", probeId),
+  submitConfigurationProbe: (bindingId) =>
+    ipcRenderer.invoke("work:submit-configuration-probe", bindingId),
   stageLocalInput: (text: string) =>
     ipcRenderer.invoke("work:stage-local-input", text),
   submitLocalTask: (input) =>

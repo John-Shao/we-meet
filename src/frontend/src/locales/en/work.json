@@ -60,6 +60,8 @@
     "profile": "{{model}} · revision {{revision}}",
     "port": "Loopback port",
     "configure": "Connect and verify",
+    "runProbe": "Run verification probe",
+    "probeApprovalHint": "The probe is queued. Review the model request below to finish verification.",
     "failed": "The local model could not be configured. Check the port and try again.",
     "loadFailed": "The active local execution profile could not be loaded.",
     "binding": "Binding: {{status}}",

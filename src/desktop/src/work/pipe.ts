@@ -26,6 +26,7 @@ export type BrokerMethod =
   | "confirmLocalModel"
   | "stageLocalInput"
   | "confirmLocalSubmission"
+  | "confirmLocalConfigurationProbe"
   | "openLocalContent"
   | "exportArtifactVersion"
   | "prepareLocalApprovalDecision"
@@ -53,6 +54,7 @@ const METHODS: ReadonlySet<string> = new Set<BrokerMethod>([
   "confirmLocalModel",
   "stageLocalInput",
   "confirmLocalSubmission",
+  "confirmLocalConfigurationProbe",
   "openLocalContent",
   "exportArtifactVersion",
   "prepareLocalApprovalDecision",

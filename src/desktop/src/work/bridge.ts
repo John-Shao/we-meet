@@ -39,6 +39,25 @@ export interface ModelProbePreview {
   expiresAt: string;
 }
 
+export interface ConfigurationProbeConfirmation {
+  profileId: string;
+  model: string;
+  localRef: string;
+  probeId: string;
+  previewHash: string;
+}
+
+export interface ConfigurationProbeSubmission {
+  taskId: string;
+  runId: string;
+  revision: number;
+  bindingRevision: number;
+  taskKind: "configuration_probe";
+  probeId: string;
+  bindingId: string;
+  state: "running";
+}
+
 export interface DeviceModelBinding {
   bindingId: string;
   bindingRevision: number;
@@ -281,6 +300,9 @@ export interface WorkBridge {
     sessionId: string,
   ): Promise<DeviceModelBinding>;
   getModelProbe(probeId: string): Promise<ModelProbeStatus>;
+  submitConfigurationProbe(
+    bindingId: string,
+  ): Promise<ConfigurationProbeSubmission>;
   stageLocalInput(text: string): Promise<StagedLocalInput>;
   submitLocalTask(
     input: LocalTaskSubmission,

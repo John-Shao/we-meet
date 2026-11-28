@@ -1449,6 +1449,25 @@ async function createWindow() {
           });
           return result.response === 1;
         },
+        confirmLocalConfigurationProbe: async (facts) => {
+          if (win.isDestroyed()) return false;
+          const result = await dialog.showMessageBox(win, {
+            type: "question",
+            title: "确认运行本机模型验证探针",
+            message: `确认使用「${facts.model}」运行固定的一次性验证探针？`,
+            detail: [
+              `Profile：${facts.profileId}`,
+              `本机端点：${facts.localRef}`,
+              `Probe：${facts.probeId}`,
+              `预览哈希：${facts.previewHash}`,
+              "探针只发送固定模板，不包含任务正文或文件工具；会计入模型用量。",
+            ].join("\n"),
+            buttons: ["取消", "运行探针"],
+            defaultId: 0,
+            cancelId: 0,
+          });
+          return result.response === 1;
+        },
         confirmLocalSubmission: async (facts) => {
           if (win.isDestroyed()) return false;
           const result = await dialog.showMessageBox(win, {
@@ -1577,6 +1596,32 @@ async function createWindow() {
       }
       try {
         return await workDriver.getModelProbe(args[0]);
+      } catch (error) {
+        if (
+          error instanceof WorkApiError &&
+          error.code === "work_account_changed"
+        ) {
+          throw new Error("work_account_changed");
+        }
+        throw new Error("work_device_unavailable");
+      }
+    });
+    ipcMain.handle("work:submit-configuration-probe", async (event, ...args) => {
+      if (
+        !senderAllowed(event) ||
+        args.length !== 1 ||
+        typeof args[0] !== "string" ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          args[0],
+        )
+      ) {
+        throw new Error("invalid_work_request");
+      }
+      if (!workDriver || workDriver.currentState !== "running") {
+        throw new Error("work_device_unavailable");
+      }
+      try {
+        return await workDriver.submitConfigurationProbe(args[0]);
       } catch (error) {
         if (
           error instanceof WorkApiError &&

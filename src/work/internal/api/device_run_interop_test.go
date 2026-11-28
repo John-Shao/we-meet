@@ -39,7 +39,9 @@ import (
 // — the same boundary GW18/GW21 registered; a node gate forbids any workflow naming WORK_DEVICE_BIN.
 func TestDeviceFullFixtureModelBinding(t *testing.T) {
 	bin := requireBrokerBin(t)
-	f := startFixtureBroker(t, bin)
+	f := startFixtureBrokerScenarioVerified(t, bin, []map[string]any{
+		{"role": "assistant", "content": "configuration probe ok"},
+	}, "v1")
 	ctx := context.Background()
 	conn, err := testpg.Open(ctx, testpg.AdminURLFor(f.dbName))
 	if err != nil {
@@ -55,6 +57,32 @@ func TestDeviceFullFixtureModelBinding(t *testing.T) {
 	if status != "pending_probe" {
 		t.Fatalf("real Broker binding status = %s, want pending_probe", status)
 	}
+	var probeRunID string
+	if err := conn.QueryRow(ctx, `SELECT run_id::text FROM work.model_profile_probe
+		WHERE org_id=$1 AND binding_id IN (
+		  SELECT id FROM work.device_model_binding
+		  WHERE org_id=$1 AND device_id=$2::uuid AND session_id=$3::uuid AND profile_id=$4)`,
+		testOrg, f.deviceID, f.sessionID, f.profile.ProfileID).Scan(&probeRunID); err != nil {
+		t.Fatal(err)
+	}
+	approveFixtureModel(t, f.dbName, f.sessionID, f.deviceID, probeRunID, f.stderr)
+	deliverFixtureProbeReceipt(t, f)
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		var bindingStatus, probeState string
+		err := conn.QueryRow(ctx, `SELECT b.status,p.state
+			FROM work.device_model_binding b
+			JOIN work.model_profile_probe p ON p.binding_id=b.id AND p.org_id=b.org_id
+			WHERE b.org_id=$1 AND b.device_id=$2::uuid AND b.session_id=$3::uuid
+			  AND b.profile_id=$4`, testOrg, f.deviceID, f.sessionID, f.profile.ProfileID).
+			Scan(&bindingStatus, &probeState)
+		if err == nil && bindingStatus == "verified" && probeState == "verified" {
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	dumpRunDiagnostics(t, f.dbName, probeRunID, f.stderr)
+	t.Fatalf("real Broker configuration probe did not verify its binding")
 }
 
 func TestDeviceFullFixtureRunWritesAnArtifact(t *testing.T) {
@@ -266,11 +294,21 @@ func startFixtureBrokerScenario(t *testing.T, bin string, scenario []map[string]
 	return startFixtureBrokerFull(t, bin, scenario, versionID, "")
 }
 
+func startFixtureBrokerScenarioVerified(t *testing.T, bin string, scenario []map[string]any, versionID string) *runFixture {
+	t.Helper()
+	return startFixtureBrokerInternal(t, bin, scenario, versionID, "", true)
+}
+
 // startFixtureBrokerFull is startFixtureBrokerScenario with an explicit fixture-model script override.
 // An empty fixtureScript uses the bundled fixture-server.mjs; the batch-5 restart evidence passes a
 // stall script (serves the write turn then hangs the next model request) to hold the Run alive after
 // the completed receipt is durable but before publication, a deterministic crash window.
 func startFixtureBrokerFull(t *testing.T, bin string, scenario []map[string]any, versionID, fixtureScript string) *runFixture {
+	t.Helper()
+	return startFixtureBrokerInternal(t, bin, scenario, versionID, fixtureScript, false)
+}
+
+func startFixtureBrokerInternal(t *testing.T, bin string, scenario []map[string]any, versionID, fixtureScript string, verifyProbe bool) *runFixture {
 	t.Helper()
 	// The fixture layout: node.exe + work-device-bundle/ next to the executable (main.rs derives the
 	// sidecar inputs from current_exe's dir). The profile carries the REAL computed digests.
@@ -566,6 +604,41 @@ func startFixtureBrokerFull(t *testing.T, bin string, scenario []map[string]any,
 		t.Fatalf("create real Broker binding = %#v", binding)
 	}
 
+	if verifyProbe {
+		probePreview := binding["probe_preview"].(map[string]any)
+		probeID := probePreview["probe_id"].(string)
+		previewHash := probePreview["preview_hash"].(string)
+		probeRequestID := "real-broker-probe-1"
+		probeIntent := brokerCall(t, pipe, map[string]any{
+			"method": "confirmLocalConfigurationProbe", "request_id": "probe-intent-1",
+			"approved": true, "client_request_id": probeRequestID,
+			"session_id": sessionID, "profile_id": profile.ProfileID,
+			"profile_revision": "1", "profile_hash": profileHash,
+			"preview_hash": previewHash, "target_selection_hash": previewHash,
+			"auth_epoch": strconv.FormatInt(authEpoch, 10),
+		})
+		intent := probeIntent["data"].(map[string]any)["local_intent"]
+		probeBody, err := json.Marshal(map[string]any{
+			"client_request_id": probeRequestID, "session_id": sessionID,
+			"probe_id": probeID, "preview_hash": previewHash,
+			"target_selection_hash": previewHash, "local_intent": intent,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		probeRunPath := strings.ReplaceAll(api.DeviceModelBindingProbeRunsPath, "{deviceId}", deviceID)
+		probeRunPath = strings.ReplaceAll(probeRunPath, "{bindingId}", binding["binding_id"].(string))
+		probeRun := deviceRequest(t, http.MethodPost, rest.URL+probeRunPath, string(probeBody))
+		if probeRun.StatusCode != http.StatusAccepted {
+			t.Fatalf("submit real Broker probe status = %d body=%s", probeRun.StatusCode, readBody(probeRun))
+		}
+		probeRunData := decodeObject(t, probeRun)
+		if probeRunData["task_kind"] != "configuration_probe" || probeRunData["state"] != "running" ||
+			probeRunData["probe_id"] != probeID || probeRunData["binding_id"] != binding["binding_id"] {
+			t.Fatalf("submit real Broker probe = %#v", probeRunData)
+		}
+	}
+
 	return &runFixture{
 		pipe: pipe, dbName: dbName, deviceID: deviceID, sessionID: sessionID,
 		journalEpoch: journalEpoch, bootID: bootID, agentID: agentID, grantID: grantID,
@@ -747,6 +820,62 @@ func approveFixtureModel(t *testing.T, dbName, sessionID, deviceID, runID string
 	dumpRunDiagnostics(t, dbName, runID, stderr)
 	t.Fatalf("no recorded model_result for real-exe operation %s", operationID)
 	return ""
+}
+
+func deliverFixtureProbeReceipt(t *testing.T, f *runFixture) {
+	t.Helper()
+	var authEpoch int64
+	if err := brokerDB(t, f.dbName).QueryRow(context.Background(),
+		`SELECT auth_epoch FROM work.device_session WHERE org_id=$1 AND id=$2::uuid`,
+		testOrg, f.sessionID).Scan(&authEpoch); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		reply := brokerCall(t, f.pipe, map[string]any{
+			"method": "getModelProbeReceipts", "request_id": "probe-receipts-1",
+			"auth_epoch": strconv.FormatInt(authEpoch, 10),
+		})
+		data, _ := reply["data"].(map[string]any)
+		receipts, _ := data["receipts"].([]any)
+		if len(receipts) == 0 {
+			time.Sleep(200 * time.Millisecond)
+			continue
+		}
+		proof, _ := receipts[0].(map[string]any)
+		receipt, _ := proof["receipt"].(map[string]any)
+		signature, _ := proof["signature"].(string)
+		clientRequestID, _ := proof["client_request_id"].(string)
+		if signature == "" || clientRequestID == "" {
+			t.Fatalf("malformed model probe proof = %#v", proof)
+		}
+		body, err := json.Marshal(map[string]any{
+			"client_request_id": clientRequestID,
+			"session_id":        receipt["session_id"],
+			"probe_id":          receipt["probe_id"],
+			"preview_hash":      receipt["preview_hash"],
+			"state":             receipt["state"],
+			"receipt_hash":      receipt["receipt_hash"],
+			"receipt_ref":       receipt["receipt_ref"],
+			"receipt":           receipt,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := strings.ReplaceAll(api.DeviceModelBindingProbesPath, "{deviceId}", f.deviceID)
+		path = strings.ReplaceAll(path, "{bindingId}", receipt["binding_id"].(string))
+		response := deviceRequest(t, http.MethodPost, f.restURL+path, string(body), signature)
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("record real Broker probe receipt status = %d body=%s", response.StatusCode, readBody(response))
+		}
+		receiptRef, _ := receipt["receipt_ref"].(string)
+		brokerCall(t, f.pipe, map[string]any{
+			"method": "confirmModelProbeReceiptDelivery", "request_id": "probe-delivered-1",
+			"model_result_id": strings.TrimPrefix(receiptRef, "model_result:"),
+		})
+		return
+	}
+	t.Fatalf("no signed model probe receipt appeared after the acknowledged model_result")
 }
 
 func assertRunExecutionsTerminal(t *testing.T, dbName, runID string) int {

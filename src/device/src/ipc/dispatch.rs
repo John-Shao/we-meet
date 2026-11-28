@@ -5,7 +5,7 @@
 //! five more for §2.1's Broker side and M2b adds the restart re-delivery carrier; 批2 (主签单选乙)
 //! adds the four §4.2/§5.4 confirmation carriers and EV70 adds `rebindRunWorkspace`; local
 //! approval and acceptance later add their proof carriers, and exportArtifactVersion now returns
-//! closed metadata, so twenty-three have handlers and six remain in the closure but unimplemented. Those are refused with
+//! closed metadata, so twenty-seven have handlers and six remain in the closure but unimplemented. Those are refused with
 //! `method_not_implemented`, never with `unknown_method`:
 //! the shell must be able to tell "this call is illegal" from "this call is legal but not landed
 //! yet". Conflating the two would make a legitimate caller look like an attacker, and would give
@@ -207,6 +207,8 @@ pub const CORE_METHODS: &[&str] = &[
     "confirmLocalModel",
     "stageLocalInput",
     "confirmLocalSubmission",
+    "confirmLocalConfigurationProbe",
+    "getCurrentSession",
     "openLocalContent",
     "exportArtifactVersion",
     "prepareLocalApprovalDecision",
@@ -351,10 +353,10 @@ mod tests {
                 Dispatch::Core => panic!("{method} must not reach the ticket slot"),
             }
         }
-        // Six of the thirty-one are unlanded; exportArtifactVersion now returns closed metadata.
+        // Six of the thirty-three are unlanded; exportArtifactVersion now returns closed metadata.
         assert_eq!(count, 6);
-        assert_eq!(SHELL_METHODS.len(), 31);
-        assert_eq!(CORE_METHODS.len(), 25);
+        assert_eq!(SHELL_METHODS.len(), 33);
+        assert_eq!(CORE_METHODS.len(), 27);
     }
 
     #[test]

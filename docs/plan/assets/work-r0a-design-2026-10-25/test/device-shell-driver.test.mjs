@@ -113,13 +113,14 @@ test('the pipe client matches the Broker framing, handshake, method and code clo
   const ticketMethod = rustTicket.match(/pub const METHOD: &str = "([A-Za-z]+)";/)[1];
   const coreBlock = rustDispatch.split('pub const CORE_METHODS: &[&str] = &[')[1].split('];')[0];
   const rustMethods = [...coreBlock.matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1])
-    .concat([ticketMethod, 'getCurrentSession']).sort();
+    .concat([ticketMethod]).sort();
   const tsBlock = pipe.split('new Set<BrokerMethod>([')[1].split('])')[0];
   const tsMethods = [...tsBlock.matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1]).sort();
   assert.deepEqual(tsMethods, rustMethods);
-  assert.equal(rustMethods.length, 26);
+  assert.equal(rustMethods.length, 27);
   assert.ok(rustBroker.includes('|| method == "getCurrentSession"'));
   assert.ok(rustBroker.includes('"getCurrentSession" => {'));
+  assert.ok(rustBroker.includes('|| method == "confirmLocalConfigurationProbe"'));
   // Refusal codes: same closed vocabulary on both sides.
   const codesBlock = rustDispatch.split('pub const CODES: &[&str] = &[')[1].split('];')[0];
   const rustCodes = [...codesBlock.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]).sort();
